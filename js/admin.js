@@ -1362,6 +1362,35 @@
     return MULTIPLES_OF_TWO_BRANDS.indexOf(brand) !== -1;
   }
 
+  function syncOnOrder(changedSkus) {
+    if (!accessToken || kitsData.length === 0) return;
+    var onOrderCol = kitsHeaders.indexOf('on_order');
+    if (onOrderCol === -1) return;
+
+    var order = getOrder();
+    var updates = [];
+
+    changedSkus.forEach(function (sku) {
+      var kit = kitsData.find(function (k) { return k.sku === sku; });
+      if (!kit) return;
+
+      var orderItem = order.find(function (o) { return o.sku === sku; });
+      var newOnOrder = orderItem ? orderItem.qty : 0;
+
+      var range = SHEETS_CONFIG.SHEET_NAMES.KITS + '!' + colLetter(onOrderCol) + kit._rowIndex;
+      updates.push(sheetsUpdate(range, [[newOnOrder]]));
+      kit.on_order = String(newOnOrder);
+    });
+
+    if (updates.length > 0) {
+      Promise.all(updates).then(function () {
+        renderKitsTab();
+      }).catch(function (err) {
+        console.error('Failed to sync on_order:', err);
+      });
+    }
+  }
+
   function addToOrder(sku, brand, name, qty) {
     var step = requiresMultiplesOfTwo(brand) ? 2 : 1;
     // Round qty up to nearest valid step
@@ -1377,12 +1406,14 @@
           order[i].qty = Math.ceil(order[i].qty / 2) * 2;
         }
         saveOrder(order);
+        syncOnOrder([sku]);
         renderOrderTab();
         return;
       }
     }
     order.push({ sku: sku, brand: brand, name: name, qty: qty });
     saveOrder(order);
+    syncOnOrder([sku]);
     populateOrderBrandFilter();
     renderOrderTab();
   }
@@ -1390,6 +1421,7 @@
   function removeFromOrder(sku) {
     var order = getOrder().filter(function (item) { return item.sku !== sku; });
     saveOrder(order);
+    syncOnOrder([sku]);
     populateOrderBrandFilter();
     renderOrderTab();
   }
@@ -1411,6 +1443,7 @@
       }
     }
     saveOrder(order);
+    syncOnOrder([sku]);
     populateOrderBrandFilter();
     renderOrderTab();
   }
@@ -1815,7 +1848,9 @@
 
   function clearOrder() {
     if (!confirm('Clear the entire order? This cannot be undone.')) return;
+    var skus = getOrder().map(function (item) { return item.sku; });
     saveOrder([]);
+    syncOnOrder(skus);
     renderOrderTab();
   }
 
