@@ -609,13 +609,22 @@ small, .text-small {
   font-size: 1.1rem;
 }
 
+[data-page="about"] .content,
+[data-page="contact"] .content {
+  text-align: center;
+}
+
 /* ===== Contact Form ===== */
 .contact-info {
   margin-bottom: 2rem;
+  text-align: center;
 }
 
 .contact-form {
   max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
 }
 
 .form-group {
