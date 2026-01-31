@@ -1,0 +1,17 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Credentials / secrets
+js/sheets-config.js
+
+# Business data
+pricelist.xlsx
+style_guide.md
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
