@@ -1816,14 +1816,12 @@
         kit.stock = String(newStock);
       }
 
-      // Subtract from on_order
+      // Reset on_order to 0 (item fulfilled)
       var onOrderCol = kitsHeaders.indexOf('on_order');
       if (onOrderCol !== -1) {
-        var currentOnOrder = parseInt(kit.on_order, 10) || 0;
-        var newOnOrder = Math.max(0, currentOnOrder - item.qty);
         var onOrderRange = SHEETS_CONFIG.SHEET_NAMES.KITS + '!' + colLetter(onOrderCol) + kit._rowIndex;
-        updates.push(sheetsUpdate(onOrderRange, [[newOnOrder]]));
-        kit.on_order = String(newOnOrder);
+        updates.push(sheetsUpdate(onOrderRange, [[0]]));
+        kit.on_order = '0';
       }
 
       // Update last_updated
