@@ -873,7 +873,10 @@ function loadTimeslots() {
   var container = document.getElementById('timeslot-groups');
   if (!container) return;
 
-  fetch('content/timeslots.csv')
+  var scheduleUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL)
+    ? SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL
+    : 'content/timeslots.csv';
+  fetch(scheduleUrl)
     .then(function (res) { return res.text(); })
     .then(function (csv) {
       var lines = csv.trim().split('\n');
@@ -890,6 +893,11 @@ function loadTimeslots() {
         }
         slots.push(obj);
       }
+
+      // Filter to available slots only (schedule sheet includes all statuses)
+      slots = slots.filter(function (s) {
+        return !s.status || s.status === 'available';
+      });
 
       // Check if any reserved item is out of stock
       var reservedItems = getReservation();

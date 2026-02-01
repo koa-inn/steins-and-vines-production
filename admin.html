@@ -69,6 +69,7 @@
             <button type="button" class="admin-tab-btn" data-tab="kits">Kit Inventory</button>
             <button type="button" class="admin-tab-btn" data-tab="ingredients">Ingredients</button>
             <button type="button" class="admin-tab-btn" data-tab="orders">Supplier Orders</button>
+            <button type="button" class="admin-tab-btn" data-tab="scheduling">Scheduling</button>
             <button type="button" class="admin-tab-btn" data-tab="export">Export / Sync</button>
           </div>
 
@@ -245,6 +246,38 @@
               </table>
             </div>
             <p class="admin-empty" id="order-empty" style="display:none;">No items in order.</p>
+          </div>
+
+          <!-- Tab: Scheduling -->
+          <div class="admin-tab-panel" id="tab-scheduling">
+            <div class="admin-panel-header">
+              <h2>Scheduling</h2>
+              <div class="admin-panel-actions">
+                <button type="button" class="btn" id="schedule-generate-btn">Generate Next 8 Weeks</button>
+              </div>
+            </div>
+
+            <div class="schedule-defaults">
+              <h3>Default Weekly Schedule</h3>
+              <table class="admin-table" id="schedule-defaults-table">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="schedule-defaults-tbody"></tbody>
+              </table>
+              <button type="button" class="btn admin-btn-sm" id="schedule-save-defaults-btn">Save Defaults</button>
+            </div>
+
+            <div class="schedule-calendar">
+              <h3>Appointment Slots</h3>
+              <div id="schedule-cal"></div>
+              <div id="schedule-day-slots"></div>
+            </div>
           </div>
 
           <!-- Tab 4: Export / Sync -->

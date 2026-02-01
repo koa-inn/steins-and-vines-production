@@ -17,6 +17,8 @@
   var reservationsHeaders = [];
   var holdsData = [];
   var holdsHeaders = [];
+  var scheduleData = [];
+  var scheduleHeaders = [];
 
   // Pending changes queue: [{item, field, value, sheetName, headers}]
   var pendingChanges = [];
@@ -55,6 +57,7 @@
     initFilterListeners();
     initSaveBar();
     initOrderControls();
+    initScheduleControls();
     waitForGoogleIdentity();
 
     // Render order tab from localStorage immediately (doesn't need auth)
@@ -245,16 +248,19 @@
       sheetsGet(SHEETS_CONFIG.SHEET_NAMES.KITS + '!A:Z'),
       sheetsGet(SHEETS_CONFIG.SHEET_NAMES.INGREDIENTS + '!A:Z'),
       sheetsGet(SHEETS_CONFIG.SHEET_NAMES.RESERVATIONS + '!A:Z'),
-      sheetsGet(SHEETS_CONFIG.SHEET_NAMES.HOLDS + '!A:Z')
+      sheetsGet(SHEETS_CONFIG.SHEET_NAMES.HOLDS + '!A:Z'),
+      sheetsGet(SHEETS_CONFIG.SHEET_NAMES.SCHEDULE + '!A:Z')
     ]).then(function (results) {
       parseSheetData(results[0], 'kits');
       parseSheetData(results[1], 'ingredients');
       parseSheetData(results[2], 'reservations');
       parseSheetData(results[3], 'holds');
+      parseSheetData(results[4], 'schedule');
 
       renderReservationsTab();
       renderKitsTab();
       renderIngredientsTab();
+      renderScheduleTab();
       populateKitBrandFilter();
       populateOrderKitSelect();
       populateOrderBrandFilter();
@@ -295,6 +301,10 @@
       case 'holds':
         holdsHeaders = headers;
         holdsData = data;
+        break;
+      case 'schedule':
+        scheduleHeaders = headers;
+        scheduleData = data;
         break;
     }
   }
@@ -1936,6 +1946,417 @@
       importFile.addEventListener('change', function () {
         if (importFile.files.length > 0) importOrderCSV(importFile.files[0]);
         importFile.value = '';
+      });
+    }
+  }
+
+  // ===== Scheduling =====
+
+  var DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  function getDefaultSchedule() {
+    var stored = localStorage.getItem('sv_schedule_defaults');
+    if (stored) {
+      try { return JSON.parse(stored); } catch (e) { /* fall through */ }
+    }
+    return [
+      { day: 'Sun', start: '', end: '', open: false },
+      { day: 'Mon', start: '', end: '', open: false },
+      { day: 'Tue', start: '10:00 AM', end: '4:00 PM', open: true },
+      { day: 'Wed', start: '10:00 AM', end: '4:00 PM', open: true },
+      { day: 'Thu', start: '12:00 PM', end: '7:00 PM', open: true },
+      { day: 'Fri', start: '10:00 AM', end: '4:00 PM', open: true },
+      { day: 'Sat', start: '10:00 AM', end: '4:00 PM', open: true }
+    ];
+  }
+
+  function saveDefaultSchedule(defaults) {
+    localStorage.setItem('sv_schedule_defaults', JSON.stringify(defaults));
+  }
+
+  function buildTimeOptions() {
+    var opts = [''];
+    for (var h = 6; h <= 21; h++) {
+      for (var m = 0; m < 60; m += 30) {
+        var hr12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+        var suffix = h >= 12 ? 'PM' : 'AM';
+        var mm = m < 10 ? '0' + m : '' + m;
+        opts.push(hr12 + ':' + mm + ' ' + suffix);
+      }
+    }
+    return opts;
+  }
+
+  function renderDefaultsTable() {
+    var tbody = document.getElementById('schedule-defaults-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    var defaults = getDefaultSchedule();
+    var timeOpts = buildTimeOptions();
+
+    defaults.forEach(function (d, idx) {
+      var tr = document.createElement('tr');
+
+      // Day
+      var tdDay = document.createElement('td');
+      tdDay.textContent = d.day;
+      tr.appendChild(tdDay);
+
+      // Start select
+      var tdStart = document.createElement('td');
+      var selStart = document.createElement('select');
+      selStart.className = 'admin-select';
+      selStart.dataset.idx = idx;
+      selStart.dataset.field = 'start';
+      timeOpts.forEach(function (t) {
+        var opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t || '—';
+        if (t === d.start) opt.selected = true;
+        selStart.appendChild(opt);
+      });
+      tdStart.appendChild(selStart);
+      tr.appendChild(tdStart);
+
+      // End select
+      var tdEnd = document.createElement('td');
+      var selEnd = document.createElement('select');
+      selEnd.className = 'admin-select';
+      selEnd.dataset.idx = idx;
+      selEnd.dataset.field = 'end';
+      timeOpts.forEach(function (t) {
+        var opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t || '—';
+        if (t === d.end) opt.selected = true;
+        selEnd.appendChild(opt);
+      });
+      tdEnd.appendChild(selEnd);
+      tr.appendChild(tdEnd);
+
+      // Status toggle
+      var tdStatus = document.createElement('td');
+      var toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'btn-secondary admin-btn-sm' + (d.open ? ' schedule-open' : ' schedule-closed');
+      toggleBtn.textContent = d.open ? 'Open' : 'Closed';
+      toggleBtn.dataset.idx = idx;
+      toggleBtn.addEventListener('click', function () {
+        var i = parseInt(this.dataset.idx, 10);
+        var defs = getDefaultSchedule();
+        defs[i].open = !defs[i].open;
+        if (!defs[i].open) { defs[i].start = ''; defs[i].end = ''; }
+        saveDefaultSchedule(defs);
+        renderDefaultsTable();
+      });
+      tdStatus.appendChild(toggleBtn);
+      tr.appendChild(tdStatus);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function readDefaultsFromTable() {
+    var tbody = document.getElementById('schedule-defaults-tbody');
+    if (!tbody) return getDefaultSchedule();
+    var defaults = getDefaultSchedule();
+    var selects = tbody.querySelectorAll('select');
+    selects.forEach(function (sel) {
+      var idx = parseInt(sel.dataset.idx, 10);
+      var field = sel.dataset.field;
+      defaults[idx][field] = sel.value;
+      if (defaults[idx].start && defaults[idx].end) defaults[idx].open = true;
+    });
+    return defaults;
+  }
+
+  function generateTimeSlots(startStr, endStr) {
+    var slots = [];
+    if (!startStr || !endStr) return slots;
+    var startMin = parseTimeToMinutes(startStr);
+    var endMin = parseTimeToMinutes(endStr);
+    for (var m = startMin; m < endMin; m += 30) {
+      slots.push(minutesToTimeStr(m));
+    }
+    return slots;
+  }
+
+  function parseTimeToMinutes(str) {
+    var parts = str.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!parts) return 0;
+    var h = parseInt(parts[1], 10);
+    var m = parseInt(parts[2], 10);
+    var ampm = parts[3].toUpperCase();
+    if (ampm === 'PM' && h !== 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    return h * 60 + m;
+  }
+
+  function minutesToTimeStr(mins) {
+    var h = Math.floor(mins / 60);
+    var m = mins % 60;
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    var hr12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+    var mm = m < 10 ? '0' + m : '' + m;
+    return hr12 + ':' + mm + ' ' + ampm;
+  }
+
+  function generateSlots(weeksAhead) {
+    var defaults = getDefaultSchedule();
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Build a lookup of existing dates+times
+    var existing = {};
+    scheduleData.forEach(function (row) {
+      existing[row.date + '|' + row.time] = true;
+    });
+
+    var newRows = [];
+    for (var w = 0; w < weeksAhead; w++) {
+      for (var d = 0; d < 7; d++) {
+        var date = new Date(today);
+        date.setDate(date.getDate() + (w * 7) + d);
+        var dayOfWeek = date.getDay(); // 0=Sun
+        var def = defaults[dayOfWeek];
+        if (!def.open || !def.start || !def.end) continue;
+
+        var dateStr = formatDateISO(date);
+        var slots = generateTimeSlots(def.start, def.end);
+        slots.forEach(function (time) {
+          if (!existing[dateStr + '|' + time]) {
+            newRows.push([dateStr, time, 'available']);
+          }
+        });
+      }
+    }
+
+    if (newRows.length === 0) {
+      alert('No new slots to generate (all slots already exist).');
+      return;
+    }
+
+    sheetsAppend(SHEETS_CONFIG.SHEET_NAMES.SCHEDULE + '!A:C', newRows)
+      .then(function () {
+        alert(newRows.length + ' slots generated.');
+        loadAllData();
+      })
+      .catch(function (err) {
+        alert('Failed to generate slots: ' + err.message);
+      });
+  }
+
+  function formatDateISO(d) {
+    var y = d.getFullYear();
+    var m = d.getMonth() + 1;
+    var day = d.getDate();
+    return y + '-' + (m < 10 ? '0' + m : m) + '-' + (day < 10 ? '0' + day : day);
+  }
+
+  // Calendar state
+  var scheduleCalMonth = null; // Date object for the displayed month
+  var scheduleSelectedDate = null; // 'YYYY-MM-DD' of selected day
+
+  function renderScheduleTab() {
+    renderDefaultsTable();
+    if (!scheduleCalMonth) {
+      scheduleCalMonth = new Date();
+      scheduleCalMonth.setDate(1);
+    }
+    renderScheduleCalendar();
+  }
+
+  function renderScheduleCalendar() {
+    var container = document.getElementById('schedule-cal');
+    if (!container) return;
+
+    var year = scheduleCalMonth.getFullYear();
+    var month = scheduleCalMonth.getMonth();
+    var monthName = scheduleCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    // Group schedule data by date
+    var slotsByDate = {};
+    scheduleData.forEach(function (row) {
+      if (!slotsByDate[row.date]) slotsByDate[row.date] = [];
+      slotsByDate[row.date].push(row);
+    });
+
+    var html = '<div class="schedule-cal-header">';
+    html += '<button type="button" class="btn-secondary admin-btn-sm schedule-cal-prev">&laquo;</button>';
+    html += '<span class="schedule-cal-title">' + escapeHTML(monthName) + '</span>';
+    html += '<button type="button" class="btn-secondary admin-btn-sm schedule-cal-next">&raquo;</button>';
+    html += '</div>';
+
+    html += '<div class="schedule-cal-grid">';
+    // Day headers
+    DAYS_OF_WEEK.forEach(function (d) {
+      html += '<div class="schedule-cal-dayheader">' + d + '</div>';
+    });
+
+    // First day offset
+    var firstDay = new Date(year, month, 1).getDay();
+    for (var i = 0; i < firstDay; i++) {
+      html += '<div class="schedule-cal-cell empty"></div>';
+    }
+
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    for (var d = 1; d <= daysInMonth; d++) {
+      var dateStr = formatDateISO(new Date(year, month, d));
+      var slots = slotsByDate[dateStr] || [];
+      var available = slots.filter(function (s) { return s.status === 'available'; }).length;
+      var booked = slots.filter(function (s) { return s.status === 'booked'; }).length;
+      var blocked = slots.filter(function (s) { return s.status === 'blocked'; }).length;
+
+      var dotClass = '';
+      if (slots.length === 0) {
+        dotClass = '';
+      } else if (available > 0) {
+        dotClass = 'dot-available';
+      } else if (booked > 0 && available === 0) {
+        dotClass = 'dot-booked';
+      } else if (blocked > 0 && available === 0 && booked === 0) {
+        dotClass = 'dot-blocked';
+      }
+
+      var selectedClass = (dateStr === scheduleSelectedDate) ? ' selected' : '';
+      html += '<div class="schedule-cal-cell' + selectedClass + '" data-date="' + dateStr + '">';
+      html += '<span class="schedule-cal-day">' + d + '</span>';
+      if (dotClass) html += '<span class="schedule-cal-dot ' + dotClass + '"></span>';
+      html += '</div>';
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    // Wire up navigation
+    container.querySelector('.schedule-cal-prev').addEventListener('click', function () {
+      scheduleCalMonth.setMonth(scheduleCalMonth.getMonth() - 1);
+      renderScheduleCalendar();
+    });
+    container.querySelector('.schedule-cal-next').addEventListener('click', function () {
+      scheduleCalMonth.setMonth(scheduleCalMonth.getMonth() + 1);
+      renderScheduleCalendar();
+    });
+
+    // Wire up day clicks
+    container.querySelectorAll('.schedule-cal-cell[data-date]').forEach(function (cell) {
+      cell.addEventListener('click', function () {
+        scheduleSelectedDate = this.dataset.date;
+        renderScheduleCalendar();
+        renderDaySlots(scheduleSelectedDate);
+      });
+    });
+
+    // If a day is selected, render its slots
+    if (scheduleSelectedDate) renderDaySlots(scheduleSelectedDate);
+  }
+
+  function renderDaySlots(dateStr) {
+    var container = document.getElementById('schedule-day-slots');
+    if (!container) return;
+
+    var daySlots = scheduleData.filter(function (row) { return row.date === dateStr; });
+    // Sort by time
+    daySlots.sort(function (a, b) {
+      return parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time);
+    });
+
+    if (daySlots.length === 0) {
+      container.innerHTML = '<p class="admin-empty">No slots for ' + escapeHTML(dateStr) + '</p>';
+      return;
+    }
+
+    var html = '<div class="schedule-day-header">';
+    html += '<h4>' + escapeHTML(dateStr) + '</h4>';
+    html += '<button type="button" class="btn-secondary admin-btn-sm" id="schedule-block-day">Block Entire Day</button>';
+    html += '<button type="button" class="btn-secondary admin-btn-sm" id="schedule-open-day">Open Entire Day</button>';
+    html += '</div>';
+
+    html += '<div class="schedule-slots">';
+    daySlots.forEach(function (slot) {
+      var cls = 'schedule-slot slot-' + slot.status;
+      var disabled = slot.status === 'booked' ? ' disabled' : '';
+      html += '<button type="button" class="' + cls + '" data-date="' + escapeHTML(slot.date) + '" data-time="' + escapeHTML(slot.time) + '" data-row="' + slot._rowIndex + '"' + disabled + '>';
+      html += escapeHTML(slot.time);
+      if (slot.status === 'booked') html += ' <small>(booked)</small>';
+      html += '</button>';
+    });
+    html += '</div>';
+
+    container.innerHTML = html;
+
+    // Wire up individual slot toggles
+    container.querySelectorAll('.schedule-slot:not([disabled])').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        toggleSlot(this.dataset.date, this.dataset.time, parseInt(this.dataset.row, 10));
+      });
+    });
+
+    // Wire up block/open day buttons
+    var blockBtn = document.getElementById('schedule-block-day');
+    if (blockBtn) blockBtn.addEventListener('click', function () { bulkUpdateDay(dateStr, 'blocked'); });
+    var openBtn = document.getElementById('schedule-open-day');
+    if (openBtn) openBtn.addEventListener('click', function () { bulkUpdateDay(dateStr, 'available'); });
+  }
+
+  function toggleSlot(date, time, rowIndex) {
+    var slot = scheduleData.find(function (s) { return s.date === date && s.time === time; });
+    if (!slot || slot.status === 'booked') return;
+
+    var newStatus = slot.status === 'available' ? 'blocked' : 'available';
+    var statusCol = scheduleHeaders.indexOf('status');
+    if (statusCol === -1) return;
+
+    var cellRef = SHEETS_CONFIG.SHEET_NAMES.SCHEDULE + '!' + colLetter(statusCol) + rowIndex;
+    sheetsUpdate(cellRef, [[newStatus]])
+      .then(function () {
+        slot.status = newStatus;
+        renderScheduleCalendar();
+      })
+      .catch(function (err) {
+        alert('Failed to update slot: ' + err.message);
+      });
+  }
+
+  function bulkUpdateDay(dateStr, newStatus) {
+    var daySlots = scheduleData.filter(function (s) {
+      return s.date === dateStr && s.status !== 'booked';
+    });
+    if (daySlots.length === 0) return;
+
+    var statusCol = scheduleHeaders.indexOf('status');
+    if (statusCol === -1) return;
+
+    var promises = daySlots.map(function (slot) {
+      var cellRef = SHEETS_CONFIG.SHEET_NAMES.SCHEDULE + '!' + colLetter(statusCol) + slot._rowIndex;
+      return sheetsUpdate(cellRef, [[newStatus]]).then(function () {
+        slot.status = newStatus;
+      });
+    });
+
+    Promise.all(promises)
+      .then(function () {
+        renderScheduleCalendar();
+      })
+      .catch(function (err) {
+        alert('Failed to update day: ' + err.message);
+      });
+  }
+
+  function initScheduleControls() {
+    var generateBtn = document.getElementById('schedule-generate-btn');
+    if (generateBtn) {
+      generateBtn.addEventListener('click', function () {
+        generateSlots(8);
+      });
+    }
+
+    var saveDefaultsBtn = document.getElementById('schedule-save-defaults-btn');
+    if (saveDefaultsBtn) {
+      saveDefaultsBtn.addEventListener('click', function () {
+        var defaults = readDefaultsFromTable();
+        saveDefaultSchedule(defaults);
+        alert('Default schedule saved.');
       });
     }
   }
