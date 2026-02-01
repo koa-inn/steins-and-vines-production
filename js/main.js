@@ -111,88 +111,100 @@ function loadOpenHours() {
 
   var DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-  var scheduleUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL)
+  var remoteUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL)
     ? SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL
     : null;
-  if (!scheduleUrl) return;
+  var localUrl = 'content/timeslots.csv';
 
-  fetch(scheduleUrl)
-    .then(function (res) { return res.text(); })
-    .then(function (csv) {
-      var lines = csv.trim().split('\n');
-      if (lines.length < 2) return;
+  function parseAndRender(csv) {
+    var lines = csv.trim().split('\n');
+    if (lines.length < 2) return false;
 
-      var headers = lines[0].split(',');
-      var slots = [];
-      for (var i = 1; i < lines.length; i++) {
-        var values = lines[i].split(',');
-        if (values.length < 3) continue;
-        var obj = {};
-        for (var j = 0; j < headers.length; j++) {
-          obj[headers[j].trim()] = values[j].trim();
-        }
-        slots.push(obj);
+    var headers = lines[0].split(',');
+    var slots = [];
+    for (var i = 1; i < lines.length; i++) {
+      var values = lines[i].split(',');
+      if (values.length < 3) continue;
+      var obj = {};
+      for (var j = 0; j < headers.length; j++) {
+        obj[headers[j].trim()] = values[j].trim();
       }
+      slots.push(obj);
+    }
 
-      // Only consider available slots in the future
-      var today = new Date();
-      today.setHours(0, 0, 0, 0);
-      slots = slots.filter(function (s) {
-        if (s.status && s.status !== 'available') return false;
-        var d = new Date(s.date + 'T00:00:00');
-        return d >= today;
-      });
+    // Only consider available slots in the future
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    slots = slots.filter(function (s) {
+      if (s.status && s.status !== 'available') return false;
+      var d = new Date(s.date + 'T00:00:00');
+      return d >= today;
+    });
 
-      if (slots.length === 0) return;
+    if (slots.length === 0) return false;
 
-      // Group by day-of-week, track earliest start and latest end
-      var dayMap = {};
-      slots.forEach(function (s) {
-        var d = new Date(s.date + 'T00:00:00');
-        var dow = d.getDay();
-        var timeParts = s.time.match(/(\d+):(\d+)\s*(AM|PM)/i);
-        if (!timeParts) return;
-        var h = parseInt(timeParts[1], 10);
-        var m = parseInt(timeParts[2], 10);
-        var ampm = timeParts[3].toUpperCase();
-        if (ampm === 'PM' && h !== 12) h += 12;
-        if (ampm === 'AM' && h === 12) h = 0;
-        var mins = h * 60 + m;
+    // Group by day-of-week, track earliest start and latest end
+    var dayMap = {};
+    slots.forEach(function (s) {
+      var d = new Date(s.date + 'T00:00:00');
+      var dow = d.getDay();
+      var timeParts = s.time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (!timeParts) return;
+      var h = parseInt(timeParts[1], 10);
+      var m = parseInt(timeParts[2], 10);
+      var ampm = timeParts[3].toUpperCase();
+      if (ampm === 'PM' && h !== 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      var mins = h * 60 + m;
 
-        if (!dayMap[dow]) dayMap[dow] = { min: mins, max: mins };
-        if (mins < dayMap[dow].min) dayMap[dow].min = mins;
-        if (mins > dayMap[dow].max) dayMap[dow].max = mins;
-      });
+      if (!dayMap[dow]) dayMap[dow] = { min: mins, max: mins };
+      if (mins < dayMap[dow].min) dayMap[dow].min = mins;
+      if (mins > dayMap[dow].max) dayMap[dow].max = mins;
+    });
 
-      // Convert minutes back to time string
-      function minsToStr(mins) {
-        var h = Math.floor(mins / 60);
-        var m = mins % 60;
-        var ampm = h >= 12 ? 'PM' : 'AM';
-        var hr12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
-        var mm = m < 10 ? '0' + m : '' + m;
-        return hr12 + ':' + mm + ' ' + ampm;
+    // Convert minutes back to time string
+    function minsToStr(mins) {
+      var h = Math.floor(mins / 60);
+      var m = mins % 60;
+      var ampm = h >= 12 ? 'PM' : 'AM';
+      var hr12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+      var mm = m < 10 ? '0' + m : '' + m;
+      return hr12 + ':' + mm + ' ' + ampm;
+    }
+
+    // Build the hours list for each day Sun–Sat
+    var html = '<h3>Open Hours</h3><ul class="open-hours-list">';
+    for (var dow = 0; dow < 7; dow++) {
+      var info = dayMap[dow];
+      html += '<li class="open-hours-row' + (info ? '' : ' closed') + '">';
+      html += '<span class="open-hours-day">' + DAY_NAMES[dow] + '</span>';
+      if (info) {
+        // The last slot starts at max, so end time is +30 min
+        html += '<span class="open-hours-time">' + minsToStr(info.min) + ' &ndash; ' + minsToStr(info.max + 30) + '</span>';
+      } else {
+        html += '<span class="open-hours-time">Closed</span>';
       }
+      html += '</li>';
+    }
+    html += '</ul>';
+    container.innerHTML = html;
+    return true;
+  }
 
-      // Build the hours list for each day Sun–Sat
-      var html = '<h3>Open Hours</h3><ul class="open-hours-list">';
-      for (var dow = 0; dow < 7; dow++) {
-        var info = dayMap[dow];
-        html += '<li class="open-hours-row' + (info ? '' : ' closed') + '">';
-        html += '<span class="open-hours-day">' + DAY_NAMES[dow] + '</span>';
-        if (info) {
-          // The last slot starts at max, so end time is +30 min
-          html += '<span class="open-hours-time">' + minsToStr(info.min) + ' &ndash; ' + minsToStr(info.max + 30) + '</span>';
-        } else {
-          html += '<span class="open-hours-time">Closed</span>';
-        }
-        html += '</li>';
-      }
-      html += '</ul>';
-      container.innerHTML = html;
+  function fetchAndRender(url) {
+    return fetch(url)
+      .then(function (res) { return res.text(); })
+      .then(function (csv) { return parseAndRender(csv); });
+  }
+
+  // Try remote first, fall back to local CSV
+  var attempt = remoteUrl ? fetchAndRender(remoteUrl) : Promise.resolve(false);
+  attempt
+    .then(function (success) {
+      if (!success) return fetchAndRender(localUrl);
     })
     .catch(function () {
-      // Silently fail
+      return fetchAndRender(localUrl).catch(function () {});
     });
 }
 
@@ -200,6 +212,7 @@ function loadProducts() {
   var allProducts = [];
   var userHasSorted = false;
   var activeFilters = { type: [], brand: [], subcategory: [], time: [] };
+  var saleFilterActive = false;
 
   var csvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_CSV_URL)
     ? SHEETS_CONFIG.PUBLISHED_CSV_URL
@@ -275,6 +288,7 @@ function loadProducts() {
       buildFilterRow('filter-brand', 'brand', 'Brand:');
       buildFilterRow('filter-subcategory', 'subcategory', 'Style:');
       buildFilterRow('filter-time', 'time', 'Brew Time:');
+      buildSaleFilter();
       applyFilters();
 
       var searchInput = document.getElementById('catalog-search');
@@ -351,6 +365,32 @@ function loadProducts() {
     uniqueValues.forEach(function (val) {
       container.appendChild(createFilterButton(val, containerId, field));
     });
+  }
+
+  function buildSaleFilter() {
+    var hasSaleProducts = allProducts.some(function (p) {
+      return parseFloat(p.discount) > 0;
+    });
+    var container = document.getElementById('filter-sale');
+    if (!container || !hasSaleProducts) {
+      if (container) container.style.display = 'none';
+      return;
+    }
+    var labelSpan = document.createElement('span');
+    labelSpan.className = 'catalog-filter-label';
+    labelSpan.textContent = 'Sale:';
+    container.appendChild(labelSpan);
+
+    var btn = document.createElement('button');
+    btn.className = 'catalog-filter-btn';
+    btn.type = 'button';
+    btn.textContent = 'On Sale';
+    btn.addEventListener('click', function () {
+      saleFilterActive = !saleFilterActive;
+      btn.classList.toggle('active', saleFilterActive);
+      applyFilters();
+    });
+    container.appendChild(btn);
   }
 
   function createFilterButton(label, containerId, field) {
@@ -445,6 +485,7 @@ function loadProducts() {
       if (activeFilters.brand.length > 0 && activeFilters.brand.indexOf(r.brand) === -1) return false;
       if (activeFilters.subcategory.length > 0 && activeFilters.subcategory.indexOf(r.subcategory) === -1) return false;
       if (activeFilters.time.length > 0 && activeFilters.time.indexOf(r.time) === -1) return false;
+      if (saleFilterActive && !(parseFloat(r.discount) > 0)) return false;
       if (!query) return true;
       var name = (r.name || '').toLowerCase();
       var sub = (r.subcategory || '').toLowerCase();
@@ -635,6 +676,15 @@ function loadProducts() {
           card.appendChild(detailRow);
         }
 
+        var discount = parseFloat(product.discount) || 0;
+
+        if (discount > 0) {
+          var badge = document.createElement('span');
+          badge.className = 'product-discount-badge';
+          badge.textContent = Math.round(discount) + '% OFF';
+          card.appendChild(badge);
+        }
+
         var instore = (product.retail_instore || '').trim();
         var kit = (product.retail_kit || '').trim();
         if (instore || kit) {
@@ -643,13 +693,25 @@ function loadProducts() {
           if (instore) {
             var instoreBox = document.createElement('div');
             instoreBox.className = 'product-price-box';
-            instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + instore + '</span>';
+            if (discount > 0) {
+              var instoreNum = parseFloat(instore.replace(/[^0-9.]/g, ''));
+              var instoreSale = (instoreNum * (1 - discount / 100)).toFixed(2);
+              instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-original">' + instore + '</span><span class="product-price-value">$' + instoreSale + '</span>';
+            } else {
+              instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + instore + '</span>';
+            }
             priceRow.appendChild(instoreBox);
           }
           if (kit) {
             var kitBox = document.createElement('div');
             kitBox.className = 'product-price-box';
-            kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + kit + '</span>';
+            if (discount > 0) {
+              var kitNum = parseFloat(kit.replace(/[^0-9.]/g, ''));
+              var kitSale = (kitNum * (1 - discount / 100)).toFixed(2);
+              kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-original">' + kit + '</span><span class="product-price-value">$' + kitSale + '</span>';
+            } else {
+              kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + kit + '</span>';
+            }
             priceRow.appendChild(kitBox);
           }
           card.appendChild(priceRow);
