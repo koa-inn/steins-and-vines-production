@@ -433,65 +433,56 @@ small, .text-small {
   width: 100%;
 }
 
-.product-notes-tooltip {
-  position: absolute;
-  top: 0;
-  left: -2rem;
-  right: -2rem;
-  min-height: calc(100% + 0.5rem);
-  background-color: var(--color-white);
-  color: var(--color-text);
-  font-size: 0.85rem;
-  font-style: italic;
-  line-height: 1.5;
-  padding: 0.75rem 2rem;
+.product-notes {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.product-notes-toggle {
+  background: none;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-brown);
+  cursor: pointer;
+  padding: 0.25rem 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  text-align: center;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  pointer-events: none;
-  z-index: 1;
+  gap: 0.35rem;
+  margin: 0 auto;
 }
 
-.product-card:hover .product-notes-tooltip {
-  opacity: 1;
+.product-notes-toggle:hover {
+  color: var(--color-green);
 }
 
-.product-notes-btn {
-  display: none;
+.product-notes-chevron {
+  font-size: 10px;
+  transition: transform 0.2s;
 }
 
-/* Touch devices: disable hover, use tap icon */
-@media (hover: none) {
-  .product-card:hover .product-notes-tooltip {
-    opacity: 0;
-  }
+.product-notes.open .product-notes-chevron {
+  transform: rotate(180deg);
+}
 
-  .product-notes-tooltip.show {
-    opacity: 1;
-  }
+.product-notes-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
 
-  .product-notes-btn {
-    display: block;
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    background: none;
-    border: none;
-    font-size: 1.1rem;
-    cursor: pointer;
-    padding: 0.25rem;
-    line-height: 1;
-    z-index: 2;
-    opacity: 0.5;
-    transition: opacity 0.2s ease;
-  }
+.product-notes.open .product-notes-body {
+  max-height: 200px;
+}
 
-  .product-notes-btn:active {
-    opacity: 1;
-  }
+.product-notes-body p {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--color-text);
+  line-height: 1.5;
+  padding: 0.5rem 0;
+  margin: 0;
 }
 
 .product-prices {

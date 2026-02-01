@@ -1,7 +1,7 @@
 // ===== Anonymous Event Tracking =====
 
 var _eventQueue = [];
-var _EVENT_FLUSH_THRESHOLD = 10;
+var _EVENT_FLUSH_THRESHOLD = 5;
 
 function trackEvent(type, sku, name) {
   var url = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.TRACK_EVENTS_URL)
@@ -627,31 +627,6 @@ function loadProducts() {
         cardName.textContent = product.name;
         header.appendChild(cardName);
 
-        if (product.tasting_notes) {
-          var notes = document.createElement('div');
-          notes.className = 'product-notes-tooltip';
-          notes.textContent = product.tasting_notes;
-          header.appendChild(notes);
-
-          var notesBtn = document.createElement('button');
-          notesBtn.type = 'button';
-          notesBtn.className = 'product-notes-btn';
-          notesBtn.setAttribute('aria-label', 'Tasting notes');
-          notesBtn.innerHTML = '&#x1f50d;';
-          notesBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            var openTips = document.querySelectorAll('.product-notes-tooltip.show');
-            openTips.forEach(function (tip) {
-              if (tip !== notes) tip.classList.remove('show');
-            });
-            notes.classList.toggle('show');
-            if (notes.classList.contains('show')) {
-              trackEvent('detail', product.sku || '', product.name || '');
-            }
-          });
-          header.appendChild(notesBtn);
-        }
-
         card.appendChild(header);
 
         var batchSize = (product.batch_size_liters || '').trim();
@@ -674,6 +649,37 @@ function loadProducts() {
             detailRow.appendChild(detailSpan);
           }
           card.appendChild(detailRow);
+        }
+
+        if (product.tasting_notes) {
+          var notesWrap = document.createElement('div');
+          notesWrap.className = 'product-notes';
+
+          var notesToggle = document.createElement('button');
+          notesToggle.type = 'button';
+          notesToggle.className = 'product-notes-toggle';
+          notesToggle.setAttribute('aria-expanded', 'false');
+          notesToggle.innerHTML = 'Tasting Notes <span class="product-notes-chevron">&#9660;</span>';
+
+          var notesBody = document.createElement('div');
+          notesBody.className = 'product-notes-body';
+          var notesP = document.createElement('p');
+          notesP.textContent = product.tasting_notes;
+          notesBody.appendChild(notesP);
+
+          notesToggle.addEventListener('click', function (wrap, toggle, prod) {
+            return function () {
+              var isOpen = wrap.classList.toggle('open');
+              toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+              if (isOpen) {
+                trackEvent('detail', prod.sku || '', prod.name || '');
+              }
+            };
+          }(notesWrap, notesToggle, product));
+
+          notesWrap.appendChild(notesToggle);
+          notesWrap.appendChild(notesBody);
+          card.appendChild(notesWrap);
         }
 
         var discount = parseFloat(product.discount) || 0;
