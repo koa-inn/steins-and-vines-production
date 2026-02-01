@@ -29,7 +29,7 @@ var SHEETS_CONFIG = {
   // Sheet/tab names within the spreadsheet
   // Web App URL for anonymous product event tracking (deploy trackEvent.gs as web app)
   // Leave blank to disable tracking; no events are sent until a URL is set.
-  TRACK_EVENTS_URL: '',
+  TRACK_EVENTS_URL: 'https://script.google.com/macros/s/AKfycbyWsu3oLF_q99IN_Xt-HdJrfLF9rXWxkGvd5HiG33stsrIDfpyMWzLXe-aeRoypM5C8RQ/exec',
 
   SHEET_NAMES: {
     KITS: 'Kits',
