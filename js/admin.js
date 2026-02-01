@@ -377,7 +377,7 @@
 
     initKitSortHeaders();
 
-    var ingCatFilter = document.getElementById('ing-category-filter');
+    var ingCatFilter = document.getElementById('ing-type-filter');
     if (ingCatFilter) ingCatFilter.addEventListener('change', renderIngredientsTab);
 
     initOrderFilterListeners();
@@ -1193,11 +1193,11 @@
     var emptyMsg = document.getElementById('ingredients-empty');
     if (!tbody) return;
 
-    var catFilter = document.getElementById('ing-category-filter').value;
+    var catFilter = document.getElementById('ing-type-filter').value;
     var filtered = ingredientsData;
     if (catFilter !== 'all') {
       filtered = ingredientsData.filter(function (ing) {
-        return ing.category === catFilter;
+        return ing.type === catFilter;
       });
     }
 
@@ -1220,8 +1220,8 @@
         tr.className = 'admin-row-warning';
       }
 
-      appendTd(tr, ing.id || '');
-      appendTd(tr, ing.category || '');
+      appendTd(tr, ing.sku || '');
+      appendTd(tr, ing.type || '');
       appendTd(tr, ing.name || '');
 
       // Editable stock cell
@@ -1284,11 +1284,11 @@
     var categories = ['Hops', 'Yeast', 'Additives', 'Finings', 'Sugar', 'Other'];
     var units = ['g', 'kg', 'packet', 'ml', 'L'];
 
-    var nextId = 'ING-' + String(ingredientsData.length + 1).padStart(3, '0');
+    var nextSku = 'ING-' + String(ingredientsData.length + 1).padStart(3, '0');
 
     var html = '<form id="add-ing-form" class="admin-modal-form">';
-    html += '<div class="form-group"><label for="ing-id">ID</label><input type="text" id="ing-id" value="' + nextId + '"></div>';
-    html += '<div class="form-group"><label for="ing-category">Category</label><select id="ing-category" class="admin-select">';
+    html += '<div class="form-group"><label for="ing-sku">SKU</label><input type="text" id="ing-sku" value="' + nextSku + '"></div>';
+    html += '<div class="form-group"><label for="ing-type">Category</label><select id="ing-type" class="admin-select">';
     categories.forEach(function (c) { html += '<option value="' + c + '">' + c + '</option>'; });
     html += '</select></div>';
     html += '<div class="form-group"><label for="ing-name">Name</label><input type="text" id="ing-name" required></div>';
