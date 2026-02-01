@@ -681,10 +681,8 @@ small, .text-small {
   margin: 1.5rem auto;
 }
 
-.open-hours h3 {
-  font-family: var(--font-display);
+.open-hours h2 {
   margin-bottom: 0.75rem;
-  text-align: center;
 }
 
 .open-hours-list {

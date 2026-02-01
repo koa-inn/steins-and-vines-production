@@ -172,7 +172,7 @@ function loadOpenHours() {
     }
 
     // Build the hours list for each day Sun–Sat
-    var html = '<h3>Open Hours</h3><ul class="open-hours-list">';
+    var html = '<h2>Open Hours</h2><ul class="open-hours-list">';
     for (var dow = 0; dow < 7; dow++) {
       var info = dayMap[dow];
       html += '<li class="open-hours-row' + (info ? '' : ' closed') + '">';
