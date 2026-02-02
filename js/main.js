@@ -2067,8 +2067,20 @@ function setupReservationForm() {
   var form = document.getElementById('reservation-form');
   if (!form) return;
 
+  // Record page load time for bot detection
+  var loadedAtField = document.getElementById('res-loaded-at');
+  if (loadedAtField) loadedAtField.value = String(Date.now());
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+
+    // Bot check: honeypot field should be empty
+    var honeypot = document.getElementById('res-website');
+    if (honeypot && honeypot.value) return;
+
+    // Bot check: form submitted too fast (under 3 seconds)
+    var loadedAt = parseInt(document.getElementById('res-loaded-at').value, 10) || 0;
+    if (Date.now() - loadedAt < 3000) return;
 
     var items = getReservation();
     if (items.length === 0) {
