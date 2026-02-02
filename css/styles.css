@@ -1705,9 +1705,13 @@ small, .text-small {
 }
 
 .res-actions {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
+  white-space: nowrap;
+}
+
+.res-actions .btn,
+.res-actions .btn-secondary {
+  margin-right: 0.35rem;
+  margin-bottom: 0.25rem;
 }
 
 .admin-table tbody tr.admin-row-warning td {
