@@ -1079,7 +1079,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
       detailRow.className = 'product-detail-row';
       var details = [];
       if (unit) details.push(unit);
-      if (price) details.push('$' + price);
+      if (price) details.push(price.charAt(0) === '$' ? price : '$' + price);
       for (var d = 0; d < details.length; d++) {
         if (d > 0) {
           var sep = document.createElement('span');
@@ -1092,24 +1092,6 @@ function renderIngredientSection(catalog, title, items, extraClass) {
         detailRow.appendChild(span);
       }
       card.appendChild(detailRow);
-    }
-
-    // Quantity range info
-    var low = (item.low_amount || '').trim();
-    var high = (item.high_amount || '').trim();
-    if (low || high) {
-      var rangeEl = document.createElement('p');
-      rangeEl.className = 'ingredient-range';
-      if (low && high) {
-        rangeEl.textContent = 'Quantity: ' + low + ' – ' + high;
-      } else if (low) {
-        rangeEl.textContent = 'Min quantity: ' + low;
-      } else {
-        rangeEl.textContent = 'Max quantity: ' + high;
-      }
-      var step = (item.step || '').trim();
-      if (step) rangeEl.textContent += ' (step: ' + step + ')';
-      card.appendChild(rangeEl);
     }
 
     // Collapsible description (reusing product-notes pattern)

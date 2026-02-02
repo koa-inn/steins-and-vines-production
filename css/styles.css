@@ -744,6 +744,63 @@ small, .text-small {
   text-align: center;
 }
 
+/* ===== Owner Grid ===== */
+.owner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  max-width: 800px;
+  margin: 1.5rem auto 0;
+}
+
+.owner-card {
+  text-align: center;
+}
+
+.story-image {
+  width: 100%;
+  max-width: 600px;
+  border-radius: 6px;
+  margin: 2rem auto 0;
+  display: block;
+  object-fit: cover;
+}
+
+.owner-photo {
+  width: 180px;
+  height: 240px;
+  border-radius: 6px;
+  object-fit: cover;
+  margin: 0 auto 1rem;
+}
+
+.owner-card h3 {
+  color: var(--color-burgundy);
+  margin-bottom: 0.5rem;
+}
+
+.owner-card p {
+  margin-left: auto;
+  margin-right: auto;
+  font-size: 0.95rem;
+}
+
+/* ===== Credits ===== */
+.credits-text {
+  font-size: 0.95rem;
+  color: var(--color-brown);
+}
+
+/* ===== Land Acknowledgement (footer) ===== */
+.land-acknowledgement-footer {
+  font-size: 11px;
+  font-style: italic;
+  opacity: 0.7;
+  max-width: 540px;
+  margin: 1rem auto 0.75rem;
+  line-height: 1.5;
+}
+
 /* ===== Open Hours ===== */
 
 .open-hours {
