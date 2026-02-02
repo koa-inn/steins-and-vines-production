@@ -2414,11 +2414,92 @@
       });
   }
 
+  function resetMonthToDefaults() {
+    if (!scheduleCalMonth) return;
+    var defaults = getDefaultSchedule();
+    var year = scheduleCalMonth.getFullYear();
+    var month = scheduleCalMonth.getMonth();
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var statusCol = scheduleHeaders.indexOf('status');
+    if (statusCol === -1) { alert('Cannot find status column.'); return; }
+
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Build set of what slots SHOULD be available per defaults
+    var shouldBeAvailable = {};
+    for (var d = 1; d <= daysInMonth; d++) {
+      var date = new Date(year, month, d);
+      if (date < today) continue; // skip past days
+      var dateStr = formatDateISO(date);
+      var dayOfWeek = date.getDay();
+      var def = defaults[dayOfWeek];
+      if (!def.open || !def.start || !def.end) continue;
+      var blocked = def.blockedSlots || [];
+      var slots = generateTimeSlots(def.start, def.end);
+      slots.forEach(function (time) {
+        if (blocked.indexOf(time) === -1) {
+          shouldBeAvailable[dateStr + '|' + time] = true;
+        }
+      });
+    }
+
+    // Find all slots in this month
+    var monthSlots = scheduleData.filter(function (s) {
+      return s.date && s.date.substring(0, 7) === year + '-' + (month + 1 < 10 ? '0' + (month + 1) : (month + 1));
+    });
+
+    var updates = [];
+    monthSlots.forEach(function (slot) {
+      if (slot.status === 'booked') return; // never touch booked
+      var key = slot.date + '|' + slot.time;
+      var shouldBeOpen = !!shouldBeAvailable[key];
+      if (shouldBeOpen && slot.status !== 'available') {
+        updates.push({ slot: slot, newStatus: 'available' });
+      } else if (!shouldBeOpen && slot.status !== 'blocked') {
+        updates.push({ slot: slot, newStatus: 'blocked' });
+      }
+    });
+
+    if (updates.length === 0) {
+      alert('All slots already match defaults.');
+      return;
+    }
+
+    if (!confirm('This will update ' + updates.length + ' slot(s) in ' +
+      scheduleCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' }) +
+      ' to match your default schedule. Booked slots will not be changed. Continue?')) return;
+
+    var promises = updates.map(function (u) {
+      var cellRef = SHEETS_CONFIG.SHEET_NAMES.SCHEDULE + '!' + colLetter(statusCol) + u.slot._rowIndex;
+      return sheetsUpdate(cellRef, [[u.newStatus]]).then(function () {
+        u.slot.status = u.newStatus;
+      });
+    });
+
+    Promise.all(promises)
+      .then(function () {
+        alert(updates.length + ' slot(s) updated to match defaults.');
+        renderScheduleCalendar();
+      })
+      .catch(function (err) {
+        alert('Failed to reset slots: ' + err.message);
+        loadAllData(); // reload to get consistent state
+      });
+  }
+
   function initScheduleControls() {
     var generateBtn = document.getElementById('schedule-generate-btn');
     if (generateBtn) {
       generateBtn.addEventListener('click', function () {
         generateSlots(8);
+      });
+    }
+
+    var resetMonthBtn = document.getElementById('schedule-reset-month-btn');
+    if (resetMonthBtn) {
+      resetMonthBtn.addEventListener('click', function () {
+        resetMonthToDefaults();
       });
     }
 
