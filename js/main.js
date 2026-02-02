@@ -1909,6 +1909,13 @@ function loadTimeslots() {
           if (isPast || !hasSlots || withinCutoff) {
             cell.classList.add('cal-day--disabled');
             cell.disabled = true;
+            if (!isPast && !hasSlots && !withinCutoff) {
+              cell.classList.add('cal-day--closed');
+              var closedLabel = document.createElement('span');
+              closedLabel.className = 'cal-day-closed';
+              closedLabel.textContent = 'Closed';
+              cell.appendChild(closedLabel);
+            }
           } else if (hasAvailable) {
             cell.classList.add('cal-day--available');
           } else {

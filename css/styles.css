@@ -1404,6 +1404,21 @@ small, .text-small {
   outline-offset: -2px;
 }
 
+/* Closed day indicator (reservation calendar) */
+.cal-day--closed {
+  flex-direction: column;
+  gap: 0;
+}
+
+.cal-day-closed {
+  display: block;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+  line-height: 1;
+}
+
 /* Day slots below calendar */
 .cal-slots {
   margin-top: 1.5rem;
@@ -2215,6 +2230,21 @@ small, .text-small {
   background: transparent;
   border: none;
   cursor: default;
+}
+
+.schedule-cal-cell.closed {
+  background: #f0ece0;
+  opacity: 0.6;
+}
+
+.schedule-cal-closed {
+  display: block;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-brown);
+  line-height: 1;
+  margin-top: 2px;
 }
 
 .schedule-cal-cell.selected {

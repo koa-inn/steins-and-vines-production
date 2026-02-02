@@ -2280,9 +2280,14 @@
       html += '<div class="schedule-cal-cell empty"></div>';
     }
 
+    var defaults = getDefaultSchedule();
     var daysInMonth = new Date(year, month + 1, 0).getDate();
     for (var d = 1; d <= daysInMonth; d++) {
-      var dateStr = formatDateISO(new Date(year, month, d));
+      var dateObj = new Date(year, month, d);
+      var dateStr = formatDateISO(dateObj);
+      var dayOfWeek = dateObj.getDay();
+      var def = defaults[dayOfWeek];
+      var isClosed = !def.open;
       var slots = slotsByDate[dateStr] || [];
       var available = slots.filter(function (s) { return s.status === 'available'; }).length;
       var booked = slots.filter(function (s) { return s.status === 'booked'; }).length;
@@ -2300,10 +2305,15 @@
       }
 
       var selectedClass = (dateStr === scheduleSelectedDate) ? ' selected' : '';
-      html += '<div class="schedule-cal-cell' + selectedClass + '" data-date="' + dateStr + '">';
+      var closedClass = isClosed ? ' closed' : '';
+      html += '<div class="schedule-cal-cell' + selectedClass + closedClass + '" data-date="' + dateStr + '">';
       html += '<span class="schedule-cal-day">' + d + '</span>';
-      if (dotClass) html += '<span class="schedule-cal-dot ' + dotClass + '"></span>';
-      if (slots.length > 0) {
+      if (isClosed) {
+        html += '<span class="schedule-cal-closed">Closed</span>';
+      } else if (dotClass) {
+        html += '<span class="schedule-cal-dot ' + dotClass + '"></span>';
+      }
+      if (slots.length > 0 && !isClosed) {
         html += '<span class="schedule-cal-counts">';
         html += '<span class="cal-count-open">' + available + '</span>';
         html += '<span class="cal-count-booked">' + booked + '</span>';
@@ -2363,6 +2373,7 @@
     html += '<h4>' + escapeHTML(dateStr) + '</h4>';
     html += '<button type="button" class="btn-secondary admin-btn-sm" id="schedule-block-day">Block Entire Day</button>';
     html += '<button type="button" class="btn-secondary admin-btn-sm" id="schedule-open-day">Open Entire Day</button>';
+    html += '<button type="button" class="btn-secondary admin-btn-sm" id="schedule-reset-day">Reset to Default</button>';
     html += '</div>';
 
     html += '<div class="schedule-slots">';
@@ -2385,11 +2396,13 @@
       });
     });
 
-    // Wire up block/open day buttons
+    // Wire up block/open/reset day buttons
     var blockBtn = document.getElementById('schedule-block-day');
     if (blockBtn) blockBtn.addEventListener('click', function () { bulkUpdateDay(dateStr, 'blocked'); });
     var openBtn = document.getElementById('schedule-open-day');
     if (openBtn) openBtn.addEventListener('click', function () { bulkUpdateDay(dateStr, 'available'); });
+    var resetDayBtn = document.getElementById('schedule-reset-day');
+    if (resetDayBtn) resetDayBtn.addEventListener('click', function () { resetDayToDefault(dateStr); });
   }
 
   function toggleSlot(date, time, rowIndex) {
@@ -2433,6 +2446,59 @@
       })
       .catch(function (err) {
         alert('Failed to update day: ' + err.message);
+      });
+  }
+
+  function resetDayToDefault(dateStr) {
+    var defaults = getDefaultSchedule();
+    var date = new Date(dateStr + 'T00:00:00');
+    var dayOfWeek = date.getDay();
+    var def = defaults[dayOfWeek];
+    var statusCol = scheduleHeaders.indexOf('status');
+    if (statusCol === -1) return;
+
+    // Build set of times that should be available per defaults
+    var shouldBeAvailable = {};
+    if (def.open && def.start && def.end) {
+      var blocked = def.blockedSlots || [];
+      var defSlots = generateTimeSlots(def.start, def.end);
+      defSlots.forEach(function (time) {
+        if (blocked.indexOf(time) === -1) {
+          shouldBeAvailable[time] = true;
+        }
+      });
+    }
+
+    var daySlots = scheduleData.filter(function (s) { return s.date === dateStr; });
+    var updates = [];
+    daySlots.forEach(function (slot) {
+      if (slot.status === 'booked') return;
+      var shouldBeOpen = !!shouldBeAvailable[slot.time];
+      if (shouldBeOpen && slot.status !== 'available') {
+        updates.push({ slot: slot, newStatus: 'available' });
+      } else if (!shouldBeOpen && slot.status !== 'blocked') {
+        updates.push({ slot: slot, newStatus: 'blocked' });
+      }
+    });
+
+    if (updates.length === 0) {
+      alert('Day already matches defaults.');
+      return;
+    }
+
+    var promises = updates.map(function (u) {
+      var cellRef = SHEETS_CONFIG.SHEET_NAMES.SCHEDULE + '!' + colLetter(statusCol) + u.slot._rowIndex;
+      return sheetsUpdate(cellRef, [[u.newStatus]]).then(function () {
+        u.slot.status = u.newStatus;
+      });
+    });
+
+    Promise.all(promises)
+      .then(function () {
+        renderScheduleCalendar();
+      })
+      .catch(function (err) {
+        alert('Failed to reset day: ' + err.message);
       });
   }
 
