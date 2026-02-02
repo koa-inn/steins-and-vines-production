@@ -296,16 +296,6 @@
         break;
       case 'reservations':
         reservationsHeaders = headers;
-        var validStatuses = ['pending', 'confirmed', 'completed', 'cancelled'];
-        data.forEach(function (row) {
-          var statusVal = (row.status || '').trim().toLowerCase();
-          if (!row.products && row.status && validStatuses.indexOf(statusVal) === -1) {
-            // Products data shifted into status column — unshift it
-            row.products = row.status;
-            row.status = row.discount || '';
-            row.discount = '';
-          }
-        });
         reservationsData = data;
         break;
       case 'holds':
@@ -456,6 +446,12 @@
         custEmail.className = 'res-cell-secondary';
         custEmail.textContent = res.customer_email;
         custTd.appendChild(custEmail);
+      }
+      if (res.customer_phone) {
+        var custPhone = document.createElement('span');
+        custPhone.className = 'res-cell-secondary';
+        custPhone.textContent = res.customer_phone;
+        custTd.appendChild(custPhone);
       }
       tr.appendChild(custTd);
 
