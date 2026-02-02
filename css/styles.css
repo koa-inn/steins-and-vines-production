@@ -1686,6 +1686,24 @@ small, .text-small {
   font-size: 13px;
 }
 
+/* Reservation cell stacked layout */
+.res-cell-primary {
+  display: block;
+  font-weight: 700;
+}
+
+.res-cell-secondary {
+  display: block;
+  font-size: 12px;
+  color: var(--color-brown);
+  opacity: 0.7;
+}
+
+.res-cell-line {
+  display: block;
+  line-height: 1.4;
+}
+
 .admin-table tbody tr.admin-row-warning td {
   background-color: #fff3e0;
 }

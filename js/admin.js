@@ -432,9 +432,52 @@
       tr.appendChild(expandTd);
 
       appendTd(tr, res.reservation_id);
-      appendTd(tr, (res.customer_name || '') + (res.customer_email ? ' (' + res.customer_email + ')' : ''));
-      appendTd(tr, res.products || '');
-      appendTd(tr, res.timeslot || '');
+
+      // Customer cell with name on one line, email below
+      var custTd = document.createElement('td');
+      var custName = document.createElement('span');
+      custName.className = 'res-cell-primary';
+      custName.textContent = res.customer_name || '';
+      custTd.appendChild(custName);
+      if (res.customer_email) {
+        var custEmail = document.createElement('span');
+        custEmail.className = 'res-cell-secondary';
+        custEmail.textContent = res.customer_email;
+        custTd.appendChild(custEmail);
+      }
+      tr.appendChild(custTd);
+
+      // Products cell — split comma-separated products onto separate lines
+      var prodTd = document.createElement('td');
+      var prodStr = res.products || '';
+      var prodItems = prodStr.split(',');
+      prodItems.forEach(function (item, idx) {
+        var trimmed = item.trim();
+        if (!trimmed) return;
+        var prodSpan = document.createElement('span');
+        prodSpan.className = 'res-cell-line';
+        prodSpan.textContent = trimmed;
+        prodTd.appendChild(prodSpan);
+      });
+      tr.appendChild(prodTd);
+
+      // Timeslot cell — date on one line, time below
+      var tsTd = document.createElement('td');
+      var tsStr = (res.timeslot || '').trim();
+      var tsSpaceIdx = tsStr.indexOf(' ');
+      if (tsSpaceIdx > 0) {
+        var tsDate = document.createElement('span');
+        tsDate.className = 'res-cell-primary';
+        tsDate.textContent = tsStr.substring(0, tsSpaceIdx);
+        tsTd.appendChild(tsDate);
+        var tsTime = document.createElement('span');
+        tsTime.className = 'res-cell-secondary';
+        tsTime.textContent = tsStr.substring(tsSpaceIdx + 1);
+        tsTd.appendChild(tsTime);
+      } else {
+        tsTd.textContent = tsStr;
+      }
+      tr.appendChild(tsTd);
 
       var statusTd = document.createElement('td');
       var badge = document.createElement('span');
@@ -479,9 +522,23 @@
 
         appendTd(htr, ''); // expand column spacer
         appendTd(htr, hold.hold_id || '');
-        appendTd(htr, hold.product_name || '');
-        appendTd(htr, 'SKU: ' + (hold.sku || ''));
+
+        // Product name with SKU below
+        var hProdTd = document.createElement('td');
+        var hProdName = document.createElement('span');
+        hProdName.className = 'res-cell-primary';
+        hProdName.textContent = hold.product_name || '';
+        hProdTd.appendChild(hProdName);
+        if (hold.sku) {
+          var hProdSku = document.createElement('span');
+          hProdSku.className = 'res-cell-secondary';
+          hProdSku.textContent = 'SKU: ' + hold.sku;
+          hProdTd.appendChild(hProdSku);
+        }
+        htr.appendChild(hProdTd);
+
         appendTd(htr, 'Qty: ' + (hold.qty || ''));
+        appendTd(htr, ''); // timeslot column spacer
 
         var hStatusTd = document.createElement('td');
         var hBadge = document.createElement('span');
