@@ -3165,49 +3165,25 @@
       rows.push(['featured', '', '', '', sku]);
     });
 
-    // Clear the sheet and write new data
-    var range = SHEETS_CONFIG.SHEET_NAMES.HOMEPAGE + '!A:E';
+    // Clear the sheet first, then write new data
+    var clearUrl = 'https://sheets.googleapis.com/v4/spreadsheets/' +
+      SHEETS_CONFIG.SPREADSHEET_ID + '/values/' +
+      encodeURIComponent(SHEETS_CONFIG.SHEET_NAMES.HOMEPAGE + '!A:E') + ':clear';
 
-    // First clear the sheet content (except we'll overwrite with new data)
-    // Use batchUpdate to clear then write
-    var sheetId = null;
-
-    // Get sheet ID for Homepage tab
-    fetch('https://sheets.googleapis.com/v4/spreadsheets/' + SHEETS_CONFIG.SPREADSHEET_ID + '?fields=sheets.properties', {
+    fetch(clearUrl, {
+      method: 'POST',
       headers: { 'Authorization': 'Bearer ' + accessToken }
     })
-    .then(function (res) { return res.json(); })
-    .then(function (data) {
-      var sheets = data.sheets || [];
-      for (var i = 0; i < sheets.length; i++) {
-        if (sheets[i].properties.title === SHEETS_CONFIG.SHEET_NAMES.HOMEPAGE) {
-          sheetId = sheets[i].properties.sheetId;
-          break;
-        }
+    .then(function (res) {
+      if (!res.ok) {
+        return res.json().then(function (err) {
+          throw new Error(err.error ? err.error.message : 'Failed to clear sheet');
+        });
       }
-      if (sheetId === null) {
-        throw new Error('Homepage sheet not found');
-      }
-
-      // Clear sheet content
-      return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + SHEETS_CONFIG.SPREADSHEET_ID + ':batchUpdate', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + accessToken,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          requests: [{
-            updateCells: {
-              range: { sheetId: sheetId },
-              fields: 'userEnteredValue'
-            }
-          }]
-        })
-      });
+      return res.json();
     })
     .then(function () {
-      // Write new data
+      // Write new data starting at A1
       return sheetsUpdate(SHEETS_CONFIG.SHEET_NAMES.HOMEPAGE + '!A1', rows);
     })
     .then(function () {
