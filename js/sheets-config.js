@@ -29,6 +29,9 @@ var SHEETS_CONFIG = {
   // Set this after publishing the Schedule tab: File → Share → Publish to web → Schedule tab → CSV
   PUBLISHED_SCHEDULE_CSV_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRpDadhsKBYPuE3pFCYnmeRiUJO_Z972ISX509taCzL8jmYaWPue5DfR9OfEiJD-OlhsxoC_rDerUW/pub?gid=1949632749&single=true&output=csv',
 
+  // Published CSV URL for the Homepage tab (public, no auth required)
+  PUBLISHED_HOMEPAGE_CSV_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRpDadhsKBYPuE3pFCYnmeRiUJO_Z972ISX509taCzL8jmYaWPue5DfR9OfEiJD-OlhsxoC_rDerUW/pub?gid=909487903&single=true&output=csv',
+
   // OAuth scope for read/write access to spreadsheets
   SCOPES: 'https://www.googleapis.com/auth/spreadsheets',
 
@@ -44,6 +47,7 @@ var SHEETS_CONFIG = {
     RESERVATIONS: 'Reservations',
     SCHEDULE: 'Schedule',
     CONFIG: 'Config',
-    SERVICES: 'Services'
+    SERVICES: 'Services',
+    HOMEPAGE: 'Homepage'
   }
 };

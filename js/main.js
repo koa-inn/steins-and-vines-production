@@ -340,10 +340,45 @@ function loadFeaturedProducts() {
     : null;
   var localCsvUrl = 'content/products.csv';
 
-  // Load home.json for promo config
-  fetch('content/home.json')
-    .then(function (res) { return res.ok ? res.json() : {}; })
-    .then(function (config) {
+  // Load homepage config from Google Sheets (published CSV)
+  var homepageCsvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL)
+    ? SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL
+    : null;
+
+  var configPromise = homepageCsvUrl
+    ? fetch(homepageCsvUrl).then(function (res) { return res.ok ? res.text() : ''; })
+    : fetch('content/home.json').then(function (res) { return res.ok ? res.json() : {}; }).then(function (j) { return { isJson: true, data: j }; });
+
+  configPromise
+    .then(function (result) {
+      var config = { 'promo-news': [], 'promo-featured-note': '', 'promo-featured-skus': [] };
+
+      if (result && result.isJson) {
+        // Fallback JSON format
+        config = result.data;
+      } else if (typeof result === 'string' && result.trim()) {
+        // Parse CSV from Google Sheets
+        var lines = result.trim().split('\n');
+        if (lines.length > 1) {
+          for (var i = 1; i < lines.length; i++) {
+            var values = parseHomepageCSVLine(lines[i]);
+            var type = (values[0] || '').toLowerCase().trim();
+            if (type === 'news') {
+              config['promo-news'].push({
+                date: (values[1] || '').trim(),
+                title: (values[2] || '').trim(),
+                text: (values[3] || '').trim()
+              });
+            } else if (type === 'note') {
+              config['promo-featured-note'] = (values[3] || '').trim();
+            } else if (type === 'featured') {
+              var sku = (values[4] || '').trim();
+              if (sku) config['promo-featured-skus'].push(sku);
+            }
+          }
+        }
+      }
+
       // Render news items
       if (newsContainer && config['promo-news'] && config['promo-news'].length > 0) {
         renderNews(config['promo-news']);
@@ -362,6 +397,25 @@ function loadFeaturedProducts() {
       // Fallback: load products without SKU filter
       loadAndRenderProducts([]);
     });
+
+  function parseHomepageCSVLine(line) {
+    var result = [];
+    var current = '';
+    var inQuotes = false;
+    for (var i = 0; i < line.length; i++) {
+      var c = line[i];
+      if (c === '"') {
+        inQuotes = !inQuotes;
+      } else if (c === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += c;
+      }
+    }
+    result.push(current);
+    return result;
+  }
 
   function escapeHTMLPromo(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

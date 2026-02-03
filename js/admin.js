@@ -266,6 +266,7 @@
       populateOrderKitSelect();
       populateOrderBrandFilter();
       renderOrderTab();
+      loadHomepageData();
       var orderSkus = getOrder().map(function (item) { return item.sku; });
       if (orderSkus.length > 0) syncOnOrder(orderSkus);
     }).catch(function (err) {
@@ -3015,22 +3016,55 @@
     'promo-featured-skus': []
   };
   var homepageSelectedProduct = null;
+  var homepageHeaders = [];
+
+  function loadHomepageData() {
+    // Load from Google Sheets
+    sheetsGet(SHEETS_CONFIG.SHEET_NAMES.HOMEPAGE + '!A:E')
+      .then(function (data) {
+        var rows = data.values || [];
+        if (rows.length > 0) {
+          homepageHeaders = rows[0];
+        }
+
+        // Reset config
+        homepageConfig['promo-news'] = [];
+        homepageConfig['promo-featured-note'] = '';
+        homepageConfig['promo-featured-skus'] = [];
+
+        // Parse rows (skip header)
+        for (var i = 1; i < rows.length; i++) {
+          var row = rows[i];
+          var type = (row[0] || '').toLowerCase();
+          if (type === 'news') {
+            homepageConfig['promo-news'].push({
+              date: row[1] || '',
+              title: row[2] || '',
+              text: row[3] || ''
+            });
+          } else if (type === 'note') {
+            homepageConfig['promo-featured-note'] = row[3] || '';
+          } else if (type === 'featured') {
+            var sku = row[4] || '';
+            if (sku) {
+              homepageConfig['promo-featured-skus'].push(sku);
+            }
+          }
+        }
+
+        renderHomepageNewsItems();
+        renderHomepageFeaturedList();
+        var noteField = document.getElementById('homepage-featured-note');
+        if (noteField) noteField.value = homepageConfig['promo-featured-note'] || '';
+      })
+      .catch(function (err) {
+        console.error('[Homepage] Error loading from sheet:', err);
+      });
+  }
 
   function initHomepageTab() {
     document.addEventListener('DOMContentLoaded', function () {
-      // Load existing home.json
-      fetch('content/home.json')
-        .then(function (res) { return res.ok ? res.json() : {}; })
-        .then(function (data) {
-          if (data['promo-news']) homepageConfig['promo-news'] = data['promo-news'];
-          if (data['promo-featured-note']) homepageConfig['promo-featured-note'] = data['promo-featured-note'];
-          if (data['promo-featured-skus']) homepageConfig['promo-featured-skus'] = data['promo-featured-skus'];
-          renderHomepageNewsItems();
-          renderHomepageFeaturedList();
-          var noteField = document.getElementById('homepage-featured-note');
-          if (noteField) noteField.value = homepageConfig['promo-featured-note'] || '';
-        })
-        .catch(function () {});
+      // Homepage data will be loaded after auth via loadHomepageData()
 
       // Add news item button
       var addNewsBtn = document.getElementById('homepage-add-news');
@@ -3101,23 +3135,87 @@
         });
       }
 
-      // Save button
+      // Save button - saves to Google Sheets
       var saveBtn = document.getElementById('homepage-save-btn');
       if (saveBtn) {
         saveBtn.addEventListener('click', function () {
           collectHomepageData();
-          alert('Homepage settings collected. Use "Download home.json" to save the file, then upload it to the content folder.');
+          saveHomepageToSheets();
         });
+      }
+    });
+  }
+
+  function saveHomepageToSheets() {
+    // Build rows for the sheet
+    var rows = [['Type', 'Date', 'Title', 'Text', 'SKU']]; // Header row
+
+    // Add news items
+    homepageConfig['promo-news'].forEach(function (news) {
+      rows.push(['news', news.date || '', news.title || '', news.text || '', '']);
+    });
+
+    // Add featured note
+    if (homepageConfig['promo-featured-note']) {
+      rows.push(['note', '', '', homepageConfig['promo-featured-note'], '']);
+    }
+
+    // Add featured products
+    homepageConfig['promo-featured-skus'].forEach(function (sku) {
+      rows.push(['featured', '', '', '', sku]);
+    });
+
+    // Clear the sheet and write new data
+    var range = SHEETS_CONFIG.SHEET_NAMES.HOMEPAGE + '!A:E';
+
+    // First clear the sheet content (except we'll overwrite with new data)
+    // Use batchUpdate to clear then write
+    var sheetId = null;
+
+    // Get sheet ID for Homepage tab
+    fetch('https://sheets.googleapis.com/v4/spreadsheets/' + SHEETS_CONFIG.SPREADSHEET_ID + '?fields=sheets.properties', {
+      headers: { 'Authorization': 'Bearer ' + accessToken }
+    })
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      var sheets = data.sheets || [];
+      for (var i = 0; i < sheets.length; i++) {
+        if (sheets[i].properties.title === SHEETS_CONFIG.SHEET_NAMES.HOMEPAGE) {
+          sheetId = sheets[i].properties.sheetId;
+          break;
+        }
+      }
+      if (sheetId === null) {
+        throw new Error('Homepage sheet not found');
       }
 
-      // Download button
-      var downloadBtn = document.getElementById('homepage-download-btn');
-      if (downloadBtn) {
-        downloadBtn.addEventListener('click', function () {
-          collectHomepageData();
-          downloadHomepageJson();
-        });
-      }
+      // Clear sheet content
+      return fetch('https://sheets.googleapis.com/v4/spreadsheets/' + SHEETS_CONFIG.SPREADSHEET_ID + ':batchUpdate', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + accessToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          requests: [{
+            updateCells: {
+              range: { sheetId: sheetId },
+              fields: 'userEnteredValue'
+            }
+          }]
+        })
+      });
+    })
+    .then(function () {
+      // Write new data
+      return sheetsUpdate(SHEETS_CONFIG.SHEET_NAMES.HOMEPAGE + '!A1', rows);
+    })
+    .then(function () {
+      alert('Homepage settings saved to Google Sheets!');
+    })
+    .catch(function (err) {
+      console.error('[Homepage] Error saving:', err);
+      alert('Error saving homepage settings: ' + err.message);
     });
   }
 
@@ -3149,30 +3247,6 @@
     }
   }
 
-  function downloadHomepageJson() {
-    // Merge with existing home.json structure
-    fetch('content/home.json')
-      .then(function (res) { return res.ok ? res.json() : {}; })
-      .then(function (existing) {
-        var merged = Object.assign({}, existing, {
-          'promo-news': homepageConfig['promo-news'],
-          'promo-featured-note': homepageConfig['promo-featured-note'],
-          'promo-featured-skus': homepageConfig['promo-featured-skus']
-        });
-        var json = JSON.stringify(merged, null, 2);
-        var blob = new Blob([json], { type: 'application/json' });
-        var link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = 'home.json';
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      })
-      .catch(function () {
-        alert('Error preparing download.');
-      });
-  }
 
   function renderHomepageNewsItems() {
     var container = document.getElementById('homepage-news-list');
