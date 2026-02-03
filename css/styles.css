@@ -374,7 +374,9 @@ small, .text-small {
   border-radius: 4px;
   padding: 1rem 1.25rem;
   border-left: 3px solid var(--color-green);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.25),
+    0 2px 4px rgba(0,0,0,0.15);
 }
 
 .promo-news-date {
@@ -414,7 +416,9 @@ small, .text-small {
   font-style: italic;
   color: var(--color-brown);
   border-left: 3px solid var(--color-green);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.25),
+    0 2px 4px rgba(0,0,0,0.15);
 }
 
 .promo-featured-note p {
@@ -447,7 +451,9 @@ small, .text-small {
   flex: 0 0 100%;
   max-width: 340px;
   margin: 0 auto;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+  box-shadow:
+    0 6px 16px rgba(0,0,0,0.3),
+    0 2px 4px rgba(0,0,0,0.15);
   opacity: 0;
   transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out;
   transform: translateX(50px);
