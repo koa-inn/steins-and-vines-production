@@ -59,17 +59,31 @@ document.addEventListener('DOMContentLoaded', function () {
     openTips.forEach(function (tip) { tip.classList.remove('show'); });
   });
 
-  // Content loader — reads data-page on <body> and fetches the matching JSON
+  // Content loader — fetches shared.json + page-specific JSON, merges, and applies
   var page = document.body.getAttribute('data-page');
   if (page) {
-    fetch('content/' + page + '.json')
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
+    var sharedFetch = fetch('content/shared.json')
+      .then(function (res) { return res.ok ? res.json() : {}; })
+      .catch(function () { return {}; });
+    var pageFetch = fetch('content/' + page + '.json')
+      .then(function (res) { return res.ok ? res.json() : {}; })
+      .catch(function () { return {}; });
+
+    Promise.all([sharedFetch, pageFetch])
+      .then(function (results) {
+        var shared = results[0];
+        var pageData = results[1];
+        // Page-specific values override shared
+        var data = {};
+        var key;
+        for (key in shared) { if (shared.hasOwnProperty(key)) data[key] = shared[key]; }
+        for (key in pageData) { if (pageData.hasOwnProperty(key)) data[key] = pageData[key]; }
+
         var els = document.querySelectorAll('[data-content]');
         els.forEach(function (el) {
-          var key = el.getAttribute('data-content');
-          if (data[key] !== undefined) {
-            el.textContent = data[key];
+          var k = el.getAttribute('data-content');
+          if (data[k] !== undefined) {
+            el.textContent = data[k];
           }
         });
       })
@@ -104,6 +118,17 @@ document.addEventListener('DOMContentLoaded', function () {
   if (page === 'about' || page === 'contact') {
     loadOpenHours();
   }
+
+  // Featured products on homepage
+  if (page === 'home') {
+    loadFeaturedProducts();
+  }
+
+  // Footer hours on all public pages
+  loadFooterHours();
+
+  // Social links on all pages
+  loadSocialLinks();
 });
 
 function loadOpenHours() {
@@ -206,6 +231,630 @@ function loadOpenHours() {
     .catch(function () {
       return fetchAndRender(localUrl).catch(function () {});
     });
+}
+
+function loadFooterHours() {
+  var container = document.getElementById('footer-hours');
+  if (!container) return;
+
+  var DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  var remoteUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL)
+    ? SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL
+    : null;
+  var localUrl = 'content/timeslots.csv';
+
+  function parseAndRender(csv) {
+    var lines = csv.trim().split('\n');
+    if (lines.length < 2) return false;
+
+    var headers = lines[0].split(',');
+    var slots = [];
+    for (var i = 1; i < lines.length; i++) {
+      var values = lines[i].split(',');
+      if (values.length < 3) continue;
+      var obj = {};
+      for (var j = 0; j < headers.length; j++) {
+        obj[headers[j].trim()] = values[j].trim();
+      }
+      slots.push(obj);
+    }
+
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    slots = slots.filter(function (s) {
+      var d = new Date(s.date + 'T00:00:00');
+      return d >= today;
+    });
+
+    if (slots.length === 0) return false;
+
+    // Group by day-of-week, track earliest start and latest end
+    var dayMap = {};
+    slots.forEach(function (s) {
+      var d = new Date(s.date + 'T00:00:00');
+      var dow = d.getDay();
+      var timeParts = s.time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (!timeParts) return;
+      var h = parseInt(timeParts[1], 10);
+      var m = parseInt(timeParts[2], 10);
+      var ampm = timeParts[3].toUpperCase();
+      if (ampm === 'PM' && h !== 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      var mins = h * 60 + m;
+
+      if (!dayMap[dow]) dayMap[dow] = { min: mins, max: mins };
+      if (mins < dayMap[dow].min) dayMap[dow].min = mins;
+      if (mins > dayMap[dow].max) dayMap[dow].max = mins;
+    });
+
+    function minsToStr(mins) {
+      var h = Math.floor(mins / 60);
+      var m = mins % 60;
+      var ampm = h >= 12 ? 'PM' : 'AM';
+      var hr12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+      return hr12 + (m > 0 ? ':' + (m < 10 ? '0' + m : m) : '') + ampm;
+    }
+
+    // Build compact hours display
+    var html = '';
+    for (var dow = 0; dow < 7; dow++) {
+      var info = dayMap[dow];
+      html += '<span class="footer-hours-day' + (info ? '' : ' closed') + '">';
+      html += '<span class="footer-hours-abbr">' + DAY_ABBR[dow] + '</span> ';
+      if (info) {
+        html += minsToStr(info.min) + '–' + minsToStr(info.max + 30);
+      } else {
+        html += 'Closed';
+      }
+      html += '</span>';
+    }
+    container.innerHTML = html;
+    return true;
+  }
+
+  function fetchAndRender(url) {
+    return fetch(url)
+      .then(function (res) { return res.text(); })
+      .then(function (csv) { return parseAndRender(csv); });
+  }
+
+  var attempt = remoteUrl ? fetchAndRender(remoteUrl) : Promise.resolve(false);
+  attempt
+    .then(function (success) {
+      if (!success) return fetchAndRender(localUrl);
+    })
+    .catch(function () {
+      return fetchAndRender(localUrl).catch(function () {});
+    });
+}
+
+// ===== Social Links =====
+
+function loadSocialLinks() {
+  var container = document.querySelector('.footer-social');
+  if (!container) return;
+
+  var homepageCsvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL)
+    ? SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL
+    : null;
+
+  if (!homepageCsvUrl) return; // Keep hardcoded links if no sheet configured
+
+  fetch(homepageCsvUrl)
+    .then(function (res) { return res.ok ? res.text() : ''; })
+    .then(function (csv) {
+      if (!csv.trim()) return;
+
+      var lines = csv.trim().split('\n');
+      var socialLinks = {};
+
+      for (var i = 1; i < lines.length; i++) {
+        var values = parseCSVLine(lines[i]);
+        var type = (values[0] || '').toLowerCase().trim();
+        if (type === 'social') {
+          var platform = (values[2] || '').toLowerCase().trim(); // Title column = platform name
+          var url = (values[4] || '').trim(); // SKU column = URL
+          if (platform && url) {
+            socialLinks[platform] = url;
+          }
+        }
+      }
+
+      // Update existing links if we found any
+      if (Object.keys(socialLinks).length > 0) {
+        var igLink = container.querySelector('a[aria-label*="Instagram"]');
+        var fbLink = container.querySelector('a[aria-label*="Facebook"]');
+
+        if (igLink && socialLinks.instagram) {
+          igLink.href = socialLinks.instagram;
+        }
+        if (fbLink && socialLinks.facebook) {
+          fbLink.href = socialLinks.facebook;
+        }
+      }
+    })
+    .catch(function () {
+      // Keep hardcoded links on error
+    });
+
+  function parseCSVLine(line) {
+    var result = [];
+    var current = '';
+    var inQuotes = false;
+    for (var i = 0; i < line.length; i++) {
+      var c = line[i];
+      if (c === '"') {
+        inQuotes = !inQuotes;
+      } else if (c === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += c;
+      }
+    }
+    result.push(current);
+    return result;
+  }
+}
+
+// ===== Homepage Promo Section =====
+
+function loadFeaturedProducts() {
+  var promoSection = document.getElementById('promo-section');
+  var newsContainer = document.getElementById('promo-news-content');
+  var noteContainer = document.getElementById('promo-featured-note');
+  var productsContainer = document.getElementById('promo-featured-products');
+  if (!promoSection) return;
+
+  // Show loading skeleton immediately
+  if (productsContainer) {
+    productsContainer.innerHTML = '<div class="promo-loading-skeleton"><div class="skeleton-card"></div></div>';
+  }
+
+  var csvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_CSV_URL)
+    ? SHEETS_CONFIG.PUBLISHED_CSV_URL
+    : null;
+  var localCsvUrl = 'content/products.csv';
+
+  // Load homepage config from Google Sheets (published CSV)
+  var homepageCsvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL)
+    ? SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL
+    : null;
+
+  // Fetch both CSVs in parallel for faster loading
+  var configPromise = homepageCsvUrl
+    ? fetch(homepageCsvUrl).then(function (res) { return res.ok ? res.text() : ''; })
+    : fetch('content/home.json').then(function (res) { return res.ok ? res.json() : {}; }).then(function (j) { return { isJson: true, data: j }; });
+
+  var productsPromise = csvUrl
+    ? fetch(csvUrl).then(function (r) { return r.ok ? r.text() : ''; }).catch(function () { return fetch(localCsvUrl).then(function (r) { return r.text(); }); })
+    : fetch(localCsvUrl).then(function (r) { return r.text(); });
+
+  Promise.all([configPromise, productsPromise])
+    .then(function (results) {
+      var result = results[0];
+      var productsCsv = results[1];
+      var config = { 'promo-news': [], 'promo-featured-note': '', 'promo-featured-skus': [] };
+
+      if (result && result.isJson) {
+        // Fallback JSON format
+        config = result.data;
+      } else if (typeof result === 'string' && result.trim()) {
+        // Parse CSV from Google Sheets
+        var lines = result.trim().split('\n');
+        if (lines.length > 1) {
+          for (var i = 1; i < lines.length; i++) {
+            var values = parseHomepageCSVLine(lines[i]);
+            var type = (values[0] || '').toLowerCase().trim();
+            if (type === 'news') {
+              config['promo-news'].push({
+                date: (values[1] || '').trim(),
+                title: (values[2] || '').trim(),
+                text: (values[3] || '').trim()
+              });
+            } else if (type === 'note') {
+              config['promo-featured-note'] = (values[3] || '').trim();
+            } else if (type === 'featured') {
+              var sku = (values[4] || '').trim();
+              if (sku) config['promo-featured-skus'].push(sku);
+            }
+          }
+        }
+      }
+
+      // Render news items
+      if (newsContainer && config['promo-news'] && config['promo-news'].length > 0) {
+        renderNews(config['promo-news']);
+      }
+
+      // Render featured note
+      if (noteContainer && config['promo-featured-note']) {
+        noteContainer.innerHTML = '<p>' + escapeHTMLPromo(config['promo-featured-note']) + '</p>';
+      }
+
+      // Parse and render products
+      var featuredSkus = config['promo-featured-skus'] || [];
+      var products = productsCsv ? parseCSV(productsCsv) : [];
+      renderFeaturedProducts(products, featuredSkus);
+    })
+    .catch(function () {
+      // Fallback: hide promo section on error
+      promoSection.style.display = 'none';
+    });
+
+  function parseHomepageCSVLine(line) {
+    var result = [];
+    var current = '';
+    var inQuotes = false;
+    for (var i = 0; i < line.length; i++) {
+      var c = line[i];
+      if (c === '"') {
+        inQuotes = !inQuotes;
+      } else if (c === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += c;
+      }
+    }
+    result.push(current);
+    return result;
+  }
+
+  function escapeHTMLPromo(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function renderNews(newsItems) {
+    var html = '';
+    newsItems.forEach(function (item) {
+      html += '<div class="promo-news-item">';
+      html += '<span class="promo-news-date">' + escapeHTMLPromo(item.date || '') + '</span>';
+      html += '<h3>' + escapeHTMLPromo(item.title || '') + '</h3>';
+      html += '<p>' + escapeHTMLPromo(item.text || '') + '</p>';
+      html += '</div>';
+    });
+    newsContainer.innerHTML = html;
+  }
+
+  function parseCSV(csv) {
+    var lines = csv.trim().split('\n');
+    if (lines.length < 2) return [];
+    var headers = lines[0].split(',').map(function (h) { return h.trim().toLowerCase().replace(/\s+/g, '_'); });
+    var products = [];
+    for (var i = 1; i < lines.length; i++) {
+      var values = parseCSVLine(lines[i]);
+      if (values.length < 2) continue;
+      var obj = {};
+      for (var j = 0; j < headers.length; j++) {
+        obj[headers[j]] = (values[j] || '').trim();
+      }
+      products.push(obj);
+    }
+    return products;
+  }
+
+  function parseCSVLine(line) {
+    var result = [];
+    var current = '';
+    var inQuotes = false;
+    for (var i = 0; i < line.length; i++) {
+      var c = line[i];
+      if (c === '"') {
+        inQuotes = !inQuotes;
+      } else if (c === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += c;
+      }
+    }
+    result.push(current);
+    return result;
+  }
+
+  function renderFeaturedProducts(products, featuredSkus) {
+    var featured = [];
+
+    // First priority: products matching SKUs from config
+    if (featuredSkus && featuredSkus.length > 0) {
+      featuredSkus.forEach(function (sku) {
+        var match = products.find(function (p) { return p.sku === sku; });
+        if (match) featured.push(match);
+      });
+    }
+
+    // Fallback: products with featured/favorite = TRUE
+    if (featured.length === 0) {
+      featured = products.filter(function (p) {
+        return (p.featured || '').trim().toUpperCase() === 'TRUE' ||
+               (p.favorite || '').trim().toUpperCase() === 'TRUE';
+      });
+    }
+
+    // Fallback: products with discounts
+    if (featured.length === 0) {
+      featured = products.filter(function (p) {
+        return parseFloat(p.discount) > 0;
+      }).slice(0, 3);
+    }
+
+    // Final fallback: first 3 products
+    if (featured.length === 0) {
+      featured = products.slice(0, 3);
+    }
+
+    if (featured.length === 0) {
+      promoSection.style.display = 'none';
+      return;
+    }
+
+    productsContainer.innerHTML = '';
+    var carouselIndex = 0;
+    var isAnimating = false;
+
+    featured.forEach(function (product, idx) {
+      var card = createProductCard(product);
+      card.dataset.carouselIndex = idx;
+      // First card starts active
+      if (idx === 0) {
+        card.classList.add('promo-slide-active');
+      }
+      productsContainer.appendChild(card);
+    });
+
+    // Set up carousel if multiple products
+    if (featured.length > 1) {
+      var nav = document.getElementById('promo-carousel-nav');
+      var dotsContainer = document.getElementById('promo-carousel-dots');
+      if (nav) nav.style.display = 'flex';
+
+      if (dotsContainer) {
+        dotsContainer.innerHTML = '';
+        for (var i = 0; i < featured.length; i++) {
+          var dot = document.createElement('button');
+          dot.type = 'button';
+          dot.className = 'promo-carousel-dot' + (i === 0 ? ' active' : '');
+          dot.dataset.index = i;
+          dot.setAttribute('aria-label', 'Go to product ' + (i + 1));
+          dotsContainer.appendChild(dot);
+        }
+      }
+
+      function showSlide(newIndex) {
+        if (isAnimating || newIndex === carouselIndex) return;
+        isAnimating = true;
+
+        var cards = productsContainer.querySelectorAll('.product-card');
+        var dots = dotsContainer ? dotsContainer.querySelectorAll('.promo-carousel-dot') : [];
+        var currentCard = cards[carouselIndex];
+        var nextCard = cards[newIndex];
+
+        // Slide current card out
+        currentCard.classList.remove('promo-slide-active');
+        currentCard.classList.add('promo-slide-exit');
+
+        // Slide next card in
+        nextCard.classList.add('promo-slide-active');
+
+        // Update dots
+        dots.forEach(function (d, i) {
+          d.classList.toggle('active', i === newIndex);
+        });
+
+        // Clean up after animation
+        setTimeout(function () {
+          currentCard.classList.remove('promo-slide-exit');
+          carouselIndex = newIndex;
+          isAnimating = false;
+        }, 500);
+      }
+
+      var prevBtn = document.querySelector('.promo-carousel-prev');
+      var nextBtn = document.querySelector('.promo-carousel-next');
+      if (prevBtn) {
+        prevBtn.addEventListener('click', function () {
+          showSlide((carouselIndex - 1 + featured.length) % featured.length);
+        });
+      }
+      if (nextBtn) {
+        nextBtn.addEventListener('click', function () {
+          showSlide((carouselIndex + 1) % featured.length);
+        });
+      }
+
+      if (dotsContainer) {
+        dotsContainer.addEventListener('click', function (e) {
+          if (e.target.classList.contains('promo-carousel-dot')) {
+            showSlide(parseInt(e.target.dataset.index, 10));
+          }
+        });
+      }
+
+      // Auto-rotate every 6 seconds
+      setInterval(function () {
+        showSlide((carouselIndex + 1) % featured.length);
+      }, 6000);
+    }
+  }
+
+  function createProductCard(product) {
+    var card = document.createElement('div');
+    card.className = 'product-card';
+
+    var header = document.createElement('div');
+    header.className = 'product-card-header';
+
+    var cardBrand = document.createElement('p');
+    cardBrand.className = 'product-brand';
+    cardBrand.textContent = product.brand || '';
+    header.appendChild(cardBrand);
+
+    var cardName = document.createElement('h4');
+    cardName.textContent = product.name || '';
+    header.appendChild(cardName);
+    card.appendChild(header);
+
+    var batchSize = (product.batch_size_liters || '').trim();
+    if (product.subcategory || product.time || batchSize) {
+      var detailRow = document.createElement('div');
+      detailRow.className = 'product-detail-row';
+      var details = [];
+      if (product.subcategory) details.push(product.subcategory);
+      if (product.time) details.push(product.time);
+      if (batchSize) details.push(batchSize + 'L');
+      for (var d = 0; d < details.length; d++) {
+        if (d > 0) {
+          var sep = document.createElement('span');
+          sep.className = 'detail-sep';
+          sep.textContent = '\u00b7';
+          detailRow.appendChild(sep);
+        }
+        var detailSpan = document.createElement('span');
+        detailSpan.textContent = details[d];
+        detailRow.appendChild(detailSpan);
+      }
+      card.appendChild(detailRow);
+    }
+
+    if (product.tasting_notes) {
+      var notesWrap = document.createElement('div');
+      notesWrap.className = 'product-notes';
+
+      var notesToggle = document.createElement('button');
+      notesToggle.type = 'button';
+      notesToggle.className = 'product-notes-toggle';
+      notesToggle.setAttribute('aria-expanded', 'false');
+      notesToggle.innerHTML = 'More Information <span class="product-notes-chevron">&#9660;</span>';
+
+      var notesBody = document.createElement('div');
+      notesBody.className = 'product-notes-body';
+
+      if (product.sku) {
+        var imageCol = document.createElement('div');
+        imageCol.className = 'product-notes-image';
+        var img = document.createElement('img');
+        img.src = 'images/products/' + product.sku + '.png';
+        img.alt = product.name || 'Product image';
+        img.loading = 'lazy';
+        img.onerror = function() { this.parentElement.remove(); };
+        imageCol.appendChild(img);
+        notesBody.appendChild(imageCol);
+      }
+
+      var textCol = document.createElement('div');
+      textCol.className = 'product-notes-text';
+      var notesP = document.createElement('p');
+      notesP.textContent = product.tasting_notes;
+      textCol.appendChild(notesP);
+      notesBody.appendChild(textCol);
+
+      notesToggle.addEventListener('click', function (wrap, toggle) {
+        return function () {
+          var isOpen = wrap.classList.toggle('open');
+          toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        };
+      }(notesWrap, notesToggle));
+
+      notesWrap.appendChild(notesToggle);
+      notesWrap.appendChild(notesBody);
+      card.appendChild(notesWrap);
+    }
+
+    var discount = parseFloat(product.discount) || 0;
+
+    if (discount > 0) {
+      var badge = document.createElement('span');
+      badge.className = 'product-discount-badge';
+      badge.textContent = Math.round(discount) + '% OFF';
+      card.appendChild(badge);
+    }
+
+    var pricingFrom = (product.pricing_from || '').trim().toUpperCase() === 'TRUE';
+    var plusSign = pricingFrom ? '+' : '';
+    var instore = (product.retail_instore || '').trim();
+    var kit = (product.retail_kit || '').trim();
+    if (instore || kit) {
+      var priceRow = document.createElement('div');
+      priceRow.className = 'product-prices';
+      if (instore) {
+        var instoreBox = document.createElement('div');
+        instoreBox.className = 'product-price-box';
+        if (discount > 0) {
+          var instoreNum = parseFloat(instore.replace(/[^0-9.]/g, ''));
+          var instoreSale = (instoreNum * (1 - discount / 100)).toFixed(2);
+          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-original">' + instore + '</span><span class="product-price-value">$' + instoreSale + plusSign + '</span>';
+        } else {
+          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + instore + plusSign + '</span>';
+        }
+        priceRow.appendChild(instoreBox);
+      }
+      if (kit) {
+        var kitBox = document.createElement('div');
+        kitBox.className = 'product-price-box';
+        if (discount > 0) {
+          var kitNum = parseFloat(kit.replace(/[^0-9.]/g, ''));
+          var kitSale = (kitNum * (1 - discount / 100)).toFixed(2);
+          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-original">' + kit + '</span><span class="product-price-value">$' + kitSale + plusSign + '</span>';
+        } else {
+          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + kit + plusSign + '</span>';
+        }
+        priceRow.appendChild(kitBox);
+      }
+      card.appendChild(priceRow);
+    }
+
+    // Reserve button
+    var reserveWrap = document.createElement('div');
+    reserveWrap.className = 'product-reserve-wrap';
+    var productKey = product.name + '|' + product.brand;
+    renderFeaturedReserveControl(reserveWrap, product, productKey);
+    card.appendChild(reserveWrap);
+
+    return card;
+  }
+
+  function renderFeaturedReserveControl(container, product, productKey) {
+    var reserved = getReservedItems();
+    var isReserved = reserved.some(function (r) { return r.key === productKey; });
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'product-reserve-btn' + (isReserved ? ' reserved' : '');
+    btn.textContent = isReserved ? 'Reserved' : 'Reserve';
+
+    btn.addEventListener('click', function () {
+      var items = getReservedItems();
+      var idx = items.findIndex(function (r) { return r.key === productKey; });
+      if (idx !== -1) {
+        items.splice(idx, 1);
+        btn.classList.remove('reserved');
+        btn.textContent = 'Reserve';
+      } else {
+        items.push({
+          key: productKey,
+          name: product.name,
+          brand: product.brand,
+          type: product.type || 'Wine',
+          sku: product.sku || ''
+        });
+        btn.classList.add('reserved');
+        btn.textContent = 'Reserved';
+      }
+      localStorage.setItem('sv-reserved', JSON.stringify(items));
+    });
+
+    container.appendChild(btn);
+  }
+
+  function getReservedItems() {
+    try {
+      return JSON.parse(localStorage.getItem('sv-reserved')) || [];
+    } catch (e) {
+      return [];
+    }
+  }
 }
 
 // Shared CSV fetch helper — used by all tab loaders
@@ -698,6 +1347,8 @@ function loadProducts() {
           card.appendChild(badge);
         }
 
+        var pricingFrom = (product.pricing_from || '').trim().toUpperCase() === 'TRUE';
+        var plusSign = pricingFrom ? '+' : '';
         var instore = (product.retail_instore || '').trim();
         var kit = (product.retail_kit || '').trim();
         if (instore || kit) {
@@ -709,9 +1360,9 @@ function loadProducts() {
             if (discount > 0) {
               var instoreNum = parseFloat(instore.replace(/[^0-9.]/g, ''));
               var instoreSale = (instoreNum * (1 - discount / 100)).toFixed(2);
-              instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-original">' + instore + '</span><span class="product-price-value">$' + instoreSale + '</span>';
+              instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-original">' + instore + '</span><span class="product-price-value">$' + instoreSale + plusSign + '</span>';
             } else {
-              instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + instore + '</span>';
+              instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + instore + plusSign + '</span>';
             }
             priceRow.appendChild(instoreBox);
           }
@@ -721,9 +1372,9 @@ function loadProducts() {
             if (discount > 0) {
               var kitNum = parseFloat(kit.replace(/[^0-9.]/g, ''));
               var kitSale = (kitNum * (1 - discount / 100)).toFixed(2);
-              kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-original">' + kit + '</span><span class="product-price-value">$' + kitSale + '</span>';
+              kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-original">' + kit + '</span><span class="product-price-value">$' + kitSale + plusSign + '</span>';
             } else {
-              kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + kit + '</span>';
+              kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + kit + plusSign + '</span>';
             }
             priceRow.appendChild(kitBox);
           }
@@ -1077,7 +1728,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
       detailRow.className = 'product-detail-row';
       var details = [];
       if (unit) details.push(unit);
-      if (price) details.push('$' + price);
+      if (price) details.push(price.charAt(0) === '$' ? price : '$' + price);
       for (var d = 0; d < details.length; d++) {
         if (d > 0) {
           var sep = document.createElement('span');
@@ -1090,24 +1741,6 @@ function renderIngredientSection(catalog, title, items, extraClass) {
         detailRow.appendChild(span);
       }
       card.appendChild(detailRow);
-    }
-
-    // Quantity range info
-    var low = (item.low_amount || '').trim();
-    var high = (item.high_amount || '').trim();
-    if (low || high) {
-      var rangeEl = document.createElement('p');
-      rangeEl.className = 'ingredient-range';
-      if (low && high) {
-        rangeEl.textContent = 'Quantity: ' + low + ' – ' + high;
-      } else if (low) {
-        rangeEl.textContent = 'Min quantity: ' + low;
-      } else {
-        rangeEl.textContent = 'Max quantity: ' + high;
-      }
-      var step = (item.step || '').trim();
-      if (step) rangeEl.textContent += ' (step: ' + step + ')';
-      card.appendChild(rangeEl);
     }
 
     // Collapsible description (reusing product-notes pattern)
@@ -1925,6 +2558,13 @@ function loadTimeslots() {
           if (isPast || !hasSlots || withinCutoff) {
             cell.classList.add('cal-day--disabled');
             cell.disabled = true;
+            if (!isPast && !hasSlots && !withinCutoff) {
+              cell.classList.add('cal-day--closed');
+              var closedLabel = document.createElement('span');
+              closedLabel.className = 'cal-day-closed';
+              closedLabel.textContent = 'Closed';
+              cell.appendChild(closedLabel);
+            }
           } else if (hasAvailable) {
             cell.classList.add('cal-day--available');
           } else {
@@ -2076,8 +2716,20 @@ function setupReservationForm() {
   var form = document.getElementById('reservation-form');
   if (!form) return;
 
+  // Record page load time for bot detection
+  var loadedAtField = document.getElementById('res-loaded-at');
+  if (loadedAtField) loadedAtField.value = String(Date.now());
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+
+    // Bot check: honeypot field should be empty
+    var honeypot = document.getElementById('res-website');
+    if (honeypot && honeypot.value) return;
+
+    // Bot check: form submitted too fast (under 3 seconds)
+    var loadedAt = parseInt(document.getElementById('res-loaded-at').value, 10) || 0;
+    if (Date.now() - loadedAt < 3000) return;
 
     var items = getReservation();
     if (items.length === 0) {
