@@ -20,8 +20,51 @@
   var scheduleData = [];
   var scheduleHeaders = [];
 
+  // Dashboard summary (server-side aggregated metrics for accurate counts with pagination)
+  var dashboardSummary = null;
+
   // Pending changes queue: [{item, field, value, sheetName, headers}]
   var pendingChanges = [];
+
+  // ===== Standardized Status Definitions =====
+  // Reservation workflow: pending → confirmed → brewing → ready → completed → archived
+  var RESERVATION_STATUSES = {
+    pending: { label: 'Pending', description: 'Awaiting confirmation', order: 1 },
+    confirmed: { label: 'Confirmed', description: 'Appointment scheduled', order: 2 },
+    brewing: { label: 'Brewing', description: 'Fermentation in progress', order: 3 },
+    ready: { label: 'Ready', description: 'Ready for bottling pickup', order: 4 },
+    completed: { label: 'Completed', description: 'Customer has bottled and picked up', order: 5 },
+    cancelled: { label: 'Cancelled', description: 'Reservation was cancelled', order: 6 },
+    archived: { label: 'Archived', description: 'Hidden from active view', order: 7 }
+  };
+
+  // Valid status transitions (from → [allowed destinations])
+  var STATUS_TRANSITIONS = {
+    pending: ['confirmed', 'cancelled'],
+    confirmed: ['brewing', 'cancelled'],
+    brewing: ['ready', 'cancelled'],
+    ready: ['completed', 'cancelled'],
+    completed: ['archived'],
+    cancelled: ['archived'],
+    archived: ['completed'] // Allow restore
+  };
+
+  // Hold statuses (simpler workflow)
+  var HOLD_STATUSES = {
+    pending: { label: 'Pending', order: 1 },
+    confirmed: { label: 'Confirmed', order: 2 },
+    released: { label: 'Released', order: 3 }
+  };
+
+  // ===== Pagination State =====
+  var RESERVATIONS_PAGE_SIZE = 50;
+  var reservationsPagination = {
+    offset: 0,
+    limit: RESERVATIONS_PAGE_SIZE,
+    total: 0,
+    filtered: 0,
+    currentFilter: 'pending'
+  };
 
   // ===== Initialization =====
 
@@ -119,8 +162,29 @@
   }
 
   function checkAuthorization() {
-    // Read Config sheet to get staff_emails
     console.log('[Admin] Checking authorization for:', userEmail);
+
+    // Use server-side validation if Admin API is configured (more secure)
+    if (SHEETS_CONFIG.ADMIN_API_URL) {
+      console.log('[Admin] Using server-side auth validation');
+      adminApiGet('check_auth')
+        .then(function (result) {
+          console.log('[Admin] Server auth result:', result);
+          if (result.authorized) {
+            showDashboard();
+          } else {
+            showDenied();
+          }
+        })
+        .catch(function (err) {
+          console.error('[Admin] Server auth failed:', err.message);
+          showDenied();
+        });
+      return;
+    }
+
+    // Fallback: client-side check (less secure, for development)
+    console.warn('[Admin] Using client-side auth (ADMIN_API_URL not configured)');
     sheetsGet(SHEETS_CONFIG.SHEET_NAMES.CONFIG + '!A:B')
       .then(function (data) {
         var rows = data.values || [];
@@ -179,6 +243,52 @@
     document.getElementById('admin-dashboard').style.display = 'none';
   }
 
+  // ===== Admin API Helper =====
+
+  /**
+   * Call the secure Admin API (server-side auth validation)
+   * Falls back to direct Sheets API if ADMIN_API_URL is not configured
+   */
+  function adminApiGet(action) {
+    if (!SHEETS_CONFIG.ADMIN_API_URL) {
+      return Promise.reject(new Error('Admin API not configured'));
+    }
+    var url = SHEETS_CONFIG.ADMIN_API_URL + '?action=' + encodeURIComponent(action);
+    return fetch(url, {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + accessToken }
+    }).then(function (res) {
+      return res.json();
+    }).then(function (data) {
+      if (!data.ok) {
+        throw new Error(data.message || data.error || 'API error');
+      }
+      return data;
+    });
+  }
+
+  function adminApiPost(action, payload) {
+    if (!SHEETS_CONFIG.ADMIN_API_URL) {
+      return Promise.reject(new Error('Admin API not configured'));
+    }
+    payload.action = action;
+    return fetch(SHEETS_CONFIG.ADMIN_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + accessToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    }).then(function (res) {
+      return res.json();
+    }).then(function (data) {
+      if (!data.ok) {
+        throw new Error(data.message || data.error || 'API error');
+      }
+      return data;
+    });
+  }
+
   // ===== Sheets API Helpers =====
 
   function sheetsGet(range) {
@@ -193,58 +303,135 @@
   }
 
   function sheetsUpdate(range, values) {
-    var url = 'https://sheets.googleapis.com/v4/spreadsheets/' +
-      SHEETS_CONFIG.SPREADSHEET_ID + '/values/' + encodeURIComponent(range) +
-      '?valueInputOption=USER_ENTERED';
-    return fetch(url, {
-      method: 'PUT',
-      headers: {
-        Authorization: 'Bearer ' + accessToken,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ values: values })
-    }).then(function (res) {
-      if (!res.ok) throw new Error('Sheets API error: ' + res.status);
-      return res.json();
+    // If Admin API is configured, verify authorization server-side before write
+    var writePromise;
+    if (SHEETS_CONFIG.ADMIN_API_URL) {
+      writePromise = adminApiGet('check_auth').then(function (result) {
+        if (!result.authorized) {
+          throw new Error('Not authorized to make changes');
+        }
+      });
+    } else {
+      writePromise = Promise.resolve();
+    }
+
+    return writePromise.then(function () {
+      var url = 'https://sheets.googleapis.com/v4/spreadsheets/' +
+        SHEETS_CONFIG.SPREADSHEET_ID + '/values/' + encodeURIComponent(range) +
+        '?valueInputOption=USER_ENTERED';
+      return fetch(url, {
+        method: 'PUT',
+        headers: {
+          Authorization: 'Bearer ' + accessToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values: values })
+      }).then(function (res) {
+        if (!res.ok) throw new Error('Sheets API error: ' + res.status);
+        return res.json();
+      });
     });
   }
 
   function sheetsAppend(range, values) {
-    var url = 'https://sheets.googleapis.com/v4/spreadsheets/' +
-      SHEETS_CONFIG.SPREADSHEET_ID + '/values/' + encodeURIComponent(range) +
-      ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS';
-    return fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + accessToken,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ values: values })
-    }).then(function (res) {
-      if (!res.ok) throw new Error('Sheets API error: ' + res.status);
-      return res.json();
+    // If Admin API is configured, verify authorization server-side before write
+    var writePromise;
+    if (SHEETS_CONFIG.ADMIN_API_URL) {
+      writePromise = adminApiGet('check_auth').then(function (result) {
+        if (!result.authorized) {
+          throw new Error('Not authorized to make changes');
+        }
+      });
+    } else {
+      writePromise = Promise.resolve();
+    }
+
+    return writePromise.then(function () {
+      var url = 'https://sheets.googleapis.com/v4/spreadsheets/' +
+        SHEETS_CONFIG.SPREADSHEET_ID + '/values/' + encodeURIComponent(range) +
+        ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS';
+      return fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + accessToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values: values })
+      }).then(function (res) {
+        if (!res.ok) throw new Error('Sheets API error: ' + res.status);
+        return res.json();
+      });
     });
   }
 
   function sheetsBatchUpdate(requests) {
-    var url = 'https://sheets.googleapis.com/v4/spreadsheets/' +
-      SHEETS_CONFIG.SPREADSHEET_ID + ':batchUpdate';
-    return fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + accessToken,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ requests: requests })
-    }).then(function (res) {
-      if (!res.ok) throw new Error('Sheets API error: ' + res.status);
-      return res.json();
+    // If Admin API is configured, verify authorization server-side before write
+    var writePromise;
+    if (SHEETS_CONFIG.ADMIN_API_URL) {
+      writePromise = adminApiGet('check_auth').then(function (result) {
+        if (!result.authorized) {
+          throw new Error('Not authorized to make changes');
+        }
+      });
+    } else {
+      writePromise = Promise.resolve();
+    }
+
+    return writePromise.then(function () {
+      var url = 'https://sheets.googleapis.com/v4/spreadsheets/' +
+        SHEETS_CONFIG.SPREADSHEET_ID + ':batchUpdate';
+      return fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + accessToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ requests: requests })
+      }).then(function (res) {
+        if (!res.ok) throw new Error('Sheets API error: ' + res.status);
+        return res.json();
+      });
     });
   }
 
   // ===== Load All Data =====
 
   function loadAllData() {
+    // Reset pagination when loading all data
+    reservationsPagination.offset = 0;
+    reservationsPagination.currentFilter = document.getElementById('res-status-filter')?.value || 'pending';
+
+    // Use Admin API if configured (server-side auth on every request)
+    if (SHEETS_CONFIG.ADMIN_API_URL) {
+      Promise.all([
+        adminApiGet('get_kits'),
+        loadReservationsPage(), // Use paginated loading
+        adminApiGet('get_holds'),
+        adminApiGet('get_schedule'),
+        adminApiGet('get_dashboard_summary') // Server-side aggregated metrics
+      ]).then(function (results) {
+        parseSheetData(results[0].data, 'kits');
+        // Reservations already parsed in loadReservationsPage
+        parseSheetData(results[2].data, 'holds');
+        parseSheetData(results[3].data, 'schedule');
+
+        // Store dashboard summary for accurate counts with pagination
+        dashboardSummary = results[4].data || null;
+
+        // Ingredients still loaded via public CSV (no auth needed)
+        return sheetsGet(SHEETS_CONFIG.SHEET_NAMES.INGREDIENTS + '!A:Z');
+      }).then(function (ingredientsResult) {
+        parseSheetData(ingredientsResult, 'ingredients');
+        finishDataLoad();
+      }).catch(function (err) {
+        console.error('Failed to load data via Admin API:', err);
+        // Show error to user
+        alert('Failed to load data: ' + err.message);
+      });
+      return;
+    }
+
+    // Fallback: direct Sheets API (less secure, no pagination)
     Promise.all([
       sheetsGet(SHEETS_CONFIG.SHEET_NAMES.KITS + '!A:Z'),
       sheetsGet(SHEETS_CONFIG.SHEET_NAMES.INGREDIENTS + '!A:Z'),
@@ -257,21 +444,330 @@
       parseSheetData(results[2], 'reservations');
       parseSheetData(results[3], 'holds');
       parseSheetData(results[4], 'schedule');
-
-      renderReservationsTab();
-      renderKitsTab();
-      renderIngredientsTab();
-      renderScheduleTab();
-      populateKitBrandFilter();
-      populateOrderKitSelect();
-      populateOrderBrandFilter();
-      renderOrderTab();
-      loadHomepageData();
-      var orderSkus = getOrder().map(function (item) { return item.sku; });
-      if (orderSkus.length > 0) syncOnOrder(orderSkus);
+      // Set pagination totals for fallback mode
+      reservationsPagination.total = reservationsData.length;
+      reservationsPagination.filtered = reservationsData.length;
+      finishDataLoad();
     }).catch(function (err) {
       console.error('Failed to load data:', err);
     });
+  }
+
+  /**
+   * Load a page of reservations with server-side filtering
+   */
+  function loadReservationsPage() {
+    if (!SHEETS_CONFIG.ADMIN_API_URL) {
+      return Promise.resolve({ data: { values: [] } });
+    }
+
+    var params = 'get_reservations' +
+      '&limit=' + reservationsPagination.limit +
+      '&offset=' + reservationsPagination.offset +
+      '&status=' + encodeURIComponent(reservationsPagination.currentFilter);
+
+    return adminApiGet(params).then(function (result) {
+      // Parse the paginated data
+      parseSheetData(result.data, 'reservations');
+
+      // Store pagination metadata
+      reservationsPagination.total = result.data.total || 0;
+      reservationsPagination.filtered = result.data.filtered || 0;
+
+      return result;
+    });
+  }
+
+  /**
+   * Change reservation page
+   */
+  function changeReservationsPage(direction) {
+    var newOffset = reservationsPagination.offset + (direction * reservationsPagination.limit);
+
+    // Bounds checking
+    if (newOffset < 0) newOffset = 0;
+    if (newOffset >= reservationsPagination.filtered) return;
+
+    reservationsPagination.offset = newOffset;
+
+    // Reload just the reservations
+    loadReservationsPage().then(function () {
+      renderReservationsTab();
+    }).catch(function (err) {
+      console.error('Failed to load reservations page:', err);
+    });
+  }
+
+  /**
+   * Go to specific reservation page
+   */
+  function goToReservationsPage(page) {
+    var newOffset = (page - 1) * reservationsPagination.limit;
+
+    if (newOffset < 0) newOffset = 0;
+    if (newOffset >= reservationsPagination.filtered && reservationsPagination.filtered > 0) {
+      newOffset = Math.floor((reservationsPagination.filtered - 1) / reservationsPagination.limit) * reservationsPagination.limit;
+    }
+
+    reservationsPagination.offset = newOffset;
+
+    loadReservationsPage().then(function () {
+      renderReservationsTab();
+    }).catch(function (err) {
+      console.error('Failed to load reservations page:', err);
+    });
+  }
+
+  function finishDataLoad() {
+    renderDashboard();
+    renderReservationsTab();
+    renderKitsTab();
+    renderIngredientsTab();
+    renderScheduleTab();
+    populateKitBrandFilter();
+    populateOrderKitSelect();
+    populateOrderBrandFilter();
+    renderOrderTab();
+    loadHomepageData();
+    var orderSkus = getOrder().map(function (item) { return item.sku; });
+    if (orderSkus.length > 0) syncOnOrder(orderSkus);
+  }
+
+  // ===== Dashboard Overview =====
+
+  function renderDashboard() {
+    // Use server-side summary if available (accurate with pagination)
+    if (dashboardSummary) {
+      renderDashboardFromSummary(dashboardSummary);
+      return;
+    }
+
+    // Fallback: calculate from local data (may be incomplete with pagination)
+    renderDashboardFromLocalData();
+  }
+
+  /**
+   * Render dashboard using server-side aggregated summary
+   * This provides accurate counts even when reservations are paginated
+   */
+  function renderDashboardFromSummary(summary) {
+    // 1. Reservations Today
+    document.getElementById('dash-reservations-today').textContent = summary.reservationsToday || 0;
+    document.getElementById('dash-reservations-week').textContent = summary.totalActiveReservations + ' active total';
+
+    // 2. Pending Actions
+    var pendingReservations = summary.pendingReservations || 0;
+    var readyReservations = summary.readyReservations || 0;
+    var pendingHolds = summary.pendingHolds || 0;
+    var totalPending = pendingReservations + readyReservations + pendingHolds;
+
+    document.getElementById('dash-pending-actions').textContent = totalPending;
+    var detailParts = [];
+    if (pendingReservations > 0) detailParts.push(pendingReservations + ' to confirm');
+    if (readyReservations > 0) detailParts.push(readyReservations + ' ready for pickup');
+    if (pendingHolds > 0) detailParts.push(pendingHolds + ' hold' + (pendingHolds !== 1 ? 's' : ''));
+    document.getElementById('dash-pending-detail').textContent = detailParts.join(', ') || 'No pending actions';
+
+    // 3. Low Stock Alerts (from server summary)
+    var lowStockItems = summary.lowStockKits || [];
+    document.getElementById('dash-low-stock').textContent = lowStockItems.length;
+    var stockValueEl = document.querySelector('.dashboard-card--stock .dashboard-card-value');
+    if (lowStockItems.length === 0) {
+      document.getElementById('dash-low-stock-detail').textContent = 'All items well stocked';
+      if (stockValueEl) stockValueEl.style.color = '#388e3c';
+    } else {
+      if (stockValueEl) stockValueEl.style.color = '';
+      var topItems = lowStockItems.slice(0, 2).map(function (item) {
+        return item.name + ' (' + item.stock + ')';
+      });
+      var detailText = topItems.join(', ');
+      if (lowStockItems.length > 2) {
+        detailText += ' +' + (lowStockItems.length - 2) + ' more';
+      }
+      var detailEl = document.getElementById('dash-low-stock-detail');
+      detailEl.innerHTML = detailText + ' <a id="dash-low-stock-link">View all</a>';
+      document.getElementById('dash-low-stock-link').addEventListener('click', function () {
+        document.querySelector('[data-tab="kits"]').click();
+      });
+    }
+
+    // 4. Upcoming Appointments (from server summary)
+    var upcomingAppts = summary.upcomingAppointments || [];
+    document.getElementById('dash-upcoming-appts').textContent = upcomingAppts.length;
+    if (upcomingAppts.length > 0) {
+      var nextAppt = upcomingAppts[0];
+      var apptText = 'Next: ' + nextAppt.date;
+      if (nextAppt.daysAway === 0) apptText = 'Today: ' + nextAppt.name;
+      else if (nextAppt.daysAway === 1) apptText = 'Tomorrow: ' + nextAppt.name;
+      document.getElementById('dash-upcoming-detail').textContent = apptText;
+    } else {
+      document.getElementById('dash-upcoming-detail').textContent = 'None in next 7 days';
+    }
+  }
+
+  /**
+   * Fallback: render dashboard from locally loaded data
+   * Note: may be incomplete when using pagination
+   */
+  function renderDashboardFromLocalData() {
+    var today = new Date();
+    var todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    // Calculate week range (last 7 days)
+    var weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    // Calculate next 7 days for upcoming appointments
+    var nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    // 1. Reservations Today & This Week
+    var reservationsToday = 0;
+    var reservationsWeek = 0;
+    reservationsData.forEach(function (r) {
+      var submitted = r.submitted_at || '';
+      var submittedDate = submitted.split('T')[0];
+      if (submittedDate === todayStr) {
+        reservationsToday++;
+      }
+      if (submitted && new Date(submitted) >= weekAgo) {
+        reservationsWeek++;
+      }
+    });
+
+    document.getElementById('dash-reservations-today').textContent = reservationsToday;
+    document.getElementById('dash-reservations-week').textContent = reservationsWeek + ' this week';
+
+    // 2. Pending Actions (items needing attention)
+    var pendingReservations = 0;
+    var readyReservations = 0;
+    var pendingHolds = 0;
+    reservationsData.forEach(function (r) {
+      var status = (r.status || '').toLowerCase().trim() || 'pending';
+      if (status === 'pending') pendingReservations++;
+      if (status === 'ready') readyReservations++;
+    });
+    holdsData.forEach(function (h) {
+      var status = (h.status || '').toLowerCase().trim() || 'pending';
+      if (status === 'pending') pendingHolds++;
+    });
+    var totalPending = pendingReservations + readyReservations + pendingHolds;
+
+    document.getElementById('dash-pending-actions').textContent = totalPending;
+    var detailParts = [];
+    if (pendingReservations > 0) detailParts.push(pendingReservations + ' to confirm');
+    if (readyReservations > 0) detailParts.push(readyReservations + ' ready for pickup');
+    if (pendingHolds > 0) detailParts.push(pendingHolds + ' hold' + (pendingHolds !== 1 ? 's' : ''));
+    document.getElementById('dash-pending-detail').textContent = detailParts.join(', ') || 'No pending actions';
+
+    // 3. Low Stock Alerts
+    var lowStockThreshold = 3; // Alert when stock <= this number
+    var lowStockItems = [];
+    kitsData.forEach(function (kit) {
+      var stock = parseInt(kit.stock, 10) || 0;
+      var onHold = parseInt(kit.on_hold, 10) || 0;
+      var available = stock - onHold;
+      // Only check items that are not hidden and have been stocked before
+      if (kit.hide !== 'true' && kit.hide !== 'TRUE') {
+        if (available <= lowStockThreshold) {
+          lowStockItems.push({
+            name: kit.name,
+            brand: kit.brand,
+            available: available,
+            stock: stock,
+            onHold: onHold
+          });
+        }
+      }
+    });
+
+    document.getElementById('dash-low-stock').textContent = lowStockItems.length;
+    if (lowStockItems.length === 0) {
+      document.getElementById('dash-low-stock-detail').textContent = 'All items well stocked';
+      document.querySelector('.dashboard-card--stock .dashboard-card-value').style.color = '#388e3c';
+    } else {
+      var topItems = lowStockItems.slice(0, 2).map(function (item) {
+        return (item.brand ? item.brand + ' ' : '') + item.name + ' (' + item.available + ')';
+      });
+      var detailText = topItems.join(', ');
+      if (lowStockItems.length > 2) {
+        detailText += ' +' + (lowStockItems.length - 2) + ' more';
+      }
+      var detailEl = document.getElementById('dash-low-stock-detail');
+      detailEl.innerHTML = detailText + ' <a id="dash-low-stock-link">View all</a>';
+      document.getElementById('dash-low-stock-link').addEventListener('click', function () {
+        // Switch to Kits tab
+        document.querySelector('[data-tab="kits"]').click();
+      });
+    }
+
+    // 4. Upcoming Appointments (active reservations with timeslots in next 7 days)
+    var upcomingAppts = 0;
+    var nextApptDate = null;
+    var activeStatuses = ['pending', 'confirmed', 'brewing'];
+    reservationsData.forEach(function (r) {
+      var status = (r.status || '').toLowerCase().trim() || 'pending';
+      if (activeStatuses.indexOf(status) !== -1) {
+        var timeslot = r.timeslot || '';
+        // Parse timeslot - format might be "Mon Jan 15 @ 10:00 AM" or similar
+        // Try to extract a date from the timeslot
+        var timeslotDate = parseTimeslotDate(timeslot);
+        if (timeslotDate && timeslotDate >= today && timeslotDate <= nextWeek) {
+          upcomingAppts++;
+          if (!nextApptDate || timeslotDate < nextApptDate) {
+            nextApptDate = timeslotDate;
+          }
+        }
+      }
+    });
+
+    document.getElementById('dash-upcoming-appts').textContent = upcomingAppts;
+    if (upcomingAppts > 0 && nextApptDate) {
+      var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      var nextDay = dayNames[nextApptDate.getDay()];
+      var nextDateStr = nextApptDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      document.getElementById('dash-upcoming-detail').textContent = 'Next: ' + nextDay + ' ' + nextDateStr;
+    } else {
+      document.getElementById('dash-upcoming-detail').textContent = 'None in next 7 days';
+    }
+  }
+
+  function parseTimeslotDate(timeslot) {
+    if (!timeslot) return null;
+    // Try various date parsing approaches
+    // Format examples: "Mon Jan 15 @ 10:00 AM", "2024-01-15 10:00", "January 15, 2024"
+
+    // Try extracting date parts
+    var dateMatch = timeslot.match(/(\w+)\s+(\w+)\s+(\d+)/); // "Mon Jan 15"
+    if (dateMatch) {
+      var monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+      var monthStr = dateMatch[2].toLowerCase().substring(0, 3);
+      var monthIndex = monthNames.indexOf(monthStr);
+      var day = parseInt(dateMatch[3], 10);
+      if (monthIndex !== -1 && day) {
+        var year = new Date().getFullYear();
+        var parsed = new Date(year, monthIndex, day);
+        // If date is in the past, assume next year
+        if (parsed < new Date()) {
+          parsed.setFullYear(year + 1);
+        }
+        return parsed;
+      }
+    }
+
+    // Try ISO format
+    var isoMatch = timeslot.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      return new Date(isoMatch[1], parseInt(isoMatch[2], 10) - 1, isoMatch[3]);
+    }
+
+    // Fallback: try native Date parsing
+    var nativeParsed = new Date(timeslot);
+    if (!isNaN(nativeParsed.getTime())) {
+      return nativeParsed;
+    }
+
+    return null;
   }
 
   function parseSheetData(response, type) {
@@ -366,7 +862,25 @@
 
   function initFilterListeners() {
     var resFilter = document.getElementById('res-status-filter');
-    if (resFilter) resFilter.addEventListener('change', renderReservationsTab);
+    if (resFilter) {
+      resFilter.addEventListener('change', function () {
+        // Reset to first page when filter changes
+        reservationsPagination.offset = 0;
+        reservationsPagination.currentFilter = this.value;
+
+        // If using Admin API, reload from server with new filter
+        if (SHEETS_CONFIG.ADMIN_API_URL) {
+          loadReservationsPage().then(function () {
+            renderReservationsTab();
+          }).catch(function (err) {
+            console.error('Failed to load filtered reservations:', err);
+          });
+        } else {
+          // Client-side filtering
+          renderReservationsTab();
+        }
+      });
+    }
 
     var kitSearch = document.getElementById('kit-search');
     if (kitSearch) kitSearch.addEventListener('input', renderKitsTab);
@@ -394,24 +908,44 @@
 
     var filterVal = document.getElementById('res-status-filter').value;
     var filtered = reservationsData;
-    if (filterVal !== 'all') {
-      filtered = reservationsData.filter(function (r) {
-        var status = (r.status || '').toLowerCase().trim();
-        if (!status) status = 'pending'; // treat empty status as pending
-        return status === filterVal;
-      });
-    }
 
-    // Sort newest first by submitted_at
-    filtered.sort(function (a, b) {
-      return (b.submitted_at || '').localeCompare(a.submitted_at || '');
-    });
+    // When using Admin API, data is already filtered server-side
+    // Only apply client-side filtering for fallback mode
+    if (!SHEETS_CONFIG.ADMIN_API_URL) {
+      if (filterVal === 'all') {
+        // Show everything including archived
+        filtered = reservationsData;
+      } else if (filterVal === 'active') {
+        // Show all except archived
+        filtered = reservationsData.filter(function (r) {
+          var status = (r.status || '').toLowerCase().trim();
+          if (!status) status = 'pending';
+          return status !== 'archived';
+        });
+      } else {
+        // Filter by specific status
+        filtered = reservationsData.filter(function (r) {
+          var status = (r.status || '').toLowerCase().trim();
+          if (!status) status = 'pending'; // treat empty status as pending
+          return status === filterVal;
+        });
+      }
+
+      // Sort newest first by submitted_at (client-side)
+      filtered.sort(function (a, b) {
+        return (b.submitted_at || '').localeCompare(a.submitted_at || '');
+      });
+
+      // Update pagination totals for fallback mode
+      reservationsPagination.filtered = filtered.length;
+    }
 
     tbody.innerHTML = '';
 
     if (filtered.length === 0) {
       emptyMsg.style.display = '';
       document.getElementById('reservations-table').style.display = 'none';
+      renderReservationsPagination();
       return;
     }
     emptyMsg.style.display = 'none';
@@ -492,8 +1026,13 @@
       var statusTd = document.createElement('td');
       var badge = document.createElement('span');
       var displayStatus = (res.status || '').trim().toLowerCase() || 'pending';
+      // Normalize status to known values
+      if (!RESERVATION_STATUSES[displayStatus]) {
+        displayStatus = 'pending';
+      }
       badge.className = 'hold-badge hold-badge--' + displayStatus;
-      badge.textContent = displayStatus;
+      badge.textContent = RESERVATION_STATUSES[displayStatus].label;
+      badge.title = RESERVATION_STATUSES[displayStatus].description;
       statusTd.appendChild(badge);
       tr.appendChild(statusTd);
 
@@ -514,48 +1053,56 @@
         actionsTd.appendChild(emailBtn);
       }
 
-      if (displayStatus === 'pending') {
-        // Confirm button
-        var confirmBtn = document.createElement('button');
-        confirmBtn.type = 'button';
-        confirmBtn.className = 'btn admin-btn-sm';
-        confirmBtn.textContent = 'Confirm';
-        confirmBtn.addEventListener('click', (function (reservation, holds) {
-          return function () {
-            if (!confirm('Confirm reservation for ' + (reservation.customer_name || 'this customer') + '?')) return;
-            setReservationStatus(reservation, 'confirmed');
-            if (holds.length > 0) confirmAllHolds(reservation, holds);
-          };
-        })(res, resHolds));
-        actionsTd.appendChild(confirmBtn);
+      // Status dropdown for valid transitions
+      var allowedTransitions = STATUS_TRANSITIONS[displayStatus] || [];
+      if (allowedTransitions.length > 0) {
+        var statusSelect = document.createElement('select');
+        statusSelect.className = 'admin-select admin-status-select';
 
-        // Cancel button
-        var cancelBtn = document.createElement('button');
-        cancelBtn.type = 'button';
-        cancelBtn.className = 'btn-secondary admin-btn-sm admin-btn-danger';
-        cancelBtn.textContent = 'Cancel';
-        cancelBtn.addEventListener('click', (function (reservation) {
-          return function () {
-            if (!confirm('Cancel reservation for ' + (reservation.customer_name || 'this customer') + '? This cannot be undone.')) return;
-            setReservationStatus(reservation, 'cancelled');
-          };
-        })(res));
-        actionsTd.appendChild(cancelBtn);
-      }
+        // Current status as first option
+        var currentOpt = document.createElement('option');
+        currentOpt.value = '';
+        currentOpt.textContent = 'Change status...';
+        statusSelect.appendChild(currentOpt);
 
-      if (displayStatus === 'confirmed') {
-        // Cancel button for confirmed reservations
-        var cancelConfirmedBtn = document.createElement('button');
-        cancelConfirmedBtn.type = 'button';
-        cancelConfirmedBtn.className = 'btn-secondary admin-btn-sm admin-btn-danger';
-        cancelConfirmedBtn.textContent = 'Cancel';
-        cancelConfirmedBtn.addEventListener('click', (function (reservation) {
+        // Add allowed transitions
+        allowedTransitions.forEach(function (targetStatus) {
+          var opt = document.createElement('option');
+          opt.value = targetStatus;
+          opt.textContent = '→ ' + RESERVATION_STATUSES[targetStatus].label;
+          statusSelect.appendChild(opt);
+        });
+
+        statusSelect.addEventListener('change', (function (reservation, holds, currentStatus) {
           return function () {
-            if (!confirm('Cancel reservation for ' + (reservation.customer_name || 'this customer') + '? This cannot be undone.')) return;
-            setReservationStatus(reservation, 'cancelled');
+            var newStatus = this.value;
+            if (!newStatus) return;
+
+            var statusInfo = RESERVATION_STATUSES[newStatus];
+            var confirmMsg = 'Change status to "' + statusInfo.label + '"';
+            if (newStatus === 'cancelled') {
+              confirmMsg += '? This will cancel the reservation.';
+            } else if (newStatus === 'archived') {
+              confirmMsg += '? It will be hidden from the active list.';
+            } else {
+              confirmMsg += '?';
+            }
+
+            if (!confirm(confirmMsg)) {
+              this.value = '';
+              return;
+            }
+
+            setReservationStatus(reservation, newStatus);
+
+            // Auto-confirm holds when moving to confirmed
+            if (newStatus === 'confirmed' && currentStatus === 'pending' && holds.length > 0) {
+              confirmAllHolds(reservation, holds);
+            }
           };
-        })(res));
-        actionsTd.appendChild(cancelConfirmedBtn);
+        })(res, resHolds, displayStatus));
+
+        actionsTd.appendChild(statusSelect);
       }
 
       tr.appendChild(actionsTd);
@@ -636,6 +1183,64 @@
         };
       })(holdRows, expandBtn));
     });
+
+    // Render pagination controls
+    renderReservationsPagination();
+  }
+
+  /**
+   * Render pagination controls for reservations
+   */
+  function renderReservationsPagination() {
+    var container = document.getElementById('reservations-pagination');
+    if (!container) return;
+
+    var total = reservationsPagination.filtered;
+    var limit = reservationsPagination.limit;
+    var offset = reservationsPagination.offset;
+
+    // Calculate pages
+    var totalPages = Math.ceil(total / limit);
+    var currentPage = Math.floor(offset / limit) + 1;
+
+    // Don't show pagination if only one page
+    if (totalPages <= 1) {
+      container.innerHTML = total > 0 ? '<span class="pagination-info">' + total + ' reservation' + (total !== 1 ? 's' : '') + '</span>' : '';
+      return;
+    }
+
+    var html = '<div class="pagination-controls">';
+
+    // Previous button
+    html += '<button type="button" class="btn-secondary pagination-btn" ' +
+      (currentPage <= 1 ? 'disabled' : '') +
+      ' data-page="prev">&larr; Previous</button>';
+
+    // Page info
+    var startItem = offset + 1;
+    var endItem = Math.min(offset + limit, total);
+    html += '<span class="pagination-info">' + startItem + '–' + endItem + ' of ' + total + '</span>';
+
+    // Next button
+    html += '<button type="button" class="btn-secondary pagination-btn" ' +
+      (currentPage >= totalPages ? 'disabled' : '') +
+      ' data-page="next">Next &rarr;</button>';
+
+    html += '</div>';
+
+    container.innerHTML = html;
+
+    // Add event listeners
+    container.querySelectorAll('.pagination-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var page = this.getAttribute('data-page');
+        if (page === 'prev') {
+          changeReservationsPage(-1);
+        } else if (page === 'next') {
+          changeReservationsPage(1);
+        }
+      });
+    });
   }
 
   function appendTd(tr, text) {
@@ -651,12 +1256,56 @@
     // Find the kit row by SKU
     var kit = kitsData.find(function (k) { return k.sku === hold.sku; });
 
+    // Use Admin API with version checking if available
+    if (SHEETS_CONFIG.ADMIN_API_URL) {
+      var now = new Date().toISOString();
+      adminApiPost('update_hold', {
+        holdId: hold.hold_id,
+        expectedVersion: hold.last_updated || null,
+        updates: {
+          status: 'confirmed',
+          resolved_at: now,
+          resolved_by: userEmail
+        }
+      })
+        .then(function (result) {
+          hold.status = 'confirmed';
+          hold.resolved_at = now;
+          hold.resolved_by = userEmail;
+          if (result.newVersion) {
+            hold.last_updated = result.newVersion;
+          }
+          // Update kit stock via direct API (no version conflict likely for inventory)
+          if (kit) {
+            return updateKitStockAfterConfirm(kit, qty);
+          }
+        })
+        .then(function () {
+          checkReservationStatus(reservation);
+          renderReservationsTab();
+          renderKitsTab();
+          renderDashboard();
+        })
+        .catch(function (err) {
+          if (err.message && err.message.indexOf('modified by another user') !== -1) {
+            if (confirm(err.message + '\n\nWould you like to refresh the data now?')) {
+              loadAllData();
+            }
+          } else {
+            alert('Failed to confirm hold: ' + err.message);
+          }
+        });
+      return;
+    }
+
+    // Fallback: direct Sheets API
     var updates = [];
 
     // Update hold status to "confirmed"
     var holdStatusCol = holdsHeaders.indexOf('status');
     var holdResolvedAtCol = holdsHeaders.indexOf('resolved_at');
     var holdResolvedByCol = holdsHeaders.indexOf('resolved_by');
+    var holdLastUpdatedCol = holdsHeaders.indexOf('last_updated');
     if (holdStatusCol !== -1) {
       var holdRange = SHEETS_CONFIG.SHEET_NAMES.HOLDS + '!' + colLetter(holdStatusCol) + holdRow;
       updates.push(sheetsUpdate(holdRange, [['confirmed']]));
@@ -668,6 +1317,10 @@
     if (holdResolvedByCol !== -1) {
       var byRange = SHEETS_CONFIG.SHEET_NAMES.HOLDS + '!' + colLetter(holdResolvedByCol) + holdRow;
       updates.push(sheetsUpdate(byRange, [[userEmail]]));
+    }
+    if (holdLastUpdatedCol !== -1) {
+      var lastUpdatedRange = SHEETS_CONFIG.SHEET_NAMES.HOLDS + '!' + colLetter(holdLastUpdatedCol) + holdRow;
+      updates.push(sheetsUpdate(lastUpdatedRange, [[new Date().toISOString()]]));
     }
 
     // Update kit: stock -= qty, on_hold -= qty
@@ -692,12 +1345,33 @@
       hold.status = 'confirmed';
       hold.resolved_at = new Date().toISOString();
       hold.resolved_by = userEmail;
+      hold.last_updated = new Date().toISOString();
       checkReservationStatus(reservation);
       renderReservationsTab();
       renderKitsTab();
+      renderDashboard();
     }).catch(function (err) {
       alert('Failed to confirm hold: ' + err.message);
     });
+  }
+
+  function updateKitStockAfterConfirm(kit, qty) {
+    var updates = [];
+    var stockCol = kitsHeaders.indexOf('stock');
+    var onHoldCol = kitsHeaders.indexOf('on_hold');
+    if (stockCol !== -1) {
+      var newStock = Math.max(0, (parseInt(kit.stock, 10) || 0) - qty);
+      var stockRange = SHEETS_CONFIG.SHEET_NAMES.KITS + '!' + colLetter(stockCol) + kit._rowIndex;
+      updates.push(sheetsUpdate(stockRange, [[newStock]]));
+      kit.stock = String(newStock);
+    }
+    if (onHoldCol !== -1) {
+      var newOnHold = Math.max(0, (parseInt(kit.on_hold, 10) || 0) - qty);
+      var onHoldRange = SHEETS_CONFIG.SHEET_NAMES.KITS + '!' + colLetter(onHoldCol) + kit._rowIndex;
+      updates.push(sheetsUpdate(onHoldRange, [[newOnHold]]));
+      kit.on_hold = String(newOnHold);
+    }
+    return Promise.all(updates);
   }
 
   function releaseHold(hold, reservation) {
@@ -706,11 +1380,55 @@
 
     var kit = kitsData.find(function (k) { return k.sku === hold.sku; });
 
+    // Use Admin API with version checking if available
+    if (SHEETS_CONFIG.ADMIN_API_URL) {
+      var now = new Date().toISOString();
+      adminApiPost('update_hold', {
+        holdId: hold.hold_id,
+        expectedVersion: hold.last_updated || null,
+        updates: {
+          status: 'released',
+          resolved_at: now,
+          resolved_by: userEmail
+        }
+      })
+        .then(function (result) {
+          hold.status = 'released';
+          hold.resolved_at = now;
+          hold.resolved_by = userEmail;
+          if (result.newVersion) {
+            hold.last_updated = result.newVersion;
+          }
+          // Release: only decrement on_hold (stock unchanged)
+          if (kit) {
+            return updateKitOnHoldAfterRelease(kit, qty);
+          }
+        })
+        .then(function () {
+          checkReservationStatus(reservation);
+          renderReservationsTab();
+          renderKitsTab();
+          renderDashboard();
+        })
+        .catch(function (err) {
+          if (err.message && err.message.indexOf('modified by another user') !== -1) {
+            if (confirm(err.message + '\n\nWould you like to refresh the data now?')) {
+              loadAllData();
+            }
+          } else {
+            alert('Failed to release hold: ' + err.message);
+          }
+        });
+      return;
+    }
+
+    // Fallback: direct Sheets API
     var updates = [];
 
     var holdStatusCol = holdsHeaders.indexOf('status');
     var holdResolvedAtCol = holdsHeaders.indexOf('resolved_at');
     var holdResolvedByCol = holdsHeaders.indexOf('resolved_by');
+    var holdLastUpdatedCol = holdsHeaders.indexOf('last_updated');
     if (holdStatusCol !== -1) {
       updates.push(sheetsUpdate(
         SHEETS_CONFIG.SHEET_NAMES.HOLDS + '!' + colLetter(holdStatusCol) + holdRow,
@@ -727,6 +1445,12 @@
       updates.push(sheetsUpdate(
         SHEETS_CONFIG.SHEET_NAMES.HOLDS + '!' + colLetter(holdResolvedByCol) + holdRow,
         [[userEmail]]
+      ));
+    }
+    if (holdLastUpdatedCol !== -1) {
+      updates.push(sheetsUpdate(
+        SHEETS_CONFIG.SHEET_NAMES.HOLDS + '!' + colLetter(holdLastUpdatedCol) + holdRow,
+        [[new Date().toISOString()]]
       ));
     }
 
@@ -747,12 +1471,25 @@
       hold.status = 'released';
       hold.resolved_at = new Date().toISOString();
       hold.resolved_by = userEmail;
+      hold.last_updated = new Date().toISOString();
       checkReservationStatus(reservation);
       renderReservationsTab();
       renderKitsTab();
+      renderDashboard();
     }).catch(function (err) {
       alert('Failed to release hold: ' + err.message);
     });
+  }
+
+  function updateKitOnHoldAfterRelease(kit, qty) {
+    var onHoldCol = kitsHeaders.indexOf('on_hold');
+    if (onHoldCol !== -1) {
+      var newOnHold = Math.max(0, (parseInt(kit.on_hold, 10) || 0) - qty);
+      var onHoldRange = SHEETS_CONFIG.SHEET_NAMES.KITS + '!' + colLetter(onHoldCol) + kit._rowIndex;
+      kit.on_hold = String(newOnHold);
+      return sheetsUpdate(onHoldRange, [[newOnHold]]);
+    }
+    return Promise.resolve();
   }
 
   function confirmAllHolds(reservation, holds) {
@@ -775,11 +1512,48 @@
     var statusCol = reservationsHeaders.indexOf('status');
     if (statusCol === -1) { alert('Cannot find status column.'); return; }
 
+    // Use Admin API with version checking if available
+    if (SHEETS_CONFIG.ADMIN_API_URL) {
+      adminApiPost('update_reservation', {
+        reservationId: reservation.reservation_id,
+        expectedVersion: reservation.last_updated || null,
+        updates: { status: newStatus }
+      })
+        .then(function (result) {
+          reservation.status = newStatus;
+          if (result.newVersion) {
+            reservation.last_updated = result.newVersion;
+          }
+          renderReservationsTab();
+          renderDashboard();
+        })
+        .catch(function (err) {
+          if (err.message && err.message.indexOf('modified by another user') !== -1) {
+            if (confirm(err.message + '\n\nWould you like to refresh the data now?')) {
+              loadAllData();
+            }
+          } else {
+            alert('Failed to update reservation: ' + err.message);
+          }
+        });
+      return;
+    }
+
+    // Fallback: direct Sheets API (no version checking)
     var cellRef = SHEETS_CONFIG.SHEET_NAMES.RESERVATIONS + '!' + colLetter(statusCol) + reservation._rowIndex;
     sheetsUpdate(cellRef, [[newStatus]])
       .then(function () {
         reservation.status = newStatus;
+        // Update last_updated locally
+        var updatedCol = reservationsHeaders.indexOf('last_updated');
+        if (updatedCol !== -1) {
+          var now = new Date().toISOString();
+          var updatedRef = SHEETS_CONFIG.SHEET_NAMES.RESERVATIONS + '!' + colLetter(updatedCol) + reservation._rowIndex;
+          sheetsUpdate(updatedRef, [[now]]);
+          reservation.last_updated = now;
+        }
         renderReservationsTab();
+        renderDashboard();
       })
       .catch(function (err) {
         alert('Failed to update reservation: ' + err.message);
@@ -804,13 +1578,42 @@
     if (newStatus && reservation.status !== newStatus) {
       var wasNotConfirmed = reservation.status !== 'confirmed';
       reservation.status = newStatus;
-      var statusCol = reservationsHeaders.indexOf('status');
-      if (statusCol !== -1) {
-        sheetsUpdate(
-          SHEETS_CONFIG.SHEET_NAMES.RESERVATIONS + '!' + colLetter(statusCol) + reservation._rowIndex,
-          [[newStatus]]
-        );
+
+      // Use Admin API if available (no version check since this is auto-triggered)
+      if (SHEETS_CONFIG.ADMIN_API_URL) {
+        adminApiPost('update_reservation', {
+          reservationId: reservation.reservation_id,
+          expectedVersion: null, // Skip version check for auto-updates
+          updates: { status: newStatus }
+        })
+          .then(function (result) {
+            if (result.newVersion) {
+              reservation.last_updated = result.newVersion;
+            }
+          })
+          .catch(function (err) {
+            console.error('Failed to auto-update reservation status:', err);
+          });
+      } else {
+        var statusCol = reservationsHeaders.indexOf('status');
+        if (statusCol !== -1) {
+          sheetsUpdate(
+            SHEETS_CONFIG.SHEET_NAMES.RESERVATIONS + '!' + colLetter(statusCol) + reservation._rowIndex,
+            [[newStatus]]
+          );
+          // Also update last_updated
+          var updatedCol = reservationsHeaders.indexOf('last_updated');
+          if (updatedCol !== -1) {
+            var now = new Date().toISOString();
+            sheetsUpdate(
+              SHEETS_CONFIG.SHEET_NAMES.RESERVATIONS + '!' + colLetter(updatedCol) + reservation._rowIndex,
+              [[now]]
+            );
+            reservation.last_updated = now;
+          }
+        }
       }
+
       // Auto-open confirmation email when reservation transitions to confirmed
       if (newStatus === 'confirmed' && wasNotConfirmed && reservation.customer_email) {
         openConfirmationEmail(reservation);
@@ -1074,7 +1877,7 @@
     document.getElementById('manual-hold-form').addEventListener('submit', function (e) {
       e.preventDefault();
       var qty = parseInt(document.getElementById('hold-qty').value, 10) || 1;
-      var notes = document.getElementById('hold-notes').value.trim();
+      var notes = sanitizeInput(document.getElementById('hold-notes').value.trim());
 
       var now = new Date();
       var dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -1308,7 +2111,12 @@
       e.preventDefault();
       var row = kitsHeaders.map(function (h) {
         var el = document.getElementById('kit-' + h);
-        if (el) return el.value;
+        if (el) {
+          // Sanitize text inputs to prevent XSS
+          return (el.type === 'text' || el.tagName === 'TEXTAREA')
+            ? sanitizeInput(el.value)
+            : el.value;
+        }
         if (h === 'on_hold') return '0';
         if (h === 'available') return ''; // formula in sheet
         if (h === 'last_updated') return new Date().toISOString();
@@ -1433,7 +2241,12 @@
       e.preventDefault();
       var row = ingredientsHeaders.map(function (h) {
         var el = document.getElementById('ing-' + h);
-        if (el) return el.value;
+        if (el) {
+          // Sanitize text inputs to prevent XSS
+          return (el.type === 'text' || el.tagName === 'TEXTAREA')
+            ? sanitizeInput(el.value)
+            : el.value;
+        }
         if (h === 'last_updated') return new Date().toISOString();
         return '';
       });
@@ -3015,7 +3828,8 @@
     'promo-featured-note': '',
     'promo-featured-skus': [],
     'social-instagram': '',
-    'social-facebook': ''
+    'social-facebook': '',
+    'faq': []
   };
   var homepageSelectedProduct = null;
   var homepageHeaders = [];
@@ -3035,6 +3849,7 @@
         homepageConfig['promo-featured-skus'] = [];
         homepageConfig['social-instagram'] = '';
         homepageConfig['social-facebook'] = '';
+        homepageConfig['faq'] = [];
 
         // Parse rows (skip header)
         for (var i = 1; i < rows.length; i++) {
@@ -3061,10 +3876,16 @@
             } else if (platform === 'facebook') {
               homepageConfig['social-facebook'] = url;
             }
+          } else if (type === 'faq') {
+            homepageConfig['faq'].push({
+              question: row[2] || '',
+              answer: row[3] || ''
+            });
           }
         }
 
         renderHomepageNewsItems();
+        renderHomepageFaqItems();
         renderHomepageFeaturedList();
         var noteField = document.getElementById('homepage-featured-note');
         if (noteField) noteField.value = homepageConfig['promo-featured-note'] || '';
@@ -3089,6 +3910,16 @@
           collectHomepageData(); // Save current values first
           homepageConfig['promo-news'].unshift({ date: '', title: '', text: '' });
           renderHomepageNewsItems();
+        });
+      }
+
+      // Add FAQ button
+      var addFaqBtn = document.getElementById('homepage-add-faq');
+      if (addFaqBtn) {
+        addFaqBtn.addEventListener('click', function () {
+          collectHomepageData(); // Save current values first
+          homepageConfig['faq'].push({ question: '', answer: '' });
+          renderHomepageFaqItems();
         });
       }
 
@@ -3190,14 +4021,33 @@
       rows.push(['social', '', 'facebook', '', homepageConfig['social-facebook']]);
     }
 
+    // Add FAQ items
+    homepageConfig['faq'].forEach(function (faq) {
+      rows.push(['faq', '', faq.question || '', faq.answer || '', '']);
+    });
+
     // Clear the sheet first, then write new data
+    // If Admin API is configured, verify authorization server-side before write
+    var authPromise;
+    if (SHEETS_CONFIG.ADMIN_API_URL) {
+      authPromise = adminApiGet('check_auth').then(function (result) {
+        if (!result.authorized) {
+          throw new Error('Not authorized to make changes');
+        }
+      });
+    } else {
+      authPromise = Promise.resolve();
+    }
+
     var clearUrl = 'https://sheets.googleapis.com/v4/spreadsheets/' +
       SHEETS_CONFIG.SPREADSHEET_ID + '/values/' +
       encodeURIComponent(SHEETS_CONFIG.SHEET_NAMES.HOMEPAGE + '!A:E') + ':clear';
 
-    fetch(clearUrl, {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + accessToken }
+    authPromise.then(function () {
+      return fetch(clearUrl, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + accessToken }
+      });
     })
     .then(function (res) {
       if (!res.ok) {
@@ -3233,29 +4083,47 @@
         if (dateInput && titleInput && textInput) {
           newsItems.push({
             date: dateInput.value || '',
-            title: titleInput.value || '',
-            text: textInput.value || ''
+            title: sanitizeInput(titleInput.value || ''),
+            text: sanitizeInput(textInput.value || '')
           });
         }
       });
     }
     homepageConfig['promo-news'] = newsItems;
 
-    // Collect featured note
+    // Collect featured note (sanitize to prevent XSS)
     var noteField = document.getElementById('homepage-featured-note');
     if (noteField) {
-      homepageConfig['promo-featured-note'] = noteField.value || '';
+      homepageConfig['promo-featured-note'] = sanitizeInput(noteField.value || '');
     }
 
-    // Collect social links
+    // Collect social links (sanitize URLs)
     var igField = document.getElementById('homepage-social-instagram');
     if (igField) {
-      homepageConfig['social-instagram'] = igField.value || '';
+      homepageConfig['social-instagram'] = sanitizeInput(igField.value || '');
     }
     var fbField = document.getElementById('homepage-social-facebook');
     if (fbField) {
-      homepageConfig['social-facebook'] = fbField.value || '';
+      homepageConfig['social-facebook'] = sanitizeInput(fbField.value || '');
     }
+
+    // Collect FAQ items from DOM (sanitize to prevent XSS)
+    var faqItems = [];
+    var faqContainer = document.getElementById('homepage-faq-list');
+    if (faqContainer) {
+      var items = faqContainer.querySelectorAll('.homepage-faq-item');
+      items.forEach(function (item) {
+        var questionInput = item.querySelector('.faq-question');
+        var answerInput = item.querySelector('.faq-answer');
+        if (questionInput && answerInput) {
+          faqItems.push({
+            question: sanitizeInput(questionInput.value || ''),
+            answer: sanitizeInput(answerInput.value || '')
+          });
+        }
+      });
+    }
+    homepageConfig['faq'] = faqItems;
   }
 
 
@@ -3286,6 +4154,36 @@
         var idx = parseInt(this.dataset.idx, 10);
         homepageConfig['promo-news'].splice(idx, 1);
         renderHomepageNewsItems();
+      });
+    });
+  }
+
+  function renderHomepageFaqItems() {
+    var container = document.getElementById('homepage-faq-list');
+    if (!container) return;
+
+    container.innerHTML = '';
+    homepageConfig['faq'].forEach(function (faq, idx) {
+      var item = document.createElement('div');
+      item.className = 'homepage-faq-item';
+      item.innerHTML =
+        '<div class="homepage-faq-item-fields">' +
+          '<input type="text" class="faq-question" placeholder="Question" value="' + escapeHTML(faq.question || '') + '">' +
+          '<textarea class="faq-answer" placeholder="Answer...">' + escapeHTML(faq.answer || '') + '</textarea>' +
+        '</div>' +
+        '<div class="homepage-faq-item-actions">' +
+          '<button type="button" class="btn-secondary admin-btn-sm admin-btn-danger faq-remove-btn" data-idx="' + idx + '">Remove</button>' +
+        '</div>';
+      container.appendChild(item);
+    });
+
+    // Wire up remove buttons
+    container.querySelectorAll('.faq-remove-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        collectHomepageData(); // Save current values first
+        var idx = parseInt(this.dataset.idx, 10);
+        homepageConfig['faq'].splice(idx, 1);
+        renderHomepageFaqItems();
       });
     });
   }
@@ -3337,6 +4235,40 @@
     var div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  /**
+   * Sanitize user input to prevent XSS attacks
+   * Strips script tags and other potentially dangerous HTML before sending to server
+   * @param {string} input - User-provided text
+   * @returns {string} Sanitized text
+   */
+  function sanitizeInput(input) {
+    if (input === null || input === undefined) return '';
+    if (typeof input !== 'string') return String(input);
+
+    var sanitized = input;
+
+    // Remove script tags and their contents (case-insensitive)
+    sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    sanitized = sanitized.replace(/<\/?script[^>]*>/gi, '');
+
+    // Remove event handlers (onclick, onerror, onload, etc.)
+    sanitized = sanitized.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '');
+    sanitized = sanitized.replace(/\s*on\w+\s*=\s*[^\s>]+/gi, '');
+
+    // Remove javascript: and data: URLs
+    sanitized = sanitized.replace(/javascript\s*:/gi, '');
+    sanitized = sanitized.replace(/data\s*:\s*text\/html/gi, '');
+
+    // Remove iframe, object, embed, style tags
+    sanitized = sanitized.replace(/<\/?iframe[^>]*>/gi, '');
+    sanitized = sanitized.replace(/<\/?object[^>]*>/gi, '');
+    sanitized = sanitized.replace(/<\/?embed[^>]*>/gi, '');
+    sanitized = sanitized.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+    sanitized = sanitized.replace(/<\/?style[^>]*>/gi, '');
+
+    return sanitized;
   }
 
 })();

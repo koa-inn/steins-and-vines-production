@@ -1,4 +1,14 @@
 {
   "page-title": "Make a Reservation",
-  "footer-copy": "\u00a9 2026 Steins & Vines. All rights reserved."
+  "reserved-items-title": "Your reserved items",
+  "reserved-empty-text": "No items reserved.",
+  "reserved-empty-link": "Browse our catalog",
+  "timeslot-title": "Select a timeslot",
+  "timeslot-note": "Your appointment is to start fermentation in store \u2014 about 15 minutes. We'll contact you when it's time to come back and bottle.",
+  "details-title": "Your details",
+  "submit-btn": "Submit Reservation",
+  "form-note": "A confirmation email will be sent to the address provided above.",
+  "confirm-title": "Reservation submitted",
+  "confirm-text": "Thank you! We've received your reservation and will be in touch to confirm. You'll visit us twice \u2014 once at your appointment to start fermentation, and again when we let you know it's ready to bottle and take home.",
+  "confirm-cta": "Back to browsing"
 }

@@ -15,10 +15,11 @@
 
   <header class="site-header">
     <div class="container">
-      <a href="index.html" class="logo"><img src="images/SV_Logo_Wordmark_green.svg" alt="Steins &amp; Vines — Squamish Brewing and Supply"></a>
+      <a href="index.html" class="logo"><img src="images/SV_Logo_Wordmark_green.svg" alt="Steins &amp; Vines Home"></a>
       <nav class="main-nav">
         <button class="nav-toggle" aria-label="Toggle navigation">&#9776;</button>
         <ul class="nav-list">
+          <li class="nav-phone"><a href="tel:+16045674565">(604) 567-4565</a></li>
           <li><a href="index.html">Home</a></li>
           <li><a href="products.html">Products</a></li>
           <li><a href="about.html" class="active">About</a></li>
@@ -44,12 +45,12 @@
         <h2 data-content="story-title">Our Story</h2>
         <p data-content="story-text">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
         <p data-content="story-text-2">Curabitur pretium tincidunt lacus. Nulla gravida orci a odio. Nullam varius, turpis et commodo pharetra, est eros bibendum elit, nec luctus magna felis sollicitudin mauris. Integer in mauris eu nibh euismod gravida. Duis ac tellus et risus vulputate vehicula.</p>
-        <img src="images/cheers.heic" alt="Cheers at Steins &amp; Vines" class="story-image">
+        <img src="images/cheers.heic" alt="Cheers at Steins &amp; Vines" class="story-image" loading="lazy">
       </div>
     </section>
 
     <div class="section-icon">
-      <img src="images/Icon_wine.svg" alt="" aria-hidden="true">
+      <img src="images/Icon_wine.svg" alt="" aria-hidden="true" loading="lazy">
     </div>
 
     <section class="content">
@@ -57,12 +58,12 @@
         <h2 data-content="owners-title">Meet the Owners</h2>
         <div class="owner-grid">
           <div class="owner-card">
-            <img src="images/paul.heic" alt="" class="owner-photo">
+            <img src="images/paul.heic" alt="" class="owner-photo" loading="lazy">
             <h3 data-content="owner-1-name">Owner Name</h3>
             <p data-content="owner-1-bio">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.</p>
           </div>
           <div class="owner-card">
-            <img src="images/koa.heic" alt="" class="owner-photo">
+            <img src="images/koa.heic" alt="" class="owner-photo" loading="lazy">
             <h3 data-content="owner-2-name">Owner Name</h3>
             <p data-content="owner-2-bio">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.</p>
           </div>
@@ -71,24 +72,47 @@
     </section>
 
     <div class="section-icon">
-      <img src="images/Icon_wine.svg" alt="" aria-hidden="true">
+      <img src="images/Icon_wine.svg" alt="" aria-hidden="true" loading="lazy">
     </div>
 
     <section class="content">
       <div class="container">
-        <div class="open-hours" id="open-hours"></div>
+        <div class="location-grid">
+          <div class="location-info">
+            <div class="open-hours" id="open-hours"></div>
+            <p class="location-address">
+              <strong>11-38918 Progress Way</strong><br>
+              Squamish, BC V8B 0K7<br>
+              <a href="tel:+16045674565">(604) 567-4565</a>
+            </p>
+            <a href="https://maps.app.goo.gl/ZXnczQAtsWeiYTqW7" class="btn" target="_blank" rel="noopener">Get Directions</a>
+          </div>
+          <div class="location-map">
+            <iframe src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d8142.67532962257!2d-123.15311965469785!3d49.71348383969192!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x5486f84f15063765%3A0xc894837a2da91a4!2sWine%20and%20Brew!5e1!3m2!1sen!2sca!4v1770212884270!5m2!1sen!2sca" width="100%" height="180" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+          </div>
+        </div>
       </div>
     </section>
 
     <div class="section-icon">
-      <img src="images/Icon_wine.svg" alt="" aria-hidden="true">
+      <img src="images/Icon_wine.svg" alt="" aria-hidden="true" loading="lazy">
+    </div>
+
+    <section class="content">
+      <div class="container">
+        <h2>Frequently Asked Questions</h2>
+        <div class="faq-list" id="faq-list"></div>
+      </div>
+    </section>
+
+    <div class="section-icon">
+      <img src="images/Icon_wine.svg" alt="" aria-hidden="true" loading="lazy">
     </div>
 
     <section class="content">
       <div class="container">
         <h2 data-content="credits-title">Credits</h2>
         <p class="credits-text" data-content="credits-designer">Graphic design by [Designer Name].</p>
-        <p class="credits-text" data-content="credits-developer">Website by [Developer Name].</p>
       </div>
     </section>
 
@@ -96,7 +120,7 @@
 
   <footer class="site-footer">
     <div class="container">
-      <img src="images/SV_Logo_PrimaryCircle_offwhite.svg" alt="Steins &amp; Vines" class="footer-logo">
+      <img src="images/SV_Logo_PrimaryCircle_offwhite.svg" alt="Steins &amp; Vines" class="footer-logo" loading="lazy">
       <div class="footer-social">
         <a href="https://instagram.com/steinsandvines" aria-label="Follow us on Instagram" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
@@ -106,9 +130,15 @@
         </a>
       </div>
       <div class="footer-hours" id="footer-hours"></div>
+      <div class="footer-address">
+        <a href="https://maps.app.goo.gl/ZXnczQAtsWeiYTqW7" target="_blank" rel="noopener">
+          11-38918 Progress Way<br>
+          Squamish, BC V8B 0K7
+        </a>
+      </div>
       <p class="land-acknowledgement-footer" data-content="land-acknowledgement">Steins &amp; Vines is located on the unceded traditional territory of the S&#x1E35;wx&#x331;w&uacute;7mesh (Squamish) Nation. We are grateful to live, work, and craft on these lands, and we honour the enduring relationship the Squamish people hold with this territory&mdash;its waters, forests, and mountains.</p>
       <p data-content="footer-copy">&copy; 2026 Steins &amp; Vines. All rights reserved.</p>
-      <a href="admin.html" class="footer-admin-link" data-content="footer-admin-link">Staff</a>
+      <a href="admin.html" class="footer-admin-link" data-content="footer-admin-link">Staff Login</a>
     </div>
   </footer>
 

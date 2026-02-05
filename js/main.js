@@ -119,9 +119,16 @@ document.addEventListener('DOMContentLoaded', function () {
     loadOpenHours();
   }
 
+  // FAQ on about page
+  if (page === 'about') {
+    loadFAQ();
+  }
+
   // Featured products on homepage
   if (page === 'home') {
     loadFeaturedProducts();
+    initReservationBar();
+    setupBeerWaitlistForm();
   }
 
   // Footer hours on all public pages
@@ -230,6 +237,61 @@ function loadOpenHours() {
     })
     .catch(function () {
       return fetchAndRender(localUrl).catch(function () {});
+    });
+}
+
+function loadFAQ() {
+  var container = document.getElementById('faq-list');
+  if (!container) return;
+
+  var remoteUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL)
+    ? SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL
+    : null;
+
+  if (!remoteUrl) return;
+
+  fetch(remoteUrl)
+    .then(function (res) { return res.text(); })
+    .then(function (csv) {
+      var lines = csv.trim().split('\n');
+      if (lines.length < 2) return;
+
+      var faqs = [];
+      for (var i = 1; i < lines.length; i++) {
+        var row = lines[i].match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
+        row = row.map(function (cell) {
+          return cell.replace(/^"|"$/g, '').replace(/""/g, '"').trim();
+        });
+        var type = (row[0] || '').toLowerCase();
+        if (type === 'faq') {
+          faqs.push({
+            question: row[2] || '',
+            answer: row[3] || ''
+          });
+        }
+      }
+
+      if (faqs.length === 0) return;
+
+      var html = '';
+      faqs.forEach(function (faq) {
+        html += '<div class="faq-item">';
+        html += '<button type="button" class="faq-question">' + escapeHTML(faq.question) + '</button>';
+        html += '<div class="faq-answer"><p>' + escapeHTML(faq.answer) + '</p></div>';
+        html += '</div>';
+      });
+      container.innerHTML = html;
+
+      // Toggle FAQ answers
+      container.querySelectorAll('.faq-question').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var item = this.parentElement;
+          item.classList.toggle('open');
+        });
+      });
+    })
+    .catch(function (err) {
+      console.error('[FAQ] Error loading:', err);
     });
 }
 
@@ -672,16 +734,22 @@ function loadFeaturedProducts() {
         });
       }
 
-      // Auto-rotate every 6 seconds
+      // Auto-rotate every 12 seconds, pause if More Information is open
       setInterval(function () {
-        showSlide((carouselIndex + 1) % featured.length);
-      }, 6000);
+        var hasOpenNotes = productsContainer.querySelector('.product-notes.open');
+        if (!hasOpenNotes) {
+          showSlide((carouselIndex + 1) % featured.length);
+        }
+      }, 12000);
     }
   }
 
   function createProductCard(product) {
     var card = document.createElement('div');
     card.className = 'product-card';
+    if (product.sku) {
+      card.setAttribute('data-sku', product.sku);
+    }
 
     var header = document.createElement('div');
     header.className = 'product-card-header';
@@ -816,44 +884,21 @@ function loadFeaturedProducts() {
   }
 
   function renderFeaturedReserveControl(container, product, productKey) {
-    var reserved = getReservedItems();
-    var isReserved = reserved.some(function (r) { return r.key === productKey; });
-
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'product-reserve-btn' + (isReserved ? ' reserved' : '');
-    btn.textContent = isReserved ? 'Reserved' : 'Reserve';
+    btn.className = 'product-reserve-btn';
+    btn.textContent = 'Reserve';
 
     btn.addEventListener('click', function () {
-      var items = getReservedItems();
-      var idx = items.findIndex(function (r) { return r.key === productKey; });
-      if (idx !== -1) {
-        items.splice(idx, 1);
-        btn.classList.remove('reserved');
-        btn.textContent = 'Reserve';
-      } else {
-        items.push({
-          key: productKey,
-          name: product.name,
-          brand: product.brand,
-          type: product.type || 'Wine',
-          sku: product.sku || ''
-        });
-        btn.classList.add('reserved');
-        btn.textContent = 'Reserved';
+      // Add to reservation and navigate to products page
+      if (!isReserved(productKey)) {
+        setReservationQty(product, 1);
       }
-      localStorage.setItem('sv-reserved', JSON.stringify(items));
+      // Navigate to products page with SKU to scroll to product
+      window.location.href = 'products.html?sku=' + encodeURIComponent(product.sku);
     });
 
     container.appendChild(btn);
-  }
-
-  function getReservedItems() {
-    try {
-      return JSON.parse(localStorage.getItem('sv-reserved')) || [];
-    } catch (e) {
-      return [];
-    }
   }
 }
 
@@ -943,6 +988,25 @@ function loadProducts() {
       buildFilterRow('filter-time', 'time', 'Brew Time:');
       buildSaleFilter();
       applyFilters();
+
+      // Check for SKU parameter and scroll to product (from homepage featured)
+      var urlParams = new URLSearchParams(window.location.search);
+      var targetSku = urlParams.get('sku');
+      if (targetSku) {
+        var scrollAttempts = 0;
+        function tryScrollToProduct() {
+          var targetCard = document.querySelector('.product-card[data-sku="' + targetSku + '"]');
+          if (targetCard) {
+            targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetCard.classList.add('highlight');
+            setTimeout(function () { targetCard.classList.remove('highlight'); }, 2000);
+          } else if (scrollAttempts < 10) {
+            scrollAttempts++;
+            setTimeout(tryScrollToProduct, 100);
+          }
+        }
+        setTimeout(tryScrollToProduct, 50);
+      }
 
       // Expose so tab switcher can re-trigger kits rendering
       applyKitsFilters = applyFilters;
@@ -1270,6 +1334,9 @@ function loadProducts() {
       groups[type].forEach(function (product) {
         var card = document.createElement('div');
         card.className = 'product-card';
+        if (product.sku) {
+          card.setAttribute('data-sku', product.sku);
+        }
 
         var header = document.createElement('div');
         header.className = 'product-card-header';
@@ -2727,6 +2794,45 @@ var GOOGLE_FORM_FIELDS = {
   products: 'entry.1291378806',
   timeslot: 'entry.286083838'
 };
+
+// Beer Waitlist Google Form — replace with your actual form URL and entry ID
+var BEER_WAITLIST_FORM_URL = 'https://docs.google.com/forms/d/e/YOUR_BEER_WAITLIST_FORM_ID/formResponse';
+var BEER_WAITLIST_FIELDS = {
+  email: 'entry.YOUR_EMAIL_ENTRY_ID'
+};
+
+function setupBeerWaitlistForm() {
+  var form = document.getElementById('beer-waitlist-form');
+  if (!form) return;
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    var emailInput = document.getElementById('beer-waitlist-email');
+    var email = emailInput.value.trim();
+    if (!email) return;
+
+    // Build hidden form for Google Form submission
+    var hiddenForm = document.createElement('form');
+    hiddenForm.method = 'POST';
+    hiddenForm.action = BEER_WAITLIST_FORM_URL;
+    hiddenForm.target = 'beer-waitlist-iframe';
+    hiddenForm.style.display = 'none';
+
+    var emailField = document.createElement('input');
+    emailField.name = BEER_WAITLIST_FIELDS.email;
+    emailField.value = email;
+    hiddenForm.appendChild(emailField);
+
+    document.body.appendChild(hiddenForm);
+    hiddenForm.submit();
+    document.body.removeChild(hiddenForm);
+
+    // Show confirmation
+    form.style.display = 'none';
+    document.getElementById('beer-waitlist-confirm').style.display = '';
+  });
+}
 
 function setupReservationForm() {
   var form = document.getElementById('reservation-form');

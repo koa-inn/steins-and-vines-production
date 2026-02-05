@@ -1,9 +1,9 @@
 {
   "page-title": "Contact us",
   "contact-title": "Get in touch",
+  "contact-email-text": "Email: hello@steinsandvines.ca",
   "label-name": "Name",
   "label-email": "Email",
   "label-message": "Message",
-  "submit-btn": "Send Message",
-  "footer-copy": "\u00a9 2026 Steins & Vines. All rights reserved."
+  "submit-btn": "Send Message"
 }
