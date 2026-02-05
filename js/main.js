@@ -484,14 +484,62 @@ function loadFeaturedProducts() {
     ? SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL
     : null;
 
-  // Fetch both CSVs in parallel for faster loading
-  var configPromise = homepageCsvUrl
-    ? fetch(homepageCsvUrl).then(function (res) { return res.ok ? res.text() : ''; })
-    : fetch('content/home.json').then(function (res) { return res.ok ? res.json() : {}; }).then(function (j) { return { isJson: true, data: j }; });
+  // LocalStorage caching for faster subsequent loads (1 hour TTL)
+  var PRODUCTS_CACHE_KEY = 'sv-products-csv';
+  var PRODUCTS_CACHE_TS_KEY = 'sv-products-csv-ts';
+  var HOMEPAGE_CACHE_KEY = 'sv-homepage-csv';
+  var HOMEPAGE_CACHE_TS_KEY = 'sv-homepage-csv-ts';
+  var CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
-  var productsPromise = csvUrl
-    ? fetch(csvUrl).then(function (r) { return r.ok ? r.text() : ''; }).catch(function () { return fetch(localCsvUrl).then(function (r) { return r.text(); }); })
-    : fetch(localCsvUrl).then(function (r) { return r.text(); });
+  function getCache(key, tsKey) {
+    try {
+      var data = localStorage.getItem(key);
+      var ts = parseInt(localStorage.getItem(tsKey), 10) || 0;
+      if (data) return { data: data, fresh: (Date.now() - ts) < CACHE_TTL };
+    } catch (e) {}
+    return null;
+  }
+
+  function setCache(key, tsKey, data) {
+    try {
+      localStorage.setItem(key, data);
+      localStorage.setItem(tsKey, String(Date.now()));
+    } catch (e) {}
+  }
+
+  // Get cached data or fetch fresh
+  var productsCached = getCache(PRODUCTS_CACHE_KEY, PRODUCTS_CACHE_TS_KEY);
+  var homepageCached = getCache(HOMEPAGE_CACHE_KEY, HOMEPAGE_CACHE_TS_KEY);
+
+  // Fetch both CSVs in parallel for faster loading, using cache when available
+  var configPromise;
+  if (homepageCached) {
+    configPromise = Promise.resolve(homepageCached.data);
+    if (!homepageCached.fresh && homepageCsvUrl) {
+      fetch(homepageCsvUrl).then(function (res) { return res.ok ? res.text() : ''; })
+        .then(function (csv) { if (csv) setCache(HOMEPAGE_CACHE_KEY, HOMEPAGE_CACHE_TS_KEY, csv); });
+    }
+  } else {
+    configPromise = homepageCsvUrl
+      ? fetch(homepageCsvUrl).then(function (res) { return res.ok ? res.text() : ''; })
+          .then(function (csv) { if (csv) setCache(HOMEPAGE_CACHE_KEY, HOMEPAGE_CACHE_TS_KEY, csv); return csv; })
+      : fetch('content/home.json').then(function (res) { return res.ok ? res.json() : {}; }).then(function (j) { return { isJson: true, data: j }; });
+  }
+
+  var productsPromise;
+  if (productsCached) {
+    productsPromise = Promise.resolve(productsCached.data);
+    if (!productsCached.fresh) {
+      var refreshUrl = csvUrl || localCsvUrl;
+      fetch(refreshUrl).then(function (r) { return r.ok ? r.text() : ''; })
+        .then(function (csv) { if (csv) setCache(PRODUCTS_CACHE_KEY, PRODUCTS_CACHE_TS_KEY, csv); });
+    }
+  } else {
+    productsPromise = csvUrl
+      ? fetch(csvUrl).then(function (r) { return r.ok ? r.text() : ''; }).catch(function () { return fetch(localCsvUrl).then(function (r) { return r.text(); }); })
+      : fetch(localCsvUrl).then(function (r) { return r.text(); });
+    productsPromise.then(function (csv) { if (csv) setCache(PRODUCTS_CACHE_KEY, PRODUCTS_CACHE_TS_KEY, csv); });
+  }
 
   Promise.all([configPromise, productsPromise])
     .then(function (results) {
@@ -925,7 +973,7 @@ function loadProducts() {
 
   var CSV_CACHE_KEY = 'sv-products-csv';
   var CSV_CACHE_TS_KEY = 'sv-products-csv-ts';
-  var CSV_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  var CSV_CACHE_TTL = 60 * 60 * 1000; // 1 hour - static data rarely changes
 
   function getCachedCSV() {
     try {
@@ -1577,7 +1625,7 @@ function loadIngredients(callback) {
 
   var CACHE_KEY = 'sv-ingredients-csv';
   var CACHE_TS_KEY = 'sv-ingredients-csv-ts';
-  var CACHE_TTL = 5 * 60 * 1000;
+  var CACHE_TTL = 60 * 60 * 1000; // 1 hour - static data rarely changes
 
   function getCached() {
     try {
@@ -1886,7 +1934,7 @@ function loadServices(callback) {
 
   var CACHE_KEY = 'sv-services-csv';
   var CACHE_TS_KEY = 'sv-services-csv-ts';
-  var CACHE_TTL = 5 * 60 * 1000;
+  var CACHE_TTL = 60 * 60 * 1000; // 1 hour - static data rarely changes
 
   function getCached() {
     try {
