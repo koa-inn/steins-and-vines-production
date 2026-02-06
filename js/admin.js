@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-06T04:37:56.687Z';
+  var BUILD_TIMESTAMP = '2026-02-06T04:48:05.600Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -2538,8 +2538,8 @@
       if (orderSortCol === '_cost' || orderSortCol === '_total') {
         var aKit = kitsData.find(function (k) { return k.sku === a.sku; });
         var bKit = kitsData.find(function (k) { return k.sku === b.sku; });
-        var aCost = aKit && aKit.wholesale ? parseFloat(aKit.wholesale.replace(/[^0-9.\-]/g, '')) || 0 : 0;
-        var bCost = bKit && bKit.wholesale ? parseFloat(bKit.wholesale.replace(/[^0-9.\-]/g, '')) || 0 : 0;
+        var aCost = aKit && aKit.wholesale ? parseFloat(String(aKit.wholesale).replace(/[^0-9.\-]/g, '')) || 0 : 0;
+        var bCost = bKit && bKit.wholesale ? parseFloat(String(bKit.wholesale).replace(/[^0-9.\-]/g, '')) || 0 : 0;
         if (orderSortCol === '_total') {
           aVal = aCost * a.qty;
           bVal = bCost * b.qty;
@@ -2661,8 +2661,8 @@
       var unitCost = 0;
       var costStr = '';
       if (kit && kit.wholesale) {
-        costStr = kit.wholesale;
-        unitCost = parseFloat(kit.wholesale.replace(/[^0-9.\-]/g, '')) || 0;
+        costStr = String(kit.wholesale);
+        unitCost = parseFloat(String(kit.wholesale).replace(/[^0-9.\-]/g, '')) || 0;
       }
       var lineTotal = unitCost * item.qty;
       orderTotal += lineTotal;
