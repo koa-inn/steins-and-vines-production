@@ -3792,11 +3792,12 @@ small, .text-small {
   overflow: hidden;
   transition: max-height 0.3s ease;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   justify-content: center;
 }
 .notes-wrap.open .notes-body {
-  max-height: 300px;
+  max-height: 400px;
   padding: 0.4rem 0;
 }
 .notes-image {
@@ -3966,12 +3967,45 @@ small, .text-small {
   border: none;
 }
 
+/* Wine traits (body / oak / sweetness) */
+.wine-traits {
+  width: 100%;
+  display: flex;
+  border-top: 1px solid var(--color-brown);
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+}
+.trait-col {
+  flex: 1;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.trait-col + .trait-col { border-left: 1px solid var(--color-brown); }
+.trait-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-brown);
+  font-weight: 700;
+}
+.trait-value {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
 /* Wine tint overrides */
 .label-wine[class*="tint-"]::before { background: var(--tint-border); border-bottom-color: var(--tint-border); }
 .label-wine[class*="tint-"] { border-color: var(--tint-border); }
 .label-wine[class*="tint-"] .label-body { background: var(--tint-bg); }
 .label-wine[class*="tint-"] .ornament { background: var(--tint); }
 .label-wine[class*="tint-"] .ornament::before { color: var(--tint); background: transparent; }
+.label-wine[class*="tint-"] .trait-label { color: var(--tint); }
+.label-wine[class*="tint-"] .trait-col + .trait-col { border-left-color: var(--tint-border); }
+.label-wine[class*="tint-"] .wine-traits { border-top-color: var(--tint-border); }
 
 /* ================================================
    BEER LABEL — Brewery Crest

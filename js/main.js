@@ -528,6 +528,35 @@ function buildLabelNotesToggle(product) {
     body.appendChild(textCol);
   }
 
+  var traitBody = (product.body || '').trim();
+  var traitOak = (product.oak || '').trim();
+  var traitSweet = (product.sweetness || '').trim();
+  if (traitBody || traitOak || traitSweet) {
+    var traits = document.createElement('div');
+    traits.className = 'wine-traits';
+    var traitItems = [
+      { label: 'Body', value: traitBody },
+      { label: 'Oak', value: traitOak },
+      { label: 'Sweetness', value: traitSweet }
+    ];
+    for (var ti = 0; ti < traitItems.length; ti++) {
+      if (traitItems[ti].value) {
+        var col = document.createElement('div');
+        col.className = 'trait-col';
+        var lbl = document.createElement('span');
+        lbl.className = 'trait-label';
+        lbl.textContent = traitItems[ti].label;
+        var val = document.createElement('span');
+        val.className = 'trait-value';
+        val.textContent = traitItems[ti].value;
+        col.appendChild(lbl);
+        col.appendChild(val);
+        traits.appendChild(col);
+      }
+    }
+    body.appendChild(traits);
+  }
+
   toggle.addEventListener('click', function (w, t, prod) {
     return function () {
       var isOpen = w.classList.toggle('open');
@@ -1731,7 +1760,7 @@ function loadProducts() {
       body.appendChild(abv);
     }
 
-    if (product.tasting_notes || product.sku) {
+    if (product.tasting_notes || product.sku || product.body || product.oak || product.sweetness) {
       body.appendChild(buildLabelNotesToggle(product));
     }
 
