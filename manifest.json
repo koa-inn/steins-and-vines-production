@@ -1,0 +1,12 @@
+{
+  "name": "Steins & Vines",
+  "short_name": "S&V Kiosk",
+  "start_url": "/products.html?kiosk=1",
+  "display": "standalone",
+  "background_color": "#e5dec1",
+  "theme_color": "#4a6f4b",
+  "icons": [
+    { "src": "images/SV_Logo_PrimaryCircle_green.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "favicon.ico", "sizes": "48x48", "type": "image/x-icon" }
+  ]
+}

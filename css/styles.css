@@ -4043,3 +4043,8 @@ small, .text-small {
 .label-beer[class*="tint-"] .price-value { color: var(--tint); }
 .label-beer[class*="tint-"] .price-footer { border-top-color: var(--tint-border); }
 .label-beer[class*="tint-"] .price-col + .price-col { border-left-color: var(--tint-border); opacity: 0.3; }
+
+/* Kiosk mode */
+.kiosk-mode .site-header,
+.kiosk-mode .site-footer { display: none; }
+.kiosk-mode main { padding-top: 0; }

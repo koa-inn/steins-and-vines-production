@@ -38,6 +38,22 @@ var SV_LOGO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" data-name="Layer 2" v
 
 // Mobile nav toggle
 document.addEventListener('DOMContentLoaded', function () {
+  // Kiosk mode: activated by ?kiosk=1 or iPad home-screen launch
+  var IS_KIOSK = (window.location.search.indexOf('kiosk=1') !== -1) ||
+                 (window.navigator.standalone === true);
+
+  if (IS_KIOSK) {
+    document.body.classList.add('kiosk-mode');
+    // Propagate ?kiosk=1 to all internal links
+    var links = document.querySelectorAll('a[href]');
+    links.forEach(function(link) {
+      var href = link.getAttribute('href');
+      if (href && href.indexOf('http') !== 0 && href.indexOf('mailto:') !== 0 && href.indexOf('tel:') !== 0) {
+        link.setAttribute('href', href + (href.indexOf('?') !== -1 ? '&' : '?') + 'kiosk=1');
+      }
+    });
+  }
+
   var toggle = document.querySelector('.nav-toggle');
   var navList = document.querySelector('.nav-list');
 
