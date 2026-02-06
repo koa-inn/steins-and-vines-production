@@ -57,7 +57,7 @@ var KITS_SHEET_NAME = 'Kits';
 function doGet(e) {
   var authResult = checkAuthorization(e);
   if (!authResult.authorized) {
-    return _jsonResponse({ ok: false, error: 'unauthorized', message: authResult.message });
+    return _jsonResponse({ ok: false, error: 'unauthorized', message: authResult.message, debug: authResult.debug });
   }
 
   var action = (e.parameter.action || '').toLowerCase();
@@ -167,20 +167,25 @@ function checkAuthorization(e) {
   }
 
   // Validate token with Google's tokeninfo endpoint
+  var tokenValidationResult = null;
   if (token) {
     try {
       var response = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + token, {
         muteHttpExceptions: true
       });
       var statusCode = response.getResponseCode();
+      var responseText = response.getContentText();
       if (statusCode === 200) {
-        var tokenInfo = JSON.parse(response.getContentText());
+        var tokenInfo = JSON.parse(responseText);
         email = tokenInfo.email;
+        tokenValidationResult = 'success: ' + email;
         Logger.log('Token validated for: ' + email);
       } else {
+        tokenValidationResult = 'failed with status ' + statusCode + ': ' + responseText.substring(0, 200);
         Logger.log('Token validation failed with status: ' + statusCode);
       }
     } catch (err) {
+      tokenValidationResult = 'error: ' + err.message;
       Logger.log('Token validation error: ' + err.message);
     }
   }
@@ -200,7 +205,12 @@ function checkAuthorization(e) {
   if (!email) {
     return {
       authorized: false,
-      message: 'Could not determine user email. Please sign in again.'
+      message: 'Could not determine user email. Ensure you are signed in with a Google account.',
+      debug: {
+        hadToken: !!token,
+        tokenLength: token ? token.length : 0,
+        tokenValidationResult: tokenValidationResult || 'not attempted'
+      }
     };
   }
 
