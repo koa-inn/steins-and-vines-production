@@ -3,6 +3,10 @@
 (function () {
   'use strict';
 
+  // Build timestamp - updated on each deploy
+  var BUILD_TIMESTAMP = '2026-02-05T20:45:00-08:00';
+  console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
+
   var accessToken = null;
   var userEmail = null;
   var tokenClient = null;
