@@ -4211,6 +4211,10 @@ small, .text-small {
   vertical-align: middle;
 }
 
+.catalog-table tr[class*="tint-"] td:first-child {
+  border-left: 3px solid var(--tint-border, var(--color-burgundy));
+}
+
 .catalog-table tr:hover td {
   background: rgba(229,222,193,0.35);
 }
@@ -4297,6 +4301,15 @@ small, .text-small {
   .catalog-table tr {
     padding: 0.75rem 0;
     border-bottom: 2px solid rgba(119,70,45,0.25);
+  }
+
+  .catalog-table tr[class*="tint-"] {
+    border-left: 3px solid var(--tint-border, var(--color-burgundy));
+    padding-left: 0.5rem;
+  }
+
+  .catalog-table tr[class*="tint-"] td:first-child {
+    border-left: none;
   }
 
   .catalog-table td {

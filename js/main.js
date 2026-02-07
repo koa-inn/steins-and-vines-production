@@ -2235,6 +2235,8 @@ function loadProducts() {
         var tbody = document.createElement('tbody');
         groups[type].forEach(function (product) {
           var tr = document.createElement('tr');
+          var tint = getTintClass(product);
+          if (tint) tr.className = tint;
           var discount = parseFloat(product.discount) || 0;
           var pricingFrom = (product.pricing_from || '').trim().toUpperCase() === 'TRUE';
           var plusSign = pricingFrom ? '+' : '';
