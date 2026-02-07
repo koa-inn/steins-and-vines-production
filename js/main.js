@@ -126,6 +126,7 @@ document.addEventListener('DOMContentLoaded', function () {
     loadProducts();
     initReservationBar();
     initProductTabs();
+    initCatalogViewToggle();
   }
 
   // Reservation page
@@ -909,6 +910,49 @@ function loadFeaturedProducts() {
       }
     });
 
+    // Lock carousel containers to tallest card/desc so height doesn't jump
+    (function lockCarouselHeight() {
+      var cards = productsContainer.querySelectorAll('.product-card, .label-wine, .label-beer');
+      var descs = descContainer ? descContainer.querySelectorAll('.promo-featured-desc') : [];
+      var i;
+
+      // Temporarily show all cards in-flow so we can measure the container
+      for (i = 0; i < cards.length; i++) {
+        cards[i].style.position = 'relative';
+        cards[i].style.opacity = '1';
+        cards[i].style.transform = 'none';
+      }
+
+      // Measure container height (includes padding) with all cards in flow —
+      // flex row means container height = tallest card + vertical padding
+      var containerH = productsContainer.offsetHeight;
+      if (containerH > 0) productsContainer.style.minHeight = containerH + 'px';
+
+      // Restore cards
+      for (i = 0; i < cards.length; i++) {
+        cards[i].style.position = '';
+        cards[i].style.opacity = '';
+        cards[i].style.transform = '';
+      }
+
+      // Measure each description one at a time (they stack vertically, not flex row)
+      if (descContainer && descs.length > 0) {
+        var maxDescH = 0;
+        for (i = 0; i < descs.length; i++) {
+          if (descs[i].classList.contains('promo-featured-desc-empty')) continue;
+          descs[i].style.position = 'relative';
+          descs[i].style.opacity = '1';
+          descs[i].style.transform = 'none';
+          var dh = descs[i].offsetHeight;
+          if (dh > maxDescH) maxDescH = dh;
+          descs[i].style.position = '';
+          descs[i].style.opacity = '';
+          descs[i].style.transform = '';
+        }
+        if (maxDescH > 0) descContainer.style.minHeight = maxDescH + 'px';
+      }
+    })();
+
     // Set up carousel if multiple products
     if (featured.length > 1) {
       var nav = document.getElementById('promo-carousel-nav');
@@ -1356,6 +1400,34 @@ function showCatalogSkeletons(container, count) {
 
 // Reference to kits applyFilters so tab switcher can re-render
 var applyKitsFilters = null;
+
+// ===== Catalog View Toggle =====
+var catalogViewMode = 'cards';
+
+function initCatalogViewToggle() {
+  var allToggleBtns = document.querySelectorAll('.view-toggle-btn');
+  allToggleBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var view = btn.getAttribute('data-view');
+      if (view === catalogViewMode) return;
+      catalogViewMode = view;
+      // Sync active class on all toggle buttons across tabs
+      allToggleBtns.forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-view') === view);
+      });
+      // Re-render the active tab
+      var activeTab = document.querySelector('.product-tab-btn.active');
+      var tab = activeTab ? activeTab.getAttribute('data-product-tab') : 'kits';
+      if (tab === 'kits') {
+        if (applyKitsFilters) applyKitsFilters();
+      } else if (tab === 'ingredients') {
+        renderIngredients();
+      } else if (tab === 'services') {
+        renderServices();
+      }
+    });
+  });
+}
 
 function loadProducts() {
   var allProducts = [];
@@ -2099,34 +2171,182 @@ function loadProducts() {
       groups[r.type].push(r);
     });
 
-    groupOrder.forEach(function (type) {
-      var group = document.createElement('div');
-      group.className = 'product-group';
+    if (catalogViewMode === 'table') {
+      groupOrder.forEach(function (type) {
+        var group = document.createElement('div');
+        group.className = 'product-group';
 
-      var heading = document.createElement('h3');
-      heading.className = 'product-group-title';
-      heading.textContent = type;
-      group.appendChild(heading);
+        var heading = document.createElement('h3');
+        heading.className = 'product-group-title';
+        heading.textContent = type;
+        group.appendChild(heading);
 
-      var grid = document.createElement('div');
-      grid.className = 'product-grid';
+        var table = document.createElement('table');
+        table.className = 'catalog-table';
+        var thead = document.createElement('thead');
+        var sortSelect = document.getElementById('catalog-sort');
+        var currentSort = sortSelect ? sortSelect.value : 'name-asc';
+        var kitsCols = [
+          { label: 'Name', sort: 'name' },
+          { label: 'Brand', sort: null },
+          { label: 'Style', sort: null },
+          { label: 'Time', sort: 'time' },
+          { label: 'In-Store', sort: 'price' },
+          { label: 'Kit', sort: 'price' },
+          { label: 'Reserve', sort: null }
+        ];
+        var theadTr = document.createElement('tr');
+        kitsCols.forEach(function (col) {
+          var th = document.createElement('th');
+          th.textContent = col.label;
+          if (col.sort) {
+            th.setAttribute('data-sort', col.sort);
+            var arrow = document.createElement('span');
+            arrow.className = 'sort-arrow';
+            var sortBase = currentSort.replace(/-asc$|-desc$/, '');
+            if (sortBase === col.sort) {
+              th.classList.add('sort-active');
+              arrow.textContent = currentSort.indexOf('-desc') !== -1 ? '\u25BC' : '\u25B2';
+            } else {
+              arrow.textContent = '\u25B2';
+            }
+            th.appendChild(arrow);
+            th.addEventListener('click', (function (sortKey) {
+              return function () {
+                var sel = document.getElementById('catalog-sort');
+                if (!sel) return;
+                var cur = sel.value;
+                var base = cur.replace(/-asc$|-desc$/, '');
+                if (base === sortKey) {
+                  sel.value = sortKey + (cur.indexOf('-asc') !== -1 ? '-desc' : '-asc');
+                } else {
+                  sel.value = sortKey + '-asc';
+                }
+                userHasSorted = true;
+                applyFilters();
+              };
+            })(col.sort));
+          }
+          theadTr.appendChild(th);
+        });
+        thead.appendChild(theadTr);
+        table.appendChild(thead);
 
-      groups[type].forEach(function (product) {
-        var productType = (product.type || '').toLowerCase();
-        var card;
-        if (productType.indexOf('wine') !== -1) {
-          card = buildWineCard(product);
-        } else if (productType.indexOf('beer') !== -1) {
-          card = buildBeerCard(product);
-        } else {
-          card = buildDefaultCard(product);
-        }
-        grid.appendChild(card);
+        var tbody = document.createElement('tbody');
+        groups[type].forEach(function (product) {
+          var tr = document.createElement('tr');
+          var discount = parseFloat(product.discount) || 0;
+          var pricingFrom = (product.pricing_from || '').trim().toUpperCase() === 'TRUE';
+          var plusSign = pricingFrom ? '+' : '';
+
+          // Name + badge
+          var tdName = document.createElement('td');
+          tdName.setAttribute('data-label', 'Name');
+          var nameSpan = document.createElement('span');
+          nameSpan.className = 'table-name';
+          nameSpan.textContent = product.name || '';
+          tdName.appendChild(nameSpan);
+          if (discount > 0) {
+            var badge = document.createElement('span');
+            badge.className = 'discount-badge-sm';
+            badge.textContent = Math.round(discount) + '% OFF';
+            tdName.appendChild(badge);
+          }
+          tr.appendChild(tdName);
+
+          // Brand
+          var tdBrand = document.createElement('td');
+          tdBrand.setAttribute('data-label', 'Brand');
+          tdBrand.textContent = product.brand || '';
+          tr.appendChild(tdBrand);
+
+          // Style (subcategory)
+          var tdStyle = document.createElement('td');
+          tdStyle.setAttribute('data-label', 'Style');
+          tdStyle.textContent = product.subcategory || '';
+          tr.appendChild(tdStyle);
+
+          // Time
+          var tdTime = document.createElement('td');
+          tdTime.setAttribute('data-label', 'Time');
+          tdTime.textContent = product.time || '';
+          tr.appendChild(tdTime);
+
+          // In-Store price
+          var tdInstore = document.createElement('td');
+          tdInstore.setAttribute('data-label', 'In-Store');
+          var instore = (product.retail_instore || '').trim();
+          if (instore) {
+            tdInstore.className = 'table-prices';
+            if (discount > 0) {
+              var instoreNum = parseFloat(instore.replace(/[^0-9.]/g, ''));
+              var instoreSale = (instoreNum * (1 - discount / 100)).toFixed(2);
+              tdInstore.innerHTML = '<span class="table-price-original">' + instore + '</span><span class="table-price-sale">$' + instoreSale + plusSign + '</span>';
+            } else {
+              tdInstore.textContent = instore + plusSign;
+            }
+          }
+          tr.appendChild(tdInstore);
+
+          // Kit price
+          var tdKit = document.createElement('td');
+          tdKit.setAttribute('data-label', 'Kit');
+          var kit = (product.retail_kit || '').trim();
+          if (kit) {
+            tdKit.className = 'table-prices';
+            if (discount > 0) {
+              var kitNum = parseFloat(kit.replace(/[^0-9.]/g, ''));
+              var kitSale = (kitNum * (1 - discount / 100)).toFixed(2);
+              tdKit.innerHTML = '<span class="table-price-original">' + kit + '</span><span class="table-price-sale">$' + kitSale + plusSign + '</span>';
+            } else {
+              tdKit.textContent = kit + plusSign;
+            }
+          }
+          tr.appendChild(tdKit);
+
+          // Reserve
+          var tdReserve = document.createElement('td');
+          tdReserve.setAttribute('data-label', 'Reserve');
+          var productKey = product.name + '|' + product.brand;
+          renderReserveControl(tdReserve, product, productKey);
+          tr.appendChild(tdReserve);
+
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        group.appendChild(table);
+        wrapper.appendChild(group);
       });
+    } else {
+      groupOrder.forEach(function (type) {
+        var group = document.createElement('div');
+        group.className = 'product-group';
 
-      group.appendChild(grid);
-      wrapper.appendChild(group);
-    });
+        var heading = document.createElement('h3');
+        heading.className = 'product-group-title';
+        heading.textContent = type;
+        group.appendChild(heading);
+
+        var grid = document.createElement('div');
+        grid.className = 'product-grid';
+
+        groups[type].forEach(function (product) {
+          var productType = (product.type || '').toLowerCase();
+          var card;
+          if (productType.indexOf('wine') !== -1) {
+            card = buildWineCard(product);
+          } else if (productType.indexOf('beer') !== -1) {
+            card = buildBeerCard(product);
+          } else {
+            card = buildDefaultCard(product);
+          }
+          grid.appendChild(card);
+        });
+
+        group.appendChild(grid);
+        wrapper.appendChild(group);
+      });
+    }
 
     catalog.appendChild(wrapper);
   }
@@ -2439,96 +2659,174 @@ function renderIngredientSection(catalog, title, items, extraClass) {
   sectionHeader.appendChild(heading);
   wrapper.appendChild(sectionHeader);
 
-  var grid = document.createElement('div');
-  grid.className = 'product-grid';
-
-  items.forEach(function (item) {
-    var card = document.createElement('div');
-    card.className = 'product-card';
-
-    var header = document.createElement('div');
-    header.className = 'product-card-header';
-
-    var cardName = document.createElement('h4');
-    cardName.textContent = item.name;
-    header.appendChild(cardName);
-    card.appendChild(header);
-
-    // Unit + price detail row
-    var unit = (item.unit || '').trim();
-    var price = (item.price_per_unit || '').trim();
-    if (unit || price) {
-      var detailRow = document.createElement('div');
-      detailRow.className = 'product-detail-row';
-      var details = [];
-      if (unit) details.push(unit);
-      if (price) details.push(price.charAt(0) === '$' ? price : '$' + price);
-      for (var d = 0; d < details.length; d++) {
-        if (d > 0) {
-          var sep = document.createElement('span');
-          sep.className = 'detail-sep';
-          sep.textContent = '\u00b7';
-          detailRow.appendChild(sep);
+  if (catalogViewMode === 'table') {
+    var table = document.createElement('table');
+    table.className = 'catalog-table';
+    var thead = document.createElement('thead');
+    var ingSortSelect = document.getElementById('ingredient-sort');
+    var ingCurrentSort = ingSortSelect ? ingSortSelect.value : 'name-asc';
+    var ingCols = [
+      { label: 'Name', sort: 'name' },
+      { label: 'Unit', sort: null },
+      { label: 'Price', sort: 'price' }
+    ];
+    var ingTheadTr = document.createElement('tr');
+    ingCols.forEach(function (col) {
+      var th = document.createElement('th');
+      th.textContent = col.label;
+      if (col.sort) {
+        th.setAttribute('data-sort', col.sort);
+        var arrow = document.createElement('span');
+        arrow.className = 'sort-arrow';
+        var sortBase = ingCurrentSort.replace(/-asc$|-desc$/, '');
+        if (sortBase === col.sort) {
+          th.classList.add('sort-active');
+          arrow.textContent = ingCurrentSort.indexOf('-desc') !== -1 ? '\u25BC' : '\u25B2';
+        } else {
+          arrow.textContent = '\u25B2';
         }
-        var span = document.createElement('span');
-        span.textContent = details[d];
-        detailRow.appendChild(span);
+        th.appendChild(arrow);
+        th.addEventListener('click', (function (sortKey) {
+          return function () {
+            var sel = document.getElementById('ingredient-sort');
+            if (!sel) return;
+            var cur = sel.value;
+            var base = cur.replace(/-asc$|-desc$/, '');
+            if (base === sortKey) {
+              sel.value = sortKey + (cur.indexOf('-asc') !== -1 ? '-desc' : '-asc');
+            } else {
+              sel.value = sortKey + '-asc';
+            }
+            renderIngredients();
+          };
+        })(col.sort));
       }
-      card.appendChild(detailRow);
-    }
+      ingTheadTr.appendChild(th);
+    });
+    thead.appendChild(ingTheadTr);
+    table.appendChild(thead);
 
-    // Collapsible description (reusing product-notes pattern)
-    if (item.description) {
-      var notesWrap = document.createElement('div');
-      notesWrap.className = 'product-notes';
+    var tbody = document.createElement('tbody');
+    items.forEach(function (item) {
+      var tr = document.createElement('tr');
 
-      var notesToggle = document.createElement('button');
-      notesToggle.type = 'button';
-      notesToggle.className = 'product-notes-toggle';
-      notesToggle.setAttribute('aria-expanded', 'false');
-      notesToggle.innerHTML = 'More Information <span class="product-notes-chevron">&#9660;</span>';
+      var tdName = document.createElement('td');
+      tdName.setAttribute('data-label', 'Name');
+      tdName.className = 'table-name';
+      tdName.textContent = item.name || '';
+      tr.appendChild(tdName);
 
-      var notesBody = document.createElement('div');
-      notesBody.className = 'product-notes-body';
-      var notesP = document.createElement('p');
-      notesP.textContent = item.description;
-      notesBody.appendChild(notesP);
+      var tdUnit = document.createElement('td');
+      tdUnit.setAttribute('data-label', 'Unit');
+      tdUnit.textContent = (item.unit || '').trim();
+      tr.appendChild(tdUnit);
 
-      notesToggle.addEventListener('click', (function (wrap, toggle) {
-        return function () {
-          var isOpen = wrap.classList.toggle('open');
-          toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        };
-      })(notesWrap, notesToggle));
+      var tdPrice = document.createElement('td');
+      tdPrice.setAttribute('data-label', 'Price');
+      var price = (item.price_per_unit || '').trim();
+      if (price) {
+        tdPrice.textContent = price.charAt(0) === '$' ? price : '$' + price;
+      }
+      tr.appendChild(tdPrice);
 
-      notesWrap.appendChild(notesToggle);
-      notesWrap.appendChild(notesBody);
-      card.appendChild(notesWrap);
-    }
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+  } else {
+    var grid = document.createElement('div');
+    grid.className = 'product-grid';
 
-    // Stock badge
-    var stockVal = parseInt(item.stock, 10) || 0;
-    var badge = document.createElement('span');
-    badge.className = 'stock-badge';
-    if (stockVal > 0) {
-      badge.classList.add('stock-badge--in');
-      badge.textContent = 'In Stock';
-    } else {
-      badge.classList.add('stock-badge--out');
-      badge.textContent = 'Out of Stock';
-    }
-    card.appendChild(badge);
+    items.forEach(function (item) {
+      var card = document.createElement('div');
+      card.className = 'product-card';
 
-    grid.appendChild(card);
-  });
+      var header = document.createElement('div');
+      header.className = 'product-card-header';
 
-  wrapper.appendChild(grid);
+      var cardName = document.createElement('h4');
+      cardName.textContent = item.name;
+      header.appendChild(cardName);
+      card.appendChild(header);
+
+      // Unit + price detail row
+      var unit = (item.unit || '').trim();
+      var price = (item.price_per_unit || '').trim();
+      if (unit || price) {
+        var detailRow = document.createElement('div');
+        detailRow.className = 'product-detail-row';
+        var details = [];
+        if (unit) details.push(unit);
+        if (price) details.push(price.charAt(0) === '$' ? price : '$' + price);
+        for (var d = 0; d < details.length; d++) {
+          if (d > 0) {
+            var sep = document.createElement('span');
+            sep.className = 'detail-sep';
+            sep.textContent = '\u00b7';
+            detailRow.appendChild(sep);
+          }
+          var span = document.createElement('span');
+          span.textContent = details[d];
+          detailRow.appendChild(span);
+        }
+        card.appendChild(detailRow);
+      }
+
+      // Collapsible description (reusing product-notes pattern)
+      if (item.description) {
+        var notesWrap = document.createElement('div');
+        notesWrap.className = 'product-notes';
+
+        var notesToggle = document.createElement('button');
+        notesToggle.type = 'button';
+        notesToggle.className = 'product-notes-toggle';
+        notesToggle.setAttribute('aria-expanded', 'false');
+        notesToggle.innerHTML = 'More Information <span class="product-notes-chevron">&#9660;</span>';
+
+        var notesBody = document.createElement('div');
+        notesBody.className = 'product-notes-body';
+        var notesP = document.createElement('p');
+        notesP.textContent = item.description;
+        notesBody.appendChild(notesP);
+
+        notesToggle.addEventListener('click', (function (wrap, toggle) {
+          return function () {
+            var isOpen = wrap.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+          };
+        })(notesWrap, notesToggle));
+
+        notesWrap.appendChild(notesToggle);
+        notesWrap.appendChild(notesBody);
+        card.appendChild(notesWrap);
+      }
+
+      // Stock badge
+      var stockVal = parseInt(item.stock, 10) || 0;
+      var badge = document.createElement('span');
+      badge.className = 'stock-badge';
+      if (stockVal > 0) {
+        badge.classList.add('stock-badge--in');
+        badge.textContent = 'In Stock';
+      } else {
+        badge.classList.add('stock-badge--out');
+        badge.textContent = 'Out of Stock';
+      }
+      card.appendChild(badge);
+
+      grid.appendChild(card);
+    });
+
+    wrapper.appendChild(grid);
+  }
+
   catalog.appendChild(wrapper);
 }
 
 // ===== Services =====
 
 var _allServices = [];
+var _servicesSortVal = 'name-asc';
 
 function loadServices(callback) {
   var csvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_SERVICES_CSV_URL)
@@ -2624,6 +2922,16 @@ function renderServices() {
     return name.indexOf(query) !== -1 || desc.indexOf(query) !== -1;
   });
 
+  filtered.sort(function (a, b) {
+    switch (_servicesSortVal) {
+      case 'name-asc': return (a.name || '').localeCompare(b.name || '');
+      case 'name-desc': return (b.name || '').localeCompare(a.name || '');
+      case 'price-asc': return (parseFloat((a.price || '').replace(/[^0-9.]/g, '')) || 0) - (parseFloat((b.price || '').replace(/[^0-9.]/g, '')) || 0);
+      case 'price-desc': return (parseFloat((b.price || '').replace(/[^0-9.]/g, '')) || 0) - (parseFloat((a.price || '').replace(/[^0-9.]/g, '')) || 0);
+      default: return 0;
+    }
+  });
+
   if (filtered.length === 0) {
     var msg = document.createElement('p');
     msg.className = 'catalog-no-results';
@@ -2643,62 +2951,149 @@ function renderServices() {
   sectionHeader.appendChild(heading);
   wrapper.appendChild(sectionHeader);
 
-  var grid = document.createElement('div');
-  grid.className = 'product-grid';
+  if (catalogViewMode === 'table') {
+    var table = document.createElement('table');
+    table.className = 'catalog-table';
+    var thead = document.createElement('thead');
+    var svcCols = [
+      { label: 'Name', sort: 'name' },
+      { label: 'Description', sort: null },
+      { label: 'Price', sort: 'price' }
+    ];
+    var svcTheadTr = document.createElement('tr');
+    svcCols.forEach(function (col) {
+      var th = document.createElement('th');
+      th.textContent = col.label;
+      if (col.sort) {
+        th.setAttribute('data-sort', col.sort);
+        var arrow = document.createElement('span');
+        arrow.className = 'sort-arrow';
+        var sortBase = _servicesSortVal.replace(/-asc$|-desc$/, '');
+        if (sortBase === col.sort) {
+          th.classList.add('sort-active');
+          arrow.textContent = _servicesSortVal.indexOf('-desc') !== -1 ? '\u25BC' : '\u25B2';
+        } else {
+          arrow.textContent = '\u25B2';
+        }
+        th.appendChild(arrow);
+        th.addEventListener('click', (function (sortKey) {
+          return function () {
+            var base = _servicesSortVal.replace(/-asc$|-desc$/, '');
+            if (base === sortKey) {
+              _servicesSortVal = sortKey + (_servicesSortVal.indexOf('-asc') !== -1 ? '-desc' : '-asc');
+            } else {
+              _servicesSortVal = sortKey + '-asc';
+            }
+            renderServices();
+          };
+        })(col.sort));
+      }
+      svcTheadTr.appendChild(th);
+    });
+    thead.appendChild(svcTheadTr);
+    table.appendChild(thead);
 
-  filtered.forEach(function (svc) {
-    var card = document.createElement('div');
-    card.className = 'product-card';
+    var tbody = document.createElement('tbody');
+    filtered.forEach(function (svc) {
+      var tr = document.createElement('tr');
 
-    var header = document.createElement('div');
-    header.className = 'product-card-header';
-    var cardName = document.createElement('h4');
-    cardName.textContent = svc.name;
-    header.appendChild(cardName);
-    card.appendChild(header);
-
-    // Description (handles the typo column name)
-    var descText = (svc.desription || svc.description || '').trim();
-    if (descText) {
-      var descEl = document.createElement('p');
-      descEl.className = 'service-description';
-      descEl.textContent = descText;
-      card.appendChild(descEl);
-    }
-
-    // Price with optional discount
-    var price = (svc.price || '').trim();
-    var discount = parseFloat(svc.discount) || 0;
-
-    if (discount > 0) {
-      var badge = document.createElement('span');
-      badge.className = 'product-discount-badge';
-      badge.textContent = Math.round(discount) + '% OFF';
-      card.appendChild(badge);
-    }
-
-    if (price) {
-      var priceRow = document.createElement('div');
-      priceRow.className = 'product-prices service-price';
-      var priceBox = document.createElement('div');
-      priceBox.className = 'product-price-box';
-
+      var tdName = document.createElement('td');
+      tdName.setAttribute('data-label', 'Name');
+      tdName.className = 'table-name';
+      tdName.textContent = svc.name || '';
+      var discount = parseFloat(svc.discount) || 0;
       if (discount > 0) {
-        var priceNum = parseFloat(price.replace(/[^0-9.]/g, ''));
-        var salePrice = (priceNum * (1 - discount / 100)).toFixed(2);
-        priceBox.innerHTML = '<span class="product-price-label">Price</span><span class="product-price-original">' + (price.charAt(0) === '$' ? price : '$' + price) + '</span><span class="product-price-value">$' + salePrice + '</span>';
-      } else {
-        priceBox.innerHTML = '<span class="product-price-label">Price</span><span class="product-price-value">' + (price.charAt(0) === '$' ? price : '$' + price) + '</span>';
+        var badge = document.createElement('span');
+        badge.className = 'discount-badge-sm';
+        badge.textContent = Math.round(discount) + '% OFF';
+        tdName.appendChild(badge);
+      }
+      tr.appendChild(tdName);
+
+      var tdDesc = document.createElement('td');
+      tdDesc.setAttribute('data-label', 'Description');
+      tdDesc.textContent = (svc.desription || svc.description || '').trim();
+      tr.appendChild(tdDesc);
+
+      var tdPrice = document.createElement('td');
+      tdPrice.setAttribute('data-label', 'Price');
+      var price = (svc.price || '').trim();
+      if (price) {
+        tdPrice.className = 'table-prices';
+        var formattedPrice = price.charAt(0) === '$' ? price : '$' + price;
+        if (discount > 0) {
+          var priceNum = parseFloat(price.replace(/[^0-9.]/g, ''));
+          var salePrice = (priceNum * (1 - discount / 100)).toFixed(2);
+          tdPrice.innerHTML = '<span class="table-price-original">' + formattedPrice + '</span><span class="table-price-sale">$' + salePrice + '</span>';
+        } else {
+          tdPrice.textContent = formattedPrice;
+        }
+      }
+      tr.appendChild(tdPrice);
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+  } else {
+    var grid = document.createElement('div');
+    grid.className = 'product-grid';
+
+    filtered.forEach(function (svc) {
+      var card = document.createElement('div');
+      card.className = 'product-card';
+
+      var header = document.createElement('div');
+      header.className = 'product-card-header';
+      var cardName = document.createElement('h4');
+      cardName.textContent = svc.name;
+      header.appendChild(cardName);
+      card.appendChild(header);
+
+      // Description (handles the typo column name)
+      var descText = (svc.desription || svc.description || '').trim();
+      if (descText) {
+        var descEl = document.createElement('p');
+        descEl.className = 'service-description';
+        descEl.textContent = descText;
+        card.appendChild(descEl);
       }
 
-      priceRow.appendChild(priceBox);
-      card.appendChild(priceRow);
-    }
+      // Price with optional discount
+      var price = (svc.price || '').trim();
+      var discount = parseFloat(svc.discount) || 0;
 
-    grid.appendChild(card);
-  });
+      if (discount > 0) {
+        var badge = document.createElement('span');
+        badge.className = 'product-discount-badge';
+        badge.textContent = Math.round(discount) + '% OFF';
+        card.appendChild(badge);
+      }
 
-  wrapper.appendChild(grid);
+      if (price) {
+        var priceRow = document.createElement('div');
+        priceRow.className = 'product-prices service-price';
+        var priceBox = document.createElement('div');
+        priceBox.className = 'product-price-box';
+
+        if (discount > 0) {
+          var priceNum = parseFloat(price.replace(/[^0-9.]/g, ''));
+          var salePrice = (priceNum * (1 - discount / 100)).toFixed(2);
+          priceBox.innerHTML = '<span class="product-price-label">Price</span><span class="product-price-original">' + (price.charAt(0) === '$' ? price : '$' + price) + '</span><span class="product-price-value">$' + salePrice + '</span>';
+        } else {
+          priceBox.innerHTML = '<span class="product-price-label">Price</span><span class="product-price-value">' + (price.charAt(0) === '$' ? price : '$' + price) + '</span>';
+        }
+
+        priceRow.appendChild(priceBox);
+        card.appendChild(priceRow);
+      }
+
+      grid.appendChild(card);
+    });
+
+    wrapper.appendChild(grid);
+  }
+
   catalog.appendChild(wrapper);
 }
 
@@ -2919,9 +3314,17 @@ function renderReservationItems() {
 
   if (items.length === 0) {
     if (emptyMsg) emptyMsg.style.display = '';
+    var picker = document.getElementById('timeslot-picker');
+    var formSection = document.getElementById('reservation-form-section');
+    if (picker) picker.style.display = 'none';
+    if (formSection) formSection.style.display = 'none';
     return;
   }
   if (emptyMsg) emptyMsg.style.display = 'none';
+  var picker = document.getElementById('timeslot-picker');
+  var formSection = document.getElementById('reservation-form-section');
+  if (picker) picker.style.display = '';
+  if (formSection) formSection.style.display = '';
 
   items.forEach(function (item) {
     var row = document.createElement('div');
