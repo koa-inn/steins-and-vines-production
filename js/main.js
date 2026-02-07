@@ -528,9 +528,9 @@ function buildLabelNotesToggle(product) {
     body.appendChild(textCol);
   }
 
-  var traitBody = (product.body || '').trim();
-  var traitOak = (product.oak || '').trim();
-  var traitSweet = (product.sweetness || '').trim();
+  var traitBody = (product.Body || product.body || '').trim();
+  var traitOak = (product.Oak || product.oak || '').trim();
+  var traitSweet = (product.Sweetness || product.sweetness || '').trim();
   if (traitBody || traitOak || traitSweet) {
     var traits = document.createElement('div');
     traits.className = 'wine-traits';
@@ -1760,7 +1760,7 @@ function loadProducts() {
       body.appendChild(abv);
     }
 
-    if (product.tasting_notes || product.sku || product.body || product.oak || product.sweetness) {
+    if (product.tasting_notes || product.sku || product.Body || product.body || product.Oak || product.oak || product.Sweetness || product.sweetness) {
       body.appendChild(buildLabelNotesToggle(product));
     }
 
