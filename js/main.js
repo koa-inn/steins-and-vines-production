@@ -528,9 +528,9 @@ function buildLabelNotesToggle(product) {
     body.appendChild(textCol);
   }
 
-  var traitBody = (product.Body || product.body || '').trim();
-  var traitOak = (product.Oak || product.oak || '').trim();
-  var traitSweet = (product.Sweetness || product.sweetness || '').trim();
+  var traitBody = (product.body || '').trim();
+  var traitOak = (product.oak || '').trim();
+  var traitSweet = (product.sweetness || '').trim();
   if (traitBody || traitOak || traitSweet) {
     var traits = document.createElement('div');
     traits.className = 'wine-traits';
@@ -627,7 +627,6 @@ function buildLabelPriceFooter(product) {
 function loadFeaturedProducts() {
   var promoSection = document.getElementById('promo-section');
   var newsContainer = document.getElementById('promo-news-content');
-  var noteContainer = document.getElementById('promo-featured-note');
   var productsContainer = document.getElementById('promo-featured-products');
   if (!promoSection) return;
 
@@ -711,7 +710,7 @@ function loadFeaturedProducts() {
     .then(function (results) {
       var result = results[0];
       var productsCsv = results[1];
-      var config = { 'promo-news': [], 'promo-featured-note': '', 'promo-featured-skus': [], 'instafeed-url': '' };
+      var config = { 'promo-news': [], 'promo-featured-skus': [], 'instafeed-url': '' };
 
       if (result && result.isJson) {
         // Fallback JSON format
@@ -732,11 +731,10 @@ function loadFeaturedProducts() {
               });
             } else if (type === 'instafeed') {
               config['instafeed-url'] = (values[3] || '').trim();
-            } else if (type === 'note') {
-              config['promo-featured-note'] = (values[3] || '').trim();
             } else if (type === 'featured') {
               var sku = (values[4] || '').trim();
-              if (sku) config['promo-featured-skus'].push(sku);
+              var desc = (values[3] || '').trim();
+              if (sku) config['promo-featured-skus'].push({ sku: sku, description: desc });
             }
           }
         }
@@ -759,11 +757,6 @@ function loadFeaturedProducts() {
         feedHtml += '<iframe src="' + escapeHTMLPromo(config['instafeed-url']) + '" frameborder="0" scrolling="no" allowtransparency="true" loading="lazy" class="promo-instagram-feed-iframe"></iframe>';
         feedHtml += '</div>';
         newsContainer.innerHTML += feedHtml;
-      }
-
-      // Render featured note
-      if (noteContainer && config['promo-featured-note']) {
-        noteContainer.innerHTML = '<p>' + escapeHTMLPromo(config['promo-featured-note']) + '</p>';
       }
 
       // Parse and render products
@@ -852,9 +845,13 @@ function loadFeaturedProducts() {
 
     // First priority: products matching SKUs from config
     if (featuredSkus && featuredSkus.length > 0) {
-      featuredSkus.forEach(function (sku) {
+      featuredSkus.forEach(function (entry) {
+        var sku = typeof entry === 'object' ? entry.sku : entry;
         var match = products.find(function (p) { return p.sku === sku; });
-        if (match) featured.push(match);
+        if (match) {
+          match._featuredDescription = (typeof entry === 'object' ? entry.description : '') || '';
+          featured.push(match);
+        }
       });
     }
 
@@ -884,6 +881,8 @@ function loadFeaturedProducts() {
     }
 
     productsContainer.innerHTML = '';
+    var descContainer = document.getElementById('promo-featured-descriptions');
+    if (descContainer) descContainer.innerHTML = '';
     var carouselIndex = 0;
     var isAnimating = false;
 
@@ -895,6 +894,19 @@ function loadFeaturedProducts() {
         card.classList.add('promo-slide-active');
       }
       productsContainer.appendChild(card);
+
+      // Create per-product description element (always create to keep indices in sync)
+      if (descContainer) {
+        var descEl = document.createElement('div');
+        descEl.className = 'promo-featured-desc';
+        if (idx === 0) descEl.classList.add('promo-slide-active');
+        if (product._featuredDescription) {
+          descEl.innerHTML = '<p>' + escapeHTMLPromo(product._featuredDescription) + '</p>';
+        } else {
+          descEl.classList.add('promo-featured-desc-empty');
+        }
+        descContainer.appendChild(descEl);
+      }
     });
 
     // Set up carousel if multiple products
@@ -931,6 +943,18 @@ function loadFeaturedProducts() {
         // Slide next card in
         nextCard.classList.add('promo-slide-active');
 
+        // Transition descriptions in sync
+        var descs = descContainer ? descContainer.querySelectorAll('.promo-featured-desc') : [];
+        if (descs.length > 0) {
+          if (descs[carouselIndex]) {
+            descs[carouselIndex].classList.remove('promo-slide-active');
+            descs[carouselIndex].classList.add('promo-slide-exit');
+          }
+          if (descs[newIndex]) {
+            descs[newIndex].classList.add('promo-slide-active');
+          }
+        }
+
         // Update dots
         dots.forEach(function (d, i) {
           d.classList.toggle('active', i === newIndex);
@@ -939,6 +963,9 @@ function loadFeaturedProducts() {
         // Clean up after animation
         setTimeout(function () {
           currentCard.classList.remove('promo-slide-exit');
+          if (descs.length > 0 && descs[carouselIndex]) {
+            descs[carouselIndex].classList.remove('promo-slide-exit');
+          }
           carouselIndex = newIndex;
           isAnimating = false;
         }, 500);
@@ -1333,7 +1360,7 @@ var applyKitsFilters = null;
 function loadProducts() {
   var allProducts = [];
   var userHasSorted = false;
-  var activeFilters = { type: [], brand: [], subcategory: [], time: [] };
+  var activeFilters = { type: [], brand: [], subcategory: [], time: [], body: [], oak: [], sweetness: [] };
   var saleFilterActive = false;
 
   var csvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_CSV_URL)
@@ -1409,6 +1436,9 @@ function loadProducts() {
       buildFilterRow('filter-brand', 'brand', 'Brand:');
       buildFilterRow('filter-subcategory', 'subcategory', 'Style:');
       buildFilterRow('filter-time', 'time', 'Production Time:');
+      buildFilterRow('filter-body', 'body', 'Body:');
+      buildFilterRow('filter-oak', 'oak', 'Oak:');
+      buildFilterRow('filter-sweetness', 'sweetness', 'Sweetness:');
       buildSaleFilter();
       applyFilters();
 
@@ -1497,8 +1527,31 @@ function loadProducts() {
         if (bIdx === -1) bIdx = styleOrder.length;
         return aIdx - bIdx;
       });
+    } else if (field === 'body') {
+      var bodyOrder = ['light', 'light-medium', 'medium', 'medium-full', 'full'];
+      uniqueValues.sort(function (a, b) {
+        var aIdx = bodyOrder.indexOf(a.toLowerCase());
+        var bIdx = bodyOrder.indexOf(b.toLowerCase());
+        if (aIdx === -1) aIdx = bodyOrder.length;
+        if (bIdx === -1) bIdx = bodyOrder.length;
+        return aIdx - bIdx;
+      });
+    } else if (field === 'sweetness') {
+      var sweetOrder = ['dry', 'off-dry', 'semi-sweet', 'sweet'];
+      uniqueValues.sort(function (a, b) {
+        var aIdx = sweetOrder.indexOf(a.toLowerCase());
+        var bIdx = sweetOrder.indexOf(b.toLowerCase());
+        if (aIdx === -1) aIdx = sweetOrder.length;
+        if (bIdx === -1) bIdx = sweetOrder.length;
+        return aIdx - bIdx;
+      });
     } else {
       uniqueValues.sort();
+    }
+
+    if (uniqueValues.length === 0) {
+      container.style.display = 'none';
+      return;
     }
 
     var allBtn = createFilterButton('All', containerId, field);
@@ -1573,7 +1626,7 @@ function loadProducts() {
   }
 
   function matchesFilters(product, excludeField) {
-    var fields = ['type', 'brand', 'subcategory', 'time'];
+    var fields = ['type', 'brand', 'subcategory', 'time', 'body', 'oak', 'sweetness'];
     for (var i = 0; i < fields.length; i++) {
       var f = fields[i];
       if (f === excludeField) continue;
@@ -1583,7 +1636,7 @@ function loadProducts() {
   }
 
   function updateFilterAvailability() {
-    var fields = ['type', 'brand', 'subcategory', 'time'];
+    var fields = ['type', 'brand', 'subcategory', 'time', 'body', 'oak', 'sweetness'];
     fields.forEach(function (field) {
       var containerId = 'filter-' + (field === 'subcategory' ? 'subcategory' : field);
       var container = document.getElementById(containerId);
@@ -1628,6 +1681,9 @@ function loadProducts() {
       if (activeFilters.brand.length > 0 && activeFilters.brand.indexOf(r.brand) === -1) return false;
       if (activeFilters.subcategory.length > 0 && activeFilters.subcategory.indexOf(r.subcategory) === -1) return false;
       if (activeFilters.time.length > 0 && activeFilters.time.indexOf(r.time) === -1) return false;
+      if (activeFilters.body.length > 0 && activeFilters.body.indexOf(r.body) === -1) return false;
+      if (activeFilters.oak.length > 0 && activeFilters.oak.indexOf(r.oak) === -1) return false;
+      if (activeFilters.sweetness.length > 0 && activeFilters.sweetness.indexOf(r.sweetness) === -1) return false;
       if (saleFilterActive && !(parseFloat(r.discount) > 0)) return false;
       if (!query) return true;
       var name = (r.name || '').toLowerCase();
@@ -1760,7 +1816,7 @@ function loadProducts() {
       body.appendChild(abv);
     }
 
-    if (product.tasting_notes || product.sku || product.Body || product.body || product.Oak || product.oak || product.Sweetness || product.sweetness) {
+    if (product.tasting_notes || product.sku || product.body || product.oak || product.sweetness) {
       body.appendChild(buildLabelNotesToggle(product));
     }
 

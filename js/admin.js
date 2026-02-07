@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-07T06:37:06.579Z';
+  var BUILD_TIMESTAMP = '2026-02-07T07:02:28.137Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -3900,7 +3900,6 @@
   var homepageConfig = {
     'promo-news': [],
     'instafeed-url': '',
-    'promo-featured-note': '',
     'promo-featured-skus': [],
     'social-instagram': '',
     'social-facebook': '',
@@ -3920,7 +3919,6 @@
 
         // Reset config
         homepageConfig['promo-news'] = [];
-        homepageConfig['promo-featured-note'] = '';
         homepageConfig['promo-featured-skus'] = [];
         homepageConfig['social-instagram'] = '';
         homepageConfig['social-facebook'] = '';
@@ -3936,12 +3934,11 @@
               title: row[2] || '',
               text: row[3] || ''
             });
-          } else if (type === 'note') {
-            homepageConfig['promo-featured-note'] = row[3] || '';
           } else if (type === 'featured') {
             var sku = row[4] || '';
+            var desc = row[3] || '';
             if (sku) {
-              homepageConfig['promo-featured-skus'].push(sku);
+              homepageConfig['promo-featured-skus'].push({ sku: sku, description: desc });
             }
           } else if (type === 'instafeed') {
             homepageConfig['instafeed-url'] = row[3] || '';
@@ -3964,8 +3961,6 @@
         renderHomepageNewsItems();
         renderHomepageFaqItems();
         renderHomepageFeaturedList();
-        var noteField = document.getElementById('homepage-featured-note');
-        if (noteField) noteField.value = homepageConfig['promo-featured-note'] || '';
         var feedField = document.getElementById('homepage-instafeed-url');
         if (feedField) feedField.value = homepageConfig['instafeed-url'] || '';
         var igField = document.getElementById('homepage-social-instagram');
@@ -4058,8 +4053,9 @@
             alert('Please select a product from the search dropdown.');
             return;
           }
-          if (homepageConfig['promo-featured-skus'].indexOf(homepageSelectedProduct.sku) === -1) {
-            homepageConfig['promo-featured-skus'].push(homepageSelectedProduct.sku);
+          var alreadyAdded = homepageConfig['promo-featured-skus'].some(function (e) { return e.sku === homepageSelectedProduct.sku; });
+          if (!alreadyAdded) {
+            homepageConfig['promo-featured-skus'].push({ sku: homepageSelectedProduct.sku, description: '' });
             renderHomepageFeaturedList();
           }
           homepageSelectedProduct = null;
@@ -4092,14 +4088,9 @@
       rows.push(['instafeed', '', '', homepageConfig['instafeed-url'], '']);
     }
 
-    // Add featured note
-    if (homepageConfig['promo-featured-note']) {
-      rows.push(['note', '', '', homepageConfig['promo-featured-note'], '']);
-    }
-
     // Add featured products
-    homepageConfig['promo-featured-skus'].forEach(function (sku) {
-      rows.push(['featured', '', '', '', sku]);
+    homepageConfig['promo-featured-skus'].forEach(function (entry) {
+      rows.push(['featured', '', '', entry.description || '', entry.sku]);
     });
 
     // Add social links
@@ -4186,11 +4177,20 @@
       homepageConfig['instafeed-url'] = sanitizeInput(feedField.value || '');
     }
 
-    // Collect featured note (sanitize to prevent XSS)
-    var noteField = document.getElementById('homepage-featured-note');
-    if (noteField) {
-      homepageConfig['promo-featured-note'] = sanitizeInput(noteField.value || '');
-    }
+    // Collect per-product descriptions from featured list
+    var featuredItems = document.querySelectorAll('.homepage-featured-item');
+    var updatedFeatured = [];
+    featuredItems.forEach(function (item, idx) {
+      var descField = item.querySelector('.featured-desc');
+      var entry = homepageConfig['promo-featured-skus'][idx];
+      if (entry) {
+        updatedFeatured.push({
+          sku: entry.sku,
+          description: sanitizeInput(descField ? descField.value : '')
+        });
+      }
+    });
+    homepageConfig['promo-featured-skus'] = updatedFeatured;
 
     // Collect social links (sanitize URLs)
     var igField = document.getElementById('homepage-social-instagram');
@@ -4288,8 +4288,8 @@
     if (!container) return;
 
     container.innerHTML = '';
-    homepageConfig['promo-featured-skus'].forEach(function (sku, idx) {
-      var kit = kitsData.find(function (k) { return k.sku === sku; });
+    homepageConfig['promo-featured-skus'].forEach(function (entry, idx) {
+      var kit = kitsData.find(function (k) { return k.sku === entry.sku; });
       var name = kit ? ((kit.brand || '') + ' ' + (kit.name || '')).trim() : 'Unknown';
 
       var item = document.createElement('div');
@@ -4297,8 +4297,11 @@
       item.innerHTML =
         '<div class="homepage-featured-item-info">' +
           '<span class="homepage-featured-item-name">' + escapeHTML(name) + '</span>' +
-          '<span class="homepage-featured-item-sku">SKU: ' + escapeHTML(sku) + '</span>' +
+          '<span class="homepage-featured-item-sku">SKU: ' + escapeHTML(entry.sku) + '</span>' +
         '</div>' +
+        '<textarea class="admin-textarea featured-desc" rows="2" placeholder="Description for this product...">' +
+          escapeHTML(entry.description || '') +
+        '</textarea>' +
         '<button type="button" class="btn-secondary admin-btn-sm admin-btn-danger featured-remove-btn" data-idx="' + idx + '">Remove</button>';
       container.appendChild(item);
     });
