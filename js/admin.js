@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-06T20:29:19.209Z';
+  var BUILD_TIMESTAMP = '2026-02-07T06:31:07.597Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -1874,8 +1874,8 @@
       availTd.appendChild(availBadge);
       tr.appendChild(availTd);
 
-      appendTd(tr, kit.retail_instore ? '$' + kit.retail_instore.replace('$', '') : '');
-      appendTd(tr, kit.retail_kit ? '$' + kit.retail_kit.replace('$', '') : '');
+      appendTd(tr, kit.retail_instore ? '$' + String(kit.retail_instore).replace('$', '') : '');
+      appendTd(tr, kit.retail_kit ? '$' + String(kit.retail_kit).replace('$', '') : '');
 
       // Actions column
       var actionsTd = document.createElement('td');
