@@ -933,9 +933,7 @@ small, .text-small {
 }
 
 .catalog-section-header {
-  display: flex;
-  align-items: baseline;
-  gap: 1rem;
+  text-align: center;
   border-bottom: 2px solid var(--color-brown);
   padding-bottom: 0.5rem;
   margin-bottom: 1.5rem;
@@ -1688,10 +1686,18 @@ small, .text-small {
   font-size: 14px;
 }
 
+.footer-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 0.75rem;
+}
+
 .footer-logo {
   height: 70px;
   width: auto;
-  margin: 0 auto 1rem;
+  margin: 0;
 }
 
 .site-footer p {
@@ -1725,9 +1731,10 @@ small, .text-small {
 /* Footer Social Links */
 .footer-social {
   display: flex;
-  justify-content: center;
+  flex: 1;
+  justify-content: flex-end;
   gap: 1rem;
-  margin: 0.75rem 0;
+  margin: 0;
 }
 
 .footer-social a {
@@ -1775,9 +1782,11 @@ small, .text-small {
 
 /* Footer Address */
 .footer-address {
-  margin: 1rem 0;
+  flex: 1;
+  margin: 0;
   font-size: 0.9rem;
   line-height: 1.5;
+  text-align: left;
 }
 
 .footer-address a {
@@ -2079,8 +2088,7 @@ small, .text-small {
 }
 
 .catalog-section-header .process-note {
-  border-left: 1px solid var(--color-brown);
-  padding-left: 1rem;
+  margin-top: 0.25rem;
 }
 
 /* Timeslots */
@@ -3729,6 +3737,15 @@ small, .text-small {
 
   .admin-modal-content {
     width: 95%;
+  }
+
+  .footer-top {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .footer-address {
+    text-align: center;
   }
 }
 

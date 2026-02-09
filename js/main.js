@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function () {
         els.forEach(function (el) {
           var k = el.getAttribute('data-content');
           if (data[k] !== undefined) {
-            el.textContent = data[k];
+            el.innerHTML = data[k];
           }
         });
       })
