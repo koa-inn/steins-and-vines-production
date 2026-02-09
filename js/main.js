@@ -1429,6 +1429,43 @@ function initCatalogViewToggle() {
   });
 }
 
+function equalizeCardHeights() {
+  var grids = document.querySelectorAll('.product-grid');
+  grids.forEach(function (grid) {
+    var cards = grid.children;
+    // Reset min-heights so we measure natural size
+    for (var i = 0; i < cards.length; i++) {
+      cards[i].style.minHeight = '';
+    }
+    // Group cards by visual row (same offsetTop)
+    var rows = {};
+    for (var j = 0; j < cards.length; j++) {
+      var top = cards[j].offsetTop;
+      if (!rows[top]) rows[top] = [];
+      rows[top].push(cards[j]);
+    }
+    // Set min-height per row
+    var keys = Object.keys(rows);
+    for (var k = 0; k < keys.length; k++) {
+      var row = rows[keys[k]];
+      if (row.length < 2) continue;
+      var max = 0;
+      for (var m = 0; m < row.length; m++) {
+        if (row[m].offsetHeight > max) max = row[m].offsetHeight;
+      }
+      for (var n = 0; n < row.length; n++) {
+        row[n].style.minHeight = max + 'px';
+      }
+    }
+  });
+}
+
+var _eqResizeTimer;
+window.addEventListener('resize', function () {
+  clearTimeout(_eqResizeTimer);
+  _eqResizeTimer = setTimeout(equalizeCardHeights, 150);
+});
+
 function loadProducts() {
   var allProducts = [];
   var userHasSorted = false;
@@ -1781,6 +1818,14 @@ function loadProducts() {
           return (a.name || '').localeCompare(b.name || '');
         case 'name-desc':
           return (b.name || '').localeCompare(a.name || '');
+        case 'brand-asc':
+          return (a.brand || '').localeCompare(b.brand || '');
+        case 'brand-desc':
+          return (b.brand || '').localeCompare(a.brand || '');
+        case 'style-asc':
+          return (a.subcategory || '').localeCompare(b.subcategory || '');
+        case 'style-desc':
+          return (b.subcategory || '').localeCompare(a.subcategory || '');
         case 'price-asc':
           return parsePrice(a) - parsePrice(b);
         case 'price-desc':
@@ -1789,6 +1834,10 @@ function loadProducts() {
           return parseTimeValue(a.time) - parseTimeValue(b.time);
         case 'time-desc':
           return parseTimeValue(b.time) - parseTimeValue(a.time);
+        case 'reserved-desc':
+          return getReservedQty(b.name + '|' + b.brand) - getReservedQty(a.name + '|' + a.brand);
+        case 'reserved-asc':
+          return getReservedQty(a.name + '|' + a.brand) - getReservedQty(b.name + '|' + b.brand);
         default:
           return 0;
       }
@@ -1834,6 +1883,7 @@ function loadProducts() {
     }
 
     renderSection(catalog, 'Available to order', orderIn, 'catalog-section--order');
+    equalizeCardHeights();
   }
 
   function buildWineCard(product) {
@@ -2160,7 +2210,7 @@ function loadProducts() {
 
     wrapper.appendChild(sectionHeader);
 
-    // Group by type, preserving CSV order
+    // Group by type, ordered by number of products (largest first)
     var groups = {};
     var groupOrder = [];
     items.forEach(function (r) {
@@ -2170,6 +2220,7 @@ function loadProducts() {
       }
       groups[r.type].push(r);
     });
+    groupOrder.sort(function (a, b) { return groups[b].length - groups[a].length; });
 
     if (catalogViewMode === 'table') {
       groupOrder.forEach(function (type) {
@@ -2186,17 +2237,27 @@ function loadProducts() {
         var thead = document.createElement('thead');
         var sortSelect = document.getElementById('catalog-sort');
         var currentSort = sortSelect ? sortSelect.value : 'name-asc';
+        var typeItems = groups[type];
         var kitsCols = [
-          { label: 'Name', sort: 'name' },
-          { label: 'Brand', sort: null },
-          { label: 'Style', sort: null },
-          { label: 'Time', sort: 'time' },
-          { label: 'In-Store', sort: 'price' },
-          { label: 'Kit', sort: 'price' },
-          { label: 'Reserve', sort: null }
+          { label: 'Name', sort: 'name', field: 'name' },
+          { label: 'Brand', sort: 'brand', field: 'brand' },
+          { label: 'Style', sort: 'style', field: 'subcategory' },
+          { label: 'Time', sort: 'time', field: 'time' },
+          { label: 'In-Store Price', sort: 'price', field: 'retail_instore' },
+          { label: 'Kit Price', sort: 'price', field: 'retail_kit' },
+          { label: 'Reserve', sort: 'reserved', field: null }
         ];
+        // Determine which columns have data in this group
+        var visibleCols = kitsCols.filter(function (col) {
+          if (!col.field) return true; // always show (Name, Reserve)
+          if (col.field === 'name') return true; // always show Name
+          return typeItems.some(function (p) { return (p[col.field] || '').trim() !== ''; });
+        });
+        var visibleFields = {};
+        visibleCols.forEach(function (col) { visibleFields[col.field || col.label] = true; });
+
         var theadTr = document.createElement('tr');
-        kitsCols.forEach(function (col) {
+        visibleCols.forEach(function (col) {
           var th = document.createElement('th');
           th.textContent = col.label;
           if (col.sort) {
@@ -2233,7 +2294,7 @@ function loadProducts() {
         table.appendChild(thead);
 
         var tbody = document.createElement('tbody');
-        groups[type].forEach(function (product) {
+        typeItems.forEach(function (product) {
           var tr = document.createElement('tr');
           var tint = getTintClass(product);
           if (tint) tr.className = tint;
@@ -2257,54 +2318,64 @@ function loadProducts() {
           tr.appendChild(tdName);
 
           // Brand
-          var tdBrand = document.createElement('td');
-          tdBrand.setAttribute('data-label', 'Brand');
-          tdBrand.textContent = product.brand || '';
-          tr.appendChild(tdBrand);
+          if (visibleFields['brand']) {
+            var tdBrand = document.createElement('td');
+            tdBrand.setAttribute('data-label', 'Brand');
+            tdBrand.textContent = product.brand || '';
+            tr.appendChild(tdBrand);
+          }
 
           // Style (subcategory)
-          var tdStyle = document.createElement('td');
-          tdStyle.setAttribute('data-label', 'Style');
-          tdStyle.textContent = product.subcategory || '';
-          tr.appendChild(tdStyle);
+          if (visibleFields['subcategory']) {
+            var tdStyle = document.createElement('td');
+            tdStyle.setAttribute('data-label', 'Style');
+            tdStyle.textContent = product.subcategory || '';
+            tr.appendChild(tdStyle);
+          }
 
           // Time
-          var tdTime = document.createElement('td');
-          tdTime.setAttribute('data-label', 'Time');
-          tdTime.textContent = product.time || '';
-          tr.appendChild(tdTime);
+          if (visibleFields['time']) {
+            var tdTime = document.createElement('td');
+            tdTime.setAttribute('data-label', 'Time');
+            tdTime.textContent = product.time || '';
+            tr.appendChild(tdTime);
+          }
 
           // In-Store price
-          var tdInstore = document.createElement('td');
-          tdInstore.setAttribute('data-label', 'In-Store');
-          var instore = (product.retail_instore || '').trim();
-          if (instore) {
-            tdInstore.className = 'table-prices';
-            if (discount > 0) {
-              var instoreNum = parseFloat(instore.replace(/[^0-9.]/g, ''));
-              var instoreSale = (instoreNum * (1 - discount / 100)).toFixed(2);
-              tdInstore.innerHTML = '<span class="table-price-original">' + instore + '</span><span class="table-price-sale">$' + instoreSale + plusSign + '</span>';
-            } else {
-              tdInstore.textContent = instore + plusSign;
+          if (visibleFields['retail_instore']) {
+            var tdInstore = document.createElement('td');
+            tdInstore.setAttribute('data-label', 'In-Store');
+            var instore = (product.retail_instore || '').trim();
+            if (instore) {
+              tdInstore.className = 'table-prices';
+              if (discount > 0) {
+                var instoreNum = parseFloat(instore.replace(/[^0-9.]/g, ''));
+                var instoreSale = (instoreNum * (1 - discount / 100)).toFixed(2);
+                tdInstore.innerHTML = '<span class="table-price-original">' + instore + '</span><span class="table-price-sale">$' + instoreSale + plusSign + '</span>';
+              } else {
+                tdInstore.textContent = instore + plusSign;
+              }
             }
+            tr.appendChild(tdInstore);
           }
-          tr.appendChild(tdInstore);
 
           // Kit price
-          var tdKit = document.createElement('td');
-          tdKit.setAttribute('data-label', 'Kit');
-          var kit = (product.retail_kit || '').trim();
-          if (kit) {
-            tdKit.className = 'table-prices';
-            if (discount > 0) {
-              var kitNum = parseFloat(kit.replace(/[^0-9.]/g, ''));
-              var kitSale = (kitNum * (1 - discount / 100)).toFixed(2);
-              tdKit.innerHTML = '<span class="table-price-original">' + kit + '</span><span class="table-price-sale">$' + kitSale + plusSign + '</span>';
-            } else {
-              tdKit.textContent = kit + plusSign;
+          if (visibleFields['retail_kit']) {
+            var tdKit = document.createElement('td');
+            tdKit.setAttribute('data-label', 'Kit');
+            var kit = (product.retail_kit || '').trim();
+            if (kit) {
+              tdKit.className = 'table-prices';
+              if (discount > 0) {
+                var kitNum = parseFloat(kit.replace(/[^0-9.]/g, ''));
+                var kitSale = (kitNum * (1 - discount / 100)).toFixed(2);
+                tdKit.innerHTML = '<span class="table-price-original">' + kit + '</span><span class="table-price-sale">$' + kitSale + plusSign + '</span>';
+              } else {
+                tdKit.textContent = kit + plusSign;
+              }
             }
+            tr.appendChild(tdKit);
           }
-          tr.appendChild(tdKit);
 
           // Reserve
           var tdReserve = document.createElement('td');
@@ -2645,6 +2716,7 @@ function renderIngredients() {
   }
 
   renderIngredientSection(catalog, 'Out of stock', outOfStock, 'catalog-section--order');
+  equalizeCardHeights();
 }
 
 function renderIngredientSection(catalog, title, items, extraClass) {
@@ -3097,6 +3169,7 @@ function renderServices() {
   }
 
   catalog.appendChild(wrapper);
+  equalizeCardHeights();
 }
 
 function parseCSVLine(line) {
@@ -3246,7 +3319,10 @@ function renderReserveControl(wrap, product, productKey) {
 function initReservationBar() {
   var barHTML = '<div class="container">' +
     '<span class="reservation-bar-count"></span>' +
+    '<span class="reservation-bar-actions">' +
+    '<button type="button" class="reservation-bar-clear">Clear</button>' +
     '<a href="reservation.html" class="reservation-bar-link">Confirm Reservation &rarr;</a>' +
+    '</span>' +
     '</div>';
 
   // Fixed bar at bottom of viewport
@@ -3265,6 +3341,14 @@ function initReservationBar() {
     inlineBar.innerHTML = barHTML;
     catalog.parentNode.insertBefore(inlineBar, catalog);
   }
+
+  // Bind clear buttons
+  document.querySelectorAll('.reservation-bar-clear').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      saveReservation([]);
+      updateReservationBar();
+    });
+  });
 
   updateReservationBar();
 }
@@ -3328,52 +3412,76 @@ function renderReservationItems() {
   if (picker) picker.style.display = '';
   if (formSection) formSection.style.display = '';
 
+  var table = document.createElement('table');
+  table.className = 'catalog-table reservation-table';
+
+  var thead = document.createElement('thead');
+  var resCols = ['Name', 'Brand', 'Time', 'Price', 'Status', 'Qty', ''];
+  // Hide columns with no data
+  var hasTime = items.some(function (it) { return (it.time || '').trim() !== ''; });
+  var theadTr = document.createElement('tr');
+  resCols.forEach(function (label) {
+    if (label === 'Time' && !hasTime) return;
+    var th = document.createElement('th');
+    th.textContent = label;
+    theadTr.appendChild(th);
+  });
+  thead.appendChild(theadTr);
+  table.appendChild(thead);
+
+  var tbody = document.createElement('tbody');
   items.forEach(function (item) {
-    var row = document.createElement('div');
-    row.className = 'reservation-item';
+    var tr = document.createElement('tr');
 
-    var info = document.createElement('div');
-    info.className = 'reservation-item-info';
-
+    // Name + discount badge
+    var tdName = document.createElement('td');
+    tdName.setAttribute('data-label', 'Name');
     var nameSpan = document.createElement('span');
-    nameSpan.className = 'reservation-item-name';
+    nameSpan.className = 'table-name';
     nameSpan.textContent = item.name;
-    info.appendChild(nameSpan);
+    tdName.appendChild(nameSpan);
+    if (item.discount && parseFloat(item.discount) > 0) {
+      var badge = document.createElement('span');
+      badge.className = 'discount-badge-sm';
+      badge.textContent = Math.round(parseFloat(item.discount)) + '% OFF';
+      tdName.appendChild(badge);
+    }
+    tr.appendChild(tdName);
 
-    var brandSpan = document.createElement('span');
-    brandSpan.className = 'reservation-item-brand';
-    brandSpan.textContent = item.brand;
-    info.appendChild(brandSpan);
+    // Brand
+    var tdBrand = document.createElement('td');
+    tdBrand.setAttribute('data-label', 'Brand');
+    tdBrand.textContent = item.brand || '';
+    tr.appendChild(tdBrand);
 
-    if (item.time) {
-      var timeSpan = document.createElement('span');
-      timeSpan.className = 'reservation-item-time';
-      timeSpan.textContent = item.time;
-      info.appendChild(timeSpan);
+    // Time
+    if (hasTime) {
+      var tdTime = document.createElement('td');
+      tdTime.setAttribute('data-label', 'Time');
+      tdTime.textContent = item.time || '';
+      tr.appendChild(tdTime);
     }
 
+    // Price
+    var tdPrice = document.createElement('td');
+    tdPrice.setAttribute('data-label', 'Price');
     if (item.price) {
-      var priceSpan = document.createElement('span');
-      priceSpan.className = 'reservation-item-price';
-      var displayPrice = item.price;
+      var origPrice = item.price.charAt(0) === '$' ? item.price : '$' + item.price;
       if (item.discount && parseFloat(item.discount) > 0) {
         var origNum = parseFloat((item.price || '0').replace('$', '')) || 0;
         var disc = parseFloat(item.discount);
         var saleNum = (origNum * (1 - disc / 100)).toFixed(2);
-        displayPrice = '$' + saleNum;
+        tdPrice.className = 'table-prices';
+        tdPrice.innerHTML = '<span class="table-price-original">' + origPrice + '</span><span class="table-price-sale">$' + saleNum + '</span>';
+      } else {
+        tdPrice.textContent = origPrice;
       }
-      priceSpan.textContent = displayPrice;
-      info.appendChild(priceSpan);
     }
+    tr.appendChild(tdPrice);
 
-    if (item.discount && parseFloat(item.discount) > 0) {
-      var discBadge = document.createElement('span');
-      discBadge.className = 'reservation-item-discount';
-      discBadge.textContent = Math.round(parseFloat(item.discount)) + '% OFF';
-      info.appendChild(discBadge);
-    }
-
-    // Stock status badge
+    // Stock status
+    var tdStock = document.createElement('td');
+    tdStock.setAttribute('data-label', 'Status');
     var stockNum = parseInt(item.stock, 10) || 0;
     var stockBadge = document.createElement('span');
     stockBadge.className = 'reservation-item-stock';
@@ -3384,13 +3492,12 @@ function renderReservationItems() {
       stockBadge.classList.add('reservation-item-stock--order');
       stockBadge.textContent = 'Needs Ordering';
     }
-    info.appendChild(stockBadge);
+    tdStock.appendChild(stockBadge);
+    tr.appendChild(tdStock);
 
-    row.appendChild(info);
-
-    var actions = document.createElement('div');
-    actions.className = 'reservation-item-actions';
-
+    // Qty controls
+    var tdQty = document.createElement('td');
+    tdQty.setAttribute('data-label', 'Qty');
     var qtyControls = document.createElement('div');
     qtyControls.className = 'product-qty-controls';
 
@@ -3440,8 +3547,12 @@ function renderReservationItems() {
     qtyControls.appendChild(minusBtn);
     qtyControls.appendChild(qtySpan);
     qtyControls.appendChild(plusBtn);
-    actions.appendChild(qtyControls);
+    tdQty.appendChild(qtyControls);
+    tr.appendChild(tdQty);
 
+    // Remove button
+    var tdRemove = document.createElement('td');
+    tdRemove.setAttribute('data-label', '');
     var removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.className = 'reservation-item-remove';
@@ -3455,12 +3566,13 @@ function renderReservationItems() {
       renderReservationItems();
       refreshReservationDependents();
     });
-    actions.appendChild(removeBtn);
+    tdRemove.appendChild(removeBtn);
+    tr.appendChild(tdRemove);
 
-    row.appendChild(actions);
-
-    container.appendChild(row);
+    tbody.appendChild(tr);
   });
+  table.appendChild(tbody);
+  container.appendChild(table);
 
   // Subtotal (accounts for discount if stored)
   var subtotal = 0;
@@ -3582,6 +3694,50 @@ function loadTimeslots() {
         notice.className = 'timeslot-notice';
         notice.textContent = 'Some of your selected items need to be ordered in. Timeslots within the next 2 weeks are not available.';
         container.appendChild(notice);
+      }
+
+      // Kiosk mode: "Start Now" button when all items are in stock
+      var isKiosk = document.body.classList.contains('kiosk-mode');
+      if (isKiosk && !hasOutOfStock && reservedItems.length > 0) {
+        var startNowWrap = document.createElement('div');
+        startNowWrap.className = 'start-now-wrap';
+
+        var startNowBtn = document.createElement('button');
+        startNowBtn.type = 'button';
+        startNowBtn.className = 'btn start-now-btn';
+        startNowBtn.textContent = 'Start Now';
+
+        var startNowNote = document.createElement('p');
+        startNowNote.className = 'start-now-note';
+        startNowNote.textContent = 'All your items are in stock — start your fermentation right away.';
+
+        // Hidden radio that the form submission will find
+        var immediateRadio = document.createElement('input');
+        immediateRadio.type = 'radio';
+        immediateRadio.name = 'timeslot';
+        immediateRadio.value = 'Walk-in — Immediate';
+        immediateRadio.style.display = 'none';
+        container.appendChild(immediateRadio);
+
+        startNowBtn.addEventListener('click', function () {
+          immediateRadio.checked = true;
+          startNowBtn.classList.add('start-now-selected');
+          // Deselect any calendar timeslot
+          var calRadios = container.querySelectorAll('input[name="timeslot"]:not([value="Walk-in — Immediate"])');
+          calRadios.forEach(function (r) { r.checked = false; });
+          // Hide completion estimate for immediate
+          var estimateEl = document.getElementById('completion-estimate');
+          if (estimateEl) estimateEl.style.display = 'none';
+        });
+
+        var orDivider = document.createElement('p');
+        orDivider.className = 'start-now-or';
+        orDivider.textContent = 'or choose a timeslot below';
+
+        startNowWrap.appendChild(startNowNote);
+        startNowWrap.appendChild(startNowBtn);
+        startNowWrap.appendChild(orDivider);
+        container.appendChild(startNowWrap);
       }
 
       // Calendar wrapper
@@ -3779,10 +3935,15 @@ function loadTimeslots() {
 
       renderCalendar();
 
-      // Attach listener for completion estimate
+      // Attach listener for completion estimate + deselect Start Now
       container.addEventListener('change', function (e) {
         if (e.target.name === 'timeslot') {
           updateCompletionEstimate(e.target.value);
+          // If a calendar slot was picked, deselect Start Now
+          var snBtn = container.querySelector('.start-now-btn');
+          if (snBtn && e.target.value !== 'Walk-in — Immediate') {
+            snBtn.classList.remove('start-now-selected');
+          }
         }
       });
     })
@@ -3905,9 +4066,11 @@ function setupReservationForm() {
     var honeypot = document.getElementById('res-website');
     if (honeypot && honeypot.value) return;
 
-    // Bot check: form submitted too fast (under 3 seconds)
-    var loadedAt = parseInt(document.getElementById('res-loaded-at').value, 10) || 0;
-    if (Date.now() - loadedAt < 3000) return;
+    // Bot check: form submitted too fast (under 3 seconds) — skip in kiosk mode
+    if (!document.body.classList.contains('kiosk-mode')) {
+      var loadedAt = parseInt(document.getElementById('res-loaded-at').value, 10) || 0;
+      if (Date.now() - loadedAt < 3000) return;
+    }
 
     var items = getReservation();
     if (items.length === 0) {
