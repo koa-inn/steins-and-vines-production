@@ -1,3 +1,25 @@
+/* ===== Skip to Content ===== */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 999;
+  padding: 0.75rem 1.5rem;
+  background: var(--color-burgundy);
+  color: var(--color-cream);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+  border-radius: 0 0 4px 0;
+}
+
+.skip-to-content:focus {
+  left: 0;
+  outline: 2px solid var(--color-brown);
+  outline-offset: 2px;
+}
+
 /* ===== Reset & Base ===== */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -132,7 +154,7 @@ small, .text-small {
 
 @media (max-width: 768px) {
   .nav-phone {
-    display: none;
+    order: -1;
   }
 }
 
@@ -304,7 +326,7 @@ small, .text-small {
 .section-icon img {
   height: 40px;
   width: 40px;
-  opacity: 0.25;
+  opacity: 0.5;
   display: inline-block;
 }
 
@@ -3431,6 +3453,19 @@ small, .text-small {
 
   .label-wine .brand {
     font-size: 11px;
+  }
+}
+
+/* ===== Reduced motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

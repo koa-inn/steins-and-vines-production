@@ -1069,8 +1069,10 @@ function loadFeaturedProducts() {
         });
       }
 
-      // Auto-rotate every 12 seconds, pause if More Information is open
+      // Auto-rotate every 12 seconds, pause if More Information is open or user prefers reduced motion
+      var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
       setInterval(function () {
+        if (prefersReducedMotion.matches) return;
         var hasOpenNotes = productsContainer.querySelector('.product-notes.open, .notes-wrap.open');
         if (!hasOpenNotes) {
           showSlide((carouselIndex + 1) % featured.length);
