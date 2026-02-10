@@ -3503,5 +3503,6 @@ small, .text-small {
 
 /* Kiosk mode */
 .kiosk-mode .site-header,
-.kiosk-mode .site-footer { display: none; }
+.kiosk-mode .site-footer,
+.kiosk-mode .skip-to-content { display: none; }
 .kiosk-mode main { padding-top: 0; }
