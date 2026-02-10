@@ -172,6 +172,11 @@ document.addEventListener('DOMContentLoaded', function () {
     loadOpenHours();
   }
 
+  // Contact form inline validation
+  if (page === 'contact') {
+    setupContactValidation();
+  }
+
   // FAQ on about page
   if (page === 'about') {
     loadFAQ();
@@ -4130,6 +4135,54 @@ function setupReservationForm() {
   var loadedAtField = document.getElementById('res-loaded-at');
   if (loadedAtField) loadedAtField.value = String(Date.now());
 
+  // Inline validation on blur
+  function showFieldError(input, msg) {
+    input.classList.add('field-error');
+    var errEl = input.parentElement.querySelector('.form-error-msg');
+    if (!errEl) {
+      errEl = document.createElement('div');
+      errEl.className = 'form-error-msg';
+      input.parentElement.appendChild(errEl);
+    }
+    errEl.textContent = msg;
+    errEl.classList.add('visible');
+  }
+
+  function clearFieldError(input) {
+    input.classList.remove('field-error');
+    var errEl = input.parentElement.querySelector('.form-error-msg');
+    if (errEl) errEl.classList.remove('visible');
+  }
+
+  var nameInput = document.getElementById('res-name');
+  var emailInput = document.getElementById('res-email');
+  var phoneInput = document.getElementById('res-phone');
+
+  if (nameInput) nameInput.addEventListener('blur', function () {
+    if (!this.value.trim()) showFieldError(this, 'Name is required.');
+    else clearFieldError(this);
+  });
+
+  if (emailInput) emailInput.addEventListener('blur', function () {
+    var val = this.value.trim();
+    if (!val) { showFieldError(this, 'Email is required.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) { showFieldError(this, 'Please enter a valid email.'); return; }
+    clearFieldError(this);
+  });
+
+  if (phoneInput) phoneInput.addEventListener('blur', function () {
+    var val = this.value.trim();
+    if (!val) { showFieldError(this, 'Phone number is required.'); return; }
+    var digits = val.replace(/\D/g, '');
+    if (digits.length < 10) { showFieldError(this, 'Please enter at least 10 digits.'); return; }
+    clearFieldError(this);
+  });
+
+  // Clear errors on focus
+  [nameInput, emailInput, phoneInput].forEach(function (el) {
+    if (el) el.addEventListener('focus', function () { clearFieldError(this); });
+  });
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
 
@@ -4220,4 +4273,46 @@ function setupReservationForm() {
     document.getElementById('reservation-form-section').style.display = 'none';
     document.getElementById('reservation-confirm').style.display = '';
   });
+}
+
+function setupContactValidation() {
+  var nameInput = document.getElementById('name');
+  var emailInput = document.getElementById('email');
+  if (!nameInput && !emailInput) return;
+
+  function showFieldError(input, msg) {
+    input.classList.add('field-error');
+    var errEl = input.parentElement.querySelector('.form-error-msg');
+    if (!errEl) {
+      errEl = document.createElement('div');
+      errEl.className = 'form-error-msg';
+      input.parentElement.appendChild(errEl);
+    }
+    errEl.textContent = msg;
+    errEl.classList.add('visible');
+  }
+
+  function clearFieldError(input) {
+    input.classList.remove('field-error');
+    var errEl = input.parentElement.querySelector('.form-error-msg');
+    if (errEl) errEl.classList.remove('visible');
+  }
+
+  if (nameInput) {
+    nameInput.addEventListener('blur', function () {
+      if (!this.value.trim()) showFieldError(this, 'Name is required.');
+      else clearFieldError(this);
+    });
+    nameInput.addEventListener('focus', function () { clearFieldError(this); });
+  }
+
+  if (emailInput) {
+    emailInput.addEventListener('blur', function () {
+      var val = this.value.trim();
+      if (!val) { showFieldError(this, 'Email is required.'); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) { showFieldError(this, 'Please enter a valid email.'); return; }
+      clearFieldError(this);
+    });
+    emailInput.addEventListener('focus', function () { clearFieldError(this); });
+  }
 }

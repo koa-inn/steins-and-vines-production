@@ -27,7 +27,7 @@
     img{max-width:100%;height:auto;display:block}
     a{color:var(--color-burgundy);text-decoration:none}
     .container{width:90%;max-width:var(--max-width);margin:0 auto}
-    h1{font-family:var(--font-display);font-size:48px;font-weight:700;line-height:1.2}
+    h1{font-family:var(--font-display);font-size:clamp(1.625rem,4vw + 1rem,3rem);font-weight:700;line-height:1.2}
     .site-header{background-color:var(--color-cream);padding:1rem 0;border-bottom:2px solid var(--color-green);position:sticky;top:0;z-index:200}
     .site-header .container{display:flex;justify-content:space-between;align-items:center}
     .logo{display:block;line-height:0}
@@ -44,7 +44,7 @@
     .title-icon{height:48px;width:48px;opacity:.55}
     .btn{display:inline-block;background-color:var(--color-burgundy);color:var(--color-cream);padding:12px 24px;border:2px solid var(--color-burgundy);border-radius:4px;font-family:var(--font-body);font-size:14px;font-weight:700;cursor:pointer}
     @media(max-width:768px){
-      h1{font-size:32px}
+      h1{font-size:clamp(1.625rem,4vw + 1rem,3rem)}
       .nav-toggle{display:block}
       .nav-list{display:none;flex-direction:column;position:fixed;top:80px;left:0;right:0;background-color:var(--color-cream);padding:1rem 0;text-align:center;border-bottom:1px solid #77462d;z-index:199}
       .nav-list.open{display:flex}
