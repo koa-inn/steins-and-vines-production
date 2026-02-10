@@ -1356,7 +1356,6 @@ small, .text-small {
   margin-bottom: 0.25rem;
   width: 40rem;
   max-width: 100%;
-  overflow-x: hidden;
   padding-left: 8.5rem;
 }
 
@@ -1388,10 +1387,12 @@ small, .text-small {
 }
 
 .catalog-filter-btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   background-color: transparent;
   color: var(--color-burgundy);
-  padding: 10px 18px;
+  padding: 6px 16px;
+  min-height: 44px;
   border: 2px solid var(--color-burgundy);
   border-radius: 999px;
   font-family: var(--font-body);
@@ -4177,7 +4178,15 @@ body[data-page="admin"] .content {
   }
 
   .catalog-filter-row {
+    width: 100%;
     padding-left: 0;
+    overflow-x: visible;
+  }
+
+  .catalog-filter-btn {
+    padding: 5px 12px;
+    font-size: 13px;
+    min-height: 38px;
   }
 
   .catalog-filter-label {
