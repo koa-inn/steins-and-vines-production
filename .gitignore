@@ -13,6 +13,9 @@ style_guide.md
 .vscode/
 .idea/
 
+# Environment secrets
+.env
+
 # Node
 node_modules/
 package-lock.json
