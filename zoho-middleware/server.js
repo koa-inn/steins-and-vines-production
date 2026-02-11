@@ -93,6 +93,21 @@ function zohoGet(path, params) {
   });
 }
 
+/**
+ * Proxy a POST request to the Zoho Books API.
+ * Automatically attaches the current access token and organization_id.
+ */
+function zohoPost(path, body) {
+  return zohoAuth.getAccessToken().then(function (token) {
+    return axios.post(ZOHO_API_BASE + path, body, {
+      headers: { Authorization: 'Zoho-oauthtoken ' + token },
+      params: { organization_id: process.env.ZOHO_ORG_ID }
+    }).then(function (response) {
+      return response.data;
+    });
+  });
+}
+
 // ---------------------------------------------------------------------------
 // API routes
 // ---------------------------------------------------------------------------
@@ -165,6 +180,77 @@ app.get('/api/invoices', function (req, res) {
     .catch(function (err) {
       console.error('[api/invoices]', err.message);
       res.status(502).json({ error: err.message });
+    });
+});
+
+/**
+ * POST /api/checkout
+ * Accepts a cart payload, formats it as a Zoho Books Sales Order, and creates
+ * it via the API. Invalidates the products cache so stock counts refresh.
+ *
+ * Expected request body:
+ * {
+ *   customer_id: "zoho_contact_id",
+ *   items: [
+ *     { item_id: "zoho_item_id", name: "Product Name", quantity: 2, rate: 14.99 }
+ *   ],
+ *   notes: "optional order notes"
+ * }
+ */
+app.post('/api/checkout', function (req, res) {
+  var body = req.body;
+
+  // --- Validate required fields ---
+  if (!body || !body.customer_id) {
+    return res.status(400).json({ error: 'Missing customer_id' });
+  }
+  if (!Array.isArray(body.items) || body.items.length === 0) {
+    return res.status(400).json({ error: 'Cart is empty' });
+  }
+
+  // --- Build Zoho Sales Order payload ---
+  var lineItems = body.items.map(function (item) {
+    return {
+      item_id: item.item_id,
+      name: item.name || '',
+      quantity: Number(item.quantity) || 1,
+      rate: Number(item.rate) || 0
+    };
+  });
+
+  var salesOrder = {
+    customer_id: body.customer_id,
+    date: new Date().toISOString().slice(0, 10),  // YYYY-MM-DD
+    line_items: lineItems,
+    notes: body.notes || ''
+  };
+
+  zohoPost('/salesorders', salesOrder)
+    .then(function (data) {
+      // Invalidate product cache so stock counts refresh on next fetch
+      cache.del(PRODUCTS_CACHE_KEY);
+
+      res.status(201).json({
+        ok: true,
+        salesorder_id: data.salesorder ? data.salesorder.salesorder_id : null,
+        salesorder_number: data.salesorder ? data.salesorder.salesorder_number : null
+      });
+    })
+    .catch(function (err) {
+      var status = 502;
+      var message = err.message;
+
+      // Surface Zoho-specific errors (e.g. "Out of Stock", validation)
+      if (err.response && err.response.data) {
+        message = err.response.data.message || err.response.data.error || message;
+        // 400-level from Zoho → relay as 400 to the client
+        if (err.response.status >= 400 && err.response.status < 500) {
+          status = 400;
+        }
+      }
+
+      console.error('[api/checkout]', message);
+      res.status(status).json({ error: message });
     });
 });
 
