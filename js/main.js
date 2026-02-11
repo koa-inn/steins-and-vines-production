@@ -3785,285 +3785,256 @@ function loadTimeslots() {
   var container = document.getElementById('timeslot-groups');
   if (!container) return;
 
-  var scheduleUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL)
-    ? SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL
-    : 'content/timeslots.csv';
-  fetch(scheduleUrl)
-    .then(function (res) { return res.text(); })
-    .then(function (csv) {
-      var lines = csv.trim().split('\n');
-      if (lines.length < 2) return;
+  var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+    ? SHEETS_CONFIG.MIDDLEWARE_URL
+    : '';
 
-      var headers = lines[0].split(',');
-      var slots = [];
-      for (var i = 1; i < lines.length; i++) {
-        var values = lines[i].split(',');
-        if (values.length < 3) continue;
-        var obj = {};
-        for (var j = 0; j < headers.length; j++) {
-          obj[headers[j].trim()] = values[j].trim();
-        }
-        slots.push(obj);
-      }
+  // Check if any reserved item is out of stock
+  var reservedItems = getReservation();
+  var hasOutOfStock = reservedItems.some(function (item) {
+    return (item.stock || 0) === 0;
+  });
 
-      // Filter to available slots only (schedule sheet includes all statuses)
-      slots = slots.filter(function (s) {
-        return !s.status || s.status === 'available';
+  // If out-of-stock items exist, calculate 2-week cutoff
+  var twoWeekCutoff = null;
+  if (hasOutOfStock) {
+    twoWeekCutoff = new Date();
+    twoWeekCutoff.setDate(twoWeekCutoff.getDate() + 14);
+    twoWeekCutoff.setHours(0, 0, 0, 0);
+  }
+
+  container.innerHTML = '';
+
+  // Notice for out-of-stock cutoff
+  if (hasOutOfStock) {
+    var notice = document.createElement('p');
+    notice.className = 'timeslot-notice';
+    notice.textContent = 'Some of your selected items need to be ordered in. Timeslots within the next 2 weeks are not available.';
+    container.appendChild(notice);
+  }
+
+  // Kiosk mode: "Start Now" button when all items are in stock
+  var isKiosk = document.body.classList.contains('kiosk-mode');
+  if (isKiosk && !hasOutOfStock && reservedItems.length > 0) {
+    var startNowWrap = document.createElement('div');
+    startNowWrap.className = 'start-now-wrap';
+
+    var startNowBtn = document.createElement('button');
+    startNowBtn.type = 'button';
+    startNowBtn.className = 'btn start-now-btn';
+    startNowBtn.textContent = 'Start Now';
+
+    var startNowNote = document.createElement('p');
+    startNowNote.className = 'start-now-note';
+    startNowNote.textContent = 'All your items are in stock — start your fermentation right away.';
+
+    // Hidden radio that the form submission will find
+    var immediateRadio = document.createElement('input');
+    immediateRadio.type = 'radio';
+    immediateRadio.name = 'timeslot';
+    immediateRadio.value = 'Walk-in — Immediate';
+    immediateRadio.classList.add('hidden');
+    container.appendChild(immediateRadio);
+
+    startNowBtn.addEventListener('click', function () {
+      immediateRadio.checked = true;
+      startNowBtn.classList.add('start-now-selected');
+      // Deselect any calendar timeslot
+      var calRadios = container.querySelectorAll('input[name="timeslot"]:not([value="Walk-in — Immediate"])');
+      calRadios.forEach(function (r) { r.checked = false; });
+      // Hide completion estimate for immediate
+      var estimateEl = document.getElementById('completion-estimate');
+      if (estimateEl) estimateEl.classList.add('hidden');
+    });
+
+    var orDivider = document.createElement('p');
+    orDivider.className = 'start-now-or';
+    orDivider.textContent = 'or choose a timeslot below';
+
+    startNowWrap.appendChild(startNowNote);
+    startNowWrap.appendChild(startNowBtn);
+    startNowWrap.appendChild(orDivider);
+    container.appendChild(startNowWrap);
+  }
+
+  // Calendar wrapper
+  var cal = document.createElement('div');
+  cal.className = 'cal';
+  container.appendChild(cal);
+
+  // Slots area below calendar
+  var slotsArea = document.createElement('div');
+  slotsArea.className = 'cal-slots';
+  container.appendChild(slotsArea);
+
+  var selectedDate = null;
+  var radioIndex = 0;
+
+  // Build month list: current month + 3 months ahead
+  var now = new Date();
+  var monthsList = [];
+  for (var m = 0; m < 4; m++) {
+    var d = new Date(now.getFullYear(), now.getMonth() + m, 1);
+    monthsList.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  }
+  var currentMonthIndex = 0;
+
+  // Cache of available dates per month { "2026-02": [{ date, available, slots_count }] }
+  var availabilityCache = {};
+
+  function fetchAvailability(ym, callback) {
+    if (availabilityCache[ym]) {
+      callback(availabilityCache[ym]);
+      return;
+    }
+    var parts = ym.split('-');
+    fetch(middlewareUrl + '/api/bookings/availability?year=' + parts[0] + '&month=' + parts[1])
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        var dates = data.dates || [];
+        // Build lookup set of available date strings
+        var lookup = {};
+        dates.forEach(function (d) { lookup[d.date] = true; });
+        availabilityCache[ym] = lookup;
+        callback(lookup);
+      })
+      .catch(function () {
+        availabilityCache[ym] = {};
+        callback({});
       });
+  }
 
-      // Check if any reserved item is out of stock
-      var reservedItems = getReservation();
-      var hasOutOfStock = reservedItems.some(function (item) {
-        return (item.stock || 0) === 0;
-      });
+  function renderCalendar() {
+    cal.innerHTML = '';
+    var ym = monthsList[currentMonthIndex];
+    var year = parseInt(ym.substring(0, 4), 10);
+    var month = parseInt(ym.substring(5, 7), 10) - 1; // 0-indexed
 
-      // If out-of-stock items exist, calculate 2-week cutoff
-      var twoWeekCutoff = null;
-      if (hasOutOfStock) {
-        twoWeekCutoff = new Date();
-        twoWeekCutoff.setDate(twoWeekCutoff.getDate() + 14);
-        twoWeekCutoff.setHours(0, 0, 0, 0);
+    // Header with arrows
+    var header = document.createElement('div');
+    header.className = 'cal-header';
+
+    var prevBtn = document.createElement('button');
+    prevBtn.type = 'button';
+    prevBtn.className = 'cal-nav';
+    prevBtn.textContent = '\u2039';
+    prevBtn.disabled = currentMonthIndex === 0;
+    prevBtn.addEventListener('click', function () {
+      if (currentMonthIndex > 0) {
+        currentMonthIndex--;
+        renderCalendar();
+      }
+    });
+
+    var title = document.createElement('span');
+    title.className = 'cal-title';
+    var monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    title.textContent = monthNames[month] + ' ' + year;
+
+    var nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.className = 'cal-nav';
+    nextBtn.textContent = '\u203A';
+    nextBtn.disabled = currentMonthIndex === monthsList.length - 1;
+    nextBtn.addEventListener('click', function () {
+      if (currentMonthIndex < monthsList.length - 1) {
+        currentMonthIndex++;
+        renderCalendar();
+      }
+    });
+
+    header.appendChild(prevBtn);
+    header.appendChild(title);
+    header.appendChild(nextBtn);
+    cal.appendChild(header);
+
+    // Day-of-week headers
+    var grid = document.createElement('div');
+    grid.className = 'cal-grid';
+    var dowLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dowLabels.forEach(function (d) {
+      var dow = document.createElement('div');
+      dow.className = 'cal-dow';
+      dow.textContent = d;
+      grid.appendChild(dow);
+    });
+
+    cal.appendChild(grid);
+
+    // Fetch availability then render days
+    fetchAvailability(ym, function (availableDates) {
+      // Calendar days
+      var firstOfMonth = new Date(year, month, 1);
+      var startDow = firstOfMonth.getDay(); // 0=Sun
+      var daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      var today = new Date();
+      today.setHours(0, 0, 0, 0);
+      var todayStr = today.getFullYear() + '-' +
+        String(today.getMonth() + 1).padStart(2, '0') + '-' +
+        String(today.getDate()).padStart(2, '0');
+
+      // Leading empty cells
+      for (var e = 0; e < startDow; e++) {
+        var empty = document.createElement('div');
+        empty.className = 'cal-day cal-day--disabled';
+        grid.appendChild(empty);
       }
 
-      // Group by date
-      var slotsByDate = {};
-      slots.forEach(function (slot) {
-        if (!slotsByDate[slot.date]) {
-          slotsByDate[slot.date] = [];
+      for (var d = 1; d <= daysInMonth; d++) {
+        var dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+        var cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'cal-day';
+        cell.textContent = d;
+        cell.setAttribute('data-date', dateStr);
+
+        var cellDate = new Date(dateStr + 'T00:00:00');
+        var isPast = cellDate < today;
+        var hasSlots = !!availableDates[dateStr];
+        var withinCutoff = twoWeekCutoff && cellDate < twoWeekCutoff;
+
+        if (dateStr === todayStr) {
+          cell.classList.add('cal-day--today');
         }
-        slotsByDate[slot.date].push(slot);
-      });
 
-      // Find all months that have data
-      var allDates = Object.keys(slotsByDate).sort();
-      if (allDates.length === 0) return;
-
-      var firstDate = new Date(allDates[0] + 'T00:00:00');
-      var lastDate = new Date(allDates[allDates.length - 1] + 'T00:00:00');
-
-      // Build list of months (year-month) that have slots
-      var monthsWithSlots = [];
-      allDates.forEach(function (d) {
-        var ym = d.substring(0, 7); // "YYYY-MM"
-        if (monthsWithSlots.indexOf(ym) === -1) {
-          monthsWithSlots.push(ym);
+        if (dateStr === selectedDate) {
+          cell.classList.add('cal-day--selected');
         }
-      });
-      monthsWithSlots.sort();
 
-      // Start calendar at the current month (or first available if current month has no slots)
-      var nowYM = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
-      var currentMonthIndex = 0;
-      for (var mi = 0; mi < monthsWithSlots.length; mi++) {
-        if (monthsWithSlots[mi] >= nowYM) {
-          currentMonthIndex = mi;
-          break;
+        if (isPast || !hasSlots || withinCutoff) {
+          cell.classList.add('cal-day--disabled');
+          cell.disabled = true;
+        } else {
+          cell.classList.add('cal-day--available');
         }
-        // If all months are before now, stay at the last one
-        currentMonthIndex = mi;
-      }
 
-      container.innerHTML = '';
-
-      // Notice for out-of-stock cutoff
-      if (hasOutOfStock) {
-        var notice = document.createElement('p');
-        notice.className = 'timeslot-notice';
-        notice.textContent = 'Some of your selected items need to be ordered in. Timeslots within the next 2 weeks are not available.';
-        container.appendChild(notice);
-      }
-
-      // Kiosk mode: "Start Now" button when all items are in stock
-      var isKiosk = document.body.classList.contains('kiosk-mode');
-      if (isKiosk && !hasOutOfStock && reservedItems.length > 0) {
-        var startNowWrap = document.createElement('div');
-        startNowWrap.className = 'start-now-wrap';
-
-        var startNowBtn = document.createElement('button');
-        startNowBtn.type = 'button';
-        startNowBtn.className = 'btn start-now-btn';
-        startNowBtn.textContent = 'Start Now';
-
-        var startNowNote = document.createElement('p');
-        startNowNote.className = 'start-now-note';
-        startNowNote.textContent = 'All your items are in stock — start your fermentation right away.';
-
-        // Hidden radio that the form submission will find
-        var immediateRadio = document.createElement('input');
-        immediateRadio.type = 'radio';
-        immediateRadio.name = 'timeslot';
-        immediateRadio.value = 'Walk-in — Immediate';
-        immediateRadio.classList.add('hidden');
-        container.appendChild(immediateRadio);
-
-        startNowBtn.addEventListener('click', function () {
-          immediateRadio.checked = true;
-          startNowBtn.classList.add('start-now-selected');
-          // Deselect any calendar timeslot
-          var calRadios = container.querySelectorAll('input[name="timeslot"]:not([value="Walk-in — Immediate"])');
-          calRadios.forEach(function (r) { r.checked = false; });
-          // Hide completion estimate for immediate
-          var estimateEl = document.getElementById('completion-estimate');
-          if (estimateEl) estimateEl.classList.add('hidden');
-        });
-
-        var orDivider = document.createElement('p');
-        orDivider.className = 'start-now-or';
-        orDivider.textContent = 'or choose a timeslot below';
-
-        startNowWrap.appendChild(startNowNote);
-        startNowWrap.appendChild(startNowBtn);
-        startNowWrap.appendChild(orDivider);
-        container.appendChild(startNowWrap);
-      }
-
-      // Calendar wrapper
-      var cal = document.createElement('div');
-      cal.className = 'cal';
-      container.appendChild(cal);
-
-      // Slots area below calendar
-      var slotsArea = document.createElement('div');
-      slotsArea.className = 'cal-slots';
-      container.appendChild(slotsArea);
-
-      var selectedDate = null;
-
-      function renderCalendar() {
-        cal.innerHTML = '';
-        var ym = monthsWithSlots[currentMonthIndex];
-        var year = parseInt(ym.substring(0, 4), 10);
-        var month = parseInt(ym.substring(5, 7), 10) - 1; // 0-indexed
-
-        // Header with arrows
-        var header = document.createElement('div');
-        header.className = 'cal-header';
-
-        var prevBtn = document.createElement('button');
-        prevBtn.type = 'button';
-        prevBtn.className = 'cal-nav';
-        prevBtn.textContent = '\u2039';
-        prevBtn.disabled = currentMonthIndex === 0;
-        prevBtn.addEventListener('click', function () {
-          if (currentMonthIndex > 0) {
-            currentMonthIndex--;
+        (function (ds) {
+          cell.addEventListener('click', function () {
+            selectedDate = ds;
             renderCalendar();
-          }
-        });
-
-        var title = document.createElement('span');
-        title.className = 'cal-title';
-        var monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-          'July', 'August', 'September', 'October', 'November', 'December'];
-        title.textContent = monthNames[month] + ' ' + year;
-
-        var nextBtn = document.createElement('button');
-        nextBtn.type = 'button';
-        nextBtn.className = 'cal-nav';
-        nextBtn.textContent = '\u203A';
-        nextBtn.disabled = currentMonthIndex === monthsWithSlots.length - 1;
-        nextBtn.addEventListener('click', function () {
-          if (currentMonthIndex < monthsWithSlots.length - 1) {
-            currentMonthIndex++;
-            renderCalendar();
-          }
-        });
-
-        header.appendChild(prevBtn);
-        header.appendChild(title);
-        header.appendChild(nextBtn);
-        cal.appendChild(header);
-
-        // Day-of-week headers
-        var grid = document.createElement('div');
-        grid.className = 'cal-grid';
-        var dowLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        dowLabels.forEach(function (d) {
-          var dow = document.createElement('div');
-          dow.className = 'cal-dow';
-          dow.textContent = d;
-          grid.appendChild(dow);
-        });
-
-        // Calendar days
-        var firstOfMonth = new Date(year, month, 1);
-        var startDow = firstOfMonth.getDay(); // 0=Sun
-        var daysInMonth = new Date(year, month + 1, 0).getDate();
-
-        var today = new Date();
-        today.setHours(0, 0, 0, 0);
-        var todayStr = today.getFullYear() + '-' +
-          String(today.getMonth() + 1).padStart(2, '0') + '-' +
-          String(today.getDate()).padStart(2, '0');
-
-        // Leading empty cells
-        for (var e = 0; e < startDow; e++) {
-          var empty = document.createElement('div');
-          empty.className = 'cal-day cal-day--disabled';
-          grid.appendChild(empty);
-        }
-
-        for (var d = 1; d <= daysInMonth; d++) {
-          var dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-          var cell = document.createElement('button');
-          cell.type = 'button';
-          cell.className = 'cal-day';
-          cell.textContent = d;
-          cell.setAttribute('data-date', dateStr);
-
-          var cellDate = new Date(dateStr + 'T00:00:00');
-          var isPast = cellDate < today;
-          var hasSlots = !!slotsByDate[dateStr];
-          var hasAvailable = hasSlots && slotsByDate[dateStr].some(function (s) {
-            return s.status === 'available';
+            renderDaySlots(ds);
           });
-          var withinCutoff = twoWeekCutoff && cellDate < twoWeekCutoff;
+        })(dateStr);
 
-          if (dateStr === todayStr) {
-            cell.classList.add('cal-day--today');
-          }
-
-          if (dateStr === selectedDate) {
-            cell.classList.add('cal-day--selected');
-          }
-
-          if (isPast || !hasSlots || withinCutoff) {
-            cell.classList.add('cal-day--disabled');
-            cell.disabled = true;
-            if (!isPast && !hasSlots && !withinCutoff) {
-              cell.classList.add('cal-day--closed');
-              var closedLabel = document.createElement('span');
-              closedLabel.className = 'cal-day-closed';
-              closedLabel.textContent = 'Closed';
-              cell.appendChild(closedLabel);
-            }
-          } else if (hasAvailable) {
-            cell.classList.add('cal-day--available');
-          } else {
-            // Has slots but all booked
-            cell.classList.add('cal-day--full');
-          }
-
-          (function (ds) {
-            cell.addEventListener('click', function () {
-              selectedDate = ds;
-              renderCalendar();
-              renderDaySlots(ds);
-            });
-          })(dateStr);
-
-          grid.appendChild(cell);
-        }
-
-        cal.appendChild(grid);
+        grid.appendChild(cell);
       }
+    });
+  }
 
-      var radioIndex = 0;
+  function renderDaySlots(dateStr) {
+    slotsArea.innerHTML = '<p class="cal-slots-loading">Loading times...</p>';
 
-      function renderDaySlots(dateStr) {
+    fetch(middlewareUrl + '/api/bookings/slots?date=' + dateStr)
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
         slotsArea.innerHTML = '';
-        var daySlots = slotsByDate[dateStr];
-        if (!daySlots) return;
+        var slots = data.slots || [];
+        if (slots.length === 0) {
+          slotsArea.innerHTML = '<p>No available times for this date.</p>';
+          return;
+        }
 
         var dateObj = new Date(dateStr + 'T00:00:00');
         var heading = document.createElement('h3');
@@ -4078,13 +4049,11 @@ function loadTimeslots() {
         var grid = document.createElement('div');
         grid.className = 'cal-slots-grid';
 
-        daySlots.forEach(function (slot) {
+        slots.forEach(function (slot) {
+          // Bookings API returns slot as time string (e.g. "10:00 AM")
+          var timeStr = slot.time || slot;
           var option = document.createElement('div');
           option.className = 'timeslot-option';
-          var unavailable = slot.status === 'booked';
-          if (unavailable) {
-            option.classList.add('booked');
-          }
 
           var id = 'timeslot-' + radioIndex;
           radioIndex++;
@@ -4093,14 +4062,11 @@ function loadTimeslots() {
           radio.type = 'radio';
           radio.name = 'timeslot';
           radio.id = id;
-          radio.value = dateStr + ' ' + slot.time;
-          if (unavailable) {
-            radio.disabled = true;
-          }
+          radio.value = dateStr + ' ' + timeStr;
 
           var label = document.createElement('label');
           label.setAttribute('for', id);
-          label.textContent = slot.time;
+          label.textContent = timeStr;
 
           option.appendChild(radio);
           option.appendChild(label);
@@ -4108,25 +4074,25 @@ function loadTimeslots() {
         });
 
         slotsArea.appendChild(grid);
-      }
-
-      renderCalendar();
-
-      // Attach listener for completion estimate + deselect Start Now
-      container.addEventListener('change', function (e) {
-        if (e.target.name === 'timeslot') {
-          updateCompletionEstimate(e.target.value);
-          // If a calendar slot was picked, deselect Start Now
-          var snBtn = container.querySelector('.start-now-btn');
-          if (snBtn && e.target.value !== 'Walk-in — Immediate') {
-            snBtn.classList.remove('start-now-selected');
-          }
-        }
+      })
+      .catch(function () {
+        slotsArea.innerHTML = '<p>Unable to load times for this date.</p>';
       });
-    })
-    .catch(function () {
-      container.innerHTML = '<p>Unable to load timeslots.</p>';
-    });
+  }
+
+  renderCalendar();
+
+  // Attach listener for completion estimate + deselect Start Now
+  container.addEventListener('change', function (e) {
+    if (e.target.name === 'timeslot') {
+      updateCompletionEstimate(e.target.value);
+      // If a calendar slot was picked, deselect Start Now
+      var snBtn = container.querySelector('.start-now-btn');
+      if (snBtn && e.target.value !== 'Walk-in — Immediate') {
+        snBtn.classList.remove('start-now-selected');
+      }
+    }
+  });
 }
 
 function updateCompletionEstimate(timeslotValue) {
@@ -4179,15 +4145,6 @@ function updateCompletionEstimate(timeslotValue) {
   estimateEl.classList.remove('hidden');
 }
 
-// Google Form placeholder values — replace with your actual form URL and entry IDs
-var GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSc-m7i0zWKTkT11nF1an6PXdR6JejpJNvDJOYPBkxz4wOYO9A/formResponse';
-var GOOGLE_FORM_FIELDS = {
-  name: 'entry.1466333029',
-  email: 'entry.763864451',
-  phone: 'entry.304343590',
-  products: 'entry.1291378806',
-  timeslot: 'entry.286083838'
-};
 
 // Beer Waitlist Google Form — replace with your actual form URL and entry ID
 var BEER_WAITLIST_FORM_URL = 'https://docs.google.com/forms/d/e/YOUR_BEER_WAITLIST_FORM_ID/formResponse';
@@ -4340,39 +4297,100 @@ function setupReservationForm() {
       submitBtn.classList.add('btn-loading');
     }
 
-    // Build hidden form for Google Form submission
-    var hiddenForm = document.createElement('form');
-    hiddenForm.method = 'POST';
-    hiddenForm.action = GOOGLE_FORM_URL;
-    hiddenForm.target = 'reservation-iframe';
-    hiddenForm.style.display = 'none';
+    var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+      ? SHEETS_CONFIG.MIDDLEWARE_URL
+      : '';
+    var isWalkIn = timeslot === 'Walk-in — Immediate';
 
-    var fields = [
-      { name: GOOGLE_FORM_FIELDS.name, value: name },
-      { name: GOOGLE_FORM_FIELDS.email, value: email },
-      { name: GOOGLE_FORM_FIELDS.phone, value: phone },
-      { name: GOOGLE_FORM_FIELDS.products, value: productNames },
-      { name: GOOGLE_FORM_FIELDS.timeslot, value: timeslot }
-    ];
+    // Parse date and time from timeslot value (e.g. "2026-02-15 10:00 AM")
+    var slotParts = timeslot.split(' ');
+    var slotDate = slotParts[0];
+    var slotTime = slotParts.slice(1).join(' ');
 
-    fields.forEach(function (f) {
-      var input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = f.name;
-      input.value = f.value;
-      hiddenForm.appendChild(input);
+    // Step 1: Find or create contact
+    fetch(middlewareUrl + '/api/contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, email: email, phone: phone })
+    })
+    .then(function (res) {
+      if (!res.ok) throw new Error('Failed to create contact');
+      return res.json();
+    })
+    .then(function (contactData) {
+      var customerId = contactData.contact_id;
+
+      // Step 2: Create booking (skip for walk-in)
+      if (isWalkIn) {
+        return { customerId: customerId, bookingId: null, timeslotLabel: 'Walk-in — Immediate' };
+      }
+
+      return fetch(middlewareUrl + '/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: slotDate,
+          time: slotTime,
+          customer: { name: name, email: email, phone: phone },
+          notes: productNames
+        })
+      })
+      .then(function (res) {
+        if (!res.ok) throw new Error('Failed to create booking');
+        return res.json();
+      })
+      .then(function (bookingData) {
+        return {
+          customerId: customerId,
+          bookingId: bookingData.booking_id,
+          timeslotLabel: bookingData.timeslot || timeslot
+        };
+      });
+    })
+    .then(function (result) {
+      // Step 3: Create Sales Order
+      var lineItems = items.map(function (item) {
+        var lineItem = {
+          name: item.name + (item.brand ? ' — ' + item.brand : ''),
+          quantity: item.qty || 1,
+          rate: parseFloat(item.price) || 0
+        };
+        if (item.zoho_item_id) lineItem.item_id = item.zoho_item_id;
+        return lineItem;
+      });
+
+      return fetch(middlewareUrl + '/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: result.customerId,
+          items: lineItems,
+          notes: 'Reservation for ' + name + ' — ' + timeslot,
+          appointment_id: result.bookingId || '',
+          timeslot: result.timeslotLabel
+        })
+      })
+      .then(function (res) {
+        if (!res.ok) throw new Error('Failed to create order');
+        return res.json();
+      });
+    })
+    .then(function () {
+      // Success — clear reservation and show confirmation
+      localStorage.removeItem(RESERVATION_KEY);
+      document.getElementById('reservation-list').classList.add('hidden');
+      document.getElementById('timeslot-picker').classList.add('hidden');
+      document.getElementById('reservation-form-section').classList.add('hidden');
+      document.getElementById('reservation-confirm').classList.remove('hidden');
+    })
+    .catch(function (err) {
+      showToast('Something went wrong: ' + err.message + '. Please try again.', 'error');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = submitBtn.getAttribute('data-original-text') || 'Submit Reservation';
+        submitBtn.classList.remove('btn-loading');
+      }
     });
-
-    document.body.appendChild(hiddenForm);
-    hiddenForm.submit();
-    document.body.removeChild(hiddenForm);
-
-    // Show confirmation
-    localStorage.removeItem(RESERVATION_KEY);
-    document.getElementById('reservation-list').classList.add('hidden');
-    document.getElementById('timeslot-picker').classList.add('hidden');
-    document.getElementById('reservation-form-section').classList.add('hidden');
-    document.getElementById('reservation-confirm').classList.remove('hidden');
   });
 }
 

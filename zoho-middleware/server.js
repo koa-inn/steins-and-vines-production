@@ -120,7 +120,261 @@ function zohoPost(path, body) {
 }
 
 // ---------------------------------------------------------------------------
-// API routes
+// Zoho Bookings API helpers
+// ---------------------------------------------------------------------------
+
+var BOOKINGS_API_BASE = (API_URLS[apiDomain] || ('https://www.zohoapis' + apiDomain)) + '/bookings/v1/json';
+
+/**
+ * Proxy a GET request to the Zoho Bookings API.
+ * Bookings API does not require organization_id.
+ */
+function bookingsGet(path, params) {
+  return zohoAuth.getAccessToken().then(function (token) {
+    return axios.get(BOOKINGS_API_BASE + path, {
+      headers: { Authorization: 'Zoho-oauthtoken ' + token },
+      params: params || {}
+    }).then(function (response) {
+      return response.data;
+    });
+  });
+}
+
+/**
+ * Proxy a POST request to the Zoho Bookings API.
+ * Bookings API does not require organization_id.
+ */
+function bookingsPost(path, body) {
+  return zohoAuth.getAccessToken().then(function (token) {
+    return axios.post(BOOKINGS_API_BASE + path, body, {
+      headers: { Authorization: 'Zoho-oauthtoken ' + token }
+    }).then(function (response) {
+      return response.data;
+    });
+  });
+}
+
+/**
+ * Convert 12-hour time string to 24-hour format.
+ * "10:00 AM" → "10:00:00", "2:30 PM" → "14:30:00"
+ */
+function normalizeTimeTo24h(timeStr) {
+  var match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return timeStr; // already 24h or unrecognized
+  var h = parseInt(match[1], 10);
+  var m = match[2];
+  var period = match[3].toUpperCase();
+  if (period === 'PM' && h !== 12) h += 12;
+  if (period === 'AM' && h === 12) h = 0;
+  return String(h).padStart(2, '0') + ':' + m + ':00';
+}
+
+// ---------------------------------------------------------------------------
+// API routes — Bookings
+// ---------------------------------------------------------------------------
+
+var AVAILABILITY_CACHE_PREFIX = 'zoho:availability:';
+var AVAILABILITY_CACHE_TTL = 300; // 5 minutes
+
+/**
+ * GET /api/bookings/availability?year=YYYY&month=MM
+ * Returns which dates in a month have available slots.
+ * Cached in Redis for 5 minutes.
+ */
+app.get('/api/bookings/availability', function (req, res) {
+  var year = req.query.year;
+  var month = req.query.month;
+
+  if (!year || !month) {
+    return res.status(400).json({ error: 'Missing year or month query parameter' });
+  }
+
+  month = String(month).padStart(2, '0');
+  var cacheKey = AVAILABILITY_CACHE_PREFIX + year + '-' + month;
+
+  cache.get(cacheKey)
+    .then(function (cached) {
+      if (cached) {
+        console.log('[api/bookings/availability] Cache hit for ' + year + '-' + month);
+        return res.json({ source: 'cache', dates: cached });
+      }
+
+      console.log('[api/bookings/availability] Cache miss — fetching from Zoho');
+
+      // Calculate all dates in the month
+      var daysInMonth = new Date(parseInt(year, 10), parseInt(month, 10), 0).getDate();
+      var datePromises = [];
+
+      for (var d = 1; d <= daysInMonth; d++) {
+        var dateStr = year + '-' + month + '-' + String(d).padStart(2, '0');
+        datePromises.push(
+          (function (ds) {
+            return bookingsGet('/availableslots', {
+              service_id: process.env.ZOHO_BOOKINGS_SERVICE_ID,
+              staff_id: process.env.ZOHO_BOOKINGS_STAFF_ID,
+              selected_date: ds
+            }).then(function (data) {
+              var slots = (data.response && data.response.returnvalue &&
+                data.response.returnvalue.data) || [];
+              return { date: ds, available: slots.length > 0, slots_count: slots.length };
+            }).catch(function () {
+              return { date: ds, available: false, slots_count: 0 };
+            });
+          })(dateStr)
+        );
+      }
+
+      return Promise.all(datePromises).then(function (results) {
+        var dates = results.filter(function (r) { return r.available; });
+
+        cache.set(cacheKey, dates, AVAILABILITY_CACHE_TTL);
+
+        res.json({ source: 'zoho', dates: dates });
+      });
+    })
+    .catch(function (err) {
+      console.error('[api/bookings/availability]', err.message);
+      res.status(502).json({ error: err.message });
+    });
+});
+
+/**
+ * GET /api/bookings/slots?date=YYYY-MM-DD
+ * Fetch available time slots for a specific date.
+ */
+app.get('/api/bookings/slots', function (req, res) {
+  var date = req.query.date;
+  if (!date) {
+    return res.status(400).json({ error: 'Missing date query parameter' });
+  }
+
+  bookingsGet('/availableslots', {
+    service_id: process.env.ZOHO_BOOKINGS_SERVICE_ID,
+    staff_id: process.env.ZOHO_BOOKINGS_STAFF_ID,
+    selected_date: date
+  })
+    .then(function (data) {
+      var slots = (data.response && data.response.returnvalue &&
+        data.response.returnvalue.data) || [];
+      res.json({ date: date, slots: slots });
+    })
+    .catch(function (err) {
+      console.error('[api/bookings/slots]', err.message);
+      res.status(502).json({ error: err.message });
+    });
+});
+
+/**
+ * POST /api/bookings
+ * Create an appointment in Zoho Bookings.
+ *
+ * Expected body:
+ * {
+ *   date: "YYYY-MM-DD",
+ *   time: "10:00 AM",
+ *   customer: { name: "...", email: "...", phone: "..." },
+ *   notes: "optional"
+ * }
+ */
+app.post('/api/bookings', function (req, res) {
+  var body = req.body;
+
+  if (!body || !body.date || !body.time) {
+    return res.status(400).json({ error: 'Missing date or time' });
+  }
+  if (!body.customer || !body.customer.name || !body.customer.email) {
+    return res.status(400).json({ error: 'Missing customer name or email' });
+  }
+
+  var time24 = normalizeTimeTo24h(body.time);
+
+  var bookingPayload = {
+    service_id: process.env.ZOHO_BOOKINGS_SERVICE_ID,
+    staff_id: process.env.ZOHO_BOOKINGS_STAFF_ID,
+    from_time: body.date + ' ' + time24,
+    customer_details: {
+      name: body.customer.name,
+      email: body.customer.email,
+      phone_number: body.customer.phone || ''
+    },
+    additional_fields: {
+      notes: body.notes || ''
+    }
+  };
+
+  bookingsPost('/appointment', bookingPayload)
+    .then(function (data) {
+      var appointment = (data.response && data.response.returnvalue) || {};
+
+      // Invalidate availability cache for this month
+      var ym = body.date.substring(0, 7).split('-');
+      cache.del(AVAILABILITY_CACHE_PREFIX + ym[0] + '-' + ym[1]);
+
+      res.status(201).json({
+        ok: true,
+        booking_id: appointment.booking_id || null,
+        timeslot: body.date + ' ' + body.time
+      });
+    })
+    .catch(function (err) {
+      var message = err.message;
+      if (err.response && err.response.data) {
+        message = err.response.data.message || err.response.data.error || message;
+      }
+      console.error('[api/bookings POST]', message);
+      res.status(502).json({ error: message });
+    });
+});
+
+/**
+ * POST /api/contacts
+ * Find an existing Zoho Books contact by email, or create a new one.
+ *
+ * Expected body:
+ * { name: "...", email: "...", phone: "..." }
+ *
+ * Returns: { contact_id: "..." }
+ */
+app.post('/api/contacts', function (req, res) {
+  var body = req.body;
+  if (!body || !body.email) {
+    return res.status(400).json({ error: 'Missing email' });
+  }
+
+  // Search for existing contact by email
+  zohoGet('/contacts', { email: body.email })
+    .then(function (data) {
+      var contacts = data.contacts || [];
+      if (contacts.length > 0) {
+        return res.json({ contact_id: contacts[0].contact_id, created: false });
+      }
+
+      // Not found — create new contact
+      var contactPayload = {
+        contact_name: body.name || body.email,
+        contact_type: 'customer',
+        email: body.email,
+        phone: body.phone || ''
+      };
+
+      return zohoPost('/contacts', contactPayload)
+        .then(function (createData) {
+          var contact = createData.contact || {};
+          res.status(201).json({ contact_id: contact.contact_id, created: true });
+        });
+    })
+    .catch(function (err) {
+      var message = err.message;
+      if (err.response && err.response.data) {
+        message = err.response.data.message || err.response.data.error || message;
+      }
+      console.error('[api/contacts POST]', message);
+      res.status(502).json({ error: message });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// API routes — Zoho Books
 // ---------------------------------------------------------------------------
 
 var PRODUCTS_CACHE_KEY = 'zoho:products';
@@ -250,8 +504,27 @@ app.post('/api/checkout', function (req, res) {
     customer_id: body.customer_id,
     date: new Date().toISOString().slice(0, 10),  // YYYY-MM-DD
     line_items: lineItems,
-    notes: body.notes || ''
+    notes: body.notes || '',
+    custom_fields: []
   };
+
+  // Appointment custom fields (from Zoho Bookings integration)
+  if (body.appointment_id) {
+    salesOrder.custom_fields.push({
+      api_name: process.env.ZOHO_CF_APPOINTMENT_ID || 'cf_appointment_id',
+      value: body.appointment_id
+    });
+  }
+  if (body.timeslot) {
+    salesOrder.custom_fields.push({
+      api_name: process.env.ZOHO_CF_TIMESLOT || 'cf_appointment_timeslot',
+      value: body.timeslot
+    });
+  }
+  salesOrder.custom_fields.push({
+    api_name: process.env.ZOHO_CF_STATUS || 'cf_reservation_status',
+    value: body.appointment_id ? 'Pending' : 'Walk-in'
+  });
 
   zohoPost('/salesorders', salesOrder)
     .then(function (data) {
