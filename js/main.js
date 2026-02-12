@@ -4233,6 +4233,10 @@ function setupReservationForm() {
 
           gpCardForm = GlobalPayments.ui.form({
             fields: {
+              'card-holder-name': {
+                placeholder: 'Jane Smith',
+                target: '#credit-card-holder'
+              },
               'card-number': {
                 placeholder: '•••• •••• •••• ••••',
                 target: '#credit-card-number'
@@ -4249,6 +4253,22 @@ function setupReservationForm() {
                 text: 'Verify Card',
                 target: '#credit-card-submit'
               }
+            },
+            styles: {
+              '#secure-payment-field[type=button]': {
+                'background': '#722F37',
+                'border': '1px solid #722F37',
+                'color': '#ffffff',
+                'cursor': 'pointer',
+                'padding': '12px 24px',
+                'font-size': '16px',
+                'border-radius': '4px',
+                'width': '100%',
+                'font-family': 'Lato, sans-serif'
+              },
+              '#secure-payment-field[type=button]:hover': {
+                'background': '#5a2530'
+              }
             }
           });
 
@@ -4258,7 +4278,6 @@ function setupReservationForm() {
               paymentError.textContent = '';
               paymentError.classList.remove('visible');
             }
-            // Visual feedback that card is verified
             var submitEl = document.getElementById('credit-card-submit');
             if (submitEl) submitEl.classList.add('card-verified');
           });
@@ -4285,7 +4304,7 @@ function setupReservationForm() {
     var items = getReservation();
     var total = 0;
     items.forEach(function (item) {
-      total += (parseFloat(item.price) || 0) * (item.qty || 1);
+      total += (parseFloat(String(item.price || '0').replace(/[^0-9.]/g, '')) || 0) * (item.qty || 1);
     });
     if (items.length === 0 || total <= 0) {
       depositSummary.classList.add('hidden');
@@ -4416,7 +4435,8 @@ function setupReservationForm() {
     // Calculate order total and deposit
     var orderTotal = 0;
     items.forEach(function (item) {
-      orderTotal += (parseFloat(item.price) || 0) * (item.qty || 1);
+      var p = String(item.price || '0').replace(/[^0-9.]/g, '');
+      orderTotal += (parseFloat(p) || 0) * (item.qty || 1);
     });
     var depositAmt = needsPayment ? Math.min(paymentConfig.depositAmount, orderTotal) : 0;
 
@@ -4507,7 +4527,7 @@ function setupReservationForm() {
           var lineItem = {
             name: item.name + (item.brand ? ' — ' + item.brand : ''),
             quantity: item.qty || 1,
-            rate: parseFloat(item.price) || 0
+            rate: parseFloat(String(item.price || '0').replace(/[^0-9.]/g, '')) || 0
           };
           if (item.zoho_item_id) lineItem.item_id = item.zoho_item_id;
           return lineItem;

@@ -94,6 +94,60 @@ app.get('/auth/status', function (req, res) {
 });
 
 // ---------------------------------------------------------------------------
+// Public API routes (no Zoho auth required)
+// ---------------------------------------------------------------------------
+
+var GP_API_BASE = process.env.GP_ENVIRONMENT === 'production'
+  ? 'https://apis.globalpay.com/ucp'
+  : 'https://apis.sandbox.globalpay.com/ucp';
+
+/**
+ * GET /api/payment/config
+ * Generate a restricted access token for client-side tokenization and return
+ * it with the deposit amount. Token expires in 10 minutes.
+ * Card data never touches our server — tokenized client-side by @globalpayments/js.
+ */
+app.get('/api/payment/config', function (req, res) {
+  if (!process.env.GP_APP_KEY) {
+    return res.json({ enabled: false, depositAmount: GP_DEPOSIT_AMOUNT });
+  }
+
+  var nonce = String(Date.now());
+  var secret = crypto.createHash('sha512').update(nonce + process.env.GP_APP_KEY).digest('hex');
+
+  axios.post(GP_API_BASE + '/accesstoken', {
+    app_id: process.env.GP_APP_ID,
+    secret: secret,
+    grant_type: 'client_credentials',
+    nonce: nonce,
+    interval_to_expire: '10_MINUTES',
+    restricted_token: 'YES',
+    permissions: ['PMT_POST_Create_Single']
+  }, {
+    headers: {
+      'Content-Type': 'application/json',
+      'X-GP-Version': '2021-03-22'
+    }
+  })
+  .then(function (tokenResp) {
+    res.json({
+      enabled: true,
+      accessToken: tokenResp.data.token,
+      env: process.env.GP_ENVIRONMENT === 'production' ? 'production' : 'sandbox',
+      depositAmount: GP_DEPOSIT_AMOUNT
+    });
+  })
+  .catch(function (err) {
+    var msg = err.message;
+    if (err.response && err.response.data) {
+      msg = err.response.data.error_description || err.response.data.message || msg;
+    }
+    console.error('[payment/config] Access token failed:', msg);
+    res.status(502).json({ error: 'Payment config failed: ' + msg, enabled: false });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Auth guard — protects all /api/* routes below
 // ---------------------------------------------------------------------------
 
@@ -253,6 +307,28 @@ function normalizeTimeTo24h(timeStr) {
 
 var AVAILABILITY_CACHE_PREFIX = 'zoho:availability:';
 var AVAILABILITY_CACHE_TTL = 300; // 5 minutes
+
+/**
+ * GET /api/bookings/services
+ * List all services and staff from Zoho Bookings (debug/setup helper).
+ */
+app.get('/api/bookings/services', function (req, res) {
+  Promise.all([
+    bookingsGet('/services'),
+    bookingsGet('/staffs')
+  ])
+    .then(function (results) {
+      var services = (results[0].response && results[0].response.returnvalue &&
+        results[0].response.returnvalue.data) || [];
+      var staff = (results[1].response && results[1].response.returnvalue &&
+        results[1].response.returnvalue.data) || [];
+      res.json({ services: services, staff: staff });
+    })
+    .catch(function (err) {
+      console.error('[api/bookings/services]', err.message);
+      res.status(502).json({ error: err.message });
+    });
+});
 
 /**
  * GET /api/bookings/availability?year=YYYY&month=MM
@@ -427,7 +503,7 @@ app.post('/api/contacts', function (req, res) {
         return res.json({ contact_id: contacts[0].contact_id, created: false });
       }
 
-      // Not found — create new contact
+      // Not found by email — create new contact
       var contactPayload = {
         contact_name: body.name || body.email,
         contact_type: 'customer',
@@ -439,6 +515,24 @@ app.post('/api/contacts', function (req, res) {
         .then(function (createData) {
           var contact = createData.contact || {};
           res.status(201).json({ contact_id: contact.contact_id, created: true });
+        })
+        .catch(function (createErr) {
+          // If name already exists, search by name and return that contact
+          var msg = '';
+          if (createErr.response && createErr.response.data) {
+            msg = createErr.response.data.message || '';
+          }
+          if (msg.indexOf('already exists') !== -1) {
+            return zohoGet('/contacts', { contact_name: body.name })
+              .then(function (nameData) {
+                var nameContacts = nameData.contacts || [];
+                if (nameContacts.length > 0) {
+                  return res.json({ contact_id: nameContacts[0].contact_id, created: false });
+                }
+                throw createErr; // couldn't find by name either
+              });
+          }
+          throw createErr;
         });
     })
     .catch(function (err) {
@@ -543,60 +637,6 @@ app.get('/api/invoices', function (req, res) {
     });
 });
 
-// ---------------------------------------------------------------------------
-// API routes — Global Payments
-// ---------------------------------------------------------------------------
-
-var GP_API_BASE = process.env.GP_ENVIRONMENT === 'production'
-  ? 'https://apis.globalpay.com/ucp'
-  : 'https://apis.sandbox.globalpay.com/ucp';
-
-/**
- * GET /api/payment/config
- * Generate a restricted access token for client-side tokenization and return
- * it with the deposit amount. Token expires in 10 minutes.
- * Card data never touches our server — tokenized client-side by @globalpayments/js.
- */
-app.get('/api/payment/config', function (req, res) {
-  if (!process.env.GP_APP_KEY) {
-    return res.json({ enabled: false, depositAmount: GP_DEPOSIT_AMOUNT });
-  }
-
-  var nonce = String(Date.now());
-  var secret = crypto.createHash('sha512').update(nonce + process.env.GP_APP_KEY).digest('hex');
-
-  axios.post(GP_API_BASE + '/accesstoken', {
-    app_id: process.env.GP_APP_ID,
-    secret: secret,
-    grant_type: 'client_credentials',
-    nonce: nonce,
-    interval_to_expire: '10_MINUTES',
-    restricted_token: 'YES',
-    permissions: ['PMT_POST_Create_Single']
-  }, {
-    headers: {
-      'Content-Type': 'application/json',
-      'X-GP-Version': '2021-03-22'
-    }
-  })
-  .then(function (tokenResp) {
-    res.json({
-      enabled: true,
-      accessToken: tokenResp.data.token,
-      env: process.env.GP_ENVIRONMENT === 'production' ? 'production' : 'sandbox',
-      depositAmount: GP_DEPOSIT_AMOUNT
-    });
-  })
-  .catch(function (err) {
-    var msg = err.message;
-    if (err.response && err.response.data) {
-      msg = err.response.data.error_description || err.response.data.message || msg;
-    }
-    console.error('[payment/config] Access token failed:', msg);
-    res.status(502).json({ error: 'Payment config failed: ' + msg, enabled: false });
-  });
-});
-
 /**
  * POST /api/payment/charge
  * Charge a deposit using a single-use token from the client.
@@ -628,7 +668,7 @@ app.post('/api/payment/charge', function (req, res) {
     .withAllowDuplicates(true)
     .execute()
     .then(function (response) {
-      if (response.responseCode !== '00') {
+      if (response.responseCode !== 'SUCCESS' && response.responseCode !== '00') {
         console.error('[payment/charge] Declined:', response.responseCode, response.responseMessage);
         return res.status(402).json({
           error: 'Payment declined: ' + (response.responseMessage || 'Unknown error'),
@@ -773,36 +813,42 @@ app.post('/api/checkout', function (req, res) {
     custom_fields: []
   };
 
-  // Appointment custom fields (from Zoho Bookings integration)
-  if (body.appointment_id) {
+  // Appointment custom fields (only included if configured in .env)
+  if (body.appointment_id && process.env.ZOHO_CF_APPOINTMENT_ID) {
     salesOrder.custom_fields.push({
-      api_name: process.env.ZOHO_CF_APPOINTMENT_ID || 'cf_appointment_id',
+      api_name: process.env.ZOHO_CF_APPOINTMENT_ID,
       value: body.appointment_id
     });
   }
-  if (body.timeslot) {
+  if (body.timeslot && process.env.ZOHO_CF_TIMESLOT) {
     salesOrder.custom_fields.push({
-      api_name: process.env.ZOHO_CF_TIMESLOT || 'cf_appointment_timeslot',
+      api_name: process.env.ZOHO_CF_TIMESLOT,
       value: body.timeslot
     });
   }
-  salesOrder.custom_fields.push({
-    api_name: process.env.ZOHO_CF_STATUS || 'cf_reservation_status',
-    value: body.appointment_id ? 'Pending' : 'Walk-in'
-  });
-
-  // Deposit tracking custom fields
-  salesOrder.custom_fields.push({
-    api_name: process.env.ZOHO_CF_DEPOSIT || 'cf_deposit_amount',
-    value: String(depositAmount.toFixed(2))
-  });
-  salesOrder.custom_fields.push({
-    api_name: process.env.ZOHO_CF_BALANCE || 'cf_balance_due',
-    value: String(balanceDue.toFixed(2))
-  });
-  if (transactionId) {
+  if (process.env.ZOHO_CF_STATUS) {
     salesOrder.custom_fields.push({
-      api_name: process.env.ZOHO_CF_TRANSACTION_ID || 'cf_payment_transaction_id',
+      api_name: process.env.ZOHO_CF_STATUS,
+      value: body.appointment_id ? 'Pending' : 'Walk-in'
+    });
+  }
+
+  // Deposit tracking custom fields (only included if configured in .env)
+  if (process.env.ZOHO_CF_DEPOSIT) {
+    salesOrder.custom_fields.push({
+      api_name: process.env.ZOHO_CF_DEPOSIT,
+      value: String(depositAmount.toFixed(2))
+    });
+  }
+  if (process.env.ZOHO_CF_BALANCE) {
+    salesOrder.custom_fields.push({
+      api_name: process.env.ZOHO_CF_BALANCE,
+      value: String(balanceDue.toFixed(2))
+    });
+  }
+  if (transactionId && process.env.ZOHO_CF_TRANSACTION_ID) {
+    salesOrder.custom_fields.push({
+      api_name: process.env.ZOHO_CF_TRANSACTION_ID,
       value: transactionId
     });
   }
@@ -823,8 +869,7 @@ app.post('/api/checkout', function (req, res) {
           amount: depositAmount,
           date: new Date().toISOString().slice(0, 10),
           reference_number: transactionId,
-          notes: 'Online deposit for Sales Order ' + (soNumber || soId),
-          invoices: [{ invoice_id: soId, amount_applied: depositAmount }]
+          notes: 'Online deposit for Sales Order ' + (soNumber || soId)
         })
         .then(function () {
           console.log('[api/checkout] Payment recorded for SO=' + soNumber);

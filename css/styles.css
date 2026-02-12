@@ -2446,6 +2446,15 @@ small, .text-small {
   text-align: left;
 }
 
+.reservation-form > button[type="submit"] {
+  display: block;
+  margin: 1.5rem auto 0;
+}
+
+.reservation-form > .form-note {
+  text-align: center;
+}
+
 /* Payment section (Global Payments hosted fields) */
 .payment-section {
   margin: 1.5rem 0;
