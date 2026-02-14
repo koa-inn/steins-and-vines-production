@@ -550,33 +550,145 @@ app.post('/api/contacts', function (req, res) {
 // ---------------------------------------------------------------------------
 
 var PRODUCTS_CACHE_KEY = 'zoho:products';
-var PRODUCTS_CACHE_TTL = 300; // 5 minutes in seconds
+var PRODUCTS_CACHE_TTL = 600; // 10 minutes (detail enrichment is expensive)
 
 /**
  * GET /api/products
- * Returns active items from Zoho Inventory, cached in Redis for 5 minutes.
+ * Returns active product items from Zoho Inventory, enriched with custom_fields
+ * and brand from the detail endpoint. Cached in Redis for 10 minutes.
+ *
+ * The list endpoint does not return custom_fields, so we fetch each item's
+ * detail (5 concurrent) to get type, subcategory, tasting notes, body, oak,
+ * sweetness, ABV, etc. Services and Ingredients groups are filtered out.
  */
 app.get('/api/products', function (req, res) {
   cache.get(PRODUCTS_CACHE_KEY)
     .then(function (cached) {
       if (cached) {
-        console.log('[api/products] Cache hit');
+        console.log('[api/products] Cache hit (' + cached.length + ' items)');
         return res.json({ source: 'cache', items: cached });
       }
 
-      console.log('[api/products] Cache miss — fetching from Zoho');
-      return zohoGet('/items', { status: 'active' })
-        .then(function (data) {
-          var items = data.items || [];
+      console.log('[api/products] Cache miss — fetching from Zoho Inventory');
+      return fetchAllItems({ status: 'active' })
+        .then(function (items) {
+          // Filter out non-product groups server-side
+          items = items.filter(function (item) {
+            var group = (item.group_name || '').toLowerCase();
+            return group !== 'services' && group !== 'ingredients';
+          });
 
-          // Store in Redis (fire-and-forget — don't block the response)
-          cache.set(PRODUCTS_CACHE_KEY, items, PRODUCTS_CACHE_TTL);
+          console.log('[api/products] Enriching ' + items.length + ' items with detail data');
 
-          res.json({ source: 'zoho', items: items });
+          // Batch-fetch item details (2 concurrent, 500ms between batches)
+          // to stay within Zoho's rate limits (~100 req/min for Inventory API)
+          var CONCURRENCY = 2;
+          var BATCH_DELAY = 500;
+          var enriched = [];
+
+          function delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+          function processBatch(batch) {
+            return Promise.all(batch.map(function (item) {
+              return inventoryGet('/items/' + item.item_id)
+                .then(function (data) {
+                  var detail = data.item || {};
+                  item.custom_fields = detail.custom_fields || [];
+                  item.brand = detail.brand || '';
+                  return item;
+                })
+                .catch(function (err) {
+                  console.error('[api/products] Detail fetch failed for ' + item.name + ':', err.message);
+                  item.custom_fields = [];
+                  item.brand = item.brand || '';
+                  return item;
+                });
+            }));
+          }
+
+          var batches = [];
+          for (var i = 0; i < items.length; i += CONCURRENCY) {
+            batches.push(items.slice(i, i + CONCURRENCY));
+          }
+
+          var chain = Promise.resolve();
+          batches.forEach(function (batch, batchIdx) {
+            chain = chain.then(function () {
+              return processBatch(batch).then(function (results) {
+                enriched = enriched.concat(results);
+                // Small delay between batches to avoid 429s
+                if (batchIdx < batches.length - 1) return delay(BATCH_DELAY);
+              });
+            });
+          });
+
+          return chain.then(function () {
+            cache.set(PRODUCTS_CACHE_KEY, enriched, PRODUCTS_CACHE_TTL);
+            console.log('[api/products] Cached ' + enriched.length + ' enriched items');
+            res.json({ source: 'zoho', items: enriched });
+          });
         });
     })
     .catch(function (err) {
       console.error('[api/products]', err.message);
+      res.status(502).json({ error: err.message });
+    });
+});
+
+var SERVICES_CACHE_KEY = 'zoho:services';
+var SERVICES_CACHE_TTL = 300; // 5 minutes
+
+/**
+ * GET /api/services
+ * Returns active items from the "Services" group in Zoho Books, cached for 5 minutes.
+ */
+app.get('/api/services', function (req, res) {
+  cache.get(SERVICES_CACHE_KEY)
+    .then(function (cached) {
+      if (cached) {
+        console.log('[api/services] Cache hit');
+        return res.json({ source: 'cache', items: cached });
+      }
+
+      console.log('[api/services] Cache miss — fetching from Zoho');
+      return zohoGet('/items', { status: 'active', group_name: 'Services' })
+        .then(function (data) {
+          var items = data.items || [];
+          cache.set(SERVICES_CACHE_KEY, items, SERVICES_CACHE_TTL);
+          res.json({ source: 'zoho', items: items });
+        });
+    })
+    .catch(function (err) {
+      console.error('[api/services]', err.message);
+      res.status(502).json({ error: err.message });
+    });
+});
+
+var INGREDIENTS_CACHE_KEY = 'zoho:ingredients';
+var INGREDIENTS_CACHE_TTL = 300; // 5 minutes
+
+/**
+ * GET /api/ingredients
+ * Returns active items from the "Ingredients" group in Zoho Books, cached for 5 minutes.
+ */
+app.get('/api/ingredients', function (req, res) {
+  cache.get(INGREDIENTS_CACHE_KEY)
+    .then(function (cached) {
+      if (cached) {
+        console.log('[api/ingredients] Cache hit');
+        return res.json({ source: 'cache', items: cached });
+      }
+
+      console.log('[api/ingredients] Cache miss — fetching from Zoho');
+      return zohoGet('/items', { status: 'active', group_name: 'Ingredients' })
+        .then(function (data) {
+          var items = data.items || [];
+          cache.set(INGREDIENTS_CACHE_KEY, items, INGREDIENTS_CACHE_TTL);
+          res.json({ source: 'zoho', items: items });
+        });
+    })
+    .catch(function (err) {
+      console.error('[api/ingredients]', err.message);
       res.status(502).json({ error: err.message });
     });
 });
@@ -1391,6 +1503,401 @@ app.post('/api/taxes/test-update', function (req, res) {
     .catch(function (err) {
       var detail = err.response ? err.response.data : err.message;
       res.status(502).json({ error: detail });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// CSV Helper & Item Migration
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a single CSV line, handling quoted fields and escaped double-quotes.
+ */
+function parseCSVLine(line) {
+  var result = [];
+  var current = '';
+  var inQuotes = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        result.push(current);
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+// CSV column name → { label, data_type } for Zoho custom fields.
+// Zoho Inventory accepts updates by label (no api_name discovery needed).
+// data_type is used to format values before sending.
+var CUSTOM_FIELD_MAP = {
+  type:              { label: 'Type',           data_type: 'dropdown' },
+  subcategory:       { label: 'Subcategory',    data_type: 'text' },
+  time:              { label: 'Time',           data_type: 'text' },
+  tasting_notes:     { label: 'Tasting Notes',  data_type: 'text' },
+  favorite:          { label: 'Favorite',       data_type: 'check_box' },
+  body:              { label: 'Body',           data_type: 'text' },
+  oak:               { label: 'Oak',            data_type: 'text' },
+  sweetness:         { label: 'Sweetness',      data_type: 'text' },
+  abv:               { label: 'ABV',            data_type: 'decimal' },
+  batch_size_liters: { label: 'Batch Size (L)', data_type: 'decimal' }
+};
+
+/**
+ * Fetch all items from Zoho Inventory, handling pagination.
+ */
+function fetchAllItems(params) {
+  var allItems = [];
+  var page = 1;
+  var perPage = 200;
+
+  function fetchPage() {
+    var query = Object.assign({}, params || {}, { page: page, per_page: perPage });
+    return inventoryGet('/items', query).then(function (data) {
+      var items = data.items || [];
+      allItems = allItems.concat(items);
+
+      if (data.page_context && data.page_context.has_more_page) {
+        page++;
+        return fetchPage();
+      }
+      return allItems;
+    });
+  }
+
+  return fetchPage();
+}
+
+/**
+ * GET /api/items/inspect
+ * Fetch a single item's full detail to discover available custom fields.
+ * Query: ?item_id=...  (optional — defaults to first active item)
+ */
+app.post('/api/items/test-cf', function (req, res) {
+  var itemId = req.body.item_id;
+  var label = req.body.label;
+  var value = req.body.value;
+  if (!itemId || !label) return res.status(400).json({ error: 'Need item_id and label' });
+
+  inventoryPut('/items/' + itemId, {
+    custom_fields: [{ label: label, value: value }]
+  })
+    .then(function (data) {
+      var item = data.item || {};
+      res.json({
+        ok: true,
+        custom_fields: item.custom_fields,
+        custom_field_hash: item.custom_field_hash
+      });
+    })
+    .catch(function (err) {
+      var detail = err.response ? err.response.data : err.message;
+      res.status(502).json({ error: detail });
+    });
+});
+
+app.get('/api/items/inspect', function (req, res) {
+  var itemIdPromise;
+
+  if (req.query.item_id) {
+    itemIdPromise = Promise.resolve(req.query.item_id);
+  } else {
+    itemIdPromise = inventoryGet('/items', { status: 'active', per_page: 1 })
+      .then(function (data) {
+        var items = data.items || [];
+        if (items.length === 0) throw new Error('No active items found');
+        return items[0].item_id;
+      });
+  }
+
+  itemIdPromise
+    .then(function (itemId) {
+      return inventoryGet('/items/' + itemId);
+    })
+    .then(function (data) {
+      var item = data.item || {};
+
+      var customFields = (item.custom_fields || []).map(function (cf) {
+        return {
+          api_name: cf.api_name || cf.customfield_id,
+          label: cf.label,
+          data_type: cf.data_type,
+          value: cf.value
+        };
+      });
+
+      res.json({
+        item_id: item.item_id,
+        name: item.name,
+        sku: item.sku,
+        rate: item.rate,
+        standard_fields: {
+          name: item.name,
+          sku: item.sku,
+          rate: item.rate,
+          status: item.status,
+          group_name: item.group_name,
+          category_name: item.category_name
+        },
+        custom_fields: customFields,
+        custom_field_count: customFields.length
+      });
+    })
+    .catch(function (err) {
+      var msg = err.message;
+      if (err.response && err.response.data) msg = err.response.data.message || msg;
+      console.error('[api/items/inspect]', msg);
+      res.status(502).json({ error: msg });
+    });
+});
+
+/**
+ * POST /api/items/migrate
+ * Read products CSV, match to Zoho Inventory items by SKU, and update
+ * standard + custom fields.
+ *
+ * Body: { csv_url: "..." OR csv_path: "/local/file.csv", apply: false, match_by: "sku" }
+ *
+ * Dry run (apply: false) returns proposed changes without updating.
+ * Apply (apply: true) updates items with rate limiting (25/batch, 2s between
+ * items, 60s between batches).
+ */
+app.post('/api/items/migrate', function (req, res) {
+  var fs = require('fs');
+  var body = req.body || {};
+  var csvUrl = body.csv_url;
+  var csvPath = body.csv_path;
+  var applyChanges = body.apply === true;
+  var matchBy = body.match_by || 'sku';
+
+  if (!csvUrl && !csvPath) {
+    return res.status(400).json({ error: 'Missing csv_url or csv_path' });
+  }
+
+  var csvRows, zohoItems;
+
+  // Step 1: Fetch/read CSV
+  var csvPromise = csvPath
+    ? Promise.resolve({ data: fs.readFileSync(csvPath, 'utf8') })
+    : axios.get(csvUrl, { responseType: 'text' });
+
+  csvPromise
+    .then(function (csvResp) {
+      var lines = csvResp.data.split('\n');
+      var headerLine = lines[0];
+      if (!headerLine) throw new Error('CSV is empty');
+
+      var headers = parseCSVLine(headerLine.replace(/\r$/, ''));
+      headers = headers.map(function (h) {
+        return h.trim().toLowerCase().replace(/\s+/g, '_');
+      });
+
+      csvRows = [];
+      for (var i = 1; i < lines.length; i++) {
+        var line = lines[i].replace(/\r$/, '').trim();
+        if (!line) continue;
+
+        var values = parseCSVLine(line);
+        var row = {};
+        headers.forEach(function (h, idx) {
+          row[h] = (values[idx] || '').trim();
+        });
+        csvRows.push(row);
+      }
+
+      // Step 2: Fetch all active Zoho items
+      return fetchAllItems({ status: 'active' });
+    })
+    .then(function (items) {
+      zohoItems = items;
+      if (items.length === 0) throw new Error('No active items in Zoho Inventory');
+
+      // Build SKU/name lookups
+      var skuMap = {};
+      var nameMap = {};
+      zohoItems.forEach(function (item) {
+        if (item.sku) skuMap[item.sku] = item;
+        if (item.name) nameMap[item.name.toLowerCase()] = item;
+      });
+
+      // Match CSV rows and build update payloads
+      var matched = [];
+      var unmatched = [];
+
+      csvRows.forEach(function (row) {
+        var zohoItem = null;
+        if (matchBy === 'sku' && row.sku) {
+          zohoItem = skuMap[row.sku];
+        }
+        if (!zohoItem && row.name) {
+          zohoItem = nameMap[row.name.toLowerCase()];
+        }
+
+        if (!zohoItem) {
+          unmatched.push((row.name || '(no name)') + ' (' + (row.sku || 'no SKU') + ')');
+          return;
+        }
+
+        var changes = {};
+        var customFieldUpdates = [];
+
+        // Standard field: rate from retail_instore
+        if (row.retail_instore) {
+          var rate = parseFloat(row.retail_instore.replace(/[$,]/g, ''));
+          if (!isNaN(rate) && rate > 0) {
+            changes.rate = rate;
+          }
+        }
+
+        // Standard field: brand
+        if (row.brand && row.brand !== '') {
+          changes.brand = row.brand;
+        }
+
+        // Custom fields — use label-based updates (Zoho accepts { label, value })
+        Object.keys(CUSTOM_FIELD_MAP).forEach(function (csvCol) {
+          if (row[csvCol] === undefined || row[csvCol] === '') return;
+
+          var fieldDef = CUSTOM_FIELD_MAP[csvCol];
+          var value = row[csvCol];
+
+          // Format value based on field data type
+          if (fieldDef.data_type === 'decimal' || fieldDef.data_type === 'number') {
+            value = parseFloat(value.replace(/[$,%]/g, ''));
+            if (isNaN(value)) return;
+          } else if (fieldDef.data_type === 'check_box') {
+            value = value.toUpperCase() === 'TRUE';
+          }
+
+          customFieldUpdates.push({
+            label: fieldDef.label,
+            value: value
+          });
+          changes[fieldDef.label] = value;
+        });
+
+        if (Object.keys(changes).length > 0 || customFieldUpdates.length > 0) {
+          matched.push({
+            item_id: zohoItem.item_id,
+            name: zohoItem.name,
+            sku: zohoItem.sku || row.sku,
+            changes: changes,
+            custom_fields: customFieldUpdates
+          });
+        }
+      });
+
+      // Dry run — return proposed changes
+      if (!applyChanges) {
+        return res.json({
+          mode: 'dry-run',
+          note: 'Send { "apply": true } to execute these changes',
+          matched: matched.length,
+          unmatched: unmatched.length,
+          unmatched_items: unmatched,
+          updates: matched,
+          zoho_items_total: zohoItems.length,
+          csv_rows_total: csvRows.length
+        });
+      }
+
+      // Apply changes with rate limiting
+      var BATCH_SIZE = 25;
+      var ITEM_DELAY = 2000;
+      var BATCH_DELAY = 60000;
+
+      var applied = [];
+      var errors = [];
+
+      function delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+      function processBatch(batch) {
+        var chain = Promise.resolve();
+        batch.forEach(function (update, idx) {
+          chain = chain.then(function () {
+            return (idx > 0 ? delay(ITEM_DELAY) : Promise.resolve());
+          }).then(function () {
+            console.log('[items/migrate] Updating: ' + update.name + ' (' + update.sku + ')');
+
+            var payload = {};
+            if (update.changes.rate !== undefined) {
+              payload.rate = update.changes.rate;
+            }
+            if (update.changes.brand !== undefined) {
+              payload.brand = update.changes.brand;
+            }
+            if (update.custom_fields.length > 0) {
+              payload.custom_fields = update.custom_fields;
+            }
+
+            return inventoryPut('/items/' + update.item_id, payload);
+          }).then(function () {
+            applied.push(update.name);
+          }).catch(function (err) {
+            var msg = err.message;
+            if (err.response && err.response.data) msg = err.response.data.message || msg;
+            errors.push(update.name + ': ' + msg);
+          });
+        });
+        return chain;
+      }
+
+      var batches = [];
+      for (var b = 0; b < matched.length; b += BATCH_SIZE) {
+        batches.push(matched.slice(b, b + BATCH_SIZE));
+      }
+
+      var batchChain = Promise.resolve();
+      batches.forEach(function (batch, batchIdx) {
+        batchChain = batchChain.then(function () {
+          console.log('[items/migrate] Batch ' + (batchIdx + 1) + '/' + batches.length + ' (' + batch.length + ' items)');
+          return processBatch(batch);
+        }).then(function () {
+          if (batchIdx < batches.length - 1) {
+            console.log('[items/migrate] Waiting 60s before next batch...');
+            return delay(BATCH_DELAY);
+          }
+        });
+      });
+
+      return batchChain.then(function () {
+        cache.del(PRODUCTS_CACHE_KEY);
+
+        res.json({
+          mode: 'applied',
+          applied: applied.length,
+          errors: errors,
+          summary: {
+            updated: applied.length,
+            failed: errors.length,
+            unmatched: unmatched.length
+          }
+        });
+      });
+    })
+    .catch(function (err) {
+      var msg = err.message;
+      if (err.response && err.response.data) msg = err.response.data.message || msg;
+      console.error('[api/items/migrate]', msg);
+      res.status(502).json({ error: msg });
     });
 });
 

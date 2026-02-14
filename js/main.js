@@ -751,25 +751,68 @@ function loadFeaturedProducts() {
       : fetch('content/home.json').then(function (res) { return res.ok ? res.json() : {}; }).then(function (j) { return { isJson: true, data: j }; });
   }
 
-  var productsPromise;
-  if (productsCached) {
-    productsPromise = Promise.resolve(productsCached.data);
-    if (!productsCached.fresh) {
-      var refreshUrl = csvUrl || localCsvUrl;
-      fetch(refreshUrl).then(function (r) { return r.ok ? r.text() : ''; })
-        .then(function (csv) { if (csv) setCache(PRODUCTS_CACHE_KEY, PRODUCTS_CACHE_TS_KEY, csv); });
-    }
-  } else {
-    productsPromise = csvUrl
-      ? fetch(csvUrl).then(function (r) { return r.ok ? r.text() : ''; }).catch(function () { return fetch(localCsvUrl).then(function (r) { return r.text(); }); })
-      : fetch(localCsvUrl).then(function (r) { return r.text(); });
-    productsPromise.then(function (csv) { if (csv) setCache(PRODUCTS_CACHE_KEY, PRODUCTS_CACHE_TS_KEY, csv); });
+  var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+    ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
+
+  function loadProductsFromMiddleware() {
+    return fetch(middlewareUrl + '/api/products')
+      .then(function (r) {
+        if (!r.ok) throw new Error('Middleware ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        var items = data.items || [];
+        return items.map(function (z) {
+          var obj = {
+            name: z.name || '',
+            sku: z.sku || '',
+            brand: z.brand || '',
+            stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
+            description: z.description || '',
+            discount: z.discount != null ? String(z.discount) : '0'
+          };
+          if (z.custom_fields && z.custom_fields.length) {
+            z.custom_fields.forEach(function (cf) {
+              var key = (cf.label || '').toLowerCase().replace(/\s+/g, '_');
+              if (key && cf.value !== undefined && cf.value !== null) {
+                obj[key] = String(cf.value);
+              }
+            });
+          }
+          if (!obj.retail_instore && z.rate != null) {
+            obj.retail_instore = '$' + parseFloat(z.rate).toFixed(2);
+          }
+          return obj;
+        });
+      });
   }
+
+  function loadProductsFromCSV() {
+    var csvPromise;
+    if (productsCached) {
+      csvPromise = Promise.resolve(productsCached.data);
+      if (!productsCached.fresh) {
+        var refreshUrl = csvUrl || localCsvUrl;
+        fetch(refreshUrl).then(function (r) { return r.ok ? r.text() : ''; })
+          .then(function (csv) { if (csv) setCache(PRODUCTS_CACHE_KEY, PRODUCTS_CACHE_TS_KEY, csv); });
+      }
+    } else {
+      csvPromise = csvUrl
+        ? fetch(csvUrl).then(function (r) { return r.ok ? r.text() : ''; }).catch(function () { return fetch(localCsvUrl).then(function (r) { return r.text(); }); })
+        : fetch(localCsvUrl).then(function (r) { return r.text(); });
+      csvPromise.then(function (csv) { if (csv) setCache(PRODUCTS_CACHE_KEY, PRODUCTS_CACHE_TS_KEY, csv); });
+    }
+    return csvPromise.then(function (csv) { return csv ? parseCSV(csv) : []; });
+  }
+
+  var productsPromise = middlewareUrl
+    ? loadProductsFromMiddleware().catch(function () { return loadProductsFromCSV(); })
+    : loadProductsFromCSV();
 
   Promise.all([configPromise, productsPromise])
     .then(function (results) {
       var result = results[0];
-      var productsCsv = results[1];
+      var products = results[1];
       var config = { 'promo-news': [], 'promo-featured-skus': [], 'instafeed-url': '' };
 
       if (result && result.isJson) {
@@ -821,7 +864,6 @@ function loadFeaturedProducts() {
 
       // Parse and render products
       var featuredSkus = config['promo-featured-skus'] || [];
-      var products = productsCsv ? parseCSV(productsCsv) : [];
       renderFeaturedProducts(products, featuredSkus);
     })
     .catch(function () {
@@ -1463,32 +1505,45 @@ function showCatalogSkeletons(container, count) {
 var applyKitsFilters = null;
 
 // ===== Catalog View Toggle =====
-var catalogViewMode = localStorage.getItem('catalogViewMode') || 'cards';
+var catalogViewDefaults = { kits: 'cards', ingredients: 'table', services: 'table' };
+var catalogViewMode = 'cards'; // active tab's current mode
+
+function getCatalogViewMode(tab) {
+  var stored = localStorage.getItem('catalogViewMode-' + tab);
+  return stored || catalogViewDefaults[tab] || 'cards';
+}
+
+function syncToggleButtons(view) {
+  var allToggleBtns = document.querySelectorAll('.view-toggle-btn');
+  allToggleBtns.forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-view') === view);
+  });
+}
 
 function initCatalogViewToggle() {
   var allToggleBtns = document.querySelectorAll('.view-toggle-btn');
-  // Sync button state to persisted preference
-  allToggleBtns.forEach(function (btn) {
-    btn.classList.toggle('active', btn.getAttribute('data-view') === catalogViewMode);
-  });
+  // Set initial mode from the active tab (defaults to kits)
+  var activeTab = document.querySelector('.product-tab-btn.active');
+  var tab = activeTab ? activeTab.getAttribute('data-product-tab') : 'kits';
+  catalogViewMode = getCatalogViewMode(tab);
+  syncToggleButtons(catalogViewMode);
+
   allToggleBtns.forEach(function (btn) {
     btn.addEventListener('click', function () {
       var view = btn.getAttribute('data-view');
       if (view === catalogViewMode) return;
       catalogViewMode = view;
-      localStorage.setItem('catalogViewMode', view);
-      // Sync active class on all toggle buttons across tabs
-      allToggleBtns.forEach(function (b) {
-        b.classList.toggle('active', b.getAttribute('data-view') === view);
-      });
+      // Save per-tab preference
+      var curTab = document.querySelector('.product-tab-btn.active');
+      var tabKey = curTab ? curTab.getAttribute('data-product-tab') : 'kits';
+      localStorage.setItem('catalogViewMode-' + tabKey, view);
+      syncToggleButtons(view);
       // Re-render the active tab
-      var activeTab = document.querySelector('.product-tab-btn.active');
-      var tab = activeTab ? activeTab.getAttribute('data-product-tab') : 'kits';
-      if (tab === 'kits') {
+      if (tabKey === 'kits') {
         if (applyKitsFilters) applyKitsFilters();
-      } else if (tab === 'ingredients') {
+      } else if (tabKey === 'ingredients') {
         renderIngredients();
-      } else if (tab === 'services') {
+      } else if (tabKey === 'services') {
         renderServices();
       }
     });
@@ -1538,59 +1593,53 @@ function loadProducts() {
   var activeFilters = { type: [], brand: [], subcategory: [], time: [], body: [], oak: [], sweetness: [] };
   var saleFilterActive = false;
 
-  var csvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_CSV_URL)
-    ? SHEETS_CONFIG.PUBLISHED_CSV_URL
-    : null;
+  var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+    ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
 
-  var CSV_CACHE_KEY = 'sv-products-csv';
-  var CSV_CACHE_TS_KEY = 'sv-products-csv-ts';
-  var CSV_CACHE_TTL = 60 * 60 * 1000; // 1 hour - static data rarely changes
+  function loadFromCSV() {
+    var csvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_CSV_URL)
+      ? SHEETS_CONFIG.PUBLISHED_CSV_URL : null;
 
-  function getCachedCSV() {
-    try {
-      var csv = localStorage.getItem(CSV_CACHE_KEY);
-      var ts = parseInt(localStorage.getItem(CSV_CACHE_TS_KEY), 10) || 0;
-      if (csv) return { csv: csv, fresh: (Date.now() - ts) < CSV_CACHE_TTL };
-    } catch (e) {}
-    return null;
-  }
+    var CSV_CACHE_KEY = 'sv-products-csv';
+    var CSV_CACHE_TS_KEY = 'sv-products-csv-ts';
+    var CSV_CACHE_TTL = 60 * 60 * 1000;
 
-  function setCachedCSV(csv) {
-    try {
-      localStorage.setItem(CSV_CACHE_KEY, csv);
-      localStorage.setItem(CSV_CACHE_TS_KEY, String(Date.now()));
-    } catch (e) {}
-  }
-
-  var cached = getCachedCSV();
-  var csvPromise;
-
-  // Show skeleton loading if no cached data (first load)
-  var catalog = document.getElementById('product-catalog');
-  if (!cached && catalog) {
-    showCatalogSkeletons(catalog, 6);
-  }
-
-  if (cached) {
-    // Serve cached data immediately
-    csvPromise = Promise.resolve(cached.csv);
-
-    // Refresh in background if stale
-    if (!cached.fresh) {
-      var refreshUrl = csvUrl || 'content/products.csv';
-      fetchCSV(refreshUrl).then(setCachedCSV).catch(function () {});
+    function getCachedCSV() {
+      try {
+        var csv = localStorage.getItem(CSV_CACHE_KEY);
+        var ts = parseInt(localStorage.getItem(CSV_CACHE_TS_KEY), 10) || 0;
+        if (csv) return { csv: csv, fresh: (Date.now() - ts) < CSV_CACHE_TTL };
+      } catch (e) {}
+      return null;
     }
-  } else {
-    csvPromise = csvUrl
-      ? fetchCSV(csvUrl).catch(function () { return fetchCSV('content/products.csv'); })
-      : fetchCSV('content/products.csv');
-    csvPromise.then(setCachedCSV);
-  }
 
-  csvPromise
-    .then(function (csv) {
+    function setCachedCSV(csv) {
+      try {
+        localStorage.setItem(CSV_CACHE_KEY, csv);
+        localStorage.setItem(CSV_CACHE_TS_KEY, String(Date.now()));
+      } catch (e) {}
+    }
+
+    var cached = getCachedCSV();
+    var csvPromise;
+
+    if (cached) {
+      csvPromise = Promise.resolve(cached.csv);
+      if (!cached.fresh) {
+        var refreshUrl = csvUrl || 'content/products.csv';
+        fetchCSV(refreshUrl).then(setCachedCSV).catch(function () {});
+      }
+    } else {
+      csvPromise = csvUrl
+        ? fetchCSV(csvUrl).catch(function () { return fetchCSV('content/products.csv'); })
+        : fetchCSV('content/products.csv');
+      csvPromise.then(setCachedCSV);
+    }
+
+    return csvPromise.then(function (csv) {
       var lines = csv.trim().split('\n');
       var headers = lines[0].split(',');
+      var items = [];
 
       for (var i = 1; i < lines.length; i++) {
         var values = parseCSVLine(lines[i]);
@@ -1601,11 +1650,71 @@ function loadProducts() {
         }
         if (!obj.name && !obj.sku) continue;
         if (obj.hide && obj.hide.toLowerCase() === 'true') continue;
+        items.push(obj);
+      }
+      return items;
+    });
+  }
+
+  function loadFromMiddleware() {
+    return fetch(middlewareUrl + '/api/products')
+      .then(function (r) {
+        if (!r.ok) throw new Error('Middleware returned ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        var items = data.items || [];
+        // Exclude services and ingredients groups — keep only kits
+        items = items.filter(function (z) {
+          var group = (z.group_name || '').toLowerCase();
+          return group !== 'services' && group !== 'ingredients';
+        });
+        return items.map(function (z) {
+          // Start with standard Zoho fields
+          var obj = {
+            name: z.name || '',
+            sku: z.sku || '',
+            brand: z.brand || '',
+            stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
+            description: z.description || '',
+            discount: z.discount != null ? String(z.discount) : '0'
+          };
+          // Flatten custom fields (label → snake_case key)
+          if (z.custom_fields && z.custom_fields.length) {
+            z.custom_fields.forEach(function (cf) {
+              var key = (cf.label || '').toLowerCase().replace(/\s+/g, '_');
+              if (key && cf.value !== undefined && cf.value !== null) {
+                obj[key] = String(cf.value);
+              }
+            });
+          }
+          // Use rate as retail_instore if not set from custom fields
+          if (!obj.retail_instore && z.rate != null) {
+            obj.retail_instore = '$' + parseFloat(z.rate).toFixed(2);
+          }
+          return obj;
+        });
+      });
+  }
+
+  // Show skeleton loading on first load
+  var catalog = document.getElementById('product-catalog');
+  if (catalog) {
+    showCatalogSkeletons(catalog, 6);
+  }
+
+  var dataPromise = middlewareUrl
+    ? loadFromMiddleware().catch(function () { return loadFromCSV(); })
+    : loadFromCSV();
+
+  dataPromise
+    .then(function (items) {
+      items.forEach(function (obj) {
         if ((obj.favorite || '').toLowerCase() === 'true') {
           obj._favRand = Math.random();
         }
         allProducts.push(obj);
-      }
+      });
 
       buildFilterRow('filter-type', 'type', 'Type:');
       buildFilterRow('filter-brand', 'brand', 'Brand:');
@@ -2631,6 +2740,10 @@ function initProductTabs() {
     var activeControls = document.getElementById('catalog-controls-' + tab);
     if (activeControls) activeControls.classList.remove('hidden');
 
+    // Sync view mode to the new tab's preference
+    catalogViewMode = getCatalogViewMode(tab);
+    syncToggleButtons(catalogViewMode);
+
     // Show/hide kits process note
     var processNote = document.getElementById('kits-process-note');
     if (processNote) processNote.classList.toggle('hidden', tab !== 'kits');
@@ -2692,51 +2805,53 @@ var _allIngredients = [];
 var _ingredientFilters = { unit: [] };
 
 function loadIngredients(callback) {
-  var csvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_INGREDIENTS_CSV_URL)
-    ? SHEETS_CONFIG.PUBLISHED_INGREDIENTS_CSV_URL
-    : null;
+  var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+    ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
 
-  var CACHE_KEY = 'sv-ingredients-csv';
-  var CACHE_TS_KEY = 'sv-ingredients-csv-ts';
-  var CACHE_TTL = 60 * 60 * 1000; // 1 hour - static data rarely changes
+  function loadFromCSV() {
+    var csvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_INGREDIENTS_CSV_URL)
+      ? SHEETS_CONFIG.PUBLISHED_INGREDIENTS_CSV_URL : null;
 
-  function getCached() {
-    try {
-      var csv = localStorage.getItem(CACHE_KEY);
-      var ts = parseInt(localStorage.getItem(CACHE_TS_KEY), 10) || 0;
-      if (csv) return { csv: csv, fresh: (Date.now() - ts) < CACHE_TTL };
-    } catch (e) {}
-    return null;
-  }
+    var CACHE_KEY = 'sv-ingredients-csv';
+    var CACHE_TS_KEY = 'sv-ingredients-csv-ts';
+    var CACHE_TTL = 60 * 60 * 1000;
 
-  function setCached(csv) {
-    try {
-      localStorage.setItem(CACHE_KEY, csv);
-      localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
-    } catch (e) {}
-  }
-
-  var cached = getCached();
-  var csvPromise;
-
-  if (cached) {
-    csvPromise = Promise.resolve(cached.csv);
-    if (!cached.fresh) {
-      var refreshUrl = csvUrl || 'content/ingredients.csv';
-      fetchCSV(refreshUrl).then(setCached).catch(function () {});
+    function getCached() {
+      try {
+        var csv = localStorage.getItem(CACHE_KEY);
+        var ts = parseInt(localStorage.getItem(CACHE_TS_KEY), 10) || 0;
+        if (csv) return { csv: csv, fresh: (Date.now() - ts) < CACHE_TTL };
+      } catch (e) {}
+      return null;
     }
-  } else {
-    csvPromise = csvUrl
-      ? fetchCSV(csvUrl).catch(function () { return fetchCSV('content/ingredients.csv'); })
-      : fetchCSV('content/ingredients.csv');
-    csvPromise.then(setCached);
-  }
 
-  csvPromise
-    .then(function (csv) {
+    function setCached(csv) {
+      try {
+        localStorage.setItem(CACHE_KEY, csv);
+        localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+      } catch (e) {}
+    }
+
+    var cached = getCached();
+    var csvPromise;
+
+    if (cached) {
+      csvPromise = Promise.resolve(cached.csv);
+      if (!cached.fresh) {
+        var refreshUrl = csvUrl || 'content/ingredients.csv';
+        fetchCSV(refreshUrl).then(setCached).catch(function () {});
+      }
+    } else {
+      csvPromise = csvUrl
+        ? fetchCSV(csvUrl).catch(function () { return fetchCSV('content/ingredients.csv'); })
+        : fetchCSV('content/ingredients.csv');
+      csvPromise.then(setCached);
+    }
+
+    return csvPromise.then(function (csv) {
       var lines = csv.trim().split('\n');
       var headers = lines[0].split(',');
-      _allIngredients = [];
+      var items = [];
 
       for (var i = 1; i < lines.length; i++) {
         var values = parseCSVLine(lines[i]);
@@ -2747,9 +2862,40 @@ function loadIngredients(callback) {
         }
         if (!obj.name && !obj.sku) continue;
         if (obj.hide && obj.hide.toLowerCase() === 'true') continue;
-        _allIngredients.push(obj);
+        items.push(obj);
       }
+      return items;
+    });
+  }
 
+  function loadFromMiddleware() {
+    return fetch(middlewareUrl + '/api/ingredients')
+      .then(function (r) {
+        if (!r.ok) throw new Error('Middleware returned ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        var items = data.items || [];
+        return items.map(function (z) {
+          return {
+            name: z.name || '',
+            unit: z.unit || '',
+            price_per_unit: z.rate != null ? String(z.rate) : '',
+            stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
+            description: z.description || '',
+            sku: z.sku || ''
+          };
+        });
+      });
+  }
+
+  var dataPromise = middlewareUrl
+    ? loadFromMiddleware().catch(function () { return loadFromCSV(); })
+    : loadFromCSV();
+
+  dataPromise
+    .then(function (items) {
+      _allIngredients = items;
       buildIngredientFilters();
       renderIngredients();
       wireIngredientEvents();
@@ -3080,51 +3226,53 @@ var _allServices = [];
 var _servicesSortVal = 'name-asc';
 
 function loadServices(callback) {
-  var csvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_SERVICES_CSV_URL)
-    ? SHEETS_CONFIG.PUBLISHED_SERVICES_CSV_URL
-    : null;
+  var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+    ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
 
-  var CACHE_KEY = 'sv-services-csv';
-  var CACHE_TS_KEY = 'sv-services-csv-ts';
-  var CACHE_TTL = 60 * 60 * 1000; // 1 hour - static data rarely changes
+  function loadFromCSV() {
+    var csvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_SERVICES_CSV_URL)
+      ? SHEETS_CONFIG.PUBLISHED_SERVICES_CSV_URL : null;
 
-  function getCached() {
-    try {
-      var csv = localStorage.getItem(CACHE_KEY);
-      var ts = parseInt(localStorage.getItem(CACHE_TS_KEY), 10) || 0;
-      if (csv) return { csv: csv, fresh: (Date.now() - ts) < CACHE_TTL };
-    } catch (e) {}
-    return null;
-  }
+    var CACHE_KEY = 'sv-services-csv';
+    var CACHE_TS_KEY = 'sv-services-csv-ts';
+    var CACHE_TTL = 60 * 60 * 1000;
 
-  function setCached(csv) {
-    try {
-      localStorage.setItem(CACHE_KEY, csv);
-      localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
-    } catch (e) {}
-  }
-
-  var cached = getCached();
-  var csvPromise;
-
-  if (cached) {
-    csvPromise = Promise.resolve(cached.csv);
-    if (!cached.fresh) {
-      var refreshUrl = csvUrl || 'content/services.csv';
-      fetchCSV(refreshUrl).then(setCached).catch(function () {});
+    function getCached() {
+      try {
+        var csv = localStorage.getItem(CACHE_KEY);
+        var ts = parseInt(localStorage.getItem(CACHE_TS_KEY), 10) || 0;
+        if (csv) return { csv: csv, fresh: (Date.now() - ts) < CACHE_TTL };
+      } catch (e) {}
+      return null;
     }
-  } else {
-    csvPromise = csvUrl
-      ? fetchCSV(csvUrl).catch(function () { return fetchCSV('content/services.csv'); })
-      : fetchCSV('content/services.csv');
-    csvPromise.then(setCached);
-  }
 
-  csvPromise
-    .then(function (csv) {
+    function setCached(csv) {
+      try {
+        localStorage.setItem(CACHE_KEY, csv);
+        localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+      } catch (e) {}
+    }
+
+    var cached = getCached();
+    var csvPromise;
+
+    if (cached) {
+      csvPromise = Promise.resolve(cached.csv);
+      if (!cached.fresh) {
+        var refreshUrl = csvUrl || 'content/services.csv';
+        fetchCSV(refreshUrl).then(setCached).catch(function () {});
+      }
+    } else {
+      csvPromise = csvUrl
+        ? fetchCSV(csvUrl).catch(function () { return fetchCSV('content/services.csv'); })
+        : fetchCSV('content/services.csv');
+      csvPromise.then(setCached);
+    }
+
+    return csvPromise.then(function (csv) {
       var lines = csv.trim().split('\n');
       var headers = lines[0].split(',');
-      _allServices = [];
+      var items = [];
 
       for (var i = 1; i < lines.length; i++) {
         var values = parseCSVLine(lines[i]);
@@ -3135,9 +3283,40 @@ function loadServices(callback) {
         }
         if (!obj.name && !obj.sku) continue;
         if (obj.hide && obj.hide.toLowerCase() === 'true') continue;
-        _allServices.push(obj);
+        items.push(obj);
       }
+      return items;
+    });
+  }
 
+  function loadFromMiddleware() {
+    return fetch(middlewareUrl + '/api/services')
+      .then(function (r) {
+        if (!r.ok) throw new Error('Middleware returned ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        var items = data.items || [];
+        return items.map(function (z) {
+          return {
+            name: z.name || '',
+            price: z.rate != null ? String(z.rate) : '',
+            description: z.description || '',
+            sku: z.sku || '',
+            stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
+            discount: z.discount != null ? String(z.discount) : '0'
+          };
+        });
+      });
+  }
+
+  var dataPromise = middlewareUrl
+    ? loadFromMiddleware().catch(function () { return loadFromCSV(); })
+    : loadFromCSV();
+
+  dataPromise
+    .then(function (items) {
+      _allServices = items;
       renderServices();
       wireServiceEvents();
       if (callback) callback();
