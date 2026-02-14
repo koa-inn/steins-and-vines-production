@@ -623,51 +623,54 @@ app.get('/api/products', function (req, res) {
       console.log('[api/products] Cache miss — fetching from Zoho Inventory');
       return fetchAllItems({ status: 'active' })
         .then(function (items) {
-          // Filter out services before enrichment (saves API calls)
+          // Filter out services and non-kit items before enrichment
+          // Only items with group_name containing "Kit" need detail enrichment
           items = items.filter(function (item) {
-            return item.product_type !== 'service';
+            if (item.product_type === 'service') return false;
+            var gn = (item.group_name || '').toLowerCase();
+            return gn.indexOf('kit') !== -1 || gn.indexOf('wine') !== -1 ||
+                   gn.indexOf('beer') !== -1 || gn.indexOf('cider') !== -1 ||
+                   gn.indexOf('spirit') !== -1;
           });
 
           console.log('[api/products] Enriching ' + items.length + ' items with detail data');
 
-          // Batch-fetch item details (2 concurrent, 500ms between batches)
-          // to stay within Zoho's rate limits (~100 req/min for Inventory API)
-          var CONCURRENCY = 2;
-          var BATCH_DELAY = 500;
+          // Fetch item details sequentially with delay to stay within
+          // Zoho's rate limits (~100 req/min for Inventory API)
+          var BATCH_DELAY = 700; // ms between requests (~85 req/min)
+          var MAX_RETRIES = 2;
           var enriched = [];
 
           function delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-          function processBatch(batch) {
-            return Promise.all(batch.map(function (item) {
-              return inventoryGet('/items/' + item.item_id)
-                .then(function (data) {
-                  var detail = data.item || {};
-                  item.custom_fields = detail.custom_fields || [];
-                  item.brand = detail.brand || '';
-                  return item;
-                })
-                .catch(function (err) {
-                  console.error('[api/products] Detail fetch failed for ' + item.name + ':', err.message);
-                  item.custom_fields = [];
-                  item.brand = item.brand || '';
-                  return item;
-                });
-            }));
-          }
-
-          var batches = [];
-          for (var i = 0; i < items.length; i += CONCURRENCY) {
-            batches.push(items.slice(i, i + CONCURRENCY));
+          function fetchDetail(item, retries) {
+            return inventoryGet('/items/' + item.item_id)
+              .then(function (data) {
+                var detail = data.item || {};
+                item.custom_fields = detail.custom_fields || [];
+                item.brand = detail.brand || '';
+                return item;
+              })
+              .catch(function (err) {
+                // Retry on 429 (rate limit) with exponential backoff
+                if (err.response && err.response.status === 429 && retries < MAX_RETRIES) {
+                  var backoff = Math.pow(2, retries + 1) * 1000; // 2s, 4s
+                  console.log('[api/products] Rate limited on ' + item.name + ', retrying in ' + backoff + 'ms');
+                  return delay(backoff).then(function () { return fetchDetail(item, retries + 1); });
+                }
+                console.error('[api/products] Detail fetch failed for ' + item.name + ':', err.message);
+                item.custom_fields = [];
+                item.brand = item.brand || '';
+                return item;
+              });
           }
 
           var chain = Promise.resolve();
-          batches.forEach(function (batch, batchIdx) {
+          items.forEach(function (item) {
             chain = chain.then(function () {
-              return processBatch(batch).then(function (results) {
-                enriched = enriched.concat(results);
-                // Small delay between batches to avoid 429s
-                if (batchIdx < batches.length - 1) return delay(BATCH_DELAY);
+              return fetchDetail(item, 0).then(function (result) {
+                enriched.push(result);
+                return delay(BATCH_DELAY);
               });
             });
           });
