@@ -32,6 +32,9 @@ app.use(cors({
   credentials: true
 }));
 
+// Health check (used by Railway)
+app.get('/health', function (req, res) { res.json({ status: 'ok' }); });
+
 // ---------------------------------------------------------------------------
 // Global Payments (GP-API) SDK initialization
 // ---------------------------------------------------------------------------
