@@ -50,7 +50,7 @@
     </section>
 
     <section class="content">
-      <div class="container">
+      <div class="container catalog-layout">
         <div id="product-catalog">
           <div class="product-tabs" id="product-tabs">
             <button type="button" class="product-tab-btn active" data-product-tab="kits">Kits</button>
@@ -135,6 +135,22 @@
 
           <noscript><p>Please enable JavaScript to view our product catalog.</p></noscript>
         </div>
+        <aside class="cart-sidebar" id="cart-sidebar">
+          <div class="cart-sidebar-header">
+            <h3>Your Cart</h3>
+          </div>
+          <div class="cart-sidebar-items" id="cart-sidebar-items">
+            <p class="cart-sidebar-empty">Your cart is empty.</p>
+          </div>
+          <div class="cart-sidebar-footer" id="cart-sidebar-footer">
+            <div class="cart-sidebar-subtotal">
+              <span>Subtotal</span>
+              <span id="cart-sidebar-total">$0.00</span>
+            </div>
+            <a href="reservation.html" class="btn cart-sidebar-checkout">Checkout</a>
+            <button type="button" class="btn-secondary cart-sidebar-clear" id="cart-sidebar-clear">Clear Cart</button>
+          </div>
+        </aside>
       </div>
     </section>
 
