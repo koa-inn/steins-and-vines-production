@@ -623,18 +623,15 @@ app.get('/api/products', function (req, res) {
       console.log('[api/products] Cache miss — fetching from Zoho Inventory');
       return fetchAllItems({ status: 'active' })
         .then(function (items) {
-          // Filter out services before enrichment
+          // Filter out services and serialized equipment before enrichment.
+          // Equipment items have " — " followed by a serial (e.g. "Carboy PET 23L — PCB-001").
+          // Only kit/ingredient items need detail enrichment for custom fields.
+          var serialPattern = /\s—\s[A-Z]+-\d+$/;
           items = items.filter(function (item) {
-            return item.product_type !== 'service';
+            if (item.product_type === 'service') return false;
+            if (serialPattern.test(item.group_name || '')) return false;
+            return true;
           });
-
-          // Log group names for debugging (first fetch only)
-          var groups = {};
-          items.forEach(function (item) {
-            var gn = item.group_name || '(none)';
-            groups[gn] = (groups[gn] || 0) + 1;
-          });
-          console.log('[api/products] Item groups: ' + JSON.stringify(groups));
 
           console.log('[api/products] Enriching ' + items.length + ' items with detail data');
 
