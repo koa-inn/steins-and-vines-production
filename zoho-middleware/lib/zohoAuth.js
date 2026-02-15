@@ -6,12 +6,12 @@
  *   2. Exchange authorization code for access + refresh tokens
  *   3. Auto-refresh access token before it expires (60 min lifetime)
  *
- * Tokens are held in memory. For production you'd persist the
- * refresh token to a database or encrypted file.
+ * The refresh token is persisted to Redis so it survives server restarts.
  */
 
 var https = require('https');
 var querystring = require('querystring');
+var cache = require('./cache');
 
 // Zoho accounts base URL — varies by data center
 var ACCOUNTS_URLS = {
@@ -102,6 +102,9 @@ function postToken(params) {
  * Exchange an authorization code for access + refresh tokens.
  * Called once after the user completes the OAuth consent flow.
  */
+var REFRESH_TOKEN_CACHE_KEY = 'zoho:refresh_token';
+var REFRESH_TOKEN_TTL = 60 * 60 * 24 * 90; // 90 days
+
 function exchangeCode(code) {
   return postToken({
     grant_type: 'authorization_code',
@@ -113,6 +116,9 @@ function exchangeCode(code) {
     tokens.accessToken = data.access_token;
     tokens.refreshToken = data.refresh_token;
     tokens.expiresAt = Date.now() + (data.expires_in * 1000);
+
+    // Persist refresh token to Redis so it survives restarts
+    cache.set(REFRESH_TOKEN_CACHE_KEY, data.refresh_token, REFRESH_TOKEN_TTL);
 
     scheduleRefresh(data.expires_in);
 
@@ -195,11 +201,30 @@ function setRefreshToken(rt) {
   tokens.refreshToken = rt;
 }
 
+/**
+ * Initialize auth by loading the refresh token from Redis.
+ * If found, immediately refreshes to get a fresh access token.
+ */
+function init() {
+  return cache.get(REFRESH_TOKEN_CACHE_KEY).then(function (rt) {
+    if (rt) {
+      console.log('[zoho-auth] Refresh token loaded from Redis — refreshing access token');
+      tokens.refreshToken = rt;
+      return refreshAccessToken().catch(function (err) {
+        console.error('[zoho-auth] Auto-refresh on startup failed:', err.message);
+      });
+    }
+    console.log('[zoho-auth] No saved refresh token — visit /auth/zoho to connect');
+    return null;
+  });
+}
+
 module.exports = {
   getAuthorizationUrl: getAuthorizationUrl,
   exchangeCode: exchangeCode,
   refreshAccessToken: refreshAccessToken,
   getAccessToken: getAccessToken,
   isAuthenticated: isAuthenticated,
-  setRefreshToken: setRefreshToken
+  setRefreshToken: setRefreshToken,
+  init: init
 };

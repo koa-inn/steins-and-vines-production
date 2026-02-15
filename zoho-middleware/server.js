@@ -2142,13 +2142,19 @@ app.get('/health', function (req, res) {
 // Start
 // ---------------------------------------------------------------------------
 
-// Connect Redis, then start listening
+// Connect Redis, restore Zoho auth, then start listening
 cache.init().then(function () {
+  return zohoAuth.init();
+}).then(function () {
   app.listen(PORT, function () {
     console.log('');
     console.log('  Zoho middleware running on http://localhost:' + PORT);
     console.log('  Health check:   http://localhost:' + PORT + '/health');
-    console.log('  Connect Zoho:   http://localhost:' + PORT + '/auth/zoho');
+    if (!zohoAuth.isAuthenticated()) {
+      console.log('  Connect Zoho:   http://localhost:' + PORT + '/auth/zoho');
+    } else {
+      console.log('  Zoho:           Connected');
+    }
     console.log('');
   });
 });
