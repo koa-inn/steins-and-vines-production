@@ -1318,6 +1318,14 @@ small, .text-small {
   max-width: 200px;
 }
 
+.catalog-batch-note {
+  text-align: center;
+  font-size: 0.92rem;
+  color: var(--color-brown);
+  margin-bottom: 1.5rem;
+  opacity: 0.85;
+}
+
 /* ===== Catalog Controls ===== */
 .catalog-controls {
   display: flex;

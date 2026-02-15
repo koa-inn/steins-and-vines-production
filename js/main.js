@@ -1360,10 +1360,14 @@ function loadFeaturedProducts() {
       body.appendChild(sub);
     }
 
-    if (product.time) {
+    var fwBatchSize = (product['batch_size_(l)'] || product.batch_size_liters || '').trim();
+    if (product.time || fwBatchSize) {
       var time = document.createElement('div');
       time.className = 'time';
-      time.textContent = product.time;
+      var fwTimeParts = [];
+      if (product.time) fwTimeParts.push(product.time);
+      if (fwBatchSize) fwTimeParts.push(fwBatchSize + 'L');
+      time.textContent = fwTimeParts.join(' \u00b7 ');
       body.appendChild(time);
     }
 
@@ -1434,10 +1438,14 @@ function loadFeaturedProducts() {
       body.appendChild(sub);
     }
 
-    if (product.time) {
+    var fbBatchSize = (product['batch_size_(l)'] || product.batch_size_liters || '').trim();
+    if (product.time || fbBatchSize) {
       var time = document.createElement('div');
       time.className = 'time';
-      time.textContent = product.time;
+      var fbTimeParts = [];
+      if (product.time) fbTimeParts.push(product.time);
+      if (fbBatchSize) fbTimeParts.push(fbBatchSize + 'L');
+      time.textContent = fbTimeParts.join(' \u00b7 ');
       body.appendChild(time);
     }
 
@@ -1485,7 +1493,7 @@ function loadFeaturedProducts() {
     header.appendChild(cardName);
     card.appendChild(header);
 
-    var batchSize = (product.batch_size_liters || '').trim();
+    var batchSize = (product['batch_size_(l)'] || product.batch_size_liters || '').trim();
     if (product.subcategory || product.time || batchSize) {
       var detailRow = document.createElement('div');
       detailRow.className = 'product-detail-row';
@@ -2335,11 +2343,15 @@ function loadProducts() {
       body.appendChild(sub);
     }
 
-    if (product.time) {
-      var time = document.createElement('div');
-      time.className = 'time';
-      time.textContent = product.time;
-      body.appendChild(time);
+    var wBatchSize = (product['batch_size_(l)'] || product.batch_size_liters || '').trim();
+    if (product.time || wBatchSize) {
+      var timeRow = document.createElement('div');
+      timeRow.className = 'time';
+      var timeParts = [];
+      if (product.time) timeParts.push(product.time);
+      if (wBatchSize) timeParts.push(wBatchSize + 'L');
+      timeRow.textContent = timeParts.join(' \u00b7 ');
+      body.appendChild(timeRow);
     }
 
     if (product.abv) {
@@ -2417,11 +2429,15 @@ function loadProducts() {
       body.appendChild(sub);
     }
 
-    if (product.time) {
-      var time = document.createElement('div');
-      time.className = 'time';
-      time.textContent = product.time;
-      body.appendChild(time);
+    var bBatchSize = (product['batch_size_(l)'] || product.batch_size_liters || '').trim();
+    if (product.time || bBatchSize) {
+      var timeRow = document.createElement('div');
+      timeRow.className = 'time';
+      var timeParts = [];
+      if (product.time) timeParts.push(product.time);
+      if (bBatchSize) timeParts.push(bBatchSize + 'L');
+      timeRow.textContent = timeParts.join(' \u00b7 ');
+      body.appendChild(timeRow);
     }
 
     if (product.abv) {
@@ -2477,7 +2493,7 @@ function loadProducts() {
 
     card.appendChild(header);
 
-    var batchSize = (product.batch_size_liters || '').trim();
+    var batchSize = (product['batch_size_(l)'] || product.batch_size_liters || '').trim();
     if (product.subcategory || product.time || batchSize) {
       var detailRow = document.createElement('div');
       detailRow.className = 'product-detail-row';
