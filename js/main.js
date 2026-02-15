@@ -791,6 +791,10 @@ function buildLabelNotesToggle(product) {
   return wrap;
 }
 
+function formatKitPrice(s) {
+  return s.replace(/\.00\b/g, '');
+}
+
 function buildLabelPriceFooter(product) {
   var discount = parseFloat(product.discount) || 0;
   var pricingFrom = (product.pricing_from || '').trim().toUpperCase() === 'TRUE';
@@ -812,10 +816,10 @@ function buildLabelPriceFooter(product) {
     val1.className = 'price-value';
     if (discount > 0) {
       var num1 = parseFloat(instore.replace(/[^0-9.]/g, ''));
-      var sale1 = (num1 * (1 - discount / 100)).toFixed(2);
-      val1.innerHTML = '<s style="color:#999;font-size:0.8rem;">' + instore + '</s> $' + sale1 + plusSign;
+      var sale1 = formatKitPrice((num1 * (1 - discount / 100)).toFixed(2));
+      val1.innerHTML = '<s style="color:#999;font-size:0.8rem;">' + formatKitPrice(instore) + '</s> $' + sale1 + plusSign;
     } else {
-      val1.textContent = instore + plusSign;
+      val1.textContent = formatKitPrice(instore) + plusSign;
     }
     col1.appendChild(val1);
     footer.appendChild(col1);
@@ -832,10 +836,10 @@ function buildLabelPriceFooter(product) {
     val2.className = 'price-value';
     if (discount > 0) {
       var num2 = parseFloat(kit.replace(/[^0-9.]/g, ''));
-      var sale2 = (num2 * (1 - discount / 100)).toFixed(2);
-      val2.innerHTML = '<s style="color:#999;font-size:0.8rem;">' + kit + '</s> $' + sale2 + plusSign;
+      var sale2 = formatKitPrice((num2 * (1 - discount / 100)).toFixed(2));
+      val2.innerHTML = '<s style="color:#999;font-size:0.8rem;">' + formatKitPrice(kit) + '</s> $' + sale2 + plusSign;
     } else {
-      val2.textContent = kit + plusSign;
+      val2.textContent = formatKitPrice(kit) + plusSign;
     }
     col2.appendChild(val2);
     footer.appendChild(col2);
@@ -1580,10 +1584,10 @@ function loadFeaturedProducts() {
         instoreBox.className = 'product-price-box';
         if (discount > 0) {
           var instoreNum = parseFloat(instore.replace(/[^0-9.]/g, ''));
-          var instoreSale = (instoreNum * (1 - discount / 100)).toFixed(2);
-          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-original">' + instore + '</span><span class="product-price-value">$' + instoreSale + plusSign + '</span>';
+          var instoreSale = formatKitPrice((instoreNum * (1 - discount / 100)).toFixed(2));
+          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-original">' + formatKitPrice(instore) + '</span><span class="product-price-value">$' + instoreSale + plusSign + '</span>';
         } else {
-          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + instore + plusSign + '</span>';
+          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + formatKitPrice(instore) + plusSign + '</span>';
         }
         priceRow.appendChild(instoreBox);
       }
@@ -1592,10 +1596,10 @@ function loadFeaturedProducts() {
         kitBox.className = 'product-price-box';
         if (discount > 0) {
           var kitNum = parseFloat(kit.replace(/[^0-9.]/g, ''));
-          var kitSale = (kitNum * (1 - discount / 100)).toFixed(2);
-          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-original">' + kit + '</span><span class="product-price-value">$' + kitSale + plusSign + '</span>';
+          var kitSale = formatKitPrice((kitNum * (1 - discount / 100)).toFixed(2));
+          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-original">' + formatKitPrice(kit) + '</span><span class="product-price-value">$' + kitSale + plusSign + '</span>';
         } else {
-          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + kit + plusSign + '</span>';
+          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + formatKitPrice(kit) + plusSign + '</span>';
         }
         priceRow.appendChild(kitBox);
       }
@@ -2583,10 +2587,10 @@ function loadProducts() {
         instoreBox.className = 'product-price-box';
         if (discount > 0) {
           var instoreNum = parseFloat(instore.replace(/[^0-9.]/g, ''));
-          var instoreSale = (instoreNum * (1 - discount / 100)).toFixed(2);
-          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-original">' + instore + '</span><span class="product-price-value">$' + instoreSale + plusSign + '</span>';
+          var instoreSale = formatKitPrice((instoreNum * (1 - discount / 100)).toFixed(2));
+          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-original">' + formatKitPrice(instore) + '</span><span class="product-price-value">$' + instoreSale + plusSign + '</span>';
         } else {
-          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + instore + plusSign + '</span>';
+          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + formatKitPrice(instore) + plusSign + '</span>';
         }
         priceRow.appendChild(instoreBox);
       }
@@ -2595,10 +2599,10 @@ function loadProducts() {
         kitBox.className = 'product-price-box';
         if (discount > 0) {
           var kitNum = parseFloat(kit.replace(/[^0-9.]/g, ''));
-          var kitSale = (kitNum * (1 - discount / 100)).toFixed(2);
-          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-original">' + kit + '</span><span class="product-price-value">$' + kitSale + plusSign + '</span>';
+          var kitSale = formatKitPrice((kitNum * (1 - discount / 100)).toFixed(2));
+          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-original">' + formatKitPrice(kit) + '</span><span class="product-price-value">$' + kitSale + plusSign + '</span>';
         } else {
-          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + kit + plusSign + '</span>';
+          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + formatKitPrice(kit) + plusSign + '</span>';
         }
         priceRow.appendChild(kitBox);
       }
@@ -2777,10 +2781,10 @@ function loadProducts() {
               tdInstore.className = 'table-prices';
               if (discount > 0) {
                 var instoreNum = parseFloat(instore.replace(/[^0-9.]/g, ''));
-                var instoreSale = (instoreNum * (1 - discount / 100)).toFixed(2);
-                tdInstore.innerHTML = '<span class="table-price-original">' + instore + '</span><span class="table-price-sale">$' + instoreSale + plusSign + '</span>';
+                var instoreSale = formatKitPrice((instoreNum * (1 - discount / 100)).toFixed(2));
+                tdInstore.innerHTML = '<span class="table-price-original">' + formatKitPrice(instore) + '</span><span class="table-price-sale">$' + instoreSale + plusSign + '</span>';
               } else {
-                tdInstore.textContent = instore + plusSign;
+                tdInstore.textContent = formatKitPrice(instore) + plusSign;
               }
             }
             tr.appendChild(tdInstore);
@@ -2795,10 +2799,10 @@ function loadProducts() {
               tdKit.className = 'table-prices';
               if (discount > 0) {
                 var kitNum = parseFloat(kit.replace(/[^0-9.]/g, ''));
-                var kitSale = (kitNum * (1 - discount / 100)).toFixed(2);
-                tdKit.innerHTML = '<span class="table-price-original">' + kit + '</span><span class="table-price-sale">$' + kitSale + plusSign + '</span>';
+                var kitSale = formatKitPrice((kitNum * (1 - discount / 100)).toFixed(2));
+                tdKit.innerHTML = '<span class="table-price-original">' + formatKitPrice(kit) + '</span><span class="table-price-sale">$' + kitSale + plusSign + '</span>';
               } else {
-                tdKit.textContent = kit + plusSign;
+                tdKit.textContent = formatKitPrice(kit) + plusSign;
               }
             }
             tr.appendChild(tdKit);
@@ -2827,19 +2831,19 @@ function loadProducts() {
           if (mInstore) {
             var mInstoreNum = parseFloat(mInstore.replace(/[^0-9.]/g, ''));
             if (discount > 0 && mInstoreNum) {
-              var mInstoreSale = (mInstoreNum * (1 - discount / 100)).toFixed(2);
-              priceHtmlParts.push('<span class="mp-label">In-store</span> <span class="table-price-original">' + mInstore + '</span> <span class="table-price-sale">$' + mInstoreSale + plusSign + '</span>');
+              var mInstoreSale = formatKitPrice((mInstoreNum * (1 - discount / 100)).toFixed(2));
+              priceHtmlParts.push('<span class="mp-label">In-store</span> <span class="table-price-original">' + formatKitPrice(mInstore) + '</span> <span class="table-price-sale">$' + mInstoreSale + plusSign + '</span>');
             } else {
-              priceHtmlParts.push('<span class="mp-label">In-store</span> ' + mInstore + plusSign);
+              priceHtmlParts.push('<span class="mp-label">In-store</span> ' + formatKitPrice(mInstore) + plusSign);
             }
           }
           if (mKit) {
             var mKitNum = parseFloat(mKit.replace(/[^0-9.]/g, ''));
             if (discount > 0 && mKitNum) {
-              var mKitSale = (mKitNum * (1 - discount / 100)).toFixed(2);
-              priceHtmlParts.push('<span class="mp-label">Kit</span> <span class="table-price-original">' + mKit + '</span> <span class="table-price-sale">$' + mKitSale + plusSign + '</span>');
+              var mKitSale = formatKitPrice((mKitNum * (1 - discount / 100)).toFixed(2));
+              priceHtmlParts.push('<span class="mp-label">Kit</span> <span class="table-price-original">' + formatKitPrice(mKit) + '</span> <span class="table-price-sale">$' + mKitSale + plusSign + '</span>');
             } else {
-              priceHtmlParts.push('<span class="mp-label">Kit</span> ' + mKit + plusSign);
+              priceHtmlParts.push('<span class="mp-label">Kit</span> ' + formatKitPrice(mKit) + plusSign);
             }
           }
           var tdMobilePrices = document.createElement('td');
@@ -2921,7 +2925,9 @@ function initProductTabs() {
     catalogViewMode = getCatalogViewMode(tab);
     syncToggleButtons(catalogViewMode);
 
-    // Show/hide kits process note
+    // Show/hide kits notes
+    var batchNote = document.getElementById('kits-batch-note');
+    if (batchNote) batchNote.classList.toggle('hidden', tab !== 'kits');
     var processNote = document.getElementById('kits-process-note');
     if (processNote) processNote.classList.toggle('hidden', tab !== 'kits');
 
