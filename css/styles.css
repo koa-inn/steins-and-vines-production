@@ -3798,8 +3798,8 @@ small, .text-small {
     line-height: 1.3;
   }
 
-  /* Line 3 right: Reserve button */
-  .catalog-table:not(.reservation-table) td[data-label="Reserve"] {
+  /* Line 3 right: Add to Cart button */
+  .catalog-table:not(.reservation-table) td[data-label=""] {
     order: 4;
     flex: 0 0 auto;
     margin-left: auto;

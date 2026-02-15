@@ -2654,7 +2654,7 @@ function loadProducts() {
           { label: 'Time', sort: 'time', field: 'time' },
           { label: 'In-Store Price', sort: 'price', field: 'retail_instore' },
           { label: 'Kit Price', sort: 'price', field: 'retail_kit' },
-          { label: 'Reserve', sort: 'reserved', field: null }
+          { label: '', sort: 'reserved', field: null }
         ];
         // Determine which columns have data in this group
         var visibleCols = kitsCols.filter(function (col) {
@@ -2786,9 +2786,9 @@ function loadProducts() {
             tr.appendChild(tdKit);
           }
 
-          // Reserve
+          // Add to Cart
           var tdReserve = document.createElement('td');
-          tdReserve.setAttribute('data-label', 'Reserve');
+          tdReserve.setAttribute('data-label', '');
           var productKey = product.name + '|' + product.brand;
           renderReserveControl(tdReserve, product, productKey);
           tr.appendChild(tdReserve);
@@ -3279,22 +3279,8 @@ function renderIngredients() {
   }
 
   var inStock = filtered.filter(function (r) { return (parseInt(r.stock, 10) || 0) > 0; });
-  var outOfStock = filtered.filter(function (r) { return (parseInt(r.stock, 10) || 0) <= 0; });
 
   renderIngredientSection(catalog, 'In stock', inStock);
-
-  if (inStock.length > 0 && outOfStock.length > 0) {
-    var divider = document.createElement('div');
-    divider.className = 'section-icon catalog-divider';
-    var icon = document.createElement('img');
-    icon.src = 'images/Icon_green.svg';
-    icon.alt = '';
-    icon.setAttribute('aria-hidden', 'true');
-    divider.appendChild(icon);
-    catalog.appendChild(divider);
-  }
-
-  renderIngredientSection(catalog, 'Out of stock', outOfStock, 'catalog-section--order');
   equalizeCardHeights();
 }
 
