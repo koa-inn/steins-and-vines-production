@@ -972,13 +972,17 @@ app.post('/api/checkout', function (req, res) {
   var lineItems = body.items.map(function (item) {
     var qty = Number(item.quantity) || 1;
     var rate = Number(item.rate) || 0;
-    orderTotal += qty * rate;
-    return {
+    var discount = Number(item.discount) || 0;
+    var effectiveRate = discount > 0 ? rate * (1 - discount / 100) : rate;
+    orderTotal += qty * effectiveRate;
+    var li = {
       item_id: item.item_id,
       name: item.name || '',
       quantity: qty,
       rate: rate
     };
+    if (discount > 0) li.discount = discount + '%';
+    return li;
   });
 
   var transactionId = body.transaction_id || '';

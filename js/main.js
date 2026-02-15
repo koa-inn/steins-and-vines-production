@@ -4947,6 +4947,8 @@ function setupReservationForm() {
             rate: parseFloat(String(item.price || '0').replace(/[^0-9.]/g, '')) || 0
           };
           if (item.zoho_item_id) lineItem.item_id = item.zoho_item_id;
+          var disc = parseFloat(item.discount) || 0;
+          if (disc > 0) lineItem.discount = disc;
           return lineItem;
         });
 
