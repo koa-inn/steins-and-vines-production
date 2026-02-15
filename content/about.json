@@ -9,5 +9,39 @@
   "owner-2-name": "Koa Inn",
   "owner-2-bio": "Koa loves bold reds, crispy lagers, and a fresh loaf of sourdough bread. After starting homebrewing with his university roommates, Koa worked as a brewer and cellerman at Backcountry Brewing. Hoping to continue his craft for fermentation, Koa became owner of Steins and Vines in 2026, aiming to help others make the best beer and wine possible.",
   "credits-title": "Credits",
-  "credits-designer": "Graphic design by <a href=\"http://isoleksiuk.com\" target=\"_blank\" rel=\"noopener\">Issy Oleksiuk</a>."
+  "credits-designer": "Graphic design by <a href=\"http://isoleksiuk.com\" target=\"_blank\" rel=\"noopener\">Issy Oleksiuk</a>.",
+  "faqs": [
+    {
+      "question": "What is ferment-on-premises?",
+      "answer": "Ferment-on-premises (also called U-Brew or U-Vin) lets you make your own beer, wine, or cider at our licensed facility using professional equipment. You visit us twice: once to start your batch (~10 minutes) and again to bottle when it's ready (~20\u201330 minutes). We handle the fermentation in between."
+    },
+    {
+      "question": "How much does a batch make?",
+      "answer": "Each batch produces approximately 23 litres \u2014 that's around 30 bottles (750 mL) of wine, beer, or cider."
+    },
+    {
+      "question": "How long does fermentation take?",
+      "answer": "It depends on the product. Most wine kits take 4\u20138 weeks, while beer and cider kits are typically ready in 2\u20134 weeks. The product card for each kit shows the estimated production time."
+    },
+    {
+      "question": "Do I need any experience?",
+      "answer": "Not at all. We guide you through every step. You don't need to bring anything \u2014 we provide all the equipment, ingredients, and bottles."
+    },
+    {
+      "question": "Can I bring my own bottles?",
+      "answer": "Yes! You're welcome to bring clean, standard 750 mL wine bottles or 341/500 mL beer bottles. We also have bottles available if you need them."
+    },
+    {
+      "question": "Do I need to make an appointment?",
+      "answer": "We recommend reserving online so we can have everything prepared for you, but walk-ins are welcome when we have availability."
+    },
+    {
+      "question": "What's the difference between kit-only and ferment-in-store pricing?",
+      "answer": "Kit-only means you purchase the ingredient kit to take home and brew yourself. Ferment-in-store includes the kit plus use of our facility, equipment, and guidance \u2014 we store and monitor your batch until it's ready to bottle."
+    },
+    {
+      "question": "Is there a minimum age requirement?",
+      "answer": "Yes, you must be 19 or older (BC's legal drinking age) to make wine or beer at our facility."
+    }
+  ]
 }

@@ -483,34 +483,11 @@ function loadFAQ() {
   var container = document.getElementById('faq-list');
   if (!container) return;
 
-  var remoteUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL)
-    ? SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL
-    : null;
-
-  if (!remoteUrl) return;
-
-  fetch(remoteUrl)
-    .then(function (res) { return res.text(); })
-    .then(function (csv) {
-      var lines = csv.trim().split('\n');
-      if (lines.length < 2) return;
-
-      var faqs = [];
-      for (var i = 1; i < lines.length; i++) {
-        var row = lines[i].match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
-        row = row.map(function (cell) {
-          return cell.replace(/^"|"$/g, '').replace(/""/g, '"').trim();
-        });
-        var type = (row[0] || '').toLowerCase();
-        if (type === 'faq') {
-          faqs.push({
-            question: row[2] || '',
-            answer: row[3] || ''
-          });
-        }
-      }
-
-      if (faqs.length === 0) return;
+  fetch('content/about.json')
+    .then(function (res) { return res.ok ? res.json() : {}; })
+    .then(function (data) {
+      var faqs = data.faqs;
+      if (!faqs || faqs.length === 0) return;
 
       var html = '';
       faqs.forEach(function (faq) {
