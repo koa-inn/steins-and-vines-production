@@ -16,7 +16,10 @@ function getClient() {
   client = redis.createClient({
     url: process.env.REDIS_URL || 'redis://localhost:6379',
     socket: {
-      reconnectStrategy: false   // don't retry — fail fast if Redis is down
+      reconnectStrategy: function (retries) {
+        if (retries > 10) return false;          // give up after 10 attempts
+        return Math.min(retries * 500, 5000);    // 500ms, 1s, 1.5s, ... 5s max
+      }
     }
   });
 
@@ -30,6 +33,11 @@ function getClient() {
   client.on('ready', function () {
     connected = true;
     console.log('[redis] Connected');
+  });
+
+  client.on('end', function () {
+    connected = false;
+    client = null;  // allow fresh client on next getClient() call
   });
 
   return client.connect().then(function () {
@@ -96,9 +104,23 @@ function init() {
   return getClient();
 }
 
+/**
+ * Gracefully close the Redis connection.
+ */
+function quit() {
+  if (client && connected) {
+    return client.quit().then(function () {
+      client = null;
+      connected = false;
+    });
+  }
+  return Promise.resolve();
+}
+
 module.exports = {
   get: get,
   set: set,
   del: del,
-  init: init
+  init: init,
+  quit: quit
 };

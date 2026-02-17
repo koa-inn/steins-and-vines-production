@@ -8,6 +8,7 @@ var zohoAuth = require('./lib/zohoAuth');
 var cache = require('./lib/cache');
 var fs = require('fs');
 var path = require('path');
+var rateLimit = require('express-rate-limit');
 var gp = require('globalpayments-api');
 
 var ServicesContainer = gp.ServicesContainer;
@@ -172,7 +173,8 @@ app.get('/api/payment/config', function (req, res) {
     headers: {
       'Content-Type': 'application/json',
       'X-GP-Version': '2021-03-22'
-    }
+    },
+    timeout: 10000
   })
   .then(function (tokenResp) {
     res.json({
@@ -204,6 +206,44 @@ app.use('/api', function (req, res, next) {
 });
 
 // ---------------------------------------------------------------------------
+// API key guard — protects mutating /api/* endpoints from unauthorized callers
+// ---------------------------------------------------------------------------
+
+var API_SECRET_KEY = process.env.API_SECRET_KEY || '';
+
+app.use('/api', function (req, res, next) {
+  if (req.method === 'GET') return next();
+  if (!API_SECRET_KEY) return next();
+  if (req.headers['x-api-key'] === API_SECRET_KEY) return next();
+  res.status(403).json({ error: 'Forbidden' });
+});
+
+// ---------------------------------------------------------------------------
+// Rate limiting
+// ---------------------------------------------------------------------------
+
+var apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' }
+});
+
+var paymentLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many payment requests, please try again later' }
+});
+
+app.use('/api', apiLimiter);
+app.use('/api/payment', paymentLimiter);
+app.use('/api/checkout', paymentLimiter);
+app.use('/api/pos/sale', paymentLimiter);
+
+// ---------------------------------------------------------------------------
 // Zoho Books API proxy helpers
 // ---------------------------------------------------------------------------
 
@@ -230,7 +270,8 @@ function zohoGet(path, params) {
     var query = Object.assign({ organization_id: process.env.ZOHO_ORG_ID }, params || {});
     return axios.get(ZOHO_API_BASE + path, {
       headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: query
+      params: query,
+      timeout: 15000
     }).then(function (response) {
       return response.data;
     });
@@ -245,7 +286,8 @@ function zohoPost(path, body) {
   return zohoAuth.getAccessToken().then(function (token) {
     return axios.post(ZOHO_API_BASE + path, body, {
       headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: { organization_id: process.env.ZOHO_ORG_ID }
+      params: { organization_id: process.env.ZOHO_ORG_ID },
+      timeout: 15000
     }).then(function (response) {
       return response.data;
     });
@@ -260,7 +302,8 @@ function zohoPut(path, body) {
   return zohoAuth.getAccessToken().then(function (token) {
     return axios.put(ZOHO_API_BASE + path, body, {
       headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: { organization_id: process.env.ZOHO_ORG_ID }
+      params: { organization_id: process.env.ZOHO_ORG_ID },
+      timeout: 15000
     }).then(function (response) {
       return response.data;
     });
@@ -275,7 +318,8 @@ function inventoryGet(path, params) {
     var query = Object.assign({ organization_id: process.env.ZOHO_ORG_ID }, params || {});
     return axios.get(ZOHO_INVENTORY_BASE + path, {
       headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: query
+      params: query,
+      timeout: 15000
     }).then(function (response) {
       return response.data;
     });
@@ -289,7 +333,8 @@ function inventoryPut(path, body) {
   return zohoAuth.getAccessToken().then(function (token) {
     return axios.put(ZOHO_INVENTORY_BASE + path, body, {
       headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: { organization_id: process.env.ZOHO_ORG_ID }
+      params: { organization_id: process.env.ZOHO_ORG_ID },
+      timeout: 15000
     }).then(function (response) {
       return response.data;
     });
@@ -310,7 +355,8 @@ function bookingsGet(path, params) {
   return zohoAuth.getAccessToken().then(function (token) {
     return axios.get(BOOKINGS_API_BASE + path, {
       headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: params || {}
+      params: params || {},
+      timeout: 15000
     }).then(function (response) {
       return response.data;
     });
@@ -324,7 +370,8 @@ function bookingsGet(path, params) {
 function bookingsPost(path, body) {
   return zohoAuth.getAccessToken().then(function (token) {
     return axios.post(BOOKINGS_API_BASE + path, body, {
-      headers: { Authorization: 'Zoho-oauthtoken ' + token }
+      headers: { Authorization: 'Zoho-oauthtoken ' + token },
+      timeout: 15000
     }).then(function (response) {
       return response.data;
     });
@@ -402,29 +449,39 @@ app.get('/api/bookings/availability', function (req, res) {
 
       // Calculate all dates in the month
       var daysInMonth = new Date(parseInt(year, 10), parseInt(month, 10), 0).getDate();
-      var datePromises = [];
-
+      var allDates = [];
       for (var d = 1; d <= daysInMonth; d++) {
-        var dateStr = year + '-' + month + '-' + String(d).padStart(2, '0');
-        datePromises.push(
-          (function (ds) {
-            return bookingsGet('/availableslots', {
-              service_id: process.env.ZOHO_BOOKINGS_SERVICE_ID,
-              staff_id: process.env.ZOHO_BOOKINGS_STAFF_ID,
-              selected_date: ds
-            }).then(function (data) {
-              var slots = (data.response && data.response.returnvalue &&
-                data.response.returnvalue.data) || [];
-              return { date: ds, available: slots.length > 0, slots_count: slots.length };
-            }).catch(function () {
-              return { date: ds, available: false, slots_count: 0 };
-            });
-          })(dateStr)
-        );
+        allDates.push(year + '-' + month + '-' + String(d).padStart(2, '0'));
       }
 
-      return Promise.all(datePromises).then(function (results) {
-        var dates = results.filter(function (r) { return r.available; });
+      // Process in batches of 5 to avoid exhausting Zoho's rate limit
+      var BATCH_SIZE = 5;
+      var allResults = [];
+
+      function fetchBatch(startIndex) {
+        var batch = allDates.slice(startIndex, startIndex + BATCH_SIZE);
+        if (batch.length === 0) return Promise.resolve();
+
+        return Promise.all(batch.map(function (ds) {
+          return bookingsGet('/availableslots', {
+            service_id: process.env.ZOHO_BOOKINGS_SERVICE_ID,
+            staff_id: process.env.ZOHO_BOOKINGS_STAFF_ID,
+            selected_date: ds
+          }).then(function (data) {
+            var slots = (data.response && data.response.returnvalue &&
+              data.response.returnvalue.data) || [];
+            return { date: ds, available: slots.length > 0, slots_count: slots.length };
+          }).catch(function () {
+            return { date: ds, available: false, slots_count: 0 };
+          });
+        })).then(function (batchResults) {
+          allResults = allResults.concat(batchResults);
+          return fetchBatch(startIndex + BATCH_SIZE);
+        });
+      }
+
+      return fetchBatch(0).then(function () {
+        var dates = allResults.filter(function (r) { return r.available; });
 
         cache.set(cacheKey, dates, AVAILABILITY_CACHE_TTL);
 
@@ -484,6 +541,21 @@ app.post('/api/bookings', function (req, res) {
   if (!body.customer || !body.customer.name || !body.customer.email) {
     return res.status(400).json({ error: 'Missing customer name or email' });
   }
+  if (typeof body.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
+    return res.status(400).json({ error: 'Invalid date format (expected YYYY-MM-DD)' });
+  }
+  if (typeof body.customer.email !== 'string' || body.customer.email.length > 254 || body.customer.email.indexOf('@') === -1) {
+    return res.status(400).json({ error: 'Invalid email' });
+  }
+  if (body.customer.name.length > 200) {
+    return res.status(400).json({ error: 'Name too long' });
+  }
+  if (body.customer.phone && String(body.customer.phone).length > 30) {
+    return res.status(400).json({ error: 'Phone too long' });
+  }
+  if (body.notes && String(body.notes).length > 1000) {
+    return res.status(400).json({ error: 'Notes too long' });
+  }
 
   var time24 = normalizeTimeTo24h(body.time);
 
@@ -538,6 +610,15 @@ app.post('/api/contacts', function (req, res) {
   var body = req.body;
   if (!body || !body.email) {
     return res.status(400).json({ error: 'Missing email' });
+  }
+  if (typeof body.email !== 'string' || body.email.length > 254 || body.email.indexOf('@') === -1) {
+    return res.status(400).json({ error: 'Invalid email' });
+  }
+  if (body.name && String(body.name).length > 200) {
+    return res.status(400).json({ error: 'Name too long' });
+  }
+  if (body.phone && String(body.phone).length > 30) {
+    return res.status(400).json({ error: 'Phone too long' });
   }
 
   // Search for existing contact by email
@@ -974,7 +1055,10 @@ app.post('/api/payment/charge', function (req, res) {
     return res.status(503).json({ error: 'Payment gateway not configured' });
   }
 
-  var amount = parseFloat(body.amount) || GP_DEPOSIT_AMOUNT;
+  var amount = parseFloat(body.amount);
+  if (isNaN(amount) || amount !== GP_DEPOSIT_AMOUNT) {
+    return res.status(400).json({ error: 'Invalid payment amount' });
+  }
 
   var card = new CreditCardData();
   card.token = body.token;
@@ -1014,8 +1098,8 @@ app.post('/api/payment/charge', function (req, res) {
  */
 app.post('/api/payment/void', function (req, res) {
   var txnId = req.body && req.body.transaction_id;
-  if (!txnId) {
-    return res.status(400).json({ error: 'Missing transaction_id' });
+  if (!txnId || typeof txnId !== 'string' || txnId.length > 64) {
+    return res.status(400).json({ error: 'Invalid transaction_id' });
   }
 
   Transaction.fromId(txnId)
@@ -1042,8 +1126,14 @@ app.post('/api/payment/refund', function (req, res) {
   if (!body || !body.transaction_id) {
     return res.status(400).json({ error: 'Missing transaction_id' });
   }
+  if (typeof body.transaction_id !== 'string' || body.transaction_id.length > 64) {
+    return res.status(400).json({ error: 'Invalid transaction_id' });
+  }
 
-  var amount = parseFloat(body.amount) || GP_DEPOSIT_AMOUNT;
+  var amount = parseFloat(body.amount);
+  if (isNaN(amount) || amount !== GP_DEPOSIT_AMOUNT) {
+    return res.status(400).json({ error: 'Invalid refund amount' });
+  }
 
   Transaction.fromId(body.transaction_id)
     .refund(amount)
@@ -1099,8 +1189,34 @@ app.post('/api/checkout', function (req, res) {
   if (!body || !body.customer_id) {
     return res.status(400).json({ error: 'Missing customer_id' });
   }
+  if (typeof body.customer_id !== 'string' || body.customer_id.length > 64) {
+    return res.status(400).json({ error: 'Invalid customer_id' });
+  }
   if (!Array.isArray(body.items) || body.items.length === 0) {
     return res.status(400).json({ error: 'Cart is empty' });
+  }
+  if (body.items.length > 50) {
+    return res.status(400).json({ error: 'Too many items' });
+  }
+  if (body.transaction_id && (typeof body.transaction_id !== 'string' || body.transaction_id.length > 64)) {
+    return res.status(400).json({ error: 'Invalid transaction_id' });
+  }
+
+  // --- Validate each line item ---
+  for (var v = 0; v < body.items.length; v++) {
+    var vi = body.items[v];
+    var vQty = Number(vi.quantity) || 1;
+    var vRate = Number(vi.rate) || 0;
+    var vDiscount = Number(vi.discount) || 0;
+    if (vQty < 1 || vQty > 100) {
+      return res.status(400).json({ error: 'Invalid quantity for item ' + v });
+    }
+    if (vRate < 0 || vRate > 10000) {
+      return res.status(400).json({ error: 'Invalid rate for item ' + v });
+    }
+    if (vDiscount < 0 || vDiscount > 100) {
+      return res.status(400).json({ error: 'Invalid discount for item ' + v });
+    }
   }
 
   // --- Calculate order total and deposit ---
@@ -1173,6 +1289,8 @@ app.post('/api/checkout', function (req, res) {
     });
   }
 
+  var responseSent = false;
+
   zohoPost('/salesorders', salesOrder)
     .then(function (data) {
       // Invalidate product cache so stock counts refresh on next fetch
@@ -1200,6 +1318,7 @@ app.post('/api/checkout', function (req, res) {
           console.error('[api/checkout] Payment recording failed (non-fatal):', payErr.message);
         })
         .then(function () {
+          responseSent = true;
           res.status(201).json({
             ok: true,
             salesorder_id: soId,
@@ -1207,18 +1326,27 @@ app.post('/api/checkout', function (req, res) {
             deposit_amount: depositAmount,
             balance_due: balanceDue
           });
+        })
+        .catch(function (sendErr) {
+          console.error('[api/checkout] Failed to send response:', sendErr.message);
+        });
+      } else {
+        responseSent = true;
+        res.status(201).json({
+          ok: true,
+          salesorder_id: soId,
+          salesorder_number: soNumber,
+          deposit_amount: depositAmount,
+          balance_due: balanceDue
         });
       }
-
-      res.status(201).json({
-        ok: true,
-        salesorder_id: soId,
-        salesorder_number: soNumber,
-        deposit_amount: depositAmount,
-        balance_due: balanceDue
-      });
     })
     .catch(function (err) {
+      if (responseSent) {
+        console.error('[api/checkout] Error after response already sent:', err.message);
+        return;
+      }
+
       var status = 502;
       var message = err.message;
 
@@ -1244,11 +1372,13 @@ app.post('/api/checkout', function (req, res) {
             console.error('[api/checkout] CRITICAL: Void failed for txn=' + transactionId + ':', voidErr.message);
           })
           .then(function () {
-            res.status(status).json({
-              error: message,
-              payment_voided: true,
-              voided_transaction_id: transactionId
-            });
+            if (!responseSent) {
+              res.status(status).json({
+                error: message,
+                payment_voided: true,
+                voided_transaction_id: transactionId
+              });
+            }
           });
         return;
       }
@@ -1939,23 +2069,19 @@ app.get('/api/items/inspect', function (req, res) {
  * items, 60s between batches).
  */
 app.post('/api/items/migrate', function (req, res) {
-  var fs = require('fs');
   var body = req.body || {};
   var csvUrl = body.csv_url;
-  var csvPath = body.csv_path;
   var applyChanges = body.apply === true;
   var matchBy = body.match_by || 'sku';
 
-  if (!csvUrl && !csvPath) {
-    return res.status(400).json({ error: 'Missing csv_url or csv_path' });
+  if (!csvUrl) {
+    return res.status(400).json({ error: 'Missing csv_url' });
   }
 
   var csvRows, zohoItems;
 
-  // Step 1: Fetch/read CSV
-  var csvPromise = csvPath
-    ? Promise.resolve({ data: fs.readFileSync(csvPath, 'utf8') })
-    : axios.get(csvUrl, { responseType: 'text' });
+  // Step 1: Fetch CSV (csv_path removed to prevent path traversal)
+  var csvPromise = axios.get(csvUrl, { responseType: 'text', timeout: 30000 });
 
   csvPromise
     .then(function (csvResp) {
@@ -2200,7 +2326,7 @@ app.post('/api/pos/sale', function (req, res) {
   }
 
   var amount = parseFloat(body.amount);
-  if (isNaN(amount) || amount <= 0) {
+  if (isNaN(amount) || amount <= 0 || amount > 10000) {
     return res.status(400).json({ error: 'Invalid amount' });
   }
 
@@ -2319,7 +2445,7 @@ app.get('/health', function (req, res) {
 cache.init().then(function () {
   return zohoAuth.init();
 }).then(function () {
-  app.listen(PORT, function () {
+  var server = app.listen(PORT, function () {
     console.log('');
     console.log('  Zoho middleware running on http://localhost:' + PORT);
     console.log('  Health check:   http://localhost:' + PORT + '/health');
@@ -2336,5 +2462,21 @@ cache.init().then(function () {
       });
     }
     console.log('');
+  });
+
+  process.on('SIGTERM', function () {
+    console.log('[server] SIGTERM received — shutting down gracefully');
+    server.close(function () {
+      console.log('[server] HTTP server closed');
+      cache.quit().then(function () {
+        process.exit(0);
+      }).catch(function () {
+        process.exit(0);
+      });
+    });
+    setTimeout(function () {
+      console.error('[server] Forced shutdown after timeout');
+      process.exit(1);
+    }, 10000);
   });
 });

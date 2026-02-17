@@ -1,3 +1,7 @@
+// ===== Middleware API Key =====
+
+var MW_API_KEY = 'ZAhmrUdOlPEPWEz9YHgQm7wvi6glfPjg55geu1qq7AY=';
+
 // ===== Anonymous Event Tracking =====
 
 var _eventQueue = [];
@@ -3544,7 +3548,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
           iImgWrap.className = 'table-detail-image';
           var iImg = document.createElement('img');
           iImg.src = 'images/products/' + item.sku + '.png';
-          iImg.alt = item.name || '';
+          iImg.alt = item.name || 'Product image';
           iImg.loading = 'lazy';
           iImg.onerror = function() { this.parentElement.remove(); };
           iImgWrap.appendChild(iImg);
@@ -4026,7 +4030,7 @@ function renderServices() {
           svcImgWrap.className = 'table-detail-image';
           var svcImg = document.createElement('img');
           svcImg.src = 'images/products/' + svc.sku + '.png';
-          svcImg.alt = svc.name || '';
+          svcImg.alt = svc.name || 'Product image';
           svcImg.loading = 'lazy';
           svcImg.onerror = function() { this.parentElement.remove(); };
           svcImgWrap.appendChild(svcImg);
@@ -5975,7 +5979,7 @@ function setupReservationForm() {
 
       paymentPromise = fetch(middlewareUrl + '/api/payment/charge', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
         body: JSON.stringify({
           token: gpToken,
           amount: depositAmt,
@@ -6000,7 +6004,7 @@ function setupReservationForm() {
       var contactEmail = email || (isKioskMode ? 'walkin@steinsandvines.ca' : '');
       return fetch(middlewareUrl + '/api/contacts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
         body: JSON.stringify({ name: name, email: contactEmail, phone: phone })
       })
       .then(function (res) {
@@ -6017,7 +6021,7 @@ function setupReservationForm() {
 
         return fetch(middlewareUrl + '/api/bookings', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
           body: JSON.stringify({
             date: slotDate,
             time: slotTime,
@@ -6067,7 +6071,7 @@ function setupReservationForm() {
 
         return fetch(middlewareUrl + '/api/checkout', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
           body: JSON.stringify(checkoutPayload)
         })
         .then(function (res) {
@@ -6094,7 +6098,7 @@ function setupReservationForm() {
 
             return fetch(middlewareUrl + '/api/pos/sale', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
               body: JSON.stringify({
                 amount: orderTotal,
                 salesorder_number: orderResult.salesorder_number || '',
