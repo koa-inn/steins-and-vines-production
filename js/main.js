@@ -2957,22 +2957,14 @@ function loadProducts() {
           var detailTraitOak = (product.oak || '').trim();
           var detailTraitSweet = (product.sweetness || '').trim();
           if (detailTraitBody || detailTraitOak || detailTraitSweet) {
-            var traitsDiv = document.createElement('div');
-            traitsDiv.className = 'table-detail-traits';
-            var traitItems = [
-              { label: 'Body', value: detailTraitBody },
-              { label: 'Oak', value: detailTraitOak },
-              { label: 'Sweetness', value: detailTraitSweet }
-            ];
-            for (var ti = 0; ti < traitItems.length; ti++) {
-              if (traitItems[ti].value) {
-                var traitSpan = document.createElement('span');
-                traitSpan.className = 'table-detail-trait';
-                traitSpan.innerHTML = '<strong>' + traitItems[ti].label + ':</strong> ' + escapeHTML(traitItems[ti].value);
-                traitsDiv.appendChild(traitSpan);
-              }
-            }
-            detailText.appendChild(traitsDiv);
+            var traitParts = [];
+            if (detailTraitBody) traitParts.push('<strong>Body:</strong> ' + escapeHTML(detailTraitBody));
+            if (detailTraitOak) traitParts.push('<strong>Oak:</strong> ' + escapeHTML(detailTraitOak));
+            if (detailTraitSweet) traitParts.push('<strong>Sweetness:</strong> ' + escapeHTML(detailTraitSweet));
+            var traitsP = document.createElement('p');
+            traitsP.className = 'table-detail-traits';
+            traitsP.innerHTML = traitParts.join(' \u00B7 ');
+            detailText.appendChild(traitsP);
           }
 
           var detailMeta = [];
