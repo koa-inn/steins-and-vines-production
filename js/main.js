@@ -4272,7 +4272,7 @@ function renderWeightControl(wrap, product, productKey) {
   var isKg = unitLower === 'kg' || unitLower.indexOf('kg') !== -1;
   var minVal = parseFloat(product.low_amount) || (isKg ? 0.1 : 50);
   var maxVal = parseFloat(product.high_amount) || (isKg ? 5 : 5000);
-  var stepVal = parseFloat(product.step) || (isKg ? 0.1 : 50);
+  var stepVal = parseFloat(product.step) || (isKg ? 0.1 : 10);
   var decimals = isKg ? 1 : 0;
   var pricePerUnit = parseFloat((product.price_per_unit || '0').replace(/[^0-9.]/g, '')) || 0;
   var currentQty = getReservedQty(productKey);
@@ -4471,7 +4471,7 @@ function renderWeightControlCompact(wrap, product, productKey) {
   var isKg = unitLower === 'kg' || unitLower.indexOf('kg') !== -1;
   var minVal = parseFloat(product.low_amount) || (isKg ? 0.1 : 50);
   var maxVal = parseFloat(product.high_amount) || (isKg ? 5 : 5000);
-  var stepVal = parseFloat(product.step) || (isKg ? 0.1 : 50);
+  var stepVal = parseFloat(product.step) || (isKg ? 0.1 : 10);
   var decimals = isKg ? 1 : 0;
   var pricePerUnit = parseFloat((product.price_per_unit || '0').replace(/[^0-9.]/g, '')) || 0;
   var currentQty = getReservedQty(productKey);
