@@ -3137,7 +3137,7 @@ function initProductTabs() {
 // ===== Ingredients & Supplies =====
 
 var _allIngredients = [];
-var _ingredientFilters = { unit: [] };
+var _ingredientFilters = { unit: [], category: [], price: [] };
 
 function loadIngredients(callback) {
   var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
@@ -3239,6 +3239,7 @@ function loadIngredients(callback) {
             stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
             description: z.description || '',
             sku: z.sku || '',
+            category: z.category_name || '',
             low_amount: '',
             high_amount: '',
             step: ''
@@ -3288,21 +3289,18 @@ function loadIngredients(callback) {
     .catch(function () {});
 }
 
-function buildIngredientFilters() {
-  var container = document.getElementById('filter-unit');
-  if (!container || container.children.length > 0) return;
+function buildIngredientFilterRow(containerId, field, label, values) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (values.length === 0) { container.classList.add('hidden'); return; }
+  container.classList.remove('hidden');
 
   var labelSpan = document.createElement('span');
   labelSpan.className = 'catalog-filter-label';
-  labelSpan.textContent = 'Unit:';
+  labelSpan.textContent = label;
   container.appendChild(labelSpan);
-
-  var units = [];
-  _allIngredients.forEach(function (r) {
-    var val = (r.unit || '').trim();
-    if (val && units.indexOf(val) === -1) units.push(val);
-  });
-  units.sort();
 
   var allBtn = document.createElement('button');
   allBtn.className = 'catalog-filter-btn active';
@@ -3310,7 +3308,7 @@ function buildIngredientFilters() {
   allBtn.textContent = 'All';
   allBtn.setAttribute('data-value', 'All');
   allBtn.addEventListener('click', function () {
-    _ingredientFilters.unit = [];
+    _ingredientFilters[field] = [];
     var btns = container.querySelectorAll('.catalog-filter-btn');
     btns.forEach(function (b) { b.classList.remove('active'); });
     allBtn.classList.add('active');
@@ -3318,26 +3316,26 @@ function buildIngredientFilters() {
   });
   container.appendChild(allBtn);
 
-  units.forEach(function (val) {
+  values.forEach(function (val) {
     var btn = document.createElement('button');
     btn.className = 'catalog-filter-btn';
     btn.type = 'button';
     btn.textContent = val;
     btn.setAttribute('data-value', val);
     btn.addEventListener('click', function () {
-      var idx = _ingredientFilters.unit.indexOf(val);
+      var idx = _ingredientFilters[field].indexOf(val);
       if (idx !== -1) {
-        _ingredientFilters.unit.splice(idx, 1);
+        _ingredientFilters[field].splice(idx, 1);
       } else {
-        _ingredientFilters.unit.push(val);
+        _ingredientFilters[field].push(val);
       }
       var btns = container.querySelectorAll('.catalog-filter-btn');
       btns.forEach(function (b) { b.classList.remove('active'); });
-      if (_ingredientFilters.unit.length === 0) {
+      if (_ingredientFilters[field].length === 0) {
         container.querySelector('[data-value="All"]').classList.add('active');
       } else {
         btns.forEach(function (b) {
-          if (_ingredientFilters.unit.indexOf(b.getAttribute('data-value')) !== -1) {
+          if (_ingredientFilters[field].indexOf(b.getAttribute('data-value')) !== -1) {
             b.classList.add('active');
           }
         });
@@ -3346,6 +3344,30 @@ function buildIngredientFilters() {
     });
     container.appendChild(btn);
   });
+}
+
+function buildIngredientFilters() {
+  // Category filter
+  var categories = [];
+  _allIngredients.forEach(function (r) {
+    var val = (r.category || '').trim();
+    if (val && categories.indexOf(val) === -1) categories.push(val);
+  });
+  categories.sort();
+  buildIngredientFilterRow('filter-category', 'category', 'Category:', categories);
+
+  // Unit filter
+  var units = [];
+  _allIngredients.forEach(function (r) {
+    var val = (r.unit || '').trim();
+    if (val && units.indexOf(val) === -1) units.push(val);
+  });
+  units.sort();
+  buildIngredientFilterRow('filter-unit', 'unit', 'Unit:', units);
+
+  // Price range filter
+  var priceBrackets = ['Under $5', '$5 – $15', '$15 – $30', 'Over $30'];
+  buildIngredientFilterRow('filter-price', 'price', 'Price:', priceBrackets);
 }
 
 function wireIngredientEvents() {
@@ -3379,6 +3401,18 @@ function renderIngredients() {
 
   var filtered = _allIngredients.filter(function (r) {
     if (_ingredientFilters.unit.length > 0 && _ingredientFilters.unit.indexOf(r.unit) === -1) return false;
+    if (_ingredientFilters.category.length > 0 && _ingredientFilters.category.indexOf(r.category || '') === -1) return false;
+    if (_ingredientFilters.price.length > 0) {
+      var p = parseFloat(r.price_per_unit) || 0;
+      var matchPrice = _ingredientFilters.price.some(function (bracket) {
+        if (bracket === 'Under $5') return p < 5;
+        if (bracket === '$5 – $15') return p >= 5 && p <= 15;
+        if (bracket === '$15 – $30') return p > 15 && p <= 30;
+        if (bracket === 'Over $30') return p > 30;
+        return false;
+      });
+      if (!matchPrice) return false;
+    }
     if (!query) return true;
     var name = (r.name || '').toLowerCase();
     var desc = (r.description || '').toLowerCase();

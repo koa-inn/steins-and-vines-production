@@ -4433,7 +4433,7 @@ small, .text-small {
 
 .table-detail-traits {
   display: flex;
-  gap: 0.15rem 0.5rem;
+  gap: 0.15rem 0;
   flex-wrap: wrap;
   align-items: baseline;
   margin-bottom: 0.2rem;
@@ -4445,6 +4445,13 @@ small, .text-small {
 .table-detail-trait {
   font-size: inherit;
   color: inherit;
+}
+
+.table-detail-trait + .table-detail-trait::before {
+  content: '\00b7';
+  margin: 0 0.45rem;
+  color: var(--color-muted);
+  font-weight: 700;
 }
 
 .table-detail-trait strong {
