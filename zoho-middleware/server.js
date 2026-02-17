@@ -772,10 +772,28 @@ function refreshProducts() {
       });
 
       return chain.then(function () {
+        // Kit categories that belong on the products page.
+        // Items whose "Category" CF is set to something else are excluded.
+        var KIT_CATEGORIES = ['wine', 'beer'];
+
         enriched = enriched.filter(function (item) {
-          return (item.custom_fields || []).some(function (cf) {
+          var hasType = (item.custom_fields || []).some(function (cf) {
             return cf.label === 'Type' && cf.value;
           });
+          if (!hasType) return false;
+
+          var categoryCF = (item.custom_fields || []).find(function (cf) {
+            return cf.label === 'Category';
+          });
+          if (categoryCF && categoryCF.value) {
+            var catVal = categoryCF.value.toLowerCase();
+            if (!KIT_CATEGORIES.some(function (kc) { return catVal.indexOf(kc) !== -1; })) {
+              console.log('[api/products] Excluding non-kit item: ' + item.name + ' (Category: ' + categoryCF.value + ')');
+              return false;
+            }
+          }
+
+          return true;
         });
         _kitItemIds = {};
         enriched.forEach(function (item) { _kitItemIds[item.item_id] = true; });

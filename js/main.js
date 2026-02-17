@@ -930,6 +930,7 @@ function loadFeaturedProducts() {
       })
       .then(function (data) {
         var items = data.items || [];
+        var KIT_CATEGORIES = ['wine', 'beer'];
         return items.map(function (z) {
           var obj = {
             name: z.name || '',
@@ -951,6 +952,10 @@ function loadFeaturedProducts() {
             obj.retail_instore = '$' + parseFloat(z.rate).toFixed(2);
           }
           return obj;
+        }).filter(function (obj) {
+          if (!obj.category) return true;
+          var cat = obj.category.toLowerCase();
+          return KIT_CATEGORIES.some(function (kc) { return cat.indexOf(kc) !== -1; });
         });
       });
   }
