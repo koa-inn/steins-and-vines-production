@@ -1928,6 +1928,30 @@ small, .text-small {
   border-color: var(--color-brown);
 }
 
+.product-reserve-btn--disabled,
+.product-reserve-btn--disabled:hover {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  color: var(--color-muted);
+  border-color: var(--color-muted);
+}
+
+.qty-btn--disabled,
+.qty-btn--disabled:hover {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.qty-limit-hint {
+  display: block;
+  text-align: center;
+  font-size: 0.68rem;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
 .product-reserve-wrap {
   margin-top: 0.75rem;
   width: 100%;
@@ -3673,6 +3697,14 @@ small, .text-small {
   vertical-align: middle;
 }
 
+.catalog-table td[data-label="Price"],
+.catalog-table td[data-label="In-Store"],
+.catalog-table td[data-label="Kit"],
+.reservation-table td[data-label="Price"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .catalog-table tr[class*="tint-"] td:first-child {
   border-left: 3px solid var(--tint-border, var(--color-burgundy));
 }
@@ -3727,6 +3759,10 @@ small, .text-small {
   text-transform: uppercase;
 }
 
+.catalog-table td[data-label=""] {
+  text-align: right;
+}
+
 .catalog-table .product-reserve-btn {
   padding: 0.2rem 0.6rem;
   font-size: 0.75rem;
@@ -3736,10 +3772,14 @@ small, .text-small {
 
 .catalog-table .product-reserve-wrap {
   margin-top: 0;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .catalog-table .product-qty-controls {
   padding: 0.1rem 0.2rem;
+  width: 90px;
 }
 
 .catalog-table .product-qty-controls .qty-btn {
@@ -3751,6 +3791,12 @@ small, .text-small {
 .catalog-table .product-qty-controls .qty-value {
   min-width: 18px;
   font-size: 0.8rem;
+}
+
+.catalog-table .weight-control-compact {
+  min-width: 130px;
+  max-width: 160px;
+  margin-left: auto;
 }
 
 /* Mobile summary cells — hidden on desktop, shown on mobile */
@@ -4958,6 +5004,23 @@ small, .text-small {
     height: 26px;
     font-size: 0.95rem;
   }
+}
+
+/* Milling upsell banner */
+.milling-upsell {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid var(--color-brown);
+  background: rgba(229,222,193,0.3);
+  border-radius: var(--radius-xs);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+.milling-upsell a {
+  color: var(--color-burgundy);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* Cart sidebar weight display */

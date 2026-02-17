@@ -772,8 +772,10 @@ function buildLabelNotesToggle(product) {
   return wrap;
 }
 
-function formatKitPrice(s) {
-  return s.replace(/\.00\b/g, '');
+function formatCurrency(val) {
+  var num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[^0-9.\-]/g, ''));
+  if (isNaN(num)) return '';
+  return '$' + num.toFixed(2);
 }
 
 function buildLabelPriceFooter(product) {
@@ -797,10 +799,10 @@ function buildLabelPriceFooter(product) {
     val1.className = 'price-value';
     if (discount > 0) {
       var num1 = parseFloat(instore.replace(/[^0-9.]/g, ''));
-      var sale1 = formatKitPrice((num1 * (1 - discount / 100)).toFixed(2));
-      val1.innerHTML = '<s style="color:#999;font-size:0.8rem;">' + formatKitPrice(instore) + '</s> $' + sale1 + plusSign;
+      var sale1 = formatCurrency(num1 * (1 - discount / 100));
+      val1.innerHTML = '<s style="color:#999;font-size:0.8rem;">' + formatCurrency(instore) + '</s> ' + sale1 + plusSign;
     } else {
-      val1.textContent = formatKitPrice(instore) + plusSign;
+      val1.textContent = formatCurrency(instore) + plusSign;
     }
     col1.appendChild(val1);
     footer.appendChild(col1);
@@ -817,10 +819,10 @@ function buildLabelPriceFooter(product) {
     val2.className = 'price-value';
     if (discount > 0) {
       var num2 = parseFloat(kit.replace(/[^0-9.]/g, ''));
-      var sale2 = formatKitPrice((num2 * (1 - discount / 100)).toFixed(2));
-      val2.innerHTML = '<s style="color:#999;font-size:0.8rem;">' + formatKitPrice(kit) + '</s> $' + sale2 + plusSign;
+      var sale2 = formatCurrency(num2 * (1 - discount / 100));
+      val2.innerHTML = '<s style="color:#999;font-size:0.8rem;">' + formatCurrency(kit) + '</s> ' + sale2 + plusSign;
     } else {
-      val2.textContent = formatKitPrice(kit) + plusSign;
+      val2.textContent = formatCurrency(kit) + plusSign;
     }
     col2.appendChild(val2);
     footer.appendChild(col2);
@@ -1600,10 +1602,10 @@ function loadFeaturedProducts() {
         instoreBox.className = 'product-price-box';
         if (discount > 0) {
           var instoreNum = parseFloat(instore.replace(/[^0-9.]/g, ''));
-          var instoreSale = formatKitPrice((instoreNum * (1 - discount / 100)).toFixed(2));
-          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-original">' + formatKitPrice(instore) + '</span><span class="product-price-value">$' + instoreSale + plusSign + '</span>';
+          var instoreSale = formatCurrency(instoreNum * (1 - discount / 100));
+          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-original">' + formatCurrency(instore) + '</span><span class="product-price-value">' + instoreSale + plusSign + '</span>';
         } else {
-          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + formatKitPrice(instore) + plusSign + '</span>';
+          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + formatCurrency(instore) + plusSign + '</span>';
         }
         priceRow.appendChild(instoreBox);
       }
@@ -1612,10 +1614,10 @@ function loadFeaturedProducts() {
         kitBox.className = 'product-price-box';
         if (discount > 0) {
           var kitNum = parseFloat(kit.replace(/[^0-9.]/g, ''));
-          var kitSale = formatKitPrice((kitNum * (1 - discount / 100)).toFixed(2));
-          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-original">' + formatKitPrice(kit) + '</span><span class="product-price-value">$' + kitSale + plusSign + '</span>';
+          var kitSale = formatCurrency(kitNum * (1 - discount / 100));
+          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-original">' + formatCurrency(kit) + '</span><span class="product-price-value">' + kitSale + plusSign + '</span>';
         } else {
-          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + formatKitPrice(kit) + plusSign + '</span>';
+          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + formatCurrency(kit) + plusSign + '</span>';
         }
         priceRow.appendChild(kitBox);
       }
@@ -2641,10 +2643,10 @@ function loadProducts() {
         instoreBox.className = 'product-price-box';
         if (discount > 0) {
           var instoreNum = parseFloat(instore.replace(/[^0-9.]/g, ''));
-          var instoreSale = formatKitPrice((instoreNum * (1 - discount / 100)).toFixed(2));
-          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-original">' + formatKitPrice(instore) + '</span><span class="product-price-value">$' + instoreSale + plusSign + '</span>';
+          var instoreSale = formatCurrency(instoreNum * (1 - discount / 100));
+          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-original">' + formatCurrency(instore) + '</span><span class="product-price-value">' + instoreSale + plusSign + '</span>';
         } else {
-          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + formatKitPrice(instore) + plusSign + '</span>';
+          instoreBox.innerHTML = '<span class="product-price-label">Ferment in store</span><span class="product-price-value">' + formatCurrency(instore) + plusSign + '</span>';
         }
         priceRow.appendChild(instoreBox);
       }
@@ -2653,10 +2655,10 @@ function loadProducts() {
         kitBox.className = 'product-price-box';
         if (discount > 0) {
           var kitNum = parseFloat(kit.replace(/[^0-9.]/g, ''));
-          var kitSale = formatKitPrice((kitNum * (1 - discount / 100)).toFixed(2));
-          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-original">' + formatKitPrice(kit) + '</span><span class="product-price-value">$' + kitSale + plusSign + '</span>';
+          var kitSale = formatCurrency(kitNum * (1 - discount / 100));
+          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-original">' + formatCurrency(kit) + '</span><span class="product-price-value">' + kitSale + plusSign + '</span>';
         } else {
-          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + formatKitPrice(kit) + plusSign + '</span>';
+          kitBox.innerHTML = '<span class="product-price-label">Kit only</span><span class="product-price-value">' + formatCurrency(kit) + plusSign + '</span>';
         }
         priceRow.appendChild(kitBox);
       }
@@ -2745,6 +2747,7 @@ function loadProducts() {
         visibleCols.forEach(function (col) {
           var th = document.createElement('th');
           th.textContent = col.label;
+          if (col.field === 'retail_instore' || col.field === 'retail_kit') th.style.textAlign = 'right';
           if (col.sort) {
             th.setAttribute('data-sort', col.sort);
             var arrow = document.createElement('span');
@@ -2835,10 +2838,10 @@ function loadProducts() {
               tdInstore.className = 'table-prices';
               if (discount > 0) {
                 var instoreNum = parseFloat(instore.replace(/[^0-9.]/g, ''));
-                var instoreSale = formatKitPrice((instoreNum * (1 - discount / 100)).toFixed(2));
-                tdInstore.innerHTML = '<span class="table-price-original">' + formatKitPrice(instore) + '</span><span class="table-price-sale">$' + instoreSale + plusSign + '</span>';
+                var instoreSale = formatCurrency(instoreNum * (1 - discount / 100));
+                tdInstore.innerHTML = '<span class="table-price-original">' + formatCurrency(instore) + '</span><span class="table-price-sale">' + instoreSale + plusSign + '</span>';
               } else {
-                tdInstore.textContent = formatKitPrice(instore) + plusSign;
+                tdInstore.textContent = formatCurrency(instore) + plusSign;
               }
             }
             tr.appendChild(tdInstore);
@@ -2853,10 +2856,10 @@ function loadProducts() {
               tdKit.className = 'table-prices';
               if (discount > 0) {
                 var kitNum = parseFloat(kit.replace(/[^0-9.]/g, ''));
-                var kitSale = formatKitPrice((kitNum * (1 - discount / 100)).toFixed(2));
-                tdKit.innerHTML = '<span class="table-price-original">' + formatKitPrice(kit) + '</span><span class="table-price-sale">$' + kitSale + plusSign + '</span>';
+                var kitSale = formatCurrency(kitNum * (1 - discount / 100));
+                tdKit.innerHTML = '<span class="table-price-original">' + formatCurrency(kit) + '</span><span class="table-price-sale">' + kitSale + plusSign + '</span>';
               } else {
-                tdKit.textContent = formatKitPrice(kit) + plusSign;
+                tdKit.textContent = formatCurrency(kit) + plusSign;
               }
             }
             tr.appendChild(tdKit);
@@ -2885,19 +2888,19 @@ function loadProducts() {
           if (mInstore) {
             var mInstoreNum = parseFloat(mInstore.replace(/[^0-9.]/g, ''));
             if (discount > 0 && mInstoreNum) {
-              var mInstoreSale = formatKitPrice((mInstoreNum * (1 - discount / 100)).toFixed(2));
-              priceHtmlParts.push('<span class="mp-label">In-store</span> <span class="table-price-original">' + formatKitPrice(mInstore) + '</span> <span class="table-price-sale">$' + mInstoreSale + plusSign + '</span>');
+              var mInstoreSale = formatCurrency(mInstoreNum * (1 - discount / 100));
+              priceHtmlParts.push('<span class="mp-label">In-store</span> <span class="table-price-original">' + formatCurrency(mInstore) + '</span> <span class="table-price-sale">' + mInstoreSale + plusSign + '</span>');
             } else {
-              priceHtmlParts.push('<span class="mp-label">In-store</span> ' + formatKitPrice(mInstore) + plusSign);
+              priceHtmlParts.push('<span class="mp-label">In-store</span> ' + formatCurrency(mInstore) + plusSign);
             }
           }
           if (mKit) {
             var mKitNum = parseFloat(mKit.replace(/[^0-9.]/g, ''));
             if (discount > 0 && mKitNum) {
-              var mKitSale = formatKitPrice((mKitNum * (1 - discount / 100)).toFixed(2));
-              priceHtmlParts.push('<span class="mp-label">Kit</span> <span class="table-price-original">' + formatKitPrice(mKit) + '</span> <span class="table-price-sale">$' + mKitSale + plusSign + '</span>');
+              var mKitSale = formatCurrency(mKitNum * (1 - discount / 100));
+              priceHtmlParts.push('<span class="mp-label">Kit</span> <span class="table-price-original">' + formatCurrency(mKit) + '</span> <span class="table-price-sale">' + mKitSale + plusSign + '</span>');
             } else {
-              priceHtmlParts.push('<span class="mp-label">Kit</span> ' + formatKitPrice(mKit) + plusSign);
+              priceHtmlParts.push('<span class="mp-label">Kit</span> ' + formatCurrency(mKit) + plusSign);
             }
           }
           var tdMobilePrices = document.createElement('td');
@@ -3439,6 +3442,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
     ingCols.forEach(function (col) {
       var th = document.createElement('th');
       th.textContent = col.label;
+      if (col.label === 'Price') th.style.textAlign = 'right';
       if (col.sort) {
         th.setAttribute('data-sort', col.sort);
         var arrow = document.createElement('span');
@@ -3491,7 +3495,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
       var price = (item.price_per_unit || '').trim();
       if (price) {
         var priceNum = parseFloat(price.replace(/[^0-9.]/g, ''));
-        tdPrice.textContent = isNaN(priceNum) ? price : '$' + priceNum.toFixed(2);
+        tdPrice.textContent = isNaN(priceNum) ? price : formatCurrency(priceNum);
       }
       tr.appendChild(tdPrice);
 
@@ -3514,7 +3518,8 @@ function renderIngredientSection(catalog, title, items, extraClass) {
           low_amount: item.low_amount || '',
           high_amount: item.high_amount || '',
           step: item.step || '',
-          _item_type: 'ingredient'
+          _item_type: 'ingredient',
+          max_order_qty: item.max_order_qty || ''
         };
         var ingReserveWrap = document.createElement('div');
         ingReserveWrap.className = 'product-reserve-wrap';
@@ -3612,7 +3617,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
         if (unit) details.push(unit);
         if (price) {
           var priceNum = parseFloat(price.replace(/[^0-9.]/g, ''));
-          details.push(isNaN(priceNum) ? price : '$' + priceNum.toFixed(2));
+          details.push(isNaN(priceNum) ? price : formatCurrency(priceNum));
         }
         for (var d = 0; d < details.length; d++) {
           if (d > 0) {
@@ -3686,7 +3691,8 @@ function renderIngredientSection(catalog, title, items, extraClass) {
           low_amount: item.low_amount || '',
           high_amount: item.high_amount || '',
           step: item.step || '',
-          _item_type: 'ingredient'
+          _item_type: 'ingredient',
+          max_order_qty: item.max_order_qty || ''
         };
         var reserveWrap = document.createElement('div');
         reserveWrap.className = 'product-reserve-wrap';
@@ -3919,6 +3925,7 @@ function renderServices() {
     svcCols.forEach(function (col) {
       var th = document.createElement('th');
       th.textContent = col.label;
+      if (col.label === 'Price') th.style.textAlign = 'right';
       if (col.sort) {
         th.setAttribute('data-sort', col.sort);
         var arrow = document.createElement('span');
@@ -3975,13 +3982,12 @@ function renderServices() {
       var price = (svc.price || '').trim();
       if (price) {
         tdPrice.className = 'table-prices';
-        var formattedPrice = price.charAt(0) === '$' ? price : '$' + price;
         if (discount > 0) {
           var priceNum = parseFloat(price.replace(/[^0-9.]/g, ''));
-          var salePrice = (priceNum * (1 - discount / 100)).toFixed(2);
-          tdPrice.innerHTML = '<span class="table-price-original">' + formattedPrice + '</span><span class="table-price-sale">$' + salePrice + '</span>';
+          var salePrice = formatCurrency(priceNum * (1 - discount / 100));
+          tdPrice.innerHTML = '<span class="table-price-original">' + formatCurrency(price) + '</span><span class="table-price-sale">' + salePrice + '</span>';
         } else {
-          tdPrice.textContent = formattedPrice;
+          tdPrice.textContent = formatCurrency(price);
         }
       }
       tr.appendChild(tdPrice);
@@ -4088,10 +4094,10 @@ function renderServices() {
 
         if (discount > 0) {
           var priceNum = parseFloat(price.replace(/[^0-9.]/g, ''));
-          var salePrice = (priceNum * (1 - discount / 100)).toFixed(2);
-          priceBox.innerHTML = '<span class="product-price-label">Price</span><span class="product-price-original">' + (price.charAt(0) === '$' ? price : '$' + price) + '</span><span class="product-price-value">$' + salePrice + '</span>';
+          var salePrice = formatCurrency(priceNum * (1 - discount / 100));
+          priceBox.innerHTML = '<span class="product-price-label">Price</span><span class="product-price-original">' + formatCurrency(price) + '</span><span class="product-price-value">' + salePrice + '</span>';
         } else {
-          priceBox.innerHTML = '<span class="product-price-label">Price</span><span class="product-price-value">' + (price.charAt(0) === '$' ? price : '$' + price) + '</span>';
+          priceBox.innerHTML = '<span class="product-price-label">Price</span><span class="product-price-value">' + formatCurrency(price) + '</span>';
         }
 
         priceRow.appendChild(priceBox);
@@ -4170,6 +4176,17 @@ function isReserved(productKey) {
   return getReservedQty(productKey) > 0;
 }
 
+function getEffectiveMax(product) {
+  var itemType = product._item_type || product.item_type || 'kit';
+  var maxOrder = parseInt(product.max_order_qty, 10);
+  if (isNaN(maxOrder) || maxOrder <= 0) maxOrder = Infinity;
+  if (itemType === 'ingredient' || itemType === 'service') {
+    var stock = parseInt(product.stock, 10) || 0;
+    return Math.min(maxOrder, stock);
+  }
+  return maxOrder;
+}
+
 function setReservationQty(product, qty) {
   var items = getReservation();
   var key = product.name + '|' + product.brand;
@@ -4180,6 +4197,10 @@ function setReservationQty(product, qty) {
       break;
     }
   }
+
+  var maxQty = getEffectiveMax(product);
+  if (maxQty <= 0 && qty > 0) return;
+  if (qty > maxQty) qty = maxQty;
 
   if (qty <= 0) {
     if (idx !== -1) items.splice(idx, 1);
@@ -4200,7 +4221,8 @@ function setReservationQty(product, qty) {
       item_type: product._item_type || 'kit',
       sku: product.sku || '',
       unit: product.unit || '',
-      tax_percentage: parseFloat(product.tax_percentage) || 0
+      tax_percentage: parseFloat(product.tax_percentage) || 0,
+      max_order_qty: product.max_order_qty || ''
     });
   }
 
@@ -4211,18 +4233,31 @@ function setReservationQty(product, qty) {
 function renderReserveControl(wrap, product, productKey) {
   wrap.innerHTML = '';
   var qty = getReservedQty(productKey);
+  var maxQty = getEffectiveMax(product);
 
   if (qty === 0) {
     var reserveBtn = document.createElement('button');
     reserveBtn.type = 'button';
-    reserveBtn.className = 'product-reserve-btn';
-    reserveBtn.textContent = 'Add to Cart';
-    reserveBtn.addEventListener('click', function () {
-      setReservationQty(product, 1);
-      trackEvent('add_to_cart', product.sku || '', product.name || '');
-      renderReserveControl(wrap, product, productKey);
-    });
+    if (maxQty <= 0) {
+      reserveBtn.className = 'product-reserve-btn product-reserve-btn--disabled';
+      reserveBtn.textContent = 'Out of Stock';
+      reserveBtn.disabled = true;
+    } else {
+      reserveBtn.className = 'product-reserve-btn';
+      reserveBtn.textContent = 'Add to Cart';
+      reserveBtn.addEventListener('click', function () {
+        setReservationQty(product, 1);
+        trackEvent('add_to_cart', product.sku || '', product.name || '');
+        renderReserveControl(wrap, product, productKey);
+      });
+    }
     wrap.appendChild(reserveBtn);
+    if (maxQty > 0 && maxQty < Infinity) {
+      var hint = document.createElement('span');
+      hint.className = 'qty-limit-hint';
+      hint.textContent = maxQty + ' available';
+      wrap.appendChild(hint);
+    }
   } else {
     var controls = document.createElement('div');
     controls.className = 'product-qty-controls';
@@ -4242,17 +4277,28 @@ function renderReserveControl(wrap, product, productKey) {
 
     var plusBtn = document.createElement('button');
     plusBtn.type = 'button';
-    plusBtn.className = 'qty-btn';
+    if (qty >= maxQty) {
+      plusBtn.className = 'qty-btn qty-btn--disabled';
+      plusBtn.disabled = true;
+    } else {
+      plusBtn.className = 'qty-btn';
+      plusBtn.addEventListener('click', function () {
+        setReservationQty(product, qty + 1);
+        renderReserveControl(wrap, product, productKey);
+      });
+    }
     plusBtn.textContent = '+';
-    plusBtn.addEventListener('click', function () {
-      setReservationQty(product, qty + 1);
-      renderReserveControl(wrap, product, productKey);
-    });
 
     controls.appendChild(minusBtn);
     controls.appendChild(qtySpan);
     controls.appendChild(plusBtn);
     wrap.appendChild(controls);
+    if (maxQty < Infinity) {
+      var hint = document.createElement('span');
+      hint.className = 'qty-limit-hint';
+      hint.textContent = qty + ' of ' + maxQty;
+      wrap.appendChild(hint);
+    }
   }
 }
 
@@ -4719,9 +4765,9 @@ function renderCartSidebar() {
     var priceEl = document.createElement('div');
     priceEl.className = 'cart-sidebar-item-price';
     if (disc > 0) {
-      priceEl.innerHTML = '<span class="cart-price-original">$' + parseFloat((item.price || '0').replace(/[^0-9.]/g, '')).toFixed(2) + '</span> $' + price.toFixed(2);
+      priceEl.innerHTML = '<span class="cart-price-original">' + formatCurrency(item.price) + '</span> ' + formatCurrency(price);
     } else if (price > 0) {
-      priceEl.textContent = '$' + price.toFixed(2);
+      priceEl.textContent = formatCurrency(price);
     }
     info.appendChild(priceEl);
 
@@ -4738,6 +4784,7 @@ function renderCartSidebar() {
       weightDisplay.textContent = (item.qty || 0) + ' ' + item.unit;
       controls.appendChild(weightDisplay);
     } else {
+      var itemMax = getEffectiveMax(item);
       var qtyControls = document.createElement('div');
       qtyControls.className = 'product-qty-controls';
 
@@ -4767,22 +4814,29 @@ function renderCartSidebar() {
 
       var plusBtn = document.createElement('button');
       plusBtn.type = 'button';
-      plusBtn.className = 'qty-btn';
       plusBtn.textContent = '+';
-      plusBtn.addEventListener('click', (function (itm) {
-        return function () {
-          var current = getReservation();
-          for (var i = 0; i < current.length; i++) {
-            if ((current[i].name + '|' + (current[i].brand || '')) === (itm.name + '|' + (itm.brand || ''))) {
-              current[i].qty = (current[i].qty || 1) + 1;
-              break;
+      if ((item.qty || 1) >= itemMax) {
+        plusBtn.className = 'qty-btn qty-btn--disabled';
+        plusBtn.disabled = true;
+      } else {
+        plusBtn.className = 'qty-btn';
+        plusBtn.addEventListener('click', (function (itm, max) {
+          return function () {
+            var current = getReservation();
+            for (var i = 0; i < current.length; i++) {
+              if ((current[i].name + '|' + (current[i].brand || '')) === (itm.name + '|' + (itm.brand || ''))) {
+                var newQty = (current[i].qty || 1) + 1;
+                if (newQty > max) newQty = max;
+                current[i].qty = newQty;
+                break;
+              }
             }
-          }
-          saveReservation(current);
-          updateReservationBar();
-          renderCartSidebar();
-        };
-      })(item));
+            saveReservation(current);
+            updateReservationBar();
+            renderCartSidebar();
+          };
+        })(item, itemMax));
+      }
 
       qtyControls.appendChild(minusBtn);
       qtyControls.appendChild(qtySpan);
@@ -4869,6 +4923,8 @@ function initReservationPage() {
         + '<li>Visit us in-store to collect your items</li>'
         + '</ol>';
     }
+    var emptyText = document.querySelector('[data-content="reserved-empty-text"]');
+    if (emptyText) emptyText.textContent = 'Your cart is empty.';
   }
 
   setupReservationForm();
@@ -4986,6 +5042,7 @@ function renderReservationItems() {
     if (label === 'Brand' && !hasBrand) return;
     var th = document.createElement('th');
     th.textContent = label;
+    if (label === 'Price') th.style.textAlign = 'right';
     theadTr.appendChild(th);
   });
   thead.appendChild(theadTr);
@@ -5037,15 +5094,13 @@ function renderReservationItems() {
     var tdPrice = document.createElement('td');
     tdPrice.setAttribute('data-label', 'Price');
     if (item.price) {
-      var origPrice = item.price.charAt(0) === '$' ? item.price : '$' + item.price;
       if (item.discount && parseFloat(item.discount) > 0) {
         var origNum = parseFloat((item.price || '0').replace('$', '')) || 0;
         var disc = parseFloat(item.discount);
-        var saleNum = (origNum * (1 - disc / 100)).toFixed(2);
         tdPrice.className = 'table-prices';
-        tdPrice.innerHTML = '<span class="table-price-original">' + origPrice + '</span><span class="table-price-sale">$' + saleNum + '</span>';
+        tdPrice.innerHTML = '<span class="table-price-original">' + formatCurrency(item.price) + '</span><span class="table-price-sale">' + formatCurrency(origNum * (1 - disc / 100)) + '</span>';
       } else {
-        tdPrice.textContent = origPrice;
+        tdPrice.textContent = formatCurrency(item.price);
       }
     }
     tr.appendChild(tdPrice);
@@ -5069,6 +5124,7 @@ function renderReservationItems() {
     // Qty controls
     var tdQty = document.createElement('td');
     tdQty.setAttribute('data-label', 'Qty');
+    var itemMax = getEffectiveMax(item);
     var qtyControls = document.createElement('div');
     qtyControls.className = 'product-qty-controls';
 
@@ -5089,6 +5145,7 @@ function renderReservationItems() {
         saveReservation(current);
         renderReservationItems();
         refreshReservationDependents();
+        updateReservationBar();
       };
     })(item));
 
@@ -5098,27 +5155,41 @@ function renderReservationItems() {
 
     var plusBtn = document.createElement('button');
     plusBtn.type = 'button';
-    plusBtn.className = 'qty-btn';
     plusBtn.textContent = '+';
-    plusBtn.addEventListener('click', (function (itm) {
-      return function () {
-        var current = getReservation();
-        for (var i = 0; i < current.length; i++) {
-          if ((current[i].name + '|' + current[i].brand) === (itm.name + '|' + itm.brand)) {
-            current[i].qty = (current[i].qty || 1) + 1;
-            break;
+    if ((item.qty || 1) >= itemMax) {
+      plusBtn.className = 'qty-btn qty-btn--disabled';
+      plusBtn.disabled = true;
+    } else {
+      plusBtn.className = 'qty-btn';
+      plusBtn.addEventListener('click', (function (itm, max) {
+        return function () {
+          var current = getReservation();
+          for (var i = 0; i < current.length; i++) {
+            if ((current[i].name + '|' + current[i].brand) === (itm.name + '|' + itm.brand)) {
+              var newQty = (current[i].qty || 1) + 1;
+              if (newQty > max) newQty = max;
+              current[i].qty = newQty;
+              break;
+            }
           }
-        }
-        saveReservation(current);
-        renderReservationItems();
-        refreshReservationDependents();
-      };
-    })(item));
+          saveReservation(current);
+          renderReservationItems();
+          refreshReservationDependents();
+          updateReservationBar();
+        };
+      })(item, itemMax));
+    }
 
     qtyControls.appendChild(minusBtn);
     qtyControls.appendChild(qtySpan);
     qtyControls.appendChild(plusBtn);
     tdQty.appendChild(qtyControls);
+    if (itemMax < Infinity) {
+      var qtyHint = document.createElement('span');
+      qtyHint.className = 'qty-limit-hint';
+      qtyHint.textContent = (item.qty || 1) + ' of ' + itemMax;
+      tdQty.appendChild(qtyHint);
+    }
     tr.appendChild(tdQty);
 
     // Remove button
@@ -5136,6 +5207,7 @@ function renderReservationItems() {
       saveReservation(filtered);
       renderReservationItems();
       refreshReservationDependents();
+      updateReservationBar();
     });
     tdRemove.appendChild(removeBtn);
     tr.appendChild(tdRemove);
@@ -5172,19 +5244,19 @@ function renderReservationItems() {
 
     var subtotalDiv = document.createElement('div');
     subtotalDiv.className = 'reservation-subtotal';
-    subtotalDiv.innerHTML = '<span>Subtotal</span><span>$' + subtotal.toFixed(2) + '</span>';
+    subtotalDiv.innerHTML = '<span>Subtotal</span><span>' + formatCurrency(subtotal) + '</span>';
     summaryWrap.appendChild(subtotalDiv);
 
     if (taxTotal > 0) {
       var taxDiv = document.createElement('div');
       taxDiv.className = 'reservation-subtotal reservation-subtotal--detail';
-      taxDiv.innerHTML = '<span>Tax</span><span>$' + taxTotal.toFixed(2) + '</span>';
+      taxDiv.innerHTML = '<span>Tax</span><span>' + formatCurrency(taxTotal) + '</span>';
       summaryWrap.appendChild(taxDiv);
     }
 
     var totalDiv = document.createElement('div');
     totalDiv.className = 'reservation-subtotal reservation-subtotal--total';
-    totalDiv.innerHTML = '<span>Total</span><span>$' + grandTotal.toFixed(2) + '</span>';
+    totalDiv.innerHTML = '<span>Total</span><span>' + formatCurrency(grandTotal) + '</span>';
     summaryWrap.appendChild(totalDiv);
 
     var pickupNote = document.createElement('div');
@@ -5196,8 +5268,22 @@ function renderReservationItems() {
   } else {
     var subtotalRow = document.createElement('div');
     subtotalRow.className = 'reservation-subtotal';
-    subtotalRow.innerHTML = '<span>Estimated Subtotal <span class="reservation-disclaimer">\u2014 Final pricing may vary.</span></span><span>$' + subtotal.toFixed(2) + '</span>';
+    subtotalRow.innerHTML = '<span>Estimated Subtotal <span class="reservation-disclaimer">\u2014 Final pricing may vary.</span></span><span>' + formatCurrency(subtotal) + '</span>';
     container.appendChild(subtotalRow);
+  }
+
+  // Milling upsell
+  var hasGrain = items.some(function (item) {
+    return item.item_type === 'ingredient' && isWeightUnit(item.unit);
+  });
+  var hasMilling = items.some(function (item) {
+    return item.name && item.name.toLowerCase().indexOf('mill') !== -1;
+  });
+  if (hasGrain && !hasMilling) {
+    var upsell = document.createElement('div');
+    upsell.className = 'milling-upsell';
+    upsell.innerHTML = '<strong>Need your grain milled?</strong> We offer milling services in-store. <a href="products.html#services">Add milling to your order \u2192</a>';
+    container.appendChild(upsell);
   }
 
   // Clear All button
@@ -5206,11 +5292,12 @@ function renderReservationItems() {
   var clearBtn = document.createElement('button');
   clearBtn.type = 'button';
   clearBtn.className = 'btn-secondary reservation-clear-btn';
-  clearBtn.textContent = 'Clear Selected Items';
+  clearBtn.textContent = isProductOrder ? 'Clear Cart' : 'Clear Selected Items';
   clearBtn.addEventListener('click', function () {
     saveReservation([]);
     renderReservationItems();
     refreshReservationDependents();
+    updateReservationBar();
   });
   clearWrap.appendChild(clearBtn);
   container.appendChild(clearWrap);
