@@ -4359,7 +4359,18 @@ function setReservationQty(product, qty) {
   updateReservationBar();
 }
 
+function refreshAllReserveControls() {
+  document.querySelectorAll('.product-reserve-wrap').forEach(function (wrap) {
+    if (!wrap._reserveProduct) return;
+    var fn = wrap._reserveRenderer || renderReserveControl;
+    fn(wrap, wrap._reserveProduct, wrap._reserveKey);
+  });
+}
+
 function renderReserveControl(wrap, product, productKey) {
+  wrap._reserveProduct = product;
+  wrap._reserveKey = productKey;
+  wrap._reserveRenderer = renderReserveControl;
   wrap.innerHTML = '';
   var qty = getReservedQty(productKey);
   var maxQty = getEffectiveMax(product);
@@ -4430,6 +4441,9 @@ function hasWeightConfig(item) {
 }
 
 function renderWeightControl(wrap, product, productKey) {
+  wrap._reserveProduct = product;
+  wrap._reserveKey = productKey;
+  wrap._reserveRenderer = renderWeightControl;
   wrap.innerHTML = '';
   var unit = (product.unit || '').trim();
   var unitLower = unit.toLowerCase();
@@ -4629,6 +4643,9 @@ function renderWeightControl(wrap, product, productKey) {
 }
 
 function renderWeightControlCompact(wrap, product, productKey) {
+  wrap._reserveProduct = product;
+  wrap._reserveKey = productKey;
+  wrap._reserveRenderer = renderWeightControlCompact;
   wrap.innerHTML = '';
   var unit = (product.unit || '').trim();
   var unitLower = unit.toLowerCase();
@@ -4795,6 +4812,7 @@ function initReservationBar() {
     btn.addEventListener('click', function () {
       saveReservation([]);
       updateReservationBar();
+      refreshAllReserveControls();
     });
   });
 
@@ -4804,6 +4822,7 @@ function initReservationBar() {
       saveReservation([]);
       updateReservationBar();
       renderCartSidebar();
+      refreshAllReserveControls();
     });
   }
 
