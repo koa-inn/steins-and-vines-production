@@ -1885,6 +1885,8 @@ function loadProducts() {
     } catch (e) {}
   }
 
+  var KIT_CATEGORIES = ['wine', 'beer', 'cider', 'seltzer'];
+
   function fetchFromMiddleware() {
     return fetch(middlewareUrl + '/api/products')
       .then(function (r) {
@@ -1901,7 +1903,8 @@ function loadProducts() {
             brand: z.brand || '',
             stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
             description: z.description || '',
-            discount: z.discount != null ? String(z.discount) : '0'
+            discount: z.discount != null ? String(z.discount) : '0',
+            _zoho_category: z.category_name || ''
           };
           // Flatten custom fields (label → snake_case key)
           if (z.custom_fields && z.custom_fields.length) {
@@ -1923,6 +1926,11 @@ function loadProducts() {
             }
           }
           return obj;
+        }).filter(function (obj) {
+          // Only keep kit categories (wine, beer, cider, seltzer)
+          var cat = (obj.category || obj._zoho_category || '').toLowerCase();
+          if (!cat) return true;
+          return KIT_CATEGORIES.some(function (kc) { return cat.indexOf(kc) !== -1; });
         });
       });
   }
@@ -1956,6 +1964,12 @@ function loadProducts() {
 
   dataPromise
     .then(function (items) {
+      // Filter out non-kit items that may have leaked from middleware cache
+      items = items.filter(function (obj) {
+        var cat = (obj.category || obj._zoho_category || '').toLowerCase();
+        if (!cat) return true;
+        return KIT_CATEGORIES.some(function (kc) { return cat.indexOf(kc) !== -1; });
+      });
       items.forEach(function (obj) {
         obj._item_type = 'kit';
         if ((obj.favorite || '').toLowerCase() === 'true') {
