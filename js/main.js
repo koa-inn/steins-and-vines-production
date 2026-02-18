@@ -1927,6 +1927,9 @@ function loadProducts() {
           }
           return obj;
         }).filter(function (obj) {
+          // Exclude items with Type = Ingredient or Service
+          var t = (obj.type || '').toLowerCase();
+          if (t === 'ingredient' || t === 'service') return false;
           // Only keep kit categories (wine, beer, cider, seltzer)
           var cat = (obj.category || obj._zoho_category || '').toLowerCase();
           if (!cat) return true;
@@ -1964,8 +1967,10 @@ function loadProducts() {
 
   dataPromise
     .then(function (items) {
-      // Filter out non-kit items that may have leaked from middleware cache
+      // Filter out non-kit items that may have leaked from middleware
       items = items.filter(function (obj) {
+        var t = (obj.type || '').toLowerCase();
+        if (t === 'ingredient' || t === 'service') return false;
         var cat = (obj.category || obj._zoho_category || '').toLowerCase();
         if (!cat) return true;
         return KIT_CATEGORIES.some(function (kc) { return cat.indexOf(kc) !== -1; });
