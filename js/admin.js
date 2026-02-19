@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-19T14:29:56.521Z';
+  var BUILD_TIMESTAMP = '2026-02-19T16:47:29.210Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -4895,21 +4895,18 @@
     html += '</div>';
 
     // Location edit
+    var currentVesselLabel = '';
+    if (b.vessel_id && vesselsData) {
+      var cv = vesselsData.find(function (v) { return String(v.vessel_id) === String(b.vessel_id); });
+      currentVesselLabel = cv ? buildVesselLabel(cv) : b.vessel_id;
+    }
     html += '<details class="batch-detail-section"><summary>Edit Location</summary>';
     html += '<div class="batch-detail-location-edit">';
-    html += '<select id="batch-edit-vessel" class="admin-inline-input">';
-    html += '<option value="">No vessel</option>';
-    if (vesselsData) {
-      vesselsData.forEach(function (v) {
-        var vid = String(v.vessel_id || '');
-        var label = vid;
-        if (v.type) label += ' (' + v.type + ')';
-        if (v.capacity_liters) label += ' — ' + v.capacity_liters + 'L';
-        var selected = vid === String(b.vessel_id || '') ? ' selected' : '';
-        html += '<option value="' + vid + '"' + selected + '>' + label + '</option>';
-      });
-    }
-    html += '</select>';
+    html += '<div class="admin-kit-search-wrap" style="flex:2;">';
+    html += '<input type="text" id="batch-edit-vessel-search" class="admin-inline-input" value="' + currentVesselLabel + '" placeholder="Search vessels..." autocomplete="off">';
+    html += '<div class="admin-kit-search-dropdown" id="batch-edit-vessel-dropdown" style="display:none;"></div>';
+    html += '<input type="hidden" id="batch-edit-vessel" value="' + (b.vessel_id || '') + '">';
+    html += '</div>';
     html += '<input type="text" id="batch-edit-shelf" value="' + (b.shelf_id || '') + '" placeholder="Shelf" class="admin-inline-input">';
     html += '<input type="text" id="batch-edit-bin" value="' + (b.bin_id || '') + '" placeholder="Bin" class="admin-inline-input">';
     html += '<button type="button" class="btn admin-btn-sm" id="batch-save-location">Save</button>';
@@ -5008,6 +5005,17 @@
       });
     });
 
+    // Vessel search in detail modal
+    var detailVesselInput = document.getElementById('batch-edit-vessel-search');
+    var detailVesselDropdown = document.getElementById('batch-edit-vessel-dropdown');
+    var detailVesselHidden = document.getElementById('batch-edit-vessel');
+    if (detailVesselInput && detailVesselDropdown && detailVesselHidden) {
+      bindVesselSearch(detailVesselInput, detailVesselDropdown, detailVesselHidden, b.vessel_id || '');
+      document.addEventListener('click', function (e) {
+        if (!detailVesselDropdown.contains(e.target) && e.target !== detailVesselInput) detailVesselDropdown.style.display = 'none';
+      });
+    }
+
     // Save location
     var saveLocBtn = document.getElementById('batch-save-location');
     if (saveLocBtn) saveLocBtn.addEventListener('click', function () {
@@ -5021,6 +5029,7 @@
         }
       }).then(function () {
         showToast('Location updated', 'success');
+        vesselsData = null; // refresh vessel cache
         openBatchDetail(batchId);
       }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
     });
@@ -5166,6 +5175,92 @@
       });
   }
 
+  function buildVesselLabel(v) {
+    var vid = String(v.vessel_id || '');
+    var parts = [vid];
+    if (v.type) parts.push(v.type);
+    if (v.capacity_liters) parts.push(v.capacity_liters + 'L');
+    if (v.material) parts.push(v.material);
+    return parts.join(' — ');
+  }
+
+  /**
+   * Bind typeahead search to a vessel input.
+   * @param {HTMLElement} input - Text input for searching
+   * @param {HTMLElement} dropdownEl - Dropdown container
+   * @param {HTMLElement} hiddenEl - Hidden input storing vessel_id
+   * @param {string} currentVesselId - Currently assigned vessel (shown even if in-use)
+   */
+  function bindVesselSearch(input, dropdownEl, hiddenEl, currentVesselId) {
+    var timer;
+
+    // Show all available vessels on focus (if empty)
+    input.addEventListener('focus', function () {
+      if (!input.value.trim()) showVesselOptions('', dropdownEl, hiddenEl, input, currentVesselId);
+    });
+
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        showVesselOptions(input.value.trim().toLowerCase(), dropdownEl, hiddenEl, input, currentVesselId);
+      }, 150);
+    });
+
+    // Allow clearing
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Backspace' && input.value === '') {
+        hiddenEl.value = '';
+      }
+    });
+  }
+
+  function showVesselOptions(term, dropdownEl, hiddenEl, input, currentVesselId) {
+    if (!vesselsData) { dropdownEl.style.display = 'none'; return; }
+
+    var matches = vesselsData.filter(function (v) {
+      var vid = String(v.vessel_id || '');
+      var status = String(v.status || '').toLowerCase();
+      var isAvailable = !status || status === 'available' || status === 'empty';
+      var isCurrent = vid === currentVesselId;
+
+      // Show if available OR if it's the currently assigned vessel
+      if (!isAvailable && !isCurrent) return false;
+
+      if (!term) return true;
+      var searchStr = (vid + ' ' + (v.type || '') + ' ' + (v.capacity_liters || '') + ' ' + (v.material || '') + ' ' + (v.location || '')).toLowerCase();
+      return searchStr.indexOf(term) !== -1;
+    });
+
+    if (matches.length === 0) {
+      dropdownEl.innerHTML = '<div class="admin-kit-search-option" style="color:var(--ink-tertiary);">No available vessels found</div>';
+      dropdownEl.style.display = '';
+      return;
+    }
+
+    var dHtml = '';
+    matches.forEach(function (v) {
+      var vid = String(v.vessel_id || '');
+      var label = buildVesselLabel(v);
+      var loc = v.location ? ' <span class="batch-cust-email-hint">' + v.location + '</span>' : '';
+      var current = vid === currentVesselId ? ' <span class="batch-cust-email-hint">(current)</span>' : '';
+      dHtml += '<div class="admin-kit-search-option" data-vid="' + vid + '">' + label + loc + current + '</div>';
+    });
+
+    dropdownEl.innerHTML = dHtml;
+    dropdownEl.style.display = '';
+
+    dropdownEl.querySelectorAll('.admin-kit-search-option').forEach(function (opt) {
+      opt.addEventListener('click', function () {
+        var vid = opt.getAttribute('data-vid');
+        if (!vid) return;
+        hiddenEl.value = vid;
+        var v = vesselsData.find(function (x) { return String(x.vessel_id) === vid; });
+        input.value = v ? buildVesselLabel(v) : vid;
+        dropdownEl.style.display = 'none';
+      });
+    });
+  }
+
   function buildCreateBatchForm() {
     // Ensure vessels are loaded
     if (!vesselsData) {
@@ -5209,20 +5304,14 @@
     html += '</select></div>';
     html += '<div id="batch-schedule-preview" class="batch-schedule-preview"></div>';
 
-    // Location - vessel dropdown + shelf/bin text
+    // Location - vessel search + shelf/bin text
     html += '<div class="form-group form-group-row">';
-    html += '<div style="flex:2;"><label>Vessel</label><select id="batch-vessel" class="admin-select"><option value="">Select vessel...</option>';
-    if (vesselsData) {
-      vesselsData.forEach(function (v) {
-        var vid = String(v.vessel_id || '');
-        var label = vid;
-        if (v.type) label += ' (' + v.type + ')';
-        if (v.capacity_liters) label += ' — ' + v.capacity_liters + 'L';
-        if (v.status && String(v.status).toLowerCase() !== 'available') label += ' [' + v.status + ']';
-        html += '<option value="' + vid + '">' + label + '</option>';
-      });
-    }
-    html += '</select></div>';
+    html += '<div style="flex:2;"><label>Vessel</label>';
+    html += '<div class="admin-kit-search-wrap" id="batch-vessel-search-wrap">';
+    html += '<input type="text" id="batch-vessel-search" class="admin-kit-search-input" placeholder="Search vessels..." autocomplete="off">';
+    html += '<div class="admin-kit-search-dropdown" id="batch-vessel-dropdown" style="display:none;"></div>';
+    html += '<input type="hidden" id="batch-vessel" value="">';
+    html += '</div></div>';
     html += '<div><label>Shelf</label><input type="text" id="batch-shelf" class="admin-input" placeholder="S-A"></div>';
     html += '<div><label>Bin</label><input type="text" id="batch-bin" class="admin-input" placeholder="B-1"></div>';
     html += '</div>';
@@ -5353,10 +5442,17 @@
       }, 300);
     });
 
+    // Vessel search behavior
+    var vesselInput = document.getElementById('batch-vessel-search');
+    var vesselDropdown = document.getElementById('batch-vessel-dropdown');
+    var vesselHidden = document.getElementById('batch-vessel');
+    bindVesselSearch(vesselInput, vesselDropdown, vesselHidden, '');
+
     // Close dropdowns on outside click
     document.addEventListener('click', function closeDropdowns(e) {
       if (!custDropdown.contains(e.target) && e.target !== custInput) custDropdown.style.display = 'none';
       if (!dropdown.contains(e.target) && e.target !== searchInput) dropdown.style.display = 'none';
+      if (!vesselDropdown.contains(e.target) && e.target !== vesselInput) vesselDropdown.style.display = 'none';
     });
 
     // Schedule preview
@@ -5413,6 +5509,7 @@
         }).then(function (result) {
           showToast('Batch ' + result.batch_id + ' created with ' + result.tasks_created + ' tasks', 'success');
           closeModal();
+          vesselsData = null; // refresh vessel cache on next use
           loadBatchesData();
           loadBatchDashboardSummary();
         }).catch(function (err) {

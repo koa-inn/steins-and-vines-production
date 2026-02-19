@@ -1263,6 +1263,33 @@ function getVessels() {
   return { vessels: vessels };
 }
 
+/**
+ * Update the status column of a vessel in the Vessels sheet.
+ * @param {string} vesselId - The vessel_id to update
+ * @param {string} newStatus - The new status value (e.g., 'in-use', 'available')
+ */
+function setVesselStatus(vesselId, newStatus) {
+  if (!vesselId) return;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Vessels');
+  if (!sheet || sheet.getLastRow() <= 1) return;
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idCol = -1, statusCol = -1;
+  for (var j = 0; j < headers.length; j++) {
+    var h = String(headers[j]).trim().toLowerCase();
+    if (h === 'vessel_id') idCol = j;
+    if (h === 'status') statusCol = j;
+  }
+  if (idCol === -1 || statusCol === -1) return;
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]).trim() === String(vesselId).trim()) {
+      sheet.getRange(i + 1, statusCol + 1).setValue(newStatus);
+      return;
+    }
+  }
+}
+
 // --- POST: Create Batch ---
 
 function createBatch(payload, userEmail) {
@@ -1356,6 +1383,11 @@ function createBatch(payload, userEmail) {
     ]);
   }
 
+  // Mark vessel as in-use
+  if (payload.vessel_id) {
+    setVesselStatus(payload.vessel_id, 'in-use');
+  }
+
   return { ok: true, batch_id: batchId, access_token: accessToken, tasks_created: tasksCreated };
 }
 
@@ -1414,6 +1446,14 @@ function updateBatch(payload, userEmail) {
         userEmail,
         sanitizeInput(updates.transfer_notes || '')
       ]);
+    }
+
+    // Update vessel statuses if vessel changed
+    var oldVessel = String(current.vessel_id || '');
+    var newVessel = String(updates.vessel_id !== undefined ? updates.vessel_id : current.vessel_id || '');
+    if (oldVessel !== newVessel) {
+      if (oldVessel) setVesselStatus(oldVessel, 'available');
+      if (newVessel) setVesselStatus(newVessel, 'in-use');
     }
   }
 
@@ -1604,6 +1644,12 @@ function handlePackagingCompletion(batchId, timestamp) {
   var luCol = result.headers.indexOf('last_updated');
   if (statusCol !== -1) result.sheet.getRange(result.row, statusCol + 1).setValue('complete');
   if (luCol !== -1) result.sheet.getRange(result.row, luCol + 1).setValue(timestamp);
+
+  // Release the vessel back to available
+  var vesselId = String(result.data.vessel_id || '');
+  if (vesselId) {
+    setVesselStatus(vesselId, 'available');
+  }
 }
 
 function handlePackagingUncompletion(batchId, timestamp) {
@@ -1614,6 +1660,12 @@ function handlePackagingUncompletion(batchId, timestamp) {
   // Revert to secondary (the batch was in some state before packaging)
   if (statusCol !== -1) result.sheet.getRange(result.row, statusCol + 1).setValue('secondary');
   if (luCol !== -1) result.sheet.getRange(result.row, luCol + 1).setValue(timestamp);
+
+  // Re-claim the vessel as in-use
+  var vesselId = String(result.data.vessel_id || '');
+  if (vesselId) {
+    setVesselStatus(vesselId, 'in-use');
+  }
 }
 
 // --- POST: Add Plato Reading ---
