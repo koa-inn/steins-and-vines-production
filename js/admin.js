@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-19T20:32:27.825Z';
+  var BUILD_TIMESTAMP = '2026-02-19T20:34:53.867Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -5168,6 +5168,7 @@
 
   // Vessel data cache
   var vesselsData = null;
+  var zohoProductsCache = null;
 
   function loadVesselsData(cb) {
     adminApiGet('get_vessels')
@@ -5354,39 +5355,56 @@
 
     openModal('New Fermentation Batch', html);
 
-    // Product search behavior
+    // Product search behavior — load from Zoho via middleware
     var searchInput = document.getElementById('batch-product-search');
     var dropdown = document.getElementById('batch-product-dropdown');
     var searchTimer;
-    function kitSku(k) { return k.sku || k.SKU || k.Sku || ''; }
-    function kitName(k) { return k.name || k.Name || k.item_name || ''; }
+
+    function renderProductDropdown(matches, term) {
+      if (matches.length === 0) {
+        dropdown.innerHTML = '<div class="admin-kit-search-option" style="color:var(--ink-tertiary);">No products match "' + term + '"</div>';
+        dropdown.style.display = '';
+        return;
+      }
+      var dHtml = '';
+      matches.forEach(function (k) {
+        var sku = k.sku || '';
+        var nm = k.name || '';
+        dHtml += '<div class="admin-kit-search-option" data-sku="' + sku + '" data-name="' + nm + '">' + sku + ' — ' + nm + '</div>';
+      });
+      dropdown.innerHTML = dHtml;
+      dropdown.style.display = '';
+      dropdown.querySelectorAll('.admin-kit-search-option').forEach(function (opt) {
+        opt.addEventListener('mousedown', function (e) {
+          e.preventDefault();
+          document.getElementById('batch-product-sku').value = opt.getAttribute('data-sku');
+          document.getElementById('batch-product-name').value = opt.getAttribute('data-name');
+          searchInput.value = opt.getAttribute('data-sku') + ' — ' + opt.getAttribute('data-name');
+          dropdown.style.display = 'none';
+        });
+      });
+    }
+
+    // Fetch Zoho products once, then filter locally
+    if (!zohoProductsCache && mwUrl) {
+      fetch(mwUrl + '/api/products')
+        .then(function (r) { return r.json(); })
+        .then(function (data) { zohoProductsCache = data.items || []; })
+        .catch(function () { zohoProductsCache = []; });
+    }
 
     searchInput.addEventListener('input', function () {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(function () {
         var term = searchInput.value.toLowerCase();
         if (term.length < 2) { dropdown.style.display = 'none'; return; }
-        var matches = kitsData.filter(function (k) {
-          return (String(kitName(k)) + ' ' + String(kitSku(k))).toLowerCase().indexOf(term) !== -1;
+
+        var products = zohoProductsCache || [];
+        var matches = products.filter(function (k) {
+          return ((k.name || '') + ' ' + (k.sku || '')).toLowerCase().indexOf(term) !== -1;
         }).slice(0, 10);
-        if (matches.length === 0) { dropdown.style.display = 'none'; return; }
-        var dHtml = '';
-        matches.forEach(function (k) {
-          var sku = kitSku(k);
-          var nm = kitName(k);
-          dHtml += '<div class="admin-kit-search-option" data-sku="' + sku + '" data-name="' + nm + '">' + sku + ' — ' + nm + '</div>';
-        });
-        dropdown.innerHTML = dHtml;
-        dropdown.style.display = '';
-        dropdown.querySelectorAll('.admin-kit-search-option').forEach(function (opt) {
-          opt.addEventListener('mousedown', function (e) {
-            e.preventDefault();
-            document.getElementById('batch-product-sku').value = opt.getAttribute('data-sku');
-            document.getElementById('batch-product-name').value = opt.getAttribute('data-name');
-            searchInput.value = opt.getAttribute('data-sku') + ' — ' + opt.getAttribute('data-name');
-            dropdown.style.display = 'none';
-          });
-        });
+
+        renderProductDropdown(matches, term);
       }, 200);
     });
 
