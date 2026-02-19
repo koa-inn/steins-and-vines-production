@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Batch Tracker | Steins &amp; Vines</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="favicon.ico">
+  <link rel="stylesheet" href="css/styles.min.css">
+  <link rel="stylesheet" href="css/batch.min.css">
+</head>
+<body data-page="batch">
+  <header class="batch-header">
+    <a href="index.html">
+      <img src="images/SV_Logo_Wordmark_green.svg" alt="Steins &amp; Vines" class="batch-logo">
+    </a>
+  </header>
+
+  <main class="batch-main">
+    <div id="batch-loading" class="batch-loading">
+      <p>Loading batch details...</p>
+    </div>
+
+    <div id="batch-error" class="batch-error" style="display:none;">
+      <h2>Batch Not Found</h2>
+      <p>This batch link may be invalid or expired.</p>
+    </div>
+
+    <div id="batch-content" style="display:none;">
+      <div class="batch-card batch-hero">
+        <div id="batch-status-badge" class="batch-hero-status"></div>
+        <h1 id="batch-title"></h1>
+        <div class="batch-hero-meta">
+          <span id="batch-product"></span>
+          <span id="batch-customer"></span>
+          <span id="batch-start-date"></span>
+        </div>
+        <div class="batch-hero-location">
+          <span>Vessel: <strong id="batch-vessel"></strong></span>
+          <span>Shelf: <strong id="batch-shelf"></strong></span>
+          <span>Bin: <strong id="batch-bin"></strong></span>
+        </div>
+      </div>
+
+      <div class="batch-card">
+        <h2>Schedule &amp; Tasks</h2>
+        <div id="batch-tasks-list" class="batch-tasks-list"></div>
+      </div>
+
+      <div class="batch-card">
+        <h2>Plato Readings</h2>
+        <div id="batch-plato-chart" class="batch-plato-chart"></div>
+        <div id="batch-plato-list" class="batch-plato-list"></div>
+        <div class="batch-plato-add">
+          <h3>Add Reading</h3>
+          <div class="batch-plato-form">
+            <input type="number" id="plato-value" step="0.1" min="0" max="40" placeholder="Degrees Plato" class="batch-input">
+            <input type="text" id="plato-notes" placeholder="Notes (optional)" class="batch-input">
+            <button type="button" class="btn" id="plato-add-btn">Record</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="batch-card" id="batch-notes-card" style="display:none;">
+        <h2>Notes</h2>
+        <p id="batch-notes" class="batch-notes-text"></p>
+      </div>
+
+      <div class="batch-card" id="batch-history-card" style="display:none;">
+        <h2>Location History</h2>
+        <div id="batch-vessel-history" class="batch-vessel-history"></div>
+      </div>
+    </div>
+  </main>
+
+  <div id="batch-toast-container" class="batch-toast-container"></div>
+
+  <script src="js/sheets-config.js" defer></script>
+  <script src="js/batch.min.js" defer></script>
+</body>
+</html>

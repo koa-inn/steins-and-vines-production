@@ -92,6 +92,14 @@
               </div>
             </div>
 
+            <!-- Batch tracker pipeline strip -->
+            <div class="pipeline-strip">
+              <div class="pipeline-strip-label">Batch Tracker</div>
+              <div class="pipeline-stages" id="batch-pipeline-stages">
+                <div class="pipeline-skeleton"></div>
+              </div>
+            </div>
+
             <!-- Attention items -->
             <div class="attention-list" id="attention-list"></div>
 
@@ -115,6 +123,7 @@
             <button type="button" class="admin-tab-btn" data-tab="ingredients">Ingredients</button>
             <button type="button" class="admin-tab-btn" data-tab="orders">Supplier Orders</button>
             <button type="button" class="admin-tab-btn" data-tab="scheduling">Scheduling</button>
+            <button type="button" class="admin-tab-btn" data-tab="batches">Batches</button>
             <button type="button" class="admin-tab-btn" data-tab="kiosk-orders">Kiosk Orders</button>
             <span class="admin-tab-divider"></span>
             <button type="button" class="admin-tab-btn" data-tab="homepage">Homepage</button>
@@ -328,6 +337,92 @@
             </div>
           </div>
 
+          <!-- Tab: Batches -->
+          <div class="admin-tab-panel" id="tab-batches">
+            <div class="batch-sub-tabs">
+              <button type="button" class="batch-sub-tab active" data-batch-view="list">Batch List</button>
+              <button type="button" class="batch-sub-tab" data-batch-view="calendar">Calendar</button>
+              <button type="button" class="batch-sub-tab" data-batch-view="upcoming">Upcoming Tasks</button>
+              <button type="button" class="batch-sub-tab" data-batch-view="schedules">Schedule Templates</button>
+            </div>
+
+            <!-- Sub-view: Batch List -->
+            <div class="batch-view active" id="batch-view-list">
+              <div class="admin-panel-header">
+                <h2>Fermentation Batches</h2>
+                <div class="admin-panel-actions">
+                  <input type="text" id="batch-search" class="admin-kit-search-input" placeholder="Search batches...">
+                  <div class="admin-filter-row">
+                    <label for="batch-status-filter">Status</label>
+                    <select id="batch-status-filter" class="admin-select">
+                      <option value="active" selected>Active</option>
+                      <option value="primary">Primary</option>
+                      <option value="secondary">Secondary</option>
+                      <option value="complete">Complete</option>
+                      <option value="disabled">Disabled</option>
+                      <option value="all">All</option>
+                    </select>
+                  </div>
+                  <button type="button" class="btn" id="create-batch-btn">New Batch</button>
+                </div>
+              </div>
+              <div class="admin-table-wrap">
+                <table class="admin-table" id="batches-table">
+                  <thead>
+                    <tr>
+                      <th>Batch ID</th>
+                      <th>Product</th>
+                      <th>Customer</th>
+                      <th>Status</th>
+                      <th>Start Date</th>
+                      <th>Location</th>
+                      <th>Progress</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="batches-tbody"></tbody>
+                </table>
+              </div>
+              <p class="admin-empty" id="batches-empty" style="display:none;">No batches found.</p>
+            </div>
+
+            <!-- Sub-view: Calendar -->
+            <div class="batch-view" id="batch-view-calendar">
+              <div class="admin-panel-header">
+                <h2>Task Calendar</h2>
+                <div class="admin-panel-actions">
+                  <button type="button" class="btn-secondary" id="cal-prev-month">&larr; Prev</button>
+                  <span id="cal-month-label" class="cal-month-label"></span>
+                  <button type="button" class="btn-secondary" id="cal-next-month">Next &rarr;</button>
+                </div>
+              </div>
+              <div id="batch-calendar-grid" class="batch-calendar-grid"></div>
+              <div id="batch-calendar-day-detail" class="batch-calendar-day-detail"></div>
+            </div>
+
+            <!-- Sub-view: Upcoming Tasks -->
+            <div class="batch-view" id="batch-view-upcoming">
+              <div class="admin-panel-header">
+                <h2>Upcoming Tasks</h2>
+                <button type="button" class="btn-secondary" id="upcoming-refresh">Refresh</button>
+              </div>
+              <div id="upcoming-tasks-list" class="upcoming-tasks-list"></div>
+              <p class="admin-empty" id="upcoming-empty" style="display:none;">No upcoming tasks.</p>
+            </div>
+
+            <!-- Sub-view: Schedule Templates -->
+            <div class="batch-view" id="batch-view-schedules">
+              <div class="admin-panel-header">
+                <h2>Fermentation Schedule Templates</h2>
+                <div class="admin-panel-actions">
+                  <button type="button" class="btn" id="create-schedule-btn">New Template</button>
+                </div>
+              </div>
+              <div id="schedules-list" class="schedules-list"></div>
+              <p class="admin-empty" id="schedules-empty" style="display:none;">No schedule templates. Create one to get started.</p>
+            </div>
+          </div>
+
           <!-- Tab: Kiosk Orders -->
           <div class="admin-tab-panel" id="tab-kiosk-orders">
             <div class="admin-panel-header">
@@ -494,6 +589,7 @@
 
   <script src="js/sheets-config.js" defer></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="js/vendor/qrcode.min.js" defer></script>
   <script src="js/admin.min.js" defer></script>
 </body>
 </html>

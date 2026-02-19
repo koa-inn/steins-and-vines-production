@@ -56,6 +56,11 @@ var SHEETS_CONFIG = {
     SCHEDULE: 'Schedule',
     CONFIG: 'Config',
     SERVICES: 'Services',
-    HOMEPAGE: 'Homepage'
+    HOMEPAGE: 'Homepage',
+    BATCHES: 'Batches',
+    FERM_SCHEDULES: 'FermSchedules',
+    BATCH_TASKS: 'BatchTasks',
+    PLATO_READINGS: 'PlatoReadings',
+    VESSEL_HISTORY: 'VesselHistory'
   }
 };

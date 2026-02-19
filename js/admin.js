@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-18T16:01:06.732Z';
+  var BUILD_TIMESTAMP = '2026-02-19T05:14:11.083Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -4720,5 +4720,1150 @@
     _origShowDashboard();
     initKioskOrders();
   };
+
+  // ===== BATCH TRACKING =====
+
+  var batchesData = [];
+  var fermSchedulesData = [];
+  var batchDashboardSummary = null;
+  var calendarYear, calendarMonth;
+
+  var BATCH_STATUSES = {
+    primary: { label: 'Primary', color: 'blue' },
+    secondary: { label: 'Secondary', color: 'amber' },
+    complete: { label: 'Complete', color: 'green' },
+    disabled: { label: 'Disabled', color: 'gray' }
+  };
+
+  // --- Sub-tab navigation ---
+
+  function initBatchSubTabs() {
+    var btns = document.querySelectorAll('.batch-sub-tab');
+    btns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        btns.forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        var views = document.querySelectorAll('.batch-view');
+        views.forEach(function (v) { v.classList.remove('active'); });
+        var target = document.getElementById('batch-view-' + btn.getAttribute('data-batch-view'));
+        if (target) target.classList.add('active');
+
+        // Lazy load calendar/upcoming on first visit
+        var view = btn.getAttribute('data-batch-view');
+        if (view === 'calendar') renderBatchCalendar(calendarYear, calendarMonth);
+        if (view === 'upcoming') loadUpcomingTasks();
+        if (view === 'schedules') loadScheduleTemplates();
+      });
+    });
+  }
+
+  // --- Data Loading ---
+
+  function loadBatchesData(callback) {
+    adminApiGet('get_batches', { status: document.getElementById('batch-status-filter') ? document.getElementById('batch-status-filter').value : 'active' })
+      .then(function (result) {
+        batchesData = (result.data && result.data.batches) || [];
+        renderBatchList();
+        if (callback) callback();
+      })
+      .catch(function (err) {
+        showToast('Failed to load batches: ' + err.message, 'error');
+      });
+  }
+
+  function loadScheduleTemplates(callback) {
+    adminApiGet('get_ferm_schedules')
+      .then(function (result) {
+        fermSchedulesData = (result.data && result.data.schedules) || [];
+        renderScheduleTemplates();
+        if (callback) callback();
+      })
+      .catch(function (err) {
+        showToast('Failed to load schedules: ' + err.message, 'error');
+      });
+  }
+
+  function loadBatchDashboardSummary() {
+    adminApiGet('get_batch_dashboard_summary')
+      .then(function (result) {
+        batchDashboardSummary = result.data || null;
+        renderBatchPipeline();
+        addBatchAttentionItems(batchDashboardSummary);
+      })
+      .catch(function () {});
+  }
+
+  // --- Batch List ---
+
+  function renderBatchList() {
+    var tbody = document.getElementById('batches-tbody');
+    var emptyMsg = document.getElementById('batches-empty');
+    if (!tbody) return;
+
+    var search = (document.getElementById('batch-search') ? document.getElementById('batch-search').value : '').toLowerCase();
+    var filtered = batchesData;
+    if (search) {
+      filtered = filtered.filter(function (b) {
+        return (String(b.batch_id) + ' ' + String(b.product_name) + ' ' + String(b.customer_name) + ' ' + String(b.vessel_id)).toLowerCase().indexOf(search) !== -1;
+      });
+    }
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '';
+      if (emptyMsg) emptyMsg.style.display = '';
+      return;
+    }
+    if (emptyMsg) emptyMsg.style.display = 'none';
+
+    var html = '';
+    filtered.forEach(function (b) {
+      var statusInfo = BATCH_STATUSES[String(b.status).toLowerCase()] || { label: b.status, color: 'gray' };
+      var location = [b.vessel_id, b.shelf_id, b.bin_id].filter(Boolean).join(' / ') || '—';
+      var total = b.tasks_total || 0;
+      var done = b.tasks_done || 0;
+      var pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      var startDate = b.start_date || '—';
+
+      html += '<tr data-batch-id="' + b.batch_id + '">';
+      html += '<td class="batch-id-cell">' + b.batch_id + '</td>';
+      html += '<td>' + (b.product_name || b.product_sku || '—') + '</td>';
+      html += '<td>' + (b.customer_name || '—') + '</td>';
+      html += '<td><span class="batch-status batch-status--' + statusInfo.color + '">' + statusInfo.label + '</span></td>';
+      html += '<td>' + startDate + '</td>';
+      html += '<td>' + location + '</td>';
+      html += '<td><div class="batch-progress"><div class="batch-progress-bar" style="width:' + pct + '%"></div></div><span class="batch-progress-text">' + done + '/' + total + '</span></td>';
+      html += '<td><button type="button" class="btn-secondary admin-btn-sm batch-qr-btn" data-batch-id="' + b.batch_id + '" data-token="' + (b.access_token || '') + '">QR</button></td>';
+      html += '</tr>';
+    });
+
+    tbody.innerHTML = html;
+
+    // Click row to open detail
+    tbody.querySelectorAll('tr').forEach(function (tr) {
+      tr.addEventListener('click', function (e) {
+        if (e.target.classList.contains('batch-qr-btn')) return;
+        openBatchDetail(tr.getAttribute('data-batch-id'));
+      });
+    });
+
+    // QR buttons
+    tbody.querySelectorAll('.batch-qr-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var bid = btn.getAttribute('data-batch-id');
+        var token = btn.getAttribute('data-token');
+        var batch = batchesData.find(function (b) { return b.batch_id === bid; });
+        showBatchQRModal(bid, token, batch || {});
+      });
+    });
+  }
+
+  // --- Batch Detail Modal ---
+
+  function openBatchDetail(batchId) {
+    openModal('Loading...', '<p>Loading batch details...</p>');
+    adminApiGet('get_batch', { batch_id: batchId })
+      .then(function (result) {
+        renderBatchDetailModal(result.data);
+      })
+      .catch(function (err) {
+        openModal('Error', '<p>Failed to load batch: ' + err.message + '</p>');
+      });
+  }
+
+  function renderBatchDetailModal(data) {
+    var b = data.batch;
+    var tasks = data.tasks || [];
+    var readings = data.plato_readings || [];
+    var history = data.vessel_history || [];
+    var statusInfo = BATCH_STATUSES[String(b.status).toLowerCase()] || { label: b.status, color: 'gray' };
+
+    var html = '<div class="batch-detail">';
+
+    // Header
+    html += '<div class="batch-detail-header">';
+    html += '<span class="batch-status batch-status--' + statusInfo.color + '">' + statusInfo.label + '</span>';
+    html += '<span class="batch-detail-id">' + b.batch_id + '</span>';
+    html += '</div>';
+
+    // Info grid
+    html += '<div class="batch-detail-grid">';
+    html += '<div class="batch-detail-col"><strong>Product:</strong> ' + (b.product_name || b.product_sku) + '</div>';
+    html += '<div class="batch-detail-col"><strong>Customer:</strong> ' + (b.customer_name || '—') + '</div>';
+    html += '<div class="batch-detail-col"><strong>Start Date:</strong> ' + (b.start_date || '—') + '</div>';
+    html += '<div class="batch-detail-col"><strong>Vessel:</strong> ' + (b.vessel_id || '—') + ' &nbsp;<strong>Shelf:</strong> ' + (b.shelf_id || '—') + ' &nbsp;<strong>Bin:</strong> ' + (b.bin_id || '—') + '</div>';
+    html += '</div>';
+
+    // Location edit
+    html += '<details class="batch-detail-section"><summary>Edit Location</summary>';
+    html += '<div class="batch-detail-location-edit">';
+    html += '<input type="text" id="batch-edit-vessel" value="' + (b.vessel_id || '') + '" placeholder="Vessel" class="admin-inline-input">';
+    html += '<input type="text" id="batch-edit-shelf" value="' + (b.shelf_id || '') + '" placeholder="Shelf" class="admin-inline-input">';
+    html += '<input type="text" id="batch-edit-bin" value="' + (b.bin_id || '') + '" placeholder="Bin" class="admin-inline-input">';
+    html += '<button type="button" class="btn admin-btn-sm" id="batch-save-location">Save</button>';
+    html += '</div></details>';
+
+    // Tasks
+    html += '<h4>Tasks</h4>';
+    html += '<div class="batch-detail-tasks">';
+    tasks.forEach(function (t) {
+      var done = String(t.completed).toUpperCase() === 'TRUE';
+      var isPkg = String(t.is_packaging).toUpperCase() === 'TRUE';
+      var dueLabel = t.due_date || (isPkg ? 'TBD' : '—');
+      var overdue = !done && t.due_date && t.due_date < new Date().toISOString().substring(0, 10);
+      var cls = 'batch-task-row';
+      if (done) cls += ' batch-task-row--done';
+      if (overdue) cls += ' batch-task-row--overdue';
+
+      html += '<div class="' + cls + '">';
+      html += '<label class="batch-task-check"><input type="checkbox" ' + (done ? 'checked' : '') + ' data-task-id="' + t.task_id + '" data-batch-id="' + b.batch_id + '"> ';
+      html += '<span class="batch-task-title">' + (t.title || 'Step ' + t.step_number) + '</span></label>';
+      html += '<span class="batch-task-due">' + dueLabel + '</span>';
+      if (done && t.completed_at) html += '<span class="batch-task-meta">Done ' + t.completed_at.substring(0, 10) + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+
+    // Plato Readings
+    html += '<h4>Plato Readings</h4>';
+    if (readings.length > 0) {
+      html += renderPlatoChart(readings, b.start_date);
+      html += '<table class="admin-table batch-plato-table"><thead><tr><th>Date</th><th>&deg;P</th><th>Notes</th></tr></thead><tbody>';
+      readings.slice().reverse().forEach(function (r) {
+        html += '<tr><td>' + (r.timestamp || '').substring(0, 10) + '</td><td>' + r.degrees_plato + '</td><td>' + (r.notes || '') + '</td></tr>';
+      });
+      html += '</tbody></table>';
+    } else {
+      html += '<p class="admin-order-info">No readings recorded yet.</p>';
+    }
+    html += '<div class="batch-plato-add">';
+    html += '<input type="number" id="plato-value" step="0.1" min="0" max="40" placeholder="&deg;P" class="admin-inline-input" style="width:80px;">';
+    html += '<input type="text" id="plato-notes" placeholder="Notes" class="admin-inline-input">';
+    html += '<button type="button" class="btn admin-btn-sm" id="plato-add-btn">Record</button>';
+    html += '</div>';
+
+    // Notes
+    html += '<h4>Notes</h4>';
+    html += '<textarea id="batch-notes-edit" class="admin-input" rows="3">' + (b.notes || '') + '</textarea>';
+    html += '<button type="button" class="btn admin-btn-sm" id="batch-save-notes" style="margin-top:4px;">Save Notes</button>';
+
+    // Vessel History
+    if (history.length > 0) {
+      html += '<h4>Location History</h4>';
+      html += '<div class="batch-vessel-history">';
+      history.forEach(function (h) {
+        html += '<div class="batch-vh-entry">';
+        html += '<strong>' + (h.transferred_at || '').substring(0, 10) + '</strong> ';
+        html += 'V:' + (h.vessel_id || '?') + ' S:' + (h.shelf_id || '?') + ' B:' + (h.bin_id || '?');
+        if (h.notes) html += ' — ' + h.notes;
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    // Actions
+    html += '<div class="batch-detail-actions">';
+    html += '<select id="batch-status-change" class="admin-select"><option value="">Change Status...</option>';
+    ['primary', 'secondary', 'complete', 'disabled'].forEach(function (s) {
+      html += '<option value="' + s + '"' + (s === String(b.status).toLowerCase() ? ' selected disabled' : '') + '>' + (BATCH_STATUSES[s] || {}).label + '</option>';
+    });
+    html += '</select>';
+    html += '<button type="button" class="btn-secondary admin-btn-sm" id="batch-view-url">Open Batch URL</button>';
+    html += '<button type="button" class="btn-secondary admin-btn-sm" id="batch-print-qr">Print QR</button>';
+    html += '<button type="button" class="btn-secondary admin-btn-sm" id="batch-regen-token">Regenerate URL</button>';
+    html += '</div>';
+
+    html += '</div>';
+
+    openModal('Batch ' + b.batch_id, html);
+
+    // Bind events
+    var batchId = b.batch_id;
+    var batchVersion = b.last_updated;
+    var batchToken = b.access_token;
+
+    // Task checkboxes
+    document.querySelectorAll('.batch-task-check input[type="checkbox"]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var taskId = cb.getAttribute('data-task-id');
+        adminApiPost('update_batch_task', { task_id: taskId, updates: { completed: cb.checked } })
+          .then(function () {
+            showToast('Task ' + (cb.checked ? 'completed' : 'unchecked'), 'success');
+            // Reload detail
+            openBatchDetail(batchId);
+          })
+          .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+      });
+    });
+
+    // Save location
+    var saveLocBtn = document.getElementById('batch-save-location');
+    if (saveLocBtn) saveLocBtn.addEventListener('click', function () {
+      adminApiPost('update_batch', {
+        batch_id: batchId,
+        expectedVersion: batchVersion,
+        updates: {
+          vessel_id: document.getElementById('batch-edit-vessel').value,
+          shelf_id: document.getElementById('batch-edit-shelf').value,
+          bin_id: document.getElementById('batch-edit-bin').value
+        }
+      }).then(function () {
+        showToast('Location updated', 'success');
+        openBatchDetail(batchId);
+      }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+    });
+
+    // Add plato reading
+    var platoBtn = document.getElementById('plato-add-btn');
+    if (platoBtn) platoBtn.addEventListener('click', function () {
+      var val = parseFloat(document.getElementById('plato-value').value);
+      if (isNaN(val)) { showToast('Enter a valid Plato value', 'error'); return; }
+      adminApiPost('add_plato_reading', {
+        batch_id: batchId,
+        degrees_plato: val,
+        notes: document.getElementById('plato-notes').value
+      }).then(function () {
+        showToast('Reading recorded', 'success');
+        openBatchDetail(batchId);
+      }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+    });
+
+    // Save notes
+    var notesBtn = document.getElementById('batch-save-notes');
+    if (notesBtn) notesBtn.addEventListener('click', function () {
+      adminApiPost('update_batch', {
+        batch_id: batchId,
+        expectedVersion: batchVersion,
+        updates: { notes: document.getElementById('batch-notes-edit').value }
+      }).then(function () {
+        showToast('Notes saved', 'success');
+      }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+    });
+
+    // Status change
+    var statusSelect = document.getElementById('batch-status-change');
+    if (statusSelect) statusSelect.addEventListener('change', function () {
+      var newStatus = statusSelect.value;
+      if (!newStatus) return;
+      adminApiPost('update_batch', {
+        batch_id: batchId,
+        expectedVersion: batchVersion,
+        updates: { status: newStatus }
+      }).then(function () {
+        showToast('Status changed to ' + newStatus, 'success');
+        openBatchDetail(batchId);
+        loadBatchesData();
+      }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+    });
+
+    // Batch URL button
+    var viewUrlBtn = document.getElementById('batch-view-url');
+    if (viewUrlBtn) viewUrlBtn.addEventListener('click', function () {
+      var url = window.location.origin + '/batch.html?id=' + encodeURIComponent(batchId) + '&token=' + encodeURIComponent(batchToken);
+      window.open(url, '_blank');
+    });
+
+    // Print QR
+    var printQrBtn = document.getElementById('batch-print-qr');
+    if (printQrBtn) printQrBtn.addEventListener('click', function () {
+      printBatchQR(batchId, batchToken, b);
+    });
+
+    // Regenerate token
+    var regenBtn = document.getElementById('batch-regen-token');
+    if (regenBtn) regenBtn.addEventListener('click', function () {
+      showConfirm('Regenerate batch URL? This will invalidate the current QR code.', function () {
+        adminApiPost('regenerate_batch_token', { batch_id: batchId })
+          .then(function (result) {
+            showToast('Batch URL regenerated. Print a new QR code.', 'success');
+            openBatchDetail(batchId);
+          })
+          .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+      });
+    });
+  }
+
+  // --- Plato Chart (SVG) ---
+
+  function renderPlatoChart(readings, startDate) {
+    if (!readings || readings.length < 2) return '';
+    var W = 400;
+    var H = 150;
+    var PAD = 30;
+
+    var start = startDate ? new Date(startDate) : new Date(readings[0].timestamp);
+    var points = readings.map(function (r) {
+      var d = new Date(r.timestamp);
+      var day = Math.round((d - start) / (1000 * 60 * 60 * 24));
+      return { day: day, plato: Number(r.degrees_plato) };
+    });
+
+    var maxDay = Math.max.apply(null, points.map(function (p) { return p.day; })) || 1;
+    var maxPlato = Math.max.apply(null, points.map(function (p) { return p.plato; })) || 1;
+    var minPlato = Math.min.apply(null, points.map(function (p) { return p.plato; }));
+    var range = maxPlato - minPlato || 1;
+
+    var polyPoints = points.map(function (p) {
+      var x = PAD + ((p.day / maxDay) * (W - PAD * 2));
+      var y = H - PAD - (((p.plato - minPlato) / range) * (H - PAD * 2));
+      return x + ',' + y;
+    }).join(' ');
+
+    var dotsSvg = points.map(function (p) {
+      var x = PAD + ((p.day / maxDay) * (W - PAD * 2));
+      var y = H - PAD - (((p.plato - minPlato) / range) * (H - PAD * 2));
+      return '<circle cx="' + x + '" cy="' + y + '" r="3" fill="#5b7f3b"/>';
+    }).join('');
+
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="batch-plato-svg">';
+    svg += '<line x1="' + PAD + '" y1="' + (H - PAD) + '" x2="' + (W - PAD) + '" y2="' + (H - PAD) + '" stroke="#ccc" stroke-width="1"/>';
+    svg += '<line x1="' + PAD + '" y1="' + PAD + '" x2="' + PAD + '" y2="' + (H - PAD) + '" stroke="#ccc" stroke-width="1"/>';
+    svg += '<text x="' + PAD + '" y="' + (H - 5) + '" font-size="10" fill="#999">Day 0</text>';
+    svg += '<text x="' + (W - PAD) + '" y="' + (H - 5) + '" font-size="10" fill="#999" text-anchor="end">Day ' + maxDay + '</text>';
+    svg += '<text x="5" y="' + (PAD + 4) + '" font-size="10" fill="#999">' + maxPlato.toFixed(1) + '</text>';
+    svg += '<text x="5" y="' + (H - PAD) + '" font-size="10" fill="#999">' + minPlato.toFixed(1) + '</text>';
+    svg += '<polyline points="' + polyPoints + '" fill="none" stroke="#5b7f3b" stroke-width="2"/>';
+    svg += dotsSvg;
+    svg += '</svg>';
+    return svg;
+  }
+
+  // --- Create Batch Modal ---
+
+  function openCreateBatchModal() {
+    // Ensure schedules are loaded
+    if (fermSchedulesData.length === 0) {
+      loadScheduleTemplates(function () { buildCreateBatchForm(); });
+    } else {
+      buildCreateBatchForm();
+    }
+  }
+
+  function buildCreateBatchForm() {
+    var html = '<div class="batch-create-form">';
+
+    // Product search
+    html += '<div class="form-group"><label>Product</label>';
+    html += '<div class="admin-kit-search-wrap" id="batch-product-search-wrap">';
+    html += '<input type="text" id="batch-product-search" class="admin-kit-search-input" placeholder="Search by name or SKU..." autocomplete="off">';
+    html += '<div class="admin-kit-search-dropdown" id="batch-product-dropdown" style="display:none;"></div>';
+    html += '<input type="hidden" id="batch-product-sku" value="">';
+    html += '<input type="hidden" id="batch-product-name" value="">';
+    html += '</div></div>';
+
+    // Customer
+    html += '<div class="form-group"><label>Customer Name</label><input type="text" id="batch-customer-name" class="admin-input" placeholder="Customer name"></div>';
+    html += '<div class="form-group"><label>Customer Email (optional)</label><input type="email" id="batch-customer-email" class="admin-input" placeholder="Email"></div>';
+
+    // Start date
+    html += '<div class="form-group"><label>Start Date</label><input type="date" id="batch-start-date" class="admin-input" value="' + new Date().toISOString().substring(0, 10) + '"></div>';
+
+    // Schedule template
+    html += '<div class="form-group"><label>Fermentation Schedule</label><select id="batch-schedule-select" class="admin-select"><option value="">Select a template...</option>';
+    fermSchedulesData.forEach(function (s) {
+      html += '<option value="' + s.schedule_id + '">' + s.name + (s.category ? ' (' + s.category + ')' : '') + '</option>';
+    });
+    html += '</select></div>';
+    html += '<div id="batch-schedule-preview" class="batch-schedule-preview"></div>';
+
+    // Location
+    html += '<div class="form-group form-group-row">';
+    html += '<div><label>Vessel</label><input type="text" id="batch-vessel" class="admin-input" placeholder="V-01"></div>';
+    html += '<div><label>Shelf</label><input type="text" id="batch-shelf" class="admin-input" placeholder="S-A"></div>';
+    html += '<div><label>Bin</label><input type="text" id="batch-bin" class="admin-input" placeholder="B-1"></div>';
+    html += '</div>';
+
+    // Notes
+    html += '<div class="form-group"><label>Notes</label><textarea id="batch-create-notes" class="admin-input" rows="2"></textarea></div>';
+
+    html += '<button type="button" class="btn" id="batch-submit-create">Create Batch</button>';
+    html += '</div>';
+
+    openModal('New Fermentation Batch', html);
+
+    // Product search behavior
+    var searchInput = document.getElementById('batch-product-search');
+    var dropdown = document.getElementById('batch-product-dropdown');
+    var searchTimer;
+    searchInput.addEventListener('input', function () {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(function () {
+        var term = searchInput.value.toLowerCase();
+        if (term.length < 2) { dropdown.style.display = 'none'; return; }
+        var matches = kitsData.filter(function (k) {
+          return (String(k.name || '') + ' ' + String(k.sku || '')).toLowerCase().indexOf(term) !== -1;
+        }).slice(0, 10);
+        if (matches.length === 0) { dropdown.style.display = 'none'; return; }
+        var dHtml = '';
+        matches.forEach(function (k) {
+          dHtml += '<div class="admin-kit-search-option" data-sku="' + (k.sku || '') + '" data-name="' + (k.name || '') + '">' + (k.sku || '') + ' — ' + (k.name || '') + '</div>';
+        });
+        dropdown.innerHTML = dHtml;
+        dropdown.style.display = '';
+        dropdown.querySelectorAll('.admin-kit-search-option').forEach(function (opt) {
+          opt.addEventListener('click', function () {
+            document.getElementById('batch-product-sku').value = opt.getAttribute('data-sku');
+            document.getElementById('batch-product-name').value = opt.getAttribute('data-name');
+            searchInput.value = opt.getAttribute('data-sku') + ' — ' + opt.getAttribute('data-name');
+            dropdown.style.display = 'none';
+          });
+        });
+      }, 200);
+    });
+
+    // Schedule preview
+    document.getElementById('batch-schedule-select').addEventListener('change', function () {
+      var schedId = this.value;
+      var preview = document.getElementById('batch-schedule-preview');
+      var sched = fermSchedulesData.find(function (s) { return s.schedule_id === schedId; });
+      if (!sched) { preview.innerHTML = ''; return; }
+      var steps = sched.steps_parsed || [];
+      if (!steps.length && sched.steps) {
+        try { steps = JSON.parse(sched.steps); } catch (e) {}
+      }
+      var pHtml = '<div class="schedule-preview-steps">';
+      steps.forEach(function (s) {
+        var dayLabel = s.is_packaging ? 'TBD' : ('Day ' + s.day_offset);
+        pHtml += '<div class="schedule-preview-step"><strong>' + dayLabel + ':</strong> ' + s.title + (s.description ? ' — ' + s.description : '') + '</div>';
+      });
+      pHtml += '</div>';
+      preview.innerHTML = pHtml;
+    });
+
+    // Submit
+    document.getElementById('batch-submit-create').addEventListener('click', function () {
+      var sku = document.getElementById('batch-product-sku').value;
+      var name = document.getElementById('batch-product-name').value;
+      var customer = document.getElementById('batch-customer-name').value;
+      var schedId = document.getElementById('batch-schedule-select').value;
+      var startDate = document.getElementById('batch-start-date').value;
+
+      if (!sku) { showToast('Select a product', 'error'); return; }
+      if (!customer) { showToast('Enter customer name', 'error'); return; }
+      if (!schedId) { showToast('Select a schedule', 'error'); return; }
+      if (!startDate) { showToast('Enter a start date', 'error'); return; }
+
+      adminApiPost('create_batch', {
+        product_sku: sku,
+        product_name: name,
+        customer_name: customer,
+        customer_email: document.getElementById('batch-customer-email').value,
+        start_date: startDate,
+        schedule_id: schedId,
+        vessel_id: document.getElementById('batch-vessel').value,
+        shelf_id: document.getElementById('batch-shelf').value,
+        bin_id: document.getElementById('batch-bin').value,
+        notes: document.getElementById('batch-create-notes').value
+      }).then(function (result) {
+        showToast('Batch ' + result.batch_id + ' created with ' + result.tasks_created + ' tasks', 'success');
+        closeModal();
+        loadBatchesData();
+        loadBatchDashboardSummary();
+      }).catch(function (err) {
+        showToast('Failed: ' + err.message, 'error');
+      });
+    });
+  }
+
+  // --- Schedule Templates ---
+
+  function renderScheduleTemplates() {
+    var container = document.getElementById('schedules-list');
+    var emptyMsg = document.getElementById('schedules-empty');
+    if (!container) return;
+
+    if (fermSchedulesData.length === 0) {
+      container.innerHTML = '';
+      if (emptyMsg) emptyMsg.style.display = '';
+      return;
+    }
+    if (emptyMsg) emptyMsg.style.display = 'none';
+
+    var html = '';
+    fermSchedulesData.forEach(function (s) {
+      var steps = s.steps_parsed || [];
+      if (!steps.length && s.steps) {
+        try { steps = JSON.parse(s.steps); } catch (e) {}
+      }
+
+      html += '<div class="schedule-card">';
+      html += '<div class="schedule-card-header">';
+      html += '<strong>' + (s.name || 'Untitled') + '</strong>';
+      html += '<span class="schedule-card-actions">';
+      html += '<button type="button" class="btn-secondary admin-btn-sm sched-edit-btn" data-sched-id="' + s.schedule_id + '">Edit</button>';
+      html += '<button type="button" class="btn-secondary admin-btn-sm admin-btn-danger sched-delete-btn" data-sched-id="' + s.schedule_id + '">Delete</button>';
+      html += '</span>';
+      html += '</div>';
+      if (s.category) html += '<div class="schedule-card-meta">Category: ' + s.category + '</div>';
+      html += '<div class="schedule-card-meta">' + steps.length + ' steps</div>';
+      html += '<div class="schedule-card-steps">';
+      steps.forEach(function (st) {
+        var dayLabel = st.is_packaging ? 'TBD' : ('Day ' + st.day_offset);
+        html += '<div class="schedule-step-line"><span class="schedule-step-day">' + dayLabel + '</span> ' + st.title + '</div>';
+      });
+      html += '</div></div>';
+    });
+
+    container.innerHTML = html;
+
+    container.querySelectorAll('.sched-edit-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        openEditScheduleModal(btn.getAttribute('data-sched-id'));
+      });
+    });
+
+    container.querySelectorAll('.sched-delete-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var sid = btn.getAttribute('data-sched-id');
+        showConfirm('Delete this schedule template?', function () {
+          adminApiPost('delete_ferm_schedule', { schedule_id: sid })
+            .then(function () {
+              showToast('Schedule deleted', 'success');
+              loadScheduleTemplates();
+            })
+            .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+        });
+      });
+    });
+  }
+
+  function openCreateScheduleModal() {
+    renderScheduleForm(null);
+  }
+
+  function openEditScheduleModal(schedId) {
+    var sched = fermSchedulesData.find(function (s) { return s.schedule_id === schedId; });
+    if (!sched) { showToast('Schedule not found', 'error'); return; }
+    renderScheduleForm(sched);
+  }
+
+  function renderScheduleForm(existing) {
+    var isEdit = !!existing;
+    var steps = [];
+    if (existing) {
+      steps = existing.steps_parsed || [];
+      if (!steps.length && existing.steps) {
+        try { steps = JSON.parse(existing.steps); } catch (e) {}
+      }
+    }
+    if (steps.length === 0) {
+      steps = [
+        { step_number: 1, day_offset: 0, title: '', description: '', is_packaging: false },
+        { step_number: 2, day_offset: -1, title: 'Bottling / Packaging', description: '', is_packaging: true }
+      ];
+    }
+
+    var html = '<div class="schedule-form">';
+    html += '<div class="form-group"><label>Template Name</label><input type="text" id="sched-name" class="admin-input" value="' + (existing ? existing.name || '' : '') + '"></div>';
+    html += '<div class="form-group"><label>Description</label><textarea id="sched-desc" class="admin-input" rows="2">' + (existing ? existing.description || '' : '') + '</textarea></div>';
+    html += '<div class="form-group"><label>Category</label><select id="sched-category" class="admin-select">';
+    html += '<option value="">None</option>';
+    ['wine', 'beer', 'cider', 'seltzer'].forEach(function (c) {
+      html += '<option value="' + c + '"' + (existing && existing.category === c ? ' selected' : '') + '>' + c.charAt(0).toUpperCase() + c.slice(1) + '</option>';
+    });
+    html += '</select></div>';
+
+    html += '<h4>Steps</h4>';
+    html += '<div id="sched-steps-container"></div>';
+    html += '<button type="button" class="btn-secondary admin-btn-sm" id="sched-add-step">+ Add Step</button>';
+    html += '<br><br>';
+    html += '<button type="button" class="btn" id="sched-submit">' + (isEdit ? 'Update Template' : 'Create Template') + '</button>';
+    html += '</div>';
+
+    openModal((isEdit ? 'Edit' : 'New') + ' Schedule Template', html);
+
+    // Render steps
+    var stepsContainer = document.getElementById('sched-steps-container');
+    window._schedSteps = steps.slice(); // mutable copy
+
+    function renderSteps() {
+      var sHtml = '';
+      window._schedSteps.forEach(function (s, idx) {
+        sHtml += '<div class="sched-step-row" data-idx="' + idx + '">';
+        sHtml += '<input type="number" class="admin-inline-input sched-step-day" value="' + s.day_offset + '" placeholder="Day" style="width:60px;" ' + (s.is_packaging ? 'disabled' : '') + '>';
+        sHtml += '<input type="text" class="admin-inline-input sched-step-title" value="' + (s.title || '') + '" placeholder="Title" style="flex:1;">';
+        sHtml += '<input type="text" class="admin-inline-input sched-step-desc" value="' + (s.description || '') + '" placeholder="Description" style="flex:1;">';
+        sHtml += '<label class="sched-step-pkg"><input type="checkbox" class="sched-step-ispkg" ' + (s.is_packaging ? 'checked' : '') + '> Pkg</label>';
+        sHtml += '<button type="button" class="btn-secondary admin-btn-sm sched-step-up" title="Move up">&uarr;</button>';
+        sHtml += '<button type="button" class="btn-secondary admin-btn-sm sched-step-down" title="Move down">&darr;</button>';
+        sHtml += '<button type="button" class="btn-secondary admin-btn-sm admin-btn-danger sched-step-remove" title="Remove">&times;</button>';
+        sHtml += '</div>';
+      });
+      stepsContainer.innerHTML = sHtml;
+
+      // Bind step events
+      stepsContainer.querySelectorAll('.sched-step-row').forEach(function (row) {
+        var idx = parseInt(row.getAttribute('data-idx'), 10);
+        row.querySelector('.sched-step-day').addEventListener('change', function () {
+          window._schedSteps[idx].day_offset = parseInt(this.value, 10) || 0;
+        });
+        row.querySelector('.sched-step-title').addEventListener('change', function () {
+          window._schedSteps[idx].title = this.value;
+        });
+        row.querySelector('.sched-step-desc').addEventListener('change', function () {
+          window._schedSteps[idx].description = this.value;
+        });
+        row.querySelector('.sched-step-ispkg').addEventListener('change', function () {
+          window._schedSteps[idx].is_packaging = this.checked;
+          if (this.checked) window._schedSteps[idx].day_offset = -1;
+          renderSteps();
+        });
+        row.querySelector('.sched-step-up').addEventListener('click', function () {
+          if (idx > 0) {
+            var tmp = window._schedSteps[idx];
+            window._schedSteps[idx] = window._schedSteps[idx - 1];
+            window._schedSteps[idx - 1] = tmp;
+            renderSteps();
+          }
+        });
+        row.querySelector('.sched-step-down').addEventListener('click', function () {
+          if (idx < window._schedSteps.length - 1) {
+            var tmp = window._schedSteps[idx];
+            window._schedSteps[idx] = window._schedSteps[idx + 1];
+            window._schedSteps[idx + 1] = tmp;
+            renderSteps();
+          }
+        });
+        row.querySelector('.sched-step-remove').addEventListener('click', function () {
+          if (window._schedSteps.length <= 2) { showToast('Minimum 2 steps', 'error'); return; }
+          window._schedSteps.splice(idx, 1);
+          renderSteps();
+        });
+      });
+    }
+    renderSteps();
+
+    document.getElementById('sched-add-step').addEventListener('click', function () {
+      var maxStep = 0;
+      window._schedSteps.forEach(function (s) { if (s.step_number > maxStep) maxStep = s.step_number; });
+      window._schedSteps.push({ step_number: maxStep + 1, day_offset: 0, title: '', description: '', is_packaging: false });
+      renderSteps();
+    });
+
+    document.getElementById('sched-submit').addEventListener('click', function () {
+      var name = document.getElementById('sched-name').value;
+      if (!name) { showToast('Enter a template name', 'error'); return; }
+
+      // Re-number steps
+      var steps = window._schedSteps.map(function (s, idx) {
+        return { step_number: idx + 1, day_offset: s.day_offset, title: s.title, description: s.description, is_packaging: !!s.is_packaging };
+      });
+
+      var hasPkg = steps.some(function (s) { return s.is_packaging; });
+      if (!hasPkg) { showToast('One step must be a packaging step', 'error'); return; }
+
+      var payload = {
+        name: name,
+        description: document.getElementById('sched-desc').value,
+        category: document.getElementById('sched-category').value,
+        steps: steps
+      };
+
+      var action = isEdit ? 'update_ferm_schedule' : 'create_ferm_schedule';
+      if (isEdit) payload.schedule_id = existing.schedule_id;
+
+      adminApiPost(action, payload)
+        .then(function (result) {
+          showToast('Schedule ' + (isEdit ? 'updated' : 'created'), 'success');
+          closeModal();
+          loadScheduleTemplates();
+        })
+        .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+    });
+  }
+
+  // --- Calendar View ---
+
+  function initCalendarNav() {
+    var now = new Date();
+    calendarYear = now.getFullYear();
+    calendarMonth = now.getMonth();
+
+    var prevBtn = document.getElementById('cal-prev-month');
+    var nextBtn = document.getElementById('cal-next-month');
+    if (prevBtn) prevBtn.addEventListener('click', function () {
+      calendarMonth--;
+      if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+      renderBatchCalendar(calendarYear, calendarMonth);
+    });
+    if (nextBtn) nextBtn.addEventListener('click', function () {
+      calendarMonth++;
+      if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+      renderBatchCalendar(calendarYear, calendarMonth);
+    });
+  }
+
+  function renderBatchCalendar(year, month) {
+    if (year === undefined || month === undefined) return;
+    var firstDay = new Date(year, month, 1);
+    var lastDay = new Date(year, month + 1, 0);
+
+    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+    var startStr = year + '-' + pad(month + 1) + '-01';
+    var endStr = year + '-' + pad(month + 1) + '-' + pad(lastDay.getDate());
+
+    var monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    var label = document.getElementById('cal-month-label');
+    if (label) label.textContent = monthNames[month] + ' ' + year;
+
+    adminApiGet('get_tasks_calendar', { start_date: startStr, end_date: endStr })
+      .then(function (result) {
+        var tasks = (result.data && result.data.tasks) || [];
+        var tasksByDate = {};
+        tasks.forEach(function (t) {
+          if (!t.due_date) return;
+          if (!tasksByDate[t.due_date]) tasksByDate[t.due_date] = [];
+          tasksByDate[t.due_date].push(t);
+        });
+        renderCalendarGrid(year, month, tasksByDate);
+      })
+      .catch(function (err) {
+        showToast('Failed to load calendar: ' + err.message, 'error');
+      });
+  }
+
+  function renderCalendarGrid(year, month, tasksByDate) {
+    var grid = document.getElementById('batch-calendar-grid');
+    if (!grid) return;
+
+    var today = new Date();
+    var todayStr = today.getFullYear() + '-' + (today.getMonth() < 9 ? '0' : '') + (today.getMonth() + 1) + '-' + (today.getDate() < 10 ? '0' : '') + today.getDate();
+
+    var html = '';
+    var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dayNames.forEach(function (d) {
+      html += '<div class="batch-cal-header">' + d + '</div>';
+    });
+
+    var firstDay = new Date(year, month, 1);
+    var lastDay = new Date(year, month + 1, 0);
+    var startDow = firstDay.getDay();
+
+    // Fill leading blanks
+    for (var i = 0; i < startDow; i++) {
+      html += '<div class="batch-cal-day batch-cal-day--other-month"></div>';
+    }
+
+    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+    for (var d = 1; d <= lastDay.getDate(); d++) {
+      var dateStr = year + '-' + pad(month + 1) + '-' + pad(d);
+      var isToday = dateStr === todayStr;
+      var dayTasks = tasksByDate[dateStr] || [];
+      var cls = 'batch-cal-day';
+      if (isToday) cls += ' batch-cal-day--today';
+
+      html += '<div class="' + cls + '" data-date="' + dateStr + '">';
+      html += '<div class="batch-cal-day-num">' + d + '</div>';
+
+      var shown = 0;
+      dayTasks.forEach(function (t) {
+        if (shown >= 3) return;
+        var tCls = 'batch-cal-task';
+        if (t.completed) tCls += ' batch-cal-task--done';
+        else if (t.due_date < todayStr) tCls += ' batch-cal-task--overdue';
+        else tCls += ' batch-cal-task--pending';
+        html += '<div class="' + tCls + '">' + t.title + '</div>';
+        shown++;
+      });
+      if (dayTasks.length > 3) {
+        html += '<div class="batch-cal-task-count">+' + (dayTasks.length - 3) + ' more</div>';
+      }
+      html += '</div>';
+    }
+
+    grid.innerHTML = html;
+
+    // Click day to show detail
+    grid.querySelectorAll('.batch-cal-day[data-date]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        grid.querySelectorAll('.batch-cal-day--selected').forEach(function (s) { s.classList.remove('batch-cal-day--selected'); });
+        el.classList.add('batch-cal-day--selected');
+        var dateStr = el.getAttribute('data-date');
+        showCalendarDayDetail(dateStr, tasksByDate[dateStr] || []);
+      });
+    });
+  }
+
+  function showCalendarDayDetail(dateStr, tasks) {
+    var container = document.getElementById('batch-calendar-day-detail');
+    if (!container) return;
+
+    if (tasks.length === 0) {
+      container.innerHTML = '<p class="admin-order-info">No tasks on ' + dateStr + '</p>';
+      return;
+    }
+
+    var todayStr = new Date().toISOString().substring(0, 10);
+    var html = '<h3>' + dateStr + ' — ' + tasks.length + ' task' + (tasks.length !== 1 ? 's' : '') + '</h3>';
+    tasks.forEach(function (t) {
+      var doneClass = t.completed ? ' batch-cal-detail--done' : '';
+      var overdueClass = (!t.completed && t.due_date && t.due_date < todayStr) ? ' batch-cal-detail--overdue' : '';
+      html += '<div class="batch-cal-detail-task' + doneClass + overdueClass + '">';
+      html += '<label><input type="checkbox" ' + (t.completed ? 'checked' : '') + ' data-task-id="' + t.task_id + '" data-batch-id="' + t.batch_id + '"> ';
+      html += '<strong>' + t.title + '</strong></label>';
+      html += ' — ' + t.batch_id + ' (' + (t.product_name || '') + ')';
+      html += ' — ' + (t.vessel_id || '') + '/' + (t.shelf_id || '');
+      html += '</div>';
+    });
+
+    container.innerHTML = html;
+
+    container.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        adminApiPost('update_batch_task', { task_id: cb.getAttribute('data-task-id'), updates: { completed: cb.checked } })
+          .then(function () {
+            showToast('Task ' + (cb.checked ? 'completed' : 'unchecked'), 'success');
+            renderBatchCalendar(calendarYear, calendarMonth);
+          })
+          .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+      });
+    });
+  }
+
+  // --- Upcoming Tasks ---
+
+  function loadUpcomingTasks() {
+    adminApiGet('get_tasks_upcoming', { limit: 50 })
+      .then(function (result) {
+        renderUpcomingTasks((result.data && result.data.tasks) || []);
+      })
+      .catch(function (err) {
+        showToast('Failed to load tasks: ' + err.message, 'error');
+      });
+  }
+
+  function renderUpcomingTasks(tasks) {
+    var container = document.getElementById('upcoming-tasks-list');
+    var emptyMsg = document.getElementById('upcoming-empty');
+    if (!container) return;
+
+    if (tasks.length === 0) {
+      container.innerHTML = '';
+      if (emptyMsg) emptyMsg.style.display = '';
+      return;
+    }
+    if (emptyMsg) emptyMsg.style.display = 'none';
+
+    var todayStr = new Date().toISOString().substring(0, 10);
+    var tomorrow = new Date(Date.now() + 86400000).toISOString().substring(0, 10);
+    var weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().substring(0, 10);
+
+    var groups = {
+      overdue: { label: 'Overdue', tasks: [] },
+      today: { label: 'Today', tasks: [] },
+      tomorrow: { label: 'Tomorrow', tasks: [] },
+      thisWeek: { label: 'This Week', tasks: [] },
+      later: { label: 'Later', tasks: [] },
+      tbd: { label: 'TBD (Packaging)', tasks: [] }
+    };
+
+    tasks.forEach(function (t) {
+      if (!t.due_date) groups.tbd.tasks.push(t);
+      else if (t.due_date < todayStr) groups.overdue.tasks.push(t);
+      else if (t.due_date === todayStr) groups.today.tasks.push(t);
+      else if (t.due_date === tomorrow) groups.tomorrow.tasks.push(t);
+      else if (t.due_date <= weekEnd) groups.thisWeek.tasks.push(t);
+      else groups.later.tasks.push(t);
+    });
+
+    var html = '';
+    ['overdue', 'today', 'tomorrow', 'thisWeek', 'later', 'tbd'].forEach(function (key) {
+      var g = groups[key];
+      if (g.tasks.length === 0) return;
+      html += '<div class="upcoming-group">';
+      html += '<h3 class="upcoming-group-label' + (key === 'overdue' ? ' upcoming-group-label--overdue' : '') + '">' + g.label + ' (' + g.tasks.length + ')</h3>';
+      g.tasks.forEach(function (t) {
+        html += '<div class="upcoming-task-row">';
+        html += '<label><input type="checkbox" data-task-id="' + t.task_id + '" data-batch-id="' + t.batch_id + '"> ';
+        html += '<strong>' + t.title + '</strong></label>';
+        html += '<span class="upcoming-task-meta">' + t.batch_id + ' — ' + (t.product_name || '') + '</span>';
+        html += '<span class="upcoming-task-loc">' + [t.vessel_id, t.shelf_id, t.bin_id].filter(Boolean).join('/') + '</span>';
+        if (t.due_date) html += '<span class="upcoming-task-date">' + t.due_date + '</span>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+
+    container.innerHTML = html;
+
+    container.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        adminApiPost('update_batch_task', { task_id: cb.getAttribute('data-task-id'), updates: { completed: cb.checked } })
+          .then(function () {
+            showToast('Task completed', 'success');
+            loadUpcomingTasks();
+          })
+          .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+      });
+    });
+  }
+
+  // --- QR Code Generation ---
+
+  function generateBatchQR(batchId, accessToken) {
+    var url = window.location.origin + '/batch.html?id=' + encodeURIComponent(batchId) + '&token=' + encodeURIComponent(accessToken);
+    var qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    return qr;
+  }
+
+  function showBatchQRModal(batchId, accessToken, batchData) {
+    if (typeof qrcode === 'undefined') { showToast('QR library not loaded', 'error'); return; }
+    var qr = generateBatchQR(batchId, accessToken);
+    var svg = qr.createSvgTag(6);
+    var url = window.location.origin + '/batch.html?id=' + encodeURIComponent(batchId) + '&token=' + encodeURIComponent(accessToken);
+
+    var body = '<div style="text-align:center;">';
+    body += '<div style="margin:10px auto;">' + svg + '</div>';
+    body += '<p><strong>' + batchId + '</strong></p>';
+    body += '<p>' + (batchData.product_name || '') + '</p>';
+    body += '<p>' + (batchData.customer_name || '') + '</p>';
+    body += '<p style="font-size:0.8rem;word-break:break-all;color:#666;">' + url + '</p>';
+    body += '<button type="button" class="btn" id="qr-print-btn">Print Label</button>';
+    body += '<button type="button" class="btn-secondary" id="qr-copy-url-btn" style="margin-left:8px;">Copy URL</button>';
+    body += '</div>';
+
+    openModal('Batch QR Code', body);
+
+    document.getElementById('qr-print-btn').addEventListener('click', function () {
+      printBatchQR(batchId, accessToken, batchData);
+    });
+    document.getElementById('qr-copy-url-btn').addEventListener('click', function () {
+      navigator.clipboard.writeText(url).then(function () {
+        showToast('URL copied to clipboard', 'success');
+      });
+    });
+  }
+
+  function printBatchQR(batchId, accessToken, batchData) {
+    if (typeof qrcode === 'undefined') return;
+    var qr = generateBatchQR(batchId, accessToken);
+    var svg = qr.createSvgTag(8);
+
+    var pw = window.open('', '_blank');
+    pw.document.write(
+      '<html><head><title>Batch ' + batchId + '</title>' +
+      '<style>body{font-family:sans-serif;text-align:center;padding:20px;margin:0;}.label{border:2px solid #333;padding:15px;display:inline-block;}.qr{margin:10px auto;}.info{margin:4px 0;font-size:14px;}.batch-id{font-size:18px;font-weight:bold;margin-bottom:8px;}@media print{.label{border:none;}}</style>' +
+      '</head><body><div class="label">' +
+      '<div class="batch-id">' + batchId + '</div>' +
+      '<div class="qr">' + svg + '</div>' +
+      '<div class="info"><strong>' + (batchData.product_name || '') + '</strong></div>' +
+      '<div class="info">' + (batchData.customer_name || '') + '</div>' +
+      '<div class="info">Started: ' + (batchData.start_date || '') + '</div>' +
+      '<div class="info">Vessel: ' + (batchData.vessel_id || '?') + ' | Shelf: ' + (batchData.shelf_id || '?') + ' | Bin: ' + (batchData.bin_id || '?') + '</div>' +
+      '</div></body></html>'
+    );
+    pw.document.close();
+    setTimeout(function () { pw.print(); }, 250);
+  }
+
+  // --- Dashboard Integration ---
+
+  function renderBatchPipeline() {
+    var stagesEl = document.getElementById('batch-pipeline-stages');
+    if (!stagesEl || !batchDashboardSummary) { if (stagesEl) stagesEl.innerHTML = '<div class="pipeline-empty">No batch data</div>'; return; }
+
+    var s = batchDashboardSummary;
+    var stages = { primary: s.primaryCount || 0, secondary: s.secondaryCount || 0, complete: s.completeCount || 0 };
+    var total = stages.primary + stages.secondary + stages.complete;
+
+    if (total === 0) {
+      stagesEl.innerHTML = '<div class="pipeline-empty">No batches yet</div>';
+      return;
+    }
+
+    var stageOrder = ['primary', 'secondary', 'complete'];
+    var stageLabels = { primary: 'Primary', secondary: 'Secondary', complete: 'Complete' };
+    var html = '';
+    stageOrder.forEach(function (key) {
+      if (stages[key] > 0) {
+        html += '<div class="pipeline-stage pipeline-stage--' + key + '" style="flex:' + stages[key] + ';" data-filter="' + key + '">';
+        html += '<span class="pipeline-stage-count">' + stages[key] + '</span>';
+        html += '<span class="pipeline-stage-name">' + stageLabels[key] + '</span>';
+        html += '</div>';
+      }
+    });
+    stagesEl.innerHTML = html;
+
+    stagesEl.querySelectorAll('.pipeline-stage').forEach(function (el) {
+      el.addEventListener('click', function () {
+        document.querySelector('[data-tab="batches"]').click();
+        var filter = el.getAttribute('data-filter');
+        var select = document.getElementById('batch-status-filter');
+        if (select) { select.value = filter; loadBatchesData(); }
+      });
+    });
+  }
+
+  function addBatchAttentionItems(summary) {
+    if (!summary) return;
+    var listEl = document.getElementById('attention-list');
+    if (!listEl) return;
+
+    var items = [];
+    if (summary.tasksDueToday > 0) {
+      items.push({ text: summary.tasksDueToday + ' batch task' + (summary.tasksDueToday !== 1 ? 's' : '') + ' due today', dot: 'warning', tab: 'batches' });
+    }
+    if (summary.overdueTasks > 0) {
+      items.push({ text: summary.overdueTasks + ' overdue batch task' + (summary.overdueTasks !== 1 ? 's' : ''), dot: 'danger', tab: 'batches' });
+    }
+    if (summary.readyForPackaging > 0) {
+      items.push({ text: summary.readyForPackaging + ' batch' + (summary.readyForPackaging !== 1 ? 'es' : '') + ' ready for packaging', dot: 'success', tab: 'batches' });
+    }
+
+    if (items.length === 0) return;
+
+    items.forEach(function (item) {
+      var div = document.createElement('div');
+      div.className = 'attention-item';
+      div.setAttribute('data-tab', item.tab);
+      div.innerHTML = '<span class="attention-dot attention-dot--' + item.dot + '"></span>' + item.text;
+      div.addEventListener('click', function () {
+        document.querySelector('[data-tab="' + item.tab + '"]').click();
+      });
+      listEl.appendChild(div);
+    });
+  }
+
+  // --- Init Batch Controls ---
+
+  function initBatchControls() {
+    initBatchSubTabs();
+    initCalendarNav();
+
+    var createBtn = document.getElementById('create-batch-btn');
+    if (createBtn) createBtn.addEventListener('click', openCreateBatchModal);
+
+    var createSchedBtn = document.getElementById('create-schedule-btn');
+    if (createSchedBtn) createSchedBtn.addEventListener('click', openCreateScheduleModal);
+
+    var batchFilter = document.getElementById('batch-status-filter');
+    if (batchFilter) batchFilter.addEventListener('change', function () { loadBatchesData(); });
+
+    var batchSearch = document.getElementById('batch-search');
+    var batchSearchTimer;
+    if (batchSearch) batchSearch.addEventListener('input', function () {
+      clearTimeout(batchSearchTimer);
+      batchSearchTimer = setTimeout(renderBatchList, 300);
+    });
+
+    var refreshBtn = document.getElementById('upcoming-refresh');
+    if (refreshBtn) refreshBtn.addEventListener('click', loadUpcomingTasks);
+  }
+
+  // Hook batch loading into data load
+  var _origFinishDataLoad = finishDataLoad;
+  finishDataLoad = function () {
+    _origFinishDataLoad();
+    if (SHEETS_CONFIG.ADMIN_API_URL) {
+      loadBatchesData();
+      loadBatchDashboardSummary();
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    initBatchControls();
+  });
 
 })();
