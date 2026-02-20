@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-20T19:11:59.313Z';
+  var BUILD_TIMESTAMP = '2026-02-20T20:27:49.563Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -4944,31 +4944,7 @@
     html += '</div></details>';
 
     // Tasks
-    html += '<div class="batch-detail-tasks-header"><h4>Tasks</h4>';
-    html += '<button type="button" class="btn admin-btn-sm" id="batch-save-tasks-btn" style="display:none;">Save Tasks</button>';
-    html += '<button type="button" class="btn-secondary admin-btn-sm" id="batch-add-task-btn">+ Add Task</button></div>';
-    html += '<div class="batch-detail-tasks">';
-    tasks.forEach(function (t) {
-      var done = String(t.completed).toUpperCase() === 'TRUE';
-      var isPkg = String(t.is_packaging).toUpperCase() === 'TRUE';
-      var isTransfer = String(t.is_transfer).toUpperCase() === 'TRUE';
-      var dueLabel = t.due_date ? String(t.due_date).substring(0, 10) : (isPkg ? 'TBD' : '—');
-      var overdue = !done && t.due_date && String(t.due_date).substring(0, 10) < new Date().toISOString().substring(0, 10);
-      var cls = 'batch-task-row';
-      if (done) cls += ' batch-task-row--done';
-      if (overdue) cls += ' batch-task-row--overdue';
-
-      html += '<div class="' + cls + '">';
-      html += '<label class="batch-task-check"><input type="checkbox" ' + (done ? 'checked' : '') + ' data-task-id="' + t.task_id + '" data-batch-id="' + b.batch_id + '" data-is-transfer="' + (isTransfer ? '1' : '') + '"> ';
-      html += '<span class="batch-task-title">' + escapeHTML(t.title || 'Step ' + t.step_number) + '</span>';
-      if (isTransfer) html += '<span class="batch-task-badge batch-task-badge--transfer">Transfer</span>';
-      if (isPkg) html += '<span class="batch-task-badge batch-task-badge--pkg">Packaging</span>';
-      html += '</label>';
-      html += '<span class="batch-task-due">' + dueLabel + '</span>';
-      if (done && t.completed_at) html += '<span class="batch-task-meta">Done ' + String(t.completed_at).substring(0, 10) + '</span>';
-      html += '</div>';
-    });
-    html += '</div>';
+    html += '<div id="tasks-section">' + renderTasksSection(tasks, b.batch_id) + '</div>';
 
     // Plato Readings
     html += '<div id="plato-section">' + renderPlatoSection(readings, b.start_date) + '</div>';
@@ -5015,62 +4991,8 @@
     var batchVersion = b.last_updated;
     var batchToken = b.access_token;
 
-    // Task checkboxes — batch save
-    var pendingTaskChanges = {};
-    function updateTaskSaveBtn() {
-      var btn = document.getElementById('batch-save-tasks-btn');
-      var count = Object.keys(pendingTaskChanges).length;
-      if (btn) {
-        btn.style.display = count > 0 ? '' : 'none';
-        btn.textContent = 'Save Tasks (' + count + ')';
-      }
-    }
-    document.querySelectorAll('.batch-task-check input[type="checkbox"]').forEach(function (cb) {
-      var origChecked = cb.checked;
-      cb.addEventListener('change', function () {
-        var taskId = cb.getAttribute('data-task-id');
-        var isTransfer = cb.getAttribute('data-is-transfer') === '1';
-
-        // Transfer tasks still need immediate handling (location prompt)
-        if (cb.checked && isTransfer) {
-          showTransferPrompt(batchId, taskId);
-          return;
-        }
-
-        if (cb.checked === origChecked) {
-          delete pendingTaskChanges[taskId];
-        } else {
-          pendingTaskChanges[taskId] = cb.checked;
-        }
-        var row = cb.closest('.batch-task-row');
-        if (row) row.classList.toggle('batch-task-row--done', cb.checked);
-        updateTaskSaveBtn();
-      });
-    });
-    var saveTasksBtn = document.getElementById('batch-save-tasks-btn');
-    if (saveTasksBtn) saveTasksBtn.addEventListener('click', function () {
-      var tasksArr = Object.keys(pendingTaskChanges).map(function (id) {
-        return { task_id: id, updates: { completed: pendingTaskChanges[id] } };
-      });
-      saveTasksBtn.disabled = true;
-      saveTasksBtn.textContent = 'Saving...';
-      adminApiPost('bulk_update_batch_tasks', { tasks: tasksArr })
-        .then(function () {
-          showToast(tasksArr.length + ' task' + (tasksArr.length !== 1 ? 's' : '') + ' updated', 'success');
-          openBatchDetail(batchId);
-        })
-        .catch(function (err) {
-          showToast('Failed: ' + err.message, 'error');
-          saveTasksBtn.disabled = false;
-          updateTaskSaveBtn();
-        });
-    });
-
-    // Add Task button
-    var addTaskBtn = document.getElementById('batch-add-task-btn');
-    if (addTaskBtn) addTaskBtn.addEventListener('click', function () {
-      showAddTaskForm(batchId);
-    });
+    // Task checkboxes, save, add task
+    bindTaskHandlers(batchId);
 
     // Vessel search in detail modal
     var detailVesselInput = document.getElementById('batch-edit-vessel-search');
@@ -5316,6 +5238,107 @@
           addBtn.textContent = 'Add Task';
           showToast('Failed: ' + err.message, 'error');
         });
+    });
+  }
+
+  // --- Tasks Section (partial refresh) ---
+
+  function renderTasksSection(tasks, batchId) {
+    var html = '<div class="batch-detail-tasks-header"><h4>Tasks</h4>';
+    html += '<button type="button" class="btn admin-btn-sm" id="batch-save-tasks-btn" style="display:none;">Save Tasks</button>';
+    html += '<button type="button" class="btn-secondary admin-btn-sm" id="batch-add-task-btn">+ Add Task</button></div>';
+    html += '<div class="batch-detail-tasks">';
+    tasks.forEach(function (t) {
+      var done = String(t.completed).toUpperCase() === 'TRUE';
+      var isPkg = String(t.is_packaging).toUpperCase() === 'TRUE';
+      var isTransfer = String(t.is_transfer).toUpperCase() === 'TRUE';
+      var dueLabel = t.due_date ? String(t.due_date).substring(0, 10) : (isPkg ? 'TBD' : '—');
+      var overdue = !done && t.due_date && String(t.due_date).substring(0, 10) < new Date().toISOString().substring(0, 10);
+      var cls = 'batch-task-row';
+      if (done) cls += ' batch-task-row--done';
+      if (overdue) cls += ' batch-task-row--overdue';
+
+      html += '<div class="' + cls + '">';
+      html += '<label class="batch-task-check"><input type="checkbox" ' + (done ? 'checked' : '') + ' data-task-id="' + t.task_id + '" data-batch-id="' + batchId + '" data-is-transfer="' + (isTransfer ? '1' : '') + '"> ';
+      html += '<span class="batch-task-title">' + escapeHTML(t.title || 'Step ' + t.step_number) + '</span>';
+      if (isTransfer) html += '<span class="batch-task-badge batch-task-badge--transfer">Transfer</span>';
+      if (isPkg) html += '<span class="batch-task-badge batch-task-badge--pkg">Packaging</span>';
+      html += '</label>';
+      html += '<span class="batch-task-due">' + dueLabel + '</span>';
+      if (done && t.completed_at) html += '<span class="batch-task-meta">Done ' + String(t.completed_at).substring(0, 10) + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function refreshTasksSection(batchId) {
+    adminApiGet('get_batch', { batch_id: batchId })
+      .then(function (result) {
+        var data = result.data;
+        var tasks = data.tasks || [];
+        var container = document.getElementById('tasks-section');
+        if (!container) return;
+        container.innerHTML = renderTasksSection(tasks, batchId);
+        bindTaskHandlers(batchId);
+      })
+      .catch(function (err) { showToast('Failed to refresh tasks: ' + err.message, 'error'); });
+  }
+
+  function bindTaskHandlers(batchId) {
+    var pendingTaskChanges = {};
+    function updateTaskSaveBtn() {
+      var btn = document.getElementById('batch-save-tasks-btn');
+      var count = Object.keys(pendingTaskChanges).length;
+      if (btn) {
+        btn.style.display = count > 0 ? '' : 'none';
+        btn.textContent = 'Save Tasks (' + count + ')';
+      }
+    }
+    document.querySelectorAll('.batch-task-check input[type="checkbox"]').forEach(function (cb) {
+      var origChecked = cb.checked;
+      cb.addEventListener('change', function () {
+        var taskId = cb.getAttribute('data-task-id');
+        var isTransfer = cb.getAttribute('data-is-transfer') === '1';
+
+        if (cb.checked && isTransfer) {
+          showTransferPrompt(batchId, taskId);
+          return;
+        }
+
+        if (cb.checked === origChecked) {
+          delete pendingTaskChanges[taskId];
+        } else {
+          pendingTaskChanges[taskId] = cb.checked;
+        }
+        var row = cb.closest('.batch-task-row');
+        if (row) row.classList.toggle('batch-task-row--done', cb.checked);
+        updateTaskSaveBtn();
+      });
+    });
+    var saveTasksBtn = document.getElementById('batch-save-tasks-btn');
+    if (saveTasksBtn) saveTasksBtn.addEventListener('click', function () {
+      var tasksArr = Object.keys(pendingTaskChanges).map(function (id) {
+        return { task_id: id, updates: { completed: pendingTaskChanges[id] } };
+      });
+      saveTasksBtn.disabled = true;
+      saveTasksBtn.textContent = 'Saving...';
+      adminApiPost('bulk_update_batch_tasks', { tasks: tasksArr })
+        .then(function () {
+          showToast(tasksArr.length + ' task' + (tasksArr.length !== 1 ? 's' : '') + ' updated', 'success');
+          pendingTaskChanges = {};
+          refreshTasksSection(batchId);
+        })
+        .catch(function (err) {
+          showToast('Failed: ' + err.message, 'error');
+          saveTasksBtn.disabled = false;
+          updateTaskSaveBtn();
+        });
+    });
+
+    var addTaskBtn = document.getElementById('batch-add-task-btn');
+    if (addTaskBtn) addTaskBtn.addEventListener('click', function () {
+      showAddTaskForm(batchId);
     });
   }
 
