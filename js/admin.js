@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-20T15:11:56.906Z';
+  var BUILD_TIMESTAMP = '2026-02-20T15:18:06.354Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -6488,7 +6488,7 @@
     '.email-row{margin-bottom:4px;}.email-row .sig-line{border-bottom:1px solid #000;height:12px;}' +
     '.email-row .sig-label{font-size:6px;margin-top:1px;color:#555;}';
 
-  var AGREEMENT_TEXT = 'This document constitutes a request for assistance and guidance, as required, in preparing my wine must for fermentation. I acknowledge that by default, Steins &amp; Vines will add a natural shell fish derivative, Chitosan, for the purpose of clearing. I consent to my name, telephone number, address and email (if supplied) being kept in a database with the understanding that this information will not be sold or exchanged. I acknowledge that the wine made for me by Steins &amp; Vines is for my personal use only. I acknowledge that Steins &amp; Vines has transferred ownership of my wine and all ingredients to me. Adding my email address below authorizes Steins &amp; Vines to send me emails about promotions and special events and to contact me as required.';
+  var AGREEMENT_TEXT = 'By signing, I request assistance and guidance, as required, in preparing my wine must for fermentation. I acknowledge that by default, Steins &amp; Vines will add a natural shell fish derivative, Chitosan, for the purpose of clearing. I consent to my name, telephone number, address and email (if supplied) being kept in a database with the understanding that this information will not be sold or exchanged. I acknowledge that the wine made for me by Steins &amp; Vines is for my personal use only. I acknowledge that Steins &amp; Vines has transferred ownership of my wine and all ingredients to me.';
 
   function buildBatchLabelHTML(opts) {
     var b = opts.batch || {};
@@ -6523,6 +6523,8 @@
     // Info grid
     h += '<div class="info-grid">';
     h += '<span class="lbl">Customer:</span><span class="val">' + (isBlank ? '<span class="write-line"></span>' : escapeHTML(b.customer_name || '')) + '</span>';
+    h += '<span class="lbl">Email:</span><span class="val">' + (isBlank ? '<span class="write-line"></span>' : escapeHTML(b.customer_email || '')) + '</span>';
+    h += '<span class="lbl">Phone:</span><span class="val">' + (isBlank ? '<span class="write-line"></span>' : escapeHTML(b.customer_phone || '')) + '</span>';
     h += '<span class="lbl">Start Date:</span><span class="val">' + (isBlank ? '<span class="write-line"></span>' : escapeHTML(String(b.start_date || '').substring(0, 10))) + '</span>';
     var loc = isBlank ? '<span class="write-line"></span>' : escapeHTML([b.vessel_id, b.shelf_id, b.bin_id].filter(Boolean).join(' / ') || '—');
     h += '<span class="lbl">Primary Location:</span><span class="val">' + loc + '</span>';
@@ -6571,7 +6573,6 @@
     h += '<div class="agreement">';
     h += '<div class="agreement-title">Customer Agreement</div>';
     h += '<div class="agreement-text">' + AGREEMENT_TEXT + '</div>';
-    h += '<div class="email-row"><div class="sig-line"></div><div class="sig-label">Email Address</div></div>';
     h += '<div class="sig-area">';
     h += '<div class="sig-block"><div class="sig-line"></div><div class="sig-label">Signature</div></div>';
     h += '<div class="sig-block sm"><div class="sig-line"></div><div class="sig-label">Date</div></div>';
