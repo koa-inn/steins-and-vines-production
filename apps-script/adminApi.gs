@@ -1065,9 +1065,10 @@ function getBatches(limit, offset, status) {
     batches = batches.slice(offset);
   }
 
-  // Clean up: strip _row and truncate date fields
+  // Clean up: strip _row, access_token, and truncate date fields
   batches.forEach(function (b) {
     delete b._row;
+    delete b.access_token;
     if (b.start_date) b.start_date = String(b.start_date).substring(0, 10);
   });
 
@@ -1127,6 +1128,10 @@ function handleGetBatchPublic(e) {
   var token = e.parameter.token || '';
   if (!batchId || !token) {
     return { ok: false, error: 'invalid_token', message: 'batch_id and token are required' };
+  }
+  // Format validation: batch_id must be SV-B-NNNNNN, token must be 32 hex chars
+  if (!/^SV-B-\d{6}$/.test(batchId) || !/^[0-9a-f]{32}$/.test(token)) {
+    return { ok: false, error: 'invalid_token', message: 'Invalid batch ID or token format' };
   }
 
   var result = findRowById(BATCHES_SHEET_NAME, batchId);
@@ -1213,14 +1218,34 @@ function getTasksCalendar(startDate, endDate) {
     }
   });
 
+  // Build set of batches ready for packaging (all non-pkg tasks done)
+  var readyForPkg = {};
+  var batchTaskGroups = {};
+  tasks.forEach(function (t) {
+    var bid = String(t.batch_id);
+    if (!batchMap[bid]) return;
+    if (!batchTaskGroups[bid]) batchTaskGroups[bid] = { allDone: true };
+    if (String(t.is_packaging).toUpperCase() !== 'TRUE' &&
+        String(t.completed).toUpperCase() !== 'TRUE') {
+      batchTaskGroups[bid].allDone = false;
+    }
+  });
+  for (var bid in batchTaskGroups) {
+    if (batchTaskGroups[bid].allDone) readyForPkg[bid] = true;
+  }
+
   var result = [];
   tasks.forEach(function (t) {
     var batch = batchMap[String(t.batch_id)];
     if (!batch) return; // skip tasks for inactive batches
 
     var dueDate = toDateOnly(t.due_date);
-    // Include tasks within date range, plus packaging tasks (empty due_date)
+    // Include tasks within date range
     if (dueDate && (dueDate < startDate || dueDate > endDate)) return;
+    // Only include packaging tasks if batch is ready for packaging
+    if (!dueDate && String(t.is_packaging).toUpperCase() === 'TRUE') {
+      if (!readyForPkg[String(t.batch_id)]) return;
+    }
     if (!dueDate && String(t.is_packaging).toUpperCase() !== 'TRUE') return;
 
     result.push({
@@ -1439,6 +1464,8 @@ function createBatch(payload, userEmail) {
     var accessToken = Utilities.getUuid().replace(/-/g, '');
     var now = new Date().toISOString();
     var scheduleSnapshot = schedResult.data.steps || '[]';
+    var steps;
+    try { steps = JSON.parse(scheduleSnapshot); } catch (e) { steps = []; }
 
     // Append batch row
     batchesSheet.appendRow([
@@ -1463,56 +1490,68 @@ function createBatch(payload, userEmail) {
       now
     ]);
 
-    // Create tasks from schedule
-    var steps;
-    try { steps = JSON.parse(scheduleSnapshot); } catch (e) { steps = []; }
-
+    // Create tasks from schedule (steps already parsed above)
     var tasksCreated = 0;
+    var taskErrors = [];
     for (var i = 0; i < steps.length; i++) {
-      var step = steps[i];
-      var taskId = generateNextId(BATCH_TASKS_SHEET_NAME, 'BT-', 6);
-      var dueDate = calculateDueDate(payload.start_date, step.day_offset);
+      try {
+        var step = steps[i];
+        var taskId = generateNextId(BATCH_TASKS_SHEET_NAME, 'BT-', 6);
+        var dueDate = calculateDueDate(toDateOnly(payload.start_date), step.day_offset);
 
-      tasksSheet.appendRow([
-        taskId,
-        batchId,
-        step.step_number || (i + 1),
-        sanitizeInput(step.title || ''),
-        sanitizeInput(step.description || ''),
-        step.day_offset,
-        dueDate,
-        step.is_packaging ? 'TRUE' : 'FALSE',
-        step.is_transfer ? 'TRUE' : 'FALSE',
-        'FALSE', // completed
-        '',      // completed_at
-        '',      // completed_by
-        '',      // notes
-        now      // last_updated
-      ]);
-      tasksCreated++;
+        tasksSheet.appendRow([
+          taskId,
+          batchId,
+          step.step_number || (i + 1),
+          sanitizeInput(step.title || ''),
+          sanitizeInput(step.description || ''),
+          step.day_offset,
+          dueDate,
+          step.is_packaging ? 'TRUE' : 'FALSE',
+          step.is_transfer ? 'TRUE' : 'FALSE',
+          'FALSE', // completed
+          '',      // completed_at
+          '',      // completed_by
+          '',      // notes
+          now      // last_updated
+        ]);
+        tasksCreated++;
+      } catch (taskErr) {
+        taskErrors.push('Step ' + (i + 1) + ': ' + taskErr.message);
+      }
     }
 
     // Record initial vessel placement
     if (payload.vessel_id || payload.shelf_id || payload.bin_id) {
-      var vhId = generateNextId(VESSEL_HISTORY_SHEET_NAME, 'VH-', 6);
-      vesselSheet.appendRow([
-        vhId,
-        batchId,
-        sanitizeInput(payload.vessel_id || ''),
-        sanitizeInput(payload.shelf_id || ''),
-        sanitizeInput(payload.bin_id || ''),
-        now,
-        userEmail,
-        'Initial placement'
-      ]);
+      try {
+        var vhId = generateNextId(VESSEL_HISTORY_SHEET_NAME, 'VH-', 6);
+        vesselSheet.appendRow([
+          vhId,
+          batchId,
+          sanitizeInput(payload.vessel_id || ''),
+          sanitizeInput(payload.shelf_id || ''),
+          sanitizeInput(payload.bin_id || ''),
+          now,
+          userEmail,
+          'Initial placement'
+        ]);
+      } catch (vhErr) {
+        taskErrors.push('Vessel history: ' + vhErr.message);
+      }
     }
 
     // Mark vessel as in-use
     if (payload.vessel_id) {
-      setVesselStatus(payload.vessel_id, 'In-Use');
+      try { setVesselStatus(payload.vessel_id, 'In-Use'); } catch (vsErr) {
+        taskErrors.push('Vessel status: ' + vsErr.message);
+      }
     }
 
-    return { ok: true, batch_id: batchId, access_token: accessToken, tasks_created: tasksCreated };
+    var resp = { ok: true, batch_id: batchId, access_token: accessToken, tasks_created: tasksCreated };
+    if (taskErrors.length > 0) {
+      resp.warnings = taskErrors;
+    }
+    return resp;
   } finally {
     lock.releaseLock();
   }
@@ -1605,6 +1644,22 @@ function updateBatch(payload, userEmail) {
       }
     }
   });
+
+  // Handle vessel status when batch status changes
+  if (updates.status !== undefined) {
+    var oldStatus = String(current.status || '').toLowerCase();
+    var newStatus = String(updates.status).toLowerCase();
+    var vesselId = String(current.vessel_id || '');
+    if (vesselId) {
+      var wasActive = (oldStatus === 'primary' || oldStatus === 'secondary');
+      var isActive = (newStatus === 'primary' || newStatus === 'secondary');
+      if (wasActive && !isActive) {
+        setVesselStatus(vesselId, 'Empty');
+      } else if (!wasActive && isActive) {
+        setVesselStatus(vesselId, 'In-Use');
+      }
+    }
+  }
 
   // Update last_updated
   var luCol = headers.indexOf('last_updated');
@@ -1875,7 +1930,7 @@ function addBatchTask(payload, userEmail) {
   try {
     var taskId = generateNextId(BATCH_TASKS_SHEET_NAME, 'BT-', 6);
     var now = new Date().toISOString();
-    var startDate = batchResult.data.start_date || '';
+    var startDate = toDateOnly(batchResult.data.start_date);
     var dayOffset = payload.day_offset !== undefined ? Number(payload.day_offset) : -1;
     var dueDate = payload.due_date || '';
     if (!dueDate && dayOffset >= 0 && startDate) {
@@ -2006,6 +2061,10 @@ function addPlatoReading(payload, recordedBy) {
 // --- POST: Batch Token Auth (public URL) ---
 
 function handleBatchTokenPost(payload, action) {
+  // Format validation: batch_id must be SV-B-NNNNNN, token must be 32 hex chars
+  if (!/^SV-B-\d{6}$/.test(payload.batch_id || '') || !/^[0-9a-f]{32}$/.test(payload.batch_token || '')) {
+    return { ok: false, error: 'invalid_token', message: 'Invalid batch ID or token format' };
+  }
   var batch = findRowById(BATCHES_SHEET_NAME, payload.batch_id);
   if (batch.row === -1 || String(batch.data.access_token) !== String(payload.batch_token)) {
     return { ok: false, error: 'invalid_token', message: 'Invalid batch token' };
@@ -2013,6 +2072,13 @@ function handleBatchTokenPost(payload, action) {
 
   switch (action) {
     case 'update_batch_task':
+      // Block packaging task completion from public URL (staff only)
+      if (payload.task_id && payload.updates && payload.updates.completed) {
+        var taskCheck = findRowById(BATCH_TASKS_SHEET_NAME, payload.task_id);
+        if (taskCheck.row !== -1 && String(taskCheck.data.is_packaging).toUpperCase() === 'TRUE') {
+          return { ok: false, error: 'unauthorized', message: 'Packaging tasks can only be completed by staff' };
+        }
+      }
       return updateBatchTask(payload, 'batch-url');
     case 'add_plato_reading':
       return addPlatoReading(payload, 'batch-url');

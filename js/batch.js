@@ -113,7 +113,7 @@
 
       html += '<div class="' + cls + '">';
       html += '<label class="batch-task-label">';
-      html += '<input type="checkbox" class="batch-task-checkbox" data-task-id="' + esc(t.task_id) + '" ' + (done ? 'checked' : '') + '>';
+      html += '<input type="checkbox" class="batch-task-checkbox" data-task-id="' + esc(t.task_id) + '" ' + (done ? 'checked' : '') + (isPkg ? ' disabled title="Staff only"' : '') + '>';
       html += '<span class="batch-task-title">' + esc(t.title || 'Step ' + t.step_number) + '</span>';
       if (isTransfer) html += '<span class="batch-badge batch-badge--transfer">Transfer</span>';
       if (isPkg) html += '<span class="batch-badge batch-badge--pkg">Packaging</span>';
@@ -192,9 +192,10 @@
     });
 
     var maxDay = Math.max.apply(null, points.map(function (p) { return p.day; })) || 1;
-    var maxPlato = Math.max.apply(null, points.map(function (p) { return p.plato; })) || 1;
+    var maxPlato = Math.max.apply(null, points.map(function (p) { return p.plato; }));
     var minPlato = Math.min.apply(null, points.map(function (p) { return p.plato; }));
-    var range = maxPlato - minPlato || 1;
+    if (maxPlato === minPlato) { maxPlato += 1; minPlato = Math.max(0, minPlato - 1); }
+    var range = maxPlato - minPlato;
 
     var polyPoints = points.map(function (p) {
       var x = PAD + ((p.day / maxDay) * (W - PAD * 2));
@@ -291,9 +292,30 @@
     if (msg) errEl.querySelector('p').textContent = msg;
   }
 
+  var _refreshFailures = 0;
   function startAutoRefresh() {
-    setInterval(function () { loadBatch(); }, 60 * 1000);
+    setInterval(function () {
+      // Skip refresh when tab is hidden
+      if (document.hidden) return;
+      // Exponential backoff on consecutive failures (max 5 min)
+      if (_refreshFailures > 0) {
+        var backoff = Math.min(300000, 60000 * Math.pow(2, _refreshFailures - 1));
+        if (Date.now() - _lastRefreshAttempt < backoff) return;
+      }
+      _lastRefreshAttempt = Date.now();
+      var url = apiUrl + '?action=get_batch_public&batch_id=' + encodeURIComponent(batchId) + '&token=' + encodeURIComponent(batchToken);
+      fetch(url)
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (!data.ok) { _refreshFailures++; return; }
+          _refreshFailures = 0;
+          batchData = data.data;
+          renderBatch(batchData);
+        })
+        .catch(function () { _refreshFailures++; });
+    }, 60 * 1000);
   }
+  var _lastRefreshAttempt = 0;
 
   document.addEventListener('DOMContentLoaded', function () {
     init();

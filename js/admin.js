@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-20T06:09:32.752Z';
+  var BUILD_TIMESTAMP = '2026-02-20T06:20:50.412Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -4747,6 +4747,7 @@
   var fermSchedulesData = [];
   var batchDashboardSummary = null;
   var calendarYear, calendarMonth;
+  var _schedSteps = [];
 
   var BATCH_STATUSES = {
     primary: { label: 'Primary', color: 'blue' },
@@ -4856,7 +4857,7 @@
       html += '<td>' + startDate + '</td>';
       html += '<td>' + location + '</td>';
       html += '<td><div class="batch-progress"><div class="batch-progress-bar" style="width:' + pct + '%"></div></div><span class="batch-progress-text">' + done + '/' + total + '</span></td>';
-      html += '<td><button type="button" class="btn-secondary admin-btn-sm batch-qr-btn" data-batch-id="' + b.batch_id + '" data-token="' + (b.access_token || '') + '">QR</button></td>';
+      html += '<td><button type="button" class="btn-secondary admin-btn-sm batch-qr-btn" data-batch-id="' + b.batch_id + '">QR</button></td>';
       html += '</tr>';
     });
 
@@ -4870,14 +4871,20 @@
       });
     });
 
-    // QR buttons
+    // QR buttons (fetch token lazily from batch detail)
     tbody.querySelectorAll('.batch-qr-btn').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         var bid = btn.getAttribute('data-batch-id');
-        var token = btn.getAttribute('data-token');
-        var batch = batchesData.find(function (b) { return b.batch_id === bid; });
-        showBatchQRModal(bid, token, batch || {});
+        btn.disabled = true;
+        btn.textContent = '...';
+        adminApiGet('get_batch', { batch_id: bid })
+          .then(function (result) {
+            var b = (result.data && result.data.batch) || {};
+            showBatchQRModal(bid, b.access_token || '', b);
+          })
+          .catch(function (err) { showToast('Failed: ' + err.message, 'error'); })
+          .finally(function () { btn.disabled = false; btn.textContent = 'QR'; });
       });
     });
   }
@@ -5105,7 +5112,8 @@
         batch_id: batchId,
         expectedVersion: batchVersion,
         updates: { notes: document.getElementById('batch-notes-edit').value }
-      }).then(function () {
+      }).then(function (result) {
+        if (result && result.newVersion) batchVersion = result.newVersion;
         showToast('Notes saved', 'success');
       }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
     });
@@ -5316,9 +5324,10 @@
     });
 
     var maxDay = Math.max.apply(null, points.map(function (p) { return p.day; })) || 1;
-    var maxPlato = Math.max.apply(null, points.map(function (p) { return p.plato; })) || 1;
+    var maxPlato = Math.max.apply(null, points.map(function (p) { return p.plato; }));
     var minPlato = Math.min.apply(null, points.map(function (p) { return p.plato; }));
-    var range = maxPlato - minPlato || 1;
+    if (maxPlato === minPlato) { maxPlato += 1; minPlato = Math.max(0, minPlato - 1); }
+    var range = maxPlato - minPlato;
 
     var polyPoints = points.map(function (p) {
       var x = PAD + ((p.day / maxDay) * (W - PAD * 2));
@@ -5929,11 +5938,11 @@
     openModal((isEdit ? 'Edit' : 'New') + ' Schedule Template', html);
 
     var stepsContainer = document.getElementById('sched-steps-container');
-    window._schedSteps = regularSteps.slice();
+    _schedSteps = regularSteps.slice();
 
     function renderSteps() {
       var sHtml = '';
-      window._schedSteps.forEach(function (s, idx) {
+      _schedSteps.forEach(function (s, idx) {
         sHtml += '<div class="sched-step-row" data-idx="' + idx + '">';
         sHtml += '<input type="number" class="admin-inline-input sched-step-day" value="' + s.day_offset + '" placeholder="Day" min="0" style="width:60px;">';
         sHtml += '<input type="text" class="admin-inline-input sched-step-title" value="' + (s.title || '') + '" placeholder="Step title" style="flex:1;">';
@@ -5947,20 +5956,20 @@
       stepsContainer.querySelectorAll('.sched-step-row').forEach(function (row) {
         var idx = parseInt(row.getAttribute('data-idx'), 10);
         row.querySelector('.sched-step-day').addEventListener('change', function () {
-          window._schedSteps[idx].day_offset = parseInt(this.value, 10) || 0;
+          _schedSteps[idx].day_offset = parseInt(this.value, 10) || 0;
         });
         row.querySelector('.sched-step-title').addEventListener('change', function () {
-          window._schedSteps[idx].title = this.value;
+          _schedSteps[idx].title = this.value;
         });
         row.querySelector('.sched-step-desc').addEventListener('change', function () {
-          window._schedSteps[idx].description = this.value;
+          _schedSteps[idx].description = this.value;
         });
         row.querySelector('.sched-step-transfer').addEventListener('change', function () {
-          window._schedSteps[idx].is_transfer = this.checked;
+          _schedSteps[idx].is_transfer = this.checked;
         });
         row.querySelector('.sched-step-remove').addEventListener('click', function () {
-          if (window._schedSteps.length <= 1) { showToast('Need at least 1 fermentation step', 'error'); return; }
-          window._schedSteps.splice(idx, 1);
+          if (_schedSteps.length <= 1) { showToast('Need at least 1 fermentation step', 'error'); return; }
+          _schedSteps.splice(idx, 1);
           renderSteps();
         });
       });
@@ -5969,8 +5978,8 @@
 
     document.getElementById('sched-add-step').addEventListener('click', function () {
       var maxDay = 0;
-      window._schedSteps.forEach(function (s) { if (s.day_offset > maxDay) maxDay = s.day_offset; });
-      window._schedSteps.push({ step_number: 0, day_offset: maxDay + 7, title: '', description: '' });
+      _schedSteps.forEach(function (s) { if (s.day_offset > maxDay) maxDay = s.day_offset; });
+      _schedSteps.push({ step_number: 0, day_offset: maxDay + 7, title: '', description: '' });
       renderSteps();
     });
 
@@ -5981,19 +5990,19 @@
       // Read current values from inputs (in case user typed without triggering change)
       stepsContainer.querySelectorAll('.sched-step-row').forEach(function (row) {
         var idx = parseInt(row.getAttribute('data-idx'), 10);
-        window._schedSteps[idx].day_offset = parseInt(row.querySelector('.sched-step-day').value, 10) || 0;
-        window._schedSteps[idx].title = row.querySelector('.sched-step-title').value;
-        window._schedSteps[idx].description = row.querySelector('.sched-step-desc').value;
-        window._schedSteps[idx].is_transfer = row.querySelector('.sched-step-transfer').checked;
+        _schedSteps[idx].day_offset = parseInt(row.querySelector('.sched-step-day').value, 10) || 0;
+        _schedSteps[idx].title = row.querySelector('.sched-step-title').value;
+        _schedSteps[idx].description = row.querySelector('.sched-step-desc').value;
+        _schedSteps[idx].is_transfer = row.querySelector('.sched-step-transfer').checked;
       });
 
       // Validate regular steps have titles
       var emptyTitle = false;
-      window._schedSteps.forEach(function (s) { if (!s.title.trim()) emptyTitle = true; });
+      _schedSteps.forEach(function (s) { if (!s.title.trim()) emptyTitle = true; });
       if (emptyTitle) { showToast('Every step needs a title', 'error'); return; }
 
       // Sort regular steps by day_offset, then build final steps array
-      var sorted = window._schedSteps.slice().sort(function (a, b) { return a.day_offset - b.day_offset; });
+      var sorted = _schedSteps.slice().sort(function (a, b) { return a.day_offset - b.day_offset; });
       var steps = sorted.map(function (s, idx) {
         return { step_number: idx + 1, day_offset: s.day_offset, title: s.title, description: s.description, is_packaging: false, is_transfer: !!s.is_transfer };
       });
