@@ -189,6 +189,9 @@ function doPost(e) {
       case 'update_batch_task':
         return _jsonResponse(updateBatchTask(payload, authResult.email));
 
+      case 'bulk_update_batch_tasks':
+        return _jsonResponse(bulkUpdateBatchTasks(payload, authResult.email));
+
       case 'add_batch_task':
         return _jsonResponse(addBatchTask(payload, authResult.email));
 
@@ -1875,6 +1878,17 @@ function updateBatchTask(payload, completedBy) {
           }
         }, completedBy || '');
       }
+
+      // Auto-advance primary → secondary on transfer completion
+      if (String(current.is_transfer).toUpperCase() === 'TRUE') {
+        var batchCheck = findRowById(BATCHES_SHEET_NAME, current.batch_id);
+        if (batchCheck.row !== -1 && String(batchCheck.data.status).toLowerCase() === 'primary') {
+          var sCol = batchCheck.headers.indexOf('status');
+          var luCol2 = batchCheck.headers.indexOf('last_updated');
+          if (sCol !== -1) batchCheck.sheet.getRange(batchCheck.row, sCol + 1).setValue('secondary');
+          if (luCol2 !== -1) batchCheck.sheet.getRange(batchCheck.row, luCol2 + 1).setValue(now);
+        }
+      }
     } else {
       // Un-checking
       if (completedCol !== -1) sheet.getRange(row, completedCol + 1).setValue('FALSE');
@@ -1897,6 +1911,22 @@ function updateBatchTask(payload, completedBy) {
   if (luCol !== -1) sheet.getRange(row, luCol + 1).setValue(now);
 
   return { ok: true, message: 'Task updated' };
+}
+
+// --- POST: Bulk Update Batch Tasks ---
+
+function bulkUpdateBatchTasks(payload, email) {
+  if (!payload.tasks || !Array.isArray(payload.tasks) || payload.tasks.length === 0) {
+    return { ok: false, error: 'invalid_input', message: 'tasks array is required' };
+  }
+  if (payload.tasks.length > 50) {
+    return { ok: false, error: 'too_many', message: 'Maximum 50 tasks per request' };
+  }
+  var results = [];
+  for (var i = 0; i < payload.tasks.length; i++) {
+    results.push(updateBatchTask(payload.tasks[i], email));
+  }
+  return { ok: true, results: results };
 }
 
 // --- POST: Add Ad-Hoc Batch Task ---
@@ -2031,6 +2061,17 @@ function addPlatoReading(payload, recordedBy) {
   if (isNaN(plato) || plato < 0 || plato > 40) {
     return { ok: false, error: 'invalid_value', message: 'degrees_plato must be between 0 and 40' };
   }
+  if (payload.timestamp && !/^\d{4}-\d{2}-\d{2}$/.test(payload.timestamp)) {
+    return { ok: false, error: 'invalid_value', message: 'timestamp must be YYYY-MM-DD format' };
+  }
+  var temperature = (payload.temperature !== undefined && payload.temperature !== '') ? parseFloat(payload.temperature) : '';
+  if (temperature !== '' && isNaN(temperature)) {
+    return { ok: false, error: 'invalid_value', message: 'temperature must be a number' };
+  }
+  var ph = (payload.ph !== undefined && payload.ph !== '') ? parseFloat(payload.ph) : '';
+  if (ph !== '' && (isNaN(ph) || ph < 0 || ph > 14)) {
+    return { ok: false, error: 'invalid_value', message: 'ph must be a number between 0 and 14' };
+  }
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(PLATO_READINGS_SHEET_NAME);
@@ -2049,7 +2090,9 @@ function addPlatoReading(payload, recordedBy) {
       plato,
       sanitizeInput(payload.notes || ''),
       recordedBy || '',
-      now
+      now,
+      temperature,
+      ph
     ]);
 
     return { ok: true, reading_id: readingId };

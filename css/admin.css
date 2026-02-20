@@ -1957,8 +1957,12 @@ body[data-page="admin"] .content {
 .upcoming-task-row label { cursor: pointer; display: flex; align-items: center; gap: 0.3rem; }
 .upcoming-task-row input[type="checkbox"] { width: 16px; height: 16px; }
 .upcoming-task-meta { font-size: 0.78rem; color: var(--ink-tertiary); }
+.upcoming-batch-link { font-size: 0.78rem; color: var(--ink-tertiary); text-decoration: none; cursor: pointer; }
+.upcoming-batch-link:hover { color: var(--accent-primary, #6b4f3a); text-decoration: underline; }
 .upcoming-task-loc { font-size: 0.78rem; color: var(--ink-muted); font-family: monospace; }
 .upcoming-task-date { font-size: 0.78rem; color: var(--ink-secondary); margin-left: auto; }
+.upcoming-task-row--pending { opacity: 0.55; }
+.upcoming-task-row--pending label strong { text-decoration: line-through; }
 
 /* Schedule Templates */
 .schedules-list { display: grid; gap: 0.75rem; }

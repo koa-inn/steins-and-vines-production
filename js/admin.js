@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-20T06:20:50.412Z';
+  var BUILD_TIMESTAMP = '2026-02-20T13:35:51.674Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -4945,6 +4945,7 @@
 
     // Tasks
     html += '<div class="batch-detail-tasks-header"><h4>Tasks</h4>';
+    html += '<button type="button" class="btn admin-btn-sm" id="batch-save-tasks-btn" style="display:none;">Save Tasks</button>';
     html += '<button type="button" class="btn-secondary admin-btn-sm" id="batch-add-task-btn">+ Add Task</button></div>';
     html += '<div class="batch-detail-tasks">';
     tasks.forEach(function (t) {
@@ -4973,16 +4974,19 @@
     html += '<h4>Plato Readings</h4>';
     if (readings.length > 0) {
       html += renderPlatoChart(readings, b.start_date);
-      html += '<table class="admin-table batch-plato-table"><thead><tr><th>Date</th><th>&deg;P</th><th>Notes</th></tr></thead><tbody>';
+      html += '<table class="admin-table batch-plato-table"><thead><tr><th>Date</th><th>&deg;P</th><th>Temp</th><th>pH</th><th>Notes</th></tr></thead><tbody>';
       readings.slice().reverse().forEach(function (r) {
-        html += '<tr><td>' + String(r.timestamp || '').substring(0, 10) + '</td><td>' + escapeHTML(r.degrees_plato) + '</td><td>' + escapeHTML(r.notes || '') + '</td></tr>';
+        html += '<tr><td>' + String(r.timestamp || '').substring(0, 10) + '</td><td>' + escapeHTML(r.degrees_plato) + '</td><td>' + escapeHTML(r.temperature != null && r.temperature !== '' ? r.temperature : '') + '</td><td>' + escapeHTML(r.ph != null && r.ph !== '' ? r.ph : '') + '</td><td>' + escapeHTML(r.notes || '') + '</td></tr>';
       });
       html += '</tbody></table>';
     } else {
       html += '<p class="admin-order-info">No readings recorded yet.</p>';
     }
-    html += '<div class="batch-plato-add">';
-    html += '<input type="number" id="plato-value" step="0.1" min="0" max="40" placeholder="&deg;P" class="admin-inline-input" style="width:80px;">';
+    html += '<div class="batch-plato-add" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;">';
+    html += '<input type="date" id="plato-date" class="admin-inline-input" style="width:130px;">';
+    html += '<input type="number" id="plato-value" step="0.1" min="0" max="40" placeholder="&deg;P" class="admin-inline-input" style="width:70px;">';
+    html += '<input type="number" id="plato-temp" step="0.1" placeholder="Temp &deg;C" class="admin-inline-input" style="width:90px;">';
+    html += '<input type="number" id="plato-ph" step="0.01" min="0" max="14" placeholder="pH" class="admin-inline-input" style="width:60px;">';
     html += '<input type="text" id="plato-notes" placeholder="Notes" class="admin-inline-input">';
     html += '<button type="button" class="btn admin-btn-sm" id="plato-add-btn">Record</button>';
     html += '</div>';
@@ -5028,25 +5032,55 @@
     var batchVersion = b.last_updated;
     var batchToken = b.access_token;
 
-    // Task checkboxes
+    // Task checkboxes — batch save
+    var pendingTaskChanges = {};
+    function updateTaskSaveBtn() {
+      var btn = document.getElementById('batch-save-tasks-btn');
+      var count = Object.keys(pendingTaskChanges).length;
+      if (btn) {
+        btn.style.display = count > 0 ? '' : 'none';
+        btn.textContent = 'Save Tasks (' + count + ')';
+      }
+    }
     document.querySelectorAll('.batch-task-check input[type="checkbox"]').forEach(function (cb) {
+      var origChecked = cb.checked;
       cb.addEventListener('change', function () {
         var taskId = cb.getAttribute('data-task-id');
         var isTransfer = cb.getAttribute('data-is-transfer') === '1';
 
-        // If checking off a transfer task, prompt for new location
+        // Transfer tasks still need immediate handling (location prompt)
         if (cb.checked && isTransfer) {
           showTransferPrompt(batchId, taskId);
           return;
         }
 
-        adminApiPost('update_batch_task', { task_id: taskId, updates: { completed: cb.checked } })
-          .then(function () {
-            showToast('Task ' + (cb.checked ? 'completed' : 'unchecked'), 'success');
-            openBatchDetail(batchId);
-          })
-          .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+        if (cb.checked === origChecked) {
+          delete pendingTaskChanges[taskId];
+        } else {
+          pendingTaskChanges[taskId] = cb.checked;
+        }
+        var row = cb.closest('.batch-task-row');
+        if (row) row.classList.toggle('batch-task-row--done', cb.checked);
+        updateTaskSaveBtn();
       });
+    });
+    var saveTasksBtn = document.getElementById('batch-save-tasks-btn');
+    if (saveTasksBtn) saveTasksBtn.addEventListener('click', function () {
+      var tasksArr = Object.keys(pendingTaskChanges).map(function (id) {
+        return { task_id: id, updates: { completed: pendingTaskChanges[id] } };
+      });
+      saveTasksBtn.disabled = true;
+      saveTasksBtn.textContent = 'Saving...';
+      adminApiPost('bulk_update_batch_tasks', { tasks: tasksArr })
+        .then(function () {
+          showToast(tasksArr.length + ' task' + (tasksArr.length !== 1 ? 's' : '') + ' updated', 'success');
+          openBatchDetail(batchId);
+        })
+        .catch(function (err) {
+          showToast('Failed: ' + err.message, 'error');
+          saveTasksBtn.disabled = false;
+          updateTaskSaveBtn();
+        });
     });
 
     // Add Task button
@@ -5090,16 +5124,26 @@
       }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
     });
 
+    // Default date input to today
+    var platoDateInput = document.getElementById('plato-date');
+    if (platoDateInput) platoDateInput.value = new Date().toISOString().substring(0, 10);
+
     // Add plato reading
     var platoBtn = document.getElementById('plato-add-btn');
     if (platoBtn) platoBtn.addEventListener('click', function () {
       var val = parseFloat(document.getElementById('plato-value').value);
       if (isNaN(val)) { showToast('Enter a valid Plato value', 'error'); return; }
-      adminApiPost('add_plato_reading', {
+      var tempRaw = document.getElementById('plato-temp').value;
+      var phRaw = document.getElementById('plato-ph').value;
+      var payload = {
         batch_id: batchId,
         degrees_plato: val,
+        timestamp: document.getElementById('plato-date').value,
         notes: document.getElementById('plato-notes').value
-      }).then(function () {
+      };
+      if (tempRaw !== '') payload.temperature = parseFloat(tempRaw);
+      if (phRaw !== '') payload.ph = parseFloat(phRaw);
+      adminApiPost('add_plato_reading', payload).then(function () {
         showToast('Reading recorded', 'success');
         openBatchDetail(batchId);
       }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
@@ -6179,17 +6223,48 @@
       html += '</div>';
     });
 
+    html += '<div id="cal-save-bar" style="display:none;padding:0.5rem 0;text-align:right;"><button type="button" class="btn admin-btn-sm" id="cal-save-btn">Save Tasks</button></div>';
     container.innerHTML = html;
 
+    var calPendingChanges = {};
+    function updateCalSaveBtn() {
+      var bar = document.getElementById('cal-save-bar');
+      var btn = document.getElementById('cal-save-btn');
+      var count = Object.keys(calPendingChanges).length;
+      if (bar) bar.style.display = count > 0 ? '' : 'none';
+      if (btn) btn.textContent = 'Save Tasks (' + count + ')';
+    }
     container.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+      var origChecked = cb.checked;
       cb.addEventListener('change', function () {
-        adminApiPost('update_batch_task', { task_id: cb.getAttribute('data-task-id'), updates: { completed: cb.checked } })
-          .then(function () {
-            showToast('Task ' + (cb.checked ? 'completed' : 'unchecked'), 'success');
-            renderBatchCalendar(calendarYear, calendarMonth);
-          })
-          .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+        var taskId = cb.getAttribute('data-task-id');
+        if (cb.checked === origChecked) {
+          delete calPendingChanges[taskId];
+        } else {
+          calPendingChanges[taskId] = cb.checked;
+        }
+        var row = cb.closest('.batch-cal-detail-task');
+        if (row) row.classList.toggle('batch-cal-detail--done', cb.checked);
+        updateCalSaveBtn();
       });
+    });
+    var calSaveBtn = document.getElementById('cal-save-btn');
+    if (calSaveBtn) calSaveBtn.addEventListener('click', function () {
+      var tasksArr = Object.keys(calPendingChanges).map(function (id) {
+        return { task_id: id, updates: { completed: calPendingChanges[id] } };
+      });
+      calSaveBtn.disabled = true;
+      calSaveBtn.textContent = 'Saving...';
+      adminApiPost('bulk_update_batch_tasks', { tasks: tasksArr })
+        .then(function () {
+          showToast(tasksArr.length + ' task' + (tasksArr.length !== 1 ? 's' : '') + ' updated', 'success');
+          renderBatchCalendar(calendarYear, calendarMonth);
+        })
+        .catch(function (err) {
+          showToast('Failed: ' + err.message, 'error');
+          calSaveBtn.disabled = false;
+          updateCalSaveBtn();
+        });
     });
   }
 
@@ -6250,7 +6325,7 @@
         html += '<div class="upcoming-task-row">';
         html += '<label><input type="checkbox" data-task-id="' + t.task_id + '" data-batch-id="' + t.batch_id + '"> ';
         html += '<strong>' + escapeHTML(t.title) + '</strong></label>';
-        html += '<span class="upcoming-task-meta">' + escapeHTML(t.batch_id) + ' — ' + escapeHTML(t.product_name || '') + '</span>';
+        html += '<a href="#" class="upcoming-task-meta upcoming-batch-link" data-batch-id="' + escapeHTML(t.batch_id) + '">' + escapeHTML(t.batch_id) + ' — ' + escapeHTML(t.product_name || '') + '</a>';
         html += '<span class="upcoming-task-loc">' + [t.vessel_id, t.shelf_id, t.bin_id].filter(Boolean).join('/') + '</span>';
         if (t.due_date) html += '<span class="upcoming-task-date">' + String(t.due_date).substring(0, 10) + '</span>';
         html += '</div>';
@@ -6258,16 +6333,54 @@
       html += '</div>';
     });
 
+    html += '<div id="upcoming-save-bar" style="display:none;padding:0.5rem 0;text-align:right;"><button type="button" class="btn admin-btn-sm" id="upcoming-save-btn">Save Tasks</button></div>';
     container.innerHTML = html;
 
+    var upcomingPendingChanges = {};
+    function updateUpcomingSaveBtn() {
+      var bar = document.getElementById('upcoming-save-bar');
+      var btn = document.getElementById('upcoming-save-btn');
+      var count = Object.keys(upcomingPendingChanges).length;
+      if (bar) bar.style.display = count > 0 ? '' : 'none';
+      if (btn) btn.textContent = 'Save Tasks (' + count + ')';
+    }
     container.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
       cb.addEventListener('change', function () {
-        adminApiPost('update_batch_task', { task_id: cb.getAttribute('data-task-id'), updates: { completed: cb.checked } })
-          .then(function () {
-            showToast('Task completed', 'success');
-            loadUpcomingTasks();
-          })
-          .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+        var taskId = cb.getAttribute('data-task-id');
+        if (!cb.checked) {
+          delete upcomingPendingChanges[taskId];
+        } else {
+          upcomingPendingChanges[taskId] = true;
+        }
+        var row = cb.closest('.upcoming-task-row');
+        if (row) row.classList.toggle('upcoming-task-row--pending', cb.checked);
+        updateUpcomingSaveBtn();
+      });
+    });
+    var upSaveBtn = document.getElementById('upcoming-save-btn');
+    if (upSaveBtn) upSaveBtn.addEventListener('click', function () {
+      var tasksArr = Object.keys(upcomingPendingChanges).map(function (id) {
+        return { task_id: id, updates: { completed: true } };
+      });
+      upSaveBtn.disabled = true;
+      upSaveBtn.textContent = 'Saving...';
+      adminApiPost('bulk_update_batch_tasks', { tasks: tasksArr })
+        .then(function () {
+          showToast(tasksArr.length + ' task' + (tasksArr.length !== 1 ? 's' : '') + ' updated', 'success');
+          loadUpcomingTasks();
+        })
+        .catch(function (err) {
+          showToast('Failed: ' + err.message, 'error');
+          upSaveBtn.disabled = false;
+          updateUpcomingSaveBtn();
+        });
+    });
+
+    // Batch detail links
+    container.querySelectorAll('.upcoming-batch-link').forEach(function (link) {
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        openBatchDetail(link.getAttribute('data-batch-id'));
       });
     });
   }

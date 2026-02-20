@@ -147,6 +147,8 @@
   flex: 1;
   min-width: 100px;
 }
+.batch-input[type="date"] { min-width: 130px; flex: 1.5; }
+.batch-input[type="number"] { min-width: 70px; }
 
 /* Notes */
 .batch-notes-text {

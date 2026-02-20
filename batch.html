@@ -57,8 +57,13 @@
         <div class="batch-plato-add">
           <h3>Add Reading</h3>
           <div class="batch-plato-form">
-            <input type="number" id="plato-value" step="0.1" min="0" max="40" placeholder="Degrees Plato" class="batch-input">
-            <input type="text" id="plato-notes" placeholder="Notes (optional)" class="batch-input">
+            <input type="date" id="plato-date" class="batch-input">
+            <input type="number" id="plato-value" step="0.1" min="0" max="40" placeholder="&deg;P" class="batch-input">
+            <input type="number" id="plato-temp" step="0.1" placeholder="Temp &deg;C" class="batch-input">
+            <input type="number" id="plato-ph" step="0.01" min="0" max="14" placeholder="pH" class="batch-input">
+          </div>
+          <div class="batch-plato-form" style="margin-top:0.35rem;">
+            <input type="text" id="plato-notes" placeholder="Notes (optional)" class="batch-input" style="flex:3;">
             <button type="button" class="btn" id="plato-add-btn">Record</button>
           </div>
         </div>

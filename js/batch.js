@@ -173,9 +173,9 @@
     }
 
     // Table
-    var html = '<table class="batch-readings-table"><thead><tr><th>Date</th><th>&deg;P</th><th>Notes</th></tr></thead><tbody>';
+    var html = '<table class="batch-readings-table"><thead><tr><th>Date</th><th>&deg;P</th><th>Temp</th><th>pH</th><th>Notes</th></tr></thead><tbody>';
     readings.slice().reverse().forEach(function (r) {
-      html += '<tr><td>' + toDateStr(r.timestamp) + '</td><td>' + esc(r.degrees_plato) + '</td><td>' + esc(r.notes || '') + '</td></tr>';
+      html += '<tr><td>' + toDateStr(r.timestamp) + '</td><td>' + esc(r.degrees_plato) + '</td><td>' + esc(r.temperature != null && r.temperature !== '' ? r.temperature : '') + '</td><td>' + esc(r.ph != null && r.ph !== '' ? r.ph : '') + '</td><td>' + esc(r.notes || '') + '</td></tr>';
     });
     html += '</tbody></table>';
     listEl.innerHTML = html;
@@ -239,19 +239,28 @@
 
   var platoBtn = null;
   function bindPlatoSubmit() {
+    // Default date input to today
+    var dateInput = document.getElementById('plato-date');
+    if (dateInput) dateInput.value = new Date().toISOString().substring(0, 10);
+
     platoBtn = document.getElementById('plato-add-btn');
     if (!platoBtn) return;
     platoBtn.addEventListener('click', function () {
       var val = parseFloat(document.getElementById('plato-value').value);
       if (isNaN(val) || val < 0 || val > 40) { showToast('Enter a valid Plato value (0-40)', 'error'); return; }
 
+      var tempRaw = document.getElementById('plato-temp').value;
+      var phRaw = document.getElementById('plato-ph').value;
       var payload = {
         action: 'add_plato_reading',
         batch_token: batchToken,
         batch_id: batchId,
         degrees_plato: val,
+        timestamp: document.getElementById('plato-date').value,
         notes: document.getElementById('plato-notes').value
       };
+      if (tempRaw !== '') payload.temperature = parseFloat(tempRaw);
+      if (phRaw !== '') payload.ph = parseFloat(phRaw);
 
       fetch(apiUrl, {
         method: 'POST',
@@ -263,7 +272,10 @@
         if (!data.ok) { showToast('Failed: ' + (data.message || data.error), 'error'); return; }
         showToast('Reading recorded', 'success');
         document.getElementById('plato-value').value = '';
+        document.getElementById('plato-temp').value = '';
+        document.getElementById('plato-ph').value = '';
         document.getElementById('plato-notes').value = '';
+        document.getElementById('plato-date').value = new Date().toISOString().substring(0, 10);
         loadBatch();
       })
       .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
