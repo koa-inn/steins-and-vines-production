@@ -65,7 +65,10 @@ function doGet(e) {
   // Public endpoint: batch detail via access token (no staff auth required)
   if (action === 'get_batch_public') {
     try {
-      return _jsonResponse(handleGetBatchPublic(e));
+      var batchPublicKey = 'gbp:' + (e.parameter.batch_id || '');
+      return _jsonResponse(_cachedGet(batchPublicKey, 30, function() {
+        return handleGetBatchPublic(e);
+      }));
     } catch (err) {
       return _jsonResponse({ ok: false, error: 'server_error', message: err.message });
     }
@@ -109,10 +112,14 @@ function doGet(e) {
 
       // Batch tracking endpoints
       case 'get_batches':
-        return _jsonResponse({ ok: true, data: getBatches(limit, offset, status) });
+        return _jsonResponse({ ok: true, data: _cachedGet('gbl', 30, function() {
+          return getBatches(limit, offset, status);
+        })});
 
       case 'get_batch':
-        return _jsonResponse({ ok: true, data: getBatchDetail(e.parameter.batch_id) });
+        return _jsonResponse({ ok: true, data: _cachedGet('gb:' + (e.parameter.batch_id || ''), 30, function() {
+          return getBatchDetail(e.parameter.batch_id);
+        })});
 
       case 'get_ferm_schedules':
         return _jsonResponse({ ok: true, data: getFermSchedules() });
@@ -121,10 +128,14 @@ function doGet(e) {
         return _jsonResponse({ ok: true, data: getTasksCalendar(e.parameter.start_date, e.parameter.end_date) });
 
       case 'get_tasks_upcoming':
-        return _jsonResponse({ ok: true, data: getTasksUpcoming(limit || 50) });
+        return _jsonResponse({ ok: true, data: _cachedGet('gtu', 30, function() {
+          return getTasksUpcoming(limit || 50);
+        })});
 
       case 'get_batch_dashboard_summary':
-        return _jsonResponse({ ok: true, data: getBatchDashboardSummary() });
+        return _jsonResponse({ ok: true, data: _cachedGet('gbds', 30, function() {
+          return getBatchDashboardSummary();
+        })});
 
       case 'get_vessels':
         return _jsonResponse({ ok: true, data: getVessels() });
@@ -148,7 +159,9 @@ function doPost(e) {
 
     // Check if this is a batch-token-authenticated request (public batch URL)
     if (payload.batch_token && payload.batch_id) {
-      return _jsonResponse(handleBatchTokenPost(payload, action));
+      var tokenResult = handleBatchTokenPost(payload, action);
+      if (tokenResult.ok) _invalidateBatchCache(payload.batch_id);
+      return _jsonResponse(tokenResult);
     }
 
     // All other actions require staff authorization
@@ -173,31 +186,47 @@ function doPost(e) {
       case 'update_kits':
         return _jsonResponse(updateKits(payload));
 
-      // Batch tracking endpoints
-      case 'create_batch':
-        return _jsonResponse(createBatch(payload, authResult.email));
-
-      case 'update_batch':
-        return _jsonResponse(updateBatch(payload, authResult.email));
-
-      case 'delete_batch':
-        return _jsonResponse(deleteBatch(payload, authResult.email));
-
-      case 'update_batch_schedule':
-        return _jsonResponse(updateBatchSchedule(payload, authResult.email));
-
-      case 'update_batch_task':
-        return _jsonResponse(updateBatchTask(payload, authResult.email));
-
-      case 'bulk_update_batch_tasks':
-        return _jsonResponse(bulkUpdateBatchTasks(payload, authResult.email));
-
-      case 'add_batch_task':
-        return _jsonResponse(addBatchTask(payload, authResult.email));
-
-      case 'add_plato_reading':
-        return _jsonResponse(addPlatoReading(payload, authResult.email));
-
+      // Batch tracking endpoints (all invalidate batch cache after write)
+      case 'create_batch': {
+        var r = createBatch(payload, authResult.email);
+        _invalidateBatchCache(r.batch_id || payload.batch_id);
+        return _jsonResponse(r);
+      }
+      case 'update_batch': {
+        var r = updateBatch(payload, authResult.email);
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(r);
+      }
+      case 'delete_batch': {
+        var r = deleteBatch(payload, authResult.email);
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(r);
+      }
+      case 'update_batch_schedule': {
+        var r = updateBatchSchedule(payload, authResult.email);
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(r);
+      }
+      case 'update_batch_task': {
+        var r = updateBatchTask(payload, authResult.email);
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(r);
+      }
+      case 'bulk_update_batch_tasks': {
+        var r = bulkUpdateBatchTasks(payload, authResult.email);
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(r);
+      }
+      case 'add_batch_task': {
+        var r = addBatchTask(payload, authResult.email);
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(r);
+      }
+      case 'add_plato_reading': {
+        var r = addPlatoReading(payload, authResult.email);
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(r);
+      }
       case 'create_ferm_schedule':
         return _jsonResponse(createFermSchedule(payload, authResult.email));
 
@@ -207,8 +236,11 @@ function doPost(e) {
       case 'delete_ferm_schedule':
         return _jsonResponse(deleteFermSchedule(payload));
 
-      case 'regenerate_batch_token':
-        return _jsonResponse(regenerateBatchToken(payload));
+      case 'regenerate_batch_token': {
+        var r = regenerateBatchToken(payload);
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(r);
+      }
 
       default:
         return _jsonResponse({ ok: false, error: 'invalid_action', message: 'Unknown action: ' + action });
@@ -245,27 +277,37 @@ function checkAuthorization(e) {
     }
   }
 
-  // Validate token with Google's tokeninfo endpoint
+  // Validate token with Google's tokeninfo endpoint (cached for 5 min)
   var tokenValidationResult = null;
+  var cache = CacheService.getScriptCache();
   if (token) {
-    try {
-      var response = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + token, {
-        muteHttpExceptions: true
-      });
-      var statusCode = response.getResponseCode();
-      var responseText = response.getContentText();
-      if (statusCode === 200) {
-        var tokenInfo = JSON.parse(responseText);
-        email = tokenInfo.email;
-        tokenValidationResult = 'success: ' + email;
-        Logger.log('Token validated for: ' + email);
-      } else {
-        tokenValidationResult = 'failed with status ' + statusCode + ': ' + responseText.substring(0, 200);
-        Logger.log('Token validation failed with status: ' + statusCode);
+    var cacheKey = 'auth_' + Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token)
+        .map(function(b) { return (b < 0 ? b + 256 : b).toString(16).padStart(2, '0'); }).join('');
+    var cachedEmail = cache.get(cacheKey);
+    if (cachedEmail) {
+      email = cachedEmail;
+      tokenValidationResult = 'cached: ' + email;
+    } else {
+      try {
+        var response = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + token, {
+          muteHttpExceptions: true
+        });
+        var statusCode = response.getResponseCode();
+        var responseText = response.getContentText();
+        if (statusCode === 200) {
+          var tokenInfo = JSON.parse(responseText);
+          email = tokenInfo.email;
+          tokenValidationResult = 'success: ' + email;
+          Logger.log('Token validated for: ' + email);
+          cache.put(cacheKey, email, 300); // 5 min TTL
+        } else {
+          tokenValidationResult = 'failed with status ' + statusCode + ': ' + responseText.substring(0, 200);
+          Logger.log('Token validation failed with status: ' + statusCode);
+        }
+      } catch (err) {
+        tokenValidationResult = 'error: ' + err.message;
+        Logger.log('Token validation error: ' + err.message);
       }
-    } catch (err) {
-      tokenValidationResult = 'error: ' + err.message;
-      Logger.log('Token validation error: ' + err.message);
     }
   }
 
@@ -293,23 +335,30 @@ function checkAuthorization(e) {
     };
   }
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var configSheet = ss.getSheetByName(CONFIG_SHEET_NAME);
-
-  if (!configSheet) {
-    return { authorized: false, message: 'Config sheet not found' };
-  }
-
-  var configData = configSheet.getDataRange().getValues();
+  // Staff emails list (cached for 5 min)
   var staffEmails = [];
+  var cachedStaff = cache.get('staff_emails');
+  if (cachedStaff) {
+    staffEmails = cachedStaff.split(',');
+  } else {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var configSheet = ss.getSheetByName(CONFIG_SHEET_NAME);
 
-  for (var i = 0; i < configData.length; i++) {
-    if (configData[i][0] === 'staff_emails') {
-      staffEmails = (configData[i][1] || '').split(',').map(function(e) {
-        return e.trim().toLowerCase();
-      });
-      break;
+    if (!configSheet) {
+      return { authorized: false, message: 'Config sheet not found' };
     }
+
+    var configData = configSheet.getDataRange().getValues();
+
+    for (var i = 0; i < configData.length; i++) {
+      if (configData[i][0] === 'staff_emails') {
+        staffEmails = (configData[i][1] || '').split(',').map(function(e) {
+          return e.trim().toLowerCase();
+        });
+        break;
+      }
+    }
+    cache.put('staff_emails', staffEmails.join(','), 300); // 5 min TTL
   }
 
   var emailLower = email.toLowerCase();
@@ -996,26 +1045,52 @@ function invalidateSheetCache(sheetName) {
 }
 
 /**
- * Find a sheet row index (1-based) by matching column A to id
+ * Find a sheet row index (1-based) by matching column A to id.
+ * Uses _sheetCache when available; populates cache on miss so subsequent
+ * sheetToObjects calls for the same sheet avoid a redundant read.
  */
 function findRowById(sheetName, id) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet || sheet.getLastRow() <= 1) return { sheet: sheet, row: -1, data: null, headers: null };
+
+  // Check per-request _sheetCache first
+  if (_sheetCache[sheetName]) {
+    var cached = _sheetCache[sheetName];
+    var headers = Object.keys(cached[0] || {}).filter(function(k) { return k !== '_row'; });
+    for (var i = 0; i < cached.length; i++) {
+      // Column A = first header key
+      if (String(cached[i][headers[0]]) === String(id)) {
+        var obj = {};
+        for (var k in cached[i]) if (k !== '_row') obj[k] = cached[i][k];
+        return { sheet: sheet, row: cached[i]._row, data: obj, headers: headers };
+      }
+    }
+    return { sheet: sheet, row: -1, data: null, headers: headers };
+  }
+
+  // No cache — read sheet and populate _sheetCache
   var data = sheet.getDataRange().getValues();
   var headers = data[0];
+  var cacheArr = [];
+  var found = null;
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(id)) {
-      var obj = {};
-      for (var j = 0; j < headers.length; j++) {
-        var val = data[i][j];
-        if (val instanceof Date) val = val.toISOString();
-        obj[headers[j]] = val;
-      }
-      return { sheet: sheet, row: i + 1, data: obj, headers: headers };
+    var obj = {};
+    for (var j = 0; j < headers.length; j++) {
+      var val = data[i][j];
+      if (val instanceof Date) val = val.toISOString();
+      obj[headers[j]] = val;
+    }
+    obj._row = i + 1;
+    cacheArr.push(obj);
+    if (!found && String(data[i][0]) === String(id)) {
+      var cleanObj = {};
+      for (var k in obj) if (k !== '_row') cleanObj[k] = obj[k];
+      found = { sheet: sheet, row: i + 1, data: cleanObj, headers: headers };
     }
   }
-  return { sheet: sheet, row: -1, data: null, headers: headers };
+  _sheetCache[sheetName] = cacheArr;
+  return found || { sheet: sheet, row: -1, data: null, headers: headers };
 }
 
 // --- GET: Batches ---
@@ -2273,6 +2348,36 @@ function _jsonResponse(obj) {
 }
 
 /**
+ * Cache-aware GET helper. Returns cached JSON if available, otherwise calls fetchFn and caches the result.
+ * CacheService has a 100KB value limit — try/catch handles oversized values gracefully.
+ * @param {string} cacheKey - Cache key
+ * @param {number} ttl - Time-to-live in seconds
+ * @param {Function} fetchFn - Function that returns the data object
+ */
+function _cachedGet(cacheKey, ttl, fetchFn) {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+  var result = fetchFn();
+  try { cache.put(cacheKey, JSON.stringify(result), ttl); } catch (e) { /* value too large, skip */ }
+  return result;
+}
+
+/**
+ * Invalidate all batch-related caches after a write operation.
+ * @param {string} batchId - The batch ID that was modified
+ */
+function _invalidateBatchCache(batchId) {
+  var cache = CacheService.getScriptCache();
+  var keys = ['gbl', 'gtu', 'gbds'];
+  if (batchId) {
+    keys.push('gb:' + batchId);
+    keys.push('gbp:' + batchId);
+  }
+  cache.removeAll(keys);
+}
+
+/**
  * Sanitize user input to prevent XSS attacks
  * Strips script tags and other potentially dangerous HTML
  * @param {string} input - User-provided text
@@ -2318,3 +2423,9 @@ function testAuth() {
   Logger.log('Auth result: ' + JSON.stringify(result));
   return result;
 }
+
+/**
+ * No-op function to keep the Apps Script runtime warm and avoid cold starts (1–3s).
+ * Create a time-based trigger: Edit > Triggers > Add > keepWarm, time-driven, every 5 minutes.
+ */
+function keepWarm() { return true; }

@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-20T15:18:06.354Z';
+  var BUILD_TIMESTAMP = '2026-02-20T18:27:52.263Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -6477,7 +6477,7 @@
     '.schedule-table td:first-child{white-space:nowrap;font-weight:600;width:52px;}' +
     '.schedule-table td:last-child{color:#555;font-size:8px;text-align:right;white-space:nowrap;}' +
     '.notes-box{border:1px solid #999;border-radius:2px;flex:1;min-height:40px;margin:0 0 6px;position:relative;}' +
-    '.notes-box-label{position:absolute;top:-1px;left:4px;font-size:7px;font-weight:bold;color:#888;text-transform:uppercase;background:#fff;padding:0 2px;}' +
+    '.notes-box-label{position:absolute;top:-1px;left:4px;font-size:7px;font-weight:bold;color:#000;text-transform:uppercase;background:#fff;padding:0 2px;}' +
     '.agreement{flex-shrink:0;border-top:1px solid #999;padding-top:3px;}' +
     '.agreement-title{font-size:7px;font-weight:bold;text-align:center;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;}' +
     '.agreement-text{font-size:6.5px;line-height:1.35;text-align:justify;color:#333;margin-bottom:4px;}' +
@@ -6517,8 +6517,8 @@
     h += '</div>';
 
     // Batch ID + Product
-    h += '<div class="batch-id">' + (isBlank ? '<span class="write-line" style="min-width:160px;"></span>' : escapeHTML(b.batch_id || '')) + '</div>';
-    h += '<div class="product-name">' + (isBlank ? '<span class="write-line" style="min-width:200px;"></span>' : escapeHTML(b.product_name || b.product_sku || '')) + '</div>';
+    h += '<div class="batch-id">' + (isBlank ? 'Batch ID: <span class="write-line" style="min-width:140px;"></span>' : escapeHTML(b.batch_id || '')) + '</div>';
+    h += '<div class="product-name">' + (isBlank ? 'Kit: <span class="write-line" style="min-width:180px;"></span>' : escapeHTML(b.product_name || b.product_sku || '')) + '</div>';
 
     // Info grid
     h += '<div class="info-grid">';
@@ -6557,8 +6557,11 @@
         h += '<td>' + escapeHTML(dateLabel) + '</td></tr>';
       });
     } else {
-      // Blank rows
-      for (var i = 0; i < 9; i++) {
+      // Blank rows with column headers
+      h += '<tr><td style="font-weight:bold;font-size:7.5px;padding-bottom:2px;">Day</td>';
+      h += '<td style="font-weight:bold;font-size:7.5px;padding-bottom:2px;">Step</td>';
+      h += '<td style="font-weight:bold;font-size:7.5px;padding-bottom:2px;text-align:right;">Date</td></tr>';
+      for (var i = 0; i < 8; i++) {
         h += '<tr><td style="border-bottom:0.5px solid #ccc;">____</td>';
         h += '<td style="border-bottom:0.5px solid #ccc;">&nbsp;</td>';
         h += '<td style="border-bottom:0.5px solid #ccc;">&nbsp;</td></tr>';
