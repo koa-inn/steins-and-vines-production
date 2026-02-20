@@ -12,6 +12,14 @@
     return String(val).substring(0, 10);
   }
 
+  // Escape HTML to prevent XSS when inserting user data into innerHTML
+  function esc(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+
   function init() {
     apiUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.ADMIN_API_URL) || '';
     if (!apiUrl) { showError('Configuration error'); return; }
@@ -105,13 +113,13 @@
 
       html += '<div class="' + cls + '">';
       html += '<label class="batch-task-label">';
-      html += '<input type="checkbox" class="batch-task-checkbox" data-task-id="' + t.task_id + '" ' + (done ? 'checked' : '') + '>';
-      html += '<span class="batch-task-title">' + (t.title || 'Step ' + t.step_number) + '</span>';
+      html += '<input type="checkbox" class="batch-task-checkbox" data-task-id="' + esc(t.task_id) + '" ' + (done ? 'checked' : '') + '>';
+      html += '<span class="batch-task-title">' + esc(t.title || 'Step ' + t.step_number) + '</span>';
       if (isTransfer) html += '<span class="batch-badge batch-badge--transfer">Transfer</span>';
       if (isPkg) html += '<span class="batch-badge batch-badge--pkg">Packaging</span>';
       html += '</label>';
       html += '<span class="batch-task-due">' + dueLabel + '</span>';
-      if (t.description) html += '<p class="batch-task-desc">' + t.description + '</p>';
+      if (t.description) html += '<p class="batch-task-desc">' + esc(t.description) + '</p>';
       html += '</div>';
     });
 
@@ -167,7 +175,7 @@
     // Table
     var html = '<table class="batch-readings-table"><thead><tr><th>Date</th><th>&deg;P</th><th>Notes</th></tr></thead><tbody>';
     readings.slice().reverse().forEach(function (r) {
-      html += '<tr><td>' + toDateStr(r.timestamp) + '</td><td>' + r.degrees_plato + '</td><td>' + (r.notes || '') + '</td></tr>';
+      html += '<tr><td>' + toDateStr(r.timestamp) + '</td><td>' + esc(r.degrees_plato) + '</td><td>' + esc(r.notes || '') + '</td></tr>';
     });
     html += '</tbody></table>';
     listEl.innerHTML = html;
@@ -219,8 +227,8 @@
     history.forEach(function (h) {
       html += '<div class="batch-vh-entry">';
       html += '<strong>' + toDateStr(h.transferred_at) + '</strong> ';
-      html += 'V:' + (h.vessel_id || '?') + ' S:' + (h.shelf_id || '?') + ' B:' + (h.bin_id || '?');
-      if (h.notes) html += ' — ' + h.notes;
+      html += 'V:' + esc(h.vessel_id || '?') + ' S:' + esc(h.shelf_id || '?') + ' B:' + esc(h.bin_id || '?');
+      if (h.notes) html += ' — ' + esc(h.notes);
       html += '</div>';
     });
     container.innerHTML = html;

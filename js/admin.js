@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-20T02:43:52.141Z';
+  var BUILD_TIMESTAMP = '2026-02-20T06:09:32.752Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -1131,7 +1131,11 @@
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
   }
 
+  var _modalCleanupHandlers = [];
+
   function openModal(title, bodyHTML) {
+    // Clean up any handlers from a previous modal
+    _runModalCleanup();
     document.getElementById('admin-modal-title').textContent = title;
     document.getElementById('admin-modal-body').innerHTML = bodyHTML;
     document.getElementById('admin-modal').style.display = '';
@@ -1139,6 +1143,22 @@
 
   function closeModal() {
     document.getElementById('admin-modal').style.display = 'none';
+    _runModalCleanup();
+  }
+
+  function _runModalCleanup() {
+    for (var i = 0; i < _modalCleanupHandlers.length; i++) {
+      try { _modalCleanupHandlers[i](); } catch (e) {}
+    }
+    _modalCleanupHandlers = [];
+  }
+
+  /** Register a document event listener that auto-removes on modal close */
+  function addModalDocListener(event, handler) {
+    document.addEventListener(event, handler);
+    _modalCleanupHandlers.push(function () {
+      document.removeEventListener(event, handler);
+    });
   }
 
   // ===== Save Bar =====
@@ -4737,6 +4757,10 @@
 
   // --- Sub-tab navigation ---
 
+  var _calendarCacheTime = 0;
+  var _upcomingCacheTime = 0;
+  var SUBTAB_CACHE_TTL = 30000; // 30 seconds
+
   function initBatchSubTabs() {
     var btns = document.querySelectorAll('.batch-sub-tab');
     btns.forEach(function (btn) {
@@ -4748,10 +4772,10 @@
         var target = document.getElementById('batch-view-' + btn.getAttribute('data-batch-view'));
         if (target) target.classList.add('active');
 
-        // Lazy load calendar/upcoming on first visit
         var view = btn.getAttribute('data-batch-view');
-        if (view === 'calendar') renderBatchCalendar(calendarYear, calendarMonth);
-        if (view === 'upcoming') loadUpcomingTasks();
+        var now = Date.now();
+        if (view === 'calendar' && (now - _calendarCacheTime > SUBTAB_CACHE_TTL)) renderBatchCalendar(calendarYear, calendarMonth);
+        if (view === 'upcoming' && (now - _upcomingCacheTime > SUBTAB_CACHE_TTL)) loadUpcomingTasks();
         if (view === 'schedules') loadScheduleTemplates();
       });
     });
@@ -4825,9 +4849,9 @@
       var startDate = b.start_date ? String(b.start_date).substring(0, 10) : '—';
 
       html += '<tr data-batch-id="' + b.batch_id + '">';
-      html += '<td class="batch-id-cell">' + b.batch_id + '</td>';
-      html += '<td>' + (b.product_name || b.product_sku || '—') + '</td>';
-      html += '<td>' + (b.customer_name || '—') + '</td>';
+      html += '<td class="batch-id-cell">' + escapeHTML(b.batch_id) + '</td>';
+      html += '<td>' + escapeHTML(b.product_name || b.product_sku || '—') + '</td>';
+      html += '<td>' + escapeHTML(b.customer_name || '—') + '</td>';
       html += '<td><span class="batch-status batch-status--' + statusInfo.color + '">' + statusInfo.label + '</span></td>';
       html += '<td>' + startDate + '</td>';
       html += '<td>' + location + '</td>';
@@ -4888,10 +4912,10 @@
 
     // Info grid
     html += '<div class="batch-detail-grid">';
-    html += '<div class="batch-detail-col"><strong>Product:</strong> ' + (b.product_name || b.product_sku) + '</div>';
-    html += '<div class="batch-detail-col"><strong>Customer:</strong> ' + (b.customer_name || '—') + '</div>';
+    html += '<div class="batch-detail-col"><strong>Product:</strong> ' + escapeHTML(b.product_name || b.product_sku) + '</div>';
+    html += '<div class="batch-detail-col"><strong>Customer:</strong> ' + escapeHTML(b.customer_name || '—') + '</div>';
     html += '<div class="batch-detail-col"><strong>Start Date:</strong> ' + (b.start_date ? String(b.start_date).substring(0, 10) : '—') + '</div>';
-    html += '<div class="batch-detail-col"><strong>Vessel:</strong> ' + (b.vessel_id || '—') + ' &nbsp;<strong>Shelf:</strong> ' + (b.shelf_id || '—') + ' &nbsp;<strong>Bin:</strong> ' + (b.bin_id || '—') + '</div>';
+    html += '<div class="batch-detail-col"><strong>Vessel:</strong> ' + escapeHTML(b.vessel_id || '—') + ' &nbsp;<strong>Shelf:</strong> ' + escapeHTML(b.shelf_id || '—') + ' &nbsp;<strong>Bin:</strong> ' + escapeHTML(b.bin_id || '—') + '</div>';
     html += '</div>';
 
     // Location edit
@@ -4928,7 +4952,7 @@
 
       html += '<div class="' + cls + '">';
       html += '<label class="batch-task-check"><input type="checkbox" ' + (done ? 'checked' : '') + ' data-task-id="' + t.task_id + '" data-batch-id="' + b.batch_id + '" data-is-transfer="' + (isTransfer ? '1' : '') + '"> ';
-      html += '<span class="batch-task-title">' + (t.title || 'Step ' + t.step_number) + '</span>';
+      html += '<span class="batch-task-title">' + escapeHTML(t.title || 'Step ' + t.step_number) + '</span>';
       if (isTransfer) html += '<span class="batch-task-badge batch-task-badge--transfer">Transfer</span>';
       if (isPkg) html += '<span class="batch-task-badge batch-task-badge--pkg">Packaging</span>';
       html += '</label>';
@@ -4944,7 +4968,7 @@
       html += renderPlatoChart(readings, b.start_date);
       html += '<table class="admin-table batch-plato-table"><thead><tr><th>Date</th><th>&deg;P</th><th>Notes</th></tr></thead><tbody>';
       readings.slice().reverse().forEach(function (r) {
-        html += '<tr><td>' + String(r.timestamp || '').substring(0, 10) + '</td><td>' + r.degrees_plato + '</td><td>' + (r.notes || '') + '</td></tr>';
+        html += '<tr><td>' + String(r.timestamp || '').substring(0, 10) + '</td><td>' + escapeHTML(r.degrees_plato) + '</td><td>' + escapeHTML(r.notes || '') + '</td></tr>';
       });
       html += '</tbody></table>';
     } else {
@@ -4958,7 +4982,7 @@
 
     // Notes
     html += '<h4>Notes</h4>';
-    html += '<textarea id="batch-notes-edit" class="admin-input" rows="3">' + (b.notes || '') + '</textarea>';
+    html += '<textarea id="batch-notes-edit" class="admin-input" rows="3">' + escapeHTML(b.notes || '') + '</textarea>';
     html += '<button type="button" class="btn admin-btn-sm" id="batch-save-notes" style="margin-top:4px;">Save Notes</button>';
 
     // Vessel History
@@ -4968,8 +4992,8 @@
       history.forEach(function (h) {
         html += '<div class="batch-vh-entry">';
         html += '<strong>' + String(h.transferred_at || '').substring(0, 10) + '</strong> ';
-        html += 'V:' + (h.vessel_id || '?') + ' S:' + (h.shelf_id || '?') + ' B:' + (h.bin_id || '?');
-        if (h.notes) html += ' — ' + h.notes;
+        html += 'V:' + escapeHTML(h.vessel_id || '?') + ' S:' + escapeHTML(h.shelf_id || '?') + ' B:' + escapeHTML(h.bin_id || '?');
+        if (h.notes) html += ' — ' + escapeHTML(h.notes);
         html += '</div>';
       });
       html += '</div>';
@@ -5030,7 +5054,7 @@
     var detailVesselHidden = document.getElementById('batch-edit-vessel');
     if (detailVesselInput && detailVesselDropdown && detailVesselHidden) {
       bindVesselSearch(detailVesselInput, detailVesselDropdown, detailVesselHidden, b.vessel_id || '');
-      document.addEventListener('click', function (e) {
+      addModalDocListener('click', function (e) {
         if (!detailVesselDropdown.contains(e.target) && e.target !== detailVesselInput) detailVesselDropdown.style.display = 'none';
       });
     }
@@ -5678,8 +5702,8 @@
     bindShelfInput(document.getElementById('batch-shelf'));
     bindBinInput(document.getElementById('batch-bin'));
 
-    // Close dropdowns on outside click
-    document.addEventListener('click', function closeDropdowns(e) {
+    // Close dropdowns on outside click (auto-removed on modal close)
+    addModalDocListener('click', function (e) {
       if (!custDropdown.contains(e.target) && e.target !== custInput) custDropdown.style.display = 'none';
       if (!dropdown.contains(e.target) && e.target !== searchInput) dropdown.style.display = 'none';
       if (!vesselDropdown.contains(e.target) && e.target !== vesselInput) vesselDropdown.style.display = 'none';
@@ -6047,6 +6071,7 @@
 
     adminApiGet('get_tasks_calendar', { start_date: startStr, end_date: endStr })
       .then(function (result) {
+        _calendarCacheTime = Date.now();
         var tasks = (result.data && result.data.tasks) || [];
         var tasksByDate = {};
         tasks.forEach(function (t) {
@@ -6101,7 +6126,7 @@
         if (t.completed) tCls += ' batch-cal-task--done';
         else if (t.due_date < todayStr) tCls += ' batch-cal-task--overdue';
         else tCls += ' batch-cal-task--pending';
-        html += '<div class="' + tCls + '">' + t.title + '</div>';
+        html += '<div class="' + tCls + '">' + escapeHTML(t.title) + '</div>';
         shown++;
       });
       if (dayTasks.length > 3) {
@@ -6139,9 +6164,9 @@
       var overdueClass = (!t.completed && t.due_date && t.due_date < todayStr) ? ' batch-cal-detail--overdue' : '';
       html += '<div class="batch-cal-detail-task' + doneClass + overdueClass + '">';
       html += '<label><input type="checkbox" ' + (t.completed ? 'checked' : '') + ' data-task-id="' + t.task_id + '" data-batch-id="' + t.batch_id + '"> ';
-      html += '<strong>' + t.title + '</strong></label>';
-      html += ' — ' + t.batch_id + ' (' + (t.product_name || '') + ')';
-      html += ' — ' + (t.vessel_id || '') + '/' + (t.shelf_id || '');
+      html += '<strong>' + escapeHTML(t.title) + '</strong></label>';
+      html += ' — ' + escapeHTML(t.batch_id) + ' (' + escapeHTML(t.product_name || '') + ')';
+      html += ' — ' + escapeHTML(t.vessel_id || '') + '/' + escapeHTML(t.shelf_id || '');
       html += '</div>';
     });
 
@@ -6164,6 +6189,7 @@
   function loadUpcomingTasks() {
     adminApiGet('get_tasks_upcoming', { limit: 50 })
       .then(function (result) {
+        _upcomingCacheTime = Date.now();
         renderUpcomingTasks((result.data && result.data.tasks) || []);
       })
       .catch(function (err) {
@@ -6214,8 +6240,8 @@
       g.tasks.forEach(function (t) {
         html += '<div class="upcoming-task-row">';
         html += '<label><input type="checkbox" data-task-id="' + t.task_id + '" data-batch-id="' + t.batch_id + '"> ';
-        html += '<strong>' + t.title + '</strong></label>';
-        html += '<span class="upcoming-task-meta">' + t.batch_id + ' — ' + (t.product_name || '') + '</span>';
+        html += '<strong>' + escapeHTML(t.title) + '</strong></label>';
+        html += '<span class="upcoming-task-meta">' + escapeHTML(t.batch_id) + ' — ' + escapeHTML(t.product_name || '') + '</span>';
         html += '<span class="upcoming-task-loc">' + [t.vessel_id, t.shelf_id, t.bin_id].filter(Boolean).join('/') + '</span>';
         if (t.due_date) html += '<span class="upcoming-task-date">' + String(t.due_date).substring(0, 10) + '</span>';
         html += '</div>';
@@ -6256,8 +6282,8 @@
     var body = '<div style="text-align:center;">';
     body += '<div style="margin:10px auto;">' + svg + '</div>';
     body += '<p><strong>' + batchId + '</strong></p>';
-    body += '<p>' + (batchData.product_name || '') + '</p>';
-    body += '<p>' + (batchData.customer_name || '') + '</p>';
+    body += '<p>' + escapeHTML(batchData.product_name || '') + '</p>';
+    body += '<p>' + escapeHTML(batchData.customer_name || '') + '</p>';
     body += '<p style="font-size:0.8rem;word-break:break-all;color:#666;">' + url + '</p>';
     body += '<button type="button" class="btn" id="qr-print-btn">Print Label</button>';
     body += '<button type="button" class="btn-secondary" id="qr-copy-url-btn" style="margin-left:8px;">Copy URL</button>';
@@ -6287,10 +6313,10 @@
       '</head><body><div class="label">' +
       '<div class="batch-id">' + batchId + '</div>' +
       '<div class="qr">' + svg + '</div>' +
-      '<div class="info"><strong>' + (batchData.product_name || '') + '</strong></div>' +
-      '<div class="info">' + (batchData.customer_name || '') + '</div>' +
-      '<div class="info">Started: ' + (batchData.start_date || '') + '</div>' +
-      '<div class="info">Vessel: ' + (batchData.vessel_id || '?') + ' | Shelf: ' + (batchData.shelf_id || '?') + ' | Bin: ' + (batchData.bin_id || '?') + '</div>' +
+      '<div class="info"><strong>' + escapeHTML(batchData.product_name || '') + '</strong></div>' +
+      '<div class="info">' + escapeHTML(batchData.customer_name || '') + '</div>' +
+      '<div class="info">Started: ' + escapeHTML(batchData.start_date || '') + '</div>' +
+      '<div class="info">Vessel: ' + escapeHTML(batchData.vessel_id || '?') + ' | Shelf: ' + escapeHTML(batchData.shelf_id || '?') + ' | Bin: ' + escapeHTML(batchData.bin_id || '?') + '</div>' +
       '</div></body></html>'
     );
     pw.document.close();
@@ -6391,14 +6417,31 @@
     if (refreshBtn) refreshBtn.addEventListener('click', loadUpcomingTasks);
   }
 
-  // Hook batch loading into data load
+  // Lazy-load: only load batch data when Batches tab is first activated.
+  // Dashboard summary is loaded eagerly (small payload, needed for pipeline strip).
+  var _batchDataLoaded = false;
   var _origFinishDataLoad = finishDataLoad;
   finishDataLoad = function () {
     _origFinishDataLoad();
     if (SHEETS_CONFIG.ADMIN_API_URL) {
-      loadBatchesData();
       loadBatchDashboardSummary();
     }
+  };
+
+  // Hook into tab navigation to lazy-load batch data on first visit
+  var _origInitTabNav = initTabNavigation;
+  initTabNavigation = function () {
+    _origInitTabNav();
+    var tabBtns = document.querySelectorAll('.admin-tab-btn');
+    tabBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (btn.getAttribute('data-tab') === 'batches' && !_batchDataLoaded) {
+          _batchDataLoaded = true;
+          loadBatchesData();
+          loadScheduleTemplates();
+        }
+      });
+    });
   };
 
   document.addEventListener('DOMContentLoaded', function () {

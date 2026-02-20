@@ -859,6 +859,16 @@ function updateKits(payload) {
  * @param {string} prefix - e.g., 'SV-B-', 'BT-', 'FS-'
  * @param {number} padLength - zero-pad length (default 6)
  */
+/**
+ * Acquire a script-wide lock (prevents concurrent ID collisions).
+ * Returns the lock object — caller MUST call lock.releaseLock() when done.
+ */
+function acquireScriptLock(timeoutMs) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(timeoutMs || 10000);
+  return lock;
+}
+
 function generateNextId(sheetName, prefix, padLength) {
   if (!padLength) padLength = 6;
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -927,9 +937,25 @@ function calculateDueDate(startDateStr, dayOffset) {
 }
 
 /**
- * Read a sheet as array of objects [{col: val, ...}]
+ * Per-request cache for sheet data. Cleared between requests automatically
+ * since Apps Script creates a fresh execution context per request.
  */
-function sheetToObjects(sheetName) {
+var _sheetCache = {};
+
+/**
+ * Read a sheet as array of objects [{col: val, ...}]
+ * Results are cached per-request so each sheet is read at most once.
+ * Pass skipCache=true to force a fresh read (e.g., after writes).
+ */
+function sheetToObjects(sheetName, skipCache) {
+  if (!skipCache && _sheetCache[sheetName]) {
+    // Return deep copies so callers can't corrupt the cache
+    return _sheetCache[sheetName].map(function (obj) {
+      var copy = {};
+      for (var k in obj) copy[k] = obj[k];
+      return copy;
+    });
+  }
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet || sheet.getLastRow() <= 1) return [];
@@ -946,7 +972,24 @@ function sheetToObjects(sheetName) {
     obj._row = i + 1; // 1-based row for updates
     result.push(obj);
   }
-  return result;
+  _sheetCache[sheetName] = result;
+  // Return copies
+  return result.map(function (obj) {
+    var copy = {};
+    for (var k in obj) copy[k] = obj[k];
+    return copy;
+  });
+}
+
+/**
+ * Invalidate the per-request cache for a sheet (call after writes).
+ */
+function invalidateSheetCache(sheetName) {
+  if (sheetName) {
+    delete _sheetCache[sheetName];
+  } else {
+    _sheetCache = {};
+  }
 }
 
 /**
@@ -1389,84 +1432,90 @@ function createBatch(payload, userEmail) {
     }
   }
 
-  var batchId = generateNextId(BATCHES_SHEET_NAME, 'SV-B-', 6);
-  var accessToken = Utilities.getUuid().replace(/-/g, '');
-  var now = new Date().toISOString();
-  var scheduleSnapshot = schedResult.data.steps || '[]';
+  // Lock to prevent duplicate IDs from concurrent requests
+  var lock = acquireScriptLock(15000);
+  try {
+    var batchId = generateNextId(BATCHES_SHEET_NAME, 'SV-B-', 6);
+    var accessToken = Utilities.getUuid().replace(/-/g, '');
+    var now = new Date().toISOString();
+    var scheduleSnapshot = schedResult.data.steps || '[]';
 
-  // Append batch row
-  batchesSheet.appendRow([
-    batchId,
-    'primary',
-    sanitizeInput(payload.product_sku),
-    sanitizeInput(payload.product_name || ''),
-    sanitizeInput(payload.customer_id || ''),
-    sanitizeInput(payload.customer_name),
-    sanitizeInput(payload.customer_email || ''),
-    payload.start_date,
-    payload.schedule_id,
-    scheduleSnapshot,
-    sanitizeInput(payload.vessel_id || ''),
-    sanitizeInput(payload.shelf_id || ''),
-    sanitizeInput(payload.bin_id || ''),
-    sanitizeInput(payload.notes || ''),
-    accessToken,
-    sanitizeInput(payload.reservation_id || ''),
-    now,
-    userEmail,
-    now
-  ]);
-
-  // Create tasks from schedule
-  var steps;
-  try { steps = JSON.parse(scheduleSnapshot); } catch (e) { steps = []; }
-
-  var tasksCreated = 0;
-  for (var i = 0; i < steps.length; i++) {
-    var step = steps[i];
-    var taskId = generateNextId(BATCH_TASKS_SHEET_NAME, 'BT-', 6);
-    var dueDate = calculateDueDate(payload.start_date, step.day_offset);
-
-    tasksSheet.appendRow([
-      taskId,
+    // Append batch row
+    batchesSheet.appendRow([
       batchId,
-      step.step_number || (i + 1),
-      sanitizeInput(step.title || ''),
-      sanitizeInput(step.description || ''),
-      step.day_offset,
-      dueDate,
-      step.is_packaging ? 'TRUE' : 'FALSE',
-      step.is_transfer ? 'TRUE' : 'FALSE',
-      'FALSE', // completed
-      '',      // completed_at
-      '',      // completed_by
-      '',      // notes
-      now      // last_updated
-    ]);
-    tasksCreated++;
-  }
-
-  // Record initial vessel placement
-  if (payload.vessel_id || payload.shelf_id || payload.bin_id) {
-    var vhId = generateNextId(VESSEL_HISTORY_SHEET_NAME, 'VH-', 6);
-    vesselSheet.appendRow([
-      vhId,
-      batchId,
+      'primary',
+      sanitizeInput(payload.product_sku),
+      sanitizeInput(payload.product_name || ''),
+      sanitizeInput(payload.customer_id || ''),
+      sanitizeInput(payload.customer_name),
+      sanitizeInput(payload.customer_email || ''),
+      payload.start_date,
+      payload.schedule_id,
+      scheduleSnapshot,
       sanitizeInput(payload.vessel_id || ''),
       sanitizeInput(payload.shelf_id || ''),
       sanitizeInput(payload.bin_id || ''),
+      sanitizeInput(payload.notes || ''),
+      accessToken,
+      sanitizeInput(payload.reservation_id || ''),
       now,
       userEmail,
-      'Initial placement'
+      now
     ]);
-  }
 
-  // Mark vessel as in-use
-  if (payload.vessel_id) {
-    setVesselStatus(payload.vessel_id, 'In-Use');
-  }
+    // Create tasks from schedule
+    var steps;
+    try { steps = JSON.parse(scheduleSnapshot); } catch (e) { steps = []; }
 
-  return { ok: true, batch_id: batchId, access_token: accessToken, tasks_created: tasksCreated };
+    var tasksCreated = 0;
+    for (var i = 0; i < steps.length; i++) {
+      var step = steps[i];
+      var taskId = generateNextId(BATCH_TASKS_SHEET_NAME, 'BT-', 6);
+      var dueDate = calculateDueDate(payload.start_date, step.day_offset);
+
+      tasksSheet.appendRow([
+        taskId,
+        batchId,
+        step.step_number || (i + 1),
+        sanitizeInput(step.title || ''),
+        sanitizeInput(step.description || ''),
+        step.day_offset,
+        dueDate,
+        step.is_packaging ? 'TRUE' : 'FALSE',
+        step.is_transfer ? 'TRUE' : 'FALSE',
+        'FALSE', // completed
+        '',      // completed_at
+        '',      // completed_by
+        '',      // notes
+        now      // last_updated
+      ]);
+      tasksCreated++;
+    }
+
+    // Record initial vessel placement
+    if (payload.vessel_id || payload.shelf_id || payload.bin_id) {
+      var vhId = generateNextId(VESSEL_HISTORY_SHEET_NAME, 'VH-', 6);
+      vesselSheet.appendRow([
+        vhId,
+        batchId,
+        sanitizeInput(payload.vessel_id || ''),
+        sanitizeInput(payload.shelf_id || ''),
+        sanitizeInput(payload.bin_id || ''),
+        now,
+        userEmail,
+        'Initial placement'
+      ]);
+    }
+
+    // Mark vessel as in-use
+    if (payload.vessel_id) {
+      setVesselStatus(payload.vessel_id, 'In-Use');
+    }
+
+    return { ok: true, batch_id: batchId, access_token: accessToken, tasks_created: tasksCreated };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // --- POST: Update Batch ---
@@ -1668,7 +1717,15 @@ function updateBatchSchedule(payload, userEmail) {
   var tasksUpdated = 0;
   var tasksCreated = 0;
   var tasksRemoved = 0;
-  var startDate = current.start_date || '';
+  var startDate = toDateOnly(current.start_date);
+
+  // Read task headers once outside the loop
+  var tHeaders = tasksSheet.getDataRange().getValues()[0];
+  var titleCol = tHeaders.indexOf('title');
+  var descCol = tHeaders.indexOf('description');
+  var dayCol = tHeaders.indexOf('day_offset');
+  var dateCol = tHeaders.indexOf('due_date');
+  var luCol2 = tHeaders.indexOf('last_updated');
 
   newSteps.forEach(function (step) {
     var stepNum = String(step.step_number);
@@ -1676,13 +1733,6 @@ function updateBatchSchedule(payload, userEmail) {
     var existing = existingByStep[stepNum];
 
     if (existing) {
-      // Update existing task
-      var tHeaders = ss.getSheetByName(BATCH_TASKS_SHEET_NAME).getDataRange().getValues()[0];
-      var titleCol = tHeaders.indexOf('title');
-      var descCol = tHeaders.indexOf('description');
-      var dayCol = tHeaders.indexOf('day_offset');
-      var dateCol = tHeaders.indexOf('due_date');
-      var luCol2 = tHeaders.indexOf('last_updated');
       var dueDate = calculateDueDate(startDate, step.day_offset);
 
       if (titleCol !== -1) tasksSheet.getRange(existing._row, titleCol + 1).setValue(sanitizeInput(step.title || ''));
@@ -1708,13 +1758,18 @@ function updateBatchSchedule(payload, userEmail) {
   });
 
   // Remove tasks no longer in snapshot (only if not completed)
+  // Collect rows first, then delete from bottom up to avoid row-shifting
+  var rowsToRemove = [];
   existingTasks.forEach(function (t) {
     if (!newStepNums[String(t.step_number)] && String(t.completed).toUpperCase() !== 'TRUE') {
-      // Delete row (from bottom up to avoid shifting)
-      tasksSheet.deleteRow(t._row);
+      rowsToRemove.push(t._row);
       tasksRemoved++;
     }
   });
+  rowsToRemove.sort(function (a, b) { return b - a; });
+  for (var ri = 0; ri < rowsToRemove.length; ri++) {
+    tasksSheet.deleteRow(rowsToRemove[ri]);
+  }
 
   return { ok: true, tasks_updated: tasksUpdated, tasks_created: tasksCreated, tasks_removed: tasksRemoved };
 }
@@ -1816,38 +1871,59 @@ function addBatchTask(payload, userEmail) {
     if (sn > maxStep) maxStep = sn;
   });
 
-  var taskId = generateNextId(BATCH_TASKS_SHEET_NAME, 'BT-', 6);
-  var now = new Date().toISOString();
-  var startDate = batchResult.data.start_date || '';
-  var dayOffset = payload.day_offset !== undefined ? Number(payload.day_offset) : -1;
-  var dueDate = payload.due_date || '';
-  if (!dueDate && dayOffset >= 0 && startDate) {
-    dueDate = calculateDueDate(startDate, dayOffset);
+  var lock = acquireScriptLock(10000);
+  try {
+    var taskId = generateNextId(BATCH_TASKS_SHEET_NAME, 'BT-', 6);
+    var now = new Date().toISOString();
+    var startDate = batchResult.data.start_date || '';
+    var dayOffset = payload.day_offset !== undefined ? Number(payload.day_offset) : -1;
+    var dueDate = payload.due_date || '';
+    if (!dueDate && dayOffset >= 0 && startDate) {
+      dueDate = calculateDueDate(startDate, dayOffset);
+    }
+
+    tasksSheet.appendRow([
+      taskId,
+      payload.batch_id,
+      maxStep + 1,
+      sanitizeInput(payload.title),
+      sanitizeInput(payload.description || ''),
+      dayOffset,
+      dueDate,
+      'FALSE', // is_packaging
+      payload.is_transfer ? 'TRUE' : 'FALSE',
+      'FALSE', // completed
+      '',      // completed_at
+      '',      // completed_by
+      sanitizeInput(payload.notes || ''),
+      now      // last_updated
+    ]);
+
+    return { ok: true, task_id: taskId, message: 'Task added' };
+  } finally {
+    lock.releaseLock();
   }
-
-  tasksSheet.appendRow([
-    taskId,
-    payload.batch_id,
-    maxStep + 1,
-    sanitizeInput(payload.title),
-    sanitizeInput(payload.description || ''),
-    dayOffset,
-    dueDate,
-    'FALSE', // is_packaging
-    payload.is_transfer ? 'TRUE' : 'FALSE',
-    'FALSE', // completed
-    '',      // completed_at
-    '',      // completed_by
-    sanitizeInput(payload.notes || ''),
-    now      // last_updated
-  ]);
-
-  return { ok: true, task_id: taskId, message: 'Task added' };
 }
 
 function handlePackagingCompletion(batchId, timestamp) {
+  // Verify all non-packaging tasks are completed before allowing batch completion
+  var allTasks = sheetToObjects(BATCH_TASKS_SHEET_NAME).filter(function (t) {
+    return String(t.batch_id) === String(batchId);
+  });
+  var hasIncomplete = false;
+  for (var i = 0; i < allTasks.length; i++) {
+    if (String(allTasks[i].is_packaging).toUpperCase() !== 'TRUE' &&
+        String(allTasks[i].completed).toUpperCase() !== 'TRUE') {
+      hasIncomplete = true;
+      break;
+    }
+  }
+  if (hasIncomplete) return; // Don't complete batch if tasks remain
+
   var result = findRowById(BATCHES_SHEET_NAME, batchId);
   if (result.row === -1) return;
+  if (String(result.data.status).toLowerCase() === 'complete') return; // Already complete
+
   var statusCol = result.headers.indexOf('status');
   var luCol = result.headers.indexOf('last_updated');
   if (statusCol !== -1) result.sheet.getRange(result.row, statusCol + 1).setValue('complete');
@@ -1863,10 +1939,24 @@ function handlePackagingCompletion(batchId, timestamp) {
 function handlePackagingUncompletion(batchId, timestamp) {
   var result = findRowById(BATCHES_SHEET_NAME, batchId);
   if (result.row === -1) return;
+
+  // Determine correct status: check if any transfer task was completed (implies secondary)
+  var allTasks = sheetToObjects(BATCH_TASKS_SHEET_NAME).filter(function (t) {
+    return String(t.batch_id) === String(batchId);
+  });
+  var hasCompletedTransfer = false;
+  for (var i = 0; i < allTasks.length; i++) {
+    if (String(allTasks[i].is_transfer).toUpperCase() === 'TRUE' &&
+        String(allTasks[i].completed).toUpperCase() === 'TRUE') {
+      hasCompletedTransfer = true;
+      break;
+    }
+  }
+  var revertStatus = hasCompletedTransfer ? 'secondary' : 'primary';
+
   var statusCol = result.headers.indexOf('status');
   var luCol = result.headers.indexOf('last_updated');
-  // Revert to secondary (the batch was in some state before packaging)
-  if (statusCol !== -1) result.sheet.getRange(result.row, statusCol + 1).setValue('secondary');
+  if (statusCol !== -1) result.sheet.getRange(result.row, statusCol + 1).setValue(revertStatus);
   if (luCol !== -1) result.sheet.getRange(result.row, luCol + 1).setValue(timestamp);
 
   // Re-claim the vessel as in-use
@@ -1891,21 +1981,26 @@ function addPlatoReading(payload, recordedBy) {
   var sheet = ss.getSheetByName(PLATO_READINGS_SHEET_NAME);
   if (!sheet) return { ok: false, error: 'sheet_not_found' };
 
-  var readingId = generateNextId(PLATO_READINGS_SHEET_NAME, 'PR-', 6);
-  var now = new Date().toISOString();
-  var timestamp = payload.timestamp || now;
+  var lock = acquireScriptLock(10000);
+  try {
+    var readingId = generateNextId(PLATO_READINGS_SHEET_NAME, 'PR-', 6);
+    var now = new Date().toISOString();
+    var timestamp = payload.timestamp || now;
 
-  sheet.appendRow([
-    readingId,
-    payload.batch_id,
-    timestamp,
-    plato,
-    sanitizeInput(payload.notes || ''),
-    recordedBy || '',
-    now
-  ]);
+    sheet.appendRow([
+      readingId,
+      payload.batch_id,
+      timestamp,
+      plato,
+      sanitizeInput(payload.notes || ''),
+      recordedBy || '',
+      now
+    ]);
 
-  return { ok: true, reading_id: readingId };
+    return { ok: true, reading_id: readingId };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // --- POST: Batch Token Auth (public URL) ---
