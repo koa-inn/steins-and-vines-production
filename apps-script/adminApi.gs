@@ -1463,7 +1463,7 @@ function createBatch(payload, userEmail) {
 
   // Mark vessel as in-use
   if (payload.vessel_id) {
-    setVesselStatus(payload.vessel_id, 'in-use');
+    setVesselStatus(payload.vessel_id, 'In-Use');
   }
 
   return { ok: true, batch_id: batchId, access_token: accessToken, tasks_created: tasksCreated };
@@ -1541,8 +1541,8 @@ function updateBatch(payload, userEmail) {
     var oldVessel = String(current.vessel_id || '');
     var newVessel = String(updates.vessel_id !== undefined ? updates.vessel_id : current.vessel_id || '');
     if (oldVessel !== newVessel) {
-      if (oldVessel) setVesselStatus(oldVessel, 'available');
-      if (newVessel) setVesselStatus(newVessel, 'in-use');
+      if (oldVessel) setVesselStatus(oldVessel, 'Empty');
+      if (newVessel) setVesselStatus(newVessel, 'In-Use');
     }
   }
 
@@ -1582,7 +1582,7 @@ function deleteBatch(payload, userEmail) {
   // Release vessel if in-use
   var vesselId = String(batchResult.data.vessel_id || '');
   if (vesselId) {
-    setVesselStatus(vesselId, 'available');
+    setVesselStatus(vesselId, 'Empty');
   }
 
   // Delete related rows from child sheets (bottom-up to avoid row shifting)
@@ -1856,7 +1856,7 @@ function handlePackagingCompletion(batchId, timestamp) {
   // Release the vessel back to available
   var vesselId = String(result.data.vessel_id || '');
   if (vesselId) {
-    setVesselStatus(vesselId, 'available');
+    setVesselStatus(vesselId, 'Empty');
   }
 }
 
@@ -1872,7 +1872,7 @@ function handlePackagingUncompletion(batchId, timestamp) {
   // Re-claim the vessel as in-use
   var vesselId = String(result.data.vessel_id || '');
   if (vesselId) {
-    setVesselStatus(vesselId, 'in-use');
+    setVesselStatus(vesselId, 'In-Use');
   }
 }
 
