@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-20T20:27:49.563Z';
+  var BUILD_TIMESTAMP = '2026-02-21T00:29:53.106Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -4946,8 +4946,11 @@
     // Tasks
     html += '<div id="tasks-section">' + renderTasksSection(tasks, b.batch_id) + '</div>';
 
-    // Plato Readings
-    html += '<div id="plato-section">' + renderPlatoSection(readings, b.start_date) + '</div>';
+    // Plato Readings — store local copy for optimistic updates
+    _platoReadings = readings.slice();
+    _platoStartDate = b.start_date;
+    _platoBatchId = b.batch_id;
+    html += '<div id="plato-section">' + renderPlatoSection(_platoReadings, _platoStartDate) + '</div>';
 
     // Notes
     html += '<h4>Notes</h4>';
@@ -5241,7 +5244,7 @@
     });
   }
 
-  // --- Tasks Section (partial refresh) ---
+  // --- Tasks Section (optimistic UI) ---
 
   function renderTasksSection(tasks, batchId) {
     var html = '<div class="batch-detail-tasks-header"><h4>Tasks</h4>';
@@ -5272,19 +5275,6 @@
     return html;
   }
 
-  function refreshTasksSection(batchId) {
-    adminApiGet('get_batch', { batch_id: batchId })
-      .then(function (result) {
-        var data = result.data;
-        var tasks = data.tasks || [];
-        var container = document.getElementById('tasks-section');
-        if (!container) return;
-        container.innerHTML = renderTasksSection(tasks, batchId);
-        bindTaskHandlers(batchId);
-      })
-      .catch(function (err) { showToast('Failed to refresh tasks: ' + err.message, 'error'); });
-  }
-
   function bindTaskHandlers(batchId) {
     var pendingTaskChanges = {};
     function updateTaskSaveBtn() {
@@ -5295,27 +5285,31 @@
         btn.textContent = 'Save Tasks (' + count + ')';
       }
     }
-    document.querySelectorAll('.batch-task-check input[type="checkbox"]').forEach(function (cb) {
-      var origChecked = cb.checked;
-      cb.addEventListener('change', function () {
-        var taskId = cb.getAttribute('data-task-id');
-        var isTransfer = cb.getAttribute('data-is-transfer') === '1';
+    function bindCheckboxes() {
+      document.querySelectorAll('.batch-task-check input[type="checkbox"]').forEach(function (cb) {
+        var origChecked = cb.checked;
+        cb.addEventListener('change', function () {
+          var taskId = cb.getAttribute('data-task-id');
+          var isTransfer = cb.getAttribute('data-is-transfer') === '1';
 
-        if (cb.checked && isTransfer) {
-          showTransferPrompt(batchId, taskId);
-          return;
-        }
+          if (cb.checked && isTransfer) {
+            showTransferPrompt(batchId, taskId);
+            return;
+          }
 
-        if (cb.checked === origChecked) {
-          delete pendingTaskChanges[taskId];
-        } else {
-          pendingTaskChanges[taskId] = cb.checked;
-        }
-        var row = cb.closest('.batch-task-row');
-        if (row) row.classList.toggle('batch-task-row--done', cb.checked);
-        updateTaskSaveBtn();
+          if (cb.checked === origChecked) {
+            delete pendingTaskChanges[taskId];
+          } else {
+            pendingTaskChanges[taskId] = cb.checked;
+          }
+          var row = cb.closest('.batch-task-row');
+          if (row) row.classList.toggle('batch-task-row--done', cb.checked);
+          updateTaskSaveBtn();
+        });
       });
-    });
+    }
+    bindCheckboxes();
+
     var saveTasksBtn = document.getElementById('batch-save-tasks-btn');
     if (saveTasksBtn) saveTasksBtn.addEventListener('click', function () {
       var tasksArr = Object.keys(pendingTaskChanges).map(function (id) {
@@ -5326,8 +5320,35 @@
       adminApiPost('bulk_update_batch_tasks', { tasks: tasksArr })
         .then(function () {
           showToast(tasksArr.length + ' task' + (tasksArr.length !== 1 ? 's' : '') + ' updated', 'success');
+          // Optimistic UI: checkboxes and row classes already reflect the user's intent.
+          // Update "Done <date>" metadata on affected rows.
+          var todayStr = new Date().toISOString().substring(0, 10);
+          Object.keys(pendingTaskChanges).forEach(function (taskId) {
+            var el = document.querySelector('.batch-task-check input[data-task-id="' + taskId + '"]');
+            if (!el) return;
+            var row = el.closest('.batch-task-row');
+            if (!row) return;
+            var meta = row.querySelector('.batch-task-meta');
+            if (pendingTaskChanges[taskId]) {
+              if (!meta) {
+                var span = document.createElement('span');
+                span.className = 'batch-task-meta';
+                span.textContent = 'Done ' + todayStr;
+                row.appendChild(span);
+              }
+            } else if (meta) {
+              meta.remove();
+            }
+          });
           pendingTaskChanges = {};
-          refreshTasksSection(batchId);
+          updateTaskSaveBtn();
+          saveTasksBtn.disabled = false;
+          // Replace checkbox elements so origChecked resets to current state
+          document.querySelectorAll('.batch-task-check input[type="checkbox"]').forEach(function (cb) {
+            var clone = cb.cloneNode(true);
+            cb.parentNode.replaceChild(clone, cb);
+          });
+          bindCheckboxes();
         })
         .catch(function (err) {
           showToast('Failed: ' + err.message, 'error');
@@ -5342,9 +5363,12 @@
     });
   }
 
-  // --- Plato Section (chart + table + staging add form) ---
+  // --- Plato Section (optimistic UI) ---
 
   var _platoStagingRows = [];
+  var _platoReadings = [];     // local copy of readings for optimistic updates
+  var _platoStartDate = null;  // batch start date for chart rendering
+  var _platoBatchId = null;
 
   function renderPlatoSection(readings, startDate) {
     var html = '<h4>Plato Readings</h4>';
@@ -5403,17 +5427,11 @@
     return html;
   }
 
-  function refreshPlatoSection(batchId) {
-    adminApiGet('get_batch', { batch_id: batchId })
-      .then(function (result) {
-        var data = result.data;
-        var readings = data.plato_readings || [];
-        var container = document.getElementById('plato-section');
-        if (!container) return;
-        container.innerHTML = renderPlatoSection(readings, data.batch.start_date);
-        bindPlatoHandlers(batchId);
-      })
-      .catch(function (err) { showToast('Failed to refresh readings: ' + err.message, 'error'); });
+  function rerenderPlatoFromLocal() {
+    var container = document.getElementById('plato-section');
+    if (!container) return;
+    container.innerHTML = renderPlatoSection(_platoReadings, _platoStartDate);
+    bindPlatoHandlers(_platoBatchId);
   }
 
   function bindPlatoHandlers(batchId) {
@@ -5468,7 +5486,8 @@
         adminApiPost('delete_plato_reading', { reading_id: readingId, batch_id: batchId })
           .then(function () {
             showToast('Reading deleted', 'success');
-            refreshPlatoSection(batchId);
+            _platoReadings = _platoReadings.filter(function (r) { return r.reading_id !== readingId; });
+            rerenderPlatoFromLocal();
           })
           .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
       });
@@ -5493,11 +5512,25 @@
       if (_platoStagingRows.length === 0) { showToast('No readings to submit', 'error'); return; }
       submitAllBtn.disabled = true;
       submitAllBtn.textContent = 'Submitting...';
-      adminApiPost('bulk_add_plato_readings', { batch_id: batchId, readings: _platoStagingRows })
-        .then(function () {
-          showToast(_platoStagingRows.length + ' reading' + (_platoStagingRows.length !== 1 ? 's' : '') + ' recorded', 'success');
+      var submittedRows = _platoStagingRows.slice();
+      adminApiPost('bulk_add_plato_readings', { batch_id: batchId, readings: submittedRows })
+        .then(function (result) {
+          showToast(submittedRows.length + ' reading' + (submittedRows.length !== 1 ? 's' : '') + ' recorded', 'success');
+          // Optimistic: merge submitted rows into local readings
+          var results = (result && result.results) || [];
+          submittedRows.forEach(function (r, i) {
+            var readingId = (results[i] && results[i].reading_id) || ('pending-' + Date.now() + '-' + i);
+            _platoReadings.push({
+              reading_id: readingId,
+              degrees_plato: r.degrees_plato,
+              timestamp: r.timestamp,
+              temperature: r.temperature,
+              ph: r.ph,
+              notes: r.notes || ''
+            });
+          });
           _platoStagingRows = [];
-          refreshPlatoSection(batchId);
+          rerenderPlatoFromLocal();
         })
         .catch(function (err) {
           showToast('Failed: ' + err.message, 'error');
@@ -5523,7 +5556,7 @@
     cells[5].innerHTML = '<button type="button" class="btn admin-btn-sm plato-save-edit" style="font-size:0.75rem;padding:2px 6px;">Save</button> <button type="button" class="btn-secondary admin-btn-sm plato-cancel-edit" style="font-size:0.75rem;padding:2px 6px;">Cancel</button>';
 
     cells[5].querySelector('.plato-cancel-edit').addEventListener('click', function () {
-      refreshPlatoSection(batchId);
+      rerenderPlatoFromLocal();
     });
     cells[5].querySelector('.plato-save-edit').addEventListener('click', function () {
       var newPlato = parseFloat(cells[1].querySelector('input').value);
@@ -5542,7 +5575,18 @@
       adminApiPost('update_plato_reading', { reading_id: readingId, batch_id: batchId, updates: updates })
         .then(function () {
           showToast('Reading updated', 'success');
-          refreshPlatoSection(batchId);
+          // Optimistic: update local readings array
+          for (var ri = 0; ri < _platoReadings.length; ri++) {
+            if (_platoReadings[ri].reading_id === readingId) {
+              _platoReadings[ri].timestamp = updates.timestamp;
+              _platoReadings[ri].degrees_plato = updates.degrees_plato;
+              _platoReadings[ri].temperature = updates.temperature;
+              _platoReadings[ri].ph = updates.ph;
+              _platoReadings[ri].notes = updates.notes;
+              break;
+            }
+          }
+          rerenderPlatoFromLocal();
         })
         .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
     });

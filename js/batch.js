@@ -77,8 +77,10 @@
     // Tasks
     renderTasks(tasks);
 
-    // Plato readings
-    renderPlatoReadings(readings, b.start_date);
+    // Plato readings — store local copy for optimistic updates
+    _localReadings = readings.slice();
+    _localStartDate = b.start_date;
+    renderPlatoReadings(_localReadings, _localStartDate);
 
     // Notes
     if (b.notes) {
@@ -238,6 +240,8 @@
   // --- Plato submission (staging rows) ---
 
   var _platoStagingRows = [];
+  var _localReadings = [];
+  var _localStartDate = null;
 
   function renderStagingTable() {
     var wrap = document.getElementById('plato-staging-wrap');
@@ -288,9 +292,21 @@
       .then(function (data) {
         if (!data.ok) { showToast('Failed: ' + (data.message || data.error), 'error'); submitBtn.disabled = false; submitBtn.textContent = 'Submit All (' + _platoStagingRows.length + ')'; return; }
         showToast(_platoStagingRows.length + ' reading' + (_platoStagingRows.length !== 1 ? 's' : '') + ' recorded', 'success');
+        // Optimistic: merge submitted rows into local readings and re-render
+        var results = (data && data.results) || [];
+        _platoStagingRows.forEach(function (r, i) {
+          _localReadings.push({
+            reading_id: (results[i] && results[i].reading_id) || '',
+            degrees_plato: r.degrees_plato,
+            timestamp: r.timestamp,
+            temperature: r.temperature,
+            ph: r.ph,
+            notes: r.notes || ''
+          });
+        });
         _platoStagingRows = [];
         renderStagingTable();
-        loadBatch();
+        renderPlatoReadings(_localReadings, _localStartDate);
       })
       .catch(function (err) { showToast('Failed: ' + err.message, 'error'); submitBtn.disabled = false; submitBtn.textContent = 'Submit All (' + _platoStagingRows.length + ')'; });
     });
