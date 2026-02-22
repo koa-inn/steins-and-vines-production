@@ -978,7 +978,7 @@ function loadFeaturedProducts() {
           return obj;
         }).filter(function (obj) {
           var cat = (obj.category || obj._zoho_category || '').toLowerCase();
-          if (!cat) return true;
+          if (!cat) return false;
           return KIT_CATEGORIES.some(function (kc) { return cat.indexOf(kc) !== -1; });
         });
       });
@@ -1942,7 +1942,7 @@ function loadProducts() {
           if (t === 'ingredient' || t === 'service') return false;
           // Only keep kit categories (wine, beer, cider, seltzer)
           var cat = (obj.category || obj._zoho_category || '').toLowerCase();
-          if (!cat) return true;
+          if (!cat) return false;
           return KIT_CATEGORIES.some(function (kc) { return cat.indexOf(kc) !== -1; });
         });
       });
@@ -1982,7 +1982,7 @@ function loadProducts() {
         var t = (obj.type || '').toLowerCase();
         if (t === 'ingredient' || t === 'service') return false;
         var cat = (obj.category || obj._zoho_category || '').toLowerCase();
-        if (!cat) return true;
+        if (!cat) return false;
         return KIT_CATEGORIES.some(function (kc) { return cat.indexOf(kc) !== -1; });
       });
       items.forEach(function (obj) {

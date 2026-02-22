@@ -794,12 +794,14 @@ function refreshProducts() {
             return cf.label === 'Category';
           });
           var catVal = (categoryCF && categoryCF.value) ? categoryCF.value : (item.category_name || '');
-          if (catVal) {
-            catVal = catVal.toLowerCase();
-            if (!KIT_CATEGORIES.some(function (kc) { return catVal.indexOf(kc) !== -1; })) {
-              console.log('[api/products] Excluding non-kit item: ' + item.name + ' (category: ' + catVal + ')');
-              return false;
-            }
+          if (!catVal) {
+            console.log('[api/products] Excluding item with no category: ' + item.name);
+            return false;
+          }
+          catVal = catVal.toLowerCase();
+          if (!KIT_CATEGORIES.some(function (kc) { return catVal.indexOf(kc) !== -1; })) {
+            console.log('[api/products] Excluding non-kit item: ' + item.name + ' (category: ' + catVal + ')');
+            return false;
           }
 
           return true;
