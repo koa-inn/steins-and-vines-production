@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-21T18:11:00.059Z';
+  var BUILD_TIMESTAMP = '2026-02-22T17:30:14.406Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -378,28 +378,17 @@
     document.getElementById('admin-signout').addEventListener('click', signOut);
     document.getElementById('admin-signout-denied').addEventListener('click', signOut);
 
-    // Try restoring a saved session before showing the sign-in button
+    // Try restoring a saved session via silent token refresh
     var saved = loadSession();
     if (saved) {
-      accessToken = saved.token;
-      userEmail = saved.email;
-      adminApiGet('check_auth')
-        .then(function (result) {
-          if (result.authorized) {
-            showDashboard();
-          } else {
-            clearSession();
-            accessToken = null;
-            userEmail = null;
-            showSignInButton();
-          }
-        })
-        .catch(function () {
-          clearSession();
-          accessToken = null;
-          userEmail = null;
-          showSignInButton();
-        });
+      console.log('[Admin] Attempting silent token refresh for', saved.email);
+      try {
+        tokenClient.requestAccessToken({ prompt: '', login_hint: saved.email });
+      } catch (err) {
+        console.warn('[Admin] Silent refresh failed:', err.message);
+        clearSession();
+        showSignInButton();
+      }
       return;
     }
 
@@ -422,7 +411,9 @@
 
   function onTokenResponse(response) {
     if (response.error) {
+      console.warn('[Admin] Token response error:', response.error);
       clearSession();
+      showSignInButton();
       return;
     }
     accessToken = response.access_token;
