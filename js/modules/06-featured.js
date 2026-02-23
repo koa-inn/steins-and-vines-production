@@ -124,7 +124,8 @@ function loadFeaturedProducts() {
           }
           return obj;
         }).filter(function (obj) {
-          var cat = (obj.category || obj._zoho_category || '').toLowerCase();
+          // Fall back to obj.type when category_name is absent from Zoho
+          var cat = (obj.category || obj._zoho_category || obj.type || '').toLowerCase();
           if (!cat) return false;
           return KIT_CATEGORIES.some(function (kc) { return cat.indexOf(kc) !== -1; });
         });

@@ -133,7 +133,8 @@ function loadProducts() {
           var t = (obj.type || '').toLowerCase();
           if (t === 'ingredient' || t === 'service') return false;
           // Only keep kit categories (wine, beer, cider, seltzer)
-          var cat = (obj.category || obj._zoho_category || '').toLowerCase();
+          // Fall back to obj.type when category_name is absent from Zoho
+          var cat = (obj.category || obj._zoho_category || obj.type || '').toLowerCase();
           if (!cat) return false;
           return KIT_CATEGORIES.some(function (kc) { return cat.indexOf(kc) !== -1; });
         });
@@ -173,7 +174,8 @@ function loadProducts() {
       items = items.filter(function (obj) {
         var t = (obj.type || '').toLowerCase();
         if (t === 'ingredient' || t === 'service') return false;
-        var cat = (obj.category || obj._zoho_category || '').toLowerCase();
+        // Fall back to obj.type when category_name is absent from Zoho
+        var cat = (obj.category || obj._zoho_category || obj.type || '').toLowerCase();
         if (!cat) return false;
         return KIT_CATEGORIES.some(function (kc) { return cat.indexOf(kc) !== -1; });
       });
@@ -195,22 +197,24 @@ function loadProducts() {
       buildSaleFilter();
       applyFilters();
 
-      // Refresh button — clears middleware cache and reloads products
-      var refreshBtn = document.createElement('button');
-      refreshBtn.className = 'catalog-refresh-btn';
-      refreshBtn.type = 'button';
-      refreshBtn.title = 'Refresh products';
-      refreshBtn.setAttribute('aria-label', 'Refresh products');
-      refreshBtn.innerHTML = '&#8635;';
-      refreshBtn.addEventListener('click', function () {
-        try {
-          localStorage.removeItem(MW_CACHE_KEY);
-          localStorage.removeItem(MW_CACHE_TS_KEY);
-        } catch(e) {}
-        loadProducts();
-      });
-      var kitsViewToggle = document.querySelector('#catalog-controls-kits .catalog-view-toggle');
-      if (kitsViewToggle) { kitsViewToggle.parentNode.insertBefore(refreshBtn, kitsViewToggle.nextSibling); }
+      // Refresh button — clears middleware cache and reloads products (only once)
+      if (!document.querySelector('#catalog-controls-kits .catalog-refresh-btn')) {
+        var refreshBtn = document.createElement('button');
+        refreshBtn.className = 'catalog-refresh-btn';
+        refreshBtn.type = 'button';
+        refreshBtn.title = 'Refresh products';
+        refreshBtn.setAttribute('aria-label', 'Refresh products');
+        refreshBtn.innerHTML = '&#8635;';
+        refreshBtn.addEventListener('click', function () {
+          try {
+            localStorage.removeItem(MW_CACHE_KEY);
+            localStorage.removeItem(MW_CACHE_TS_KEY);
+          } catch(e) {}
+          loadProducts();
+        });
+        var kitsViewToggle = document.querySelector('#catalog-controls-kits .catalog-view-toggle');
+        if (kitsViewToggle) { kitsViewToggle.parentNode.insertBefore(refreshBtn, kitsViewToggle.nextSibling); }
+      }
 
       // Check for SKU parameter and scroll to product (from homepage featured)
       var urlParams = new URLSearchParams(window.location.search);
