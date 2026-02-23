@@ -1411,7 +1411,7 @@ function loadProducts() {
         loadProducts();
       });
       var kitsViewToggle = document.querySelector('#catalog-controls-kits .catalog-view-toggle');
-      if (kitsViewToggle) { kitsViewToggle.appendChild(refreshBtn); }
+      if (kitsViewToggle) { kitsViewToggle.parentNode.insertBefore(refreshBtn, kitsViewToggle.nextSibling); }
 
       // Check for SKU parameter and scroll to product (from homepage featured)
       var urlParams = new URLSearchParams(window.location.search);
