@@ -1,0 +1,651 @@
+var _allIngredients = [];
+var _ingredientFilters = { unit: [], category: [], subcategory: [], price: [] };
+
+function loadIngredients(callback) {
+  var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+    ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
+
+  function loadFromCSV() {
+    var csvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_INGREDIENTS_CSV_URL)
+      ? SHEETS_CONFIG.PUBLISHED_INGREDIENTS_CSV_URL : null;
+
+    var CACHE_KEY = 'sv-ingredients-csv';
+    var CACHE_TS_KEY = 'sv-ingredients-csv-ts';
+    var CACHE_TTL = 60 * 60 * 1000;
+
+    function getCached() {
+      try {
+        var csv = localStorage.getItem(CACHE_KEY);
+        var ts = parseInt(localStorage.getItem(CACHE_TS_KEY), 10) || 0;
+        if (csv) return { csv: csv, fresh: (Date.now() - ts) < CACHE_TTL };
+      } catch (e) {}
+      return null;
+    }
+
+    function setCached(csv) {
+      try {
+        localStorage.setItem(CACHE_KEY, csv);
+        localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+      } catch (e) {}
+    }
+
+    var cached = getCached();
+    var csvPromise;
+
+    if (cached) {
+      csvPromise = Promise.resolve(cached.csv);
+      if (!cached.fresh) {
+        var refreshUrl = csvUrl || 'content/ingredients.csv';
+        fetchCSV(refreshUrl).then(setCached).catch(function () {});
+      }
+    } else {
+      csvPromise = csvUrl
+        ? fetchCSV(csvUrl).catch(function () { return fetchCSV('content/ingredients.csv'); })
+        : fetchCSV('content/ingredients.csv');
+      csvPromise.then(setCached);
+    }
+
+    return csvPromise.then(function (csv) {
+      var lines = csv.trim().split('\n');
+      var headers = lines[0].split(',');
+      var items = [];
+
+      for (var i = 1; i < lines.length; i++) {
+        var values = parseCSVLine(lines[i]);
+        if (values.length < headers.length) continue;
+        var obj = {};
+        for (var j = 0; j < headers.length; j++) {
+          obj[headers[j].trim()] = values[j].trim();
+        }
+        if (!obj.name && !obj.sku) continue;
+        if (obj.hide && obj.hide.toLowerCase() === 'true') continue;
+        items.push(obj);
+      }
+      return items;
+    });
+  }
+
+  var MW_CACHE_KEY = 'sv-ingredients-mw';
+  var MW_CACHE_TS_KEY = 'sv-ingredients-mw-ts';
+  var MW_CACHE_TTL = 10 * 60 * 1000;
+
+  function getCachedMW() {
+    try {
+      var data = localStorage.getItem(MW_CACHE_KEY);
+      var ts = parseInt(localStorage.getItem(MW_CACHE_TS_KEY), 10) || 0;
+      if (data) return { data: JSON.parse(data), fresh: (Date.now() - ts) < MW_CACHE_TTL };
+    } catch (e) {}
+    return null;
+  }
+
+  function setCachedMW(items) {
+    try {
+      localStorage.setItem(MW_CACHE_KEY, JSON.stringify(items));
+      localStorage.setItem(MW_CACHE_TS_KEY, String(Date.now()));
+    } catch (e) {}
+  }
+
+  function fetchFromMiddleware() {
+    return fetch(middlewareUrl + '/api/ingredients')
+      .then(function (r) {
+        if (!r.ok) throw new Error('Middleware returned ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        var items = data.items || [];
+        return items.map(function (z) {
+          var obj = {
+            name: z.name || '',
+            unit: z.unit || '',
+            price_per_unit: z.rate != null ? String(z.rate) : '',
+            stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
+            description: z.description || '',
+            sku: z.sku || '',
+            category: z.category_name || '',
+            low_amount: '',
+            high_amount: '',
+            step: ''
+          };
+          if (z.custom_fields && z.custom_fields.length) {
+            z.custom_fields.forEach(function (cf) {
+              var key = (cf.label || '').toLowerCase().replace(/\s+/g, '_');
+              if (key && cf.value !== undefined && cf.value !== null) {
+                obj[key] = String(cf.value);
+              }
+            });
+          }
+          return obj;
+        });
+      });
+  }
+
+  function loadFromMiddleware() {
+    var cached = getCachedMW();
+
+    if (cached) {
+      var promise = Promise.resolve(cached.data);
+      if (!cached.fresh) {
+        fetchFromMiddleware().then(setCachedMW).catch(function () {});
+      }
+      return promise;
+    }
+
+    return fetchFromMiddleware().then(function (items) {
+      setCachedMW(items);
+      return items;
+    });
+  }
+
+  var dataPromise = middlewareUrl
+    ? loadFromMiddleware().catch(function () { return loadFromCSV(); })
+    : loadFromCSV();
+
+  dataPromise
+    .then(function (items) {
+      _allIngredients = items.filter(function (r) {
+        var p = parseFloat(r.price_per_unit || r.rate || r.price || '0') || 0;
+        return p > 0;
+      });
+      buildIngredientFilters();
+      renderIngredients();
+      wireIngredientEvents();
+      if (callback) callback();
+    })
+    .catch(function () {});
+}
+
+function buildIngredientFilterRow(containerId, field, label, values) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (values.length === 0) { container.classList.add('hidden'); return; }
+  container.classList.remove('hidden');
+
+  var labelSpan = document.createElement('span');
+  labelSpan.className = 'catalog-filter-label';
+  labelSpan.textContent = label;
+  container.appendChild(labelSpan);
+
+  var allBtn = document.createElement('button');
+  allBtn.className = 'catalog-filter-btn active';
+  allBtn.type = 'button';
+  allBtn.textContent = 'All';
+  allBtn.setAttribute('data-value', 'All');
+  allBtn.addEventListener('click', function () {
+    _ingredientFilters[field] = [];
+    var btns = container.querySelectorAll('.catalog-filter-btn');
+    btns.forEach(function (b) { b.classList.remove('active'); });
+    allBtn.classList.add('active');
+    renderIngredients();
+  });
+  container.appendChild(allBtn);
+
+  values.forEach(function (val) {
+    var btn = document.createElement('button');
+    btn.className = 'catalog-filter-btn';
+    btn.type = 'button';
+    btn.textContent = val;
+    btn.setAttribute('data-value', val);
+    btn.addEventListener('click', function () {
+      var idx = _ingredientFilters[field].indexOf(val);
+      if (idx !== -1) {
+        _ingredientFilters[field].splice(idx, 1);
+      } else {
+        _ingredientFilters[field].push(val);
+      }
+      var btns = container.querySelectorAll('.catalog-filter-btn');
+      btns.forEach(function (b) { b.classList.remove('active'); });
+      if (_ingredientFilters[field].length === 0) {
+        container.querySelector('[data-value="All"]').classList.add('active');
+      } else {
+        btns.forEach(function (b) {
+          if (_ingredientFilters[field].indexOf(b.getAttribute('data-value')) !== -1) {
+            b.classList.add('active');
+          }
+        });
+      }
+      renderIngredients();
+    });
+    container.appendChild(btn);
+  });
+}
+
+function buildIngredientFilters() {
+  // Category filter
+  var categories = [];
+  _allIngredients.forEach(function (r) {
+    var val = (r.category || '').trim();
+    if (val && categories.indexOf(val) === -1) categories.push(val);
+  });
+  categories.sort();
+  buildIngredientFilterRow('filter-category', 'category', 'Category:', categories);
+
+  // Subcategory filter
+  var subcategories = [];
+  _allIngredients.forEach(function (r) {
+    var val = (r.subcategory || '').trim();
+    if (val && subcategories.indexOf(val) === -1) subcategories.push(val);
+  });
+  subcategories.sort();
+  buildIngredientFilterRow('filter-subcategory-ing', 'subcategory', 'Subcategory:', subcategories);
+
+  // Unit filter
+  var units = [];
+  _allIngredients.forEach(function (r) {
+    var val = (r.unit || '').trim();
+    if (val && units.indexOf(val) === -1) units.push(val);
+  });
+  units.sort();
+  buildIngredientFilterRow('filter-unit', 'unit', 'Unit:', units);
+
+  // Price range filter
+  var priceBrackets = ['Under $5', '$5 – $15', '$15 – $30', 'Over $30'];
+  buildIngredientFilterRow('filter-price', 'price', 'Price:', priceBrackets);
+}
+
+function wireIngredientEvents() {
+  var searchInput = document.getElementById('ingredient-search');
+  if (searchInput) {
+    var timer;
+    searchInput.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(renderIngredients, 180);
+    });
+  }
+
+  var sortSelect = document.getElementById('ingredient-sort');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', function () {
+      renderIngredients();
+    });
+  }
+}
+
+function renderIngredients() {
+  var catalog = document.getElementById('product-catalog');
+  if (!catalog) return;
+
+  // Clear existing rendered sections
+  var sections = catalog.querySelectorAll('.catalog-section, .catalog-no-results, .catalog-divider, .catalog-skeleton-grid');
+  sections.forEach(function (el) { el.parentNode.removeChild(el); });
+
+  var searchInput = document.getElementById('ingredient-search');
+  var query = searchInput ? searchInput.value.toLowerCase() : '';
+
+  var filtered = _allIngredients.filter(function (r) {
+    if (_ingredientFilters.unit.length > 0 && _ingredientFilters.unit.indexOf(r.unit) === -1) return false;
+    if (_ingredientFilters.category.length > 0 && _ingredientFilters.category.indexOf(r.category || '') === -1) return false;
+    if (_ingredientFilters.subcategory.length > 0 && _ingredientFilters.subcategory.indexOf(r.subcategory || '') === -1) return false;
+    if (_ingredientFilters.price.length > 0) {
+      var p = parseFloat(r.price_per_unit) || 0;
+      var matchPrice = _ingredientFilters.price.some(function (bracket) {
+        if (bracket === 'Under $5') return p < 5;
+        if (bracket === '$5 – $15') return p >= 5 && p <= 15;
+        if (bracket === '$15 – $30') return p > 15 && p <= 30;
+        if (bracket === 'Over $30') return p > 30;
+        return false;
+      });
+      if (!matchPrice) return false;
+    }
+    if (!query) return true;
+    var name = (r.name || '').toLowerCase();
+    var desc = (r.description || '').toLowerCase();
+    return name.indexOf(query) !== -1 || desc.indexOf(query) !== -1;
+  });
+
+  var sortSelect = document.getElementById('ingredient-sort');
+  var sortVal = sortSelect ? sortSelect.value : 'name-asc';
+
+  filtered.sort(function (a, b) {
+    switch (sortVal) {
+      case 'name-asc': return (a.name || '').localeCompare(b.name || '');
+      case 'name-desc': return (b.name || '').localeCompare(a.name || '');
+      case 'price-asc': return (parseFloat(a.price_per_unit) || 0) - (parseFloat(b.price_per_unit) || 0);
+      case 'price-desc': return (parseFloat(b.price_per_unit) || 0) - (parseFloat(a.price_per_unit) || 0);
+      default: return 0;
+    }
+  });
+
+  if (filtered.length === 0) {
+    var msg = document.createElement('p');
+    msg.className = 'catalog-no-results';
+    msg.textContent = 'No ingredients or supplies found.';
+    catalog.appendChild(msg);
+    return;
+  }
+
+  var inStock = filtered.filter(function (r) { return (parseInt(r.stock, 10) || 0) > 0; });
+
+  renderIngredientSection(catalog, 'In stock', inStock);
+  equalizeCardHeights();
+}
+
+function renderIngredientSection(catalog, title, items, extraClass) {
+  if (items.length === 0) return;
+
+  var wrapper = document.createElement('div');
+  wrapper.className = 'catalog-section' + (extraClass ? ' ' + extraClass : '');
+
+  var sectionHeader = document.createElement('div');
+  sectionHeader.className = 'catalog-section-header';
+  var heading = document.createElement('h2');
+  heading.className = 'catalog-section-title';
+  heading.textContent = title;
+  sectionHeader.appendChild(heading);
+  wrapper.appendChild(sectionHeader);
+
+  if (catalogViewMode === 'table') {
+    var table = document.createElement('table');
+    table.className = 'catalog-table';
+    var thead = document.createElement('thead');
+    var ingSortSelect = document.getElementById('ingredient-sort');
+    var ingCurrentSort = ingSortSelect ? ingSortSelect.value : 'name-asc';
+    var ingCols = [
+      { label: 'Name', sort: 'name' },
+      { label: 'Category', sort: null },
+      { label: 'Unit', sort: null },
+      { label: 'Price', sort: 'price' },
+      { label: '', sort: null }
+    ];
+    var ingTheadTr = document.createElement('tr');
+    ingCols.forEach(function (col) {
+      var th = document.createElement('th');
+      th.textContent = col.label;
+      if (col.label === 'Price') th.style.textAlign = 'right';
+      if (col.sort) {
+        th.setAttribute('data-sort', col.sort);
+        var arrow = document.createElement('span');
+        arrow.className = 'sort-arrow';
+        var sortBase = ingCurrentSort.replace(/-asc$|-desc$/, '');
+        if (sortBase === col.sort) {
+          th.classList.add('sort-active');
+          arrow.textContent = ingCurrentSort.indexOf('-desc') !== -1 ? '\u25BC' : '\u25B2';
+        } else {
+          arrow.textContent = '\u25B2';
+        }
+        th.appendChild(arrow);
+        th.addEventListener('click', (function (sortKey) {
+          return function () {
+            var sel = document.getElementById('ingredient-sort');
+            if (!sel) return;
+            var cur = sel.value;
+            var base = cur.replace(/-asc$|-desc$/, '');
+            if (base === sortKey) {
+              sel.value = sortKey + (cur.indexOf('-asc') !== -1 ? '-desc' : '-asc');
+            } else {
+              sel.value = sortKey + '-asc';
+            }
+            renderIngredients();
+          };
+        })(col.sort));
+      }
+      ingTheadTr.appendChild(th);
+    });
+    thead.appendChild(ingTheadTr);
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    items.forEach(function (item) {
+      var tr = document.createElement('tr');
+
+      var tdName = document.createElement('td');
+      tdName.setAttribute('data-label', 'Name');
+      tdName.className = 'table-name';
+      tdName.textContent = item.name || '';
+      tr.appendChild(tdName);
+
+      var tdCat = document.createElement('td');
+      tdCat.setAttribute('data-label', 'Category');
+      var catParts = [];
+      if (item.category) catParts.push(item.category);
+      if (item.subcategory) catParts.push(item.subcategory);
+      tdCat.textContent = catParts.join(' / ');
+      tr.appendChild(tdCat);
+
+      var tdUnit = document.createElement('td');
+      tdUnit.setAttribute('data-label', 'Unit');
+      tdUnit.textContent = (item.unit || '').trim();
+      tr.appendChild(tdUnit);
+
+      var tdPrice = document.createElement('td');
+      tdPrice.setAttribute('data-label', 'Price');
+      var price = (item.price_per_unit || '').trim();
+      if (price) {
+        var priceNum = parseFloat(price.replace(/[^0-9.]/g, ''));
+        tdPrice.textContent = isNaN(priceNum) ? price : formatCurrency(priceNum);
+      }
+      tr.appendChild(tdPrice);
+
+      var tdCart = document.createElement('td');
+      tdCart.setAttribute('data-label', '');
+      var ingStockVal = parseInt(item.stock, 10) || 0;
+      if (ingStockVal > 0) {
+        var ingForCart = {
+          name: item.name,
+          brand: '',
+          retail_instore: '',
+          retail_kit: '',
+          price_per_unit: item.price_per_unit || '',
+          price: item.price_per_unit || '',
+          discount: '',
+          stock: item.stock,
+          time: '',
+          sku: item.sku || '',
+          unit: item.unit || '',
+          low_amount: item.low_amount || '',
+          high_amount: item.high_amount || '',
+          step: item.step || '',
+          _item_type: 'ingredient',
+          max_order_qty: item.max_order_qty || ''
+        };
+        var ingReserveWrap = document.createElement('div');
+        ingReserveWrap.className = 'product-reserve-wrap';
+        var ingProductKey = item.name + '|';
+        if (hasWeightConfig(item)) {
+          renderWeightControlCompact(ingReserveWrap, ingForCart, ingProductKey);
+        } else {
+          renderReserveControl(ingReserveWrap, ingForCart, ingProductKey);
+        }
+        tdCart.appendChild(ingReserveWrap);
+      }
+      tr.appendChild(tdCart);
+
+      var hasDetail = (item.description || '').trim() || item.sku;
+      if (hasDetail) {
+        // Add chevron
+        var iChevron = document.createElement('span');
+        iChevron.className = 'table-expand-chevron';
+        iChevron.innerHTML = '&#9660;';
+        tdName.insertBefore(iChevron, tdName.firstChild);
+
+        var iDetailTr = document.createElement('tr');
+        iDetailTr.className = 'table-detail-row';
+        var iDetailTd = document.createElement('td');
+        iDetailTd.setAttribute('colspan', '5');
+        iDetailTd.className = 'table-detail-cell';
+        var iDetailContent = document.createElement('div');
+        iDetailContent.className = 'table-detail-content';
+
+        if (item.sku) {
+          var iImgWrap = document.createElement('div');
+          iImgWrap.className = 'table-detail-image';
+          var iImg = document.createElement('img');
+          setResponsiveImg(iImg, item.sku);
+          iImg.alt = item.name || 'Product image';
+          iImg.loading = 'lazy';
+          iImg.onerror = function() { this.parentElement.remove(); };
+          iImgWrap.appendChild(iImg);
+          iDetailContent.appendChild(iImgWrap);
+        }
+
+        if (item.description) {
+          var iTextDiv = document.createElement('div');
+          iTextDiv.className = 'table-detail-text';
+          var iDescP = document.createElement('p');
+          iDescP.textContent = item.description;
+          iTextDiv.appendChild(iDescP);
+          iDetailContent.appendChild(iTextDiv);
+        }
+
+        iDetailTd.appendChild(iDetailContent);
+        iDetailTr.appendChild(iDetailTd);
+
+        tbody.appendChild(tr);
+        tbody.appendChild(iDetailTr);
+
+        (function(mainRow, detail, chev) {
+          var skipClick = false;
+          mainRow.addEventListener('mousedown', function(e) {
+            if (e.target.closest('.product-reserve-wrap')) skipClick = true;
+          });
+          mainRow.style.cursor = 'pointer';
+          mainRow.addEventListener('click', function(e) {
+            if (skipClick) { skipClick = false; return; }
+            if (e.target.closest('.product-reserve-wrap')) return;
+            var isOpen = detail.classList.toggle('open');
+            chev.classList.toggle('open', isOpen);
+            mainRow.classList.toggle('expanded', isOpen);
+          });
+        })(tr, iDetailTr, iChevron);
+      } else {
+        tbody.appendChild(tr);
+      }
+    });
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+  } else {
+    var grid = document.createElement('div');
+    grid.className = 'product-grid';
+
+    items.forEach(function (item) {
+      var card = document.createElement('div');
+      card.className = 'product-card';
+
+      var header = document.createElement('div');
+      header.className = 'product-card-header';
+
+      var cardName = document.createElement('h4');
+      cardName.textContent = item.name;
+      header.appendChild(cardName);
+
+      var catParts = [];
+      if (item.category) catParts.push(item.category);
+      if (item.subcategory) catParts.push(item.subcategory);
+      if (catParts.length) {
+        var catLabel = document.createElement('span');
+        catLabel.className = 'product-card-category';
+        catLabel.textContent = catParts.join(' / ');
+        header.appendChild(catLabel);
+      }
+
+      card.appendChild(header);
+
+      // Unit + price detail row
+      var unit = (item.unit || '').trim();
+      var price = (item.price_per_unit || '').trim();
+      if (unit || price) {
+        var detailRow = document.createElement('div');
+        detailRow.className = 'product-detail-row';
+        var details = [];
+        if (unit) details.push(unit);
+        if (price) {
+          var priceNum = parseFloat(price.replace(/[^0-9.]/g, ''));
+          details.push(isNaN(priceNum) ? price : formatCurrency(priceNum));
+        }
+        for (var d = 0; d < details.length; d++) {
+          if (d > 0) {
+            var sep = document.createElement('span');
+            sep.className = 'detail-sep';
+            sep.textContent = '\u00b7';
+            detailRow.appendChild(sep);
+          }
+          var span = document.createElement('span');
+          span.textContent = details[d];
+          detailRow.appendChild(span);
+        }
+        card.appendChild(detailRow);
+      }
+
+      // Collapsible description (reusing product-notes pattern)
+      if (item.description) {
+        var notesWrap = document.createElement('div');
+        notesWrap.className = 'product-notes';
+
+        var notesToggle = document.createElement('button');
+        notesToggle.type = 'button';
+        notesToggle.className = 'product-notes-toggle';
+        notesToggle.setAttribute('aria-expanded', 'false');
+        notesToggle.innerHTML = 'More Information <span class="product-notes-chevron">&#9660;</span>';
+
+        var notesBody = document.createElement('div');
+        notesBody.className = 'product-notes-body';
+        var notesP = document.createElement('p');
+        notesP.textContent = item.description;
+        notesBody.appendChild(notesP);
+
+        notesToggle.addEventListener('click', (function (wrap, toggle) {
+          return function () {
+            var isOpen = wrap.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+          };
+        })(notesWrap, notesToggle));
+
+        notesWrap.appendChild(notesToggle);
+        notesWrap.appendChild(notesBody);
+        card.appendChild(notesWrap);
+      }
+
+      // Stock badge
+      var stockVal = parseInt(item.stock, 10) || 0;
+      var badge = document.createElement('span');
+      badge.className = 'stock-badge';
+      if (stockVal > 0) {
+        badge.classList.add('stock-badge--in');
+        badge.textContent = 'In Stock';
+      } else {
+        badge.classList.add('stock-badge--out');
+        badge.textContent = 'Out of Stock';
+      }
+      card.appendChild(badge);
+
+      if (stockVal > 0) {
+        var ingredientForCart = {
+          name: item.name,
+          brand: '',
+          retail_instore: '',
+          retail_kit: '',
+          price_per_unit: item.price_per_unit || '',
+          price: item.price_per_unit || '',
+          discount: '',
+          stock: item.stock,
+          time: '',
+          sku: item.sku || '',
+          unit: item.unit || '',
+          low_amount: item.low_amount || '',
+          high_amount: item.high_amount || '',
+          step: item.step || '',
+          _item_type: 'ingredient',
+          max_order_qty: item.max_order_qty || ''
+        };
+        var reserveWrap = document.createElement('div');
+        reserveWrap.className = 'product-reserve-wrap';
+        var productKey = item.name + '|';
+        if (hasWeightConfig(item)) {
+          renderWeightControl(reserveWrap, ingredientForCart, productKey);
+        } else {
+          renderReserveControl(reserveWrap, ingredientForCart, productKey);
+        }
+        card.appendChild(reserveWrap);
+      }
+
+      grid.appendChild(card);
+    });
+
+    wrapper.appendChild(grid);
+  }
+
+  catalog.appendChild(wrapper);
+}
+
+// ===== Services =====
