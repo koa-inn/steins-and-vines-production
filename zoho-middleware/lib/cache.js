@@ -6,6 +6,7 @@
  */
 
 var redis = require('redis');
+var log = require('./logger');
 
 var client = null;
 var connected = false;
@@ -25,14 +26,14 @@ function getClient() {
 
   client.on('error', function (err) {
     if (connected) {
-      console.error('[redis] Connection lost:', err.message);
+      log.error('[redis] Connection lost: ' + err.message);
     }
     connected = false;
   });
 
   client.on('ready', function () {
     connected = true;
-    console.log('[redis] Connected');
+    log.info('[redis] Connected');
   });
 
   client.on('end', function () {
@@ -44,8 +45,8 @@ function getClient() {
     connected = true;
     return client;
   }).catch(function (err) {
-    console.error('[redis] Failed to connect:', err.message);
-    console.error('[redis] Caching disabled — API calls will hit Zoho directly');
+    log.error('[redis] Failed to connect: ' + err.message);
+    log.warn('[redis] Caching disabled — API calls will hit Zoho directly');
     connected = false;
     client = null;  // allow fresh attempt if Redis comes up later
     return null;
@@ -82,7 +83,7 @@ function set(key, value, ttlSeconds) {
   return getClient().then(function (c) {
     return c.set(key, JSON.stringify(value), { EX: ttlSeconds });
   }).catch(function (err) {
-    console.error('[redis] Failed to set cache:', err.message);
+    log.error('[redis] Failed to set cache: ' + err.message);
   });
 }
 
@@ -94,6 +95,32 @@ function del(key) {
 
   return getClient().then(function (c) {
     return c.del(key);
+  }).catch(function () {});
+}
+
+/**
+ * Acquire a distributed lock (Redis SETNX with TTL).
+ * Returns true if the lock was acquired, false if already held.
+ * Falls back to true if Redis is unavailable (in-process flag takes over).
+ */
+function acquireLock(key, ttlSeconds) {
+  if (!connected) return Promise.resolve(true);
+  return getClient().then(function (c) {
+    return c.set('lock:' + key, '1', { NX: true, EX: ttlSeconds });
+  }).then(function (result) {
+    return result !== null; // 'OK' if acquired; null if already held
+  }).catch(function () {
+    return true; // on Redis error, fall through to in-process guard
+  });
+}
+
+/**
+ * Release a distributed lock.
+ */
+function releaseLock(key) {
+  if (!connected) return Promise.resolve();
+  return getClient().then(function (c) {
+    return c.del('lock:' + key);
   }).catch(function () {});
 }
 
@@ -121,6 +148,8 @@ module.exports = {
   get: get,
   set: set,
   del: del,
+  acquireLock: acquireLock,
+  releaseLock: releaseLock,
   init: init,
   quit: quit
 };

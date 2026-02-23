@@ -84,14 +84,6 @@
 
           <!-- Dashboard Overview: Pipeline + Attention -->
           <div class="admin-dashboard-cards" id="admin-dashboard-cards">
-            <!-- Fermentation pipeline strip -->
-            <div class="pipeline-strip">
-              <div class="pipeline-strip-label">Fermentation Pipeline</div>
-              <div class="pipeline-stages" id="pipeline-stages">
-                <div class="pipeline-skeleton"></div>
-              </div>
-            </div>
-
             <!-- Batch tracker pipeline strip -->
             <div class="pipeline-strip">
               <div class="pipeline-strip-label">Batch Tracker</div>
@@ -118,13 +110,14 @@
 
           <!-- Tab navigation -->
           <div class="admin-tabs">
+            <button type="button" class="admin-tab-btn" data-tab="batches">Batches</button>
+            <button type="button" class="admin-tab-btn" data-tab="scheduling">Scheduling</button>
             <button type="button" class="admin-tab-btn active" data-tab="reservations">Reservations &amp; Holds</button>
+            <button type="button" class="admin-tab-btn" data-tab="kiosk-orders">Kiosk Orders</button>
+            <button type="button" class="admin-tab-btn" data-tab="kiosk">Kiosk Sale</button>
             <button type="button" class="admin-tab-btn" data-tab="kits">Kit Inventory</button>
             <button type="button" class="admin-tab-btn" data-tab="ingredients">Ingredients</button>
             <button type="button" class="admin-tab-btn" data-tab="orders">Supplier Orders</button>
-            <button type="button" class="admin-tab-btn" data-tab="scheduling">Scheduling</button>
-            <button type="button" class="admin-tab-btn" data-tab="batches">Batches</button>
-            <button type="button" class="admin-tab-btn" data-tab="kiosk-orders">Kiosk Orders</button>
             <span class="admin-tab-divider"></span>
             <button type="button" class="admin-tab-btn" data-tab="homepage">Homepage</button>
             <button type="button" class="admin-tab-btn" data-tab="export">Export / Sync</button>
@@ -433,6 +426,112 @@
             <p class="admin-order-info">Walk-in and kiosk orders from your in-store iPad. Auto-refreshes every 15 seconds.</p>
             <div id="kiosk-orders-list">
               <p class="admin-order-info">Loading orders...</p>
+            </div>
+          </div>
+
+          <!-- Tab: Kiosk Sale (In-Store POS) -->
+          <div class="admin-tab-panel" id="tab-kiosk">
+            <!-- Kiosk: Browse Products View -->
+            <div id="kiosk-view-browse" class="kiosk-view active">
+              <div class="kiosk-browse-layout">
+
+                <!-- Left: Product browser -->
+                <div class="kiosk-product-pane">
+                  <div class="kiosk-search-bar">
+                    <input type="text" id="kiosk-search" class="kiosk-search-input" placeholder="Search products..." autocomplete="off" />
+                    <select id="kiosk-category-filter" class="kiosk-category-select">
+                      <option value="">All Categories</option>
+                    </select>
+                    <button type="button" class="btn-secondary kiosk-refresh-btn" id="kiosk-products-refresh" title="Refresh products">&#8635;</button>
+                  </div>
+                  <div id="kiosk-product-grid" class="kiosk-product-grid">
+                    <p class="kiosk-loading">Loading products...</p>
+                  </div>
+                </div>
+
+                <!-- Right: Cart -->
+                <div class="kiosk-cart-pane">
+                  <div class="kiosk-cart-header">
+                    <h2 class="kiosk-cart-title">Cart</h2>
+                    <button type="button" class="btn-secondary kiosk-cart-clear" id="kiosk-cart-clear">Clear</button>
+                  </div>
+                  <div id="kiosk-cart-items" class="kiosk-cart-items">
+                    <p class="kiosk-cart-empty">No items in cart</p>
+                  </div>
+                  <div class="kiosk-cart-totals" id="kiosk-cart-totals" style="display:none;">
+                    <div class="kiosk-total-row">
+                      <span>Subtotal</span>
+                      <span id="kiosk-subtotal">$0.00</span>
+                    </div>
+                    <div class="kiosk-total-row">
+                      <span>Tax</span>
+                      <span id="kiosk-tax">$0.00</span>
+                    </div>
+                    <div class="kiosk-total-row kiosk-total-grand">
+                      <span>Total</span>
+                      <span id="kiosk-total">$0.00</span>
+                    </div>
+                  </div>
+                  <div class="kiosk-cart-actions">
+                    <button type="button" class="btn kiosk-checkout-btn" id="kiosk-checkout-btn" disabled>
+                      Charge &mdash; <span id="kiosk-checkout-total">$0.00</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Kiosk: Payment Processing View -->
+            <div id="kiosk-view-payment" class="kiosk-view" style="display:none;">
+              <div class="kiosk-payment-screen">
+                <div class="kiosk-payment-card">
+                  <div id="kiosk-terminal-status" class="kiosk-terminal-status">
+                    <div class="kiosk-terminal-icon">&#128179;</div>
+                    <h2 class="kiosk-payment-amount" id="kiosk-payment-amount">$0.00</h2>
+                    <p class="kiosk-terminal-msg" id="kiosk-terminal-msg">Waiting for terminal...</p>
+                    <div class="kiosk-spinner" id="kiosk-spinner"></div>
+                  </div>
+                  <div class="kiosk-payment-items" id="kiosk-payment-items"></div>
+                  <div class="kiosk-payment-footer">
+                    <button type="button" class="btn-secondary kiosk-cancel-payment" id="kiosk-cancel-payment">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Kiosk: Receipt / Confirmation View -->
+            <div id="kiosk-view-receipt" class="kiosk-view" style="display:none;">
+              <div class="kiosk-receipt-screen">
+                <div class="kiosk-receipt-card">
+                  <div class="kiosk-receipt-icon kiosk-receipt-icon--success">&#10003;</div>
+                  <h2 class="kiosk-receipt-title">Payment Approved</h2>
+                  <div class="kiosk-receipt-body" id="kiosk-receipt-body"></div>
+                  <div class="kiosk-receipt-actions">
+                    <button type="button" class="btn kiosk-new-sale-btn" id="kiosk-new-sale-btn">New Sale</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Kiosk: Error / Declined View -->
+            <div id="kiosk-view-error" class="kiosk-view" style="display:none;">
+              <div class="kiosk-receipt-screen">
+                <div class="kiosk-receipt-card">
+                  <div class="kiosk-receipt-icon kiosk-receipt-icon--error">&#10007;</div>
+                  <h2 class="kiosk-receipt-title" id="kiosk-error-title">Payment Declined</h2>
+                  <p class="kiosk-error-msg" id="kiosk-error-msg"></p>
+                  <div class="kiosk-receipt-actions">
+                    <button type="button" class="btn kiosk-retry-btn" id="kiosk-retry-btn">Try Again</button>
+                    <button type="button" class="btn-secondary kiosk-back-btn" id="kiosk-back-btn">Back to Cart</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Terminal status bar (always visible in kiosk tab) -->
+            <div class="kiosk-terminal-bar" id="kiosk-terminal-bar">
+              <span class="kiosk-terminal-dot" id="kiosk-terminal-dot"></span>
+              <span id="kiosk-terminal-label">Checking terminal...</span>
             </div>
           </div>
 

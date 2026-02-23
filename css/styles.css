@@ -1,3 +1,89 @@
+/* =============================================================
+   STEINS & VINES — styles.css  |  Table of Contents
+   ─────────────────────────────────────────────────────────────
+   BASE
+     1.  Accessibility (sr-only, skip-to-content)
+     2.  Reset & Base
+     3.  Typography
+
+   LAYOUT
+     4.  Header / Nav
+     5.  Hero
+     6.  Buttons
+     7.  Page Header + Section Dividers
+     8.  Footer
+
+   COMPONENTS — HOMEPAGE
+     9.  Promo Section
+    10.  Content Sections
+    11.  Beer Banner
+    12.  Owner Grid + Credits + Land Ack. + Open Hours
+    13.  FAQ Section
+    14.  Contact Form
+
+   COMPONENTS — PRODUCTS
+    15.  Products Grid
+    16.  Product Catalog (filters, tabs, sort)
+    17.  Catalog Controls
+    18.  Reserve Button (product cards)
+    19.  Subcategory Color Tints
+    20.  Label Cards (wine/beer label design)
+    21.  Catalog View Toggle + Table View
+
+   COMPONENTS — RESERVATION
+    22.  Reservation Bar (floating)
+    23.  Reservation Page
+    24.  Checkout Stepper
+    25.  Floating Labels (form)
+    26.  Payment Section
+    27.  Confirmation Screen
+    28.  Booking Calendar (inline)
+
+   COMPONENTS — CART
+    29.  Cart Sidebar
+    30.  Mobile Cart Drawer
+    31.  Weight Control (kg/g slider)
+
+   COMPONENTS — KIOSK / ADMIN
+    32.  Kiosk Orders
+    33.  Kiosk Mode
+    34.  Kiosk Attract Screen
+
+   UTILITIES
+    35.  Expandable Table Detail Rows
+    36.  Utility: hidden
+    37.  Toast Notifications
+    38.  Filter Summary Chips
+    39.  Filter Button Count Badge
+    40.  Catalog Refresh Button
+    41.  Font Readability Floor (mobile)
+    42.  Reduced Motion
+    43.  Page Transition Animation
+    44.  Mobile table + sidebar overrides
+
+   MEDIA QUERIES (global breakpoints — moved to end of file)
+    45.  <=1024px  Small desktop / large tablet
+    46.  <=768px   Mobile
+    47.  <=480px   Phone
+   ============================================================= */
+
+/* =====================================================
+   BASE
+   ===================================================== */
+
+/* ===== Screen Reader Only ===== */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ===== Skip to Content ===== */
 .skip-to-content {
   position: absolute;
@@ -9,7 +95,7 @@
   color: var(--color-cream);
   font-family: var(--font-body);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875rem;
   text-decoration: none;
   border-radius: 0 0 var(--radius-sm) 0;
 }
@@ -116,13 +202,13 @@ h2 {
 }
 
 h3 {
-  font-size: 24px;
+  font-size: 1.5rem;
   font-weight: 600;
 }
 
 h4 {
   font-family: var(--font-body);
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 700;
 }
 
@@ -132,12 +218,16 @@ p {
 }
 
 small, .text-small {
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .text-micro {
-  font-size: 12px;
+  font-size: 0.75rem;
 }
+
+/* =====================================================
+   LAYOUT
+   ===================================================== */
 
 /* ===== Header ===== */
 .site-header {
@@ -197,7 +287,7 @@ small, .text-small {
 .nav-list a {
   font-family: var(--font-body);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--color-green);
   text-transform: none;
   padding-bottom: 4px;
@@ -274,7 +364,7 @@ small, .text-small {
   border: 2px solid var(--color-burgundy);
   border-radius: var(--radius-sm);
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   transition: background-color 0.2s, color 0.2s;
@@ -302,7 +392,7 @@ small, .text-small {
   border: 2px solid var(--color-burgundy);
   border-radius: var(--radius-sm);
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   transition: background-color 0.2s, color 0.2s;
@@ -350,6 +440,10 @@ small, .text-small {
   opacity: 0.5;
   display: inline-block;
 }
+
+/* =====================================================
+   COMPONENTS — HOMEPAGE
+   ===================================================== */
 
 /* ===== Promo Section ===== */
 .promo-section {
@@ -962,6 +1056,10 @@ small, .text-small {
   border-color: rgba(229, 222, 193, 0.5);
 }
 
+/* =====================================================
+   COMPONENTS — PRODUCTS
+   ===================================================== */
+
 /* ===== Products Grid ===== */
 .products-grid {
   display: grid;
@@ -1053,7 +1151,7 @@ small, .text-small {
   background-color: var(--color-error);
   color: #fff;
   font-family: var(--font-body);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1074,7 +1172,7 @@ small, .text-small {
 }
 
 .product-brand {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1095,7 +1193,7 @@ small, .text-small {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   color: var(--color-brown);
   margin-bottom: 0.75rem;
@@ -1127,7 +1225,7 @@ small, .text-small {
   background: none;
   border: none;
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: var(--color-brown);
   cursor: pointer;
@@ -1144,7 +1242,7 @@ small, .text-small {
 }
 
 .product-notes-chevron {
-  font-size: 10px;
+  font-size: 0.625rem;
   transition: transform 0.2s;
 }
 
@@ -1239,7 +1337,7 @@ small, .text-small {
 }
 
 .product-price-label {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1284,7 +1382,7 @@ small, .text-small {
   border-bottom: 3px solid transparent;
   padding: 0.75rem 1.5rem;
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--color-brown);
   cursor: pointer;
@@ -1306,7 +1404,7 @@ small, .text-small {
 
 /* Ingredient card additions */
 .ingredient-range {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-style: italic;
   color: var(--color-brown);
   margin-bottom: 0.25rem;
@@ -1380,7 +1478,7 @@ small, .text-small {
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.75rem;
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   color: var(--color-green);
   cursor: pointer;
@@ -1394,7 +1492,7 @@ small, .text-small {
 }
 
 .catalog-toggle-icon {
-  font-size: 10px;
+  font-size: 0.625rem;
   transition: transform 0.2s;
 }
 
@@ -1428,7 +1526,7 @@ small, .text-small {
 
 .catalog-filter-label {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875rem;
   flex-shrink: 0;
   color: var(--color-green);
   width: 8rem;
@@ -1463,7 +1561,7 @@ small, .text-small {
   border: 2px solid var(--color-burgundy);
   border-radius: 999px;
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   transition: background-color 0.2s, color 0.2s;
@@ -1584,7 +1682,7 @@ small, .text-small {
 
 /* ===== Land Acknowledgement (footer) ===== */
 .land-acknowledgement-footer {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-style: italic;
   opacity: 0.7;
   max-width: 540px;
@@ -1742,7 +1840,7 @@ small, .text-small {
   display: block;
   margin-bottom: 0.35rem;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--color-green);
 }
 
@@ -1771,7 +1869,7 @@ small, .text-small {
 
 .form-error-msg {
   color: var(--color-error);
-  font-size: 12px;
+  font-size: 0.75rem;
   margin-top: 0.25rem;
   display: none;
 }
@@ -1788,7 +1886,7 @@ small, .text-small {
   padding: 2rem 0;
   border-top: 3px solid var(--color-green);
   margin-top: auto;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .footer-top {
@@ -1821,7 +1919,7 @@ small, .text-small {
 .footer-admin-link {
   display: inline-block;
   margin-top: 0.5rem;
-  font-size: 12px;
+  font-size: 0.75rem;
   opacity: 0.35;
   color: var(--color-cream);
   text-decoration: none;
@@ -1871,7 +1969,7 @@ small, .text-small {
   justify-content: center;
   gap: 0.5rem 1rem;
   margin: 0.75rem 0;
-  font-size: 11px;
+  font-size: 0.6875rem;
   opacity: 0.85;
 }
 
@@ -1918,7 +2016,7 @@ small, .text-small {
   border: 2px solid var(--color-burgundy);
   border-radius: var(--radius-sm);
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   transition: background-color 0.2s, color 0.2s;
@@ -1976,7 +2074,7 @@ small, .text-small {
   border: none;
   width: 44px;
   height: 44px;
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 700;
   cursor: pointer;
   transition: background-color 0.2s;
@@ -1991,7 +2089,7 @@ small, .text-small {
   flex: 1;
   text-align: center;
   font-family: var(--font-body);
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--color-burgundy);
   min-width: 40px;
@@ -2001,6 +2099,10 @@ small, .text-small {
   padding: 0.2rem 0.6rem;
   font-size: 0.75rem;
 }
+
+/* =====================================================
+   COMPONENTS — RESERVATION
+   ===================================================== */
 
 /* ===== Reservation Bar (Floating) ===== */
 .reservation-bar {
@@ -2024,13 +2126,13 @@ small, .text-small {
 
 .reservation-bar .reservation-bar-count {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .reservation-bar .reservation-bar-link {
   color: var(--color-cream);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875rem;
   text-decoration: none;
   padding: 10px 16px;
   min-height: 44px;
@@ -2058,7 +2160,7 @@ small, .text-small {
   border: none;
   color: rgba(229, 222, 193, 0.6);
   font-family: var(--font-body);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 400;
   cursor: pointer;
   padding: 10px 12px;
@@ -2136,7 +2238,7 @@ small, .text-small {
   display: inline-block;
   padding: 1px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
 }
 
@@ -2156,7 +2258,7 @@ small, .text-small {
   border-radius: var(--radius-sm);
   padding: 4px 12px;
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: var(--color-brown);
   cursor: pointer;
@@ -2269,7 +2371,7 @@ small, .text-small {
 .process-note {
   font-family: var(--font-display);
   font-style: italic;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--color-brown);
   opacity: 0.75;
   margin: 0 0 1.25rem;
@@ -2290,7 +2392,7 @@ small, .text-small {
   margin: 0 auto 1.5rem;
   max-width: 600px;
   text-align: left;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   color: var(--color-brown);
 }
@@ -2340,7 +2442,7 @@ small, .text-small {
   margin: 1.5rem auto;
   max-width: 600px;
   text-align: left;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--color-text);
   line-height: 1.5;
 }
@@ -2397,7 +2499,7 @@ small, .text-small {
 
 .cal-dow {
   text-align: center;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--color-brown);
   padding: 0.4rem 0;
@@ -2414,7 +2516,7 @@ small, .text-small {
   border-radius: var(--radius-sm);
   background: none;
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   color: var(--color-text);
   cursor: default;
@@ -2524,7 +2626,7 @@ small, .text-small {
   border-radius: var(--radius-sm);
   font-family: var(--font-body);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--color-burgundy);
   cursor: pointer;
   transition: background-color 0.2s, border-color 0.2s, color 0.2s;
@@ -2580,7 +2682,7 @@ small, .text-small {
 }
 
 .payment-note {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--color-muted-dark);
   margin-bottom: 1rem;
 }
@@ -2595,7 +2697,7 @@ small, .text-small {
   display: block;
   margin-bottom: 0.35rem;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--color-green);
 }
 
@@ -2662,7 +2764,7 @@ small, .text-small {
 
 .form-note {
   margin-top: 0.75rem;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--color-brown);
 }
 
@@ -2714,7 +2816,7 @@ small, .text-small {
   justify-content: center;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--color-brown);
   margin-bottom: 0.4rem;
   transition: background-color 0.3s, border-color 0.3s, color 0.3s;
@@ -2726,7 +2828,7 @@ small, .text-small {
 
 .stepper-label {
   font-family: var(--font-body);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--color-brown);
   text-transform: uppercase;
@@ -2858,7 +2960,7 @@ small, .text-small {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--color-green);
   font-weight: 700;
   margin-top: 0.75rem;
@@ -2876,7 +2978,7 @@ small, .text-small {
   background: var(--color-white);
   border: 1px dashed var(--color-brown);
   border-radius: var(--radius-sm);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 /* ===== Confirmation Screen ===== */
@@ -2948,7 +3050,7 @@ small, .text-small {
   border: 1px solid var(--color-brown);
   border-radius: var(--radius-sm);
   padding: 1rem 1.25rem;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .confirm-summary:empty {
@@ -2992,7 +3094,7 @@ small, .text-small {
 
 .confirm-next ol {
   padding-left: 1.25rem;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.8;
   color: var(--color-text);
 }
@@ -3032,246 +3134,9 @@ small, .text-small {
   transform: scale(1.05);
 }
 
-/* ===== Small desktop / large tablet ===== */
-@media (max-width: 1024px) {
-  .logo img {
-    height: 56px;
-  }
-
-  .footer-logo {
-    height: 56px;
-  }
-
-  .hero {
-    padding: 4.5rem 0;
-  }
-
-  .title-icon {
-    height: 40px;
-    width: 40px;
-  }
-}
-
-/* ===== Mobile ===== */
-@media (max-width: 768px) {
-  .nav-toggle {
-    display: block;
-  }
-
-  .nav-list {
-    display: none;
-    flex-direction: column;
-    position: fixed;
-    top: var(--header-height, 80px);
-    left: 0;
-    right: 0;
-    background-color: var(--color-cream);
-    padding: 1rem 0;
-    text-align: center;
-    border-bottom: 1px solid var(--color-brown);
-    z-index: 199;
-  }
-
-  .nav-list.open {
-    display: flex;
-  }
-
-  .nav-list a {
-    padding: 12px 0;
-  }
-
-  .nav-backdrop {
-    display: none;
-    position: fixed;
-    top: var(--header-height, 80px);
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.3);
-    z-index: 198;
-  }
-
-  .nav-backdrop.open {
-    display: block;
-  }
-
-  body.nav-open {
-    overflow: hidden;
-  }
-
-  .hero {
-    padding: 4rem 0;
-  }
-
-  .catalog-controls {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 999;
-    background-color: var(--color-cream);
-    padding: 0.75rem 1rem;
-    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
-    margin: 0;
-    box-shadow: 0 -2px 8px rgba(0,0,0,0.15);
-    gap: 0.5rem;
-  }
-
-  body:has(.reservation-bar:not(.hidden)) .catalog-controls {
-    bottom: 3rem;
-  }
-
-  #product-catalog {
-    padding-bottom: 5rem;
-  }
-
-  .product-tabs {
-    margin-bottom: 1rem;
-  }
-
-  .product-tab-btn {
-    padding: 0.6rem 0.75rem;
-    font-size: 13px;
-  }
-
-  .catalog-collapsible.open {
-    max-height: 50vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .catalog-search {
-    flex: 1 1 auto;
-    width: auto;
-    max-width: none;
-  }
-
-  .catalog-filter-row {
-    width: 100%;
-    padding-left: 0;
-    overflow-x: visible;
-  }
-
-  .catalog-filter-btn {
-    padding: 5px 12px;
-    font-size: 13px;
-    min-height: 38px;
-  }
-
-  .catalog-filter-label {
-    width: 100%;
-    margin-left: 0;
-    text-align: left;
-  }
-
-  .catalog-sort {
-    max-width: none;
-    width: 100%;
-  }
-
-  .title-icon {
-    display: none;
-  }
-
-  .cal-grid {
-    gap: 2px;
-  }
-
-  .cal-day {
-    font-size: 13px;
-  }
-
-  .cal-slots-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .reservation-bar .container {
-    flex-direction: row;
-    gap: 0.75rem;
-  }
-
-  .footer-top {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .footer-address {
-    text-align: center;
-  }
-}
-
-/* ===== Phone breakpoint ===== */
-@media (max-width: 480px) {
-  .cal {
-    max-width: 100%;
-  }
-
-  .product-card {
-    padding: 1.25rem;
-  }
-
-  /* Touch target sizes */
-  .cal-nav {
-    width: 44px;
-    height: 44px;
-  }
-
-  .cal-day {
-    min-height: 44px;
-  }
-
-  /* Slimmer reservation bar */
-  .reservation-bar {
-    padding: 0.4rem 0;
-  }
-
-  .reservation-bar .reservation-bar-count {
-    font-size: 12px;
-  }
-
-  .reservation-bar .reservation-bar-clear {
-    font-size: 11px;
-    padding: 2px 6px;
-  }
-
-  .reservation-bar .reservation-bar-link {
-    padding: 4px 12px;
-    font-size: 13px;
-  }
-
-  /* Tighter hero */
-  .hero {
-    padding: 2.5rem 0;
-  }
-
-  .hero h1 {
-    gap: 1rem;
-  }
-
-  /* Reservation remove button touch target */
-  .reservation-item-remove {
-    padding: 10px 16px;
-  }
-
-  /* Stepper mobile: compact */
-  .stepper-label {
-    font-size: 10px;
-  }
-
-  .stepper-number {
-    width: 30px;
-    height: 30px;
-    font-size: 12px;
-  }
-
-  .stepper-list::before {
-    top: 15px;
-  }
-
-  .checkout-stepper {
-    margin-bottom: 1.5rem;
-  }
-}
+/* =====================================================
+   COMPONENTS — LABEL CARDS
+   ===================================================== */
 
 /* ================================================
    SUBCATEGORY COLOR TINTS
@@ -3351,7 +3216,7 @@ small, .text-small {
 }
 
 .abv {
-  font-size: 11px;
+  font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-muted);
@@ -3367,7 +3232,7 @@ small, .text-small {
   right: -30px;
   background: var(--color-error);
   color: #fff;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -3409,7 +3274,7 @@ small, .text-small {
 }
 .label-wine .brand {
   font-family: var(--font-body);
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.2em;
@@ -3432,7 +3297,7 @@ small, .text-small {
   transform: translate(-50%, -50%);
   background: #faf6ee;
   padding: 0 0.5rem;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--color-brown);
 }
 .label-wine .wine-name {
@@ -3451,7 +3316,7 @@ small, .text-small {
   margin-bottom: 0.15rem;
 }
 .label-wine .time {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -3568,15 +3433,15 @@ small, .text-small {
 }
 .label-beer .sv-logo svg { width: 100%; height: 100%; fill: currentColor; }
 .label-beer .subcategory {
-  font-family: var(--font-condensed); font-size: 11px; font-weight: 600;
+  font-family: var(--font-condensed); font-size: 0.6875rem; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.25em; color: var(--color-gold); margin-bottom: 0.35rem;
 }
 .label-beer .beer-name {
   font-family: var(--font-condensed); font-size: 1.6rem; font-weight: 700;
   text-transform: uppercase; color: var(--color-burgundy); line-height: 1.1; margin-bottom: 0.2rem;
 }
-.label-beer .brand { font-size: 11px; font-weight: 700; color: var(--color-gold-dark); letter-spacing: 0.1em; margin-bottom: 0.25rem; }
-.label-beer .time { font-size: 11px; color: var(--color-muted-dark); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.35rem; }
+.label-beer .brand { font-size: 0.6875rem; font-weight: 700; color: var(--color-gold-dark); letter-spacing: 0.1em; margin-bottom: 0.25rem; }
+.label-beer .time { font-size: 0.6875rem; color: var(--color-muted-dark); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.35rem; }
 .label-beer .gold-rule { width: 50%; height: 0; border-top: 1px solid var(--color-gold); opacity: 0.4; margin: 0.1rem auto 0.35rem; }
 .label-beer .notes-toggle { font-size: 0.8rem; font-weight: 600; color: var(--color-gold-dark); opacity: 0.9; font-family: var(--font-body); }
 .label-beer .notes-toggle .chevron { color: var(--color-gold-dark); }
@@ -3991,11 +3856,11 @@ small, .text-small {
   .trait-label,
   .label-wine .price-label,
   .label-beer .price-label {
-    font-size: 10px;
+    font-size: 0.625rem;
   }
 
   .label-wine .brand {
-    font-size: 11px;
+    font-size: 0.6875rem;
   }
 }
 
@@ -4012,12 +3877,16 @@ small, .text-small {
   }
 }
 
+/* =====================================================
+   COMPONENTS — KIOSK / ADMIN
+   ===================================================== */
+
 /* ===== Kiosk Orders (Admin) ===== */
 .kiosk-status {
   display: inline-block;
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   background: #e3e3e3;
   color: var(--color-text);
@@ -4037,7 +3906,7 @@ small, .text-small {
   display: inline-block;
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
 }
 
@@ -4055,6 +3924,10 @@ small, .text-small {
   background: #fff3e0;
   color: #e65100;
 }
+
+/* =====================================================
+   UTILITIES
+   ===================================================== */
 
 /* ===== Utility: hidden ===== */
 .hidden {
@@ -4078,7 +3951,7 @@ small, .text-small {
   padding: 0.75rem 1.25rem;
   border-radius: 6px;
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-cream);
   background: var(--color-burgundy);
@@ -4116,7 +3989,7 @@ small, .text-small {
   gap: 0.35rem;
   padding: 0.25rem 0.6rem;
   font-family: var(--font-body);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-cream);
   background: var(--color-burgundy);
@@ -4131,7 +4004,7 @@ small, .text-small {
 }
 
 .filter-chip .chip-x {
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1;
   opacity: 0.7;
 }
@@ -4140,7 +4013,7 @@ small, .text-small {
   background: transparent;
   color: var(--color-burgundy);
   border: 1px solid var(--color-burgundy);
-  font-size: 11px;
+  font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -4185,7 +4058,7 @@ small, .text-small {
   border: none;
   color: var(--color-cream);
   font-family: var(--font-body);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   cursor: pointer;
   text-decoration: none;
@@ -4211,7 +4084,7 @@ small, .text-small {
   right: 12px;
   background: var(--color-burgundy);
   color: var(--color-cream);
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   min-width: 18px;
   height: 18px;
@@ -4235,12 +4108,12 @@ small, .text-small {
 
 .kiosk-mode .cal-day {
   min-height: 52px;
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .kiosk-mode .timeslot-option label {
   padding: 1rem 1.25rem;
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .kiosk-mode .start-now-btn {
@@ -4250,21 +4123,21 @@ small, .text-small {
 
 .kiosk-mode .btn {
   padding: 14px 28px;
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .kiosk-mode .btn-secondary {
   padding: 14px 28px;
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 /* Kiosk: larger font sizes */
 .kiosk-mode .container {
-  font-size: 17px;
+  font-size: 1.0625rem;
 }
 
 .kiosk-mode .reservation-table {
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 /* Kiosk: simplified checkout — hide email/phone fields */
@@ -4471,6 +4344,10 @@ small, .text-small {
   }
 }
 
+/* =====================================================
+   COMPONENTS — CART
+   ===================================================== */
+
 /* ===== Cart Sidebar ===== */
 .catalog-layout {
   display: flex;
@@ -4611,11 +4488,11 @@ small, .text-small {
 .cart-sidebar-item-controls .qty-btn {
   width: 26px;
   height: 26px;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .cart-sidebar-item-controls .qty-value {
-  font-size: 13px;
+  font-size: 0.8125rem;
   min-width: 28px;
 }
 
@@ -5186,7 +5063,313 @@ small, .text-small {
     opacity: 0;
   }
   .reservation-table {
-    min-width: 580px;
     font-size: 0.82rem;
+  }
+}
+
+/* ===== MO-12: Page transition animation ===== */
+@keyframes sv-slide-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+body {
+  animation: sv-slide-in 220ms ease both;
+}
+
+/* ===== FE-13: Filter button count badge ===== */
+.filter-btn-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  margin-left: 0.3em;
+  padding: 0 0.3em;
+  border-radius: 0.625rem;
+  background: var(--color-green);
+  color: var(--color-cream);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.catalog-filter-btn.active .filter-btn-count {
+  background: var(--color-cream);
+  color: var(--color-green);
+}
+
+.catalog-filter-btn.disabled .filter-btn-count {
+  opacity: 0.5;
+}
+
+/* ===== MO-9: Catalog refresh button ===== */
+.catalog-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--color-green);
+  border-radius: var(--radius-sm);
+  color: var(--color-green);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+
+.catalog-refresh-btn:hover {
+  background-color: var(--color-green);
+  color: var(--color-cream);
+}
+
+/* =====================================================
+   MEDIA QUERIES — Global breakpoints
+   (formerly mid-file; moved here so all component
+    sections above are covered by these overrides)
+   ===================================================== */
+
+/* ===== Small desktop / large tablet ===== */
+@media (max-width: 1024px) {
+  .logo img {
+    height: 56px;
+  }
+
+  .footer-logo {
+    height: 56px;
+  }
+
+  .hero {
+    padding: 4.5rem 0;
+  }
+
+  .title-icon {
+    height: 40px;
+    width: 40px;
+  }
+}
+
+/* ===== Mobile ===== */
+@media (max-width: 768px) {
+  .nav-toggle {
+    display: block;
+  }
+
+  .nav-list {
+    display: none;
+    flex-direction: column;
+    position: fixed;
+    top: var(--header-height, 80px);
+    left: 0;
+    right: 0;
+    background-color: var(--color-cream);
+    padding: 1rem 0;
+    text-align: center;
+    border-bottom: 1px solid var(--color-brown);
+    z-index: 199;
+  }
+
+  .nav-list.open {
+    display: flex;
+  }
+
+  .nav-list a {
+    padding: 12px 0;
+  }
+
+  .nav-backdrop {
+    display: none;
+    position: fixed;
+    top: var(--header-height, 80px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 198;
+  }
+
+  .nav-backdrop.open {
+    display: block;
+  }
+
+  body.nav-open {
+    overflow: hidden;
+  }
+
+  .hero {
+    padding: 4rem 0;
+  }
+
+  .catalog-controls {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 999;
+    background-color: var(--color-cream);
+    padding: 0.75rem 1rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    margin: 0;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.15);
+    gap: 0.5rem;
+  }
+
+  body:has(.reservation-bar:not(.hidden)) .catalog-controls {
+    bottom: 3rem;
+  }
+
+  #product-catalog {
+    padding-bottom: 5rem;
+  }
+
+  .product-tabs {
+    margin-bottom: 1rem;
+  }
+
+  .product-tab-btn {
+    padding: 0.6rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .catalog-collapsible.open {
+    max-height: 50vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .catalog-search {
+    flex: 1 1 auto;
+    width: auto;
+    max-width: none;
+  }
+
+  .catalog-filter-row {
+    width: 100%;
+    padding-left: 0;
+    overflow-x: visible;
+  }
+
+  .catalog-filter-btn {
+    padding: 5px 12px;
+    font-size: 0.8125rem;
+    min-height: 38px;
+  }
+
+  .catalog-filter-label {
+    width: 100%;
+    margin-left: 0;
+    text-align: left;
+  }
+
+  .catalog-sort {
+    max-width: none;
+    width: 100%;
+  }
+
+  .title-icon {
+    display: none;
+  }
+
+  .cal-grid {
+    gap: 2px;
+  }
+
+  .cal-day {
+    font-size: 0.8125rem;
+  }
+
+  .cal-slots-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reservation-bar .container {
+    flex-direction: row;
+    gap: 0.75rem;
+  }
+
+  .footer-top {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .footer-address {
+    text-align: center;
+  }
+}
+
+/* ===== Phone breakpoint ===== */
+@media (max-width: 480px) {
+  .cal {
+    max-width: 100%;
+  }
+
+  .product-card {
+    padding: 1.25rem;
+  }
+
+  /* Touch target sizes */
+  .cal-nav {
+    width: 44px;
+    height: 44px;
+  }
+
+  .cal-day {
+    min-height: 44px;
+  }
+
+  /* Slimmer reservation bar */
+  .reservation-bar {
+    padding: 0.4rem 0;
+  }
+
+  .reservation-bar .reservation-bar-count {
+    font-size: 0.75rem;
+  }
+
+  .reservation-bar .reservation-bar-clear {
+    font-size: 0.6875rem;
+    padding: 2px 6px;
+  }
+
+  .reservation-bar .reservation-bar-link {
+    padding: 4px 12px;
+    font-size: 0.8125rem;
+  }
+
+  /* Tighter hero */
+  .hero {
+    padding: 2.5rem 0;
+  }
+
+  .hero h1 {
+    gap: 1rem;
+  }
+
+  /* Reservation remove button touch target */
+  .reservation-item-remove {
+    padding: 10px 16px;
+  }
+
+  /* Stepper mobile: compact */
+  .stepper-label {
+    font-size: 0.625rem;
+  }
+
+  .stepper-number {
+    width: 30px;
+    height: 30px;
+    font-size: 0.75rem;
+  }
+
+  .stepper-list::before {
+    top: 15px;
+  }
+
+  .checkout-stepper {
+    margin-bottom: 1.5rem;
   }
 }

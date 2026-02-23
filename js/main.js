@@ -199,6 +199,18 @@ document.addEventListener('DOMContentLoaded', function () {
   // Migrate legacy single-cart data into dual carts
   migrateReservationData();
 
+  // Dynamic preconnect to middleware origin for reduced connection latency
+  var _mwPreconnectUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+    ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
+  if (_mwPreconnectUrl) {
+    try {
+      var _pcLink = document.createElement('link');
+      _pcLink.rel = 'preconnect';
+      _pcLink.href = new URL(_mwPreconnectUrl).origin;
+      document.head.appendChild(_pcLink);
+    } catch(e) {}
+  }
+
   // Product catalog loader
   if (page === 'products') {
     loadProducts();
@@ -1772,31 +1784,26 @@ function initCatalogViewToggle() {
 function equalizeCardHeights() {
   var grids = document.querySelectorAll('.product-grid');
   grids.forEach(function (grid) {
-    var cards = grid.children;
-    // Reset min-heights so we measure natural size
-    for (var i = 0; i < cards.length; i++) {
-      cards[i].style.minHeight = '';
-    }
-    // Group cards by visual row (same offsetTop)
-    var rows = {};
-    for (var j = 0; j < cards.length; j++) {
-      var top = cards[j].offsetTop;
-      if (!rows[top]) rows[top] = [];
-      rows[top].push(cards[j]);
-    }
-    // Set min-height per row
-    var keys = Object.keys(rows);
-    for (var k = 0; k < keys.length; k++) {
-      var row = rows[keys[k]];
-      if (row.length < 2) continue;
-      var max = 0;
-      for (var m = 0; m < row.length; m++) {
-        if (row[m].offsetHeight > max) max = row[m].offsetHeight;
-      }
-      for (var n = 0; n < row.length; n++) {
-        row[n].style.minHeight = max + 'px';
-      }
-    }
+    var cards = Array.prototype.slice.call(grid.children);
+    // Reset min-heights (write) so we measure natural size
+    cards.forEach(function (c) { c.style.minHeight = ''; });
+    // Batch reads then writes via rAF to avoid layout thrashing
+    requestAnimationFrame(function () {
+      var rows = {};
+      // Read phase: measure all cards
+      cards.forEach(function (card) {
+        var top = card.offsetTop;
+        if (!rows[top]) rows[top] = [];
+        rows[top].push({ el: card, h: card.offsetHeight });
+      });
+      // Write phase: set min-heights per row
+      Object.keys(rows).forEach(function (top) {
+        var row = rows[top];
+        if (row.length < 2) return;
+        var max = row.reduce(function (m, c) { return Math.max(m, c.h); }, 0);
+        row.forEach(function (c) { c.el.style.minHeight = max + 'px'; });
+      });
+    });
   });
 }
 
@@ -2003,6 +2010,23 @@ function loadProducts() {
       buildSaleFilter();
       applyFilters();
 
+      // Refresh button — clears middleware cache and reloads products
+      var refreshBtn = document.createElement('button');
+      refreshBtn.className = 'catalog-refresh-btn';
+      refreshBtn.type = 'button';
+      refreshBtn.title = 'Refresh products';
+      refreshBtn.setAttribute('aria-label', 'Refresh products');
+      refreshBtn.innerHTML = '&#8635;';
+      refreshBtn.addEventListener('click', function () {
+        try {
+          localStorage.removeItem(MW_CACHE_KEY);
+          localStorage.removeItem(MW_CACHE_TS_KEY);
+        } catch(e) {}
+        loadProducts();
+      });
+      var kitsViewToggle = document.querySelector('#catalog-controls-kits .catalog-view-toggle');
+      if (kitsViewToggle) { kitsViewToggle.appendChild(refreshBtn); }
+
       // Check for SKU parameter and scroll to product (from homepage featured)
       var urlParams = new URLSearchParams(window.location.search);
       var targetSku = urlParams.get('sku');
@@ -2120,7 +2144,8 @@ function loadProducts() {
     container.appendChild(allBtn);
 
     uniqueValues.forEach(function (val) {
-      container.appendChild(createFilterButton(val, containerId, field));
+      var count = allProducts.filter(function (p) { return p[field] === val; }).length;
+      container.appendChild(createFilterButton(val, containerId, field, count));
     });
   }
 
@@ -2150,13 +2175,20 @@ function loadProducts() {
     container.appendChild(btn);
   }
 
-  function createFilterButton(label, containerId, field) {
+  function createFilterButton(label, containerId, field, count) {
     var btn = document.createElement('button');
     btn.className = 'catalog-filter-btn';
     btn.type = 'button';
-    btn.textContent = label;
     btn.setAttribute('data-field', field);
     btn.setAttribute('data-value', label);
+    var labelNode = document.createTextNode(label);
+    btn.appendChild(labelNode);
+    if (count !== undefined && label !== 'All') {
+      var countBadge = document.createElement('span');
+      countBadge.className = 'filter-btn-count';
+      countBadge.textContent = String(count);
+      btn.appendChild(countBadge);
+    }
     btn.addEventListener('click', function () {
       if (label === 'All') {
         activeFilters[field] = [];
@@ -2297,6 +2329,8 @@ function loadProducts() {
 
     renderCatalog(filtered);
     updateFilterSummary();
+    var statusEl = document.getElementById('filter-status');
+    if (statusEl) statusEl.textContent = 'Showing ' + filtered.length + ' result' + (filtered.length !== 1 ? 's' : '');
   }
 
   var filterLabels = { type: 'Type', brand: 'Brand', subcategory: 'Style', time: 'Time', body: 'Body', oak: 'Oak', sweetness: 'Sweetness' };
@@ -2313,7 +2347,12 @@ function loadProducts() {
         var chip = document.createElement('button');
         chip.className = 'filter-chip';
         chip.type = 'button';
-        chip.innerHTML = (filterLabels[field] || field) + ': ' + val + ' <span class="chip-x">&times;</span>';
+        var chipLabel = document.createTextNode((filterLabels[field] || field) + ': ' + val + ' ');
+        var chipX = document.createElement('span');
+        chipX.className = 'chip-x';
+        chipX.textContent = '\u00d7';
+        chip.appendChild(chipLabel);
+        chip.appendChild(chipX);
         chip.addEventListener('click', function () {
           var idx = activeFilters[field].indexOf(val);
           if (idx !== -1) activeFilters[field].splice(idx, 1);
@@ -4367,7 +4406,10 @@ function setReservationQty(product, qty) {
   if (qty > maxQty) qty = maxQty;
 
   if (qty <= 0) {
-    if (idx !== -1) items.splice(idx, 1);
+    if (idx !== -1) {
+      items.splice(idx, 1);
+      if (navigator.vibrate) navigator.vibrate(10);
+    }
   } else if (idx !== -1) {
     items[idx].qty = qty;
   } else {
@@ -4388,6 +4430,7 @@ function setReservationQty(product, qty) {
       tax_percentage: parseFloat(product.tax_percentage) || 0,
       max_order_qty: product.max_order_qty || ''
     });
+    if (navigator.vibrate) navigator.vibrate(10);
   }
 
   saveReservation(items, cartKey);
@@ -6087,6 +6130,25 @@ function loadTimeslots() {
 
   renderCalendar();
 
+  // Touch swipe for calendar month navigation
+  var _calTouchStartX = null;
+  cal.addEventListener('touchstart', function (e) {
+    _calTouchStartX = e.touches[0].clientX;
+  }, { passive: true });
+  cal.addEventListener('touchend', function (e) {
+    if (_calTouchStartX === null) return;
+    var dx = e.changedTouches[0].clientX - _calTouchStartX;
+    _calTouchStartX = null;
+    if (Math.abs(dx) < 50) return;
+    if (dx < 0 && currentMonthIndex < monthsList.length - 1) {
+      currentMonthIndex++;
+      renderCalendar();
+    } else if (dx > 0 && currentMonthIndex > 0) {
+      currentMonthIndex--;
+      renderCalendar();
+    }
+  }, { passive: true });
+
   // Attach listener for completion estimate + deselect Start Now
   container.addEventListener('change', function (e) {
     if (e.target.name === 'timeslot') {
@@ -6419,6 +6481,7 @@ function setupReservationForm() {
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+    if (navigator.vibrate) navigator.vibrate(10);
 
     // Bot check: honeypot field should be empty
     var honeypot = document.getElementById('res-website');

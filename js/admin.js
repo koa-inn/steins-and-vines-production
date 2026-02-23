@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-22T17:40:28.660Z';
+  var BUILD_TIMESTAMP = '2026-02-23T01:43:32.171Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -7142,6 +7142,607 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     initBatchControls();
+  });
+
+  // ===== KIOSK SALE (In-Store POS) =====
+
+  var _kioskProducts = [];       // all products loaded from backend
+  var _kioskCart = {};           // keyed by item_id: { item, qty }
+  var _kioskProductsLoaded = false;
+  var _kioskProductsLoading = false;
+  var _kioskCurrentView = 'browse'; // browse | payment | receipt | error
+  var _kioskSaleData = null;     // receipt data from last completed sale
+  var _kioskSearchTimer = null;
+  var _kioskTerminalReady = false;
+  var _kioskTabActive = false;
+
+  // ---- Helpers ----
+
+  function kioskMwUrl() {
+    return (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+      ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
+  }
+
+  function kioskFmt(amount) {
+    return '$' + (parseFloat(amount) || 0).toFixed(2);
+  }
+
+  /**
+   * Calculate per-item tax amount.
+   * Each item has a tax_percentage field (e.g. 5, 12, 0).
+   */
+  function kioskItemTax(item, qty) {
+    var rate = parseFloat(item.rate) || 0;
+    var pct = parseFloat(item.tax_percentage) || 0;
+    return parseFloat((rate * qty * pct / 100).toFixed(2));
+  }
+
+  function kioskCartIsEmpty() {
+    return Object.keys(_kioskCart).length === 0;
+  }
+
+  // ---- Cart totals calculation ----
+
+  function kioskCalcTotals() {
+    var subtotal = 0;
+    var taxTotal = 0;
+    Object.keys(_kioskCart).forEach(function (id) {
+      var entry = _kioskCart[id];
+      var qty = entry.qty;
+      var rate = parseFloat(entry.item.rate) || 0;
+      subtotal += rate * qty;
+      taxTotal += kioskItemTax(entry.item, qty);
+    });
+    return {
+      subtotal: parseFloat(subtotal.toFixed(2)),
+      tax: parseFloat(taxTotal.toFixed(2)),
+      total: parseFloat((subtotal + taxTotal).toFixed(2))
+    };
+  }
+
+  // ---- View switching ----
+
+  function kioskShowView(name) {
+    var views = ['browse', 'payment', 'receipt', 'error'];
+    views.forEach(function (v) {
+      var el = document.getElementById('kiosk-view-' + v);
+      if (el) el.style.display = (v === name) ? '' : 'none';
+    });
+    _kioskCurrentView = name;
+  }
+
+  // ---- Terminal status bar ----
+
+  function kioskSetTerminalStatus(ready, msg) {
+    _kioskTerminalReady = ready;
+    var dot = document.getElementById('kiosk-terminal-dot');
+    var label = document.getElementById('kiosk-terminal-label');
+    if (!dot || !label) return;
+    dot.className = 'kiosk-terminal-dot' +
+      (ready ? ' kiosk-terminal-dot--ready' :
+       (msg.indexOf('not configured') !== -1 ? ' kiosk-terminal-dot--error' : ' kiosk-terminal-dot--warn'));
+    label.textContent = msg;
+  }
+
+  function kioskCheckTerminal() {
+    var mwUrl = kioskMwUrl();
+    if (!mwUrl) {
+      kioskSetTerminalStatus(false, 'Terminal: middleware not configured');
+      return;
+    }
+    fetch(mwUrl + '/api/pos/status')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.enabled) {
+          kioskSetTerminalStatus(true, 'Terminal ready (' + (data.terminal_type || 'UPA') + ')');
+        } else {
+          kioskSetTerminalStatus(false, 'Terminal not enabled — check GP_TERMINAL_ENABLED env var');
+        }
+      })
+      .catch(function () {
+        kioskSetTerminalStatus(false, 'Terminal: middleware unreachable');
+      });
+  }
+
+  // ---- Load products ----
+
+  function kioskLoadProducts(forceRefresh) {
+    if (_kioskProductsLoading) return;
+    if (_kioskProductsLoaded && !forceRefresh) {
+      kioskRenderProducts();
+      return;
+    }
+
+    var mwUrl = kioskMwUrl();
+    if (!mwUrl) {
+      var grid = document.getElementById('kiosk-product-grid');
+      if (grid) grid.innerHTML = '<p class="kiosk-loading">Middleware URL not configured.</p>';
+      return;
+    }
+
+    _kioskProductsLoading = true;
+    var grid = document.getElementById('kiosk-product-grid');
+    if (grid) grid.innerHTML = '<p class="kiosk-loading">Loading products...</p>';
+
+    fetch(mwUrl + '/api/kiosk/products')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _kioskProducts = data.items || [];
+        _kioskProductsLoaded = true;
+        _kioskProductsLoading = false;
+
+        // Populate category filter
+        kioskPopulateCategories();
+        kioskRenderProducts();
+      })
+      .catch(function (err) {
+        _kioskProductsLoading = false;
+        var grid2 = document.getElementById('kiosk-product-grid');
+        if (grid2) grid2.innerHTML = '<p class="kiosk-loading">Failed to load products: ' + err.message + '</p>';
+      });
+  }
+
+  function kioskPopulateCategories() {
+    var sel = document.getElementById('kiosk-category-filter');
+    if (!sel) return;
+
+    var cats = {};
+    _kioskProducts.forEach(function (p) {
+      var cat = p.category_name || '';
+      if (cat) cats[cat] = true;
+    });
+
+    var existing = sel.options.length;
+    // Remove all but first "All Categories" option
+    while (sel.options.length > 1) sel.remove(1);
+
+    Object.keys(cats).sort().forEach(function (cat) {
+      var opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      sel.appendChild(opt);
+    });
+  }
+
+  // ---- Render product grid ----
+
+  function kioskRenderProducts() {
+    var grid = document.getElementById('kiosk-product-grid');
+    if (!grid) return;
+
+    var searchTerm = (document.getElementById('kiosk-search') || {}).value || '';
+    searchTerm = searchTerm.toLowerCase().trim();
+
+    var catFilter = (document.getElementById('kiosk-category-filter') || {}).value || '';
+
+    var mwUrl = kioskMwUrl();
+
+    var filtered = _kioskProducts.filter(function (p) {
+      // Category filter
+      if (catFilter && (p.category_name || '').toLowerCase() !== catFilter.toLowerCase()) return false;
+      // Search filter
+      if (searchTerm) {
+        var haystack = ((p.name || '') + ' ' + (p.sku || '') + ' ' + (p.category_name || '')).toLowerCase();
+        if (haystack.indexOf(searchTerm) === -1) return false;
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      grid.innerHTML = '<p class="kiosk-loading">No products match your search.</p>';
+      return;
+    }
+
+    var html = '';
+    filtered.forEach(function (p) {
+      var cartEntry = _kioskCart[p.item_id];
+      var inCart = cartEntry ? cartEntry.qty : 0;
+      var stock = parseFloat(p.stock_on_hand) || 0;
+      var outOfStock = stock <= 0;
+      var lowStock = !outOfStock && stock <= 5;
+
+      var cardClass = 'kiosk-product-card' + (outOfStock ? ' kiosk-product-card--out-of-stock' : '');
+
+      // Image: try the local product image path first (images/products/{sku}.png)
+      var imgHtml;
+      if (p.image_name && p.sku) {
+        imgHtml = '<img class="kiosk-product-img" src="images/products/' +
+          encodeURIComponent(p.sku) + '.png" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';">' +
+          '<div class="kiosk-product-img-placeholder" style="display:none;">&#127817;</div>';
+      } else {
+        imgHtml = '<div class="kiosk-product-img-placeholder">&#127817;</div>';
+      }
+
+      var stockLabel = outOfStock ? 'Out of stock' :
+        (lowStock ? 'Low stock (' + Math.round(stock) + ')' : 'In stock');
+      var stockClass = outOfStock ? 'kiosk-product-stock--out' :
+        (lowStock ? 'kiosk-product-stock--low' : '');
+
+      html += '<div class="' + cardClass + '" data-item-id="' + p.item_id + '"' +
+        (outOfStock ? '' : '') + '>';
+      if (inCart > 0) {
+        html += '<div class="kiosk-card-in-cart">' + inCart + '</div>';
+      }
+      html += imgHtml;
+      html += '<div class="kiosk-product-body">';
+      html += '<div class="kiosk-product-name">' + (p.name || '') + '</div>';
+      if (p.sku) html += '<div class="kiosk-product-sku">' + p.sku + '</div>';
+      html += '<div class="kiosk-product-price">' + kioskFmt(p.rate) + '</div>';
+      html += '<div class="kiosk-product-stock ' + stockClass + '">' + stockLabel + '</div>';
+      html += '</div>';
+      html += '</div>';
+    });
+
+    grid.innerHTML = html;
+
+    // Attach click handlers
+    var cards = grid.querySelectorAll('.kiosk-product-card:not(.kiosk-product-card--out-of-stock)');
+    cards.forEach(function (card) {
+      card.addEventListener('click', function () {
+        var itemId = card.getAttribute('data-item-id');
+        var product = _kioskProducts.filter(function (p) { return p.item_id === itemId; })[0];
+        if (!product) return;
+        kioskAddToCart(product);
+      });
+    });
+  }
+
+  // ---- Cart management ----
+
+  function kioskAddToCart(product) {
+    var id = product.item_id;
+    if (_kioskCart[id]) {
+      _kioskCart[id].qty += 1;
+    } else {
+      _kioskCart[id] = { item: product, qty: 1 };
+    }
+    kioskRenderCart();
+    kioskRenderProducts(); // refresh in-cart badges
+  }
+
+  function kioskSetQty(itemId, qty) {
+    if (qty <= 0) {
+      delete _kioskCart[itemId];
+    } else {
+      if (_kioskCart[itemId]) {
+        _kioskCart[itemId].qty = qty;
+      }
+    }
+    kioskRenderCart();
+    kioskRenderProducts(); // refresh in-cart badges
+  }
+
+  function kioskClearCart() {
+    _kioskCart = {};
+    kioskRenderCart();
+    kioskRenderProducts();
+  }
+
+  function kioskRenderCart() {
+    var container = document.getElementById('kiosk-cart-items');
+    var totalsEl = document.getElementById('kiosk-cart-totals');
+    var checkoutBtn = document.getElementById('kiosk-checkout-btn');
+    var checkoutTotal = document.getElementById('kiosk-checkout-total');
+    if (!container) return;
+
+    var keys = Object.keys(_kioskCart);
+
+    if (keys.length === 0) {
+      container.innerHTML = '<p class="kiosk-cart-empty">No items in cart</p>';
+      if (totalsEl) totalsEl.style.display = 'none';
+      if (checkoutBtn) checkoutBtn.disabled = true;
+      if (checkoutTotal) checkoutTotal.textContent = '$0.00';
+      return;
+    }
+
+    var html = '';
+    keys.forEach(function (id) {
+      var entry = _kioskCart[id];
+      var item = entry.item;
+      var qty = entry.qty;
+      var lineTotal = (parseFloat(item.rate) || 0) * qty;
+
+      html += '<div class="kiosk-cart-line">';
+      html += '<div class="kiosk-cart-line-name" title="' + (item.name || '') + '">' + (item.name || '') + '</div>';
+      html += '<div class="kiosk-cart-qty">';
+      html += '<button class="kiosk-qty-btn" data-action="dec" data-id="' + id + '">-</button>';
+      html += '<span class="kiosk-qty-val">' + qty + '</span>';
+      html += '<button class="kiosk-qty-btn" data-action="inc" data-id="' + id + '">+</button>';
+      html += '</div>';
+      html += '<div class="kiosk-cart-line-total">' + kioskFmt(lineTotal) + '</div>';
+      html += '</div>';
+    });
+
+    container.innerHTML = html;
+
+    // Quantity buttons
+    container.querySelectorAll('.kiosk-qty-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-id');
+        var action = btn.getAttribute('data-action');
+        if (!_kioskCart[id]) return;
+        var newQty = _kioskCart[id].qty + (action === 'inc' ? 1 : -1);
+        kioskSetQty(id, newQty);
+      });
+    });
+
+    // Totals
+    var totals = kioskCalcTotals();
+    var subEl = document.getElementById('kiosk-subtotal');
+    var taxEl = document.getElementById('kiosk-tax');
+    var totalEl = document.getElementById('kiosk-total');
+    if (subEl) subEl.textContent = kioskFmt(totals.subtotal);
+    if (taxEl) taxEl.textContent = kioskFmt(totals.tax);
+    if (totalEl) totalEl.textContent = kioskFmt(totals.total);
+    if (totalsEl) totalsEl.style.display = '';
+    if (checkoutBtn) checkoutBtn.disabled = false;
+    if (checkoutTotal) checkoutTotal.textContent = kioskFmt(totals.total);
+  }
+
+  // ---- Checkout flow ----
+
+  function kioskStartCheckout() {
+    if (kioskCartIsEmpty()) return;
+    if (!_kioskTerminalReady) {
+      showToast('POS terminal is not ready. Check terminal status below.', 'error');
+      return;
+    }
+
+    var totals = kioskCalcTotals();
+    var mwUrl = kioskMwUrl();
+    if (!mwUrl) {
+      showToast('Middleware URL not configured', 'error');
+      return;
+    }
+
+    // Build payment items summary
+    var items = Object.keys(_kioskCart).map(function (id) {
+      var entry = _kioskCart[id];
+      return {
+        item_id: entry.item.item_id,
+        name: entry.item.name || '',
+        quantity: entry.qty,
+        rate: parseFloat(entry.item.rate) || 0
+      };
+    });
+
+    // Show payment view
+    kioskShowView('payment');
+
+    var amountEl = document.getElementById('kiosk-payment-amount');
+    var msgEl = document.getElementById('kiosk-terminal-msg');
+    var spinnerEl = document.getElementById('kiosk-spinner');
+    var itemsEl = document.getElementById('kiosk-payment-items');
+    var cancelBtn = document.getElementById('kiosk-cancel-payment');
+
+    if (amountEl) amountEl.textContent = kioskFmt(totals.total);
+    if (msgEl) msgEl.textContent = 'Tap, insert, or swipe card on terminal...';
+    if (spinnerEl) spinnerEl.style.display = '';
+
+    // Render item summary on payment screen
+    if (itemsEl) {
+      var itemHtml = '';
+      items.forEach(function (it) {
+        itemHtml += '<div class="kiosk-payment-item-row">';
+        itemHtml += '<span>' + (it.name || '') + ' x' + (it.quantity || 1) + '</span>';
+        itemHtml += '<span>' + kioskFmt((it.rate || 0) * (it.quantity || 1)) + '</span>';
+        itemHtml += '</div>';
+      });
+      if (totals.tax > 0) {
+        itemHtml += '<div class="kiosk-payment-item-row"><span>Tax</span><span>' + kioskFmt(totals.tax) + '</span></div>';
+      }
+      itemsEl.innerHTML = itemHtml;
+    }
+
+    // Disable cancel while request is in flight
+    var cancelled = false;
+    if (cancelBtn) {
+      cancelBtn.disabled = false;
+      cancelBtn.onclick = function () {
+        cancelled = true;
+        kioskShowView('browse');
+        if (msgEl) msgEl.textContent = 'Cancelled.';
+      };
+    }
+
+    // Generate a reference number
+    var refNumber = 'KIOSK-' + Date.now();
+
+    // POST to /api/kiosk/sale — this blocks until the terminal responds
+    fetch(mwUrl + '/api/kiosk/sale', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: items,
+        tax_total: totals.tax,
+        reference_number: refNumber
+      })
+    })
+    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+    .then(function (result) {
+      if (cancelled) return; // user cancelled while request was in flight
+
+      if (spinnerEl) spinnerEl.style.display = 'none';
+
+      if (result.status === 201 && result.data.ok) {
+        // Success
+        _kioskSaleData = result.data;
+        kioskShowReceipt(result.data, totals, items);
+        kioskClearCart();
+      } else if (result.status === 402) {
+        // Declined
+        kioskShowError(
+          'Payment Declined',
+          result.data.error || 'Card was declined. Please try a different payment method.',
+          true
+        );
+      } else if (result.data && result.data.payment_voided) {
+        // Payment taken but Zoho failed; transaction was voided
+        kioskShowError(
+          'Sale Could Not Complete',
+          (result.data.error || 'Payment was taken but could not be recorded. Payment has been voided.'),
+          false
+        );
+      } else {
+        kioskShowError(
+          'Sale Error',
+          result.data.error || 'An error occurred. Please try again.',
+          true
+        );
+      }
+    })
+    .catch(function (err) {
+      if (cancelled) return;
+      if (spinnerEl) spinnerEl.style.display = 'none';
+      kioskShowError('Connection Error', 'Could not reach the payment server. Please try again.', true);
+    });
+  }
+
+  function kioskShowReceipt(saleData, totals, items) {
+    kioskShowView('receipt');
+
+    var body = document.getElementById('kiosk-receipt-body');
+    if (!body) return;
+
+    var html = '';
+
+    // Items
+    items.forEach(function (it) {
+      html += '<div class="kiosk-receipt-row">';
+      html += '<span>' + (it.name || '') + ' x' + (it.quantity || 1) + '</span>';
+      html += '<span>' + kioskFmt((it.rate || 0) * (it.quantity || 1)) + '</span>';
+      html += '</div>';
+    });
+
+    if (totals.tax > 0) {
+      html += '<div class="kiosk-receipt-row"><span>Tax</span><span>' + kioskFmt(totals.tax) + '</span></div>';
+    }
+
+    html += '<div class="kiosk-receipt-row" style="font-weight:700;font-size:1.05rem;">';
+    html += '<strong>Total</strong><strong>' + kioskFmt(saleData.total || totals.total) + '</strong>';
+    html += '</div>';
+
+    if (saleData.invoice_number) {
+      html += '<div class="kiosk-receipt-row"><span>Invoice</span><span>' + saleData.invoice_number + '</span></div>';
+    }
+    if (saleData.transaction_id) {
+      html += '<div class="kiosk-receipt-row"><span>Transaction</span><span style="font-size:0.8rem;font-family:monospace;">' + saleData.transaction_id + '</span></div>';
+    }
+    if (saleData.auth_code) {
+      html += '<div class="kiosk-receipt-row"><span>Auth Code</span><span>' + saleData.auth_code + '</span></div>';
+    }
+    if (saleData.date) {
+      html += '<div class="kiosk-receipt-row"><span>Date</span><span>' + saleData.date + '</span></div>';
+    }
+
+    body.innerHTML = html;
+
+    var newSaleBtn = document.getElementById('kiosk-new-sale-btn');
+    if (newSaleBtn) {
+      newSaleBtn.onclick = function () {
+        kioskShowView('browse');
+      };
+    }
+  }
+
+  function kioskShowError(title, msg, canRetry) {
+    kioskShowView('error');
+
+    var titleEl = document.getElementById('kiosk-error-title');
+    var msgEl = document.getElementById('kiosk-error-msg');
+    var retryBtn = document.getElementById('kiosk-retry-btn');
+    var backBtn = document.getElementById('kiosk-back-btn');
+
+    if (titleEl) titleEl.textContent = title;
+    if (msgEl) msgEl.textContent = msg;
+
+    if (retryBtn) {
+      retryBtn.style.display = canRetry ? '' : 'none';
+      retryBtn.onclick = function () {
+        kioskShowView('browse');
+        kioskStartCheckout();
+      };
+    }
+
+    if (backBtn) {
+      backBtn.onclick = function () {
+        kioskShowView('browse');
+      };
+    }
+  }
+
+  // ---- Init kiosk tab ----
+
+  function initKioskSaleTab() {
+    // Search input
+    var searchInput = document.getElementById('kiosk-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        clearTimeout(_kioskSearchTimer);
+        _kioskSearchTimer = setTimeout(kioskRenderProducts, 200);
+      });
+    }
+
+    // Category filter
+    var catFilter = document.getElementById('kiosk-category-filter');
+    if (catFilter) {
+      catFilter.addEventListener('change', kioskRenderProducts);
+    }
+
+    // Refresh products button
+    var refreshBtn = document.getElementById('kiosk-products-refresh');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', function () {
+        _kioskProductsLoaded = false;
+        kioskLoadProducts(true);
+      });
+    }
+
+    // Clear cart button
+    var clearBtn = document.getElementById('kiosk-cart-clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        if (kioskCartIsEmpty()) return;
+        kioskClearCart();
+      });
+    }
+
+    // Checkout button
+    var checkoutBtn = document.getElementById('kiosk-checkout-btn');
+    if (checkoutBtn) {
+      checkoutBtn.addEventListener('click', kioskStartCheckout);
+    }
+  }
+
+  // Hook into tab navigation: lazy-load on first visit, show/hide terminal bar
+  var _kioskOrigInitTabNav = initTabNavigation;
+  initTabNavigation = function () {
+    _kioskOrigInitTabNav();
+    var tabBtns = document.querySelectorAll('.admin-tab-btn');
+    tabBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var isKiosk = btn.getAttribute('data-tab') === 'kiosk';
+        _kioskTabActive = isKiosk;
+
+        var termBar = document.getElementById('kiosk-terminal-bar');
+        if (termBar) {
+          if (isKiosk) {
+            termBar.classList.add('visible');
+          } else {
+            termBar.classList.remove('visible');
+          }
+        }
+
+        if (isKiosk && !_kioskProductsLoaded && !_kioskProductsLoading) {
+          kioskLoadProducts();
+          kioskCheckTerminal();
+        }
+      });
+    });
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    initKioskSaleTab();
   });
 
 })();

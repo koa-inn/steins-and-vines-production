@@ -2082,3 +2082,565 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   .batch-cal-day { min-height: 60px; }
   .batch-cal-task { font-size: 0.6rem; }
 }
+
+/* ===== Kiosk Sale (In-Store POS) ===== */
+
+/* Tab panel container */
+#tab-kiosk {
+  position: relative;
+  padding-bottom: 3rem; /* room for terminal bar */
+}
+
+/* View switcher — only one view visible at a time */
+.kiosk-view { display: block; }
+
+/* ---- Browse Layout ---- */
+.kiosk-browse-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 1rem;
+  min-height: 600px;
+}
+
+/* Search + filter bar */
+.kiosk-search-bar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.kiosk-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid var(--ledger-emphasis);
+  border-radius: 6px;
+  background: var(--cellar-raised);
+  color: var(--ink-primary);
+  outline: none;
+  -webkit-appearance: none;
+}
+.kiosk-search-input:focus { border-color: var(--barrel); box-shadow: 0 0 0 2px rgba(119,70,45,0.15); }
+
+.kiosk-category-select {
+  padding: 0.65rem 0.5rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--ledger-emphasis);
+  border-radius: 6px;
+  background: var(--cellar-raised);
+  color: var(--ink-primary);
+  cursor: pointer;
+}
+
+.kiosk-refresh-btn {
+  padding: 0.6rem 0.8rem;
+  font-size: 1.1rem;
+  line-height: 1;
+  border-radius: 6px;
+  min-width: 40px;
+  cursor: pointer;
+}
+
+/* Product grid */
+.kiosk-product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+.kiosk-loading {
+  color: var(--ink-tertiary);
+  grid-column: 1 / -1;
+  padding: 2rem 0;
+  text-align: center;
+}
+
+/* Product card — large tap target */
+.kiosk-product-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-soft);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+  min-height: 160px;
+  position: relative;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.kiosk-product-card:active { box-shadow: inset 0 2px 6px rgba(0,0,0,0.12); }
+.kiosk-product-card:hover { border-color: var(--barrel); box-shadow: 0 2px 8px rgba(119,70,45,0.12); }
+
+.kiosk-product-img {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  background: var(--cellar-canvas);
+  display: block;
+}
+.kiosk-product-img-placeholder {
+  width: 100%;
+  height: 110px;
+  background: var(--cellar-canvas);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-muted);
+  font-size: 2rem;
+}
+
+.kiosk-product-body {
+  padding: 0.5rem 0.6rem 0.65rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.kiosk-product-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-primary);
+  line-height: 1.25;
+  /* two-line clamp */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.kiosk-product-sku {
+  font-size: 0.72rem;
+  color: var(--ink-tertiary);
+  font-family: monospace;
+}
+
+.kiosk-product-price {
+  margin-top: auto;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--barrel);
+}
+
+.kiosk-product-stock {
+  font-size: 0.72rem;
+  color: var(--ink-tertiary);
+}
+
+.kiosk-product-stock--low {
+  color: var(--batch-warning);
+  font-weight: 600;
+}
+
+.kiosk-product-stock--out {
+  color: var(--batch-danger);
+  font-weight: 600;
+}
+
+.kiosk-product-card--out-of-stock {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* In-cart badge on product card */
+.kiosk-card-in-cart {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: var(--barrel);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 12px;
+  padding: 1px 8px;
+  min-width: 24px;
+  text-align: center;
+}
+
+/* ---- Cart Pane ---- */
+.kiosk-cart-pane {
+  display: flex;
+  flex-direction: column;
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-emphasis);
+  border-radius: 10px;
+  padding: 1rem;
+  gap: 0.5rem;
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 160px);
+  overflow: hidden;
+}
+
+.kiosk-cart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--ledger-soft);
+  padding-bottom: 0.5rem;
+}
+
+.kiosk-cart-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin: 0;
+}
+
+.kiosk-cart-clear {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.65rem;
+  cursor: pointer;
+}
+
+.kiosk-cart-items {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 80px;
+}
+
+.kiosk-cart-empty {
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1.5rem 0;
+  margin: 0;
+}
+
+/* Cart line item */
+.kiosk-cart-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--ledger-soft);
+}
+.kiosk-cart-line:last-child { border-bottom: none; }
+
+.kiosk-cart-line-name {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--ink-primary);
+  line-height: 1.3;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kiosk-cart-qty {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.kiosk-qty-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--ledger-emphasis);
+  background: var(--cellar-surface);
+  border-radius: 4px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-primary);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.kiosk-qty-btn:active { background: var(--cellar-canvas); }
+
+.kiosk-qty-val {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink-primary);
+  min-width: 20px;
+  text-align: center;
+}
+
+.kiosk-cart-line-total {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--barrel);
+  min-width: 52px;
+  text-align: right;
+}
+
+/* Cart totals */
+.kiosk-cart-totals {
+  border-top: 1px solid var(--ledger-emphasis);
+  padding-top: 0.5rem;
+}
+
+.kiosk-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: var(--ink-secondary);
+  padding: 0.15rem 0;
+}
+
+.kiosk-total-grand {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink-primary);
+  padding-top: 0.35rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--ledger-emphasis);
+}
+
+/* Checkout button */
+.kiosk-cart-actions { padding-top: 0.5rem; }
+
+.kiosk-checkout-btn {
+  width: 100%;
+  padding: 0.85rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+.kiosk-checkout-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---- Payment Screen ---- */
+.kiosk-payment-screen,
+.kiosk-receipt-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 500px;
+  padding: 2rem 1rem;
+}
+
+.kiosk-payment-card,
+.kiosk-receipt-card {
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-emphasis);
+  border-radius: 14px;
+  padding: 2.5rem 2rem;
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+
+.kiosk-terminal-icon {
+  font-size: 3.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.kiosk-payment-amount {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--barrel);
+  margin: 0 0 0.5rem;
+}
+
+.kiosk-terminal-msg {
+  font-size: 1rem;
+  color: var(--ink-secondary);
+  margin: 0 0 1.5rem;
+}
+
+/* Spinner */
+.kiosk-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--ledger-emphasis);
+  border-top-color: var(--barrel);
+  border-radius: 50%;
+  animation: kiosk-spin 0.9s linear infinite;
+  margin: 0 auto 1.5rem;
+}
+@keyframes kiosk-spin { to { transform: rotate(360deg); } }
+
+.kiosk-payment-items {
+  text-align: left;
+  border-top: 1px solid var(--ledger-soft);
+  margin: 1rem 0;
+  padding-top: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--ink-secondary);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.kiosk-payment-item-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.2rem 0;
+}
+
+.kiosk-payment-footer { margin-top: 1rem; }
+
+.kiosk-cancel-payment {
+  width: 100%;
+  padding: 0.7rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+/* ---- Receipt / Error Screen ---- */
+.kiosk-receipt-icon {
+  font-size: 3rem;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  font-weight: 700;
+}
+
+.kiosk-receipt-icon--success {
+  background: var(--batch-success-bg);
+  color: var(--batch-success);
+}
+
+.kiosk-receipt-icon--error {
+  background: var(--batch-danger-bg);
+  color: var(--batch-danger);
+}
+
+.kiosk-receipt-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin: 0 0 1rem;
+}
+
+.kiosk-receipt-body {
+  text-align: left;
+  font-size: 0.92rem;
+  color: var(--ink-secondary);
+  margin: 0.5rem 0 1.5rem;
+}
+
+.kiosk-receipt-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--ledger-soft);
+}
+.kiosk-receipt-row:last-child { border-bottom: none; }
+.kiosk-receipt-row strong { color: var(--ink-primary); }
+
+.kiosk-receipt-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.kiosk-new-sale-btn {
+  padding: 0.8rem 2rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.kiosk-retry-btn {
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.kiosk-back-btn {
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.kiosk-error-msg {
+  color: var(--batch-danger);
+  font-size: 0.95rem;
+  margin: 0 0 1.5rem;
+}
+
+/* ---- Terminal Status Bar ---- */
+.kiosk-terminal-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--cellar-surface);
+  border-top: 1px solid var(--ledger-soft);
+  padding: 0.4rem 1.5rem;
+  font-size: 0.8rem;
+  color: var(--ink-tertiary);
+  display: none; /* shown via JS when kiosk tab is active */
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 50;
+}
+
+.kiosk-terminal-bar.visible { display: flex; }
+
+.kiosk-terminal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+  flex-shrink: 0;
+}
+.kiosk-terminal-dot--ready { background: var(--batch-success); }
+.kiosk-terminal-dot--error { background: var(--batch-danger); }
+.kiosk-terminal-dot--warn  { background: var(--batch-warning); }
+
+/* Kiosk orders styles (referenced in admin.js) */
+.kiosk-orders-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.kiosk-orders-table th,
+.kiosk-orders-table td { padding: 0.5rem 0.65rem; text-align: left; border-bottom: 1px solid var(--ledger-soft); }
+.kiosk-orders-table thead th { font-weight: 700; color: var(--ink-secondary); background: var(--cellar-canvas); }
+
+.kiosk-status { font-size: 0.8rem; padding: 1px 8px; border-radius: 10px; background: var(--cellar-canvas); }
+.kiosk-status--walkin { background: var(--batch-info-bg); color: var(--batch-info); }
+.kiosk-status--pending { background: var(--batch-warning-bg); color: var(--batch-warning); }
+
+.kiosk-payment-badge { font-size: 0.75rem; padding: 1px 7px; border-radius: 10px; }
+.kiosk-payment--paid { background: var(--batch-success-bg); color: var(--batch-success); }
+.kiosk-payment--deposit { background: var(--batch-warning-bg); color: var(--batch-warning); }
+.kiosk-payment--pending { background: var(--cellar-canvas); color: var(--ink-tertiary); }
+
+/* Tablet portrait adjustments */
+@media (max-width: 900px) {
+  .kiosk-browse-layout {
+    grid-template-columns: 1fr;
+  }
+  .kiosk-cart-pane {
+    position: static;
+    max-height: none;
+    order: -1; /* cart above product grid on narrow screens */
+  }
+  .kiosk-product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .kiosk-product-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .kiosk-payment-card,
+  .kiosk-receipt-card {
+    padding: 1.5rem 1rem;
+  }
+  .kiosk-payment-amount { font-size: 2rem; }
+}

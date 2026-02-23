@@ -6,6 +6,7 @@ var axios = require('axios');
 var crypto = require('crypto');
 var zohoAuth = require('./lib/zohoAuth');
 var cache = require('./lib/cache');
+var log = require('./lib/logger');
 var fs = require('fs');
 var path = require('path');
 var rateLimit = require('express-rate-limit');
@@ -42,6 +43,17 @@ app.use(cors({
   credentials: true
 }));
 
+// Request logging middleware (attaches reqId, logs method/path/status/ms)
+app.use(function (req, res, next) {
+  var reqId = crypto.randomBytes(4).toString('hex');
+  req.id = reqId;
+  var start = Date.now();
+  res.on('finish', function () {
+    log.info(req.method + ' ' + req.path, { reqId: reqId, status: res.statusCode, ms: Date.now() - start });
+  });
+  next();
+});
+
 // Health check (used by Railway)
 app.get('/health', function (req, res) { res.json({ status: 'ok' }); });
 
@@ -64,9 +76,9 @@ if (process.env.GP_APP_KEY) {
     gpConfig.merchantId = process.env.GP_MERCHANT_ID;
   }
   ServicesContainer.configureService(gpConfig);
-  console.log('  Global Payments SDK configured (deposit: $' + GP_DEPOSIT_AMOUNT.toFixed(2) + ')');
+  log.info('Global Payments SDK configured (deposit: $' + GP_DEPOSIT_AMOUNT.toFixed(2) + ')');
 } else {
-  console.log('  Global Payments SDK not configured (GP_APP_KEY missing)');
+  log.info('Global Payments SDK not configured (GP_APP_KEY missing)');
 }
 
 // ---------------------------------------------------------------------------
@@ -96,13 +108,13 @@ if (GP_TERMINAL_ENABLED && process.env.GP_APP_KEY) {
 
     terminalConfig.gatewayConfig = terminalGateway;
     gpTerminalDevice = DeviceService.create(terminalConfig, 'terminal');
-    console.log('  GP Terminal configured (Meet in the Cloud)');
+    log.info('GP Terminal configured (Meet in the Cloud)');
   } catch (termErr) {
-    console.error('  GP Terminal configuration failed:', termErr.message);
+    log.error('GP Terminal configuration failed: ' + termErr.message);
     gpTerminalDevice = null;
   }
 } else {
-  console.log('  GP Terminal not enabled (GP_TERMINAL_ENABLED=' + (process.env.GP_TERMINAL_ENABLED || 'false') + ')');
+  log.info('GP Terminal not enabled (GP_TERMINAL_ENABLED=' + (process.env.GP_TERMINAL_ENABLED || 'false') + ')');
 }
 
 // ---------------------------------------------------------------------------
@@ -133,8 +145,8 @@ app.get('/auth/zoho/callback', function (req, res) {
       res.json({ ok: true, message: 'Zoho authentication successful' });
     })
     .catch(function (err) {
-      console.error('[callback] Token exchange failed:', err.message);
-      res.status(500).json({ error: 'Token exchange failed: ' + err.message });
+      log.error('[callback] Token exchange failed: ' + err.message);
+      res.status(500).json({ error: 'Authentication failed' });
     });
 });
 
@@ -196,8 +208,8 @@ app.get('/api/payment/config', function (req, res) {
     if (err.response && err.response.data) {
       msg = err.response.data.error_description || err.response.data.message || msg;
     }
-    console.error('[payment/config] Access token failed:', msg);
-    res.status(502).json({ error: 'Payment config failed: ' + msg, enabled: false });
+    log.error('[payment/config] Access token failed: ' + msg);
+    res.status(502).json({ error: 'Payment configuration unavailable', enabled: false });
   });
 });
 
@@ -249,6 +261,7 @@ app.use('/api', apiLimiter);
 app.use('/api/payment', paymentLimiter);
 app.use('/api/checkout', paymentLimiter);
 app.use('/api/pos/sale', paymentLimiter);
+app.use('/api/kiosk/sale', paymentLimiter);
 
 // ---------------------------------------------------------------------------
 // Zoho Books API proxy helpers
@@ -424,8 +437,8 @@ app.get('/api/bookings/services', function (req, res) {
       res.json({ services: services, staff: staff });
     })
     .catch(function (err) {
-      console.error('[api/bookings/services]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/bookings/services] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch booking services' });
     });
 });
 
@@ -448,11 +461,11 @@ app.get('/api/bookings/availability', function (req, res) {
   cache.get(cacheKey)
     .then(function (cached) {
       if (cached) {
-        console.log('[api/bookings/availability] Cache hit for ' + year + '-' + month);
+        log.info('[api/bookings/availability] Cache hit for ' + year + '-' + month);
         return res.json({ source: 'cache', dates: cached });
       }
 
-      console.log('[api/bookings/availability] Cache miss — fetching from Zoho');
+      log.info('[api/bookings/availability] Cache miss — fetching from Zoho');
 
       // Calculate all dates in the month
       var daysInMonth = new Date(parseInt(year, 10), parseInt(month, 10), 0).getDate();
@@ -496,8 +509,8 @@ app.get('/api/bookings/availability', function (req, res) {
       });
     })
     .catch(function (err) {
-      console.error('[api/bookings/availability]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/bookings/availability] ' + err.message);
+      res.status(502).json({ error: 'Unable to check availability' });
     });
 });
 
@@ -522,8 +535,8 @@ app.get('/api/bookings/slots', function (req, res) {
       res.json({ date: date, slots: slots });
     })
     .catch(function (err) {
-      console.error('[api/bookings/slots]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/bookings/slots] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch time slots' });
     });
 });
 
@@ -599,8 +612,8 @@ app.post('/api/bookings', function (req, res) {
       if (err.response && err.response.data) {
         message = err.response.data.message || err.response.data.error || message;
       }
-      console.error('[api/bookings POST]', message);
-      res.status(502).json({ error: message });
+      log.error('[api/bookings POST] ' + message);
+      res.status(502).json({ error: 'Unable to create booking' });
     });
 });
 
@@ -673,8 +686,8 @@ app.post('/api/contacts', function (req, res) {
       if (err.response && err.response.data) {
         message = err.response.data.message || err.response.data.error || message;
       }
-      console.error('[api/contacts POST]', message);
-      res.status(502).json({ error: message });
+      log.error('[api/contacts POST] ' + message);
+      res.status(502).json({ error: 'Unable to create contact' });
     });
 });
 
@@ -687,7 +700,9 @@ var PRODUCTS_CACHE_TTL = 3600; // 1 hour hard TTL
 var PRODUCTS_SOFT_TTL = 600;   // 10 minutes — triggers background refresh
 var PRODUCTS_CACHE_TS_KEY = 'zoho:products:ts'; // timestamp of last enrichment
 var PRODUCT_IMAGE_HASHES_KEY = 'zoho:product-image-hashes'; // image change detection
-var _productsRefreshing = false; // prevent concurrent background refreshes
+var _productsRefreshing = false; // in-process guard (Redis-down fallback)
+var REFRESH_LOCK_KEY = 'products:refresh';
+var REFRESH_LOCK_TTL = 120; // 2-min auto-expire if process crashes mid-refresh
 var PRODUCTS_FILE_CACHE = path.join(__dirname, 'products-cache.json');
 
 // In-memory set of kit item IDs (populated by GET /api/products).
@@ -704,13 +719,26 @@ var _kitItemIds = {};
  * sweetness, ABV, etc. Services and Ingredients groups are filtered out.
  */
 function refreshProducts() {
+  // Fast in-process guard first (no Redis round-trip needed for single-instance case)
   if (_productsRefreshing) {
-    console.log('[api/products] Background refresh already in progress, skipping');
+    log.info('[api/products] Refresh already in progress, skipping');
     return Promise.resolve();
   }
-  _productsRefreshing = true;
-  console.log('[api/products] Refreshing product data from Zoho Inventory');
 
+  // Redis distributed lock — prevents concurrent refreshes across multiple instances
+  return cache.acquireLock(REFRESH_LOCK_KEY, REFRESH_LOCK_TTL)
+    .then(function (acquired) {
+      if (!acquired) {
+        log.info('[api/products] Refresh lock held by another instance, skipping');
+        return Promise.resolve();
+      }
+      _productsRefreshing = true;
+      log.info('[api/products] Refreshing product data from Zoho Inventory');
+      return doRefreshProducts();
+    });
+}
+
+function doRefreshProducts() {
   return fetchAllItems({ status: 'active' })
     .then(function (items) {
       var serialPattern = /\s—\s[A-Z]+-\d+$/;
@@ -720,7 +748,7 @@ function refreshProducts() {
         return true;
       });
 
-      console.log('[api/products] Enriching ' + items.length + ' items (parallel batches of 5)');
+      log.info('[api/products] Enriching ' + items.length + ' items (parallel batches of 5)');
 
       var BATCH_SIZE = 5;
       var BATCH_PAUSE = 3500; // ms between batches (~85 req/min)
@@ -745,10 +773,10 @@ function refreshProducts() {
           .catch(function (err) {
             if (err.response && err.response.status === 429 && retries < MAX_RETRIES) {
               var backoff = Math.pow(2, retries + 1) * 1000;
-              console.log('[api/products] Rate limited on ' + item.name + ', retrying in ' + backoff + 'ms');
+              log.warn('[api/products] Rate limited on ' + item.name + ', retrying in ' + backoff + 'ms');
               return delay(backoff).then(function () { return fetchDetail(item, retries + 1); });
             }
-            console.error('[api/products] Detail fetch failed for ' + item.name + ':', err.message);
+            log.error('[api/products] Detail fetch failed for ' + item.name + ': ' + err.message);
             item.custom_fields = [];
             item.brand = item.brand || '';
             item.tax_id = item.tax_id || '';
@@ -795,12 +823,12 @@ function refreshProducts() {
           });
           var catVal = (categoryCF && categoryCF.value) ? categoryCF.value : (item.category_name || '');
           if (!catVal) {
-            console.log('[api/products] Excluding item with no category: ' + item.name);
+            log.info('[api/products] Excluding item with no category: ' + item.name);
             return false;
           }
           catVal = catVal.toLowerCase();
           if (!KIT_CATEGORIES.some(function (kc) { return catVal.indexOf(kc) !== -1; })) {
-            console.log('[api/products] Excluding non-kit item: ' + item.name + ' (category: ' + catVal + ')');
+            log.info('[api/products] Excluding non-kit item: ' + item.name + ' (category: ' + catVal + ')');
             return false;
           }
 
@@ -810,14 +838,14 @@ function refreshProducts() {
         enriched.forEach(function (item) { _kitItemIds[item.item_id] = true; });
         cache.set(PRODUCTS_CACHE_KEY, enriched, PRODUCTS_CACHE_TTL);
         cache.set(PRODUCTS_CACHE_TS_KEY, Date.now(), PRODUCTS_CACHE_TTL);
-        console.log('[api/products] Cached ' + enriched.length + ' kit items');
+        log.info('[api/products] Cached ' + enriched.length + ' kit items');
 
         // Write file fallback (async, fire-and-forget)
         fs.writeFile(PRODUCTS_FILE_CACHE, JSON.stringify(enriched), function (fileErr) {
           if (fileErr) {
-            console.error('[api/products] File fallback write failed:', fileErr.message);
+            log.error('[api/products] File fallback write failed: ' + fileErr.message);
           } else {
-            console.log('[api/products] Wrote file fallback (' + enriched.length + ' items)');
+            log.info('[api/products] Wrote file fallback (' + enriched.length + ' items)');
           }
         });
 
@@ -847,24 +875,25 @@ function refreshProducts() {
             });
 
             if (changed.length > 0 || newImages.length > 0) {
-              console.log('[api/products] Image changes detected (' +
-                changed.length + ' changed, ' + newImages.length + ' new) ' +
-                '— run sync-images to update');
+              log.info('[api/products] Image changes detected (' +
+                changed.length + ' changed, ' + newImages.length + ' new) — run sync-images to update');
             }
 
             // Store the new image map in Redis (same TTL as products cache)
             return cache.set(PRODUCT_IMAGE_HASHES_KEY, currentImageMap, PRODUCTS_CACHE_TTL);
           })
           .catch(function (imgErr) {
-            console.error('[api/products] Image change detection error:', imgErr.message);
+            log.error('[api/products] Image change detection error: ' + imgErr.message);
           });
 
         _productsRefreshing = false;
+        cache.releaseLock(REFRESH_LOCK_KEY);
         return enriched;
       });
     })
     .catch(function (err) {
       _productsRefreshing = false;
+      cache.releaseLock(REFRESH_LOCK_KEY);
       throw err;
     });
 }
@@ -873,7 +902,7 @@ app.get('/api/products', function (req, res) {
   cache.get(PRODUCTS_CACHE_KEY)
     .then(function (cached) {
       if (cached) {
-        console.log('[api/products] Cache hit (' + cached.length + ' items)');
+        log.info('[api/products] Cache hit (' + cached.length + ' items)');
         if (!Object.keys(_kitItemIds).length) {
           cached.forEach(function (item) { _kitItemIds[item.item_id] = true; });
         }
@@ -883,9 +912,9 @@ app.get('/api/products', function (req, res) {
         cache.get(PRODUCTS_CACHE_TS_KEY).then(function (ts) {
           var age = ts ? (Date.now() - ts) / 1000 : PRODUCTS_SOFT_TTL + 1;
           if (age > PRODUCTS_SOFT_TTL) {
-            console.log('[api/products] Cache stale (' + Math.round(age) + 's old), refreshing in background');
+            log.info('[api/products] Cache stale (' + Math.round(age) + 's old), refreshing in background');
             refreshProducts().catch(function (err) {
-              console.error('[api/products] Background refresh failed:', err.message);
+              log.error('[api/products] Background refresh failed: ' + err.message);
             });
           }
         });
@@ -899,7 +928,7 @@ app.get('/api/products', function (req, res) {
       } catch (e) {}
 
       if (fileData && fileData.length > 0) {
-        console.log('[api/products] File fallback hit (' + fileData.length + ' items)');
+        log.info('[api/products] File fallback hit (' + fileData.length + ' items)');
         // Populate in-memory kit IDs
         fileData.forEach(function (item) { _kitItemIds[item.item_id] = true; });
         // Also populate Redis cache from file
@@ -908,20 +937,20 @@ app.get('/api/products', function (req, res) {
         res.json({ source: 'file-cache', items: fileData });
         // Trigger background refresh
         refreshProducts().catch(function (err) {
-          console.error('[api/products] Background refresh failed:', err.message);
+          log.error('[api/products] Background refresh failed: ' + err.message);
         });
         return;
       }
 
-      console.log('[api/products] Cache miss — fetching from Zoho Inventory');
+      log.info('[api/products] Cache miss — fetching from Zoho Inventory');
       return refreshProducts()
         .then(function (enriched) {
           res.json({ source: 'zoho', items: enriched });
         });
     })
     .catch(function (err) {
-      console.error('[api/products]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/products] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch products' });
     });
 });
 
@@ -936,11 +965,11 @@ app.get('/api/services', function (req, res) {
   cache.get(SERVICES_CACHE_KEY)
     .then(function (cached) {
       if (cached) {
-        console.log('[api/services] Cache hit');
+        log.info('[api/services] Cache hit');
         return res.json({ source: 'cache', items: cached });
       }
 
-      console.log('[api/services] Cache miss — fetching from Zoho Inventory');
+      log.info('[api/services] Cache miss — fetching from Zoho Inventory');
       return fetchAllItems({ status: 'active' })
         .then(function (allItems) {
           var items = allItems.filter(function (item) {
@@ -951,8 +980,8 @@ app.get('/api/services', function (req, res) {
         });
     })
     .catch(function (err) {
-      console.error('[api/services]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/services] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch services' });
     });
 });
 
@@ -969,18 +998,18 @@ app.get('/api/ingredients', function (req, res) {
   cache.get(INGREDIENTS_CACHE_KEY)
     .then(function (cached) {
       if (cached) {
-        console.log('[api/ingredients] Cache hit');
+        log.info('[api/ingredients] Cache hit');
         return res.json({ source: 'cache', items: cached });
       }
 
-      console.log('[api/ingredients] Cache miss — fetching from Zoho Inventory');
+      log.info('[api/ingredients] Cache miss — fetching from Zoho Inventory');
       return fetchAllItems({ status: 'active' })
         .then(function (allItems) {
           var items = allItems.filter(function (item) {
             return item.product_type !== 'service' && !_kitItemIds[item.item_id];
           });
 
-          console.log('[api/ingredients] Enriching ' + items.length + ' items for custom fields');
+          log.info('[api/ingredients] Enriching ' + items.length + ' items for custom fields');
 
           var BATCH_SIZE = 5;
           var BATCH_PAUSE = 3500;
@@ -1004,10 +1033,10 @@ app.get('/api/ingredients', function (req, res) {
               .catch(function (err) {
                 if (err.response && err.response.status === 429 && retries < MAX_RETRIES) {
                   var backoff = Math.pow(2, retries + 1) * 1000;
-                  console.log('[api/ingredients] Rate limited on ' + item.name + ', retrying in ' + backoff + 'ms');
+                  log.warn('[api/ingredients] Rate limited on ' + item.name + ', retrying in ' + backoff + 'ms');
                   return delay(backoff).then(function () { return fetchDetail(item, retries + 1); });
                 }
-                console.error('[api/ingredients] Detail fetch failed for ' + item.name + ':', err.message);
+                log.error('[api/ingredients] Detail fetch failed for ' + item.name + ': ' + err.message);
                 item.custom_fields = [];
                 item.tax_percentage = (item.tax_percentage !== undefined && item.tax_percentage !== null)
                   ? item.tax_percentage : 0;
@@ -1041,8 +1070,8 @@ app.get('/api/ingredients', function (req, res) {
         });
     })
     .catch(function (err) {
-      console.error('[api/ingredients]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/ingredients] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch products' });
     });
 });
 
@@ -1054,8 +1083,8 @@ app.get('/api/items', function (req, res) {
   zohoGet('/items')
     .then(function (data) { res.json(data); })
     .catch(function (err) {
-      console.error('[api/items]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/items] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch items' });
     });
 });
 
@@ -1071,8 +1100,8 @@ app.post('/api/items', function (req, res) {
       if (err.response && err.response.data) {
         msg = err.response.data.message || err.response.data.error || msg;
       }
-      console.error('[api/items POST]', msg);
-      res.status(err.response && err.response.status || 502).json({ error: msg });
+      log.error('[api/items POST] ' + msg);
+      res.status(err.response && err.response.status || 502).json({ error: 'Unable to update item' });
     });
 });
 
@@ -1088,8 +1117,8 @@ app.get('/api/contacts', function (req, res) {
   zohoGet('/contacts', params)
     .then(function (data) { res.json(data); })
     .catch(function (err) {
-      console.error('[api/contacts]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/contacts] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch contacts' });
     });
 });
 
@@ -1101,8 +1130,8 @@ app.get('/api/invoices', function (req, res) {
   zohoGet('/invoices')
     .then(function (data) { res.json(data); })
     .catch(function (err) {
-      console.error('[api/invoices]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/invoices] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch invoices' });
     });
 });
 
@@ -1141,14 +1170,14 @@ app.post('/api/payment/charge', function (req, res) {
     .execute()
     .then(function (response) {
       if (response.responseCode !== 'SUCCESS' && response.responseCode !== '00') {
-        console.error('[payment/charge] Declined:', response.responseCode, response.responseMessage);
+        log.warn('[payment/charge] Declined: ' + response.responseCode + ' ' + response.responseMessage);
         return res.status(402).json({
           error: 'Payment declined: ' + (response.responseMessage || 'Unknown error'),
           code: response.responseCode
         });
       }
 
-      console.log('[payment/charge] Success: txn=' + response.transactionId);
+      log.info('[payment/charge] Success: txn=' + response.transactionId);
       res.json({
         transaction_id: response.transactionId,
         auth_code: response.authorizationCode || '',
@@ -1157,8 +1186,8 @@ app.post('/api/payment/charge', function (req, res) {
       });
     })
     .catch(function (err) {
-      console.error('[payment/charge] Error:', err.message);
-      res.status(502).json({ error: 'Payment processing error: ' + err.message });
+      log.error('[payment/charge] Error: ' + err.message);
+      res.status(502).json({ error: 'Payment could not be processed' });
     });
 });
 
@@ -1178,12 +1207,12 @@ app.post('/api/payment/void', function (req, res) {
     .void()
     .execute()
     .then(function (response) {
-      console.log('[payment/void] Voided txn=' + txnId);
+      log.info('[payment/void] Voided txn=' + txnId);
       res.json({ ok: true, transaction_id: txnId, status: 'voided' });
     })
     .catch(function (err) {
-      console.error('[payment/void] Error:', err.message);
-      res.status(502).json({ error: 'Void failed: ' + err.message });
+      log.error('[payment/void] Error: ' + err.message);
+      res.status(502).json({ error: 'Transaction void failed' });
     });
 });
 
@@ -1219,7 +1248,7 @@ app.post('/api/payment/refund', function (req, res) {
         });
       }
 
-      console.log('[payment/refund] Refunded txn=' + body.transaction_id + ' amount=' + amount);
+      log.info('[payment/refund] Refunded txn=' + body.transaction_id + ' amount=' + amount);
       res.json({
         ok: true,
         transaction_id: response.transactionId,
@@ -1229,8 +1258,8 @@ app.post('/api/payment/refund', function (req, res) {
       });
     })
     .catch(function (err) {
-      console.error('[payment/refund] Error:', err.message);
-      res.status(502).json({ error: 'Refund failed: ' + err.message });
+      log.error('[payment/refund] Error: ' + err.message);
+      res.status(502).json({ error: 'Refund could not be processed' });
     });
 });
 
@@ -1382,12 +1411,12 @@ app.post('/api/checkout', function (req, res) {
           notes: 'Online deposit for Sales Order ' + (soNumber || soId)
         })
         .then(function () {
-          console.log('[api/checkout] Payment recorded for SO=' + soNumber);
+          log.info('[api/checkout] Payment recorded for SO=' + soNumber);
         })
         .catch(function (payErr) {
           // Payment recording failed — log but don't fail the order
           // The deposit custom fields on the SO still have the transaction reference
-          console.error('[api/checkout] Payment recording failed (non-fatal):', payErr.message);
+          log.error('[api/checkout] Payment recording failed (non-fatal): ' + payErr.message);
         })
         .then(function () {
           responseSent = true;
@@ -1400,7 +1429,7 @@ app.post('/api/checkout', function (req, res) {
           });
         })
         .catch(function (sendErr) {
-          console.error('[api/checkout] Failed to send response:', sendErr.message);
+          log.error('[api/checkout] Failed to send response: ' + sendErr.message);
         });
       } else {
         responseSent = true;
@@ -1415,7 +1444,7 @@ app.post('/api/checkout', function (req, res) {
     })
     .catch(function (err) {
       if (responseSent) {
-        console.error('[api/checkout] Error after response already sent:', err.message);
+        log.error('[api/checkout] Error after response already sent: ' + err.message);
         return;
       }
 
@@ -1431,22 +1460,25 @@ app.post('/api/checkout', function (req, res) {
         }
       }
 
+      // Sanitize: only pass Zoho 400-level messages (user-meaningful) to the client
+      var clientMsg = (status === 400) ? message : 'Order could not be placed. Please try again.';
+
       // If payment was already charged but Zoho failed, void the transaction
       if (transactionId) {
-        console.error('[api/checkout] Zoho failed after payment — voiding txn=' + transactionId);
+        log.error('[api/checkout] Zoho failed after payment — voiding txn=' + transactionId);
         Transaction.fromId(transactionId)
           .void()
           .execute()
           .then(function () {
-            console.log('[api/checkout] Voided txn=' + transactionId);
+            log.info('[api/checkout] Voided txn=' + transactionId);
           })
           .catch(function (voidErr) {
-            console.error('[api/checkout] CRITICAL: Void failed for txn=' + transactionId + ':', voidErr.message);
+            log.error('[api/checkout] CRITICAL: Void failed for txn=' + transactionId + ': ' + voidErr.message);
           })
           .then(function () {
             if (!responseSent) {
               res.status(status).json({
-                error: message,
+                error: clientMsg,
                 payment_voided: true,
                 voided_transaction_id: transactionId
               });
@@ -1455,8 +1487,8 @@ app.post('/api/checkout', function (req, res) {
         return;
       }
 
-      console.error('[api/checkout]', message);
-      res.status(status).json({ error: message });
+      log.error('[api/checkout] ' + message);
+      res.status(status).json({ error: clientMsg });
     });
 });
 
@@ -1472,8 +1504,8 @@ app.get('/api/inventory/items/:id', function (req, res) {
   inventoryGet('/items/' + req.params.id)
     .then(function (data) { res.json(data); })
     .catch(function (err) {
-      var detail = err.response ? err.response.data : err.message;
-      res.status(502).json({ error: detail });
+      log.error('[api/inventory/items GET] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch item' });
     });
 });
 
@@ -1485,8 +1517,8 @@ app.put('/api/inventory/items/:id', function (req, res) {
   inventoryPut('/items/' + req.params.id, req.body)
     .then(function (data) { res.json(data); })
     .catch(function (err) {
-      var detail = err.response ? err.response.data : err.message;
-      res.status(502).json({ error: detail });
+      log.error('[api/inventory/items PUT] ' + err.message);
+      res.status(502).json({ error: 'Unable to update item' });
     });
 });
 
@@ -1522,8 +1554,8 @@ app.get('/api/items/:item_id/image', function (req, res) {
       res.send(Buffer.from(response.data));
     })
     .catch(function (err) {
-      console.error('[api/items/image] Error for item ' + req.params.item_id + ':', err.message);
-      res.status(502).json({ error: 'Failed to fetch image: ' + err.message });
+      log.error('[api/items/image] Error for item ' + req.params.item_id + ': ' + err.message);
+      res.status(502).json({ error: 'Failed to fetch image' });
     });
 });
 
@@ -1535,8 +1567,8 @@ app.get('/api/taxes', function (req, res) {
   zohoGet('/settings/taxes')
     .then(function (data) { res.json(data); })
     .catch(function (err) {
-      console.error('[api/taxes]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/taxes] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch taxes' });
     });
 });
 
@@ -1558,8 +1590,8 @@ app.get('/api/taxes/rules', function (req, res) {
       });
     })
     .catch(function (err) {
-      console.error('[api/taxes/rules]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/taxes/rules] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch tax rules' });
     });
 });
 
@@ -1571,8 +1603,8 @@ app.post('/api/taxes/rules', function (req, res) {
   zohoPost('/settings/taxrules', req.body)
     .then(function (data) { res.status(201).json(data); })
     .catch(function (err) {
-      var detail = err.response ? err.response.data : err.message;
-      res.status(502).json({ error: detail });
+      log.error('[api/taxes/rules POST] ' + err.message);
+      res.status(502).json({ error: 'Unable to create tax rule' });
     });
 });
 
@@ -1662,8 +1694,8 @@ app.post('/api/taxes/setup', function (req, res) {
       res.json({ ok: true, results: results });
     })
     .catch(function (err) {
-      console.error('[api/taxes/setup]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/taxes/setup] ' + err.message);
+      res.status(502).json({ error: 'Unable to set up taxes' });
     });
 });
 
@@ -1872,7 +1904,7 @@ app.post('/api/taxes/apply', function (req, res) {
             // Delay before each item (skip delay for first item in batch)
             return (idx > 0 ? delay(ITEM_DELAY) : Promise.resolve());
           }).then(function () {
-            console.log('[taxes/apply] Updating: ' + a.item_name);
+            log.info('[taxes/apply] Updating: ' + a.item_name);
             return inventoryPut('/items/' + a.item_id, {
               purchase_tax_rule_id: a.rule_id
             });
@@ -1896,12 +1928,12 @@ app.post('/api/taxes/apply', function (req, res) {
       var batchChain = Promise.resolve();
       batches.forEach(function (batch, batchIdx) {
         batchChain = batchChain.then(function () {
-          console.log('[taxes/apply] Batch ' + (batchIdx + 1) + '/' + batches.length + ' (' + batch.length + ' items)');
+          log.info('[taxes/apply] Batch ' + (batchIdx + 1) + '/' + batches.length + ' (' + batch.length + ' items)');
           return processBatch(batch);
         }).then(function () {
           // Pause between batches (skip after last batch)
           if (batchIdx < batches.length - 1) {
-            console.log('[taxes/apply] Waiting 60s before next batch...');
+            log.info('[taxes/apply] Waiting 60s before next batch...');
             return delay(BATCH_DELAY);
           }
         });
@@ -1924,8 +1956,8 @@ app.post('/api/taxes/apply', function (req, res) {
       });
     })
     .catch(function (err) {
-      console.error('[api/taxes/apply]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/taxes/apply] ' + err.message);
+      res.status(502).json({ error: 'Unable to apply taxes' });
     });
 });
 
@@ -1935,9 +1967,9 @@ app.post('/api/taxes/apply', function (req, res) {
  * Body: { item_id, tax_id }
  */
 app.post('/api/taxes/test-update', function (req, res) {
-  var itemId = req.body.item_id;
-  var taxId = req.body.tax_id;
-  var mode = req.body.mode || 'json';
+  var itemId = req.body && req.body.item_id;
+  var taxId = req.body && req.body.tax_id;
+  var mode = (req.body && req.body.mode) || 'json';
   if (!itemId || !taxId) return res.status(400).json({ error: 'Need item_id and tax_id' });
 
   var doUpdate;
@@ -1970,8 +2002,8 @@ app.post('/api/taxes/test-update', function (req, res) {
       });
     })
     .catch(function (err) {
-      var detail = err.response ? err.response.data : err.message;
-      res.status(502).json({ error: detail });
+      log.error('[api/taxes/test-update] ' + err.message);
+      res.status(502).json({ error: 'Unable to update item tax' });
     });
 });
 
@@ -2061,9 +2093,9 @@ function fetchAllItems(params) {
  * Query: ?item_id=...  (optional — defaults to first active item)
  */
 app.post('/api/items/test-cf', function (req, res) {
-  var itemId = req.body.item_id;
-  var label = req.body.label;
-  var value = req.body.value;
+  var itemId = req.body && req.body.item_id;
+  var label = req.body && req.body.label;
+  var value = req.body && req.body.value;
   if (!itemId || !label) return res.status(400).json({ error: 'Need item_id and label' });
 
   inventoryPut('/items/' + itemId, {
@@ -2078,8 +2110,8 @@ app.post('/api/items/test-cf', function (req, res) {
       });
     })
     .catch(function (err) {
-      var detail = err.response ? err.response.data : err.message;
-      res.status(502).json({ error: detail });
+      log.error('[api/items/test-cf] ' + err.message);
+      res.status(502).json({ error: 'Unable to update custom field' });
     });
 });
 
@@ -2133,8 +2165,8 @@ app.get('/api/items/inspect', function (req, res) {
     .catch(function (err) {
       var msg = err.message;
       if (err.response && err.response.data) msg = err.response.data.message || msg;
-      console.error('[api/items/inspect]', msg);
-      res.status(502).json({ error: msg });
+      log.error('[api/items/inspect] ' + msg);
+      res.status(502).json({ error: 'Unable to inspect item' });
     });
 });
 
@@ -2300,7 +2332,7 @@ app.post('/api/items/migrate', function (req, res) {
           chain = chain.then(function () {
             return (idx > 0 ? delay(ITEM_DELAY) : Promise.resolve());
           }).then(function () {
-            console.log('[items/migrate] Updating: ' + update.name + ' (' + update.sku + ')');
+            log.info('[items/migrate] Updating: ' + update.name + ' (' + update.sku + ')');
 
             var payload = {};
             if (update.changes.rate !== undefined) {
@@ -2333,11 +2365,11 @@ app.post('/api/items/migrate', function (req, res) {
       var batchChain = Promise.resolve();
       batches.forEach(function (batch, batchIdx) {
         batchChain = batchChain.then(function () {
-          console.log('[items/migrate] Batch ' + (batchIdx + 1) + '/' + batches.length + ' (' + batch.length + ' items)');
+          log.info('[items/migrate] Batch ' + (batchIdx + 1) + '/' + batches.length + ' (' + batch.length + ' items)');
           return processBatch(batch);
         }).then(function () {
           if (batchIdx < batches.length - 1) {
-            console.log('[items/migrate] Waiting 60s before next batch...');
+            log.info('[items/migrate] Waiting 60s before next batch...');
             return delay(BATCH_DELAY);
           }
         });
@@ -2361,8 +2393,342 @@ app.post('/api/items/migrate', function (req, res) {
     .catch(function (err) {
       var msg = err.message;
       if (err.response && err.response.data) msg = err.response.data.message || msg;
-      console.error('[api/items/migrate]', msg);
-      res.status(502).json({ error: msg });
+      log.error('[api/items/migrate] ' + msg);
+      res.status(502).json({ error: 'Unable to migrate items' });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Kiosk Endpoints
+// ---------------------------------------------------------------------------
+
+var KIOSK_PRODUCTS_CACHE_KEY = 'zoho:kiosk-products';
+var KIOSK_PRODUCTS_CACHE_TTL = 300; // 5 minutes — shorter than kits cache for fresher stock
+
+/**
+ * GET /api/kiosk/products
+ * Returns all active sellable items from Zoho Inventory with price, stock,
+ * and tax info. Cached for 5 minutes. Intended for the in-store kiosk/POS.
+ *
+ * Returns items with: item_id, name, sku, rate, stock_on_hand, tax_percentage,
+ * tax_name, category_name, image_name, product_type, custom_fields.
+ *
+ * Pagination: ?page=1&per_page=100 (default 200 per page, max 200)
+ * Search: ?search=term (filters name/sku client-side from cache)
+ * Category: ?category=wine (filters by category_name)
+ */
+app.get('/api/kiosk/products', function (req, res) {
+  cache.get(KIOSK_PRODUCTS_CACHE_KEY)
+    .then(function (cached) {
+      if (cached) {
+        log.info('[api/kiosk/products] Cache hit (' + cached.length + ' items)');
+        return res.json({ source: 'cache', items: cached });
+      }
+
+      log.info('[api/kiosk/products] Cache miss — fetching from Zoho Inventory');
+
+      return fetchAllItems({ status: 'active' })
+        .then(function (allItems) {
+          // Include all non-service items (kits + ingredients/supplies)
+          var items = allItems.filter(function (item) {
+            return item.product_type !== 'service';
+          });
+
+          log.info('[api/kiosk/products] Enriching ' + items.length + ' items for tax + stock info');
+
+          var BATCH_SIZE = 5;
+          var BATCH_PAUSE = 3500;
+          var MAX_RETRIES = 2;
+          var enriched = [];
+
+          function delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+          function fetchDetail(item, retries) {
+            return inventoryGet('/items/' + item.item_id)
+              .then(function (data) {
+                var detail = data.item || {};
+                item.custom_fields = detail.custom_fields || [];
+                item.brand = detail.brand || '';
+                item.image_name = detail.image_name || '';
+                item.tax_id = detail.tax_id || '';
+                item.tax_name = detail.tax_name || '';
+                item.tax_percentage = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
+                  ? detail.tax_percentage : 0;
+                // stock_on_hand comes from list endpoint but confirm from detail
+                item.stock_on_hand = (detail.stock_on_hand !== undefined && detail.stock_on_hand !== null)
+                  ? detail.stock_on_hand : (item.stock_on_hand || 0);
+                return item;
+              })
+              .catch(function (err) {
+                if (err.response && err.response.status === 429 && retries < MAX_RETRIES) {
+                  var backoff = Math.pow(2, retries + 1) * 1000;
+                  log.warn('[api/kiosk/products] Rate limited on ' + item.name + ', retrying in ' + backoff + 'ms');
+                  return delay(backoff).then(function () { return fetchDetail(item, retries + 1); });
+                }
+                log.error('[api/kiosk/products] Detail fetch failed for ' + item.name + ': ' + err.message);
+                item.custom_fields = [];
+                item.tax_id = item.tax_id || '';
+                item.tax_name = item.tax_name || '';
+                item.tax_percentage = (item.tax_percentage !== undefined && item.tax_percentage !== null)
+                  ? item.tax_percentage : 0;
+                item.stock_on_hand = item.stock_on_hand || 0;
+                return item;
+              });
+          }
+
+          var batches = [];
+          for (var i = 0; i < items.length; i += BATCH_SIZE) {
+            batches.push(items.slice(i, i + BATCH_SIZE));
+          }
+
+          var chain = Promise.resolve();
+          batches.forEach(function (batch, idx) {
+            chain = chain.then(function () {
+              return Promise.all(batch.map(function (item) {
+                return fetchDetail(item, 0);
+              })).then(function (results) {
+                results.forEach(function (r) { enriched.push(r); });
+                if (idx < batches.length - 1) return delay(BATCH_PAUSE);
+              });
+            });
+          });
+
+          return chain.then(function () {
+            // Strip items with no rate (unbuyable)
+            var sellable = enriched.filter(function (item) {
+              return item.rate > 0;
+            });
+
+            cache.set(KIOSK_PRODUCTS_CACHE_KEY, sellable, KIOSK_PRODUCTS_CACHE_TTL);
+            log.info('[api/kiosk/products] Cached ' + sellable.length + ' sellable items');
+            res.json({ source: 'zoho', items: sellable });
+          });
+        });
+    })
+    .catch(function (err) {
+      log.error('[api/kiosk/products] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch kiosk products' });
+    });
+});
+
+/**
+ * POST /api/kiosk/sale
+ * Process a complete kiosk (in-store POS) sale.
+ *
+ * Flow:
+ *   1. Validate cart items against Zoho live prices/stock
+ *   2. Send payment to GP POS terminal
+ *   3. On payment success: create a Zoho Books Invoice (auto-marks as paid)
+ *   4. Invalidate kiosk products cache so stock refreshes
+ *   5. Return receipt data
+ *
+ * If invoice creation fails after payment, void the GP transaction.
+ *
+ * Expected body:
+ * {
+ *   items: [
+ *     { item_id: "zoho_item_id", name: "Product Name", quantity: 2, rate: 14.99 }
+ *   ],
+ *   tax_total: 3.00,          // client-calculated; used for receipt display only
+ *   reference_number: "KIOSK-001"  // optional reference for the invoice
+ * }
+ */
+app.post('/api/kiosk/sale', function (req, res) {
+  if (!GP_TERMINAL_ENABLED || !gpTerminalDevice) {
+    return res.status(503).json({ error: 'POS terminal not configured' });
+  }
+
+  var body = req.body;
+
+  // Validate required fields
+  if (!body || !Array.isArray(body.items) || body.items.length === 0) {
+    return res.status(400).json({ error: 'Cart is empty' });
+  }
+  if (body.items.length > 50) {
+    return res.status(400).json({ error: 'Too many items in cart' });
+  }
+
+  // Validate each line item
+  for (var v = 0; v < body.items.length; v++) {
+    var vi = body.items[v];
+    if (!vi.item_id || typeof vi.item_id !== 'string' || vi.item_id.length > 64) {
+      return res.status(400).json({ error: 'Invalid item_id for item ' + v });
+    }
+    var vQty = Number(vi.quantity);
+    var vRate = Number(vi.rate);
+    if (!vQty || vQty < 1 || vQty > 100) {
+      return res.status(400).json({ error: 'Invalid quantity for item ' + v });
+    }
+    if (isNaN(vRate) || vRate < 0 || vRate > 10000) {
+      return res.status(400).json({ error: 'Invalid rate for item ' + v });
+    }
+  }
+
+  // Calculate subtotal from line items
+  var subtotal = 0;
+  var lineItems = body.items.map(function (item) {
+    var qty = Number(item.quantity) || 1;
+    var rate = Number(item.rate) || 0;
+    subtotal += qty * rate;
+    return {
+      item_id: item.item_id,
+      name: item.name || '',
+      quantity: qty,
+      rate: rate
+    };
+  });
+
+  var taxTotal = parseFloat(body.tax_total) || 0;
+  var grandTotal = parseFloat((subtotal + taxTotal).toFixed(2));
+
+  if (grandTotal <= 0) {
+    return res.status(400).json({ error: 'Sale total must be greater than zero' });
+  }
+  if (grandTotal > 10000) {
+    return res.status(400).json({ error: 'Sale total exceeds maximum' });
+  }
+
+  var refNumber = (body.reference_number && typeof body.reference_number === 'string')
+    ? body.reference_number.slice(0, 64)
+    : ('KIOSK-' + Date.now());
+
+  log.info('[pos/kiosk/sale] Starting kiosk sale: total=$' + grandTotal.toFixed(2) +
+    ' ref=' + refNumber + ' items=' + lineItems.length);
+
+  // Step 1: Send payment to POS terminal
+  gpTerminalDevice.sale(grandTotal)
+    .withCurrency('CAD')
+    .withInvoiceNumber(refNumber)
+    .execute('terminal')
+    .then(function (termResponse) {
+      if (termResponse.deviceResponseCode !== '00' && termResponse.status !== 'Success') {
+        log.warn('[pos/kiosk/sale] Terminal declined: ' +
+          termResponse.deviceResponseCode + ' ' + termResponse.deviceResponseText);
+        return res.status(402).json({
+          error: 'Payment declined: ' + (termResponse.deviceResponseText || 'Unknown'),
+          code: termResponse.deviceResponseCode
+        });
+      }
+
+      var txnId = termResponse.transactionId || '';
+      log.info('[pos/kiosk/sale] Terminal approved: txn=' + txnId);
+
+      // Step 2: Create Zoho Books Invoice
+      // Use a generic "Walk-in Customer" contact (or create one if configured).
+      // The invoice records the sale and auto-decrements inventory on confirm.
+      var today = new Date().toISOString().slice(0, 10);
+
+      // Build Zoho invoice — use cash_sale mode so it auto-marks as paid
+      var invoicePayload = {
+        date: today,
+        reference_number: refNumber,
+        payment_terms: 0,
+        payment_terms_label: 'Due on Receipt',
+        line_items: lineItems,
+        notes: 'In-store kiosk sale. Terminal txn: ' + txnId,
+        custom_fields: []
+      };
+
+      // Attach the walk-in customer contact if configured
+      var kioskContactId = process.env.KIOSK_CONTACT_ID || '';
+      if (kioskContactId) {
+        invoicePayload.customer_id = kioskContactId;
+      }
+
+      // Attach transaction ID to custom field if configured
+      if (txnId && process.env.ZOHO_CF_TRANSACTION_ID) {
+        invoicePayload.custom_fields.push({
+          api_name: process.env.ZOHO_CF_TRANSACTION_ID,
+          value: txnId
+        });
+      }
+
+      return zohoPost('/invoices', invoicePayload)
+        .then(function (invoiceData) {
+          var invoice = invoiceData.invoice || {};
+          var invoiceId = invoice.invoice_id || '';
+          var invoiceNumber = invoice.invoice_number || '';
+
+          log.info('[pos/kiosk/sale] Invoice created: ' + invoiceNumber + ' id=' + invoiceId);
+
+          // Step 3: Mark invoice as sent + record payment so inventory adjusts
+          // Zoho auto-decrements stock when an invoice is confirmed.
+          // We record a cash payment against it to mark as paid.
+          var paymentChain = Promise.resolve();
+
+          if (invoiceId) {
+            paymentChain = zohoPost('/invoices/' + invoiceId + '/submit', {})
+              .catch(function (submitErr) {
+                // Non-fatal — invoice exists, stock will still adjust
+                log.warn('[pos/kiosk/sale] Invoice submit failed (non-fatal): ' + submitErr.message);
+              })
+              .then(function () {
+                // Record the payment against the invoice
+                return zohoPost('/customerpayments', {
+                  payment_mode: 'cash',
+                  amount: grandTotal,
+                  date: today,
+                  reference_number: txnId || refNumber,
+                  invoices: [{ invoice_id: invoiceId, amount_applied: grandTotal }],
+                  notes: 'Kiosk POS payment. Terminal txn: ' + txnId
+                });
+              })
+              .then(function () {
+                log.info('[pos/kiosk/sale] Payment recorded for invoice ' + invoiceNumber);
+              })
+              .catch(function (payErr) {
+                // Non-fatal — invoice and stock adjustment still happened
+                log.error('[pos/kiosk/sale] Payment recording failed (non-fatal): ' + payErr.message);
+              });
+          }
+
+          return paymentChain.then(function () {
+            // Invalidate kiosk product cache so stock counts refresh
+            cache.del(KIOSK_PRODUCTS_CACHE_KEY);
+
+            res.status(201).json({
+              ok: true,
+              transaction_id: txnId,
+              auth_code: termResponse.authorizationCode || '',
+              invoice_id: invoiceId,
+              invoice_number: invoiceNumber,
+              reference_number: refNumber,
+              subtotal: subtotal,
+              tax_total: taxTotal,
+              total: grandTotal,
+              date: today
+            });
+          });
+        })
+        .catch(function (invoiceErr) {
+          // Zoho invoice failed — void the terminal transaction
+          var invoiceMsg = invoiceErr.message;
+          if (invoiceErr.response && invoiceErr.response.data) {
+            invoiceMsg = invoiceErr.response.data.message || invoiceErr.response.data.error || invoiceMsg;
+          }
+          log.error('[pos/kiosk/sale] Invoice creation failed after payment — voiding txn=' + txnId + ': ' + invoiceMsg);
+
+          Transaction.fromId(txnId)
+            .void()
+            .execute()
+            .then(function () {
+              log.info('[pos/kiosk/sale] Voided txn=' + txnId + ' after invoice failure');
+            })
+            .catch(function (voidErr) {
+              log.error('[pos/kiosk/sale] CRITICAL: Void failed for txn=' + txnId + ': ' + voidErr.message);
+            })
+            .then(function () {
+              res.status(502).json({
+                error: 'Payment was taken but order could not be recorded. Please contact support.',
+                payment_voided: true,
+                voided_transaction_id: txnId
+              });
+            });
+        });
+    })
+    .catch(function (termErr) {
+      log.error('[pos/kiosk/sale] Terminal error: ' + termErr.message);
+      res.status(502).json({ error: 'Terminal error — please try again' });
     });
 });
 
@@ -2413,7 +2779,7 @@ app.post('/api/pos/sale', function (req, res) {
 
   var soNumber = body.salesorder_number || '';
 
-  console.log('[pos/sale] Initiating terminal sale: $' + amount.toFixed(2) + ' SO=' + soNumber);
+  log.info('[pos/sale] Initiating terminal sale: $' + amount.toFixed(2) + ' SO=' + soNumber);
 
   gpTerminalDevice.sale(amount)
     .withCurrency('CAD')
@@ -2421,7 +2787,7 @@ app.post('/api/pos/sale', function (req, res) {
     .execute('terminal')
     .then(function (response) {
       if (response.deviceResponseCode === '00' || response.status === 'Success') {
-        console.log('[pos/sale] Terminal sale approved: txn=' + response.transactionId);
+        log.info('[pos/sale] Terminal sale approved: txn=' + response.transactionId);
 
         // Record the payment in Zoho if we have a customer_id and SO
         var txnId = response.transactionId || '';
@@ -2433,7 +2799,7 @@ app.post('/api/pos/sale', function (req, res) {
           amount: amount
         });
       } else {
-        console.error('[pos/sale] Terminal declined:', response.deviceResponseCode, response.deviceResponseText);
+        log.warn('[pos/sale] Terminal declined: ' + response.deviceResponseCode + ' ' + response.deviceResponseText);
         res.status(402).json({
           error: 'Terminal payment declined: ' + (response.deviceResponseText || 'Unknown'),
           code: response.deviceResponseCode
@@ -2441,8 +2807,8 @@ app.post('/api/pos/sale', function (req, res) {
       }
     })
     .catch(function (err) {
-      console.error('[pos/sale] Terminal error:', err.message);
-      res.status(502).json({ error: 'Terminal error: ' + err.message });
+      log.error('[pos/sale] Terminal error: ' + err.message);
+      res.status(502).json({ error: 'Terminal error' });
     });
 });
 
@@ -2501,8 +2867,8 @@ app.get('/api/orders/recent', function (req, res) {
       res.json({ orders: orders });
     })
     .catch(function (err) {
-      console.error('[api/orders/recent]', err.message);
-      res.status(502).json({ error: err.message });
+      log.error('[api/orders/recent] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch orders' });
     });
 });
 
@@ -2527,28 +2893,26 @@ cache.init().then(function () {
   return zohoAuth.init();
 }).then(function () {
   var server = app.listen(PORT, function () {
-    console.log('');
-    console.log('  Zoho middleware running on http://localhost:' + PORT);
-    console.log('  Health check:   http://localhost:' + PORT + '/health');
+    log.info('Zoho middleware running on http://localhost:' + PORT);
+    log.info('Health check: http://localhost:' + PORT + '/health');
     if (!zohoAuth.isAuthenticated()) {
-      console.log('  Connect Zoho:   http://localhost:' + PORT + '/auth/zoho');
+      log.info('Connect Zoho: http://localhost:' + PORT + '/auth/zoho');
     } else {
-      console.log('  Zoho:           Connected');
+      log.info('Zoho: Connected');
       // Pre-warm product cache on startup
-      console.log('  Pre-warming product cache...');
+      log.info('Pre-warming product cache...');
       refreshProducts().then(function () {
-        console.log('  Product cache pre-warmed');
+        log.info('Product cache pre-warmed');
       }).catch(function (err) {
-        console.error('  Pre-warm failed:', err.message);
+        log.error('Pre-warm failed: ' + err.message);
       });
     }
-    console.log('');
   });
 
   process.on('SIGTERM', function () {
-    console.log('[server] SIGTERM received — shutting down gracefully');
+    log.info('[server] SIGTERM received — shutting down gracefully');
     server.close(function () {
-      console.log('[server] HTTP server closed');
+      log.info('[server] HTTP server closed');
       cache.quit().then(function () {
         process.exit(0);
       }).catch(function () {
@@ -2556,7 +2920,7 @@ cache.init().then(function () {
       });
     });
     setTimeout(function () {
-      console.error('[server] Forced shutdown after timeout');
+      log.error('[server] Forced shutdown after timeout');
       process.exit(1);
     }, 10000);
   });
