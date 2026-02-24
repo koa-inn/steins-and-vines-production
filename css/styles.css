@@ -1458,6 +1458,11 @@ small, .text-small {
   text-wrap: balance;
 }
 
+/* Last note before sticky controls needs enough clearance to avoid overlap */
+#ingredients-mill-note {
+  margin-bottom: 1.75rem;
+}
+
 .catalog-price-note {
   text-align: center;
   font-size: 0.88rem;
