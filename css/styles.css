@@ -1440,7 +1440,19 @@ small, .text-small {
 }
 
 .catalog-batch-note + .catalog-batch-note {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
+}
+
+.catalog-price-note {
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--color-brown);
+  background: rgba(91, 127, 59, 0.08);
+  border: 1px solid rgba(91, 127, 59, 0.25);
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  margin: 0 auto 1.5rem;
+  max-width: 480px;
 }
 
 /* ===== Catalog Controls ===== */
