@@ -1,5 +1,5 @@
 /* Service Worker — Steins & Vines */
-var CACHE_VERSION = '20260224T160705091';
+var CACHE_VERSION = '20260224T170911065';
 var STATIC_CACHE = 'sv-static-' + CACHE_VERSION;
 var IMAGES_CACHE = 'sv-images-' + CACHE_VERSION;
 var FONTS_CACHE  = 'sv-fonts-' + CACHE_VERSION;
@@ -111,15 +111,28 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
+  // HTML pages — network-first so deploys are always fresh
+  if (event.request.headers.get('accept') && event.request.headers.get('accept').indexOf('text/html') !== -1) {
+    event.respondWith(
+      fetch(event.request).then(function(response) {
+        return caches.open(STATIC_CACHE).then(function(cache) {
+          cache.put(event.request, response.clone());
+          return response;
+        });
+      }).catch(function() {
+        return caches.match(event.request).then(function(cached) {
+          return cached || caches.match('/404.html');
+        });
+      })
+    );
+    return;
+  }
+
   // Everything else (same-origin static) — cache-first, offline fallback
   event.respondWith(
     caches.match(event.request).then(function(cached) {
       if (cached) return cached;
-      return fetch(event.request).catch(function() {
-        if (event.request.headers.get('accept').indexOf('text/html') !== -1) {
-          return caches.match('/404.html');
-        }
-      });
+      return fetch(event.request).catch(function() {});
     })
   );
 });
