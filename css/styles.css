@@ -1450,16 +1450,12 @@ small, .text-small {
   text-align: center;
   font-size: 0.92rem;
   color: var(--color-brown);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
   opacity: 0.85;
-  max-width: 540px;
+  max-width: 560px;
   margin-left: auto;
   margin-right: auto;
   text-wrap: balance;
-}
-
-.catalog-batch-note + .catalog-batch-note {
-  margin-bottom: 1rem;
 }
 
 .catalog-price-note {
@@ -1469,16 +1465,16 @@ small, .text-small {
   background: rgba(91, 127, 59, 0.08);
   border: 1px solid rgba(91, 127, 59, 0.25);
   border-radius: 6px;
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 1rem;
   margin: 0 auto 0.75rem;
-  max-width: 480px;
+  max-width: 520px;
 }
 
 .catalog-guarantee-note {
   color: #2e5c12;
   background: rgba(91, 127, 59, 0.12);
   border-color: rgba(91, 127, 59, 0.35);
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.75rem;
 }
 
 /* ===== Catalog Controls ===== */

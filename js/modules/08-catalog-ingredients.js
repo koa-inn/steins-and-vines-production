@@ -144,7 +144,12 @@ function loadIngredients(callback) {
     .then(function (items) {
       _allIngredients = items.filter(function (r) {
         var p = parseFloat(r.price_per_unit || r.rate || r.price || '0') || 0;
-        return p > 0;
+        if (p <= 0) return false;
+        // Exclude kit items (wine/beer/cider/seltzer) that the middleware may return
+        // if _kitItemIds hasn't been populated yet (cold start or direct-to-ingredients load)
+        var itemType = (r.type || '').toLowerCase();
+        if (KIT_CATEGORIES.some(function (kc) { return itemType.indexOf(kc) !== -1; })) return false;
+        return true;
       });
       buildIngredientFilters();
       renderIngredients();
@@ -317,7 +322,20 @@ function renderIngredients() {
 
   var inStock = filtered.filter(function (r) { return (parseInt(r.stock, 10) || 0) > 0; });
 
-  renderIngredientSection(catalog, 'In stock', inStock);
+  // Group by Zoho Type field
+  var typeGroups = {};
+  var typeOrder = [];
+  inStock.forEach(function (r) {
+    var t = (r.type || '').trim() || 'Other';
+    if (!typeGroups[t]) { typeGroups[t] = []; typeOrder.push(t); }
+    typeGroups[t].push(r);
+  });
+  typeOrder.sort();
+
+  var showTitles = typeOrder.length > 1;
+  typeOrder.forEach(function (t) {
+    renderIngredientSection(catalog, showTitles ? t : null, typeGroups[t]);
+  });
   equalizeCardHeights();
 }
 
@@ -327,13 +345,15 @@ function renderIngredientSection(catalog, title, items, extraClass) {
   var wrapper = document.createElement('div');
   wrapper.className = 'catalog-section' + (extraClass ? ' ' + extraClass : '');
 
-  var sectionHeader = document.createElement('div');
-  sectionHeader.className = 'catalog-section-header';
-  var heading = document.createElement('h2');
-  heading.className = 'catalog-section-title';
-  heading.textContent = title;
-  sectionHeader.appendChild(heading);
-  wrapper.appendChild(sectionHeader);
+  if (title) {
+    var sectionHeader = document.createElement('div');
+    sectionHeader.className = 'catalog-section-header';
+    var heading = document.createElement('h2');
+    heading.className = 'catalog-section-title';
+    heading.textContent = title;
+    sectionHeader.appendChild(heading);
+    wrapper.appendChild(sectionHeader);
+  }
 
   if (catalogViewMode === 'table') {
     var table = document.createElement('table');

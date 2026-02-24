@@ -144,31 +144,25 @@ function doRefreshProducts() {
         // Items whose "Category" CF is set to something else are excluded.
         var KIT_CATEGORIES = ['wine', 'beer', 'cider', 'seltzer'];
 
+        // Kit items are identified by their Type CF matching a KIT_CATEGORY exactly.
+        // Items with Type = 'Ingredient', 'Equipment', etc. are excluded from kits
+        // even if their Category CF references a kit category (e.g. "Beer ingredients").
         enriched = enriched.filter(function (item) {
-          var hasType = (item.custom_fields || []).some(function (cf) {
+          var typeCF = (item.custom_fields || []).find(function (cf) {
             return cf.label === 'Type' && cf.value;
           });
-          if (!hasType) return false;
-
-          // Check both the CF "Category" and the standard Zoho category_name
-          var categoryCF = (item.custom_fields || []).find(function (cf) {
-            return cf.label === 'Category';
-          });
-          var catVal = (categoryCF && categoryCF.value) ? categoryCF.value : (item.category_name || '');
-          if (!catVal) {
-            log.info('[api/products] Excluding item with no category: ' + item.name);
+          if (!typeCF) return false;
+          var typeVal = typeCF.value.toLowerCase();
+          if (!KIT_CATEGORIES.some(function (kc) { return typeVal === kc; })) {
+            log.info('[api/products] Excluding non-kit item: ' + item.name + ' (type: ' + typeCF.value + ')');
             return false;
           }
-          catVal = catVal.toLowerCase();
-          if (!KIT_CATEGORIES.some(function (kc) { return catVal.indexOf(kc) !== -1; })) {
-            log.info('[api/products] Excluding non-kit item: ' + item.name + ' (category: ' + catVal + ')');
-            return false;
-          }
-
           return true;
         });
         _kitItemIds = {};
         enriched.forEach(function (item) { _kitItemIds[item.item_id] = true; });
+        // Bust the ingredients cache so it rebuilds without these items in _kitItemIds
+        cache.del(INGREDIENTS_CACHE_KEY);
         cache.set(PRODUCTS_CACHE_KEY, enriched, PRODUCTS_CACHE_TTL);
         cache.set(PRODUCTS_CACHE_TS_KEY, Date.now(), PRODUCTS_CACHE_TTL);
         log.info('[api/products] Cached ' + enriched.length + ' kit items');
