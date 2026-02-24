@@ -3793,7 +3793,10 @@ function initProductTabs() {
     catalogViewMode = getCatalogViewMode(tab);
     syncToggleButtons(catalogViewMode);
 
-    // Show/hide kits notes
+    // Show/hide tab-specific notes
+    var millNote = document.getElementById('ingredients-mill-note');
+    if (millNote) millNote.classList.toggle('hidden', tab !== 'ingredients');
+
     var batchNote = document.getElementById('kits-batch-note');
     if (batchNote) batchNote.classList.toggle('hidden', tab !== 'kits');
     var processNote = document.getElementById('kits-process-note');
