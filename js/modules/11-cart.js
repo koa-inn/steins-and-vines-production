@@ -817,6 +817,7 @@ function renderCartSidebar() {
         saveReservation(filtered);
         updateReservationBar();
         renderCartSidebar();
+        refreshAllReserveControls();
       };
     })(item));
     controls.appendChild(removeBtn);
@@ -1006,6 +1007,7 @@ function renderCartDrawer() {
         saveReservation(filtered);
         updateReservationBar();
         renderCartDrawer();
+        refreshAllReserveControls();
       };
     })(item));
     controls.appendChild(removeBtn);
