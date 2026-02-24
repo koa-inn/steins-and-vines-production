@@ -2528,6 +2528,7 @@ function loadProducts() {
 }
 var _allIngredients = [];
 var _ingredientFilters = { unit: [], category: [], subcategory: [], price: [] };
+var _ingredientTypeOrder = null; // stable section order, set once on first load
 
 function loadIngredients(callback) {
   var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
@@ -2745,6 +2746,20 @@ function buildIngredientFilterRow(containerId, field, label, values) {
 }
 
 function buildIngredientFilters() {
+  // Capture stable section order once on first load.
+  // "Ingredient" always comes first; remaining types sorted alphabetically.
+  if (!_ingredientTypeOrder) {
+    var typesSeen = [];
+    _allIngredients.forEach(function (r) {
+      var t = (r.type || '').trim() || 'Other';
+      if (typesSeen.indexOf(t) === -1) typesSeen.push(t);
+    });
+    var FIRST_TYPES = ['Ingredient'];
+    var pinned = FIRST_TYPES.filter(function (t) { return typesSeen.indexOf(t) !== -1; });
+    var rest = typesSeen.filter(function (t) { return FIRST_TYPES.indexOf(t) === -1; }).sort();
+    _ingredientTypeOrder = pinned.concat(rest);
+  }
+
   // Category filter
   var categories = [];
   _allIngredients.forEach(function (r) {
@@ -2828,7 +2843,7 @@ function renderIngredients() {
   });
 
   var sortSelect = document.getElementById('ingredient-sort');
-  var sortVal = sortSelect ? sortSelect.value : 'name-asc';
+  var sortVal = sortSelect ? sortSelect.value : 'category-asc';
 
   filtered.sort(function (a, b) {
     switch (sortVal) {
@@ -2836,6 +2851,16 @@ function renderIngredients() {
       case 'name-desc': return (b.name || '').localeCompare(a.name || '');
       case 'price-asc': return (parseFloat(a.price_per_unit) || 0) - (parseFloat(b.price_per_unit) || 0);
       case 'price-desc': return (parseFloat(b.price_per_unit) || 0) - (parseFloat(a.price_per_unit) || 0);
+      case 'category-asc': {
+        var ca = ((a.category || '') + ' ' + (a.subcategory || '')).trim();
+        var cb = ((b.category || '') + ' ' + (b.subcategory || '')).trim();
+        return ca.localeCompare(cb) || (a.name || '').localeCompare(b.name || '');
+      }
+      case 'category-desc': {
+        var cd = ((a.category || '') + ' ' + (a.subcategory || '')).trim();
+        var ce = ((b.category || '') + ' ' + (b.subcategory || '')).trim();
+        return ce.localeCompare(cd) || (a.name || '').localeCompare(b.name || '');
+      }
       default: return 0;
     }
   });
@@ -2850,15 +2875,18 @@ function renderIngredients() {
 
   var inStock = filtered.filter(function (r) { return (parseInt(r.stock, 10) || 0) > 0; });
 
-  // Group by Zoho Type field
+  // Group by Zoho Type field, using the stable section order from first load
   var typeGroups = {};
-  var typeOrder = [];
   inStock.forEach(function (r) {
     var t = (r.type || '').trim() || 'Other';
-    if (!typeGroups[t]) { typeGroups[t] = []; typeOrder.push(t); }
+    if (!typeGroups[t]) typeGroups[t] = [];
     typeGroups[t].push(r);
   });
-  typeOrder.sort();
+
+  // Use stable order; fall back to alphabetical if somehow not set yet
+  var typeOrder = (_ingredientTypeOrder || Object.keys(typeGroups).sort()).filter(function (t) {
+    return typeGroups[t] && typeGroups[t].length > 0;
+  });
 
   var showTitles = typeOrder.length > 1;
   typeOrder.forEach(function (t) {
@@ -2892,7 +2920,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
     var ingCurrentSort = ingSortSelect ? ingSortSelect.value : 'name-asc';
     var ingCols = [
       { label: 'Name', sort: 'name' },
-      { label: 'Category', sort: null },
+      { label: 'Category', sort: 'category' },
       { label: 'Unit', sort: null },
       { label: 'Price', sort: 'price' },
       { label: '', sort: null }
