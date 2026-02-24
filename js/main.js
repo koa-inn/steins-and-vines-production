@@ -3654,6 +3654,8 @@ function initProductTabs() {
     if (processNote) processNote.classList.toggle('hidden', tab !== 'kits');
     var priceNote = document.getElementById('kits-price-note');
     if (priceNote) priceNote.classList.toggle('hidden', tab !== 'kits');
+    var guaranteeNote = document.getElementById('kits-guarantee-note');
+    if (guaranteeNote) guaranteeNote.classList.toggle('hidden', tab !== 'kits');
 
     // Always show reservation bar if there are items
     updateReservationBar();
