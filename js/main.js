@@ -471,7 +471,6 @@ function loadFeaturedProducts() {
       })
       .then(function (data) {
         var items = data.items || [];
-        var KIT_CATEGORIES = ['wine', 'beer', 'cider', 'seltzer'];
         return items.map(function (z) {
           var obj = {
             name: z.name || '',
@@ -1200,6 +1199,8 @@ function loadFeaturedProducts() {
     container.appendChild(btn);
   }
 }
+var KIT_CATEGORIES = ['wine', 'beer', 'cider', 'seltzer'];
+
 function loadProducts() {
   var allProducts = [];
   var userHasSorted = false;
@@ -1288,8 +1289,6 @@ function loadProducts() {
       localStorage.setItem(MW_CACHE_TS_KEY, String(Date.now()));
     } catch (e) {}
   }
-
-  var KIT_CATEGORIES = ['wine', 'beer', 'cider', 'seltzer'];
 
   function fetchFromMiddleware() {
     return fetch(middlewareUrl + '/api/products')
@@ -1397,7 +1396,9 @@ function loadProducts() {
       buildFilterRow('filter-oak', 'oak', 'Oak:');
       buildFilterRow('filter-sweetness', 'sweetness', 'Sweetness:');
       buildSaleFilter();
-      applyFilters();
+      // Only render kits if the kits tab is still active (guards against the
+      // ?tab=ingredients URL param switching away before this async chain resolves)
+      if (_activeCartTab === 'kits') applyFilters();
 
       // Refresh button — clears middleware cache and reloads products (only once)
       if (!document.querySelector('#catalog-controls-kits .catalog-refresh-btn')) {

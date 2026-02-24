@@ -100,7 +100,6 @@ function loadFeaturedProducts() {
       })
       .then(function (data) {
         var items = data.items || [];
-        var KIT_CATEGORIES = ['wine', 'beer', 'cider', 'seltzer'];
         return items.map(function (z) {
           var obj = {
             name: z.name || '',
