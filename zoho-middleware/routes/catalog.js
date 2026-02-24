@@ -33,6 +33,10 @@ var INGREDIENTS_CACHE_TTL = 300; // 5 minutes
 var KIOSK_PRODUCTS_CACHE_KEY = 'zoho:kiosk-products';
 var KIOSK_PRODUCTS_CACHE_TTL = 300; // 5 minutes
 
+// Kit type values that belong on the kits/products page.
+// Used by both doRefreshProducts() and GET /api/ingredients.
+var KIT_CATEGORIES = ['wine', 'beer', 'cider', 'seltzer'];
+
 // In-memory set of kit item IDs (populated by GET /api/products).
 // Used by /api/ingredients to exclude kits even when Redis is down.
 var _kitItemIds = {};
@@ -140,10 +144,6 @@ function doRefreshProducts() {
       });
 
       return chain.then(function () {
-        // Kit categories that belong on the products page.
-        // Items whose "Category" CF is set to something else are excluded.
-        var KIT_CATEGORIES = ['wine', 'beer', 'cider', 'seltzer'];
-
         // Kit items are identified by their Type CF matching a KIT_CATEGORY exactly.
         // Items with Type = 'Ingredient', 'Equipment', etc. are excluded from kits
         // even if their Category CF references a kit category (e.g. "Beer ingredients").
@@ -322,8 +322,8 @@ router.get('/api/services', function (req, res) {
 router.get('/api/ingredients', function (req, res) {
   cache.get(INGREDIENTS_CACHE_KEY)
     .then(function (cached) {
-      if (cached) {
-        log.info('[api/ingredients] Cache hit');
+      if (cached && cached.length > 0) {
+        log.info('[api/ingredients] Cache hit (' + cached.length + ' items)');
         return res.json({ source: 'cache', items: cached });
       }
 
@@ -397,7 +397,11 @@ router.get('/api/ingredients', function (req, res) {
           });
 
           return chain.then(function () {
-            cache.set(INGREDIENTS_CACHE_KEY, enriched, INGREDIENTS_CACHE_TTL);
+            if (enriched.length > 0) {
+              cache.set(INGREDIENTS_CACHE_KEY, enriched, INGREDIENTS_CACHE_TTL);
+            } else {
+              log.warn('[api/ingredients] Enrichment returned 0 items — skipping cache to allow retry');
+            }
             res.json({ source: 'zoho', items: enriched });
           });
         });
