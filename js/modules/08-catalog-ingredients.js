@@ -2,6 +2,21 @@ var _allIngredients = [];
 var _ingredientFilters = { unit: [], category: [], subcategory: [], price: [] };
 var _ingredientTypeOrder = null; // stable section order, set once on first load
 
+var PRICE_PER_100G_THRESHOLD = 15; // kg items priced above this show price per 100g
+
+// Returns the display price and unit for an ingredient.
+// kg items priced above the threshold are shown as price per 100g instead.
+function ingDisplayPrice(item) {
+  var unit = (item.unit || '').trim();
+  var unitLower = unit.toLowerCase();
+  var price = parseFloat((item.price_per_unit || '0').replace(/[^0-9.]/g, '')) || 0;
+  var isKg = unitLower === 'kg' || unitLower.indexOf('kg') !== -1;
+  if (isKg && price > PRICE_PER_100G_THRESHOLD) {
+    return { price: price / 10, unit: '100g' };
+  }
+  return { price: price, unit: unit };
+}
+
 function loadIngredients(callback) {
   var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
     ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
@@ -452,18 +467,15 @@ function renderIngredientSection(catalog, title, items, extraClass) {
       tdCat.textContent = catParts.join(' / ');
       tr.appendChild(tdCat);
 
+      var _tdDp = ingDisplayPrice(item);
       var tdUnit = document.createElement('td');
       tdUnit.setAttribute('data-label', 'Unit');
-      tdUnit.textContent = (item.unit || '').trim();
+      tdUnit.textContent = _tdDp.unit;
       tr.appendChild(tdUnit);
 
       var tdPrice = document.createElement('td');
       tdPrice.setAttribute('data-label', 'Price');
-      var price = (item.price_per_unit || '').trim();
-      if (price) {
-        var priceNum = parseFloat(price.replace(/[^0-9.]/g, ''));
-        tdPrice.textContent = isNaN(priceNum) ? price : formatCurrency(priceNum);
-      }
+      if (_tdDp.price) tdPrice.textContent = formatCurrency(_tdDp.price);
       tr.appendChild(tdPrice);
 
       var tdCart = document.createElement('td');
@@ -591,17 +603,15 @@ function renderIngredientSection(catalog, title, items, extraClass) {
       card.appendChild(header);
 
       // Unit + price detail row
-      var unit = (item.unit || '').trim();
-      var price = (item.price_per_unit || '').trim();
-      if (unit || price) {
+      var _cardDp = ingDisplayPrice(item);
+      var unit = _cardDp.unit;
+      var priceNum = _cardDp.price;
+      if (unit || priceNum) {
         var detailRow = document.createElement('div');
         detailRow.className = 'product-detail-row';
         var details = [];
         if (unit) details.push(unit);
-        if (price) {
-          var priceNum = parseFloat(price.replace(/[^0-9.]/g, ''));
-          details.push(isNaN(priceNum) ? price : formatCurrency(priceNum));
-        }
+        if (priceNum) details.push(formatCurrency(priceNum));
         for (var d = 0; d < details.length; d++) {
           if (d > 0) {
             var sep = document.createElement('span');
