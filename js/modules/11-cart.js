@@ -589,6 +589,17 @@ function initReservationBar() {
     });
   }
 
+  // Ingredient minimum-qty checkout guard (all three checkout entry points)
+  document.addEventListener('click', function (e) {
+    var link = e.target.closest('.reservation-bar-link, .cart-sidebar-checkout, #cart-drawer-checkout');
+    if (!link) return;
+    var href = link.getAttribute('href') || '';
+    if (href.indexOf('cart=ingredient') === -1) return;
+    if (!hasMinQtyIngredients()) return;
+    e.preventDefault();
+    showMinQtyConfirm(href);
+  });
+
   updateReservationBar();
   renderCartSidebar();
   initCartDrawer();
@@ -1069,6 +1080,33 @@ function initCartDrawer() {
       openCartDrawer();
     });
   });
+}
+
+// ===== Min-qty checkout guard =====
+
+function hasMinQtyIngredients() {
+  var items = getReservation(INGREDIENT_CART_KEY);
+  for (var i = 0; i < items.length; i++) {
+    if (parseFloat(items[i].qty) === 0.01) return true;
+  }
+  return false;
+}
+
+function showMinQtyConfirm(dest) {
+  var overlay = document.createElement('div');
+  overlay.className = 'min-qty-overlay';
+  overlay.innerHTML =
+    '<div class="min-qty-dialog">' +
+    '<p class="min-qty-msg">One or more items in your cart is set to the minimum quantity (0.01\u00a0kg). Did you mean to adjust the amount before checking out?</p>' +
+    '<div class="min-qty-actions">' +
+    '<button type="button" class="btn btn-secondary min-qty-back">\u2190 Back</button>' +
+    '<a href="' + dest + '" class="btn min-qty-continue">Continue with my order</a>' +
+    '</div>' +
+    '</div>';
+  overlay.querySelector('.min-qty-back').addEventListener('click', function () {
+    document.body.removeChild(overlay);
+  });
+  document.body.appendChild(overlay);
 }
 
 // ===== Reservation Page =====
