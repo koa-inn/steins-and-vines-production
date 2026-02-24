@@ -330,14 +330,18 @@ router.get('/api/ingredients', function (req, res) {
       log.info('[api/ingredients] Cache miss — fetching from Zoho Inventory');
       return fetchAllItems({ status: 'active' })
         .then(function (allItems) {
+          // Only enrich items that have a selling price — this excludes the ~180
+          // internal equipment items tracked at rate=0, keeping enrichment fast.
           var items = allItems.filter(function (item) {
-            return item.product_type !== 'service' && !_kitItemIds[item.item_id];
+            return item.product_type !== 'service' &&
+                   !_kitItemIds[item.item_id] &&
+                   item.rate > 0;
           });
 
-          log.info('[api/ingredients] Enriching ' + items.length + ' items for custom fields');
+          log.info('[api/ingredients] Enriching ' + items.length + ' priced items for custom fields');
 
           var BATCH_SIZE = 5;
-          var BATCH_PAUSE = 3500;
+          var BATCH_PAUSE = 2000;
           var MAX_RETRIES = 2;
           var enriched = [];
 
