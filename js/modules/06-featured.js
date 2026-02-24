@@ -118,8 +118,14 @@ function loadFeaturedProducts() {
               }
             });
           }
-          if (!obj.retail_instore && z.rate != null) {
-            obj.retail_instore = '$' + parseFloat(z.rate).toFixed(2);
+          if (z.rate != null) {
+            var rateNum = parseFloat(z.rate);
+            if (!obj.retail_kit) {
+              obj.retail_kit = '$' + rateNum.toFixed(2);
+            }
+            if (!obj.retail_instore) {
+              obj.retail_instore = '$' + (rateNum + 50).toFixed(2);
+            }
           }
           return obj;
         }).filter(function (obj) {
