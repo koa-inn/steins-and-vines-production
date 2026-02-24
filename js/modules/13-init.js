@@ -148,6 +148,13 @@ document.addEventListener('DOMContentLoaded', function () {
     initReservationBar();
     initProductTabs();
     initCatalogViewToggle();
+
+    // Auto-switch tab if ?tab= param is set (e.g. from homepage "Shop Ingredients" link)
+    var tabParam = new URLSearchParams(window.location.search).get('tab');
+    if (tabParam) {
+      var tabBtn = document.querySelector('.product-tab-btn[data-product-tab="' + tabParam + '"]');
+      if (tabBtn) tabBtn.click();
+    }
   }
 
   // Reservation page
