@@ -17,7 +17,7 @@
     },
     {
       "question": "How much does a batch make?",
-      "answer": "Each batch produces approximately 23 litres \u2014 that's around 30 bottles (750 mL) or around 64 cans (355 mL)."
+      "answer": "Each batch produces approximately 23 litres \u2014 that's around 29\u201330 bottles (750 mL) or around 64 cans (355 mL)."
     },
     {
       "question": "How long does fermentation take?",
@@ -38,6 +38,10 @@
     {
       "question": "What's the difference between kit-only and ferment-in-store pricing?",
       "answer": "Kit-only means you purchase the ingredient kit to take home and brew yourself. Ferment-in-store includes the kit plus use of our facility, equipment, and guidance \u2014 we store and monitor your batch until it's ready to bottle."
+    },
+    {
+      "question": "Is the wine or beer subject to liquor taxes?",
+      "answer": "No. Because you make it yourself on our premises, your batch is not subject to liquor taxes \u2014 one of the reasons ferment-on-premises is so affordable compared to buying from a store."
     },
     {
       "question": "Is there a minimum age requirement?",
