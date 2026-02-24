@@ -2829,8 +2829,8 @@ function renderIngredients() {
   var catalog = document.getElementById('product-catalog');
   if (!catalog) return;
 
-  // Clear existing rendered sections
-  var sections = catalog.querySelectorAll('.catalog-section, .catalog-no-results, .catalog-divider, .catalog-skeleton-grid');
+  // Clear existing rendered sections (including request form so it always re-appends at the bottom)
+  var sections = catalog.querySelectorAll('.catalog-section, .catalog-no-results, .catalog-divider, .catalog-skeleton-grid, .product-request-section');
   sections.forEach(function (el) { el.parentNode.removeChild(el); });
 
   var searchInput = document.getElementById('ingredient-search');
@@ -2885,6 +2885,7 @@ function renderIngredients() {
     msg.className = 'catalog-no-results';
     msg.textContent = 'No ingredients or supplies found.';
     catalog.appendChild(msg);
+    buildProductRequestForm();
     return;
   }
 
