@@ -58,6 +58,7 @@ app.get('/health', function (req, res) {
 // ---------------------------------------------------------------------------
 
 app.use('/', require('./routes/auth'));
+app.use('/', require('./routes/requests'));
 
 // ---------------------------------------------------------------------------
 // Auth guard — protects all /api/* routes below

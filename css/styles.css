@@ -1624,6 +1624,82 @@ small, .text-small {
   font-size: 1.1rem;
 }
 
+/* ===== Product Request Form ===== */
+.product-request-section {
+  margin: 3rem auto 1.5rem;
+  max-width: 640px;
+  padding: 2rem;
+  background: var(--color-offwhite, #f7f4ef);
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.07);
+  text-align: center;
+}
+.product-request-heading {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-dark-green, #2a3d1f);
+  margin: 0 0 0.4rem;
+}
+.product-request-subtext {
+  font-size: 0.92rem;
+  color: var(--color-brown);
+  margin: 0 0 1.5rem;
+  opacity: 0.85;
+}
+.product-request-form {
+  text-align: left;
+}
+.product-request-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.product-request-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+.product-request-field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-dark-green, #2a3d1f);
+}
+.product-request-field input,
+.product-request-field textarea {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--color-dark-green, #2a3d1f);
+  transition: border-color 0.15s;
+}
+.product-request-field input:focus,
+.product-request-field textarea:focus {
+  outline: none;
+  border-color: var(--color-green, #5b7f3b);
+}
+.product-request-field textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+.product-request-submit {
+  margin-top: 0.25rem;
+}
+.product-request-status {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+  min-height: 1.2em;
+}
+.product-request-status--success { color: var(--color-green, #5b7f3b); font-weight: 600; }
+.product-request-status--error   { color: #c0392b; }
+@media (max-width: 520px) {
+  .product-request-row { grid-template-columns: 1fr; }
+  .product-request-section { padding: 1.5rem 1rem; }
+}
+
 [data-page="about"] .content,
 [data-page="contact"] .content,
 [data-page="reservation"] .content {

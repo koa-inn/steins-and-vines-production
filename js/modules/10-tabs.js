@@ -46,7 +46,7 @@ function initProductTabs() {
     // Clear rendered catalog sections
     var catalog = document.getElementById('product-catalog');
     if (catalog) {
-      var sections = catalog.querySelectorAll('.catalog-section, .catalog-no-results, .catalog-divider, .catalog-skeleton-grid');
+      var sections = catalog.querySelectorAll('.catalog-section, .catalog-no-results, .catalog-divider, .catalog-skeleton-grid, .product-request-section');
       sections.forEach(function (el) { el.parentNode.removeChild(el); });
     }
 

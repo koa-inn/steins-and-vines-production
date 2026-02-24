@@ -337,6 +337,7 @@ function renderIngredients() {
     renderIngredientSection(catalog, showTitles ? t : null, typeGroups[t]);
   });
   equalizeCardHeights();
+  buildProductRequestForm();
 }
 
 function renderIngredientSection(catalog, title, items, extraClass) {
@@ -666,6 +667,92 @@ function renderIngredientSection(catalog, title, items, extraClass) {
   }
 
   catalog.appendChild(wrapper);
+}
+
+function buildProductRequestForm() {
+  var container = document.getElementById('product-catalog');
+  if (!container) return;
+  if (document.getElementById('product-request-section')) return; // already built
+
+  var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+    ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
+
+  var section = document.createElement('div');
+  section.id = 'product-request-section';
+  section.className = 'product-request-section';
+
+  section.innerHTML =
+    '<h3 class="product-request-heading">Don\'t see what you\'re looking for?</h3>' +
+    '<p class="product-request-subtext">Let us know and we\'ll do our best to stock it.</p>' +
+    '<form id="product-request-form" class="product-request-form" novalidate>' +
+      '<div class="product-request-row">' +
+        '<div class="product-request-field">' +
+          '<label for="pr-name">Your Name</label>' +
+          '<input type="text" id="pr-name" name="name" autocomplete="name" required>' +
+        '</div>' +
+        '<div class="product-request-field">' +
+          '<label for="pr-email">Email Address</label>' +
+          '<input type="email" id="pr-email" name="email" autocomplete="email" required>' +
+        '</div>' +
+      '</div>' +
+      '<div class="product-request-field">' +
+        '<label for="pr-items">Items You\'d Like Us to Stock</label>' +
+        '<textarea id="pr-items" name="items" rows="3" placeholder="e.g. Lalvin EC-1118 yeast, oak chips, glass carboys…" required></textarea>' +
+      '</div>' +
+      '<button type="submit" class="btn product-request-submit">Send Request</button>' +
+      '<p class="product-request-status" id="product-request-status"></p>' +
+    '</form>';
+
+  container.appendChild(section);
+
+  var form = document.getElementById('product-request-form');
+  var status = document.getElementById('product-request-status');
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    status.textContent = '';
+    status.className = 'product-request-status';
+
+    var name = document.getElementById('pr-name').value.trim();
+    var email = document.getElementById('pr-email').value.trim();
+    var items = document.getElementById('pr-items').value.trim();
+
+    if (!name || !email || !items) {
+      status.textContent = 'Please fill in all fields.';
+      status.classList.add('product-request-status--error');
+      return;
+    }
+
+    var submitBtn = form.querySelector('.product-request-submit');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending…';
+
+    var url = middlewareUrl + '/product-requests';
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, email: email, items: items })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.ok) {
+        form.reset();
+        status.textContent = 'Thanks! We\'ll keep your request in mind.';
+        status.classList.add('product-request-status--success');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send Request';
+      } else {
+        throw new Error(data.error || 'Submission failed');
+      }
+    })
+    .catch(function (err) {
+      status.textContent = err.message || 'Something went wrong. Please try again.';
+      status.classList.add('product-request-status--error');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send Request';
+    });
+  });
 }
 
 // ===== Services =====
