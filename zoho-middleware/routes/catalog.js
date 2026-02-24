@@ -330,12 +330,16 @@ router.get('/api/ingredients', function (req, res) {
       log.info('[api/ingredients] Cache miss — fetching from Zoho Inventory');
       return fetchAllItems({ status: 'active' })
         .then(function (allItems) {
-          // Only enrich items that have a selling price — this excludes the ~180
-          // internal equipment items tracked at rate=0, keeping enrichment fast.
+          // Use cf_type (available from list endpoint, no enrichment needed) to
+          // exclude kit items. This avoids a race condition where _kitItemIds is
+          // empty during startup while the products pre-warm is still running.
           var items = allItems.filter(function (item) {
-            return item.product_type !== 'service' &&
-                   !_kitItemIds[item.item_id] &&
-                   item.rate > 0;
+            if (item.product_type === 'service') return false;
+            if (item.rate <= 0) return false;
+            var cfType = (item.cf_type || '').toLowerCase();
+            if (cfType && KIT_CATEGORIES.indexOf(cfType) !== -1) return false;
+            if (_kitItemIds[item.item_id]) return false; // belt-and-suspenders
+            return true;
           });
 
           log.info('[api/ingredients] Enriching ' + items.length + ' priced items for custom fields');
