@@ -162,19 +162,18 @@ document.addEventListener('DOMContentLoaded', function () {
     initReservationPage();
   }
 
-  // Open hours on about & contact pages
-  if (page === 'about' || page === 'contact') {
+  // About page: tabs, FAQ, hours, services
+  if (page === 'about') {
+    loadFAQ();
     loadOpenHours();
+    initAboutTabs();
+    initCatalogViewToggle();
   }
 
   // Contact form inline validation
   if (page === 'contact') {
+    loadOpenHours();
     setupContactValidation();
-  }
-
-  // FAQ on about page
-  if (page === 'about') {
-    loadFAQ();
   }
 
   // Featured products on homepage

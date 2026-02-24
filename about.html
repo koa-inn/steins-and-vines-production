@@ -58,81 +58,102 @@
       </div>
     </section>
 
-    <section class="content">
-      <div class="container">
-        <h2>Frequently Asked Questions</h2>
-        <div class="faq-list" id="faq-list"></div>
+    <nav class="product-tabs" id="about-tabs">
+      <button type="button" class="product-tab-btn active" data-about-tab="info">FAQs &amp; Info</button>
+      <button type="button" class="product-tab-btn" data-about-tab="story">Our Story</button>
+      <button type="button" class="product-tab-btn" data-about-tab="services">Services</button>
+    </nav>
+
+    <div id="about-panel-info">
+      <section class="content">
+        <div class="container">
+          <h2>Frequently Asked Questions</h2>
+          <div class="faq-list" id="faq-list"></div>
+        </div>
+      </section>
+
+      <div class="section-icon">
+        <img src="images/Icon_green.svg" alt="" aria-hidden="true" loading="lazy">
       </div>
-    </section>
 
-    <div class="section-icon">
-      <img src="images/Icon_green.svg" alt="" aria-hidden="true" loading="lazy">
-    </div>
-
-    <section class="content">
-      <div class="container">
-        <div class="location-grid">
-          <div class="location-info">
-            <div class="open-hours" id="open-hours"></div>
-            <p class="location-address">
-              <strong>11-38918 Progress Way</strong><br>
-              Squamish, BC V8B 0K7<br>
-              <a href="tel:+16045674565">(604) 567-4565</a>
-            </p>
-            <a href="https://maps.app.goo.gl/ZXnczQAtsWeiYTqW7" class="btn" target="_blank" rel="noopener">Get Directions</a>
-          </div>
-          <div class="location-map">
-            <iframe src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d8142.67532962257!2d-123.15311965469785!3d49.71348383969192!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x5486f84f15063765%3A0xc894837a2da91a4!2sWine%20and%20Brew!5e1!3m2!1sen!2sca!4v1770212884270!5m2!1sen!2sca" width="100%" height="180" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+      <section class="content">
+        <div class="container">
+          <div class="location-grid">
+            <div class="location-info">
+              <div class="open-hours" id="open-hours"></div>
+              <p class="location-address">
+                <strong>11-38918 Progress Way</strong><br>
+                Squamish, BC V8B 0K7<br>
+                <a href="tel:+16045674565">(604) 567-4565</a>
+              </p>
+              <a href="https://maps.app.goo.gl/ZXnczQAtsWeiYTqW7" class="btn" target="_blank" rel="noopener">Get Directions</a>
+            </div>
+            <div class="location-map">
+              <iframe src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d8142.67532962257!2d-123.15311965469785!3d49.71348383969192!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x5486f84f15063765%3A0xc894837a2da91a4!2sWine%20and%20Brew!5e1!3m2!1sen!2sca!4v1770212884270!5m2!1sen!2sca" width="100%" height="180" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
-
-    <div class="section-icon">
-      <img src="images/Icon_green.svg" alt="" aria-hidden="true" loading="lazy">
+      </section>
     </div>
 
-    <section class="content">
-      <div class="container">
-        <h2 data-content="story-title">Our Story</h2>
-        <p data-content="story-text">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-        <p data-content="story-text-2">Curabitur pretium tincidunt lacus. Nulla gravida orci a odio. Nullam varius, turpis et commodo pharetra, est eros bibendum elit, nec luctus magna felis sollicitudin mauris. Integer in mauris eu nibh euismod gravida. Duis ac tellus et risus vulputate vehicula.</p>
-        <img src="images/cheers.jpg" alt="Cheers at Steins &amp; Vines" class="story-image" loading="lazy">
+    <div id="about-panel-story" class="hidden">
+      <div class="section-icon">
+        <img src="images/Icon_green.svg" alt="" aria-hidden="true" loading="lazy">
       </div>
-    </section>
 
-    <div class="section-icon">
-      <img src="images/Icon_green.svg" alt="" aria-hidden="true" loading="lazy">
-    </div>
+      <section class="content">
+        <div class="container">
+          <h2 data-content="story-title">Our Story</h2>
+          <p data-content="story-text">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+          <p data-content="story-text-2">Curabitur pretium tincidunt lacus. Nulla gravida orci a odio. Nullam varius, turpis et commodo pharetra, est eros bibendum elit, nec luctus magna felis sollicitudin mauris. Integer in mauris eu nibh euismod gravida. Duis ac tellus et risus vulputate vehicula.</p>
+          <img src="images/cheers.jpg" alt="Cheers at Steins &amp; Vines" class="story-image" loading="lazy">
+        </div>
+      </section>
 
-    <section class="content">
-      <div class="container">
-        <h2 data-content="owners-title">Meet the Owners</h2>
-        <div class="owner-grid">
-          <div class="owner-card">
-            <img src="images/paul.jpg" alt="" class="owner-photo" loading="lazy">
-            <h3 data-content="owner-1-name">Owner Name</h3>
-            <p data-content="owner-1-bio">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.</p>
-          </div>
-          <div class="owner-card">
-            <img src="images/koa.jpg" alt="" class="owner-photo" loading="lazy">
-            <h3 data-content="owner-2-name">Owner Name</h3>
-            <p data-content="owner-2-bio">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.</p>
+      <div class="section-icon">
+        <img src="images/Icon_green.svg" alt="" aria-hidden="true" loading="lazy">
+      </div>
+
+      <section class="content">
+        <div class="container">
+          <h2 data-content="owners-title">Meet the Owners</h2>
+          <div class="owner-grid">
+            <div class="owner-card">
+              <img src="images/paul.jpg" alt="" class="owner-photo" loading="lazy">
+              <h3 data-content="owner-1-name">Owner Name</h3>
+              <p data-content="owner-1-bio">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.</p>
+            </div>
+            <div class="owner-card">
+              <img src="images/koa.jpg" alt="" class="owner-photo" loading="lazy">
+              <h3 data-content="owner-2-name">Owner Name</h3>
+              <p data-content="owner-2-bio">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.</p>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <div class="section-icon">
-      <img src="images/Icon_green.svg" alt="" aria-hidden="true" loading="lazy">
+      <div class="section-icon">
+        <img src="images/Icon_green.svg" alt="" aria-hidden="true" loading="lazy">
+      </div>
+
+      <section class="content">
+        <div class="container">
+          <h2 data-content="credits-title">Credits</h2>
+          <p class="credits-text" data-content="credits-designer">Graphic design by <a href="http://isoleksiuk.com" target="_blank" rel="noopener">Issy Oleksiuk</a>.</p>
+        </div>
+      </section>
     </div>
 
-    <section class="content">
-      <div class="container">
-        <h2 data-content="credits-title">Credits</h2>
-        <p class="credits-text" data-content="credits-designer">Graphic design by <a href="http://isoleksiuk.com" target="_blank" rel="noopener">Issy Oleksiuk</a>.</p>
+    <div id="about-panel-services" class="hidden">
+      <div class="catalog-controls" id="catalog-controls-services">
+        <input type="text" class="catalog-search" id="service-search" placeholder="Search services...">
+        <div class="catalog-view-toggle">
+          <button type="button" class="view-toggle-btn active" data-view="cards" aria-label="Card view"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
+          <button type="button" class="view-toggle-btn" data-view="table" aria-label="Table view"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+        </div>
       </div>
-    </section>
+      <div id="product-catalog"></div>
+    </div>
 
   </main>
 

@@ -3767,7 +3767,6 @@ function initProductTabs() {
   if (!tabs) return;
 
   var ingredientsLoaded = false;
-  var servicesLoaded = false;
 
   tabs.addEventListener('click', function (e) {
     var btn = e.target.closest('.product-tab-btn');
@@ -3782,7 +3781,7 @@ function initProductTabs() {
     btn.classList.add('active');
 
     // Show/hide controls
-    var controlIds = ['catalog-controls-kits', 'catalog-controls-ingredients', 'catalog-controls-services'];
+    var controlIds = ['catalog-controls-kits', 'catalog-controls-ingredients'];
     controlIds.forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.classList.add('hidden');
@@ -3829,13 +3828,6 @@ function initProductTabs() {
       } else {
         renderIngredients();
       }
-    } else if (tab === 'services') {
-      if (!servicesLoaded) {
-        servicesLoaded = true;
-        loadServices(function () {});
-      } else {
-        renderServices();
-      }
     }
   });
 
@@ -3848,6 +3840,47 @@ function initProductTabs() {
       ingredientToggle.setAttribute('aria-expanded', String(!expanded));
       ingredientCollapsible.classList.toggle('open');
     });
+  }
+}
+
+function initAboutTabs() {
+  var tabs = document.getElementById('about-tabs');
+  if (!tabs) return;
+
+  var servicesLoaded = false;
+
+  tabs.addEventListener('click', function (e) {
+    var btn = e.target.closest('.product-tab-btn');
+    if (!btn) return;
+    var tab = btn.getAttribute('data-about-tab');
+
+    var allBtns = tabs.querySelectorAll('.product-tab-btn');
+    allBtns.forEach(function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+
+    ['info', 'story', 'services'].forEach(function (name) {
+      var panel = document.getElementById('about-panel-' + name);
+      if (panel) panel.classList.toggle('hidden', name !== tab);
+    });
+
+    if (tab === 'services') {
+      catalogViewMode = getCatalogViewMode('services');
+      syncToggleButtons(catalogViewMode);
+      if (!servicesLoaded) {
+        servicesLoaded = true;
+        loadServices(function () {});
+      } else {
+        renderServices();
+      }
+    }
+  });
+
+  // ?tab= deep linking (e.g. about.html?tab=services)
+  var params = new URLSearchParams(window.location.search);
+  var initTab = params.get('tab');
+  if (initTab) {
+    var targetBtn = tabs.querySelector('[data-about-tab="' + initTab + '"]');
+    if (targetBtn) targetBtn.click();
   }
 }
 
@@ -6604,19 +6637,18 @@ document.addEventListener('DOMContentLoaded', function () {
     initReservationPage();
   }
 
-  // Open hours on about & contact pages
-  if (page === 'about' || page === 'contact') {
+  // About page: tabs, FAQ, hours, services
+  if (page === 'about') {
+    loadFAQ();
     loadOpenHours();
+    initAboutTabs();
+    initCatalogViewToggle();
   }
 
   // Contact form inline validation
   if (page === 'contact') {
+    loadOpenHours();
     setupContactValidation();
-  }
-
-  // FAQ on about page
-  if (page === 'about') {
-    loadFAQ();
   }
 
   // Featured products on homepage
