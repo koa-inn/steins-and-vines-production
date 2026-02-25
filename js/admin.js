@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-25T23:07:38.484Z';
+  var BUILD_TIMESTAMP = '2026-02-25T23:24:01.226Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -348,6 +348,17 @@
     }
 
     initTabNavigation();
+
+    // Auto-switch to tab specified in URL, e.g. admin.html?tab=kiosk
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var tabParam = params.get('tab');
+      if (tabParam) {
+        var tabBtn = document.querySelector('.admin-tab-btn[data-tab="' + tabParam + '"]');
+        if (tabBtn) tabBtn.click();
+      }
+    })();
+
     initModalControls();
     initExportButtons();
     initImportControls();
