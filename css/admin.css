@@ -440,7 +440,7 @@ body[data-page="admin"] .content {
 }
 
 .admin-table tbody td {
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-4) var(--sp-4);
   border: none;
   border-bottom: 1px solid var(--ledger-soft);
   background: transparent;
@@ -1083,6 +1083,7 @@ body[data-page="admin"] .content {
   background-color: var(--stain);
   color: var(--cellar-canvas);
   padding: var(--sp-3) 0;
+  padding-bottom: calc(var(--sp-3) + env(safe-area-inset-bottom, 0px));
   z-index: 1500;
   box-shadow: 0 -4px 16px rgba(44, 34, 24, 0.2);
 }
@@ -2841,6 +2842,7 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   background: var(--cellar-surface);
   border-top: 1px solid var(--ledger-soft);
   padding: 0.4rem 1.5rem;
+  padding-bottom: calc(0.4rem + env(safe-area-inset-bottom, 0px));
   font-size: 0.8rem;
   color: var(--ink-tertiary);
   display: none; /* shown via JS when kiosk tab is active */
