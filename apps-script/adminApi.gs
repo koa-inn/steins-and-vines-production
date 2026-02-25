@@ -66,7 +66,7 @@ function doGet(e) {
   if (action === 'get_batch_public') {
     try {
       var batchPublicKey = 'gbp:' + (e.parameter.batch_id || '');
-      return _jsonResponse(_cachedGet(batchPublicKey, 30, function() {
+      return _jsonResponse(_cachedGet(batchPublicKey, 5, function() {
         return handleGetBatchPublic(e);
       }));
     } catch (err) {
@@ -108,7 +108,7 @@ function doGet(e) {
         return _jsonResponse({ ok: true, data: getConfig() });
 
       case 'get_dashboard_summary':
-        return _jsonResponse({ ok: true, data: getDashboardSummary() });
+        return _jsonResponse({ ok: true, data: _cachedGet('gds', 60, function() { return getDashboardSummary(); }) });
 
       // Batch tracking endpoints
       case 'get_batches':
@@ -1250,6 +1250,10 @@ function handleGetBatchPublic(e) {
     return { ok: false, error: 'invalid_token', message: 'Invalid access token' };
   }
 
+  if (String(result.data.status || '').toLowerCase() === 'disabled') {
+    return { ok: false, error: 'batch_disabled', message: 'This batch is no longer active' };
+  }
+
   var batch = result.data;
   // Exclude sensitive fields
   delete batch.customer_email;
@@ -1741,6 +1745,15 @@ function updateBatch(payload, userEmail) {
     }
   }
 
+  // Validate status value if provided
+  if (updates.status !== undefined) {
+    var validStatuses = ['primary', 'secondary', 'complete', 'disabled'];
+    if (validStatuses.indexOf(String(updates.status).toLowerCase()) === -1) {
+      return { ok: false, error: 'invalid_status', message: 'Invalid status: ' + updates.status + '. Must be one of: ' + validStatuses.join(', ') };
+    }
+    updates.status = String(updates.status).toLowerCase();
+  }
+
   // Apply updates
   var allowedFields = ['status', 'vessel_id', 'shelf_id', 'bin_id', 'notes'];
   allowedFields.forEach(function (field) {
@@ -1967,6 +1980,8 @@ function updateBatchTask(payload, completedBy) {
 
       // If packaging task, set batch to complete
       if (String(current.is_packaging).toUpperCase() === 'TRUE') {
+        // Invalidate sheet cache so handlePackagingCompletion sees the just-written completed=TRUE
+        invalidateSheetCache(BATCH_TASKS_SHEET_NAME);
         handlePackagingCompletion(current.batch_id, now);
       }
 
@@ -2328,8 +2343,14 @@ function handleBatchTokenPost(payload, action) {
       return addPlatoReading(payload, 'batch-url');
     case 'bulk_add_plato_readings':
       return bulkAddPlatoReadings(payload, 'batch-url');
-    case 'delete_plato_reading':
+    case 'delete_plato_reading': {
+      // Verify the reading belongs to this batch before deleting
+      var readingCheck = findRowById(PLATO_READINGS_SHEET_NAME, payload.reading_id);
+      if (readingCheck.row !== -1 && String(readingCheck.data.batch_id) !== String(payload.batch_id)) {
+        return { ok: false, error: 'unauthorized', message: 'Reading does not belong to this batch' };
+      }
       return deletePlatoReading(payload);
+    }
     default:
       return { ok: false, error: 'unauthorized_action', message: 'Action not allowed from batch URL' };
   }
@@ -2446,6 +2467,10 @@ function propagateFermSchedule(payload, userEmail) {
     return { ok: false, error: 'sheet_not_found', message: 'BatchTasks sheet not found' };
   }
 
+  // Lock to prevent concurrent propagation from duplicating task IDs
+  var lock = acquireScriptLock(15000);
+  try {
+
   // Find all active batches using this schedule
   var allBatches = sheetToObjects(BATCHES_SHEET_NAME);
   var activeBatches = allBatches.filter(function (b) {
@@ -2543,6 +2568,9 @@ function propagateFermSchedule(payload, userEmail) {
     tasks_created: totalCreated,
     tasks_removed: totalRemoved
   };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // --- POST: Delete (soft) Fermentation Schedule ---
@@ -2579,11 +2607,18 @@ function regenerateBatchToken(payload) {
   }
 
   var newToken = Utilities.getUuid().replace(/-/g, '');
+  var now = new Date().toISOString();
   var tokenCol = result.headers.indexOf('access_token');
   if (tokenCol !== -1) result.sheet.getRange(result.row, tokenCol + 1).setValue(newToken);
 
+  var regenCol = result.headers.indexOf('last_regenerated_at');
+  if (regenCol !== -1) result.sheet.getRange(result.row, regenCol + 1).setValue(now);
+
   var luCol = result.headers.indexOf('last_updated');
-  if (luCol !== -1) result.sheet.getRange(result.row, luCol + 1).setValue(new Date().toISOString());
+  if (luCol !== -1) result.sheet.getRange(result.row, luCol + 1).setValue(now);
+
+  // Evict stale public batch cache so the old token stops working immediately
+  try { CacheService.getScriptCache().remove('gbp:' + payload.batch_id); } catch (e) {}
 
   return { ok: true, access_token: newToken };
 }
