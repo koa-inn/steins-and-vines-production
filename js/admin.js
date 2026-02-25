@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-25T00:16:00.809Z';
+  var BUILD_TIMESTAMP = '2026-02-25T13:23:28.772Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -15,6 +15,7 @@
   // Cached sheet data
   var kitsData = [];
   var kitsHeaders = [];
+  var zohoStockMap = {}; // sku → stock_on_hand from Zoho (populated on load)
   var ingredientsData = [];
   var ingredientsHeaders = [];
   var reservationsData = [];
@@ -256,7 +257,8 @@
     var lowStock = summary ? (summary.lowStockKits || []).length : 0;
     if (!summary) {
       kitsData.forEach(function (kit) {
-        var stock = parseInt(kit.stock, 10) || 0;
+        var zohoStock = (kit.sku && zohoStockMap.hasOwnProperty(kit.sku)) ? zohoStockMap[kit.sku] : null;
+        var stock = zohoStock !== null ? zohoStock : (parseInt(kit.stock, 10) || 0);
         var onHold = parseInt(kit.on_hold, 10) || 0;
         if (kit.hide !== 'true' && kit.hide !== 'TRUE' && (stock - onHold) <= 3) lowStock++;
       });
@@ -873,18 +875,38 @@
   }
 
   function finishDataLoad() {
-    renderDashboard();
-    renderReservationsTab();
-    renderKitsTab();
-    renderIngredientsTab();
-    renderScheduleTab();
-    populateKitBrandFilter();
-    populateOrderKitSelect();
-    // Load order items from sheet's on_order column into localStorage
-    loadOrderFromSheet();
-    populateOrderBrandFilter();
-    renderOrderTab();
-    loadHomepageData();
+    var mwUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+      ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
+
+    function doRender() {
+      renderDashboard();
+      renderReservationsTab();
+      renderKitsTab();
+      renderIngredientsTab();
+      renderScheduleTab();
+      populateKitBrandFilter();
+      populateOrderKitSelect();
+      loadOrderFromSheet();
+      populateOrderBrandFilter();
+      renderOrderTab();
+      loadHomepageData();
+    }
+
+    if (mwUrl) {
+      fetch(mwUrl + '/api/products')
+        .then(function (r) { return r.ok ? r.json() : { items: [] }; })
+        .then(function (data) {
+          var map = {};
+          (data.items || []).forEach(function (z) {
+            if (z.sku) map[z.sku] = z.stock_on_hand != null ? parseInt(z.stock_on_hand, 10) : null;
+          });
+          zohoStockMap = map;
+        })
+        .catch(function () { zohoStockMap = {}; })
+        .then(doRender);
+    } else {
+      doRender();
+    }
   }
 
   // ===== Dashboard Overview =====
@@ -1022,7 +1044,8 @@
     var lowStockThreshold = 3; // Alert when stock <= this number
     var lowStockItems = [];
     kitsData.forEach(function (kit) {
-      var stock = parseInt(kit.stock, 10) || 0;
+      var zohoStock = (kit.sku && zohoStockMap.hasOwnProperty(kit.sku)) ? zohoStockMap[kit.sku] : null;
+      var stock = zohoStock !== null ? zohoStock : (parseInt(kit.stock, 10) || 0);
       var onHold = parseInt(kit.on_hold, 10) || 0;
       var available = stock - onHold;
       // Only check items that are not hidden and have been stocked before
@@ -2128,8 +2151,9 @@
 
     var filtered = kitsData.filter(function (k) {
       if (brandFilter !== 'all' && k.brand !== brandFilter) return false;
-      var available = parseInt(k.available, 10);
-      if (isNaN(available)) available = parseInt(k.stock, 10) || 0;
+      var zohoStock = (k.sku && zohoStockMap.hasOwnProperty(k.sku)) ? zohoStockMap[k.sku] : null;
+      var stock = zohoStock !== null ? zohoStock : (parseInt(k.stock, 10) || 0);
+      var available = stock - (parseInt(k.on_hold, 10) || 0);
       if (stockFilter === 'in' && available <= 0) return false;
       if (stockFilter === 'low' && (available <= 0 || available > 5)) return false;
       if (stockFilter === 'out' && available > 0) return false;
@@ -2144,8 +2168,10 @@
     filtered.sort(function (a, b) {
       var aVal, bVal;
       if (kitSortCol === '_available') {
-        aVal = (parseInt(a.stock, 10) || 0) - (parseInt(a.on_hold, 10) || 0);
-        bVal = (parseInt(b.stock, 10) || 0) - (parseInt(b.on_hold, 10) || 0);
+        var aZoho = (a.sku && zohoStockMap.hasOwnProperty(a.sku)) ? zohoStockMap[a.sku] : null;
+        var bZoho = (b.sku && zohoStockMap.hasOwnProperty(b.sku)) ? zohoStockMap[b.sku] : null;
+        aVal = (aZoho !== null ? aZoho : (parseInt(a.stock, 10) || 0)) - (parseInt(a.on_hold, 10) || 0);
+        bVal = (bZoho !== null ? bZoho : (parseInt(b.stock, 10) || 0)) - (parseInt(b.on_hold, 10) || 0);
       } else {
         aVal = a[kitSortCol] || '';
         bVal = b[kitSortCol] || '';
@@ -2190,13 +2216,20 @@
       appendTd(tr, kit.type || '');
       appendTd(tr, kit.tint || '');
 
-      // Editable stock cell
+      // Stock cell — read-only from Zoho when available, otherwise editable from Sheets
       var stockTd = document.createElement('td');
-      stockTd.className = 'admin-editable';
-      stockTd.textContent = kit.stock || '0';
-      stockTd.addEventListener('click', (function (cell, k, field) {
-        return function () { startInlineEdit(cell, k, field); };
-      })(stockTd, kit, 'stock'));
+      var zohoStock = (kit.sku && zohoStockMap.hasOwnProperty(kit.sku)) ? zohoStockMap[kit.sku] : null;
+      var stockDisplay = zohoStock !== null ? zohoStock : (parseInt(kit.stock, 10) || 0);
+      stockTd.textContent = stockDisplay;
+      if (zohoStock === null) {
+        stockTd.className = 'admin-editable';
+        stockTd.addEventListener('click', (function (cell, k, field) {
+          return function () { startInlineEdit(cell, k, field); };
+        })(stockTd, kit, 'stock'));
+      } else {
+        stockTd.className = 'admin-cell-readonly';
+        stockTd.title = 'Stock synced from Zoho Inventory';
+      }
       tr.appendChild(stockTd);
 
       // Editable on_hold cell
@@ -2218,7 +2251,7 @@
       tr.appendChild(onOrderTd);
 
       // Available with badge
-      var available = (parseInt(kit.stock, 10) || 0) - (parseInt(kit.on_hold, 10) || 0);
+      var available = stockDisplay - (parseInt(kit.on_hold, 10) || 0);
       var availTd = document.createElement('td');
       availTd.setAttribute('data-avail-sku', kit.sku || kit.name);
       var availBadge = document.createElement('span');

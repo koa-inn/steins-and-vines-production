@@ -511,6 +511,12 @@ body[data-page="admin"] .content {
   outline-offset: -1px;
 }
 
+/* Read-only Zoho-synced cell */
+.admin-cell-readonly {
+  color: var(--ink-secondary);
+  cursor: default;
+}
+
 .admin-inline-input {
   width: 80px;
   padding: 2px var(--sp-1);
