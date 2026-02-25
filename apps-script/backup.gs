@@ -29,6 +29,11 @@ var BACKUP_FOLDER_NAME = 'Steins-Vines-Backups';
 var RETENTION_DAYS = 14;  // Keep backups for 2 weeks
 var BACKUP_HOUR = 3;      // 3 AM in script timezone
 
+// Set this to the Google Drive folder ID of the Steins & Vines Backup folder.
+// Find it in the folder's URL: drive.google.com/drive/folders/FOLDER_ID_HERE
+// If empty, backups are placed in the same folder as the spreadsheet (old behaviour).
+var BACKUP_FOLDER_ID = '1c28ozHZTYHQ5N20zzyJuK40N8Ywiq188';
+
 // ===== BACKUP FUNCTIONS =====
 
 /**
@@ -68,10 +73,16 @@ function createBackup() {
 }
 
 /**
- * Gets the backup folder, or creates it if it doesn't exist
- * Places the folder in the same location as the original spreadsheet
+ * Gets the backup folder.
+ * If BACKUP_FOLDER_ID is set, uses that folder directly.
+ * Otherwise falls back to creating/finding a subfolder next to the spreadsheet.
  */
 function getOrCreateBackupFolder(originalFile) {
+  // Use the configured backup folder if an ID is provided
+  if (BACKUP_FOLDER_ID) {
+    return DriveApp.getFolderById(BACKUP_FOLDER_ID);
+  }
+
   var parents = originalFile.getParents();
   var parentFolder;
 
