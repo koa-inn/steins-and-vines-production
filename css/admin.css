@@ -2645,6 +2645,19 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   margin: 0 0 1.5rem;
 }
 
+/* ---- Customer Selection Step ---- */
+.kiosk-customer-wrap { padding: 1rem; max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.75rem; }
+.kiosk-customer-header { display: flex; align-items: center; gap: 0.75rem; }
+.kiosk-customer-header h2 { margin: 0; font-size: 1.1rem; }
+.kiosk-selected-customer { background: #e8f5e9; border: 1px solid #4caf50; border-radius: 6px; padding: 0.5rem 0.75rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
+.kiosk-customer-results { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; }
+.kiosk-customer-result-row { padding: 0.5rem 0.6rem; border: 1px solid var(--ledger-line); border-radius: 4px; cursor: pointer; font-size: 0.88rem; }
+.kiosk-customer-result-row:hover { background: var(--cellar-bg); }
+.kiosk-customer-footer { display: flex; gap: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--ledger-line); margin-top: auto; }
+.kiosk-receipt-batches { margin-top: 0.75rem; border-top: 1px solid #eee; padding-top: 0.75rem; }
+.kiosk-receipt-section-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #666; margin-bottom: 0.4rem; }
+.kiosk-receipt-batch-row { display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0; font-size: 0.9rem; }
+
 /* ---- Terminal Status Bar ---- */
 .kiosk-terminal-bar {
   position: fixed;

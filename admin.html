@@ -497,6 +497,39 @@
               </div>
             </div>
 
+            <!-- Kiosk: Customer Selection View -->
+            <div id="kiosk-view-customer" class="kiosk-view" style="display:none;">
+              <div class="kiosk-customer-wrap">
+                <div class="kiosk-customer-header">
+                  <button type="button" class="btn-secondary admin-btn-sm" id="kiosk-customer-back">&#8592; Back</button>
+                  <h2>Customer</h2>
+                </div>
+                <div id="kiosk-customer-selected" class="kiosk-selected-customer" style="display:none;"></div>
+                <input type="text" id="kiosk-customer-search" class="admin-input" placeholder="Search by name or email…" autocomplete="off">
+                <div id="kiosk-customer-results" class="kiosk-customer-results"></div>
+                <button type="button" class="btn-secondary admin-btn-sm" id="kiosk-new-customer-toggle">+ New Customer</button>
+                <div id="kiosk-new-customer-form" style="display:none;">
+                  <div class="form-group">
+                    <label>Name <span style="color:#c62828">*</span></label>
+                    <input type="text" id="kiosk-new-name" class="admin-input" placeholder="Full name">
+                  </div>
+                  <div class="form-group">
+                    <label>Email <span style="color:#c62828">*</span></label>
+                    <input type="email" id="kiosk-new-email" class="admin-input" placeholder="email@example.com">
+                  </div>
+                  <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" id="kiosk-new-phone" class="admin-input" placeholder="Optional">
+                  </div>
+                  <button type="button" class="btn" id="kiosk-new-customer-save">Add Customer</button>
+                </div>
+                <div class="kiosk-customer-footer">
+                  <button type="button" class="btn" id="kiosk-customer-proceed" disabled>Proceed to Payment</button>
+                  <button type="button" class="btn-secondary" id="kiosk-customer-skip" style="display:none;">Skip (Walk-in)</button>
+                </div>
+              </div>
+            </div>
+
             <!-- Kiosk: Payment Processing View -->
             <div id="kiosk-view-payment" class="kiosk-view" style="display:none;">
               <div class="kiosk-payment-screen">

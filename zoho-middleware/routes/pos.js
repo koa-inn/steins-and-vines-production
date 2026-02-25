@@ -131,11 +131,11 @@ router.post('/api/kiosk/sale', function (req, res) {
         custom_fields: []
       };
 
-      // Attach the walk-in customer contact if configured
-      var kioskContactId = process.env.KIOSK_CONTACT_ID || '';
-      if (kioskContactId) {
-        invoicePayload.customer_id = kioskContactId;
-      }
+      // Attach customer contact: prefer explicit contact_id from request, fall back to env default
+      var contactId = (typeof body.contact_id === 'string' && body.contact_id)
+        ? body.contact_id
+        : (process.env.KIOSK_CONTACT_ID || '');
+      if (contactId) invoicePayload.customer_id = contactId;
 
       // Attach transaction ID to custom field if configured
       if (txnId && process.env.ZOHO_CF_TRANSACTION_ID) {

@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-25T19:01:46.841Z';
+  var BUILD_TIMESTAMP = '2026-02-25T20:02:21.945Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -7601,10 +7601,11 @@
   var _kioskCart = {};           // keyed by item_id: { item, qty }
   var _kioskProductsLoaded = false;
   var _kioskProductsLoading = false;
-  var _kioskCurrentView = 'browse'; // browse | payment | receipt | error
+  var _kioskCurrentView = 'browse'; // browse | customer | payment | receipt | error
   var _kioskSaleData = null;     // receipt data from last completed sale
   var _kioskSearchTimer = null;
   var _kioskTerminalReady = false;
+  var _kioskCustomer = null;     // { contact_id, name, email } or null (walk-in)
   var _kioskTabActive = false;
 
   // ---- Helpers ----
@@ -7632,6 +7633,12 @@
     return Object.keys(_kioskCart).length === 0;
   }
 
+  function kioskCartHasKits() {
+    return Object.keys(_kioskCart).some(function (id) {
+      return (_kioskCart[id].item.product_type || '').toLowerCase() === 'kit';
+    });
+  }
+
   // ---- Cart totals calculation ----
 
   function kioskCalcTotals() {
@@ -7654,7 +7661,7 @@
   // ---- View switching ----
 
   function kioskShowView(name) {
-    var views = ['browse', 'payment', 'receipt', 'error'];
+    var views = ['browse', 'customer', 'payment', 'receipt', 'error'];
     views.forEach(function (v) {
       var el = document.getElementById('kiosk-view-' + v);
       if (el) el.style.display = (v === name) ? '' : 'none';
@@ -7938,7 +7945,162 @@
       showToast('POS terminal is not ready. Check terminal status below.', 'error');
       return;
     }
+    _kioskCustomer = null;
+    kioskShowCustomerStep();
+  }
 
+  function kioskShowCustomerStep() {
+    kioskShowView('customer');
+
+    var hasKits = kioskCartHasKits();
+    var proceedBtn = document.getElementById('kiosk-customer-proceed');
+    var skipBtn = document.getElementById('kiosk-customer-skip');
+    var backBtn = document.getElementById('kiosk-customer-back');
+    var searchInput = document.getElementById('kiosk-customer-search');
+    var resultsEl = document.getElementById('kiosk-customer-results');
+    var selectedEl = document.getElementById('kiosk-customer-selected');
+    var newToggle = document.getElementById('kiosk-new-customer-toggle');
+    var newForm = document.getElementById('kiosk-new-customer-form');
+    var saveBtn = document.getElementById('kiosk-new-customer-save');
+
+    // Reset state
+    if (searchInput) searchInput.value = '';
+    if (resultsEl) resultsEl.innerHTML = '';
+    if (selectedEl) { selectedEl.style.display = 'none'; selectedEl.innerHTML = ''; }
+    if (newForm) newForm.style.display = 'none';
+    if (proceedBtn) proceedBtn.disabled = true;
+    if (skipBtn) skipBtn.style.display = hasKits ? 'none' : '';
+
+    function updateProceedState() {
+      if (proceedBtn) proceedBtn.disabled = !_kioskCustomer;
+    }
+
+    function kioskSelectCustomer(c) {
+      _kioskCustomer = c;
+      if (searchInput) { searchInput.value = ''; }
+      if (resultsEl) resultsEl.innerHTML = '';
+      if (selectedEl) {
+        selectedEl.style.display = '';
+        selectedEl.innerHTML = '<span>' + (c.name || '') + (c.email ? ' &mdash; ' + c.email : '') + '</span>' +
+          '<button type="button" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 0.25rem;" id="kiosk-clear-customer">&times;</button>';
+        var clearBtn = document.getElementById('kiosk-clear-customer');
+        if (clearBtn) {
+          clearBtn.onclick = function () {
+            _kioskCustomer = null;
+            selectedEl.style.display = 'none';
+            selectedEl.innerHTML = '';
+            updateProceedState();
+          };
+        }
+      }
+      if (newForm) newForm.style.display = 'none';
+      updateProceedState();
+    }
+
+    if (backBtn) {
+      backBtn.onclick = function () { kioskShowView('browse'); };
+    }
+
+    if (skipBtn) {
+      skipBtn.onclick = function () { kioskProceedToPayment(); };
+    }
+
+    if (proceedBtn) {
+      proceedBtn.onclick = function () {
+        if (_kioskCustomer) kioskProceedToPayment();
+      };
+    }
+
+    if (newToggle) {
+      newToggle.onclick = function () {
+        if (newForm) newForm.style.display = newForm.style.display === 'none' ? '' : 'none';
+      };
+    }
+
+    if (saveBtn) {
+      saveBtn.onclick = function () {
+        var nameEl = document.getElementById('kiosk-new-name');
+        var emailEl = document.getElementById('kiosk-new-email');
+        var phoneEl = document.getElementById('kiosk-new-phone');
+        var name = nameEl ? nameEl.value.trim() : '';
+        var email = emailEl ? emailEl.value.trim() : '';
+        var phone = phoneEl ? phoneEl.value.trim() : '';
+        if (!name || !email) {
+          showToast('Name and email are required', 'error');
+          return;
+        }
+        saveBtn.disabled = true;
+        var mwUrl = kioskMwUrl();
+        fetch(mwUrl + '/api/contacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, email: email, phone: phone })
+        })
+        .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+        .then(function (result) {
+          saveBtn.disabled = false;
+          if (result.data && result.data.contact_id) {
+            if (nameEl) nameEl.value = '';
+            if (emailEl) emailEl.value = '';
+            if (phoneEl) phoneEl.value = '';
+            kioskSelectCustomer({ contact_id: result.data.contact_id, name: name, email: email });
+          } else {
+            showToast(result.data.error || 'Could not create customer', 'error');
+          }
+        })
+        .catch(function () {
+          saveBtn.disabled = false;
+          showToast('Could not create customer', 'error');
+        });
+      };
+    }
+
+    var searchTimer = null;
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        clearTimeout(searchTimer);
+        var q = searchInput.value.trim();
+        if (!q) { if (resultsEl) resultsEl.innerHTML = ''; return; }
+        searchTimer = setTimeout(function () {
+          var mwUrl = kioskMwUrl();
+          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q))
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!resultsEl) return;
+            var contacts = (data.contacts || []).slice(0, 8);
+            if (!contacts.length) {
+              resultsEl.innerHTML = '<div style="padding:0.4rem 0.6rem;color:#888;font-size:0.88rem;">No results</div>';
+              return;
+            }
+            var html = '';
+            contacts.forEach(function (c) {
+              html += '<div class="kiosk-customer-result-row" data-id="' + (c.contact_id || '') + '">' +
+                '<strong>' + (c.contact_name || c.name || '') + '</strong>' +
+                (c.email ? ' <span style="color:#666;">' + c.email + '</span>' : '') +
+                '</div>';
+            });
+            resultsEl.innerHTML = html;
+            Array.prototype.forEach.call(resultsEl.querySelectorAll('.kiosk-customer-result-row'), function (row) {
+              row.onclick = function () {
+                var idx = Array.prototype.indexOf.call(resultsEl.querySelectorAll('.kiosk-customer-result-row'), row);
+                var c = contacts[idx];
+                kioskSelectCustomer({
+                  contact_id: c.contact_id || '',
+                  name: c.contact_name || c.name || '',
+                  email: c.email || ''
+                });
+              };
+            });
+          })
+          .catch(function () {
+            if (resultsEl) resultsEl.innerHTML = '<div style="padding:0.4rem 0.6rem;color:#888;font-size:0.88rem;">Search failed</div>';
+          });
+        }, 300);
+      });
+    }
+  }
+
+  function kioskProceedToPayment() {
     var totals = kioskCalcTotals();
     var mwUrl = kioskMwUrl();
     if (!mwUrl) {
@@ -7953,7 +8115,8 @@
         item_id: entry.item.item_id,
         name: entry.item.name || '',
         quantity: entry.qty,
-        rate: parseFloat(entry.item.rate) || 0
+        rate: parseFloat(entry.item.rate) || 0,
+        product_type: entry.item.product_type || ''
       };
     });
 
@@ -7985,7 +8148,6 @@
       itemsEl.innerHTML = itemHtml;
     }
 
-    // Disable cancel while request is in flight
     var cancelled = false;
     if (cancelBtn) {
       cancelBtn.disabled = false;
@@ -7996,7 +8158,6 @@
       };
     }
 
-    // Generate a reference number
     var refNumber = 'KIOSK-' + Date.now();
 
     // POST to /api/kiosk/sale — this blocks until the terminal responds
@@ -8006,29 +8167,69 @@
       body: JSON.stringify({
         items: items,
         tax_total: totals.tax,
-        reference_number: refNumber
+        reference_number: refNumber,
+        contact_id: _kioskCustomer ? _kioskCustomer.contact_id : ''
       })
     })
     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
     .then(function (result) {
-      if (cancelled) return; // user cancelled while request was in flight
-
+      if (cancelled) return;
       if (spinnerEl) spinnerEl.style.display = 'none';
 
       if (result.status === 201 && result.data.ok) {
-        // Success
         _kioskSaleData = result.data;
-        kioskShowReceipt(result.data, totals, items);
-        kioskClearCart();
+
+        // Auto-create batch records for kit items
+        var today = new Date().toISOString().slice(0, 10);
+        var kitItems = items.filter(function (it) {
+          return (it.product_type || '').toLowerCase() === 'kit';
+        });
+
+        var batchPromises = [];
+        kitItems.forEach(function (it) {
+          for (var q = 0; q < (it.quantity || 1); q++) {
+            batchPromises.push(
+              adminApiPost('create_batch', {
+                product_name: it.name,
+                product_sku: it.item_id || '',
+                customer_name: _kioskCustomer ? _kioskCustomer.name : 'Walk-In',
+                customer_email: _kioskCustomer ? (_kioskCustomer.email || '') : '',
+                start_date: today,
+                vessel_id: '',
+                schedule_id: ''
+              })
+            );
+          }
+        });
+
+        if (batchPromises.length === 0) {
+          kioskShowReceipt(result.data, totals, items, []);
+          kioskClearCart();
+          return;
+        }
+
+        Promise.all(batchPromises.map(function (p) {
+          return p.catch(function (err) {
+            console.error('[kiosk] batch creation failed:', err);
+            return null;
+          });
+        })).then(function (batchResults) {
+          var batches = batchResults.filter(function (b) {
+            return b && b.batch_id;
+          });
+          if (batches.length < batchPromises.length) {
+            showToast('Some batch records could not be created', 'warn');
+          }
+          kioskShowReceipt(result.data, totals, items, batches);
+          kioskClearCart();
+        });
       } else if (result.status === 402) {
-        // Declined
         kioskShowError(
           'Payment Declined',
           result.data.error || 'Card was declined. Please try a different payment method.',
           true
         );
       } else if (result.data && result.data.payment_voided) {
-        // Payment taken but Zoho failed; transaction was voided
         kioskShowError(
           'Sale Could Not Complete',
           (result.data.error || 'Payment was taken but could not be recorded. Payment has been voided.'),
@@ -8042,15 +8243,16 @@
         );
       }
     })
-    .catch(function (err) {
+    .catch(function () {
       if (cancelled) return;
       if (spinnerEl) spinnerEl.style.display = 'none';
       kioskShowError('Connection Error', 'Could not reach the payment server. Please try again.', true);
     });
   }
 
-  function kioskShowReceipt(saleData, totals, items) {
+  function kioskShowReceipt(saleData, totals, items, batches) {
     kioskShowView('receipt');
+    batches = batches || [];
 
     var body = document.getElementById('kiosk-receipt-body');
     if (!body) return;
@@ -8086,11 +8288,54 @@
       html += '<div class="kiosk-receipt-row"><span>Date</span><span>' + saleData.date + '</span></div>';
     }
 
+    // Batch section
+    if (batches.length > 0) {
+      html += '<div class="kiosk-receipt-batches">';
+      html += '<div class="kiosk-receipt-section-title">Batches Created</div>';
+      batches.forEach(function (b, i) {
+        html += '<div class="kiosk-receipt-batch-row">';
+        html += '<span>' + (b.batch_id || '') + '</span>';
+        html += '<button type="button" class="btn admin-btn-sm kiosk-save-label-btn" data-batch-idx="' + i + '">Save Label</button>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
     body.innerHTML = html;
+
+    // Wire batch label buttons
+    if (batches.length > 0) {
+      Array.prototype.forEach.call(body.querySelectorAll('.kiosk-save-label-btn'), function (btn) {
+        btn.onclick = function () {
+          var idx = parseInt(btn.getAttribute('data-batch-idx'), 10);
+          var b = batches[idx];
+          if (!b) return;
+          var today = new Date().toISOString().slice(0, 10);
+          var qrSvg = (typeof generateBatchQR === 'function') ? generateBatchQR(b.batch_id, b.access_token) : '';
+          var html = buildBatchLabelHTML({
+            batch: {
+              batch_id: b.batch_id,
+              customer_name: _kioskCustomer ? _kioskCustomer.name : 'Walk-In',
+              customer_email: _kioskCustomer ? (_kioskCustomer.email || '') : '',
+              start_date: b.start_date || today
+            },
+            tasks: [],
+            qrSvg: qrSvg
+          });
+          var pw = window.open('', '_blank');
+          if (pw) {
+            pw.document.write(html);
+            pw.document.close();
+            setTimeout(function () { pw.print(); }, 250);
+          }
+        };
+      });
+    }
 
     var newSaleBtn = document.getElementById('kiosk-new-sale-btn');
     if (newSaleBtn) {
       newSaleBtn.onclick = function () {
+        _kioskCustomer = null;
         kioskShowView('browse');
       };
     }
