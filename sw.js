@@ -1,5 +1,5 @@
 /* Service Worker — Steins & Vines */
-var CACHE_VERSION = '20260225T214151812';
+var CACHE_VERSION = '20260225T230738598';
 var STATIC_CACHE = 'sv-static-' + CACHE_VERSION;
 var IMAGES_CACHE = 'sv-images-' + CACHE_VERSION;
 var FONTS_CACHE  = 'sv-fonts-' + CACHE_VERSION;
@@ -70,8 +70,9 @@ self.addEventListener('fetch', function(event) {
 
   if (event.request.method !== 'GET') return;
 
-  // Never cache admin or batch pages
-  if (url.pathname.indexOf('admin') !== -1 || url.pathname.indexOf('batch') !== -1) return;
+  // Never cache admin or batch ASSETS (CSS/JS have ?v= cache-bust tokens; let HTTP cache handle them)
+  if ((url.pathname.indexOf('admin') !== -1 || url.pathname.indexOf('batch') !== -1) &&
+      (url.pathname.endsWith('.css') || url.pathname.endsWith('.js'))) return;
 
   // Network only for API calls
   if (url.hostname.indexOf('railway.app') !== -1 ||
