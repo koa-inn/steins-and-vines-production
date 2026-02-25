@@ -76,7 +76,7 @@ function doGet(e) {
 
   var authResult = checkAuthorization(e);
   if (!authResult.authorized) {
-    return _jsonResponse({ ok: false, error: 'unauthorized', message: authResult.message, debug: authResult.debug });
+    return _jsonResponse({ ok: false, error: 'unauthorized', message: authResult.message });
   }
 
   // Pagination parameters
@@ -354,14 +354,13 @@ function checkAuthorization(e) {
   }
 
   if (!email) {
+    // Log detail server-side only; do not expose auth internals to the caller
+    Logger.log('checkAuthorization: could not determine email. hadToken=' + !!token +
+      ', tokenLength=' + (token ? token.length : 0) +
+      ', validation=' + (tokenValidationResult || 'not attempted'));
     return {
       authorized: false,
-      message: 'Could not determine user email. Ensure you are signed in with a Google account.',
-      debug: {
-        hadToken: !!token,
-        tokenLength: token ? token.length : 0,
-        tokenValidationResult: tokenValidationResult || 'not attempted'
-      }
+      message: 'Could not determine user email. Ensure you are signed in with a Google account.'
     };
   }
 

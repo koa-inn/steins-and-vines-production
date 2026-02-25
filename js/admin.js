@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-25T14:09:11.478Z';
+  var BUILD_TIMESTAMP = '2026-02-25T14:22:42.713Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -909,7 +909,11 @@
           });
           zohoKitMap = map;
         })
-        .catch(function () { zohoKitMap = {}; })
+        .catch(function () {
+          zohoKitMap = {};
+          var banner = document.getElementById('zoho-sync-banner');
+          if (banner) banner.style.display = '';
+        })
         .then(doRender);
     } else {
       doRender();
@@ -3254,26 +3258,12 @@
       var submitBtn = document.getElementById('po-add-item-submit');
       submitBtn.disabled = true; submitBtn.textContent = 'Adding...';
 
-      fetch(mwUrl + '/api/purchase-orders/' + po.purchaseorder_id)
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          var currentPO = data.purchaseorder || {};
-          var lineItems = (currentPO.line_items || []).map(function (li) {
-            return { item_id: li.item_id, quantity: li.quantity, rate: li.rate };
-          });
-          var existing = lineItems.find(function (li) { return li.item_id === itemId; });
-          if (existing) {
-            existing.quantity += qty;
-          } else {
-            var z = zohoKitMap[sku];
-            lineItems.push({ item_id: itemId, quantity: qty, rate: z ? (z.rate || 0) : 0 });
-          }
-          return fetch(mwUrl + '/api/purchase-orders/' + po.purchaseorder_id, {
-            method: 'PUT',
-            headers: getMwHeaders(true),
-            body: JSON.stringify({ vendor_id: currentPO.vendor_id, date: currentPO.date, line_items: lineItems })
-          });
-        })
+      var z = zohoKitMap[sku];
+      fetch(mwUrl + '/api/purchase-orders/' + po.purchaseorder_id + '/add-item', {
+        method: 'POST',
+        headers: getMwHeaders(true),
+        body: JSON.stringify({ item_id: itemId, quantity: qty, rate: z ? (z.rate || 0) : 0 })
+      })
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (data.purchaseorder || data.code === 0) {
@@ -3281,7 +3271,7 @@
             closeModal();
             loadOpenPOs();
           } else {
-            throw new Error(data.message || 'Failed');
+            throw new Error(data.error || data.message || 'Failed');
           }
         })
         .catch(function (err) {
@@ -3335,7 +3325,8 @@
     var createBtn = document.getElementById('order-create-po-btn');
     if (createBtn) { createBtn.disabled = true; createBtn.textContent = 'Creating...'; }
 
-    Promise.all(vendorGroups.map(function (g) {
+    // allSettled polyfill — report per-vendor success/failure independently
+    var poPromises = vendorGroups.map(function (g) {
       var payload = {
         vendor_id: g.vendor_id,
         date: today,
@@ -3347,19 +3338,30 @@
         method: 'POST',
         headers: getMwHeaders(true),
         body: JSON.stringify(payload)
-      }).then(function (r) { return r.json(); }).then(function (data) {
-        var po = data.purchaseorder || {};
-        // Tag each staged item with the created PO number
-        g.items.forEach(function (entry) {
-          entry._po_number = po.purchaseorder_number || po.purchaseorder_id || '';
-          entry._po_id = po.purchaseorder_id || '';
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.error) throw new Error(data.error);
+          var po = data.purchaseorder || {};
+          g.items.forEach(function (entry) {
+            entry._po_number = po.purchaseorder_number || po.purchaseorder_id || '';
+            entry._po_id = po.purchaseorder_id || '';
+          });
+          return { status: 'fulfilled', vendor: g.vendor_name, po: po };
+        })
+        .catch(function (err) {
+          return { status: 'rejected', vendor: g.vendor_name, reason: err.message };
         });
-        return po;
-      });
-    })).then(function (pos) {
-      // Update staged items with PO numbers
+    });
+
+    Promise.all(poPromises).then(function (results) {
+      var succeeded = results.filter(function (r) { return r.status === 'fulfilled'; });
+      var failed = results.filter(function (r) { return r.status === 'rejected'; });
+
+      // Update staged items for successful POs only
       var order = getOrder();
       vendorGroups.forEach(function (g) {
+        if (!g.items[0] || !g.items[0]._po_number) return; // skipped = failed
         g.items.forEach(function (entry) {
           var staged = order.find(function (i) { return i.sku === entry.item.sku; });
           if (staged) { staged.po_number = entry._po_number; staged.po_id = entry._po_id; }
@@ -3367,12 +3369,15 @@
       });
       saveOrder(order);
       renderOrderTab();
-      loadOpenPOs();
-      var created = pos.filter(function (p) { return p.purchaseorder_id; }).length;
-      showToast('Created ' + created + ' PO' + (created > 1 ? 's' : '') + ' in Zoho', 'success');
-      if (createBtn) { createBtn.disabled = false; createBtn.textContent = 'Create Zoho PO(s)'; }
-    }).catch(function (err) {
-      showToast('Failed to create PO(s): ' + err.message, 'error');
+      if (succeeded.length > 0) loadOpenPOs();
+
+      if (failed.length === 0) {
+        showToast('Created ' + succeeded.length + ' PO' + (succeeded.length > 1 ? 's' : '') + ' in Zoho', 'success');
+      } else if (succeeded.length === 0) {
+        showToast('All PO creation failed. Check Zoho and retry.', 'error');
+      } else {
+        showToast(succeeded.length + ' PO(s) created. Failed: ' + failed.map(function (f) { return f.vendor; }).join(', '), 'warning');
+      }
       if (createBtn) { createBtn.disabled = false; createBtn.textContent = 'Create Zoho PO(s)'; }
     });
   }

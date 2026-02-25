@@ -77,9 +77,22 @@ app.use('/api', function (req, res, next) {
 
 var API_SECRET_KEY = process.env.API_SECRET_KEY || '';
 
+if (!API_SECRET_KEY) {
+  log.warn('');
+  log.warn('┌─────────────────────────────────────────────────────────┐');
+  log.warn('│  SECURITY WARNING: API_SECRET_KEY is not set.           │');
+  log.warn('│  All mutating /api/* endpoints (POST, PUT, DELETE) are  │');
+  log.warn('│  BLOCKED until API_SECRET_KEY is configured.            │');
+  log.warn('│  Set API_SECRET_KEY in your environment variables.      │');
+  log.warn('└─────────────────────────────────────────────────────────┘');
+  log.warn('');
+}
+
 app.use('/api', function (req, res, next) {
   if (req.method === 'GET') return next();
-  if (!API_SECRET_KEY) return next();
+  if (!API_SECRET_KEY) {
+    return res.status(503).json({ error: 'Server not configured: API_SECRET_KEY is not set. Contact your administrator.' });
+  }
   if (req.headers['x-api-key'] === API_SECRET_KEY) return next();
   res.status(403).json({ error: 'Forbidden' });
 });

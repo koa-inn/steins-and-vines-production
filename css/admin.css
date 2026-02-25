@@ -517,6 +517,32 @@ body[data-page="admin"] .content {
   cursor: default;
 }
 
+/* Zoho sync failure banner */
+.admin-sync-banner {
+  background: #7a2c2c;
+  color: #fff;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+.admin-sync-banner-dismiss {
+  margin-left: auto;
+  background: none;
+  border: 1px solid rgba(255,255,255,0.5);
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.admin-sync-banner-dismiss:hover {
+  background: rgba(255,255,255,0.15);
+}
+
 /* Purchase Orders panel */
 .po-panel {
   background: var(--cellar-surface);
