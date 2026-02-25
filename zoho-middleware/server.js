@@ -123,6 +123,7 @@ app.use('/', require('./routes/payments'));
 app.use('/', require('./routes/checkout'));
 app.use('/', require('./routes/taxes'));
 app.use('/', require('./routes/pos'));
+app.use('/', require('./routes/purchaseorders'));
 
 // ---------------------------------------------------------------------------
 // Start

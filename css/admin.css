@@ -517,6 +517,37 @@ body[data-page="admin"] .content {
   cursor: default;
 }
 
+/* Purchase Orders panel */
+.po-panel {
+  background: var(--cellar-surface);
+  border: 1px solid var(--ledger-line);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+.po-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.po-panel-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--ink-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.po-table td,
+.po-table th {
+  font-size: 0.88rem;
+}
+.admin-note {
+  color: var(--ink-tertiary);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
 .admin-inline-input {
   width: 80px;
   padding: 2px var(--sp-1);

@@ -105,6 +105,8 @@ function doRefreshProducts() {
             item.tax_name = detail.tax_name || '';
             item.tax_percentage = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
               ? detail.tax_percentage : 0;
+            item.vendor_id = detail.vendor_id || '';
+            item.vendor_name = detail.vendor_name || '';
             return item;
           })
           .catch(function (err) {

@@ -90,6 +90,21 @@ function inventoryGet(path, params) {
 }
 
 /**
+ * Proxy a POST request to the Zoho Inventory API.
+ */
+function inventoryPost(path, body) {
+  return zohoAuth.getAccessToken().then(function (token) {
+    return axios.post(ZOHO_INVENTORY_BASE + path, body, {
+      headers: { Authorization: 'Zoho-oauthtoken ' + token },
+      params: { organization_id: process.env.ZOHO_ORG_ID },
+      timeout: 15000
+    }).then(function (response) {
+      return response.data;
+    });
+  });
+}
+
+/**
  * Proxy a PUT request to the Zoho Inventory API.
  */
 function inventoryPut(path, body) {
@@ -193,6 +208,7 @@ module.exports = {
   zohoPost: zohoPost,
   zohoPut: zohoPut,
   inventoryGet: inventoryGet,
+  inventoryPost: inventoryPost,
   inventoryPut: inventoryPut,
   bookingsGet: bookingsGet,
   bookingsPost: bookingsPost,

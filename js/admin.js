@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-25T13:53:39.357Z';
+  var BUILD_TIMESTAMP = '2026-02-25T14:09:11.478Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -15,7 +15,8 @@
   // Cached sheet data
   var kitsData = [];
   var kitsHeaders = [];
-  var zohoKitMap = {}; // sku → { stock, rate } from Zoho (populated on load)
+  var zohoKitMap = {}; // sku → { stock, rate, item_id, vendor_id, vendor_name } from Zoho
+  var openPOsData = []; // cached open purchase orders from Zoho
   var ingredientsData = [];
   var ingredientsHeaders = [];
   var reservationsData = [];
@@ -900,7 +901,10 @@
           (data.items || []).forEach(function (z) {
             if (z.sku) map[z.sku] = {
               stock: z.stock_on_hand != null ? parseInt(z.stock_on_hand, 10) : null,
-              rate: z.rate != null ? parseFloat(z.rate) : null
+              rate: z.rate != null ? parseFloat(z.rate) : null,
+              item_id: z.item_id || '',
+              vendor_id: z.vendor_id || '',
+              vendor_name: z.vendor_name || ''
             };
           });
           zohoKitMap = map;
@@ -1209,6 +1213,8 @@
 
         var target = document.getElementById('tab-' + btn.getAttribute('data-tab'));
         if (target) target.classList.add('active');
+
+        if (btn.getAttribute('data-tab') === 'orders') loadOpenPOs();
       });
     });
   }
@@ -3033,6 +3039,18 @@
       }
       tr.appendChild(nameTd);
 
+      // Vendor and PO # (from zohoKitMap + stored po_number)
+      var zohoKit = item.sku && zohoKitMap.hasOwnProperty(item.sku) ? zohoKitMap[item.sku] : null;
+      appendTd(tr, zohoKit && zohoKit.vendor_name ? zohoKit.vendor_name : '');
+      var poTd = document.createElement('td');
+      if (item.po_number) {
+        var poLink = document.createElement('span');
+        poLink.textContent = item.po_number;
+        poLink.style.color = 'var(--accent)';
+        poTd.appendChild(poLink);
+      }
+      tr.appendChild(poTd);
+
       // Editable qty
       var qtyTd = document.createElement('td');
       var qtyControls = document.createElement('div');
@@ -3096,7 +3114,7 @@
     // Total row
     var totalTr = document.createElement('tr');
     totalTr.style.fontWeight = '700';
-    var colSpan = 6; // checkbox + sku + brand + name + qty + cost
+    var colSpan = 8; // checkbox + sku + brand + name + vendor + po# + qty + cost
     var spacerTd = document.createElement('td');
     spacerTd.colSpan = colSpan;
     spacerTd.style.textAlign = 'right';
@@ -3108,6 +3126,255 @@
     var emptyTd = document.createElement('td');
     totalTr.appendChild(emptyTd);
     tbody.appendChild(totalTr);
+  }
+
+  // ===== Zoho Purchase Orders =====
+
+  function getMwUrl() {
+    return (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL) ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
+  }
+
+  function getMwHeaders(mutating) {
+    var h = { 'Content-Type': 'application/json' };
+    if (mutating && typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
+      h['X-API-Key'] = SHEETS_CONFIG.MW_API_KEY;
+    }
+    return h;
+  }
+
+  function loadOpenPOs() {
+    var mwUrl = getMwUrl();
+    var listEl = document.getElementById('po-list');
+    if (!mwUrl) {
+      if (listEl) listEl.innerHTML = '<p class="admin-note">Middleware not configured.</p>';
+      return;
+    }
+    if (listEl) listEl.innerHTML = '<p class="admin-note">Loading purchase orders from Zoho...</p>';
+    fetch(mwUrl + '/api/purchase-orders?status=open')
+      .then(function (r) { return r.ok ? r.json() : { purchaseorders: [] }; })
+      .then(function (data) {
+        openPOsData = data.purchaseorders || [];
+        renderPOPanel();
+      })
+      .catch(function () {
+        if (listEl) listEl.innerHTML = '<p class="admin-note">Could not load purchase orders from Zoho.</p>';
+      });
+  }
+
+  function renderPOPanel() {
+    var listEl = document.getElementById('po-list');
+    if (!listEl) return;
+    if (openPOsData.length === 0) {
+      listEl.innerHTML = '<p class="admin-note">No open purchase orders in Zoho.</p>';
+      return;
+    }
+    var html = '<table class="admin-table po-table">';
+    html += '<thead><tr><th>PO #</th><th>Vendor</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr></thead>';
+    html += '<tbody>';
+    openPOsData.forEach(function (po) {
+      var lineCount = (po.line_items || []).length;
+      var total = po.total != null ? '$' + parseFloat(po.total).toFixed(2) : '';
+      var status = po.status ? po.status.charAt(0).toUpperCase() + po.status.slice(1) : '';
+      html += '<tr>';
+      html += '<td><strong>' + (po.purchaseorder_number || po.purchaseorder_id) + '</strong></td>';
+      html += '<td>' + (po.vendor_name || '') + '</td>';
+      html += '<td>' + (po.date || '') + '</td>';
+      html += '<td>' + lineCount + '</td>';
+      html += '<td>' + total + '</td>';
+      html += '<td>' + status + '</td>';
+      html += '<td><button type="button" class="btn-secondary admin-btn-sm po-add-items-btn" data-po-id="' + po.purchaseorder_id + '">Add Items</button></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    listEl.innerHTML = html;
+    listEl.querySelectorAll('.po-add-items-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var poId = btn.getAttribute('data-po-id');
+        var po = openPOsData.find(function (p) { return String(p.purchaseorder_id) === String(poId); });
+        if (po) openAddItemsToPOModal(po);
+      });
+    });
+  }
+
+  function openAddItemsToPOModal(po) {
+    var poLabel = po.purchaseorder_number || po.purchaseorder_id;
+    var html = '<div class="admin-modal-form">';
+    html += '<p style="margin-bottom:12px;">Adding to PO <strong>' + poLabel + '</strong>' + (po.vendor_name ? ' &mdash; ' + po.vendor_name : '') + '</p>';
+    html += '<div class="form-group"><label>Kit</label>';
+    html += '<div class="admin-kit-search-wrap" id="po-kit-wrap">';
+    html += '<input type="text" id="po-kit-search" class="admin-kit-search-input" placeholder="Type to search kits..." autocomplete="off">';
+    html += '<div class="admin-kit-search-dropdown" id="po-kit-dropdown" style="display:none;"></div>';
+    html += '<input type="hidden" id="po-kit-item-id" value="">';
+    html += '<input type="hidden" id="po-kit-sku" value="">';
+    html += '</div></div>';
+    html += '<div class="form-group"><label>Quantity</label>';
+    html += '<input type="number" id="po-item-qty" class="admin-inline-input" value="1" min="1" style="width:80px;">';
+    html += '</div>';
+    html += '<button type="button" class="btn" id="po-add-item-submit">Add to PO</button>';
+    html += '</div>';
+    openModal('Add Items to PO ' + poLabel, html);
+
+    var input = document.getElementById('po-kit-search');
+    var dropdown = document.getElementById('po-kit-dropdown');
+    var hiddenItemId = document.getElementById('po-kit-item-id');
+    var hiddenSku = document.getElementById('po-kit-sku');
+
+    input.addEventListener('input', function () {
+      var q = input.value.toLowerCase();
+      if (q.length < 2) { dropdown.style.display = 'none'; return; }
+      var matches = orderKitOptions.filter(function (opt) {
+        return opt.label.toLowerCase().indexOf(q) !== -1;
+      }).slice(0, 10);
+      if (matches.length === 0) { dropdown.style.display = 'none'; return; }
+      dropdown.innerHTML = '';
+      matches.forEach(function (opt) {
+        var div = document.createElement('div');
+        div.className = 'admin-kit-search-option';
+        div.textContent = opt.label;
+        div.addEventListener('mousedown', function (e) {
+          e.preventDefault();
+          input.value = opt.label;
+          var z = zohoKitMap[opt.sku];
+          hiddenItemId.value = z ? z.item_id : '';
+          hiddenSku.value = opt.sku;
+          dropdown.style.display = 'none';
+        });
+        dropdown.appendChild(div);
+      });
+      dropdown.style.display = '';
+    });
+
+    document.getElementById('po-add-item-submit').addEventListener('click', function () {
+      var itemId = hiddenItemId.value;
+      var sku = hiddenSku.value;
+      var qty = parseInt(document.getElementById('po-item-qty').value, 10) || 1;
+      if (!itemId) { showToast('Please select a kit', 'warning'); return; }
+      var mwUrl = getMwUrl();
+      if (!mwUrl) return;
+      var submitBtn = document.getElementById('po-add-item-submit');
+      submitBtn.disabled = true; submitBtn.textContent = 'Adding...';
+
+      fetch(mwUrl + '/api/purchase-orders/' + po.purchaseorder_id)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var currentPO = data.purchaseorder || {};
+          var lineItems = (currentPO.line_items || []).map(function (li) {
+            return { item_id: li.item_id, quantity: li.quantity, rate: li.rate };
+          });
+          var existing = lineItems.find(function (li) { return li.item_id === itemId; });
+          if (existing) {
+            existing.quantity += qty;
+          } else {
+            var z = zohoKitMap[sku];
+            lineItems.push({ item_id: itemId, quantity: qty, rate: z ? (z.rate || 0) : 0 });
+          }
+          return fetch(mwUrl + '/api/purchase-orders/' + po.purchaseorder_id, {
+            method: 'PUT',
+            headers: getMwHeaders(true),
+            body: JSON.stringify({ vendor_id: currentPO.vendor_id, date: currentPO.date, line_items: lineItems })
+          });
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.purchaseorder || data.code === 0) {
+            showToast('Added to PO ' + poLabel, 'success');
+            closeModal();
+            loadOpenPOs();
+          } else {
+            throw new Error(data.message || 'Failed');
+          }
+        })
+        .catch(function (err) {
+          showToast('Failed: ' + err.message, 'error');
+          submitBtn.disabled = false; submitBtn.textContent = 'Add to PO';
+        });
+    });
+  }
+
+  function createPOsFromOrder() {
+    var mwUrl = getMwUrl();
+    if (!mwUrl) { showToast('Middleware not configured', 'error'); return; }
+
+    var tbody = document.getElementById('order-tbody');
+    var checkedSkus = {};
+    if (tbody) {
+      tbody.querySelectorAll('.order-item-cb:checked').forEach(function (cb) {
+        checkedSkus[cb.getAttribute('data-sku')] = true;
+      });
+    }
+
+    var order = getOrder().filter(function (item) { return checkedSkus[item.sku]; });
+    if (order.length === 0) { showToast('No items selected', 'warning'); return; }
+
+    // Group by vendor
+    var byVendor = {};
+    var missing = [];
+    order.forEach(function (item) {
+      var z = zohoKitMap[item.sku];
+      if (!z || !z.vendor_id || !z.item_id) { missing.push(item.sku); return; }
+      var key = z.vendor_id;
+      if (!byVendor[key]) byVendor[key] = { vendor_id: z.vendor_id, vendor_name: z.vendor_name, items: [] };
+      byVendor[key].items.push({ item: item, z: z });
+    });
+
+    var vendorGroups = Object.keys(byVendor).map(function (k) { return byVendor[k]; });
+    if (vendorGroups.length === 0) {
+      showToast('No items have a vendor configured in Zoho. Set a preferred vendor on each item in Zoho Inventory.', 'warning');
+      return;
+    }
+
+    var today = new Date().toISOString().slice(0, 10);
+    var msg = 'Create ' + vendorGroups.length + ' purchase order' + (vendorGroups.length > 1 ? 's' : '') + ' in Zoho?\n\n';
+    vendorGroups.forEach(function (g) {
+      msg += '\u2022 ' + g.vendor_name + ': ' + g.items.length + ' item(s)\n';
+    });
+    if (missing.length > 0) msg += '\nSkipping ' + missing.length + ' item(s) with no vendor/item ID in Zoho.';
+
+    if (!confirm(msg)) return;
+
+    var createBtn = document.getElementById('order-create-po-btn');
+    if (createBtn) { createBtn.disabled = true; createBtn.textContent = 'Creating...'; }
+
+    Promise.all(vendorGroups.map(function (g) {
+      var payload = {
+        vendor_id: g.vendor_id,
+        date: today,
+        line_items: g.items.map(function (entry) {
+          return { item_id: entry.z.item_id, quantity: entry.item.qty, rate: entry.z.rate || 0 };
+        })
+      };
+      return fetch(mwUrl + '/api/purchase-orders', {
+        method: 'POST',
+        headers: getMwHeaders(true),
+        body: JSON.stringify(payload)
+      }).then(function (r) { return r.json(); }).then(function (data) {
+        var po = data.purchaseorder || {};
+        // Tag each staged item with the created PO number
+        g.items.forEach(function (entry) {
+          entry._po_number = po.purchaseorder_number || po.purchaseorder_id || '';
+          entry._po_id = po.purchaseorder_id || '';
+        });
+        return po;
+      });
+    })).then(function (pos) {
+      // Update staged items with PO numbers
+      var order = getOrder();
+      vendorGroups.forEach(function (g) {
+        g.items.forEach(function (entry) {
+          var staged = order.find(function (i) { return i.sku === entry.item.sku; });
+          if (staged) { staged.po_number = entry._po_number; staged.po_id = entry._po_id; }
+        });
+      });
+      saveOrder(order);
+      renderOrderTab();
+      loadOpenPOs();
+      var created = pos.filter(function (p) { return p.purchaseorder_id; }).length;
+      showToast('Created ' + created + ' PO' + (created > 1 ? 's' : '') + ' in Zoho', 'success');
+      if (createBtn) { createBtn.disabled = false; createBtn.textContent = 'Create Zoho PO(s)'; }
+    }).catch(function (err) {
+      showToast('Failed to create PO(s): ' + err.message, 'error');
+      if (createBtn) { createBtn.disabled = false; createBtn.textContent = 'Create Zoho PO(s)'; }
+    });
   }
 
   var orderKitOptions = [];
@@ -3388,6 +3655,12 @@
 
     var copyBtn = document.getElementById('order-copy-btn');
     if (copyBtn) copyBtn.addEventListener('click', copyOrderToClipboard);
+
+    var createPoBtn = document.getElementById('order-create-po-btn');
+    if (createPoBtn) createPoBtn.addEventListener('click', createPOsFromOrder);
+
+    var poRefreshBtn = document.getElementById('po-refresh-btn');
+    if (poRefreshBtn) poRefreshBtn.addEventListener('click', loadOpenPOs);
 
     var acceptBtn = document.getElementById('order-accept-btn');
     if (acceptBtn) acceptBtn.addEventListener('click', acceptDelivery);
