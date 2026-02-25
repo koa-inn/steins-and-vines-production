@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-25T13:23:28.772Z';
+  var BUILD_TIMESTAMP = '2026-02-25T13:53:39.357Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -15,7 +15,7 @@
   // Cached sheet data
   var kitsData = [];
   var kitsHeaders = [];
-  var zohoStockMap = {}; // sku → stock_on_hand from Zoho (populated on load)
+  var zohoKitMap = {}; // sku → { stock, rate } from Zoho (populated on load)
   var ingredientsData = [];
   var ingredientsHeaders = [];
   var reservationsData = [];
@@ -257,8 +257,8 @@
     var lowStock = summary ? (summary.lowStockKits || []).length : 0;
     if (!summary) {
       kitsData.forEach(function (kit) {
-        var zohoStock = (kit.sku && zohoStockMap.hasOwnProperty(kit.sku)) ? zohoStockMap[kit.sku] : null;
-        var stock = zohoStock !== null ? zohoStock : (parseInt(kit.stock, 10) || 0);
+        var zohoEntry = (kit.sku && zohoKitMap.hasOwnProperty(kit.sku)) ? zohoKitMap[kit.sku] : null;
+        var stock = zohoEntry ? (zohoEntry.stock !== null ? zohoEntry.stock : (parseInt(kit.stock, 10) || 0)) : (parseInt(kit.stock, 10) || 0);
         var onHold = parseInt(kit.on_hold, 10) || 0;
         if (kit.hide !== 'true' && kit.hide !== 'TRUE' && (stock - onHold) <= 3) lowStock++;
       });
@@ -898,11 +898,14 @@
         .then(function (data) {
           var map = {};
           (data.items || []).forEach(function (z) {
-            if (z.sku) map[z.sku] = z.stock_on_hand != null ? parseInt(z.stock_on_hand, 10) : null;
+            if (z.sku) map[z.sku] = {
+              stock: z.stock_on_hand != null ? parseInt(z.stock_on_hand, 10) : null,
+              rate: z.rate != null ? parseFloat(z.rate) : null
+            };
           });
-          zohoStockMap = map;
+          zohoKitMap = map;
         })
-        .catch(function () { zohoStockMap = {}; })
+        .catch(function () { zohoKitMap = {}; })
         .then(doRender);
     } else {
       doRender();
@@ -1044,8 +1047,8 @@
     var lowStockThreshold = 3; // Alert when stock <= this number
     var lowStockItems = [];
     kitsData.forEach(function (kit) {
-      var zohoStock = (kit.sku && zohoStockMap.hasOwnProperty(kit.sku)) ? zohoStockMap[kit.sku] : null;
-      var stock = zohoStock !== null ? zohoStock : (parseInt(kit.stock, 10) || 0);
+      var zohoEntry = (kit.sku && zohoKitMap.hasOwnProperty(kit.sku)) ? zohoKitMap[kit.sku] : null;
+      var stock = zohoEntry ? (zohoEntry.stock !== null ? zohoEntry.stock : (parseInt(kit.stock, 10) || 0)) : (parseInt(kit.stock, 10) || 0);
       var onHold = parseInt(kit.on_hold, 10) || 0;
       var available = stock - onHold;
       // Only check items that are not hidden and have been stocked before
@@ -2151,8 +2154,8 @@
 
     var filtered = kitsData.filter(function (k) {
       if (brandFilter !== 'all' && k.brand !== brandFilter) return false;
-      var zohoStock = (k.sku && zohoStockMap.hasOwnProperty(k.sku)) ? zohoStockMap[k.sku] : null;
-      var stock = zohoStock !== null ? zohoStock : (parseInt(k.stock, 10) || 0);
+      var zohoEntry = (k.sku && zohoKitMap.hasOwnProperty(k.sku)) ? zohoKitMap[k.sku] : null;
+      var stock = zohoEntry ? (zohoEntry.stock !== null ? zohoEntry.stock : (parseInt(k.stock, 10) || 0)) : (parseInt(k.stock, 10) || 0);
       var available = stock - (parseInt(k.on_hold, 10) || 0);
       if (stockFilter === 'in' && available <= 0) return false;
       if (stockFilter === 'low' && (available <= 0 || available > 5)) return false;
@@ -2168,10 +2171,10 @@
     filtered.sort(function (a, b) {
       var aVal, bVal;
       if (kitSortCol === '_available') {
-        var aZoho = (a.sku && zohoStockMap.hasOwnProperty(a.sku)) ? zohoStockMap[a.sku] : null;
-        var bZoho = (b.sku && zohoStockMap.hasOwnProperty(b.sku)) ? zohoStockMap[b.sku] : null;
-        aVal = (aZoho !== null ? aZoho : (parseInt(a.stock, 10) || 0)) - (parseInt(a.on_hold, 10) || 0);
-        bVal = (bZoho !== null ? bZoho : (parseInt(b.stock, 10) || 0)) - (parseInt(b.on_hold, 10) || 0);
+        var aZoho = (a.sku && zohoKitMap.hasOwnProperty(a.sku)) ? zohoKitMap[a.sku] : null;
+        var bZoho = (b.sku && zohoKitMap.hasOwnProperty(b.sku)) ? zohoKitMap[b.sku] : null;
+        aVal = (aZoho && aZoho.stock !== null ? aZoho.stock : (parseInt(a.stock, 10) || 0)) - (parseInt(a.on_hold, 10) || 0);
+        bVal = (bZoho && bZoho.stock !== null ? bZoho.stock : (parseInt(b.stock, 10) || 0)) - (parseInt(b.on_hold, 10) || 0);
       } else {
         aVal = a[kitSortCol] || '';
         bVal = b[kitSortCol] || '';
@@ -2216,9 +2219,12 @@
       appendTd(tr, kit.type || '');
       appendTd(tr, kit.tint || '');
 
+      // Zoho data for this kit
+      var zohoEntry = (kit.sku && zohoKitMap.hasOwnProperty(kit.sku)) ? zohoKitMap[kit.sku] : null;
+
       // Stock cell — read-only from Zoho when available, otherwise editable from Sheets
       var stockTd = document.createElement('td');
-      var zohoStock = (kit.sku && zohoStockMap.hasOwnProperty(kit.sku)) ? zohoStockMap[kit.sku] : null;
+      var zohoStock = zohoEntry ? zohoEntry.stock : null;
       var stockDisplay = zohoStock !== null ? zohoStock : (parseInt(kit.stock, 10) || 0);
       stockTd.textContent = stockDisplay;
       if (zohoStock === null) {
@@ -2259,8 +2265,23 @@
       availTd.appendChild(availBadge);
       tr.appendChild(availTd);
 
-      appendTd(tr, kit.retail_instore ? '$' + String(kit.retail_instore).replace('$', '') : '');
-      appendTd(tr, kit.retail_kit ? '$' + String(kit.retail_kit).replace('$', '') : '');
+      // Price cells — read-only from Zoho (rate = kit price, rate+50 = in-store) when available
+      var zohoRate = zohoEntry ? zohoEntry.rate : null;
+      if (zohoRate !== null) {
+        var instoreTd = document.createElement('td');
+        instoreTd.textContent = '$' + (zohoRate + 50).toFixed(2);
+        instoreTd.className = 'admin-cell-readonly';
+        instoreTd.title = 'Price synced from Zoho Inventory';
+        tr.appendChild(instoreTd);
+        var kitTd = document.createElement('td');
+        kitTd.textContent = '$' + zohoRate.toFixed(2);
+        kitTd.className = 'admin-cell-readonly';
+        kitTd.title = 'Price synced from Zoho Inventory';
+        tr.appendChild(kitTd);
+      } else {
+        appendTd(tr, kit.retail_instore ? '$' + String(kit.retail_instore).replace('$', '') : '');
+        appendTd(tr, kit.retail_kit ? '$' + String(kit.retail_kit).replace('$', '') : '');
+      }
 
       // Actions column
       var actionsTd = document.createElement('td');
