@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-25T14:22:42.713Z';
+  var BUILD_TIMESTAMP = '2026-02-25T18:23:38.032Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -7274,7 +7274,9 @@
     h += '<span class="lbl">Start Date:</span><span class="val">' + (isBlank ? '<span class="write-line"></span>' : escapeHTML(String(b.start_date || '').substring(0, 10))) + '</span>';
     var loc = isBlank ? '<span class="write-line"></span>' : escapeHTML([b.shelf_id, b.bin_id, b.vessel_id].filter(Boolean).join(' - ') || '—');
     h += '<span class="lbl">Primary Location:</span><span class="val">' + loc + '</span>';
-    h += '<span class="lbl">Secondary Vessel:</span><span class="val"><span class="write-line"></span></span>';
+    h += '<span class="lbl">Transfer 1:</span><span class="val"><span class="write-line"></span></span>';
+    h += '<span class="lbl">Transfer 2:</span><span class="val"><span class="write-line"></span></span>';
+    h += '<span class="lbl">Transfer 3:</span><span class="val"><span class="write-line"></span></span>';
     h += '</div>';
 
     // Schedule
