@@ -260,6 +260,9 @@ function doPost(e) {
       case 'update_ferm_schedule':
         return _jsonResponse(updateFermSchedule(payload, authResult.email));
 
+      case 'propagate_ferm_schedule':
+        return _jsonResponse(propagateFermSchedule(payload, authResult.email));
+
       case 'delete_ferm_schedule':
         return _jsonResponse(deleteFermSchedule(payload));
 
@@ -2422,6 +2425,125 @@ function updateFermSchedule(payload, userEmail) {
   if (luCol !== -1) sheet.getRange(row, luCol + 1).setValue(now);
 
   return { ok: true, message: 'Schedule updated' };
+}
+
+// --- POST: Propagate Ferm Schedule Template to Active Batches ---
+
+function propagateFermSchedule(payload, userEmail) {
+  if (!payload.schedule_id || !payload.steps) {
+    return { ok: false, error: 'missing_fields', message: 'schedule_id and steps are required' };
+  }
+
+  var steps;
+  try {
+    steps = typeof payload.steps === 'string' ? JSON.parse(payload.steps) : payload.steps;
+  } catch (e) {
+    return { ok: false, error: 'invalid_data', message: 'Invalid steps JSON' };
+  }
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var tasksSheet = ss.getSheetByName(BATCH_TASKS_SHEET_NAME);
+  if (!tasksSheet) {
+    return { ok: false, error: 'sheet_not_found', message: 'BatchTasks sheet not found' };
+  }
+
+  // Find all active batches using this schedule
+  var allBatches = sheetToObjects(BATCHES_SHEET_NAME);
+  var activeBatches = allBatches.filter(function (b) {
+    if (String(b.schedule_id) !== String(payload.schedule_id)) return false;
+    var s = String(b.status || '').toLowerCase();
+    return s === 'primary' || s === 'secondary';
+  });
+
+  if (activeBatches.length === 0) {
+    return { ok: true, batches_updated: 0, tasks_updated: 0, tasks_created: 0, tasks_removed: 0, message: 'No active batches use this template' };
+  }
+
+  var now = new Date().toISOString();
+  var tHeaders = tasksSheet.getDataRange().getValues()[0];
+  var titleCol = tHeaders.indexOf('title');
+  var descCol  = tHeaders.indexOf('description');
+  var dayCol   = tHeaders.indexOf('day_offset');
+  var dateCol  = tHeaders.indexOf('due_date');
+  var luCol    = tHeaders.indexOf('last_updated');
+
+  var totalUpdated = 0, totalCreated = 0, totalRemoved = 0;
+  var allTasks = sheetToObjects(BATCH_TASKS_SHEET_NAME);
+
+  activeBatches.forEach(function (batch) {
+    var startDate = toDateOnly(batch.start_date);
+    var batchId   = String(batch.batch_id);
+
+    // Get this batch's tasks
+    var batchTasks = allTasks.filter(function (t) { return String(t.batch_id) === batchId; });
+
+    // Index pending tasks by step_number (skip completed)
+    var pendingByStep = {};
+    batchTasks.forEach(function (t) {
+      if (String(t.completed).toUpperCase() !== 'TRUE') {
+        pendingByStep[String(t.step_number)] = t;
+      }
+    });
+
+    // Track which step numbers the new template has
+    var newStepNums = {};
+
+    steps.forEach(function (step) {
+      var stepNum = String(step.step_number);
+      newStepNums[stepNum] = true;
+      var existing = pendingByStep[stepNum];
+
+      if (existing) {
+        // Update pending task in place
+        var dueDate = calculateDueDate(startDate, step.day_offset);
+        if (titleCol !== -1) tasksSheet.getRange(existing._row, titleCol + 1).setValue(sanitizeInput(step.title || ''));
+        if (descCol  !== -1) tasksSheet.getRange(existing._row, descCol  + 1).setValue(sanitizeInput(step.description || ''));
+        if (dayCol   !== -1) tasksSheet.getRange(existing._row, dayCol   + 1).setValue(step.day_offset);
+        if (dateCol  !== -1) tasksSheet.getRange(existing._row, dateCol  + 1).setValue(dueDate);
+        if (luCol    !== -1) tasksSheet.getRange(existing._row, luCol    + 1).setValue(now);
+        totalUpdated++;
+      } else {
+        // Add missing step as a new task
+        var taskId   = generateNextId(BATCH_TASKS_SHEET_NAME, 'BT-', 6);
+        var dueDate2 = calculateDueDate(startDate, step.day_offset);
+        tasksSheet.appendRow([
+          taskId, batchId, step.step_number,
+          sanitizeInput(step.title || ''), sanitizeInput(step.description || ''),
+          step.day_offset, dueDate2,
+          step.is_packaging ? 'TRUE' : 'FALSE',
+          step.is_transfer  ? 'TRUE' : 'FALSE',
+          'FALSE', '', '', '', now
+        ]);
+        // Refresh allTasks cache entry so generateNextId doesn't duplicate
+        allTasks.push({ task_id: taskId, batch_id: batchId, step_number: step.step_number, completed: 'FALSE' });
+        totalCreated++;
+      }
+    });
+
+    // Remove pending tasks whose step no longer exists in the template
+    var rowsToRemove = [];
+    batchTasks.forEach(function (t) {
+      if (String(t.completed).toUpperCase() !== 'TRUE' && !newStepNums[String(t.step_number)]) {
+        rowsToRemove.push(t._row);
+        totalRemoved++;
+      }
+    });
+    rowsToRemove.sort(function (a, b) { return b - a; });
+    rowsToRemove.forEach(function (r) { tasksSheet.deleteRow(r); });
+
+    // After deletes, row numbers shift — refresh allTasks for next iteration
+    if (rowsToRemove.length > 0) {
+      allTasks = sheetToObjects(BATCH_TASKS_SHEET_NAME);
+    }
+  });
+
+  return {
+    ok: true,
+    batches_updated: activeBatches.length,
+    tasks_updated: totalUpdated,
+    tasks_created: totalCreated,
+    tasks_removed: totalRemoved
+  };
 }
 
 // --- POST: Delete (soft) Fermentation Schedule ---

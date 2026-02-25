@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-25T00:11:39.161Z';
+  var BUILD_TIMESTAMP = '2026-02-25T00:16:00.809Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -6476,6 +6476,31 @@
           showToast('Schedule ' + (isEdit ? 'updated' : 'created'), 'success');
           closeModal();
           loadScheduleTemplates();
+
+          if (isEdit) {
+            // Count active batches using this template
+            var affectedBatches = batchesData.filter(function (b) {
+              var s = (b.status || '').toLowerCase();
+              return String(b.schedule_id) === String(existing.schedule_id) && (s === 'primary' || s === 'secondary');
+            });
+            if (affectedBatches.length > 0) {
+              showConfirm(
+                'Apply template changes to ' + affectedBatches.length + ' active batch' + (affectedBatches.length === 1 ? '' : 'es') + '? Completed tasks will not be changed.',
+                function () {
+                  adminApiPost('propagate_ferm_schedule', { schedule_id: existing.schedule_id, steps: steps })
+                    .then(function (r) {
+                      var msg = 'Propagated to ' + r.batches_updated + ' batch' + (r.batches_updated === 1 ? '' : 'es');
+                      if (r.tasks_updated) msg += ', ' + r.tasks_updated + ' updated';
+                      if (r.tasks_created) msg += ', ' + r.tasks_created + ' added';
+                      if (r.tasks_removed) msg += ', ' + r.tasks_removed + ' removed';
+                      showToast(msg, 'success');
+                      loadBatchesData();
+                    })
+                    .catch(function (err) { showToast('Propagation failed: ' + err.message, 'error'); });
+                }
+              );
+            }
+          }
         })
         .catch(function (err) {
           schedSubmitBtn.disabled = false;
