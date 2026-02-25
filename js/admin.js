@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-24T19:27:37.032Z';
+  var BUILD_TIMESTAMP = '2026-02-25T00:11:39.161Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -5046,9 +5046,13 @@
 
   function openBatchDetail(batchId) {
     openModal('Loading...', '<p>Loading batch details...</p>');
-    adminApiGet('get_batch', { batch_id: batchId })
-      .then(function (result) {
-        renderBatchDetailModal(result.data);
+    var batchPromise = adminApiGet('get_batch', { batch_id: batchId });
+    var vesselsPromise = vesselsData
+      ? Promise.resolve()
+      : new Promise(function (resolve) { loadVesselsData(resolve); });
+    Promise.all([batchPromise, vesselsPromise])
+      .then(function (results) {
+        renderBatchDetailModal(results[0].data);
       })
       .catch(function (err) {
         openModal('Error', '<p>Failed to load batch: ' + err.message + '</p>');
