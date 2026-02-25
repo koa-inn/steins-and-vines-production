@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-25T18:23:38.032Z';
+  var BUILD_TIMESTAMP = '2026-02-25T18:49:56.914Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -7068,7 +7068,7 @@
       else groups.later.tasks.push(t);
     });
 
-    var html = '';
+    var html = '<div id="upcoming-save-bar-top" style="display:none;padding:0.5rem 0;text-align:right;"><button type="button" class="btn admin-btn-sm" id="upcoming-save-btn-top">Save Tasks</button></div>';
     ['overdue', 'today', 'tomorrow', 'thisWeek', 'later', 'tbd'].forEach(function (key) {
       var g = groups[key];
       if (g.tasks.length === 0) return;
@@ -7091,11 +7091,17 @@
 
     var upcomingPendingChanges = {};
     function updateUpcomingSaveBtn() {
+      var count = Object.keys(upcomingPendingChanges).length;
+      var label = 'Save Tasks (' + count + ')';
+      var show = count > 0;
       var bar = document.getElementById('upcoming-save-bar');
       var btn = document.getElementById('upcoming-save-btn');
-      var count = Object.keys(upcomingPendingChanges).length;
-      if (bar) bar.style.display = count > 0 ? '' : 'none';
-      if (btn) btn.textContent = 'Save Tasks (' + count + ')';
+      if (bar) bar.style.display = show ? '' : 'none';
+      if (btn) btn.textContent = label;
+      var barTop = document.getElementById('upcoming-save-bar-top');
+      var btnTop = document.getElementById('upcoming-save-btn-top');
+      if (barTop) barTop.style.display = show ? '' : 'none';
+      if (btnTop) btnTop.textContent = label;
     }
     container.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
       cb.addEventListener('change', function () {
@@ -7110,13 +7116,13 @@
         updateUpcomingSaveBtn();
       });
     });
-    var upSaveBtn = document.getElementById('upcoming-save-btn');
-    if (upSaveBtn) upSaveBtn.addEventListener('click', function () {
+    function doUpcomingSave() {
       var tasksArr = Object.keys(upcomingPendingChanges).map(function (id) {
         return { task_id: id, updates: { completed: true } };
       });
-      upSaveBtn.disabled = true;
-      upSaveBtn.textContent = 'Saving...';
+      [document.getElementById('upcoming-save-btn'), document.getElementById('upcoming-save-btn-top')].forEach(function (b) {
+        if (b) { b.disabled = true; b.textContent = 'Saving...'; }
+      });
       adminApiPost('bulk_update_batch_tasks', { tasks: tasksArr })
         .then(function () {
           showToast(tasksArr.length + ' task' + (tasksArr.length !== 1 ? 's' : '') + ' updated', 'success');
@@ -7124,10 +7130,16 @@
         })
         .catch(function (err) {
           showToast('Failed: ' + err.message, 'error');
-          upSaveBtn.disabled = false;
+          [document.getElementById('upcoming-save-btn'), document.getElementById('upcoming-save-btn-top')].forEach(function (b) {
+            if (b) b.disabled = false;
+          });
           updateUpcomingSaveBtn();
         });
-    });
+    }
+    var upSaveBtn = document.getElementById('upcoming-save-btn');
+    if (upSaveBtn) upSaveBtn.addEventListener('click', doUpcomingSave);
+    var upSaveBtnTop = document.getElementById('upcoming-save-btn-top');
+    if (upSaveBtnTop) upSaveBtnTop.addEventListener('click', doUpcomingSave);
 
     // Batch detail links
     container.querySelectorAll('.upcoming-batch-link').forEach(function (link) {
