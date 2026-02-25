@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-25T18:49:56.914Z';
+  var BUILD_TIMESTAMP = '2026-02-25T19:01:46.841Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -7075,8 +7075,17 @@
       html += '<div class="upcoming-group">';
       html += '<h3 class="upcoming-group-label' + (key === 'overdue' ? ' upcoming-group-label--overdue' : '') + '">' + g.label + ' (' + g.tasks.length + ')</h3>';
       g.tasks.forEach(function (t) {
+        var isXfer = String(t.is_transfer).toUpperCase() === 'TRUE';
+        var loc = [t.shelf_id, t.bin_id, t.vessel_id].filter(Boolean).join(' - ');
         html += '<div class="upcoming-task-row">';
-        html += '<label><input type="checkbox" data-task-id="' + t.task_id + '" data-batch-id="' + t.batch_id + '"> ';
+        html += '<label><input type="checkbox"'
+          + ' data-task-id="' + escapeHTML(t.task_id) + '"'
+          + ' data-batch-id="' + escapeHTML(t.batch_id) + '"'
+          + ' data-is-transfer="' + (isXfer ? '1' : '') + '"'
+          + ' data-title="' + escapeHTML(t.title) + '"'
+          + ' data-product="' + escapeHTML(t.product_name || '') + '"'
+          + ' data-loc="' + escapeHTML(loc) + '"'
+          + '> ';
         html += '<strong>' + escapeHTML(t.title) + '</strong></label>';
         html += '<a href="#" class="upcoming-task-meta upcoming-batch-link" data-batch-id="' + escapeHTML(t.batch_id) + '">' + escapeHTML(t.batch_id) + ' — ' + escapeHTML(t.product_name || '') + '</a>';
         html += '<span class="upcoming-task-loc">' + [t.shelf_id, t.bin_id, t.vessel_id].filter(Boolean).join(' - ') + '</span>';
@@ -7109,7 +7118,14 @@
         if (!cb.checked) {
           delete upcomingPendingChanges[taskId];
         } else {
-          upcomingPendingChanges[taskId] = true;
+          upcomingPendingChanges[taskId] = {
+            task_id: taskId,
+            batch_id: cb.getAttribute('data-batch-id'),
+            is_transfer: cb.getAttribute('data-is-transfer') === '1',
+            title: cb.getAttribute('data-title'),
+            product: cb.getAttribute('data-product'),
+            loc: cb.getAttribute('data-loc')
+          };
         }
         var row = cb.closest('.upcoming-task-row');
         if (row) row.classList.toggle('upcoming-task-row--pending', cb.checked);
@@ -7117,24 +7133,84 @@
       });
     });
     function doUpcomingSave() {
-      var tasksArr = Object.keys(upcomingPendingChanges).map(function (id) {
-        return { task_id: id, updates: { completed: true } };
+      var tasks = Object.keys(upcomingPendingChanges).map(function (k) { return upcomingPendingChanges[k]; });
+      var transferTasks = tasks.filter(function (t) { return t.is_transfer; });
+
+      var mHtml = '<div class="upcoming-confirm-list">';
+      tasks.forEach(function (t) {
+        var uid = t.task_id.replace(/[^a-z0-9]/gi, '_');
+        mHtml += '<div class="upcoming-confirm-item' + (t.is_transfer ? ' upcoming-confirm-item--transfer' : '') + '">';
+        mHtml += '<div class="upcoming-confirm-task-name"><strong>' + escapeHTML(t.title) + '</strong>';
+        if (t.is_transfer) mHtml += ' <span class="batch-task-badge batch-task-badge--transfer">Transfer</span>';
+        mHtml += '</div>';
+        mHtml += '<div class="upcoming-confirm-task-meta">' + escapeHTML(t.batch_id) + (t.product ? ' \u2014 ' + escapeHTML(t.product) : '') + (t.loc ? ' \u00b7 ' + escapeHTML(t.loc) : '') + '</div>';
+        if (t.is_transfer) {
+          mHtml += '<div class="form-group-row upcoming-transfer-fields">';
+          mHtml += '<div style="flex:2"><label style="font-size:11px;display:block;margin-bottom:2px;">Transfer to Vessel</label>';
+          mHtml += '<div class="admin-kit-search-wrap" id="xfer-vessel-wrap-' + uid + '">';
+          mHtml += '<input type="text" id="xfer-vessel-search-' + uid + '" class="admin-inline-input" placeholder="Search vessels\u2026" autocomplete="off">';
+          mHtml += '<div class="admin-kit-search-dropdown" id="xfer-vessel-dropdown-' + uid + '" style="display:none;"></div>';
+          mHtml += '<input type="hidden" id="xfer-vessel-' + uid + '" value=""></div></div>';
+          mHtml += '<div><label style="font-size:11px;display:block;margin-bottom:2px;">Shelf</label><input type="text" id="xfer-shelf-' + uid + '" class="admin-inline-input" placeholder="A"></div>';
+          mHtml += '<div><label style="font-size:11px;display:block;margin-bottom:2px;">Bin</label><input type="text" id="xfer-bin-' + uid + '" class="admin-inline-input" placeholder="01"></div>';
+          mHtml += '</div>';
+        }
+        mHtml += '</div>';
       });
-      [document.getElementById('upcoming-save-btn'), document.getElementById('upcoming-save-btn-top')].forEach(function (b) {
-        if (b) { b.disabled = true; b.textContent = 'Saving...'; }
+      mHtml += '</div>';
+      mHtml += '<div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">';
+      mHtml += '<button type="button" class="btn" id="upcoming-confirm-save-btn">Mark Complete</button>';
+      mHtml += '<button type="button" class="btn-secondary" id="upcoming-confirm-cancel-btn">Cancel</button>';
+      mHtml += '</div>';
+
+      openModal('Confirm ' + tasks.length + ' task' + (tasks.length !== 1 ? 's' : '') + ' complete', mHtml);
+
+      // Bind vessel search / shelf / bin for each transfer task
+      transferTasks.forEach(function (t) {
+        var uid = t.task_id.replace(/[^a-z0-9]/gi, '_');
+        var vInput = document.getElementById('xfer-vessel-search-' + uid);
+        var vDropdown = document.getElementById('xfer-vessel-dropdown-' + uid);
+        var vHidden = document.getElementById('xfer-vessel-' + uid);
+        if (vInput && vDropdown && vHidden) bindVesselSearch(vInput, vDropdown, vHidden, '');
+        var shelfEl = document.getElementById('xfer-shelf-' + uid);
+        var binEl = document.getElementById('xfer-bin-' + uid);
+        if (shelfEl) bindShelfInput(shelfEl);
+        if (binEl) bindBinInput(binEl);
       });
-      adminApiPost('bulk_update_batch_tasks', { tasks: tasksArr })
-        .then(function () {
-          showToast(tasksArr.length + ' task' + (tasksArr.length !== 1 ? 's' : '') + ' updated', 'success');
-          loadUpcomingTasks();
-        })
-        .catch(function (err) {
-          showToast('Failed: ' + err.message, 'error');
-          [document.getElementById('upcoming-save-btn'), document.getElementById('upcoming-save-btn-top')].forEach(function (b) {
-            if (b) b.disabled = false;
-          });
-          updateUpcomingSaveBtn();
+
+      var cancelBtn = document.getElementById('upcoming-confirm-cancel-btn');
+      if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+      var confirmBtn = document.getElementById('upcoming-confirm-save-btn');
+      if (confirmBtn) confirmBtn.addEventListener('click', function () {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Saving\u2026';
+
+        var apiCalls = tasks.map(function (t) {
+          var payload = { task_id: t.task_id, updates: { completed: true } };
+          if (t.is_transfer) {
+            var uid = t.task_id.replace(/[^a-z0-9]/gi, '_');
+            var vesselId = (document.getElementById('xfer-vessel-' + uid) || {}).value || '';
+            var shelfId = (document.getElementById('xfer-shelf-' + uid) || {}).value || '';
+            var binId = (document.getElementById('xfer-bin-' + uid) || {}).value || '';
+            if (vesselId) payload.transfer_location = { vessel_id: vesselId, shelf_id: shelfId, bin_id: binId };
+          }
+          return adminApiPost('update_batch_task', payload);
         });
+
+        Promise.all(apiCalls)
+          .then(function () {
+            closeModal();
+            showToast(tasks.length + ' task' + (tasks.length !== 1 ? 's' : '') + ' updated', 'success');
+            if (transferTasks.length > 0) vesselsData = null;
+            loadUpcomingTasks();
+          })
+          .catch(function (err) {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Mark Complete';
+            showToast('Failed: ' + err.message, 'error');
+          });
+      });
     }
     var upSaveBtn = document.getElementById('upcoming-save-btn');
     if (upSaveBtn) upSaveBtn.addEventListener('click', doUpcomingSave);

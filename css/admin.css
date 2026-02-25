@@ -2038,6 +2038,14 @@ body[data-page="admin"] .content {
 .upcoming-task-row--pending { opacity: 0.55; }
 .upcoming-task-row--pending label strong { text-decoration: line-through; }
 
+/* Upcoming tasks — save confirmation modal */
+.upcoming-confirm-list { display: flex; flex-direction: column; gap: 0.6rem; max-height: 60vh; overflow-y: auto; }
+.upcoming-confirm-item { background: var(--cellar-bg, #f9f7f3); border: 1px solid var(--ledger-line); border-radius: 4px; padding: 0.5rem 0.6rem; }
+.upcoming-confirm-item--transfer { border-left: 3px solid #1565c0; }
+.upcoming-confirm-task-name { font-size: 0.9rem; }
+.upcoming-confirm-task-meta { font-size: 0.78rem; color: #666; margin-top: 1px; }
+.upcoming-transfer-fields { margin-top: 6px; gap: 0.4rem; }
+
 /* Schedule Templates */
 .schedules-list { display: grid; gap: 0.75rem; }
 .schedule-card {
