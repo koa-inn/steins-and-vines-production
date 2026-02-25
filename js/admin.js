@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-25T21:08:21.369Z';
+  var BUILD_TIMESTAMP = '2026-02-25T21:15:19.123Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8097,7 +8097,35 @@
           });
         }, 300);
       });
+
+      // When the soft keyboard appears on iPad the page may not scroll
+      // automatically to reveal the focused input. Scroll it into view
+      // with a short delay so the keyboard animation has finished.
+      searchInput.addEventListener('focus', function () {
+        var el = searchInput;
+        setTimeout(function () {
+          if (el.scrollIntoView) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }, 350);
+      });
     }
+
+    // Scroll any new-customer form input into view on focus so the iOS
+    // soft keyboard does not hide the active field.
+    var newFormInputIds = ['kiosk-new-name', 'kiosk-new-email', 'kiosk-new-phone'];
+    newFormInputIds.forEach(function (inputId) {
+      var el = document.getElementById(inputId);
+      if (!el) return;
+      el.addEventListener('focus', function () {
+        var target = el;
+        setTimeout(function () {
+          if (target.scrollIntoView) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }, 350);
+      });
+    });
   }
 
   function kioskProceedToPayment() {

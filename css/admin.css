@@ -2170,7 +2170,19 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   display: grid;
   grid-template-columns: 1fr 340px;
   gap: 1rem;
-  min-height: 600px;
+  /* Use viewport height so both panes fill the screen without relying on
+     page-level scroll. Accounts for the admin shell bar (~52px), tab nav
+     (~48px), and terminal status bar (~36px). */
+  height: calc(100vh - 160px);
+  min-height: 480px;
+}
+
+/* Product pane: fills its grid cell and scrolls internally */
+.kiosk-product-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* required for flex children to scroll inside a flex parent */
+  overflow: hidden;
 }
 
 /* Search + filter bar */
@@ -2179,46 +2191,65 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   gap: 0.5rem;
   align-items: center;
   margin-bottom: 0.75rem;
+  flex-shrink: 0;
 }
 
+/* Input font-size must be ≥16px to prevent iOS Safari auto-zoom on focus */
 .kiosk-search-input {
   flex: 1;
   min-width: 0;
   padding: 0.65rem 0.75rem;
-  font-size: 1rem;
+  font-size: 1rem; /* 16px — meets iOS no-zoom threshold */
   border: 1px solid var(--ledger-emphasis);
   border-radius: 6px;
   background: var(--cellar-raised);
   color: var(--ink-primary);
   outline: none;
   -webkit-appearance: none;
+  /* Minimum 44pt tap height (44px ≈ 0.65+0.65 padding + line-height) */
+  min-height: 44px;
 }
 .kiosk-search-input:focus { border-color: var(--barrel); box-shadow: 0 0 0 2px rgba(119,70,45,0.15); }
 
+/* font-size 1rem and min-height 44px prevent iOS zoom on the select */
 .kiosk-category-select {
   padding: 0.65rem 0.5rem;
-  font-size: 0.9rem;
+  font-size: 1rem; /* was 0.9rem — raised to ≥16px to prevent iOS auto-zoom */
   border: 1px solid var(--ledger-emphasis);
   border-radius: 6px;
   background: var(--cellar-raised);
   color: var(--ink-primary);
   cursor: pointer;
+  min-height: 44px; /* iOS 44pt touch target */
+  -webkit-appearance: none;
 }
 
+/* Refresh button: 44×44pt touch target */
 .kiosk-refresh-btn {
-  padding: 0.6rem 0.8rem;
-  font-size: 1.1rem;
+  padding: 0;
+  font-size: 1.25rem;
   line-height: 1;
   border-radius: 6px;
-  min-width: 40px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
-/* Product grid */
+/* Product grid — scrolls inside its pane; minmax raised for fat-finger targets */
 .kiosk-product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
   gap: 0.75rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* smooth momentum scroll on iOS */
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 0.5rem;
 }
 
 .kiosk-loading {
@@ -2228,7 +2259,7 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   text-align: center;
 }
 
-/* Product card — large tap target */
+/* Product card — large tap target, min-height raised to 180px */
 .kiosk-product-card {
   display: flex;
   flex-direction: column;
@@ -2237,43 +2268,51 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
-  transition: box-shadow 0.15s, border-color 0.15s;
-  min-height: 160px;
+  /* Transition only on :active (no hover-dependent appearance on iPad) */
+  transition: box-shadow 0.1s;
+  min-height: 180px;
   position: relative;
   -webkit-user-select: none;
   user-select: none;
+  /* Prevent tap callout on long-press on iOS */
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
-.kiosk-product-card:active { box-shadow: inset 0 2px 6px rgba(0,0,0,0.12); }
+/* :active provides immediate tap feedback on iOS (hover is unreliable) */
+.kiosk-product-card:active {
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.15);
+  border-color: var(--barrel);
+}
+/* Keep hover for desktop mice — must not be the only visual affordance */
 .kiosk-product-card:hover { border-color: var(--barrel); box-shadow: 0 2px 8px rgba(119,70,45,0.12); }
 
 .kiosk-product-img {
   width: 100%;
-  height: 110px;
+  height: 120px;
   object-fit: cover;
   background: var(--cellar-canvas);
   display: block;
 }
 .kiosk-product-img-placeholder {
   width: 100%;
-  height: 110px;
+  height: 120px;
   background: var(--cellar-canvas);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--ink-muted);
-  font-size: 2rem;
+  font-size: 2.5rem;
 }
 
 .kiosk-product-body {
-  padding: 0.5rem 0.6rem 0.65rem;
+  padding: 0.55rem 0.65rem 0.7rem;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.2rem;
 }
 
 .kiosk-product-name {
-  font-size: 0.85rem;
+  font-size: 0.9rem; /* slightly larger for readability on iPad */
   font-weight: 600;
   color: var(--ink-primary);
   line-height: 1.25;
@@ -2327,7 +2366,7 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   font-size: 0.75rem;
   font-weight: 700;
   border-radius: 12px;
-  padding: 1px 8px;
+  padding: 2px 8px;
   min-width: 24px;
   text-align: center;
 }
@@ -2341,9 +2380,11 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   border-radius: 10px;
   padding: 1rem;
   gap: 0.5rem;
+  /* Sticky within the grid cell — stays on screen while product pane scrolls */
   position: sticky;
   top: 1rem;
-  max-height: calc(100vh - 160px);
+  /* Fill the grid row height set on .kiosk-browse-layout */
+  height: 100%;
   overflow: hidden;
 }
 
@@ -2353,6 +2394,7 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   justify-content: space-between;
   border-bottom: 1px solid var(--ledger-soft);
   padding-bottom: 0.5rem;
+  flex-shrink: 0;
 }
 
 .kiosk-cart-title {
@@ -2362,15 +2404,20 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   margin: 0;
 }
 
+/* Clear button: adequate touch target (≥44pt) */
 .kiosk-cart-clear {
-  font-size: 0.8rem;
-  padding: 0.3rem 0.65rem;
+  font-size: 0.85rem;
+  padding: 0.6rem 0.9rem;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
   cursor: pointer;
 }
 
 .kiosk-cart-items {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* smooth momentum scroll on iOS */
   min-height: 80px;
 }
 
@@ -2382,12 +2429,12 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   margin: 0;
 }
 
-/* Cart line item */
+/* Cart line item — padding raised so the row is easier to read at a glance */
 .kiosk-cart-line {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0;
+  padding: 0.65rem 0;
   border-bottom: 1px solid var(--ledger-soft);
 }
 .kiosk-cart-line:last-child { border-bottom: none; }
@@ -2407,15 +2454,17 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  flex-shrink: 0;
 }
 
+/* qty +/− buttons: raised from 32px to 44px to meet iOS 44pt minimum */
 .kiosk-qty-btn {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--ledger-emphasis);
   background: var(--cellar-surface);
-  border-radius: 4px;
-  font-size: 1.1rem;
+  border-radius: 6px;
+  font-size: 1.25rem;
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -2424,14 +2473,16 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   color: var(--ink-primary);
   -webkit-user-select: none;
   user-select: none;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  flex-shrink: 0;
 }
-.kiosk-qty-btn:active { background: var(--cellar-canvas); }
+.kiosk-qty-btn:active { background: var(--cellar-canvas); border-color: var(--barrel); }
 
 .kiosk-qty-val {
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--ink-primary);
-  min-width: 20px;
+  min-width: 24px;
   text-align: center;
 }
 
@@ -2439,14 +2490,16 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--barrel);
-  min-width: 52px;
+  min-width: 56px;
   text-align: right;
+  flex-shrink: 0;
 }
 
 /* Cart totals */
 .kiosk-cart-totals {
   border-top: 1px solid var(--ledger-emphasis);
   padding-top: 0.5rem;
+  flex-shrink: 0;
 }
 
 .kiosk-total-row {
@@ -2454,30 +2507,32 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   justify-content: space-between;
   font-size: 0.9rem;
   color: var(--ink-secondary);
-  padding: 0.15rem 0;
+  padding: 0.2rem 0;
 }
 
 .kiosk-total-grand {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--ink-primary);
-  padding-top: 0.35rem;
+  padding-top: 0.4rem;
   margin-top: 0.25rem;
   border-top: 1px solid var(--ledger-emphasis);
 }
 
-/* Checkout button */
-.kiosk-cart-actions { padding-top: 0.5rem; }
+/* Checkout button: tall enough to be easy to hit */
+.kiosk-cart-actions { padding-top: 0.5rem; flex-shrink: 0; }
 
 .kiosk-checkout-btn {
   width: 100%;
-  padding: 0.85rem;
-  font-size: 1rem;
+  padding: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   border-radius: 8px;
   cursor: pointer;
   text-align: center;
   letter-spacing: 0.01em;
+  min-height: 52px; /* comfortably above 44pt, prominent action */
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
 .kiosk-checkout-btn:disabled {
   opacity: 0.45;
@@ -2500,7 +2555,7 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   border: 1px solid var(--ledger-emphasis);
   border-radius: 14px;
   padding: 2.5rem 2rem;
-  max-width: 440px;
+  max-width: 460px;
   width: 100%;
   text-align: center;
   box-shadow: 0 4px 24px rgba(0,0,0,0.08);
@@ -2545,22 +2600,25 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   color: var(--ink-secondary);
   max-height: 160px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* smooth momentum scroll on iOS */
 }
 
 .kiosk-payment-item-row {
   display: flex;
   justify-content: space-between;
-  padding: 0.2rem 0;
+  padding: 0.25rem 0;
 }
 
 .kiosk-payment-footer { margin-top: 1rem; }
 
+/* Cancel button: full-width with 44pt height minimum */
 .kiosk-cancel-payment {
   width: 100%;
-  padding: 0.7rem;
-  font-size: 0.9rem;
+  padding: 0.85rem;
+  font-size: 1rem;
   cursor: pointer;
   border-radius: 6px;
+  min-height: 44px;
 }
 
 /* ---- Receipt / Error Screen ---- */
@@ -2603,7 +2661,7 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
 .kiosk-receipt-row {
   display: flex;
   justify-content: space-between;
-  padding: 0.3rem 0;
+  padding: 0.35rem 0;
   border-bottom: 1px solid var(--ledger-soft);
 }
 .kiosk-receipt-row:last-child { border-bottom: none; }
@@ -2616,27 +2674,31 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   flex-wrap: wrap;
 }
 
+/* Receipt/error action buttons: min-height 52px so they stand out */
 .kiosk-new-sale-btn {
-  padding: 0.8rem 2rem;
+  padding: 0.9rem 2rem;
   font-size: 1rem;
   font-weight: 700;
   border-radius: 8px;
   cursor: pointer;
+  min-height: 52px;
 }
 
 .kiosk-retry-btn {
-  padding: 0.8rem 1.5rem;
+  padding: 0.9rem 1.5rem;
   font-size: 1rem;
   font-weight: 700;
   border-radius: 8px;
   cursor: pointer;
+  min-height: 52px;
 }
 
 .kiosk-back-btn {
-  padding: 0.8rem 1.5rem;
+  padding: 0.9rem 1.5rem;
   font-size: 1rem;
   border-radius: 8px;
   cursor: pointer;
+  min-height: 52px;
 }
 
 .kiosk-error-msg {
@@ -2646,17 +2708,129 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
 }
 
 /* ---- Customer Selection Step ---- */
-.kiosk-customer-wrap { padding: 1rem; max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.75rem; }
-.kiosk-customer-header { display: flex; align-items: center; gap: 0.75rem; }
-.kiosk-customer-header h2 { margin: 0; font-size: 1.1rem; }
-.kiosk-selected-customer { background: #e8f5e9; border: 1px solid #4caf50; border-radius: 6px; padding: 0.5rem 0.75rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
-.kiosk-customer-results { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; }
-.kiosk-customer-result-row { padding: 0.5rem 0.6rem; border: 1px solid var(--ledger-line); border-radius: 4px; cursor: pointer; font-size: 0.88rem; }
-.kiosk-customer-result-row:hover { background: var(--cellar-bg); }
-.kiosk-customer-footer { display: flex; gap: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--ledger-line); margin-top: auto; }
+/*
+ * The customer view scrolls as a whole so the footer buttons remain visible
+ * even when the soft keyboard is up. padding-bottom gives breathing room above
+ * the keyboard on shorter viewports.
+ */
+.kiosk-view--customer-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: calc(100vh - 160px);
+  padding-bottom: env(safe-area-inset-bottom, 1rem);
+}
+.kiosk-customer-wrap {
+  padding: 1rem;
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  /* Extra bottom padding keeps footer buttons above the iOS soft keyboard */
+  padding-bottom: 2rem;
+}
+.kiosk-customer-header { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
+.kiosk-customer-header h2 { margin: 0; font-size: 1.2rem; }
+
+/* Selected customer chip */
+.kiosk-selected-customer {
+  background: #e8f5e9;
+  border: 1px solid #4caf50;
+  border-radius: 6px;
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+  min-height: 44px;
+}
+
+/* Customer search results list */
+.kiosk-customer-results {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 280px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/*
+ * Result rows: min-height 52px (well above the 44pt iOS minimum) so fingers
+ * can reliably hit the right customer. :active provides tap feedback because
+ * :hover is unreliable on iPad.
+ */
+.kiosk-customer-result-row {
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--ledger-line);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+.kiosk-customer-result-row:active { background: var(--cellar-canvas); border-color: var(--barrel); }
+/* Keep :hover for desktop parity but not as the only affordance */
+.kiosk-customer-result-row:hover { background: var(--cellar-canvas); }
+
+/* Customer form fields share the 16px min to prevent iOS zoom */
+.kiosk-customer-wrap .admin-input {
+  font-size: 1rem; /* ≥16px — prevents iOS Safari auto-zoom on focus */
+  min-height: 48px; /* comfortable tap/type target */
+  padding: 0.7rem 0.75rem;
+}
+
+/* Buttons in footer: full-width on narrow viewports, side-by-side otherwise */
+.kiosk-customer-footer {
+  display: flex;
+  gap: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--ledger-line);
+  flex-wrap: wrap;
+}
+.kiosk-customer-footer .btn,
+.kiosk-customer-footer .btn-secondary {
+  flex: 1;
+  min-height: 52px;
+  font-size: 1rem;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* "New Customer" toggle button — same touch height as other secondaries */
+#kiosk-new-customer-toggle {
+  min-height: 44px;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+}
+
+/* "Add Customer" save button */
+#kiosk-new-customer-save {
+  min-height: 48px;
+  width: 100%;
+  font-size: 1rem;
+  margin-top: 0.25rem;
+}
+
+/* Back button in customer header */
+#kiosk-customer-back {
+  min-height: 44px;
+  min-width: 72px;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .kiosk-receipt-batches { margin-top: 0.75rem; border-top: 1px solid #eee; padding-top: 0.75rem; }
 .kiosk-receipt-section-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #666; margin-bottom: 0.4rem; }
-.kiosk-receipt-batch-row { display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0; font-size: 0.9rem; }
+.kiosk-receipt-batch-row { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; font-size: 0.9rem; }
 
 /* ---- Terminal Status Bar ---- */
 .kiosk-terminal-bar {
@@ -2703,21 +2877,44 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
 .kiosk-payment--deposit { background: var(--batch-warning-bg); color: var(--batch-warning); }
 .kiosk-payment--pending { background: var(--cellar-canvas); color: var(--ink-tertiary); }
 
-/* Tablet portrait adjustments */
+/*
+ * iPad portrait (≤900px wide):
+ * Switch from side-by-side to a vertical stack. Cart goes BELOW the product
+ * grid (natural document order) so staff see products first and the cart is
+ * easily reachable by scrolling down. The height-based layout becomes a
+ * natural page scroll instead.
+ */
 @media (max-width: 900px) {
   .kiosk-browse-layout {
     grid-template-columns: 1fr;
+    /* Let each pane be as tall as its content — page scrolls vertically */
+    height: auto;
+    min-height: unset;
   }
+
+  /* Product pane: let grid grow naturally; page scroll handles overflow */
+  .kiosk-product-pane {
+    overflow: visible;
+  }
+
+  /* Product grid: natural height, page-level scroll */
+  .kiosk-product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    overflow-y: visible;
+    flex: unset;
+    min-height: unset;
+  }
+
+  /* Cart pane: static, natural height, below product grid */
   .kiosk-cart-pane {
     position: static;
+    height: auto;
     max-height: none;
-    order: -1; /* cart above product grid on narrow screens */
-  }
-  .kiosk-product-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    /* Natural document order puts cart below the product pane — no order override */
   }
 }
 
+/* iPhone / very small screens */
 @media (max-width: 600px) {
   .kiosk-product-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -2727,4 +2924,12 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
     padding: 1.5rem 1rem;
   }
   .kiosk-payment-amount { font-size: 2rem; }
+  .kiosk-customer-footer {
+    flex-direction: column;
+  }
+  .kiosk-customer-footer .btn,
+  .kiosk-customer-footer .btn-secondary {
+    flex: unset;
+    width: 100%;
+  }
 }
