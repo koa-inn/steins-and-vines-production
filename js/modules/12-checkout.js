@@ -1105,7 +1105,7 @@ function setupReservationForm() {
 
     var items = getReservation();
     if (items.length === 0) {
-      showToast('Please add at least one product to your reservation.', 'error');
+      showToast('Please add at least one product to your ' + (hasKits ? 'reservation' : 'cart') + '.', 'error');
       return;
     }
 

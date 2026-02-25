@@ -625,7 +625,7 @@ function updateReservationBar() {
   var noun = isFerment ? 'reservation' : 'order';
   var label = total + (total === 1 ? ' item in your ' + noun : ' items in your ' + noun);
   if (otherTotal > 0) {
-    var otherNoun = isFerment ? 'order' : 'reservation';
+    var otherNoun = isFerment ? 'order' : 'kits';
     label += ' (' + otherTotal + ' in ' + otherNoun + ' cart)';
   }
 
@@ -682,7 +682,7 @@ function renderCartSidebar() {
     if (otherItems.length > 0) {
       var otherNote = document.createElement('p');
       otherNote.className = 'cart-sidebar-note';
-      var otherNoun = isFerment ? 'order' : 'reservation';
+      var otherNoun = isFerment ? 'order' : 'kits';
       otherNote.textContent = 'You have ' + otherItems.length + ' item' + (otherItems.length > 1 ? 's' : '') + ' in your ' + otherNoun + ' cart \u2014 switch tabs to view.';
       container.appendChild(otherNote);
     }
@@ -839,7 +839,7 @@ function renderCartSidebar() {
   if (otherItems2.length > 0) {
     var note = document.createElement('p');
     note.className = 'cart-sidebar-note';
-    var noun2 = isFerment ? 'order' : 'reservation';
+    var noun2 = isFerment ? 'order' : 'kits';
     note.textContent = 'You also have ' + otherItems2.length + ' item' + (otherItems2.length > 1 ? 's' : '') + ' in your ' + noun2 + ' cart \u2014 switch tabs to view.';
     container.appendChild(note);
   }
@@ -877,7 +877,7 @@ function renderCartDrawer() {
     if (otherItems.length > 0) {
       var otherNote = document.createElement('p');
       otherNote.className = 'cart-sidebar-note';
-      var otherNoun = isFerment ? 'order' : 'reservation';
+      var otherNoun = isFerment ? 'order' : 'kits';
       otherNote.textContent = 'You have ' + otherItems.length + ' item' + (otherItems.length > 1 ? 's' : '') + ' in your ' + otherNoun + ' cart \u2014 switch tabs to view.';
       container.appendChild(otherNote);
     }
@@ -1028,7 +1028,7 @@ function renderCartDrawer() {
   if (otherItems2.length > 0) {
     var note = document.createElement('p');
     note.className = 'cart-sidebar-note';
-    var noun2 = isFerment ? 'order' : 'reservation';
+    var noun2 = isFerment ? 'order' : 'kits';
     note.textContent = 'You also have ' + otherItems2.length + ' item' + (otherItems2.length > 1 ? 's' : '') + ' in your ' + noun2 + ' cart \u2014 switch tabs to view.';
     container.appendChild(note);
   }
