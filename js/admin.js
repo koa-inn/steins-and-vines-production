@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-25T23:24:01.226Z';
+  var BUILD_TIMESTAMP = '2026-02-26T00:13:50.202Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -348,17 +348,6 @@
     }
 
     initTabNavigation();
-
-    // Auto-switch to tab specified in URL, e.g. admin.html?tab=kiosk
-    (function () {
-      var params = new URLSearchParams(window.location.search);
-      var tabParam = params.get('tab');
-      if (tabParam) {
-        var tabBtn = document.querySelector('.admin-tab-btn[data-tab="' + tabParam + '"]');
-        if (tabBtn) tabBtn.click();
-      }
-    })();
-
     initModalControls();
     initExportButtons();
     initImportControls();
@@ -508,6 +497,15 @@
     localStorage.setItem('sv-admin-email', userEmail);
     loadAllData();
     loadEmailTemplates();
+
+    // Auto-switch to tab from URL param (e.g. admin.html?tab=kiosk), now that dashboard is visible
+    (function () {
+      var tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam) {
+        var tabBtn = document.querySelector('.admin-tab-btn[data-tab="' + tabParam + '"]');
+        if (tabBtn) tabBtn.click();
+      }
+    })();
 
     // Set up token refresh (~50 min)
     setInterval(function () {
