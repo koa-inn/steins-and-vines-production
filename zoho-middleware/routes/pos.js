@@ -240,10 +240,13 @@ router.post('/api/kiosk/sale', function (req, res) {
  */
 router.get('/api/pos/status', function (req, res) {
   var diag = gpLib.getTerminalDiagnostics();
+  // List which GP_ env var names are actually present in process.env
+  var gpVarsPresent = Object.keys(process.env).filter(function(k) { return k.indexOf('GP_') === 0; });
   res.json({
     enabled: gpLib.isTerminalEnabled(),
     terminal_type: gpLib.isTerminalEnabled() ? 'UPA (Meet in the Cloud)' : 'none',
-    diagnostics: diag
+    diagnostics: diag,
+    gp_vars_present: gpVarsPresent
   });
 });
 
