@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-27T18:50:19.362Z';
+  var BUILD_TIMESTAMP = '2026-02-27T19:13:12.062Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -7723,7 +7723,13 @@
         if (data.enabled) {
           kioskSetTerminalStatus(true, 'Terminal ready (' + (data.terminal_type || 'UPA') + ')');
         } else {
-          kioskSetTerminalStatus(false, 'Terminal not enabled — check GP_TERMINAL_ENABLED env var');
+          var d = data.diagnostics || {};
+          var msg = 'Terminal not enabled';
+          if (!d.GP_APP_KEY_SET) msg = 'Terminal: GP_APP_KEY not set in Railway';
+          else if (!d.GP_TERMINAL_ENABLED) msg = 'Terminal: GP_TERMINAL_ENABLED not set';
+          else if (d.init_error) msg = 'Terminal init error: ' + d.init_error;
+          else msg = 'Terminal: device not initialized';
+          kioskSetTerminalStatus(false, msg);
         }
       })
       .catch(function () {
