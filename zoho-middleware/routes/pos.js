@@ -246,7 +246,8 @@ router.get('/api/pos/status', function (req, res) {
     enabled: gpLib.isTerminalEnabled(),
     terminal_type: gpLib.isTerminalEnabled() ? 'UPA (Meet in the Cloud)' : 'none',
     diagnostics: diag,
-    gp_vars_present: gpVarsPresent
+    gp_vars_present: gpVarsPresent,
+    _v: '20260227-2'
   });
 });
 
