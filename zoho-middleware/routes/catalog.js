@@ -466,8 +466,9 @@ router.get('/api/kiosk/products', function (req, res) {
         });
     })
     .catch(function (err) {
+      var status = (err.response && err.response.status) || 0;
       log.error('[api/kiosk/products] ' + err.message);
-      res.status(502).json({ error: 'Unable to fetch kiosk products' });
+      res.status(502).json({ error: 'Unable to fetch kiosk products', detail: err.message, zoho_status: status });
     });
 });
 
