@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-27T16:51:06.299Z';
+  var BUILD_TIMESTAMP = '2026-02-27T18:50:19.362Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -13,6 +13,7 @@
   var staffEmails = [];
   var _tokenRefreshTimer = null;
   var _handlingUnauthorized = false;
+  var _silentRefreshTimer = null;
 
   // Cached sheet data
   var kitsData = [];
@@ -387,9 +388,18 @@
     var saved = loadSession();
     if (saved) {
       console.log('[Admin] Attempting silent token refresh for', saved.email);
+      // Fallback: if GIS never fires the callback, show sign-in button after 5s
+      _silentRefreshTimer = setTimeout(function () {
+        _silentRefreshTimer = null;
+        console.warn('[Admin] Silent refresh timed out — showing sign-in button');
+        clearSession();
+        showSignInButton();
+      }, 5000);
       try {
         tokenClient.requestAccessToken({ prompt: '', login_hint: saved.email });
       } catch (err) {
+        clearTimeout(_silentRefreshTimer);
+        _silentRefreshTimer = null;
         console.warn('[Admin] Silent refresh failed:', err.message);
         clearSession();
         showSignInButton();
@@ -415,6 +425,7 @@
   }
 
   function onTokenResponse(response) {
+    if (_silentRefreshTimer) { clearTimeout(_silentRefreshTimer); _silentRefreshTimer = null; }
     _handlingUnauthorized = false; // Reset guard so handleUnauthorized works again if needed
     if (response.error) {
       console.warn('[Admin] Token response error:', response.error);
