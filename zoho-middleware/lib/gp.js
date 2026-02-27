@@ -31,7 +31,7 @@ var GP_TERMINAL_ENABLED = false;
  */
 function init() {
   GP_DEPOSIT_AMOUNT = parseFloat(process.env.GP_DEPOSIT_AMOUNT) || 50.00;
-  GP_TERMINAL_ENABLED = process.env.GP_TERMINAL_ENABLED === 'true';
+  GP_TERMINAL_ENABLED = (process.env.GP_TERMINAL_ENABLED || '').trim().toLowerCase() === 'true';
 
   if (process.env.GP_APP_KEY) {
     gpConfig = new GpApiConfig();
@@ -102,6 +102,7 @@ function isTerminalEnabled() {
 function getTerminalDiagnostics() {
   return {
     GP_TERMINAL_ENABLED: GP_TERMINAL_ENABLED,
+    GP_TERMINAL_ENABLED_RAW: JSON.stringify(process.env.GP_TERMINAL_ENABLED),
     GP_APP_KEY_SET: !!process.env.GP_APP_KEY,
     GP_APP_ID_SET: !!process.env.GP_APP_ID,
     GP_ENVIRONMENT: process.env.GP_ENVIRONMENT || 'sandbox',
