@@ -239,9 +239,11 @@ router.post('/api/kiosk/sale', function (req, res) {
  * Check if the POS terminal is enabled and configured.
  */
 router.get('/api/pos/status', function (req, res) {
+  var diag = gpLib.getTerminalDiagnostics();
   res.json({
     enabled: gpLib.isTerminalEnabled(),
-    terminal_type: gpLib.isTerminalEnabled() ? 'UPA (Meet in the Cloud)' : 'none'
+    terminal_type: gpLib.isTerminalEnabled() ? 'UPA (Meet in the Cloud)' : 'none',
+    diagnostics: diag
   });
 });
 

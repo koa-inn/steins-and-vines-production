@@ -16,6 +16,7 @@ var ConnectionModes = gp.ConnectionModes;
 
 var gpConfig = null;
 var gpTerminalDevice = null;
+var gpTerminalInitError = null;
 var GP_DEPOSIT_AMOUNT = parseFloat(process.env.GP_DEPOSIT_AMOUNT) || 50.00;
 var GP_TERMINAL_ENABLED = false;
 
@@ -74,10 +75,12 @@ function init() {
 
       terminalConfig.gatewayConfig = terminalGateway;
       gpTerminalDevice = DeviceService.create(terminalConfig, 'terminal');
+      gpTerminalInitError = null;
       log.info('GP Terminal configured (Meet in the Cloud)');
     } catch (termErr) {
       log.error('GP Terminal configuration failed: ' + termErr.message);
       gpTerminalDevice = null;
+      gpTerminalInitError = termErr.message;
     }
   } else {
     log.info('GP Terminal not enabled (GP_TERMINAL_ENABLED=' + (process.env.GP_TERMINAL_ENABLED || 'false') + ')');
@@ -96,6 +99,17 @@ function isTerminalEnabled() {
   return GP_TERMINAL_ENABLED && !!gpTerminalDevice;
 }
 
+function getTerminalDiagnostics() {
+  return {
+    GP_TERMINAL_ENABLED: GP_TERMINAL_ENABLED,
+    GP_APP_KEY_SET: !!process.env.GP_APP_KEY,
+    GP_APP_ID_SET: !!process.env.GP_APP_ID,
+    GP_ENVIRONMENT: process.env.GP_ENVIRONMENT || 'sandbox',
+    device_initialized: !!gpTerminalDevice,
+    init_error: gpTerminalInitError || null
+  };
+}
+
 function getDepositAmount() {
   return GP_DEPOSIT_AMOUNT;
 }
@@ -105,5 +119,6 @@ module.exports = {
   getConfig: getConfig,
   getTerminal: getTerminal,
   isTerminalEnabled: isTerminalEnabled,
+  getTerminalDiagnostics: getTerminalDiagnostics,
   getDepositAmount: getDepositAmount
 };
