@@ -4,13 +4,15 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-02-26T00:13:50.202Z';
+  var BUILD_TIMESTAMP = '2026-02-27T16:51:06.299Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
   var userEmail = null;
   var tokenClient = null;
   var staffEmails = [];
+  var _tokenRefreshTimer = null;
+  var _handlingUnauthorized = false;
 
   // Cached sheet data
   var kitsData = [];
@@ -413,6 +415,7 @@
   }
 
   function onTokenResponse(response) {
+    _handlingUnauthorized = false; // Reset guard so handleUnauthorized works again if needed
     if (response.error) {
       console.warn('[Admin] Token response error:', response.error);
       clearSession();
@@ -507,8 +510,9 @@
       }
     })();
 
-    // Set up token refresh (~50 min)
-    setInterval(function () {
+    // Set up token refresh (~50 min) — clear any existing timer first
+    if (_tokenRefreshTimer) clearInterval(_tokenRefreshTimer);
+    _tokenRefreshTimer = setInterval(function () {
       tokenClient.requestAccessToken({ prompt: '' });
     }, 50 * 60 * 1000);
   }
@@ -548,6 +552,7 @@
   }
 
   function signOut() {
+    if (_tokenRefreshTimer) { clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null; }
     if (accessToken) {
       google.accounts.oauth2.revoke(accessToken);
     }
@@ -596,6 +601,10 @@
   }
 
   function handleUnauthorized() {
+    if (_handlingUnauthorized) return;
+    _handlingUnauthorized = true;
+    // Stop the refresh timer so it doesn't fire while on the sign-in screen
+    if (_tokenRefreshTimer) { clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null; }
     clearSession();
     accessToken = null;
     userEmail = null;
