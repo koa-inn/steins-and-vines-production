@@ -62,6 +62,17 @@ var VESSEL_HISTORY_SHEET_NAME = 'VesselHistory';
 function doGet(e) {
   var action = (e.parameter.action || '').toLowerCase();
 
+  // Public endpoint: featured products for homepage (no staff auth required)
+  if (action === 'get_featured') {
+    try {
+      return _jsonResponse(_cachedGet('gfeatured', 300, function() {
+        return getFeatured();
+      }));
+    } catch (err) {
+      return _jsonResponse({ ok: false, error: 'server_error', message: err.message });
+    }
+  }
+
   // Public endpoint: batch detail via access token (no staff auth required)
   if (action === 'get_batch_public') {
     try {
@@ -492,6 +503,24 @@ function getSchedule() {
   return { values: data };
 }
 
+function getFeatured() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(HOMEPAGE_SHEET_NAME);
+  if (!sheet) return { ok: true, skus: [] };
+
+  var data = sheet.getDataRange().getValues();
+  var skus = [];
+  for (var i = 1; i < data.length; i++) {
+    var type = String(data[i][0] || '').toLowerCase().trim();
+    if (type === 'featured') {
+      var sku = String(data[i][4] || '').trim();
+      var desc = String(data[i][3] || '').trim();
+      if (sku) skus.push({ sku: sku, description: desc });
+    }
+  }
+  return { ok: true, skus: skus };
+}
+
 function getHomepage() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(HOMEPAGE_SHEET_NAME);
@@ -903,6 +932,7 @@ function updateHomepage(payload) {
     sheet.getRange(1, 1, sanitizedValues.length, numCols).setValues(sanitizedValues);
   }
 
+  try { CacheService.getScriptCache().remove('gfeatured'); } catch (e) {}
   return { ok: true, message: 'Homepage updated' };
 }
 

@@ -392,16 +392,16 @@ function loadFeaturedProducts() {
     : null;
   var localCsvUrl = 'content/products.csv';
 
-  // Load homepage config from Google Sheets (published CSV)
-  var homepageCsvUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL)
-    ? SHEETS_CONFIG.PUBLISHED_HOMEPAGE_CSV_URL
+  // Featured products API (Apps Script public endpoint — no auth required)
+  var featuredApiUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.ADMIN_API_URL)
+    ? SHEETS_CONFIG.ADMIN_API_URL + '?action=get_featured'
     : null;
 
   // LocalStorage caching for faster subsequent loads (1 hour TTL)
   var PRODUCTS_CACHE_KEY = 'sv-products-csv';
   var PRODUCTS_CACHE_TS_KEY = 'sv-products-csv-ts';
-  var HOMEPAGE_CACHE_KEY = 'sv-homepage-csv';
-  var HOMEPAGE_CACHE_TS_KEY = 'sv-homepage-csv-ts';
+  var HOMEPAGE_CACHE_KEY = 'sv-homepage-featured';
+  var HOMEPAGE_CACHE_TS_KEY = 'sv-homepage-featured-ts';
   var CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
   function getCache(key, tsKey) {
@@ -423,20 +423,44 @@ function loadFeaturedProducts() {
   // Get cached data or fetch fresh
   var productsCached = getCache(PRODUCTS_CACHE_KEY, PRODUCTS_CACHE_TS_KEY);
   var homepageCached = getCache(HOMEPAGE_CACHE_KEY, HOMEPAGE_CACHE_TS_KEY);
+  var cachedFeatured = null;
+  if (homepageCached) { try { cachedFeatured = JSON.parse(homepageCached.data); } catch (e) {} }
 
-  // Fetch both CSVs in parallel for faster loading, using cache when available
   var configPromise;
-  if (homepageCached) {
-    configPromise = Promise.resolve(homepageCached.data);
-    if (!homepageCached.fresh && homepageCsvUrl) {
-      fetch(homepageCsvUrl).then(function (res) { return res.ok ? res.text() : ''; })
-        .then(function (csv) { if (csv) setCache(HOMEPAGE_CACHE_KEY, HOMEPAGE_CACHE_TS_KEY, csv); });
+  if (cachedFeatured && homepageCached.fresh) {
+    configPromise = Promise.resolve({ isAppsScript: true, data: cachedFeatured });
+  } else if (cachedFeatured) {
+    // Stale: serve immediately, refresh in background
+    configPromise = Promise.resolve({ isAppsScript: true, data: cachedFeatured });
+    if (featuredApiUrl) {
+      fetch(featuredApiUrl)
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (json) {
+          if (json && json.ok) setCache(HOMEPAGE_CACHE_KEY, HOMEPAGE_CACHE_TS_KEY, JSON.stringify({ skus: json.skus || [] }));
+        }).catch(function () {});
     }
+  } else if (featuredApiUrl) {
+    configPromise = fetch(featuredApiUrl)
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (json) {
+        if (json && json.ok) {
+          var d = { skus: json.skus || [] };
+          setCache(HOMEPAGE_CACHE_KEY, HOMEPAGE_CACHE_TS_KEY, JSON.stringify(d));
+          return { isAppsScript: true, data: d };
+        }
+        return { isAppsScript: true, data: { skus: [] } };
+      })
+      .catch(function () {
+        return fetch('content/home.json')
+          .then(function (r) { return r.ok ? r.json() : {}; })
+          .then(function (j) { return { isJson: true, data: j }; })
+          .catch(function () { return { isAppsScript: true, data: { skus: [] } }; });
+      });
   } else {
-    configPromise = homepageCsvUrl
-      ? fetch(homepageCsvUrl).then(function (res) { return res.ok ? res.text() : ''; })
-          .then(function (csv) { if (csv) setCache(HOMEPAGE_CACHE_KEY, HOMEPAGE_CACHE_TS_KEY, csv); return csv; })
-      : fetch('content/home.json').then(function (res) { return res.ok ? res.json() : {}; }).then(function (j) { return { isJson: true, data: j }; });
+    configPromise = fetch('content/home.json')
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .then(function (j) { return { isJson: true, data: j }; })
+      .catch(function () { return { isAppsScript: true, data: { skus: [] } }; });
   }
 
   var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
@@ -550,26 +574,15 @@ function loadFeaturedProducts() {
       var products = results[1];
       var config = { 'promo-featured-skus': [], 'instafeed-id': (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.INSTAGRAM_FEED_ID) || '' };
 
-      if (result && result.isJson) {
-        // Fallback JSON format
-        config = result.data;
-      } else if (typeof result === 'string' && result.trim()) {
-        // Parse CSV from Google Sheets
-        var lines = result.trim().split('\n');
-        if (lines.length > 1) {
-          for (var i = 1; i < lines.length; i++) {
-            var values = parseHomepageCSVLine(lines[i]);
-            var type = (values[0] || '').toLowerCase().trim();
-            if (type === 'instafeed') {
-              // Legacy CSV fallback — feed ID now stored in SHEETS_CONFIG.INSTAGRAM_FEED_ID
-              if (!config['instafeed-id']) config['instafeed-id'] = (values[3] || '').trim();
-            } else if (type === 'featured') {
-              var sku = (values[4] || '').trim();
-              var desc = (values[3] || '').trim();
-              if (sku) config['promo-featured-skus'].push({ sku: sku, description: desc });
-            }
-          }
-        }
+      if (result && result.isAppsScript) {
+        var skus = (result.data && result.data.skus) || [];
+        skus.forEach(function (entry) {
+          if (entry && entry.sku) config['promo-featured-skus'].push(entry);
+        });
+      } else if (result && result.isJson) {
+        // Static fallback from content/home.json
+        var jsonSkus = (result.data && result.data['promo-featured-skus']) || [];
+        config['promo-featured-skus'] = jsonSkus;
       }
 
       // Render Behold Instagram feed widget
@@ -589,25 +602,6 @@ function loadFeaturedProducts() {
       // Fallback: hide promo section on error
       if (promoSection) promoSection.classList.add('hidden');
     });
-
-  function parseHomepageCSVLine(line) {
-    var result = [];
-    var current = '';
-    var inQuotes = false;
-    for (var i = 0; i < line.length; i++) {
-      var c = line[i];
-      if (c === '"') {
-        inQuotes = !inQuotes;
-      } else if (c === ',' && !inQuotes) {
-        result.push(current);
-        current = '';
-      } else {
-        current += c;
-      }
-    }
-    result.push(current);
-    return result;
-  }
 
   function escapeHTMLPromo(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
