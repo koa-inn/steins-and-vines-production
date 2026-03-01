@@ -122,8 +122,11 @@ function loadIngredients(callback) {
         return true;
       });
       buildIngredientFilters();
-      renderIngredients();
-      wireIngredientEvents();
+      // Only render if the user hasn't switched away from the ingredients tab
+      if (_activeCartTab === 'ingredients') {
+        renderIngredients();
+        wireIngredientEvents();
+      }
       if (callback) callback();
     })
     .catch(function () {});

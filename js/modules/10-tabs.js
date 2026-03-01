@@ -58,9 +58,8 @@ function initProductTabs() {
     } else if (tab === 'ingredients') {
       if (!ingredientsLoaded) {
         ingredientsLoaded = true;
-        loadIngredients(function () {
-          // After first load, subsequent clicks just re-render
-        });
+        if (catalog) showCatalogSkeletons(catalog, 8);
+        loadIngredients(function () {});
       } else {
         renderIngredients();
       }
