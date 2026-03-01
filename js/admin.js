@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-03-01T20:57:28.602Z';
+  var BUILD_TIMESTAMP = '2026-03-01T22:57:22.147Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -4724,7 +4724,9 @@
               dropdown.style.display = 'none';
               return;
             }
-            var matches = kitsData.filter(function (k) {
+            // Prefer live Zoho products (kiosk); fall back to Kits sheet data
+            var searchPool = (_kioskProducts && _kioskProducts.length > 0) ? _kioskProducts : kitsData;
+            var matches = searchPool.filter(function (k) {
               return (k.name || '').toLowerCase().indexOf(query) !== -1 ||
                      (k.brand || '').toLowerCase().indexOf(query) !== -1 ||
                      (k.sku || '').toLowerCase().indexOf(query) !== -1;
@@ -4743,8 +4745,8 @@
                               escapeHTML(kit.name || '') +
                               ' <span style="opacity:0.6">(' + escapeHTML(kit.sku || '') + ')</span>';
               opt.addEventListener('click', function () {
-                homepageSelectedProduct = kit;
-                searchInput.value = (kit.brand || '') + ' ' + (kit.name || '');
+                homepageSelectedProduct = { sku: kit.sku || kit.item_id || '', name: kit.name || '', brand: kit.brand || '' };
+                searchInput.value = ((kit.brand || '') + ' ' + (kit.name || '')).trim();
                 dropdown.style.display = 'none';
               });
               dropdown.appendChild(opt);

@@ -35,6 +35,11 @@ var SHEETS_CONFIG = {
   // Behold Instagram feed ID — update this when the widget changes
   INSTAGRAM_FEED_ID: '0Zd67EUJqg7knUfOBqKn',
 
+  // Static featured SKUs — used as fallback if the Apps Script endpoint is unreachable.
+  // Format: [{ sku: 'SKU-001', description: 'Optional promo text' }, ...]
+  // Update this alongside saving in the admin panel's Homepage tab.
+  FEATURED_SKUS: [],
+
   // OAuth scope for read/write access to spreadsheets
   SCOPES: 'https://www.googleapis.com/auth/spreadsheets',
 

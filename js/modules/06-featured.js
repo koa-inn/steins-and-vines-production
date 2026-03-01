@@ -69,9 +69,13 @@ function loadFeaturedProducts() {
           setCache(HOMEPAGE_CACHE_KEY, HOMEPAGE_CACHE_TS_KEY, JSON.stringify(d));
           return { isAppsScript: true, data: d };
         }
-        return { isAppsScript: true, data: { skus: [] } };
+        // API returned non-ok — fall back to SHEETS_CONFIG static list
+        var staticSkus = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.FEATURED_SKUS) || [];
+        return { isAppsScript: true, data: { skus: staticSkus } };
       })
       .catch(function () {
+        var staticSkus = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.FEATURED_SKUS) || [];
+        if (staticSkus.length) return { isAppsScript: true, data: { skus: staticSkus } };
         return fetch('content/home.json')
           .then(function (r) { return r.ok ? r.json() : {}; })
           .then(function (j) { return { isJson: true, data: j }; })
