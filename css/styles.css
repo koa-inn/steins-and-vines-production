@@ -676,6 +676,7 @@ behold-widget {
 .promo-featured-products .label-beer {
   flex: 0 0 100%;
   max-width: 340px;
+  min-height: 460px;
   margin: 0 auto;
   box-shadow:
     0 2px 4px rgba(0,0,0,0.1),
