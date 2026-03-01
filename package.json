@@ -12,6 +12,7 @@
     "stamp:kiosk": "node -e \"const fs=require('fs');let f=fs.readFileSync('kiosk.html','utf8');const v=Date.now().toString(36);f=f.replace(/kiosk\\.min\\.css\\?v=[^\\\"]+/g,'kiosk.min.css?v='+v);f=f.replace(/kiosk\\.min\\.js\\?v=[^\\\"]+/g,'kiosk.min.js?v='+v);fs.writeFileSync('kiosk.html',f);console.log('kiosk.html cache version updated to '+v);\"",
     "build": "npm run stamp && npm run stamp:sw && npm run stamp:admin && npm run stamp:kiosk && npm run minify:css && npm run minify:js",
     "optimize-images": "node scripts/optimize-images.js",
+    "snapshot": "node zoho-middleware/scripts/export-snapshot.js",
     "watch": "echo 'Run build after making changes'"
   },
   "devDependencies": {

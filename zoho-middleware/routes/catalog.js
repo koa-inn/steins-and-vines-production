@@ -472,6 +472,149 @@ router.get('/api/kiosk/products', function (req, res) {
     });
 });
 
+/**
+ * GET /api/snapshot
+ * Returns a pre-shaped JSON snapshot of all three catalogs (products, ingredients,
+ * services) suitable for use as a static fallback file. Reads from Redis caches
+ * when warm; falls back to a fresh Zoho fetch if any cache is cold. Intended to
+ * be called by zoho-middleware/scripts/export-snapshot.js before deploys.
+ *
+ * Response shape:
+ * {
+ *   generated_at: <ISO string>,
+ *   products:     [ ...shaped kit items   ],
+ *   ingredients:  [ ...shaped ing items   ],
+ *   services:     [ ...shaped svc items   ]
+ * }
+ *
+ * Each item is shaped identically to what the frontend mappers in modules 07/08/09
+ * produce, so the snapshot is a drop-in replacement for live middleware data.
+ */
+router.get('/api/snapshot', function (req, res) {
+  var KIT_CATS = ['wine', 'beer', 'cider', 'seltzer'];
+  var state = { products: [], ingredients: [], services: [] };
+
+  function flattenCF(customFields, obj) {
+    (customFields || []).forEach(function (cf) {
+      var key = (cf.label || '').toLowerCase().replace(/\s+/g, '_');
+      if (key && cf.value !== undefined && cf.value !== null) {
+        obj[key] = String(cf.value);
+      }
+    });
+  }
+
+  function shapeProduct(z) {
+    var obj = {
+      name:           z.name || '',
+      sku:            z.sku || '',
+      brand:          z.brand || '',
+      stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
+      description:    z.description || '',
+      discount:       z.discount != null ? String(z.discount) : '0',
+      _zoho_category: z.category_name || ''
+    };
+    flattenCF(z.custom_fields, obj);
+    if (z.rate != null) {
+      var rateNum = parseFloat(z.rate);
+      if (!obj.retail_kit)     obj.retail_kit     = '$' + rateNum.toFixed(2);
+      if (!obj.retail_instore) obj.retail_instore  = '$' + (rateNum + 50).toFixed(2);
+    }
+    return obj;
+  }
+
+  function shapeIngredient(z) {
+    var obj = {
+      name:           z.name || '',
+      unit:           z.unit || '',
+      price_per_unit: z.rate != null ? String(z.rate) : '',
+      stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
+      description:    z.description || '',
+      sku:            z.sku || '',
+      category:       z.category_name || '',
+      low_amount:     '',
+      high_amount:    '',
+      step:           ''
+    };
+    flattenCF(z.custom_fields, obj);
+    return obj;
+  }
+
+  function shapeService(z) {
+    return {
+      name:        z.name || '',
+      price:       z.rate != null ? String(z.rate) : '',
+      description: z.description || '',
+      sku:         z.sku || '',
+      stock:       z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
+      discount:    z.discount != null ? String(z.discount) : '0'
+    };
+  }
+
+  function ensureProducts() {
+    return cache.get(PRODUCTS_CACHE_KEY).then(function (cached) {
+      if (cached && cached.length > 0) {
+        state.products = cached.map(shapeProduct);
+        return;
+      }
+      log.info('[api/snapshot] Products cache cold — triggering refresh');
+      return refreshProducts()
+        .then(function () { return cache.get(PRODUCTS_CACHE_KEY); })
+        .then(function (p) { state.products = (p || []).map(shapeProduct); });
+    });
+  }
+
+  function ensureIngredients() {
+    return cache.get(INGREDIENTS_CACHE_KEY).then(function (cached) {
+      if (cached && cached.length > 0) {
+        state.ingredients = cached.map(shapeIngredient);
+        return;
+      }
+      log.info('[api/snapshot] Ingredients cache cold — fetching from Zoho');
+      return fetchAllItems({ status: 'active' }).then(function (allItems) {
+        var filtered = allItems.filter(function (item) {
+          if (item.product_type === 'service') return false;
+          if (item.rate <= 0) return false;
+          var cfType = (item.cf_type || '').toLowerCase();
+          if (cfType && KIT_CATS.indexOf(cfType) !== -1) return false;
+          if (_kitItemIds[item.item_id]) return false;
+          return true;
+        });
+        state.ingredients = filtered.map(shapeIngredient);
+      });
+    });
+  }
+
+  function ensureServices() {
+    return cache.get(SERVICES_CACHE_KEY).then(function (cached) {
+      if (cached && cached.length > 0) {
+        state.services = cached.map(shapeService);
+        return;
+      }
+      log.info('[api/snapshot] Services cache cold — fetching from Zoho');
+      return fetchAllItems({ status: 'active' }).then(function (allItems) {
+        var svcItems = allItems.filter(function (item) {
+          return item.product_type === 'service';
+        });
+        state.services = svcItems.map(shapeService);
+      });
+    });
+  }
+
+  Promise.all([ensureProducts(), ensureIngredients(), ensureServices()])
+    .then(function () {
+      res.json({
+        generated_at: new Date().toISOString(),
+        products:     state.products,
+        ingredients:  state.ingredients,
+        services:     state.services
+      });
+    })
+    .catch(function (err) {
+      log.error('[api/snapshot] ' + err.message);
+      res.status(502).json({ error: 'Snapshot generation failed: ' + err.message });
+    });
+});
+
 // Expose refreshProducts so server.js can call it for pre-warming
 router.refreshProducts = refreshProducts;
 
