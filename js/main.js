@@ -548,7 +548,7 @@ function loadFeaturedProducts() {
     .then(function (results) {
       var result = results[0];
       var products = results[1];
-      var config = { 'promo-featured-skus': [], 'instafeed-url': '' };
+      var config = { 'promo-featured-skus': [], 'instafeed-url': (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.INSTAGRAM_FEED_URL) || '' };
 
       if (result && result.isJson) {
         // Fallback JSON format
