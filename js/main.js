@@ -388,8 +388,8 @@ function loadFeaturedProducts() {
   }
 
   // Featured products API (Apps Script public endpoint — no auth required)
-  var featuredApiUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.ADMIN_API_URL)
-    ? SHEETS_CONFIG.ADMIN_API_URL + '?action=get_featured'
+  var featuredApiUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.FEATURED_API_URL)
+    ? SHEETS_CONFIG.FEATURED_API_URL
     : null;
 
   // LocalStorage caching for homepage featured config (1 hour TTL)

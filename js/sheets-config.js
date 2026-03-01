@@ -35,6 +35,10 @@ var SHEETS_CONFIG = {
   // Behold Instagram feed ID — update this when the widget changes
   INSTAGRAM_FEED_ID: '0Zd67EUJqg7knUfOBqKn',
 
+  // Public Apps Script endpoint for featured products (Execute as: Me, Anyone access)
+  // Separate from ADMIN_API_URL which requires Google account auth
+  FEATURED_API_URL: 'https://script.google.com/macros/s/AKfycbwf0YlUssvXZPOIZTcIqVrmy61jocZdV4k_r7R6lpRgaQNBPLp0Ir1OXiWyQsYRLVfmlw/exec?action=get_featured',
+
   // Static featured SKUs — used as fallback if the Apps Script endpoint is unreachable.
   // Format: [{ sku: 'SKU-001', description: 'Optional promo text' }, ...]
   // Update this alongside saving in the admin panel's Homepage tab.
