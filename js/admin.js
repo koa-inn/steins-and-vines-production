@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-03-01T22:57:22.147Z';
+  var BUILD_TIMESTAMP = '2026-03-01T23:07:59.114Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -920,6 +920,10 @@
       populateOrderBrandFilter();
       renderOrderTab();
       loadHomepageData();
+      // Pre-load kiosk products so homepage featured search has Zoho SKUs available
+      if (mwUrl && !_kioskProductsLoaded && !_kioskProductsLoading) {
+        kioskLoadProducts();
+      }
     }
 
     if (mwUrl) {
