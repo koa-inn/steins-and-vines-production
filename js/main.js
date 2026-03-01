@@ -561,7 +561,8 @@ function loadFeaturedProducts() {
             var values = parseHomepageCSVLine(lines[i]);
             var type = (values[0] || '').toLowerCase().trim();
             if (type === 'instafeed') {
-              config['instafeed-url'] = (values[3] || '').trim();
+              // Only use CSV value if SHEETS_CONFIG doesn't already provide the URL
+              if (!config['instafeed-url']) config['instafeed-url'] = (values[3] || '').trim();
             } else if (type === 'featured') {
               var sku = (values[4] || '').trim();
               var desc = (values[3] || '').trim();
