@@ -2580,10 +2580,10 @@ function loadIngredients(callback) {
         return true;
       });
       buildIngredientFilters();
+      wireIngredientEvents();
       // Only render if the user hasn't switched away from the ingredients tab
       if (_activeCartTab === 'ingredients') {
         renderIngredients();
-        wireIngredientEvents();
       }
       if (callback) callback();
     })
@@ -3607,8 +3607,6 @@ function initProductTabs() {
   var tabs = document.getElementById('product-tabs');
   if (!tabs) return;
 
-  var ingredientsLoaded = false;
-
   tabs.addEventListener('click', function (e) {
     var btn = e.target.closest('.product-tab-btn');
     if (!btn) return;
@@ -3661,8 +3659,7 @@ function initProductTabs() {
     if (tab === 'kits') {
       if (applyKitsFilters) applyKitsFilters();
     } else if (tab === 'ingredients') {
-      if (!ingredientsLoaded) {
-        ingredientsLoaded = true;
+      if (_allIngredients.length === 0) {
         if (catalog) showCatalogSkeletons(catalog, 8);
         loadIngredients(function () {});
       } else {
@@ -6463,6 +6460,10 @@ document.addEventListener('DOMContentLoaded', function () {
     initReservationBar();
     initProductTabs();
     initCatalogViewToggle();
+    // Preload ingredients in the background so the first tab switch is instant
+    setTimeout(function () {
+      if (_allIngredients.length === 0) loadIngredients(function () {});
+    }, 1500);
 
     // Auto-switch tab if ?tab= param is set (e.g. from homepage "Shop Ingredients" link)
     var tabParam = new URLSearchParams(window.location.search).get('tab');

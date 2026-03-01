@@ -2,8 +2,6 @@ function initProductTabs() {
   var tabs = document.getElementById('product-tabs');
   if (!tabs) return;
 
-  var ingredientsLoaded = false;
-
   tabs.addEventListener('click', function (e) {
     var btn = e.target.closest('.product-tab-btn');
     if (!btn) return;
@@ -56,8 +54,7 @@ function initProductTabs() {
     if (tab === 'kits') {
       if (applyKitsFilters) applyKitsFilters();
     } else if (tab === 'ingredients') {
-      if (!ingredientsLoaded) {
-        ingredientsLoaded = true;
+      if (_allIngredients.length === 0) {
         if (catalog) showCatalogSkeletons(catalog, 8);
         loadIngredients(function () {});
       } else {
