@@ -15,6 +15,7 @@
     "build": "npm run stamp && npm run stamp:sw && npm run stamp:admin && npm run stamp:kiosk && npm run stamp:index && npm run stamp:pages && npm run minify:css && npm run minify:js",
     "optimize-images": "node scripts/optimize-images.js",
     "snapshot": "node zoho-middleware/scripts/export-snapshot.js",
+    "snapshot:csv": "node zoho-middleware/scripts/csv-to-snapshot.js",
     "watch": "echo 'Run build after making changes'"
   },
   "devDependencies": {
