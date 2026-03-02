@@ -3630,65 +3630,58 @@ function renderServices() {
     wrapper.appendChild(table);
   } else {
     var grid = document.createElement('div');
-    grid.className = 'product-grid';
+    grid.className = 'service-bubbles-grid';
 
     filtered.forEach(function (svc) {
-      var card = document.createElement('div');
-      card.className = 'product-card';
+      var bubble = document.createElement('div');
+      bubble.className = 'service-bubble';
 
-      var header = document.createElement('div');
-      header.className = 'product-card-header';
-      var cardName = document.createElement('h4');
-      cardName.textContent = svc.name;
-      header.appendChild(cardName);
-      card.appendChild(header);
+      var nameEl = document.createElement('h3');
+      nameEl.className = 'service-bubble-name';
+      nameEl.textContent = svc.name;
+      bubble.appendChild(nameEl);
 
-      // Description (handles the typo column name)
       var descText = (svc.desription || svc.description || '').trim();
       if (descText) {
         var descEl = document.createElement('p');
-        descEl.className = 'service-description';
+        descEl.className = 'service-bubble-desc';
         descEl.textContent = descText;
-        card.appendChild(descEl);
+        bubble.appendChild(descEl);
       }
 
-      // Price with optional discount
       var price = (svc.price || '').trim();
       var discount = parseFloat(svc.discount) || 0;
 
-      if (discount > 0) {
-        var badge = document.createElement('span');
-        badge.className = 'product-discount-badge';
-        badge.textContent = Math.round(discount) + '% OFF';
-        card.appendChild(badge);
-      }
-
       if (price) {
-        var priceRow = document.createElement('div');
-        priceRow.className = 'product-prices service-price';
-        var priceBox = document.createElement('div');
-        priceBox.className = 'product-price-box';
+        var footer = document.createElement('div');
+        footer.className = 'service-bubble-footer';
+
+        var priceEl = document.createElement('span');
+        priceEl.className = 'service-bubble-price';
 
         if (discount > 0) {
           var priceNum = parseFloat(price.replace(/[^0-9.]/g, ''));
           var salePrice = formatCurrency(priceNum * (1 - discount / 100));
-          priceBox.innerHTML = '<span class="product-price-label">Price</span><span class="product-price-original">' + formatCurrency(price) + '</span><span class="product-price-value">' + salePrice + '</span>';
+          priceEl.innerHTML = '<s>' + formatCurrency(price) + '</s> ' + salePrice;
+          var badge = document.createElement('span');
+          badge.className = 'discount-badge-sm';
+          badge.textContent = Math.round(discount) + '% OFF';
+          footer.appendChild(badge);
         } else {
-          priceBox.innerHTML = '<span class="product-price-label">Price</span><span class="product-price-value">' + formatCurrency(price) + '</span>';
+          priceEl.textContent = formatCurrency(price);
         }
 
-        priceRow.appendChild(priceBox);
-        card.appendChild(priceRow);
+        footer.appendChild(priceEl);
+        bubble.appendChild(footer);
       }
 
-      grid.appendChild(card);
+      grid.appendChild(bubble);
     });
 
     wrapper.appendChild(grid);
   }
 
   catalog.appendChild(wrapper);
-  equalizeCardHeights();
 }
 
 function parseCSVLine(line) {

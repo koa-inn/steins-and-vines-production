@@ -2939,7 +2939,7 @@
     {
       "name": "Makers Fee",
       "price": "50",
-      "description": "Ferment-on-premise Makers Fee",
+      "description": "Our Makers Fee covers your use of the fermentation space and professional equipment for one batch. Staff are on hand throughout to guide and support you along the way.",
       "sku": "MAKERS-FEE",
       "stock": "0",
       "discount": "0"
@@ -2947,7 +2947,7 @@
     {
       "name": "Milling Fee",
       "price": "10",
-      "description": "",
+      "description": "Get your grains freshly cracked on-site before your brew session for better extraction efficiency and a more vibrant, fresh flavour in the finished beer.",
       "sku": "",
       "stock": "0",
       "discount": "0"
@@ -2955,7 +2955,7 @@
     {
       "name": "Wine Carbonation",
       "price": "35",
-      "description": "",
+      "description": "Add a light sparkle to your wine with our in-house carbonation service. Great for white wines, rose, and sweeter varieties that benefit from a touch of effervescence.",
       "sku": "CARB-WINE",
       "stock": "0",
       "discount": "0"
