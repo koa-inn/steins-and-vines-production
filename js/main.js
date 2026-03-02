@@ -495,6 +495,7 @@ function loadFeaturedProducts() {
           var obj = {
             name: z.name || '',
             sku: z.sku || '',
+            item_id: z.item_id || '',
             brand: z.brand || '',
             stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
             description: z.description || '',
@@ -650,7 +651,7 @@ function loadFeaturedProducts() {
     if (featuredSkus && featuredSkus.length > 0) {
       featuredSkus.forEach(function (entry) {
         var sku = typeof entry === 'object' ? entry.sku : entry;
-        var match = products.find(function (p) { return p.sku === sku; });
+        var match = products.find(function (p) { return p.sku === sku || (p.item_id && p.item_id === sku); });
         if (match) {
           match._featuredDescription = (typeof entry === 'object' ? entry.description : '') || '';
           featured.push(match);
@@ -663,7 +664,7 @@ function loadFeaturedProducts() {
       featured = products.filter(function (p) {
         return (p.featured || '').trim().toUpperCase() === 'TRUE' ||
                (p.favorite || '').trim().toUpperCase() === 'TRUE';
-      });
+      }).slice(0, 3);
     }
 
     // Fallback: products with discounts

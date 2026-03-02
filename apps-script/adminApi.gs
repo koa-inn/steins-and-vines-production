@@ -504,19 +504,11 @@ function getSchedule() {
 }
 
 function getFeatured() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(HOMEPAGE_SHEET_NAME);
-  if (!sheet) return { ok: true, skus: [] };
-
-  var data = sheet.getDataRange().getValues();
+  // Reads from ScriptProperties — no spreadsheet access needed, works for anonymous callers
+  var stored = PropertiesService.getScriptProperties().getProperty('featured_skus');
   var skus = [];
-  for (var i = 1; i < data.length; i++) {
-    var type = String(data[i][0] || '').toLowerCase().trim();
-    if (type === 'featured') {
-      var sku = String(data[i][4] || '').trim();
-      var desc = String(data[i][3] || '').trim();
-      if (sku) skus.push({ sku: sku, description: desc });
-    }
+  if (stored) {
+    try { skus = JSON.parse(stored); } catch (e) {}
   }
   return { ok: true, skus: skus };
 }
@@ -932,6 +924,19 @@ function updateHomepage(payload) {
     sheet.getRange(1, 1, sanitizedValues.length, numCols).setValues(sanitizedValues);
   }
 
+  // Sync featured SKUs to ScriptProperties so the public get_featured endpoint
+  // can serve them without requiring user authentication
+  try {
+    var featuredSkus = [];
+    sanitizedValues.forEach(function(row) {
+      if (String(row[0] || '').toLowerCase().trim() === 'featured') {
+        var sku = String(row[4] || '').trim();
+        var desc = String(row[3] || '').trim();
+        if (sku) featuredSkus.push({ sku: sku, description: desc });
+      }
+    });
+    PropertiesService.getScriptProperties().setProperty('featured_skus', JSON.stringify(featuredSkus));
+  } catch (e) {}
   try { CacheService.getScriptCache().remove('gfeatured'); } catch (e) {}
   return { ok: true, message: 'Homepage updated' };
 }
