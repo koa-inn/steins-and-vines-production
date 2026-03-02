@@ -1,0 +1,88 @@
+name: Update Zoho Snapshot
+
+# Runs nightly at 6 AM UTC — 1 hour after the middleware cron warm-up (5 AM UTC)
+# so Redis caches are guaranteed warm before we export. Can also be triggered manually.
+#
+# What it does:
+#   1. Fetches /api/snapshot from the production middleware (reads warm Redis caches)
+#   2. Validates the response (no error key, at least some items present)
+#   3. Writes content/zoho-snapshot.json and commits if changed
+#   4. This file is the last-resort static fallback for the frontend when the
+#      middleware is unreachable (e.g. private browsing during a 429 outage)
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 06:00 UTC daily
+  workflow_dispatch:        # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  update-snapshot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # Allow pushing the updated snapshot file
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch snapshot from middleware
+        id: fetch
+        run: |
+          echo "Fetching snapshot from production middleware..."
+          HTTP_CODE=$(curl -s -o snapshot_raw.json -w "%{http_code}" \
+            --max-time 60 \
+            "https://svmiddleware-production.up.railway.app/api/snapshot")
+
+          echo "HTTP status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "ERROR: Middleware returned HTTP $HTTP_CODE"
+            cat snapshot_raw.json
+            exit 1
+          fi
+
+          # Fail if response contains an error key
+          if python3 -c "import sys,json; d=json.load(open('snapshot_raw.json')); sys.exit(1 if 'error' in d else 0)"; then
+            echo "Snapshot validated OK"
+          else
+            echo "ERROR: Snapshot contains error field:"
+            cat snapshot_raw.json
+            exit 1
+          fi
+
+          # Fail if all three catalogs are empty (likely a cold cache or Zoho 429)
+          python3 - <<'PYEOF'
+          import json, sys
+          d = json.load(open('snapshot_raw.json'))
+          products    = len(d.get('products', []))
+          ingredients = len(d.get('ingredients', []))
+          services    = len(d.get('services', []))
+          print(f"  products:     {products}")
+          print(f"  ingredients:  {ingredients}")
+          print(f"  services:     {services}")
+          print(f"  generated_at: {d.get('generated_at', 'n/a')}")
+          if products + ingredients + services == 0:
+              print("ERROR: All catalogs are empty — skipping commit")
+              sys.exit(1)
+          PYEOF
+
+      - name: Write snapshot file
+        run: |
+          # Pretty-print for readable diffs
+          python3 -c "import json; d=json.load(open('snapshot_raw.json')); open('content/zoho-snapshot.json','w').write(json.dumps(d, indent=2))"
+          rm snapshot_raw.json
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add content/zoho-snapshot.json
+          if git diff --staged --quiet; then
+            echo "Snapshot unchanged — nothing to commit"
+          else
+            git commit -m "chore: update Zoho snapshot [skip ci]"
+            git push
+            echo "Snapshot updated and pushed"
+          fi

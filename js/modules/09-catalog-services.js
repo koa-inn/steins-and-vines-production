@@ -21,7 +21,7 @@ function loadServices(callback) {
 
   var MW_CACHE_KEY = 'sv-services-mw';
   var MW_CACHE_TS_KEY = 'sv-services-mw-ts';
-  var MW_CACHE_TTL = 10 * 60 * 1000;
+  var MW_CACHE_TTL = 30 * 60 * 1000;
 
   function getCachedMW() {
     try {

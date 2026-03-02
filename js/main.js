@@ -1268,7 +1268,7 @@ function loadProducts() {
 
   var MW_CACHE_KEY = 'sv-products-mw';
   var MW_CACHE_TS_KEY = 'sv-products-mw-ts';
-  var MW_CACHE_TTL = 10 * 60 * 1000;
+  var MW_CACHE_TTL = 30 * 60 * 1000;
 
   function getCachedMW() {
     try {
@@ -2568,7 +2568,7 @@ function loadIngredients(callback) {
 
   var MW_CACHE_KEY = 'sv-ingredients-mw';
   var MW_CACHE_TS_KEY = 'sv-ingredients-mw-ts';
-  var MW_CACHE_TTL = 10 * 60 * 1000;
+  var MW_CACHE_TTL = 30 * 60 * 1000;
 
   function getCachedMW() {
     try {
@@ -3354,7 +3354,7 @@ function loadServices(callback) {
 
   var MW_CACHE_KEY = 'sv-services-mw';
   var MW_CACHE_TS_KEY = 'sv-services-mw-ts';
-  var MW_CACHE_TTL = 10 * 60 * 1000;
+  var MW_CACHE_TTL = 30 * 60 * 1000;
 
   function getCachedMW() {
     try {

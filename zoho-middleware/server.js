@@ -9,6 +9,7 @@ var zohoAuth = require('./lib/zohoAuth');
 var cache = require('./lib/cache');
 var log = require('./lib/logger');
 var gpLib = require('./lib/gp');
+var cron = require('node-cron');
 
 var app = express();
 app.set('trust proxy', 1); // Railway sits behind a load balancer
@@ -239,6 +240,32 @@ cache.init().then(function () {
       }).catch(function (err) {
         log.error('Pre-warm failed: ' + err.message);
       });
+
+      // Scheduled cache warm-up: 5 AM and 1 PM UTC daily
+      // Keeps Redis caches hot during business hours so user requests never
+      // trigger a cold Zoho fetch. Products first, ingredients staggered 60s later
+      // to stay within Zoho's per-minute rate limit.
+      cron.schedule('0 5,13 * * *', function () {
+        if (!zohoAuth.isAuthenticated()) {
+          log.warn('[cron] Skipping warm-up — Zoho not authenticated');
+          return;
+        }
+        log.info('[cron] Scheduled cache warm-up starting');
+        catalogRouter.refreshProducts().then(function () {
+          log.info('[cron] Products cache refreshed');
+        }).catch(function (err) {
+          log.error('[cron] Products warm-up failed: ' + err.message);
+        });
+        setTimeout(function () {
+          if (!zohoAuth.isAuthenticated()) return;
+          catalogRouter.refreshIngredients().then(function () {
+            log.info('[cron] Ingredients cache refreshed');
+          }).catch(function (err) {
+            log.error('[cron] Ingredients warm-up failed: ' + err.message);
+          });
+        }, 60000); // 60s after products to avoid rate-limit burst
+      });
+      log.info('[cron] Scheduled warm-up registered: 05:00 and 13:00 UTC daily');
     }
   });
 

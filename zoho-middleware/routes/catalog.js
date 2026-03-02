@@ -60,13 +60,15 @@ var PRODUCTS_FILE_CACHE = path.join(__dirname, '..', 'products-cache.json');
 var INGREDIENTS_FILE_CACHE = path.join(__dirname, '..', 'ingredients-cache.json');
 
 var SERVICES_CACHE_KEY = 'zoho:services';
-var SERVICES_CACHE_TTL = 300; // 5 minutes
+var SERVICES_CACHE_TTL = 1800; // 30 minutes
 
 var INGREDIENTS_CACHE_KEY = 'zoho:ingredients';
 var INGREDIENTS_CACHE_TTL = 3600; // 1 hour (match products TTL)
+var INGREDIENTS_CACHE_TS_KEY = 'zoho:ingredients:ts';
+var INGREDIENTS_SOFT_TTL = 600; // 10 minutes — triggers background refresh
 
 var KIOSK_PRODUCTS_CACHE_KEY = 'zoho:kiosk-products';
-var KIOSK_PRODUCTS_CACHE_TTL = 300; // 5 minutes
+var KIOSK_PRODUCTS_CACHE_TTL = 1800; // 30 minutes
 
 // Kit type values that belong on the kits/products page.
 // Used by both doRefreshProducts() and GET /api/ingredients.
@@ -432,6 +434,7 @@ function doRefreshIngredients() {
         _ingredientsRefreshPromise = null;
         if (enriched.length > 0) {
           cache.set(INGREDIENTS_CACHE_KEY, enriched, INGREDIENTS_CACHE_TTL);
+          cache.set(INGREDIENTS_CACHE_TS_KEY, Date.now(), INGREDIENTS_CACHE_TTL);
           // Write file fallback (async, fire-and-forget)
           fs.writeFile(INGREDIENTS_FILE_CACHE, JSON.stringify(enriched), function (fileErr) {
             if (fileErr) {
@@ -465,7 +468,19 @@ router.get('/api/ingredients', function (req, res) {
     .then(function (cached) {
       if (cached && cached.length > 0) {
         log.info('[api/ingredients] Cache hit (' + cached.length + ' items)');
-        return res.json({ source: 'cache', items: cached });
+        res.json({ source: 'cache', items: cached });
+
+        // Stale-while-revalidate: if cache is older than soft TTL, refresh in background
+        cache.get(INGREDIENTS_CACHE_TS_KEY).then(function (ts) {
+          var age = ts ? (Date.now() - ts) / 1000 : INGREDIENTS_SOFT_TTL + 1;
+          if (age > INGREDIENTS_SOFT_TTL) {
+            log.info('[api/ingredients] Cache stale (' + Math.round(age) + 's old), refreshing in background');
+            doRefreshIngredients().catch(function (err) {
+              log.error('[api/ingredients] Background refresh failed: ' + err.message);
+            });
+          }
+        });
+        return;
       }
 
       // Try file fallback before slow enrichment
