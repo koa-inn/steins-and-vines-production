@@ -123,10 +123,7 @@ function loadIngredients(callback) {
       });
       buildIngredientFilters();
       wireIngredientEvents();
-      // Only render if the user hasn't switched away from the ingredients tab
-      if (_activeCartTab === 'ingredients') {
-        renderIngredients();
-      }
+      renderIngredients();
       if (callback) callback();
     })
     .catch(function () {});
@@ -255,6 +252,8 @@ function wireIngredientEvents() {
 }
 
 function renderIngredients() {
+  // Guard: don't overwrite the kits catalog if the user isn't on the ingredients tab
+  if (_activeCartTab !== 'ingredients') return;
   var catalog = document.getElementById('product-catalog');
   if (!catalog) return;
 
