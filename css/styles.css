@@ -2323,6 +2323,16 @@ behold-widget {
 }
 
 /* ===== Reservation Page ===== */
+.checkout-continue-wrap {
+  display: none;
+  padding: 1.5rem 0 0.5rem;
+}
+@media (max-width: 768px) {
+  .checkout-continue-wrap {
+    display: block;
+  }
+}
+
 #reservation-list,
 #timeslot-picker,
 #reservation-form-section {
