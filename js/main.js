@@ -2775,6 +2775,17 @@ function renderIngredients() {
 
   var inStock = filtered.filter(function (r) { return (parseInt(r.stock, 10) || 0) > 0; });
 
+  if (inStock.length === 0) {
+    var msg = document.createElement('p');
+    msg.className = 'catalog-no-results';
+    msg.textContent = filtered.length > 0
+      ? 'No ingredients or supplies currently in stock. Check back soon!'
+      : 'No ingredients or supplies found.';
+    catalog.appendChild(msg);
+    buildProductRequestForm();
+    return;
+  }
+
   // Group by Zoho Type field, using the stable section order from first load
   var typeGroups = {};
   inStock.forEach(function (r) {

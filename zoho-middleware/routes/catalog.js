@@ -507,6 +507,7 @@ router.get('/api/snapshot', function (req, res) {
     var obj = {
       name:           z.name || '',
       sku:            z.sku || '',
+      item_id:        z.item_id || '',
       brand:          z.brand || '',
       stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
       description:    z.description || '',
