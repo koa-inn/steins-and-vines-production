@@ -124,14 +124,19 @@ function loadIngredients(callback) {
       });
       buildIngredientFilters();
       wireIngredientEvents();
-      // Default to Grains category on first load
-      var grainsBtn = document.querySelector('#filter-category .catalog-filter-btn:not([data-value="All"])');
-      var allCatBtns = document.querySelectorAll('#filter-category .catalog-filter-btn');
-      allCatBtns.forEach(function (b) {
-        if ((b.getAttribute('data-value') || '').toLowerCase() === 'grains') grainsBtn = b;
-      });
-      if (grainsBtn && (grainsBtn.getAttribute('data-value') || '').toLowerCase() === 'grains') {
-        grainsBtn.click();
+      // Default to Grains category on first load, unless deep-linking to a specific item
+      var deepLinkedSku = (new URLSearchParams(window.location.search)).get('item');
+      if (!deepLinkedSku) {
+        var grainsBtn = null;
+        var allCatBtns = document.querySelectorAll('#filter-category .catalog-filter-btn');
+        allCatBtns.forEach(function (b) {
+          if ((b.getAttribute('data-value') || '').toLowerCase() === 'grains') grainsBtn = b;
+        });
+        if (grainsBtn) {
+          grainsBtn.click();
+        } else {
+          renderIngredients();
+        }
       } else {
         renderIngredients();
       }
@@ -360,6 +365,7 @@ function renderIngredients() {
   });
   equalizeCardHeights();
   buildProductRequestForm();
+  setTimeout(handleDeepLinkedItem, 200);
 }
 
 function renderIngredientSection(catalog, title, items, extraClass) {
@@ -432,11 +438,13 @@ function renderIngredientSection(catalog, title, items, extraClass) {
     var tbody = document.createElement('tbody');
     items.forEach(function (item) {
       var tr = document.createElement('tr');
+      if (item.sku) tr.setAttribute('data-sku', item.sku);
 
       var tdName = document.createElement('td');
       tdName.setAttribute('data-label', 'Name');
       tdName.className = 'table-name';
       tdName.textContent = item.name || '';
+      if (item.sku) tdName.appendChild(buildProductLinkBtn(item.sku));
       tr.appendChild(tdName);
 
       var tdCat = document.createElement('td');
@@ -564,6 +572,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
     items.forEach(function (item) {
       var card = document.createElement('div');
       card.className = 'product-card';
+      if (item.sku) card.setAttribute('data-sku', item.sku);
 
       var header = document.createElement('div');
       header.className = 'product-card-header';
@@ -571,6 +580,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
       var cardName = document.createElement('h4');
       cardName.textContent = item.name;
       header.appendChild(cardName);
+      if (item.sku) header.appendChild(buildProductLinkBtn(item.sku));
 
       var catParts = [];
       if (item.category) catParts.push(item.category);

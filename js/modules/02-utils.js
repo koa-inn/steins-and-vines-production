@@ -1,3 +1,72 @@
+// ===== Deep-link (?item=SKU) =====
+
+var _deepLinkHandled = false;
+
+function handleDeepLinkedItem() {
+  if (_deepLinkHandled) return;
+  var sku = (new URLSearchParams(window.location.search)).get('item');
+  if (!sku) return;
+  var el = document.querySelector('[data-sku="' + sku + '"]');
+  if (!el) return;
+
+  _deepLinkHandled = true;
+
+  // Open notes / description toggle
+  var notesWrap = el.querySelector('.notes-wrap') || el.querySelector('.product-notes');
+  if (notesWrap && !notesWrap.classList.contains('open')) {
+    notesWrap.classList.add('open');
+    var toggleBtn = notesWrap.querySelector('button');
+    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
+  }
+
+  // Table-view: open the sibling detail row directly (no click needed)
+  if (el.tagName === 'TR') {
+    var detailRow = el.nextElementSibling;
+    if (detailRow && detailRow.classList.contains('table-detail-row')) {
+      detailRow.classList.add('open');
+      var chev = el.querySelector('.table-expand-chevron');
+      if (chev) chev.classList.add('open');
+      el.classList.add('expanded');
+    }
+  }
+
+  // Highlight ring then scroll into view
+  el.classList.add('deep-link-highlight');
+  setTimeout(function () {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 150);
+}
+
+function buildProductLinkBtn(sku) {
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'product-link-btn';
+  btn.title = 'Copy link to this product';
+  btn.setAttribute('aria-label', 'Copy link to this product');
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var url = location.origin + location.pathname + '?item=' + encodeURIComponent(sku);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(function () {
+        btn.classList.add('product-link-btn--copied');
+        setTimeout(function () { btn.classList.remove('product-link-btn--copied'); }, 2000);
+      });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      btn.classList.add('product-link-btn--copied');
+      setTimeout(function () { btn.classList.remove('product-link-btn--copied'); }, 2000);
+    }
+  });
+  return btn;
+}
+
 // ===== Toast Notifications =====
 function showToast(message, type) {
   var container = document.querySelector('.toast-container');

@@ -1,6 +1,75 @@
 // ===== Middleware API Key =====
 
 var MW_API_KEY = 'ZAhmrUdOlPEPWEz9YHgQm7wvi6glfPjg55geu1qq7AY=';
+// ===== Deep-link (?item=SKU) =====
+
+var _deepLinkHandled = false;
+
+function handleDeepLinkedItem() {
+  if (_deepLinkHandled) return;
+  var sku = (new URLSearchParams(window.location.search)).get('item');
+  if (!sku) return;
+  var el = document.querySelector('[data-sku="' + sku + '"]');
+  if (!el) return;
+
+  _deepLinkHandled = true;
+
+  // Open notes / description toggle
+  var notesWrap = el.querySelector('.notes-wrap') || el.querySelector('.product-notes');
+  if (notesWrap && !notesWrap.classList.contains('open')) {
+    notesWrap.classList.add('open');
+    var toggleBtn = notesWrap.querySelector('button');
+    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
+  }
+
+  // Table-view: open the sibling detail row directly (no click needed)
+  if (el.tagName === 'TR') {
+    var detailRow = el.nextElementSibling;
+    if (detailRow && detailRow.classList.contains('table-detail-row')) {
+      detailRow.classList.add('open');
+      var chev = el.querySelector('.table-expand-chevron');
+      if (chev) chev.classList.add('open');
+      el.classList.add('expanded');
+    }
+  }
+
+  // Highlight ring then scroll into view
+  el.classList.add('deep-link-highlight');
+  setTimeout(function () {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 150);
+}
+
+function buildProductLinkBtn(sku) {
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'product-link-btn';
+  btn.title = 'Copy link to this product';
+  btn.setAttribute('aria-label', 'Copy link to this product');
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var url = location.origin + location.pathname + '?item=' + encodeURIComponent(sku);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(function () {
+        btn.classList.add('product-link-btn--copied');
+        setTimeout(function () { btn.classList.remove('product-link-btn--copied'); }, 2000);
+      });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      btn.classList.add('product-link-btn--copied');
+      setTimeout(function () { btn.classList.remove('product-link-btn--copied'); }, 2000);
+    }
+  });
+  return btn;
+}
+
 // ===== Toast Notifications =====
 function showToast(message, type) {
   var container = document.querySelector('.toast-container');
@@ -1769,6 +1838,7 @@ function loadProducts() {
 
     renderSection(catalog, 'Available to order', orderIn, 'catalog-section--order');
     equalizeCardHeights();
+    setTimeout(handleDeepLinkedItem, 200);
   }
 
   function buildWineCard(product) {
@@ -1836,6 +1906,8 @@ function loadProducts() {
     body.appendChild(spacer);
 
     card.appendChild(body);
+
+    if (product.sku) card.appendChild(buildProductLinkBtn(product.sku));
 
     var instore = (product.retail_instore || '').trim();
     var kit = (product.retail_kit || '').trim();
@@ -1922,6 +1994,8 @@ function loadProducts() {
     body.appendChild(spacer);
 
     card.appendChild(body);
+
+    if (product.sku) card.appendChild(buildProductLinkBtn(product.sku));
 
     var instore = (product.retail_instore || '').trim();
     var kit = (product.retail_kit || '').trim();
@@ -2070,6 +2144,8 @@ function loadProducts() {
       }
       card.appendChild(priceRow);
     }
+
+    if (product.sku) card.appendChild(buildProductLinkBtn(product.sku));
 
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'product-reserve-wrap';
@@ -2579,14 +2655,19 @@ function loadIngredients(callback) {
       });
       buildIngredientFilters();
       wireIngredientEvents();
-      // Default to Grains category on first load
-      var grainsBtn = document.querySelector('#filter-category .catalog-filter-btn:not([data-value="All"])');
-      var allCatBtns = document.querySelectorAll('#filter-category .catalog-filter-btn');
-      allCatBtns.forEach(function (b) {
-        if ((b.getAttribute('data-value') || '').toLowerCase() === 'grains') grainsBtn = b;
-      });
-      if (grainsBtn && (grainsBtn.getAttribute('data-value') || '').toLowerCase() === 'grains') {
-        grainsBtn.click();
+      // Default to Grains category on first load, unless deep-linking to a specific item
+      var deepLinkedSku = (new URLSearchParams(window.location.search)).get('item');
+      if (!deepLinkedSku) {
+        var grainsBtn = null;
+        var allCatBtns = document.querySelectorAll('#filter-category .catalog-filter-btn');
+        allCatBtns.forEach(function (b) {
+          if ((b.getAttribute('data-value') || '').toLowerCase() === 'grains') grainsBtn = b;
+        });
+        if (grainsBtn) {
+          grainsBtn.click();
+        } else {
+          renderIngredients();
+        }
       } else {
         renderIngredients();
       }
@@ -2815,6 +2896,7 @@ function renderIngredients() {
   });
   equalizeCardHeights();
   buildProductRequestForm();
+  setTimeout(handleDeepLinkedItem, 200);
 }
 
 function renderIngredientSection(catalog, title, items, extraClass) {
@@ -2887,11 +2969,13 @@ function renderIngredientSection(catalog, title, items, extraClass) {
     var tbody = document.createElement('tbody');
     items.forEach(function (item) {
       var tr = document.createElement('tr');
+      if (item.sku) tr.setAttribute('data-sku', item.sku);
 
       var tdName = document.createElement('td');
       tdName.setAttribute('data-label', 'Name');
       tdName.className = 'table-name';
       tdName.textContent = item.name || '';
+      if (item.sku) tdName.appendChild(buildProductLinkBtn(item.sku));
       tr.appendChild(tdName);
 
       var tdCat = document.createElement('td');
@@ -3019,6 +3103,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
     items.forEach(function (item) {
       var card = document.createElement('div');
       card.className = 'product-card';
+      if (item.sku) card.setAttribute('data-sku', item.sku);
 
       var header = document.createElement('div');
       header.className = 'product-card-header';
@@ -3026,6 +3111,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
       var cardName = document.createElement('h4');
       cardName.textContent = item.name;
       header.appendChild(cardName);
+      if (item.sku) header.appendChild(buildProductLinkBtn(item.sku));
 
       var catParts = [];
       if (item.category) catParts.push(item.category);

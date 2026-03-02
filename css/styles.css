@@ -1211,6 +1211,46 @@ behold-widget {
   margin-bottom: 0.5rem;
 }
 
+/* ===== Deep-link highlight & copy-link button ===== */
+@keyframes deepLinkHighlight {
+  0%   { box-shadow: 0 0 0 3px rgba(74, 111, 75, 0.85); }
+  50%  { box-shadow: 0 0 0 5px rgba(74, 111, 75, 0.35); }
+  100% { box-shadow: 0 0 0 3px rgba(74, 111, 75, 0); }
+}
+.deep-link-highlight {
+  animation: deepLinkHighlight 2.2s ease-out forwards;
+  border-radius: 6px;
+}
+
+.product-link-btn {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.2rem;
+  color: inherit;
+  opacity: 0;
+  transition: opacity 0.15s;
+  line-height: 0;
+  z-index: 2;
+}
+.product-card:hover .product-link-btn,
+.label-wine:hover .product-link-btn,
+.label-beer:hover .product-link-btn,
+.table-name:hover .product-link-btn,
+.product-link-btn:focus {
+  opacity: 0.45;
+}
+.product-link-btn:hover,
+.product-link-btn.product-link-btn--copied {
+  opacity: 1 !important;
+  color: var(--green-primary, #4a6f4b);
+}
+.label-wine, .label-beer { position: relative; }
+.table-name { position: relative; }
+
 .product-notes-toggle {
   background: none;
   border: none;

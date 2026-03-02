@@ -595,6 +595,7 @@ function loadProducts() {
 
     renderSection(catalog, 'Available to order', orderIn, 'catalog-section--order');
     equalizeCardHeights();
+    setTimeout(handleDeepLinkedItem, 200);
   }
 
   function buildWineCard(product) {
@@ -662,6 +663,8 @@ function loadProducts() {
     body.appendChild(spacer);
 
     card.appendChild(body);
+
+    if (product.sku) card.appendChild(buildProductLinkBtn(product.sku));
 
     var instore = (product.retail_instore || '').trim();
     var kit = (product.retail_kit || '').trim();
@@ -748,6 +751,8 @@ function loadProducts() {
     body.appendChild(spacer);
 
     card.appendChild(body);
+
+    if (product.sku) card.appendChild(buildProductLinkBtn(product.sku));
 
     var instore = (product.retail_instore || '').trim();
     var kit = (product.retail_kit || '').trim();
@@ -896,6 +901,8 @@ function loadProducts() {
       }
       card.appendChild(priceRow);
     }
+
+    if (product.sku) card.appendChild(buildProductLinkBtn(product.sku));
 
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'product-reserve-wrap';
