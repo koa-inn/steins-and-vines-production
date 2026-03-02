@@ -5091,6 +5091,29 @@ behold-widget {
   flex-shrink: 0;
 }
 
+.weight-control-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid var(--color-border, #d0c8b0);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-muted, #888);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.weight-control-remove:hover {
+  background: #fde8e8;
+  border-color: #c0392b;
+  color: #c0392b;
+}
+
 /* Responsive: stack compact on very narrow */
 @media (max-width: 400px) {
   .weight-control-compact {

@@ -4184,6 +4184,14 @@ function renderWeightControl(wrap, product, productKey) {
   addBtn.className = 'weight-control-add';
   container.appendChild(addBtn);
 
+  // Remove from cart button
+  var removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'weight-control-remove';
+  removeBtn.setAttribute('aria-label', 'Remove from cart');
+  removeBtn.textContent = '\u00D7';
+  container.appendChild(removeBtn);
+
   // Helper: snap value to nearest step and clamp
   function snapVal(v) {
     var snapped = Math.round(v / stepVal) * stepVal;
@@ -4262,6 +4270,12 @@ function renderWeightControl(wrap, product, productKey) {
     var amt = snapVal(parseFloat(numInput.value) || minVal);
     setReservationQty(product, amt);
     trackEvent('add_to_cart', product.sku || '', product.name || '');
+    renderWeightControl(wrap, product, productKey);
+  });
+
+  removeBtn.addEventListener('click', function () {
+    setReservationQty(product, 0);
+    updateReservationBar();
     renderWeightControl(wrap, product, productKey);
   });
 
@@ -4348,10 +4362,17 @@ function renderWeightControlCompact(wrap, product, productKey) {
   addBtn.className = 'weight-control-add';
   addBtn.textContent = currentQty > 0 ? 'Update' : 'Add';
 
+  var removeBtnC = document.createElement('button');
+  removeBtnC.type = 'button';
+  removeBtnC.className = 'weight-control-remove';
+  removeBtnC.setAttribute('aria-label', 'Remove from cart');
+  removeBtnC.textContent = '\u00D7';
+
   actionRow.appendChild(numInput);
   actionRow.appendChild(unitLabel);
   actionRow.appendChild(priceTag);
   actionRow.appendChild(addBtn);
+  actionRow.appendChild(removeBtnC);
   container.appendChild(actionRow);
 
   // Helper: snap value to nearest step and clamp
@@ -4401,6 +4422,12 @@ function renderWeightControlCompact(wrap, product, productKey) {
     var amt = snapVal(parseFloat(numInput.value) || minVal);
     setReservationQty(product, amt);
     trackEvent('add_to_cart', product.sku || '', product.name || '');
+    renderWeightControlCompact(wrap, product, productKey);
+  });
+
+  removeBtnC.addEventListener('click', function () {
+    setReservationQty(product, 0);
+    updateReservationBar();
     renderWeightControlCompact(wrap, product, productKey);
   });
 
