@@ -247,7 +247,7 @@ function doRefreshProducts() {
             }
 
             // Store the new image map in Redis (same TTL as products cache)
-            return cache.set(PRODUCT_IMAGE_HASHES_KEY, currentImageMap, PRODUCTS_CACHE_TTL);
+            return cache.set(PRODUCT_IMAGE_HASHES_KEY, currentImageMap, 86400); // 24 hours — outlasts product cache so diffs are always meaningful
           })
           .catch(function (imgErr) {
             log.error('[api/products] Image change detection error: ' + imgErr.message);
@@ -378,8 +378,8 @@ function doRefreshIngredients() {
 
       log.info('[api/ingredients] Enriching ' + items.length + ' priced items (batches of 10)');
 
-      var BATCH_SIZE = 10;
-      var BATCH_PAUSE = 500; // ms between batches
+      var BATCH_SIZE = 5;
+      var BATCH_PAUSE = 3500; // ms between batches (~85 req/min, matches products)
       var MAX_RETRIES = 2;
       var enriched = [];
 

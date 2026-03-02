@@ -94,7 +94,7 @@ function loadFeaturedProducts() {
   // Middleware cache (shared keys with products page for cross-page benefit)
   var MW_FP_KEY = 'sv-products-mw';
   var MW_FP_TS_KEY = 'sv-products-mw-ts';
-  var MW_FP_TTL = 10 * 60 * 1000; // 10 minutes
+  var MW_FP_TTL = 30 * 60 * 1000; // 30 minutes — matches 07-catalog-kits.js
 
   function getMWCache() {
     try {
