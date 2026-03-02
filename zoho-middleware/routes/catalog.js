@@ -8,6 +8,40 @@ var log = require('../lib/logger');
 var inventoryGet = zohoApi.inventoryGet;
 var fetchAllItems = zohoApi.fetchAllItems;
 
+// ---------------------------------------------------------------------------
+// Shared raw items cache
+// ---------------------------------------------------------------------------
+// A short-lived (60 s) in-memory cache that coalesces concurrent cold-cache
+// requests across services/ingredients/kiosk/snapshot into a single Zoho
+// paginated fetch. Without this, a simultaneous cold-cache burst fires 3–4
+// full fetchAllItems() calls in parallel, burning Zoho rate-limit quota.
+// doRefreshProducts() is intentionally excluded — it runs under a distributed
+// lock and does its own filtering; sharing its fetch here could return a
+// stale raw list during the enrichment window.
+
+var _rawItemsCache = null;
+var _rawItemsCacheAt = 0;
+var RAW_ITEMS_TTL_MS = 60 * 1000; // 60 seconds
+var _rawItemsPromise = null;
+
+function fetchAllItemsCached() {
+  var now = Date.now();
+  if (_rawItemsCache && (now - _rawItemsCacheAt) < RAW_ITEMS_TTL_MS) {
+    return Promise.resolve(_rawItemsCache);
+  }
+  if (_rawItemsPromise) return _rawItemsPromise;
+  _rawItemsPromise = fetchAllItems({ status: 'active' }).then(function (items) {
+    _rawItemsCache = items;
+    _rawItemsCacheAt = Date.now();
+    _rawItemsPromise = null;
+    return items;
+  }, function (err) {
+    _rawItemsPromise = null;
+    throw err;
+  });
+  return _rawItemsPromise;
+}
+
 var router = express.Router();
 
 // ---------------------------------------------------------------------------
@@ -300,7 +334,7 @@ router.get('/api/services', function (req, res) {
       }
 
       log.info('[api/services] Cache miss — fetching from Zoho Inventory');
-      return fetchAllItems({ status: 'active' })
+      return fetchAllItemsCached()
         .then(function (allItems) {
           var items = allItems.filter(function (item) {
             return item.product_type === 'service';
@@ -330,7 +364,7 @@ router.get('/api/ingredients', function (req, res) {
       }
 
       log.info('[api/ingredients] Cache miss — fetching from Zoho Inventory');
-      return fetchAllItems({ status: 'active' })
+      return fetchAllItemsCached()
         .then(function (allItems) {
           // Use cf_type (available from list endpoint, no enrichment needed) to
           // exclude kit items. This avoids a race condition where _kitItemIds is
@@ -436,7 +470,7 @@ router.get('/api/kiosk/products', function (req, res) {
 
       log.info('[api/kiosk/products] Cache miss — fetching from Zoho Inventory');
 
-      return fetchAllItems({ status: 'active' })
+      return fetchAllItemsCached()
         .then(function (allItems) {
           // Use list endpoint data directly — tax_percentage, image_name, stock_on_hand
           // are all included in the Zoho items list response, so no per-item detail
@@ -571,7 +605,7 @@ router.get('/api/snapshot', function (req, res) {
         return;
       }
       log.info('[api/snapshot] Ingredients cache cold — fetching from Zoho');
-      return fetchAllItems({ status: 'active' }).then(function (allItems) {
+      return fetchAllItemsCached().then(function (allItems) {
         var filtered = allItems.filter(function (item) {
           if (item.product_type === 'service') return false;
           if (item.rate <= 0) return false;
@@ -592,7 +626,7 @@ router.get('/api/snapshot', function (req, res) {
         return;
       }
       log.info('[api/snapshot] Services cache cold — fetching from Zoho');
-      return fetchAllItems({ status: 'active' }).then(function (allItems) {
+      return fetchAllItemsCached().then(function (allItems) {
         var svcItems = allItems.filter(function (item) {
           return item.product_type === 'service';
         });
@@ -601,7 +635,13 @@ router.get('/api/snapshot', function (req, res) {
     });
   }
 
-  Promise.all([ensureProducts(), ensureIngredients(), ensureServices()])
+  // Sequential rather than Promise.all — prevents three concurrent fetchAllItems()
+  // calls hammering Zoho when all three caches are cold, which was the root cause
+  // of the 429 rate-limit storms. If the products cache is warm the call returns
+  // immediately from Redis, adding only microseconds of overhead.
+  ensureProducts()
+    .then(function () { return ensureIngredients(); })
+    .then(function () { return ensureServices(); })
     .then(function () {
       res.json({
         generated_at: new Date().toISOString(),

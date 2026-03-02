@@ -559,7 +559,7 @@ function loadFeaturedProducts() {
 
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'reserve-link';
-    var productKey = product.name + '|' + product.brand;
+    var productKey = product.name + '|' + (product.brand || '');
     renderFeaturedReserveControl(reserveWrap, product, productKey);
     card.appendChild(reserveWrap);
 
@@ -637,7 +637,7 @@ function loadFeaturedProducts() {
 
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'reserve-link';
-    var productKey = product.name + '|' + product.brand;
+    var productKey = product.name + '|' + (product.brand || '');
     renderFeaturedReserveControl(reserveWrap, product, productKey);
     card.appendChild(reserveWrap);
 
@@ -776,7 +776,7 @@ function loadFeaturedProducts() {
     // Reserve button
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'product-reserve-wrap';
-    var productKey = product.name + '|' + product.brand;
+    var productKey = product.name + '|' + (product.brand || '');
     renderFeaturedReserveControl(reserveWrap, product, productKey);
     card.appendChild(reserveWrap);
 

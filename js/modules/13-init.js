@@ -130,6 +130,25 @@ document.addEventListener('DOMContentLoaded', function () {
   // Migrate legacy single-cart data into dual carts
   migrateReservationData();
 
+  // Warn if any cart item is older than 14 days
+  (function () {
+    var FOURTEEN_DAYS = 14 * 24 * 60 * 60 * 1000;
+    var now = Date.now();
+    var allItems = [];
+    try { allItems = allItems.concat(JSON.parse(localStorage.getItem('sv-cart-ferment')) || []); } catch (e) {}
+    try { allItems = allItems.concat(JSON.parse(localStorage.getItem('sv-cart-ingredients')) || []); } catch (e) {}
+    var hasStale = false;
+    for (var i = 0; i < allItems.length; i++) {
+      if (allItems[i].cartAddedAt && (now - allItems[i].cartAddedAt) > FOURTEEN_DAYS) {
+        hasStale = true;
+        break;
+      }
+    }
+    if (hasStale) {
+      showToast('Some items in your cart were added more than 14 days ago \u2014 prices or availability may have changed.', 'warn');
+    }
+  }());
+
   // Dynamic preconnect to middleware origin for reduced connection latency
   var _mwPreconnectUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
     ? SHEETS_CONFIG.MIDDLEWARE_URL : '';

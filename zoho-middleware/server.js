@@ -102,11 +102,81 @@ app.use('/api', function (req, res, next) {
 // Rate limiting
 // ---------------------------------------------------------------------------
 
+/**
+ * Build a minimal express-rate-limit custom store backed by the existing Redis
+ * client from lib/cache.js. Uses INCR + EXPIRE so the window auto-resets.
+ * Falls back gracefully to a no-op (skip) when Redis is unavailable, which
+ * allows the in-process MemoryStore (express-rate-limit default) to take over
+ * per-instance — preserving at least single-instance protection.
+ *
+ * express-rate-limit v6+ store interface:
+ *   increment(key) -> Promise<{ totalHits, resetTime }>
+ *   decrement(key) -> Promise<void>
+ *   resetKey(key)  -> Promise<void>
+ */
+function makeRedisStore(windowMs) {
+  var windowSec = Math.ceil(windowMs / 1000);
+
+  return {
+    increment: function (key) {
+      if (!cache.isConnected()) {
+        // Redis down — return a sentinel that signals "skip this store"
+        return Promise.resolve({ totalHits: 0, resetTime: new Date(Date.now() + windowMs) });
+      }
+      var redisKey = 'rl:' + key;
+      return cache.getClient().then(function (c) {
+        if (!c) {
+          return { totalHits: 0, resetTime: new Date(Date.now() + windowMs) };
+        }
+        // INCR is atomic; set expiry only on the first increment (NX flag)
+        return c.incr(redisKey).then(function (hits) {
+          if (hits === 1) {
+            // First hit in this window — set expiry
+            return c.expire(redisKey, windowSec).then(function () {
+              return { totalHits: hits, resetTime: new Date(Date.now() + windowMs) };
+            });
+          }
+          // Subsequent hits — check remaining TTL for accurate resetTime
+          return c.ttl(redisKey).then(function (ttlSec) {
+            var resetMs = ttlSec > 0 ? Date.now() + ttlSec * 1000 : Date.now() + windowMs;
+            return { totalHits: hits, resetTime: new Date(resetMs) };
+          });
+        });
+      }).catch(function () {
+        return { totalHits: 0, resetTime: new Date(Date.now() + windowMs) };
+      });
+    },
+
+    decrement: function (key) {
+      if (!cache.isConnected()) return Promise.resolve();
+      var redisKey = 'rl:' + key;
+      return cache.getClient().then(function (c) {
+        if (!c) return;
+        return c.decr(redisKey);
+      }).catch(function () {});
+    },
+
+    resetKey: function (key) {
+      if (!cache.isConnected()) return Promise.resolve();
+      return cache.del('rl:' + key);
+    }
+  };
+}
+
+// skip() returns true when Redis is down so express-rate-limit bypasses the
+// Redis store entirely and falls back to its default MemoryStore behaviour.
+// This means per-process limiting still applies when Redis is unavailable.
+function redisUnavailableSkip() {
+  return !cache.isConnected();
+}
+
 var apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  store: makeRedisStore(60 * 1000),
+  skip: redisUnavailableSkip,
   message: { error: 'Too many requests, please try again later' }
 });
 
@@ -115,6 +185,8 @@ var paymentLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  store: makeRedisStore(60 * 1000),
+  skip: redisUnavailableSkip,
   message: { error: 'Too many payment requests, please try again later' }
 });
 

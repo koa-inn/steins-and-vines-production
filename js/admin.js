@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-03-02T04:53:08.761Z';
+  var BUILD_TIMESTAMP = '2026-03-02T14:21:38.817Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8221,6 +8221,7 @@
     }
 
     var refNumber = 'KIOSK-' + Date.now();
+    var idempotencyKey = refNumber + '-' + Math.random().toString(36).slice(2, 9);
 
     // POST to /api/kiosk/sale — this blocks until the terminal responds
     fetch(mwUrl + '/api/kiosk/sale', {
@@ -8230,7 +8231,8 @@
         items: items,
         tax_total: totals.tax,
         reference_number: refNumber,
-        contact_id: _kioskCustomer ? _kioskCustomer.contact_id : ''
+        contact_id: _kioskCustomer ? _kioskCustomer.contact_id : '',
+        idempotency_key: idempotencyKey
       })
     })
     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })

@@ -60,6 +60,9 @@ var SHEETS_CONFIG = {
   // Zoho middleware URL (for Bookings + Checkout API)
   MIDDLEWARE_URL: 'https://svmiddleware-production.up.railway.app',
 
+  // Google reCAPTCHA v3 site key (public — safe to expose)
+  RECAPTCHA_SITE_KEY: '6LerSH0sAAAAAGKtltFqN5fu2w8opPV5BStdzNDu',
+
   SHEET_NAMES: {
     KITS: 'Kits',
     INGREDIENTS: 'Ingredients',

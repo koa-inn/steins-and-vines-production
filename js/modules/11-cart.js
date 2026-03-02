@@ -77,7 +77,7 @@ function getEffectiveMax(product) {
 function setReservationQty(product, qty) {
   var cartKey = getCartKey(product);
   var items = getReservation(cartKey);
-  var key = product.name + '|' + product.brand;
+  var key = product.name + '|' + (product.brand || '');
   var idx = -1;
   for (var i = 0; i < items.length; i++) {
     if ((items[i].name + '|' + items[i].brand) === key) {
@@ -113,7 +113,9 @@ function setReservationQty(product, qty) {
       sku: product.sku || '',
       unit: product.unit || '',
       tax_percentage: parseFloat(product.tax_percentage) || 0,
-      max_order_qty: product.max_order_qty || ''
+      max_order_qty: product.max_order_qty || '',
+      zoho_item_id: product.item_id || '',
+      cartAddedAt: Date.now()
     });
     if (navigator.vibrate) navigator.vibrate(10);
   }

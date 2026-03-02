@@ -464,9 +464,9 @@ function loadProducts() {
         case 'time-desc':
           return parseTimeValue(b.time) - parseTimeValue(a.time);
         case 'reserved-desc':
-          return getReservedQty(b.name + '|' + b.brand) - getReservedQty(a.name + '|' + a.brand);
+          return getReservedQty(b.name + '|' + (b.brand || '')) - getReservedQty(a.name + '|' + (a.brand || ''));
         case 'reserved-asc':
-          return getReservedQty(a.name + '|' + a.brand) - getReservedQty(b.name + '|' + b.brand);
+          return getReservedQty(a.name + '|' + (a.brand || '')) - getReservedQty(b.name + '|' + (b.brand || ''));
         default:
           return 0;
       }
@@ -671,7 +671,7 @@ function loadProducts() {
 
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'reserve-link';
-    var productKey = product.name + '|' + product.brand;
+    var productKey = product.name + '|' + (product.brand || '');
     renderReserveControl(reserveWrap, product, productKey);
     card.appendChild(reserveWrap);
 
@@ -757,7 +757,7 @@ function loadProducts() {
 
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'reserve-link';
-    var productKey = product.name + '|' + product.brand;
+    var productKey = product.name + '|' + (product.brand || '');
     renderReserveControl(reserveWrap, product, productKey);
     card.appendChild(reserveWrap);
 
@@ -899,7 +899,7 @@ function loadProducts() {
 
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'product-reserve-wrap';
-    var productKey = product.name + '|' + product.brand;
+    var productKey = product.name + '|' + (product.brand || '');
     renderReserveControl(reserveWrap, product, productKey);
     card.appendChild(reserveWrap);
 
@@ -1100,7 +1100,7 @@ function loadProducts() {
           // Add to Cart
           var tdReserve = document.createElement('td');
           tdReserve.setAttribute('data-label', '');
-          var productKey = product.name + '|' + product.brand;
+          var productKey = product.name + '|' + (product.brand || '');
           renderReserveControl(tdReserve, product, productKey);
           tr.appendChild(tdReserve);
 

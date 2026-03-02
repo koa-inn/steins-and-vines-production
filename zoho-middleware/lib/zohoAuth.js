@@ -11,7 +11,44 @@
 
 var https = require('https');
 var querystring = require('querystring');
+var crypto = require('crypto');
 var cache = require('./cache');
+
+// ---------------------------------------------------------------------------
+// Refresh token encryption (AES-256-GCM)
+// ---------------------------------------------------------------------------
+// Set REDIS_ENCRYPTION_KEY in .env as a 64-character hex string (32 bytes).
+// If the key is absent or malformed the encrypt/decrypt functions are no-ops,
+// so the system continues to work without encryption (plaintext fallback).
+// The decrypt function also accepts legacy plaintext values that predate this
+// change — identified by the absence of ':' separators — so the first deploy
+// after enabling the key requires no data migration.
+
+var ENCRYPTION_KEY_ENV = 'REDIS_ENCRYPTION_KEY'; // 32-byte hex string in .env
+var ALGORITHM = 'aes-256-gcm';
+
+function encrypt(text) {
+  var key = Buffer.from(process.env[ENCRYPTION_KEY_ENV] || '', 'hex');
+  if (key.length !== 32) return text; // no-op if key not configured
+  var iv = crypto.randomBytes(12);
+  var cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  var encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+  var tag = cipher.getAuthTag();
+  return iv.toString('hex') + ':' + tag.toString('hex') + ':' + encrypted.toString('hex');
+}
+
+function decrypt(ciphertext) {
+  var key = Buffer.from(process.env[ENCRYPTION_KEY_ENV] || '', 'hex');
+  if (key.length !== 32 || !ciphertext.includes(':')) return ciphertext; // passthrough for plaintext legacy
+  var parts = ciphertext.split(':');
+  if (parts.length !== 3) return ciphertext;
+  var iv = Buffer.from(parts[0], 'hex');
+  var tag = Buffer.from(parts[1], 'hex');
+  var encrypted = Buffer.from(parts[2], 'hex');
+  var decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(tag);
+  return decipher.update(encrypted) + decipher.final('utf8');
+}
 
 // Zoho accounts base URL — varies by data center
 var ACCOUNTS_URLS = {
@@ -35,6 +72,9 @@ var tokens = {
   refreshToken: null,
   expiresAt: 0 // epoch ms
 };
+
+// Shared in-flight refresh promise — coalesces concurrent callers
+var _refreshPromise = null;
 
 // Refresh ~5 minutes before actual expiry to avoid race conditions
 var REFRESH_BUFFER_MS = 5 * 60 * 1000;
@@ -117,8 +157,8 @@ function exchangeCode(code) {
     tokens.refreshToken = data.refresh_token;
     tokens.expiresAt = Date.now() + (data.expires_in * 1000);
 
-    // Persist refresh token to Redis so it survives restarts
-    cache.set(REFRESH_TOKEN_CACHE_KEY, data.refresh_token, REFRESH_TOKEN_TTL);
+    // Persist refresh token to Redis (encrypted at rest when REDIS_ENCRYPTION_KEY is set)
+    cache.set(REFRESH_TOKEN_CACHE_KEY, encrypt(data.refresh_token), REFRESH_TOKEN_TTL);
 
     scheduleRefresh(data.expires_in);
 
@@ -181,10 +221,17 @@ function getAccessToken() {
     return Promise.resolve(tokens.accessToken);
   }
 
-  // Otherwise refresh now
-  return refreshAccessToken().then(function () {
-    return tokens.accessToken;
-  });
+  // Otherwise refresh now — coalesce concurrent callers to one request
+  if (!_refreshPromise) {
+    _refreshPromise = refreshAccessToken().then(function () {
+      _refreshPromise = null;
+      return tokens.accessToken;
+    }, function (err) {
+      _refreshPromise = null;
+      throw err;
+    });
+  }
+  return _refreshPromise;
 }
 
 /**
@@ -209,7 +256,7 @@ function init() {
   return cache.get(REFRESH_TOKEN_CACHE_KEY).then(function (rt) {
     if (rt) {
       console.log('[zoho-auth] Refresh token loaded from Redis — refreshing access token');
-      tokens.refreshToken = rt;
+      tokens.refreshToken = decrypt(rt);
       return refreshAccessToken().catch(function (err) {
         console.error('[zoho-auth] Auto-refresh on startup failed:', err.message);
       });

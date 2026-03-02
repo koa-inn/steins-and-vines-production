@@ -1,5 +1,6 @@
 var axios = require('axios');
 var zohoAuth = require('./zohoAuth');
+var log = require('./logger');
 
 // ---------------------------------------------------------------------------
 // Zoho API domain configuration
@@ -175,13 +176,21 @@ function normalizeTimeTo24h(timeStr) {
 
 /**
  * Fetch all items from Zoho Inventory, handling pagination.
+ * Stops after MAX_PAGES pages (10,000 items at 200/page) to prevent runaway
+ * recursion if Zoho ever returns has_more_page indefinitely.
  */
+var MAX_PAGES = 50;
+
 function fetchAllItems(params) {
   var allItems = [];
   var page = 1;
   var perPage = 200;
 
   function fetchPage() {
+    if (page > MAX_PAGES) {
+      log.error('[zoho-api] fetchAllItems hit page cap (' + MAX_PAGES + ') — catalog may be larger than expected');
+      return Promise.resolve(allItems);
+    }
     var query = Object.assign({}, params || {}, { page: page, per_page: perPage });
     return inventoryGet('/items', query).then(function (data) {
       var items = data.items || [];

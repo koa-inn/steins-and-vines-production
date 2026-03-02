@@ -10,6 +10,7 @@ var zohoGet = zohoApi.zohoGet;
 var zohoPost = zohoApi.zohoPost;
 
 var KIOSK_PRODUCTS_CACHE_KEY = 'zoho:kiosk-products';
+var IDEMPOTENCY_KEY_TTL = 300; // 5 minutes in seconds
 
 var router = express.Router();
 
@@ -31,9 +32,13 @@ var router = express.Router();
  *   items: [
  *     { item_id: "zoho_item_id", name: "Product Name", quantity: 2, rate: 14.99 }
  *   ],
- *   tax_total: 3.00,          // client-calculated; used for receipt display only
+ *   tax_total: 3.00,          // ignored — tax is computed server-side (KIOSK_TAX_RATE, default 5%)
  *   reference_number: "KIOSK-001"  // optional reference for the invoice
  * }
+ *
+ * Note: client-supplied `rate` and `tax_total` are both ignored for all financial
+ * calculations. Prices are anchored to the zoho:kiosk-products cache. Any item_id
+ * not present in that cache causes an immediate 400 rejection.
  */
 router.post('/api/kiosk/sale', function (req, res) {
   if (!gpLib.isTerminalEnabled()) {
@@ -42,6 +47,27 @@ router.post('/api/kiosk/sale', function (req, res) {
 
   var body = req.body;
 
+  // Idempotency: if client supplies a key, return cached result on retry
+  var idempotencyKey = (body && typeof body.idempotency_key === 'string' && body.idempotency_key)
+    ? 'kiosk:idem:' + body.idempotency_key.slice(0, 128)
+    : null;
+
+  if (idempotencyKey) {
+    return cache.get(idempotencyKey).then(function (cached) {
+      if (cached) {
+        log.info('[pos/kiosk/sale] Idempotent replay: ' + idempotencyKey);
+        return res.status(201).json(cached);
+      }
+      processSale(body, idempotencyKey, req, res);
+    }).catch(function () {
+      processSale(body, idempotencyKey, req, res);
+    });
+  }
+
+  processSale(body, null, req, res);
+});
+
+function processSale(body, idempotencyKey, req, res) {
   // Validate required fields
   if (!body || !Array.isArray(body.items) || body.items.length === 0) {
     return res.status(400).json({ error: 'Cart is empty' });
@@ -50,38 +76,71 @@ router.post('/api/kiosk/sale', function (req, res) {
     return res.status(400).json({ error: 'Too many items in cart' });
   }
 
-  // Validate each line item
+  // Validate each line item (structural validation only — price comes from catalog)
   for (var v = 0; v < body.items.length; v++) {
     var vi = body.items[v];
     if (!vi.item_id || typeof vi.item_id !== 'string' || vi.item_id.length > 64) {
       return res.status(400).json({ error: 'Invalid item_id for item ' + v });
     }
     var vQty = Number(vi.quantity);
-    var vRate = Number(vi.rate);
     if (!vQty || vQty < 1 || vQty > 100) {
       return res.status(400).json({ error: 'Invalid quantity for item ' + v });
     }
-    if (isNaN(vRate) || vRate < 0 || vRate > 10000) {
-      return res.status(400).json({ error: 'Invalid rate for item ' + v });
-    }
   }
 
-  // Calculate subtotal from line items
-  var subtotal = 0;
-  var lineItems = body.items.map(function (item) {
-    var qty = Number(item.quantity) || 1;
-    var rate = Number(item.rate) || 0;
-    subtotal += qty * rate;
-    return {
-      item_id: item.item_id,
-      name: item.name || '',
-      quantity: qty,
-      rate: rate
-    };
-  });
+  // Item #1: Anchor prices to the server-side catalog cache.
+  // Client-supplied rate values are ignored for all financial calculations.
+  cache.get(KIOSK_PRODUCTS_CACHE_KEY).then(function (catalog) {
+    // Build item_id → rate lookup from the authoritative catalog
+    var catalogMap = {};
+    if (Array.isArray(catalog)) {
+      catalog.forEach(function (p) {
+        if (p && p.item_id) catalogMap[p.item_id] = p.rate;
+      });
+    }
 
-  var taxTotal = parseFloat(body.tax_total) || 0;
-  var grandTotal = parseFloat((subtotal + taxTotal).toFixed(2));
+    // Reject immediately if any requested item is not in the catalog cache.
+    // Do not fall back to client-supplied rates — that would defeat the anchoring.
+    for (var ci = 0; ci < body.items.length; ci++) {
+      var cItem = body.items[ci];
+      if (catalogMap[cItem.item_id] === undefined) {
+        return res.status(400).json({
+          error: 'Item not found in current catalog: ' + cItem.item_id +
+            '. Refresh the product list and try again.'
+        });
+      }
+    }
+
+    // Build line items using catalog price, ignoring client-supplied rate
+    var subtotal = 0;
+    var lineItems = body.items.map(function (item) {
+      var qty = Number(item.quantity) || 1;
+      var rate = catalogMap[item.item_id]; // authoritative price from catalog
+      subtotal += qty * rate;
+      return {
+        item_id: item.item_id,
+        name: item.name || '',
+        quantity: qty,
+        rate: rate
+      };
+    });
+    subtotal = Math.round(subtotal * 100) / 100;
+
+    // Item #2: Compute tax server-side. Ignore client-supplied tax_total.
+    var taxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
+    var taxTotal = Math.round(subtotal * taxRate * 100) / 100;
+    var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
+
+    processSaleWithPrices(body, idempotencyKey, req, res,
+      lineItems, subtotal, taxTotal, grandTotal);
+  }).catch(function (cacheErr) {
+    log.error('[pos/kiosk/sale] Catalog cache read failed: ' + cacheErr.message);
+    res.status(503).json({ error: 'Unable to verify item prices. Please try again.' });
+  });
+}
+
+function processSaleWithPrices(body, idempotencyKey, req, res,
+  lineItems, subtotal, taxTotal, grandTotal) {
 
   if (grandTotal <= 0) {
     return res.status(400).json({ error: 'Sale total must be greater than zero' });
@@ -98,10 +157,22 @@ router.post('/api/kiosk/sale', function (req, res) {
     ' ref=' + refNumber + ' items=' + lineItems.length);
 
   // Step 1: Send payment to POS terminal
-  gpLib.getTerminal().sale(grandTotal)
-    .withCurrency('CAD')
-    .withInvoiceNumber(refNumber)
-    .execute('terminal')
+  // Item #17: Race the terminal call against a 90-second timeout so a hung
+  // device or customer walkaway cannot block the server indefinitely.
+  var TERMINAL_TIMEOUT_MS = 90000;
+  var terminalTimeout = new Promise(function (_, reject) {
+    setTimeout(function () {
+      reject(new Error('Terminal timeout after 90s'));
+    }, TERMINAL_TIMEOUT_MS);
+  });
+
+  Promise.race([
+    gpLib.getTerminal().sale(grandTotal)
+      .withCurrency('CAD')
+      .withInvoiceNumber(refNumber)
+      .execute('terminal'),
+    terminalTimeout
+  ])
     .then(function (termResponse) {
       if (termResponse.deviceResponseCode !== '00' && termResponse.status !== 'Success') {
         log.warn('[pos/kiosk/sale] Terminal declined: ' +
@@ -131,10 +202,10 @@ router.post('/api/kiosk/sale', function (req, res) {
         custom_fields: []
       };
 
-      // Attach customer contact: prefer explicit contact_id from request, fall back to env default
-      var contactId = (typeof body.contact_id === 'string' && body.contact_id)
-        ? body.contact_id
-        : (process.env.KIOSK_CONTACT_ID || '');
+      // Attach customer contact: always use the server-configured walk-in contact.
+      // Never trust a caller-supplied contact_id — that would allow attaching
+      // a kiosk invoice to an arbitrary Zoho contact (Item #8).
+      var contactId = process.env.KIOSK_CONTACT_ID || '';
       if (contactId) invoicePayload.customer_id = contactId;
 
       // Attach transaction ID to custom field if configured
@@ -165,9 +236,14 @@ router.post('/api/kiosk/sale', function (req, res) {
                 log.warn('[pos/kiosk/sale] Invoice submit failed (non-fatal): ' + submitErr.message);
               })
               .then(function () {
-                // Record the payment against the invoice
+                // Record the payment against the invoice.
+                // Item #16: Use creditcard (or debitcard if terminal reports debit)
+                // rather than 'cash', since payment was taken via card terminal.
+                var cardType = (termResponse.cardType || '').toLowerCase();
+                var paymentMode = (cardType.indexOf('debit') !== -1) ? 'debitcard' : 'creditcard';
+
                 return zohoPost('/customerpayments', {
-                  payment_mode: 'cash',
+                  payment_mode: paymentMode,
                   amount: grandTotal,
                   date: today,
                   reference_number: txnId || refNumber,
@@ -188,7 +264,7 @@ router.post('/api/kiosk/sale', function (req, res) {
             // Invalidate kiosk product cache so stock counts refresh
             cache.del(KIOSK_PRODUCTS_CACHE_KEY);
 
-            res.status(201).json({
+            var responseBody = {
               ok: true,
               transaction_id: txnId,
               auth_code: termResponse.authorizationCode || '',
@@ -199,6 +275,15 @@ router.post('/api/kiosk/sale', function (req, res) {
               tax_total: taxTotal,
               total: grandTotal,
               date: today
+            };
+
+            // Store result before responding so immediate retries hit the cache
+            var cacheWrite = idempotencyKey
+              ? cache.set(idempotencyKey, responseBody, IDEMPOTENCY_KEY_TTL).catch(function () {})
+              : Promise.resolve();
+
+            return cacheWrite.then(function () {
+              res.status(201).json(responseBody);
             });
           });
         })
@@ -218,8 +303,21 @@ router.post('/api/kiosk/sale', function (req, res) {
             })
             .catch(function (voidErr) {
               log.error('[pos/kiosk/sale] CRITICAL: Void failed for txn=' + txnId + ': ' + voidErr.message);
+              // Item #19: Write a durable Redis record so this survives log rotation.
+              var failRecord = {
+                txnId: txnId,
+                amount: grandTotal,
+                timestamp: new Date().toISOString(),
+                error: voidErr.message,
+                customerEmail: body.customer_email || ''
+              };
+              cache.set('sv:void-failure:' + Date.now(), failRecord, 60 * 60 * 24 * 30)
+                .catch(function (redisErr) {
+                  log.error('[pos/kiosk/sale] CRITICAL: Failed to persist void-failure record: ' + redisErr.message);
+                });
             })
             .then(function () {
+              if (res.headersSent) return;
               res.status(502).json({
                 error: 'Payment was taken but order could not be recorded. Please contact support.',
                 payment_voided: true,
@@ -229,10 +327,15 @@ router.post('/api/kiosk/sale', function (req, res) {
         });
     })
     .catch(function (termErr) {
+      // Item #17: A timeout means txnId is unavailable — no void attempt possible.
+      if (termErr.message === 'Terminal timeout after 90s') {
+        log.warn('[pos/kiosk/sale] Terminal timed out after 90s — no txn to void');
+        return res.status(504).json({ error: 'Terminal did not respond in time. Please try again.' });
+      }
       log.error('[pos/kiosk/sale] Terminal error: ' + termErr.message);
       res.status(502).json({ error: 'Terminal error — please try again' });
     });
-});
+}
 
 /**
  * GET /api/pos/status
@@ -291,10 +394,10 @@ router.post('/api/pos/sale', function (req, res) {
     .execute('terminal')
     .then(function (response) {
       if (response.deviceResponseCode === '00' || response.status === 'Success') {
-        log.info('[pos/sale] Terminal sale approved: txn=' + response.transactionId);
-
-        // Record the payment in Zoho if we have a customer_id and SO
         var txnId = response.transactionId || '';
+        log.info('[pos/sale] Terminal sale approved: txn=' + txnId);
+
+        // Respond immediately so the admin panel is not blocked by Zoho I/O
         res.json({
           ok: true,
           transaction_id: txnId,
@@ -302,6 +405,79 @@ router.post('/api/pos/sale', function (req, res) {
           auth_code: response.authorizationCode || '',
           amount: amount
         });
+
+        // Item #9: Record the sale in Zoho Books as a background operation.
+        // Create a one-line invoice then record a customer payment against it.
+        // Errors are non-fatal — the GP terminal charge has already succeeded.
+        var today = new Date().toISOString().slice(0, 10);
+        var refNumber = soNumber || ('POS-' + Date.now());
+
+        var invoicePayload = {
+          date: today,
+          reference_number: refNumber,
+          payment_terms: 0,
+          payment_terms_label: 'Due on Receipt',
+          line_items: [{
+            // Zoho Books accepts a description-only line item when no item_id is available.
+            description: soNumber ? ('POS sale — ' + soNumber) : 'In-store POS sale',
+            rate: amount,
+            quantity: 1
+          }],
+          notes: 'Legacy POS sale. Terminal txn: ' + txnId,
+          custom_fields: []
+        };
+
+        // Attach walk-in customer contact if configured
+        var contactId = process.env.KIOSK_CONTACT_ID || '';
+        if (contactId) invoicePayload.customer_id = contactId;
+
+        // Attach GP transaction ID to custom field if configured
+        if (txnId && process.env.ZOHO_CF_TRANSACTION_ID) {
+          invoicePayload.custom_fields.push({
+            api_name: process.env.ZOHO_CF_TRANSACTION_ID,
+            value: txnId
+          });
+        }
+
+        zohoPost('/invoices', invoicePayload)
+          .then(function (invoiceData) {
+            var invoice = invoiceData.invoice || {};
+            var invoiceId = invoice.invoice_id || '';
+            var invoiceNumber = invoice.invoice_number || '';
+            log.info('[pos/sale] Invoice created: ' + invoiceNumber + ' id=' + invoiceId);
+
+            if (!invoiceId) return;
+
+            // Submit invoice then record payment
+            return zohoPost('/invoices/' + invoiceId + '/submit', {})
+              .catch(function (submitErr) {
+                log.warn('[pos/sale] Invoice submit failed (non-fatal): ' + submitErr.message);
+              })
+              .then(function () {
+                return zohoPost('/customerpayments', {
+                  payment_mode: 'cash',
+                  amount: amount,
+                  date: today,
+                  reference_number: txnId || refNumber,
+                  invoices: [{ invoice_id: invoiceId, amount_applied: amount }],
+                  notes: 'Legacy POS payment. Terminal txn: ' + txnId
+                });
+              })
+              .then(function () {
+                log.info('[pos/sale] Payment recorded for invoice ' + invoiceNumber);
+              })
+              .catch(function (payErr) {
+                log.error('[pos/sale] Payment recording failed (non-fatal): ' + payErr.message);
+              });
+          })
+          .catch(function (invoiceErr) {
+            var msg = invoiceErr.message;
+            if (invoiceErr.response && invoiceErr.response.data) {
+              msg = invoiceErr.response.data.message || invoiceErr.response.data.error || msg;
+            }
+            log.error('[pos/sale] Zoho invoice creation failed (non-fatal, txn=' + txnId + '): ' + msg);
+          });
+
       } else {
         log.warn('[pos/sale] Terminal declined: ' + response.deviceResponseCode + ' ' + response.deviceResponseText);
         res.status(402).json({
@@ -322,7 +498,15 @@ router.post('/api/pos/sale', function (req, res) {
  * Used by the admin panel's "Recent Kiosk Orders" section.
  */
 router.get('/api/orders/recent', function (req, res) {
-  var limit = parseInt(req.query.limit, 10) || 20;
+  // Item #13: This endpoint exposes sensitive order data. Require an API key
+  // even for GET requests, overriding the global GET exemption in server.js.
+  var apiKey = req.headers['x-api-key'] || req.query.api_key;
+  if (apiKey !== process.env.MW_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Item #47: Cap at 50 regardless of caller-supplied value.
+  var limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
 
   zohoGet('/salesorders', {
     sort_column: 'created_time',

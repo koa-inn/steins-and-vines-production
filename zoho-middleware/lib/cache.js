@@ -144,6 +144,14 @@ function quit() {
   return Promise.resolve();
 }
 
+/**
+ * Returns true if Redis is currently connected.
+ * Used by server.js to conditionally skip the Redis rate-limit store.
+ */
+function isConnected() {
+  return connected;
+}
+
 module.exports = {
   get: get,
   set: set,
@@ -151,5 +159,7 @@ module.exports = {
   acquireLock: acquireLock,
   releaseLock: releaseLock,
   init: init,
-  quit: quit
+  quit: quit,
+  isConnected: isConnected,
+  getClient: getClient
 };

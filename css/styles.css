@@ -2962,7 +2962,11 @@ behold-widget {
 }
 
 @media (max-width: 380px) {
-  .stepper-label { display: none; }
+  .stepper-label { font-size: 0.55rem; } /* #38: shrink instead of hide */
+}
+
+@media (max-width: 600px) {
+  .res-col-type { display: none; } /* #39: hide Type column on narrow screens */
 }
 
 /* Active step */

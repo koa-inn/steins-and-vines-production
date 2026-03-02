@@ -1,3 +1,13 @@
+// #10/#21: renumber visible stepper digits after hiding steps
+function renumberVisibleSteps() {
+  var steps = document.querySelectorAll('.stepper-step:not(.hidden)');
+  var n = 1;
+  steps.forEach(function (step) {
+    var digit = step.querySelector('.stepper-digit');
+    if (digit) digit.textContent = n++;
+  });
+}
+
 function initReservationPage() {
   // Determine which cart to check out based on URL param
   var cartParam = new URLSearchParams(window.location.search).get('cart');
@@ -5,6 +15,12 @@ function initReservationPage() {
     _activeCartTab = 'ingredients';
   } else {
     _activeCartTab = 'kits';
+  }
+
+  // Item #26: redirect to products if cart is empty on page load
+  var initialItems = getReservation();
+  if (initialItems.length === 0) {
+    setTimeout(function () { window.location.href = 'products.html'; }, 1500);
   }
 
   initCheckoutStepper();
@@ -19,10 +35,40 @@ function initReservationPage() {
     // Hide timeslot picker for ingredients/services-only carts
     var picker = document.getElementById('timeslot-picker');
     if (picker) picker.classList.add('hidden');
-    // Hide the "Pick a Time" step in stepper
+    // Hide the "Pick a Time" step in stepper; #9 aria-hidden
     var step2 = document.querySelector('.stepper-step[data-step="2"]');
-    if (step2) step2.classList.add('hidden');
+    if (step2) { step2.classList.add('hidden'); step2.setAttribute('aria-hidden', 'true'); }
+    renumberVisibleSteps(); // #10/#21
   }
+
+  // Item #23: reveal h1 after JS has adapted its text
+  var pageH1 = document.querySelector('.page-header h1');
+  if (pageH1) pageH1.style.visibility = '';
+
+  // Item #22: inject "Continue" buttons
+  (function () {
+    function addContinueBtn(sectionId, targetId, label) {
+      var section = document.getElementById(sectionId);
+      var target = document.getElementById(targetId);
+      if (!section || !target) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'checkout-continue-wrap';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn checkout-continue-btn';
+      btn.textContent = label;
+      btn.addEventListener('click', function () {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      wrap.appendChild(btn);
+      section.appendChild(wrap);
+    }
+    addContinueBtn('reservation-list', hasKits ? 'timeslot-picker' : 'reservation-form-section',
+      hasKits ? 'Continue \u2014 Select a time \u203A' : 'Continue \u2014 Your details \u203A');
+    if (hasKits) {
+      addContinueBtn('timeslot-picker', 'reservation-form-section', 'Continue \u2014 Your details \u203A');
+    }
+  }());
 
   // Hide batch notes when no kits
   if (!hasKits) {
@@ -142,6 +188,8 @@ function renderReservationItems() {
   if (!container) return;
 
   var items = getReservation();
+  // Item #2: recompute hasKits from the live cart on every render
+  var hasKits = items.some(function (i) { return (i.item_type || 'kit') === 'kit'; });
   container.innerHTML = '';
 
   if (items.length === 0) {
@@ -155,7 +203,11 @@ function renderReservationItems() {
   if (emptyMsg) emptyMsg.classList.add('hidden');
   var picker = document.getElementById('timeslot-picker');
   var formSection = document.getElementById('reservation-form-section');
-  if (picker) picker.classList.remove('hidden');
+  // Item #2: only show timeslot picker when kits are in the cart
+  if (picker) {
+    if (hasKits) picker.classList.remove('hidden');
+    else picker.classList.add('hidden');
+  }
   if (formSection) formSection.classList.remove('hidden');
 
   var table = document.createElement('table');
@@ -173,6 +225,7 @@ function renderReservationItems() {
     var th = document.createElement('th');
     th.textContent = label;
     if (label === 'Price') th.style.textAlign = 'right';
+    if (label === 'Type') th.className = 'res-col-type'; // #39
     theadTr.appendChild(th);
   });
   thead.appendChild(theadTr);
@@ -197,9 +250,10 @@ function renderReservationItems() {
     }
     tr.appendChild(tdName);
 
-    // Type
+    // Type (#39: res-col-type hidden at 600px via CSS)
     var tdType = document.createElement('td');
     tdType.setAttribute('data-label', 'Type');
+    tdType.className = 'res-col-type';
     var typeLabel = (item.item_type || 'kit').charAt(0).toUpperCase() + (item.item_type || 'kit').slice(1);
     tdType.textContent = typeLabel;
     tr.appendChild(tdType);
@@ -245,8 +299,10 @@ function renderReservationItems() {
       stockBadge.classList.add('reservation-item-stock--available');
       stockBadge.textContent = 'In Stock';
     } else {
+      // Item #24: changed badge copy; added lead-time title
       stockBadge.classList.add('reservation-item-stock--order');
-      stockBadge.textContent = 'Needs Ordering';
+      stockBadge.textContent = 'Ships in 2+ weeks';
+      stockBadge.title = 'This item requires extra lead time \u2014 timeslots within 2 weeks may be unavailable';
     }
     tdStock.appendChild(stockBadge);
     tr.appendChild(tdStock);
@@ -266,7 +322,11 @@ function renderReservationItems() {
       return function () {
         var current = getReservation();
         for (var i = 0; i < current.length; i++) {
-          if ((current[i].name + '|' + current[i].brand) === (itm.name + '|' + itm.brand)) {
+          // Item #1: prefer zoho_item_id match, fall back to name|brand
+          var isMatch = itm.zoho_item_id
+            ? current[i].zoho_item_id === itm.zoho_item_id
+            : (current[i].name + '|' + (current[i].brand || '')) === (itm.name + '|' + (itm.brand || ''));
+          if (isMatch) {
             current[i].qty = (current[i].qty || 1) - 1;
             if (current[i].qty <= 0) current.splice(i, 1);
             break;
@@ -276,6 +336,7 @@ function renderReservationItems() {
         renderReservationItems();
         refreshReservationDependents();
         updateReservationBar();
+        refreshAllReserveControls(); // Item #44
       };
     })(item));
 
@@ -295,7 +356,11 @@ function renderReservationItems() {
         return function () {
           var current = getReservation();
           for (var i = 0; i < current.length; i++) {
-            if ((current[i].name + '|' + current[i].brand) === (itm.name + '|' + itm.brand)) {
+            // Item #1: prefer zoho_item_id match, fall back to name|brand
+            var isMatch = itm.zoho_item_id
+              ? current[i].zoho_item_id === itm.zoho_item_id
+              : (current[i].name + '|' + (current[i].brand || '')) === (itm.name + '|' + (itm.brand || ''));
+            if (isMatch) {
               var newQty = (current[i].qty || 1) + 1;
               if (newQty > max) newQty = max;
               current[i].qty = newQty;
@@ -306,6 +371,7 @@ function renderReservationItems() {
           renderReservationItems();
           refreshReservationDependents();
           updateReservationBar();
+          refreshAllReserveControls(); // Item #44
         };
       })(item, itemMax));
     }
@@ -323,16 +389,21 @@ function renderReservationItems() {
     removeBtn.type = 'button';
     removeBtn.className = 'reservation-item-remove';
     removeBtn.textContent = 'Remove';
-    removeBtn.addEventListener('click', function () {
-      var current = getReservation();
-      var filtered = current.filter(function (r) {
-        return (r.name + '|' + r.brand) !== (item.name + '|' + item.brand);
-      });
-      saveReservation(filtered);
-      renderReservationItems();
-      refreshReservationDependents();
-      updateReservationBar();
-    });
+    removeBtn.addEventListener('click', (function (itm) {
+      return function () {
+        var current = getReservation();
+        // Item #1: prefer zoho_item_id match, fall back to name|brand
+        var filtered = current.filter(function (r) {
+          if (itm.zoho_item_id) return r.zoho_item_id !== itm.zoho_item_id;
+          return (r.name + '|' + (r.brand || '')) !== (itm.name + '|' + (itm.brand || ''));
+        });
+        saveReservation(filtered);
+        renderReservationItems();
+        refreshReservationDependents();
+        updateReservationBar();
+        refreshAllReserveControls();
+      };
+    })(item));
     tdRemove.appendChild(removeBtn);
     tr.appendChild(tdRemove);
 
@@ -427,10 +498,14 @@ function renderReservationItems() {
   clearBtn.className = 'btn-secondary reservation-clear-btn';
   clearBtn.textContent = isProductOrder ? 'Clear Cart' : 'Clear Selected Items';
   clearBtn.addEventListener('click', function () {
-    saveReservation([]);
+    // Item #3: confirm before clearing; pass explicit cart key
+    if (!confirm('Remove all items from your cart?')) return;
+    var cartKey = getCartKeyForTab(_activeCartTab);
+    saveReservation([], cartKey);
     renderReservationItems();
     refreshReservationDependents();
     updateReservationBar();
+    refreshAllReserveControls(); // Item #44b
   });
   clearWrap.appendChild(clearBtn);
   container.appendChild(clearWrap);
@@ -546,18 +621,30 @@ function loadTimeslots() {
       return;
     }
     var parts = ym.split('-');
+    // Item #43: inject loading style once (idempotent)
+    if (!document.getElementById('cal-loading-style')) {
+      var s = document.createElement('style');
+      s.id = 'cal-loading-style';
+      s.textContent = '.cal-loading { opacity: 0.4; pointer-events: none; }' +
+        ' .cal-day-spots { display: block; font-size: 0.6rem; color: #b85c00; line-height: 1; }';
+      document.head.appendChild(s);
+    }
+    var grid = cal.querySelector('.cal-grid');
+    if (grid) grid.classList.add('cal-loading'); // Item #43: loading indicator on
     fetch(middlewareUrl + '/api/bookings/availability?year=' + parts[0] + '&month=' + parts[1])
       .then(function (res) { return res.json(); })
       .then(function (data) {
         var dates = data.dates || [];
-        // Build lookup set of available date strings
+        // Item #6: store full slot info, not just a boolean
         var lookup = {};
-        dates.forEach(function (d) { lookup[d.date] = true; });
+        dates.forEach(function (d) { lookup[d.date] = { available: true, slots: d.slots_count || 0 }; });
         availabilityCache[ym] = lookup;
+        if (grid) grid.classList.remove('cal-loading'); // Item #43: loading indicator off
         callback(lookup);
       })
       .catch(function () {
         availabilityCache[ym] = {};
+        if (grid) grid.classList.remove('cal-loading'); // Item #43: loading indicator off
         callback({});
       });
   }
@@ -650,7 +737,9 @@ function loadTimeslots() {
 
         var cellDate = new Date(dateStr + 'T00:00:00');
         var isPast = cellDate < today;
-        var hasSlots = !!availableDates[dateStr];
+        // Item #6: availableDates now stores objects; check .available
+        var info = availableDates[dateStr];
+        var hasSlots = !!(info && info.available);
         var withinCutoff = twoWeekCutoff && cellDate < twoWeekCutoff;
 
         if (dateStr === todayStr) {
@@ -661,11 +750,31 @@ function loadTimeslots() {
           cell.classList.add('cal-day--selected');
         }
 
+        // Item #37: full-date aria-label for screen readers
+        var monthNames2 = ['January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December'];
+        var ariaLabel = monthNames2[month] + ' ' + d + ', ' + year;
+        if (isPast || withinCutoff) {
+          ariaLabel += ' (unavailable)';
+        } else if (!hasSlots) {
+          ariaLabel += ' (no availability)';
+        } else if (info && info.slots > 0 && info.slots <= 3) {
+          ariaLabel += ', ' + info.slots + ' slot' + (info.slots !== 1 ? 's' : '') + ' left';
+        }
+        cell.setAttribute('aria-label', ariaLabel);
+
         if (isPast || !hasSlots || withinCutoff) {
           cell.classList.add('cal-day--disabled');
           cell.disabled = true;
         } else {
           cell.classList.add('cal-day--available');
+          // Item #45: show low-spot badge when <= 3 slots remain
+          if (info && info.slots > 0 && info.slots <= 3) {
+            var badge = document.createElement('span');
+            badge.className = 'cal-day-spots';
+            badge.textContent = info.slots + ' left';
+            cell.appendChild(badge);
+          }
         }
 
         (function (ds) {
@@ -704,6 +813,14 @@ function loadTimeslots() {
         });
         slotsArea.appendChild(heading);
 
+        // Item #36: wrap radios in a fieldset for accessibility
+        var fieldset = document.createElement('fieldset');
+        fieldset.className = 'timeslot-fieldset';
+        var fieldsetLegend = document.createElement('legend');
+        fieldsetLegend.className = 'sr-only';
+        fieldsetLegend.textContent = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        fieldset.appendChild(fieldsetLegend);
+
         var grid = document.createElement('div');
         grid.className = 'cal-slots-grid';
 
@@ -731,7 +848,8 @@ function loadTimeslots() {
           grid.appendChild(option);
         });
 
-        slotsArea.appendChild(grid);
+        fieldset.appendChild(grid);
+        slotsArea.appendChild(fieldset);
       })
       .catch(function () {
         slotsArea.innerHTML = '<p>Unable to load times for this date.</p>';
@@ -765,9 +883,14 @@ function loadTimeslots() {
       updateCompletionEstimate(e.target.value);
       // If a calendar slot was picked, deselect Start Now
       var snBtn = container.querySelector('.start-now-btn');
-      if (snBtn && e.target.value !== 'Walk-in — Immediate') {
+      if (snBtn && e.target.value !== 'Walk-in \u2014 Immediate') {
         snBtn.classList.remove('start-now-selected');
       }
+      // Item #25: auto-scroll to form section after slot selection
+      setTimeout(function () {
+        var formSection = document.getElementById('reservation-form-section');
+        if (formSection) formSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 600);
     }
   });
 }
@@ -785,7 +908,9 @@ function updateCompletionEstimate(timeslotValue) {
 
   // Find the longest brew time (in weeks) among reserved items
   var maxWeeks = 0;
+  var hasTimeProp = false;
   items.forEach(function (item) {
+    if (item.time) hasTimeProp = true;
     var weeks = parseInt(item.time, 10);
     if (!isNaN(weeks) && weeks > maxWeeks) {
       maxWeeks = weeks;
@@ -793,7 +918,13 @@ function updateCompletionEstimate(timeslotValue) {
   });
 
   if (maxWeeks === 0) {
-    estimateEl.classList.add('hidden');
+    // Item #35: fallback text when items have a time field but it's non-numeric
+    if (hasTimeProp) {
+      textEl.textContent = 'Ready time varies \u2014 we will confirm with you.';
+      estimateEl.classList.remove('hidden');
+    } else {
+      estimateEl.classList.add('hidden');
+    }
     return;
   }
 
@@ -1080,7 +1211,7 @@ function setupReservationForm() {
     var val = this.value.trim();
     if (!val) { clearValid(this); showFieldError(this, 'Phone number is required.'); return; }
     var digits = val.replace(/\D/g, '');
-    if (digits.length < 10) { clearValid(this); showFieldError(this, 'Please enter at least 10 digits.'); return; }
+    if (digits.length < 10 || digits.length > 15) { clearValid(this); showFieldError(this, 'Please enter 10\u201315 digits.'); return; } // #33
     markValid(this);
   });
 
@@ -1089,30 +1220,63 @@ function setupReservationForm() {
     if (el) el.addEventListener('focus', function () { clearFieldError(this); clearValid(this); });
   });
 
+  var _checkoutSubmitting = false;
+
+  // Item #28: human-readable timeslot formatter
+  function formatTimeslot(ts) {
+    var parts = ts.split(' ');
+    if (parts.length < 2) return ts;
+    var d = new Date(parts[0] + 'T00:00:00');
+    if (isNaN(d.getTime())) return ts;
+    var day = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    return day + ' at ' + parts.slice(1).join(' ');
+  }
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+    if (_checkoutSubmitting) return;
+
+    // Item #48: early offline check
+    if (!navigator.onLine) {
+      showToast('You appear to be offline. Please check your connection and try again.', 'error');
+      return;
+    }
+
+    _checkoutSubmitting = true;
     if (navigator.vibrate) navigator.vibrate(10);
+
+    function announceError(msg) {
+      showToast(msg, 'error');
+      var el = document.getElementById('form-error-announce');
+      if (el) { el.textContent = ''; el.textContent = msg; }
+    }
+
+    // Item #31: focus first error field and scroll it into view
+    function focusFirstError(input) {
+      if (input) { input.focus(); input.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    }
 
     // Bot check: honeypot field should be empty
     var honeypot = document.getElementById('res-website');
-    if (honeypot && honeypot.value) return;
+    if (honeypot && honeypot.value) { _checkoutSubmitting = false; return; }
 
     // Bot check: form submitted too fast (under 3 seconds) — skip in kiosk mode
     if (!document.body.classList.contains('kiosk-mode')) {
       var loadedAt = parseInt(document.getElementById('res-loaded-at').value, 10) || 0;
-      if (Date.now() - loadedAt < 3000) return;
+      if (Date.now() - loadedAt < 3000) { _checkoutSubmitting = false; return; }
     }
 
     var items = getReservation();
+    var hasKits = items.some(function (item) { return (item.item_type || 'kit') === 'kit'; });
     if (items.length === 0) {
-      showToast('Please add at least one product to your ' + (hasKits ? 'reservation' : 'cart') + '.', 'error');
+      announceError('Please add at least one product to your ' + (hasKits ? 'reservation' : 'cart') + '.');
+      _checkoutSubmitting = false;
       return;
     }
-
-    var hasKits = items.some(function (item) { return (item.item_type || 'kit') === 'kit'; });
     var selectedTimeslot = document.querySelector('input[name="timeslot"]:checked');
     if (hasKits && !selectedTimeslot) {
-      showToast('Please select a timeslot.', 'error');
+      announceError('Please select a timeslot.');
+      _checkoutSubmitting = false;
       return;
     }
 
@@ -1121,7 +1285,9 @@ function setupReservationForm() {
     var phone = document.getElementById('res-phone').value.trim();
 
     if (!name) {
-      showToast('Please enter your name.', 'error');
+      focusFirstError(document.getElementById('res-name')); // #31
+      announceError('Please enter your name.');
+      _checkoutSubmitting = false;
       return;
     }
 
@@ -1129,13 +1295,17 @@ function setupReservationForm() {
     if (!isKioskMode) {
       var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailPattern.test(email)) {
-        showToast('Please enter a valid email address.', 'error');
+        focusFirstError(document.getElementById('res-email')); // #31
+        announceError('Please enter a valid email address.');
+        _checkoutSubmitting = false;
         return;
       }
 
       var phoneDigits = phone.replace(/\D/g, '');
       if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-        showToast('Please enter a valid phone number (at least 10 digits).', 'error');
+        focusFirstError(document.getElementById('res-phone')); // #31
+        announceError('Please enter a valid phone number (10\u201315 digits).'); // #33: updated msg
+        _checkoutSubmitting = false;
         return;
       }
     }
@@ -1194,12 +1364,13 @@ function setupReservationForm() {
     if (needsPayment && depositAmt > 0) {
       // Validate that we have a token from the hosted fields
       if (!gpToken) {
-        showToast('Please enter your card details.', 'error');
+        announceError('Please enter your card details.');
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.textContent = submitBtn.getAttribute('data-original-text') || 'Submit Reservation';
           submitBtn.classList.remove('btn-loading');
         }
+        _checkoutSubmitting = false;
         return;
       }
 
@@ -1282,7 +1453,7 @@ function setupReservationForm() {
         });
 
         var checkoutPayload = {
-          customer_id: result.customerId,
+          customer: { name: name, email: email, phone: phone },
           items: lineItems,
           notes: (submitIsProductOrder ? 'Order' : 'Reservation') + ' for ' + name + ' \u2014 ' + timeslot,
           appointment_id: result.bookingId || '',
@@ -1295,10 +1466,25 @@ function setupReservationForm() {
           checkoutPayload.deposit_amount = chargedAmount;
         }
 
-        return fetch(middlewareUrl + '/api/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
-          body: JSON.stringify(checkoutPayload)
+        // Get reCAPTCHA v3 token then POST checkout (MW_API_KEY removed from this public endpoint)
+        var rcSiteKey = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.RECAPTCHA_SITE_KEY || '') : '';
+        var getToken = (rcSiteKey && typeof grecaptcha !== 'undefined')
+          ? new Promise(function (resolve) {
+              grecaptcha.ready(function () {
+                grecaptcha.execute(rcSiteKey, { action: 'checkout' })
+                  .then(resolve)
+                  .catch(function () { resolve(''); });
+              });
+            })
+          : Promise.resolve('');
+
+        return getToken.then(function (rcToken) {
+          checkoutPayload.recaptcha_token = rcToken;
+          return fetch(middlewareUrl + '/api/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(checkoutPayload)
+          });
         })
         .then(function (res) {
           if (!res.ok) throw new Error('Failed to create order');
@@ -1364,11 +1550,11 @@ function setupReservationForm() {
         if (confirmEl) {
           confirmEl.classList.remove('hidden');
 
-          // Order number
+          // Item #49: always show a reference number
+          var displayRef = (orderResult && orderResult.salesorder_number) ||
+            ('REF-' + Date.now().toString(36).toUpperCase());
           var orderNumEl = document.getElementById('confirm-order-number');
-          if (orderNumEl && orderResult && orderResult.salesorder_number) {
-            orderNumEl.textContent = 'Order #' + orderResult.salesorder_number;
-          }
+          if (orderNumEl) orderNumEl.textContent = 'Order #' + displayRef;
 
           // Build summary
           var summaryEl = document.getElementById('confirm-summary');
@@ -1384,6 +1570,11 @@ function setupReservationForm() {
                 + '<span>$' + (p * q).toFixed(2) + '</span>'
                 + '</div>';
             });
+            // Item #34: echo email in summary
+            if (email) {
+              summaryHtml += '<div class="confirm-summary-row"><span>Confirmation email</span><span>' + escapeHTML(email) + '</span></div>';
+            }
+
             if (submitIsProductOrder) {
               summaryHtml += '<div class="confirm-summary-row"><span>Pickup</span><span>In-store</span></div>';
               summaryHtml += '<div class="confirm-summary-row"><span>Subtotal</span><span>$' + orderTotal.toFixed(2) + '</span></div>';
@@ -1392,7 +1583,8 @@ function setupReservationForm() {
               }
               summaryHtml += '<div class="confirm-summary-row confirm-summary-row--total"><span>Total paid</span><span>$' + chargeTotal.toFixed(2) + '</span></div>';
             } else {
-              summaryHtml += '<div class="confirm-summary-row"><span>Timeslot</span><span>' + escapeHTML(orderedTimeslot) + '</span></div>';
+              // Item #28: use formatTimeslot for human-readable display
+              summaryHtml += '<div class="confirm-summary-row"><span>Timeslot</span><span>' + escapeHTML(formatTimeslot(orderedTimeslot)) + '</span></div>';
 
               // Show terminal payment result
               if (posResult && posResult.ok) {
@@ -1415,18 +1607,48 @@ function setupReservationForm() {
             summaryEl.innerHTML = summaryHtml;
           }
 
+          // Item #46: Add to Calendar link (kit reservations only)
+          if (!submitIsProductOrder && orderedTimeslot && orderedTimeslot.indexOf(' ') > 0) {
+            var calActionsEl = confirmEl.querySelector('.confirm-actions');
+            if (calActionsEl) {
+              var calDatePart = orderedTimeslot.split(' ')[0].replace(/-/g, '');
+              var calUrl = 'https://www.google.com/calendar/render?action=TEMPLATE'
+                + '&text=' + encodeURIComponent('Steins & Vines \u2014 Start Fermentation')
+                + '&dates=' + calDatePart + '/' + calDatePart
+                + '&details=' + encodeURIComponent('Fermentation appointment at Steins & Vines, 11-38918 Progress Way, Squamish BC');
+              var calLink = document.createElement('a');
+              calLink.href = calUrl;
+              calLink.target = '_blank';
+              calLink.rel = 'noopener';
+              calLink.className = 'btn-secondary';
+              calLink.textContent = 'Add to Calendar';
+              calActionsEl.appendChild(calLink);
+            }
+          }
+
+          // Item #29: improve CTA labels in confirmation actions
+          var ctaLink = confirmEl.querySelector('[data-content="confirm-cta"]');
+          if (ctaLink) {
+            if (submitIsProductOrder) {
+              ctaLink.textContent = 'Continue shopping';
+            } else {
+              ctaLink.textContent = 'Visit our website';
+            }
+          }
+
           // Scroll to confirmation
           confirmEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       });
     })
     .catch(function (err) {
-      showToast('Something went wrong: ' + err.message + '. Please try again.', 'error');
+      announceError('Something went wrong: ' + err.message + '. Please try again.');
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.textContent = submitBtn.getAttribute('data-original-text') || (submitIsProductOrder ? 'Place Order' : 'Submit Reservation');
         submitBtn.classList.remove('btn-loading');
       }
+      _checkoutSubmitting = false;
     });
   });
 }
