@@ -2673,7 +2673,19 @@ function loadIngredients(callback) {
       }
       if (callback) callback();
     })
-    .catch(function () {});
+    .catch(function () {
+      // Both middleware and snapshot failed — show error state and clear skeletons
+      var catalog = document.getElementById('product-catalog');
+      if (catalog) {
+        var skeletons = catalog.querySelectorAll('.catalog-skeleton-grid');
+        skeletons.forEach(function (el) { el.parentNode.removeChild(el); });
+        var errMsg = document.createElement('p');
+        errMsg.className = 'catalog-no-results';
+        errMsg.textContent = 'Ingredients could not be loaded. Please try again shortly.';
+        catalog.appendChild(errMsg);
+      }
+      if (callback) callback();
+    });
 }
 
 function buildIngredientFilterRow(containerId, field, label, values) {

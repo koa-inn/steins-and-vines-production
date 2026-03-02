@@ -63,7 +63,7 @@ var SERVICES_CACHE_KEY = 'zoho:services';
 var SERVICES_CACHE_TTL = 300; // 5 minutes
 
 var INGREDIENTS_CACHE_KEY = 'zoho:ingredients';
-var INGREDIENTS_CACHE_TTL = 300; // 5 minutes
+var INGREDIENTS_CACHE_TTL = 3600; // 1 hour (match products TTL)
 
 var KIOSK_PRODUCTS_CACHE_KEY = 'zoho:kiosk-products';
 var KIOSK_PRODUCTS_CACHE_TTL = 300; // 5 minutes
