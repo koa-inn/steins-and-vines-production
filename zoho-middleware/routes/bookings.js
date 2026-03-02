@@ -82,8 +82,8 @@ router.get('/api/bookings/availability', function (req, res) {
             staff_id: process.env.ZOHO_BOOKINGS_STAFF_ID,
             selected_date: ds
           }).then(function (data) {
-            var slots = (data.response && data.response.returnvalue &&
-              data.response.returnvalue.data) || [];
+            var raw = (data.response && data.response.returnvalue && data.response.returnvalue.data);
+            var slots = Array.isArray(raw) ? raw : [];
             return { date: ds, available: slots.length > 0, slots_count: slots.length };
           }).catch(function () {
             return { date: ds, available: false, slots_count: 0 };
@@ -124,8 +124,8 @@ router.get('/api/bookings/slots', function (req, res) {
     selected_date: date
   })
     .then(function (data) {
-      var slots = (data.response && data.response.returnvalue &&
-        data.response.returnvalue.data) || [];
+      var raw = (data.response && data.response.returnvalue && data.response.returnvalue.data);
+      var slots = Array.isArray(raw) ? raw : [];
       res.json({ date: date, slots: slots });
     })
     .catch(function (err) {
