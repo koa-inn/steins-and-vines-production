@@ -580,10 +580,6 @@ function loadFeaturedProducts() {
       // Render Behold Instagram feed widget
       if (newsContainer && config['instafeed-id']) {
         newsContainer.innerHTML = '<behold-widget feed-id="' + escapeHTMLPromo(config['instafeed-id']) + '"></behold-widget>';
-        var beholdScript = document.createElement('script');
-        beholdScript.type = 'module';
-        beholdScript.src = 'https://w.behold.so/widget.js';
-        document.head.appendChild(beholdScript);
       }
 
       // Parse and render products
