@@ -199,6 +199,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (page === 'contact') {
     loadOpenHours();
     setupContactValidation();
+    setupContactSubmit();
   }
 
   // Featured products on homepage

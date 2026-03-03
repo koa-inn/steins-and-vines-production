@@ -19,6 +19,7 @@ function buildLabelNotesToggle(product) {
   var toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'notes-toggle';
+  toggle.setAttribute('aria-expanded', 'false');
   toggle.innerHTML = 'Tasting Notes <span class="chevron">&#9660;</span>';
 
   var body = document.createElement('div');
@@ -77,6 +78,7 @@ function buildLabelNotesToggle(product) {
   toggle.addEventListener('click', function (w, t, prod) {
     return function () {
       var isOpen = w.classList.toggle('open');
+      t.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
       if (isOpen) {
         trackEvent('detail', prod.sku || '', prod.name || '');
       }

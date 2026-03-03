@@ -11,6 +11,8 @@ var log = require('./lib/logger');
 var gpLib = require('./lib/gp');
 var cron = require('node-cron');
 
+var nodemailer = require('nodemailer');
+
 var app = express();
 app.set('trust proxy', 1); // Railway sits behind a load balancer
 var PORT = process.env.PORT || 3001;
@@ -21,15 +23,44 @@ var PORT = process.env.PORT || 3001;
 
 app.use(helmet());
 app.use(express.json({ limit: '1mb' }));
-var ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:3000')
-  .split(',').map(function(s) { return s.trim(); });
+// H3: CORS origin whitelist — only allow requests from known frontend origins
+var allowedOrigins = [
+  'https://steinsandvines.ca',
+  'https://staging.steinsandvines.ca',
+  'http://localhost:3001',
+  'http://localhost:8080'
+];
 app.use(cors({
-  origin: function(origin, cb) {
-    if (!origin || ALLOWED_ORIGINS.indexOf(origin) !== -1) return cb(null, true);
-    cb(new Error('Not allowed by CORS'));
+  origin: function(origin, callback) {
+    // Allow requests with no origin (server-to-server, curl, etc.) and whitelisted origins
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS: origin not allowed: ' + origin));
+    }
   },
   credentials: true
 }));
+
+// H3: Referer check — key-authenticated routes must come from allowed origins
+var allowedReferers = [
+  'https://steinsandvines.ca',
+  'https://staging.steinsandvines.ca',
+  'http://localhost:3001',
+  'http://localhost:8080'
+];
+function requireAllowedReferer(req, res, next) {
+  // Skip for server-to-server calls (no Referer) and OPTIONS preflight
+  if (req.method === 'OPTIONS' || !req.headers.referer) return next();
+  var referer = req.headers.referer;
+  var allowed = allowedReferers.some(function(origin) {
+    return referer.startsWith(origin);
+  });
+  if (!allowed) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  next();
+}
 
 // Request logging middleware (attaches reqId, logs method/path/status/ms)
 app.use(function (req, res, next) {
@@ -61,6 +92,59 @@ app.get('/health', function (req, res) {
 
 app.use('/', require('./routes/auth'));
 app.use('/', require('./routes/requests'));
+
+// ---------------------------------------------------------------------------
+// H4: Contact form email submission (public — no Zoho auth or API key needed)
+// Railway env vars needed: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS (Gmail App Password), CONTACT_TO
+// ---------------------------------------------------------------------------
+
+var contactLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: makeRedisStore(60 * 1000),
+  skip: redisUnavailableSkip,
+  message: { error: 'Too many requests, please try again later' }
+});
+
+app.post('/api/contact', contactLimiter, async function(req, res) {
+  var name = (req.body.name || '').trim();
+  var email = (req.body.email || '').trim();
+  var message = (req.body.message || '').trim();
+
+  // Validate
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+  var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) return res.status(400).json({ error: 'Valid email is required' });
+  if (!message) return res.status(400).json({ error: 'Message is required' });
+
+  try {
+    var transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: false,
+      requireTLS: true,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+
+    await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: process.env.CONTACT_TO || 'hello@steinsandvines.ca',
+      replyTo: email,
+      subject: 'New message from ' + name + ' via steinsandvines.ca',
+      text: 'Name: ' + name + '\nEmail: ' + email + '\n\nMessage:\n' + message
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[contact] Email send failed:', err.message);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Auth guard — protects all /api/* routes below
@@ -192,6 +276,7 @@ var paymentLimiter = rateLimit({
 });
 
 app.use('/api', apiLimiter);
+app.use('/api', requireAllowedReferer);
 app.use('/api/payment', paymentLimiter);
 app.use('/api/checkout', paymentLimiter);
 app.use('/api/pos/sale', paymentLimiter);

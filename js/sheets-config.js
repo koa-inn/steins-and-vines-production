@@ -52,6 +52,9 @@ var SHEETS_CONFIG = {
   // Leave blank to disable tracking; no events are sent until a URL is set.
   TRACK_EVENTS_URL: 'https://script.google.com/macros/s/AKfycbyWsu3oLF_q99IN_Xt-HdJrfLF9rXWxkGvd5HiG33stsrIDfpyMWzLXe-aeRoypM5C8RQ/exec',
 
+  // ADMIN_API_URL is a Google Apps Script web app URL. It is protected by
+  // Google OAuth ("Execute as: User accessing the web app") — unauthenticated
+  // requests are automatically rejected by Google. No server-side secret needed.
   // Admin API URL (deploy adminApi.gs as web app with "Execute as: User accessing the web app")
   // This provides server-side authentication for admin operations
   // Leave blank to use direct Sheets API (less secure, for development only)

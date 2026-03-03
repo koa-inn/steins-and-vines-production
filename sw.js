@@ -1,5 +1,5 @@
 /* Service Worker — Steins & Vines */
-var CACHE_VERSION = '20260303T044051357';
+var CACHE_VERSION = '20260303T163223482';
 var STATIC_CACHE = 'sv-static-' + CACHE_VERSION;
 var IMAGES_CACHE = 'sv-images-' + CACHE_VERSION;
 var FONTS_CACHE  = 'sv-fonts-' + CACHE_VERSION;
@@ -15,6 +15,8 @@ var PRECACHE_URLS = [
   '/about.html',
   '/contact.html',
   '/404.html',
+  '/css/styles.min.css',
+  '/js/main.min.js',
   '/images/SV_Logo_Wordmark_green.svg',
   '/images/SV_Logo_PrimaryCircle_offwhite.svg',
   '/images/Icon_green.svg',
@@ -66,10 +68,6 @@ self.addEventListener('fetch', function(event) {
   var url = new URL(event.request.url);
 
   if (event.request.method !== 'GET') return;
-
-  // Never intercept versioned assets (?v= cache-bust token) — let HTTP cache handle them
-  if (url.search && url.search.indexOf('v=') !== -1 &&
-      (url.pathname.endsWith('.css') || url.pathname.endsWith('.js'))) return;
 
   // Never cache admin or batch ASSETS
   if ((url.pathname.indexOf('admin') !== -1 || url.pathname.indexOf('batch') !== -1) &&
@@ -133,11 +131,22 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
+  // Strip ?v= query param from CSS/JS URLs for cache key normalisation
+  var cacheUrl = event.request.url;
+  if ((url.pathname.endsWith('.css') || url.pathname.endsWith('.js')) && url.search) {
+    cacheUrl = url.origin + url.pathname;
+  }
+
   // Everything else (same-origin static) — cache-first, offline fallback
   event.respondWith(
-    caches.match(event.request).then(function(cached) {
+    caches.match(cacheUrl).then(function(cached) {
       if (cached) return cached;
-      return fetch(event.request).catch(function() {});
+      return fetch(event.request).then(function(response) {
+        return caches.open(STATIC_CACHE).then(function(cache) {
+          cache.put(cacheUrl, response.clone());
+          return response;
+        });
+      }).catch(function() {});
     })
   );
 });

@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Steins & Vines">
-  <link rel="apple-touch-icon" href="images/SV_Logo_PrimaryCircle_green.svg">
+  <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#4a6f4b">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://js.globalpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://docs.google.com https://*.googleusercontent.com https://script.google.com https://sheets.googleapis.com https://www.googleapis.com https://svmiddleware-production.up.railway.app https://js.globalpay.com; frame-src 'self' https://js.globalpay.com">
@@ -26,7 +26,7 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mma4dxn6">
+  <link rel="stylesheet" href="css/styles.min.css?v=mmatsz3e">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -99,7 +99,7 @@
           <h2 data-content="contact-title">Get in touch</h2>
         </div>
 
-        <form class="contact-form" action="#" method="POST">
+        <form class="contact-form" id="contact-form" action="#" method="POST">
           <div class="form-group">
             <label for="name" data-content="label-name">Name</label>
             <input type="text" id="name" name="name" required autocomplete="name">
@@ -112,6 +112,7 @@
             <label for="message" data-content="label-message">Message</label>
             <textarea id="message" name="message" rows="5" required autocomplete="off" spellcheck="true"></textarea>
           </div>
+          <p class="contact-fallback">You can also reach us directly at <a href="mailto:hello@steinsandvines.ca">hello@steinsandvines.ca</a> or call <a href="tel:+16045674565">(604) 567-4565</a>.</p>
           <button type="submit" class="btn" data-content="submit-btn">Send Message</button>
           <div class="contact-details">
             <p>Phone: <a href="tel:+16045674565">(604) 567-4565</a></p>
@@ -165,7 +166,7 @@
   </footer>
 
   <script src="js/sheets-config.js" defer></script>
-  <script src="js/main.min.js?v=mma4dxn6" defer></script>
+  <script src="js/main.min.js?v=mmatsz3e" defer></script>
   <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js')})}</script>
 </body>
 </html>

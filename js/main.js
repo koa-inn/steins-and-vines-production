@@ -1,6 +1,8 @@
 // ===== Middleware API Key =====
 
-var MW_API_KEY = 'ZAhmrUdOlPEPWEz9YHgQm7wvi6glfPjg55geu1qq7AY=';
+// Semi-public key — protected by CORS origin whitelist on the middleware.
+// Rotate via: openssl rand -base64 32, then update Railway MW_API_KEY env var.
+var MW_API_KEY = 'a9QKtDV3DtYSFIdWtfAMg9Ry70bHG55QGhyJa9GD3fM=';
 // ===== Deep-link (?item=SKU) =====
 
 var _deepLinkHandled = false;
@@ -235,6 +237,7 @@ function buildLabelNotesToggle(product) {
   var toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'notes-toggle';
+  toggle.setAttribute('aria-expanded', 'false');
   toggle.innerHTML = 'Tasting Notes <span class="chevron">&#9660;</span>';
 
   var body = document.createElement('div');
@@ -293,6 +296,7 @@ function buildLabelNotesToggle(product) {
   toggle.addEventListener('click', function (w, t, prod) {
     return function () {
       var isOpen = w.classList.toggle('open');
+      t.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
       if (isOpen) {
         trackEvent('detail', prod.sku || '', prod.name || '');
       }
@@ -1365,8 +1369,12 @@ function loadProducts() {
     showCatalogSkeletons(catalog, 6);
   }
 
+  var _usedSnapshotFallback = false;
   var dataPromise = middlewareUrl
-    ? loadFromMiddleware().catch(function () { return loadFromSnapshot(); })
+    ? loadFromMiddleware().catch(function () {
+        _usedSnapshotFallback = true;
+        return loadFromSnapshot();
+      })
     : loadFromSnapshot();
 
   dataPromise
@@ -1399,6 +1407,20 @@ function loadProducts() {
       // Only render kits if the kits tab is still active (guards against the
       // ?tab=ingredients URL param switching away before this async chain resolves)
       if (_activeCartTab === 'kits') applyFilters();
+
+      // Show non-blocking banner if we fell back to the local snapshot
+      if (_usedSnapshotFallback) {
+        var catalogEl = document.getElementById('product-catalog');
+        if (catalogEl && catalogEl.parentNode) {
+          var existingBanner = catalogEl.parentNode.querySelector('.catalog-banner');
+          if (!existingBanner) {
+            var banner = document.createElement('div');
+            banner.className = 'catalog-banner';
+            banner.textContent = 'Showing cached product list \u2014 some information may be outdated.';
+            catalogEl.parentNode.insertBefore(banner, catalogEl);
+          }
+        }
+      }
 
       // Refresh button — clears middleware cache and reloads products (only once)
       if (!document.querySelector('#catalog-controls-kits .catalog-refresh-btn')) {
@@ -1469,7 +1491,25 @@ function loadProducts() {
       }
     })
     .catch(function () {
-      // Silently fail — noscript fallback is in the HTML
+      // Both middleware and snapshot failed — show error state with retry
+      var catalogEl = document.getElementById('product-catalog');
+      if (catalogEl) {
+        catalogEl.innerHTML = '';
+        var errorDiv = document.createElement('div');
+        errorDiv.className = 'catalog-error';
+        var errorMsg = document.createElement('p');
+        errorMsg.textContent = 'Could not load products. Please check your connection and try again.';
+        var retryBtn = document.createElement('button');
+        retryBtn.className = 'btn-retry btn-outline';
+        retryBtn.type = 'button';
+        retryBtn.textContent = 'Try again';
+        retryBtn.addEventListener('click', function () {
+          loadProducts();
+        });
+        errorDiv.appendChild(errorMsg);
+        errorDiv.appendChild(retryBtn);
+        catalogEl.appendChild(errorDiv);
+      }
     });
 
   function buildFilterRow(containerId, field, label) {
@@ -1721,8 +1761,11 @@ function loadProducts() {
 
     renderCatalog(filtered);
     updateFilterSummary();
-    var statusEl = document.getElementById('filter-status');
-    if (statusEl) statusEl.textContent = 'Showing ' + filtered.length + ' result' + (filtered.length !== 1 ? 's' : '');
+    var filterStatus = document.getElementById('filter-status');
+    if (filterStatus) {
+      filterStatus.textContent = ''; // clear first to ensure screen reader re-announcement
+      filterStatus.textContent = 'Showing ' + filtered.length + ' product' + (filtered.length !== 1 ? 's' : '');
+    }
   }
 
   var filterLabels = { type: 'Type', brand: 'Brand', subcategory: 'Style', time: 'Time', body: 'Body', oak: 'Oak', sweetness: 'Sweetness' };
@@ -6909,6 +6952,82 @@ function setupContactValidation() {
     emailInput.addEventListener('focus', function () { clearFieldError(this); });
   }
 }
+
+function setupContactSubmit() {
+  var form = document.getElementById('contact-form');
+  if (!form) return;
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    // Re-run existing field validation if available
+    var isValid = true;
+    var fields = ['name', 'email', 'message'];
+    for (var i = 0; i < fields.length; i++) {
+      var el = document.getElementById(fields[i]);
+      if (el && el.value.trim() === '') {
+        el.focus();
+        isValid = false;
+        break;
+      }
+    }
+    if (!isValid) return;
+
+    var nameEl = document.getElementById('name');
+    var emailEl = document.getElementById('email') || form.querySelector('[type="email"]');
+    var messageEl = document.getElementById('message') || form.querySelector('textarea');
+
+    var name = nameEl ? nameEl.value.trim() : '';
+    var email = emailEl ? emailEl.value.trim() : '';
+    var message = messageEl ? messageEl.value.trim() : '';
+
+    var submitBtn = form.querySelector('[type="submit"]');
+    var originalText = submitBtn ? submitBtn.textContent : 'Send';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending\u2026';
+    }
+
+    // Remove any previous inline error
+    var prevErr = form.querySelector('.contact-submit-error');
+    if (prevErr) prevErr.remove();
+
+    var apiUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+      ? SHEETS_CONFIG.MIDDLEWARE_URL + '/api/contact'
+      : '/api/contact';
+    var apiKey = (typeof MW_API_KEY !== 'undefined') ? MW_API_KEY : '';
+
+    fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, email: email, message: message })
+    })
+    .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
+    .then(function(result) {
+      if (result.ok && result.data.success) {
+        // Success: hide form, show confirmation
+        form.style.display = 'none';
+        var successMsg = document.createElement('div');
+        successMsg.className = 'contact-success';
+        successMsg.innerHTML = '<p>Thanks! We\u2019ll be in touch shortly.</p>';
+        form.parentNode.insertBefore(successMsg, form.nextSibling);
+      } else {
+        throw new Error(result.data.error || 'Something went wrong');
+      }
+    })
+    .catch(function(err) {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
+      var errDiv = document.createElement('p');
+      errDiv.className = 'contact-submit-error';
+      errDiv.textContent = 'Something went wrong \u2014 please email us directly at hello@steinsandvines.ca';
+      var submitWrap = submitBtn ? submitBtn.parentNode : form;
+      submitWrap.insertBefore(errDiv, submitBtn || null);
+    });
+  });
+}
 // Mobile nav toggle
 document.addEventListener('DOMContentLoaded', function () {
   // Kiosk mode: activated by ?kiosk=1 or iPad home-screen launch
@@ -7110,6 +7229,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (page === 'contact') {
     loadOpenHours();
     setupContactValidation();
+    setupContactSubmit();
   }
 
   // Featured products on homepage

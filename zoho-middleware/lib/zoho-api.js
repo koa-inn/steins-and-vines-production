@@ -3,6 +3,35 @@ var zohoAuth = require('./zohoAuth');
 var log = require('./logger');
 
 // ---------------------------------------------------------------------------
+// Retry helper — wraps an async fn with exponential back-off
+// Retries on network errors and 429/5xx; throws immediately on other 4xx
+// ---------------------------------------------------------------------------
+
+async function withRetry(fn, opts) {
+  var retries = (opts && opts.retries !== undefined) ? opts.retries : 3;
+  var baseDelay = (opts && opts.baseDelay) || 300;
+  var factor = (opts && opts.factor) || 2;
+  var attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err) {
+      var status = err.status || (err.response && err.response.status);
+      // Do not retry 4xx client errors except 429
+      if (status && status >= 400 && status < 500 && status !== 429) throw err;
+      if (attempt >= retries) throw err;
+      var delay = baseDelay * Math.pow(factor, attempt);
+      if (status === 429 && err.retryAfter) delay = err.retryAfter * 1000;
+      if (status === 429 && err.response && err.response.headers && err.response.headers['retry-after']) {
+        delay = parseInt(err.response.headers['retry-after'], 10) * 1000 || delay;
+      }
+      await new Promise(function(r) { setTimeout(r, delay); });
+      attempt++;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Zoho API domain configuration
 // ---------------------------------------------------------------------------
 
@@ -32,12 +61,14 @@ var BOOKINGS_API_BASE = (API_URLS[apiDomain] || ('https://www.zohoapis' + apiDom
 function zohoGet(path, params) {
   return zohoAuth.getAccessToken().then(function (token) {
     var query = Object.assign({ organization_id: process.env.ZOHO_ORG_ID }, params || {});
-    return axios.get(ZOHO_API_BASE + path, {
-      headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: query,
-      timeout: 15000
-    }).then(function (response) {
-      return response.data;
+    return withRetry(function () {
+      return axios.get(ZOHO_API_BASE + path, {
+        headers: { Authorization: 'Zoho-oauthtoken ' + token },
+        params: query,
+        timeout: 15000
+      }).then(function (response) {
+        return response.data;
+      });
     });
   });
 }
@@ -48,12 +79,14 @@ function zohoGet(path, params) {
  */
 function zohoPost(path, body) {
   return zohoAuth.getAccessToken().then(function (token) {
-    return axios.post(ZOHO_API_BASE + path, body, {
-      headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: { organization_id: process.env.ZOHO_ORG_ID },
-      timeout: 15000
-    }).then(function (response) {
-      return response.data;
+    return withRetry(function () {
+      return axios.post(ZOHO_API_BASE + path, body, {
+        headers: { Authorization: 'Zoho-oauthtoken ' + token },
+        params: { organization_id: process.env.ZOHO_ORG_ID },
+        timeout: 15000
+      }).then(function (response) {
+        return response.data;
+      });
     });
   });
 }
@@ -64,12 +97,14 @@ function zohoPost(path, body) {
  */
 function zohoPut(path, body) {
   return zohoAuth.getAccessToken().then(function (token) {
-    return axios.put(ZOHO_API_BASE + path, body, {
-      headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: { organization_id: process.env.ZOHO_ORG_ID },
-      timeout: 15000
-    }).then(function (response) {
-      return response.data;
+    return withRetry(function () {
+      return axios.put(ZOHO_API_BASE + path, body, {
+        headers: { Authorization: 'Zoho-oauthtoken ' + token },
+        params: { organization_id: process.env.ZOHO_ORG_ID },
+        timeout: 15000
+      }).then(function (response) {
+        return response.data;
+      });
     });
   });
 }
@@ -80,12 +115,14 @@ function zohoPut(path, body) {
 function inventoryGet(path, params) {
   return zohoAuth.getAccessToken().then(function (token) {
     var query = Object.assign({ organization_id: process.env.ZOHO_ORG_ID }, params || {});
-    return axios.get(ZOHO_INVENTORY_BASE + path, {
-      headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: query,
-      timeout: 15000
-    }).then(function (response) {
-      return response.data;
+    return withRetry(function () {
+      return axios.get(ZOHO_INVENTORY_BASE + path, {
+        headers: { Authorization: 'Zoho-oauthtoken ' + token },
+        params: query,
+        timeout: 15000
+      }).then(function (response) {
+        return response.data;
+      });
     });
   });
 }
@@ -95,12 +132,14 @@ function inventoryGet(path, params) {
  */
 function inventoryPost(path, body) {
   return zohoAuth.getAccessToken().then(function (token) {
-    return axios.post(ZOHO_INVENTORY_BASE + path, body, {
-      headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: { organization_id: process.env.ZOHO_ORG_ID },
-      timeout: 15000
-    }).then(function (response) {
-      return response.data;
+    return withRetry(function () {
+      return axios.post(ZOHO_INVENTORY_BASE + path, body, {
+        headers: { Authorization: 'Zoho-oauthtoken ' + token },
+        params: { organization_id: process.env.ZOHO_ORG_ID },
+        timeout: 15000
+      }).then(function (response) {
+        return response.data;
+      });
     });
   });
 }
@@ -110,12 +149,14 @@ function inventoryPost(path, body) {
  */
 function inventoryPut(path, body) {
   return zohoAuth.getAccessToken().then(function (token) {
-    return axios.put(ZOHO_INVENTORY_BASE + path, body, {
-      headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: { organization_id: process.env.ZOHO_ORG_ID },
-      timeout: 15000
-    }).then(function (response) {
-      return response.data;
+    return withRetry(function () {
+      return axios.put(ZOHO_INVENTORY_BASE + path, body, {
+        headers: { Authorization: 'Zoho-oauthtoken ' + token },
+        params: { organization_id: process.env.ZOHO_ORG_ID },
+        timeout: 15000
+      }).then(function (response) {
+        return response.data;
+      });
     });
   });
 }
@@ -130,12 +171,14 @@ function inventoryPut(path, body) {
  */
 function bookingsGet(path, params) {
   return zohoAuth.getAccessToken().then(function (token) {
-    return axios.get(BOOKINGS_API_BASE + path, {
-      headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      params: params || {},
-      timeout: 15000
-    }).then(function (response) {
-      return response.data;
+    return withRetry(function () {
+      return axios.get(BOOKINGS_API_BASE + path, {
+        headers: { Authorization: 'Zoho-oauthtoken ' + token },
+        params: params || {},
+        timeout: 15000
+      }).then(function (response) {
+        return response.data;
+      });
     });
   });
 }
@@ -146,11 +189,13 @@ function bookingsGet(path, params) {
  */
 function bookingsPost(path, body) {
   return zohoAuth.getAccessToken().then(function (token) {
-    return axios.post(BOOKINGS_API_BASE + path, body, {
-      headers: { Authorization: 'Zoho-oauthtoken ' + token },
-      timeout: 15000
-    }).then(function (response) {
-      return response.data;
+    return withRetry(function () {
+      return axios.post(BOOKINGS_API_BASE + path, body, {
+        headers: { Authorization: 'Zoho-oauthtoken ' + token },
+        timeout: 15000
+      }).then(function (response) {
+        return response.data;
+      });
     });
   });
 }
@@ -213,6 +258,7 @@ module.exports = {
   ZOHO_API_BASE: ZOHO_API_BASE,
   ZOHO_INVENTORY_BASE: ZOHO_INVENTORY_BASE,
   BOOKINGS_API_BASE: BOOKINGS_API_BASE,
+  withRetry: withRetry,
   zohoGet: zohoGet,
   zohoPost: zohoPost,
   zohoPut: zohoPut,

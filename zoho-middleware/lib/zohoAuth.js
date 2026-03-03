@@ -160,6 +160,15 @@ function exchangeCode(code) {
     // Persist refresh token to Redis (encrypted at rest when REDIS_ENCRYPTION_KEY is set)
     cache.set(REFRESH_TOKEN_CACHE_KEY, encrypt(data.refresh_token), REFRESH_TOKEN_TTL);
 
+    // Persist access token + expiry to Redis for cross-instance sharing
+    var ttl = data.expires_in - 60;
+    try {
+      cache.set('zoho:access-token', data.access_token, ttl);
+      cache.set('zoho:token-expiry', String(Date.now() + ttl * 1000), ttl);
+    } catch (e) {
+      // Redis unavailable — in-memory only
+    }
+
     scheduleRefresh(data.expires_in);
 
     console.log('[zoho-auth] Tokens acquired — expires in ' + data.expires_in + 's');
@@ -169,25 +178,49 @@ function exchangeCode(code) {
 
 /**
  * Use the stored refresh token to get a fresh access token.
+ * Uses a distributed Redis lock so concurrent Railway instances don't
+ * all refresh simultaneously.
  */
 function refreshAccessToken() {
   if (!tokens.refreshToken) {
     return Promise.reject(new Error('No refresh token — complete OAuth flow first'));
   }
 
-  return postToken({
-    grant_type: 'refresh_token',
-    client_id: process.env.ZOHO_CLIENT_ID,
-    client_secret: process.env.ZOHO_CLIENT_SECRET,
-    refresh_token: tokens.refreshToken
-  }).then(function (data) {
-    tokens.accessToken = data.access_token;
-    tokens.expiresAt = Date.now() + (data.expires_in * 1000);
+  // Acquire distributed refresh lock (30s TTL) — falls back to true if Redis is down
+  return cache.acquireLock('zoho:refresh-lock', 30).then(function (locked) {
+    if (!locked) {
+      // Another instance holds the lock — wait 1.5s then retry getAccessToken()
+      // which will either find the freshly-written Redis token or retry again
+      return new Promise(function (resolve) { setTimeout(resolve, 1500); }).then(function () {
+        return getAccessToken();
+      });
+    }
 
-    scheduleRefresh(data.expires_in);
+    return postToken({
+      grant_type: 'refresh_token',
+      client_id: process.env.ZOHO_CLIENT_ID,
+      client_secret: process.env.ZOHO_CLIENT_SECRET,
+      refresh_token: tokens.refreshToken
+    }).then(function (data) {
+      tokens.accessToken = data.access_token;
+      tokens.expiresAt = Date.now() + (data.expires_in * 1000);
 
-    console.log('[zoho-auth] Access token refreshed — expires in ' + data.expires_in + 's');
-    return tokens;
+      // Persist access token + expiry to Redis so other instances can use it
+      var ttl = data.expires_in - 60;
+      try {
+        cache.set('zoho:access-token', data.access_token, ttl);
+        cache.set('zoho:token-expiry', String(Date.now() + ttl * 1000), ttl);
+      } catch (e) {
+        // Redis unavailable — in-memory only is fine
+      }
+
+      scheduleRefresh(data.expires_in);
+
+      console.log('[zoho-auth] Access token refreshed — expires in ' + data.expires_in + 's');
+      return tokens;
+    }).finally(function () {
+      cache.releaseLock('zoho:refresh-lock').catch(function () {});
+    });
   });
 }
 
@@ -209,29 +242,61 @@ function scheduleRefresh(expiresInSec) {
 
 /**
  * Get a valid access token, refreshing if needed.
+ * Checks Redis first when in-memory token is absent or stale so that
+ * multiple Railway instances can share one freshly-refreshed token.
  * Use this before every Zoho API call.
  */
 function getAccessToken() {
-  if (!tokens.accessToken) {
-    return Promise.reject(new Error('Not authenticated — complete OAuth flow first'));
-  }
-
-  // If token is still fresh, return it
-  if (Date.now() < tokens.expiresAt - REFRESH_BUFFER_MS) {
+  // If in-memory token is still fresh, return it immediately
+  if (tokens.accessToken && Date.now() < tokens.expiresAt - REFRESH_BUFFER_MS) {
     return Promise.resolve(tokens.accessToken);
   }
 
-  // Otherwise refresh now — coalesce concurrent callers to one request
-  if (!_refreshPromise) {
-    _refreshPromise = refreshAccessToken().then(function () {
-      _refreshPromise = null;
-      return tokens.accessToken;
-    }, function (err) {
-      _refreshPromise = null;
-      throw err;
-    });
-  }
-  return _refreshPromise;
+  // Try Redis for a token written by another instance
+  return Promise.resolve().then(function () {
+    try {
+      return cache.get('zoho:access-token').then(function (redisToken) {
+        if (redisToken) {
+          return cache.get('zoho:token-expiry').then(function (redisExpiry) {
+            var expiry = redisExpiry ? parseInt(redisExpiry, 10) : 0;
+            if (expiry && Date.now() < expiry - REFRESH_BUFFER_MS) {
+              // Redis token is still fresh — hydrate in-memory state and return
+              tokens.accessToken = redisToken;
+              tokens.expiresAt = expiry;
+              return redisToken;
+            }
+            return null;
+          });
+        }
+        return null;
+      });
+    } catch (e) {
+      return null;
+    }
+  }).then(function (cachedToken) {
+    if (cachedToken) return cachedToken;
+
+    // No fresh token available — must authenticate or refresh
+    if (!tokens.accessToken && !tokens.refreshToken) {
+      return Promise.reject(new Error('Not authenticated — complete OAuth flow first'));
+    }
+
+    if (!tokens.refreshToken) {
+      return Promise.reject(new Error('Not authenticated — complete OAuth flow first'));
+    }
+
+    // Refresh now — coalesce concurrent callers to one request
+    if (!_refreshPromise) {
+      _refreshPromise = refreshAccessToken().then(function () {
+        _refreshPromise = null;
+        return tokens.accessToken;
+      }, function (err) {
+        _refreshPromise = null;
+        throw err;
+      });
+    }
+    return _refreshPromise;
+  });
 }
 
 /**

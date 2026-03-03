@@ -1856,3 +1856,79 @@ function setupContactValidation() {
     emailInput.addEventListener('focus', function () { clearFieldError(this); });
   }
 }
+
+function setupContactSubmit() {
+  var form = document.getElementById('contact-form');
+  if (!form) return;
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    // Re-run existing field validation if available
+    var isValid = true;
+    var fields = ['name', 'email', 'message'];
+    for (var i = 0; i < fields.length; i++) {
+      var el = document.getElementById(fields[i]);
+      if (el && el.value.trim() === '') {
+        el.focus();
+        isValid = false;
+        break;
+      }
+    }
+    if (!isValid) return;
+
+    var nameEl = document.getElementById('name');
+    var emailEl = document.getElementById('email') || form.querySelector('[type="email"]');
+    var messageEl = document.getElementById('message') || form.querySelector('textarea');
+
+    var name = nameEl ? nameEl.value.trim() : '';
+    var email = emailEl ? emailEl.value.trim() : '';
+    var message = messageEl ? messageEl.value.trim() : '';
+
+    var submitBtn = form.querySelector('[type="submit"]');
+    var originalText = submitBtn ? submitBtn.textContent : 'Send';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending\u2026';
+    }
+
+    // Remove any previous inline error
+    var prevErr = form.querySelector('.contact-submit-error');
+    if (prevErr) prevErr.remove();
+
+    var apiUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+      ? SHEETS_CONFIG.MIDDLEWARE_URL + '/api/contact'
+      : '/api/contact';
+    var apiKey = (typeof MW_API_KEY !== 'undefined') ? MW_API_KEY : '';
+
+    fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, email: email, message: message })
+    })
+    .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
+    .then(function(result) {
+      if (result.ok && result.data.success) {
+        // Success: hide form, show confirmation
+        form.style.display = 'none';
+        var successMsg = document.createElement('div');
+        successMsg.className = 'contact-success';
+        successMsg.innerHTML = '<p>Thanks! We\u2019ll be in touch shortly.</p>';
+        form.parentNode.insertBefore(successMsg, form.nextSibling);
+      } else {
+        throw new Error(result.data.error || 'Something went wrong');
+      }
+    })
+    .catch(function(err) {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
+      var errDiv = document.createElement('p');
+      errDiv.className = 'contact-submit-error';
+      errDiv.textContent = 'Something went wrong \u2014 please email us directly at hello@steinsandvines.ca';
+      var submitWrap = submitBtn ? submitBtn.parentNode : form;
+      submitWrap.insertBefore(errDiv, submitBtn || null);
+    });
+  });
+}

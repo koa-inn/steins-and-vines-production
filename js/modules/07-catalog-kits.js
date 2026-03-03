@@ -118,8 +118,12 @@ function loadProducts() {
     showCatalogSkeletons(catalog, 6);
   }
 
+  var _usedSnapshotFallback = false;
   var dataPromise = middlewareUrl
-    ? loadFromMiddleware().catch(function () { return loadFromSnapshot(); })
+    ? loadFromMiddleware().catch(function () {
+        _usedSnapshotFallback = true;
+        return loadFromSnapshot();
+      })
     : loadFromSnapshot();
 
   dataPromise
@@ -152,6 +156,20 @@ function loadProducts() {
       // Only render kits if the kits tab is still active (guards against the
       // ?tab=ingredients URL param switching away before this async chain resolves)
       if (_activeCartTab === 'kits') applyFilters();
+
+      // Show non-blocking banner if we fell back to the local snapshot
+      if (_usedSnapshotFallback) {
+        var catalogEl = document.getElementById('product-catalog');
+        if (catalogEl && catalogEl.parentNode) {
+          var existingBanner = catalogEl.parentNode.querySelector('.catalog-banner');
+          if (!existingBanner) {
+            var banner = document.createElement('div');
+            banner.className = 'catalog-banner';
+            banner.textContent = 'Showing cached product list \u2014 some information may be outdated.';
+            catalogEl.parentNode.insertBefore(banner, catalogEl);
+          }
+        }
+      }
 
       // Refresh button — clears middleware cache and reloads products (only once)
       if (!document.querySelector('#catalog-controls-kits .catalog-refresh-btn')) {
@@ -222,7 +240,25 @@ function loadProducts() {
       }
     })
     .catch(function () {
-      // Silently fail — noscript fallback is in the HTML
+      // Both middleware and snapshot failed — show error state with retry
+      var catalogEl = document.getElementById('product-catalog');
+      if (catalogEl) {
+        catalogEl.innerHTML = '';
+        var errorDiv = document.createElement('div');
+        errorDiv.className = 'catalog-error';
+        var errorMsg = document.createElement('p');
+        errorMsg.textContent = 'Could not load products. Please check your connection and try again.';
+        var retryBtn = document.createElement('button');
+        retryBtn.className = 'btn-retry btn-outline';
+        retryBtn.type = 'button';
+        retryBtn.textContent = 'Try again';
+        retryBtn.addEventListener('click', function () {
+          loadProducts();
+        });
+        errorDiv.appendChild(errorMsg);
+        errorDiv.appendChild(retryBtn);
+        catalogEl.appendChild(errorDiv);
+      }
     });
 
   function buildFilterRow(containerId, field, label) {
@@ -474,8 +510,11 @@ function loadProducts() {
 
     renderCatalog(filtered);
     updateFilterSummary();
-    var statusEl = document.getElementById('filter-status');
-    if (statusEl) statusEl.textContent = 'Showing ' + filtered.length + ' result' + (filtered.length !== 1 ? 's' : '');
+    var filterStatus = document.getElementById('filter-status');
+    if (filterStatus) {
+      filterStatus.textContent = ''; // clear first to ensure screen reader re-announcement
+      filterStatus.textContent = 'Showing ' + filtered.length + ' product' + (filtered.length !== 1 ? 's' : '');
+    }
   }
 
   var filterLabels = { type: 'Type', brand: 'Brand', subcategory: 'Style', time: 'Time', body: 'Body', oak: 'Oak', sweetness: 'Sweetness' };

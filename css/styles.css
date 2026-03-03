@@ -5731,8 +5731,6 @@ footer {
      set directly, which would break position:fixed on iOS Safari */
   body.cart-drawer-open {
     overflow: hidden;
-    /* iOS Safari: touch-action prevents the document from scrolling behind the drawer */
-    touch-action: none;
   }
 
   .hero {
@@ -5926,4 +5924,39 @@ footer {
   .checkout-stepper {
     margin-bottom: 1.5rem;
   }
+}
+
+/* ===== H13: Catalog error state and stale-cache banner ===== */
+.catalog-error {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #666;
+}
+.catalog-error p { margin-bottom: 1rem; }
+.catalog-banner {
+  text-align: center;
+  padding: 0.5rem 1rem;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+/* ===== H4: Contact form submit states ===== */
+.contact-success {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #2d6a4f;
+  font-size: 1.1rem;
+}
+.contact-submit-error {
+  color: #c0392b;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+.contact-fallback {
+  font-size: 0.875rem;
+  color: #555;
+  margin-bottom: 1rem;
 }
