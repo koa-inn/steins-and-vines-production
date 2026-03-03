@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-03-03T19:12:13.405Z';
+  var BUILD_TIMESTAMP = '2026-03-03T19:40:22.947Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -6116,7 +6116,7 @@
     // Add row inputs
     html += '<div class="batch-plato-add" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;">';
     html += '<input type="date" id="plato-date" class="admin-inline-input" style="width:130px;">';
-    html += '<input type="number" id="plato-value" step="0.1" min="0" max="40" placeholder="&deg;P" class="admin-inline-input" style="width:70px;">';
+    html += '<input type="number" id="plato-value" step="0.1" max="40" placeholder="&deg;P" class="admin-inline-input" style="width:70px;">';
     html += '<input type="number" id="plato-temp" step="0.1" placeholder="Temp &deg;C" class="admin-inline-input" style="width:90px;">';
     html += '<input type="number" id="plato-ph" step="0.01" min="0" max="14" placeholder="pH" class="admin-inline-input" style="width:60px;">';
     html += '<input type="text" id="plato-notes" placeholder="Notes" class="admin-inline-input">';
@@ -6166,7 +6166,7 @@
       var tempRaw = document.getElementById('plato-temp').value;
       var phRaw = document.getElementById('plato-ph').value;
       var gravVal = gravRaw !== '' ? parseFloat(gravRaw) : null;
-      if (gravRaw !== '' && (isNaN(gravVal) || gravVal < 0 || gravVal > 40)) { showToast('Gravity must be between 0 and 40 \u00b0P', 'error'); return; }
+      if (gravRaw !== '' && (isNaN(gravVal) || gravVal > 40)) { showToast('Gravity must be 40 \u00b0P or less', 'error'); return; }
       if (phRaw !== '' && (isNaN(parseFloat(phRaw)) || parseFloat(phRaw) < 0 || parseFloat(phRaw) > 14)) { showToast('pH must be between 0 and 14', 'error'); return; }
       if (gravRaw === '' && tempRaw === '' && phRaw === '') { showToast('Enter at least one measurement (gravity, temp, or pH)', 'error'); return; }
       var dateVal = document.getElementById('plato-date').value;

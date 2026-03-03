@@ -332,7 +332,7 @@
       var tempRaw = document.getElementById('plato-temp').value;
       var phRaw = document.getElementById('plato-ph').value;
       var gravVal = gravRaw !== '' ? parseFloat(gravRaw) : null;
-      if (gravRaw !== '' && (isNaN(gravVal) || gravVal < 0 || gravVal > 40)) { showToast('Gravity must be between 0 and 40 \u00b0P', 'error'); return; }
+      if (gravRaw !== '' && (isNaN(gravVal) || gravVal > 40)) { showToast('Gravity must be 40 \u00b0P or less', 'error'); return; }
       if (phRaw !== '' && (isNaN(parseFloat(phRaw)) || parseFloat(phRaw) < 0 || parseFloat(phRaw) > 14)) { showToast('pH must be between 0 and 14', 'error'); return; }
       if (gravRaw === '' && tempRaw === '' && phRaw === '') { showToast('Enter at least one measurement (gravity, temp, or pH)', 'error'); return; }
       var dateVal = document.getElementById('plato-date').value;

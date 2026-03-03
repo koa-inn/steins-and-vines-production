@@ -2220,8 +2220,8 @@ function addPlatoReading(payload, recordedBy) {
     return { ok: false, error: 'missing_id', message: 'batch_id is required' };
   }
   var plato = (payload.degrees_plato !== undefined && payload.degrees_plato !== '') ? parseFloat(payload.degrees_plato) : '';
-  if (plato !== '' && (isNaN(plato) || plato < 0 || plato > 40)) {
-    return { ok: false, error: 'invalid_value', message: 'degrees_plato must be between 0 and 40' };
+  if (plato !== '' && (isNaN(plato) || plato > 40)) {
+    return { ok: false, error: 'invalid_value', message: 'degrees_plato must be 40 or less' };
   }
   // At least one measurement must be provided
   var tempRaw = (payload.temperature !== undefined && payload.temperature !== '') ? parseFloat(payload.temperature) : '';
@@ -2305,8 +2305,8 @@ function updatePlatoReading(payload, userEmail) {
   // Validate provided fields
   if (updates.degrees_plato !== undefined) {
     var plato = parseFloat(updates.degrees_plato);
-    if (isNaN(plato) || plato < 0 || plato > 40) {
-      return { ok: false, error: 'invalid_value', message: 'degrees_plato must be between 0 and 40' };
+    if (isNaN(plato) || plato > 40) {
+      return { ok: false, error: 'invalid_value', message: 'degrees_plato must be 40 or less' };
     }
   }
   if (updates.timestamp !== undefined && updates.timestamp !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(updates.timestamp)) {
