@@ -2173,6 +2173,10 @@ behold-widget {
   width: 100%;
   margin-top: 0.75rem;
   padding: 10px 16px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background-color: transparent;
   color: var(--color-burgundy);
   border: 2px solid var(--color-burgundy);
@@ -4943,7 +4947,8 @@ behold-widget {
   padding: 0.32rem 0.4rem;
   border: 1.5px solid rgba(119,70,45,0.25);
   border-radius: var(--radius-sm, 4px);
-  font-size: 0.85rem;
+  /* 1rem = 16px — prevents iOS Safari from zooming on focus */
+  font-size: 1rem;
   text-align: center;
   font-family: var(--font-body);
   color: var(--color-text);
@@ -4987,8 +4992,11 @@ behold-widget {
 
 /* Add to cart button */
 .weight-control-add {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0.5rem 1rem;
+  min-height: 44px;
   font-size: 0.85rem;
   font-weight: 700;
   font-family: var(--font-body);
@@ -5042,13 +5050,14 @@ behold-widget {
 }
 
 .weight-control-range--compact::-webkit-slider-thumb {
-  width: 16px;
-  height: 16px;
+  /* 22px thumb is easier to hit on touch than 16px while staying compact */
+  width: 22px;
+  height: 22px;
 }
 
 .weight-control-range--compact::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
 }
 
 .weight-control-compact-amount {
@@ -5064,12 +5073,14 @@ behold-widget {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  flex-wrap: wrap;
 }
 
 .weight-control-compact .weight-control-input {
   width: 54px;
   padding: 0.22rem 0.3rem;
-  font-size: 0.78rem;
+  /* Keep 1rem (16px) minimum to prevent iOS auto-zoom on focus */
+  font-size: 1rem;
 }
 
 .weight-control-compact .weight-control-unit-label {
@@ -5089,14 +5100,17 @@ behold-widget {
   padding: 0.28rem 0.55rem;
   font-size: 0.75rem;
   flex-shrink: 0;
+  /* Table view: 44px would be too tall; 36px is a pragmatic compromise */
+  min-height: 36px;
 }
 
 .weight-control-remove {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
+  /* Meet 44×44px minimum touch target (WCAG 2.5.5) */
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border: 1px solid var(--color-border, #d0c8b0);
   border-radius: 50%;
@@ -5119,10 +5133,39 @@ behold-widget {
   .weight-control-compact {
     min-width: 140px;
   }
-  .weight-control-step-btn {
-    width: 26px;
-    height: 26px;
-    font-size: 0.95rem;
+  /* Do NOT shrink step buttons below 44px — they would fail touch target minimums.
+     The slider row may get tight but the buttons must remain tappable. */
+}
+
+/* Service bubbles: tighter padding on very narrow phones */
+@media (max-width: 480px) {
+  .service-bubbles-grid {
+    gap: 0.75rem;
+    padding: 0.75rem 0 1.5rem;
+  }
+
+  .service-bubble {
+    padding: 1rem 1rem 0.875rem;
+  }
+}
+
+/* Weight control slider: increase touch area on mobile */
+@media (max-width: 768px) {
+  /* Expand the range slider container vertically so the touch area is
+     closer to 44px even though the visible track is only 8px */
+  .weight-control-slider-row {
+    padding: 10px 0;
+  }
+
+  /* Increase the visible range thumb on mobile for easier dragging */
+  .weight-control-range::-webkit-slider-thumb {
+    width: 32px;
+    height: 32px;
+  }
+
+  .weight-control-range::-moz-range-thumb {
+    width: 32px;
+    height: 32px;
   }
 }
 
@@ -5607,7 +5650,7 @@ body {
   .catalog-filter-btn {
     padding: 5px 12px;
     font-size: 0.8125rem;
-    min-height: 38px;
+    min-height: 44px;
   }
 
   .catalog-filter-label {
