@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-03-03T19:40:22.947Z';
+  var BUILD_TIMESTAMP = '2026-03-03T21:11:27.328Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -5403,6 +5403,12 @@
   var _upcomingCacheTime = 0;
   var SUBTAB_CACHE_TTL = 30000; // 30 seconds
 
+  // Call after any batch/task mutation so the upcoming list stays in sync
+  function refreshUpcomingCache() {
+    _upcomingCacheTime = 0;
+    if (document.getElementById('upcoming-tasks-list')) loadUpcomingTasks();
+  }
+
   function initBatchSubTabs() {
     var btns = document.querySelectorAll('.batch-sub-tab');
     btns.forEach(function (btn) {
@@ -5781,6 +5787,7 @@
         showToast('Status changed to ' + newStatus, 'success');
         openBatchDetail(batchId);
         loadBatchesData();
+        refreshUpcomingCache();
       }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
     });
 
@@ -5895,6 +5902,7 @@
         showToast('Transfer completed', 'success');
         vesselsData = null;
         openBatchDetail(batchId);
+        refreshUpcomingCache();
       }).catch(function (err) {
         confirmBtn.disabled = false;
         skipBtn.disabled = false;
@@ -5912,6 +5920,7 @@
         .then(function () {
           showToast('Task completed', 'success');
           openBatchDetail(batchId);
+          refreshUpcomingCache();
         })
         .catch(function (err) {
           confirmBtn.disabled = false;
@@ -5955,6 +5964,7 @@
         .then(function () {
           showToast('Task added', 'success');
           openBatchDetail(batchId);
+          refreshUpcomingCache();
         })
         .catch(function (err) {
           addBtn.disabled = false;
@@ -6063,6 +6073,7 @@
           pendingTaskChanges = {};
           updateTaskSaveBtn();
           saveTasksBtn.disabled = false;
+          refreshUpcomingCache();
           // Replace checkbox elements so origChecked resets to current state
           document.querySelectorAll('.batch-task-check input[type="checkbox"]').forEach(function (cb) {
             var clone = cb.cloneNode(true);
