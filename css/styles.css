@@ -2810,6 +2810,12 @@ behold-widget {
   font-size: 1.1rem;
 }
 
+.timeslot-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
 .cal-slots-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
