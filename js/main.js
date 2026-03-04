@@ -1416,12 +1416,12 @@ function loadProducts() {
       if (_usedSnapshotFallback) {
         var catalogEl = document.getElementById('product-catalog');
         if (catalogEl && catalogEl.parentNode) {
-          var existingBanner = catalogEl.parentNode.querySelector('.catalog-banner');
+          var existingBanner = catalogEl.querySelector('.catalog-banner');
           if (!existingBanner) {
             var banner = document.createElement('div');
             banner.className = 'catalog-banner';
             banner.textContent = 'Showing cached product list \u2014 some information may be outdated.';
-            catalogEl.parentNode.insertBefore(banner, catalogEl);
+            catalogEl.insertBefore(banner, catalogEl.firstChild);
           }
         }
       }
