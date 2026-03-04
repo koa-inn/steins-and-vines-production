@@ -69,7 +69,12 @@ function initProductTabs() {
 
     // Load the appropriate tab
     if (tab === 'kits') {
-      if (applyKitsFilters) applyKitsFilters();
+      if (applyKitsFilters) {
+        applyKitsFilters();
+      } else {
+        // Products still loading — show skeletons so the user sees loading state
+        if (catalog) showCatalogSkeletons(catalog, 6);
+      }
     } else if (tab === 'ingredients') {
       if (_allIngredients.length === 0) {
         if (catalog) showCatalogSkeletons(catalog, 8);
