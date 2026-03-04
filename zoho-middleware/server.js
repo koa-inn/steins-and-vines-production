@@ -103,7 +103,7 @@ var contactLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  store: makeRedisStore(60 * 1000),
+  store: makeRedisStore(60 * 1000, 'contact'),
   skip: redisUnavailableSkip,
   message: { error: 'Too many requests, please try again later' }
 });
@@ -210,8 +210,11 @@ app.use('/api', function (req, res, next) {
  *   decrement(key) -> Promise<void>
  *   resetKey(key)  -> Promise<void>
  */
-function makeRedisStore(windowMs) {
+function makeRedisStore(windowMs, prefix) {
   var windowSec = Math.ceil(windowMs / 1000);
+  // Each limiter must use a unique prefix so they track separate counters per IP.
+  // Without a prefix all limiters share 'rl:<ip>' and cross-contaminate each other.
+  var keyPrefix = 'rl:' + (prefix || 'default') + ':';
 
   return {
     increment: function (key) {
@@ -219,7 +222,7 @@ function makeRedisStore(windowMs) {
         // Redis down — return a sentinel that signals "skip this store"
         return Promise.resolve({ totalHits: 0, resetTime: new Date(Date.now() + windowMs) });
       }
-      var redisKey = 'rl:' + key;
+      var redisKey = keyPrefix + key;
       return cache.getClient().then(function (c) {
         if (!c) {
           return { totalHits: 0, resetTime: new Date(Date.now() + windowMs) };
@@ -245,7 +248,7 @@ function makeRedisStore(windowMs) {
 
     decrement: function (key) {
       if (!cache.isConnected()) return Promise.resolve();
-      var redisKey = 'rl:' + key;
+      var redisKey = keyPrefix + key;
       return cache.getClient().then(function (c) {
         if (!c) return;
         return c.decr(redisKey);
@@ -254,7 +257,7 @@ function makeRedisStore(windowMs) {
 
     resetKey: function (key) {
       if (!cache.isConnected()) return Promise.resolve();
-      return cache.del('rl:' + key);
+      return cache.del(keyPrefix + key);
     }
   };
 }
@@ -271,19 +274,19 @@ var apiLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
-  store: makeRedisStore(60 * 1000),
+  store: makeRedisStore(60 * 1000, 'api'),
   skip: redisUnavailableSkip,
   message: { error: 'Too many requests, please try again later' }
 });
 
 var paymentLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 5,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  store: makeRedisStore(60 * 1000),
+  store: makeRedisStore(60 * 1000, 'payment'),
   skip: redisUnavailableSkip,
-  message: { error: 'Too many payment requests, please try again later' }
+  message: { error: 'Too many requests, please try again in a minute' }
 });
 
 app.use('/api', apiLimiter);

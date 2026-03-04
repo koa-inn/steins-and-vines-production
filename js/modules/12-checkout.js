@@ -1652,6 +1652,7 @@ function setupReservationForm() {
           });
         })
         .then(function (res) {
+          if (res.status === 429) throw new Error('Too many requests — please wait a moment and try again');
           if (!res.ok) throw new Error('Failed to create order');
           return res.json();
         });
