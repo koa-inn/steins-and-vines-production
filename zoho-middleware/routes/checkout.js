@@ -44,6 +44,7 @@ function verifyRecaptcha(token) {
 var Transaction = gp.Transaction;
 var zohoPost = zohoApi.zohoPost;
 var zohoGet = zohoApi.zohoGet;
+var mailer = require('../lib/mailer');
 
 var PRODUCTS_CACHE_KEY = 'zoho:products';
 var KIOSK_PRODUCTS_CACHE_KEY = 'zoho:kiosk-products';
@@ -123,6 +124,8 @@ router.post('/api/checkout', function (req, res) {
   // reCAPTCHA v3 verification — runs before idempotency to avoid wasting Redis on bots
   var rcToken = (typeof body.recaptcha_token === 'string') ? body.recaptcha_token : '';
 
+  var zohoOffline = !!req.zohoOffline;
+
   function proceed() {
     if (idempotencyKey) {
       return cache.get(idempotencyKey).then(function (cached) {
@@ -130,12 +133,12 @@ router.post('/api/checkout', function (req, res) {
           log.info('[checkout] Idempotent replay: ' + idempotencyKey);
           return res.status(201).json(cached);
         }
-        processCheckout(body, idempotencyKey, res);
+        processCheckout(body, idempotencyKey, res, zohoOffline);
       }).catch(function () {
-        processCheckout(body, idempotencyKey, res);
+        processCheckout(body, idempotencyKey, res, zohoOffline);
       });
     }
-    processCheckout(body, null, res);
+    processCheckout(body, null, res, zohoOffline);
   }
 
   verifyRecaptcha(rcToken).then(function (captcha) {
@@ -152,7 +155,24 @@ router.post('/api/checkout', function (req, res) {
   });
 });
 
-function processCheckout(body, idempotencyKey, res) {
+function processCheckout(body, idempotencyKey, res, zohoOffline) {
+  // Offline fallback: Zoho not authenticated — send email notification and return reference number
+  if (zohoOffline) {
+    var offlineRef = 'REF-' + Date.now().toString(36).toUpperCase();
+    mailer.sendOfflineOrderNotification({
+      ref: offlineRef,
+      customer: body.customer || {},
+      items: body.items || [],
+      timeslot: body.timeslot || '',
+      notes: body.notes || ''
+    }).then(function () {
+      log.info('[checkout/offline] Notification email sent, ref=' + offlineRef);
+    }).catch(function (emailErr) {
+      log.error('[checkout/offline] Notification email failed: ' + emailErr.message);
+    });
+    return res.status(201).json({ ok: true, salesorder_number: offlineRef, deposit_amount: 0, balance_due: 0 });
+  }
+
   var customerEmail = body.customer.email.trim();
   var customerName  = (body.customer.name || '').toString().trim().substring(0, 200) || customerEmail;
   var customerPhone = (body.customer.phone || '').toString().trim().substring(0, 40);

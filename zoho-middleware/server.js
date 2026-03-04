@@ -150,8 +150,17 @@ app.post('/api/contact', contactLimiter, async function(req, res) {
 // Auth guard — protects all /api/* routes below
 // ---------------------------------------------------------------------------
 
+// POST routes that handle Zoho-unavailable gracefully (offline fallback mode).
+// They are allowed through when Zoho is not authenticated; req.zohoOffline is
+// set so each handler can switch to email-notification fallback.
+var OFFLINE_CAPABLE_POSTS = ['/contacts', '/bookings', '/checkout'];
+
 app.use('/api', function (req, res, next) {
   if (!zohoAuth.isAuthenticated()) {
+    if (req.method === 'POST' && OFFLINE_CAPABLE_POSTS.indexOf(req.path) !== -1) {
+      req.zohoOffline = true;
+      return next();
+    }
     return res.status(401).json({ error: 'Not authenticated. Visit /auth/zoho to connect.' });
   }
   next();

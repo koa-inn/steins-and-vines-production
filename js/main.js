@@ -6249,8 +6249,10 @@ function setupReservationForm() {
         paymentConfig = cfg;
         if (!cfg.enabled || !cfg.accessToken) return;
 
-        // Show the payment section and pre-fill cardholder name from customer name field
+        // Show the payment section; hide the offline notice
         paymentSection.classList.remove('hidden');
+        var offlineNotice = document.getElementById('payment-offline-notice');
+        if (offlineNotice) offlineNotice.classList.add('hidden');
         var holderInput = document.getElementById('credit-card-holder-input');
         var nameInputEl = document.getElementById('res-name');
         if (holderInput && nameInputEl && nameInputEl.value.trim()) {

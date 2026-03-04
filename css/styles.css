@@ -3311,6 +3311,18 @@ behold-widget {
   font-size: 0.875rem;
 }
 
+/* Payment offline notice — shown when online payments are not yet available */
+.payment-offline-notice {
+  background: #fdf8f0;
+  border: 1px solid var(--color-gold);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  color: var(--color-brown);
+}
+.payment-offline-notice p { margin: 0; }
+
 /* ===== Confirmation Screen ===== */
 .reservation-confirm {
   text-align: center;

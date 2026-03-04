@@ -171,6 +171,13 @@ router.post('/api/bookings', function (req, res) {
     return res.status(400).json({ error: 'Notes too long' });
   }
 
+  // Offline fallback: Zoho not authenticated — return a placeholder booking_id
+  // so the checkout flow can continue; the full order notification is sent by /api/checkout
+  if (req.zohoOffline) {
+    var offlineBookingId = 'PENDING-' + Date.now().toString(36).toUpperCase();
+    return res.status(201).json({ ok: true, booking_id: offlineBookingId, timeslot: body.date + ' ' + body.time });
+  }
+
   var time24 = normalizeTimeTo24h(body.time);
 
   var bookingPayload = {
@@ -233,6 +240,12 @@ router.post('/api/contacts', function (req, res) {
   }
   if (body.phone && String(body.phone).length > 30) {
     return res.status(400).json({ error: 'Phone too long' });
+  }
+
+  // Offline fallback: Zoho not authenticated — return a dummy contact_id so the
+  // checkout flow can continue (the checkout route sends the full notification email)
+  if (req.zohoOffline) {
+    return res.json({ contact_id: 'offline', created: false, offline: true });
   }
 
   // Search for existing contact by email
