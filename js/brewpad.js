@@ -54,6 +54,7 @@
   var _measStartDate = null;
   var _measRequestId = 0;   // increments on each batch select; stale responses are discarded
   var _measSearchTimer = null;
+  var _measLoadTime = 0;     // timestamp of last successful loadMeasurementsForBatch fetch
 
   // Dashboard
   var _dashSummary = null;
@@ -389,7 +390,7 @@
 
     var now = Date.now();
     if (tab === 'dashboard') {
-      if (now - _dashLoadTime > CACHE_TTL) loadDashboard();
+      if (now - _dashLoadTime > CACHE_TTL * 4) loadDashboard();
     } else if (tab === 'batches') {
       if (_allBatchesData.length > 0) {
         // Derive filtered list from cache — instant
@@ -739,6 +740,16 @@
   }
 
   function selectBatch(batchId) {
+    // If the detail pane is already showing this exact batch (user tapped same card twice),
+    // just ensure it is visible and skip the redundant network fetch.
+    if (_detailBatchId === batchId && _selectedBatchId === batchId) {
+      var existingDetail = document.getElementById('bp-batch-detail-pane');
+      if (existingDetail && existingDetail.style.display !== 'none' &&
+          existingDetail.querySelector('.bp-detail-content')) {
+        return;
+      }
+    }
+
     _selectedBatchId = batchId;
 
     // Update selected highlight in list
@@ -1979,7 +1990,9 @@
 
     inner.innerHTML = html;
 
-    // If a batch was already selected (tab revisit), restore it
+    // If a batch was already selected (tab revisit), restore it.
+    // Only re-fetch from the API if the cached readings are stale (older than CACHE_TTL * 4 = 2min).
+    // Within that window, re-render directly from cached _measReadings to avoid a redundant get_batch call.
     if (_measSelectedBatchId) {
       var matching = null;
       for (var bi = 0; bi < _measBatches.length; bi++) {
@@ -1987,7 +2000,15 @@
       }
       if (matching) {
         showMeasSelectedBadge(matching);
-        loadMeasurementsForBatch(_measSelectedBatchId);
+        if (_measReadings.length > 0 && Date.now() - _measLoadTime < CACHE_TTL * 4) {
+          // Data is fresh — restore the entry form and history without a network round-trip
+          if (_measEntryRows.length === 0) {
+            _measEntryRows = [{ id: ++_measRowCounter, timestamp: todayStr() }];
+          }
+          renderMeasurementsContent(_measSelectedBatchId);
+        } else {
+          loadMeasurementsForBatch(_measSelectedBatchId);
+        }
       } else {
         _measSelectedBatchId = '';
       }
@@ -2006,6 +2027,7 @@
         var data = result.data || {};
         _measReadings = (data.plato_readings || []).slice();
         _measStartDate = (data.batch && data.batch.start_date) || null;
+        _measLoadTime = Date.now();
         _measRowCounter = 0;
         _measEntryRows = [{ id: ++_measRowCounter, timestamp: todayStr() }];
         renderMeasurementsContent(batchId);
@@ -2161,6 +2183,7 @@
           r.reading_id = (results[i] && results[i].reading_id) || ('confirmed-' + Date.now() + i);
           _measReadings.push(r);
         });
+        _measLoadTime = Date.now();
         _measRowCounter = 0;
         _measEntryRows = [{ id: ++_measRowCounter, timestamp: todayStr() }];
         renderMeasurementsContent(batchId);
@@ -2188,6 +2211,7 @@
         _measReadings = [];
         _measEntryRows = [];
         _measRowCounter = 0;
+        _measLoadTime = 0;
         badge.style.display = 'none';
         var searchInput = document.getElementById('bp-meas-batch-search');
         if (searchInput) { searchInput.value = ''; searchInput.focus(); }
