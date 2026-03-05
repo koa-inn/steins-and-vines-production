@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-03-05T00:45:48.288Z';
+  var BUILD_TIMESTAMP = '2026-03-05T03:52:31.070Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -2001,6 +2001,8 @@
     var statusCol = reservationsHeaders.indexOf('status');
     if (statusCol === -1) { showToast('Cannot find status column.', 'warning'); return; }
 
+    var wasNotConfirmed = reservation.status !== 'confirmed';
+
     // Use Admin API with version checking if available
     if (SHEETS_CONFIG.ADMIN_API_URL) {
       adminApiPost('update_reservation', {
@@ -2015,6 +2017,9 @@
           }
           renderReservationsTab();
           renderDashboard();
+          if (newStatus === 'confirmed' && wasNotConfirmed && reservation.customer_email) {
+            openConfirmationEmail(reservation);
+          }
         })
         .catch(function (err) {
           if (err.message && err.message.indexOf('modified by another user') !== -1) {
@@ -2043,6 +2048,9 @@
         }
         renderReservationsTab();
         renderDashboard();
+        if (newStatus === 'confirmed' && wasNotConfirmed && reservation.customer_email) {
+          openConfirmationEmail(reservation);
+        }
       })
       .catch(function (err) {
         showToast('Failed to update reservation: ' + err.message, 'error');
