@@ -264,33 +264,42 @@ function processCheckout(body, idempotencyKey, res, zohoOffline) {
 
   // Item #11 — Anchor prices to authoritative catalog cache.
   // Try kiosk cache first, then general products cache as fallback.
-  // Client-supplied rates are rejected in favour of server-side prices.
-  cache.get(KIOSK_PRODUCTS_CACHE_KEY).then(function (kioskCatalog) {
-    return kioskCatalog || cache.get(PRODUCTS_CACHE_KEY);
-  }).then(function (catalog) {
+  // Client-supplied rates are rejected in favour of server-side prices when
+  // the catalog cache is populated. When the cache is empty (e.g. after a
+  // cold start where the Zoho pre-warm was rate-limited), fall through using
+  // client-supplied rates so checkout is never blocked by a warm-up failure.
+  // Use the general products catalog for checkout validation.
+  // (Kiosk catalog is a different item set — retail POS items — and must not
+  //  be used to validate regular website reservations.)
+  cache.get(PRODUCTS_CACHE_KEY).then(function (catalog) {
     // Build item_id → rate lookup from the authoritative catalog
     var catalogMap = {};
-    if (Array.isArray(catalog)) {
+    var catalogAvailable = Array.isArray(catalog) && catalog.length > 0;
+
+    if (catalogAvailable) {
       catalog.forEach(function (p) {
         if (p && p.item_id) catalogMap[p.item_id] = p.rate;
       });
-    }
 
-    // Reject any item not present in the catalog cache
-    for (var ci = 0; ci < body.items.length; ci++) {
-      var cItem = body.items[ci];
-      if (catalogMap[cItem.item_id] === undefined) {
-        return res.status(400).json({
-          error: 'Item not available for purchase: ' + cItem.item_id
-        });
+      // Reject any item not present in the catalog cache
+      for (var ci = 0; ci < body.items.length; ci++) {
+        var cItem = body.items[ci];
+        if (catalogMap[cItem.item_id] === undefined) {
+          return res.status(400).json({
+            error: 'Item not available for purchase: ' + cItem.item_id
+          });
+        }
       }
+    } else {
+      // Cache empty — skip price anchoring, use client-supplied rates
+      log.warn('[checkout] Catalog cache empty — price anchoring skipped, using client-supplied rates');
     }
 
-    // --- Build line items using catalog price (ignore client-supplied rate) ---
+    // --- Build line items (catalog price when available, else client-supplied rate) ---
     var orderTotal = 0;
     var lineItems = body.items.map(function (item) {
       var qty = Number(item.quantity) || 1;
-      var rate = catalogMap[item.item_id]; // authoritative price from catalog
+      var rate = catalogAvailable ? catalogMap[item.item_id] : (Number(item.rate) || 0); // catalog price preferred
       var discount = Number(item.discount) || 0;
       var effectiveRate = discount > 0 ? rate * (1 - discount / 100) : rate;
       orderTotal += qty * effectiveRate;
@@ -371,8 +380,11 @@ function processCheckout(body, idempotencyKey, res, zohoOffline) {
 
         return zohoPost('/salesorders', salesOrder)
           .then(function (data) {
-            // Invalidate product cache so stock counts refresh on next fetch
-            cache.del(PRODUCTS_CACHE_KEY);
+            // Mark product cache stale so the next request triggers a background
+            // refresh (stale-while-revalidate). Deleting the cache key outright
+            // would leave the products endpoint with no data during the Zoho
+            // round-trip and can trigger 429 rate-limit storms if Zoho is busy.
+            cache.del('zoho:products:ts');
 
             var soId = data.salesorder ? data.salesorder.salesorder_id : null;
             var soNumber = data.salesorder ? data.salesorder.salesorder_number : null;
@@ -391,17 +403,9 @@ function processCheckout(body, idempotencyKey, res, zohoOffline) {
             // Fire-and-forget: write to admin panel Google Sheets
             notifyAdminPanel(soNumber, customerName, customerEmail, customerPhone, lineItems, body.timeslot || '', body.notes || '');
 
-            // Item #41 — Fire-and-forget confirmation email via Zoho (non-blocking)
-            if (soId) {
-              zohoPost('/salesorders/' + soId + '/email', {
-                send_from_org_email_id: true,
-                to_mail_ids: [customerEmail],
-                subject: 'Your Steins & Vines reservation is confirmed',
-                body: 'Hi ' + customerName + ',\n\nYour reservation ' + soNumber + ' is confirmed. We look forward to seeing you!\n\nSteins & Vines'
-              }).catch(function (emailErr) {
-                log.warn('[checkout] Confirmation email failed — soId=' + soId + ' email=' + customerEmail + ' err=' + emailErr.message);
-              });
-            }
+            // NOTE: Confirmation email is intentionally NOT sent here.
+            // It is sent by staff via the admin panel when the reservation
+            // status is changed to "confirmed".
 
             // If an online deposit was charged, record the payment in Zoho Books
             if (transactionId && depositAmount > 0 && soId) {

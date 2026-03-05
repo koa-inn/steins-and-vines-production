@@ -1,6 +1,6 @@
 {
   "name": "steins-and-vines-website",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "minify:css": "cleancss -o css/styles.min.css css/styles.css && cleancss -o css/admin.min.css css/admin.css && cleancss -o css/batch.min.css css/batch.css && cleancss -o css/kiosk.min.css css/kiosk.css",

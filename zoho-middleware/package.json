@@ -1,6 +1,6 @@
 {
   "name": "steins-vines-zoho-middleware",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Express middleware bridging Steins & Vines frontend to Zoho Books API",
   "main": "server.js",
   "scripts": {

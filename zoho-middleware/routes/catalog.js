@@ -23,11 +23,19 @@ var _rawItemsCache = null;
 var _rawItemsCacheAt = 0;
 var RAW_ITEMS_TTL_MS = 60 * 1000; // 60 seconds
 var _rawItemsPromise = null;
+// Timestamp after which it is safe to retry Zoho Inventory list fetches.
+// Set to now+90s after a 429 to give Zoho's per-minute quota time to reset.
+var _rawItemsCooldownUntil = 0;
+var _productsCooldownUntil = 0;
 
 function fetchAllItemsCached() {
   var now = Date.now();
   if (_rawItemsCache && (now - _rawItemsCacheAt) < RAW_ITEMS_TTL_MS) {
     return Promise.resolve(_rawItemsCache);
+  }
+  if (now < _rawItemsCooldownUntil) {
+    var waitSec = Math.ceil((_rawItemsCooldownUntil - now) / 1000);
+    return Promise.reject(new Error('Zoho Inventory rate-limited — cooling down (' + waitSec + 's remaining)'));
   }
   if (_rawItemsPromise) return _rawItemsPromise;
   _rawItemsPromise = fetchAllItems({ status: 'active' }).then(function (items) {
@@ -37,6 +45,11 @@ function fetchAllItemsCached() {
     return items;
   }, function (err) {
     _rawItemsPromise = null;
+    if (err.response && err.response.status === 429) {
+      var retryAfter = err.response.headers && parseInt(err.response.headers['retry-after'], 10);
+      _rawItemsCooldownUntil = Date.now() + (retryAfter > 0 ? retryAfter * 1000 : 90000);
+      log.warn('[catalog] Inventory list 429 — cooldown until ' + new Date(_rawItemsCooldownUntil).toISOString());
+    }
     throw err;
   });
   return _rawItemsPromise;
@@ -97,6 +110,13 @@ function refreshProducts() {
   // Fast in-process guard first (no Redis round-trip needed for single-instance case)
   if (_productsRefreshing) {
     log.info('[api/products] Refresh already in progress, skipping');
+    return Promise.resolve();
+  }
+
+  // 429 cooldown — don't hammer Zoho immediately after a rate-limit response
+  if (Date.now() < _productsCooldownUntil) {
+    var waitSec = Math.ceil((_productsCooldownUntil - Date.now()) / 1000);
+    log.info('[api/products] 429 cooldown active — skipping refresh (' + waitSec + 's remaining)');
     return Promise.resolve();
   }
 
@@ -261,6 +281,11 @@ function doRefreshProducts() {
     .catch(function (err) {
       _productsRefreshing = false;
       cache.releaseLock(REFRESH_LOCK_KEY);
+      if (err.response && err.response.status === 429) {
+        var retryAfter = err.response.headers && parseInt(err.response.headers['retry-after'], 10);
+        _productsCooldownUntil = Date.now() + (retryAfter > 0 ? retryAfter * 1000 : 90000);
+        log.warn('[api/products] 429 rate limit — cooldown until ' + new Date(_productsCooldownUntil).toISOString());
+      }
       throw err;
     });
 }
@@ -316,7 +341,17 @@ router.get('/api/products', function (req, res) {
       log.info('[api/products] Cache miss — fetching from Zoho Inventory');
       return refreshProducts()
         .then(function (enriched) {
-          res.json({ source: 'zoho', items: enriched });
+          if (enriched && enriched.length) {
+            return res.json({ source: 'zoho', items: enriched });
+          }
+          // refreshProducts() returned early (cooldown or lock held by another instance).
+          // Check if another instance populated the cache in the meantime.
+          return cache.get(PRODUCTS_CACHE_KEY).then(function (cached) {
+            if (cached && cached.length) {
+              return res.json({ source: 'cache', items: cached });
+            }
+            res.status(502).json({ error: 'Unable to fetch products' });
+          });
         });
     })
     .catch(function (err) {
