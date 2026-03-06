@@ -25,6 +25,7 @@
   var _batchStatusFilter = 'active';
   var _batchSearch = '';
   var _batchSearchTimer = null;   // module-scope so switchTab() can cancel a pending re-render
+  var _batchViewMode = 'cards';   // 'cards' or 'table'
   var _selectedBatchId = null;
   var _vesselsData = null;
   var _vesselsCacheTime = 0;       // TTL: reload vessel list if >30s stale
@@ -752,15 +753,50 @@
     });
     html += '</div>';
 
-    // Search + new batch
+    // Search + new batch + view toggle
     html += '<div class="bp-batch-search-row">';
     html += '<input type="search" class="bp-search-input" id="bp-batch-search" placeholder="Search batches\u2026" value="' + escapeHTML(_batchSearch) + '" autocomplete="off" inputmode="search">';
+    html += '<button type="button" class="bp-view-toggle btn-secondary bp-btn-sm" id="bp-batch-view-toggle" title="' + (_batchViewMode === 'cards' ? 'Switch to table view' : 'Switch to card view') + '">' + (_batchViewMode === 'cards' ? '\u2630' : '\u229e') + '</button>';
     html += '<button type="button" class="btn bp-new-batch-btn" id="bp-list-new-batch">+ New Batch</button>';
     html += '</div>';
 
     if (filtered.length === 0) {
       html += '<p class="bp-empty">No batches found.</p>';
+    } else if (_batchViewMode === 'table') {
+      // Compact table view
+      var today = todayStr();
+      html += '<table class="bp-batch-table"><thead><tr>';
+      html += '<th>Batch</th><th>Product</th><th>Customer</th><th>Vessel / Loc</th><th>Stage</th><th>Days</th>';
+      html += '</tr></thead><tbody>';
+      filtered.forEach(function (b) {
+        var statusKey = String(b.status || '').toLowerCase();
+        var statusLabel = STATUS_LABELS[statusKey] || b.status || '';
+        var statusColor = STATUS_COLORS[statusKey] || 'info';
+        var isSelected = b.batch_id === _selectedBatchId;
+        var overdueCount = 0;
+        for (var oi = 0; oi < _upcomingTasks.length; oi++) {
+          var ot = _upcomingTasks[oi];
+          if (ot.batch_id !== b.batch_id) continue;
+          var done = ot.completed === true || ot.completed === 'TRUE' || ot.completed === '1';
+          if (done) continue;
+          var due = ot.due_date ? String(ot.due_date).substring(0, 10) : '';
+          if (due && due < today) overdueCount++;
+        }
+        var days = b.start_date ? Math.floor((Date.now() - new Date(b.start_date)) / 86400000) : '\u2014';
+        var loc = [b.vessel_id, b.shelf_id && b.bin_id ? b.shelf_id + '-' + b.bin_id : (b.shelf_id || b.bin_id || '')].filter(Boolean).join(' ');
+        var rowCls = (isSelected ? 'bp-batch-tr--selected' : '') + (overdueCount > 0 ? ' bp-batch-tr--urgent' : '');
+        html += '<tr class="' + rowCls + '" data-batch-id="' + escapeHTML(b.batch_id) + '">';
+        html += '<td class="bp-batch-tr-id">' + escapeHTML(b.batch_id) + (overdueCount > 0 ? ' <span class="bp-urgent-dot">\u25cf</span>' : '') + '</td>';
+        html += '<td>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</td>';
+        html += '<td>' + escapeHTML(b.customer_name || '\u2014') + '</td>';
+        html += '<td>' + escapeHTML(loc || '\u2014') + '</td>';
+        html += '<td><span class="bp-status-badge bp-status-badge--' + statusColor + '" style="font-size:0.72rem;padding:1px 6px;">' + escapeHTML(statusLabel) + '</span></td>';
+        html += '<td>' + days + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
     } else {
+      // Card view (default)
       html += '<div class="bp-batch-cards">';
       filtered.forEach(function (b) {
         var statusKey = String(b.status || '').toLowerCase();
@@ -770,8 +806,6 @@
         var tasksTotal = parseInt(b.tasks_total) || 0;
         var isSelected = b.batch_id === _selectedBatchId;
 
-        // Count overdue tasks for this batch from module-scope _upcomingTasks.
-        // /* bp-batch-card--urgent styles in brewpad.css */
         var today = todayStr();
         var overdueCount = 0;
         for (var oi = 0; oi < _upcomingTasks.length; oi++) {
@@ -2060,11 +2094,16 @@
     bindMeasEvents();
   }
 
+  function getMeasSortVal(b) {
+    if (_measSortCol === 'location') return (String(b.shelf_id || '') + String(b.bin_id || '')).toLowerCase();
+    return String(b[_measSortCol] || '').toLowerCase();
+  }
+
   function renderMeasGrid() {
     // Sorted copy — filtering is done via CSS display toggle later
     var batches = _measBatches.slice().sort(function (a, b) {
-      var av = String(a[_measSortCol] || '').toLowerCase();
-      var bv = String(b[_measSortCol] || '').toLowerCase();
+      var av = getMeasSortVal(a);
+      var bv = getMeasSortVal(b);
       return av < bv ? -_measSortDir : av > bv ? _measSortDir : 0;
     });
 
@@ -2080,7 +2119,11 @@
     var html = '<table class="bp-meas-multi-table"><thead><tr>';
     html += '<th class="bp-meas-col-id bp-sort-th' + (_measSortCol === 'batch_id' ? ' bp-sort-active' : '') + '" data-sort="batch_id">Batch ' + measSortIcon('batch_id') + '</th>';
     html += '<th class="bp-meas-col-product bp-sort-th' + (_measSortCol === 'product_name' ? ' bp-sort-active' : '') + '" data-sort="product_name">Product ' + measSortIcon('product_name') + '</th>';
-    html += '<th class="bp-meas-col-loc bp-sort-th' + (_measSortCol === 'vessel_id' ? ' bp-sort-active' : '') + '" data-sort="vessel_id">Vessel ' + measSortIcon('vessel_id') + '</th>';
+    html += '<th class="bp-meas-col-loc">' +
+      '<span class="bp-sort-th' + (_measSortCol === 'vessel_id' ? ' bp-sort-active' : '') + '" data-sort="vessel_id">Vessel' + measSortIcon('vessel_id') + '</span>' +
+      '<span class="bp-sort-sep"> / </span>' +
+      '<span class="bp-sort-th' + (_measSortCol === 'location' ? ' bp-sort-active' : '') + '" data-sort="location">Loc' + measSortIcon('location') + '</span>' +
+      '</th>';
     html += '<th class="bp-meas-col-num">&deg;P</th>';
     html += '<th class="bp-meas-col-num">Temp&deg;C</th>';
     html += '<th class="bp-meas-col-num">pH</th>';
@@ -2349,8 +2392,15 @@
           renderBatchList();
           return;
         }
+        if (e.target.closest('#bp-batch-view-toggle')) {
+          _batchViewMode = (_batchViewMode === 'cards') ? 'table' : 'cards';
+          renderBatchList();
+          return;
+        }
         var card = e.target.closest('.bp-batch-card');
-        if (card) selectBatch(card.getAttribute('data-batch-id'));
+        if (card) { selectBatch(card.getAttribute('data-batch-id')); return; }
+        var row = e.target.closest('tr[data-batch-id]');
+        if (row) selectBatch(row.getAttribute('data-batch-id'));
       });
     }
 
@@ -2407,7 +2457,7 @@
         if (e.target.classList.contains('bp-meas-cell')) updateMeasSubmitCount();
       });
       measInner.addEventListener('click', function (e) {
-        var th = e.target.closest('th[data-sort]');
+        var th = e.target.closest('[data-sort]');
         if (th) {
           var col = th.getAttribute('data-sort');
           _measSortDir = (_measSortCol === col) ? -_measSortDir : 1;
