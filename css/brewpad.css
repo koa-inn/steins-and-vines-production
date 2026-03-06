@@ -446,9 +446,12 @@ img { max-width: 100%; height: auto; display: block; }
 .bp-attention-text { color: var(--ink-primary); }
 
 .bp-fab {
-  margin-top: 20px;
-  width: 100%;
-  padding: 18px;
+  position: fixed;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  right: 20px;
+  z-index: 200;
+  width: auto;
+  padding: 16px 24px;
   font-size: 1rem;
   font-weight: 700;
   background: var(--cellar-green);
@@ -460,6 +463,7 @@ img { max-width: 100%; height: auto; display: block; }
   font-family: var(--font-body);
   transition: background-color 0.15s;
   -webkit-tap-highlight-color: rgba(0,0,0,0);
+  box-shadow: 0 4px 16px rgba(44, 34, 24, 0.25);
 }
 .bp-fab:active { opacity: 0.85; }
 
@@ -575,6 +579,7 @@ img { max-width: 100%; height: auto; display: block; }
 .bp-batch-card:hover { border-color: var(--barrel); }
 .bp-batch-card:active { background: var(--cellar-canvas); }
 .bp-batch-card--selected { border-color: var(--cellar-green); border-width: 2px; box-shadow: 0 0 0 1px var(--cellar-green); }
+.bp-batch-card--urgent { border-left: 3px solid var(--batch-danger); }
 
 .bp-batch-card-header {
   display: flex;
@@ -639,6 +644,8 @@ img { max-width: 100%; height: auto; display: block; }
 
 .bp-detail-back {
   flex-shrink: 0;
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .bp-detail-title-group {
@@ -771,6 +778,20 @@ img { max-width: 100%; height: auto; display: block; }
 .bp-task-row--done { opacity: 0.5; }
 .bp-task-row--overdue { border-color: rgba(168,50,50,0.25); background: var(--batch-danger-bg); }
 .bp-task-row--today  { border-color: rgba(184,122,26,0.25); background: var(--batch-warning-bg); }
+
+/* Task auto-save states */
+.bp-task-row[data-save-state="saving"] {
+  /* Subtle left-border pulse to indicate in-flight save */
+  border-left: 3px solid var(--stain);
+  animation: bp-saving-pulse 1s ease-in-out infinite;
+}
+.bp-task-row[data-save-state="error"] {
+  border-left: 3px solid var(--batch-danger);
+}
+@keyframes bp-saving-pulse {
+  0%, 100% { border-left-color: var(--stain); opacity: 1; }
+  50% { border-left-color: transparent; opacity: 0.85; }
+}
 
 .bp-task-check {
   flex-shrink: 0;
@@ -1025,15 +1046,16 @@ img { max-width: 100%; height: auto; display: block; }
 .bp-meas-col-id    { width: 108px; white-space: nowrap; }
 .bp-meas-col-product { min-width: 100px; }
 .bp-meas-col-loc   { width: 80px; font-size: 0.82rem; color: var(--ink-secondary); white-space: nowrap; }
-.bp-meas-col-num   { width: 74px; }
+.bp-meas-col-num   { width: 88px; }
 .bp-meas-col-notes { min-width: 100px; }
 
 /* Compact number inputs in the grid */
 .bp-meas-cell {
   width: 100%;
   min-width: 0;
+  min-height: 44px;
   padding: 5px 6px;
-  font-size: 0.88rem;
+  font-size: 1rem; /* ≥16px prevents iOS auto-zoom on focus */
   border: 1px solid var(--ctrl-border);
   border-radius: var(--r-sm);
   background: var(--cellar-surface);
@@ -1280,10 +1302,65 @@ img { max-width: 100%; height: auto; display: block; }
 }
 
 .bp-wl-label {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   color: var(--ink-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.02em;
   white-space: nowrap;
   font-weight: 700;
 }
+
+/* ===== Confirmation Sheet ===== */
+.bp-confirm-sheet {
+  position: fixed;
+  inset: 0;
+  background: rgba(44, 34, 24, 0.55);
+  z-index: 900;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.bp-confirm-sheet.bp-confirm-sheet--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.bp-confirm-sheet-inner {
+  background: var(--cellar-raised);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  width: 100%;
+  max-width: 560px;
+  box-shadow: 0 -4px 24px rgba(44, 34, 24, 0.18);
+}
+.bp-confirm-sheet-msg {
+  font-size: 1.05rem;
+  line-height: 1.45;
+  color: var(--ink-primary);
+  margin: 0 0 20px;
+}
+.bp-confirm-sheet-actions {
+  display: flex;
+  gap: 12px;
+}
+.bp-confirm-sheet-actions button {
+  flex: 1;
+  min-height: 48px;
+  font-size: 1rem;
+}
+.bp-confirm-btn--danger {
+  background: var(--batch-danger);
+  color: #fff;
+  border: none;
+  border-radius: var(--r-md);
+}
+.bp-confirm-btn--danger:hover { filter: brightness(1.1); }
+.bp-confirm-btn--primary {
+  background: var(--stain);
+  color: #fff;
+  border: none;
+  border-radius: var(--r-md);
+}
+.bp-confirm-btn--primary:hover { filter: brightness(1.1); }

@@ -56,6 +56,7 @@
   var _dashSummary = null;
   var _dashLoadTime = 0;
   var _dashAutoRefreshTimer = null;
+  var _notesAutoSaveTimer = null;
 
   // Product catalog
   var _kitCatalog = null;
@@ -146,6 +147,15 @@
 
     var saved = loadSession();
     if (saved) {
+      // Show a loading indicator while the silent token refresh is in flight.
+      var signinCard = document.querySelector('.bp-signin-card');
+      if (signinCard) {
+        var resumeEl = document.createElement('p');
+        resumeEl.id = 'bp-resuming-msg';
+        resumeEl.style.cssText = 'text-align:center;color:var(--ink-secondary);font-size:0.95rem;margin-top:12px;';
+        resumeEl.textContent = 'Resuming session\u2026';
+        signinCard.appendChild(resumeEl);
+      }
       // Fallback: if no response in 15s, just show the signin button.
       // Do NOT clear session here — the token may still arrive.
       _silentRefreshTimer = setTimeout(function () {
@@ -175,6 +185,8 @@
   }
 
   function showSignInButton() {
+    var resumeEl = document.getElementById('bp-resuming-msg');
+    if (resumeEl) resumeEl.parentNode.removeChild(resumeEl);
     var container = document.getElementById('bp-google-signin-btn');
     if (container && !container.querySelector('button')) {
       var btn = document.createElement('button');
@@ -685,7 +697,23 @@
         var tasksTotal = parseInt(b.tasks_total) || 0;
         var isSelected = b.batch_id === _selectedBatchId;
 
-        html += '<div class="bp-batch-card' + (isSelected ? ' bp-batch-card--selected' : '') + '" data-batch-id="' + escapeHTML(b.batch_id) + '">';
+        // Count overdue tasks for this batch from module-scope _upcomingTasks.
+        // /* bp-batch-card--urgent styles in brewpad.css */
+        var today = todayStr();
+        var overdueCount = 0;
+        for (var oi = 0; oi < _upcomingTasks.length; oi++) {
+          var ot = _upcomingTasks[oi];
+          if (ot.batch_id !== b.batch_id) continue;
+          var done = ot.completed === true || ot.completed === 'TRUE' || ot.completed === '1';
+          if (done) continue;
+          var due = ot.due_date ? String(ot.due_date).substring(0, 10) : '';
+          if (due && due < today) overdueCount++;
+        }
+        var cardCls = 'bp-batch-card' +
+          (isSelected ? ' bp-batch-card--selected' : '') +
+          (overdueCount > 0 ? ' bp-batch-card--urgent' : '');
+
+        html += '<div class="' + cardCls + '" data-batch-id="' + escapeHTML(b.batch_id) + '">';
         html += '<div class="bp-batch-card-header">';
         html += '<span class="bp-batch-id">' + escapeHTML(b.batch_id) + '</span>';
         html += '<span class="bp-status-badge bp-status-badge--' + statusColor + '">' + escapeHTML(statusLabel) + '</span>';
@@ -776,6 +804,43 @@
       });
   }
 
+  function showConfirmSheet(message, okLabel, okCls, onOk) {
+    var sheet = document.getElementById('bp-confirm-sheet');
+    if (!sheet) {
+      sheet = document.createElement('div');
+      sheet.id = 'bp-confirm-sheet';
+      sheet.className = 'bp-confirm-sheet';
+      sheet.setAttribute('role', 'dialog');
+      sheet.setAttribute('aria-modal', 'true');
+      sheet.innerHTML =
+        '<div class="bp-confirm-sheet-inner">' +
+        '<p class="bp-confirm-sheet-msg" id="bp-confirm-sheet-msg"></p>' +
+        '<div class="bp-confirm-sheet-actions">' +
+        '<button type="button" id="bp-confirm-sheet-ok" class="btn"></button>' +
+        '<button type="button" id="bp-confirm-sheet-cancel" class="btn-secondary">Cancel</button>' +
+        '</div></div>';
+      document.body.appendChild(sheet);
+    }
+    document.getElementById('bp-confirm-sheet-msg').textContent = message;
+    var okBtn = document.getElementById('bp-confirm-sheet-ok');
+    okBtn.textContent = okLabel;
+    okBtn.className = 'btn ' + (okCls || '');
+
+    function hide() {
+      sheet.classList.remove('bp-confirm-sheet--visible');
+      okBtn.removeEventListener('click', handleOk);
+      document.getElementById('bp-confirm-sheet-cancel').removeEventListener('click', hide);
+      sheet.removeEventListener('click', handleBackdrop);
+    }
+    function handleOk() { hide(); onOk(); }
+    function handleBackdrop(e) { if (e.target === sheet) hide(); }
+
+    okBtn.addEventListener('click', handleOk);
+    document.getElementById('bp-confirm-sheet-cancel').addEventListener('click', hide);
+    sheet.addEventListener('click', handleBackdrop);
+    sheet.classList.add('bp-confirm-sheet--visible');
+  }
+
   function renderBatchDetail(data) {
     var b = data.batch || {};
     var tasks = data.tasks || [];
@@ -800,7 +865,7 @@
 
     // Header
     html += '<div class="bp-detail-header">';
-    html += '<button type="button" class="btn-secondary bp-btn-sm bp-detail-back" id="bp-detail-back">\u2190</button>';
+    html += '<button type="button" class="btn-secondary bp-btn-sm bp-detail-back" id="bp-detail-back" aria-label="Back to batch list">\u2190</button>';
     html += '<div class="bp-detail-title-group">';
     html += '<span class="bp-detail-batch-id">' + escapeHTML(b.batch_id) + '</span>';
     html += '<span class="bp-status-badge bp-status-badge--' + statusColor + ' bp-status-clickable" id="bp-detail-status">' + escapeHTML(statusLabel) + '</span>';
@@ -1384,6 +1449,13 @@
     sheet.style.display = '';
     setTimeout(function () { sheet.classList.add('bp-create-sheet--open'); }, 10);
     buildCreateForm(inner);
+    // Backdrop tap to dismiss: tap outside the inner sheet panel closes it.
+    sheet.addEventListener('click', function handleBackdropClick(e) {
+      if (e.target === sheet) {
+        closeCreateSheet();
+        sheet.removeEventListener('click', handleBackdropClick);
+      }
+    });
     // Focus first input after slide-in animation completes
     setTimeout(function () {
       var firstInput = inner.querySelector('input[type="text"], input[type="search"]');
