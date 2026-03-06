@@ -983,6 +983,7 @@ img { max-width: 100%; height: auto; display: block; }
   border: 1px solid var(--ledger-line);
   border-radius: var(--r-md);
   background: var(--cellar-raised);
+  contain: layout;
 }
 
 /* Multi-batch entry table */
@@ -1086,7 +1087,7 @@ img { max-width: 100%; height: auto; display: block; }
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   transform: translateY(100%);
-  transition: transform 0.24s var(--ease-out);
+  transition: transform 0.18s var(--ease-out);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   will-change: transform;
 }
@@ -1191,7 +1192,8 @@ img { max-width: 100%; height: auto; display: block; }
     width: 100%;
     background: var(--cellar-surface);
     transform: translateX(100%);
-    transition: transform 0.24s var(--ease-out);
+    transition: transform 0.18s var(--ease-out);
+    will-change: transform;
     z-index: 10;
   }
 

@@ -61,8 +61,9 @@
   var _kitCatalog = null;
   var _kitCatalogLoadTime = 0;
 
-  var CACHE_TTL = 30000;       // 30s per-tab cache
-  var KIT_CACHE_TTL = 300000;  // 5min product catalog
+  var CACHE_TTL = 300000;       // 5min per-tab cache (single-user — safe to cache aggressively)
+  var CACHE_TTL_LONG = 600000;  // 10min for batch list + dashboard
+  var KIT_CACHE_TTL = 600000;   // 10min product catalog
 
   // ===== Session =====
 
@@ -386,7 +387,7 @@
 
     var now = Date.now();
     if (tab === 'dashboard') {
-      if (now - _dashLoadTime > CACHE_TTL * 4) loadDashboard();
+      if (now - _dashLoadTime > CACHE_TTL_LONG) loadDashboard();
     } else if (tab === 'batches') {
       if (_allBatchesData.length > 0) {
         // Derive filtered list from cache — instant
@@ -415,7 +416,9 @@
       adminApiGet('get_batches', { status: 'all' }),   // fetch ALL statuses at once
       adminApiGet('get_vessels'),
       adminApiGet('get_ferm_schedules'),
-      adminApiGet('get_tasks_upcoming', { limit: 200 })
+      adminApiGet('get_tasks_upcoming', { limit: 200 }),
+      // Pre-load kit catalog so "New Batch" form opens instantly
+      fetch(mwUrl() + '/api/kiosk/products').then(function (r) { return r.json(); }).catch(function () { return { items: [] }; })
     ]).then(function (results) {
       _dashSummary    = results[0].data || null;
       _dashLoadTime   = Date.now();
@@ -436,6 +439,11 @@
       _upcomingLoaded = true;
       _upcomingLoadTime = Date.now();
 
+      // Kit catalog pre-loaded — no cold-start latency when opening New Batch form
+      var kitItems = (results[5] && results[5].items) || [];
+      _kitCatalog = kitItems.filter(function (p) { return (p.product_type || '').toLowerCase() === 'kit'; });
+      _kitCatalogLoadTime = Date.now();
+
       _eagerLoadDone  = true;
       _eagerLoadTime  = Date.now();
 
@@ -454,7 +462,7 @@
     _dashAutoRefreshTimer = setInterval(function () {
       if (document.hidden) return;
       if (_activeTab === 'dashboard') loadDashboard();
-    }, 60000);
+    }, 300000); // 5min — single user, no concurrent edits
   }
 
   function loadDashboard() {
@@ -467,9 +475,6 @@
       _dashSummary = results[0].data || null;
       _upcomingTasks = (results[1].data && results[1].data.tasks) || _upcomingTasks;
       if (results[1].data) { _upcomingLoaded = true; _upcomingLoadTime = Date.now(); }
-      // Reset all-batches cache so the next visit to the Batches tab fetches fresh data
-      _allBatchesData = [];
-      _batchesLoadTime = 0;
       renderDashboard();
     }).catch(function (err) {
       // Degrade gracefully: try summary-only
@@ -615,7 +620,7 @@
   function loadBatches() {
     // If eager-loaded cache is fresh, derive filtered list client-side (instant)
     var now = Date.now();
-    if (_allBatchesData.length > 0 && now - _batchesLoadTime < CACHE_TTL * 4) {
+    if (_allBatchesData.length > 0 && now - _batchesLoadTime < CACHE_TTL_LONG) {
       _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
       _batchesLoaded = true;
       renderBatchList();
@@ -989,11 +994,30 @@
             clearTimeout(saveTimeout);
             showToast(tasksArr.length + ' task' + (tasksArr.length !== 1 ? 's' : '') + ' updated', 'success');
             if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
+            // Apply changes in-memory — no round-trip re-fetch needed (single user)
+            tasksArr.forEach(function (change) {
+              for (var ti = 0; ti < tasks.length; ti++) {
+                if (tasks[ti].task_id === change.task_id) {
+                  tasks[ti].completed = change.updates.completed ? 'TRUE' : 'FALSE';
+                  break;
+                }
+              }
+              for (var ui = 0; ui < _upcomingTasks.length; ui++) {
+                if (_upcomingTasks[ui].task_id === change.task_id) {
+                  _upcomingTasks[ui].completed = change.updates.completed ? 'TRUE' : 'FALSE';
+                  break;
+                }
+              }
+            });
             _detailPendingTasks = {};
-            updateDetailTaskSaveBtn();
             saveTasksBtn.disabled = false;
-            _upcomingLoaded = false;
-            selectBatch(b.batch_id);
+            // Re-render only the tasks section, not the entire detail pane
+            var detailTasksEl = document.getElementById('bp-detail-tasks');
+            if (detailTasksEl) {
+              detailTasksEl.innerHTML = renderDetailTasks(tasks);
+              bindDetailTaskCheckboxes(b.batch_id);
+            }
+            updateDetailTaskSaveBtn();
           })
           .catch(function (err) {
             clearTimeout(saveTimeout);
@@ -1274,7 +1298,7 @@
       detailPane.classList.remove('bp-detail-slide-in');
       setTimeout(function () {
         detailPane.style.display = 'none';
-      }, 240);
+      }, 180);
     }
     Array.prototype.forEach.call(document.querySelectorAll('.bp-batch-card'), function (c) {
       c.classList.remove('bp-batch-card--selected');
@@ -1492,7 +1516,7 @@
     var sheet = document.getElementById('bp-create-sheet');
     if (!sheet) return;
     sheet.classList.remove('bp-create-sheet--open');
-    setTimeout(function () { sheet.style.display = 'none'; }, 240);
+    setTimeout(function () { sheet.style.display = 'none'; }, 180);
   }
 
   function buildCreateForm(container) {
@@ -1720,6 +1744,7 @@
 
     var base = mwUrl();
     var timer;
+    var _custSearchAbort = null;
 
     input.addEventListener('input', function () {
       clearTimeout(timer);
@@ -1727,7 +1752,10 @@
       if (ncSection) ncSection.style.display = q.length >= 2 ? '' : 'none';
       if (!q || q.length < 2) { dropdown.style.display = 'none'; return; }
       timer = setTimeout(function () {
-        fetch(base + '/api/contacts?search=' + encodeURIComponent(q))
+        if (_custSearchAbort) { try { _custSearchAbort.abort(); } catch (e) {} }
+        _custSearchAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        var fetchOpts = _custSearchAbort ? { signal: _custSearchAbort.signal } : {};
+        fetch(base + '/api/contacts?search=' + encodeURIComponent(q), fetchOpts)
           .then(function (r) { return r.json(); })
           .then(function (data) {
             var contacts = (data.contacts || []).slice(0, 10);
@@ -1756,7 +1784,8 @@
               });
             });
           })
-          .catch(function () {
+          .catch(function (err) {
+            if (err && err.name === 'AbortError') return; // stale request cancelled — ignore
             dropdown.innerHTML = '<div class="bp-vessel-option bp-vessel-option--empty">Search failed \u2014 fill form to add manually</div>';
             dropdown.style.display = '';
           });
@@ -1808,7 +1837,7 @@
 
   function loadTasks() {
     // If tasks are already cached from eager load or recent fetch, render immediately
-    if (_upcomingLoaded && _upcomingTasks.length > 0 && Date.now() - _upcomingLoadTime < CACHE_TTL * 4) {
+    if (_upcomingLoaded && _upcomingTasks.length > 0 && Date.now() - _upcomingLoadTime < CACHE_TTL_LONG) {
       renderTasks();
       return;
     }
@@ -2023,17 +2052,12 @@
   }
 
   function renderMeasGrid() {
-    var filter = _measFilterText.toLowerCase().trim();
-    var batches = _measBatches.filter(function (b) {
-      if (!filter) return true;
-      var hay = (String(b.batch_id || '') + ' ' + String(b.product_name || '') + ' ' +
-        String(b.product_sku || '') + ' ' + String(b.customer_name || '') + ' ' +
-        String(b.vessel_id || '') + ' ' + String(b.shelf_id || '') + ' ' + String(b.bin_id || '')).toLowerCase();
-      return hay.indexOf(filter) !== -1;
-    });
+    // Always render all active batch rows — filtering is done via CSS display toggle
+    // (avoids destroying + recreating DOM on every filter keystroke)
+    var batches = _measBatches;
 
     if (batches.length === 0) {
-      return '<p class="bp-empty">' + escapeHTML(_measBatches.length === 0 ? 'No active batches.' : 'No batches match filter.') + '</p>';
+      return '<p class="bp-empty">No active batches.</p>';
     }
 
     var html = '<table class="bp-meas-multi-table"><thead><tr>';
@@ -2062,6 +2086,7 @@
       html += '</tr>';
     });
     html += '</tbody></table>';
+    html += '<p class="bp-empty" id="bp-meas-grid-empty" style="display:none;">No batches match filter.</p>';
     return html;
   }
 
@@ -2076,13 +2101,28 @@
       filterInput.addEventListener('input', function () {
         clearTimeout(_measFilterTimer);
         _measFilterTimer = setTimeout(function () {
-          _measFilterText = filterInput.value;
-          saveMeasGridValues();
-          var wrap = document.getElementById('bp-meas-grid-wrap');
-          if (wrap) wrap.innerHTML = renderMeasGrid();
-          bindMeasGridEvents();
+          // Filter by toggling row visibility — DOM stays intact, inputs keep their values
+          var lower = filterInput.value.toLowerCase().trim();
+          var anyVisible = false;
+          Array.prototype.forEach.call(
+            document.querySelectorAll('.bp-meas-multi-row[data-batch-id]'),
+            function (row) {
+              var batchId = row.getAttribute('data-batch-id');
+              var b = null;
+              for (var fi = 0; fi < _measBatches.length; fi++) {
+                if (_measBatches[fi].batch_id === batchId) { b = _measBatches[fi]; break; }
+              }
+              var match = !lower || (b && (String(b.batch_id || '') + ' ' + String(b.product_name || '') + ' ' +
+                String(b.vessel_id || '') + ' ' + String(b.shelf_id || '') + ' ' + String(b.bin_id || '')).toLowerCase().indexOf(lower) !== -1);
+              row.style.display = match ? '' : 'none';
+              if (match) anyVisible = true;
+            }
+          );
+          // Show "no match" empty message if nothing visible
+          var emptyMsg = document.getElementById('bp-meas-grid-empty');
+          if (emptyMsg) emptyMsg.style.display = anyVisible ? 'none' : '';
           updateMeasSubmitCount();
-        }, 200);
+        }, 150);
       });
     }
 
