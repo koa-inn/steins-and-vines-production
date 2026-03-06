@@ -66,11 +66,10 @@
 
   // Product catalog
   var _kitCatalog = null;
-  var _kitCatalogLoadTime = 0;
 
   var CACHE_TTL = 300000;       // 5min per-tab cache (single-user — safe to cache aggressively)
   var CACHE_TTL_LONG = 600000;  // 10min for batch list + dashboard
-  var KIT_CACHE_TTL = 600000;   // 10min product catalog
+  // Kit catalog loaded once per session from published CSV (no TTL needed)
 
   // ===== Session =====
 
@@ -478,9 +477,7 @@
       adminApiGet('get_batches', { status: 'all' }),   // fetch ALL statuses at once
       adminApiGet('get_vessels'),
       adminApiGet('get_ferm_schedules'),
-      adminApiGet('get_tasks_upcoming', { limit: 200 }),
-      // Pre-load kit catalog so "New Batch" form opens instantly
-      fetch(mwUrl() + '/api/kiosk/products').then(function (r) { return r.json(); }).catch(function () { return { items: [] }; })
+      adminApiGet('get_tasks_upcoming', { limit: 200 })
     ]).then(function (results) {
       _dashSummary    = results[0].data || null;
       _dashLoadTime   = Date.now();
@@ -500,11 +497,6 @@
       _upcomingTasks  = (results[4].data && results[4].data.tasks) || [];
       _upcomingLoaded = true;
       _upcomingLoadTime = Date.now();
-
-      // Kit catalog pre-loaded — no cold-start latency when opening New Batch form
-      var kitItems = (results[5] && results[5].items) || [];
-      _kitCatalog = kitItems.filter(function (p) { return (p.product_type || '').toLowerCase() === 'kit'; });
-      _kitCatalogLoadTime = Date.now();
 
       _eagerLoadDone  = true;
       _eagerLoadTime  = Date.now();
@@ -1894,21 +1886,40 @@
   }
 
   function loadKitCatalog(cb) {
-    var now = Date.now();
-    if (_kitCatalog && now - _kitCatalogLoadTime < KIT_CACHE_TTL) { if (cb) cb(); return; }
-    fetch(mwUrl() + '/api/kiosk/products')
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        _kitCatalog = (data.items || []).filter(function (p) {
-          return (p.product_type || '').toLowerCase() === 'kit';
-        });
-        _kitCatalogLoadTime = Date.now();
+    if (_kitCatalog) { if (cb) cb(); return; }
+    fetch(SHEETS_CONFIG.PUBLISHED_CSV_URL)
+      .then(function (r) { return r.text(); })
+      .then(function (csv) {
+        var lines = csv.trim().split('\n');
+        if (lines.length < 2) { _kitCatalog = []; if (cb) cb(); return; }
+        var headers = lines[0].split(',').map(function (h) { return h.trim().toLowerCase().replace(/\s+/g, '_'); });
+        var items = [];
+        for (var i = 1; i < lines.length; i++) {
+          var vals = parseKitCSVLine(lines[i]);
+          if (vals.length < 2) continue;
+          var obj = {};
+          for (var j = 0; j < headers.length; j++) obj[headers[j]] = (vals[j] || '').trim();
+          if (obj.sku || obj.name) items.push({ sku: obj.sku || '', name: obj.name || obj.product_name || obj.sku });
+        }
+        _kitCatalog = items;
         if (cb) cb();
       })
       .catch(function () {
         _kitCatalog = []; // graceful degradation — free text still works
         if (cb) cb();
       });
+  }
+
+  function parseKitCSVLine(line) {
+    var result = [], current = '', inQuotes = false;
+    for (var i = 0; i < line.length; i++) {
+      var ch = line[i];
+      if (ch === '"') { inQuotes = !inQuotes; }
+      else if (ch === ',' && !inQuotes) { result.push(current); current = ''; }
+      else { current += ch; }
+    }
+    result.push(current);
+    return result;
   }
 
   function bindCustomerSearch() {
