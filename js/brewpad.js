@@ -33,7 +33,6 @@
   var _fermSchedulesCacheTime = 0; // TTL: reload schedule list if >5min stale
 
   // Batch detail
-  var _detailPendingTasks = {};
   var _detailPlatoStaging = [];
   var _detailPlatoReadings = [];
   var _detailStartDate = null;
@@ -43,7 +42,8 @@
   var _upcomingTasks = [];
   var _upcomingLoaded = false;
   var _upcomingLoadTime = 0;
-  var _taskPendingChanges = {};
+  var _taskSaveTimers = {};    // keyed by taskId — per-checkbox auto-save debounce
+  var _chartCache = {};        // keyed by batchId+readingCount+lastTimestamp
 
   // Measurements
   var _measBatches = [];
@@ -567,7 +567,7 @@
         var pct = Math.round((d.count / maxCount) * 100);
         var barCls = d.date < today7 ? 'bp-wl-bar--overdue' : (d.date === today7 ? 'bp-wl-bar--today' : 'bp-wl-bar--future');
         html += '<div class="bp-wl-day" data-date="' + d.date + '">';
-        html += '<div class="bp-wl-bar-wrap"><div class="bp-wl-bar ' + barCls + '" style="height:' + (d.count > 0 ? Math.max(pct, 12) : 0) + '%"></div></div>';
+        html += '<div class="bp-wl-bar-wrap"><div class="bp-wl-bar ' + barCls + '" style="transform:scaleY(' + (d.count > 0 ? Math.max(pct, 12) / 100 : 0) + ')"></div></div>';
         html += '<div class="bp-wl-count">' + (d.count || '') + '</div>';
         html += '<div class="bp-wl-label">' + escapeHTML(d.label) + '</div>';
         html += '</div>';
@@ -578,21 +578,7 @@
     html += '<button type="button" class="bp-fab" id="bp-dash-new-batch">+ New Batch</button>';
     inner.innerHTML = html;
 
-    // Workload day clicks → tasks tab
-    Array.prototype.forEach.call(inner.querySelectorAll('.bp-wl-day[data-date]'), function (col) {
-      col.addEventListener('click', function () { switchTab('tasks'); });
-    });
-
-    // Pipeline tile clicks → batches tab with status filter (reset search too)
-    Array.prototype.forEach.call(inner.querySelectorAll('.bp-pipeline-tile'), function (tile) {
-      tile.addEventListener('click', function () {
-        _batchStatusFilter = tile.getAttribute('data-status');
-        _batchSearch = '';
-        _batchesLoaded = false;
-        switchTab('batches');
-      });
-    });
-
+    // Pipeline tile + workload day clicks handled by delegation on #bp-dashboard-inner (see initDelegation)
     var fabBtn = document.getElementById('bp-dash-new-batch');
     if (fabBtn) {
       fabBtn.addEventListener('click', function () {
@@ -718,15 +704,7 @@
     html += '</div>';
     pane.innerHTML = html;
 
-    // Filter buttons — instant client-side filter from _allBatchesData
-    Array.prototype.forEach.call(pane.querySelectorAll('.bp-filter-btn'), function (btn) {
-      btn.addEventListener('click', function () {
-        _batchStatusFilter = btn.getAttribute('data-status');
-        _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
-        renderBatchList();
-      });
-    });
-
+    // Filter button + batch card clicks handled by delegation on #bp-batch-list-pane (see initDelegation)
     // Search input — use module-scope timer so switchTab() can cancel it
     var searchInput = document.getElementById('bp-batch-search');
     if (searchInput) {
@@ -743,13 +721,6 @@
     // New batch button
     var newBatchBtn = document.getElementById('bp-list-new-batch');
     if (newBatchBtn) newBatchBtn.addEventListener('click', openCreateSheet);
-
-    // Batch card taps
-    Array.prototype.forEach.call(pane.querySelectorAll('.bp-batch-card'), function (card) {
-      card.addEventListener('click', function () {
-        selectBatch(card.getAttribute('data-batch-id'));
-      });
-    });
   }
 
   function selectBatch(batchId) {
@@ -764,6 +735,7 @@
     }
 
     _selectedBatchId = batchId;
+    _chartCache = {};   // invalidate cached chart for previous batch
 
     // Update selected highlight in list
     Array.prototype.forEach.call(document.querySelectorAll('.bp-batch-card'), function (card) {
@@ -809,7 +781,6 @@
     var tasks = data.tasks || [];
     var readings = data.plato_readings || [];
 
-    _detailPendingTasks = {};
     _detailPlatoStaging = [];
     _detailPlatoReadings = readings.slice();
     _detailStartDate = b.start_date || null;
@@ -862,7 +833,6 @@
     html += '<div class="bp-detail-section">';
     html += '<div class="bp-detail-section-title">Tasks</div>';
     html += '<div id="bp-detail-tasks">' + renderDetailTasks(tasks) + '</div>';
-    html += '<button type="button" class="btn bp-btn-sm" id="bp-save-tasks-btn" style="display:none;margin-top:8px;">Save Tasks</button>';
     html += '</div>';
 
     // Readings
@@ -971,63 +941,6 @@
       });
     }
 
-    // Task checkboxes
-    bindDetailTaskCheckboxes(b.batch_id);
-
-    // Save tasks
-    var saveTasksBtn = document.getElementById('bp-save-tasks-btn');
-    if (saveTasksBtn) {
-      saveTasksBtn.addEventListener('click', function () {
-        var tasksArr = Object.keys(_detailPendingTasks).map(function (id) {
-          return { task_id: id, updates: { completed: _detailPendingTasks[id] } };
-        });
-        saveTasksBtn.disabled = true;
-        saveTasksBtn.textContent = 'Saving\u2026';
-        if (navigator.vibrate) navigator.vibrate(30);
-        var saveTimeout = setTimeout(function () {
-          saveTasksBtn.disabled = false;
-          saveTasksBtn.textContent = 'Save Tasks (' + Object.keys(_detailPendingTasks).length + ')';
-          showToast('Request timed out — check connection', 'error');
-        }, 60000);
-        adminApiPost('bulk_update_batch_tasks', { tasks: tasksArr })
-          .then(function () {
-            clearTimeout(saveTimeout);
-            showToast(tasksArr.length + ' task' + (tasksArr.length !== 1 ? 's' : '') + ' updated', 'success');
-            if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
-            // Apply changes in-memory — no round-trip re-fetch needed (single user)
-            tasksArr.forEach(function (change) {
-              for (var ti = 0; ti < tasks.length; ti++) {
-                if (tasks[ti].task_id === change.task_id) {
-                  tasks[ti].completed = change.updates.completed ? 'TRUE' : 'FALSE';
-                  break;
-                }
-              }
-              for (var ui = 0; ui < _upcomingTasks.length; ui++) {
-                if (_upcomingTasks[ui].task_id === change.task_id) {
-                  _upcomingTasks[ui].completed = change.updates.completed ? 'TRUE' : 'FALSE';
-                  break;
-                }
-              }
-            });
-            _detailPendingTasks = {};
-            saveTasksBtn.disabled = false;
-            // Re-render only the tasks section, not the entire detail pane
-            var detailTasksEl = document.getElementById('bp-detail-tasks');
-            if (detailTasksEl) {
-              detailTasksEl.innerHTML = renderDetailTasks(tasks);
-              bindDetailTaskCheckboxes(b.batch_id);
-            }
-            updateDetailTaskSaveBtn();
-          })
-          .catch(function (err) {
-            clearTimeout(saveTimeout);
-            showToast('Failed: ' + err.message, 'error');
-            saveTasksBtn.disabled = false;
-            updateDetailTaskSaveBtn();
-          });
-      });
-    }
-
     // Readings handlers
     bindDetailReadingHandlers(b.batch_id);
 
@@ -1124,40 +1037,14 @@
     return html;
   }
 
-  function bindDetailTaskCheckboxes(batchId) {
-    Array.prototype.forEach.call(
-      document.querySelectorAll('#bp-detail-tasks .bp-task-check input[type="checkbox"]'),
-      function (cb) {
-        var origChecked = cb.checked;
-        cb.addEventListener('change', function () {
-          var taskId = cb.getAttribute('data-task-id');
-          if (cb.checked === origChecked) {
-            delete _detailPendingTasks[taskId];
-          } else {
-            _detailPendingTasks[taskId] = cb.checked;
-          }
-          if (navigator.vibrate) navigator.vibrate(cb.checked ? [40, 20, 60] : 20);
-          var row = cb.closest('.bp-task-row');
-          if (row) row.classList.toggle('bp-task-row--done', cb.checked);
-          updateDetailTaskSaveBtn();
-        });
-      }
-    );
-  }
-
-  function updateDetailTaskSaveBtn() {
-    var btn = document.getElementById('bp-save-tasks-btn');
-    var count = Object.keys(_detailPendingTasks).length;
-    if (btn) {
-      btn.style.display = count > 0 ? '' : 'none';
-      btn.textContent = 'Save Tasks (' + count + ')';
-    }
-  }
-
   function renderDetailReadings(readings, startDate) {
     var html = renderDataGapWarning(readings);
     if (readings && readings.length >= 2) {
-      html += renderPlatoChart(readings, startDate);
+      var cacheKey = (_detailBatchId || '') + '-' + readings.length + '-' + (readings[readings.length - 1] ? readings[readings.length - 1].timestamp : '');
+      if (!_chartCache[cacheKey]) {
+        _chartCache[cacheKey] = renderPlatoChart(readings, startDate);
+      }
+      html += _chartCache[cacheKey];
     }
     if (readings && readings.length > 0) {
       html += '<table class="bp-readings-table" aria-label="Plato readings"><thead><tr><th>Date</th><th>&deg;P</th><th>Temp</th><th>pH</th><th>Notes</th></tr></thead><tbody>';
@@ -1236,16 +1123,7 @@
   }
 
   function bindDetailStagingHandlers(batchId) {
-    Array.prototype.forEach.call(document.querySelectorAll('#bp-detail-staging-wrap .bp-staging-remove'), function (btn) {
-      btn.addEventListener('click', function () {
-        var idx = parseInt(btn.getAttribute('data-idx'), 10);
-        _detailPlatoStaging.splice(idx, 1);
-        var wrap = document.getElementById('bp-detail-staging-wrap');
-        if (wrap) wrap.innerHTML = renderDetailStagingTable();
-        bindDetailStagingHandlers(batchId);
-      });
-    });
-
+    // Staging remove buttons handled by delegation on #bp-batch-detail-pane (see initDelegation)
     var submitBtn = document.getElementById('bp-detail-submit-readings');
     if (submitBtn) {
       submitBtn.addEventListener('click', function () {
@@ -1269,6 +1147,7 @@
               _detailPlatoReadings.push(r);
             });
             _detailPlatoStaging = [];
+            _chartCache = {};   // new reading → invalidate memoized chart
             var readingsEl = document.getElementById('bp-detail-readings');
             if (readingsEl) {
               readingsEl.innerHTML = renderDetailReadings(_detailPlatoReadings, _detailStartDate);
@@ -1859,8 +1738,6 @@
   function renderTasks() {
     var inner = document.getElementById('bp-tasks-inner');
     if (!inner) return;
-    _taskPendingChanges = {};
-
     var today = todayStr();
     var weekEnd = new Date();
     weekEnd.setDate(weekEnd.getDate() + 7);
@@ -1902,7 +1779,6 @@
 
     var html = '<div class="bp-tasks-toolbar">';
     html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-tasks-refresh">\u21bb Refresh</button>';
-    html += '<button type="button" class="btn bp-btn-sm" id="bp-tasks-save-all" style="display:none;">Save All</button>';
     html += '</div>';
 
     var hasAny = groups.some(function (g) { return g.tasks.length > 0; });
@@ -1937,57 +1813,7 @@
       });
     }
 
-    var saveAllBtn = document.getElementById('bp-tasks-save-all');
-    if (saveAllBtn) {
-      saveAllBtn.addEventListener('click', function () {
-        var tasksArr = Object.keys(_taskPendingChanges).map(function (id) {
-          return { task_id: id, updates: { completed: _taskPendingChanges[id] } };
-        });
-        if (!tasksArr.length) return;
-        saveAllBtn.disabled = true;
-        adminApiPost('bulk_update_batch_tasks', { tasks: tasksArr })
-          .then(function () {
-            showToast(tasksArr.length + ' task' + (tasksArr.length !== 1 ? 's' : '') + ' updated', 'success');
-            _taskPendingChanges = {};
-            _upcomingLoaded = false;
-            loadTasks();
-          })
-          .catch(function (err) {
-            showToast('Failed: ' + err.message, 'error');
-            saveAllBtn.disabled = false;
-          });
-      });
-    }
-
-    Array.prototype.forEach.call(inner.querySelectorAll('.bp-task-check input[type="checkbox"]'), function (cb) {
-      cb.addEventListener('change', function () {
-        var taskId = cb.getAttribute('data-task-id');
-        if (cb.checked) {
-          _taskPendingChanges[taskId] = true;
-        } else {
-          delete _taskPendingChanges[taskId];
-        }
-        if (navigator.vibrate) navigator.vibrate(cb.checked ? [40, 20, 60] : 20);
-        var row = cb.closest('.bp-task-row');
-        if (row) row.classList.toggle('bp-task-row--done', cb.checked);
-        var count = Object.keys(_taskPendingChanges).length;
-        var sab = document.getElementById('bp-tasks-save-all');
-        if (sab) {
-          sab.style.display = count > 0 ? '' : 'none';
-          sab.textContent = 'Save All (' + count + ')';
-        }
-      });
-    });
-
-    // Batch chip taps — switch to Batches tab and open detail for that batch
-    Array.prototype.forEach.call(inner.querySelectorAll('.bp-batch-chip[data-batch-id]'), function (chip) {
-      chip.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var batchId = chip.getAttribute('data-batch-id');
-        switchTab('batches');
-        selectBatch(batchId);
-      });
-    });
+    // Checkbox auto-save + batch chip navigation handled by delegation on #bp-tasks-inner (see initDelegation)
   }
 
   // ===== Measurements Tab =====
@@ -2129,7 +1955,7 @@
     var submitBtn = document.getElementById('bp-meas-submit-all');
     if (submitBtn) submitBtn.addEventListener('click', submitMultiBatchReadings);
 
-    bindMeasGridEvents();
+    // Meas cell input + batch chip clicks handled by delegation on #bp-measurements-inner (see initDelegation)
   }
 
   function saveMeasGridValues() {
@@ -2146,26 +1972,6 @@
         } else {
           delete _measMultiData[batchId];
         }
-      }
-    );
-  }
-
-  function bindMeasGridEvents() {
-    // Input changes -> update submit count
-    Array.prototype.forEach.call(
-      document.querySelectorAll('.bp-meas-multi-row .bp-meas-cell'),
-      function (input) { input.addEventListener('input', updateMeasSubmitCount); }
-    );
-    // Batch chip taps -> navigate to batch detail
-    Array.prototype.forEach.call(
-      document.querySelectorAll('#bp-meas-grid-wrap .bp-batch-chip[data-batch-id]'),
-      function (chip) {
-        chip.addEventListener('click', function (e) {
-          e.stopPropagation();
-          var batchId = chip.getAttribute('data-batch-id');
-          switchTab('batches');
-          selectBatch(batchId);
-        });
       }
     );
   }
@@ -2248,6 +2054,142 @@
       });
   }
 
+  // ===== Event Delegation (one-time setup) =====
+
+  function initDelegation() {
+    // Dashboard: pipeline tile + workload day clicks
+    var dashInner = document.getElementById('bp-dashboard-inner');
+    if (dashInner) {
+      dashInner.addEventListener('click', function (e) {
+        var tile = e.target.closest('.bp-pipeline-tile');
+        if (tile) {
+          _batchStatusFilter = tile.getAttribute('data-status');
+          _batchSearch = '';
+          _batchesLoaded = false;
+          switchTab('batches');
+          return;
+        }
+        var col = e.target.closest('.bp-wl-day[data-date]');
+        if (col) switchTab('tasks');
+      });
+    }
+
+    // Batch list: filter button + batch card clicks
+    var batchListPane = document.getElementById('bp-batch-list-pane');
+    if (batchListPane) {
+      batchListPane.addEventListener('click', function (e) {
+        var filterBtn = e.target.closest('.bp-filter-btn');
+        if (filterBtn) {
+          _batchStatusFilter = filterBtn.getAttribute('data-status');
+          _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
+          renderBatchList();
+          return;
+        }
+        var card = e.target.closest('.bp-batch-card');
+        if (card) selectBatch(card.getAttribute('data-batch-id'));
+      });
+    }
+
+    // Tasks tab: checkbox auto-save + batch chip navigation
+    var tasksInner = document.getElementById('bp-tasks-inner');
+    if (tasksInner) {
+      tasksInner.addEventListener('change', function (e) {
+        var cb = e.target;
+        if (!cb || cb.type !== 'checkbox' || !cb.hasAttribute('data-task-id')) return;
+        var taskId = cb.getAttribute('data-task-id');
+        var checked = cb.checked;
+        if (navigator.vibrate) navigator.vibrate(checked ? [40, 20, 60] : 20);
+        var row = cb.closest('.bp-task-row');
+        if (row) row.classList.toggle('bp-task-row--done', checked);
+        clearTimeout(_taskSaveTimers[taskId]);
+        _taskSaveTimers[taskId] = setTimeout(function () {
+          delete _taskSaveTimers[taskId];
+          adminApiPost('bulk_update_batch_tasks', { tasks: [{ task_id: taskId, updates: { completed: checked } }] })
+            .then(function () {
+              for (var i = 0; i < _upcomingTasks.length; i++) {
+                if (_upcomingTasks[i].task_id === taskId) {
+                  _upcomingTasks[i].completed = checked ? 'TRUE' : 'FALSE';
+                  break;
+                }
+              }
+            })
+            .catch(function () {
+              cb.checked = !checked;
+              if (row) row.classList.toggle('bp-task-row--done', !checked);
+              showToast('Save failed \u2014 try again', 'error');
+            });
+        }, 1500);
+      });
+      tasksInner.addEventListener('click', function (e) {
+        var chip = e.target.closest('.bp-batch-chip[data-batch-id]');
+        if (!chip) return;
+        e.stopPropagation();
+        switchTab('batches');
+        selectBatch(chip.getAttribute('data-batch-id'));
+      });
+    }
+
+    // Measurements: meas cell input + batch chip navigation
+    // Delegate on #bp-measurements-inner (stable) since #bp-meas-grid-wrap is dynamically created
+    var measInner = document.getElementById('bp-measurements-inner');
+    if (measInner) {
+      measInner.addEventListener('input', function (e) {
+        if (e.target.classList.contains('bp-meas-cell')) updateMeasSubmitCount();
+      });
+      measInner.addEventListener('click', function (e) {
+        var chip = e.target.closest('.bp-batch-chip[data-batch-id]');
+        if (!chip) return;
+        e.stopPropagation();
+        switchTab('batches');
+        selectBatch(chip.getAttribute('data-batch-id'));
+      });
+    }
+
+    // Detail pane: task checkbox auto-save + staging remove buttons
+    var detailPane = document.getElementById('bp-batch-detail-pane');
+    if (detailPane) {
+      detailPane.addEventListener('change', function (e) {
+        var cb = e.target;
+        if (!cb || cb.type !== 'checkbox' || !cb.hasAttribute('data-task-id')) return;
+        if (!cb.closest('#bp-detail-tasks')) return;
+        var taskId = cb.getAttribute('data-task-id');
+        var checked = cb.checked;
+        if (navigator.vibrate) navigator.vibrate(checked ? [40, 20, 60] : 20);
+        var row = cb.closest('.bp-task-row');
+        if (row) row.classList.toggle('bp-task-row--done', checked);
+        clearTimeout(_taskSaveTimers[taskId]);
+        _taskSaveTimers[taskId] = setTimeout(function () {
+          delete _taskSaveTimers[taskId];
+          adminApiPost('bulk_update_batch_tasks', { tasks: [{ task_id: taskId, updates: { completed: checked } }] })
+            .then(function () {
+              for (var i = 0; i < _upcomingTasks.length; i++) {
+                if (_upcomingTasks[i].task_id === taskId) {
+                  _upcomingTasks[i].completed = checked ? 'TRUE' : 'FALSE';
+                  break;
+                }
+              }
+            })
+            .catch(function () {
+              cb.checked = !checked;
+              if (row) row.classList.toggle('bp-task-row--done', !checked);
+              showToast('Save failed \u2014 try again', 'error');
+            });
+        }, 1500);
+      });
+      detailPane.addEventListener('click', function (e) {
+        var removeBtn = e.target.closest('.bp-staging-remove');
+        if (!removeBtn) return;
+        var idx = parseInt(removeBtn.getAttribute('data-idx'), 10);
+        _detailPlatoStaging.splice(idx, 1);
+        var wrap = document.getElementById('bp-detail-staging-wrap');
+        if (wrap) {
+          wrap.innerHTML = renderDetailStagingTable();
+          bindDetailStagingHandlers(_detailBatchId);
+        }
+      });
+    }
+  }
+
   // ===== Bootstrap =====
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -2257,6 +2199,8 @@
         switchTab(btn.getAttribute('data-tab'));
       });
     });
+
+    initDelegation();
 
     waitForGoogleIdentity();
   });
