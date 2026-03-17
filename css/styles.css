@@ -2450,12 +2450,17 @@ behold-widget {
 /* Inline weight quantity input in ingredient checkout table */
 .weight-qty-input {
   width: 5rem;
-  text-align: right;
-  padding: 0.2rem 0.35rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: 0.9rem;
+  height: 40px;
+  text-align: center;
+  padding: 0 0.35rem;
+  border: none;
+  border-left: 2px solid var(--color-burgundy);
+  border-right: 2px solid var(--color-burgundy);
+  font-size: 1rem;
+  font-weight: 700;
   font-family: var(--font-body);
+  color: var(--color-text);
+  background: var(--color-white);
 }
 .weight-qty-unit {
   font-size: 0.85rem;
@@ -3147,8 +3152,9 @@ behold-widget {
 .dual-cart-section-header h2,
 .dual-cart-section-header h3 {
   margin-top: 0.35rem;
-  margin-bottom: 0.35rem;
+  margin-bottom: 1rem;
   font-size: 1.25rem;
+  font-weight: 700;
 }
 
 .dual-cart-section-header h3 {
@@ -3162,7 +3168,7 @@ behold-widget {
 }
 
 .ingredient-order-section {
-  margin-top: 0.5rem;
+  margin-top: 1.5rem;
 }
 
 .dual-cart-grand-total {
@@ -3185,10 +3191,12 @@ behold-widget {
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 1rem;
+  color: var(--color-text);
 }
 .dual-cart-grand-total span:last-child {
   font-family: var(--font-display);
-  font-size: 1.25rem;
+  font-size: 1.2rem;
+  color: var(--color-burgundy);
 }
 
 /* Combined total summary shown above submit button in dual-cart mode */

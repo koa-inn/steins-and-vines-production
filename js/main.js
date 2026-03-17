@@ -7054,8 +7054,8 @@ function renderCheckoutIngredientSection() {
     var removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.className = 'reservation-item-remove';
-    removeBtn.textContent = '\u00D7';
-    removeBtn.title = 'Remove';
+    removeBtn.textContent = 'Remove';
+    removeBtn.setAttribute('aria-label', 'Remove ' + item.name);
     removeBtn.addEventListener('click', (function (itm) {
       return function () {
         var current = getReservation(INGREDIENT_CART_KEY);
