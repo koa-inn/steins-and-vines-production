@@ -307,7 +307,18 @@ function renderReservationItems() {
   container.innerHTML = '';
 
   if (items.length === 0) {
-    if (emptyMsg) emptyMsg.classList.remove('hidden');
+    if (emptyMsg) {
+      // Adjust empty state copy based on cart type
+      var emptyTextEl = emptyMsg.querySelector('[data-content="reserved-empty-text"]');
+      var emptyLinkEl = emptyMsg.querySelector('[data-content="reserved-empty-link"]');
+      var isIngCart = _renderCartKey === INGREDIENT_CART_KEY;
+      if (emptyTextEl) emptyTextEl.textContent = isIngCart ? 'Your cart is empty.' : 'No items reserved.';
+      if (emptyLinkEl) {
+        emptyLinkEl.textContent = isIngCart ? 'Browse ingredients' : 'Browse our catalog';
+        emptyLinkEl.setAttribute('href', isIngCart ? '/ingredients.html' : '/products.html');
+      }
+      emptyMsg.classList.remove('hidden');
+    }
     ['timeslot-picker', 'reservation-form-section'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.classList.add('hidden');
     });
@@ -812,7 +823,7 @@ function renderCheckoutIngredientSection() {
   itemsContainer.innerHTML = '';
 
   var table = document.createElement('table');
-  table.className = 'catalog-table reservation-table';
+  table.className = 'catalog-table reservation-table reservation-table--readonly';
   var thead = document.createElement('thead');
   var tr = document.createElement('tr');
   ['Name', 'Price', 'Qty', 'Subtotal'].forEach(function (label) {
@@ -878,6 +889,12 @@ function renderCheckoutIngredientSection() {
 
   table.appendChild(tbody);
   itemsContainer.appendChild(table);
+
+  // Read-only hint
+  var roNote = document.createElement('p');
+  roNote.className = 'reservation-table-readonly-note';
+  roNote.textContent = 'To adjust quantities, update your cart before checking out.';
+  itemsContainer.appendChild(roNote);
 
   // Totals summary
   var sWrap = document.createElement('div');
@@ -1385,7 +1402,7 @@ function setupReservationForm() {
           }
         }
 
-        // Dynamic What's Next for ingredient-only orders
+        // Dynamic What's Next / title / CTA for ingredient-only orders
         var checkoutCartKeyForNext = getActiveCheckoutCart();
         var isIngredientOnly = checkoutCartKeyForNext === INGREDIENT_CART_KEY ||
           (!checkoutCartKeyForNext && !items.some(function(i) { return (i.item_type || 'kit') === 'kit'; }));
@@ -1395,6 +1412,14 @@ function setupReservationForm() {
             nextList.innerHTML = '<li>We\'ll confirm your order via email</li>'
               + '<li>Your items will be held for in-store pickup</li>'
               + '<li>Visit us at your convenience to collect</li>';
+          }
+          // Update confirmation heading and CTA for non-reservation (ingredient) flow
+          var ingConfTitle = document.querySelector('[data-content="confirm-title"]');
+          if (ingConfTitle) ingConfTitle.textContent = 'Order Placed';
+          var ingCtaLink = document.querySelector('[data-content="confirm-cta"]');
+          if (ingCtaLink) {
+            ingCtaLink.textContent = 'Back to ingredients';
+            ingCtaLink.setAttribute('href', '/ingredients.html');
           }
         }
       }).catch(function (err) {

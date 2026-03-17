@@ -5025,6 +5025,8 @@ function initReservationBar() {
   // Bind clear buttons
   document.querySelectorAll('.reservation-bar-clear').forEach(function (btn) {
     btn.addEventListener('click', function () {
+      var msg = 'Clear your cart? This will remove all items.';
+      if (!window.confirm(msg)) return;
       saveReservation([], FERMENT_CART_KEY);
       saveReservation([], INGREDIENT_CART_KEY);
       updateReservationBar();
@@ -5054,6 +5056,7 @@ function updateReservationBar() {
   }
 
   var checkoutUrl = getCheckoutUrl();
+  var onlyKits = items.every(function(i) { return (i.item_type || 'kit') === 'kit'; });
   bars.forEach(function (bar) {
     // On desktop, if a sidebar is present on this page, hide the fixed floating bar
     // (the sidebar replaces it; the inline catalog bar still shows)
@@ -5064,8 +5067,11 @@ function updateReservationBar() {
     bar.classList.remove('hidden');
     var countEl = bar.querySelector('.reservation-bar-count');
     if (countEl) {
-      countEl.textContent = count + ' item' + (count === 1 ? '' : 's') + ' in cart';
+      var noun = onlyKits ? 'kit' : 'item';
+      countEl.textContent = count + ' ' + noun + (count === 1 ? '' : 's') + ' in ' + (onlyKits ? 'reservation' : 'cart');
     }
+    var clearBtn = bar.querySelector('.reservation-bar-clear');
+    if (clearBtn) clearBtn.textContent = onlyKits ? 'Clear Reservation' : 'Clear Cart';
     var barLink = bar.querySelector('.reservation-bar-link');
     if (barLink) barLink.setAttribute('href', checkoutUrl);
   });
@@ -5138,6 +5144,15 @@ function renderCartSidebar() {
       brandEl.className = 'cart-sidebar-item-brand';
       brandEl.textContent = item.brand;
       info.appendChild(brandEl);
+    }
+
+    // Type badge so the user can distinguish ferment kits from ingredients in the unified sidebar
+    var sbItemType = item.item_type || 'kit';
+    if (getAllCartItems().some(function(ci) { return (ci.item_type || 'kit') !== sbItemType; })) {
+      var sbTypeBadge = document.createElement('div');
+      sbTypeBadge.className = 'cart-sidebar-item-type';
+      sbTypeBadge.textContent = sbItemType === 'kit' ? 'Ferment in Store' : 'Ingredient';
+      info.appendChild(sbTypeBadge);
     }
 
     var priceEl = document.createElement('div');
@@ -5235,7 +5250,7 @@ function renderCartSidebar() {
 
     var lineTotalEl = document.createElement('div');
     lineTotalEl.className = 'cart-sidebar-line-total';
-    lineTotalEl.textContent = '$' + lineTotal.toFixed(2);
+    lineTotalEl.textContent = formatCurrency(lineTotal);
     controls.appendChild(lineTotalEl);
 
     row.appendChild(controls);
@@ -5281,7 +5296,8 @@ function renderCartDrawer() {
   var items = getAllCartItems();
   container.innerHTML = '';
 
-  if (titleEl) titleEl.textContent = 'Your Cart';
+  var allKits = items.length > 0 && items.every(function(i) { return (i.item_type || 'kit') === 'kit'; });
+  if (titleEl) titleEl.textContent = allKits ? 'Your Reservation' : 'Your Cart';
   if (checkoutLink) {
     checkoutLink.setAttribute('href', getCheckoutUrl());
     checkoutLink.textContent = 'Checkout';
@@ -5327,12 +5343,13 @@ function renderCartDrawer() {
       info.appendChild(brandEl);
     }
 
-    // Show a type badge for kit items so the user can distinguish them
+    // Show a type badge when both cart types are present so the user can distinguish them
     var itemType = item.item_type || 'kit';
-    if (itemType === 'kit') {
+    var drawerHasMixed = items.some(function(ci) { return (ci.item_type || 'kit') !== itemType; });
+    if (drawerHasMixed) {
       var typeBadge = document.createElement('div');
       typeBadge.className = 'cart-sidebar-item-type';
-      typeBadge.textContent = 'Ferment in Store';
+      typeBadge.textContent = itemType === 'kit' ? 'Ferment in Store' : 'Ingredient';
       info.appendChild(typeBadge);
     }
 
@@ -5440,7 +5457,7 @@ function renderCartDrawer() {
 
     var lineTotalEl = document.createElement('div');
     lineTotalEl.className = 'cart-sidebar-line-total';
-    lineTotalEl.textContent = '$' + lineTotal.toFixed(2);
+    lineTotalEl.textContent = formatCurrency(lineTotal);
     controls.appendChild(lineTotalEl);
 
     row.appendChild(controls);
@@ -6346,7 +6363,18 @@ function renderReservationItems() {
   container.innerHTML = '';
 
   if (items.length === 0) {
-    if (emptyMsg) emptyMsg.classList.remove('hidden');
+    if (emptyMsg) {
+      // Adjust empty state copy based on cart type
+      var emptyTextEl = emptyMsg.querySelector('[data-content="reserved-empty-text"]');
+      var emptyLinkEl = emptyMsg.querySelector('[data-content="reserved-empty-link"]');
+      var isIngCart = _renderCartKey === INGREDIENT_CART_KEY;
+      if (emptyTextEl) emptyTextEl.textContent = isIngCart ? 'Your cart is empty.' : 'No items reserved.';
+      if (emptyLinkEl) {
+        emptyLinkEl.textContent = isIngCart ? 'Browse ingredients' : 'Browse our catalog';
+        emptyLinkEl.setAttribute('href', isIngCart ? '/ingredients.html' : '/products.html');
+      }
+      emptyMsg.classList.remove('hidden');
+    }
     ['timeslot-picker', 'reservation-form-section'].forEach(function(id) {
       var el = document.getElementById(id); if (el) el.classList.add('hidden');
     });
@@ -6851,7 +6879,7 @@ function renderCheckoutIngredientSection() {
   itemsContainer.innerHTML = '';
 
   var table = document.createElement('table');
-  table.className = 'catalog-table reservation-table';
+  table.className = 'catalog-table reservation-table reservation-table--readonly';
   var thead = document.createElement('thead');
   var tr = document.createElement('tr');
   ['Name', 'Price', 'Qty', 'Subtotal'].forEach(function (label) {
@@ -6917,6 +6945,12 @@ function renderCheckoutIngredientSection() {
 
   table.appendChild(tbody);
   itemsContainer.appendChild(table);
+
+  // Read-only hint
+  var roNote = document.createElement('p');
+  roNote.className = 'reservation-table-readonly-note';
+  roNote.textContent = 'To adjust quantities, update your cart before checking out.';
+  itemsContainer.appendChild(roNote);
 
   // Totals summary
   var sWrap = document.createElement('div');
@@ -7424,7 +7458,7 @@ function setupReservationForm() {
           }
         }
 
-        // Dynamic What's Next for ingredient-only orders
+        // Dynamic What's Next / title / CTA for ingredient-only orders
         var checkoutCartKeyForNext = getActiveCheckoutCart();
         var isIngredientOnly = checkoutCartKeyForNext === INGREDIENT_CART_KEY ||
           (!checkoutCartKeyForNext && !items.some(function(i) { return (i.item_type || 'kit') === 'kit'; }));
@@ -7434,6 +7468,14 @@ function setupReservationForm() {
             nextList.innerHTML = '<li>We\'ll confirm your order via email</li>'
               + '<li>Your items will be held for in-store pickup</li>'
               + '<li>Visit us at your convenience to collect</li>';
+          }
+          // Update confirmation heading and CTA for non-reservation (ingredient) flow
+          var ingConfTitle = document.querySelector('[data-content="confirm-title"]');
+          if (ingConfTitle) ingConfTitle.textContent = 'Order Placed';
+          var ingCtaLink = document.querySelector('[data-content="confirm-cta"]');
+          if (ingCtaLink) {
+            ingCtaLink.textContent = 'Back to ingredients';
+            ingCtaLink.setAttribute('href', '/ingredients.html');
           }
         }
       }).catch(function (err) {

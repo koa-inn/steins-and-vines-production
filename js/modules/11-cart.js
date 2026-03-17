@@ -670,6 +670,8 @@ function initReservationBar() {
   // Bind clear buttons
   document.querySelectorAll('.reservation-bar-clear').forEach(function (btn) {
     btn.addEventListener('click', function () {
+      var msg = 'Clear your cart? This will remove all items.';
+      if (!window.confirm(msg)) return;
       saveReservation([], FERMENT_CART_KEY);
       saveReservation([], INGREDIENT_CART_KEY);
       updateReservationBar();
@@ -699,6 +701,7 @@ function updateReservationBar() {
   }
 
   var checkoutUrl = getCheckoutUrl();
+  var onlyKits = items.every(function(i) { return (i.item_type || 'kit') === 'kit'; });
   bars.forEach(function (bar) {
     // On desktop, if a sidebar is present on this page, hide the fixed floating bar
     // (the sidebar replaces it; the inline catalog bar still shows)
@@ -709,8 +712,11 @@ function updateReservationBar() {
     bar.classList.remove('hidden');
     var countEl = bar.querySelector('.reservation-bar-count');
     if (countEl) {
-      countEl.textContent = count + ' item' + (count === 1 ? '' : 's') + ' in cart';
+      var noun = onlyKits ? 'kit' : 'item';
+      countEl.textContent = count + ' ' + noun + (count === 1 ? '' : 's') + ' in ' + (onlyKits ? 'reservation' : 'cart');
     }
+    var clearBtn = bar.querySelector('.reservation-bar-clear');
+    if (clearBtn) clearBtn.textContent = onlyKits ? 'Clear Reservation' : 'Clear Cart';
     var barLink = bar.querySelector('.reservation-bar-link');
     if (barLink) barLink.setAttribute('href', checkoutUrl);
   });
@@ -783,6 +789,15 @@ function renderCartSidebar() {
       brandEl.className = 'cart-sidebar-item-brand';
       brandEl.textContent = item.brand;
       info.appendChild(brandEl);
+    }
+
+    // Type badge so the user can distinguish ferment kits from ingredients in the unified sidebar
+    var sbItemType = item.item_type || 'kit';
+    if (getAllCartItems().some(function(ci) { return (ci.item_type || 'kit') !== sbItemType; })) {
+      var sbTypeBadge = document.createElement('div');
+      sbTypeBadge.className = 'cart-sidebar-item-type';
+      sbTypeBadge.textContent = sbItemType === 'kit' ? 'Ferment in Store' : 'Ingredient';
+      info.appendChild(sbTypeBadge);
     }
 
     var priceEl = document.createElement('div');
@@ -880,7 +895,7 @@ function renderCartSidebar() {
 
     var lineTotalEl = document.createElement('div');
     lineTotalEl.className = 'cart-sidebar-line-total';
-    lineTotalEl.textContent = '$' + lineTotal.toFixed(2);
+    lineTotalEl.textContent = formatCurrency(lineTotal);
     controls.appendChild(lineTotalEl);
 
     row.appendChild(controls);
@@ -926,7 +941,8 @@ function renderCartDrawer() {
   var items = getAllCartItems();
   container.innerHTML = '';
 
-  if (titleEl) titleEl.textContent = 'Your Cart';
+  var allKits = items.length > 0 && items.every(function(i) { return (i.item_type || 'kit') === 'kit'; });
+  if (titleEl) titleEl.textContent = allKits ? 'Your Reservation' : 'Your Cart';
   if (checkoutLink) {
     checkoutLink.setAttribute('href', getCheckoutUrl());
     checkoutLink.textContent = 'Checkout';
@@ -972,12 +988,13 @@ function renderCartDrawer() {
       info.appendChild(brandEl);
     }
 
-    // Show a type badge for kit items so the user can distinguish them
+    // Show a type badge when both cart types are present so the user can distinguish them
     var itemType = item.item_type || 'kit';
-    if (itemType === 'kit') {
+    var drawerHasMixed = items.some(function(ci) { return (ci.item_type || 'kit') !== itemType; });
+    if (drawerHasMixed) {
       var typeBadge = document.createElement('div');
       typeBadge.className = 'cart-sidebar-item-type';
-      typeBadge.textContent = 'Ferment in Store';
+      typeBadge.textContent = itemType === 'kit' ? 'Ferment in Store' : 'Ingredient';
       info.appendChild(typeBadge);
     }
 
@@ -1085,7 +1102,7 @@ function renderCartDrawer() {
 
     var lineTotalEl = document.createElement('div');
     lineTotalEl.className = 'cart-sidebar-line-total';
-    lineTotalEl.textContent = '$' + lineTotal.toFixed(2);
+    lineTotalEl.textContent = formatCurrency(lineTotal);
     controls.appendChild(lineTotalEl);
 
     row.appendChild(controls);
