@@ -890,9 +890,48 @@ function renderCheckoutIngredientSection() {
     var tdQty = document.createElement('td');
     tdQty.setAttribute('data-label', 'Qty');
     tdQty.style.textAlign = 'right';
-    // Show unit label for weight items
-    if (item.unit && (item.unit.toLowerCase() === 'kg' || item.unit.toLowerCase() === 'g')) {
-      tdQty.textContent = qty + ' ' + item.unit;
+    var isWeightedQty = isWeightUnit(item.unit);
+    if (isWeightedQty) {
+      var unitLower = (item.unit || '').toLowerCase();
+      var isKg = unitLower === 'kg' || unitLower.indexOf('kg') !== -1;
+      var stepVal = isKg ? (parseFloat(item.step) || 0.01) : 1;
+      var weightInput = document.createElement('input');
+      weightInput.type = 'number';
+      weightInput.className = 'weight-qty-input';
+      weightInput.value = qty;
+      weightInput.min = stepVal;
+      weightInput.step = stepVal;
+      weightInput.inputMode = isKg ? 'decimal' : 'numeric';
+      weightInput.setAttribute('aria-label', 'Quantity in ' + item.unit);
+      weightInput.addEventListener('change', (function (itm, st) {
+        return function () {
+          var raw = parseFloat(this.value) || 0;
+          var snapped = Math.round(raw / st) * st;
+          snapped = parseFloat(snapped.toFixed(isKg ? 2 : 0));
+          if (snapped <= 0) {
+            var current = getReservation(INGREDIENT_CART_KEY);
+            saveReservation(current.filter(function (r) {
+              return (r.name + '|' + (r.brand || '')) !== (itm.name + '|' + (itm.brand || ''));
+            }), INGREDIENT_CART_KEY);
+          } else {
+            var cur = getReservation(INGREDIENT_CART_KEY);
+            for (var j = 0; j < cur.length; j++) {
+              if ((cur[j].name + '|' + (cur[j].brand || '')) === (itm.name + '|' + (itm.brand || ''))) {
+                cur[j].qty = snapped; break;
+              }
+            }
+            saveReservation(cur, INGREDIENT_CART_KEY);
+          }
+          renderCheckoutIngredientSection();
+          refreshReservationDependents();
+          updateReservationBar();
+        };
+      })(item, stepVal));
+      var unitLabel = document.createElement('span');
+      unitLabel.className = 'weight-qty-unit';
+      unitLabel.textContent = ' ' + item.unit;
+      tdQty.appendChild(weightInput);
+      tdQty.appendChild(unitLabel);
     } else {
       tdQty.textContent = qty;
     }

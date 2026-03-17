@@ -2447,6 +2447,22 @@ behold-widget {
   margin-top: 0.25rem;
 }
 
+/* Inline weight quantity input in ingredient checkout table */
+.weight-qty-input {
+  width: 5rem;
+  text-align: right;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+}
+.weight-qty-unit {
+  font-size: 0.85rem;
+  color: var(--color-muted-dark);
+  margin-left: 0.15rem;
+}
+
 /* =====================================================
    COMPONENTS — RESERVATION
    ===================================================== */
