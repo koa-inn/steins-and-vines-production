@@ -5237,33 +5237,6 @@ function renderCartSidebar() {
     row.appendChild(controls);
     container.appendChild(row);
 
-    // Maker's Fee row immediately after each kit item
-    if ((item.item_type || 'kit') === 'kit') {
-      var feeRateSb = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
-      var kitQtySb = parseFloat(item.qty) || 1;
-      subtotal += feeRateSb * kitQtySb;
-
-      var feeRow = document.createElement('div');
-      feeRow.className = 'cart-sidebar-item cart-sidebar-fee-row cart-sidebar-fee-row--inline';
-
-      var feeInfo = document.createElement('div');
-      feeInfo.className = 'cart-sidebar-item-info';
-      var feeNameEl = document.createElement('div');
-      feeNameEl.className = 'cart-sidebar-item-name';
-      feeNameEl.textContent = (_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee";
-      feeInfo.appendChild(feeNameEl);
-      feeRow.appendChild(feeInfo);
-
-      var feeTotalEl = document.createElement('div');
-      feeTotalEl.className = 'cart-sidebar-item-controls';
-      var feeAmountEl = document.createElement('div');
-      feeAmountEl.className = 'cart-sidebar-line-total';
-      feeAmountEl.textContent = formatCurrency(feeRateSb * kitQtySb);
-      feeTotalEl.appendChild(feeAmountEl);
-      feeRow.appendChild(feeTotalEl);
-
-      container.appendChild(feeRow);
-    }
   });
 
   if (totalEl) totalEl.textContent = formatCurrency(subtotal);
@@ -5448,33 +5421,6 @@ function renderCartDrawer() {
     row.appendChild(controls);
     container.appendChild(row);
 
-    // Maker's Fee row immediately after each kit item
-    if ((item.item_type || 'kit') === 'kit') {
-      var feeRateDr = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
-      var kitQtyDr = parseFloat(item.qty) || 1;
-      subtotal += feeRateDr * kitQtyDr;
-
-      var feeRowD = document.createElement('div');
-      feeRowD.className = 'cart-sidebar-item cart-sidebar-fee-row cart-sidebar-fee-row--inline';
-
-      var feeInfoD = document.createElement('div');
-      feeInfoD.className = 'cart-sidebar-item-info';
-      var feeNameElD = document.createElement('div');
-      feeNameElD.className = 'cart-sidebar-item-name';
-      feeNameElD.textContent = (_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee";
-      feeInfoD.appendChild(feeNameElD);
-      feeRowD.appendChild(feeInfoD);
-
-      var feeTotalElD = document.createElement('div');
-      feeTotalElD.className = 'cart-sidebar-item-controls';
-      var feeAmountElD = document.createElement('div');
-      feeAmountElD.className = 'cart-sidebar-line-total';
-      feeAmountElD.textContent = formatCurrency(feeRateDr * kitQtyDr);
-      feeTotalElD.appendChild(feeAmountElD);
-      feeRowD.appendChild(feeTotalElD);
-
-      container.appendChild(feeRowD);
-    }
   });
 
   if (totalEl) totalEl.textContent = formatCurrency(subtotal);
@@ -6604,20 +6550,6 @@ function renderReservationItems() {
 
     tbody.appendChild(tr);
 
-    // Maker's Fee row immediately after each kit item
-    if ((item.item_type || 'kit') === 'kit') {
-      var feeRateInline = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
-      var kitQtyInline = parseFloat(item.qty) || 1;
-      var feeTrInline = document.createElement('tr');
-      feeTrInline.className = 'makers-fee-row makers-fee-row--inline';
-      feeTrInline.innerHTML = '<td data-label="Name">' + ((_makersFeeItem && _makersFeeItem.name) || "Maker\'s Fee") + '</td>'
-        + '<td data-label="Type" class="res-col-type">Service</td>'
-        + (hasBrand ? '<td></td>' : '')
-        + (hasTime ? '<td></td>' : '')
-        + '<td style="text-align:right">' + formatCurrency(feeRateInline) + '</td>'
-        + '<td></td><td>' + kitQtyInline + '</td><td></td>';
-      tbody.appendChild(feeTrInline);
-    }
   });
 
   table.appendChild(tbody);
@@ -6734,9 +6666,6 @@ function renderReservationItems() {
     var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); sub += p * (i.qty || 1);
   });
 
-  var feeRate = hasKits ? ((_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50) : 0;
-  var totalFee = feeRate * totalKitQty;
-
   // Group taxes by name for breakdown display
   var taxGroups = {};
   items.forEach(function (i) {
@@ -6750,14 +6679,6 @@ function renderReservationItems() {
       taxGroups[name] += p * (i.qty || 1) * (pct / 100);
     }
   });
-  // Include Maker's Fee tax (it is a Zoho service item with its own tax_percentage)
-  if (hasKits && _makersFeeItem && parseFloat(_makersFeeItem.tax_percentage) > 0) {
-    var feeTaxPct = parseFloat(_makersFeeItem.tax_percentage);
-    var feeTaxName = (_makersFeeItem.tax_name && _makersFeeItem.tax_name.trim())
-      ? _makersFeeItem.tax_name.trim() : (feeTaxPct + '%');
-    if (!taxGroups[feeTaxName]) taxGroups[feeTaxName] = 0;
-    taxGroups[feeTaxName] += totalFee * (feeTaxPct / 100);
-  }
   var taxTotal = 0;
   var taxNames = Object.keys(taxGroups);
   taxNames.forEach(function (n) { taxTotal += taxGroups[n]; });
@@ -6765,21 +6686,11 @@ function renderReservationItems() {
   var sWrap = document.createElement('div');
   sWrap.className = 'order-summary-totals';
 
-  // Items subtotal row
+  // Subtotal row
   var itemsSubRow = document.createElement('div');
   itemsSubRow.className = 'reservation-subtotal';
-  itemsSubRow.innerHTML = '<span>' + (hasKits ? 'Items Subtotal' : 'Subtotal') + '</span><span>' + formatCurrency(sub) + '</span>';
+  itemsSubRow.innerHTML = '<span>Subtotal</span><span>' + formatCurrency(sub) + '</span>';
   sWrap.appendChild(itemsSubRow);
-
-  // Maker's Fee row (kits only)
-  if (hasKits) {
-    var feeName = (_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee";
-    var feeLabel = totalKitQty > 1 ? feeName + ' (' + totalKitQty + ' \u00D7 ' + formatCurrency(feeRate) + ')' : feeName;
-    var feeRow = document.createElement('div');
-    feeRow.className = 'reservation-subtotal reservation-makers-fee';
-    feeRow.innerHTML = '<span>' + feeLabel + '</span><span>' + formatCurrency(totalFee) + '</span>';
-    sWrap.appendChild(feeRow);
-  }
 
   // Tax breakdown rows
   taxNames.forEach(function (name) {
@@ -6790,14 +6701,10 @@ function renderReservationItems() {
   });
 
   // Total row
-  var grandTotal = sub + totalFee + taxTotal;
+  var grandTotal = sub + taxTotal;
   var totalRow = document.createElement('div');
   totalRow.className = 'reservation-subtotal reservation-subtotal--total';
-  if (hasKits) {
-    totalRow.innerHTML = '<span>Total</span><span>' + formatCurrency(grandTotal) + '</span>';
-  } else {
-    totalRow.innerHTML = '<span>Total</span><span>' + formatCurrency(grandTotal) + '</span>';
-  }
+  totalRow.innerHTML = '<span>Total</span><span>' + formatCurrency(grandTotal) + '</span>';
   sWrap.appendChild(totalRow);
 
   container.appendChild(sWrap);
@@ -6957,22 +6864,6 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError) {
 
   // Step 1: POST ferment cart
   var fermentLines = buildLines(fermentItems);
-
-  // Add maker's fee lines for ferment order if applicable
-  if (_makersFeeItem) {
-    var kitQty = 0;
-    fermentItems.forEach(function (i) {
-      if ((i.item_type || 'kit') === 'kit') kitQty += (parseFloat(i.qty) || 1);
-    });
-    if (kitQty > 0) {
-      fermentLines.push({
-        name: _makersFeeItem.name,
-        quantity: kitQty,
-        rate: parseFloat(_makersFeeItem.rate) || 0,
-        item_id: _makersFeeItem.item_id
-      });
-    }
-  }
 
   // Add milling if applicable
   if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem && _millingServiceItem.item_id) {
@@ -7258,12 +7149,6 @@ function setupReservationForm() {
 
     var payFull = true; var fR = document.querySelector('input[name="payment-option"][value="full"]'); if (fR) payFull = fR.checked;
     var orderTot = 0; items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); orderTot += p * (i.qty || 1); });
-    if (hasK && _makersFeeItem) {
-      // H1: Makers fee per kit quantity only
-      var kitQtyForSubmit = 0;
-      items.forEach(function (i) { if ((i.item_type || 'kit') === 'kit') kitQtyForSubmit += (parseFloat(i.qty) || 1); });
-      orderTot += (parseFloat(_makersFeeItem.rate) || 0) * kitQtyForSubmit;
-    }
     var tax = 0; if (!hasK || payFull) { items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); tax += p * (i.qty || 1) * ((parseFloat(i.tax_percentage) || 0) / 100); }); }
     var charge = orderTot + tax; var depAmt = (!hasK || payFull) ? charge : Math.min(_paymentConfig && _paymentConfig.depositAmount ? _paymentConfig.depositAmount : charge, orderTot);
 
@@ -7302,7 +7187,6 @@ function setupReservationForm() {
           var bProm = (slot === 'Walk-in \u2014 Immediate') ? Promise.resolve({ booking_id: null, timeslot: slot }) : fetch(mw + '/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY }, body: JSON.stringify({ date: parts[0], time: parts.slice(1).join(' '), customer: { name: document.getElementById('res-name').value, email: document.getElementById('res-email').value }, notes: items.map(function (i) { return i.name; }).join(', ') }) }).then(function (r) { return r.json(); });
           return bProm.then(function (bD) {
             var lines = items.map(function (i) { return { name: i.name, quantity: i.qty || 1, rate: parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0, item_id: i.zoho_item_id, discount: i.discount }; });
-            if (hasK && _makersFeeItem) lines.push({ name: _makersFeeItem.name, quantity: kitQtyForSubmit || 1, rate: parseFloat(_makersFeeItem.rate) || 0, item_id: _makersFeeItem.item_id });
             // M8: Milling service null guard
             if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem && _millingServiceItem.item_id) {
               lines.push({ name: 'Milling Service', quantity: 1, rate: _millingServiceItem.rate, item_id: _millingServiceItem.item_id });

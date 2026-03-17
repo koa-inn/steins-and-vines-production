@@ -882,33 +882,6 @@ function renderCartSidebar() {
     row.appendChild(controls);
     container.appendChild(row);
 
-    // Maker's Fee row immediately after each kit item
-    if ((item.item_type || 'kit') === 'kit') {
-      var feeRateSb = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
-      var kitQtySb = parseFloat(item.qty) || 1;
-      subtotal += feeRateSb * kitQtySb;
-
-      var feeRow = document.createElement('div');
-      feeRow.className = 'cart-sidebar-item cart-sidebar-fee-row cart-sidebar-fee-row--inline';
-
-      var feeInfo = document.createElement('div');
-      feeInfo.className = 'cart-sidebar-item-info';
-      var feeNameEl = document.createElement('div');
-      feeNameEl.className = 'cart-sidebar-item-name';
-      feeNameEl.textContent = (_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee";
-      feeInfo.appendChild(feeNameEl);
-      feeRow.appendChild(feeInfo);
-
-      var feeTotalEl = document.createElement('div');
-      feeTotalEl.className = 'cart-sidebar-item-controls';
-      var feeAmountEl = document.createElement('div');
-      feeAmountEl.className = 'cart-sidebar-line-total';
-      feeAmountEl.textContent = formatCurrency(feeRateSb * kitQtySb);
-      feeTotalEl.appendChild(feeAmountEl);
-      feeRow.appendChild(feeTotalEl);
-
-      container.appendChild(feeRow);
-    }
   });
 
   if (totalEl) totalEl.textContent = formatCurrency(subtotal);
@@ -1093,33 +1066,6 @@ function renderCartDrawer() {
     row.appendChild(controls);
     container.appendChild(row);
 
-    // Maker's Fee row immediately after each kit item
-    if ((item.item_type || 'kit') === 'kit') {
-      var feeRateDr = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
-      var kitQtyDr = parseFloat(item.qty) || 1;
-      subtotal += feeRateDr * kitQtyDr;
-
-      var feeRowD = document.createElement('div');
-      feeRowD.className = 'cart-sidebar-item cart-sidebar-fee-row cart-sidebar-fee-row--inline';
-
-      var feeInfoD = document.createElement('div');
-      feeInfoD.className = 'cart-sidebar-item-info';
-      var feeNameElD = document.createElement('div');
-      feeNameElD.className = 'cart-sidebar-item-name';
-      feeNameElD.textContent = (_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee";
-      feeInfoD.appendChild(feeNameElD);
-      feeRowD.appendChild(feeInfoD);
-
-      var feeTotalElD = document.createElement('div');
-      feeTotalElD.className = 'cart-sidebar-item-controls';
-      var feeAmountElD = document.createElement('div');
-      feeAmountElD.className = 'cart-sidebar-line-total';
-      feeAmountElD.textContent = formatCurrency(feeRateDr * kitQtyDr);
-      feeTotalElD.appendChild(feeAmountElD);
-      feeRowD.appendChild(feeTotalElD);
-
-      container.appendChild(feeRowD);
-    }
   });
 
   if (totalEl) totalEl.textContent = formatCurrency(subtotal);
