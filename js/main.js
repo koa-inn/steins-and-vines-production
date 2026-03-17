@@ -4979,17 +4979,23 @@ function renderWeightControlCompact(wrap, product, productKey) {
   wrap.appendChild(container);
 }
 
+// H4: Return the checkout URL — no param when both carts have items (dual-cart mode)
+function getCheckoutUrl() {
+  var ferment = getReservation(FERMENT_CART_KEY);
+  var ingredient = getReservation(INGREDIENT_CART_KEY);
+  if (ferment.length > 0 && ingredient.length > 0) return '/reservation.html';
+  if (_activeCartTab === 'kits') return '/reservation.html?cart=ferment';
+  if (_activeCartTab === 'ingredients') return '/reservation.html?cart=ingredient';
+  return '/reservation.html';
+}
+
 function initReservationBar() {
-  // H4: Build checkout URL with ?cart= param based on active tab
   function getReservationBarHtml() {
-    var cartParam = '';
-    if (_activeCartTab === 'kits') cartParam = '?cart=ferment';
-    else if (_activeCartTab === 'ingredients') cartParam = '?cart=ingredient';
     return '<div class="container">' +
       '<span class="reservation-bar-count"></span>' +
       '<span class="reservation-bar-actions">' +
       '<button type="button" class="reservation-bar-clear">Clear Cart</button>' +
-      '<a href="/reservation.html' + cartParam + '" class="reservation-bar-link">Checkout &rarr;</a>' +
+      '<a href="/reservation.html" class="reservation-bar-link">Checkout &rarr;</a>' +
       '</span>' +
       '</div>';
   }
@@ -5043,6 +5049,7 @@ function updateReservationBar() {
     return;
   }
 
+  var checkoutUrl = getCheckoutUrl();
   bars.forEach(function (bar) {
     // On desktop, if a sidebar is present on this page, hide the fixed floating bar
     // (the sidebar replaces it; the inline catalog bar still shows)
@@ -5055,6 +5062,8 @@ function updateReservationBar() {
     if (countEl) {
       countEl.textContent = count + ' item' + (count === 1 ? '' : 's') + ' in cart';
     }
+    var barLink = bar.querySelector('.reservation-bar-link');
+    if (barLink) barLink.setAttribute('href', checkoutUrl);
   });
 
   // Sync sidebar on desktop
@@ -5079,13 +5088,10 @@ function renderCartSidebar() {
   var totalEl = document.getElementById('cart-sidebar-total');
   if (!container) return;
 
-  // Update sidebar checkout link with correct ?cart= param
+  // Update sidebar checkout link — dual-cart mode when both carts have items
   var sidebarCheckoutLink = document.querySelector('.cart-sidebar-checkout');
   if (sidebarCheckoutLink) {
-    var sidebarCartParam = '';
-    if (_activeCartTab === 'kits') sidebarCartParam = '?cart=ferment';
-    else if (_activeCartTab === 'ingredients') sidebarCartParam = '?cart=ingredient';
-    sidebarCheckoutLink.setAttribute('href', '/reservation.html' + sidebarCartParam);
+    sidebarCheckoutLink.setAttribute('href', getCheckoutUrl());
   }
 
   // Unified view — show all items from both carts
@@ -5279,11 +5285,7 @@ function renderCartDrawer() {
 
   if (titleEl) titleEl.textContent = 'Your Cart';
   if (checkoutLink) {
-    // H4: Append ?cart= param based on active tab so reservation page shows the right cart
-    var checkoutCartParam = '';
-    if (_activeCartTab === 'kits') checkoutCartParam = '?cart=ferment';
-    else if (_activeCartTab === 'ingredients') checkoutCartParam = '?cart=ingredient';
-    checkoutLink.setAttribute('href', '/reservation.html' + checkoutCartParam);
+    checkoutLink.setAttribute('href', getCheckoutUrl());
     checkoutLink.textContent = 'Checkout';
   }
 
