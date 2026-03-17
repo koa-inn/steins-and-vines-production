@@ -6228,14 +6228,6 @@ function initReservationPage() {
     document.title = 'Checkout | Steins & Vines';
     var dualSubmitBtn = document.querySelector('[data-content="submit-btn"]');
     if (dualSubmitBtn) dualSubmitBtn.textContent = 'Complete Both Orders';
-    // Prefix the ferment section with a "Section A" label
-    var reservationList = document.getElementById('reservation-list');
-    if (reservationList) {
-      var sectionALabel = document.createElement('div');
-      sectionALabel.className = 'dual-cart-section-header';
-      sectionALabel.innerHTML = '<span class="dual-cart-section-label">Section A</span>';
-      reservationList.insertBefore(sectionALabel, reservationList.firstChild);
-    }
   }
 
   setupReservationForm();

@@ -3073,9 +3073,11 @@ behold-widget {
   margin-bottom: 0.4rem;
 }
 
-.dual-cart-section-header h2 {
+.dual-cart-section-header h2,
+.dual-cart-section-header h3 {
   margin-top: 0.35rem;
   margin-bottom: 0.35rem;
+  font-size: 1.25rem;
 }
 
 .dual-cart-section-note {
