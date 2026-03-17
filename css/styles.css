@@ -2588,7 +2588,8 @@ behold-widget {
   color: var(--color-green);
 }
 
-.reservation-items {
+.reservation-items,
+#ingredient-order-items {
   max-width: 900px;
   margin: 0 auto;
 }

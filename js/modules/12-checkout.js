@@ -794,22 +794,6 @@ function renderReservationItems() {
   });
   cWrap.appendChild(cBtn); container.appendChild(cWrap);
 
-  if (_isDualCart) {
-    var cWrapIng = document.createElement('div'); cWrapIng.className = 'reservation-clear-wrap';
-    var cBtnIng = document.createElement('button'); cBtnIng.className = 'btn-secondary reservation-clear-btn';
-    cBtnIng.textContent = 'Clear Ingredients';
-    cBtnIng.addEventListener('click', function () {
-      if (confirm('Remove all ingredient items? Your ferment reservation will not be affected.')) {
-        saveReservation([], INGREDIENT_CART_KEY);
-        renderCheckoutIngredientSection();
-        refreshReservationDependents();
-        updateReservationBar();
-        refreshAllReserveControls();
-      }
-    });
-    cWrapIng.appendChild(cBtnIng); container.appendChild(cWrapIng);
-  }
-
   window.dispatchEvent(new Event('reservation-changed'));
 }
 
@@ -1040,7 +1024,10 @@ function renderCheckoutIngredientSection() {
   });
 
   table.appendChild(tbody);
-  itemsContainer.appendChild(table);
+  var tWrapIng = document.createElement('div');
+  tWrapIng.className = 'reservation-table-wrap';
+  tWrapIng.appendChild(table);
+  itemsContainer.appendChild(tWrapIng);
 
   // Totals summary
   var sWrap = document.createElement('div');
@@ -1086,6 +1073,22 @@ function renderCheckoutIngredientSection() {
   if (ingSubmitBtn) {
     ingSubmitBtn.textContent = 'Complete Both Orders';
   }
+
+  // Clear Ingredients button — lives here (below the ingredient table, not in Section A)
+  var cWrapIng = document.createElement('div'); cWrapIng.className = 'reservation-clear-wrap';
+  var cBtnIng = document.createElement('button'); cBtnIng.className = 'btn-secondary reservation-clear-btn';
+  cBtnIng.textContent = 'Clear Ingredients';
+  cBtnIng.addEventListener('click', function () {
+    if (confirm('Remove all ingredient items? Your ferment reservation will not be affected.')) {
+      saveReservation([], INGREDIENT_CART_KEY);
+      renderCheckoutIngredientSection();
+      refreshReservationDependents();
+      updateReservationBar();
+      refreshAllReserveControls();
+    }
+  });
+  cWrapIng.appendChild(cBtnIng);
+  itemsContainer.appendChild(cWrapIng);
 
   window.dispatchEvent(new Event('reservation-changed'));
 }
