@@ -207,18 +207,52 @@ function doRefreshProducts() {
       });
 
       return chain.then(function () {
+        // Build snapshot lookup (item_id → snapshot entry) as a fallback for items
+        // whose Zoho custom fields have not been populated yet.
+        var snapshotLookup = {};
+        try {
+          var snapRaw = JSON.parse(fs.readFileSync(
+            path.join(__dirname, '..', '..', 'content', 'zoho-snapshot.json'), 'utf8'));
+          (snapRaw.products || []).forEach(function (p) {
+            if (p.item_id) snapshotLookup[p.item_id] = p;
+          });
+          log.info('[api/products] Loaded ' + Object.keys(snapshotLookup).length + ' snapshot entries for CF fallback');
+        } catch (e) {
+          log.warn('[api/products] Could not load snapshot for CF fallback: ' + e.message);
+        }
+
         // Kit items are identified by their Type CF matching a KIT_CATEGORY exactly.
-        // Items with Type = 'Ingredient', 'Equipment', etc. are excluded from kits
-        // even if their Category CF references a kit category (e.g. "Beer ingredients").
+        // When the CF is absent or not set in Zoho, the snapshot entry is used as a
+        // fallback so items populate correctly even before all Zoho CFs are filled in.
         enriched = enriched.filter(function (item) {
+          var snap = snapshotLookup[item.item_id];
           var typeCF = (item.custom_fields || []).find(function (cf) {
             return cf.label === 'Type' && cf.value;
           });
-          if (!typeCF) return false;
-          var typeVal = typeCF.value.toLowerCase();
-          if (!KIT_CATEGORIES.some(function (kc) { return typeVal === kc; })) {
-            log.info('[api/products] Excluding non-kit item: ' + item.name + ' (type: ' + typeCF.value + ')');
+          var typeVal = typeCF
+            ? typeCF.value.toLowerCase()
+            : (snap && snap.type ? snap.type.toLowerCase() : '');
+
+          if (!typeVal) {
+            log.info('[api/products] Excluding item with no type: ' + item.name);
             return false;
+          }
+          if (!KIT_CATEGORIES.some(function (kc) { return typeVal === kc; })) {
+            log.info('[api/products] Excluding non-kit item: ' + item.name + ' (type: ' + typeVal + ')');
+            return false;
+          }
+          // Backfill snapshot fields onto items where Zoho CFs are not yet set
+          if (!typeCF && snap) {
+            item.type = snap.type;
+            item.subcategory = item.subcategory || snap.subcategory || '';
+            item.tasting_notes = item.tasting_notes || snap.tasting_notes || '';
+            item.favorite = item.favorite || snap.favorite || 'false';
+            item.abv = item.abv || snap.abv || '';
+            item.time = item.time || snap.time || '';
+            item.millable = item.millable || snap.millable || 'false';
+            item.discount = item.discount || snap.discount || '0';
+            item.retail_kit = item.retail_kit || snap.retail_kit || '';
+            item.retail_instore = item.retail_instore || snap.retail_instore || '';
           }
           return true;
         });
