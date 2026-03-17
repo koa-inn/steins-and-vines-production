@@ -839,7 +839,7 @@ function renderCheckoutIngredientSection() {
 
   // Totals summary
   var sWrap = document.createElement('div');
-  sWrap.className = 'reservation-subtotals';
+  sWrap.className = 'order-summary-totals';
 
   var subRow = document.createElement('div');
   subRow.className = 'reservation-subtotal';
