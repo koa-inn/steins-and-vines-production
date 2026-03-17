@@ -157,6 +157,10 @@ function setReservationQty(product, qty) {
     if (typeof renderReservationItems === 'function') {
       renderReservationItems();
     }
+    // In dual-cart mode Section B is rendered separately — keep it in sync too
+    if (typeof _isDualCart !== 'undefined' && _isDualCart && typeof renderCheckoutIngredientSection === 'function') {
+      renderCheckoutIngredientSection();
+    }
     if (typeof refreshReservationDependents === 'function') {
       refreshReservationDependents();
     }
