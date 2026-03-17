@@ -860,6 +860,22 @@ function renderCheckoutIngredientSection() {
 
   itemsContainer.appendChild(sWrap);
 
+  // Combined grand total across both carts
+  var fermentItems = getReservation(FERMENT_CART_KEY);
+  var fermentTotal = 0;
+  fermentItems.forEach(function (i) {
+    var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
+    var d = parseFloat(i.discount) || 0;
+    if (d > 0) p *= (1 - d / 100);
+    var pct = parseFloat(i.tax_percentage) || 0;
+    fermentTotal += p * (i.qty || 1) * (1 + pct / 100);
+  });
+  var combinedTotal = fermentTotal + subtotal + taxTotal;
+  var grandWrap = document.createElement('div');
+  grandWrap.className = 'dual-cart-grand-total';
+  grandWrap.innerHTML = '<span>Combined Total (both orders)</span><span>' + formatCurrency(combinedTotal) + '</span>';
+  itemsContainer.appendChild(grandWrap);
+
   // Update the submit button text in the ingredient section
   var ingSubmitBtn = document.getElementById('ingredient-submit-btn');
   if (ingSubmitBtn) {

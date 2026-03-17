@@ -3090,6 +3090,22 @@ behold-widget {
   margin-top: 0.5rem;
 }
 
+.dual-cart-grand-total {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.5rem;
+  padding: 0.85rem 1.25rem;
+  background: var(--color-cream, #f5f0dc);
+  border: 2px solid var(--color-brown, #77462d);
+  border-radius: var(--radius-sm, 4px);
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-burgundy, #6b2737);
+}
+
 .ingredient-order-contact-note {
   display: flex;
   align-items: center;
