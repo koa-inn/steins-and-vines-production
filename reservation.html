@@ -24,7 +24,7 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mmv4fooi">
+  <link rel="stylesheet" href="css/styles.min.css?v=mmv4wgj2">
 </head>
 <body data-page="reservation">
   <a href="#main" class="skip-to-content">Skip to content</a>
@@ -61,24 +61,24 @@
       <div class="container">
 
         <!-- Dual-cart banner: shown by JS when both carts have items -->
-        <div id="dual-cart-banner" class="dual-cart-banner hidden" role="status" aria-live="polite"></div>
+        <div id="dual-cart-banner" class="dual-cart-banner hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
         <!-- Checkout Stepper -->
         <nav class="checkout-stepper" id="checkout-stepper" aria-label="Checkout progress">
           <ol class="stepper-list">
-            <li class="stepper-step stepper-step--active" data-step="1">
+            <li class="stepper-step stepper-step--active" data-step="1" aria-current="step" tabindex="0">
               <span class="stepper-number"><span class="stepper-check" aria-hidden="true"></span><span class="stepper-digit">1</span></span>
               <span class="stepper-label">Review Items</span>
             </li>
-            <li class="stepper-step" data-step="2">
+            <li class="stepper-step" data-step="2" tabindex="0">
               <span class="stepper-number"><span class="stepper-check" aria-hidden="true"></span><span class="stepper-digit">2</span></span>
               <span class="stepper-label">Pick a Time</span>
             </li>
-            <li class="stepper-step" data-step="3">
+            <li class="stepper-step" data-step="3" tabindex="0">
               <span class="stepper-number"><span class="stepper-check" aria-hidden="true"></span><span class="stepper-digit">3</span></span>
               <span class="stepper-label">Your Details</span>
             </li>
-            <li class="stepper-step" data-step="4">
+            <li class="stepper-step" data-step="4" tabindex="0">
               <span class="stepper-number"><span class="stepper-check" aria-hidden="true"></span><span class="stepper-digit">4</span></span>
               <span class="stepper-label">Confirm</span>
             </li>
@@ -190,7 +190,7 @@
             </div>
 
             <div id="payment-offline-notice" class="payment-offline-notice">
-              <p>Online payments are not yet available &mdash; no payment is required at this time. Submitting your reservation puts your items on hold, and we&rsquo;ll confirm details with you directly.</p>
+              <p>No online payment required &mdash; payment is collected when you visit the store. Submitting puts your items on hold and we&rsquo;ll confirm the details with you directly.</p>
             </div>
             <button type="submit" class="btn" data-content="submit-btn">Submit Reservation</button>
             <p class="form-note" data-content="form-note">A confirmation email will be sent to the address provided above.</p>
@@ -265,7 +265,7 @@
   <script src="https://secure.helcim.app/helcim-pay/services/start.js"></script>
   <script src="https://www.google.com/recaptcha/api.js?render=6LerSH0sAAAAAGKtltFqN5fu2w8opPV5BStdzNDu" async></script>
   <script src="js/sheets-config.js" defer></script>
-  <script src="js/main.min.js?v=mmv4fooi" defer></script>
+  <script src="js/main.min.js?v=mmv4wgj2" defer></script>
   <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js')})}</script>
 </body>
 </html>

@@ -2409,6 +2409,13 @@ behold-widget {
   background-color: var(--color-green);
 }
 
+.qty-btn:disabled,
+.qty-btn--disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .qty-value {
   flex: 1;
   text-align: center;
@@ -2530,7 +2537,7 @@ behold-widget {
   display: none;
   padding: 1.5rem 0 0.5rem;
 }
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .checkout-continue-wrap {
     display: block;
   }
@@ -2706,6 +2713,19 @@ behold-widget {
   font-size: 0.8em;
   color: var(--color-muted-dark);
   font-style: italic;
+}
+
+.makers-fee-row--inline td {
+  color: var(--color-muted-dark);
+  font-style: italic;
+  font-size: 0.875rem;
+  opacity: 0.8;
+  padding-top: 0.1rem;
+  padding-bottom: 0.35rem;
+  border-bottom: none;
+}
+.makers-fee-row--inline {
+  border-bottom: 1px solid rgba(119, 70, 45, 0.08);
 }
 .cart-sidebar-fee-included {
   font-size: 0.75rem;
@@ -3030,11 +3050,28 @@ behold-widget {
   background: var(--color-green, #4a6f4b);
   color: var(--color-white, #fff);
   text-align: center;
-  padding: 0.75rem 1rem;
+  padding: 0.85rem 1.25rem;
   border-radius: var(--radius-sm, 4px);
-  font-weight: 600;
   font-size: 0.9rem;
   margin-bottom: 1.5rem;
+}
+.dual-cart-banner-intro {
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+  font-size: 0.95rem;
+}
+.dual-cart-banner-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 2rem;
+  justify-content: center;
+  align-items: center;
+  font-weight: 400;
+  font-size: 0.875rem;
+  opacity: 0.92;
+}
+.dual-cart-banner-item strong {
+  font-weight: 700;
 }
 
 .dual-cart-divider {
@@ -3047,11 +3084,12 @@ behold-widget {
 .dual-cart-divider::after {
   content: '';
   display: block;
-  width: 32px;
-  height: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   background: var(--color-brown, #77462d);
   position: absolute;
-  top: -3px;
+  top: -6px;
   left: 50%;
   transform: translateX(-50%);
 }
@@ -3080,6 +3118,10 @@ behold-widget {
   font-size: 1.25rem;
 }
 
+.dual-cart-section-header h3 {
+  color: var(--color-green);
+}
+
 .dual-cart-section-note {
   font-size: 0.875rem;
   color: var(--color-text-muted, #666);
@@ -3106,6 +3148,48 @@ behold-widget {
   color: var(--color-burgundy, #6b2737);
 }
 
+.dual-cart-grand-total span:first-child {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 1rem;
+}
+.dual-cart-grand-total span:last-child {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+}
+
+/* Combined total summary shown above submit button in dual-cart mode */
+.dual-cart-total-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-cream);
+  border: 1px solid rgba(119, 70, 45, 0.3);
+  border-radius: var(--radius-sm, 4px);
+  padding: 0.7rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  color: var(--color-brown);
+  text-align: center;
+}
+.dual-cart-total-summary-sep {
+  opacity: 0.4;
+}
+.dual-cart-total-summary-grand {
+  font-weight: 700;
+  color: var(--color-burgundy);
+}
+
+/* Timeslot note shown in dual-cart mode */
+.dual-cart-timeslot-note {
+  font-size: 0.875rem;
+  color: var(--color-muted-dark, #666);
+  margin-top: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
 .ingredient-order-contact-note {
   display: flex;
   align-items: center;
@@ -3121,6 +3205,25 @@ behold-widget {
 
 .ingredient-order-contact-note svg {
   flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.kit-instore-reminder {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background: var(--color-cream);
+  border-left: 3px solid var(--color-burgundy);
+  padding: 0.6rem 0.85rem;
+  border-radius: 0 var(--radius-sm, 4px) var(--radius-sm, 4px) 0;
+  font-size: 0.875rem;
+  color: var(--color-brown);
+  margin-bottom: 1.25rem;
+}
+.kit-instore-reminder svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  fill: var(--color-burgundy);
   opacity: 0.75;
 }
 
@@ -3450,6 +3553,11 @@ behold-widget {
   margin-bottom: 2.5rem;
 }
 
+.checkout-section + .checkout-section {
+  border-top: 1px solid rgba(119, 70, 45, 0.12);
+  padding-top: 2rem;
+}
+
 /* ===== Floating Labels (Reservation Form) ===== */
 .form-group--float {
   position: relative;
@@ -3566,14 +3674,57 @@ behold-widget {
 }
 .payment-offline-notice p { margin: 0; }
 
+.payment-option-selector {
+  margin: 1.25rem 0;
+}
+.payment-option-label {
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: var(--color-green);
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.payment-option-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-brown);
+  border-radius: var(--radius-sm, 4px);
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.payment-option-radio:has(input:checked) {
+  border-color: var(--color-burgundy);
+  background: rgba(107, 39, 55, 0.04);
+}
+.payment-option-title {
+  display: block;
+  font-weight: 700;
+  font-size: 0.9375rem;
+}
+.payment-option-desc {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--color-muted-dark);
+  margin-top: 0.15rem;
+}
+
 /* No-payment notice on confirmation screen */
 .confirm-no-payment-notice {
-  display: inline-block;
+  display: block;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
   background: #fdf8f0;
   border: 1px solid var(--color-gold);
   border-radius: var(--radius-sm);
   padding: 0.5rem 1rem;
-  margin: 0.5rem 0 1.25rem;
+  margin-top: 0.5rem;
+  margin-bottom: 1.25rem;
   font-size: 0.875rem;
   color: var(--color-brown);
 }
@@ -3690,10 +3841,35 @@ behold-widget {
 }
 
 .confirm-next ol {
-  padding-left: 1.25rem;
+  list-style: none;
+  padding-left: 0;
+  counter-reset: next-step;
   font-size: 0.875rem;
   line-height: 1.8;
   color: var(--color-text);
+}
+.confirm-next ol li {
+  counter-increment: next-step;
+  padding-left: 2rem;
+  position: relative;
+  margin-bottom: 0.5rem;
+  text-align: left;
+}
+.confirm-next ol li::before {
+  content: counter(next-step);
+  position: absolute;
+  left: 0;
+  top: 0.1em;
+  width: 1.35rem;
+  height: 1.35rem;
+  background: var(--color-green);
+  color: var(--color-cream);
+  border-radius: 50%;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Confirmation action buttons */
@@ -4424,6 +4600,15 @@ behold-widget {
     order: 4;
     flex: 0 0 auto;
     margin-left: 0.5rem;
+  }
+
+  .reservation-table td[data-label="Subtotal"] {
+    order: 3;
+    flex: 0 0 auto;
+    margin-left: auto;
+    font-weight: 700;
+    color: var(--color-burgundy);
+    text-align: right;
   }
 
   /* === Fallback for tables without mobile cells (ingredients, services) === */

@@ -135,6 +135,13 @@ function initReservationPage() {
 
   if (hasKits) {
     loadTimeslots();
+    var estimateEl = document.getElementById('completion-estimate');
+    var estimateText = document.getElementById('completion-estimate-text');
+    if (estimateEl && estimateText && estimateEl.classList.contains('hidden')) {
+      estimateEl.classList.remove('hidden');
+      estimateText.textContent = 'Your batch will be ready to bottle approximately 4\u20136 weeks after your start date. We\u2019ll notify you when it\u2019s time.';
+      estimateEl.setAttribute('data-default-hint', '1');
+    }
   } else {
     var picker = document.getElementById('timeslot-picker');
     if (picker) picker.classList.add('hidden');
@@ -191,6 +198,17 @@ function initReservationPage() {
     document.title = 'Checkout | Steins & Vines';
     var dualSubmitBtn = document.querySelector('[data-content="submit-btn"]');
     if (dualSubmitBtn) dualSubmitBtn.textContent = 'Complete Both Orders';
+
+    // Update timeslot heading to clarify it's for ferment only
+    var timeslotTitle = document.querySelector('#timeslot-picker [data-content="timeslot-title"]');
+    if (timeslotTitle) timeslotTitle.textContent = 'Select a Timeslot for Your Ferment Booking';
+    var timeslotPicker = document.getElementById('timeslot-picker');
+    if (timeslotPicker) {
+      var timeslotNote = document.createElement('p');
+      timeslotNote.className = 'dual-cart-timeslot-note';
+      timeslotNote.textContent = 'Your ingredient order will be held for in-store pickup \u2014 no timeslot needed.';
+      timeslotPicker.insertBefore(timeslotNote, timeslotPicker.querySelector('#timeslot-groups'));
+    }
   }
 
   setupReservationForm();
@@ -737,8 +755,28 @@ function renderReservationItems() {
   container.appendChild(sWrap);
 
   var cWrap = document.createElement('div'); cWrap.className = 'reservation-clear-wrap';
-  var cBtn = document.createElement('button'); cBtn.className = 'btn-secondary reservation-clear-btn'; cBtn.textContent = 'Clear Cart';
-  cBtn.addEventListener('click', function () { if (confirm('Remove all items?')) { saveReservation([], FERMENT_CART_KEY); saveReservation([], INGREDIENT_CART_KEY); renderReservationItems(); refreshReservationDependents(); updateReservationBar(); refreshAllReserveControls(); } });
+  var cBtn = document.createElement('button'); cBtn.className = 'btn-secondary reservation-clear-btn';
+  cBtn.textContent = _isDualCart ? 'Clear Ferment Cart' : 'Clear Cart';
+  cBtn.addEventListener('click', function () {
+    if (_isDualCart) {
+      if (confirm('Remove all ferment items? Your ingredient order will not be affected.')) {
+        saveReservation([], FERMENT_CART_KEY);
+        renderReservationItems();
+        refreshReservationDependents();
+        updateReservationBar();
+        refreshAllReserveControls();
+      }
+    } else {
+      if (confirm('Remove all items?')) {
+        saveReservation([], FERMENT_CART_KEY);
+        saveReservation([], INGREDIENT_CART_KEY);
+        renderReservationItems();
+        refreshReservationDependents();
+        updateReservationBar();
+        refreshAllReserveControls();
+      }
+    }
+  });
   cWrap.appendChild(cBtn); container.appendChild(cWrap);
   window.dispatchEvent(new Event('reservation-changed'));
 }
@@ -750,7 +788,11 @@ function renderReservationItems() {
 function renderDualCartBanner() {
   var banner = document.getElementById('dual-cart-banner');
   if (!banner) return;
-  banner.textContent = 'You have items in 2 orders \u2014 complete both below.';
+  banner.innerHTML = '<div class="dual-cart-banner-intro">You have 2 separate orders \u2014 complete both below.</div>'
+    + '<div class="dual-cart-banner-row">'
+    + '<span class="dual-cart-banner-item"><strong>Ferment Booking</strong> \u2014 timeslot required</span>'
+    + '<span class="dual-cart-banner-item"><strong>Ingredients &amp; Supplies</strong> \u2014 in-store pickup, no timeslot</span>'
+    + '</div>';
   banner.classList.remove('hidden');
 }
 
@@ -848,7 +890,7 @@ function renderCheckoutIngredientSection() {
 
   if (taxTotal > 0) {
     var taxRow = document.createElement('div');
-    taxRow.className = 'reservation-subtotal';
+    taxRow.className = 'reservation-subtotal reservation-subtotal--detail';
     taxRow.innerHTML = '<span>Est. Tax</span><span>' + formatCurrency(taxTotal) + '</span>';
     sWrap.appendChild(taxRow);
   }
@@ -1015,15 +1057,15 @@ function showDualCartConfirmation(results) {
     var ingItems = getReservation(INGREDIENT_CART_KEY);
     var html = '';
     if (fermentItems.length > 0) {
-      html += '<p><strong>Ferment Booking</strong></p>';
+      html += '<div class="confirm-summary-row confirm-summary-section-header"><span><strong>Ferment Booking</strong></span></div>';
       fermentItems.forEach(function (i) {
-        html += '<p>' + (i.name || 'Item') + ' \u00D7' + (i.qty || 1) + '</p>';
+        html += '<div class="confirm-summary-row"><span>' + escapeHTML(i.name || 'Item') + '</span><span>\u00D7' + (i.qty || 1) + '</span></div>';
       });
     }
     if (!results.ingredientFailed && ingItems.length > 0) {
-      html += '<p><strong>Ingredient Order</strong></p>';
+      html += '<div class="confirm-summary-row confirm-summary-section-header"><span><strong>Ingredient Order</strong></span></div>';
       ingItems.forEach(function (i) {
-        html += '<p>' + (i.name || 'Item') + ' \u00D7' + (i.qty || 1) + '</p>';
+        html += '<div class="confirm-summary-row"><span>' + escapeHTML(i.name || 'Item') + '</span><span>\u00D7' + (i.qty || 1) + '</span></div>';
       });
     }
     summaryEl.innerHTML = html;
@@ -1063,6 +1105,13 @@ function showDualCartConfirmation(results) {
     if (confTitle) confTitle.textContent = 'Both Orders Submitted';
     var confText = document.querySelector('[data-content="confirm-text"]');
     if (confText) confText.textContent = "Thank you! Both orders have been received. We\u2019ll be in touch to confirm your ferment appointment and your ingredient order details.";
+    var nextList = document.querySelector('.confirm-next ol');
+    if (nextList) {
+      nextList.innerHTML = '<li>We\'ll confirm your ferment appointment and ingredient order via email</li>'
+        + '<li>Visit us at your scheduled time to start fermentation (~15 min)</li>'
+        + '<li>Pick up your ingredient order at the same visit or separately</li>'
+        + '<li>We\'ll notify you when your batch is ready to bottle</li>';
+    }
   }
 }
 
@@ -1074,6 +1123,46 @@ function setupBeerWaitlistForm() {
     hf.innerHTML = '<input name="entry.YOUR_EMAIL_ENTRY_ID" value="' + em + '">'; document.body.appendChild(hf); hf.submit(); document.body.removeChild(hf);
     f.classList.add('hidden'); document.getElementById('beer-waitlist-confirm').classList.remove('hidden');
   });
+}
+
+function updateDualCartTotalSummary() {
+  if (!_isDualCart) return;
+  var existingRow = document.getElementById('dual-cart-total-summary');
+  var form = document.getElementById('reservation-form');
+  if (!form) return;
+  var submitBtn = form.querySelector('button[type="submit"]');
+  if (!submitBtn) return;
+
+  var fermentItems = getReservation(FERMENT_CART_KEY);
+  var ingredientItems = getReservation(INGREDIENT_CART_KEY);
+  var fermentTotal = 0;
+  fermentItems.forEach(function (i) {
+    var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
+    var d = parseFloat(i.discount) || 0;
+    if (d > 0) p *= (1 - d / 100);
+    var pct = parseFloat(i.tax_percentage) || 0;
+    fermentTotal += p * (i.qty || 1) * (1 + pct / 100);
+  });
+  var ingTotal = 0;
+  ingredientItems.forEach(function (i) {
+    var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
+    var d = parseFloat(i.discount) || 0;
+    if (d > 0) p *= (1 - d / 100);
+    var pct = parseFloat(i.tax_percentage) || 0;
+    ingTotal += p * (i.qty || 1) * (1 + pct / 100);
+  });
+
+  var row = existingRow || document.createElement('div');
+  row.id = 'dual-cart-total-summary';
+  row.className = 'dual-cart-total-summary';
+  row.innerHTML = '<span>Ferment: <strong>' + formatCurrency(fermentTotal) + '</strong></span>'
+    + '<span class="dual-cart-total-summary-sep">&nbsp;&bull;&nbsp;</span>'
+    + '<span>Ingredients: <strong>' + formatCurrency(ingTotal) + '</strong></span>'
+    + '<span class="dual-cart-total-summary-sep">&nbsp;&bull;&nbsp;</span>'
+    + '<span class="dual-cart-total-summary-grand">Combined Total: <strong>' + formatCurrency(fermentTotal + ingTotal) + '</strong></span>';
+  if (!existingRow) {
+    submitBtn.parentNode.insertBefore(row, submitBtn);
+  }
 }
 
 function setupReservationForm() {
@@ -1125,6 +1214,8 @@ function setupReservationForm() {
   window.addEventListener('reservation-changed', updateDepositSummary);
   window.addEventListener('storage', updateDepositSummary);
   setTimeout(updateDepositSummary, 500);
+  window.addEventListener('reservation-changed', updateDualCartTotalSummary);
+  setTimeout(updateDualCartTotalSummary, 600);
 
   f.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -1184,7 +1275,7 @@ function setupReservationForm() {
     var items = _submitCartKey ? getReservation(_submitCartKey) : getAllCartItems();
     var hasK = items.some(function (i) { return (i.item_type || 'kit') === 'kit'; });
     var sel = document.querySelector('input[name="timeslot"]:checked');
-    if (hasK && !sel) { showToast('Select timeslot', 'error'); _checkoutSubmitting = false; return; }
+    if (hasK && !sel) { showToast('Please select a timeslot to continue.', 'error'); _checkoutSubmitting = false; return; }
 
     var sub = f.querySelector('button[type="submit"]');
     var originalBtnText = sub.textContent;
@@ -1291,6 +1382,19 @@ function setupReservationForm() {
             noPayNotice.textContent = 'No payment has been taken \u2014 we\u2019ll contact you to arrange payment.';
           } else {
             noPayNotice.classList.add('hidden');
+          }
+        }
+
+        // Dynamic What's Next for ingredient-only orders
+        var checkoutCartKeyForNext = getActiveCheckoutCart();
+        var isIngredientOnly = checkoutCartKeyForNext === INGREDIENT_CART_KEY ||
+          (!checkoutCartKeyForNext && !items.some(function(i) { return (i.item_type || 'kit') === 'kit'; }));
+        if (isIngredientOnly) {
+          var nextList = document.querySelector('.confirm-next ol');
+          if (nextList) {
+            nextList.innerHTML = '<li>We\'ll confirm your order via email</li>'
+              + '<li>Your items will be held for in-store pickup</li>'
+              + '<li>Visit us at your convenience to collect</li>';
           }
         }
       }).catch(function (err) {

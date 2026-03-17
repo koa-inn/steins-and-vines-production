@@ -150,6 +150,8 @@ function loadTimeslots() {
 }
 
 function updateCompletionEstimate(ts) {
+  var estimateEl = document.getElementById('completion-estimate');
+  if (estimateEl) estimateEl.removeAttribute('data-default-hint');
   var el = document.getElementById('completion-estimate'); var txt = document.getElementById('completion-estimate-text');
   if (!el || !txt) return; var items = getAllCartItems(); if (items.length === 0) { el.classList.add('hidden'); return; }
   var res = calcCompletionRange(items, ts);
