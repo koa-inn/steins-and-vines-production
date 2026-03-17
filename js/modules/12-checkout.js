@@ -884,7 +884,8 @@ function renderCheckoutIngredientSection() {
     var tdPrice = document.createElement('td');
     tdPrice.setAttribute('data-label', 'Price');
     tdPrice.style.textAlign = 'right';
-    tdPrice.textContent = formatCurrency(price);
+    var isWeightedPrice = item.unit && (item.unit.toLowerCase() === 'kg' || item.unit.toLowerCase() === 'g');
+    tdPrice.textContent = formatCurrency(price) + (isWeightedPrice ? '/' + item.unit.toLowerCase() : '');
 
     var tdQty = document.createElement('td');
     tdQty.setAttribute('data-label', 'Qty');
