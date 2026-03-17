@@ -6375,9 +6375,13 @@ function renderReservationItems() {
       }
       emptyMsg.classList.remove('hidden');
     }
-    ['timeslot-picker', 'reservation-form-section'].forEach(function(id) {
-      var el = document.getElementById(id); if (el) el.classList.add('hidden');
-    });
+    // In dual-cart mode only hide the form if the ingredient cart is also empty
+    var ingStillHasItems = _isDualCart && getReservation(INGREDIENT_CART_KEY).length > 0;
+    if (!ingStillHasItems) {
+      ['timeslot-picker', 'reservation-form-section'].forEach(function(id) {
+        var el = document.getElementById(id); if (el) el.classList.add('hidden');
+      });
+    }
     return;
   }
 
@@ -6845,6 +6849,23 @@ function renderReservationItems() {
     }
   });
   cWrap.appendChild(cBtn); container.appendChild(cWrap);
+
+  if (_isDualCart) {
+    var cWrapIng = document.createElement('div'); cWrapIng.className = 'reservation-clear-wrap';
+    var cBtnIng = document.createElement('button'); cBtnIng.className = 'btn-secondary reservation-clear-btn';
+    cBtnIng.textContent = 'Clear Ingredients';
+    cBtnIng.addEventListener('click', function () {
+      if (confirm('Remove all ingredient items? Your ferment reservation will not be affected.')) {
+        saveReservation([], INGREDIENT_CART_KEY);
+        renderCheckoutIngredientSection();
+        refreshReservationDependents();
+        updateReservationBar();
+        refreshAllReserveControls();
+      }
+    });
+    cWrapIng.appendChild(cBtnIng); container.appendChild(cWrapIng);
+  }
+
   window.dispatchEvent(new Event('reservation-changed'));
 }
 
@@ -6879,13 +6900,13 @@ function renderCheckoutIngredientSection() {
   itemsContainer.innerHTML = '';
 
   var table = document.createElement('table');
-  table.className = 'catalog-table reservation-table reservation-table--readonly';
+  table.className = 'catalog-table reservation-table';
   var thead = document.createElement('thead');
   var tr = document.createElement('tr');
-  ['Name', 'Price', 'Qty', 'Subtotal'].forEach(function (label) {
+  ['Name', 'Price', 'Qty', 'Subtotal', ''].forEach(function (label) {
     var th = document.createElement('th');
     th.textContent = label;
-    if (label !== 'Name') th.style.textAlign = 'right';
+    if (label !== 'Name' && label !== '') th.style.textAlign = 'right';
     tr.appendChild(th);
   });
   thead.appendChild(tr);
@@ -6936,21 +6957,106 @@ function renderCheckoutIngredientSection() {
     tdSub.style.textAlign = 'right';
     tdSub.textContent = formatCurrency(lineTotal);
 
+    // Action cell: qty controls + remove button
+    var tdAction = document.createElement('td');
+    tdAction.setAttribute('data-label', '');
+    tdAction.style.textAlign = 'right';
+    tdAction.style.whiteSpace = 'nowrap';
+
+    var isWeighted = item.unit && (item.unit.toLowerCase() === 'kg' || item.unit.toLowerCase() === 'g');
+    if (!isWeighted) {
+      var itemMax = getEffectiveMax(item);
+      var qtyControls = document.createElement('div');
+      qtyControls.className = 'product-qty-controls';
+
+      var minusBtn = document.createElement('button');
+      minusBtn.type = 'button';
+      minusBtn.className = 'qty-btn';
+      minusBtn.textContent = '\u2212';
+      minusBtn.addEventListener('click', (function (itm) {
+        return function () {
+          var current = getReservation(INGREDIENT_CART_KEY);
+          for (var j = 0; j < current.length; j++) {
+            if ((current[j].name + '|' + (current[j].brand || '')) === (itm.name + '|' + (itm.brand || ''))) {
+              current[j].qty = (parseFloat(current[j].qty) || 1) - 1;
+              if (current[j].qty <= 0) { current.splice(j, 1); }
+              break;
+            }
+          }
+          saveReservation(current, INGREDIENT_CART_KEY);
+          renderCheckoutIngredientSection();
+          refreshReservationDependents();
+          updateReservationBar();
+        };
+      })(item));
+
+      var qtySpan = document.createElement('span');
+      qtySpan.className = 'qty-value';
+      qtySpan.textContent = qty;
+
+      var plusBtn = document.createElement('button');
+      plusBtn.type = 'button';
+      plusBtn.textContent = '+';
+      if (qty >= itemMax) {
+        plusBtn.className = 'qty-btn qty-btn--disabled';
+        plusBtn.disabled = true;
+      } else {
+        plusBtn.className = 'qty-btn';
+        plusBtn.addEventListener('click', (function (itm, max) {
+          return function () {
+            var current = getReservation(INGREDIENT_CART_KEY);
+            for (var j = 0; j < current.length; j++) {
+              if ((current[j].name + '|' + (current[j].brand || '')) === (itm.name + '|' + (itm.brand || ''))) {
+                var nq = (parseFloat(current[j].qty) || 1) + 1;
+                if (nq > max) nq = max;
+                current[j].qty = nq;
+                break;
+              }
+            }
+            saveReservation(current, INGREDIENT_CART_KEY);
+            renderCheckoutIngredientSection();
+            refreshReservationDependents();
+            updateReservationBar();
+          };
+        })(item, itemMax));
+      }
+
+      qtyControls.appendChild(minusBtn);
+      qtyControls.appendChild(qtySpan);
+      qtyControls.appendChild(plusBtn);
+      tdAction.appendChild(qtyControls);
+    }
+
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'reservation-item-remove';
+    removeBtn.textContent = '\u00D7';
+    removeBtn.title = 'Remove';
+    removeBtn.addEventListener('click', (function (itm) {
+      return function () {
+        var current = getReservation(INGREDIENT_CART_KEY);
+        var filtered = current.filter(function (r) {
+          return (r.name + '|' + (r.brand || '')) !== (itm.name + '|' + (itm.brand || ''));
+        });
+        saveReservation(filtered, INGREDIENT_CART_KEY);
+        renderCheckoutIngredientSection();
+        refreshReservationDependents();
+        updateReservationBar();
+        refreshAllReserveControls();
+      };
+    })(item));
+    tdAction.appendChild(removeBtn);
+
     row.appendChild(tdName);
     row.appendChild(tdPrice);
     row.appendChild(tdQty);
     row.appendChild(tdSub);
+    row.appendChild(tdAction);
     tbody.appendChild(row);
   });
 
   table.appendChild(tbody);
   itemsContainer.appendChild(table);
-
-  // Read-only hint
-  var roNote = document.createElement('p');
-  roNote.className = 'reservation-table-readonly-note';
-  roNote.textContent = 'To adjust quantities, update your cart before checking out.';
-  itemsContainer.appendChild(roNote);
 
   // Totals summary
   var sWrap = document.createElement('div');
@@ -6996,6 +7102,8 @@ function renderCheckoutIngredientSection() {
   if (ingSubmitBtn) {
     ingSubmitBtn.textContent = 'Complete Both Orders';
   }
+
+  window.dispatchEvent(new Event('reservation-changed'));
 }
 
 function submitDualCart(contactData, recaptchaToken, onDone, onError) {
