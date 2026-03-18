@@ -2581,8 +2581,7 @@ behold-widget {
 
 .reservation-table .product-qty-controls {
   padding: 0;
-  width: auto !important;
-  min-width: 120px !important;
+  width: 120px !important;
 }
 
 .reservation-table .product-qty-controls .qty-btn {
