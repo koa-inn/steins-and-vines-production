@@ -6794,10 +6794,17 @@ function renderReservationItems() {
   if (hasKits) {
     var feeRate = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
     var totalFee = 0;
+    var kitMaterials = 0;
     items.forEach(function (i) {
-      if ((i.item_type || 'kit') === 'kit') { totalFee += feeRate * (parseFloat(i.qty) || 1); }
+      if ((i.item_type || 'kit') === 'kit') {
+        var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
+        var d = parseFloat(i.discount) || 0;
+        if (d > 0) p *= (1 - d / 100);
+        var q = parseFloat(i.qty) || 1;
+        totalFee += feeRate * q;
+        kitMaterials += (p - feeRate) * q;
+      }
     });
-    var kitMaterials = sub - totalFee;
 
     var matRow = document.createElement('div');
     matRow.className = 'reservation-subtotal reservation-subtotal--detail';
@@ -6948,13 +6955,15 @@ function renderCheckoutIngredientSection() {
         var cur = getReservation(INGREDIENT_CART_KEY);
         if (snapped <= 0) {
           cur = cur.filter(function (r) {
+            if (itm.zoho_item_id) return r.zoho_item_id !== itm.zoho_item_id;
             return (r.name + '|' + (r.brand || '')) !== (itm.name + '|' + (itm.brand || ''));
           });
         } else {
           for (var j = 0; j < cur.length; j++) {
-            if ((cur[j].name + '|' + (cur[j].brand || '')) === (itm.name + '|' + (itm.brand || ''))) {
-              cur[j].qty = snapped; break;
-            }
+            var isMatch = itm.zoho_item_id
+              ? cur[j].zoho_item_id === itm.zoho_item_id
+              : (cur[j].name + '|' + (cur[j].brand || '')) === (itm.name + '|' + (itm.brand || ''));
+            if (isMatch) { cur[j].qty = snapped; break; }
           }
         }
         saveReservation(cur, INGREDIENT_CART_KEY);
@@ -7047,6 +7056,7 @@ function renderCheckoutIngredientSection() {
       return function () {
         var current = getReservation(INGREDIENT_CART_KEY);
         var filtered = current.filter(function (r) {
+          if (itm.zoho_item_id) return r.zoho_item_id !== itm.zoho_item_id;
           return (r.name + '|' + (r.brand || '')) !== (itm.name + '|' + (itm.brand || ''));
         });
         saveReservation(filtered, INGREDIENT_CART_KEY);
