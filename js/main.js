@@ -6796,17 +6796,7 @@ function renderReservationItems() {
   itemsSubRow.innerHTML = '<span>' + (hasKits ? 'Items Subtotal' : 'Subtotal') + '</span><span>' + formatCurrency(sub) + '</span>';
   sWrap.appendChild(itemsSubRow);
 
-  // Maker's Fee breakdown row — display-only, fee is included in kit price so not added to total
-  if (hasKits) {
-    var feeRate = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
-    var totalFee = feeRate * totalKitQty;
-    var feeName = (_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee";
-    var feeLabel = (totalKitQty > 1 ? feeName + ' (' + totalKitQty + ' \u00D7 ' + formatCurrency(feeRate) + ')' : feeName) + ' \u2014 included';
-    var feeRow = document.createElement('div');
-    feeRow.className = 'reservation-subtotal reservation-makers-fee reservation-makers-fee--included';
-    feeRow.innerHTML = '<span>' + feeLabel + '</span><span>' + formatCurrency(totalFee) + '</span>';
-    sWrap.appendChild(feeRow);
-  }
+  // Maker's Fee is already shown inline per kit row in the table — not repeated in totals
 
   // Tax breakdown rows
   taxNames.forEach(function (name) {
@@ -6981,10 +6971,13 @@ function renderCheckoutIngredientSection() {
     tdSub.style.textAlign = 'right';
     tdSub.textContent = formatCurrency(lineTotal);
 
-    // Action cell: qty controls + remove button
+    // Action cell: qty controls + remove button (flex row so both stay on one line)
     var tdAction = document.createElement('td');
     tdAction.setAttribute('data-label', '');
-    tdAction.style.textAlign = 'right';
+    tdAction.style.display = 'flex';
+    tdAction.style.alignItems = 'center';
+    tdAction.style.justifyContent = 'flex-end';
+    tdAction.style.gap = '0.5rem';
     tdAction.style.whiteSpace = 'nowrap';
 
     var isWeighted = item.unit && (item.unit.toLowerCase() === 'kg' || item.unit.toLowerCase() === 'g');
