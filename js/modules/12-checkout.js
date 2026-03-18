@@ -838,7 +838,7 @@ function renderCheckoutIngredientSection() {
   ['Name', 'Price', 'Qty', 'Subtotal', ''].forEach(function (label) {
     var th = document.createElement('th');
     th.textContent = label;
-    if (label !== 'Name' && label !== '') th.style.textAlign = 'right';
+    if (label !== 'Name' && label !== '' && label !== 'Qty') th.style.textAlign = 'right';
     if (label === 'Qty') th.className = 'res-col-qty';
     tr.appendChild(th);
   });
