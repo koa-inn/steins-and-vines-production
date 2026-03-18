@@ -366,6 +366,7 @@ function renderReservationItems() {
     var th = document.createElement('th'); th.textContent = label;
     if (label === 'Price') th.style.textAlign = 'right';
     if (label === 'Type') th.className = 'res-col-type';
+    if (label === 'Qty') th.className = 'res-col-qty';
     theadTr.appendChild(th);
   });
   thead.appendChild(theadTr); table.appendChild(thead);
@@ -838,6 +839,7 @@ function renderCheckoutIngredientSection() {
     var th = document.createElement('th');
     th.textContent = label;
     if (label !== 'Name' && label !== '') th.style.textAlign = 'right';
+    if (label === 'Qty') th.className = 'res-col-qty';
     tr.appendChild(th);
   });
   thead.appendChild(tr);
