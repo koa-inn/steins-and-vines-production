@@ -2581,13 +2581,13 @@ behold-widget {
 
 .reservation-table th.res-col-qty,
 .reservation-table td[data-label="Qty"] {
-  width: 140px;
+  width: 150px;
   text-align: center;
 }
 
 .reservation-table .product-qty-controls {
   padding: 0;
-  width: 140px;
+  width: 150px;
 }
 
 .reservation-table .qty-input {
