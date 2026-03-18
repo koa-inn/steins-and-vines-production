@@ -2721,29 +2721,15 @@ behold-widget {
   color: var(--color-muted-dark);
 }
 
-/* Maker's Fee shown as a tax-breakdown row — included in kit price, not an extra charge */
-.order-summary-totals .reservation-makers-fee--included {
-  font-size: 0.9rem;
-  color: var(--color-muted-dark);
-  font-style: italic;
-}
-.fee-included-note {
-  font-size: 0.8em;
-  color: var(--color-muted-dark);
-  font-style: italic;
-}
-
-.makers-fee-row--inline td {
-  color: var(--color-muted-dark);
-  font-style: italic;
+/* Maker's Fee receipt-style breakdown — informational rows indented under Kit Total */
+.order-summary-totals .reservation-subtotal--breakdown {
   font-size: 0.875rem;
-  opacity: 0.8;
-  padding-top: 0.1rem;
-  padding-bottom: 0.35rem;
-  border-bottom: none;
-}
-.makers-fee-row--inline {
-  border-bottom: 1px solid rgba(119, 70, 45, 0.08);
+  color: var(--color-muted-dark);
+  font-weight: 400;
+  font-style: italic;
+  padding-left: 1.5rem;
+  padding-top: 0.15rem;
+  padding-bottom: 0.15rem;
 }
 .cart-sidebar-fee-included {
   font-size: 0.75rem;

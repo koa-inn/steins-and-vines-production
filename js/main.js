@@ -6640,20 +6640,6 @@ function renderReservationItems() {
 
     tbody.appendChild(tr);
 
-    // Maker's Fee — display-only breakdown row (included in kit price, not added to total)
-    if ((item.item_type || 'kit') === 'kit') {
-      var feeRateInline = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
-      var kitQtyInline = parseFloat(item.qty) || 1;
-      var feeTrInline = document.createElement('tr');
-      feeTrInline.className = 'makers-fee-row makers-fee-row--inline';
-      feeTrInline.innerHTML = '<td data-label="Name">' + ((_makersFeeItem && _makersFeeItem.name) || "Maker\'s Fee") + ' <span class="fee-included-note">(incl.)</span></td>'
-        + '<td data-label="Type" class="res-col-type">Service</td>'
-        + (hasBrand ? '<td></td>' : '')
-        + (hasTime ? '<td></td>' : '')
-        + '<td style="text-align:right">' + formatCurrency(feeRateInline) + '</td>'
-        + '<td></td><td>' + kitQtyInline + '</td><td></td>';
-      tbody.appendChild(feeTrInline);
-    }
   });
 
   table.appendChild(tbody);
@@ -6766,14 +6752,14 @@ function renderReservationItems() {
   // --- Totals Summary ---
   // DISPLAY ESTIMATE ONLY — server recomputes authoritative totals at checkout
   var sub = 0; items.forEach(function (i) {
-    var p = parseFloat((i.price || '0').replace('$', '')) || 0;
+    var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
     var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); sub += p * (i.qty || 1);
   });
 
   // Group taxes by name for breakdown display
   var taxGroups = {};
   items.forEach(function (i) {
-    var p = parseFloat((i.price || '0').replace('$', '')) || 0;
+    var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
     var d = parseFloat(i.discount) || 0;
     if (d > 0) p *= (1 - d / 100);
     var pct = parseFloat(i.tax_percentage) || 0;
@@ -6790,7 +6776,13 @@ function renderReservationItems() {
   var sWrap = document.createElement('div');
   sWrap.className = 'order-summary-totals';
 
-  // Subtotal rows — if kits present, break out kit materials vs Maker's Fee
+  // Subtotal row — Kit Total (all-in) shown first, breakdown rows below
+  var itemsSubRow = document.createElement('div');
+  itemsSubRow.className = 'reservation-subtotal';
+  itemsSubRow.innerHTML = '<span>' + (hasKits ? 'Kit Total' : 'Subtotal') + '</span><span>' + formatCurrency(sub) + '</span>';
+  sWrap.appendChild(itemsSubRow);
+
+  // If kits present, show indented breakdown: Maker's Fee (included) + kit supplies
   if (hasKits) {
     var feeRate = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
     var totalFee = 0;
@@ -6805,22 +6797,19 @@ function renderReservationItems() {
         kitMaterials += (p - feeRate) * q;
       }
     });
+    if (kitMaterials < 0) kitMaterials = 0;
+
+    var feeLabelText = (_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee";
+    var feeBreakRow = document.createElement('div');
+    feeBreakRow.className = 'reservation-subtotal reservation-subtotal--breakdown';
+    feeBreakRow.innerHTML = '<span>' + feeLabelText + ' (included)</span><span>' + formatCurrency(totalFee) + '</span>';
+    sWrap.appendChild(feeBreakRow);
 
     var matRow = document.createElement('div');
-    matRow.className = 'reservation-subtotal reservation-subtotal--detail';
-    matRow.innerHTML = '<span>Kit Materials</span><span>' + formatCurrency(kitMaterials) + '</span>';
+    matRow.className = 'reservation-subtotal reservation-subtotal--breakdown';
+    matRow.innerHTML = '<span>Kit supplies</span><span>' + formatCurrency(kitMaterials) + '</span>';
     sWrap.appendChild(matRow);
-
-    var feeBreakRow = document.createElement('div');
-    feeBreakRow.className = 'reservation-subtotal reservation-subtotal--detail';
-    feeBreakRow.innerHTML = '<span>' + ((_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : 'Maker\'s Fee') + '</span><span>' + formatCurrency(totalFee) + '</span>';
-    sWrap.appendChild(feeBreakRow);
   }
-
-  var itemsSubRow = document.createElement('div');
-  itemsSubRow.className = 'reservation-subtotal';
-  itemsSubRow.innerHTML = '<span>' + (hasKits ? 'Items Subtotal' : 'Subtotal') + '</span><span>' + formatCurrency(sub) + '</span>';
-  sWrap.appendChild(itemsSubRow);
 
   // Tax breakdown rows
   taxNames.forEach(function (name) {
@@ -7115,6 +7104,9 @@ function renderCheckoutIngredientSection() {
     var pct = parseFloat(i.tax_percentage) || 0;
     fermentTotal += p * (i.qty || 1) * (1 + pct / 100);
   });
+  if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem && _millingServiceItem.rate) {
+    fermentTotal += parseFloat(_millingServiceItem.rate) || 0;
+  }
   var combinedTotal = fermentTotal + subtotal + taxTotal;
   var grandWrap = document.createElement('div');
   grandWrap.className = 'dual-cart-grand-total';
