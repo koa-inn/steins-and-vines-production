@@ -2579,13 +2579,14 @@ behold-widget {
   margin: 0 auto;
 }
 
-.reservation-table .product-qty-controls {
-  padding: 0;
-  width: 120px !important;
+.reservation-table th.res-col-qty,
+.reservation-table td[data-label="Qty"] {
+  width: 120px;
 }
 
-.reservation-table th.res-col-qty {
-  min-width: 120px;
+.reservation-table .product-qty-controls {
+  padding: 0;
+  width: 100%;
 }
 
 .reservation-table .product-qty-controls .qty-btn {
