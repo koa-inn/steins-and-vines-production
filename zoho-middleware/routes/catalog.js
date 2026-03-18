@@ -833,7 +833,10 @@ router.get('/api/snapshot', function (req, res) {
       stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
       description:    z.description || '',
       discount:       z.discount != null ? String(z.discount) : '0',
-      _zoho_category: z.category_name || ''
+      _zoho_category: z.category_name || '',
+      tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0,
+      tax_name:       z.tax_name || '',
+      tax_id:         z.tax_id  || ''
     };
     flattenCF(z.custom_fields, obj);
     if (z.rate != null) {
@@ -855,7 +858,10 @@ router.get('/api/snapshot', function (req, res) {
       category:       z.category_name || '',
       low_amount:     '',
       high_amount:    '',
-      step:           ''
+      step:           '',
+      tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0,
+      tax_name:       z.tax_name || '',
+      tax_id:         z.tax_id  || ''
     };
     flattenCF(z.custom_fields, obj);
     return obj;
@@ -863,13 +869,16 @@ router.get('/api/snapshot', function (req, res) {
 
   function shapeService(z) {
     return {
-      name:        z.name || '',
-      item_id:     z.item_id || '',
-      price:       z.rate != null ? String(z.rate) : '',
-      description: z.description || '',
-      sku:         z.sku || '',
-      stock:       z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
-      discount:    z.discount != null ? String(z.discount) : '0'
+      name:           z.name || '',
+      item_id:        z.item_id || '',
+      price:          z.rate != null ? String(z.rate) : '',
+      description:    z.description || '',
+      sku:            z.sku || '',
+      stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
+      discount:       z.discount != null ? String(z.discount) : '0',
+      tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0,
+      tax_name:       z.tax_name || '',
+      tax_id:         z.tax_id  || ''
     };
   }
 
