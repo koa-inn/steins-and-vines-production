@@ -164,8 +164,12 @@ function doRefreshProducts() {
             item.image_name = detail.image_name || '';
             item.tax_id = detail.tax_id || '';
             item.tax_name = detail.tax_name || '';
-            item.tax_percentage = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
-              ? detail.tax_percentage : 0;
+            var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
+              ? parseFloat(detail.tax_percentage) : 0;
+            if (!_pct && detail.taxes && detail.taxes.length) {
+              _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
+            }
+            item.tax_percentage = _pct;
             item.vendor_id = detail.vendor_id || '';
             item.vendor_name = detail.vendor_name || '';
             return item;
@@ -475,8 +479,12 @@ router.get('/api/services', function (req, res) {
                   var detail = data.item || {};
                   item.tax_id = detail.tax_id || '';
                   item.tax_name = detail.tax_name || '';
-                  item.tax_percentage = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
-                    ? detail.tax_percentage : 0;
+                  var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
+                    ? parseFloat(detail.tax_percentage) : 0;
+                  if (!_pct && detail.taxes && detail.taxes.length) {
+                    _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
+                  }
+                  item.tax_percentage = _pct;
                 })
                 .catch(function (err) {
                   log.warn('[api/services] Detail fetch failed for ' + item.name + ': ' + err.message);
@@ -561,8 +569,12 @@ function doRefreshIngredients() {
             item.brand = detail.brand || '';
             item.tax_id = detail.tax_id || '';
             item.tax_name = detail.tax_name || '';
-            item.tax_percentage = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
-              ? detail.tax_percentage : 0;
+            var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
+              ? parseFloat(detail.tax_percentage) : 0;
+            if (!_pct && detail.taxes && detail.taxes.length) {
+              _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
+            }
+            item.tax_percentage = _pct;
             return item;
           })
           .catch(function (err) {
