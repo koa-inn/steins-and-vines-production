@@ -1021,6 +1021,31 @@ router.post('/api/admin/upload-catalog', function (req, res) {
   });
 });
 
+/**
+ * POST /api/admin/cache-clear
+ * Delete all catalog cache keys and trigger immediate re-fetch from Zoho.
+ * Auth: X-API-Key header required (enforced by server.js /api middleware).
+ */
+router.post('/api/admin/cache-clear', function (req, res) {
+  var keys = [
+    PRODUCTS_CACHE_KEY,
+    PRODUCTS_CACHE_TS_KEY,
+    INGREDIENTS_CACHE_KEY,
+    INGREDIENTS_CACHE_TS_KEY,
+    SERVICES_CACHE_KEY
+  ];
+  Promise.all(keys.map(function (k) { return cache.del(k).catch(function () {}); }))
+    .then(function () {
+      log.info('[admin/cache-clear] Catalog cache cleared. Triggering refresh...');
+      refreshProducts().catch(function (e) { log.warn('[admin/cache-clear] products refresh error: ' + e.message); });
+      doRefreshIngredients().catch(function (e) { log.warn('[admin/cache-clear] ingredients refresh error: ' + e.message); });
+      res.json({ ok: true, cleared: keys });
+    })
+    .catch(function (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    });
+});
+
 // Expose refresh functions so server.js can call them for pre-warming
 router.refreshProducts = refreshProducts;
 router.refreshIngredients = doRefreshIngredients;
