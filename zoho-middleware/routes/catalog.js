@@ -1034,6 +1034,10 @@ router.post('/api/admin/cache-clear', function (req, res) {
     INGREDIENTS_CACHE_TS_KEY,
     SERVICES_CACHE_KEY
   ];
+  // Also delete file caches so stale file data doesn't re-populate Redis
+  [PRODUCTS_FILE_CACHE, INGREDIENTS_FILE_CACHE].forEach(function (f) {
+    try { fs.unlinkSync(f); } catch (e) {}
+  });
   Promise.all(keys.map(function (k) { return cache.del(k).catch(function () {}); }))
     .then(function () {
       log.info('[admin/cache-clear] Catalog cache cleared. Triggering refresh...');
