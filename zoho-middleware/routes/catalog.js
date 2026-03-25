@@ -1040,10 +1040,19 @@ router.post('/api/admin/cache-clear', function (req, res) {
   });
   Promise.all(keys.map(function (k) { return cache.del(k).catch(function () {}); }))
     .then(function () {
-      log.info('[admin/cache-clear] Catalog cache cleared. Triggering refresh...');
-      refreshProducts().catch(function (e) { log.warn('[admin/cache-clear] products refresh error: ' + e.message); });
+      log.info('[admin/cache-clear] Catalog cache cleared. Running synchronous refresh...');
+      return refreshProducts();
+    })
+    .then(function (enriched) {
+      var count = enriched ? enriched.length : 0;
+      var sample = enriched && enriched[0] ? {
+        name: enriched[0].name,
+        tax_id: enriched[0].tax_id,
+        tax_name: enriched[0].tax_name,
+        tax_percentage: enriched[0].tax_percentage
+      } : null;
       doRefreshIngredients().catch(function (e) { log.warn('[admin/cache-clear] ingredients refresh error: ' + e.message); });
-      res.json({ ok: true, cleared: keys });
+      res.json({ ok: true, cleared: keys, products_fetched: count, sample: sample });
     })
     .catch(function (err) {
       res.status(500).json({ ok: false, error: err.message });
