@@ -97,6 +97,23 @@ var _productsRefreshing = false; // in-process guard (Redis-down fallback)
 var _ingredientsRefreshPromise = null; // coalesces concurrent cold-cache requests
 
 // ---------------------------------------------------------------------------
+// Tax rule lookup
+// ---------------------------------------------------------------------------
+// Zoho items may have sales_tax_rule_id set (the Sales Tax Rule from the UI)
+// even when tax_id points to "Zero Rate" — the rule carries the real rate.
+// Uses the same env var defaults as routes/taxes.js.
+var _TAX_RULE_PCT = {};
+_TAX_RULE_PCT[process.env.ZOHO_TAX_STANDARD_RULE || '109900000000033423'] = 12;  // GST + PST - Standard
+_TAX_RULE_PCT[process.env.ZOHO_TAX_ZERO_RULE     || '109900000000033411'] = 0;   // Zero Rated - Ingredients
+_TAX_RULE_PCT[process.env.ZOHO_TAX_SERVICES_RULE || '109900000000033417'] = 5;   // GST Only - Services
+_TAX_RULE_PCT[process.env.ZOHO_TAX_LIQUOR_RULE   || '109900000000033429'] = 15;  // GST + PST Liquor
+var _TAX_RULE_NAME = {};
+_TAX_RULE_NAME[process.env.ZOHO_TAX_STANDARD_RULE || '109900000000033423'] = 'GST + PST';
+_TAX_RULE_NAME[process.env.ZOHO_TAX_ZERO_RULE     || '109900000000033411'] = 'Zero Rated';
+_TAX_RULE_NAME[process.env.ZOHO_TAX_SERVICES_RULE || '109900000000033417'] = 'GST';
+_TAX_RULE_NAME[process.env.ZOHO_TAX_LIQUOR_RULE   || '109900000000033429'] = 'GST + PST Liquor';
+
+// ---------------------------------------------------------------------------
 // Product refresh logic
 // ---------------------------------------------------------------------------
 
@@ -168,6 +185,12 @@ function doRefreshProducts() {
               ? parseFloat(detail.tax_percentage) : 0;
             if (!_pct && detail.taxes && detail.taxes.length) {
               _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
+            }
+            // Fallback: derive rate from the Sales Tax Rule if tax_id returned 0%
+            item.sales_tax_rule_id = detail.sales_tax_rule_id || '';
+            if (!_pct && item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
+              _pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
+              item.tax_name = _TAX_RULE_NAME[item.sales_tax_rule_id] || item.tax_name;
             }
             item.tax_percentage = _pct;
             item.vendor_id = detail.vendor_id || '';
@@ -484,6 +507,12 @@ router.get('/api/services', function (req, res) {
                   if (!_pct && detail.taxes && detail.taxes.length) {
                     _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
                   }
+                  // Fallback: derive rate from the Sales Tax Rule if tax_id returned 0%
+                  item.sales_tax_rule_id = detail.sales_tax_rule_id || '';
+                  if (!_pct && item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
+                    _pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
+                    item.tax_name = _TAX_RULE_NAME[item.sales_tax_rule_id] || item.tax_name;
+                  }
                   item.tax_percentage = _pct;
                 })
                 .catch(function (err) {
@@ -573,6 +602,12 @@ function doRefreshIngredients() {
               ? parseFloat(detail.tax_percentage) : 0;
             if (!_pct && detail.taxes && detail.taxes.length) {
               _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
+            }
+            // Fallback: derive rate from the Sales Tax Rule if tax_id returned 0%
+            item.sales_tax_rule_id = detail.sales_tax_rule_id || '';
+            if (!_pct && item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
+              _pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
+              item.tax_name = _TAX_RULE_NAME[item.sales_tax_rule_id] || item.tax_name;
             }
             item.tax_percentage = _pct;
             return item;
@@ -1038,10 +1073,16 @@ router.post('/api/admin/cache-clear', function (req, res) {
   [PRODUCTS_FILE_CACHE, INGREDIENTS_FILE_CACHE].forEach(function (f) {
     try { fs.unlinkSync(f); } catch (e) {}
   });
+  // Reset in-memory rate-limit cooldowns so the refresh isn't blocked
+  _productsCooldownUntil = 0;
+  _rawItemsCache = null;
+  _rawItemsCooldownUntil = 0;
   Promise.all(keys.map(function (k) { return cache.del(k).catch(function () {}); }))
     .then(function () {
-      log.info('[admin/cache-clear] Catalog cache cleared. Running synchronous refresh...');
-      return refreshProducts();
+      log.info('[admin/cache-clear] Catalog cache cleared. Running fresh product refresh...');
+      // Call doRefreshProducts() directly to bypass _productsRefreshing guard,
+      // which may be set if a startup pre-warm is still running.
+      return doRefreshProducts();
     })
     .then(function (enriched) {
       var count = enriched ? enriched.length : 0;
@@ -1050,8 +1091,6 @@ router.post('/api/admin/cache-clear', function (req, res) {
         tax_id: enriched[0].tax_id,
         tax_name: enriched[0].tax_name,
         tax_percentage: enriched[0].tax_percentage,
-        purchase_tax_rule_id: enriched[0].purchase_tax_rule_id,
-        tax_rule_id: enriched[0].tax_rule_id,
         sales_tax_rule_id: enriched[0].sales_tax_rule_id
       } : null;
       doRefreshIngredients().catch(function (e) { log.warn('[admin/cache-clear] ingredients refresh error: ' + e.message); });
