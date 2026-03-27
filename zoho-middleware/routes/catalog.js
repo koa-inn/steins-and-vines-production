@@ -1049,7 +1049,10 @@ router.post('/api/admin/cache-clear', function (req, res) {
         name: enriched[0].name,
         tax_id: enriched[0].tax_id,
         tax_name: enriched[0].tax_name,
-        tax_percentage: enriched[0].tax_percentage
+        tax_percentage: enriched[0].tax_percentage,
+        purchase_tax_rule_id: enriched[0].purchase_tax_rule_id,
+        tax_rule_id: enriched[0].tax_rule_id,
+        sales_tax_rule_id: enriched[0].sales_tax_rule_id
       } : null;
       doRefreshIngredients().catch(function (e) { log.warn('[admin/cache-clear] ingredients refresh error: ' + e.message); });
       res.json({ ok: true, cleared: keys, products_fetched: count, sample: sample });
