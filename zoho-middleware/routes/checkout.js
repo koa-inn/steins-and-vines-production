@@ -179,6 +179,26 @@ function buildLineItems(items, catalogMap, catalogAvailable) {
   return { lineItems: lineItems, orderTotal: orderTotal };
 }
 
+/**
+ * Find the Maker's Fee item in the services catalog.
+ * Searches by MAKERS_FEE_ITEM_ID env var first, then by SKU 'MAKERS-FEE', then by name.
+ * @param {Array}  services        - Services catalog array from cache or snapshot
+ * @param {string} makersFeeItemId - Value of MAKERS_FEE_ITEM_ID env var (may be empty string)
+ * @returns {object|null} The matching service item, or null if not found
+ */
+function findMakersFeeItem(services, makersFeeItemId) {
+  if (!Array.isArray(services)) return null;
+  for (var i = 0; i < services.length; i++) {
+    var s = services[i];
+    if (!s) continue;
+    if (makersFeeItemId && s.item_id === makersFeeItemId) return s;
+    var sku = (s.sku || '').toUpperCase();
+    var name = (s.name || '').toLowerCase();
+    if (sku === 'MAKERS-FEE' || name.indexOf('makers fee') !== -1 || name.indexOf("maker's fee") !== -1) return s;
+  }
+  return null;
+}
+
 var router = express.Router();
 
 /**
@@ -482,32 +502,45 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       }
     }
 
+    // Resolve the Maker's Fee item now — needed for both stripping and injection below.
+    var MAKERS_FEE_ITEM_ID = process.env.MAKERS_FEE_ITEM_ID || '';
+    var makersFeeItem = findMakersFeeItem(services, MAKERS_FEE_ITEM_ID);
+
+    // Strip any client-submitted Maker's Fee entries before building line items.
+    // The server always injects the fee server-side; if the client also submitted it,
+    // both entries would reach Zoho causing double-billing.
+    var checkoutItems = makersFeeItem
+      ? body.items.filter(function (i) { return i.item_id !== makersFeeItem.item_id; })
+      : body.items;
+
     // --- Build line items from authoritative catalog prices only ---
-    var built = buildLineItems(body.items, catalogMap, true);
+    var built = buildLineItems(checkoutItems, catalogMap, true);
     var lineItems = built.lineItems;
     var orderTotal = built.orderTotal;
 
-    // Fix 2: Makers Fee presence enforcement
-    // The Makers Fee is a service item identified by MAKERS_FEE_ITEM_ID env var
-    // (or by name containing "maker" when the env var is not configured).
-    // If kit items are present in the order but no Makers Fee, reject as possible tampering.
-    var MAKERS_FEE_ITEM_ID = process.env.MAKERS_FEE_ITEM_ID || '';
-    var kitItemCount = 0;
-    var hasMakersFee = false;
-    for (var mfk = 0; mfk < body.items.length; mfk++) {
-      var mfItem = body.items[mfk];
-      // Kit items: items that are in the products catalog but not the services catalog
-      // (services catalog holds Makers Fee, milling, etc.)
-      var isService = services && Array.isArray(services) &&
-        services.some(function (s) { return s && s.item_id === mfItem.item_id; });
-      if (!isService) kitItemCount++;
-      // Identify Makers Fee by explicit item_id env var, or by name substring
-      if (MAKERS_FEE_ITEM_ID && mfItem.item_id === MAKERS_FEE_ITEM_ID) hasMakersFee = true;
-      if (mfItem.name && mfItem.name.toLowerCase().indexOf('maker') !== -1) hasMakersFee = true;
+    // Server-side Maker's Fee injection.
+    // Count total kit quantity (non-service items from the stripped list), then inject
+    // the fee as an authoritative line item so the Zoho invoice always reflects it.
+    var kitQtyTotal = 0;
+    for (var kqi = 0; kqi < checkoutItems.length; kqi++) {
+      var kqiItem = checkoutItems[kqi];
+      var kqiIsService = Array.isArray(services) &&
+        services.some(function (s) { return s && s.item_id === kqiItem.item_id; });
+      if (!kqiIsService) kitQtyTotal += (Number(kqiItem.quantity) || 1);
     }
-    if (kitItemCount > 0 && !hasMakersFee) {
-      log.warn('[checkout] Kit items present but Makers Fee missing from payload — possible tampering');
-      return res.status(400).json({ error: 'Order validation failed. Please refresh and try again.' });
+    if (kitQtyTotal > 0) {
+      if (!makersFeeItem) {
+        log.error('[checkout] Maker\'s Fee item not found in services catalog — check MAKERS_FEE_ITEM_ID env var');
+        return res.status(503).json({ error: 'Order configuration error. Please contact us.' });
+      }
+      lineItems.push({
+        item_id: makersFeeItem.item_id,
+        name: makersFeeItem.name || "Maker's Fee",
+        quantity: kitQtyTotal,
+        rate: makersFeeItem.rate
+      });
+      orderTotal = Math.round((orderTotal + makersFeeItem.rate * kitQtyTotal) * 100) / 100;
+      log.info('[checkout] Injected Maker\'s Fee: qty=' + kitQtyTotal + ' rate=' + makersFeeItem.rate + ' item_id=' + makersFeeItem.item_id);
     }
 
     var balanceDue = Math.max(0, orderTotal - depositAmount);
@@ -845,23 +878,22 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       }
     }
 
-    // Makers Fee pre-check
-    var MAKERS_FEE_ITEM_ID = process.env.MAKERS_FEE_ITEM_ID || '';
-    var preKitCount = 0;
-    var preHasMakers = false;
-    for (var mi = 0; mi < body.items.length; mi++) {
-      var mItem = body.items[mi];
-      var isService = Array.isArray(preServices) && preServices.some(function (s) { return s && s.item_id === mItem.item_id; });
-      if (!isService) preKitCount++;
-      if (MAKERS_FEE_ITEM_ID && mItem.item_id === MAKERS_FEE_ITEM_ID) preHasMakers = true;
-      if (mItem.name && mItem.name.toLowerCase().indexOf('maker') !== -1) preHasMakers = true;
+    // Pre-validate Maker's Fee item exists in services catalog before charging.
+    // If it's missing, void the transaction and return 503 now — before runCheckout()
+    // runs — so the early-return path in runCheckout never fires after a charge.
+    var MAKERS_FEE_ITEM_ID_PRE = process.env.MAKERS_FEE_ITEM_ID || '';
+    var preKitQty = 0;
+    for (var pkq = 0; pkq < body.items.length; pkq++) {
+      var pkqItem = body.items[pkq];
+      var pkqIsService = Array.isArray(preServices) && preServices.some(function (s) { return s && s.item_id === pkqItem.item_id; });
+      if (!pkqIsService) preKitQty += (Number(pkqItem.quantity) || 1);
     }
-    if (preKitCount > 0 && !preHasMakers) {
-      log.warn('[checkout/pre-validate] Makers Fee missing — voiding txn=' + transactionId);
+    if (preKitQty > 0 && !findMakersFeeItem(preServices, MAKERS_FEE_ITEM_ID_PRE)) {
+      log.error('[checkout/pre-validate] Maker\'s Fee item not found in services catalog — voiding txn=' + transactionId);
       helcimLib.voidTransaction(transactionId).catch(function (vErr) {
-        log.error('[checkout/pre-validate] Void after missing Makers Fee failed: ' + vErr.message);
+        log.error('[checkout/pre-validate] Void after missing Maker\'s Fee failed: ' + vErr.message);
       });
-      return res.status(400).json({ error: 'Order validation failed. Please refresh and try again.' });
+      return res.status(503).json({ error: 'Order configuration error. Please contact us.' });
     }
 
     eventLog.logEvent('checkout.cart_validated', {
@@ -877,3 +909,4 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
 module.exports = router;
 module.exports.verifyRecaptcha = verifyRecaptcha;
 module.exports.buildLineItems = buildLineItems;
+module.exports.findMakersFeeItem = findMakersFeeItem;

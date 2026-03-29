@@ -37,6 +37,7 @@ var https = require('https');
 var checkout = require('../routes/checkout');
 var verifyRecaptcha = checkout.verifyRecaptcha;
 var buildLineItems = checkout.buildLineItems;
+var findMakersFeeItem = checkout.findMakersFeeItem;
 
 // ---------------------------------------------------------------------------
 // HTTPS mock helpers (same pattern as zohoAuth tests)
@@ -255,5 +256,66 @@ describe('buildLineItems', () => {
     var items = [{ item_id: 'k', name: 'Kit', quantity: 1, rate: 80, discount: 25 }];
     var result = buildLineItems(items, catalogMap, true);
     expect(result.orderTotal).toBe(60);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findMakersFeeItem
+// ---------------------------------------------------------------------------
+describe('findMakersFeeItem', () => {
+  var services = [
+    { item_id: '111', name: 'Milling Fee', sku: 'MILLED', rate: 10 },
+    { item_id: '222', name: 'Makers Fee', sku: 'MAKERS-FEE', rate: 50 },
+    { item_id: '333', name: 'Wine Carbonation', sku: 'CARB-WINE', rate: 35 }
+  ];
+
+  test('finds by explicit item_id match (MAKERS_FEE_ITEM_ID env var)', () => {
+    expect(findMakersFeeItem(services, '222')).toEqual(services[1]);
+  });
+
+  test('item_id match takes priority — returns first match by id regardless of SKU', () => {
+    // item_id '111' is Milling, not Maker's Fee — but explicit id wins
+    expect(findMakersFeeItem(services, '111')).toEqual(services[0]);
+  });
+
+  test('finds by SKU MAKERS-FEE when item_id env var is empty', () => {
+    expect(findMakersFeeItem(services, '')).toEqual(services[1]);
+  });
+
+  test('finds by name containing "makers fee" (case-insensitive)', () => {
+    var svcs = [{ item_id: '99', name: 'Makers Fee Service', sku: 'OTHER', rate: 50 }];
+    expect(findMakersFeeItem(svcs, '')).toEqual(svcs[0]);
+  });
+
+  test('finds by name containing "maker\'s fee" (apostrophe variant)', () => {
+    var svcs = [{ item_id: '88', name: "Maker's Fee", sku: 'OTHER', rate: 50 }];
+    expect(findMakersFeeItem(svcs, '')).toEqual(svcs[0]);
+  });
+
+  test('returns null when no match found', () => {
+    var svcs = [{ item_id: '1', name: 'Milling', sku: 'MILL', rate: 10 }];
+    expect(findMakersFeeItem(svcs, '')).toBeNull();
+  });
+
+  test('returns null for empty services array', () => {
+    expect(findMakersFeeItem([], '222')).toBeNull();
+  });
+
+  test('returns null for null services', () => {
+    expect(findMakersFeeItem(null, '')).toBeNull();
+  });
+
+  test('returns null for non-array services', () => {
+    expect(findMakersFeeItem('not-an-array', '')).toBeNull();
+  });
+
+  test('skips null entries in services array gracefully', () => {
+    var svcs = [null, { item_id: '222', name: 'Makers Fee', sku: 'MAKERS-FEE', rate: 50 }];
+    expect(findMakersFeeItem(svcs, '')).toEqual(svcs[1]);
+  });
+
+  test('falls through to SKU match when item_id env var does not match', () => {
+    // '999' does not match any item_id, so SKU 'MAKERS-FEE' match fires instead
+    expect(findMakersFeeItem(services, '999')).toEqual(services[1]);
   });
 });
