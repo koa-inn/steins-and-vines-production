@@ -6801,6 +6801,22 @@ function renderReservationItems() {
       taxGroups[name] += p * (i.qty || 1) * (pct / 100);
     }
   });
+  // Add Maker's Fee GST (fee is not a cart item — read from _makersFeeItem)
+  if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
+    var mfTaxPct = parseFloat(_makersFeeItem.tax_percentage);
+    var mfRate = parseFloat(_makersFeeItem.rate) || 50;
+    var mfKitQty = 0;
+    items.forEach(function (i) {
+      if ((i.item_type || 'kit') === 'kit') mfKitQty += (parseFloat(i.qty) || 1);
+    });
+    var mfTaxAmt = Math.round(mfRate * mfKitQty * (mfTaxPct / 100) * 100) / 100;
+    if (mfTaxAmt > 0) {
+      var mfTaxLabel = (_makersFeeItem.tax_name && _makersFeeItem.tax_name.trim())
+        ? _makersFeeItem.tax_name.trim() : 'GST';
+      if (!taxGroups[mfTaxLabel]) taxGroups[mfTaxLabel] = 0;
+      taxGroups[mfTaxLabel] += mfTaxAmt;
+    }
+  }
   var taxTotal = 0;
   var taxNames = Object.keys(taxGroups);
   taxNames.forEach(function (n) { taxTotal += taxGroups[n]; });
