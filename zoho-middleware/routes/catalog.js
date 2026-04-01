@@ -10,6 +10,7 @@ var ledger = require('../lib/inventory-ledger');
 
 var inventoryGet = zohoApi.inventoryGet;
 var fetchAllItems = zohoApi.fetchAllItems;
+var fetchItemDetailsBulk = zohoApi.fetchItemDetailsBulk;
 
 // ---------------------------------------------------------------------------
 // Shared raw items cache
@@ -163,19 +164,14 @@ function doRefreshProducts() {
         return true;
       });
 
-      log.info('[api/products] Enriching ' + items.length + ' items (parallel batches of 5)');
+      log.info('[api/products] Enriching ' + items.length + ' items via bulk detail fetch');
 
-      var BATCH_SIZE = 5;
-      var BATCH_PAUSE = 3500; // ms between batches (~85 req/min)
-      var MAX_RETRIES = 2;
-      var enriched = [];
+      var itemIds = items.map(function (item) { return item.item_id; });
 
-      function delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-
-      function fetchDetail(item, retries) {
-        return inventoryGet('/items/' + item.item_id)
-          .then(function (data) {
-            var detail = data.item || {};
+      return fetchItemDetailsBulk(itemIds)
+        .then(function (detailMap) {
+          items.forEach(function (item) {
+            var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
             item.brand = detail.brand || '';
             item.image_name = detail.image_name || '';
@@ -186,7 +182,6 @@ function doRefreshProducts() {
             if (!_pct && detail.taxes && detail.taxes.length) {
               _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
             }
-            // Fallback: derive rate from the Sales Tax Rule if tax_id returned 0%
             item.sales_tax_rule_id = detail.sales_tax_rule_id || '';
             if (!_pct && item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
               _pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
@@ -195,157 +190,121 @@ function doRefreshProducts() {
             item.tax_percentage = _pct;
             item.vendor_id = detail.vendor_id || '';
             item.vendor_name = detail.vendor_name || '';
-            return item;
-          })
-          .catch(function (err) {
-            if (err.response && err.response.status === 429 && retries < MAX_RETRIES) {
-              var backoff = Math.pow(2, retries + 1) * 1000;
-              log.warn('[api/products] Rate limited on ' + item.name + ', retrying in ' + backoff + 'ms');
-              return delay(backoff).then(function () { return fetchDetail(item, retries + 1); });
+          });
+          var enriched = items;
+
+          // Build snapshot lookup (item_id → snapshot entry) as a fallback for items
+          // whose Zoho custom fields have not been populated yet.
+          var snapshotLookup = {};
+          try {
+            var snapRaw = JSON.parse(fs.readFileSync(
+              path.join(__dirname, '..', '..', 'content', 'zoho-snapshot.json'), 'utf8'));
+            (snapRaw.products || []).forEach(function (p) {
+              if (p.item_id) snapshotLookup[p.item_id] = p;
+            });
+            log.info('[api/products] Loaded ' + Object.keys(snapshotLookup).length + ' snapshot entries for CF fallback');
+          } catch (e) {
+            log.warn('[api/products] Could not load snapshot for CF fallback: ' + e.message);
+          }
+
+          // Kit items are identified by their Type CF matching a KIT_CATEGORY exactly.
+          // When the CF is absent or not set in Zoho, the snapshot entry is used as a
+          // fallback so items populate correctly even before all Zoho CFs are filled in.
+          enriched = enriched.filter(function (item) {
+            var snap = snapshotLookup[item.item_id];
+            var typeCF = (item.custom_fields || []).find(function (cf) {
+              return cf.label === 'Type' && cf.value;
+            });
+            var typeVal = typeCF
+              ? typeCF.value.toLowerCase()
+              : (snap && snap.type ? snap.type.toLowerCase() : '');
+
+            if (!typeVal) {
+              log.info('[api/products] Excluding item with no type: ' + item.name);
+              return false;
             }
-            log.error('[api/products] Detail fetch failed for ' + item.name + ': ' + err.message);
-            item.custom_fields = [];
-            item.brand = item.brand || '';
-            item.tax_id = item.tax_id || '';
-            item.tax_name = item.tax_name || '';
-            item.tax_percentage = (item.tax_percentage !== undefined && item.tax_percentage !== null)
-              ? item.tax_percentage : 0;
-            return item;
+            if (!KIT_CATEGORIES.some(function (kc) { return typeVal === kc; })) {
+              log.info('[api/products] Excluding non-kit item: ' + item.name + ' (type: ' + typeVal + ')');
+              return false;
+            }
+            // Backfill snapshot fields onto items where Zoho CFs are not yet set
+            if (!typeCF && snap) {
+              item.type = snap.type;
+              item.subcategory = item.subcategory || snap.subcategory || '';
+              item.tasting_notes = item.tasting_notes || snap.tasting_notes || '';
+              item.favorite = item.favorite || snap.favorite || 'false';
+              item.abv = item.abv || snap.abv || '';
+              item.time = item.time || snap.time || '';
+              item.millable = item.millable || snap.millable || 'false';
+              item.discount = item.discount || snap.discount || '0';
+              item.retail_kit = item.retail_kit || snap.retail_kit || '';
+              item.retail_instore = item.retail_instore || snap.retail_instore || '';
+            }
+            return true;
           });
-      }
+          _kitItemIds = {};
+          enriched.forEach(function (item) { _kitItemIds[item.item_id] = true; });
+          // Bust the ingredients cache so it rebuilds without these items in _kitItemIds
+          cache.del(INGREDIENTS_CACHE_KEY);
+          cache.set(PRODUCTS_CACHE_KEY, enriched, PRODUCTS_CACHE_TTL);
+          cache.set(PRODUCTS_CACHE_TS_KEY, Date.now(), PRODUCTS_CACHE_TTL);
+          log.info('[api/products] Cached ' + enriched.length + ' kit items');
 
-      // Process items in parallel batches
-      var batches = [];
-      for (var i = 0; i < items.length; i += BATCH_SIZE) {
-        batches.push(items.slice(i, i + BATCH_SIZE));
-      }
-
-      var chain = Promise.resolve();
-      batches.forEach(function (batch, idx) {
-        chain = chain.then(function () {
-          return Promise.all(batch.map(function (item) {
-            return fetchDetail(item, 0);
-          })).then(function (results) {
-            results.forEach(function (r) { enriched.push(r); });
-            // Pause between batches (skip after last batch)
-            if (idx < batches.length - 1) return delay(BATCH_PAUSE);
+          // Reconcile inventory ledger with fresh Zoho stock counts
+          ledger.reconcile(enriched).catch(function (err) {
+            log.error('[api/products] Inventory ledger reconcile failed: ' + err.message);
           });
-        });
-      });
 
-      return chain.then(function () {
-        // Build snapshot lookup (item_id → snapshot entry) as a fallback for items
-        // whose Zoho custom fields have not been populated yet.
-        var snapshotLookup = {};
-        try {
-          var snapRaw = JSON.parse(fs.readFileSync(
-            path.join(__dirname, '..', '..', 'content', 'zoho-snapshot.json'), 'utf8'));
-          (snapRaw.products || []).forEach(function (p) {
-            if (p.item_id) snapshotLookup[p.item_id] = p;
+          // Write file fallback (async, fire-and-forget)
+          fs.writeFile(PRODUCTS_FILE_CACHE, JSON.stringify(enriched), function (fileErr) {
+            if (fileErr) {
+              log.error('[api/products] File fallback write failed: ' + fileErr.message);
+            } else {
+              log.info('[api/products] Wrote file fallback (' + enriched.length + ' items)');
+            }
           });
-          log.info('[api/products] Loaded ' + Object.keys(snapshotLookup).length + ' snapshot entries for CF fallback');
-        } catch (e) {
-          log.warn('[api/products] Could not load snapshot for CF fallback: ' + e.message);
-        }
 
-        // Kit items are identified by their Type CF matching a KIT_CATEGORY exactly.
-        // When the CF is absent or not set in Zoho, the snapshot entry is used as a
-        // fallback so items populate correctly even before all Zoho CFs are filled in.
-        enriched = enriched.filter(function (item) {
-          var snap = snapshotLookup[item.item_id];
-          var typeCF = (item.custom_fields || []).find(function (cf) {
-            return cf.label === 'Type' && cf.value;
+          // --- Image change detection ---
+          // Build a map of item_id -> image_name from the enriched detail data.
+          // The detail endpoint includes image_name when an item has an image.
+          var currentImageMap = {};
+          enriched.forEach(function (item) {
+            if (item.image_name) {
+              currentImageMap[item.item_id] = item.image_name;
+            }
           });
-          var typeVal = typeCF
-            ? typeCF.value.toLowerCase()
-            : (snap && snap.type ? snap.type.toLowerCase() : '');
 
-          if (!typeVal) {
-            log.info('[api/products] Excluding item with no type: ' + item.name);
-            return false;
-          }
-          if (!KIT_CATEGORIES.some(function (kc) { return typeVal === kc; })) {
-            log.info('[api/products] Excluding non-kit item: ' + item.name + ' (type: ' + typeVal + ')');
-            return false;
-          }
-          // Backfill snapshot fields onto items where Zoho CFs are not yet set
-          if (!typeCF && snap) {
-            item.type = snap.type;
-            item.subcategory = item.subcategory || snap.subcategory || '';
-            item.tasting_notes = item.tasting_notes || snap.tasting_notes || '';
-            item.favorite = item.favorite || snap.favorite || 'false';
-            item.abv = item.abv || snap.abv || '';
-            item.time = item.time || snap.time || '';
-            item.millable = item.millable || snap.millable || 'false';
-            item.discount = item.discount || snap.discount || '0';
-            item.retail_kit = item.retail_kit || snap.retail_kit || '';
-            item.retail_instore = item.retail_instore || snap.retail_instore || '';
-          }
-          return true;
-        });
-        _kitItemIds = {};
-        enriched.forEach(function (item) { _kitItemIds[item.item_id] = true; });
-        // Bust the ingredients cache so it rebuilds without these items in _kitItemIds
-        cache.del(INGREDIENTS_CACHE_KEY);
-        cache.set(PRODUCTS_CACHE_KEY, enriched, PRODUCTS_CACHE_TTL);
-        cache.set(PRODUCTS_CACHE_TS_KEY, Date.now(), PRODUCTS_CACHE_TTL);
-        log.info('[api/products] Cached ' + enriched.length + ' kit items');
+          // Compare against the previously cached image map (fire-and-forget)
+          cache.get(PRODUCT_IMAGE_HASHES_KEY)
+            .then(function (previousImageMap) {
+              previousImageMap = previousImageMap || {};
+              var changed = [];
+              var newImages = [];
 
-        // Reconcile inventory ledger with fresh Zoho stock counts
-        ledger.reconcile(enriched).catch(function (err) {
-          log.error('[api/products] Inventory ledger reconcile failed: ' + err.message);
-        });
+              Object.keys(currentImageMap).forEach(function (itemId) {
+                if (!previousImageMap[itemId]) {
+                  newImages.push(itemId);
+                } else if (previousImageMap[itemId] !== currentImageMap[itemId]) {
+                  changed.push(itemId);
+                }
+              });
 
-        // Write file fallback (async, fire-and-forget)
-        fs.writeFile(PRODUCTS_FILE_CACHE, JSON.stringify(enriched), function (fileErr) {
-          if (fileErr) {
-            log.error('[api/products] File fallback write failed: ' + fileErr.message);
-          } else {
-            log.info('[api/products] Wrote file fallback (' + enriched.length + ' items)');
-          }
-        });
-
-        // --- Image change detection ---
-        // Build a map of item_id -> image_name from the enriched detail data.
-        // The detail endpoint includes image_name when an item has an image.
-        var currentImageMap = {};
-        enriched.forEach(function (item) {
-          if (item.image_name) {
-            currentImageMap[item.item_id] = item.image_name;
-          }
-        });
-
-        // Compare against the previously cached image map (fire-and-forget)
-        cache.get(PRODUCT_IMAGE_HASHES_KEY)
-          .then(function (previousImageMap) {
-            previousImageMap = previousImageMap || {};
-            var changed = [];
-            var newImages = [];
-
-            Object.keys(currentImageMap).forEach(function (itemId) {
-              if (!previousImageMap[itemId]) {
-                newImages.push(itemId);
-              } else if (previousImageMap[itemId] !== currentImageMap[itemId]) {
-                changed.push(itemId);
+              if (changed.length > 0 || newImages.length > 0) {
+                log.info('[api/products] Image changes detected (' +
+                  changed.length + ' changed, ' + newImages.length + ' new) — run sync-images to update');
               }
+
+              // Store the new image map in Redis (same TTL as products cache)
+              return cache.set(PRODUCT_IMAGE_HASHES_KEY, currentImageMap, 86400); // 24 hours — outlasts product cache so diffs are always meaningful
+            })
+            .catch(function (imgErr) {
+              log.error('[api/products] Image change detection error: ' + imgErr.message);
             });
 
-            if (changed.length > 0 || newImages.length > 0) {
-              log.info('[api/products] Image changes detected (' +
-                changed.length + ' changed, ' + newImages.length + ' new) — run sync-images to update');
-            }
-
-            // Store the new image map in Redis (same TTL as products cache)
-            return cache.set(PRODUCT_IMAGE_HASHES_KEY, currentImageMap, 86400); // 24 hours — outlasts product cache so diffs are always meaningful
-          })
-          .catch(function (imgErr) {
-            log.error('[api/products] Image change detection error: ' + imgErr.message);
-          });
-
-        _productsRefreshing = false;
-        cache.releaseLock(REFRESH_LOCK_KEY);
-        return enriched;
-      });
+          _productsRefreshing = false;
+          cache.releaseLock(REFRESH_LOCK_KEY);
+          return enriched;
+        });
     })
     .catch(function (err) {
       _productsRefreshing = false;
@@ -493,37 +452,25 @@ router.get('/api/services', function (req, res) {
           var items = allItems.filter(function (item) {
             return item.product_type === 'service';
           });
-          // Enrich each service item with detail (tax_percentage, tax_name, tax_id)
-          // Services list is small so we fetch all details sequentially
-          return items.reduce(function (chain, item) {
-            return chain.then(function () {
-              return inventoryGet('/items/' + item.item_id)
-                .then(function (data) {
-                  var detail = data.item || {};
-                  item.tax_id = detail.tax_id || '';
-                  item.tax_name = detail.tax_name || '';
-                  var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
-                    ? parseFloat(detail.tax_percentage) : 0;
-                  if (!_pct && detail.taxes && detail.taxes.length) {
-                    _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
-                  }
-                  // Fallback: derive rate from the Sales Tax Rule if tax_id returned 0%
-                  item.sales_tax_rule_id = detail.sales_tax_rule_id || '';
-                  if (!_pct && item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
-                    _pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
-                    item.tax_name = _TAX_RULE_NAME[item.sales_tax_rule_id] || item.tax_name;
-                  }
-                  item.tax_percentage = _pct;
-                })
-                .catch(function (err) {
-                  log.warn('[api/services] Detail fetch failed for ' + item.name + ': ' + err.message);
-                  item.tax_percentage = item.tax_percentage != null ? item.tax_percentage : 0;
-                  item.tax_name = item.tax_name || '';
-                  item.tax_id = item.tax_id || '';
-                });
-            });
-          }, Promise.resolve())
-            .then(function () {
+          var itemIds = items.map(function (item) { return item.item_id; });
+          return fetchItemDetailsBulk(itemIds)
+            .then(function (detailMap) {
+              items.forEach(function (item) {
+                var detail = detailMap[item.item_id] || {};
+                item.tax_id = detail.tax_id || '';
+                item.tax_name = detail.tax_name || '';
+                var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
+                  ? parseFloat(detail.tax_percentage) : 0;
+                if (!_pct && detail.taxes && detail.taxes.length) {
+                  _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
+                }
+                item.sales_tax_rule_id = detail.sales_tax_rule_id || '';
+                if (!_pct && item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
+                  _pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
+                  item.tax_name = _TAX_RULE_NAME[item.sales_tax_rule_id] || item.tax_name;
+                }
+                item.tax_percentage = _pct;
+              });
               cache.set(SERVICES_CACHE_KEY, items, SERVICES_CACHE_TTL);
               res.json({ source: 'zoho', items: items });
             });
@@ -581,19 +528,14 @@ function doRefreshIngredients() {
         return true;
       });
 
-      log.info('[api/ingredients] Enriching ' + items.length + ' priced items (batches of 10)');
+      log.info('[api/ingredients] Enriching ' + items.length + ' items via bulk detail fetch');
 
-      var BATCH_SIZE = 5;
-      var BATCH_PAUSE = 3500; // ms between batches (~85 req/min, matches products)
-      var MAX_RETRIES = 2;
-      var enriched = [];
+      var itemIds = items.map(function (item) { return item.item_id; });
 
-      function delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-
-      function fetchDetail(item, retries) {
-        return inventoryGet('/items/' + item.item_id)
-          .then(function (data) {
-            var detail = data.item || {};
+      return fetchItemDetailsBulk(itemIds)
+        .then(function (detailMap) {
+          items.forEach(function (item) {
+            var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
             item.brand = detail.brand || '';
             item.tax_id = detail.tax_id || '';
@@ -603,70 +545,36 @@ function doRefreshIngredients() {
             if (!_pct && detail.taxes && detail.taxes.length) {
               _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
             }
-            // Fallback: derive rate from the Sales Tax Rule if tax_id returned 0%
             item.sales_tax_rule_id = detail.sales_tax_rule_id || '';
             if (!_pct && item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
               _pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
               item.tax_name = _TAX_RULE_NAME[item.sales_tax_rule_id] || item.tax_name;
             }
             item.tax_percentage = _pct;
-            return item;
-          })
-          .catch(function (err) {
-            if (err.response && err.response.status === 429 && retries < MAX_RETRIES) {
-              var backoff = Math.pow(2, retries + 1) * 1000;
-              log.warn('[api/ingredients] Rate limited on ' + item.name + ', retrying in ' + backoff + 'ms');
-              return delay(backoff).then(function () { return fetchDetail(item, retries + 1); });
-            }
-            log.error('[api/ingredients] Detail fetch failed for ' + item.name + ': ' + err.message);
-            item.custom_fields = [];
-            item.tax_percentage = (item.tax_percentage !== undefined && item.tax_percentage !== null)
-              ? item.tax_percentage : 0;
-            item.tax_name = item.tax_name || '';
-            item.tax_id = item.tax_id || '';
-            return item;
           });
-      }
+          var enriched = items;
 
-      var batches = [];
-      for (var i = 0; i < items.length; i += BATCH_SIZE) {
-        batches.push(items.slice(i, i + BATCH_SIZE));
-      }
-
-      var chain = Promise.resolve();
-      batches.forEach(function (batch, idx) {
-        chain = chain.then(function () {
-          return Promise.all(batch.map(function (item) {
-            return fetchDetail(item, 0);
-          })).then(function (results) {
-            results.forEach(function (r) { enriched.push(r); });
-            if (idx < batches.length - 1) return delay(BATCH_PAUSE);
-          });
+          _ingredientsRefreshPromise = null;
+          if (enriched.length > 0) {
+            cache.set(INGREDIENTS_CACHE_KEY, enriched, INGREDIENTS_CACHE_TTL);
+            cache.set(INGREDIENTS_CACHE_TS_KEY, Date.now(), INGREDIENTS_CACHE_TTL);
+            // Reconcile inventory ledger with fresh Zoho stock counts
+            ledger.reconcile(enriched).catch(function (err) {
+              log.error('[api/ingredients] Inventory ledger reconcile failed: ' + err.message);
+            });
+            // Write file fallback (async, fire-and-forget)
+            fs.writeFile(INGREDIENTS_FILE_CACHE, JSON.stringify(enriched), function (fileErr) {
+              if (fileErr) {
+                log.error('[api/ingredients] File fallback write failed: ' + fileErr.message);
+              } else {
+                log.info('[api/ingredients] Wrote file fallback (' + enriched.length + ' items)');
+              }
+            });
+          } else {
+            log.warn('[api/ingredients] Enrichment returned 0 items — skipping cache to allow retry');
+          }
+          return enriched;
         });
-      });
-
-      return chain.then(function () {
-        _ingredientsRefreshPromise = null;
-        if (enriched.length > 0) {
-          cache.set(INGREDIENTS_CACHE_KEY, enriched, INGREDIENTS_CACHE_TTL);
-          cache.set(INGREDIENTS_CACHE_TS_KEY, Date.now(), INGREDIENTS_CACHE_TTL);
-          // Reconcile inventory ledger with fresh Zoho stock counts
-          ledger.reconcile(enriched).catch(function (err) {
-            log.error('[api/ingredients] Inventory ledger reconcile failed: ' + err.message);
-          });
-          // Write file fallback (async, fire-and-forget)
-          fs.writeFile(INGREDIENTS_FILE_CACHE, JSON.stringify(enriched), function (fileErr) {
-            if (fileErr) {
-              log.error('[api/ingredients] File fallback write failed: ' + fileErr.message);
-            } else {
-              log.info('[api/ingredients] Wrote file fallback (' + enriched.length + ' items)');
-            }
-          });
-        } else {
-          log.warn('[api/ingredients] Enrichment returned 0 items — skipping cache to allow retry');
-        }
-        return enriched;
-      });
     })
     .catch(function (err) {
       _ingredientsRefreshPromise = null;

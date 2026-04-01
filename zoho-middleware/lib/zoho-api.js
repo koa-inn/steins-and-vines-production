@@ -27,6 +27,17 @@ async function withRetry(fn, opts) {
       }
       // M1: Cap retry delay to 30 seconds maximum
       delay = Math.min(delay, 30000);
+      if (status === 429) {
+        var zohoCode = err.response && err.response.data && err.response.data.code;
+        var hasRetryAfter = err.response && err.response.headers && err.response.headers['retry-after'];
+        if (zohoCode === 45) throw err; // daily quota — propagate immediately, no retry
+        if (!hasRetryAfter) {
+          if (zohoCode === 1070) delay = 1000;                                                           // concurrency limit — retry quickly
+          else if (zohoCode === 44) delay = 65000;                                                     // per-minute quota — wait for full window
+          else if (err.response.data !== undefined) delay = Math.max(delay, 5000);                     // unknown 429 — floor at 5s
+        }
+        log.warn('[zoho-api] 429 rate limit (code=' + (zohoCode || 'unknown') + ') — retry in ' + delay + 'ms (attempt ' + (attempt + 1) + ')');
+      }
       await new Promise(function(r) { setTimeout(r, delay); });
       attempt++;
     }
@@ -254,6 +265,38 @@ function fetchAllItems(params) {
   return fetchPage();
 }
 
+/**
+ * Fetch full item details for multiple items in bulk using /itemdetails.
+ * Reduces N individual GET /items/{id} calls to ceil(N/100) bulk calls.
+ * @param {string[]} itemIds - Array of Zoho item IDs
+ * @returns {Promise<Object>} Map of item_id -> full detail object
+ */
+function fetchItemDetailsBulk(itemIds) {
+  var CHUNK_SIZE = 100;
+  var chunks = [];
+  for (var i = 0; i < itemIds.length; i += CHUNK_SIZE) {
+    chunks.push(itemIds.slice(i, i + CHUNK_SIZE));
+  }
+
+  var detailMap = {};
+
+  return chunks.reduce(function (chain, chunk, idx) {
+    return chain.then(function () {
+      log.info('[zoho-api] fetchItemDetailsBulk chunk ' + (idx + 1) + '/' + chunks.length + ' (' + chunk.length + ' items)');
+      return inventoryGet('/itemdetails', { item_ids: chunk.join(',') })
+        .then(function (data) {
+          var items = data.items || [];
+          items.forEach(function (item) {
+            if (item.item_id) detailMap[item.item_id] = item;
+          });
+        });
+    });
+  }, Promise.resolve())
+    .then(function () {
+      return detailMap;
+    });
+}
+
 module.exports = {
   API_URLS: API_URLS,
   apiDomain: apiDomain,
@@ -270,5 +313,6 @@ module.exports = {
   bookingsGet: bookingsGet,
   bookingsPost: bookingsPost,
   normalizeTimeTo24h: normalizeTimeTo24h,
-  fetchAllItems: fetchAllItems
+  fetchAllItems: fetchAllItems,
+  fetchItemDetailsBulk: fetchItemDetailsBulk
 };

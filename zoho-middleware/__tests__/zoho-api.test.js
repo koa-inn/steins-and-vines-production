@@ -21,7 +21,7 @@ const {
   withRetry, zohoGet, zohoPost, zohoPut,
   inventoryGet, inventoryPost, inventoryPut,
   bookingsGet, bookingsPost,
-  normalizeTimeTo24h, fetchAllItems,
+  normalizeTimeTo24h, fetchAllItems, fetchItemDetailsBulk,
   ZOHO_API_BASE, ZOHO_INVENTORY_BASE, BOOKINGS_API_BASE
 } = require('../lib/zoho-api');
 
@@ -573,4 +573,159 @@ describe('fetchAllItems', () => {
     );
     expect(result).toHaveLength(50); // 1 item per page × 50 pages
   }, 15000); // allow up to 15s for 50 async iterations
+});
+
+describe('fetchItemDetailsBulk', () => {
+  test('calls /itemdetails with comma-separated item_ids', async () => {
+    axios.get.mockResolvedValue({ data: { items: [{ item_id: 'a', name: 'Item A' }] } });
+
+    await fetchItemDetailsBulk(['a', 'b', 'c']);
+
+    expect(axios.get).toHaveBeenCalledTimes(1);
+    var params = axios.get.mock.calls[0][1].params;
+    expect(params.item_ids).toBe('a,b,c');
+  });
+
+  test('returns a map of item_id to detail object', async () => {
+    axios.get.mockResolvedValue({
+      data: { items: [{ item_id: 'x1', name: 'X1' }, { item_id: 'x2', name: 'X2' }] }
+    });
+
+    var result = await fetchItemDetailsBulk(['x1', 'x2']);
+
+    expect(result).toEqual({
+      x1: { item_id: 'x1', name: 'X1' },
+      x2: { item_id: 'x2', name: 'X2' }
+    });
+  });
+
+  test('chunks into groups of 100', async () => {
+    axios.get.mockResolvedValue({ data: { items: [] } });
+    var ids = Array.from({ length: 250 }, function (_, i) { return 'id-' + i; });
+
+    await fetchItemDetailsBulk(ids);
+
+    expect(axios.get).toHaveBeenCalledTimes(3); // 100 + 100 + 50
+    var params1 = axios.get.mock.calls[0][1].params;
+    var params2 = axios.get.mock.calls[1][1].params;
+    var params3 = axios.get.mock.calls[2][1].params;
+    expect(params1.item_ids.split(',').length).toBe(100);
+    expect(params2.item_ids.split(',').length).toBe(100);
+    expect(params3.item_ids.split(',').length).toBe(50);
+  });
+
+  test('returns empty map for empty input', async () => {
+    var result = await fetchItemDetailsBulk([]);
+    expect(result).toEqual({});
+    expect(axios.get).not.toHaveBeenCalled();
+  });
+
+  test('propagates errors from inventoryGet', async () => {
+    axios.get.mockRejectedValue(new Error('Network error'));
+    await expect(fetchItemDetailsBulk(['id-1'])).rejects.toThrow('Network error');
+  });
+});
+
+describe('withRetry 429 error code discrimination', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('throws immediately on code 45 (daily quota) without retrying', async () => {
+    var fn = jest.fn().mockImplementation(function () {
+      var err = new Error('Daily limit');
+      err.response = { status: 429, headers: {}, data: { code: 45 } };
+      return Promise.reject(err);
+    });
+
+    await expect(withRetry(fn, { retries: 3, baseDelay: 100 })).rejects.toThrow('Daily limit');
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  test('uses 1000ms delay for code 1070 (concurrency limit)', async () => {
+    var attempt = 0;
+    var fn = jest.fn().mockImplementation(function () {
+      attempt++;
+      if (attempt < 2) {
+        var err = new Error('Concurrency');
+        err.response = { status: 429, headers: {}, data: { code: 1070 } };
+        return Promise.reject(err);
+      }
+      return Promise.resolve('ok');
+    });
+
+    var promise = withRetry(fn, { retries: 2, baseDelay: 100 });
+    await jest.advanceTimersByTimeAsync(999);
+    expect(fn).toHaveBeenCalledTimes(1); // not retried yet
+    await jest.advanceTimersByTimeAsync(2);
+    var result = await promise;
+    expect(result).toBe('ok');
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  test('uses 65000ms delay for code 44 (per-minute quota)', async () => {
+    var attempt = 0;
+    var fn = jest.fn().mockImplementation(function () {
+      attempt++;
+      if (attempt < 2) {
+        var err = new Error('Per-minute limit');
+        err.response = { status: 429, headers: {}, data: { code: 44 } };
+        return Promise.reject(err);
+      }
+      return Promise.resolve('ok');
+    });
+
+    var promise = withRetry(fn, { retries: 2, baseDelay: 100 });
+    await jest.advanceTimersByTimeAsync(64999);
+    expect(fn).toHaveBeenCalledTimes(1); // not retried yet
+    await jest.advanceTimersByTimeAsync(2);
+    var result = await promise;
+    expect(result).toBe('ok');
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  test('floors unknown 429 at 5000ms when no retry-after header', async () => {
+    var attempt = 0;
+    var fn = jest.fn().mockImplementation(function () {
+      attempt++;
+      if (attempt < 2) {
+        var err = new Error('Unknown 429');
+        err.response = { status: 429, headers: {}, data: {} };
+        return Promise.reject(err);
+      }
+      return Promise.resolve('ok');
+    });
+
+    var promise = withRetry(fn, { retries: 2, baseDelay: 100 });
+    await jest.advanceTimersByTimeAsync(4999);
+    expect(fn).toHaveBeenCalledTimes(1); // not retried yet (floored to 5000ms)
+    await jest.advanceTimersByTimeAsync(2);
+    var result = await promise;
+    expect(result).toBe('ok');
+  });
+
+  test('retry-after header takes precedence over code-based delay for code 1070', async () => {
+    var attempt = 0;
+    var fn = jest.fn().mockImplementation(function () {
+      attempt++;
+      if (attempt < 2) {
+        var err = new Error('Concurrency');
+        err.response = { status: 429, headers: { 'retry-after': '10' }, data: { code: 1070 } };
+        return Promise.reject(err);
+      }
+      return Promise.resolve('ok');
+    });
+
+    var promise = withRetry(fn, { retries: 2, baseDelay: 100 });
+    // retry-after: 10 → 10000ms; code 1070 override would be 1000ms — header should win
+    await jest.advanceTimersByTimeAsync(9999);
+    expect(fn).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(2);
+    var result = await promise;
+    expect(result).toBe('ok');
+  });
 });
