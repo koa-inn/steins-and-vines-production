@@ -3255,7 +3255,9 @@
       "description": "Ferment-on-premise Makers Fee",
       "sku": "MAKERS-FEE",
       "stock": "0",
-      "discount": "0"
+      "discount": "0",
+      "tax_percentage": 5,
+      "tax_name": "GST"
     },
     {
       "name": "Milling Fee",
@@ -3264,7 +3266,9 @@
       "description": "",
       "sku": "MILLED",
       "stock": "0",
-      "discount": "0"
+      "discount": "0",
+      "tax_percentage": 5,
+      "tax_name": "GST"
     },
     {
       "name": "Wine Carbonation",
@@ -3273,7 +3277,9 @@
       "description": "",
       "sku": "CARB-WINE",
       "stock": "0",
-      "discount": "0"
+      "discount": "0",
+      "tax_percentage": 5,
+      "tax_name": "GST"
     }
   ]
 }
