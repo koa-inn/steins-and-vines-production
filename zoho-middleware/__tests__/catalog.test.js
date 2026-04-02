@@ -222,6 +222,41 @@ describe('GET /api/products — bulk detail enrichment', function () {
       expect(res._status).toBe(502);
     });
   });
+
+  test('preserves sales_tax_rule_id from list item when detailMap returns null for it', function () {
+    // Regression: /itemdetails bulk endpoint does not return sales_tax_rule_id.
+    // The list /items endpoint does. The fix ensures we fall back to item.sales_tax_rule_id.
+    var items = [makeItem({
+      item_id: 'i1',
+      name: 'Wine Kit A',
+      sales_tax_rule_id: STANDARD_RULE_ID,
+      tax_percentage: 0
+    })];
+    var detailMap = {
+      'i1': {
+        item_id: 'i1',
+        custom_fields: [{ label: 'Type', value: 'wine' }],
+        brand: '', image_name: '',
+        tax_id: null, tax_name: null,
+        tax_percentage: null,
+        sales_tax_rule_id: null,
+        vendor_id: '', vendor_name: ''
+      }
+    };
+
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue(detailMap);
+
+    return callHandler('/api/products').then(function () {
+      var cachedItems = mocks.cache.set.mock.calls
+        .filter(function (c) { return c[0] === 'zoho:products'; })
+        .map(function (c) { return c[1]; })[0];
+      expect(cachedItems).toBeDefined();
+      expect(cachedItems[0].sales_tax_rule_id).toBe(STANDARD_RULE_ID);
+      expect(cachedItems[0].tax_percentage).toBe(12); // GST + PST = 12%
+      expect(cachedItems[0].tax_name).toBe('GST + PST');
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -302,6 +337,42 @@ describe('GET /api/ingredients — bulk detail enrichment', function () {
       }
     });
   });
+
+  test('preserves sales_tax_rule_id from list item when detailMap returns null for it', function () {
+    // Regression: /itemdetails bulk endpoint does not return sales_tax_rule_id.
+    var items = [makeItem({
+      item_id: 'ing1',
+      name: 'Makers Fee',
+      rate: 10,
+      cf_type: 'ingredient',
+      sales_tax_rule_id: SERVICES_RULE_ID,
+      tax_percentage: 0
+    })];
+    var detailMap = {
+      'ing1': {
+        item_id: 'ing1',
+        custom_fields: [],
+        brand: '',
+        tax_id: null, tax_name: null,
+        tax_percentage: null,
+        sales_tax_rule_id: null
+      }
+    };
+
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue(detailMap);
+
+    return callHandler('/api/ingredients').then(function () {
+      var cachedItems = mocks.cache.set.mock.calls
+        .filter(function (c) { return c[0] === 'zoho:ingredients'; })
+        .map(function (c) { return c[1]; })[0];
+      if (cachedItems) {
+        expect(cachedItems[0].sales_tax_rule_id).toBe(SERVICES_RULE_ID);
+        expect(cachedItems[0].tax_percentage).toBe(5);
+        expect(cachedItems[0].tax_name).toBe('GST');
+      }
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -371,6 +442,28 @@ describe('GET /api/services — bulk detail enrichment', function () {
       expect(res._body).not.toBeNull();
       expect(res._body.items[0].tax_percentage).toBe(0);
       expect(res._body.items[0].tax_name).toBe('');
+    });
+  });
+
+  test('preserves sales_tax_rule_id from list item when detailMap returns null for it', function () {
+    // Regression: /itemdetails bulk endpoint does not return sales_tax_rule_id.
+    // The Makers Fee service item has SERVICES_RULE_ID on the list endpoint only.
+    var items = [makeItem({
+      item_id: 's1',
+      name: 'Makers Fee',
+      product_type: 'service',
+      sales_tax_rule_id: SERVICES_RULE_ID,
+      tax_percentage: 0
+    })];
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue({
+      's1': { item_id: 's1', tax_id: null, tax_name: null, tax_percentage: null, sales_tax_rule_id: null }
+    });
+
+    return callHandler('/api/services').then(function (res) {
+      expect(res._body.items[0].sales_tax_rule_id).toBe(SERVICES_RULE_ID);
+      expect(res._body.items[0].tax_percentage).toBe(5);
+      expect(res._body.items[0].tax_name).toBe('GST');
     });
   });
 });

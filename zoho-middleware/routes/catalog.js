@@ -175,14 +175,15 @@ function doRefreshProducts() {
             item.custom_fields = detail.custom_fields || [];
             item.brand = detail.brand || '';
             item.image_name = detail.image_name || '';
-            item.tax_id = detail.tax_id || '';
-            item.tax_name = detail.tax_name || '';
+            item.tax_id = detail.tax_id || item.tax_id || '';
+            item.tax_name = detail.tax_name || item.tax_name || '';
             var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
-              ? parseFloat(detail.tax_percentage) : 0;
+              ? parseFloat(detail.tax_percentage)
+              : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0);
             if (!_pct && detail.taxes && detail.taxes.length) {
               _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
             }
-            item.sales_tax_rule_id = detail.sales_tax_rule_id || '';
+            item.sales_tax_rule_id = detail.sales_tax_rule_id || item.sales_tax_rule_id || '';
             if (!_pct && item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
               _pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
               item.tax_name = _TAX_RULE_NAME[item.sales_tax_rule_id] || item.tax_name;
@@ -457,14 +458,15 @@ router.get('/api/services', function (req, res) {
             .then(function (detailMap) {
               items.forEach(function (item) {
                 var detail = detailMap[item.item_id] || {};
-                item.tax_id = detail.tax_id || '';
-                item.tax_name = detail.tax_name || '';
+                item.tax_id = detail.tax_id || item.tax_id || '';
+                item.tax_name = detail.tax_name || item.tax_name || '';
                 var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
-                  ? parseFloat(detail.tax_percentage) : 0;
+                  ? parseFloat(detail.tax_percentage)
+                  : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0);
                 if (!_pct && detail.taxes && detail.taxes.length) {
                   _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
                 }
-                item.sales_tax_rule_id = detail.sales_tax_rule_id || '';
+                item.sales_tax_rule_id = detail.sales_tax_rule_id || item.sales_tax_rule_id || '';
                 if (!_pct && item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
                   _pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
                   item.tax_name = _TAX_RULE_NAME[item.sales_tax_rule_id] || item.tax_name;
@@ -538,14 +540,15 @@ function doRefreshIngredients() {
             var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
             item.brand = detail.brand || '';
-            item.tax_id = detail.tax_id || '';
-            item.tax_name = detail.tax_name || '';
+            item.tax_id = detail.tax_id || item.tax_id || '';
+            item.tax_name = detail.tax_name || item.tax_name || '';
             var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
-              ? parseFloat(detail.tax_percentage) : 0;
+              ? parseFloat(detail.tax_percentage)
+              : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0);
             if (!_pct && detail.taxes && detail.taxes.length) {
               _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
             }
-            item.sales_tax_rule_id = detail.sales_tax_rule_id || '';
+            item.sales_tax_rule_id = detail.sales_tax_rule_id || item.sales_tax_rule_id || '';
             if (!_pct && item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
               _pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
               item.tax_name = _TAX_RULE_NAME[item.sales_tax_rule_id] || item.tax_name;
