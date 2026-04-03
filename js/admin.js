@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-03-18T22:08:32.114Z';
+  var BUILD_TIMESTAMP = '2026-04-03T16:59:42.266Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -5695,6 +5695,7 @@
     html += '<input type="text" id="batch-edit-vessel-search" class="admin-inline-input" value="' + currentVesselLabel + '" placeholder="Search vessels..." autocomplete="off">';
     html += '<div class="admin-kit-search-dropdown" id="batch-edit-vessel-dropdown" style="display:none;"></div>';
     html += '<input type="hidden" id="batch-edit-vessel" value="' + (b.vessel_id || '') + '">';
+    html += '<button type="button" class="btn-secondary admin-btn-sm" id="batch-edit-vessel-clear" title="Clear vessel" style="flex-shrink:0;">&times;</button>';
     html += '</div>';
     html += '<input type="text" id="batch-edit-shelf" value="' + (b.shelf_id || '') + '" placeholder="A" class="admin-inline-input">';
     html += '<input type="text" id="batch-edit-bin" value="' + (b.bin_id || '') + '" placeholder="01" class="admin-inline-input">';
@@ -5763,6 +5764,16 @@
       bindVesselSearch(detailVesselInput, detailVesselDropdown, detailVesselHidden, b.vessel_id || '');
       addModalDocListener('click', function (e) {
         if (!detailVesselDropdown.contains(e.target) && e.target !== detailVesselInput) detailVesselDropdown.style.display = 'none';
+      });
+    }
+
+    var clearVesselBtn = document.getElementById('batch-edit-vessel-clear');
+    if (clearVesselBtn) {
+      clearVesselBtn.addEventListener('click', function () {
+        detailVesselHidden.value = '';
+        detailVesselInput.value = '';
+        detailVesselInput.focus();
+        showVesselOptions('', detailVesselDropdown, detailVesselHidden, detailVesselInput, null);
       });
     }
 
@@ -6589,6 +6600,7 @@
     html += '<input type="text" id="batch-vessel-search" class="admin-kit-search-input" placeholder="Search vessels..." autocomplete="off">';
     html += '<div class="admin-kit-search-dropdown" id="batch-vessel-dropdown" style="display:none;"></div>';
     html += '<input type="hidden" id="batch-vessel" value="">';
+    html += '<button type="button" class="btn-secondary admin-btn-sm" id="batch-create-vessel-clear" title="Clear vessel" style="margin-top:4px;">&times; Clear</button>';
     html += '</div></div>';
     html += '<div><label>Shelf</label><input type="text" id="batch-shelf" class="admin-input" placeholder="A"></div>';
     html += '<div><label>Bin</label><input type="text" id="batch-bin" class="admin-input" placeholder="01"></div>';
@@ -6755,6 +6767,15 @@
     var vesselHidden = document.getElementById('batch-vessel');
     bindVesselSearch(vesselInput, vesselDropdown, vesselHidden, '');
 
+    var createVesselClearBtn = document.getElementById('batch-create-vessel-clear');
+    if (createVesselClearBtn) {
+      createVesselClearBtn.addEventListener('click', function () {
+        document.getElementById('batch-vessel').value = '';
+        document.getElementById('batch-vessel-search').value = '';
+        document.getElementById('batch-vessel-search').focus();
+      });
+    }
+
     // Shelf / Bin validation
     bindShelfInput(document.getElementById('batch-shelf'));
     bindBinInput(document.getElementById('batch-bin'));
@@ -6837,7 +6858,7 @@
       if (!customerId && mwUrl && customerEmail) {
         fetch(mwUrl + '/api/contacts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
           body: JSON.stringify({ name: customerName, email: customerEmail })
         })
         .then(function (r) { return r.json(); })
@@ -8314,7 +8335,7 @@
         var mwUrl = kioskMwUrl();
         fetch(mwUrl + '/api/contacts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
           body: JSON.stringify({ name: name, email: email, phone: phone })
         })
         .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })

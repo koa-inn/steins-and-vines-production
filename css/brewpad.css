@@ -280,6 +280,20 @@ img { max-width: 100%; height: auto; display: block; }
   color: var(--ink-secondary);
 }
 
+/* Auth status dot */
+.bp-auth-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.bp-auth-dot--online  { background: #4caf50; }
+.bp-auth-dot--warning { background: #ff9800; }
+.bp-auth-dot--offline { background: #9e9e9e; }
+
 /* ===== Panels ===== */
 .bp-panels {
   flex: 1;

@@ -13,7 +13,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="favicon.ico">
   <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
-  <link rel="stylesheet" href="css/brewpad.min.css?v=mmwlf1an">
+  <link rel="stylesheet" href="css/brewpad.min.css?v=mnj5fj97">
   <script src="js/lib/constants.js"></script>
   <script src="js/lib/utils.js"></script>
   <script src="js/lib/auth.js"></script>
@@ -22,7 +22,7 @@
   <script src="js/vendor/qrcode.min.js"></script>
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="js/brewpad.min.js?v=mmwlf1an"></script>
+  <script src="js/brewpad.min.js?v=mnj5fj97"></script>
 </head>
 <body>
 
@@ -50,6 +50,7 @@
         <span>BrewPad</span>
       </div>
       <div class="bp-shell-user">
+        <span id="bp-auth-dot" class="bp-auth-dot bp-auth-dot--offline" title="Not signed in"></span>
         <span id="bp-user-email"></span>
         <button type="button" class="btn-secondary bp-btn-sm" id="bp-clear-cache" title="Clear app cache and reload">&#8635;</button>
         <button type="button" class="btn-secondary bp-btn-sm" id="bp-signout">Sign Out</button>

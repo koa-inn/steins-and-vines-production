@@ -71,6 +71,7 @@ function renderDataGapWarning(readings, now) {
   var userEmail = null;
   var tokenClient = null;
   var _tokenRefreshTimer = null;
+  var _tokenWarnTimer = null;
   var _silentRefreshTimer = null;
   var _handlingUnauthorized = false;
   var _activeTab = 'dashboard';
@@ -300,6 +301,10 @@ function renderDataGapWarning(readings, now) {
     var deniedMsg = document.getElementById('bp-denied-msg');
     if (deniedMsg) deniedMsg.style.display = 'none';
 
+    // Auth status dot — online
+    var dot = document.getElementById('bp-auth-dot');
+    if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--online'; dot.title = 'Signed in as ' + (userEmail || ''); }
+
     var clearCacheBtn = document.getElementById('bp-clear-cache');
     if (clearCacheBtn) {
       clearCacheBtn.addEventListener('click', function () {
@@ -326,6 +331,20 @@ function renderDataGapWarning(readings, now) {
       tokenClient.requestAccessToken({ prompt: '' });
     }, 50 * 60 * 1000);
 
+    // Warn 5 minutes before token expiry
+    if (_tokenWarnTimer) clearTimeout(_tokenWarnTimer);
+    var sessionData = null;
+    try { var raw = localStorage.getItem(SESSION_KEY); if (raw) sessionData = JSON.parse(raw); } catch (e) {}
+    if (sessionData && sessionData.expires_at) {
+      var remainMs = sessionData.expires_at - Date.now();
+      var warnMs = Math.max(0, remainMs - 300000); // 5 minutes before expiry
+      _tokenWarnTimer = setTimeout(function () {
+        showToast('Session expiring soon \u2014 tap to stay signed in', 'warning', { duration: 8000 });
+        var d = document.getElementById('bp-auth-dot');
+        if (d) { d.className = 'bp-auth-dot bp-auth-dot--warning'; d.title = 'Session expiring soon'; }
+      }, warnMs);
+    }
+
     // Multi-tab session sync: if another tab signs out, sign out this tab too
     window.addEventListener('storage', function (e) {
       if (e.key === SESSION_KEY && !e.newValue && accessToken) {
@@ -335,6 +354,39 @@ function renderDataGapWarning(readings, now) {
     });
 
     eagerLoad();
+
+    // Restore in-progress create-batch form draft after re-login
+    var draft = null;
+    try { var draftRaw = sessionStorage.getItem('sv-brewpad-form-draft'); if (draftRaw) draft = JSON.parse(draftRaw); } catch (e) {}
+    if (draft) {
+      sessionStorage.removeItem('sv-brewpad-form-draft');
+      showToast('Your in-progress batch form has been restored', 'success');
+      // Switch to batches tab so create sheet is visible
+      switchTab('batches');
+      openCreateSheet();
+      setTimeout(function () {
+        var fields = [
+          ['bp-new-product-text', 'productText'],
+          ['bp-new-product-sku', 'productSku'],
+          ['bp-new-product-name', 'productName'],
+          ['bp-new-customer-text', 'customerText'],
+          ['bp-new-customer-id', 'customerId'],
+          ['bp-new-customer-name-hidden', 'customerNameHidden'],
+          ['bp-new-customer-email', 'customerEmail'],
+          ['bp-new-start-date', 'startDate'],
+          ['bp-new-schedule', 'schedule'],
+          ['bp-new-vessel-text', 'vesselText'],
+          ['bp-new-vessel', 'vessel'],
+          ['bp-new-shelf', 'shelf'],
+          ['bp-new-bin', 'bin'],
+          ['bp-new-notes', 'notes']
+        ];
+        for (var i = 0; i < fields.length; i++) {
+          var el = document.getElementById(fields[i][0]);
+          if (el && draft[fields[i][1]]) el.value = draft[fields[i][1]];
+        }
+      }, 150);
+    }
   }
 
   function showDenied() {
@@ -344,6 +396,7 @@ function renderDataGapWarning(readings, now) {
 
   function bpSignOut() {
     if (_tokenRefreshTimer) { clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null; }
+    if (_tokenWarnTimer) { clearTimeout(_tokenWarnTimer); _tokenWarnTimer = null; }
     if (_dashAutoRefreshTimer) { clearInterval(_dashAutoRefreshTimer); _dashAutoRefreshTimer = null; }
     if (accessToken) google.accounts.oauth2.revoke(accessToken);
     accessToken = null;
@@ -353,12 +406,46 @@ function renderDataGapWarning(readings, now) {
     document.getElementById('bp-app').style.display = 'none';
     var emailEl = document.getElementById('bp-user-email');
     if (emailEl) emailEl.textContent = '';
+    var dot = document.getElementById('bp-auth-dot');
+    if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--offline'; dot.title = 'Not signed in'; }
   }
 
   function handleUnauthorized() {
     if (_handlingUnauthorized) return;
     _handlingUnauthorized = true;
     if (_tokenRefreshTimer) { clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null; }
+    if (_tokenWarnTimer) { clearTimeout(_tokenWarnTimer); _tokenWarnTimer = null; }
+
+    // Save in-progress create-batch form if it's open
+    var createSheet = document.getElementById('bp-create-sheet');
+    if (createSheet && createSheet.style.display !== 'none') {
+      var formState = {};
+      var draftFields = [
+        ['bp-new-product-text', 'productText'],
+        ['bp-new-product-sku', 'productSku'],
+        ['bp-new-product-name', 'productName'],
+        ['bp-new-customer-text', 'customerText'],
+        ['bp-new-customer-id', 'customerId'],
+        ['bp-new-customer-name-hidden', 'customerNameHidden'],
+        ['bp-new-customer-email', 'customerEmail'],
+        ['bp-new-start-date', 'startDate'],
+        ['bp-new-schedule', 'schedule'],
+        ['bp-new-vessel-text', 'vesselText'],
+        ['bp-new-vessel', 'vessel'],
+        ['bp-new-shelf', 'shelf'],
+        ['bp-new-bin', 'bin'],
+        ['bp-new-notes', 'notes']
+      ];
+      var hasData = false;
+      for (var i = 0; i < draftFields.length; i++) {
+        var el = document.getElementById(draftFields[i][0]);
+        if (el && el.value) { formState[draftFields[i][1]] = el.value; hasData = true; }
+      }
+      if (hasData) {
+        try { sessionStorage.setItem('sv-brewpad-form-draft', JSON.stringify(formState)); } catch (e) {}
+      }
+    }
+
     clearSession();
     accessToken = null;
     userEmail = null;
@@ -366,6 +453,8 @@ function renderDataGapWarning(readings, now) {
     document.getElementById('bp-app').style.display = 'none';
     var emailEl = document.getElementById('bp-user-email');
     if (emailEl) emailEl.textContent = '';
+    var dot = document.getElementById('bp-auth-dot');
+    if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--offline'; dot.title = 'Not signed in'; }
     showSignInButton();
   }
 
@@ -487,11 +576,7 @@ function renderDataGapWarning(readings, now) {
         loadBatches();
       }
     } else if (tab === 'tasks') {
-      if (!_upcomingLoaded || now - _upcomingLoadTime > CACHE_TTL) {
-        loadTasks();
-      } else {
-        renderTasks();
-      }
+      loadTasks();
     } else if (tab === 'measurements') {
       loadMeasurementBatches();
     }
@@ -654,14 +739,33 @@ function renderDataGapWarning(readings, now) {
       html += '<p class="bp-empty">All batches on track.</p>';
     }
 
-    // Today's tasks checklist
+    // Today's tasks checklist (including overdue)
+    var todayDateStr = todayStr();
+    var overdueTasks = _upcomingTasks.filter(function (t) {
+      var done = t.completed === true || t.completed === 'TRUE' || t.completed === '1';
+      return !done && t.due_date && String(t.due_date).slice(0, 10) < todayDateStr;
+    });
     var todayTasks = _upcomingTasks.filter(function (t) {
       var done = t.completed === true || t.completed === 'TRUE' || t.completed === '1';
-      return !done && t.due_date && String(t.due_date).slice(0, 10) === todayStr();
+      return !done && t.due_date && String(t.due_date).slice(0, 10) === todayDateStr;
     });
-    if (todayTasks.length) {
+    if (overdueTasks.length || todayTasks.length) {
       html += '<div class="bp-section-header">Today\u2019s Tasks</div>';
       html += '<div class="bp-dash-task-list">';
+      // Overdue tasks first, with visual indicator
+      overdueTasks.forEach(function (t) {
+        html += '<div class="bp-task-row" data-task-id="' + escapeHTML(t.task_id) + '" style="background:rgba(244,67,54,0.06);border-left:3px solid #f44336;">';
+        html += '<label class="bp-task-check"><input type="checkbox" data-task-id="' + escapeHTML(t.task_id) + '"></label>';
+        html += '<div class="bp-task-body">';
+        html += '<button type="button" class="bp-batch-chip" data-batch-id="' + escapeHTML(t.batch_id || '') + '" style="background:#ffebee;color:#c62828;border-color:#ef9a9a;">' + escapeHTML(t.batch_id || '') + '</button>';
+        html += '<span class="bp-task-title">' + escapeHTML(t.title || ('Step ' + t.step_number)) + '</span>';
+        var overdueDate = escapeHTML(String(t.due_date).slice(0, 10));
+        html += '<span style="font-size:0.75rem;color:#d32f2f;font-weight:600;margin-left:6px;">Overdue \u2014 ' + overdueDate + '</span>';
+        var meta = getBatchMeta(t.batch_id);
+        if (meta) html += '<span class="bp-task-meta">' + escapeHTML(meta) + '</span>';
+        html += '</div></div>';
+      });
+      // Today's tasks
       todayTasks.forEach(function (t) {
         html += '<div class="bp-task-row" data-task-id="' + escapeHTML(t.task_id) + '">';
         html += '<label class="bp-task-check"><input type="checkbox" data-task-id="' + escapeHTML(t.task_id) + '"></label>';
@@ -760,8 +864,14 @@ function renderDataGapWarning(readings, now) {
     _batchesLoading = true;
     _batchesLoadTime = Date.now();
 
-    var listPane = document.getElementById('bp-batch-list-pane');
-    if (listPane) listPane.innerHTML = '<div class="bp-panel-inner"><div class="bp-skeleton-block"></div></div>';
+    // Show loading skeleton — use results container if shell exists, otherwise full pane
+    var resultsEl = document.getElementById('bp-batch-results');
+    if (resultsEl) {
+      resultsEl.innerHTML = '<div class="bp-skeleton-block"></div>';
+    } else {
+      var listPane = document.getElementById('bp-batch-list-pane');
+      if (listPane) listPane.innerHTML = '<div class="bp-panel-inner"><div class="bp-skeleton-block"></div></div>';
+    }
 
     adminApiGet('get_batches', { status: 'all' })
       .then(function (r) {
@@ -773,8 +883,14 @@ function renderDataGapWarning(readings, now) {
       })
       .catch(function (err) {
         _batchesLoading = false;
-        var lp = document.getElementById('bp-batch-list-pane');
-        if (lp) lp.innerHTML = '<div class="bp-panel-inner"><p class="bp-empty">Failed to load batches: ' + escapeHTML(err.message) + '</p></div>';
+        // Show error — use results container if shell exists, otherwise full pane
+        var errResults = document.getElementById('bp-batch-results');
+        if (errResults) {
+          errResults.innerHTML = '<p class="bp-empty">Failed to load batches: ' + escapeHTML(err.message) + '</p>';
+        } else {
+          var lp = document.getElementById('bp-batch-list-pane');
+          if (lp) lp.innerHTML = '<div class="bp-panel-inner"><p class="bp-empty">Failed to load batches: ' + escapeHTML(err.message) + '</p></div>';
+        }
       });
   }
 
@@ -793,31 +909,77 @@ function renderDataGapWarning(readings, now) {
       return hay.indexOf(search) !== -1;
     });
 
-    var html = '<div class="bp-panel-inner">';
+    // First render: build the persistent shell (filter bar + search row + results container)
+    // The shell is only created when #bp-batch-results doesn't exist in the DOM.
+    if (!document.getElementById('bp-batch-results')) {
+      var shellHtml = '<div class="bp-panel-inner">';
 
-    // Filter bar
-    html += '<div class="bp-batch-filters">';
-    var filterOpts = [
-      { val: 'active', label: 'Active' },
-      { val: 'primary', label: 'Primary' },
-      { val: 'secondary', label: 'Secondary' },
-      { val: 'complete', label: 'Complete' }
-    ];
-    filterOpts.forEach(function (f) {
-      var active = _batchStatusFilter === f.val ? ' bp-filter-btn--active' : '';
-      html += '<button type="button" class="bp-filter-btn' + active + '" data-status="' + f.val + '">' + f.label + '</button>';
+      // Filter bar
+      shellHtml += '<div class="bp-batch-filters">';
+      var filterOpts = [
+        { val: 'active', label: 'Active' },
+        { val: 'primary', label: 'Primary' },
+        { val: 'secondary', label: 'Secondary' },
+        { val: 'complete', label: 'Complete' }
+      ];
+      filterOpts.forEach(function (f) {
+        var active = _batchStatusFilter === f.val ? ' bp-filter-btn--active' : '';
+        shellHtml += '<button type="button" class="bp-filter-btn' + active + '" data-status="' + f.val + '">' + f.label + '</button>';
+      });
+      shellHtml += '</div>';
+
+      // Search + new batch + view toggle
+      shellHtml += '<div class="bp-batch-search-row">';
+      shellHtml += '<input type="search" class="bp-search-input" id="bp-batch-search" placeholder="Search batches\u2026" value="' + escapeHTML(_batchSearch) + '" autocomplete="off" inputmode="search">';
+      shellHtml += '<button type="button" class="bp-view-toggle btn-secondary bp-btn-sm" id="bp-batch-view-toggle" title="' + (_batchViewMode === 'cards' ? 'Switch to table view' : 'Switch to card view') + '">' + (_batchViewMode === 'cards' ? '\u2630' : '\u229e') + '</button>';
+      shellHtml += '<button type="button" class="btn bp-new-batch-btn" id="bp-list-new-batch">+ New Batch</button>';
+      shellHtml += '</div>';
+
+      // Results container — updated on every render
+      shellHtml += '<div id="bp-batch-results"></div>';
+      shellHtml += '</div>';
+      pane.innerHTML = shellHtml;
+
+      // Attach search listener ONCE — reads value from the persistent input
+      var searchInput = document.getElementById('bp-batch-search');
+      if (searchInput) {
+        searchInput.addEventListener('input', function () {
+          clearTimeout(_batchSearchTimer);
+          _batchSearchTimer = setTimeout(function () {
+            _batchSearchTimer = null;
+            _batchSearch = searchInput.value;
+            renderBatchList();
+          }, 200);
+        });
+      }
+
+      // New batch button — attached ONCE
+      var newBatchBtn = document.getElementById('bp-list-new-batch');
+      if (newBatchBtn) newBatchBtn.addEventListener('click', openCreateSheet);
+
+      // Filter button + view toggle + batch card/row clicks handled by delegation
+      // on #bp-batch-list-pane (see initDelegation)
+    }
+
+    // Update filter button active states (they persist in the shell)
+    Array.prototype.forEach.call(pane.querySelectorAll('.bp-filter-btn'), function (btn) {
+      btn.classList.toggle('bp-filter-btn--active', btn.getAttribute('data-status') === _batchStatusFilter);
     });
-    html += '</div>';
 
-    // Search + new batch + view toggle
-    html += '<div class="bp-batch-search-row">';
-    html += '<input type="search" class="bp-search-input" id="bp-batch-search" placeholder="Search batches\u2026" value="' + escapeHTML(_batchSearch) + '" autocomplete="off" inputmode="search">';
-    html += '<button type="button" class="bp-view-toggle btn-secondary bp-btn-sm" id="bp-batch-view-toggle" title="' + (_batchViewMode === 'cards' ? 'Switch to table view' : 'Switch to card view') + '">' + (_batchViewMode === 'cards' ? '\u2630' : '\u229e') + '</button>';
-    html += '<button type="button" class="btn bp-new-batch-btn" id="bp-list-new-batch">+ New Batch</button>';
-    html += '</div>';
+    // Update view toggle icon/title
+    var viewToggle = document.getElementById('bp-batch-view-toggle');
+    if (viewToggle) {
+      viewToggle.title = _batchViewMode === 'cards' ? 'Switch to table view' : 'Switch to card view';
+      viewToggle.textContent = _batchViewMode === 'cards' ? '\u2630' : '\u229e';
+    }
 
+    // Always: update just the results container
+    var resultsEl = document.getElementById('bp-batch-results');
+    if (!resultsEl) return;
+
+    var resultsHtml = '';
     if (filtered.length === 0) {
-      html += '<p class="bp-empty">No batches found.</p>';
+      resultsHtml += '<p class="bp-empty">No batches found.</p>';
     } else if (_batchViewMode === 'table') {
       // Compact table view
       var today = todayStr();
@@ -836,14 +998,14 @@ function renderDataGapWarning(readings, now) {
         if (_batchTableSortCol !== col) return '<span class="bp-sort-icon">&#8645;</span>';
         return '<span class="bp-sort-icon">' + (_batchTableSortDir === 1 ? '&#8593;' : '&#8595;') + '</span>';
       }
-      html += '<table class="bp-batch-table"><thead><tr>';
-      html += '<th class="bp-sort-th' + (_batchTableSortCol === 'batch_id' ? ' bp-sort-active' : '') + '" data-sort="batch_id">Batch ' + batchSortIcon('batch_id') + '</th>';
-      html += '<th class="bp-sort-th' + (_batchTableSortCol === 'product_name' ? ' bp-sort-active' : '') + '" data-sort="product_name">Product ' + batchSortIcon('product_name') + '</th>';
-      html += '<th class="bp-sort-th' + (_batchTableSortCol === 'customer_name' ? ' bp-sort-active' : '') + '" data-sort="customer_name">Customer ' + batchSortIcon('customer_name') + '</th>';
-      html += '<th>Vessel / Loc</th>';
-      html += '<th class="bp-sort-th' + (_batchTableSortCol === 'status' ? ' bp-sort-active' : '') + '" data-sort="status">Stage ' + batchSortIcon('status') + '</th>';
-      html += '<th class="bp-sort-th' + (_batchTableSortCol === 'days' ? ' bp-sort-active' : '') + '" data-sort="days">Days ' + batchSortIcon('days') + '</th>';
-      html += '</tr></thead><tbody>';
+      resultsHtml += '<table class="bp-batch-table"><thead><tr>';
+      resultsHtml += '<th class="bp-sort-th' + (_batchTableSortCol === 'batch_id' ? ' bp-sort-active' : '') + '" data-sort="batch_id">Batch ' + batchSortIcon('batch_id') + '</th>';
+      resultsHtml += '<th class="bp-sort-th' + (_batchTableSortCol === 'product_name' ? ' bp-sort-active' : '') + '" data-sort="product_name">Product ' + batchSortIcon('product_name') + '</th>';
+      resultsHtml += '<th class="bp-sort-th' + (_batchTableSortCol === 'customer_name' ? ' bp-sort-active' : '') + '" data-sort="customer_name">Customer ' + batchSortIcon('customer_name') + '</th>';
+      resultsHtml += '<th>Vessel / Loc</th>';
+      resultsHtml += '<th class="bp-sort-th' + (_batchTableSortCol === 'status' ? ' bp-sort-active' : '') + '" data-sort="status">Stage ' + batchSortIcon('status') + '</th>';
+      resultsHtml += '<th class="bp-sort-th' + (_batchTableSortCol === 'days' ? ' bp-sort-active' : '') + '" data-sort="days">Days ' + batchSortIcon('days') + '</th>';
+      resultsHtml += '</tr></thead><tbody>';
       sortedFiltered.forEach(function (b) {
         var statusKey = String(b.status || '').toLowerCase();
         var statusLabel = STATUS_LABELS[statusKey] || b.status || '';
@@ -861,19 +1023,19 @@ function renderDataGapWarning(readings, now) {
         var days = b.start_date ? Math.floor((Date.now() - new Date(b.start_date)) / 86400000) : '\u2014';
         var loc = [b.vessel_id, b.shelf_id && b.bin_id ? b.shelf_id + '-' + b.bin_id : (b.shelf_id || b.bin_id || '')].filter(Boolean).join(' ');
         var rowCls = (isSelected ? 'bp-batch-tr--selected' : '') + (overdueCount > 0 ? ' bp-batch-tr--urgent' : '');
-        html += '<tr class="' + rowCls + '" data-batch-id="' + escapeHTML(b.batch_id) + '">';
-        html += '<td class="bp-batch-tr-id">' + escapeHTML(b.batch_id) + (overdueCount > 0 ? ' <span class="bp-urgent-dot">\u25cf</span>' : '') + '</td>';
-        html += '<td>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</td>';
-        html += '<td>' + escapeHTML(b.customer_name || '\u2014') + '</td>';
-        html += '<td>' + escapeHTML(loc || '\u2014') + '</td>';
-        html += '<td><span class="bp-status-badge bp-status-badge--' + statusColor + '" style="font-size:0.72rem;padding:1px 6px;">' + escapeHTML(statusLabel) + '</span></td>';
-        html += '<td>' + days + '</td>';
-        html += '</tr>';
+        resultsHtml += '<tr class="' + rowCls + '" data-batch-id="' + escapeHTML(b.batch_id) + '">';
+        resultsHtml += '<td class="bp-batch-tr-id">' + escapeHTML(b.batch_id) + (overdueCount > 0 ? ' <span class="bp-urgent-dot">\u25cf</span>' : '') + '</td>';
+        resultsHtml += '<td>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</td>';
+        resultsHtml += '<td>' + escapeHTML(b.customer_name || '\u2014') + '</td>';
+        resultsHtml += '<td>' + escapeHTML(loc || '\u2014') + '</td>';
+        resultsHtml += '<td><span class="bp-status-badge bp-status-badge--' + statusColor + '" style="font-size:0.72rem;padding:1px 6px;">' + escapeHTML(statusLabel) + '</span></td>';
+        resultsHtml += '<td>' + days + '</td>';
+        resultsHtml += '</tr>';
       });
-      html += '</tbody></table>';
+      resultsHtml += '</tbody></table>';
     } else {
       // Card view (default)
-      html += '<div class="bp-batch-cards">';
+      resultsHtml += '<div class="bp-batch-cards">';
       filtered.forEach(function (b) {
         var statusKey = String(b.status || '').toLowerCase();
         var statusLabel = STATUS_LABELS[statusKey] || b.status || '';
@@ -896,42 +1058,23 @@ function renderDataGapWarning(readings, now) {
           (isSelected ? ' bp-batch-card--selected' : '') +
           (overdueCount > 0 ? ' bp-batch-card--urgent' : '');
 
-        html += '<div class="' + cardCls + '" data-batch-id="' + escapeHTML(b.batch_id) + '">';
-        html += '<div class="bp-batch-card-header">';
-        html += '<span class="bp-batch-id">' + escapeHTML(b.batch_id) + '</span>';
-        html += '<span class="bp-status-badge bp-status-badge--' + statusColor + '">' + escapeHTML(statusLabel) + '</span>';
-        html += '</div>';
-        html += '<div class="bp-batch-card-name">' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</div>';
-        if (b.customer_name) html += '<div class="bp-batch-card-customer">' + escapeHTML(b.customer_name) + '</div>';
-        html += '<div class="bp-batch-card-footer">';
-        if (tasksTotal > 0) html += '<span class="bp-task-progress">' + tasksDone + '/' + tasksTotal + ' tasks</span>';
+        resultsHtml += '<div class="' + cardCls + '" data-batch-id="' + escapeHTML(b.batch_id) + '">';
+        resultsHtml += '<div class="bp-batch-card-header">';
+        resultsHtml += '<span class="bp-batch-id">' + escapeHTML(b.batch_id) + '</span>';
+        resultsHtml += '<span class="bp-status-badge bp-status-badge--' + statusColor + '">' + escapeHTML(statusLabel) + '</span>';
+        resultsHtml += '</div>';
+        resultsHtml += '<div class="bp-batch-card-name">' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</div>';
+        if (b.customer_name) resultsHtml += '<div class="bp-batch-card-customer">' + escapeHTML(b.customer_name) + '</div>';
+        resultsHtml += '<div class="bp-batch-card-footer">';
+        if (tasksTotal > 0) resultsHtml += '<span class="bp-task-progress">' + tasksDone + '/' + tasksTotal + ' tasks</span>';
         var loc = [b.shelf_id, b.bin_id, b.vessel_id].filter(Boolean).join(' \u00b7 ');
-        if (loc) html += '<span class="bp-batch-loc">' + escapeHTML(loc) + '</span>';
-        html += '</div>';
-        html += '</div>';
+        if (loc) resultsHtml += '<span class="bp-batch-loc">' + escapeHTML(loc) + '</span>';
+        resultsHtml += '</div>';
+        resultsHtml += '</div>';
       });
-      html += '</div>';
+      resultsHtml += '</div>';
     }
-    html += '</div>';
-    pane.innerHTML = html;
-
-    // Filter button + batch card clicks handled by delegation on #bp-batch-list-pane (see initDelegation)
-    // Search input — use module-scope timer so switchTab() can cancel it
-    var searchInput = document.getElementById('bp-batch-search');
-    if (searchInput) {
-      searchInput.addEventListener('input', function () {
-        clearTimeout(_batchSearchTimer);
-        _batchSearchTimer = setTimeout(function () {
-          _batchSearchTimer = null;
-          _batchSearch = searchInput.value;
-          renderBatchList();
-        }, 200);
-      });
-    }
-
-    // New batch button
-    var newBatchBtn = document.getElementById('bp-list-new-batch');
-    if (newBatchBtn) newBatchBtn.addEventListener('click', openCreateSheet);
+    resultsEl.innerHTML = resultsHtml;
   }
 
   function selectBatch(batchId) {
@@ -953,12 +1096,26 @@ function renderDataGapWarning(readings, now) {
       card.classList.toggle('bp-batch-card--selected', card.getAttribute('data-batch-id') === batchId);
     });
 
-    // Show detail pane with skeleton
+    // Check sessionStorage cache (2-minute TTL)
+    var BATCH_CACHE_KEY = 'sv-bp-batch-' + batchId;
+    var BATCH_CACHE_TTL = 120000; // 2 minutes
+    var cached = null;
+    try {
+      var raw = sessionStorage.getItem(BATCH_CACHE_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (Date.now() - parsed.ts < BATCH_CACHE_TTL) cached = parsed.data;
+      }
+    } catch (e) {}
+
+    // Show detail pane with skeleton (or cached content)
     var detailPane = document.getElementById('bp-batch-detail-pane');
     if (detailPane) {
       detailPane.style.display = '';
-      detailPane.innerHTML = '<div class="bp-detail-content"><div class="bp-skeleton-block"></div>' +
-        '<div class="bp-skeleton-block" style="margin-top:10px;height:140px;"></div></div>';
+      if (!cached) {
+        detailPane.innerHTML = '<div class="bp-detail-content"><div class="bp-skeleton-block"></div>' +
+          '<div class="bp-skeleton-block" style="margin-top:10px;height:140px;"></div></div>';
+      }
       // Portrait: trigger slide-in and inert the list so focus can't escape behind the overlay
       setTimeout(function () {
         detailPane.classList.add('bp-detail-slide-in');
@@ -966,6 +1123,23 @@ function renderDataGapWarning(readings, now) {
         var listPane = document.getElementById('bp-batch-list-pane');
         if (listPane && isPortrait) listPane.setAttribute('inert', '');
       }, 10);
+    }
+
+    if (cached) {
+      // Render from cache immediately
+      renderBatchDetail(cached);
+      // Then refresh in background silently
+      adminApiGet('get_batch', { batch_id: batchId })
+        .then(function (result) {
+          var data = result.data || {};
+          try { sessionStorage.setItem(BATCH_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data })); } catch (e) {}
+          // Only re-render if this batch is still selected
+          if (_selectedBatchId === batchId) {
+            renderBatchDetail(data);
+          }
+        })
+        .catch(function () {}); // silently ignore background refresh failures
+      return;
     }
 
     var vesselProm = (_vesselsData && Date.now() - _vesselsCacheTime < CACHE_TTL)
@@ -979,7 +1153,9 @@ function renderDataGapWarning(readings, now) {
 
     Promise.all([adminApiGet('get_batch', { batch_id: batchId }), vesselProm])
       .then(function (results) {
-        renderBatchDetail(results[0].data || {});
+        var data = results[0].data || {};
+        try { sessionStorage.setItem(BATCH_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data })); } catch (e) {}
+        renderBatchDetail(data);
       })
       .catch(function (err) {
         var dp = document.getElementById('bp-batch-detail-pane');
@@ -1093,6 +1269,7 @@ function renderDataGapWarning(readings, now) {
           if (batch) { batch.vessel_id = vessel; batch.shelf_id = shelf; batch.bin_id = bin; }
           hide();
           showToast('Location updated', 'success');
+          try { sessionStorage.removeItem('sv-bp-batch-' + batchId); } catch (e) {}
         })
         .catch(function (err) {
           okBtn.disabled = false;
@@ -1149,6 +1326,7 @@ function renderDataGapWarning(readings, now) {
     html += '<div class="bp-location-edit">';
     html += '<div class="bp-vessel-wrap">';
     html += '<input type="text" id="bp-edit-vessel-text" class="bp-inline-input" value="' + escapeHTML(currentVesselLabel) + '" placeholder="Search vessels\u2026" autocomplete="off">';
+    html += '<button type="button" class="bp-clear-btn" id="bp-edit-vessel-clear" title="Clear vessel" style="margin-left:4px;padding:2px 8px;cursor:pointer;">\u00d7</button>';
     html += '<div class="bp-vessel-dropdown" id="bp-vessel-dropdown" style="display:none;"></div>';
     html += '<input type="hidden" id="bp-edit-vessel" value="' + escapeHTML(b.vessel_id || '') + '">';
     html += '</div>';
@@ -1198,6 +1376,15 @@ function renderDataGapWarning(readings, now) {
       bindVesselSearch(vesselTextInput, vesselDropdown, vesselHidden, b.vessel_id || '');
     }
 
+    var editVesselClearBtn = document.getElementById('bp-edit-vessel-clear');
+    if (editVesselClearBtn && vesselTextInput && vesselHidden) {
+      editVesselClearBtn.addEventListener('click', function () {
+        vesselHidden.value = '';
+        vesselTextInput.value = '';
+        vesselTextInput.focus();
+      });
+    }
+
     // Shelf + Bin
     var shelfEl = document.getElementById('bp-edit-shelf');
     var binEl = document.getElementById('bp-edit-bin');
@@ -1223,6 +1410,7 @@ function renderDataGapWarning(readings, now) {
             _batchesLoaded = false;
             _allBatchesData = [];
             _eagerLoadTime = 0;
+            try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e) {}
           })
           .catch(function (err) {
             showToast('Failed: ' + err.message, 'error');
@@ -1266,6 +1454,7 @@ function renderDataGapWarning(readings, now) {
             _batchesLoaded = false;
             _dashLoadTime = 0;
             renderBatchList();
+            try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e) {}
           })
           .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
           }
@@ -1287,6 +1476,7 @@ function renderDataGapWarning(readings, now) {
             .then(function () {
               b.notes = notes;
               showToast('Notes saved', 'success');
+              try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e) {}
             })
             .catch(function (err) { showToast('Notes save failed: ' + err.message, 'error'); });
         }, 2000);
@@ -2052,6 +2242,7 @@ function renderDataGapWarning(readings, now) {
     html += '<div class="bp-form-group"><label>Vessel <span class="bp-optional">(optional)</span></label>';
     html += '<div class="bp-vessel-wrap">';
     html += '<input type="text" id="bp-new-vessel-text" class="bp-inline-input" placeholder="Search vessels\u2026" autocomplete="off">';
+    html += '<button type="button" class="bp-clear-btn" id="bp-new-vessel-clear" title="Clear vessel" style="margin-left:4px;padding:2px 8px;cursor:pointer;">\u00d7</button>';
     html += '<div class="bp-vessel-dropdown" id="bp-new-vessel-dropdown" style="display:none;"></div>';
     html += '<input type="hidden" id="bp-new-vessel">';
     html += '</div></div>';
@@ -2083,6 +2274,15 @@ function renderDataGapWarning(readings, now) {
     var vDropdown = document.getElementById('bp-new-vessel-dropdown');
     var vHidden = document.getElementById('bp-new-vessel');
     if (vInput && vDropdown && vHidden) bindVesselSearch(vInput, vDropdown, vHidden, '');
+
+    var vClearBtn = document.getElementById('bp-new-vessel-clear');
+    if (vClearBtn && vInput && vHidden) {
+      vClearBtn.addEventListener('click', function () {
+        vHidden.value = '';
+        vInput.value = '';
+        vInput.focus();
+      });
+    }
 
     var shelfEl = document.getElementById('bp-new-shelf');
     var binEl = document.getElementById('bp-new-bin');
@@ -2286,7 +2486,7 @@ function renderDataGapWarning(readings, now) {
         ncSaveBtn.disabled = true;
         fetch(base + '/api/contacts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) || '' },
           body: JSON.stringify({ name: name, email: email, phone: phone })
         })
           .then(function (r) { return r.json(); })
@@ -2314,14 +2514,15 @@ function renderDataGapWarning(readings, now) {
   // ===== Tasks Tab =====
 
   function loadTasks() {
-    // If tasks are already cached from eager load or recent fetch, render immediately
-    if (_upcomingLoaded && _upcomingTasks.length > 0 && Date.now() - _upcomingLoadTime < CACHE_TTL_LONG) {
+    // Show cached data immediately if we have it (instant response)
+    if (_upcomingLoaded && _upcomingTasks.length > 0) {
       renderTasks();
-      return;
+    } else {
+      var inner = document.getElementById('bp-tasks-inner');
+      if (inner) inner.innerHTML = '<div class="bp-skeleton-block"></div>';
     }
+    // Always kick off a background refresh
     _upcomingLoadTime = Date.now();
-    var inner = document.getElementById('bp-tasks-inner');
-    if (inner) inner.innerHTML = '<div class="bp-skeleton-block"></div>';
     adminApiGet('get_tasks_upcoming', { limit: 60 })
       .then(function (result) {
         _upcomingTasks = (result.data && result.data.tasks) || [];
@@ -2329,8 +2530,11 @@ function renderDataGapWarning(readings, now) {
         renderTasks();
       })
       .catch(function (err) {
-        var inner2 = document.getElementById('bp-tasks-inner');
-        if (inner2) inner2.innerHTML = '<p class="bp-empty">Failed to load tasks: ' + escapeHTML(err.message) + '</p>';
+        // Only show error if we have no cached data to display
+        if (!_upcomingLoaded) {
+          var inner2 = document.getElementById('bp-tasks-inner');
+          if (inner2) inner2.innerHTML = '<p class="bp-empty">Failed to load tasks: ' + escapeHTML(err.message) + '</p>';
+        }
       });
   }
 
@@ -2911,6 +3115,7 @@ function renderDataGapWarning(readings, now) {
                 row.setAttribute('data-save-state', 'saved');
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
+              if (_selectedBatchId) { try { sessionStorage.removeItem('sv-bp-batch-' + _selectedBatchId); } catch (e) {} }
             })
             .catch(function () {
               cb.checked = !checked;
@@ -3004,10 +3209,26 @@ function renderDataGapWarning(readings, now) {
 
   document.addEventListener('DOMContentLoaded', function () {
     // Wire tab bar
+    var _batchTabPreloaded = false;
+    function triggerBatchPreload() {
+      if (_batchTabPreloaded || _batchesLoading) return;
+      if (_allBatchesData.length > 0 && Date.now() - _batchesLoadTime < CACHE_TTL_LONG) return;
+      _batchTabPreloaded = true;
+      adminApiGet('get_batches', { status: 'all' }).then(function (r) {
+        _allBatchesData = (r.data && r.data.batches) || [];
+        _batchesLoaded = true;
+        _batchesLoadTime = Date.now();
+      }).catch(function () {});
+    }
     Array.prototype.forEach.call(document.querySelectorAll('.bp-tab'), function (btn) {
       btn.addEventListener('click', function () {
         switchTab(btn.getAttribute('data-tab'));
       });
+      // Preload batch data on hover/touch of the batches tab
+      if (btn.getAttribute('data-tab') === 'batches') {
+        btn.addEventListener('mouseenter', triggerBatchPreload);
+        btn.addEventListener('touchstart', triggerBatchPreload, { passive: true });
+      }
     });
 
     initDelegation();
