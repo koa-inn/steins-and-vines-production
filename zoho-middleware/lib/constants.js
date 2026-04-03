@@ -40,6 +40,10 @@ var CACHE_KEYS = {
   // Idempotency
   CHECKOUT_IDEM_PREFIX: 'checkout:idem:',        // append client key (max 128 chars)
   KIOSK_IDEM_PREFIX:    'kiosk:idem:',           // append client key (max 128 chars)
+
+  // Collect payment (Zoho SO → Helcim terminal)
+  COLLECT_IDEM_PREFIX:    'collect:idem:',
+  COLLECT_PENDING_PREFIX: 'collect:pending:',
 };
 
 // ---------------------------------------------------------------------------

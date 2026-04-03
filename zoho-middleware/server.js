@@ -334,6 +334,7 @@ app.use('/api/payment', paymentLimiter);
 app.use('/api/checkout', paymentLimiter);
 app.use('/api/pos/sale', paymentLimiter);
 app.use('/api/kiosk/sale', paymentLimiter);
+app.use('/api/pos/collect', paymentLimiter);
 
 // ---------------------------------------------------------------------------
 // Route modules
@@ -348,6 +349,7 @@ app.use('/', require('./routes/payments'));
 app.use('/', require('./routes/checkout'));
 app.use('/', require('./routes/taxes'));
 app.use('/', require('./routes/pos'));
+app.use('/', require('./routes/collect'));
 app.use('/', require('./routes/purchaseorders'));
 app.use(require('./routes/webhooks'));
 

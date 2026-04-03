@@ -4,6 +4,9 @@ var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var eventLog = require('../lib/eventLog');
 var mailer = require('../lib/mailer');
+var zohoApi = require('../lib/zoho-api');
+var zohoPost = zohoApi.zohoPost;
+var C = require('../lib/constants');
 
 var router = express.Router();
 
@@ -98,6 +101,52 @@ function handleCardTransaction(event) {
     txnId: transactionId,
     invoiceNumber: invoiceNumber
   });
+
+  // Collect-pending lookup: if this transaction was initiated by the collect
+  // flow, record payment in Zoho or clean up on decline.
+  if (invoiceNumber) {
+    var pendingKey = C.CACHE_KEYS.COLLECT_PENDING_PREFIX + invoiceNumber;
+    cache.get(pendingKey).then(function (raw) {
+      if (!raw) return; // Not a collect-flow transaction
+      var ctx;
+      try { ctx = JSON.parse(raw); } catch (e) { return; }
+
+      if (status === 'APPROVED') {
+        return zohoPost('/customerpayments', {
+          customer_id: ctx.customer_id,
+          payment_mode: (cardType && cardType.toLowerCase().indexOf('debit') !== -1) ? 'debitcard' : 'creditcard',
+          amount: ctx.amount,
+          date: new Date().toISOString().slice(0, 10),
+          reference_number: transactionId,
+          notes: 'In-store terminal payment. Helcim txn: ' + transactionId,
+          salesorders_to_apply: [{
+            salesorder_id: ctx.salesorder_id,
+            amount_applied: ctx.amount
+          }]
+        }).then(function () {
+          eventLog.logEvent('collect.payment_recorded', {
+            soId: ctx.salesorder_id,
+            soNumber: ctx.salesorder_number,
+            txnId: transactionId,
+            amount: ctx.amount
+          });
+          return cache.del(pendingKey);
+        });
+      } else if (status === 'DECLINED') {
+        eventLog.logEvent('collect.payment_declined', {
+          soId: ctx.salesorder_id,
+          soNumber: ctx.salesorder_number,
+          txnId: transactionId,
+          amount: ctx.amount
+        });
+        // Clean up both pending and idempotency keys so staff can retry
+        var idemKey = C.CACHE_KEYS.COLLECT_IDEM_PREFIX + ctx.idempotencyKey;
+        return Promise.all([cache.del(pendingKey), cache.del(idemKey)]);
+      }
+    }).catch(function (err) {
+      log.warn('[webhook/helcim] Collect-pending handling failed: ' + err.message);
+    });
+  }
 }
 
 /**
