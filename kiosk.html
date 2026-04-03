@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="favicon.ico">
-  <link rel="stylesheet" href="css/kiosk.min.css?v=mnj5fizy">
+  <link rel="stylesheet" href="css/kiosk.min.css?v=mnj9k41h">
   <script src="js/lib/constants.js"></script>
   <script src="js/lib/utils.js"></script>
   <script src="js/lib/auth.js"></script>
@@ -19,7 +19,7 @@
   <script src="js/admin-config.js"></script>
   <script src="js/vendor/qrcode.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="js/kiosk.min.js?v=mnj5fizy"></script>
+  <script src="js/kiosk.min.js?v=mnj9k41h"></script>
 </head>
 <body>
 
@@ -48,6 +48,7 @@
       </div>
       <div class="kiosk-shell-user">
         <span id="kiosk-user-email"></span>
+        <button type="button" class="btn-secondary admin-btn-sm" id="kiosk-orders-btn">Sales Orders</button>
         <button type="button" class="btn-secondary admin-btn-sm" id="kiosk-browse-mode-btn">Customer View</button>
         <button type="button" class="btn-secondary admin-btn-sm" id="kiosk-signout" style="display:none;">Sign Out</button>
       </div>
@@ -228,6 +229,61 @@
             <button type="button" class="btn-secondary kiosk-back-btn" id="kiosk-back-btn">Back to Cart</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Kiosk: Sales Orders / Collect Payment View -->
+    <div id="kiosk-view-collect" class="kiosk-view" style="display:none;">
+      <div class="kiosk-collect-header">
+        <h2>Sales Orders</h2>
+        <div class="kiosk-collect-actions">
+          <input type="search" id="kiosk-so-search" class="kiosk-search-input" placeholder="Search by customer..." autocomplete="off">
+          <button type="button" class="btn-secondary kiosk-refresh-btn" id="kiosk-so-refresh" title="Refresh">&#8635;</button>
+          <button type="button" class="btn" id="kiosk-so-create-btn">+ New Order</button>
+        </div>
+      </div>
+      <div id="kiosk-so-list" class="kiosk-so-list">
+        <!-- SO cards rendered by JS -->
+      </div>
+      <div class="kiosk-collect-footer">
+        <button type="button" class="btn-secondary" id="kiosk-collect-back">&larr; Back to POS</button>
+      </div>
+    </div>
+
+    <!-- Kiosk: Create Sales Order View -->
+    <div id="kiosk-view-create-so" class="kiosk-view" style="display:none;">
+      <div class="kiosk-collect-header">
+        <h2>Create Sales Order</h2>
+      </div>
+      <div class="kiosk-create-so-body">
+        <div id="kiosk-so-customer-section" class="kiosk-so-form-section">
+          <label>Customer</label>
+          <div style="position:relative;">
+            <input type="text" id="kiosk-so-customer-search" class="admin-input" placeholder="Search customers..." autocomplete="off">
+            <div id="kiosk-so-customer-dropdown" class="kiosk-dropdown" style="display:none;"></div>
+          </div>
+          <div id="kiosk-so-customer-info" style="display:none;"></div>
+        </div>
+        <div id="kiosk-so-items-section" class="kiosk-so-form-section">
+          <label>Items</label>
+          <div style="position:relative;">
+            <input type="text" id="kiosk-so-item-search" class="admin-input" placeholder="Search products..." autocomplete="off">
+            <div id="kiosk-so-item-dropdown" class="kiosk-dropdown" style="display:none;"></div>
+          </div>
+          <div id="kiosk-so-items-list"></div>
+        </div>
+        <div id="kiosk-so-total-section">
+          <div class="kiosk-so-total-row"><span>Total:</span><span id="kiosk-so-total">$0.00</span></div>
+        </div>
+        <div id="kiosk-so-notes-section" class="kiosk-so-form-section">
+          <label>Notes (optional)</label>
+          <textarea id="kiosk-so-notes" class="admin-input" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="kiosk-collect-footer">
+        <button type="button" class="btn-secondary" id="kiosk-create-so-back">&larr; Back</button>
+        <button type="button" class="btn-secondary" id="kiosk-create-so-save">Create Order</button>
+        <button type="button" class="btn" id="kiosk-create-so-pay">Create &amp; Pay Now</button>
       </div>
     </div>
 

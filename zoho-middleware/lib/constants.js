@@ -44,6 +44,9 @@ var CACHE_KEYS = {
   // Collect payment (Zoho SO → Helcim terminal)
   COLLECT_IDEM_PREFIX:    'collect:idem:',
   COLLECT_PENDING_PREFIX: 'collect:pending:',
+
+  // Kiosk sales order management
+  KIOSK_SALESORDERS:      'kiosk:salesorders',
 };
 
 // ---------------------------------------------------------------------------

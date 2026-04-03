@@ -1607,3 +1607,333 @@ img {
   .kiosk-label-wine .cb-product-name,
   .kiosk-label-beer .cb-product-name { font-size: 1.1rem; }
 }
+
+/* ===== Sales Orders / Collect Payment ===== */
+
+/* Collect view header */
+.kiosk-collect-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--ledger-line);
+  background: var(--cellar-raised);
+  flex-shrink: 0;
+  gap: 1rem;
+}
+
+.kiosk-collect-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--ink-primary);
+  white-space: nowrap;
+}
+
+.kiosk-collect-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.kiosk-collect-actions .kiosk-search-input {
+  flex: 1;
+  min-width: 160px;
+}
+
+.kiosk-collect-footer {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--ledger-line);
+  background: var(--cellar-raised);
+  flex-shrink: 0;
+}
+
+/* SO list */
+.kiosk-so-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  min-height: 0;
+  align-items: start;
+}
+
+.kiosk-so-card {
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-emphasis);
+  border-radius: var(--r-lg);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  transition: border-color 0.15s;
+}
+
+.kiosk-so-card:hover {
+  border-color: var(--barrel);
+}
+
+.kiosk-so-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kiosk-so-number {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink-primary);
+  font-family: monospace;
+}
+
+.kiosk-so-balance {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--cellar-green);
+}
+
+.kiosk-so-card-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kiosk-so-customer {
+  color: var(--ink-secondary);
+  font-size: 0.9rem;
+}
+
+.kiosk-so-date {
+  color: var(--ink-tertiary);
+  font-size: 0.82rem;
+}
+
+.kiosk-so-card-items {
+  font-size: 0.82rem;
+  color: var(--ink-tertiary);
+  padding: 0.25rem 0;
+  line-height: 1.5;
+}
+
+.kiosk-so-pay-btn {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 48px;
+}
+
+.kiosk-so-paid-badge {
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--batch-success);
+  background: var(--batch-success-bg);
+  border-radius: 4px;
+  margin-top: 0.4rem;
+}
+
+/* Loading skeleton */
+.kiosk-so-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 0.75rem;
+  grid-column: 1 / -1;
+}
+
+.kiosk-so-skeleton-card {
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-soft);
+  border-radius: var(--r-lg);
+  height: 140px;
+  animation: kiosk-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes kiosk-skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+/* ---- Create SO form ---- */
+.kiosk-create-so-body {
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  min-height: 0;
+  max-width: 640px;
+}
+
+.kiosk-so-form-section {
+  margin-bottom: 1rem;
+}
+
+.kiosk-so-form-section > label {
+  display: block;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.3rem;
+  color: var(--ink-secondary);
+}
+
+.kiosk-so-form-section .admin-input {
+  font-size: 1rem;
+  min-height: 44px;
+}
+
+.kiosk-dropdown {
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-emphasis);
+  border-radius: var(--r-md);
+  max-height: 220px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  position: absolute;
+  z-index: 10;
+  width: 100%;
+  box-shadow: 0 4px 16px rgba(44, 34, 24, 0.12);
+  margin-top: 2px;
+}
+
+.kiosk-dropdown-item {
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--ledger-soft);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+
+.kiosk-dropdown-item:last-child { border-bottom: none; }
+.kiosk-dropdown-item:hover { background: var(--cellar-canvas); }
+.kiosk-dropdown-item:active { background: var(--cellar-canvas); }
+
+/* SO customer selected badge */
+.kiosk-so-customer-selected {
+  background: var(--batch-success-bg);
+  border: 1px solid var(--batch-success);
+  border-radius: 6px;
+  padding: 0.55rem 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  margin-top: 0.4rem;
+  min-height: 44px;
+}
+
+.kiosk-so-customer-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0 0.3rem;
+  color: var(--ink-secondary);
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* SO item rows */
+.kiosk-so-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--ledger-soft);
+  gap: 0.5rem;
+}
+.kiosk-so-item-row:last-child { border-bottom: none; }
+
+.kiosk-so-item-name {
+  flex: 1;
+  font-size: 0.88rem;
+  color: var(--ink-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kiosk-so-item-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.kiosk-so-item-total {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--barrel);
+  min-width: 56px;
+  text-align: right;
+}
+
+.kiosk-so-item-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: var(--batch-danger);
+  padding: 0 0.3rem;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kiosk-so-item-remove:hover { color: var(--stain); }
+
+/* SO total row */
+.kiosk-so-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink-primary);
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--ledger-emphasis);
+  margin-top: 0.25rem;
+}
+
+/* Collect view layout — fill height */
+#kiosk-view-collect,
+#kiosk-view-create-so {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Responsive adjustments for collect views */
+@media (max-width: 600px) {
+  .kiosk-collect-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .kiosk-collect-actions {
+    flex-wrap: wrap;
+  }
+  .kiosk-so-list {
+    grid-template-columns: 1fr;
+  }
+  .kiosk-collect-footer {
+    flex-wrap: wrap;
+  }
+}

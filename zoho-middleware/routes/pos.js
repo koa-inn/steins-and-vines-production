@@ -647,4 +647,385 @@ router.get('/api/admin/inventory-ledger', function (req, res) {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Kiosk Sales Order management
+// ---------------------------------------------------------------------------
+
+var KIOSK_SO_CACHE_KEY = C.CACHE_KEYS.KIOSK_SALESORDERS;
+var KIOSK_SO_CACHE_TTL = 120; // seconds
+
+/**
+ * GET /api/kiosk/salesorders
+ * List open/unfulfilled sales orders from Zoho for the kiosk UI.
+ *
+ * Query params:
+ *   status  - Zoho SO status filter (default 'open')
+ *   search  - Case-insensitive customer name filter (applied after cache)
+ *
+ * Response: { salesorders: [...] }
+ */
+router.get('/api/kiosk/salesorders', function (req, res) {
+  var status = req.query.status || 'open';
+  var search = req.query.search || '';
+
+  cache.get(KIOSK_SO_CACHE_KEY)
+    .then(function (cached) {
+      if (cached) {
+        log.info('[kiosk/salesorders] Cache hit');
+        return cached;
+      }
+
+      log.info('[kiosk/salesorders] Cache miss — fetching from Zoho (status=' + status + ')');
+      return zohoGet('/salesorders', {
+        status: status,
+        sort_column: 'date',
+        sort_order: 'D'
+      }).then(function (data) {
+        var orders = (data.salesorders || []).map(function (so) {
+          return {
+            salesorder_id: so.salesorder_id || '',
+            salesorder_number: so.salesorder_number || '',
+            customer_name: so.customer_name || '',
+            customer_id: so.customer_id || '',
+            balance: so.balance || 0,
+            total: so.total || 0,
+            status: so.status || '',
+            date: so.date || '',
+            line_items: (so.line_items || []).map(function (li) {
+              return {
+                name: li.name || li.description || '',
+                quantity: li.quantity || 1,
+                rate: li.rate || 0,
+                amount: li.amount || 0
+              };
+            })
+          };
+        });
+
+        // Cache the full result (before search filtering)
+        cache.set(KIOSK_SO_CACHE_KEY, orders, KIOSK_SO_CACHE_TTL).catch(function () {});
+
+        return orders;
+      });
+    })
+    .then(function (orders) {
+      // Apply client-side search filter if provided
+      if (search) {
+        var needle = search.toLowerCase();
+        orders = orders.filter(function (so) {
+          return (so.customer_name || '').toLowerCase().indexOf(needle) !== -1;
+        });
+      }
+
+      res.json({ salesorders: orders });
+    })
+    .catch(function (err) {
+      log.error('[kiosk/salesorders] ' + err.message);
+      res.status(502).json({ error: 'Unable to fetch sales orders' });
+    });
+});
+
+/**
+ * POST /api/kiosk/salesorder-create
+ * Create a new Sales Order in Zoho from the kiosk.
+ *
+ * Expected body:
+ * {
+ *   customer_id: "zoho_customer_id",
+ *   items: [{ item_id: "id", name: "Name", quantity: 2, rate: 14.99 }],
+ *   notes: "optional notes"
+ * }
+ *
+ * Response: { ok, salesorder_id, salesorder_number, total, balance }
+ */
+router.post('/api/kiosk/salesorder-create', function (req, res) {
+  var body = req.body || {};
+
+  // Validate customer_id
+  if (!body.customer_id || typeof body.customer_id !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid customer_id' });
+  }
+
+  // Validate items array
+  if (!Array.isArray(body.items) || body.items.length === 0) {
+    return res.status(400).json({ error: 'Items array is required and must not be empty' });
+  }
+
+  for (var i = 0; i < body.items.length; i++) {
+    var item = body.items[i];
+    if (!item.item_id || typeof item.item_id !== 'string') {
+      return res.status(400).json({ error: 'Invalid item_id for item ' + i });
+    }
+    var qty = Number(item.quantity);
+    if (!qty || qty <= 0) {
+      return res.status(400).json({ error: 'Invalid quantity for item ' + i });
+    }
+    var rate = Number(item.rate);
+    if (isNaN(rate) || rate < 0) {
+      return res.status(400).json({ error: 'Invalid rate for item ' + i });
+    }
+  }
+
+  var payload = {
+    customer_id: body.customer_id,
+    date: new Date().toISOString().slice(0, 10),
+    line_items: body.items.map(function (item) {
+      return {
+        item_id: item.item_id,
+        quantity: item.quantity,
+        rate: item.rate,
+        name: item.name || ''
+      };
+    }),
+    notes: body.notes || ''
+  };
+
+  log.info('[kiosk/so-create] Creating SO for customer=' + body.customer_id +
+    ' items=' + body.items.length);
+
+  zohoPost('/salesorders', payload)
+    .then(function (data) {
+      var so = data.salesorder || {};
+      var soId = so.salesorder_id || '';
+      var soNumber = so.salesorder_number || '';
+      var total = so.total || 0;
+      var balance = so.balance || 0;
+
+      log.info('[kiosk/so-create] Created: ' + soNumber + ' id=' + soId);
+
+      // Invalidate the salesorders cache
+      cache.del(KIOSK_SO_CACHE_KEY).catch(function () {});
+
+      eventLog.logEvent('kiosk.salesorder_created', {
+        soId: soId,
+        soNumber: soNumber,
+        itemCount: body.items.length,
+        total: total
+      });
+
+      res.status(201).json({
+        ok: true,
+        salesorder_id: soId,
+        salesorder_number: soNumber,
+        total: total,
+        balance: balance
+      });
+    })
+    .catch(function (err) {
+      var msg = err.message;
+      if (err.response && err.response.data) {
+        msg = err.response.data.message || err.response.data.error || msg;
+      }
+      log.error('[kiosk/so-create] Zoho error: ' + msg);
+      res.status(502).json({ error: 'Failed to create sales order' });
+    });
+});
+
+/**
+ * POST /api/kiosk/salesorder-pay
+ * Collect payment on an existing Sales Order via the Helcim terminal.
+ * Synchronous: pushes to terminal, polls for result, records payment in Zoho.
+ *
+ * Expected body:
+ * {
+ *   salesorder_id: "zoho_salesorder_id"
+ * }
+ *
+ * Response: { ok, transaction_id, salesorder_number, amount, card_type }
+ */
+router.post('/api/kiosk/salesorder-pay', function (req, res) {
+  var body = req.body || {};
+  var soId = body.salesorder_id;
+
+  // Validate salesorder_id
+  if (!soId || typeof soId !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid salesorder_id' });
+  }
+
+  // Check terminal is available
+  if (!helcimLib.isTerminalEnabled()) {
+    return res.status(503).json({ error: 'POS terminal not configured' });
+  }
+
+  // Fetch the Sales Order from Zoho
+  zohoGet('/salesorders/' + soId)
+    .then(function (data) {
+      var so = data.salesorder || {};
+      var balance = parseFloat(so.balance);
+      var soNumber = so.salesorder_number || '';
+      var customerId = so.customer_id || '';
+      var orderStatus = (so.order_status || so.status || '').toLowerCase();
+
+      // Guard: balance must be positive
+      if (isNaN(balance) || balance <= 0) {
+        return res.status(400).json({ error: 'No balance due on this order' });
+      }
+
+      // Guard: reject void/closed orders
+      if (orderStatus === 'void' || orderStatus === 'closed') {
+        return res.status(400).json({ error: 'Order is ' + orderStatus });
+      }
+
+      log.info('[kiosk/so-pay] Starting payment: soNumber=' + soNumber +
+        ' amount=$' + balance.toFixed(2));
+
+      // Push payment to terminal
+      var TERMINAL_TIMEOUT_MS = 90000;
+      var POLL_INTERVAL_MS = 5000;
+      var idempotencyKey = helcimLib.generateIdempotencyKey();
+
+      helcimLib.terminalPurchase(balance, soNumber, idempotencyKey)
+        .then(function () {
+          log.info('[kiosk/so-pay] Terminal push sent: soNumber=' + soNumber);
+
+          // Poll for result — same pattern as /api/kiosk/sale
+          var pollStart = Date.now();
+          function poll() {
+            return helcimLib.pollTerminalResult(soNumber).then(function (result) {
+              if (result.approved) {
+                return result;
+              }
+              if (result.status === 'DECLINED') {
+                var declineErr = new Error('Payment declined');
+                declineErr.isDeclined = true;
+                throw declineErr;
+              }
+              if (Date.now() - pollStart >= TERMINAL_TIMEOUT_MS) {
+                throw new Error('Terminal timeout after 90s');
+              }
+              // Still pending — wait and retry
+              return new Promise(function (resolve) {
+                setTimeout(function () { resolve(poll()); }, POLL_INTERVAL_MS);
+              });
+            });
+          }
+
+          return poll();
+        })
+        .then(function (termResponse) {
+          if (!termResponse.approved) {
+            log.warn('[kiosk/so-pay] Terminal declined: soNumber=' + soNumber);
+            return res.status(402).json({
+              error: 'Payment declined',
+              code: 'DECLINED'
+            });
+          }
+
+          var txnId = termResponse.transactionId || '';
+          log.info('[kiosk/so-pay] Terminal approved: txn=' + txnId +
+            ' soNumber=' + soNumber);
+
+          // Record payment in Zoho
+          var today = new Date().toISOString().slice(0, 10);
+          var cardType = (termResponse.cardType || '').toLowerCase();
+          var paymentMode = (cardType.indexOf('debit') !== -1) ? 'debitcard' : 'creditcard';
+
+          zohoPost('/customerpayments', {
+            customer_id: customerId,
+            payment_mode: paymentMode,
+            amount: balance,
+            date: today,
+            reference_number: txnId || soNumber,
+            salesorders_to_apply: [{ salesorder_id: soId, amount_applied: balance }],
+            notes: 'Kiosk SO payment. Terminal txn: ' + txnId
+          })
+            .then(function () {
+              log.info('[kiosk/so-pay] Payment recorded for ' + soNumber);
+
+              // Invalidate SO cache
+              cache.del(KIOSK_SO_CACHE_KEY).catch(function () {});
+
+              eventLog.logEvent('kiosk.salesorder_payment', {
+                soId: soId,
+                soNumber: soNumber,
+                txnId: txnId,
+                amount: balance
+              });
+
+              res.json({
+                ok: true,
+                transaction_id: txnId,
+                salesorder_number: soNumber,
+                amount: balance,
+                card_type: paymentMode
+              });
+            })
+            .catch(function (payErr) {
+              // Zoho payment recording failed after terminal approval — void
+              var payMsg = payErr.message;
+              if (payErr.response && payErr.response.data) {
+                payMsg = payErr.response.data.message || payErr.response.data.error || payMsg;
+              }
+              log.error('[kiosk/so-pay] Payment recording failed after terminal approval — voiding txn=' + txnId + ': ' + payMsg);
+
+              eventLog.logEvent('kiosk.so_pay_failed_after_charge', {
+                soId: soId,
+                soNumber: soNumber,
+                txnId: txnId,
+                amount: balance
+              });
+
+              helcimLib.voidTransaction(txnId)
+                .then(function () {
+                  log.info('[kiosk/so-pay] Voided txn=' + txnId + ' after payment recording failure');
+                })
+                .catch(function (voidErr) {
+                  log.error('[kiosk/so-pay] CRITICAL: Void failed for txn=' + txnId + ': ' + voidErr.message);
+                  var failRecord = {
+                    txnId: txnId,
+                    amount: balance,
+                    timestamp: new Date().toISOString(),
+                    error: voidErr.message,
+                    needs_manual_review: true
+                  };
+                  cache.set('sv:void-failure:' + Date.now(), failRecord, 60 * 60 * 24 * 30)
+                    .catch(function (redisErr) {
+                      log.error('[kiosk/so-pay] CRITICAL: Failed to persist void-failure record: ' + redisErr.message);
+                    });
+                  mailer.sendVoidFailureAlert({
+                    txnId: txnId,
+                    amount: balance,
+                    error: voidErr.message,
+                    timestamp: failRecord.timestamp
+                  }).catch(function (mailErr) {
+                    log.error('[kiosk/so-pay] Void failure alert email failed: ' + mailErr.message);
+                  });
+                })
+                .then(function () {
+                  if (res.headersSent) return;
+                  res.status(502).json({
+                    error: 'Payment was taken but could not be recorded against the order. Please contact support.',
+                    payment_voided: true,
+                    voided_transaction_id: txnId
+                  });
+                });
+            });
+        })
+        .catch(function (termErr) {
+          if (termErr.message === 'Terminal timeout after 90s') {
+            log.warn('[kiosk/so-pay] Terminal timed out after 90s — no txn to void');
+            return res.status(504).json({ error: 'Terminal did not respond in time. Please try again.' });
+          }
+          if (termErr.isDeclined) {
+            return res.status(402).json({ error: 'Payment declined', code: 'DECLINED' });
+          }
+          log.error('[kiosk/so-pay] Terminal error: ' + termErr.message);
+          if (!res.headersSent) {
+            res.status(502).json({ error: 'Terminal error — please try again' });
+          }
+        });
+    })
+    .catch(function (err) {
+      var status = err.status || (err.response && err.response.status) || 502;
+      if (status === 404 || (err.response && err.response.status === 404)) {
+        log.error('[kiosk/so-pay] Sales order not found: soId=' + soId);
+        return res.status(404).json({ error: 'Sales order not found' });
+      }
+      log.error('[kiosk/so-pay] Failed to fetch SO: ' + err.message);
+      if (!res.headersSent) {
+        res.status(502).json({ error: 'Failed to process sales order payment' });
+      }
+    });
+});
+
 module.exports = router;

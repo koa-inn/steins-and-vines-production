@@ -335,6 +335,7 @@ app.use('/api/checkout', paymentLimiter);
 app.use('/api/pos/sale', paymentLimiter);
 app.use('/api/kiosk/sale', paymentLimiter);
 app.use('/api/pos/collect', paymentLimiter);
+app.use('/api/kiosk/salesorder-pay', paymentLimiter);
 
 // ---------------------------------------------------------------------------
 // Route modules
