@@ -85,6 +85,7 @@ function renderDataGapWarning(readings, now) {
   var _batchesLoading = false;
   var _batchesLoadTime = 0;
   var _batchStatusFilter = 'active';
+  var _batchProductFilter = '';
   var _batchSearch = '';
   var _batchSearchTimer = null;   // module-scope so switchTab() can cancel a pending re-render
   var _batchViewMode = 'cards';   // 'cards' or 'table'
@@ -97,6 +98,8 @@ function renderDataGapWarning(readings, now) {
   var _vesselsMap = {};            // keyed by vessel_id for O(1) lookup
   var _fermSchedules = [];
   var _fermSchedulesCacheTime = 0; // TTL: reload schedule list if >5min stale
+  var _batchSubView = 'batches';   // 'batches' or 'schedules'
+  var _schedSteps = [];            // temp state for schedule editor form
 
   // Batch detail
   var _detailPlatoStaging = [];
@@ -109,7 +112,15 @@ function renderDataGapWarning(readings, now) {
   var _upcomingLoaded = false;
   var _upcomingLoadTime = 0;
   var _taskSaveTimers = {};    // keyed by taskId — per-checkbox auto-save debounce
+  var _taskFilter = 'incomplete';
+  var _taskSearch = '';
+  var _taskSearchTimer = null;
   var _chartCache = {};        // keyed by batchId+readingCount+lastTimestamp
+
+  // Preload state — touchstart pre-fetch + top-3 background fetch
+  var _preloadBatchId = null;
+  var _preloadPromise = null;
+  var _batchDetailPreloaded = false;
 
   // Measurements
   var _measBatches = [];
@@ -761,6 +772,7 @@ function renderDataGapWarning(readings, now) {
         html += '<span class="bp-task-title">' + escapeHTML(t.title || ('Step ' + t.step_number)) + '</span>';
         var overdueDate = escapeHTML(String(t.due_date).slice(0, 10));
         html += '<span style="font-size:0.75rem;color:#d32f2f;font-weight:600;margin-left:6px;">Overdue \u2014 ' + overdueDate + '</span>';
+        if (t.customer_name) html += '<span class="bp-task-customer">' + escapeHTML(t.customer_name) + '</span>';
         var meta = getBatchMeta(t.batch_id);
         if (meta) html += '<span class="bp-task-meta">' + escapeHTML(meta) + '</span>';
         html += '</div></div>';
@@ -772,6 +784,7 @@ function renderDataGapWarning(readings, now) {
         html += '<div class="bp-task-body">';
         html += '<button type="button" class="bp-batch-chip" data-batch-id="' + escapeHTML(t.batch_id || '') + '">' + escapeHTML(t.batch_id || '') + '</button>';
         html += '<span class="bp-task-title">' + escapeHTML(t.title || ('Step ' + t.step_number)) + '</span>';
+        if (t.customer_name) html += '<span class="bp-task-customer">' + escapeHTML(t.customer_name) + '</span>';
         var meta = getBatchMeta(t.batch_id);
         if (meta) html += '<span class="bp-task-meta">' + escapeHTML(meta) + '</span>';
         html += '</div></div>';
@@ -879,6 +892,7 @@ function renderDataGapWarning(readings, now) {
         _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
         _batchesLoaded = true;
         _batchesLoading = false;
+        _batchDetailPreloaded = false; // allow top-3 preload on fresh batch list
         renderBatchList();
       })
       .catch(function (err) {
@@ -908,11 +922,25 @@ function renderDataGapWarning(readings, now) {
         String(b.customer_name || '') + ' ' + String(b.vessel_id || '')).toLowerCase();
       return hay.indexOf(search) !== -1;
     });
+    if (_batchProductFilter) {
+      filtered = filtered.filter(function (b) {
+        return b.product_name === _batchProductFilter;
+      });
+    }
 
-    // First render: build the persistent shell (filter bar + search row + results container)
+    // First render: build the persistent shell (sub-tabs + filter bar + search row + results container)
     // The shell is only created when #bp-batch-results doesn't exist in the DOM.
     if (!document.getElementById('bp-batch-results')) {
       var shellHtml = '<div class="bp-panel-inner">';
+
+      // Sub-tabs: Batches | Schedules
+      shellHtml += '<div class="bp-batch-subtabs">';
+      shellHtml += '<button type="button" class="bp-batch-subtab' + (_batchSubView === 'batches' ? ' bp-batch-subtab--active' : '') + '" data-subview="batches">Batches</button>';
+      shellHtml += '<button type="button" class="bp-batch-subtab' + (_batchSubView === 'schedules' ? ' bp-batch-subtab--active' : '') + '" data-subview="schedules">Schedules</button>';
+      shellHtml += '</div>';
+
+      // Batch list content wrapper
+      shellHtml += '<div id="bp-batch-list-content"' + (_batchSubView !== 'batches' ? ' style="display:none;"' : '') + '>';
 
       // Filter bar
       shellHtml += '<div class="bp-batch-filters">';
@@ -926,6 +954,7 @@ function renderDataGapWarning(readings, now) {
         var active = _batchStatusFilter === f.val ? ' bp-filter-btn--active' : '';
         shellHtml += '<button type="button" class="bp-filter-btn' + active + '" data-status="' + f.val + '">' + f.label + '</button>';
       });
+      shellHtml += '<select id="bp-batch-product-filter" class="bp-filter-select"><option value="">All Products</option></select>';
       shellHtml += '</div>';
 
       // Search + new batch + view toggle
@@ -937,7 +966,12 @@ function renderDataGapWarning(readings, now) {
 
       // Results container — updated on every render
       shellHtml += '<div id="bp-batch-results"></div>';
-      shellHtml += '</div>';
+      shellHtml += '</div>'; // close #bp-batch-list-content
+
+      // Schedules sub-view
+      shellHtml += '<div id="bp-schedules-list"' + (_batchSubView !== 'schedules' ? ' style="display:none;"' : '') + '></div>';
+
+      shellHtml += '</div>'; // close .bp-panel-inner
       pane.innerHTML = shellHtml;
 
       // Attach search listener ONCE — reads value from the persistent input
@@ -953,6 +987,15 @@ function renderDataGapWarning(readings, now) {
         });
       }
 
+      // Product filter dropdown — attached ONCE
+      var productFilter = document.getElementById('bp-batch-product-filter');
+      if (productFilter) {
+        productFilter.addEventListener('change', function () {
+          _batchProductFilter = productFilter.value;
+          renderBatchList();
+        });
+      }
+
       // New batch button — attached ONCE
       var newBatchBtn = document.getElementById('bp-list-new-batch');
       if (newBatchBtn) newBatchBtn.addEventListener('click', openCreateSheet);
@@ -965,6 +1008,24 @@ function renderDataGapWarning(readings, now) {
     Array.prototype.forEach.call(pane.querySelectorAll('.bp-filter-btn'), function (btn) {
       btn.classList.toggle('bp-filter-btn--active', btn.getAttribute('data-status') === _batchStatusFilter);
     });
+
+    // Update product filter dropdown options
+    var productFilterEl = document.getElementById('bp-batch-product-filter');
+    if (productFilterEl) {
+      var productNames = [];
+      _allBatchesData.forEach(function (b) {
+        if (b.product_name && productNames.indexOf(b.product_name) === -1) {
+          productNames.push(b.product_name);
+        }
+      });
+      productNames.sort();
+      var optHtml = '<option value="">All Products</option>';
+      productNames.forEach(function (p) {
+        optHtml += '<option value="' + escapeHTML(p) + '"' + (_batchProductFilter === p ? ' selected' : '') + '>' + escapeHTML(p) + '</option>';
+      });
+      productFilterEl.innerHTML = optHtml;
+      productFilterEl.style.display = productNames.length > 1 ? '' : 'none';
+    }
 
     // Update view toggle icon/title
     var viewToggle = document.getElementById('bp-batch-view-toggle');
@@ -1075,6 +1136,78 @@ function renderDataGapWarning(readings, now) {
       resultsHtml += '</div>';
     }
     resultsEl.innerHTML = resultsHtml;
+
+    // Improvement 3: Preload top 3 batch details in background (once after initial list load)
+    if (!_batchDetailPreloaded) {
+      _batchDetailPreloaded = true;
+      setTimeout(function () {
+        var cards = pane.querySelectorAll('.bp-batch-card, tr[data-batch-id]');
+        var preloadCount = Math.min(cards.length, 3);
+        for (var pi = 0; pi < preloadCount; pi++) {
+          (function (bid) {
+            var cacheKey = 'sv-bp-batch-' + bid;
+            try {
+              var raw = sessionStorage.getItem(cacheKey);
+              if (raw && (Date.now() - JSON.parse(raw).ts < 120000)) return;
+            } catch (e) {}
+            adminApiGet('get_batch', { batch_id: bid })
+              .then(function (result) {
+                try { sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: result.data || {} })); } catch (e2) {}
+              })
+              .catch(function () {});
+          })(cards[pi].getAttribute('data-batch-id'));
+        }
+      }, 500);
+    }
+  }
+
+  // Improvement 2: Show partial detail immediately from list data while full detail loads
+  function renderPartialBatchDetail(b) {
+    var detailPane = document.getElementById('bp-batch-detail-pane');
+    if (!detailPane) return;
+    detailPane.style.display = '';
+
+    var statusKey = String(b.status || '').toLowerCase();
+    var statusLabel = STATUS_LABELS[statusKey] || b.status || '';
+    var statusColor = STATUS_COLORS[statusKey] || 'info';
+
+    var html = '<div class="bp-detail-content">';
+
+    // Header — matches renderBatchDetail structure
+    html += '<div class="bp-detail-header">';
+    html += '<button type="button" class="btn-secondary bp-btn-sm bp-detail-back" id="bp-detail-back" aria-label="Back to batch list">\u2190</button>';
+    html += '<div class="bp-detail-title-group">';
+    html += '<span class="bp-detail-batch-id">' + escapeHTML(b.batch_id || '') + '</span>';
+    html += '<span class="bp-status-badge bp-status-badge--' + statusColor + '">' + escapeHTML(statusLabel) + '</span>';
+    html += '</div>';
+    html += '</div>';
+
+    // Info grid — matches renderBatchDetail structure
+    html += '<div class="bp-detail-info">';
+    html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Product</span><span>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</span></div>';
+    html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Customer</span><span>' + escapeHTML(b.customer_name || '\u2014') + '</span></div>';
+    var loc = [b.vessel_id, b.shelf_id, b.bin_id].filter(Boolean).join(' \u00b7 ');
+    if (loc) html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Location</span><span>' + escapeHTML(loc) + '</span></div>';
+    if (b.start_date) html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Start</span><span>' + fmtDate(b.start_date) + '</span></div>';
+    html += '</div>';
+
+    // Loading skeletons for tasks, readings, notes
+    html += '<div class="bp-detail-section"><div class="bp-detail-section-title">Tasks</div>';
+    html += '<div class="bp-skeleton-block" style="height:80px;"></div></div>';
+    html += '<div class="bp-detail-section"><div class="bp-detail-section-title">Measurements</div>';
+    html += '<div class="bp-skeleton-block" style="height:60px;"></div></div>';
+
+    html += '</div>';
+    detailPane.innerHTML = html;
+
+    // Back button (portrait) — so user can navigate away while loading
+    var backBtn = document.getElementById('bp-detail-back');
+    if (backBtn) backBtn.addEventListener('click', closeBatchDetail);
+
+    // On mobile/portrait, scroll to detail pane
+    if (window.innerWidth < 768) {
+      detailPane.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   function selectBatch(batchId) {
@@ -1108,11 +1241,22 @@ function renderDataGapWarning(readings, now) {
       }
     } catch (e) {}
 
+    // Improvement 2: Show partial detail immediately from list data (when not cached)
+    if (!cached) {
+      var listBatch = null;
+      for (var i = 0; i < _allBatchesData.length; i++) {
+        if (_allBatchesData[i].batch_id === batchId) { listBatch = _allBatchesData[i]; break; }
+      }
+      if (listBatch) {
+        renderPartialBatchDetail(listBatch);
+      }
+    }
+
     // Show detail pane with skeleton (or cached content)
     var detailPane = document.getElementById('bp-batch-detail-pane');
     if (detailPane) {
       detailPane.style.display = '';
-      if (!cached) {
+      if (!cached && !document.querySelector('.bp-detail-content')) {
         detailPane.innerHTML = '<div class="bp-detail-content"><div class="bp-skeleton-block"></div>' +
           '<div class="bp-skeleton-block" style="margin-top:10px;height:140px;"></div></div>';
       }
@@ -1151,7 +1295,17 @@ function renderDataGapWarning(readings, now) {
           _vesselsData.forEach(function (v) { _vesselsMap[String(v.vessel_id)] = v; });
         }).catch(function () { _vesselsData = []; _vesselsCacheTime = Date.now(); _vesselsMap = {}; });
 
-    Promise.all([adminApiGet('get_batch', { batch_id: batchId }), vesselProm])
+    // Improvement 1: Use preload promise if touchstart already started fetching this batch
+    var batchProm;
+    if (_preloadBatchId === batchId && _preloadPromise) {
+      batchProm = _preloadPromise;
+      _preloadBatchId = null;
+      _preloadPromise = null;
+    } else {
+      batchProm = adminApiGet('get_batch', { batch_id: batchId });
+    }
+
+    Promise.all([batchProm, vesselProm])
       .then(function (results) {
         var data = results[0].data || {};
         try { sessionStorage.setItem(BATCH_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data })); } catch (e) {}
@@ -1326,7 +1480,7 @@ function renderDataGapWarning(readings, now) {
     html += '<div class="bp-location-edit">';
     html += '<div class="bp-vessel-wrap">';
     html += '<input type="text" id="bp-edit-vessel-text" class="bp-inline-input" value="' + escapeHTML(currentVesselLabel) + '" placeholder="Search vessels\u2026" autocomplete="off">';
-    html += '<button type="button" class="bp-clear-btn" id="bp-edit-vessel-clear" title="Clear vessel" style="margin-left:4px;padding:2px 8px;cursor:pointer;">\u00d7</button>';
+    html += '<button type="button" class="bp-clear-btn" id="bp-edit-vessel-clear" title="Clear vessel">\u00d7</button>';
     html += '<div class="bp-vessel-dropdown" id="bp-vessel-dropdown" style="display:none;"></div>';
     html += '<input type="hidden" id="bp-edit-vessel" value="' + escapeHTML(b.vessel_id || '') + '">';
     html += '</div>';
@@ -2242,7 +2396,7 @@ function renderDataGapWarning(readings, now) {
     html += '<div class="bp-form-group"><label>Vessel <span class="bp-optional">(optional)</span></label>';
     html += '<div class="bp-vessel-wrap">';
     html += '<input type="text" id="bp-new-vessel-text" class="bp-inline-input" placeholder="Search vessels\u2026" autocomplete="off">';
-    html += '<button type="button" class="bp-clear-btn" id="bp-new-vessel-clear" title="Clear vessel" style="margin-left:4px;padding:2px 8px;cursor:pointer;">\u00d7</button>';
+    html += '<button type="button" class="bp-clear-btn" id="bp-new-vessel-clear" title="Clear vessel">\u00d7</button>';
     html += '<div class="bp-vessel-dropdown" id="bp-new-vessel-dropdown" style="display:none;"></div>';
     html += '<input type="hidden" id="bp-new-vessel">';
     html += '</div></div>';
@@ -2541,6 +2695,13 @@ function renderDataGapWarning(readings, now) {
   function renderTasks() {
     var inner = document.getElementById('bp-tasks-inner');
     if (!inner) return;
+
+    // Preserve search focus state before innerHTML wipe
+    var prevSearchEl = document.getElementById('bp-task-search');
+    var hadSearchFocus = prevSearchEl && document.activeElement === prevSearchEl;
+    var searchSelStart = prevSearchEl ? prevSearchEl.selectionStart : 0;
+    var searchSelEnd = prevSearchEl ? prevSearchEl.selectionEnd : 0;
+
     var today = todayStr();
     var weekEnd = new Date();
     weekEnd.setDate(weekEnd.getDate() + 7);
@@ -2553,16 +2714,32 @@ function renderDataGapWarning(readings, now) {
       { key: 'later',   label: 'Later',     tasks: [], cls: '' }
     ];
 
-    _upcomingTasks.forEach(function (t) {
+    // Filter tasks by status/type
+    var filteredTasks = _upcomingTasks.filter(function (t) {
       var done = t.completed === true || t.completed === 'TRUE' || t.completed === '1';
-      if (done) return;
+      if (_taskFilter === 'incomplete') return !done;
+      if (_taskFilter === 'transfer') return !done && String(t.is_transfer).toUpperCase() === 'TRUE';
+      if (_taskFilter === 'packaging') return !done && String(t.is_packaging).toUpperCase() === 'TRUE';
+      return true; // 'all'
+    });
+
+    // Apply text search
+    if (_taskSearch) {
+      var searchLower = _taskSearch.toLowerCase();
+      filteredTasks = filteredTasks.filter(function (t) {
+        return ((t.title || '') + ' ' + (t.product_name || '') + ' ' + (t.customer_name || '') + ' ' + (t.batch_id || '')).toLowerCase().indexOf(searchLower) !== -1;
+      });
+    }
+
+    filteredTasks.forEach(function (t) {
+      var done = t.completed === true || t.completed === 'TRUE' || t.completed === '1';
 
       var isPkg = t.is_packaging === true || t.is_packaging === 'TRUE';
       var due = t.due_date ? String(t.due_date).substring(0, 10) : '';
 
       // Packaging/bottling tasks with no due date are "TBD" — hide until all
       // other non-packaging tasks for the same batch are complete.
-      if (isPkg && !due) {
+      if (!done && isPkg && !due) {
         var otherPending = _upcomingTasks.some(function (other) {
           if (other.task_id === t.task_id) return false;
           if (other.batch_id !== t.batch_id) return false;
@@ -2581,7 +2758,21 @@ function renderDataGapWarning(readings, now) {
     });
 
     var html = '<div class="bp-tasks-toolbar">';
+    html += '<input type="search" class="bp-search-input" id="bp-task-search" placeholder="Search tasks\u2026" value="' + escapeHTML(_taskSearch) + '" autocomplete="off" inputmode="search">';
     html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-tasks-refresh">\u21bb Refresh</button>';
+    html += '</div>';
+
+    html += '<div class="bp-task-filters">';
+    var taskFilterOpts = [
+      { val: 'incomplete', label: 'To Do' },
+      { val: 'all', label: 'All' },
+      { val: 'transfer', label: 'Transfers' },
+      { val: 'packaging', label: 'Packaging' }
+    ];
+    taskFilterOpts.forEach(function (f) {
+      var active = _taskFilter === f.val ? ' bp-filter-btn--active' : '';
+      html += '<button type="button" class="bp-filter-btn' + active + '" data-task-filter="' + f.val + '">' + f.label + '</button>';
+    });
     html += '</div>';
 
     var hasAny = groups.some(function (g) { return g.tasks.length > 0; });
@@ -2594,12 +2785,14 @@ function renderDataGapWarning(readings, now) {
         html += '<div class="bp-task-group-header">' + g.label +
           ' <span class="bp-task-group-count">(' + g.tasks.length + ')</span></div>';
         g.tasks.forEach(function (t) {
-          html += '<div class="bp-task-row" data-task-id="' + escapeHTML(t.task_id) + '">';
-          html += '<label class="bp-task-check"><input type="checkbox" data-task-id="' + escapeHTML(t.task_id) + '"></label>';
+          var done = t.completed === true || t.completed === 'TRUE' || t.completed === '1';
+          html += '<div class="bp-task-row' + (done ? ' bp-task-row--done' : '') + '" data-task-id="' + escapeHTML(t.task_id) + '">';
+          html += '<label class="bp-task-check"><input type="checkbox" data-task-id="' + escapeHTML(t.task_id) + '"' + (done ? ' checked' : '') + '></label>';
           html += '<div class="bp-task-body">';
           html += '<button type="button" class="bp-batch-chip" data-batch-id="' + escapeHTML(t.batch_id || '') + '" title="Open batch">' + escapeHTML(t.batch_id || '') + '</button>';
           html += '<span class="bp-task-title">' + escapeHTML(t.title || ('Step ' + t.step_number)) + '</span>';
           if (t.due_date) html += '<span class="bp-task-due">' + fmtDate(t.due_date) + '</span>';
+          if (t.customer_name) html += '<span class="bp-task-customer">' + escapeHTML(t.customer_name) + '</span>';
           var meta = getBatchMeta(t.batch_id);
           if (meta) html += '<span class="bp-task-meta">' + escapeHTML(meta) + '</span>';
           html += '</div></div>';
@@ -2609,6 +2802,24 @@ function renderDataGapWarning(readings, now) {
     }
 
     inner.innerHTML = html;
+
+    // Restore search focus + cursor position after innerHTML wipe
+    var newSearchEl = document.getElementById('bp-task-search');
+    if (newSearchEl && hadSearchFocus) {
+      newSearchEl.focus();
+      try { newSearchEl.setSelectionRange(searchSelStart, searchSelEnd); } catch (e) {}
+    }
+
+    // Wire search input with debounce
+    if (newSearchEl) {
+      newSearchEl.addEventListener('input', function () {
+        clearTimeout(_taskSearchTimer);
+        _taskSearchTimer = setTimeout(function () {
+          _taskSearch = newSearchEl.value;
+          renderTasks();
+        }, 200);
+      });
+    }
 
     var refreshBtn = document.getElementById('bp-tasks-refresh');
     if (refreshBtn) {
@@ -2899,6 +3110,294 @@ function renderDataGapWarning(readings, now) {
       });
   }
 
+  // ===== Schedule Template Editor =====
+
+  function reloadSchedules() {
+    adminApiGet('get_ferm_schedules')
+      .then(function (r) {
+        _fermSchedules = (r.data && r.data.schedules) || [];
+        _fermSchedulesCacheTime = Date.now();
+        renderBrewpadSchedules();
+      })
+      .catch(function (err) {
+        showToast('Failed to reload schedules: ' + err.message, 'error');
+      });
+  }
+
+  function renderBrewpadSchedules() {
+    var container = document.getElementById('bp-schedules-list');
+    if (!container) return;
+
+    if (_fermSchedules.length === 0) {
+      container.innerHTML = '<p class="bp-empty">No schedule templates yet.</p>' +
+        '<button type="button" class="btn bp-sched-create-btn" id="bp-sched-create">+ New Schedule</button>';
+      return;
+    }
+
+    var html = '';
+    _fermSchedules.forEach(function (s) {
+      var steps = s.steps_parsed || [];
+      if (!steps.length && s.steps) {
+        try { steps = JSON.parse(s.steps); } catch (e) {}
+      }
+      html += '<div class="bp-sched-card" data-sched-id="' + escapeHTML(s.schedule_id) + '">';
+      html += '<div class="bp-sched-card-header">';
+      html += '<strong>' + escapeHTML(s.name || 'Untitled') + '</strong>';
+      html += '<div class="bp-sched-card-actions">';
+      html += '<button type="button" class="btn-secondary bp-btn-sm bp-sched-edit" data-sched-id="' + escapeHTML(s.schedule_id) + '">Edit</button>';
+      html += '<button type="button" class="btn-secondary bp-btn-sm bp-danger-btn bp-sched-delete" data-sched-id="' + escapeHTML(s.schedule_id) + '">Delete</button>';
+      html += '</div></div>';
+      if (s.category) html += '<div class="bp-sched-meta">Category: ' + escapeHTML(s.category) + '</div>';
+      html += '<div class="bp-sched-meta">' + steps.length + ' step' + (steps.length !== 1 ? 's' : '') + '</div>';
+      html += '<div class="bp-sched-steps">';
+      steps.forEach(function (st) {
+        var dayLabel = st.is_packaging ? 'TBD' : ('Day ' + st.day_offset);
+        html += '<div class="bp-sched-step">';
+        html += '<span class="bp-sched-step-day">' + dayLabel + '</span> ';
+        html += escapeHTML(st.title || '');
+        if (st.is_transfer) html += ' <span class="bp-badge bp-badge--transfer">Transfer</span>';
+        if (st.is_packaging) html += ' <span class="bp-badge bp-badge--pkg">Packaging</span>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    });
+
+    html += '<button type="button" class="btn bp-sched-create-btn" id="bp-sched-create">+ New Schedule</button>';
+    container.innerHTML = html;
+  }
+
+  function openSchedSheet(existing) {
+    var sheet = document.getElementById('bp-sched-sheet');
+    var inner = document.getElementById('bp-sched-sheet-inner');
+    if (!sheet || !inner) return;
+    sheet.style.display = '';
+    setTimeout(function () { sheet.classList.add('bp-sched-sheet--open'); }, 10);
+    buildSchedForm(inner, existing);
+    sheet.addEventListener('click', function handleBackdropClick(e) {
+      if (e.target === sheet) {
+        closeSchedSheet();
+        sheet.removeEventListener('click', handleBackdropClick);
+      }
+    });
+    setTimeout(function () {
+      var firstInput = inner.querySelector('input[type="text"]');
+      if (firstInput) firstInput.focus();
+    }, 260);
+  }
+
+  function closeSchedSheet() {
+    var sheet = document.getElementById('bp-sched-sheet');
+    if (!sheet) return;
+    sheet.classList.remove('bp-sched-sheet--open');
+    setTimeout(function () { sheet.style.display = 'none'; }, 180);
+  }
+
+  function openEditSchedSheet(schedId) {
+    var sched = null;
+    for (var i = 0; i < _fermSchedules.length; i++) {
+      if (_fermSchedules[i].schedule_id === schedId) { sched = _fermSchedules[i]; break; }
+    }
+    if (!sched) { showToast('Schedule not found', 'error'); return; }
+    openSchedSheet(sched);
+  }
+
+  function buildSchedForm(container, existing) {
+    var isEdit = !!existing;
+    var regularSteps = [];
+    var pkgTitle = 'Bottling / Packaging';
+    var pkgDesc = '';
+    if (existing) {
+      var allSteps = existing.steps_parsed || [];
+      if (!allSteps.length && existing.steps) {
+        try { allSteps = JSON.parse(existing.steps); } catch (e) {}
+      }
+      allSteps.forEach(function (s) {
+        if (s.is_packaging) {
+          pkgTitle = s.title || pkgTitle;
+          pkgDesc = s.description || pkgDesc;
+        } else {
+          regularSteps.push(s);
+        }
+      });
+    }
+    if (regularSteps.length === 0) {
+      regularSteps = [{ step_number: 1, day_offset: 0, title: '', description: '' }];
+    }
+
+    var html = '<div class="bp-sched-form">';
+    html += '<div class="bp-sched-form-header">';
+    html += '<span class="bp-sched-form-title">' + (isEdit ? 'Edit' : 'New') + ' Schedule Template</span>';
+    html += '<button type="button" class="bp-create-close" id="bp-sched-close">&times;</button>';
+    html += '</div>';
+
+    // Name
+    html += '<div class="bp-sched-form-group"><label>Template Name</label>';
+    html += '<input type="text" id="bp-sched-name" class="bp-inline-input" value="' + escapeHTML(existing ? existing.name || '' : '') + '" placeholder="e.g. Standard Wine 6-Week"></div>';
+
+    // Description
+    html += '<div class="bp-sched-form-group"><label>Description <span class="bp-optional">(optional)</span></label>';
+    html += '<textarea id="bp-sched-desc" class="bp-inline-input" rows="2" placeholder="Brief description">' + escapeHTML(existing ? existing.description || '' : '') + '</textarea></div>';
+
+    // Category
+    html += '<div class="bp-sched-form-group"><label>Category</label>';
+    html += '<select id="bp-sched-category" class="bp-inline-input">';
+    html += '<option value="">None</option>';
+    ['wine', 'beer', 'cider', 'seltzer'].forEach(function (c) {
+      html += '<option value="' + c + '"' + (existing && existing.category === c ? ' selected' : '') + '>' + c.charAt(0).toUpperCase() + c.slice(1) + '</option>';
+    });
+    html += '</select></div>';
+
+    // Steps
+    html += '<div class="bp-sched-form-group"><label>Fermentation Steps</label>';
+    html += '<p class="bp-sched-form-hint">Add each step with its day offset from the start date. Steps are sorted by day automatically. Check "Transfer" if the step involves moving to a new vessel.</p>';
+    html += '<div class="bp-sched-steps-header">';
+    html += '<span class="bp-sched-col-day">Day</span>';
+    html += '<span class="bp-sched-col-title">Title</span>';
+    html += '<span class="bp-sched-col-desc">Description</span>';
+    html += '<span class="bp-sched-col-transfer">Transfer</span>';
+    html += '<span class="bp-sched-col-actions"></span>';
+    html += '</div>';
+    html += '<div id="bp-sched-steps-container"></div>';
+    html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-sched-add-step" style="margin-top:8px;">+ Add Step</button>';
+    html += '</div>';
+
+    // Packaging step
+    html += '<div class="bp-sched-pkg-section">';
+    html += '<div class="bp-sched-pkg-label">Packaging Step <span class="bp-sched-pkg-note">(always last, date TBD)</span></div>';
+    html += '<div class="bp-sched-pkg-row">';
+    html += '<input type="text" id="bp-sched-pkg-title" class="bp-inline-input" value="' + escapeHTML(pkgTitle) + '" placeholder="Title">';
+    html += '<input type="text" id="bp-sched-pkg-desc" class="bp-inline-input" value="' + escapeHTML(pkgDesc) + '" placeholder="Description (optional)">';
+    html += '</div></div>';
+
+    // Actions
+    html += '<div class="bp-form-actions" style="margin-top:16px;">';
+    html += '<button type="button" class="btn-secondary" id="bp-sched-cancel">Cancel</button>';
+    html += '<button type="button" class="btn" id="bp-sched-submit">' + (isEdit ? 'Update Template' : 'Create Template') + '</button>';
+    html += '</div></div>';
+
+    container.innerHTML = html;
+
+    // Wire close/cancel
+    document.getElementById('bp-sched-close').addEventListener('click', closeSchedSheet);
+    document.getElementById('bp-sched-cancel').addEventListener('click', closeSchedSheet);
+
+    // Steps state + rendering
+    var stepsContainer = document.getElementById('bp-sched-steps-container');
+    _schedSteps = regularSteps.slice();
+
+    function renderSteps() {
+      var sHtml = '';
+      _schedSteps.forEach(function (s, idx) {
+        sHtml += '<div class="bp-sched-step-row" data-idx="' + idx + '">';
+        sHtml += '<input type="number" class="bp-inline-input bp-sched-step-day" value="' + (s.day_offset || 0) + '" placeholder="Day" min="0" style="width:60px;">';
+        sHtml += '<input type="text" class="bp-inline-input bp-sched-step-title" value="' + escapeHTML(s.title || '') + '" placeholder="Step title">';
+        sHtml += '<input type="text" class="bp-inline-input bp-sched-step-desc" value="' + escapeHTML(s.description || '') + '" placeholder="Description (optional)">';
+        sHtml += '<label class="bp-sched-transfer-check"><input type="checkbox" class="bp-sched-step-transfer"' + (s.is_transfer ? ' checked' : '') + '></label>';
+        sHtml += '<button type="button" class="bp-sched-step-remove" title="Remove step">&times;</button>';
+        sHtml += '</div>';
+      });
+      stepsContainer.innerHTML = sHtml;
+
+      Array.prototype.forEach.call(stepsContainer.querySelectorAll('.bp-sched-step-row'), function (row) {
+        var idx = parseInt(row.getAttribute('data-idx'), 10);
+        row.querySelector('.bp-sched-step-day').addEventListener('change', function () {
+          _schedSteps[idx].day_offset = parseInt(this.value, 10) || 0;
+        });
+        row.querySelector('.bp-sched-step-title').addEventListener('change', function () {
+          _schedSteps[idx].title = this.value;
+        });
+        row.querySelector('.bp-sched-step-desc').addEventListener('change', function () {
+          _schedSteps[idx].description = this.value;
+        });
+        row.querySelector('.bp-sched-step-transfer').addEventListener('change', function () {
+          _schedSteps[idx].is_transfer = this.checked;
+        });
+        row.querySelector('.bp-sched-step-remove').addEventListener('click', function () {
+          if (_schedSteps.length <= 1) { showToast('Need at least 1 fermentation step', 'error'); return; }
+          _schedSteps.splice(idx, 1);
+          renderSteps();
+        });
+      });
+    }
+    renderSteps();
+
+    // Add step
+    document.getElementById('bp-sched-add-step').addEventListener('click', function () {
+      var maxDay = 0;
+      _schedSteps.forEach(function (s) { if (s.day_offset > maxDay) maxDay = s.day_offset; });
+      _schedSteps.push({ step_number: 0, day_offset: maxDay + 7, title: '', description: '' });
+      renderSteps();
+    });
+
+    // Submit
+    document.getElementById('bp-sched-submit').addEventListener('click', function () {
+      var name = document.getElementById('bp-sched-name').value.trim();
+      if (!name) { showToast('Enter a template name', 'error'); return; }
+
+      // Read current values from inputs (in case user typed without triggering change)
+      Array.prototype.forEach.call(stepsContainer.querySelectorAll('.bp-sched-step-row'), function (row) {
+        var idx = parseInt(row.getAttribute('data-idx'), 10);
+        _schedSteps[idx].day_offset = parseInt(row.querySelector('.bp-sched-step-day').value, 10) || 0;
+        _schedSteps[idx].title = row.querySelector('.bp-sched-step-title').value;
+        _schedSteps[idx].description = row.querySelector('.bp-sched-step-desc').value;
+        _schedSteps[idx].is_transfer = row.querySelector('.bp-sched-step-transfer').checked;
+      });
+
+      // Validate regular steps have titles
+      var emptyTitle = false;
+      _schedSteps.forEach(function (s) { if (!s.title || !s.title.trim()) emptyTitle = true; });
+      if (emptyTitle) { showToast('Every step needs a title', 'error'); return; }
+
+      // Sort regular steps by day_offset, then build final steps array
+      var sorted = _schedSteps.slice().sort(function (a, b) { return a.day_offset - b.day_offset; });
+      var steps = sorted.map(function (s, idx) {
+        return {
+          step_number: idx + 1,
+          day_offset: s.day_offset,
+          title: s.title,
+          description: s.description || '',
+          is_packaging: false,
+          is_transfer: !!s.is_transfer
+        };
+      });
+
+      // Append packaging as final step
+      steps.push({
+        step_number: steps.length + 1,
+        day_offset: -1,
+        title: document.getElementById('bp-sched-pkg-title').value || 'Bottling / Packaging',
+        description: document.getElementById('bp-sched-pkg-desc').value || '',
+        is_packaging: true
+      });
+
+      var payload = {
+        name: name,
+        description: document.getElementById('bp-sched-desc').value || '',
+        category: document.getElementById('bp-sched-category').value || '',
+        steps: steps
+      };
+
+      var action = isEdit ? 'update_ferm_schedule' : 'create_ferm_schedule';
+      if (isEdit) payload.schedule_id = existing.schedule_id;
+
+      var submitBtn = document.getElementById('bp-sched-submit');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving...';
+
+      adminApiPost(action, payload)
+        .then(function () {
+          showToast('Schedule ' + (isEdit ? 'updated' : 'created'), 'success');
+          closeSchedSheet();
+          reloadSchedules();
+        })
+        .catch(function (err) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = isEdit ? 'Update Template' : 'Create Template';
+          showToast('Failed: ' + err.message, 'error');
+        });
+    });
+  }
+
   // ===== Event Delegation (one-time setup) =====
 
   function initDelegation() {
@@ -2962,8 +3461,16 @@ function renderDataGapWarning(readings, now) {
                 row.setAttribute('data-save-state', 'saved');
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
-              if (checked && task && (task.title || '').toLowerCase().indexOf('transfer') !== -1) {
-                showTransferLocationSheet(task);
+              var isTransfer = checked && task && (task.title || '').toLowerCase().indexOf('transfer') !== -1;
+              if (checked && row && !isTransfer) {
+                row.style.transition = 'opacity 0.3s, max-height 0.3s';
+                row.style.opacity = '0';
+                row.style.maxHeight = '0';
+                row.style.overflow = 'hidden';
+                setTimeout(function () { renderDashboard(); }, 400);
+              }
+              if (isTransfer) {
+                setTimeout(function () { showTransferLocationSheet(task); }, 450);
               }
             })
             .catch(function () {
@@ -2972,14 +3479,56 @@ function renderDataGapWarning(readings, now) {
               if (row) row.setAttribute('data-save-state', 'error');
               showToast('Save failed \u2014 try again', 'error');
             });
-        }, 1500);
+        }, 300);
       });
     }
 
-    // Batch list: filter button + batch card clicks
+    // Batch list: sub-tabs + filter button + schedule cards + batch card clicks
     var batchListPane = document.getElementById('bp-batch-list-pane');
     if (batchListPane) {
       batchListPane.addEventListener('click', function (e) {
+        // Sub-tab switching (Batches / Schedules)
+        var subtab = e.target.closest('.bp-batch-subtab');
+        if (subtab) {
+          var view = subtab.getAttribute('data-subview');
+          if (view && view !== _batchSubView) {
+            _batchSubView = view;
+            Array.prototype.forEach.call(batchListPane.querySelectorAll('.bp-batch-subtab'), function (btn) {
+              btn.classList.toggle('bp-batch-subtab--active', btn.getAttribute('data-subview') === view);
+            });
+            var batchContent = document.getElementById('bp-batch-list-content');
+            var schedContent = document.getElementById('bp-schedules-list');
+            if (batchContent) batchContent.style.display = (view === 'batches') ? '' : 'none';
+            if (schedContent) schedContent.style.display = (view === 'schedules') ? '' : 'none';
+            if (view === 'schedules') renderBrewpadSchedules();
+          }
+          return;
+        }
+
+        // Schedule card actions (delegated)
+        var schedEdit = e.target.closest('.bp-sched-edit');
+        if (schedEdit) {
+          openEditSchedSheet(schedEdit.getAttribute('data-sched-id'));
+          return;
+        }
+        var schedDelete = e.target.closest('.bp-sched-delete');
+        if (schedDelete) {
+          var sid = schedDelete.getAttribute('data-sched-id');
+          showConfirmSheet('Delete this schedule template?', 'Delete', 'bp-confirm-btn--danger', function () {
+            adminApiPost('delete_ferm_schedule', { schedule_id: sid })
+              .then(function () {
+                showToast('Schedule deleted', 'success');
+                reloadSchedules();
+              })
+              .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+          });
+          return;
+        }
+        if (e.target.closest('#bp-sched-create')) {
+          openSchedSheet(null);
+          return;
+        }
+
         var filterBtn = e.target.closest('.bp-filter-btn');
         if (filterBtn) {
           _batchStatusFilter = filterBtn.getAttribute('data-status');
@@ -3005,6 +3554,40 @@ function renderDataGapWarning(readings, now) {
         var row = e.target.closest('tr[data-batch-id]');
         if (row) selectBatch(row.getAttribute('data-batch-id'));
       });
+
+      // Improvement 1: Preload on touchstart — start fetching ~300ms before click fires
+      batchListPane.addEventListener('touchstart', function (e) {
+        var card = e.target.closest('.bp-batch-card');
+        if (!card) {
+          var row = e.target.closest('tr[data-batch-id]');
+          if (row) card = row;
+        }
+        if (!card) return;
+        var batchId = card.getAttribute('data-batch-id');
+        if (!batchId || batchId === _preloadBatchId) return;
+
+        // Check if already in sessionStorage cache
+        var cacheKey = 'sv-bp-batch-' + batchId;
+        try {
+          var raw = sessionStorage.getItem(cacheKey);
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (Date.now() - parsed.ts < 120000) return; // already cached, no preload needed
+          }
+        } catch (e2) {}
+
+        _preloadBatchId = batchId;
+        _preloadPromise = adminApiGet('get_batch', { batch_id: batchId });
+        _preloadPromise.then(function (result) {
+          // Cache the preloaded result
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: result.data || {} }));
+          } catch (e3) {}
+        }).catch(function () {
+          _preloadPromise = null;
+          _preloadBatchId = null;
+        });
+      }, { passive: true });
     }
 
     // Tasks tab: checkbox auto-save + batch chip navigation
@@ -3038,8 +3621,16 @@ function renderDataGapWarning(readings, now) {
                 row.setAttribute('data-save-state', 'saved');
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
-              if (checked && task && (task.title || '').toLowerCase().indexOf('transfer') !== -1) {
-                showTransferLocationSheet(task);
+              var isTransfer = checked && task && (task.title || '').toLowerCase().indexOf('transfer') !== -1;
+              if (checked && row && !isTransfer) {
+                row.style.transition = 'opacity 0.3s, max-height 0.3s';
+                row.style.opacity = '0';
+                row.style.maxHeight = '0';
+                row.style.overflow = 'hidden';
+                setTimeout(function () { renderTasks(); }, 400);
+              }
+              if (isTransfer) {
+                setTimeout(function () { showTransferLocationSheet(task); }, 450);
               }
             })
             .catch(function () {
@@ -3048,9 +3639,15 @@ function renderDataGapWarning(readings, now) {
               if (row) row.setAttribute('data-save-state', 'error');
               showToast('Save failed \u2014 try again', 'error');
             });
-        }, 1500);
+        }, 300);
       });
       tasksInner.addEventListener('click', function (e) {
+        var filterBtn = e.target.closest('.bp-filter-btn[data-task-filter]');
+        if (filterBtn) {
+          _taskFilter = filterBtn.getAttribute('data-task-filter');
+          renderTasks();
+          return;
+        }
         var chip = e.target.closest('.bp-batch-chip[data-batch-id]');
         if (!chip) return;
         e.stopPropagation();
@@ -3123,7 +3720,7 @@ function renderDataGapWarning(readings, now) {
               if (row) row.setAttribute('data-save-state', 'error');
               showToast('Save failed \u2014 try again', 'error');
             });
-        }, 1500);
+        }, 300);
       });
       detailPane.addEventListener('click', function (e) {
         var removeBtn = e.target.closest('.bp-staging-remove');

@@ -367,7 +367,7 @@ img { max-width: 100%; height: auto; display: block; }
   .bp-skeleton-block { animation: none; background: var(--cellar-surface); }
   @keyframes bpToastIn  { from { opacity: 0; } to { opacity: 1; } }
   @keyframes bpToastOut { from { opacity: 1; } to { opacity: 0; } }
-  .bp-create-sheet-inner, .bp-batch-detail-pane { transition: none !important; }
+  .bp-create-sheet-inner, .bp-batch-detail-pane, .bp-sched-sheet-inner { transition: none !important; }
 }
 
 /* ===== Shared Utility ===== */
@@ -735,6 +735,29 @@ img { max-width: 100%; height: auto; display: block; }
   position: relative;
   flex: 2;
   min-width: 150px;
+  display: flex;
+  align-items: center;
+}
+
+.bp-clear-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  color: #999;
+  cursor: pointer;
+  padding: 4px 6px;
+  line-height: 1;
+  z-index: 2;
+  border-radius: 50%;
+}
+.bp-clear-btn:hover { color: #333; background: rgba(0,0,0,0.06); }
+
+.bp-vessel-wrap .bp-inline-input {
+  padding-right: 28px;
 }
 
 .bp-vessel-dropdown {
@@ -802,6 +825,9 @@ img { max-width: 100%; height: auto; display: block; }
 }
 .bp-task-row[data-save-state="error"] {
   border-left: 3px solid var(--batch-danger);
+}
+.bp-task-row[data-save-state="saved"] {
+  background: rgba(76, 175, 80, 0.08);
 }
 @keyframes bp-saving-pulse {
   0%, 100% { border-left-color: var(--stain); opacity: 1; }
@@ -1455,9 +1481,35 @@ img { max-width: 100%; height: auto; display: block; }
 .bp-batch-tr-id { font-weight: 600; font-size: 0.82rem; white-space: nowrap; }
 
 /* ===== Task meta (product · location) ===== */
+.bp-task-customer {
+  font-size: 0.8rem;
+  color: #1565c0;
+  font-weight: 500;
+}
 .bp-task-meta {
   width: 100%; font-size: 0.75rem; color: var(--ink-secondary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ===== Task filters ===== */
+.bp-task-filters {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.bp-filter-select {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 /* ===== ABV strip (batch detail readings) ===== */
@@ -1469,3 +1521,194 @@ img { max-width: 100%; height: auto; display: block; }
 .bp-abv-label { font-size: 0.75rem; color: var(--ink-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 .bp-abv-val { font-size: 1.4rem; font-weight: 700; color: var(--stain); line-height: 1; }
 .bp-abv-detail { font-size: 0.78rem; color: var(--ink-secondary); margin-left: auto; }
+
+/* ===== Schedule Sub-tab Toggle ===== */
+.bp-batch-subtabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border-bottom: 2px solid var(--ledger-line);
+}
+.bp-batch-subtab {
+  background: none;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-tertiary);
+  padding: 8px 16px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+.bp-batch-subtab:hover { color: var(--ink-primary); }
+.bp-batch-subtab--active {
+  color: var(--stain);
+  border-bottom-color: var(--stain);
+}
+
+/* ===== Schedule Template Cards ===== */
+.bp-sched-card {
+  background: var(--cellar-raised);
+  border-radius: var(--r-lg);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--ledger-line);
+}
+.bp-sched-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.bp-sched-card-header strong {
+  font-size: 0.95rem;
+  color: var(--ink-primary);
+}
+.bp-sched-card-actions { display: flex; gap: 6px; }
+.bp-sched-meta { font-size: 0.8rem; color: var(--ink-secondary); margin-bottom: 4px; }
+.bp-sched-steps { margin-top: 8px; }
+.bp-sched-step {
+  font-size: 0.85rem;
+  padding: 3px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-primary);
+}
+.bp-sched-step-day {
+  font-weight: 600;
+  min-width: 48px;
+  color: var(--ink-secondary);
+  font-size: 0.82rem;
+}
+.bp-sched-create-btn { width: 100%; margin-top: 12px; }
+.bp-badge {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.bp-badge--transfer { background: rgba(74, 111, 138, 0.12); color: var(--batch-info); }
+.bp-badge--pkg { background: rgba(154, 115, 88, 0.12); color: var(--cork); }
+
+/* ===== Schedule Editor Bottom Sheet ===== */
+.bp-sched-sheet {
+  position: absolute;
+  inset: 0;
+  background: rgba(44, 34, 24, 0.4);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.bp-sched-sheet-inner {
+  background: var(--cellar-surface);
+  border-radius: 16px 16px 0 0;
+  max-height: 90vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  transform: translateY(100%);
+  transition: transform 0.18s var(--ease-out);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  will-change: transform;
+}
+.bp-sched-sheet--open .bp-sched-sheet-inner { transform: translateY(0); }
+
+.bp-sched-form { padding: 20px; }
+.bp-sched-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.bp-sched-form-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink-primary);
+}
+.bp-sched-form-group { margin-bottom: 14px; }
+.bp-sched-form-group label {
+  display: block;
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--ink-secondary);
+  margin-bottom: 4px;
+}
+.bp-sched-form-hint {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.bp-sched-steps-header {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--ledger-line);
+}
+.bp-sched-col-day { width: 60px; }
+.bp-sched-col-title { flex: 1; }
+.bp-sched-col-desc { flex: 1; }
+.bp-sched-col-transfer { width: 56px; text-align: center; }
+.bp-sched-col-actions { width: 36px; }
+.bp-sched-step-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ledger-soft);
+}
+.bp-sched-step-row input[type="number"] { width: 60px; }
+.bp-sched-step-row input[type="text"] { flex: 1; }
+.bp-sched-step-row .bp-sched-transfer-check { width: 56px; text-align: center; }
+.bp-sched-step-remove {
+  color: var(--batch-danger);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  padding: 2px 6px;
+  min-height: 36px;
+  line-height: 1;
+  border-radius: var(--r-sm);
+}
+.bp-sched-step-remove:hover { background: var(--batch-danger-bg); }
+.bp-sched-pkg-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ledger-line);
+}
+.bp-sched-pkg-label {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--ink-secondary);
+  margin-bottom: 4px;
+}
+.bp-sched-pkg-note {
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+.bp-sched-pkg-row {
+  display: flex;
+  gap: 8px;
+}
+.bp-sched-pkg-row input { flex: 1; }
+
+@media (max-width: 480px) {
+  .bp-sched-steps-header { display: none; }
+  .bp-sched-step-row { flex-wrap: wrap; }
+  .bp-sched-step-row input[type="number"] { width: 50px; }
+  .bp-sched-col-desc { display: none; }
+  .bp-sched-pkg-row { flex-direction: column; }
+}
