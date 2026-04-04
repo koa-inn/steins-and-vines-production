@@ -1379,6 +1379,7 @@ function renderDataGapWarning(readings, now) {
       '<p class="bp-confirm-sheet-msg">Update location for <strong>' + escapeHTML(batchId) + '</strong> after transfer?</p>' +
       '<div class="bp-vessel-wrap" style="margin-bottom:8px;">' +
       '<input type="text" id="bp-trf-vessel-text" class="bp-inline-input" placeholder="Vessel\u2026" autocomplete="off">' +
+      '<button type="button" class="bp-clear-btn" id="bp-trf-vessel-clear" title="Clear vessel">\u00d7</button>' +
       '<div class="bp-vessel-dropdown" id="bp-trf-vessel-dropdown" style="display:none;"></div>' +
       '<input type="hidden" id="bp-trf-vessel-id">' +
       '</div>' +
@@ -1408,6 +1409,15 @@ function renderDataGapWarning(readings, now) {
     bindVesselSearch(vesselInput, vesselDropdown, vesselHidden, currentVessel);
     bindShelfInput(document.getElementById('bp-trf-shelf'));
     bindBinInput(document.getElementById('bp-trf-bin'));
+
+    var trfClearBtn = document.getElementById('bp-trf-vessel-clear');
+    if (trfClearBtn) {
+      trfClearBtn.addEventListener('click', function () {
+        vesselHidden.value = '';
+        vesselInput.value = '';
+        vesselInput.focus();
+      });
+    }
 
     document.getElementById('bp-trf-skip').addEventListener('click', hide);
     sheet.addEventListener('click', function (e) { if (e.target === sheet) hide(); });
