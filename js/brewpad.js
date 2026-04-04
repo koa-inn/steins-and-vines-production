@@ -3461,15 +3461,21 @@ function renderDataGapWarning(readings, now) {
                 row.setAttribute('data-save-state', 'saved');
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
-              var isTransfer = checked && task && (task.title || '').toLowerCase().indexOf('transfer') !== -1;
-              if (checked && row && !isTransfer) {
+              var titleLower = task ? (task.title || '').toLowerCase() : '';
+              var isVesselChange = checked && task && (
+                String(task.is_transfer).toUpperCase() === 'TRUE' ||
+                titleLower.indexOf('transfer') !== -1 ||
+                titleLower.indexOf('rack') !== -1 ||
+                titleLower.indexOf('filter') !== -1
+              );
+              if (checked && row && !isVesselChange) {
                 row.style.transition = 'opacity 0.3s, max-height 0.3s';
                 row.style.opacity = '0';
                 row.style.maxHeight = '0';
                 row.style.overflow = 'hidden';
                 setTimeout(function () { renderDashboard(); }, 400);
               }
-              if (isTransfer) {
+              if (isVesselChange) {
                 setTimeout(function () { showTransferLocationSheet(task); }, 450);
               }
             })
@@ -3621,15 +3627,21 @@ function renderDataGapWarning(readings, now) {
                 row.setAttribute('data-save-state', 'saved');
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
-              var isTransfer = checked && task && (task.title || '').toLowerCase().indexOf('transfer') !== -1;
-              if (checked && row && !isTransfer) {
+              var titleLower2 = task ? (task.title || '').toLowerCase() : '';
+              var isVesselChange2 = checked && task && (
+                String(task.is_transfer).toUpperCase() === 'TRUE' ||
+                titleLower2.indexOf('transfer') !== -1 ||
+                titleLower2.indexOf('rack') !== -1 ||
+                titleLower2.indexOf('filter') !== -1
+              );
+              if (checked && row && !isVesselChange2) {
                 row.style.transition = 'opacity 0.3s, max-height 0.3s';
                 row.style.opacity = '0';
                 row.style.maxHeight = '0';
                 row.style.overflow = 'hidden';
                 setTimeout(function () { renderTasks(); }, 400);
               }
-              if (isTransfer) {
+              if (isVesselChange2) {
                 setTimeout(function () { showTransferLocationSheet(task); }, 450);
               }
             })
