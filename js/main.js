@@ -7104,6 +7104,16 @@ function renderCheckoutIngredientSection() {
     var pct = parseFloat(i.tax_percentage) || 0;
     fermentTotal += p * (i.qty || 1) * (1 + pct / 100);
   });
+  // Include Maker's Fee + its tax (fee is not a cart item)
+  if (_makersFeeItem) {
+    var mfRateCombined = parseFloat(_makersFeeItem.rate) || 50;
+    var mfTaxPctCombined = parseFloat(_makersFeeItem.tax_percentage) || 0;
+    var mfKitQtyCombined = 0;
+    fermentItems.forEach(function (i) {
+      if ((i.item_type || 'kit') === 'kit') mfKitQtyCombined += (parseFloat(i.qty) || 1);
+    });
+    fermentTotal += mfRateCombined * mfKitQtyCombined * (1 + mfTaxPctCombined / 100);
+  }
   if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem && _millingServiceItem.rate) {
     fermentTotal += parseFloat(_millingServiceItem.rate) || 0;
   }
