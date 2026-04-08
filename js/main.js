@@ -7003,17 +7003,18 @@ function renderCheckoutIngredientSection() {
     var pct = parseFloat(i.tax_percentage) || 0;
     fermentTotal += p * (i.qty || 1) * (1 + pct / 100);
   });
-  // Include Maker's Fee + its tax (fee is not a cart item)
-  if (_makersFeeItem) {
+  // Maker's Fee is already included in the kit price (e.g. $280 = $230 supplies + $50 fee),
+  // but its GST is NOT included in the kit's tax_percentage (kits are zero-rated).
+  // Add only the Maker's Fee tax to fermentTotal, not the fee itself.
+  if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
     var mfRateCombined = parseFloat(_makersFeeItem.rate) || 50;
-    var mfTaxPctCombined = parseFloat(_makersFeeItem.tax_percentage) || 0;
+    var mfTaxPctCombined = parseFloat(_makersFeeItem.tax_percentage);
     var mfKitQtyCombined = 0;
     fermentItems.forEach(function (i) {
       if ((i.item_type || 'kit') === 'kit') mfKitQtyCombined += (parseFloat(i.qty) || 1);
     });
-    fermentTotal += mfRateCombined * mfKitQtyCombined * (1 + mfTaxPctCombined / 100);
+    fermentTotal += mfRateCombined * mfKitQtyCombined * (mfTaxPctCombined / 100);
   }
-  // Milling fee is already included in subtotal + taxTotal above — do not add again here.
   var combinedTotal = fermentTotal + subtotal + taxTotal;
   var grandWrap = document.createElement('div');
   grandWrap.className = 'dual-cart-grand-total';
