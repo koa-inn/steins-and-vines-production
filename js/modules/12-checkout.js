@@ -137,7 +137,12 @@ function initReservationPage() {
             break;
           }
         }
-        renderReservationItems();
+        // Re-render whichever section contains the milling UI
+        if (_isDualCart) {
+          renderCheckoutIngredientSection();
+        } else {
+          renderReservationItems();
+        }
       })
       .catch(function () {});
   }
