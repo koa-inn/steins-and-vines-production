@@ -131,6 +131,7 @@
   --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-body: 'Lato', 'Helvetica Neue', Arial, sans-serif;
   --font-condensed: 'Oswald', 'Impact', sans-serif;
+  font-variant-numeric: lining-nums;
   /* Layout */
   --max-width: 1100px;
   --radius-sm: 4px;
