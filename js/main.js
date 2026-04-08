@@ -3459,7 +3459,9 @@ function renderIngredientSection(catalog, title, items, extraClass) {
           _item_type: 'ingredient',
           max_order_qty: item.max_order_qty || '',
           zoho_item_id: item.zoho_item_id || '',
-          millable: item.millable || ''
+          millable: item.millable || '',
+          tax_percentage: item.tax_percentage != null ? item.tax_percentage : 0,
+          tax_name: item.tax_name || ''
         };
         var ingReserveWrap = document.createElement('div');
         ingReserveWrap.className = 'product-reserve-wrap';
@@ -3654,7 +3656,9 @@ function renderIngredientSection(catalog, title, items, extraClass) {
           _item_type: 'ingredient',
           max_order_qty: item.max_order_qty || '',
           zoho_item_id: item.zoho_item_id || '',
-          millable: item.millable || ''
+          millable: item.millable || '',
+          tax_percentage: item.tax_percentage != null ? item.tax_percentage : 0,
+          tax_name: item.tax_name || ''
         };
         var reserveWrap = document.createElement('div');
         reserveWrap.className = 'product-reserve-wrap';
