@@ -1191,7 +1191,7 @@ function renderCheckoutIngredientSection() {
   window.dispatchEvent(new Event('reservation-changed'));
 }
 
-function submitDualCart(contactData, recaptchaToken, onDone, onError) {
+function submitDualCart(contactData, recaptchaToken, onDone, onError, transactionId) {
   var mw = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
   var fermentItems = getReservation(FERMENT_CART_KEY);
   var ingredientItems = getReservation(INGREDIENT_CART_KEY);
@@ -1251,7 +1251,7 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError) {
       body: JSON.stringify({
         customer: contactData,
         items: fermentLines,
-        payment_token: '',
+        payment_token: transactionId || '',
         timeslot: resolvedTimeslot,
         honeypot: honeypotVal,
         recaptcha_token: recaptchaToken,
@@ -1277,7 +1277,7 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError) {
           body: JSON.stringify({
             customer: contactData,
             items: ingLines,
-            payment_token: '',
+            payment_token: transactionId || '',
             timeslot: '',
             honeypot: honeypotVal,
             recaptcha_token: ingToken,
@@ -1477,6 +1477,7 @@ function setupReservationForm() {
         if (typeof removeHelcimPayIframe === 'function') removeHelcimPayIframe();
         if (_awaitingPaymentSubmit) {
           _awaitingPaymentSubmit = false;
+          _checkoutSubmitting = false; // allow re-entry on payment completion
           f.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         }
       } else if (data.eventStatus === 'ABORTED') {
@@ -1516,32 +1517,105 @@ function setupReservationForm() {
       var _dualSel = document.querySelector('input[name="timeslot"]:checked');
       if (!_dualSel) { showToast('Please select a timeslot for your ferment booking.', 'error'); _checkoutSubmitting = false; if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; } return; }
 
-      getRecaptchaToken('checkout', function (dualToken) {
-        var contactData = {
-          name: document.getElementById('res-name').value,
-          email: document.getElementById('res-email').value,
-          phone: document.getElementById('res-phone').value
-        };
-        // First upsert the contact record, then run sequential cart submissions
-        var mwForDual = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
-        fetch(mwForDual + '/api/contacts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
-          body: JSON.stringify(contactData)
-        }).catch(function () {}).then(function () {
-          submitDualCart(contactData, dualToken,
-            function (results) {
-              _checkoutSubmitting = false;
-              showDualCartConfirmation(results);
-            },
-            function (err, partialFermentResult) {
-              _checkoutSubmitting = false;
-              if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
-              showToast(err.message || 'An error occurred. Please try again or call us.', 'error');
-            }
-          );
-        });
+      // Calculate combined charge for both carts (subtotal + tax)
+      var _dualFermentItems = getReservation(FERMENT_CART_KEY);
+      var _dualIngredientItems = getReservation(INGREDIENT_CART_KEY);
+      var _dualCharge = 0;
+      _dualFermentItems.forEach(function (i) {
+        var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
+        var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100);
+        _dualCharge += p * (i.qty || 1) * (1 + (parseFloat(i.tax_percentage) || 0) / 100);
       });
+      if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
+        var _mfR = parseFloat(_makersFeeItem.rate) || 50;
+        var _mfTP = parseFloat(_makersFeeItem.tax_percentage);
+        var _mfKQ = 0;
+        _dualFermentItems.forEach(function (i) { if ((i.item_type || 'kit') === 'kit') _mfKQ += (parseFloat(i.qty) || 1); });
+        _dualCharge += _mfR * _mfKQ * (_mfTP / 100);
+      }
+      _dualIngredientItems.forEach(function (i) {
+        var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
+        var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100);
+        _dualCharge += p * (i.qty || 1) * (1 + (parseFloat(i.tax_percentage) || 0) / 100);
+      });
+      if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem) {
+        var _mlR = parseFloat(_millingServiceItem.rate) || 0;
+        var _mlTP = parseFloat(_millingServiceItem.tax_percentage) || 0;
+        _dualCharge += _mlR * (1 + _mlTP / 100);
+      }
+      _dualCharge = Math.round(_dualCharge * 100) / 100;
+
+      // Helper: proceed with dual-cart submission after payment (or without if disabled)
+      function _proceedDualSubmit(txnId) {
+        getRecaptchaToken('checkout', function (dualToken) {
+          var contactData = {
+            name: document.getElementById('res-name').value,
+            email: document.getElementById('res-email').value,
+            phone: document.getElementById('res-phone').value
+          };
+          var mwForDual = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
+          fetch(mwForDual + '/api/contacts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
+            body: JSON.stringify(contactData)
+          }).catch(function () {}).then(function () {
+            submitDualCart(contactData, dualToken,
+              function (results) {
+                _checkoutSubmitting = false;
+                showDualCartConfirmation(results);
+              },
+              function (err, partialFermentResult) {
+                _checkoutSubmitting = false;
+                if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
+                showToast(err.message || 'An error occurred. Please try again or call us.', 'error');
+              },
+              txnId
+            );
+          });
+        });
+      }
+
+      // If payment is enabled and there's a charge, initialize Helcim first
+      if (_paymentConfig && _paymentConfig.enabled && _dualCharge > 0) {
+        if (!_helcimTransactionId || typeof _helcimTransactionId !== 'string' || _helcimTransactionId.length === 0) {
+          if (new URLSearchParams(window.location.search).get('mock_payment') === '1') {
+            _helcimTransactionId = 'mock-test-' + Date.now();
+            _proceedDualSubmit(_helcimTransactionId);
+          } else {
+            if (typeof appendHelcimPayIframe !== 'function') {
+              showToast('Payment not available — please refresh and try again.', 'error');
+              _checkoutSubmitting = false; if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
+              return;
+            }
+            _awaitingPaymentSubmit = true;
+            if (_dualSub) _dualSub.textContent = 'Initializing payment...';
+            var mwForPay = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
+            fetch(mwForPay + '/api/payment/initialize', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
+              body: JSON.stringify({ amount: _dualCharge })
+            }).then(function (r) { return r.json(); }).then(function (cfg) {
+              if (!cfg || !cfg.checkoutToken) {
+                throw new Error(cfg && cfg.error ? cfg.error : 'Payment initialization failed');
+              }
+              _helcimCheckoutToken = cfg.checkoutToken;
+              if (_dualSub) _dualSub.textContent = 'Waiting for payment...';
+              appendHelcimPayIframe(cfg.checkoutToken);
+              // Payment result comes via postMessage → sets _helcimTransactionId → re-triggers form submit
+            }).catch(function () {
+              _awaitingPaymentSubmit = false;
+              showToast('Payment not available — please try again later.', 'error');
+              _checkoutSubmitting = false; if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
+            });
+          }
+          return;
+        }
+        // Payment already completed (re-entry after postMessage) — proceed with transaction ID
+        _proceedDualSubmit(_helcimTransactionId);
+      } else {
+        // Payment disabled or zero charge — proceed without payment
+        _proceedDualSubmit('');
+      }
       return; // dual-cart path handled; prevent fall-through to single-cart logic
     }
 
