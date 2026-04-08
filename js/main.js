@@ -6433,11 +6433,10 @@ function renderReservationItems() {
     }
     if ((item.item_type || 'kit') === 'kit') {
       var batchL = parseFloat(item['batch_size_(l)'] || item.batch_size_liters || 23);
-      var bottlesLow = Math.floor(batchL * 1000 / 750) - 1;
-      var bottlesHigh = Math.round(batchL * 1000 / 750);
+      var bottlesApprox = Math.floor(batchL * 1000 / 750) - 1;
       var yieldSpan = document.createElement('span');
       yieldSpan.className = 'table-name-sub';
-      yieldSpan.textContent = bottlesLow + '\u2013' + bottlesHigh + ' bottles';
+      yieldSpan.textContent = '~' + bottlesApprox + ' bottles';
       tdName.appendChild(yieldSpan);
     }
     tr.appendChild(tdName);
