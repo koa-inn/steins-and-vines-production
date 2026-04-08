@@ -6515,9 +6515,7 @@ function renderReservationItems() {
 
   // Milling UI: in dual-cart mode, this renders in renderCheckoutIngredientSection().
   // In non-dual-cart ingredient-only checkout, render it here.
-  console.log('[milling-check] renderReservationItems reached, _isDualCart:', _isDualCart, 'items:', items.length, 'hasKits:', hasKits);
   if (!_isDualCart) {
-    console.log('[milling] non-dual: calling renderMillingSection from reservation items');
     renderMillingSection(items, container);
   }
 
@@ -6622,14 +6620,9 @@ function renderReservationItems() {
 // Renders the milling checkbox UI into the given container for the given items.
 // Called from both renderReservationItems (non-dual) and renderCheckoutIngredientSection (dual).
 function renderMillingSection(items, container) {
-  console.log('[milling] renderMillingSection called, items:', items.length);
-  items.forEach(function (item) {
-    console.log('[milling] item:', item.name, 'unit:', item.unit, 'millable:', item.millable, 'isWeight:', isWeightUnit(item.unit));
-  });
   var millableGrains = items.filter(function (item) {
     return isWeightUnit(item.unit) && (item.millable || '').toLowerCase() === 'true';
   });
-  console.log('[milling] millableGrains:', millableGrains.length);
   if (millableGrains.length === 0) return;
 
   var millingWrap = document.createElement('div');
@@ -6722,7 +6715,6 @@ function renderMillingSection(items, container) {
 // which recalculates subtotal/tax including the milling fee.
 // In non-dual mode, re-renders the main reservation items instead.
 function updateMillingTotals() {
-  console.log('[milling] updateMillingTotals called, _isDualCart:', _isDualCart, '_milledItemKeys:', JSON.stringify(_milledItemKeys));
   if (_isDualCart) {
     renderCheckoutIngredientSection();
   } else {
@@ -6953,7 +6945,6 @@ function renderCheckoutIngredientSection() {
   itemsContainer.appendChild(tWrapIng);
 
   // Milling checkboxes — rendered via shared function
-  console.log('[milling] dual-cart: calling renderMillingSection from ingredient section');
   renderMillingSection(items, itemsContainer);
 
   // Compute milling fee for totals
@@ -7022,11 +7013,7 @@ function renderCheckoutIngredientSection() {
     });
     fermentTotal += mfRateCombined * mfKitQtyCombined * (1 + mfTaxPctCombined / 100);
   }
-  if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem && _millingServiceItem.rate) {
-    var millingRate = parseFloat(_millingServiceItem.rate) || 0;
-    var millingTaxPct2 = parseFloat(_millingServiceItem.tax_percentage) || 0;
-    fermentTotal += millingRate * (1 + millingTaxPct2 / 100);
-  }
+  // Milling fee is already included in subtotal + taxTotal above — do not add again here.
   var combinedTotal = fermentTotal + subtotal + taxTotal;
   var grandWrap = document.createElement('div');
   grandWrap.className = 'dual-cart-grand-total';
