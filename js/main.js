@@ -6636,19 +6636,6 @@ function renderReservationItems() {
       taxGroups[mfTaxLabel] += mfTaxAmt;
     }
   }
-  // Add milling fee + tax to Section A subtotal/taxGroups (fee is not a cart item)
-  if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem) {
-    var mlRate = parseFloat(_millingServiceItem.rate) || 0;
-    sub += mlRate;
-    var mlTaxPct = parseFloat(_millingServiceItem.tax_percentage) || 0;
-    if (mlTaxPct > 0) {
-      var mlTaxAmt = Math.round(mlRate * (mlTaxPct / 100) * 100) / 100;
-      var mlTaxLabel = (_millingServiceItem.tax_name && _millingServiceItem.tax_name.trim())
-        ? _millingServiceItem.tax_name.trim() : 'GST';
-      if (!taxGroups[mlTaxLabel]) taxGroups[mlTaxLabel] = 0;
-      taxGroups[mlTaxLabel] += mlTaxAmt;
-    }
-  }
   var taxTotal = 0;
   var taxNames = Object.keys(taxGroups);
   taxNames.forEach(function (n) { taxTotal += taxGroups[n]; });
