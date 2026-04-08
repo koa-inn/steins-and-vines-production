@@ -7350,45 +7350,36 @@ function setupReservationForm() {
   var sec = document.getElementById('payment-section'); var err = document.getElementById('payment-error');
   var mw = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
   if (!document.body.classList.contains('kiosk-mode') && sec && (typeof PAYMENT_DISABLED === 'undefined' || !PAYMENT_DISABLED)) {
-    fetch(mw + '/api/payment/initialize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
-      body: JSON.stringify({})
-    }).then(function (r) { return r.json(); }).then(function (cfg) {
-      if (!cfg || !cfg.checkoutToken) return;
-      _helcimCheckoutToken = cfg.checkoutToken;
-      _paymentConfig = { enabled: true, env: 'helcim' };
+    _paymentConfig = { enabled: true, env: 'helcim' };
 
-      // Show payment section, hide offline notice
-      sec.classList.remove('hidden');
-      var offlineNotice = document.getElementById('payment-offline-notice');
-      if (offlineNotice) offlineNotice.classList.add('hidden');
+    // Show payment section, hide offline notice
+    sec.classList.remove('hidden');
+    var offlineNotice = document.getElementById('payment-offline-notice');
+    if (offlineNotice) offlineNotice.classList.add('hidden');
 
-      // Listen for payment result via postMessage from Helcim iframe
-      // eventName is "helcim-pay-js-{checkoutToken}", eventStatus is "SUCCESS" | "ABORTED" | "HIDE"
-      var helcimEventKey = 'helcim-pay-js-' + cfg.checkoutToken;
-      window.addEventListener('message', function (event) {
-        var data = event.data || {};
-        if (data.eventName !== helcimEventKey) return;
-        if (data.eventStatus === 'SUCCESS') {
-          var txn = data.eventMessage && data.eventMessage.data && data.eventMessage.data.data;
-          _helcimTransactionId = (txn && txn.transactionId) ? String(txn.transactionId) : '';
-          if (typeof removeHelcimPayIframe === 'function') removeHelcimPayIframe();
-          if (_awaitingPaymentSubmit) {
-            _awaitingPaymentSubmit = false;
-            f.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-          }
-        } else if (data.eventStatus === 'ABORTED') {
-          _helcimTransactionId = null;
+    // Listen for payment result via postMessage from Helcim iframe.
+    // Uses dynamic _helcimCheckoutToken so the listener works with
+    // tokens fetched at submit time (not page load).
+    window.addEventListener('message', function (event) {
+      var data = event.data || {};
+      if (!_helcimCheckoutToken) return;
+      if (data.eventName !== 'helcim-pay-js-' + _helcimCheckoutToken) return;
+      if (data.eventStatus === 'SUCCESS') {
+        var txn = data.eventMessage && data.eventMessage.data && data.eventMessage.data.data;
+        _helcimTransactionId = (txn && txn.transactionId) ? String(txn.transactionId) : '';
+        if (typeof removeHelcimPayIframe === 'function') removeHelcimPayIframe();
+        if (_awaitingPaymentSubmit) {
           _awaitingPaymentSubmit = false;
-          var sub2 = f.querySelector('button[type="submit"]');
-          if (sub2) { sub2.disabled = false; sub2.textContent = 'Submit Payment'; }
-          _checkoutSubmitting = false;
-          showToast('Payment cancelled — please try again.', 'error');
+          f.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         }
-      });
-    }).catch(function (err) {
-      // non-fatal — payment form just won't appear
+      } else if (data.eventStatus === 'ABORTED') {
+        _helcimTransactionId = null;
+        _awaitingPaymentSubmit = false;
+        var sub2 = f.querySelector('button[type="submit"]');
+        if (sub2) { sub2.disabled = false; sub2.textContent = 'Submit Payment'; }
+        _checkoutSubmitting = false;
+        showToast('Payment cancelled — please try again.', 'error');
+      }
     });
   }
   window.addEventListener('reservation-changed', updateDualCartTotalSummary);
@@ -7462,20 +7453,37 @@ function setupReservationForm() {
     var tax = 0; items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); tax += p * (i.qty || 1) * ((parseFloat(i.tax_percentage) || 0) / 100); });
     var charge = orderTot + tax;
 
-    // If payment is required and not yet completed, open Helcim iframe and wait
+    // If payment is required and not yet completed, initialize Helcim with the
+    // correct charge amount and open the iframe. Token is fetched fresh each time
+    // so it always reflects the current cart total (fixes stale-token bug).
     if (_paymentConfig && _paymentConfig.enabled && charge > 0) {
       if (!_helcimTransactionId || typeof _helcimTransactionId !== 'string' || _helcimTransactionId.length === 0) {
         // Staging mock: ?mock_payment=1 bypasses Helcim iframe for flow testing
         if (new URLSearchParams(window.location.search).get('mock_payment') === '1') {
           _helcimTransactionId = 'mock-test-' + Date.now();
         } else {
-          if (!_helcimCheckoutToken || typeof appendHelcimPayIframe !== 'function') {
-            showToast('Payment not ready — please refresh and try again.', 'error');
+          if (typeof appendHelcimPayIframe !== 'function') {
+            showToast('Payment not available — please refresh and try again.', 'error');
             sub.disabled = false; sub.textContent = originalBtnText; _checkoutSubmitting = false; return;
           }
           _awaitingPaymentSubmit = true;
-          sub.textContent = 'Waiting for payment...';
-          appendHelcimPayIframe(_helcimCheckoutToken);
+          sub.textContent = 'Initializing payment...';
+          fetch(mw + '/api/payment/initialize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
+            body: JSON.stringify({ amount: Math.round(charge * 100) / 100 })
+          }).then(function (r) { return r.json(); }).then(function (cfg) {
+            if (!cfg || !cfg.checkoutToken) {
+              throw new Error(cfg && cfg.error ? cfg.error : 'Payment initialization failed');
+            }
+            _helcimCheckoutToken = cfg.checkoutToken;
+            sub.textContent = 'Waiting for payment...';
+            appendHelcimPayIframe(cfg.checkoutToken);
+          }).catch(function (initErr) {
+            _awaitingPaymentSubmit = false;
+            showToast('Payment not available — please try again later.', 'error');
+            sub.disabled = false; sub.textContent = originalBtnText; _checkoutSubmitting = false;
+          });
           return; // resume automatically after HELCIM_PAY_JS_PAYMENT_SUCCESS
         }
       }

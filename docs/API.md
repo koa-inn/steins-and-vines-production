@@ -106,6 +106,15 @@ Upload a catalog snapshot to replace the current cached catalog.
 **Auth:** API Key
 **Body:** Catalog snapshot JSON
 
+### `POST /api/admin/cache-clear`
+Delete all catalog cache keys (Redis + file cache) and trigger an immediate re-fetch from Zoho. Useful after bulk product edits.
+
+**Auth:** API Key
+**Response:**
+```json
+{ "ok": true, "cleared": ["products", "products_ts", "ingredients", "ingredients_ts", "services"] }
+```
+
 ---
 
 ## Bookings
@@ -188,20 +197,19 @@ Process a complete customer checkout. This is the critical path — handles reCA
 
 ## Payments
 
-### `POST /api/payment/charge`
-Process a card-not-present payment via GP.
+### `POST /api/payment/initialize`
+Initialize a HelcimPay.js checkout session. Returns a `checkoutToken` the frontend passes to the Helcim payment iframe. The payment is processed inside the iframe; the result is returned to the page via `postMessage`.
 
-**Auth:** API Key
-**Rate limit:** 10 req/min
+**Auth:** Public (CORS-restricted)
 **Body:**
 ```json
-{
-  "token": "gp_payment_token",
-  "amount": 50.00,
-  "currency": "CAD",
-  "description": "Deposit for reservation"
-}
+{ "amount": 50.00, "currency": "CAD" }
 ```
+**Response:**
+```json
+{ "checkoutToken": "helcim_token...", "depositAmount": 50.00 }
+```
+Returns `503` if Helcim is not configured.
 
 ### `POST /api/payment/void`
 Void a previous payment transaction.
@@ -254,6 +262,11 @@ Check POS terminal connectivity and status.
 
 ### `GET /api/orders/recent`
 Fetch recent orders from Zoho for the admin dashboard.
+
+**Auth:** `MW_API_KEY` header
+
+### `GET /api/admin/inventory-ledger`
+Returns the current in-memory inventory ledger state for debugging — recent stock adjustments and the version counter. Only active when `INVENTORY_LEDGER_ENABLED=true`.
 
 **Auth:** `MW_API_KEY` header
 
@@ -374,6 +387,19 @@ Test custom field updates on an item.
 Migrate item custom fields in bulk.
 
 **Auth:** API Key + Zoho
+
+---
+
+## Webhooks
+
+### `POST /api/webhooks/helcim`
+Receive and process Helcim webhook events (`cardTransaction`, `terminalCancel`). Used by the kiosk terminal flow to deliver payment results asynchronously.
+
+**Auth:** Public (signature-verified via HMAC-SHA256 using `HELCIM_WEBHOOK_SECRET`)
+**Headers:** `webhook-id`, `webhook-timestamp`, `webhook-signature` (set by Helcim)
+**Body:** Raw JSON (Helcim event envelope: `{ id, type }`)
+
+Signature verification uses the raw request body; `express.raw()` is applied on this route specifically. Logs and caches terminal results for kiosk polling. Sends a void alert email on `terminalCancel`.
 
 ---
 

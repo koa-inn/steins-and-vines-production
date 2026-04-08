@@ -210,7 +210,7 @@ var router = express.Router();
  * Expected body: { amount: number, currency?: string }
  * Returns: { checkoutToken: string, depositAmount: number }
  */
-router.post('/api/payment/initialize', function (req, res) {
+function handlePaymentInitialize(req, res) {
   if (!helcimLib.isEnabled()) {
     return res.status(503).json({ error: 'Payment gateway not configured' });
   }
@@ -229,7 +229,8 @@ router.post('/api/payment/initialize', function (req, res) {
       log.error('[payment/initialize] Failed: ' + err.message);
       res.status(502).json({ error: 'Payment initialization failed' });
     });
-});
+}
+router.post('/api/payment/initialize', handlePaymentInitialize);
 
 /**
  * POST /api/checkout
@@ -630,6 +631,14 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       var soId = data.salesorder ? data.salesorder.salesorder_id : null;
       var soNumber = data.salesorder ? data.salesorder.salesorder_number : null;
 
+      // Use the Zoho SO total (tax-inclusive) for payment recording.
+      // buildLineItems returns the pre-tax subtotal; Zoho applies tax rules
+      // server-side. Using the SO response total ensures the recorded payment
+      // matches what Zoho expects, preventing an unpaid balance.
+      if (transactionId && data.salesorder && data.salesorder.total != null) {
+        depositAmount = Math.round(parseFloat(data.salesorder.total) * 100) / 100;
+      }
+
       // Fire-and-forget: decrement inventory ledger for sold items
       ledger.decrementStock(lineItems, 'checkout:' + (soNumber || 'unknown')).catch(function (err) {
         log.error('[checkout] Inventory ledger decrement failed (non-fatal): ' + err.message);
@@ -902,3 +911,4 @@ module.exports = router;
 module.exports.verifyRecaptcha = verifyRecaptcha;
 module.exports.buildLineItems = buildLineItems;
 module.exports.findMakersFeeItem = findMakersFeeItem;
+module.exports.handlePaymentInitialize = handlePaymentInitialize;

@@ -14,6 +14,7 @@ jest.mock('express', () => {
 });
 jest.mock('../lib/helcim', () => ({
   isEnabled: jest.fn().mockReturnValue(true),
+  initializeCheckout: jest.fn().mockResolvedValue({ checkoutToken: 'tok-test-123' }),
   getDepositAmount: jest.fn().mockReturnValue(10000),
   voidTransaction: jest.fn().mockResolvedValue({ ok: true, transactionId: 'txn-mock' }),
   getTerminalDiagnostics: jest.fn().mockReturnValue({})
@@ -38,6 +39,7 @@ var checkout = require('../routes/checkout');
 var verifyRecaptcha = checkout.verifyRecaptcha;
 var buildLineItems = checkout.buildLineItems;
 var findMakersFeeItem = checkout.findMakersFeeItem;
+var handlePaymentInitialize = checkout.handlePaymentInitialize;
 
 // ---------------------------------------------------------------------------
 // HTTPS mock helpers (same pattern as zohoAuth tests)
@@ -317,5 +319,61 @@ describe('findMakersFeeItem', () => {
   test('falls through to SKU match when item_id env var does not match', () => {
     // '999' does not match any item_id, so SKU 'MAKERS-FEE' match fires instead
     expect(findMakersFeeItem(services, '999')).toEqual(services[1]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// /api/payment/initialize route handler
+// ---------------------------------------------------------------------------
+describe('/api/payment/initialize', () => {
+  var helcimLib = require('../lib/helcim');
+
+  function mockRes() {
+    var res = { statusCode: 200, body: null };
+    res.status = function (code) { res.statusCode = code; return res; };
+    res.json = function (data) { res.body = data; };
+    return res;
+  }
+
+  test('returns 400 when amount is missing (empty body)', () => {
+    var req = { body: {} };
+    var res = mockRes();
+    handlePaymentInitialize(req, res);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/Invalid amount/i);
+  });
+
+  test('returns 400 when amount is zero', () => {
+    var req = { body: { amount: 0 } };
+    var res = mockRes();
+    handlePaymentInitialize(req, res);
+    expect(res.statusCode).toBe(400);
+  });
+
+  test('returns 400 when amount is negative', () => {
+    var req = { body: { amount: -10 } };
+    var res = mockRes();
+    handlePaymentInitialize(req, res);
+    expect(res.statusCode).toBe(400);
+  });
+
+  test('returns checkoutToken when amount is valid', async () => {
+    helcimLib.initializeCheckout.mockResolvedValue({ checkoutToken: 'tok-abc' });
+    var req = { body: { amount: 112.50 } };
+    var res = mockRes();
+    handlePaymentInitialize(req, res);
+    await new Promise(process.nextTick);
+    expect(helcimLib.initializeCheckout).toHaveBeenCalledWith(112.50, 'CAD');
+    expect(res.body.checkoutToken).toBe('tok-abc');
+    expect(res.body.depositAmount).toBe(112.50);
+  });
+
+  test('returns 503 when Helcim is not configured', () => {
+    helcimLib.isEnabled.mockReturnValueOnce(false);
+    var req = { body: { amount: 50 } };
+    var res = mockRes();
+    handlePaymentInitialize(req, res);
+    expect(res.statusCode).toBe(503);
+    expect(res.body.error).toMatch(/not configured/i);
   });
 });

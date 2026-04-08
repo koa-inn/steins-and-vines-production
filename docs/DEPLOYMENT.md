@@ -34,8 +34,8 @@ Before deploying anything, verify:
    ```
 2. Commit the built files:
    ```bash
-   git add css/*.min.css js/main.min.js js/admin.min.js js/kiosk.min.js js/brewpad.min.js sw.js
-   git add index.html products.html reservation.html about.html contact.html ingredients.html admin.html kiosk.html brewpad.html
+   git add css/*.min.css js/main.min.js js/admin.min.js js/kiosk.min.js js/brewpad.min.js js/batch.min.js sw.js
+   git add index.html products.html reservation.html about.html contact.html ingredients.html admin.html kiosk.html brewpad.html batch.html
    git commit -m "Build: <description of changes>"
    ```
 3. Push to the staging repo's `main` branch:
