@@ -1409,6 +1409,16 @@ function updateDualCartTotalSummary() {
     var pct = parseFloat(i.tax_percentage) || 0;
     fermentTotal += p * (i.qty || 1) * (1 + pct / 100);
   });
+  // Add Maker's Fee tax (fee is already in kit price, but GST is not)
+  if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
+    var mfR = parseFloat(_makersFeeItem.rate) || 50;
+    var mfTP = parseFloat(_makersFeeItem.tax_percentage);
+    var mfKQ = 0;
+    fermentItems.forEach(function (i) {
+      if ((i.item_type || 'kit') === 'kit') mfKQ += (parseFloat(i.qty) || 1);
+    });
+    fermentTotal += mfR * mfKQ * (mfTP / 100);
+  }
   var ingTotal = 0;
   ingredientItems.forEach(function (i) {
     var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
@@ -1417,6 +1427,12 @@ function updateDualCartTotalSummary() {
     var pct = parseFloat(i.tax_percentage) || 0;
     ingTotal += p * (i.qty || 1) * (1 + pct / 100);
   });
+  // Add milling fee + its tax
+  if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem) {
+    var mlR = parseFloat(_millingServiceItem.rate) || 0;
+    var mlTP = parseFloat(_millingServiceItem.tax_percentage) || 0;
+    ingTotal += mlR * (1 + mlTP / 100);
+  }
 
   var row = existingRow || document.createElement('div');
   row.id = 'dual-cart-total-summary';
