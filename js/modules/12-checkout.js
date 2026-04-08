@@ -641,6 +641,7 @@ function renderReservationItems() {
   // Milling UI: in dual-cart mode, this renders in renderCheckoutIngredientSection().
   // In non-dual-cart ingredient-only checkout, render it here.
   if (!_isDualCart) {
+    console.log('[milling] non-dual: calling renderMillingSection from reservation items');
     renderMillingSection(items, container);
   }
 
@@ -745,9 +746,14 @@ function renderReservationItems() {
 // Renders the milling checkbox UI into the given container for the given items.
 // Called from both renderReservationItems (non-dual) and renderCheckoutIngredientSection (dual).
 function renderMillingSection(items, container) {
+  console.log('[milling] renderMillingSection called, items:', items.length);
+  items.forEach(function (item) {
+    console.log('[milling] item:', item.name, 'unit:', item.unit, 'millable:', item.millable, 'isWeight:', isWeightUnit(item.unit));
+  });
   var millableGrains = items.filter(function (item) {
     return isWeightUnit(item.unit) && (item.millable || '').toLowerCase() === 'true';
   });
+  console.log('[milling] millableGrains:', millableGrains.length);
   if (millableGrains.length === 0) return;
 
   var millingWrap = document.createElement('div');
@@ -840,6 +846,7 @@ function renderMillingSection(items, container) {
 // which recalculates subtotal/tax including the milling fee.
 // In non-dual mode, re-renders the main reservation items instead.
 function updateMillingTotals() {
+  console.log('[milling] updateMillingTotals called, _isDualCart:', _isDualCart, '_milledItemKeys:', JSON.stringify(_milledItemKeys));
   if (_isDualCart) {
     renderCheckoutIngredientSection();
   } else {
@@ -1070,6 +1077,7 @@ function renderCheckoutIngredientSection() {
   itemsContainer.appendChild(tWrapIng);
 
   // Milling checkboxes — rendered via shared function
+  console.log('[milling] dual-cart: calling renderMillingSection from ingredient section');
   renderMillingSection(items, itemsContainer);
 
   // Compute milling fee for totals
