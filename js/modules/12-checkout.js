@@ -1154,10 +1154,6 @@ function renderCheckoutIngredientSection() {
   });
   cWrapIng.appendChild(cBtnIng); itemsContainer.appendChild(cWrapIng);
 
-  // Move the contact note above the combined total
-  var contactNote = section.querySelector('.ingredient-order-contact-note');
-  if (contactNote) itemsContainer.appendChild(contactNote);
-
   // Combined grand total across both carts
   var fermentItems = getReservation(FERMENT_CART_KEY);
   var fermentTotal = 0;
