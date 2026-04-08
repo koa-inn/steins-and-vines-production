@@ -2638,6 +2638,15 @@ behold-widget {
   font-weight: 600;
 }
 
+.product-qty-controls--weight {
+  justify-content: center;
+}
+
+.qty-input--weight {
+  width: 70px;
+  text-align: center;
+}
+
 .reservation-item-stock {
   display: inline-block;
   padding: 1px 8px;
