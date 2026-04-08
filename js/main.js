@@ -6058,7 +6058,7 @@ function initReservationPage() {
     var reservedTitle = document.querySelector('[data-content="reserved-items-title"]');
     if (reservedTitle) reservedTitle.textContent = 'Your items';
     var submitBtn = document.querySelector('[data-content="submit-btn"]');
-    if (submitBtn) submitBtn.textContent = 'Place Order';
+    if (submitBtn) submitBtn.textContent = 'Submit Payment';
     var formNote = document.querySelector('[data-content="form-note"]');
     if (formNote) formNote.textContent = 'A confirmation email will be sent to the address provided above. All orders are in-store pickup only.';
   }
@@ -6069,7 +6069,7 @@ function initReservationPage() {
     if (dualPageTitle) dualPageTitle.textContent = 'Complete Your Orders';
     document.title = 'Checkout | Steins & Vines';
     var dualSubmitBtn = document.querySelector('[data-content="submit-btn"]');
-    if (dualSubmitBtn) dualSubmitBtn.textContent = 'Complete Both Orders';
+    if (dualSubmitBtn) dualSubmitBtn.textContent = 'Submit Payment';
 
     // Update timeslot heading to clarify it's for ferment only
     var timeslotTitle = document.querySelector('#timeslot-picker [data-content="timeslot-title"]');
@@ -7256,7 +7256,7 @@ function setupReservationForm() {
           _helcimTransactionId = null;
           _awaitingPaymentSubmit = false;
           var sub2 = f.querySelector('button[type="submit"]');
-          if (sub2) { sub2.disabled = false; sub2.textContent = 'Submit Reservation'; }
+          if (sub2) { sub2.disabled = false; sub2.textContent = 'Submit Payment'; }
           _checkoutSubmitting = false;
           showToast('Payment cancelled — please try again.', 'error');
         }
