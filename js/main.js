@@ -5873,9 +5873,26 @@ if (typeof module !== 'undefined' && module.exports) {
     updateCompletionEstimate: updateCompletionEstimate
   };
 }
-// Milling state — persists across renderReservationItems() re-renders
+// Milling state — persists across re-renders and page reloads via sessionStorage
 var _milledItemKeys = {};      // set of cart item keys the customer wants milled
 var _millingServiceItem = null; // Zoho service item for milling fee (fetched lazily)
+
+// Restore milled keys from sessionStorage
+try {
+  var _savedMilledKeys = sessionStorage.getItem('sv-milled-keys');
+  if (_savedMilledKeys) _milledItemKeys = JSON.parse(_savedMilledKeys);
+} catch (e) {}
+
+function saveMilledKeys() {
+  try {
+    var keys = Object.keys(_milledItemKeys);
+    if (keys.length > 0) {
+      sessionStorage.setItem('sv-milled-keys', JSON.stringify(_milledItemKeys));
+    } else {
+      sessionStorage.removeItem('sv-milled-keys');
+    }
+  } catch (e) {}
+}
 
 // Maker's fee state
 var _makersFeeItem = null;     // Zoho item for MAKERS-FEE (fetched lazily when kits present)
@@ -6551,6 +6568,8 @@ function renderReservationItems() {
           millAllCb.checked = numMilled === millableGrains.length;
           millAllCb.indeterminate = numMilled > 0 && numMilled < millableGrains.length;
           updateMillingFeeRow();
+          saveMilledKeys();
+          renderCheckoutIngredientSection();
         };
       })(itemKey));
     });
@@ -6573,6 +6592,8 @@ function renderReservationItems() {
         c.checked = !!_milledItemKeys[c.getAttribute('data-mill-key')];
       });
       updateMillingFeeRow();
+      saveMilledKeys();
+      renderCheckoutIngredientSection();
     });
 
     var feeRow = document.createElement('div');
