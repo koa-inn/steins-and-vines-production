@@ -2762,6 +2762,13 @@ behold-widget {
   font-style: italic;
   font-weight: 400;
 }
+.cart-sidebar-fee-nested {
+  width: 100%;
+  font-size: 0.75rem;
+  color: var(--color-muted-dark);
+  font-style: italic;
+  padding: 2px 0 0 2px;
+}
 
 .order-summary-totals .reservation-subtotal--total {
   font-size: 1.2rem;

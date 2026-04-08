@@ -5258,29 +5258,17 @@ function renderCartSidebar() {
     controls.appendChild(lineTotalEl);
 
     row.appendChild(controls);
-    container.appendChild(row);
 
-    // Maker's Fee — display-only breakdown (fee is included in kit price, not added to subtotal)
+    // Maker's Fee — nested inside the kit row as an indented detail line
     if ((item.item_type || 'kit') === 'kit') {
       var feeRateSb = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
-      var feeRowSb = document.createElement('div');
-      feeRowSb.className = 'cart-sidebar-item cart-sidebar-fee-row cart-sidebar-fee-row--inline';
-      var feeInfoSb = document.createElement('div');
-      feeInfoSb.className = 'cart-sidebar-item-info';
-      var feeNameSb = document.createElement('div');
-      feeNameSb.className = 'cart-sidebar-item-name cart-sidebar-fee-included';
-      feeNameSb.textContent = ((_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee") + ' (incl.)';
-      feeInfoSb.appendChild(feeNameSb);
-      feeRowSb.appendChild(feeInfoSb);
-      var feeCtrlSb = document.createElement('div');
-      feeCtrlSb.className = 'cart-sidebar-item-controls';
-      var feeAmtSb = document.createElement('div');
-      feeAmtSb.className = 'cart-sidebar-line-total cart-sidebar-fee-included';
-      feeAmtSb.textContent = formatCurrency(feeRateSb * (parseFloat(item.qty) || 1));
-      feeCtrlSb.appendChild(feeAmtSb);
-      feeRowSb.appendChild(feeCtrlSb);
-      container.appendChild(feeRowSb);
+      var feeDetailSb = document.createElement('div');
+      feeDetailSb.className = 'cart-sidebar-fee-nested';
+      feeDetailSb.textContent = '\u21B3 Includes ' + ((_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee") + ' (' + formatCurrency(feeRateSb * (parseFloat(item.qty) || 1)) + ')';
+      row.appendChild(feeDetailSb);
     }
+
+    container.appendChild(row);
   });
 
   if (totalEl) totalEl.textContent = formatCurrency(subtotal);
@@ -5465,29 +5453,17 @@ function renderCartDrawer() {
     controls.appendChild(lineTotalEl);
 
     row.appendChild(controls);
-    container.appendChild(row);
 
-    // Maker's Fee — display-only breakdown (fee is included in kit price, not added to subtotal)
+    // Maker's Fee — nested inside the kit row as an indented detail line
     if ((item.item_type || 'kit') === 'kit') {
       var feeRateDr = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
-      var feeRowDr = document.createElement('div');
-      feeRowDr.className = 'cart-sidebar-item cart-sidebar-fee-row cart-sidebar-fee-row--inline';
-      var feeInfoDr = document.createElement('div');
-      feeInfoDr.className = 'cart-sidebar-item-info';
-      var feeNameDr = document.createElement('div');
-      feeNameDr.className = 'cart-sidebar-item-name cart-sidebar-fee-included';
-      feeNameDr.textContent = ((_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee") + ' (incl.)';
-      feeInfoDr.appendChild(feeNameDr);
-      feeRowDr.appendChild(feeInfoDr);
-      var feeCtrlDr = document.createElement('div');
-      feeCtrlDr.className = 'cart-sidebar-item-controls';
-      var feeAmtDr = document.createElement('div');
-      feeAmtDr.className = 'cart-sidebar-line-total cart-sidebar-fee-included';
-      feeAmtDr.textContent = formatCurrency(feeRateDr * (parseFloat(item.qty) || 1));
-      feeCtrlDr.appendChild(feeAmtDr);
-      feeRowDr.appendChild(feeCtrlDr);
-      container.appendChild(feeRowDr);
+      var feeDetailDr = document.createElement('div');
+      feeDetailDr.className = 'cart-sidebar-fee-nested';
+      feeDetailDr.textContent = '\u21B3 Includes ' + ((_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee") + ' (' + formatCurrency(feeRateDr * (parseFloat(item.qty) || 1)) + ')';
+      row.appendChild(feeDetailDr);
     }
+
+    container.appendChild(row);
   });
 
   if (totalEl) totalEl.textContent = formatCurrency(subtotal);
