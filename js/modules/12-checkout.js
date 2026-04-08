@@ -640,6 +640,7 @@ function renderReservationItems() {
 
   // Milling UI: in dual-cart mode, this renders in renderCheckoutIngredientSection().
   // In non-dual-cart ingredient-only checkout, render it here.
+  console.log('[milling-check] renderReservationItems reached, _isDualCart:', _isDualCart, 'items:', items.length, 'hasKits:', hasKits);
   if (!_isDualCart) {
     console.log('[milling] non-dual: calling renderMillingSection from reservation items');
     renderMillingSection(items, container);
