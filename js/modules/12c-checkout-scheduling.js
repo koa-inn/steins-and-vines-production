@@ -125,9 +125,32 @@ function loadTimeslots() {
         slots.innerHTML += '<p class="calendar-empty">No available times for this date. Please select another day.</p>';
         return;
       }
+      // Filter out slots within 2 hours of now (for today only)
+      var now = new Date();
+      var isToday = ds === now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+      var cutoffMs = isToday ? now.getTime() + (2 * 60 * 60 * 1000) : 0;
+      var availableSlots = slotList.filter(function (s) {
+        if (!isToday) return true;
+        var time = s.time || s;
+        var parts = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!parts) return true;
+        var h = parseInt(parts[1], 10);
+        var m = parseInt(parts[2], 10);
+        var ampm = parts[3].toUpperCase();
+        if (ampm === 'PM' && h !== 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        var slotDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+        return slotDate.getTime() >= cutoffMs;
+      });
+
+      if (availableSlots.length === 0) {
+        slots.innerHTML += '<p class="calendar-empty">No available times remaining today. Please select another day.</p>';
+        return;
+      }
+
       var fs = document.createElement('fieldset'); fs.className = 'timeslot-fieldset';
       var g = document.createElement('div'); g.className = 'cal-slots-grid';
-      slotList.forEach(function (s) {
+      availableSlots.forEach(function (s) {
         var time = s.time || s; var id = 'ts-' + (rIdx++);
         var o = document.createElement('div'); o.className = 'timeslot-option';
         o.innerHTML = '<input type="radio" name="timeslot" id="' + id + '" value="' + ds + ' ' + time + '"><label for="' + id + '">' + time + '</label>';
