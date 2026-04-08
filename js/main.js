@@ -6795,6 +6795,7 @@ function renderCheckoutIngredientSection() {
   var tbody = document.createElement('tbody');
   var subtotal = 0;
   var taxTotal = 0;
+  var ingTaxGroups = {};
 
   items.forEach(function (item) {
     var row = document.createElement('tr');
@@ -6805,7 +6806,13 @@ function renderCheckoutIngredientSection() {
     var lineTotal = price * qty;
     subtotal += lineTotal;
     var taxPct = parseFloat(item.tax_percentage) || 0;
-    taxTotal += lineTotal * (taxPct / 100);
+    var taxAmt = lineTotal * (taxPct / 100);
+    taxTotal += taxAmt;
+    if (taxPct > 0) {
+      var taxLabel = (item.tax_name && item.tax_name.trim()) ? item.tax_name.trim() : (taxPct + '%');
+      if (!ingTaxGroups[taxLabel]) ingTaxGroups[taxLabel] = 0;
+      ingTaxGroups[taxLabel] += taxAmt;
+    }
 
     var tdName = document.createElement('td');
     tdName.setAttribute('data-label', 'Name');
@@ -6982,7 +6989,12 @@ function renderCheckoutIngredientSection() {
     subtotal += millingFeeAmount;
     var millingTaxPct = parseFloat(_millingServiceItem.tax_percentage) || 0;
     if (millingTaxPct > 0) {
-      taxTotal += millingFeeAmount * (millingTaxPct / 100);
+      var mlTaxAmt = millingFeeAmount * (millingTaxPct / 100);
+      taxTotal += mlTaxAmt;
+      var mlTaxLabel = (_millingServiceItem.tax_name && _millingServiceItem.tax_name.trim())
+        ? _millingServiceItem.tax_name.trim() : 'GST';
+      if (!ingTaxGroups[mlTaxLabel]) ingTaxGroups[mlTaxLabel] = 0;
+      ingTaxGroups[mlTaxLabel] += mlTaxAmt;
     }
   }
 
@@ -7007,12 +7019,13 @@ function renderCheckoutIngredientSection() {
   subRow.innerHTML = '<span>Subtotal</span><span>' + formatCurrency(subtotal) + '</span>';
   sWrap.appendChild(subRow);
 
-  if (taxTotal > 0) {
+  var ingTaxNames = Object.keys(ingTaxGroups);
+  ingTaxNames.forEach(function (name) {
     var taxRow = document.createElement('div');
     taxRow.className = 'reservation-subtotal reservation-subtotal--detail';
-    taxRow.innerHTML = '<span>Est. Tax</span><span>' + formatCurrency(taxTotal) + '</span>';
+    taxRow.innerHTML = '<span>' + name + '</span><span>' + formatCurrency(ingTaxGroups[name]) + '</span>';
     sWrap.appendChild(taxRow);
-  }
+  });
 
   var totalRow = document.createElement('div');
   totalRow.className = 'reservation-subtotal reservation-subtotal--total';
