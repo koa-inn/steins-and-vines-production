@@ -5163,7 +5163,7 @@ function renderCartSidebar() {
     priceEl.className = 'cart-sidebar-item-price';
     if (disc > 0) {
       priceEl.innerHTML = '<span class="cart-price-original">' + formatCurrency(item.price) + '</span> ' + formatCurrency(price);
-    } else if (price > 0) {
+    } else if (price > 0 && (parseFloat(item.qty) || 1) > 1) {
       priceEl.textContent = formatCurrency(price);
     }
     info.appendChild(priceEl);
@@ -5349,7 +5349,7 @@ function renderCartDrawer() {
     priceEl.className = 'cart-sidebar-item-price';
     if (disc > 0) {
       priceEl.innerHTML = '<span class="cart-price-original">' + formatCurrency(item.price) + '</span> ' + formatCurrency(price);
-    } else if (price > 0) {
+    } else if (price > 0 && (parseFloat(item.qty) || 1) > 1) {
       priceEl.textContent = formatCurrency(price);
     }
     info.appendChild(priceEl);
