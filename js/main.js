@@ -7164,20 +7164,25 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError) {
       fermentResult = fR;
 
       // Step 2: POST ingredient order (reuse same contact, no timeslot needed)
+      // Fetch a fresh reCAPTCHA token — Google rejects reused tokens as "timeout-or-duplicate"
       var ingLines = buildLines(ingredientItems);
-      return fetch(mw + '/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customer: contactData,
-          items: ingLines,
-          payment_token: '',
-          timeslot: '',
-          honeypot: honeypotVal,
-          recaptcha_token: recaptchaToken,
-          cart_key: INGREDIENT_CART_KEY
-        })
-      }).then(function (r) { return r.json(); });
+      return new Promise(function (resolve) {
+        getRecaptchaToken('checkout_ingredient', function (ingToken) { resolve(ingToken); });
+      }).then(function (ingToken) {
+        return fetch(mw + '/api/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer: contactData,
+            items: ingLines,
+            payment_token: '',
+            timeslot: '',
+            honeypot: honeypotVal,
+            recaptcha_token: ingToken,
+            cart_key: INGREDIENT_CART_KEY
+          })
+        }).then(function (r) { return r.json(); });
+      });
     })
     .then(function (iR) {
       ingredientResult = iR;
