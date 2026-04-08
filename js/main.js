@@ -6513,112 +6513,10 @@ function renderReservationItems() {
   table.appendChild(tbody);
   var tWrap = document.createElement('div'); tWrap.className = 'reservation-table-wrap'; tWrap.appendChild(table); container.appendChild(tWrap);
 
-  // Milling checkboxes — shown for any millable grain items
-  var millableGrains = items.filter(function (item) {
-    return item.item_type === 'ingredient' && isWeightUnit(item.unit) &&
-      (item.millable || '').toLowerCase() === 'true';
-  });
-
-  if (millableGrains.length > 0) {
-    var millingWrap = document.createElement('div');
-    millingWrap.className = 'milling-section';
-
-    var millingTitle = document.createElement('div');
-    millingTitle.className = 'milling-title';
-    millingTitle.innerHTML = '&#9881; Grain Milling';
-    millingWrap.appendChild(millingTitle);
-
-    var millAllRow = document.createElement('div');
-    millAllRow.className = 'milling-item-row milling-item-row--all';
-    var millAllId = 'mill-all-grains';
-
-    var millAllCb = document.createElement('input');
-    millAllCb.type = 'checkbox';
-    millAllCb.id = millAllId;
-    millAllCb.className = 'milling-checkbox';
-    var millAllLbl = document.createElement('label');
-    millAllLbl.htmlFor = millAllId;
-    millAllLbl.appendChild(millAllCb);
-    millAllLbl.appendChild(document.createTextNode(' Mill all grains'));
-    millAllRow.appendChild(millAllLbl);
-    millingWrap.appendChild(millAllRow);
-
-    millableGrains.forEach(function (grain, idx) {
-      var itemKey = grain.zoho_item_id || (grain.name + '|' + (grain.brand || ''));
-      var cbId = 'mill-grain-' + idx;
-      var row = document.createElement('div');
-      row.className = 'milling-item-row';
-      var cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.id = cbId;
-      cb.className = 'milling-checkbox';
-      cb.setAttribute('data-mill-key', itemKey);
-      if (_milledItemKeys[itemKey]) cb.checked = true;
-      var lbl = document.createElement('label');
-      lbl.htmlFor = cbId;
-      lbl.appendChild(cb);
-      lbl.appendChild(document.createTextNode(' Mill ' + grain.name));
-      row.appendChild(lbl);
-      millingWrap.appendChild(row);
-
-      cb.addEventListener('change', (function (key) {
-        return function () {
-          if (this.checked) { _milledItemKeys[key] = true; } else { delete _milledItemKeys[key]; }
-          var numMilled = Object.keys(_milledItemKeys).length;
-          millAllCb.checked = numMilled === millableGrains.length;
-          millAllCb.indeterminate = numMilled > 0 && numMilled < millableGrains.length;
-          updateMillingFeeRow();
-          saveMilledKeys();
-          renderCheckoutIngredientSection();
-        };
-      })(itemKey));
-    });
-
-    var initMilled = Object.keys(_milledItemKeys).length;
-    millAllCb.checked = initMilled === millableGrains.length && millableGrains.length > 0;
-    millAllCb.indeterminate = initMilled > 0 && initMilled < millableGrains.length;
-
-    millAllCb.addEventListener('change', function () {
-      if (this.checked) {
-        millableGrains.forEach(function (g) {
-          var k = g.zoho_item_id || (g.name + '|' + (g.brand || ''));
-          _milledItemKeys[k] = true;
-        });
-      } else {
-        _milledItemKeys = {};
-      }
-      var cbs = millingWrap.querySelectorAll('.milling-checkbox[data-mill-key]');
-      Array.prototype.forEach.call(cbs, function (c) {
-        c.checked = !!_milledItemKeys[c.getAttribute('data-mill-key')];
-      });
-      updateMillingFeeRow();
-      saveMilledKeys();
-      renderCheckoutIngredientSection();
-    });
-
-    var feeRow = document.createElement('div');
-    feeRow.className = 'milling-fee-row';
-    feeRow.id = 'milling-fee-row';
-    millingWrap.appendChild(feeRow);
-
-    function updateMillingFeeRow() {
-      var numMilled = Object.keys(_milledItemKeys).length;
-      if (numMilled === 0) {
-        feeRow.innerHTML = '';
-        feeRow.classList.add('hidden');
-        return;
-      }
-      feeRow.classList.remove('hidden');
-      if (_millingServiceItem) {
-        var rate = parseFloat(_millingServiceItem.rate) || 0;
-        feeRow.innerHTML = 'Milling fee: <strong>' + formatCurrency(rate) + '</strong>';
-      } else {
-        feeRow.innerHTML = 'Milling fee: loading\u2026';
-      }
-    }
-    updateMillingFeeRow();
-
-    container.appendChild(millingWrap);
+  // Milling UI: in dual-cart mode, this renders in renderCheckoutIngredientSection().
+  // In non-dual-cart ingredient-only checkout, render it here.
+  if (!_isDualCart) {
+    renderMillingSection(items, container);
   }
 
   // --- Totals Summary ---
@@ -6718,6 +6616,113 @@ function renderReservationItems() {
 // =============================================================================
 // Dual-cart functions — only active when _isDualCart is true
 // =============================================================================
+
+// Renders the milling checkbox UI into the given container for the given items.
+// Called from both renderReservationItems (non-dual) and renderCheckoutIngredientSection (dual).
+function renderMillingSection(items, container) {
+  var millableGrains = items.filter(function (item) {
+    return isWeightUnit(item.unit) && (item.millable || '').toLowerCase() === 'true';
+  });
+  if (millableGrains.length === 0) return;
+
+  var millingWrap = document.createElement('div');
+  millingWrap.className = 'milling-section';
+
+  var millingTitle = document.createElement('div');
+  millingTitle.className = 'milling-title';
+  millingTitle.innerHTML = '&#9881; Grain Milling';
+  millingWrap.appendChild(millingTitle);
+
+  var millAllRow = document.createElement('div');
+  millAllRow.className = 'milling-item-row milling-item-row--all';
+  var millAllId = 'mill-all-grains';
+  var millAllCb = document.createElement('input');
+  millAllCb.type = 'checkbox';
+  millAllCb.id = millAllId;
+  millAllCb.className = 'milling-checkbox';
+  var millAllLbl = document.createElement('label');
+  millAllLbl.htmlFor = millAllId;
+  millAllLbl.appendChild(millAllCb);
+  millAllLbl.appendChild(document.createTextNode(' Mill all grains'));
+  millAllRow.appendChild(millAllLbl);
+  millingWrap.appendChild(millAllRow);
+
+  millableGrains.forEach(function (grain, idx) {
+    var itemKey = grain.zoho_item_id || (grain.name + '|' + (grain.brand || ''));
+    var cbId = 'mill-grain-' + idx;
+    var row = document.createElement('div');
+    row.className = 'milling-item-row';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = cbId;
+    cb.className = 'milling-checkbox';
+    cb.setAttribute('data-mill-key', itemKey);
+    if (_milledItemKeys[itemKey]) cb.checked = true;
+    var lbl = document.createElement('label');
+    lbl.htmlFor = cbId;
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(' Mill ' + grain.name));
+    row.appendChild(lbl);
+    millingWrap.appendChild(row);
+
+    cb.addEventListener('change', (function (key) {
+      return function () {
+        if (this.checked) { _milledItemKeys[key] = true; } else { delete _milledItemKeys[key]; }
+        var numMilled = Object.keys(_milledItemKeys).length;
+        millAllCb.checked = numMilled === millableGrains.length;
+        millAllCb.indeterminate = numMilled > 0 && numMilled < millableGrains.length;
+        saveMilledKeys();
+        updateMillingTotals();
+      };
+    })(itemKey));
+  });
+
+  var initMilled = Object.keys(_milledItemKeys).length;
+  millAllCb.checked = initMilled === millableGrains.length && millableGrains.length > 0;
+  millAllCb.indeterminate = initMilled > 0 && initMilled < millableGrains.length;
+
+  millAllCb.addEventListener('change', function () {
+    if (this.checked) {
+      millableGrains.forEach(function (g) {
+        var k = g.zoho_item_id || (g.name + '|' + (g.brand || ''));
+        _milledItemKeys[k] = true;
+      });
+    } else {
+      _milledItemKeys = {};
+    }
+    var cbs = millingWrap.querySelectorAll('.milling-checkbox[data-mill-key]');
+    Array.prototype.forEach.call(cbs, function (c) {
+      c.checked = !!_milledItemKeys[c.getAttribute('data-mill-key')];
+    });
+    saveMilledKeys();
+    updateMillingTotals();
+  });
+
+  var feeRow = document.createElement('div');
+  feeRow.className = 'milling-fee-row';
+  if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem) {
+    feeRow.innerHTML = 'Milling fee: <strong>' + formatCurrency(parseFloat(_millingServiceItem.rate) || 0) + '</strong>';
+  } else if (Object.keys(_milledItemKeys).length > 0) {
+    feeRow.innerHTML = 'Milling fee: loading\u2026';
+  } else {
+    feeRow.classList.add('hidden');
+  }
+  millingWrap.appendChild(feeRow);
+  container.appendChild(millingWrap);
+}
+
+// Called by milling checkboxes to refresh totals — re-renders the ingredient section
+// which recalculates subtotal/tax including the milling fee.
+// In non-dual mode, re-renders the main reservation items instead.
+function updateMillingTotals() {
+  if (_isDualCart) {
+    renderCheckoutIngredientSection();
+  } else {
+    renderReservationItems();
+    refreshReservationDependents();
+    updateReservationBar();
+  }
+}
 
 function renderDualCartBanner() {
   var banner = document.getElementById('dual-cart-banner');
@@ -6939,15 +6944,29 @@ function renderCheckoutIngredientSection() {
   tWrapIng.appendChild(table);
   itemsContainer.appendChild(tWrapIng);
 
-  // Add milling fee to subtotal if any grains are selected for milling
+  // Milling checkboxes — rendered via shared function
+  renderMillingSection(items, itemsContainer);
+
+  // Compute milling fee for totals
   var millingFeeAmount = 0;
   if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem) {
     millingFeeAmount = parseFloat(_millingServiceItem.rate) || 0;
     subtotal += millingFeeAmount;
-    // Add milling fee tax (follows Maker's Fee pattern)
     var millingTaxPct = parseFloat(_millingServiceItem.tax_percentage) || 0;
     if (millingTaxPct > 0) {
       taxTotal += millingFeeAmount * (millingTaxPct / 100);
+    }
+  }
+
+  // Show/hide milling fee row
+  var feeRowEl = itemsContainer.querySelector('.milling-fee-row');
+  if (feeRowEl) {
+    if (millingFeeAmount > 0) {
+      feeRowEl.innerHTML = 'Milling fee: <strong>' + formatCurrency(millingFeeAmount) + '</strong>';
+      feeRowEl.classList.remove('hidden');
+    } else {
+      feeRowEl.innerHTML = '';
+      feeRowEl.classList.add('hidden');
     }
   }
 
