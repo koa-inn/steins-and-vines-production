@@ -3019,6 +3019,13 @@ behold-widget {
   outline: 2px solid var(--color-green);
   outline-offset: -2px;
 }
+.cal-day { flex-direction: column; gap: 1px; }
+.cal-day-spots {
+  font-size: 0.6rem;
+  font-weight: 600;
+  opacity: 0.8;
+  line-height: 1;
+}
 
 /* Closed day indicator (reservation calendar) */
 .cal-day--closed {
