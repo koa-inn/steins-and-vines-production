@@ -23,9 +23,6 @@ var _isDualCart = false;
 //   formatPhoneInput, isValidEmail, isValidPhone,
 //   applyKitSpecificVisibility, setupContactValidation
 
-// Payment display functions defined in 12b-checkout-payment.js:
-//   updateDepositSummary, setupPaymentToggle
-
 // Scheduling functions defined in 12c-checkout-scheduling.js:
 //   calcCompletionRange, formatTimeslot, loadTimeslots, updateCompletionEstimate
 
@@ -212,7 +209,6 @@ function initReservationPage() {
   }
 
   setupReservationForm();
-  setupPaymentToggle();
 
   // Dual-cart: render the banner and ingredient section after main form is set up
   if (_isDualCart) {
@@ -334,9 +330,6 @@ function renderReservationItems() {
   var formSection = document.getElementById('reservation-form-section');
   if (picker) { if (hasKits) picker.classList.remove('hidden'); else picker.classList.add('hidden'); }
   if (formSection) formSection.classList.remove('hidden');
-
-  var paySelector = document.getElementById('payment-option-selector');
-  if (paySelector) { if (hasKits) paySelector.classList.remove('hidden'); else paySelector.classList.add('hidden'); }
 
   // --- M15: Cross-cart note ---
   var fermentItems = getReservation(FERMENT_CART_KEY);
@@ -1363,9 +1356,9 @@ function setupReservationForm() {
     }).then(function (r) { return r.json(); }).then(function (cfg) {
       if (!cfg || !cfg.checkoutToken) return;
       _helcimCheckoutToken = cfg.checkoutToken;
-      _paymentConfig = { enabled: true, depositAmount: cfg.depositAmount || 0, env: 'helcim' };
+      _paymentConfig = { enabled: true, env: 'helcim' };
 
-      // Show deposit info, hide offline notice
+      // Show payment section, hide offline notice
       sec.classList.remove('hidden');
       var offlineNotice = document.getElementById('payment-offline-notice');
       if (offlineNotice) offlineNotice.classList.add('hidden');
@@ -1397,9 +1390,6 @@ function setupReservationForm() {
       // non-fatal — payment form just won't appear
     });
   }
-  window.addEventListener('reservation-changed', updateDepositSummary);
-  window.addEventListener('storage', updateDepositSummary);
-  setTimeout(updateDepositSummary, 500);
   window.addEventListener('reservation-changed', updateDualCartTotalSummary);
   setTimeout(updateDualCartTotalSummary, 600);
 
@@ -1467,10 +1457,9 @@ function setupReservationForm() {
     var originalBtnText = sub.textContent;
     sub.disabled = true; sub.textContent = 'Processing...';
 
-    var payFull = true; var fR = document.querySelector('input[name="payment-option"][value="full"]'); if (fR) payFull = fR.checked;
     var orderTot = 0; items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); orderTot += p * (i.qty || 1); });
-    var tax = 0; if (!hasK || payFull) { items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); tax += p * (i.qty || 1) * ((parseFloat(i.tax_percentage) || 0) / 100); }); }
-    var charge = orderTot + tax; var depAmt = (!hasK || payFull) ? charge : Math.min(_paymentConfig && _paymentConfig.depositAmount ? _paymentConfig.depositAmount : charge, orderTot);
+    var tax = 0; items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); tax += p * (i.qty || 1) * ((parseFloat(i.tax_percentage) || 0) / 100); });
+    var charge = orderTot + tax;
 
     // If payment is required and not yet completed, open Helcim iframe and wait
     if (_paymentConfig && _paymentConfig.enabled && charge > 0) {

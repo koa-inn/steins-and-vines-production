@@ -39,15 +39,25 @@ steins-and-vines/
 │   │   ├── 09-catalog-services.js     # Services catalog
 │   │   ├── 10-tabs.js          # Tab switching logic
 │   │   ├── 11-cart.js          # Cart management (localStorage)
-│   │   ├── 12-checkout.js      # Checkout flow + payment
+│   │   ├── 12-checkout.js      # Checkout flow (orchestrator)
+│   │   ├── 12a-checkout-validation.js  # Checkout input validation helpers
+│   │   ├── 12c-checkout-scheduling.js  # Scheduling / timeslot helpers
 │   │   └── 13-init.js          # App initialization
 │   ├── main.js                 # Concatenated bundle (built)
 │   ├── main.min.js             # Minified bundle (built)
 │   ├── admin.js                # Admin panel logic
+│   ├── admin-config.js         # Admin panel configuration constants
 │   ├── kiosk.js                # POS kiosk logic
 │   ├── brewpad.js              # Brew tracking logic
 │   ├── batch.js                # Batch tracker logic
-│   └── sentry-init.js          # Sentry browser SDK init
+│   ├── sentry-init.js          # Sentry browser SDK init
+│   ├── sheets-config.js        # Google Sheets integration config
+│   ├── sheets-config.example.js  # Example Sheets config (template)
+│   ├── lib/                    # Shared frontend utilities (pre-pended to build)
+│   │   ├── constants.js        # App-wide constants (cart keys, config)
+│   │   ├── utils.js            # Shared utility helpers
+│   │   └── auth.js             # Auth helpers (kiosk/admin API key)
+│   └── vendor/                 # Third-party JS libraries
 │
 ├── css/                        # Stylesheets (source + minified)
 ├── images/                     # Product and brand images
@@ -56,22 +66,30 @@ steins-and-vines/
 ├── zoho-middleware/             # Express API server
 │   ├── server.js               # App entry point, middleware chain, route mounting
 │   ├── routes/
-│   │   ├── auth.js             # Zoho OAuth + GP payment config
+│   │   ├── auth.js             # Zoho OAuth + payment config
 │   │   ├── bookings.js         # Appointment availability + booking creation
 │   │   ├── catalog.js          # Product/ingredient/service catalog (cached)
-│   │   ├── checkout.js         # Checkout flow (reCAPTCHA, price anchoring, GP charge)
+│   │   ├── checkout.js         # Checkout flow (reCAPTCHA, price anchoring, charge)
 │   │   ├── items.js            # Zoho item CRUD + image proxy
-│   │   ├── payments.js         # GP charge, void, refund
+│   │   ├── payments.js         # Payment void + refund
 │   │   ├── pos.js              # Kiosk + POS terminal sale endpoints
 │   │   ├── purchaseorders.js   # Purchase order management
 │   │   ├── requests.js         # Product request form
-│   │   └── taxes.js            # Tax classification + Zoho tax rules
+│   │   ├── taxes.js            # Tax classification + Zoho tax rules
+│   │   └── webhooks.js         # Helcim webhook receiver
 │   ├── lib/
 │   │   ├── cache.js            # Redis wrapper (connect, get, set, del)
+│   │   ├── checkRedis.js       # Redis health check helper
+│   │   ├── constants.js        # Shared cache keys + config constants
+│   │   ├── eventLog.js         # Lightweight event audit logger
 │   │   ├── gp.js               # Global Payments SDK init (CNP + terminal)
+│   │   ├── helcim.js           # Helcim API client + webhook verification
+│   │   ├── inventory-ledger.js # In-memory inventory adjustment ledger
 │   │   ├── logger.js           # Structured logging wrapper
 │   │   ├── mailer.js           # Nodemailer (order + reservation + void alerts)
+│   │   ├── pricing.js          # Server-side price anchoring helpers
 │   │   ├── validate.js         # Input validation helpers
+│   │   ├── validateEnv.js      # Startup env var validation
 │   │   ├── zoho-api.js         # Zoho API helpers with retry + pagination
 │   │   └── zohoAuth.js         # Zoho OAuth2 flow, token encryption, auto-refresh
 │   └── __tests__/              # Middleware unit tests
@@ -80,7 +98,9 @@ steins-and-vines/
 │   ├── frontend/               # Frontend unit tests (Jest + jsdom)
 │   └── e2e/                    # End-to-end tests (Playwright)
 │
-├── .github/workflows/tests.yml # CI pipeline
+├── .github/workflows/
+│   ├── tests.yml               # CI pipeline (unit + E2E tests)
+│   └── update-snapshot.yml     # Scheduled catalog snapshot export
 ├── style_guide.md              # Brand style guide (827 lines)
 ├── TESTING.md                  # Testing SOP + campaign tracker
 ├── jest.config.js              # Frontend test config

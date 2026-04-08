@@ -10,7 +10,6 @@ var HELCIM_BASE_URL = 'https://api.helcim.com/v2';
 
 var HELCIM_API_TOKEN = '';
 var HELCIM_DEVICE_CODE = '';
-var HELCIM_DEPOSIT_AMOUNT = 50.00;
 
 // ---------------------------------------------------------------------------
 // Initialization
@@ -23,11 +22,9 @@ var HELCIM_DEPOSIT_AMOUNT = 50.00;
 function init() {
   HELCIM_API_TOKEN = process.env.HELCIM_API_TOKEN || '';
   HELCIM_DEVICE_CODE = process.env.HELCIM_DEVICE_CODE || '';
-  // Supports HELCIM_DEPOSIT_AMOUNT; falls back to legacy GP_DEPOSIT_AMOUNT during migration
-  HELCIM_DEPOSIT_AMOUNT = parseFloat(process.env.HELCIM_DEPOSIT_AMOUNT || process.env.GP_DEPOSIT_AMOUNT) || 50.00;
 
   if (HELCIM_API_TOKEN) {
-    log.info('Helcim configured (deposit: $' + HELCIM_DEPOSIT_AMOUNT.toFixed(2) + ')');
+    log.info('Helcim configured');
   } else {
     log.info('Helcim not configured (HELCIM_API_TOKEN missing)');
   }
@@ -47,8 +44,13 @@ function isTerminalEnabled() {
   return !!HELCIM_API_TOKEN && !!HELCIM_DEVICE_CODE;
 }
 
+/**
+ * @deprecated Deposit amount concept removed (Apr 2026). Full order amount is now
+ * charged at checkout. Returns 10000 as a safe upper bound for callers that use
+ * this as a refund/amount cap (e.g. payments.js refund validation).
+ */
 function getDepositAmount() {
-  return HELCIM_DEPOSIT_AMOUNT;
+  return 10000;
 }
 
 function getTerminalDiagnostics() {

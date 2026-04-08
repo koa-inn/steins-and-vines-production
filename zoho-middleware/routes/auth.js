@@ -69,7 +69,7 @@ router.get('/auth/status', function (req, res) {
  * Returns basic payment status for any older clients that may still call this.
  */
 router.get('/api/payment/config', function (req, res) {
-  res.json({ enabled: helcimLib.isEnabled(), depositAmount: helcimLib.getDepositAmount() });
+  res.json({ enabled: helcimLib.isEnabled(), depositAmount: 0 });
 });
 
 module.exports = router;

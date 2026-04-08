@@ -14,7 +14,7 @@ jest.mock('express', () => {
 });
 jest.mock('../lib/helcim', () => ({
   isEnabled: jest.fn().mockReturnValue(true),
-  getDepositAmount: jest.fn().mockReturnValue(50),
+  getDepositAmount: jest.fn().mockReturnValue(10000),
   voidTransaction: jest.fn().mockResolvedValue({ ok: true, transactionId: 'txn-mock' }),
   getTerminalDiagnostics: jest.fn().mockReturnValue({})
 }));

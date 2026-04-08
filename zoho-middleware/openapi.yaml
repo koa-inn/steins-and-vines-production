@@ -340,11 +340,13 @@ components:
         deposit_amount:
           type: number
           format: double
-          example: 50.00
+          description: Full order amount when payment was taken; 0 for offline/unpaid orders.
+          example: 159.99
         balance_due:
           type: number
           format: double
-          example: 99.99
+          description: Always 0 — full amount is charged at checkout (deposit model removed Apr 2026).
+          example: 0
 
     # -------------------------------------------------------------------------
     # Bookings
@@ -454,7 +456,8 @@ components:
         depositAmount:
           type: number
           format: double
-          example: 50.00
+          description: "Deprecated — always 0. Full amount is now charged at checkout."
+          example: 0
 
     PaymentChargeRequest:
       type: object
@@ -1221,8 +1224,8 @@ paths:
                 ok: true
                 salesorder_id: "109900000000345678"
                 salesorder_number: "SO-00042"
-                deposit_amount: 0
-                balance_due: 159.99
+                deposit_amount: 159.99
+                balance_due: 0
         "400":
           description: Validation error (missing fields, unknown item, Makers Fee missing, etc.).
           content:

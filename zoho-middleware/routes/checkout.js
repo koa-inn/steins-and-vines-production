@@ -207,17 +207,23 @@ var router = express.Router();
  * Returns a checkoutToken that the frontend uses to render the payment iframe.
  * The payment is processed inside the Helcim iframe; result comes back via postMessage.
  *
- * Expected body: { amount?: number, currency?: string }
+ * Expected body: { amount: number, currency?: string }
  * Returns: { checkoutToken: string, depositAmount: number }
  */
 router.post('/api/payment/initialize', function (req, res) {
   if (!helcimLib.isEnabled()) {
     return res.status(503).json({ error: 'Payment gateway not configured' });
   }
-  var depositAmount = helcimLib.getDepositAmount();
-  helcimLib.initializeCheckout(depositAmount, 'CAD')
+  // Full amount is charged at checkout — no partial deposit.
+  // The actual amount is determined by the cart at checkout time;
+  // this endpoint initializes a session that the iframe will use.
+  var amount = parseFloat(req.body && req.body.amount) || 0;
+  if (amount <= 0) {
+    return res.status(400).json({ error: 'Invalid amount' });
+  }
+  helcimLib.initializeCheckout(amount, 'CAD')
     .then(function (result) {
-      res.json({ checkoutToken: result.checkoutToken, depositAmount: depositAmount });
+      res.json({ checkoutToken: result.checkoutToken, depositAmount: amount });
     })
     .catch(function (err) {
       log.error('[payment/initialize] Failed: ' + err.message);
@@ -230,9 +236,8 @@ router.post('/api/payment/initialize', function (req, res) {
  * Accepts a cart payload, formats it as a Zoho Books Sales Order, and creates
  * it via the API. Invalidates the products cache so stock counts refresh.
  *
- * If a payment transaction_id is provided (online deposit was charged),
- * deposit/balance custom fields are added and a Zoho Books customer payment
- * is recorded against the sales order.
+ * If a payment transaction_id is provided (full amount was charged online),
+ * a Zoho Books customer payment is recorded against the sales order.
  *
  * The Zoho contact is always derived server-side from the submitted email address
  * (via lookup-or-create). A client-supplied customer_id is intentionally ignored
@@ -245,8 +250,7 @@ router.post('/api/payment/initialize', function (req, res) {
  *     { item_id: "zoho_item_id", name: "Product Name", quantity: 2, rate: 14.99 }
  *   ],
  *   notes: "optional order notes",
- *   transaction_id: "gp-txn-id (optional)",
- *   deposit_amount: 50.00 (optional),
+ *   transaction_id: "helcim-txn-id (optional — full amount was charged)",
  *   idempotency_key: "client-generated-uuid (optional)"
  * }
  */
@@ -368,11 +372,9 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
   var customerPhone = (body.customer.phone || '').toString().trim().substring(0, 40);
 
   var transactionId = body.transaction_id || '';
-  // H2: Clamp deposit_amount to the server-configured canonical deposit — never trust client amount
+  // Full amount is charged at checkout — no partial deposit.
+  // depositAmount is set to orderTotal after line items are built (inside runCheckout).
   var depositAmount = 0;
-  if (transactionId) {
-    depositAmount = helcimLib.getDepositAmount();
-  }
 
   // H3: Transaction ID single-use enforcement — prevent replay attacks
   // Check Redis before processing; mark as used after successful order creation
@@ -543,7 +545,9 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       log.info('[checkout] Injected Maker\'s Fee: qty=' + kitQtyTotal + ' rate=' + makersFeeItem.rate + ' item_id=' + makersFeeItem.item_id);
     }
 
-    var balanceDue = Math.max(0, orderTotal - depositAmount);
+    // Full amount charged — deposit equals the order total when payment was taken
+    depositAmount = transactionId ? orderTotal : 0;
+    var balanceDue = 0;
 
     var responseSent = false;
 
@@ -585,20 +589,8 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         });
       }
 
-      // Deposit tracking custom fields (only included if configured in .env)
-      // Use pricing.formatCurrency for consistent number formatting
-      if (process.env.ZOHO_CF_DEPOSIT) {
-        salesOrder.custom_fields.push({
-          api_name: process.env.ZOHO_CF_DEPOSIT,
-          value: String(depositAmount.toFixed(2))
-        });
-      }
-      if (process.env.ZOHO_CF_BALANCE) {
-        salesOrder.custom_fields.push({
-          api_name: process.env.ZOHO_CF_BALANCE,
-          value: String(balanceDue.toFixed(2))
-        });
-      }
+      // NOTE: ZOHO_CF_DEPOSIT and ZOHO_CF_BALANCE custom fields removed (Apr 2026).
+      // Historical orders retain their values in Zoho; new orders no longer write them.
       if (transactionId && process.env.ZOHO_CF_TRANSACTION_ID) {
         salesOrder.custom_fields.push({
           api_name: process.env.ZOHO_CF_TRANSACTION_ID,
@@ -661,7 +653,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       // It is sent by staff via the admin panel when the reservation
       // status is changed to "confirmed".
 
-      // If an online deposit was charged, record the payment in Zoho Books
+      // If an online payment was charged, record it in Zoho Books
       if (transactionId && depositAmount > 0 && soId) {
         try {
           await zohoPost('/customerpayments', {
@@ -670,14 +662,14 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
             amount: depositAmount,
             date: new Date().toISOString().slice(0, 10),
             reference_number: transactionId,
-            notes: 'Online deposit for Sales Order ' + (soNumber || soId),
+            notes: 'Online payment for Sales Order ' + (soNumber || soId),
             // Item #7 — Apply the payment directly to the sales order
             salesorders_to_apply: [{ salesorder_id: soId, amount_applied: depositAmount }]
           });
           log.info('[checkout] Payment recorded for SO=' + soNumber);
         } catch (payErr) {
           // Payment recording failed — log but don't fail the order
-          // The deposit custom fields on the SO still have the transaction reference
+          // The transaction ID custom field on the SO still has the reference
           log.error('[checkout] Payment recording failed (non-fatal): ' + payErr.message);
         }
       }
@@ -810,7 +802,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
   // If Zoho order creation fails after validation, voidTransaction() handles recovery.
   async function chargeAndProceed() {
     if (!body.payment_token) {
-      // No payment — offline booking or deposit-free order
+      // No payment — offline booking or unpaid reservation
       return checkTransactionIdAndProceed();
     }
     if (!helcimLib.isEnabled()) {
@@ -819,7 +811,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
 
     // Card is already charged — set transactionId so void fires if any check below fails
     transactionId = body.payment_token;
-    depositAmount = helcimLib.getDepositAmount();
+    // depositAmount will be set to orderTotal inside runCheckout after line items are built
     log.info('[checkout] Helcim payment received: txn=' + transactionId);
 
     // Pre-validate catalog and cart before proceeding to order creation.

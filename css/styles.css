@@ -2804,14 +2804,6 @@ behold-widget {
   fill: var(--color-green);
 }
 
-/* Deposit summary - product order total row */
-.deposit-summary-row--total {
-  font-weight: 700;
-  font-size: 1.1rem;
-  border-top: 1px solid var(--color-muted);
-  padding-top: 0.5rem;
-  margin-top: 0.25rem;
-}
 
 .reservation-empty {
   color: var(--color-brown);
@@ -3455,24 +3447,6 @@ behold-widget {
   margin-top: 0.5rem;
 }
 
-/* Deposit summary (base — see enhanced receipt style below) */
-
-.deposit-summary-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.2rem 0;
-}
-
-.deposit-summary-row span:last-child {
-  font-weight: 700;
-}
-
-/* Deposit confirmation note */
-.deposit-confirm-note {
-  font-weight: 700;
-  color: var(--color-green);
-  margin-bottom: 0.75rem;
-}
 
 .form-note {
   margin-top: 0.75rem;
@@ -3696,16 +3670,6 @@ behold-widget {
   flex-shrink: 0;
 }
 
-/* Deposit summary receipt style */
-.deposit-summary {
-  margin: 1rem 0 1.25rem;
-  padding: 1rem 1.25rem;
-  background: var(--color-white);
-  border: 1px dashed var(--color-brown);
-  border-radius: var(--radius-sm);
-  font-size: 0.875rem;
-}
-
 /* Payment offline notice — shown when online payments are not yet available */
 .payment-offline-notice {
   background: #fdf8f0;
@@ -3718,43 +3682,6 @@ behold-widget {
 }
 .payment-offline-notice p { margin: 0; }
 
-.payment-option-selector {
-  margin: 1.25rem 0;
-}
-.payment-option-label {
-  font-weight: 700;
-  font-size: 0.875rem;
-  color: var(--color-green);
-  margin-bottom: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.payment-option-radio {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--color-brown);
-  border-radius: var(--radius-sm, 4px);
-  margin-bottom: 0.5rem;
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-}
-.payment-option-radio:has(input:checked) {
-  border-color: var(--color-burgundy);
-  background: rgba(107, 39, 55, 0.04);
-}
-.payment-option-title {
-  display: block;
-  font-weight: 700;
-  font-size: 0.9375rem;
-}
-.payment-option-desc {
-  display: block;
-  font-size: 0.8125rem;
-  color: var(--color-muted-dark);
-  margin-top: 0.15rem;
-}
 
 /* No-payment notice on confirmation screen */
 .confirm-no-payment-notice {
