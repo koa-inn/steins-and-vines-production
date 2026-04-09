@@ -648,7 +648,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       // server-side. Using the SO response total ensures the recorded payment
       // matches what Zoho expects, preventing an unpaid balance.
       if (transactionId && data.salesorder && data.salesorder.total != null) {
-        depositAmount = Math.round(parseFloat(data.salesorder.total) * 100) / 100;
+        var soTotal = parseFloat(data.salesorder.total);
+        if (!isNaN(soTotal)) {
+          depositAmount = Math.round(soTotal * 100) / 100;
+        }
       }
 
       // Fire-and-forget: decrement inventory ledger for sold items

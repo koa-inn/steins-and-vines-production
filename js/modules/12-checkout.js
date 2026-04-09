@@ -1507,6 +1507,11 @@ function setupReservationForm() {
 
     _checkoutSubmitting = true;
 
+    // Clear stale payment state so each submit gets a fresh Helcim session.
+    // Without this, a previous transaction ID could bypass payment on retry.
+    _helcimTransactionId = null;
+    _helcimCheckoutToken = null;
+
     // Dual-cart path: both carts have items and no specific ?cart= was supplied
     if (_isDualCart) {
       var _dualSub = f.querySelector('button[type="submit"]');
