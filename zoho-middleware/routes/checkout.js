@@ -136,6 +136,7 @@ function notifyAdminPanel(soNumber, customerName, customerEmail, customerPhone, 
 
 var PRODUCTS_CACHE_KEY = C.CACHE_KEYS.PRODUCTS;
 var SERVICES_CACHE_KEY = C.CACHE_KEYS.SERVICES;
+var INGREDIENTS_CACHE_KEY = C.CACHE_KEYS.INGREDIENTS;
 var KIOSK_PRODUCTS_CACHE_KEY = C.CACHE_KEYS.KIOSK_PRODUCTS;
 var CHECKOUT_IDEMPOTENCY_TTL = 600; // 10 minutes in seconds
 
@@ -458,7 +459,8 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
     try {
       results = await Promise.all([
         cache.get(PRODUCTS_CACHE_KEY),
-        cache.get(SERVICES_CACHE_KEY)
+        cache.get(SERVICES_CACHE_KEY),
+        cache.get(INGREDIENTS_CACHE_KEY)
       ]);
     } catch (cacheErr) {
       // Catalog cache read failed entirely — still allow checkout to proceed
@@ -469,6 +471,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
 
     var catalog = results[0];
     var services = results[1];
+    var ingredients = results[2];
     // If services cache is empty, fall back to snapshot directly
     if (!Array.isArray(services) || services.length === 0) {
       log.warn('[checkout] Services cache empty — using snapshot fallback');
@@ -491,6 +494,12 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
     if (Array.isArray(services)) {
       services.forEach(function (s) {
         if (s && s.item_id) catalogMap[s.item_id] = s.rate;
+      });
+    }
+    // Include ingredients so dual-cart ingredient orders pass validation
+    if (Array.isArray(ingredients)) {
+      ingredients.forEach(function (ing) {
+        if (ing && ing.item_id) catalogMap[ing.item_id] = ing.rate;
       });
     }
 
@@ -829,7 +838,8 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
     try {
       preResults = await Promise.all([
         cache.get(PRODUCTS_CACHE_KEY),
-        cache.get(SERVICES_CACHE_KEY)
+        cache.get(SERVICES_CACHE_KEY),
+        cache.get(INGREDIENTS_CACHE_KEY)
       ]);
     } catch (cacheErr) {
       log.error('[checkout/pre-validate] Cache read failed: ' + cacheErr.message);
@@ -841,6 +851,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
 
     var preCatalog = preResults[0];
     var preServices = preResults[1];
+    var preIngredients = preResults[2];
     // If services cache is empty, fall back to snapshot directly
     if (!Array.isArray(preServices) || preServices.length === 0) {
       log.warn('[checkout/pre-validate] Services cache empty — using snapshot fallback');
@@ -859,6 +870,9 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
     preCatalog.forEach(function (p) { if (p && p.item_id) preMap[p.item_id] = true; });
     if (Array.isArray(preServices)) {
       preServices.forEach(function (s) { if (s && s.item_id) preMap[s.item_id] = true; });
+    }
+    if (Array.isArray(preIngredients)) {
+      preIngredients.forEach(function (ing) { if (ing && ing.item_id) preMap[ing.item_id] = true; });
     }
 
     for (var pi = 0; pi < body.items.length; pi++) {
