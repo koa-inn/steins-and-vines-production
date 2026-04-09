@@ -379,12 +379,15 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
   var depositAmount = 0;
 
   // H3: Transaction ID single-use enforcement — prevent replay attacks
-  // Check Redis before processing; mark as used after successful order creation
+  // Check Redis before processing; mark as used after successful order creation.
+  // Dual-cart checkout shares one Helcim transaction across two cart_keys,
+  // so the replay key includes the cart_key to allow both orders through.
   async function checkTransactionIdAndProceed() {
     if (!transactionId) {
       return runCheckout();
     }
-    var txnKey = 'helcim:txn:' + transactionId;
+    var txnKeySuffix = body.cart_key ? ':' + body.cart_key : '';
+    var txnKey = 'helcim:txn:' + transactionId + txnKeySuffix;
     try {
       var existing = await cache.get(txnKey);
       if (existing) {
@@ -704,8 +707,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         ? cache.set(idempotencyKey, responseBody, CHECKOUT_IDEMPOTENCY_TTL).catch(function () {})
         : Promise.resolve();
       // H3: Mark transaction ID as used in Redis (24h TTL) to prevent replay
+      // Uses cart_key suffix to match the check in checkTransactionIdAndProceed()
+      var txnKeySuffix2 = body.cart_key ? ':' + body.cart_key : '';
       var txnMark = transactionId
-        ? cache.set('helcim:txn:' + transactionId, 'used', 86400).catch(function () {})
+        ? cache.set('helcim:txn:' + transactionId + txnKeySuffix2, 'used', 86400).catch(function () {})
         : Promise.resolve();
       await Promise.all([cacheWrite, txnMark]);
       responseSent = true;
