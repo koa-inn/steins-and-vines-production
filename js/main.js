@@ -7495,36 +7495,30 @@ function setupReservationForm() {
       // If payment is enabled and there's a charge, initialize Helcim first
       if (_paymentConfig && _paymentConfig.enabled && _dualCharge > 0) {
         if (!_helcimTransactionId || typeof _helcimTransactionId !== 'string' || _helcimTransactionId.length === 0) {
-          if (new URLSearchParams(window.location.search).get('mock_payment') === '1') {
-            _helcimTransactionId = 'mock-test-' + Date.now();
-            _proceedDualSubmit(_helcimTransactionId);
-          } else {
-            if (typeof appendHelcimPayIframe !== 'function') {
-              showToast('Payment not available — please refresh and try again.', 'error');
-              _checkoutSubmitting = false; if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
-              return;
-            }
-            _awaitingPaymentSubmit = true;
-            if (_dualSub) _dualSub.textContent = 'Initializing payment...';
-            var mwForPay = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
-            fetch(mwForPay + '/api/payment/initialize', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
-              body: JSON.stringify({ amount: _dualCharge })
-            }).then(function (r) { return r.json(); }).then(function (cfg) {
-              if (!cfg || !cfg.checkoutToken) {
-                throw new Error(cfg && cfg.error ? cfg.error : 'Payment initialization failed');
-              }
-              _helcimCheckoutToken = cfg.checkoutToken;
-              if (_dualSub) _dualSub.textContent = 'Waiting for payment...';
-              appendHelcimPayIframe(cfg.checkoutToken);
-              // Payment result comes via postMessage → sets _helcimTransactionId → re-triggers form submit
-            }).catch(function () {
-              _awaitingPaymentSubmit = false;
-              showToast('Payment not available — please try again later.', 'error');
-              _checkoutSubmitting = false; if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
-            });
+          if (typeof appendHelcimPayIframe !== 'function') {
+            showToast('Payment not available — please refresh and try again.', 'error');
+            _checkoutSubmitting = false; if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
+            return;
           }
+          _awaitingPaymentSubmit = true;
+          if (_dualSub) _dualSub.textContent = 'Initializing payment...';
+          var mwForPay = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
+          fetch(mwForPay + '/api/payment/initialize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
+            body: JSON.stringify({ amount: _dualCharge })
+          }).then(function (r) { return r.json(); }).then(function (cfg) {
+            if (!cfg || !cfg.checkoutToken) {
+              throw new Error(cfg && cfg.error ? cfg.error : 'Payment initialization failed');
+            }
+            _helcimCheckoutToken = cfg.checkoutToken;
+            if (_dualSub) _dualSub.textContent = 'Waiting for payment...';
+            appendHelcimPayIframe(cfg.checkoutToken);
+          }).catch(function () {
+            _awaitingPaymentSubmit = false;
+            showToast('Payment not available — please try again later.', 'error');
+            _checkoutSubmitting = false; if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
+          });
           return;
         }
         // Payment already completed (re-entry after postMessage) — proceed with transaction ID
@@ -7556,34 +7550,29 @@ function setupReservationForm() {
     // so it always reflects the current cart total (fixes stale-token bug).
     if (_paymentConfig && _paymentConfig.enabled && charge > 0) {
       if (!_helcimTransactionId || typeof _helcimTransactionId !== 'string' || _helcimTransactionId.length === 0) {
-        // Staging mock: ?mock_payment=1 bypasses Helcim iframe for flow testing
-        if (new URLSearchParams(window.location.search).get('mock_payment') === '1') {
-          _helcimTransactionId = 'mock-test-' + Date.now();
-        } else {
-          if (typeof appendHelcimPayIframe !== 'function') {
-            showToast('Payment not available — please refresh and try again.', 'error');
-            sub.disabled = false; sub.textContent = originalBtnText; _checkoutSubmitting = false; return;
-          }
-          _awaitingPaymentSubmit = true;
-          sub.textContent = 'Initializing payment...';
-          fetch(mw + '/api/payment/initialize', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
-            body: JSON.stringify({ amount: Math.round(charge * 100) / 100 })
-          }).then(function (r) { return r.json(); }).then(function (cfg) {
-            if (!cfg || !cfg.checkoutToken) {
-              throw new Error(cfg && cfg.error ? cfg.error : 'Payment initialization failed');
-            }
-            _helcimCheckoutToken = cfg.checkoutToken;
-            sub.textContent = 'Waiting for payment...';
-            appendHelcimPayIframe(cfg.checkoutToken);
-          }).catch(function (initErr) {
-            _awaitingPaymentSubmit = false;
-            showToast('Payment not available — please try again later.', 'error');
-            sub.disabled = false; sub.textContent = originalBtnText; _checkoutSubmitting = false;
-          });
-          return; // resume automatically after HELCIM_PAY_JS_PAYMENT_SUCCESS
+        if (typeof appendHelcimPayIframe !== 'function') {
+          showToast('Payment not available — please refresh and try again.', 'error');
+          sub.disabled = false; sub.textContent = originalBtnText; _checkoutSubmitting = false; return;
         }
+        _awaitingPaymentSubmit = true;
+        sub.textContent = 'Initializing payment...';
+        fetch(mw + '/api/payment/initialize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
+          body: JSON.stringify({ amount: Math.round(charge * 100) / 100 })
+        }).then(function (r) { return r.json(); }).then(function (cfg) {
+          if (!cfg || !cfg.checkoutToken) {
+            throw new Error(cfg && cfg.error ? cfg.error : 'Payment initialization failed');
+          }
+          _helcimCheckoutToken = cfg.checkoutToken;
+          sub.textContent = 'Waiting for payment...';
+          appendHelcimPayIframe(cfg.checkoutToken);
+        }).catch(function (initErr) {
+          _awaitingPaymentSubmit = false;
+          showToast('Payment not available — please try again later.', 'error');
+          sub.disabled = false; sub.textContent = originalBtnText; _checkoutSubmitting = false;
+        });
+        return; // resume automatically after HELCIM_PAY_JS_PAYMENT_SUCCESS
       }
     }
 
