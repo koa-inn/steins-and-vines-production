@@ -56,6 +56,20 @@ function formatPhoneInput(rawValue) {
   return digits;
 }
 
+// Auto-format phone input as user types: (604) 567-4565
+(function () {
+  var phoneInput = document.getElementById('res-phone');
+  if (!phoneInput) return;
+  phoneInput.addEventListener('input', function () {
+    var pos = this.selectionStart;
+    var before = this.value.length;
+    this.value = formatPhoneInput(this.value);
+    var after = this.value.length;
+    var newPos = pos + (after - before);
+    this.setSelectionRange(newPos, newPos);
+  });
+})();
+
 function isValidEmail(val) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
 }
