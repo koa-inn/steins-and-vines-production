@@ -49,8 +49,6 @@ cd zoho-middleware && npm run test:coverage
 ---
 
 ## Campaign Backlog (future sessions)
-- [ ] **Campaign 5:** `js/admin.js` IIFE — reservation status logic
-- [ ] **Campaign 5:** E2E with Playwright against staging
 - [ ] **Campaign 4:** `js/brewpad.js` IIFE — extract pure fns (ABV calc, date helpers, batch filters)
 - [ ] **Campaign 4:** `js/admin.js` IIFE — reservation status logic
 - [ ] **Campaign 5:** E2E with Playwright against staging
@@ -130,7 +128,7 @@ expect(myFn()).toBe('val');
 - **`zohoAuth.js`** exports `encrypt`/`decrypt` for testing; these are internal helpers exposed only via module.exports
 - **`decrypt()`** returns `null` on GCM authentication failure (catch added in Campaign 1)
 - **`05-catalog-view.js`** `window.addEventListener` is guarded by `typeof window !== 'undefined'` check so it loads cleanly in jsdom and Node
-- **Coverage thresholds**: middleware ≥70% lines (global), frontend ≥80% lines (global) — CI fails below these
+- **Coverage thresholds**: middleware ≥35% lines (global, per `zoho-middleware/jest.config.js`), frontend ≥5% lines (global, per `jest.config.js`) — thresholds are intentionally low and scoped to currently-tested files only; raise each campaign as more functions are extracted and tested
 
 ---
 

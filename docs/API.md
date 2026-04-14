@@ -270,6 +270,62 @@ Returns the current in-memory inventory ledger state for debugging — recent st
 
 **Auth:** `MW_API_KEY` header
 
+### `GET /api/kiosk/salesorders`
+Fetch open Sales Orders from Zoho for display in the kiosk (pay-on-account flow). Results are cached. Supports optional filtering.
+
+**Auth:** API Key
+**Query:** `?status=open&search=customer+name`
+**Response:** `{ salesorders: [...] }`
+
+### `POST /api/kiosk/salesorder-create`
+Create a new Sales Order in Zoho from the kiosk (deferred-payment / pay-on-account). Invalidates the salesorders cache on success.
+
+**Auth:** API Key
+**Body:**
+```json
+{
+  "customer_id": "zoho_customer_id",
+  "items": [{ "item_id": "id", "name": "Name", "quantity": 2, "rate": 14.99 }],
+  "notes": "optional notes"
+}
+```
+**Response:** `{ ok, salesorder_id, salesorder_number, total, balance }`
+
+### `POST /api/kiosk/salesorder-pay`
+Collect payment on an existing Sales Order via the Helcim terminal. Pushes to the terminal, polls for the result, then records the payment in Zoho.
+
+**Auth:** API Key
+**Body:**
+```json
+{ "salesorder_id": "zoho_salesorder_id" }
+```
+**Response:** `{ ok, transaction_id, salesorder_number, amount, card_type }`
+
+---
+
+## Collect (Deluge-triggered terminal payment)
+
+### `POST /api/pos/collect`
+Collect payment on an existing Zoho Sales Order via the Helcim Smart Terminal. Intended to be called by a Zoho Inventory Deluge script (server-to-server). Returns `202 Accepted` immediately after the terminal push; the Helcim webhook handler (`POST /api/webhooks/helcim`) processes the result asynchronously.
+
+**Auth:** API Key
+**Rate limit:** 10 req/min
+**Body:**
+```json
+{ "salesorder_id": "zoho_salesorder_id" }
+```
+**Response (202):**
+```json
+{
+  "message": "Payment sent to terminal",
+  "salesorder_number": "SO-00123",
+  "amount": 149.95,
+  "status": "pending"
+}
+```
+Returns `409` if a payment is already in progress for the same order (idempotency check).
+Returns `503` if the Helcim terminal is not configured.
+
 ---
 
 ## Items (Zoho CRUD)

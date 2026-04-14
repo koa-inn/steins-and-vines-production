@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zoho → Helcim Sync Plan</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #0f1117;
+    color: #e2e4e9;
+    min-height: 100vh;
+    padding: 40px 24px 80px;
+  }
+  .page { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; font-weight: 600; color: #fff; text-align: center; margin-bottom: 6px; }
+  .subtitle { text-align: center; font-size: 0.9rem; color: #8b8fa3; margin-bottom: 48px; }
+
+  /* Section headers */
+  .section { margin-bottom: 48px; }
+  .section h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #252733;
+  }
+  .section h2 .num {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 28px;
+    font-size: 0.8rem;
+    margin-right: 10px;
+    color: #fff;
+  }
+
+  /* Two approaches */
+  .approaches {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .approach {
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #252733;
+    background: #161822;
+    position: relative;
+  }
+  .approach.recommended {
+    border-color: #2d8055;
+    background: linear-gradient(135deg, #131c18 0%, #161822 100%);
+  }
+  .approach.recommended::after {
+    content: "Recommended";
+    position: absolute;
+    top: -10px;
+    right: 16px;
+    background: #2d8055;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 10px;
+    border-radius: 4px;
+  }
+  .approach h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 8px; }
+  .approach p { font-size: 0.82rem; color: #a0a3b4; line-height: 1.6; margin-bottom: 10px; }
+  .approach .pros { font-size: 0.78rem; color: #5dd9a0; }
+  .approach .cons { font-size: 0.78rem; color: #f2a36b; }
+
+  /* Field mapping table */
+  .map-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .map-table thead { background: #1a1c25; }
+  .map-table th {
+    text-align: left;
+    padding: 10px 14px;
+    font-weight: 600;
+    color: #8b8fa3;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid #252733;
+  }
+  .map-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #1e2030;
+    color: #c4c7d4;
+    vertical-align: top;
+  }
+  .map-table tr:hover { background: #1a1c25; }
+  .zoho-col { color: #5dd9a0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.78rem; }
+  .helcim-col { color: #6db3f2; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.78rem; }
+  .note-col { font-size: 0.76rem; color: #8b8fa3; }
+
+  /* Flow diagram */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    align-items: center;
+  }
+  .flow-step {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 20px;
+    border-radius: 12px;
+    background: #161822;
+    border: 1px solid #252733;
+  }
+  .flow-step .step-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+  }
+  .flow-step .step-content { flex: 1; }
+  .flow-step .step-title { font-weight: 600; font-size: 0.88rem; color: #fff; margin-bottom: 2px; }
+  .flow-step .step-desc { font-size: 0.78rem; color: #8b8fa3; line-height: 1.4; }
+  .flow-arrow {
+    width: 2px;
+    height: 20px;
+    background: #333648;
+    position: relative;
+  }
+  .flow-arrow::after {
+    content: "";
+    position: absolute;
+    bottom: -4px;
+    left: -4px;
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #333648;
+  }
+  .bg-green { background: #1a3328; }
+  .bg-purple { background: #2a1f3d; }
+  .bg-blue { background: #1a2744; }
+
+  /* Implementation options */
+  .impl-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .impl-box {
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #252733;
+    background: #161822;
+  }
+  .impl-box h3 { font-size: 0.9rem; font-weight: 600; margin-bottom: 10px; }
+  .impl-box p { font-size: 0.82rem; color: #a0a3b4; line-height: 1.6; }
+  .impl-box .tag {
+    display: inline-block;
+    font-size: 0.68rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    margin-top: 10px;
+  }
+  .tag-easy { background: #1a3328; color: #5dd9a0; border: 1px solid #2d8055; }
+  .tag-moderate { background: #2d2a1a; color: #f2d16b; border: 1px solid #806b2d; }
+
+  /* Tip callout */
+  .tip {
+    border-radius: 12px;
+    padding: 20px;
+    background: linear-gradient(135deg, #1a2744 0%, #161822 100%);
+    border: 1px solid #2a5090;
+    margin-top: 16px;
+  }
+  .tip h4 { font-size: 0.85rem; color: #6db3f2; font-weight: 600; margin-bottom: 8px; }
+  .tip p { font-size: 0.82rem; color: #a0a3b4; line-height: 1.6; }
+
+  @media (max-width: 700px) {
+    .approaches, .impl-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Zoho → Helcim Sync Plan</h1>
+<p class="subtitle">Pushing your ~50–200 products and customers from Zoho Inventory/Books into the Helcim POS app</p>
+
+<!-- ============================================ -->
+<!-- SECTION 1: Two Ways to Do It -->
+<!-- ============================================ -->
+<div class="section">
+  <h2><span class="num" style="background:#6b4fa0;">1</span>Two Ways to Sync Products</h2>
+
+  <div class="approaches">
+    <div class="approach recommended">
+      <h3 style="color:#5dd9a0;">CSV Export → Helcim Import</h3>
+      <p>Your middleware pulls the full product catalog from Zoho Inventory (it already does this), generates a CSV in Helcim's import format, and you upload it to Helcim manually or on a schedule.</p>
+      <p class="pros">✓ No Helcim API key needed — uses built-in import tool<br>
+         ✓ You can review the data before uploading<br>
+         ✓ SKU matching auto-updates existing products</p>
+      <p class="cons">△ Not real-time — you'd re-run when catalog changes</p>
+    </div>
+    <div class="approach">
+      <h3 style="color:#6db3f2;">API Push (Automated)</h3>
+      <p>Build a sync endpoint in your middleware that calls Helcim's Product and Customer APIs directly whenever Zoho catalog changes. Fully automated, no manual CSV step.</p>
+      <p class="pros">✓ Fully automatic — no manual uploads<br>
+         ✓ Can be triggered by cache refresh or cron</p>
+      <p class="cons">△ Helcim's Product API is less documented than their Payment/Customer API — may require testing<br>
+         △ More code to build and maintain</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SECTION 2: Product Field Mapping -->
+<!-- ============================================ -->
+<div class="section">
+  <h2><span class="num" style="background:#2d8055;">2</span>Product Field Mapping — Zoho → Helcim</h2>
+
+  <table class="map-table">
+    <thead>
+      <tr>
+        <th>Helcim CSV Column</th>
+        <th>Your Zoho Field</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="helcim-col">NAME</td>
+        <td class="zoho-col">name</td>
+        <td class="note-col">Direct map — product display name</td>
+      </tr>
+      <tr>
+        <td class="helcim-col">SKU</td>
+        <td class="zoho-col">sku</td>
+        <td class="note-col">Key for matching — if SKU exists in Helcim, import updates it</td>
+      </tr>
+      <tr>
+        <td class="helcim-col">PRICE</td>
+        <td class="zoho-col">rate</td>
+        <td class="note-col">Selling price from Zoho. Your middleware anchors this server-side already</td>
+      </tr>
+      <tr>
+        <td class="helcim-col">CATEGORY</td>
+        <td class="zoho-col">custom_fields → "Type"</td>
+        <td class="note-col">Wine, Beer, Cider, Seltzer — maps to Helcim product categories</td>
+      </tr>
+      <tr>
+        <td class="helcim-col">BRAND</td>
+        <td class="zoho-col">brand</td>
+        <td class="note-col">Fetched from item detail endpoint (bulk fetch)</td>
+      </tr>
+      <tr>
+        <td class="helcim-col">DESCRIPTION</td>
+        <td class="zoho-col">description</td>
+        <td class="note-col">Sales description from Zoho</td>
+      </tr>
+      <tr>
+        <td class="helcim-col">COST</td>
+        <td class="zoho-col">—</td>
+        <td class="note-col">Purchase price — available from Zoho if needed, not currently fetched</td>
+      </tr>
+      <tr>
+        <td class="helcim-col">TRACK_INVENTORY</td>
+        <td class="zoho-col">true</td>
+        <td class="note-col">Set to true for all goods-type items</td>
+      </tr>
+      <tr>
+        <td class="helcim-col">WEIGHT</td>
+        <td class="zoho-col">—</td>
+        <td class="note-col">Not relevant for wine/beer kits — leave blank or 0</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============================================ -->
+<!-- SECTION 3: Customer Field Mapping -->
+<!-- ============================================ -->
+<div class="section">
+  <h2><span class="num" style="background:#2a5090;">3</span>Customer Field Mapping — Zoho → Helcim</h2>
+
+  <table class="map-table">
+    <thead>
+      <tr>
+        <th>Helcim Customer Field</th>
+        <th>Your Zoho Field</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="helcim-col">CONTACT_NAME</td>
+        <td class="zoho-col">contact_name</td>
+        <td class="note-col">Required — or use BUSINESS_NAME</td>
+      </tr>
+      <tr>
+        <td class="helcim-col">EMAIL</td>
+        <td class="zoho-col">email</td>
+        <td class="note-col">Used for matching existing customers</td>
+      </tr>
+      <tr>
+        <td class="helcim-col">PHONE</td>
+        <td class="zoho-col">phone</td>
+        <td class="note-col">Primary phone from Zoho contact</td>
+      </tr>
+      <tr>
+        <td class="helcim-col">ADDRESS</td>
+        <td class="zoho-col">billing_address</td>
+        <td class="note-col">Billing address sub-object from Zoho Books</td>
+      </tr>
+      <tr>
+        <td class="helcim-col">CITY</td>
+        <td class="zoho-col">billing_address.city</td>
+        <td class="note-col"></td>
+      </tr>
+      <tr>
+        <td class="helcim-col">PROVINCE / STATE</td>
+        <td class="zoho-col">billing_address.state</td>
+        <td class="note-col"></td>
+      </tr>
+      <tr>
+        <td class="helcim-col">POSTAL / ZIP</td>
+        <td class="zoho-col">billing_address.zip</td>
+        <td class="note-col"></td>
+      </tr>
+      <tr>
+        <td class="helcim-col">COUNTRY</td>
+        <td class="zoho-col">billing_address.country</td>
+        <td class="note-col"></td>
+      </tr>
+      <tr>
+        <td class="helcim-col">CUSTOMER_CODE</td>
+        <td class="zoho-col">contact_id</td>
+        <td class="note-col">Zoho's unique ID — use this to link records between systems</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============================================ -->
+<!-- SECTION 4: The Sync Flow -->
+<!-- ============================================ -->
+<div class="section">
+  <h2><span class="num" style="background:#6b4fa0;">4</span>How the Sync Works</h2>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="step-icon bg-green">📦</div>
+      <div class="step-content">
+        <div class="step-title">Zoho Inventory (Source of Truth)</div>
+        <div class="step-desc">Your full product catalog with custom fields, pricing, stock levels, and customer contacts. Already fetched and cached by your middleware.</div>
+      </div>
+    </div>
+    <div class="flow-arrow"></div>
+    <div class="flow-step">
+      <div class="step-icon bg-purple">⚙️</div>
+      <div class="step-content">
+        <div class="step-title">Your Middleware (Transformer)</div>
+        <div class="step-desc">New endpoint: <code style="color:#b48afe;">/api/admin/helcim-export</code> — fetches products from cache, maps Zoho fields to Helcim's CSV columns, generates downloadable file. Same for customers.</div>
+      </div>
+    </div>
+    <div class="flow-arrow"></div>
+    <div class="flow-step">
+      <div class="step-icon bg-blue">📱</div>
+      <div class="step-content">
+        <div class="step-title">Helcim Import</div>
+        <div class="step-desc">Upload the CSV through Helcim's Product Import tool (in your Helcim dashboard). SKU matching automatically updates existing products and adds new ones.</div>
+      </div>
+    </div>
+    <div class="flow-arrow"></div>
+    <div class="flow-step">
+      <div class="step-icon bg-blue">💳</div>
+      <div class="step-content">
+        <div class="step-title">Helcim POS on iPad</div>
+        <div class="step-desc">Your iPad POS app now shows all your Zoho products with correct names, prices, categories, and stock levels. Ready to ring up sales.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SECTION 5: Implementation Options -->
+<!-- ============================================ -->
+<div class="section">
+  <h2><span class="num" style="background:#2d8055;">5</span>Implementation Options</h2>
+
+  <div class="impl-grid">
+    <div class="impl-box">
+      <h3 style="color:#5dd9a0;">Option A: Admin Endpoint + Manual Upload</h3>
+      <p>Add a <code style="color:#5dd9a0;">/api/admin/helcim-export</code> endpoint that returns a CSV. You hit it when your catalog changes, download the file, and upload to Helcim's import page. Simple, low-risk, and you control when syncs happen.</p>
+      <span class="tag tag-easy">Easy — a few hours of work</span>
+    </div>
+    <div class="impl-box">
+      <h3 style="color:#f2d16b;">Option B: Scheduled Auto-Sync</h3>
+      <p>A cron job in your middleware (you already have node-cron) that runs nightly or on product cache refresh. It generates the CSV and uploads it via Helcim's API automatically. Set-and-forget after initial setup.</p>
+      <span class="tag tag-moderate">Moderate — depends on Helcim API support</span>
+    </div>
+  </div>
+
+  <div class="tip">
+    <h4>💡 Pro tip: Start with Option A</h4>
+    <p>Build the CSV export endpoint first. This is useful on its own and gives you a working sync immediately. Later, you can automate it with a cron job once you've confirmed the data maps correctly and Helcim imports look good on the POS. Your middleware already has the <code style="color:#6db3f2;">csv-to-snapshot.js</code> script pattern to follow, just in the other direction.</p>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- SECTION 6: What to Do First -->
+<!-- ============================================ -->
+<div class="section">
+  <h2><span class="num" style="background:#2a5090;">6</span>What to Do First</h2>
+
+  <div class="flow">
+    <div class="flow-step" style="border-color:#2d8055;">
+      <div class="step-icon bg-green">1</div>
+      <div class="step-content">
+        <div class="step-title">Download Helcim's sample CSV templates</div>
+        <div class="step-desc">Go to your Helcim dashboard → Products → Import → download the Product Import and Customer Import sample CSVs. This gives you the exact column headers.</div>
+      </div>
+    </div>
+    <div class="flow-arrow"></div>
+    <div class="flow-step" style="border-color:#6b4fa0;">
+      <div class="step-icon bg-purple">2</div>
+      <div class="step-content">
+        <div class="step-title">Build the export endpoint in your middleware</div>
+        <div class="step-desc">New route that reads from your product cache and outputs a CSV matching Helcim's format. Same for customer contacts from Zoho Books.</div>
+      </div>
+    </div>
+    <div class="flow-arrow"></div>
+    <div class="flow-step" style="border-color:#2a5090;">
+      <div class="step-icon bg-blue">3</div>
+      <div class="step-content">
+        <div class="step-title">Test with a small batch first</div>
+        <div class="step-desc">Export 5–10 products, import into Helcim, and verify they show up correctly on your iPad POS with the right prices and categories.</div>
+      </div>
+    </div>
+    <div class="flow-arrow"></div>
+    <div class="flow-step" style="border-color:#2a5090;">
+      <div class="step-icon bg-blue">4</div>
+      <div class="step-content">
+        <div class="step-title">Full sync + repeat when catalog changes</div>
+        <div class="step-desc">Once confirmed, export your full catalog and all customers. Re-run whenever you add products in Zoho — Helcim's SKU matching handles the rest.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

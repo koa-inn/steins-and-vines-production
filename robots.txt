@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /kiosk.html
+Disallow: /batch.html
+Disallow: /brewpad.html
+
+Sitemap: https://steinsandvines.ca/sitemap.xml

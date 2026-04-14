@@ -70,13 +70,15 @@ steins-and-vines/
 │   │   ├── bookings.js         # Appointment availability + booking creation
 │   │   ├── catalog.js          # Product/ingredient/service catalog (cached)
 │   │   ├── checkout.js         # Checkout flow (reCAPTCHA, price anchoring, charge)
+│   │   ├── collect.js          # Collect payment on existing SO via terminal (Deluge-triggered)
 │   │   ├── items.js            # Zoho item CRUD + image proxy
 │   │   ├── payments.js         # Payment void + refund
-│   │   ├── pos.js              # Kiosk + POS terminal sale endpoints
+│   │   ├── pos.js              # Kiosk + POS terminal sale + salesorder endpoints
 │   │   ├── purchaseorders.js   # Purchase order management
 │   │   ├── requests.js         # Product request form
 │   │   ├── taxes.js            # Tax classification + Zoho tax rules
 │   │   └── webhooks.js         # Helcim webhook receiver
+│   ├── client/                 # Client-side helpers (Helcim integration, React hooks)
 │   ├── lib/
 │   │   ├── cache.js            # Redis wrapper (connect, get, set, del)
 │   │   ├── checkRedis.js       # Redis health check helper

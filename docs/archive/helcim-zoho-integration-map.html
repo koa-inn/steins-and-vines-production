@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steins & Vines — Helcim ↔ Zoho Integration Map</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #0f1117;
+    color: #e2e4e9;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 0.95rem;
+    color: #8b8fa3;
+    margin-bottom: 48px;
+  }
+  .diagram {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+  }
+
+  /* Tier rows */
+  .tier {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    padding: 0 16px;
+    position: relative;
+  }
+  .tier-label {
+    position: absolute;
+    left: -8px;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #555a6e;
+    writing-mode: vertical-lr;
+    transform: rotate(180deg);
+  }
+
+  /* Boxes */
+  .box {
+    border-radius: 14px;
+    padding: 20px 24px;
+    text-align: center;
+    min-width: 180px;
+    position: relative;
+  }
+  .box .icon { font-size: 1.8rem; margin-bottom: 8px; }
+  .box .label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+  }
+  .box .desc {
+    font-size: 0.78rem;
+    opacity: 0.7;
+    line-height: 1.4;
+  }
+
+  /* Color themes */
+  .helcim {
+    background: linear-gradient(135deg, #1a2744 0%, #1e3a5f 100%);
+    border: 1px solid #2a5090;
+  }
+  .helcim .label { color: #6db3f2; }
+
+  .middleware {
+    background: linear-gradient(135deg, #2a1f3d 0%, #3d2a5c 100%);
+    border: 1px solid #6b4fa0;
+  }
+  .middleware .label { color: #b48afe; }
+
+  .zoho {
+    background: linear-gradient(135deg, #1a3328 0%, #1e4d38 100%);
+    border: 1px solid #2d8055;
+  }
+  .zoho .label { color: #5dd9a0; }
+
+  .redis {
+    background: linear-gradient(135deg, #3d1a1a 0%, #5c2a2a 100%);
+    border: 1px solid #a04f4f;
+  }
+  .redis .label { color: #f28b8b; }
+
+  /* Arrows / connectors */
+  .connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 0;
+    position: relative;
+  }
+  .arrow-down {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+  .arrow-line {
+    width: 2px;
+    height: 24px;
+    background: linear-gradient(to bottom, #555a6e, #555a6e);
+  }
+  .arrow-label {
+    background: #1a1c25;
+    border: 1px solid #333648;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 0.72rem;
+    color: #b0b4c4;
+    white-space: nowrap;
+  }
+  .arrow-head {
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid #555a6e;
+  }
+
+  /* Horizontal connector */
+  .h-connector {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .h-line {
+    height: 2px;
+    width: 32px;
+    background: #555a6e;
+  }
+  .h-arrow {
+    width: 0; height: 0;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-left: 8px solid #555a6e;
+  }
+
+  /* Step numbers */
+  .step-badge {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fff;
+    z-index: 2;
+  }
+  .step-1 { background: #2a5090; }
+  .step-2 { background: #2a5090; }
+  .step-3 { background: #6b4fa0; }
+  .step-4 { background: #6b4fa0; }
+  .step-5 { background: #2d8055; }
+
+  /* Legend section */
+  .section-break {
+    margin: 48px auto 32px;
+    max-width: 900px;
+    border-top: 1px solid #252733;
+    padding-top: 32px;
+  }
+  .section-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  /* Steps explanation */
+  .steps {
+    max-width: 700px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .step-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #fff;
+  }
+  .step-text {
+    padding-top: 5px;
+    line-height: 1.55;
+    font-size: 0.9rem;
+    color: #c4c7d4;
+  }
+  .step-text strong { color: #fff; font-weight: 600; }
+  .step-text .tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    vertical-align: middle;
+    margin-left: 4px;
+  }
+  .tag-exists { background: #1a3328; color: #5dd9a0; border: 1px solid #2d8055; }
+  .tag-new { background: #2a1f3d; color: #b48afe; border: 1px solid #6b4fa0; }
+
+  /* Two-column info boxes */
+  .info-grid {
+    max-width: 800px;
+    margin: 32px auto 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .info-box {
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #252733;
+    background: #161822;
+  }
+  .info-box h3 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .info-box ul {
+    list-style: none;
+    font-size: 0.82rem;
+    color: #a0a3b4;
+    line-height: 1.8;
+  }
+  .info-box ul li::before {
+    content: "→ ";
+    color: #555a6e;
+  }
+
+  @media (max-width: 700px) {
+    .tier { flex-direction: column; gap: 12px; }
+    .h-connector { display: none; }
+    .info-grid { grid-template-columns: 1fr; }
+    .box { min-width: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Helcim POS ↔ Zoho Inventory Integration</h1>
+<p class="subtitle">How your iPad + Card Reader connects to your Zoho backend through your existing middleware</p>
+
+<div class="diagram">
+
+  <!-- TIER 1: In-Store -->
+  <div class="tier">
+    <div class="box helcim" style="min-width: 260px;">
+      <div class="step-badge step-1">1</div>
+      <div class="icon">📱</div>
+      <div class="label">Helcim POS App (iPad)</div>
+      <div class="desc">You ring up the sale &amp; customer<br>taps/inserts card on the reader</div>
+    </div>
+    <div class="h-connector">
+      <div class="h-line"></div>
+    </div>
+    <div class="box helcim" style="min-width: 200px;">
+      <div class="icon">💳</div>
+      <div class="label">Helcim Card Reader</div>
+      <div class="desc">Processes the payment<br>via Bluetooth to iPad</div>
+    </div>
+  </div>
+
+  <!-- Arrow down -->
+  <div class="connector">
+    <div class="arrow-down">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">Webhook POST → cardTransaction</div>
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+  </div>
+
+  <!-- TIER 2: Middleware -->
+  <div class="tier">
+    <div class="box middleware" style="min-width: 560px;">
+      <div class="step-badge step-3">2</div>
+      <div class="icon">⚙️</div>
+      <div class="label">Your Express Middleware (Railway)</div>
+      <div class="desc" style="text-align: left; max-width: 480px; margin: 0 auto;">
+        <strong style="color:#b48afe;">/api/webhooks/helcim</strong> — receives webhook, verifies HMAC signature<br>
+        → Calls Helcim Transaction API to get full sale details<br>
+        → Matches items to your Zoho product catalog<br>
+        → Creates/finds customer contact in Zoho<br>
+        → Creates invoice in Zoho Books (auto-marked paid)<br>
+        → Decrements inventory via Redis ledger
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow down (split into two) -->
+  <div class="connector">
+    <div style="display:flex; gap: 120px;">
+      <div class="arrow-down">
+        <div class="arrow-line"></div>
+        <div class="arrow-label">Zoho API calls</div>
+        <div class="arrow-line"></div>
+        <div class="arrow-head"></div>
+      </div>
+      <div class="arrow-down">
+        <div class="arrow-line"></div>
+        <div class="arrow-label">Stock updates</div>
+        <div class="arrow-line"></div>
+        <div class="arrow-head"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIER 3: Backend Systems -->
+  <div class="tier">
+    <div class="box zoho">
+      <div class="step-badge step-5">3</div>
+      <div class="icon">📦</div>
+      <div class="label">Zoho Books + Inventory</div>
+      <div class="desc">Invoice created & marked paid<br>Stock levels adjusted<br>Customer contact synced</div>
+    </div>
+    <div class="h-connector">
+      <div class="h-line"></div>
+    </div>
+    <div class="box redis">
+      <div class="icon">⚡</div>
+      <div class="label">Redis Cache</div>
+      <div class="desc">Real-time inventory ledger<br>Product cache refreshed<br>Contact lookup cache</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- STEPS EXPLANATION -->
+<div class="section-break">
+  <div class="section-title">How It Works — Step by Step</div>
+  <div class="steps">
+    <div class="step-row">
+      <div class="step-num" style="background:#2a5090;">1</div>
+      <div class="step-text">
+        <strong>Customer pays at your iPad.</strong> You use the Helcim POS app as normal — find the product, hit charge, customer taps their card. Nothing changes about your in-store routine.
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-num" style="background:#2a5090;">2</div>
+      <div class="step-text">
+        <strong>Helcim fires a webhook.</strong> The moment the payment goes through, Helcim sends a POST to your middleware with a <code>transactionId</code>. Your middleware already has this endpoint and verifies the signature. <span class="tag tag-exists">Already built</span>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-num" style="background:#6b4fa0;">3</div>
+      <div class="step-text">
+        <strong>Middleware fetches the full transaction.</strong> Using the <code>transactionId</code>, it calls Helcim's API to get the amount, items, customer info, and card details. <span class="tag tag-new">New code needed</span>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-num" style="background:#6b4fa0;">4</div>
+      <div class="step-text">
+        <strong>Middleware syncs to Zoho.</strong> It creates (or finds) the customer contact, builds a sales invoice in Zoho Books marked as paid, and decrements stock in your Redis inventory ledger — then triggers a Zoho Inventory adjustment. <span class="tag tag-new">New code needed</span>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-num" style="background:#2d8055;">5</div>
+      <div class="step-text">
+        <strong>Everything is in sync.</strong> Your Zoho Books has the invoice, Zoho Inventory reflects the stock change, and your website product cache refreshes automatically. All within seconds of the card tap.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- What exists vs what's new -->
+<div class="section-break">
+  <div class="section-title">What You Already Have vs. What's New</div>
+  <div class="info-grid">
+    <div class="info-box">
+      <h3 style="color: #5dd9a0;">✓ Already Built</h3>
+      <ul>
+        <li>Helcim webhook endpoint with HMAC verification</li>
+        <li>Zoho Books invoice creation</li>
+        <li>Zoho Inventory item fetching + caching</li>
+        <li>Customer contact lookup/create</li>
+        <li>Redis inventory ledger (shadow stock)</li>
+        <li>Product cache invalidation on sales</li>
+        <li>Rate limiting &amp; error handling</li>
+      </ul>
+    </div>
+    <div class="info-box">
+      <h3 style="color: #b48afe;">⊕ Needs to Be Built</h3>
+      <ul>
+        <li>Fetch full transaction details from Helcim API</li>
+        <li>Map Helcim line items → Zoho product IDs</li>
+        <li>Auto-create invoice from webhook data</li>
+        <li>Trigger Zoho Inventory stock adjustment</li>
+        <li>Sync Helcim customer → Zoho contact</li>
+        <li>(Optional) Push Zoho catalog → Helcim products</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

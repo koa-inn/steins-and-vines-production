@@ -260,13 +260,83 @@ small, .text-small {
   opacity: 0.85;
 }
 
-.nav-phone {
-  margin-right: auto;
+/* ===== Header Contact (phone + open/closed badge) ===== */
+.header-contact {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.header-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-green);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.header-phone:hover,
+.header-phone:focus {
+  color: var(--color-burgundy);
+  text-decoration: none;
+}
+
+.header-phone-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.open-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.open-status::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.open-status.is-open {
+  background: #e6f4ea;
+  color: #1e7e34;
+}
+
+.open-status.is-closed {
+  background: #f1f3f4;
+  color: #5f6368;
 }
 
 @media (max-width: 768px) {
-  .nav-phone {
-    order: -1;
+  .header-contact {
+    gap: 0.4rem;
+  }
+  .header-phone {
+    font-size: 0.85rem;
+  }
+  .open-status {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .open-status {
+    display: none;
   }
 }
 

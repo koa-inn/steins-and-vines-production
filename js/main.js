@@ -7921,6 +7921,10 @@ document.addEventListener('DOMContentLoaded', function () {
   // Footer hours on all public pages
   loadFooterHours();
 
+  // Re-evaluate the header open/closed badge every minute (based on Vancouver time)
+  renderOpenStatus();
+  setInterval(renderOpenStatus, 60 * 1000);
+
   // Social links on all pages
   loadSocialLinks();
 
@@ -8249,11 +8253,84 @@ function loadFAQ() {
     });
 }
 
+var HOURS_DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+var HOURS_DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// Canonical storefront hours (matches JSON-LD openingHoursSpecification + footer hours).
+// Keys = day-of-week (0=Sun). Values = { open, close } in minutes since local midnight (Vancouver).
+// Days not listed are closed.
+var BUSINESS_HOURS = {
+  2: { open: 10 * 60, close: 16 * 60 },   // Tue 10AM-4PM
+  3: { open: 10 * 60, close: 16 * 60 },   // Wed 10AM-4PM
+  4: { open: 12 * 60, close: 19 * 60 },   // Thu 12PM-7PM
+  5: { open: 10 * 60, close: 16 * 60 },   // Fri 10AM-4PM
+  6: { open: 10 * 60, close: 16 * 60 }    // Sat 10AM-4PM
+};
+
+function hoursMinsToStr(mins) {
+  var h = Math.floor(mins / 60);
+  var m = mins % 60;
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var hr12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+  return hr12 + (m > 0 ? ':' + (m < 10 ? '0' + m : m) : '') + ampm;
+}
+
+function renderOpenStatus() {
+  var els = document.querySelectorAll('.open-status');
+  if (!els.length) return;
+
+  // Current weekday + minutes-since-midnight in America/Vancouver (handles PST/PDT).
+  var parts = {};
+  try {
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Vancouver',
+      weekday: 'short',
+      hour: '2-digit', hour12: false,
+      minute: '2-digit'
+    }).formatToParts(new Date()).forEach(function (p) { parts[p.type] = p.value; });
+  } catch (e) {
+    return;
+  }
+  var weekdayIndex = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  var dow = weekdayIndex[parts.weekday];
+  var h = parseInt(parts.hour, 10);
+  if (h === 24) h = 0; // some engines output '24' at midnight
+  var currentMins = h * 60 + parseInt(parts.minute, 10);
+
+  var today = BUSINESS_HOURS[dow];
+  var isOpen = false;
+  var text = '';
+
+  if (today && currentMins >= today.open && currentMins < today.close) {
+    isOpen = true;
+    text = 'Open \u00b7 Closes ' + hoursMinsToStr(today.close);
+  } else if (today && currentMins < today.open) {
+    text = 'Closed \u00b7 Opens today at ' + hoursMinsToStr(today.open);
+  } else {
+    for (var n = 1; n <= 7; n++) {
+      var nextDow = (dow + n) % 7;
+      var next = BUSINESS_HOURS[nextDow];
+      if (next) {
+        var label = n === 1 ? 'tomorrow' : HOURS_DAY_FULL[nextDow];
+        text = 'Closed \u00b7 Opens ' + label + ' at ' + hoursMinsToStr(next.open);
+        break;
+      }
+    }
+    if (!text) text = 'Closed';
+  }
+
+  for (var j = 0; j < els.length; j++) {
+    els[j].hidden = false;
+    els[j].className = 'open-status' + (isOpen ? ' is-open' : ' is-closed');
+    els[j].textContent = text;
+  }
+}
+
 function loadFooterHours() {
   var container = document.getElementById('footer-hours');
   if (!container) return;
 
-  var DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var DAY_ABBR = HOURS_DAY_ABBR;
 
   var remoteUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL)
     ? SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL
