@@ -260,6 +260,70 @@ small, .text-small {
   opacity: 0.85;
 }
 
+/* ===== How It Works step diagram ===== */
+.how-it-works-steps {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.75rem;
+  margin: 2rem 0 0;
+  padding: 0;
+  counter-reset: none;
+  text-align: center;
+}
+
+.how-it-works-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0.5rem;
+}
+
+.how-it-works-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  background: var(--color-green);
+  color: var(--color-cream);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.how-it-works-step-title {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+  color: var(--color-green);
+  letter-spacing: 0.01em;
+}
+
+.how-it-works-step-desc {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .how-it-works-steps {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem 1.5rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .how-it-works-steps {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+}
+
 /* ===== Header Contact (phone + open/closed badge) ===== */
 .header-contact {
   display: flex;
