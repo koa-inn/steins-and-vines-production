@@ -550,7 +550,6 @@ function loadFAQ() {
 }
 
 var HOURS_DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-var HOURS_DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // Canonical storefront hours (matches JSON-LD openingHoursSpecification + footer hours).
 // Keys = day-of-week (0=Sun). Values = { open, close } in minutes since local midnight (Vancouver).
@@ -562,14 +561,6 @@ var BUSINESS_HOURS = {
   5: { open: 10 * 60, close: 16 * 60 },   // Fri 10AM-4PM
   6: { open: 10 * 60, close: 16 * 60 }    // Sat 10AM-4PM
 };
-
-function hoursMinsToStr(mins) {
-  var h = Math.floor(mins / 60);
-  var m = mins % 60;
-  var ampm = h >= 12 ? 'PM' : 'AM';
-  var hr12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
-  return hr12 + (m > 0 ? ':' + (m < 10 ? '0' + m : m) : '') + ampm;
-}
 
 function renderOpenStatus() {
   var els = document.querySelectorAll('.open-status');
@@ -594,31 +585,12 @@ function renderOpenStatus() {
   var currentMins = h * 60 + parseInt(parts.minute, 10);
 
   var today = BUSINESS_HOURS[dow];
-  var isOpen = false;
-  var text = '';
-
-  if (today && currentMins >= today.open && currentMins < today.close) {
-    isOpen = true;
-    text = 'Open \u00b7 Closes ' + hoursMinsToStr(today.close);
-  } else if (today && currentMins < today.open) {
-    text = 'Closed \u00b7 Opens today at ' + hoursMinsToStr(today.open);
-  } else {
-    for (var n = 1; n <= 7; n++) {
-      var nextDow = (dow + n) % 7;
-      var next = BUSINESS_HOURS[nextDow];
-      if (next) {
-        var label = n === 1 ? 'tomorrow' : HOURS_DAY_FULL[nextDow];
-        text = 'Closed \u00b7 Opens ' + label + ' at ' + hoursMinsToStr(next.open);
-        break;
-      }
-    }
-    if (!text) text = 'Closed';
-  }
+  var isOpen = !!(today && currentMins >= today.open && currentMins < today.close);
 
   for (var j = 0; j < els.length; j++) {
     els[j].hidden = false;
     els[j].className = 'open-status' + (isOpen ? ' is-open' : ' is-closed');
-    els[j].textContent = text;
+    els[j].textContent = isOpen ? 'Open' : 'Closed';
   }
 }
 

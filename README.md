@@ -8,7 +8,7 @@ E-commerce website for Steins & Vines — a Canadian ferment-in-store winery and
 
 **Middleware:** Express.js on Railway — bridges the frontend to Zoho APIs and handles payments
 
-**Integrations:** Zoho Books + Inventory + Bookings, Global Payments (card-not-present and terminal), Redis (caching, rate limiting, idempotency), Sentry (error tracking), Google Apps Script (event analytics, Sheets)
+**Integrations:** Zoho Books + Inventory + Bookings, Helcim (online checkout + Smart Terminal), Redis (caching, rate limiting, idempotency), Sentry (error tracking), Google Apps Script (event analytics, Sheets)
 
 ## Project Structure
 
@@ -25,6 +25,14 @@ steins-and-vines/
 ├── brewpad.html                # Brew day tracking tool
 ├── batch.html                  # Public batch tracker
 ├── 404.html                    # Error page
+│
+├── products/                   # Product-specific landing pages
+│   ├── ferment-in-store.html
+│   └── ingredients-supplies.html
+│
+├── scripts/                    # Build and maintenance scripts (optimize-images, etc.)
+├── content/                    # Static JSON content files (products, services, home, etc.)
+├── apps-script/                # Google Apps Script source files (.gs)
 │
 ├── js/
 │   ├── modules/                # Modular frontend JS (01-config through 13-init)

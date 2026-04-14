@@ -45,11 +45,17 @@ cd zoho-middleware && npm run test:coverage
 | `js/modules/11-cart.js` (`renderReserveControl`, `renderWeightControl`) | 90% | ✅ Done |
 | `js/modules/12-checkout.js` (`calcCompletionRange`) | 95% | ✅ Done |
 | `js/brewpad.js` (`escapeHTML`, `fmtDate`, `todayStr`, `isOverdue`, `isToday`, `filterBatchesByStatus`, `calcAbv`, `renderDataGapWarning`) | 95% | ✅ Done |
+| `js/modules/07-catalog-kits.js` + `08-catalog-ingredients.js` (fuzzy search filter — `applyFilters` / `renderIngredients`) | 90% | ✅ Done |
+| `zoho-middleware/routes/collect.js` (terminal collect flow) | 85% | ✅ Done |
+| `zoho-middleware/lib/pricing.js` (`formatCurrency`, `computeLineItem`, `computeCartTotals`) | 95% | ✅ Done |
+| `zoho-middleware/routes/catalog.js` (catalog route handlers) | 80% | ✅ Done |
+| `zoho-middleware/routes/pos.js` (kiosk salesorders — `GET /api/kiosk/salesorders`) | 85% | ✅ Done |
+| `zoho-middleware/lib/inventory-ledger.js` (in-memory ledger) | 90% | ✅ Done |
 
 ---
 
 ## Campaign Backlog (future sessions)
-- [ ] **Campaign 4:** `js/brewpad.js` IIFE — extract pure fns (ABV calc, date helpers, batch filters)
+- [ ] **Campaign 4:** `js/brewpad.js` IIFE DOM section — render functions that manipulate DOM directly (chart rendering, batch card rendering)
 - [ ] **Campaign 4:** `js/admin.js` IIFE — reservation status logic
 - [ ] **Campaign 5:** E2E with Playwright against staging
 
