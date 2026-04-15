@@ -7918,8 +7918,13 @@ document.addEventListener('DOMContentLoaded', function () {
     setupBeerWaitlistForm();
   }
 
-  // Footer hours on all public pages
-  loadFooterHours();
+  // NOTE: loadFooterHours() is intentionally NOT called. It derives hours
+  // from the bookable timeslots CSV, which drifts if the first slot of the
+  // day isn't exactly at opening time (e.g. buffered by 30 min for setup).
+  // The footer's static HTML is the source of truth. To change hours, update
+  // the three places listed above BUSINESS_HOURS. The function is kept here
+  // in case you ever want CSV-driven display back.
+  // loadFooterHours();
 
   // Re-evaluate the header open/closed badge every minute (based on Vancouver time)
   renderOpenStatus();
@@ -8255,9 +8260,14 @@ function loadFAQ() {
 
 var HOURS_DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// Canonical storefront hours (matches JSON-LD openingHoursSpecification + footer hours).
-// Keys = day-of-week (0=Sun). Values = { open, close } in minutes since local midnight (Vancouver).
-// Days not listed are closed.
+// Canonical storefront hours. When changing hours, update THREE places:
+//   1. This BUSINESS_HOURS constant (drives the header open/closed badge)
+//   2. The static <div class="footer-hours">...</div> in every public HTML page
+//      (index, about, contact, products, ingredients, reservation, products/*)
+//   3. The "openingHoursSpecification" block in the LocalBusiness JSON-LD in
+//      every public HTML page (same 8 files)
+// Keys = day-of-week (0=Sun). Values = { open, close } in minutes since local
+// midnight, interpreted in America/Vancouver time. Days not listed are closed.
 var BUSINESS_HOURS = {
   2: { open: 10 * 60, close: 16 * 60 },   // Tue 10AM-4PM
   3: { open: 10 * 60, close: 16 * 60 },   // Wed 10AM-4PM
