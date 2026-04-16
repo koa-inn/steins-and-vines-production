@@ -698,6 +698,20 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         }
       }
 
+      // Fire-and-forget: email the sales order (invoice PDF) to the customer
+      // Only for paid orders — unpaid reservations are confirmed manually by staff
+      if (transactionId && soId && customerEmail) {
+        zohoPost('/salesorders/' + soId + '/email', {
+          to_mail_ids: [customerEmail],
+          subject: 'Steins & Vines — Order Confirmation ' + (soNumber || ''),
+          body: 'Thank you for your order! Please find your order confirmation attached.\n\nIf you have any questions, reply to this email or call us at (604) 567-4565.'
+        }).then(function () {
+          log.info('[checkout] Order confirmation email sent to customer for SO=' + soNumber);
+        }).catch(function (emailErr) {
+          log.warn('[checkout] Customer confirmation email failed (non-fatal): ' + emailErr.message);
+        });
+      }
+
       var responseBody = {
         ok: true,
         salesorder_id: soId,
