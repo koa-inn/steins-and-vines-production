@@ -127,22 +127,7 @@ function loadIngredients(callback) {
       }
       buildIngredientFilters();
       wireIngredientEvents();
-      // Default to Grains category on first load, unless deep-linking to a specific item
-      var deepLinkedSku = (new URLSearchParams(window.location.search)).get('item');
-      if (!deepLinkedSku) {
-        var grainsBtn = null;
-        var allCatBtns = document.querySelectorAll('#filter-category .catalog-filter-btn');
-        allCatBtns.forEach(function (b) {
-          if ((b.getAttribute('data-value') || '').toLowerCase() === 'grains') grainsBtn = b;
-        });
-        if (grainsBtn) {
-          grainsBtn.click();
-        } else {
-          renderIngredients();
-        }
-      } else {
-        renderIngredients();
-      }
+      renderIngredients();
       if (callback) callback();
     })
     .catch(function () {
