@@ -1626,7 +1626,20 @@ function setupReservationForm() {
 
     var orderTot = 0; items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); orderTot += p * (i.qty || 1); });
     var tax = 0; items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); tax += p * (i.qty || 1) * ((parseFloat(i.tax_percentage) || 0) / 100); });
-    var charge = orderTot + tax;
+    if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
+      var _scMfRate = parseFloat(_makersFeeItem.rate) || 50;
+      var _scMfTax = parseFloat(_makersFeeItem.tax_percentage);
+      var _scMfKitQty = 0;
+      items.forEach(function (i) { if ((i.item_type || 'kit') === 'kit') _scMfKitQty += (parseFloat(i.qty) || 1); });
+      tax += _scMfRate * _scMfKitQty * (_scMfTax / 100);
+    }
+    if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem) {
+      var _scMlRate = parseFloat(_millingServiceItem.rate) || 0;
+      var _scMlTax = parseFloat(_millingServiceItem.tax_percentage) || 0;
+      orderTot += _scMlRate;
+      tax += _scMlRate * (_scMlTax / 100);
+    }
+    var charge = Math.round((orderTot + tax) * 100) / 100;
 
     // If payment is required and not yet completed, initialize Helcim with the
     // correct charge amount and open the iframe. Token is fetched fresh each time
