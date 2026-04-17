@@ -771,6 +771,58 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       // If payment was already charged but Zoho failed, void the transaction
       // H5: Only attempt void when a real transaction_id is present (not offline mode)
       if (transactionId && typeof transactionId === 'string' && transactionId.length > 0) {
+        // Dual-cart guard: if this transactionId was already used for another
+        // cart_key (e.g. ferment succeeded, ingredient failed), voiding would
+        // reverse the ENTIRE shared charge — including the successful order.
+        // Skip the void and log for manual reconciliation instead.
+        var otherCartKey = '';
+        if (body.cart_key === 'sv-cart-ferment') otherCartKey = 'sv-cart-ingredients';
+        else if (body.cart_key === 'sv-cart-ingredients') otherCartKey = 'sv-cart-ferment';
+
+        var otherUsedKey = otherCartKey
+          ? 'helcim:txn:' + transactionId + ':' + otherCartKey
+          : null;
+
+        var skipVoid = false;
+        if (otherUsedKey) {
+          try {
+            var otherUsed = await cache.get(otherUsedKey);
+            if (otherUsed) {
+              skipVoid = true;
+              log.error('[checkout] Dual-cart: skipping void for txn=' + transactionId +
+                ' — already used by ' + otherCartKey + '. Manual partial refund required for cart_key=' + body.cart_key);
+              eventLog.logEvent('checkout.void_skipped_dual_cart', {
+                cartKey: body.cart_key,
+                otherCartKey: otherCartKey,
+                txnId: transactionId,
+                failedOrderTotal: orderTotal
+              });
+              mailer.sendVoidFailureAlert({
+                txnId: transactionId,
+                amount: orderTotal,
+                error: 'Dual-cart partial failure — void skipped because ' + otherCartKey + ' already succeeded. Manual partial refund needed.',
+                timestamp: new Date().toISOString()
+              }).catch(function (mailErr) {
+                log.error('[checkout] Dual-cart alert email failed: ' + mailErr.message);
+              });
+            }
+          } catch (cacheCheckErr) {
+            // Redis unavailable — can't confirm, safer to skip void than destroy the other order
+            skipVoid = true;
+            log.error('[checkout] Dual-cart void guard: Redis unavailable, skipping void for safety. txn=' + transactionId);
+          }
+        }
+
+        if (skipVoid) {
+          if (!responseSent) {
+            res.status(status).json({
+              error: clientMsg,
+              payment_voided: false
+            });
+          }
+          return;
+        }
+
         log.error('[checkout] Zoho failed after payment — voiding txn=' + transactionId);
         eventLog.logEvent('checkout.failed_after_charge', {
           cartKey: body.cart_key || '',
