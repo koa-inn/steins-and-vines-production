@@ -3156,11 +3156,11 @@ function buildIngredientFilterRow(containerId, field, label, values) {
 
 function buildIngredientFilters() {
   // Capture stable section order once on first load.
-  // Groups by category_name; sorted alphabetically.
+  // Groups by subcategory (Zoho custom field) with type fallback.
   if (!_ingredientTypeOrder) {
     var catsSeen = [];
     _allIngredients.forEach(function (r) {
-      var c = (r.category || '').trim() || 'Other';
+      var c = (r.subcategory || r.type || '').trim() || 'Other';
       if (catsSeen.indexOf(c) === -1) catsSeen.push(c);
     });
     _ingredientTypeOrder = catsSeen.sort();
@@ -3302,10 +3302,10 @@ function renderIngredients() {
     return;
   }
 
-  // Group by Zoho category, using the stable section order from first load
+  // Group by subcategory (Zoho custom field), falling back to type then 'Other'
   var catGroups = {};
   inStock.forEach(function (r) {
-    var c = (r.category || '').trim() || 'Other';
+    var c = (r.subcategory || r.type || '').trim() || 'Other';
     if (!catGroups[c]) catGroups[c] = [];
     catGroups[c].push(r);
   });
