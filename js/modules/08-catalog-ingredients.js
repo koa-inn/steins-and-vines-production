@@ -220,7 +220,9 @@ function buildIngredientFilters() {
       var c = (r.type || '').trim() || 'Other';
       if (catsSeen.indexOf(c) === -1) catsSeen.push(c);
     });
-    _ingredientTypeOrder = catsSeen.sort();
+    var pinned = catsSeen.filter(function (c) { return c === 'Ingredient'; });
+    var rest = catsSeen.filter(function (c) { return c !== 'Ingredient'; }).sort();
+    _ingredientTypeOrder = pinned.concat(rest);
   }
 
   // Category filter (uses Zoho cf_type: Ingredient, Equipment, etc.)
