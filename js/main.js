@@ -3351,7 +3351,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
     var ingCurrentSort = ingSortSelect ? ingSortSelect.value : 'name-asc';
     var ingCols = [
       { label: 'Name', sort: 'name' },
-      { label: 'Category', sort: 'category' },
+      { label: 'Subcategory', sort: 'category' },
       { label: 'Unit', sort: null },
       { label: 'Price', sort: 'price' },
       { label: '', sort: null }
@@ -3406,11 +3406,8 @@ function renderIngredientSection(catalog, title, items, extraClass) {
       tr.appendChild(tdName);
 
       var tdCat = document.createElement('td');
-      tdCat.setAttribute('data-label', 'Category');
-      var catParts = [];
-      if (item.category) catParts.push(item.category);
-      if (item.subcategory && item.subcategory !== item.category) catParts.push(item.subcategory);
-      tdCat.textContent = catParts.join(' / ');
+      tdCat.setAttribute('data-label', 'Subcategory');
+      tdCat.textContent = (item.subcategory || '').trim();
       tr.appendChild(tdCat);
 
       var _tdDp = ingDisplayPrice(item);
@@ -3546,13 +3543,11 @@ function renderIngredientSection(catalog, title, items, extraClass) {
       header.appendChild(cardName);
       if (item.sku) header.appendChild(buildProductLinkBtn(item.sku));
 
-      var catParts = [];
-      if (item.category) catParts.push(item.category);
-      if (item.subcategory && item.subcategory !== item.category) catParts.push(item.subcategory);
-      if (catParts.length) {
+      var subcat = (item.subcategory || '').trim();
+      if (subcat) {
         var catLabel = document.createElement('span');
         catLabel.className = 'product-card-category';
-        catLabel.textContent = catParts.join(' / ');
+        catLabel.textContent = subcat;
         header.appendChild(catLabel);
       }
 
