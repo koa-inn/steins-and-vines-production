@@ -3166,10 +3166,10 @@ function buildIngredientFilters() {
     _ingredientTypeOrder = catsSeen.sort();
   }
 
-  // Category filter
+  // Category filter (uses Zoho cf_type: Ingredient, Equipment, etc.)
   var categories = [];
   _allIngredients.forEach(function (r) {
-    var val = (r.category || '').trim();
+    var val = (r.type || '').trim();
     if (val && categories.indexOf(val) === -1) categories.push(val);
   });
   categories.sort();
@@ -3237,7 +3237,7 @@ function renderIngredients() {
 
   var filtered = _allIngredients.filter(function (r) {
     if (_ingredientFilters.unit.length > 0 && _ingredientFilters.unit.indexOf(r.unit) === -1) return false;
-    if (_ingredientFilters.category.length > 0 && _ingredientFilters.category.indexOf(r.category || '') === -1) return false;
+    if (_ingredientFilters.category.length > 0 && _ingredientFilters.category.indexOf(r.type || '') === -1) return false;
     if (_ingredientFilters.subcategory.length > 0 && _ingredientFilters.subcategory.indexOf(r.subcategory || '') === -1) return false;
     if (_ingredientFilters.price.length > 0) {
       var p = parseFloat(r.price_per_unit) || 0;
