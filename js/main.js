@@ -7906,7 +7906,6 @@ document.addEventListener('DOMContentLoaded', function () {
   // Featured products on homepage
   if (page === 'home') {
     loadFeaturedProducts();
-    initReservationBar();
     initCartDrawer();
     setupBeerWaitlistForm();
   }
