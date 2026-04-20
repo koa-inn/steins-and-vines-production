@@ -27,7 +27,7 @@ router.get('/api/bookings/services', async function (req, res) {
   try {
     var cached = await cache.get(BOOKING_SERVICES_CACHE_KEY);
     if (cached) {
-      return res.json(JSON.parse(cached));
+      return res.json(cached);
     }
 
     var results = await Promise.all([
@@ -131,7 +131,7 @@ router.get('/api/bookings/slots', async function (req, res) {
   try {
     var cached = await cache.get(slotsCacheKey);
     if (cached) {
-      return res.json(JSON.parse(cached));
+      return res.json(cached);
     }
 
     var data = await bookingsGet('/availableslots', {

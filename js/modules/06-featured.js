@@ -493,6 +493,26 @@ function loadFeaturedProducts() {
         });
       }
 
+      // Swipe gesture support for touch devices
+      var touchStartX = 0;
+      var touchStartY = 0;
+      productsContainer.style.touchAction = 'pan-y';
+      productsContainer.addEventListener('touchstart', function (e) {
+        touchStartX = e.changedTouches[0].clientX;
+        touchStartY = e.changedTouches[0].clientY;
+      }, { passive: true });
+      productsContainer.addEventListener('touchend', function (e) {
+        var dx = e.changedTouches[0].clientX - touchStartX;
+        var dy = e.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+          if (dx < 0) {
+            showSlide((carouselIndex + 1) % featured.length);
+          } else {
+            showSlide((carouselIndex - 1 + featured.length) % featured.length);
+          }
+        }
+      }, { passive: true });
+
       // Auto-rotate every 12 seconds, pause if More Information is open or user prefers reduced motion
       var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
       var carouselPaused = false;

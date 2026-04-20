@@ -564,7 +564,7 @@ router.get('/api/orders/recent', function (req, res) {
     .then(function () { return cache.get(cacheKey); })
     .then(function (cached) {
       if (cached) {
-        return res.json({ orders: JSON.parse(cached), cached: true });
+        return res.json({ orders: cached, cached: true });
       }
 
       return zohoGet('/salesorders', {

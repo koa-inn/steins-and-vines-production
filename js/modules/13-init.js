@@ -33,20 +33,42 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  var _navPrevFocus = null;
+
   function closeNav() {
     if (navList) navList.classList.remove('open');
     navBackdrop.classList.remove('open');
     document.body.classList.remove('nav-open');
     if (toggle) { toggle.setAttribute('aria-expanded', 'false'); toggle.innerHTML = '&#9776;'; }
+    var mainEl = document.querySelector('main');
+    var footerEl = document.querySelector('footer');
+    if (mainEl) mainEl.removeAttribute('aria-hidden');
+    if (footerEl) footerEl.removeAttribute('aria-hidden');
+    if (_navPrevFocus) { _navPrevFocus.focus(); _navPrevFocus = null; }
+  }
+
+  function openNav() {
+    _navPrevFocus = document.activeElement;
+    navList.classList.add('open');
+    navBackdrop.classList.add('open');
+    document.body.classList.add('nav-open');
+    toggle.setAttribute('aria-expanded', 'true');
+    toggle.innerHTML = '&times;';
+    var mainEl = document.querySelector('main');
+    var footerEl = document.querySelector('footer');
+    if (mainEl) mainEl.setAttribute('aria-hidden', 'true');
+    if (footerEl) footerEl.setAttribute('aria-hidden', 'true');
+    var firstLink = navList.querySelector('a');
+    if (firstLink) firstLink.focus();
   }
 
   if (toggle && navList) {
     toggle.addEventListener('click', function () {
-      var isOpen = navList.classList.toggle('open');
-      navBackdrop.classList.toggle('open');
-      document.body.classList.toggle('nav-open');
-      toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-      toggle.innerHTML = isOpen ? '&times;' : '&#9776;';
+      if (navList.classList.contains('open')) {
+        closeNav();
+      } else {
+        openNav();
+      }
     });
 
     // Close mobile nav when backdrop is tapped
@@ -62,10 +84,23 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     });
 
-    // Close mobile nav on Escape key
+    // Focus trap + Escape key for mobile nav
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && navList.classList.contains('open')) {
         closeNav();
+        return;
+      }
+      if (e.key !== 'Tab' || !navList.classList.contains('open')) return;
+      var focusable = navList.querySelectorAll('a, button, [tabindex]:not([tabindex="-1"])');
+      if (focusable.length === 0) return;
+      var first = focusable[0];
+      var last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
       }
     });
   }

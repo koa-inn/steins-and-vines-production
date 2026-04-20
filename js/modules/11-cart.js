@@ -1158,6 +1158,7 @@ function initCartDrawer() {
   if (checkoutLink) checkoutLink.addEventListener('click', closeCartDrawer);
   if (clearBtn) {
     clearBtn.addEventListener('click', function () {
+      if (!window.confirm('Clear your cart?')) return;
       saveReservation([], FERMENT_CART_KEY);
       saveReservation([], INGREDIENT_CART_KEY);
       _milledItemKeys = {};
@@ -1171,6 +1172,7 @@ function initCartDrawer() {
   var sidebarClearBtn = document.getElementById('cart-sidebar-clear');
   if (sidebarClearBtn) {
     sidebarClearBtn.addEventListener('click', function () {
+      if (!window.confirm('Clear your cart?')) return;
       saveReservation([], FERMENT_CART_KEY);
       saveReservation([], INGREDIENT_CART_KEY);
       _milledItemKeys = {};

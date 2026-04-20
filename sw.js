@@ -1,5 +1,5 @@
 /* Service Worker — Steins & Vines */
-var CACHE_VERSION = '20260418T152330177';
+var CACHE_VERSION = '20260420T153526786';
 var STATIC_CACHE = 'sv-static-' + CACHE_VERSION;
 var IMAGES_CACHE = 'sv-images-' + CACHE_VERSION;
 var FONTS_CACHE  = 'sv-fonts-' + CACHE_VERSION;
@@ -60,8 +60,8 @@ function trimCache(cacheName, maxItems) {
           trimCache(cacheName, maxItems);
         });
       }
-    });
-  });
+    }).catch(function() {});
+  }).catch(function() {});
 }
 
 self.addEventListener('fetch', function(event) {

@@ -35,11 +35,12 @@ jest.mock('querystring', () => require.requireActual
   : jest.requireActual('querystring'));
 
 var https = require('https');
-var checkout = require('../routes/checkout');
-var verifyRecaptcha = checkout.verifyRecaptcha;
-var buildLineItems = checkout.buildLineItems;
-var findMakersFeeItem = checkout.findMakersFeeItem;
-var handlePaymentInitialize = checkout.handlePaymentInitialize;
+var helpers = require('../lib/checkout-helpers');
+var verifyRecaptcha = helpers.verifyRecaptcha;
+var buildLineItems = helpers.buildLineItems;
+var findMakersFeeItem = helpers.findMakersFeeItem;
+var payments = require('../routes/payments');
+var handlePaymentInitialize = payments.handlePaymentInitialize;
 
 // ---------------------------------------------------------------------------
 // HTTPS mock helpers (same pattern as zohoAuth tests)

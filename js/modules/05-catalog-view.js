@@ -49,6 +49,13 @@ function initCatalogViewToggle() {
 
 function equalizeCardHeights() {
   var grids = document.querySelectorAll('.product-grid');
+  if (window.innerWidth < 600) {
+    grids.forEach(function (grid) {
+      var cards = Array.prototype.slice.call(grid.children);
+      cards.forEach(function (c) { c.style.minHeight = ''; });
+    });
+    return;
+  }
   grids.forEach(function (grid) {
     var cards = Array.prototype.slice.call(grid.children);
     // Reset min-heights (write) so we measure natural size

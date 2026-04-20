@@ -105,7 +105,6 @@
     // Try restoring a saved session via silent token refresh
     var saved = loadSession();
     if (saved) {
-      console.log('[Kiosk] Attempting silent token refresh for', saved.email);
       _silentRefreshTimer = setTimeout(function () {
         _silentRefreshTimer = null;
         console.warn('[Kiosk] Silent refresh timed out — showing sign-in button');

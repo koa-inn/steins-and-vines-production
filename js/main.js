@@ -597,6 +597,13 @@ function initCatalogViewToggle() {
 
 function equalizeCardHeights() {
   var grids = document.querySelectorAll('.product-grid');
+  if (window.innerWidth < 600) {
+    grids.forEach(function (grid) {
+      var cards = Array.prototype.slice.call(grid.children);
+      cards.forEach(function (c) { c.style.minHeight = ''; });
+    });
+    return;
+  }
   grids.forEach(function (grid) {
     var cards = Array.prototype.slice.call(grid.children);
     // Reset min-heights (write) so we measure natural size
@@ -1126,6 +1133,26 @@ function loadFeaturedProducts() {
           }
         });
       }
+
+      // Swipe gesture support for touch devices
+      var touchStartX = 0;
+      var touchStartY = 0;
+      productsContainer.style.touchAction = 'pan-y';
+      productsContainer.addEventListener('touchstart', function (e) {
+        touchStartX = e.changedTouches[0].clientX;
+        touchStartY = e.changedTouches[0].clientY;
+      }, { passive: true });
+      productsContainer.addEventListener('touchend', function (e) {
+        var dx = e.changedTouches[0].clientX - touchStartX;
+        var dy = e.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+          if (dx < 0) {
+            showSlide((carouselIndex + 1) % featured.length);
+          } else {
+            showSlide((carouselIndex - 1 + featured.length) % featured.length);
+          }
+        }
+      }, { passive: true });
 
       // Auto-rotate every 12 seconds, pause if More Information is open or user prefers reduced motion
       var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -5499,6 +5526,7 @@ function initCartDrawer() {
   if (checkoutLink) checkoutLink.addEventListener('click', closeCartDrawer);
   if (clearBtn) {
     clearBtn.addEventListener('click', function () {
+      if (!window.confirm('Clear your cart?')) return;
       saveReservation([], FERMENT_CART_KEY);
       saveReservation([], INGREDIENT_CART_KEY);
       _milledItemKeys = {};
@@ -5512,6 +5540,7 @@ function initCartDrawer() {
   var sidebarClearBtn = document.getElementById('cart-sidebar-clear');
   if (sidebarClearBtn) {
     sidebarClearBtn.addEventListener('click', function () {
+      if (!window.confirm('Clear your cart?')) return;
       saveReservation([], FERMENT_CART_KEY);
       saveReservation([], INGREDIENT_CART_KEY);
       _milledItemKeys = {};
@@ -7727,20 +7756,42 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  var _navPrevFocus = null;
+
   function closeNav() {
     if (navList) navList.classList.remove('open');
     navBackdrop.classList.remove('open');
     document.body.classList.remove('nav-open');
     if (toggle) { toggle.setAttribute('aria-expanded', 'false'); toggle.innerHTML = '&#9776;'; }
+    var mainEl = document.querySelector('main');
+    var footerEl = document.querySelector('footer');
+    if (mainEl) mainEl.removeAttribute('aria-hidden');
+    if (footerEl) footerEl.removeAttribute('aria-hidden');
+    if (_navPrevFocus) { _navPrevFocus.focus(); _navPrevFocus = null; }
+  }
+
+  function openNav() {
+    _navPrevFocus = document.activeElement;
+    navList.classList.add('open');
+    navBackdrop.classList.add('open');
+    document.body.classList.add('nav-open');
+    toggle.setAttribute('aria-expanded', 'true');
+    toggle.innerHTML = '&times;';
+    var mainEl = document.querySelector('main');
+    var footerEl = document.querySelector('footer');
+    if (mainEl) mainEl.setAttribute('aria-hidden', 'true');
+    if (footerEl) footerEl.setAttribute('aria-hidden', 'true');
+    var firstLink = navList.querySelector('a');
+    if (firstLink) firstLink.focus();
   }
 
   if (toggle && navList) {
     toggle.addEventListener('click', function () {
-      var isOpen = navList.classList.toggle('open');
-      navBackdrop.classList.toggle('open');
-      document.body.classList.toggle('nav-open');
-      toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-      toggle.innerHTML = isOpen ? '&times;' : '&#9776;';
+      if (navList.classList.contains('open')) {
+        closeNav();
+      } else {
+        openNav();
+      }
     });
 
     // Close mobile nav when backdrop is tapped
@@ -7756,10 +7807,23 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     });
 
-    // Close mobile nav on Escape key
+    // Focus trap + Escape key for mobile nav
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && navList.classList.contains('open')) {
         closeNav();
+        return;
+      }
+      if (e.key !== 'Tab' || !navList.classList.contains('open')) return;
+      var focusable = navList.querySelectorAll('a, button, [tabindex]:not([tabindex="-1"])');
+      if (focusable.length === 0) return;
+      var first = focusable[0];
+      var last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
       }
     });
   }

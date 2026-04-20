@@ -5,6 +5,33 @@ var log = require('../lib/logger');
 var router = express.Router();
 
 /**
+ * POST /api/payment/initialize
+ * Initialize a HelcimPay.js checkout session.
+ * Returns a checkoutToken that the frontend uses to render the payment iframe.
+ *
+ * Expected body: { amount: number, currency?: string }
+ * Returns: { checkoutToken: string, depositAmount: number }
+ */
+function handlePaymentInitialize(req, res) {
+  if (!helcimLib.isEnabled()) {
+    return res.status(503).json({ error: 'Payment gateway not configured' });
+  }
+  var amount = parseFloat(req.body && req.body.amount) || 0;
+  if (amount <= 0) {
+    return res.status(400).json({ error: 'Invalid amount' });
+  }
+  helcimLib.initializeCheckout(amount, 'CAD')
+    .then(function (result) {
+      res.json({ checkoutToken: result.checkoutToken, depositAmount: amount });
+    })
+    .catch(function (err) {
+      log.error('[payment/initialize] Failed: ' + err.message);
+      res.status(502).json({ error: 'Payment initialization failed' });
+    });
+}
+router.post('/api/payment/initialize', handlePaymentInitialize);
+
+/**
  * POST /api/payment/void
  * Void a transaction (used when Zoho order creation fails after payment).
  *
@@ -71,3 +98,4 @@ router.post('/api/payment/refund', function (req, res) {
 });
 
 module.exports = router;
+module.exports.handlePaymentInitialize = handlePaymentInitialize;
