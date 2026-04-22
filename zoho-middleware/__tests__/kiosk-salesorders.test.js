@@ -119,7 +119,9 @@ describe('GET /api/kiosk/salesorders', function () {
       { salesorder_id: 'SO1', salesorder_number: 'SO-001', customer_name: 'Alice', total: 100, balance: 100 },
       { salesorder_id: 'SO2', salesorder_number: 'SO-002', customer_name: 'Bob', total: 200, balance: 150 }
     ];
-    zohoApi.zohoGet.mockResolvedValue({ salesorders: mockSOs });
+    zohoApi.zohoGet
+      .mockResolvedValueOnce({ salesorders: mockSOs })
+      .mockResolvedValueOnce({ salesorders: [] });
 
     var req = makeReq(null, {});
     var res = makeRes();
@@ -157,7 +159,9 @@ describe('GET /api/kiosk/salesorders', function () {
       { salesorder_id: 'SO1', salesorder_number: 'SO-001', customer_name: 'Alice Smith', total: 100, balance: 100 },
       { salesorder_id: 'SO2', salesorder_number: 'SO-002', customer_name: 'Bob Jones', total: 200, balance: 150 }
     ];
-    zohoApi.zohoGet.mockResolvedValue({ salesorders: mockSOs });
+    zohoApi.zohoGet
+      .mockResolvedValueOnce({ salesorders: mockSOs })
+      .mockResolvedValueOnce({ salesorders: [] });
 
     var req = makeReq(null, { search: 'alice' });
     var res = makeRes();

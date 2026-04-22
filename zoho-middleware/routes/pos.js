@@ -675,13 +675,17 @@ router.get('/api/kiosk/salesorders', function (req, res) {
         return cached;
       }
 
-      log.info('[kiosk/salesorders] Cache miss — fetching from Zoho (status=' + status + ')');
-      return zohoGet('/salesorders', {
-        status: status,
-        sort_column: 'date',
-        sort_order: 'D'
-      }).then(function (data) {
-        var orders = (data.salesorders || []).map(function (so) {
+      log.info('[kiosk/salesorders] Cache miss — fetching from Zoho (draft + open)');
+      var fetchParams = { sort_column: 'date', sort_order: 'D' };
+      return Promise.all([
+        zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'open' })),
+        zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'draft' }))
+      ]).then(function (results) {
+        var combined = (results[0].salesorders || []).concat(results[1].salesorders || []);
+        combined.sort(function (a, b) {
+          return (b.date || '').localeCompare(a.date || '');
+        });
+        var orders = combined.map(function (so) {
           return {
             salesorder_id: so.salesorder_id || '',
             salesorder_number: so.salesorder_number || '',
