@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-21T07:17:42.813Z",
+  "generated_at": "2026-04-22T07:16:27.327Z",
   "products": [
     {
       "name": "Acai Raspberry Rapture",
@@ -2692,6 +2692,21 @@
       "tax_id": ""
     },
     {
+      "name": "Brewer's Best Natural Flavoring Raspberry 4 oz",
+      "unit": "pcs",
+      "price_per_unit": "7",
+      "stock": "1",
+      "description": "All-natural raspberry flavoring concentrate with bright, sweet berry character. Use at approximately 1 oz per gallon (7.5 mL per litre) to add vibrant fruit notes to beer, wine, cider, or mead.",
+      "sku": "BB-RASP",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
       "name": "Briess Dry Malt Extract Golden Light 3lbs",
       "unit": "pcs",
       "price_per_unit": "25",
@@ -4003,6 +4018,21 @@
       "stock": "4",
       "description": "Food-grade silicone stopper with a center hole drilled to fit standard airlocks, designed for use with carboys and fermentation vessels. Durable, heat-resistant, and will not impart flavors to your brew.",
       "sku": "13077-8D",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "Silicon Food-Grade Hose - 1/2\" ID (5/16\" OD) x 2 meters",
+      "unit": "pcs",
+      "price_per_unit": "15",
+      "stock": "0",
+      "description": "Food-grade silicone tubing with a \u00bd\" (13 mm) inner diameter, ideal for transferring wort, beer, wine, and cider between vessels. Heat-resistant up to 230\u00b0C (450\u00b0F), making it safe for hot-side transfers. Will not impart flavours or odours, and cleans easily with PBW or Star San. 2-metre length.",
+      "sku": "SIL-2M",
       "category": "",
       "low_amount": "",
       "high_amount": "",
