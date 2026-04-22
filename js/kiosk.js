@@ -590,8 +590,8 @@
         } else {
           var d = data.diagnostics || {};
           var msg = 'Terminal not enabled';
-          if (!d.GP_APP_KEY_SET) msg = 'Terminal: GP_APP_KEY not set in Railway';
-          else if (!d.GP_TERMINAL_ENABLED) msg = 'Terminal: GP_TERMINAL_ENABLED not set';
+          if (!d.HELCIM_API_TOKEN_SET) msg = 'Terminal: HELCIM_API_TOKEN not set in Railway';
+          else if (!d.HELCIM_DEVICE_CODE_SET) msg = 'Terminal: HELCIM_DEVICE_CODE not set in Railway';
           else if (d.init_error) msg = 'Terminal init error: ' + d.init_error;
           else msg = 'Terminal: device not initialized';
           kioskSetTerminalStatus(false, msg);
