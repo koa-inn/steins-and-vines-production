@@ -29,6 +29,7 @@ function makePipeline(execResult) {
     incr: jest.fn().mockReturnThis(),
     expire: jest.fn().mockReturnThis(),
     decrBy: jest.fn().mockReturnThis(),
+    incrByFloat: jest.fn().mockReturnThis(),
     lPush: jest.fn().mockReturnThis(),
     lTrim: jest.fn().mockReturnThis(),
     get: jest.fn().mockReturnThis(),
@@ -125,8 +126,8 @@ describe('decrementStock()', function () {
     ];
 
     return ledger.decrementStock(lineItems, 'checkout:SO-00001').then(function () {
-      expect(pipeline.decrBy).toHaveBeenCalledWith('inv:stock:A1', 2);
-      expect(pipeline.decrBy).toHaveBeenCalledWith('inv:stock:B2', 1);
+      expect(pipeline.incrByFloat).toHaveBeenCalledWith('inv:stock:A1', -2);
+      expect(pipeline.incrByFloat).toHaveBeenCalledWith('inv:stock:B2', -1);
     });
   });
 
@@ -149,6 +150,22 @@ describe('decrementStock()', function () {
       expect(entry.timestamp).toBeDefined();
 
       expect(pipeline.lTrim).toHaveBeenCalledWith('inv:adjustments:log', 0, 999);
+    });
+  });
+
+  test('handles decimal quantities via incrByFloat', function () {
+    var pipeline = makePipeline([]);
+    var client = makeClient(pipeline);
+    cache.getClient.mockResolvedValue(client);
+
+    var lineItems = [
+      { item_id: 'A1', quantity: 0.5 },
+      { item_id: 'B2', quantity: 2.75 }
+    ];
+
+    return ledger.decrementStock(lineItems, 'checkout:SO-00010').then(function () {
+      expect(pipeline.incrByFloat).toHaveBeenCalledWith('inv:stock:A1', -0.5);
+      expect(pipeline.incrByFloat).toHaveBeenCalledWith('inv:stock:B2', -2.75);
     });
   });
 

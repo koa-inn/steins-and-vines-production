@@ -9,15 +9,18 @@
  *
  * @param {Array} items
  * @param {object} [options]
- * @param {number} [options.maxItems=50]   Maximum number of line items
- * @param {number} [options.maxQty=9999]   Maximum quantity per item
- * @param {number} [options.maxRate=100000] Maximum rate per item
+ * @param {number}  [options.maxItems=50]      Maximum number of line items
+ * @param {number}  [options.maxQty=9999]      Maximum quantity per item
+ * @param {number}  [options.maxRate=100000]    Maximum rate per item
+ * @param {boolean} [options.allowDecimal=false] Allow decimal quantities (e.g. weight-based items)
  */
 function validateLineItems(items, options) {
   options = options || {};
-  var maxItems = options.maxItems || 50;
-  var maxQty   = options.maxQty   || 9999;
-  var maxRate  = options.maxRate  || 100000;
+  var maxItems     = options.maxItems || 50;
+  var maxQty       = options.maxQty   || 9999;
+  var maxRate      = options.maxRate  || 100000;
+  var allowDecimal = !!options.allowDecimal;
+  var minQty       = allowDecimal ? 0.001 : 1;
 
   if (!Array.isArray(items) || items.length === 0) {
     return 'line_items must be a non-empty array';
@@ -31,8 +34,14 @@ function validateLineItems(items, options) {
       return 'Missing or invalid item_id for line item ' + i;
     }
     var qty = Number(item.quantity);
-    if (!isFinite(qty) || qty < 1 || qty > maxQty || Math.floor(qty) !== qty) {
-      return 'Invalid quantity for line item ' + i + ' (must be a whole number between 1 and ' + maxQty + ')';
+    if (allowDecimal) {
+      if (!isFinite(qty) || qty < minQty || qty > maxQty) {
+        return 'Invalid quantity for line item ' + i + ' (must be between ' + minQty + ' and ' + maxQty + ')';
+      }
+    } else {
+      if (!isFinite(qty) || qty < minQty || qty > maxQty || Math.floor(qty) !== qty) {
+        return 'Invalid quantity for line item ' + i + ' (must be a whole number between 1 and ' + maxQty + ')';
+      }
     }
     var rate = Number(item.rate);
     if (!isFinite(rate) || rate < 0 || rate > maxRate) {

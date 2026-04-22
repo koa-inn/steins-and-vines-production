@@ -69,7 +69,7 @@ function reconcile(items) {
           setPipeline.set(STOCK_KEY_PREFIX + item.item_id, String(zohoVal), { EX: STOCK_TTL });
           count++;
         } else {
-          var curNum = parseInt(current, 10);
+          var curNum = parseFloat(current);
           if (isNaN(curNum) || curNum < 0 || zohoVal < curNum) {
             // Key is corrupted/negative OR Zoho has lower stock (processed other sales) — update
             setPipeline.set(STOCK_KEY_PREFIX + item.item_id, String(zohoVal), { EX: STOCK_TTL });
@@ -117,7 +117,7 @@ function decrementStock(lineItems, reason) {
     lineItems.forEach(function (line) {
       if (!line || !line.item_id || !line.quantity) return;
 
-      pipeline.decrBy(STOCK_KEY_PREFIX + line.item_id, line.quantity);
+      pipeline.incrByFloat(STOCK_KEY_PREFIX + line.item_id, -line.quantity);
 
       var entry = JSON.stringify({
         item_id: line.item_id,
@@ -154,7 +154,7 @@ function getStock(itemId) {
 
     return client.get(STOCK_KEY_PREFIX + itemId).then(function (result) {
       if (result === null) return null;
-      return parseInt(result, 10);
+      return parseFloat(result);
     });
   }).catch(function (err) {
     log.warn('[inventory-ledger] getStock error: ' + err.message);
@@ -185,7 +185,7 @@ function overlayStock(items) {
     return pipeline.exec().then(function (results) {
       results.forEach(function (result, i) {
         if (result !== null) {
-          items[i].stock_on_hand = Math.max(0, parseInt(result, 10));
+          items[i].stock_on_hand = Math.max(0, parseFloat(result));
         }
       });
       return items;

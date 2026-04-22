@@ -87,7 +87,7 @@ function processSale(body, idempotencyKey, req, res) {
       return res.status(400).json({ error: 'Invalid item_id for item ' + v });
     }
     var vQty = Number(vi.quantity);
-    if (!vQty || vQty < 1 || vQty > 100) {
+    if (!isFinite(vQty) || vQty <= 0 || vQty > 100) {
       return res.status(400).json({ error: 'Invalid quantity for item ' + v });
     }
   }

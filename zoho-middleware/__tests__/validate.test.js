@@ -105,6 +105,55 @@ describe('validateLineItems', () => {
   });
 });
 
+describe('validateLineItems with allowDecimal', function () {
+  test('accepts decimal quantities like 0.5 and 2.75', function () {
+    var items = [
+      { item_id: 'a', quantity: 0.5, rate: 10 },
+      { item_id: 'b', quantity: 2.75, rate: 5 }
+    ];
+    expect(validateLineItems(items, { allowDecimal: true })).toBeNull();
+  });
+
+  test('accepts the minimum decimal quantity 0.001', function () {
+    var items = [{ item_id: 'a', quantity: 0.001, rate: 10 }];
+    expect(validateLineItems(items, { allowDecimal: true })).toBeNull();
+  });
+
+  test('rejects quantity below 0.001 when allowDecimal is true', function () {
+    var items = [{ item_id: 'a', quantity: 0.0001, rate: 10 }];
+    expect(validateLineItems(items, { allowDecimal: true })).toMatch(/quantity/);
+  });
+
+  test('rejects zero quantity when allowDecimal is true', function () {
+    var items = [{ item_id: 'a', quantity: 0, rate: 10 }];
+    expect(validateLineItems(items, { allowDecimal: true })).toMatch(/quantity/);
+  });
+
+  test('rejects negative quantity when allowDecimal is true', function () {
+    var items = [{ item_id: 'a', quantity: -0.5, rate: 10 }];
+    expect(validateLineItems(items, { allowDecimal: true })).toMatch(/quantity/);
+  });
+
+  test('still rejects fractional quantity when allowDecimal is false (default)', function () {
+    var items = [{ item_id: 'a', quantity: 1.5, rate: 10 }];
+    expect(validateLineItems(items)).toMatch(/whole number/);
+    expect(validateLineItems(items, { allowDecimal: false })).toMatch(/whole number/);
+  });
+
+  test('error message mentions range instead of whole number when allowDecimal is true', function () {
+    var items = [{ item_id: 'a', quantity: -1, rate: 10 }];
+    var err = validateLineItems(items, { allowDecimal: true });
+    expect(err).toMatch(/between 0\.001/);
+    expect(err).not.toMatch(/whole number/);
+  });
+
+  test('respects maxQty with decimal quantities', function () {
+    var items = [{ item_id: 'a', quantity: 10.5, rate: 10 }];
+    expect(validateLineItems(items, { allowDecimal: true, maxQty: 10 })).toMatch(/quantity/);
+    expect(validateLineItems(items, { allowDecimal: true, maxQty: 11 })).toBeNull();
+  });
+});
+
 describe('classifyZohoError', () => {
   test('4xx error relays Zoho message and returns status 400', () => {
     var err = { response: { status: 400, data: { message: 'Invalid account' } } };

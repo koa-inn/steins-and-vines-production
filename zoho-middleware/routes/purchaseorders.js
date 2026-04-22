@@ -149,8 +149,8 @@ router.post('/api/purchase-orders/:id/add-item', function (req, res) {
     return res.status(400).json({ error: 'Missing or invalid item_id' });
   }
   var qty = Number(body.quantity);
-  if (!isFinite(qty) || qty < 1 || qty > 9999 || Math.floor(qty) !== qty) {
-    return res.status(400).json({ error: 'Invalid quantity (must be a whole number between 1 and 9999)' });
+  if (!isFinite(qty) || qty < 0.001 || qty > 9999) {
+    return res.status(400).json({ error: 'Invalid quantity (must be between 0.001 and 9999)' });
   }
   var rate = Number(body.rate);
   if (!isFinite(rate) || rate < 0 || rate > 100000) {
