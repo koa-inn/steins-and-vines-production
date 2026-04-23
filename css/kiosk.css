@@ -607,6 +607,21 @@ img {
   text-align: center;
 }
 
+/* Consignment badge on product card */
+.kiosk-consignment-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: #5b7a8a;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 /* ---- Cart Pane ---- */
 .kiosk-cart-pane {
   display: flex;

@@ -38,7 +38,8 @@ jest.mock('../lib/inventory-ledger', () => ({
 jest.mock('../lib/constants', () => ({
   CACHE_KEYS: {
     KIOSK_PRODUCTS: 'test:kiosk-products',
-    RECENT_ORDERS: 'test:recent-orders'
+    RECENT_ORDERS: 'test:recent-orders',
+    CONSIGNMENT_REPORT_PREFIX: 'test:consignment:report:'
   },
   LEDGER_KEYS: {},
   RATE_LIMIT_PREFIX: 'test:rl:'

@@ -514,6 +514,7 @@
 
   // Returns category label for a product, falling back to product_type
   function kioskItemCategory(p) {
+    if (p.group_name === 'Consignment') return 'Consignment';
     return p.category_name || p.product_type || '';
   }
 
@@ -712,6 +713,9 @@
       html += '<div class="' + cardClass + '" data-item-id="' + p.item_id + '">';
       if (inCart > 0) {
         html += '<div class="kiosk-card-in-cart">' + inCart + '</div>';
+      }
+      if (p.group_name === 'Consignment') {
+        html += '<div class="kiosk-consignment-badge">Consignment</div>';
       }
       html += imgHtml;
       var effectiveRate = kioskEffectiveRate(p);

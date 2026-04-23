@@ -16,8 +16,8 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="favicon.ico">
-  <link rel="stylesheet" href="css/styles.min.css?v=mo7cwmgf">
-  <link rel="stylesheet" href="css/admin.min.css?v=mo7cwmgf">
+  <link rel="stylesheet" href="css/styles.min.css?v=moavti5a">
+  <link rel="stylesheet" href="css/admin.min.css?v=moavti5a">
 </head>
 <body data-page="admin">
 
@@ -126,6 +126,7 @@
             <button type="button" class="admin-tab-btn" data-tab="kits">Kit Inventory</button>
             <button type="button" class="admin-tab-btn" data-tab="ingredients">Ingredients</button>
             <button type="button" class="admin-tab-btn" data-tab="orders">Supplier Orders</button>
+            <button type="button" class="admin-tab-btn" data-tab="consignment">Consignment</button>
             <span class="admin-tab-divider"></span>
             <button type="button" class="admin-tab-btn" data-tab="homepage">Homepage</button>
             <button type="button" class="admin-tab-btn" data-tab="export">Export / Sync</button>
@@ -592,6 +593,21 @@
             </div>
           </div>
 
+          <!-- Tab: Consignment Payouts -->
+          <div class="admin-tab-panel" id="tab-consignment">
+            <div class="admin-panel-header">
+              <h2>Consignment Payouts</h2>
+              <div>
+                <input type="month" id="consignment-month" style="margin-right:8px;">
+                <button type="button" class="btn-secondary admin-btn-sm" id="consignment-refresh">Load Report</button>
+              </div>
+            </div>
+            <p class="admin-order-info">Monthly consignment sales and artisan payouts.</p>
+            <div id="consignment-report-container">
+              <p class="admin-order-info">Select a month and click Load Report.</p>
+            </div>
+          </div>
+
           <!-- Tab: Homepage Promo -->
           <div class="admin-tab-panel" id="tab-homepage">
             <div class="admin-panel-header">
@@ -753,6 +769,6 @@
   <script src="js/admin-config.js" defer></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="js/vendor/qrcode.min.js" defer></script>
-  <script src="js/admin.min.js?v=mo7cwmgf" defer></script>
+  <script src="js/admin.min.js?v=moavti5a" defer></script>
 </body>
 </html>

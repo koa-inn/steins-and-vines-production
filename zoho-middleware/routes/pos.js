@@ -18,6 +18,19 @@ var IDEMPOTENCY_KEY_TTL = 300; // 5 minutes in seconds
 
 var router = express.Router();
 
+function extractConsignmentInfo(catalogItem) {
+  if (!catalogItem || catalogItem.group_name !== 'Consignment') return null;
+  var fields = catalogItem.custom_fields || [];
+  var artisanName = '';
+  var commissionRate = 0;
+  for (var i = 0; i < fields.length; i++) {
+    if (fields[i].label === 'Artisan Name') artisanName = fields[i].value || '';
+    if (fields[i].label === 'Commission Rate') commissionRate = parseFloat(fields[i].value) || 0;
+  }
+  if (!artisanName || !commissionRate) return null;
+  return { artisan_name: artisanName, commission_rate: commissionRate };
+}
+
 /**
  * POST /api/kiosk/sale
  * Process a complete kiosk (in-store POS) sale.
@@ -95,11 +108,11 @@ function processSale(body, idempotencyKey, req, res) {
   // Item #1: Anchor prices to the server-side catalog cache.
   // Client-supplied rate values are ignored for all financial calculations.
   cache.get(KIOSK_PRODUCTS_CACHE_KEY).then(function (catalog) {
-    // Build item_id → rate lookup from the authoritative catalog
+    // Build item_id → catalog entry lookup from the authoritative catalog
     var catalogMap = {};
     if (Array.isArray(catalog)) {
       catalog.forEach(function (p) {
-        if (p && p.item_id) catalogMap[p.item_id] = p.rate;
+        if (p && p.item_id) catalogMap[p.item_id] = p;
       });
     }
 
@@ -119,7 +132,7 @@ function processSale(body, idempotencyKey, req, res) {
     var subtotal = 0;
     var lineItems = body.items.map(function (item) {
       var qty = Number(item.quantity) || 1;
-      var rate = catalogMap[item.item_id]; // authoritative price from catalog
+      var rate = catalogMap[item.item_id].rate; // authoritative price from catalog
       subtotal += qty * rate;
       return {
         item_id: item.item_id,
@@ -136,7 +149,7 @@ function processSale(body, idempotencyKey, req, res) {
     var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
 
     processSaleWithPrices(body, idempotencyKey, req, res,
-      lineItems, subtotal, taxTotal, grandTotal);
+      lineItems, subtotal, taxTotal, grandTotal, catalogMap);
   }).catch(function (cacheErr) {
     log.error('[pos/kiosk/sale] Catalog cache read failed: ' + cacheErr.message);
     res.status(503).json({ error: 'Unable to verify item prices. Please try again.' });
@@ -144,7 +157,7 @@ function processSale(body, idempotencyKey, req, res) {
 }
 
 function processSaleWithPrices(body, idempotencyKey, req, res,
-  lineItems, subtotal, taxTotal, grandTotal) {
+  lineItems, subtotal, taxTotal, grandTotal, catalogMap) {
 
   if (grandTotal <= 0) {
     return res.status(400).json({ error: 'Sale total must be greater than zero' });
@@ -236,6 +249,39 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
         });
       }
 
+      // Detect consignment items and build tracking data
+      var consignmentDetails = [];
+      if (catalogMap) {
+        lineItems.forEach(function (li) {
+          var info = extractConsignmentInfo(catalogMap[li.item_id]);
+          if (info) {
+            consignmentDetails.push({
+              item_id: li.item_id,
+              item_name: li.name,
+              quantity: li.quantity,
+              sale_amount: Math.round(li.quantity * li.rate * 100) / 100,
+              artisan_name: info.artisan_name,
+              commission_rate: info.commission_rate,
+              artisan_payout: Math.round(li.quantity * li.rate * (info.commission_rate / 100) * 100) / 100
+            });
+          }
+        });
+      }
+      var hasConsignment = consignmentDetails.length > 0;
+
+      if (hasConsignment && process.env.ZOHO_CF_CONSIGNMENT_SALE) {
+        invoicePayload.custom_fields.push({
+          api_name: process.env.ZOHO_CF_CONSIGNMENT_SALE,
+          value: true
+        });
+      }
+      if (hasConsignment && process.env.ZOHO_CF_CONSIGNMENT_DETAILS) {
+        invoicePayload.custom_fields.push({
+          api_name: process.env.ZOHO_CF_CONSIGNMENT_DETAILS,
+          value: JSON.stringify(consignmentDetails)
+        });
+      }
+
       return zohoPost('/invoices', invoicePayload)
         .then(function (invoiceData) {
           var invoice = invoiceData.invoice || {};
@@ -314,6 +360,13 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
                 grandTotal: grandTotal,
                 invoiceNumber: invoiceNumber
               });
+              if (hasConsignment) {
+                eventLog.logEvent('kiosk.consignment_sale', {
+                  invoiceNumber: invoiceNumber,
+                  itemCount: consignmentDetails.length,
+                  totalPayout: consignmentDetails.reduce(function (sum, d) { return sum + d.artisan_payout; }, 0)
+                });
+              }
               res.status(201).json(responseBody);
             });
           });

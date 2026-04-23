@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-04-20T15:35:26.675Z';
+  var BUILD_TIMESTAMP = '2026-04-23T02:48:12.355Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -5399,11 +5399,91 @@
     container.innerHTML = html;
   }
 
-  // Hook kiosk orders into dashboard load
+  // ===== CONSIGNMENT PAYOUT REPORT =====
+
+  function initConsignmentReport() {
+    var monthInput = document.getElementById('consignment-month');
+    var refreshBtn = document.getElementById('consignment-refresh');
+    if (!monthInput || !refreshBtn) return;
+
+    var now = new Date();
+    monthInput.value = now.toISOString().slice(0, 7);
+
+    refreshBtn.addEventListener('click', function () {
+      loadConsignmentReport(monthInput.value);
+    });
+  }
+
+  function loadConsignmentReport(month) {
+    var container = document.getElementById('consignment-report-container');
+    if (!container) return;
+    container.innerHTML = '<p class="admin-order-info">Loading...</p>';
+
+    var url = MW_URL + '/api/admin/consignment-report?month=' + encodeURIComponent(month);
+    fetch(url, { headers: { 'x-api-key': MW_API_KEY } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) {
+          container.innerHTML = '<p class="admin-order-info" style="color:#c00;">' + (data.error || 'Error') + '</p>';
+          return;
+        }
+        renderConsignmentReport(data, container);
+      })
+      .catch(function (err) {
+        container.innerHTML = '<p class="admin-order-info" style="color:#c00;">Failed to load report: ' + err.message + '</p>';
+      });
+  }
+
+  function renderConsignmentReport(data, container) {
+    if (!data.artisans || data.artisans.length === 0) {
+      container.innerHTML = '<p class="admin-order-info">No consignment sales found for ' + (data.month || '') + '.</p>';
+      return;
+    }
+
+    var html = '';
+
+    data.artisans.forEach(function (a) {
+      html += '<h3 style="margin:1.2em 0 0.4em;">' + (a.artisan_name || 'Unknown') +
+        ' <span style="font-weight:400;font-size:0.85em;color:#888;">(' + a.commission_rate + '% commission)</span></h3>';
+      html += '<table class="catalog-table"><thead><tr>';
+      html += '<th>Invoice</th><th>Date</th><th>Item</th><th>Qty</th><th style="text-align:right;">Sale</th><th style="text-align:right;">Artisan Payout</th>';
+      html += '</tr></thead><tbody>';
+
+      a.sales.forEach(function (s) {
+        html += '<tr>';
+        html += '<td>' + (s.invoice_number || '') + '</td>';
+        html += '<td>' + (s.date || '') + '</td>';
+        html += '<td>' + (s.item_name || '') + '</td>';
+        html += '<td>' + (s.quantity || 0) + '</td>';
+        html += '<td style="text-align:right;">$' + (s.sale_amount || 0).toFixed(2) + '</td>';
+        html += '<td style="text-align:right;">$' + (s.artisan_payout || 0).toFixed(2) + '</td>';
+        html += '</tr>';
+      });
+
+      html += '<tr style="font-weight:700;border-top:2px solid #ccc;">';
+      html += '<td colspan="4">Total</td>';
+      html += '<td style="text-align:right;">$' + a.total_sales.toFixed(2) + '</td>';
+      html += '<td style="text-align:right;">$' + a.total_payout.toFixed(2) + '</td>';
+      html += '</tr>';
+      html += '</tbody></table>';
+    });
+
+    html += '<h3 style="margin:1.5em 0 0.4em;">Grand Totals</h3>';
+    html += '<table class="catalog-table"><tbody>';
+    html += '<tr><td>Total Sales</td><td style="text-align:right;">$' + data.totals.total_sales.toFixed(2) + '</td></tr>';
+    html += '<tr><td>Total Artisan Payouts</td><td style="text-align:right;">$' + data.totals.total_payouts.toFixed(2) + '</td></tr>';
+    html += '<tr><td>Store Commission</td><td style="text-align:right;">$' + data.totals.total_store_commission.toFixed(2) + '</td></tr>';
+    html += '</tbody></table>';
+
+    container.innerHTML = html;
+  }
+
+  // Hook kiosk orders + consignment into dashboard load
   var _origShowDashboard = showDashboard;
   showDashboard = function () {
     _origShowDashboard();
     initKioskOrders();
+    initConsignmentReport();
   };
 
   // Return a YYYY-MM-DD string for today (or today +/- N days) in Pacific time

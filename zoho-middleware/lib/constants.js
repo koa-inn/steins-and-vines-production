@@ -47,6 +47,9 @@ var CACHE_KEYS = {
 
   // Kiosk sales order management
   KIOSK_SALESORDERS:      'kiosk:salesorders',
+
+  // Consignment
+  CONSIGNMENT_REPORT_PREFIX: 'consignment:report:',  // append YYYY-MM
 };
 
 // ---------------------------------------------------------------------------
