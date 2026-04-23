@@ -18,8 +18,17 @@ var IDEMPOTENCY_KEY_TTL = 300; // 5 minutes in seconds
 
 var router = express.Router();
 
+function isConsignmentItem(catalogItem) {
+  if (!catalogItem) return false;
+  var fields = catalogItem.custom_fields || [];
+  for (var i = 0; i < fields.length; i++) {
+    if (fields[i].label === 'Type' && (fields[i].value || '').toLowerCase() === 'consignment') return true;
+  }
+  return false;
+}
+
 function extractConsignmentInfo(catalogItem) {
-  if (!catalogItem || catalogItem.group_name !== 'Consignment') return null;
+  if (!isConsignmentItem(catalogItem)) return null;
   var fields = catalogItem.custom_fields || [];
   var artisanName = '';
   var commissionRate = 0;

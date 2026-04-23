@@ -513,8 +513,16 @@
   }
 
   // Returns category label for a product, falling back to product_type
+  function kioskIsConsignment(p) {
+    var fields = p.custom_fields || [];
+    for (var i = 0; i < fields.length; i++) {
+      if (fields[i].label === 'Type' && (fields[i].value || '').toLowerCase() === 'consignment') return true;
+    }
+    return false;
+  }
+
   function kioskItemCategory(p) {
-    if (p.group_name === 'Consignment') return 'Consignment';
+    if (kioskIsConsignment(p)) return 'Consignment';
     return p.category_name || p.product_type || '';
   }
 
@@ -714,7 +722,7 @@
       if (inCart > 0) {
         html += '<div class="kiosk-card-in-cart">' + inCart + '</div>';
       }
-      if (p.group_name === 'Consignment') {
+      if (kioskIsConsignment(p)) {
         html += '<div class="kiosk-consignment-badge">Consignment</div>';
       }
       html += imgHtml;

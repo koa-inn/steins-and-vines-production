@@ -525,6 +525,7 @@ function doRefreshIngredients() {
         if (item.product_type === 'service') return false;
         if (item.rate <= 0) return false;
         var cfType = (item.cf_type || '').toLowerCase();
+        if (cfType === 'consignment') return false;
         if (cfType && KIT_CATEGORIES.indexOf(cfType) !== -1) return false;
         if (_kitItemIds[item.item_id]) return false; // belt-and-suspenders
         return true;
