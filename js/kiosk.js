@@ -523,7 +523,7 @@
   // Returns item rate including $50 maker's fee for kits
   function kioskEffectiveRate(product) {
     var base = parseFloat(product.rate) || 0;
-    return ((product.product_type || '').toLowerCase() === 'kit') ? base + MAKERS_FEE : base;
+    return (kioskGetItemType(product) === 'kit') ? base + MAKERS_FEE : base;
   }
 
   function kioskGetItemType(p) {
@@ -561,7 +561,7 @@
 
   function kioskCartHasKits() {
     return Object.keys(_kioskCart).some(function (id) {
-      return (_kioskCart[id].item.product_type || '').toLowerCase() === 'kit';
+      return kioskGetItemType(_kioskCart[id].item) === 'kit';
     });
   }
 
@@ -577,7 +577,7 @@
     var keys = Object.keys(_kioskCart);
     for (var i = 0; i < keys.length; i++) {
       var entry = _kioskCart[keys[i]];
-      if (entry.item && (entry.item.product_type || '').toLowerCase() === 'kit') {
+      if (entry.item && kioskGetItemType(entry.item) === 'kit') {
         count += entry.qty;
       }
     }
@@ -988,7 +988,7 @@
     }
 
     // If adding a kit, sync maker's fee line
-    if ((product.product_type || '').toLowerCase() === 'kit') {
+    if (kioskGetItemType(product) === 'kit') {
       kioskSyncMakersFee();
     }
 
@@ -1186,7 +1186,7 @@
   }
 
   function kioskSetQty(itemId, qty) {
-    var wasKit = _kioskCart[itemId] && (_kioskCart[itemId].item.product_type || '').toLowerCase() === 'kit';
+    var wasKit = _kioskCart[itemId] && kioskGetItemType(_kioskCart[itemId].item) === 'kit';
     if (qty <= 0) {
       delete _kioskCart[itemId];
     } else {
@@ -1200,7 +1200,7 @@
   }
 
   function kioskRemoveFromCart(itemId) {
-    var wasKit = _kioskCart[itemId] && (_kioskCart[itemId].item.product_type || '').toLowerCase() === 'kit';
+    var wasKit = _kioskCart[itemId] && kioskGetItemType(_kioskCart[itemId].item) === 'kit';
     delete _kioskCart[itemId];
     if (wasKit) kioskSyncMakersFee();
     kioskRenderCart();
@@ -1569,7 +1569,7 @@
 
         // Instead of auto-creating batches, show the batch review form for kit items
         var kitItems = items.filter(function (it) {
-          return (it.product_type || '').toLowerCase() === 'kit';
+          return kioskGetItemType(it) === 'kit';
         });
 
         if (kitItems.length > 0) {
