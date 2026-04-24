@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-23T07:18:23.356Z",
+  "generated_at": "2026-04-24T07:28:39.536Z",
   "products": [
     {
       "name": "Acai Raspberry Rapture",
@@ -2583,6 +2583,21 @@
       "stock": "5",
       "description": "28-inch long plastic spoon ideal for stirring and mixing during all stages of homebrewing without scratching equipment. The extended length reaches into larger kettles and fermentation vessels with ease.",
       "sku": "13135",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "Alpenglow Candle 4oz",
+      "unit": "pcs",
+      "price_per_unit": "19.99",
+      "stock": "0",
+      "description": "ROSEWOOD, SAGE & LAVENDER\nA surreal array of glimmering rosy light created at the highest point of a mountain range. Alpenglow emits a heightened, energetic feeling of warmth and hope.",
+      "sku": "ALPENGLOW-4",
       "category": "",
       "low_amount": "",
       "high_amount": "",
