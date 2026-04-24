@@ -1284,16 +1284,22 @@
       });
     });
 
+    var qtyInputTimer = null;
     container.querySelectorAll('.kiosk-qty-input').forEach(function (input) {
-      input.addEventListener('change', function () {
-        var id = input.getAttribute('data-id');
-        var val = parseFloat(input.value);
-        if (!isFinite(val) || val <= 0) {
-          kioskRemoveFromCart(id);
-        } else {
-          kioskSetQty(id, Math.round(val * 1000) / 1000);
-        }
-      });
+      function handleQtyChange() {
+        clearTimeout(qtyInputTimer);
+        qtyInputTimer = setTimeout(function () {
+          var id = input.getAttribute('data-id');
+          var val = parseFloat(input.value);
+          if (!isFinite(val) || val <= 0) {
+            kioskRemoveFromCart(id);
+          } else {
+            kioskSetQty(id, Math.round(val * 1000) / 1000);
+          }
+        }, 400);
+      }
+      input.addEventListener('input', handleQtyChange);
+      input.addEventListener('change', handleQtyChange);
     });
 
     container.querySelectorAll('.kiosk-cart-remove-btn').forEach(function (btn) {
