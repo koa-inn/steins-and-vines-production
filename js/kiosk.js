@@ -684,7 +684,8 @@
     var grid = document.getElementById('kiosk-product-grid');
     if (grid) grid.innerHTML = '<p class="kiosk-loading">Loading products...</p>';
 
-    fetch(mwUrl + '/api/kiosk/products')
+    var url = mwUrl + '/api/kiosk/products' + (forceRefresh ? '?bust=1' : '');
+    fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         _kioskProducts = data.items || [];

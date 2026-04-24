@@ -693,7 +693,8 @@ router.get('/api/ingredients', function (req, res) {
  * Category: ?category=wine (filters by category_name)
  */
 router.get('/api/kiosk/products', function (req, res) {
-  cache.get(KIOSK_PRODUCTS_CACHE_KEY)
+  var bustCache = req.query.bust === '1';
+  (bustCache ? cache.del(KIOSK_PRODUCTS_CACHE_KEY).then(function () { return null; }) : cache.get(KIOSK_PRODUCTS_CACHE_KEY))
     .then(function (cached) {
       if (cached) {
         log.info('[api/kiosk/products] Cache hit (' + cached.length + ' items)');
