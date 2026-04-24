@@ -456,6 +456,12 @@ router.get('/api/pos/status', function (req, res) {
   });
 });
 
+router.post('/api/pos/cancel', function (req, res) {
+  helcimLib.cancelTerminal().then(function (result) {
+    res.json(result);
+  });
+});
+
 /**
  * POST /api/pos/sale
  * Push a sale to the GP terminal via Meet in the Cloud.

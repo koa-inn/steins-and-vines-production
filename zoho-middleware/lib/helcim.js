@@ -317,6 +317,23 @@ function verifyWebhookSignature(webhookId, timestamp, rawBody, signature) {
   }
 }
 
+function cancelTerminal() {
+  if (!HELCIM_API_TOKEN || !HELCIM_DEVICE_CODE) {
+    return Promise.reject(new Error('Helcim terminal not configured'));
+  }
+  return axios.post(
+    HELCIM_BASE_URL + '/devices/' + encodeURIComponent(HELCIM_DEVICE_CODE) + '/cancel',
+    {},
+    { headers: helcimHeaders(), timeout: 10000 }
+  ).then(function () {
+    log.info('[helcim] Terminal cancel sent');
+    return { ok: true };
+  }).catch(function (err) {
+    log.warn('[helcim] Terminal cancel failed: ' + (err.response ? err.response.status : err.message));
+    return { ok: false };
+  });
+}
+
 module.exports = {
   init: init,
   isEnabled: isEnabled,
@@ -324,6 +341,7 @@ module.exports = {
   getDepositAmount: getDepositAmount,
   getTerminalDiagnostics: getTerminalDiagnostics,
   initializeCheckout: initializeCheckout,
+  cancelTerminal: cancelTerminal,
   voidTransaction: voidTransaction,
   refundTransaction: refundTransaction,
   terminalPurchase: terminalPurchase,

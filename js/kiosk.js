@@ -1577,8 +1577,14 @@
       cancelBtn.disabled = false;
       cancelBtn.onclick = function () {
         cancelled = true;
-        kioskShowView('browse');
-        if (msgEl) msgEl.textContent = 'Cancelled.';
+        cancelBtn.disabled = true;
+        if (msgEl) msgEl.textContent = 'Cancelling...';
+        fetch(mwUrl + '/api/pos/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+        }).catch(function () {}).then(function () {
+          kioskShowView('browse');
+        });
       };
     }
 
