@@ -255,8 +255,15 @@ function pollTerminalResult(invoiceNumber) {
       params: { invoiceNumber: invoiceNumber },
       headers: helcimHeaders(),
       timeout: 8000
+    }).catch(function (pollErr) {
+      log.info('[helcim] pollTerminalResult: API poll failed (' + (pollErr.response ? pollErr.response.status : pollErr.message) + '), waiting for webhook');
+      return { data: null };
     }).then(function (resp) {
-      var transactions = Array.isArray(resp.data) ? resp.data : (resp.data && resp.data.transactions) || [];
+      var data = resp.data;
+      if (!data) {
+        return { status: 'pending', transactionId: null, approved: false, cardType: '' };
+      }
+      var transactions = Array.isArray(data) ? data : (data.transactions || []);
       if (transactions.length === 0) {
         return { status: 'pending', transactionId: null, approved: false, cardType: '' };
       }
