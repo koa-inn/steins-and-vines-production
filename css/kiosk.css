@@ -918,6 +918,22 @@ img {
 }
 .kiosk-qty-btn:active { background: var(--cellar-canvas); border-color: var(--barrel); }
 
+.kiosk-qty-input {
+  width: 60px;
+  text-align: center;
+  font-size: 0.85rem;
+  border: 1px solid var(--ledger-emphasis);
+  border-radius: 4px;
+  padding: 4px;
+  background: var(--cellar-raised);
+  color: var(--ink-primary);
+}
+.kiosk-qty-unit {
+  font-size: 0.75rem;
+  color: var(--ink-tertiary);
+  margin-left: 3px;
+}
+
 .kiosk-qty-val {
   font-size: 1rem;
   font-weight: 600;

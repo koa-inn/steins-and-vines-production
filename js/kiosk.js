@@ -545,6 +545,10 @@
     return p.category_name || p.cf_type || p.product_type || '';
   }
 
+  function kioskIsWeightItem(p) {
+    return (p.unit || '').toLowerCase() === 'kg';
+  }
+
   function kioskItemTax(item, qty) {
     var rate = parseFloat(item.rate) || 0;
     var pct = parseFloat(item.tax_percentage) || 0;
@@ -970,7 +974,14 @@
 
   function kioskAddToCart(product) {
     var id = product.item_id;
-    if (_kioskCart[id]) {
+    if (kioskIsWeightItem(product)) {
+      var input = prompt('Enter quantity in kg for "' + (product.name || '') + '":', _kioskCart[id] ? _kioskCart[id].qty : '1');
+      if (input === null) return;
+      var qty = parseFloat(input);
+      if (!isFinite(qty) || qty <= 0) return;
+      qty = Math.round(qty * 1000) / 1000;
+      _kioskCart[id] = { item: product, qty: qty };
+    } else if (_kioskCart[id]) {
       _kioskCart[id].qty += 1;
     } else {
       _kioskCart[id] = { item: product, qty: 1 };
@@ -1229,10 +1240,15 @@
       var isFee = kioskIsMakersFee(item);
 
       html += '<div class="kiosk-cart-line">';
+      var isWeight = kioskIsWeightItem(item);
       html += '<div class="kiosk-cart-line-name" title="' + escapeHTML(item.name || '') + '">' + escapeHTML(item.name || '') + '</div>';
       if (isFee) {
-        // Maker's fee qty is auto-managed; show read-only
         html += '<div class="kiosk-cart-qty"><span class="kiosk-qty-val">' + qty + '</span></div>';
+      } else if (isWeight) {
+        html += '<div class="kiosk-cart-qty">';
+        html += '<input type="number" class="kiosk-qty-input" data-id="' + id + '" value="' + qty + '" step="0.01" min="0.001" inputmode="decimal">';
+        html += '<span class="kiosk-qty-unit">kg</span>';
+        html += '</div>';
       } else {
         html += '<div class="kiosk-cart-qty">';
         html += '<button class="kiosk-qty-btn" data-action="dec" data-id="' + id + '">-</button>';
@@ -1256,6 +1272,18 @@
         if (!_kioskCart[id]) return;
         var newQty = _kioskCart[id].qty + (action === 'inc' ? 1 : -1);
         kioskSetQty(id, newQty);
+      });
+    });
+
+    container.querySelectorAll('.kiosk-qty-input').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var id = input.getAttribute('data-id');
+        var val = parseFloat(input.value);
+        if (!isFinite(val) || val <= 0) {
+          kioskRemoveFromCart(id);
+        } else {
+          kioskSetQty(id, Math.round(val * 1000) / 1000);
+        }
       });
     });
 

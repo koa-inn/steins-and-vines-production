@@ -730,7 +730,8 @@ router.get('/api/kiosk/products', function (req, res) {
               tax_percentage: item.tax_percentage != null ? item.tax_percentage : 0,
               custom_fields: item.custom_fields || [],
               group_name:    item.group_name || '',
-              cf_type:       item.cf_type || ''
+              cf_type:       item.cf_type || '',
+              unit:          item.unit || ''
             };
           });
 
