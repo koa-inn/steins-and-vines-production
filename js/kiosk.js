@@ -870,12 +870,17 @@
 
     grid.innerHTML = html;
 
-    var cards = grid.querySelectorAll('.kiosk-product-card:not(.kiosk-product-card--out-of-stock)');
+    var cards = grid.querySelectorAll('.kiosk-product-card');
     cards.forEach(function (card) {
       card.addEventListener('click', function () {
         var itemId = card.getAttribute('data-item-id');
         var product = _kioskProducts.filter(function (p) { return p.item_id === itemId; })[0];
         if (!product) return;
+        var isService = (product.product_type || '').toLowerCase() === 'service';
+        var stock = parseFloat(product.stock_on_hand) || 0;
+        if (!isService && stock <= 0) {
+          if (!confirm('"' + (product.name || 'This item') + '" is out of stock. Add to cart anyway (special order)?')) return;
+        }
         kioskAddToCart(product);
       });
     });
@@ -931,9 +936,7 @@
 
       // Add button
       html += '<td>';
-      if (!outOfStock) {
-        html += '<button type="button" class="kiosk-list-add-btn" data-item-id="' + escapeHTML(p.item_id) + '">+</button>';
-      }
+      html += '<button type="button" class="kiosk-list-add-btn' + (outOfStock ? ' kiosk-list-add-btn--oos' : '') + '" data-item-id="' + escapeHTML(p.item_id) + '">+</button>';
       html += '</td>';
 
       html += '</tr>';
@@ -950,7 +953,13 @@
         for (var i = 0; i < _kioskProducts.length; i++) {
           if (_kioskProducts[i].item_id === itemId) { product = _kioskProducts[i]; break; }
         }
-        if (product) kioskAddToCart(product);
+        if (!product) return;
+        var isService = (product.product_type || '').toLowerCase() === 'service';
+        var stock = parseFloat(product.stock_on_hand) || 0;
+        if (!isService && stock <= 0) {
+          if (!confirm('"' + (product.name || 'This item') + '" is out of stock. Add to cart anyway (special order)?')) return;
+        }
+        kioskAddToCart(product);
       });
     });
   }

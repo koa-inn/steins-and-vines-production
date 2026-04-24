@@ -588,8 +588,8 @@ img {
 }
 
 .kiosk-product-card--out-of-stock {
-  opacity: 0.5;
-  cursor: not-allowed;
+  opacity: 0.55;
+  cursor: pointer;
 }
 
 /* In-cart badge on product card */
@@ -738,10 +738,11 @@ img {
   background: var(--cellar-surface);
 }
 .kiosk-list-row--oos {
-  opacity: 0.4;
+  opacity: 0.55;
 }
-.kiosk-list-row--oos td:last-child button {
-  display: none;
+.kiosk-list-add-btn--oos {
+  opacity: 0.6;
+  border-style: dashed;
 }
 .kiosk-list-name {
   font-weight: 500;
