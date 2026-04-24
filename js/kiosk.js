@@ -808,8 +808,10 @@
       return;
     }
     if (_kioskViewMode === 'list') {
+      grid.classList.add('kiosk-product-grid--list');
       kioskRenderProductList(grid, filtered);
     } else {
+      grid.classList.remove('kiosk-product-grid--list');
       kioskRenderProductGrid(grid, filtered);
     }
   }

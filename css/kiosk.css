@@ -696,6 +696,12 @@ img {
   padding: 0 0.25rem;
 }
 
+/* When showing list view, override the grid layout on the container */
+.kiosk-product-grid--list {
+  display: block !important;
+  grid-template-columns: none;
+}
+
 /* ---- List View Table ---- */
 .kiosk-list-table {
   width: 100%;
