@@ -969,14 +969,21 @@ img {
 .kiosk-qty-btn:active { background: var(--cellar-canvas); border-color: var(--barrel); }
 
 .kiosk-qty-input {
-  width: 60px;
+  width: 48px;
   text-align: center;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 600;
   border: 1px solid var(--ledger-emphasis);
   border-radius: 4px;
-  padding: 4px;
+  padding: 4px 2px;
   background: var(--cellar-raised);
   color: var(--ink-primary);
+  -moz-appearance: textfield;
+}
+.kiosk-qty-input::-webkit-inner-spin-button,
+.kiosk-qty-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .kiosk-qty-unit {
   font-size: 0.75rem;

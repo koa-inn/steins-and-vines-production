@@ -604,19 +604,21 @@
 
   // ===== Cart Totals =====
 
+  var KIOSK_TAX_RATE = 0.05; // 5% GST — matches server-side KIOSK_TAX_RATE default
+
   function kioskCalcTotals() {
     var subtotal = 0;
-    var taxTotal = 0;
     Object.keys(_kioskCart).forEach(function (id) {
       var entry = _kioskCart[id];
       var qty = entry.qty;
       var rate = parseFloat(entry.item.rate) || 0;
       subtotal += rate * qty;
-      taxTotal += kioskItemTax(entry.item, qty);
     });
+    subtotal = parseFloat(subtotal.toFixed(2));
+    var taxTotal = parseFloat((subtotal * KIOSK_TAX_RATE).toFixed(2));
     return {
-      subtotal: parseFloat(subtotal.toFixed(2)),
-      tax: parseFloat(taxTotal.toFixed(2)),
+      subtotal: subtotal,
+      tax: taxTotal,
       total: parseFloat((subtotal + taxTotal).toFixed(2))
     };
   }
@@ -1261,7 +1263,7 @@
       } else {
         html += '<div class="kiosk-cart-qty">';
         html += '<button class="kiosk-qty-btn" data-action="dec" data-id="' + id + '">-</button>';
-        html += '<span class="kiosk-qty-val">' + qty + '</span>';
+        html += '<input type="number" class="kiosk-qty-input" data-id="' + id + '" value="' + qty + '" step="1" min="1" inputmode="numeric">';
         html += '<button class="kiosk-qty-btn" data-action="inc" data-id="' + id + '">+</button>';
         html += '</div>';
       }
