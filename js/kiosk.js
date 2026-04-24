@@ -1338,12 +1338,10 @@
     var newForm = document.getElementById('kiosk-new-customer-form');
     var saveBtn = document.getElementById('kiosk-new-customer-save');
 
-    // Reset state
+    // Reset search state
     if (searchInput) searchInput.value = '';
     if (resultsEl) resultsEl.innerHTML = '';
-    if (selectedEl) { selectedEl.style.display = 'none'; selectedEl.innerHTML = ''; }
     if (newForm) newForm.style.display = 'none';
-    if (proceedBtn) proceedBtn.disabled = true;
     if (skipBtn) skipBtn.style.display = hasKits ? 'none' : '';
 
     function updateProceedState() {
@@ -1370,6 +1368,14 @@
       }
       if (newForm) newForm.style.display = 'none';
       updateProceedState();
+    }
+
+    // If customer was pre-selected from cart pane, show them
+    if (_kioskCustomer) {
+      kioskSelectCustomer(_kioskCustomer);
+    } else {
+      if (selectedEl) { selectedEl.style.display = 'none'; selectedEl.innerHTML = ''; }
+      if (proceedBtn) proceedBtn.disabled = true;
     }
 
     if (backBtn) {
@@ -1975,7 +1981,7 @@
 
     fetch(mwUrl + '/api/kiosk/salesorder-pay', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
       body: JSON.stringify({ salesorder_id: soId })
     })
     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -2332,7 +2338,7 @@
 
     fetch(mwUrl + '/api/kiosk/salesorder-create', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
       body: JSON.stringify(payload)
     })
     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
