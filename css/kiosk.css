@@ -701,7 +701,16 @@ img {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
+  table-layout: auto;
 }
+.kiosk-list-table td:nth-child(2),
+.kiosk-list-table th:nth-child(2) { width: 90px; }
+.kiosk-list-table td:nth-child(3),
+.kiosk-list-table th:nth-child(3) { width: 110px; }
+.kiosk-list-table td:nth-child(4),
+.kiosk-list-table th:nth-child(4) { width: 75px; text-align: right; }
+.kiosk-list-table td:nth-child(5),
+.kiosk-list-table th:nth-child(5) { width: 80px; }
 .kiosk-list-table th {
   text-align: left;
   text-transform: uppercase;
