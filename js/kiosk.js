@@ -1284,22 +1284,37 @@
       });
     });
 
-    var qtyInputTimer = null;
     container.querySelectorAll('.kiosk-qty-input').forEach(function (input) {
-      function handleQtyChange() {
-        clearTimeout(qtyInputTimer);
-        qtyInputTimer = setTimeout(function () {
-          var id = input.getAttribute('data-id');
-          var val = parseFloat(input.value);
-          if (!isFinite(val) || val <= 0) {
-            kioskRemoveFromCart(id);
-          } else {
-            kioskSetQty(id, Math.round(val * 1000) / 1000);
-          }
-        }, 400);
-      }
-      input.addEventListener('input', handleQtyChange);
-      input.addEventListener('change', handleQtyChange);
+      input.addEventListener('input', function () {
+        var id = input.getAttribute('data-id');
+        var val = parseFloat(input.value);
+        if (!_kioskCart[id] || !isFinite(val) || val <= 0) return;
+        _kioskCart[id].qty = Math.round(val * 1000) / 1000;
+        var rate = parseFloat(_kioskCart[id].item.rate) || 0;
+        var lineEl = input.closest('.kiosk-cart-line');
+        if (lineEl) {
+          var totalEl = lineEl.querySelector('.kiosk-cart-line-total');
+          if (totalEl) totalEl.textContent = kioskFmt(rate * _kioskCart[id].qty);
+        }
+        var totals = kioskCalcTotals();
+        var subEl = document.getElementById('kiosk-subtotal');
+        var taxEl = document.getElementById('kiosk-tax');
+        var totalEl2 = document.getElementById('kiosk-total');
+        var checkoutTotal = document.getElementById('kiosk-checkout-total');
+        if (subEl) subEl.textContent = kioskFmt(totals.subtotal);
+        if (taxEl) taxEl.textContent = kioskFmt(totals.tax);
+        if (totalEl2) totalEl2.textContent = kioskFmt(totals.total);
+        if (checkoutTotal) checkoutTotal.textContent = kioskFmt(totals.total);
+      });
+      input.addEventListener('change', function () {
+        var id = input.getAttribute('data-id');
+        var val = parseFloat(input.value);
+        if (!isFinite(val) || val <= 0) {
+          kioskRemoveFromCart(id);
+        } else {
+          kioskSetQty(id, Math.round(val * 1000) / 1000);
+        }
+      });
     });
 
     container.querySelectorAll('.kiosk-cart-remove-btn').forEach(function (btn) {
