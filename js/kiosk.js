@@ -1408,7 +1408,7 @@
         var mwUrl = kioskMwUrl();
         fetch(mwUrl + '/api/contacts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
           body: JSON.stringify({ name: name, email: email, phone: phone })
         })
         .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -1557,7 +1557,7 @@
 
     fetch(mwUrl + '/api/kiosk/sale', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
       body: JSON.stringify({
         items: items,
         tax_total: totals.tax,
