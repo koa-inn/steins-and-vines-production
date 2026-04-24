@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="favicon.ico">
-  <link rel="stylesheet" href="css/kiosk.min.css?v=modeutgw">
+  <link rel="stylesheet" href="css/kiosk.min.css?v=modggn6c">
   <script src="js/lib/constants.js"></script>
   <script src="js/lib/utils.js"></script>
   <script src="js/lib/auth.js"></script>
@@ -19,7 +19,7 @@
   <script src="js/admin-config.js"></script>
   <script src="js/vendor/qrcode.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="js/kiosk.min.js?v=modeutgw"></script>
+  <script src="js/kiosk.min.js?v=modggn6c"></script>
 </head>
 <body>
 
@@ -104,6 +104,14 @@
           <div class="kiosk-cart-header">
             <h2 class="kiosk-cart-title">Cart</h2>
             <button type="button" class="btn-secondary kiosk-cart-clear" id="kiosk-cart-clear">Clear</button>
+          </div>
+          <div class="kiosk-cart-customer" id="kiosk-cart-customer">
+            <div class="kiosk-cart-customer-label" id="kiosk-cart-customer-label">Customer: Walk-in</div>
+            <button type="button" class="btn-secondary kiosk-cart-customer-btn" id="kiosk-cart-customer-btn">Change</button>
+          </div>
+          <div class="kiosk-cart-customer-search" id="kiosk-cart-customer-search" style="display:none;">
+            <input type="text" id="kiosk-cart-cust-input" class="kiosk-search-input" placeholder="Search by name or email..." autocomplete="off" inputmode="search">
+            <div id="kiosk-cart-cust-results" class="kiosk-cart-cust-results"></div>
           </div>
           <div id="kiosk-cart-items" class="kiosk-cart-items">
             <p class="kiosk-cart-empty">No items in cart</p>

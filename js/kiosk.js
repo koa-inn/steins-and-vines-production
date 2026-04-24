@@ -836,7 +836,7 @@
 
       var cardClass = 'kiosk-product-card' + (outOfStock ? ' kiosk-product-card--out-of-stock' : '');
 
-      var placeholderEmoji = isService ? '&#9881;' : '&#127817;';
+      var placeholderEmoji = isService ? '&#9881;' : '&#127866;';
       var imgHtml;
       if (p.image_name && p.sku) {
         imgHtml = '<img class="kiosk-product-img" src="images/products/' +
@@ -1321,7 +1321,6 @@
       showToast('POS terminal is not ready. Check terminal status below.', 'error');
       return;
     }
-    _kioskCustomer = null;
     kioskShowCustomerStep();
   }
 
@@ -2437,6 +2436,86 @@
         kioskClearCart();
       });
     }
+
+    // Cart customer selector
+    var custBtn = document.getElementById('kiosk-cart-customer-btn');
+    var custSearchPanel = document.getElementById('kiosk-cart-customer-search');
+    var custInput = document.getElementById('kiosk-cart-cust-input');
+    var custResults = document.getElementById('kiosk-cart-cust-results');
+    var custLabel = document.getElementById('kiosk-cart-customer-label');
+    var custSearchTimer = null;
+
+    function updateCustomerLabel() {
+      if (!custLabel) return;
+      if (_kioskCustomer) {
+        custLabel.textContent = 'Customer: ' + (_kioskCustomer.name || _kioskCustomer.email || 'Selected');
+        if (custBtn) custBtn.textContent = 'Change';
+      } else {
+        custLabel.textContent = 'Customer: Walk-in';
+        if (custBtn) custBtn.textContent = 'Select';
+      }
+    }
+
+    if (custBtn) {
+      custBtn.addEventListener('click', function () {
+        if (custSearchPanel.style.display === 'none') {
+          custSearchPanel.style.display = '';
+          if (custInput) { custInput.value = ''; custInput.focus(); }
+          if (custResults) custResults.innerHTML = '';
+        } else {
+          custSearchPanel.style.display = 'none';
+        }
+      });
+    }
+
+    if (custInput) {
+      custInput.addEventListener('input', function () {
+        clearTimeout(custSearchTimer);
+        var q = custInput.value.trim();
+        if (!q) { if (custResults) custResults.innerHTML = ''; return; }
+        custSearchTimer = setTimeout(function () {
+          var mwUrl = kioskMwUrl();
+          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (!custResults) return;
+              var contacts = (data.contacts || []).slice(0, 6);
+              if (!contacts.length) {
+                custResults.innerHTML = '<div class="kiosk-cart-cust-row" style="color:var(--ink-tertiary);">No results</div>';
+                return;
+              }
+              var html = '';
+              contacts.forEach(function (c) {
+                html += '<div class="kiosk-cart-cust-row" data-id="' + escapeHTML(c.contact_id || '') + '">';
+                html += '<div class="kiosk-cart-cust-name">' + escapeHTML(c.contact_name || c.name || '') + '</div>';
+                if (c.email) html += '<div class="kiosk-cart-cust-email">' + escapeHTML(c.email) + '</div>';
+                html += '</div>';
+              });
+              custResults.innerHTML = html;
+              Array.prototype.forEach.call(custResults.querySelectorAll('.kiosk-cart-cust-row[data-id]'), function (row) {
+                row.addEventListener('click', function () {
+                  var cid = row.getAttribute('data-id');
+                  var contact = null;
+                  for (var ci = 0; ci < contacts.length; ci++) {
+                    if ((contacts[ci].contact_id || '') === cid) { contact = contacts[ci]; break; }
+                  }
+                  if (contact) {
+                    _kioskCustomer = {
+                      contact_id: contact.contact_id || '',
+                      name: contact.contact_name || contact.name || '',
+                      email: contact.email || ''
+                    };
+                  }
+                  custSearchPanel.style.display = 'none';
+                  updateCustomerLabel();
+                });
+              });
+            });
+        }, 250);
+      });
+    }
+
+    updateCustomerLabel();
 
     // Hide out-of-stock toggle
     var oosToggle = document.getElementById('kiosk-hide-oos');
