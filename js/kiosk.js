@@ -1590,60 +1590,51 @@
 
     var refNumber = 'KIOSK-' + Date.now();
 
-    fetch(mwUrl + '/api/kiosk/sale', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
-      body: JSON.stringify({
-        items: items,
-        tax_total: totals.tax,
-        reference_number: refNumber,
-        contact_id: _kioskCustomer ? _kioskCustomer.contact_id : ''
-      })
-    })
-    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
-    .then(function (result) {
-      if (cancelled) return;
-      if (spinnerEl) spinnerEl.style.display = 'none';
+    // Show confirm/cancel buttons immediately — staff confirms after card reader approves
+    if (spinnerEl) spinnerEl.style.display = 'none';
+    if (msgEl) msgEl.textContent = 'Waiting for payment on card reader...';
 
-      if (result.status === 201 && result.data.ok) {
-        _kioskSaleData = result.data;
+    var confirmBtn = document.getElementById('kiosk-confirm-payment');
+    if (confirmBtn) {
+      confirmBtn.style.display = '';
+      confirmBtn.disabled = false;
+      confirmBtn.onclick = function () {
+        confirmBtn.disabled = true;
+        if (cancelBtn) cancelBtn.disabled = true;
+        if (msgEl) msgEl.textContent = 'Processing sale...';
+        if (spinnerEl) spinnerEl.style.display = '';
 
-        // Instead of auto-creating batches, show the batch review form for kit items
-        var kitItems = items.filter(function (it) {
-          return kioskGetItemType(it) === 'kit';
+        fetch(mwUrl + '/api/kiosk/sale/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+          body: JSON.stringify({
+            items: items,
+            reference_number: refNumber,
+            contact_id: _kioskCustomer ? _kioskCustomer.contact_id : ''
+          })
+        })
+        .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+        .then(function (result) {
+          if (spinnerEl) spinnerEl.style.display = 'none';
+          if (result.status === 201 && result.data.ok) {
+            _kioskSaleData = result.data;
+            var kitItems = items.filter(function (it) { return kioskGetItemType(it) === 'kit'; });
+            if (kitItems.length > 0) {
+              kioskShowBatchReview(result.data, totals, items, kitItems);
+            } else {
+              kioskShowReceipt(result.data, totals, items, []);
+              kioskClearCart();
+            }
+          } else {
+            kioskShowError('Sale Error', (result.data && result.data.error) || 'Failed to create invoice.', true);
+          }
+        })
+        .catch(function () {
+          if (spinnerEl) spinnerEl.style.display = 'none';
+          kioskShowError('Connection Error', 'Could not reach the server. Please try again.', true);
         });
-
-        if (kitItems.length > 0) {
-          kioskShowBatchReview(result.data, totals, items, kitItems);
-        } else {
-          kioskShowReceipt(result.data, totals, items, []);
-          kioskClearCart();
-        }
-      } else if (result.status === 402) {
-        kioskShowError(
-          'Payment Declined',
-          result.data.error || 'Card was declined. Please try a different payment method.',
-          true
-        );
-      } else if (result.data && result.data.payment_voided) {
-        kioskShowError(
-          'Sale Could Not Complete',
-          (result.data.error || 'Payment was taken but could not be recorded. Payment has been voided.'),
-          false
-        );
-      } else {
-        kioskShowError(
-          'Sale Error',
-          result.data.error || 'An error occurred. Please try again.',
-          true
-        );
-      }
-    })
-    .catch(function () {
-      if (cancelled) return;
-      if (spinnerEl) spinnerEl.style.display = 'none';
-      kioskShowError('Connection Error', 'Could not reach the payment server. Please try again.', true);
-    });
+      };
+    }
   }
 
   // ===== Batch Review (NEW) =====

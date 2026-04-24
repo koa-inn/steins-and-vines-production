@@ -186,7 +186,7 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
   // Step 1: Send payment to POS terminal
   // Push payment request to Helcim Smart Terminal (202 Accepted immediately).
   // Result is delivered via webhook; poll as fallback with 5s intervals up to 90s.
-  var TERMINAL_TIMEOUT_MS = 90000;
+  var TERMINAL_TIMEOUT_MS = 180000;
   var POLL_INTERVAL_MS = 5000;
 
   helcimLib.terminalPurchase(grandTotal, refNumber)
@@ -453,6 +453,118 @@ router.get('/api/pos/status', function (req, res) {
     terminal_type: helcimLib.isTerminalEnabled() ? 'Helcim Smart Terminal' : 'none',
     diagnostics: diag,
     _v: '20260312-1'
+  });
+});
+
+router.post('/api/kiosk/sale/confirm', function (req, res) {
+  var body = req.body;
+  if (!body || !Array.isArray(body.items) || body.items.length === 0) {
+    return res.status(400).json({ error: 'Cart is empty' });
+  }
+
+  cache.get(KIOSK_PRODUCTS_CACHE_KEY).then(function (catalog) {
+    var catalogMap = {};
+    if (Array.isArray(catalog)) {
+      catalog.forEach(function (p) {
+        if (p && p.item_id) catalogMap[p.item_id] = p;
+      });
+    }
+
+    for (var ci = 0; ci < body.items.length; ci++) {
+      if (catalogMap[body.items[ci].item_id] === undefined) {
+        return res.status(400).json({ error: 'Item not found in catalog. Refresh and try again.' });
+      }
+    }
+
+    var subtotal = 0;
+    var lineItems = body.items.map(function (item) {
+      var qty = Number(item.quantity) || 1;
+      var rate = catalogMap[item.item_id].rate;
+      subtotal += qty * rate;
+      return { item_id: item.item_id, name: item.name || '', quantity: qty, rate: rate };
+    });
+    subtotal = Math.round(subtotal * 100) / 100;
+    var taxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
+    var taxTotal = Math.round(subtotal * taxRate * 100) / 100;
+    var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
+    var refNumber = (body.reference_number || 'KIOSK-' + Date.now()).slice(0, 64);
+    var txnId = body.transaction_id || 'manual-confirm';
+    var today = new Date().toISOString().slice(0, 10);
+
+    var invoicePayload = {
+      date: today,
+      reference_number: refNumber,
+      payment_terms: 0,
+      payment_terms_label: 'Due on Receipt',
+      line_items: lineItems,
+      notes: 'In-store kiosk sale (manual confirm). Ref: ' + refNumber,
+      custom_fields: []
+    };
+
+    var contactId = process.env.KIOSK_CONTACT_ID || '';
+    if (body.contact_id) invoicePayload.customer_id = body.contact_id;
+    else if (contactId) invoicePayload.customer_id = contactId;
+
+    // Consignment tracking
+    var consignmentDetails = [];
+    lineItems.forEach(function (li) {
+      var info = extractConsignmentInfo(catalogMap[li.item_id]);
+      if (info) {
+        consignmentDetails.push({
+          item_id: li.item_id, item_name: li.name, quantity: li.quantity,
+          sale_amount: Math.round(li.quantity * li.rate * 100) / 100,
+          artisan_name: info.artisan_name, commission_rate: info.commission_rate,
+          artisan_payout: Math.round(li.quantity * li.rate * (info.commission_rate / 100) * 100) / 100
+        });
+      }
+    });
+    if (consignmentDetails.length > 0 && process.env.ZOHO_CF_CONSIGNMENT_SALE) {
+      invoicePayload.custom_fields.push({ api_name: process.env.ZOHO_CF_CONSIGNMENT_SALE, value: true });
+    }
+    if (consignmentDetails.length > 0 && process.env.ZOHO_CF_CONSIGNMENT_DETAILS) {
+      invoicePayload.custom_fields.push({ api_name: process.env.ZOHO_CF_CONSIGNMENT_DETAILS, value: JSON.stringify(consignmentDetails) });
+    }
+
+    return zohoPost('/invoices', invoicePayload).then(function (invoiceData) {
+      var invoice = invoiceData.invoice || {};
+      var invoiceId = invoice.invoice_id || '';
+      var invoiceNumber = invoice.invoice_number || '';
+      log.info('[pos/kiosk/sale/confirm] Invoice created: ' + invoiceNumber);
+
+      var paymentChain = Promise.resolve();
+      if (invoiceId) {
+        paymentChain = zohoPost('/invoices/' + invoiceId + '/submit', {}).catch(function () {})
+          .then(function () {
+            return zohoPost('/customerpayments', {
+              payment_mode: 'creditcard',
+              amount: grandTotal,
+              date: today,
+              reference_number: txnId,
+              invoices: [{ invoice_id: invoiceId, amount_applied: grandTotal }],
+              notes: 'Kiosk POS payment (manual confirm). Ref: ' + refNumber
+            });
+          }).catch(function (payErr) {
+            log.error('[pos/kiosk/sale/confirm] Payment recording failed: ' + payErr.message);
+          });
+      }
+
+      return paymentChain.then(function () {
+        cache.del(KIOSK_PRODUCTS_CACHE_KEY);
+        ledger.decrementStock(lineItems, 'kiosk:' + (invoiceNumber || 'unknown')).catch(function () {});
+
+        eventLog.logEvent('kiosk.sale_completed', {
+          txnId: txnId, itemCount: lineItems.length, grandTotal: grandTotal, invoiceNumber: invoiceNumber
+        });
+
+        res.status(201).json({
+          ok: true, transaction_id: txnId, invoice_id: invoiceId, invoice_number: invoiceNumber,
+          reference_number: refNumber, subtotal: subtotal, tax_total: taxTotal, total: grandTotal, date: today
+        });
+      });
+    });
+  }).catch(function (err) {
+    log.error('[pos/kiosk/sale/confirm] Error: ' + err.message);
+    res.status(502).json({ error: 'Failed to create invoice. Please try again.' });
   });
 });
 

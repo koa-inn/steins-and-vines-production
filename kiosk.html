@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="favicon.ico">
-  <link rel="stylesheet" href="css/kiosk.min.css?v=modggn6c">
+  <link rel="stylesheet" href="css/kiosk.min.css?v=modkig4y">
   <script src="js/lib/constants.js"></script>
   <script src="js/lib/utils.js"></script>
   <script src="js/lib/auth.js"></script>
@@ -19,7 +19,7 @@
   <script src="js/admin-config.js"></script>
   <script src="js/vendor/qrcode.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="js/kiosk.min.js?v=modggn6c"></script>
+  <script src="js/kiosk.min.js?v=modkig4y"></script>
 </head>
 <body>
 
@@ -218,6 +218,7 @@
           </div>
           <div class="kiosk-payment-items" id="kiosk-payment-items"></div>
           <div class="kiosk-payment-footer">
+            <button type="button" class="btn kiosk-confirm-payment" id="kiosk-confirm-payment" style="display:none; background:var(--cellar-green); border-color:var(--cellar-green);">Payment Confirmed</button>
             <button type="button" class="btn-secondary kiosk-cancel-payment" id="kiosk-cancel-payment">Cancel</button>
           </div>
         </div>
