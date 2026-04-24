@@ -225,7 +225,7 @@ function terminalPurchase(amount, invoiceNumber, idempotencyKey) {
  * Fallback for when webhook delivery is delayed.
  * Call on a short interval (e.g. every 5s) up to 90s total.
  *
- * GET https://api.helcim.com/v2/transactions?invoiceNumber={invoiceNumber}
+ * GET https://api.helcim.com/v2/card-transactions?invoiceNumber={invoiceNumber}
  *
  * @returns {Promise<{ status: string, transactionId: string, approved: boolean, cardType: string }>}
  */
@@ -251,7 +251,7 @@ function pollTerminalResult(invoiceNumber) {
       log.info('[helcim] pollTerminalResult: webhook cache hit for ' + invoiceNumber);
       return cachedResult;
     }
-    return axios.get(HELCIM_BASE_URL + '/transactions', {
+    return axios.get(HELCIM_BASE_URL + '/card-transactions', {
       params: { invoiceNumber: invoiceNumber },
       headers: helcimHeaders(),
       timeout: 8000
