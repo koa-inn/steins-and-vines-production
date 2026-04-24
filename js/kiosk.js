@@ -526,19 +526,23 @@
     return ((product.product_type || '').toLowerCase() === 'kit') ? base + MAKERS_FEE : base;
   }
 
-  // Returns category label for a product, falling back to product_type
+  function kioskGetItemType(p) {
+    var ptype = (p.product_type || '').toLowerCase();
+    if (ptype === 'service') return 'service';
+    var cfType = (p.cf_type || '').toLowerCase();
+    if (cfType === 'consignment') return 'consignment';
+    if (cfType && typeof KIT_CATEGORIES !== 'undefined' && KIT_CATEGORIES.indexOf(cfType) !== -1) return 'kit';
+    if (cfType === 'ingredient') return 'ingredient';
+    if (ptype === 'inventory' || ptype === 'goods') return 'ingredient';
+    return ptype || 'other';
+  }
+
   function kioskIsConsignment(p) {
-    if ((p.cf_type || '').toLowerCase() === 'consignment') return true;
-    var fields = p.custom_fields || [];
-    for (var i = 0; i < fields.length; i++) {
-      if (fields[i].label === 'Type' && (fields[i].value || '').toLowerCase() === 'consignment') return true;
-    }
-    return false;
+    return kioskGetItemType(p) === 'consignment';
   }
 
   function kioskItemCategory(p) {
-    if (kioskIsConsignment(p)) return 'Consignment';
-    return p.category_name || p.product_type || '';
+    return p.category_name || p.cf_type || p.product_type || '';
   }
 
   function kioskItemTax(item, qty) {
@@ -745,23 +749,12 @@
       // Hide maker's fee from product grid
       if (kioskIsMakersFee(p)) return false;
 
-      var ptype = (p.product_type || '').toLowerCase();
-      var cfType = (p.cf_type || '').toLowerCase();
-      var isService = ptype === 'service';
-      var isConsignment = kioskIsConsignment(p);
+      var itemType = kioskGetItemType(p);
+      var isService = itemType === 'service';
       var stock = parseFloat(p.stock_on_hand) || 0;
 
-      // Type filter — use cf_type (Zoho custom field) for kit/ingredient/consignment,
-      // product_type for service
-      if (type === 'consignment') {
-        if (!isConsignment) return false;
-      } else if (type === 'service') {
-        if (!isService) return false;
-      } else if (type === 'kit') {
-        if (ptype !== 'kit') return false;
-      } else if (type === 'ingredient') {
-        if (isService || ptype === 'kit' || isConsignment) return false;
-      }
+      // Type filter
+      if (type && itemType !== type) return false;
 
       // Category filter
       var itemCat = kioskItemCategory(p);
@@ -826,8 +819,8 @@
       var cartEntry = _kioskCart[p.item_id];
       var inCart = cartEntry ? cartEntry.qty : 0;
       var stock = parseFloat(p.stock_on_hand) || 0;
-      var ptype = (p.product_type || '').toLowerCase();
-      var isService = ptype === 'service';
+      var itemType = kioskGetItemType(p);
+      var isService = itemType === 'service';
       var outOfStock = !isService && stock <= 0;
       var lowStock = !outOfStock && !isService && stock <= 5;
 
@@ -858,10 +851,9 @@
       if (inCart > 0) {
         html += '<div class="kiosk-card-in-cart">' + inCart + '</div>';
       }
-      if (kioskIsConsignment(p)) {
+      if (itemType === 'consignment') {
         html += '<div class="kiosk-consignment-badge">Consignment</div>';
-      }
-      if (isService) {
+      } else if (isService) {
         html += '<div class="kiosk-service-badge">Service</div>';
       }
       html += imgHtml;
@@ -902,12 +894,13 @@
 
     filtered.forEach(function (p) {
       var stock = parseFloat(p.stock_on_hand) || 0;
-      var ptype = (p.product_type || '').toLowerCase();
-      var isService = ptype === 'service';
+      var itemType = kioskGetItemType(p);
+      var isService = itemType === 'service';
       var outOfStock = !isService && stock <= 0;
       var rowClass = outOfStock ? ' kiosk-list-row--oos' : '';
       var displayRate = parseFloat(p.rate) || 0;
       var cat = kioskItemCategory(p);
+      var typeLabel = itemType.charAt(0).toUpperCase() + itemType.slice(1);
 
       html += '<tr class="kiosk-list-row' + rowClass + '" data-item-id="' + escapeHTML(p.item_id) + '">';
       html += '<td><div class="kiosk-list-name">' + escapeHTML(p.name || '') + '</div>';
@@ -916,13 +909,7 @@
 
       // Type badge
       html += '<td>';
-      if (isService) {
-        html += '<span class="kiosk-service-badge">Service</span>';
-      } else if (kioskIsConsignment(p)) {
-        html += '<span class="kiosk-consignment-badge">Consignment</span>';
-      } else if (ptype) {
-        html += '<span class="kiosk-type-badge">' + escapeHTML(ptype.charAt(0).toUpperCase() + ptype.slice(1)) + '</span>';
-      }
+      html += '<span class="kiosk-type-badge kiosk-type-badge--' + escapeHTML(itemType) + '">' + escapeHTML(typeLabel) + '</span>';
       html += '</td>';
 
       html += '<td>' + escapeHTML(cat) + '</td>';
@@ -931,7 +918,7 @@
       // Stock
       html += '<td>';
       if (isService) {
-        html += '<span class="kiosk-list-service-stock">Service</span>';
+        html += '<span class="kiosk-stock--service">Service</span>';
       } else if (outOfStock) {
         html += '<span class="kiosk-product-stock--out">Out of stock</span>';
       } else if (stock <= 5) {
