@@ -472,6 +472,7 @@
 
   var _kioskProducts = [];
   var _kioskCart = {};
+  var _kioskMakersFeeWaived = false;
   var _kioskProductsLoaded = false;
   var _kioskProductsLoading = false;
   var _kioskCurrentView = 'browse';
@@ -585,6 +586,7 @@
   }
 
   function kioskSyncMakersFee() {
+    if (_kioskMakersFeeWaived) return;
     var feeItem = kioskFindMakersFee();
     if (!feeItem) return;
     var totalKits = kioskCountKitsInCart();
@@ -592,6 +594,7 @@
       _kioskCart[feeItem.item_id] = { item: feeItem, qty: totalKits };
     } else {
       delete _kioskCart[feeItem.item_id];
+      _kioskMakersFeeWaived = false;
     }
   }
 
@@ -1200,14 +1203,20 @@
   }
 
   function kioskRemoveFromCart(itemId) {
+    var wasFee = _kioskCart[itemId] && kioskIsMakersFee(_kioskCart[itemId].item);
     var wasKit = _kioskCart[itemId] && kioskGetItemType(_kioskCart[itemId].item) === 'kit';
     delete _kioskCart[itemId];
-    if (wasKit) kioskSyncMakersFee();
+    if (wasFee) {
+      _kioskMakersFeeWaived = true;
+    } else if (wasKit) {
+      kioskSyncMakersFee();
+    }
     kioskRenderCart();
     kioskRenderProducts();
   }
 
   function kioskClearCart() {
+    _kioskMakersFeeWaived = false;
     _kioskCart = {};
     kioskRenderCart();
     kioskRenderProducts();
@@ -1257,9 +1266,7 @@
         html += '</div>';
       }
       html += '<div class="kiosk-cart-line-total">' + kioskFmt(lineTotal) + '</div>';
-      if (!isFee) {
-        html += '<button class="kiosk-cart-remove-btn" data-id="' + id + '">&times;</button>';
-      }
+      html += '<button class="kiosk-cart-remove-btn" data-id="' + id + '">&times;</button>';
       html += '</div>';
     });
 
