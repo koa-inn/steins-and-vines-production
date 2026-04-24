@@ -20,6 +20,7 @@ var router = express.Router();
 
 function isConsignmentItem(catalogItem) {
   if (!catalogItem) return false;
+  if ((catalogItem.cf_type || '').toLowerCase() === 'consignment') return true;
   var fields = catalogItem.custom_fields || [];
   for (var i = 0; i < fields.length; i++) {
     if (fields[i].label === 'Type' && (fields[i].value || '').toLowerCase() === 'consignment') return true;

@@ -528,6 +528,7 @@
 
   // Returns category label for a product, falling back to product_type
   function kioskIsConsignment(p) {
+    if ((p.cf_type || '').toLowerCase() === 'consignment') return true;
     var fields = p.custom_fields || [];
     for (var i = 0; i < fields.length; i++) {
       if (fields[i].label === 'Type' && (fields[i].value || '').toLowerCase() === 'consignment') return true;
@@ -745,14 +746,21 @@
       if (kioskIsMakersFee(p)) return false;
 
       var ptype = (p.product_type || '').toLowerCase();
+      var cfType = (p.cf_type || '').toLowerCase();
       var isService = ptype === 'service';
+      var isConsignment = kioskIsConsignment(p);
       var stock = parseFloat(p.stock_on_hand) || 0;
 
-      // Type filter
+      // Type filter — use cf_type (Zoho custom field) for kit/ingredient/consignment,
+      // product_type for service
       if (type === 'consignment') {
-        if (!kioskIsConsignment(p)) return false;
-      } else if (type) {
-        if (ptype !== type) return false;
+        if (!isConsignment) return false;
+      } else if (type === 'service') {
+        if (!isService) return false;
+      } else if (type === 'kit') {
+        if (ptype !== 'kit') return false;
+      } else if (type === 'ingredient') {
+        if (isService || ptype === 'kit' || isConsignment) return false;
       }
 
       // Category filter
