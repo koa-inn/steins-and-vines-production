@@ -713,7 +713,7 @@ router.get('/api/kiosk/products', function (req, res) {
           // are all included in the Zoho items list response, so no per-item detail
           // calls are needed (which caused rate limiting with large catalogs).
           var sellable = allItems.filter(function (item) {
-            return item.product_type !== 'service' && item.rate > 0;
+            return item.rate > 0;
           }).map(function (item) {
             return {
               item_id:       item.item_id,

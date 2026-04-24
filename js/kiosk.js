@@ -494,6 +494,20 @@
   var _kioskSoPayingId = null;  // tracks SO being paid (for retry)
 
   var MAKERS_FEE = 50; // Added to kit rates for in-store pricing
+  var MAKERS_FEE_SKU = 'MAKERS-FEE';
+
+  // ===== Filter State =====
+
+  var _kioskFilters = {
+    search: '',
+    category: '',
+    type: '',
+    stockStatus: '',
+    hideOos: false,
+    sort: 'name-asc'
+  };
+
+  var _kioskViewMode = localStorage.getItem('sv-kiosk-view-mode') || 'grid';
 
   // ===== Kiosk Helpers =====
 
@@ -527,7 +541,7 @@
   }
 
   function kioskItemTax(item, qty) {
-    var rate = kioskEffectiveRate(item);
+    var rate = parseFloat(item.rate) || 0;
     var pct = parseFloat(item.tax_percentage) || 0;
     return parseFloat((rate * qty * pct / 100).toFixed(2));
   }
@@ -542,6 +556,40 @@
     });
   }
 
+  function kioskFindMakersFee() {
+    for (var i = 0; i < _kioskProducts.length; i++) {
+      if ((_kioskProducts[i].sku || '').toUpperCase() === MAKERS_FEE_SKU) return _kioskProducts[i];
+    }
+    return null;
+  }
+
+  function kioskCountKitsInCart() {
+    var count = 0;
+    var keys = Object.keys(_kioskCart);
+    for (var i = 0; i < keys.length; i++) {
+      var entry = _kioskCart[keys[i]];
+      if (entry.item && (entry.item.product_type || '').toLowerCase() === 'kit') {
+        count += entry.qty;
+      }
+    }
+    return count;
+  }
+
+  function kioskSyncMakersFee() {
+    var feeItem = kioskFindMakersFee();
+    if (!feeItem) return;
+    var totalKits = kioskCountKitsInCart();
+    if (totalKits > 0) {
+      _kioskCart[feeItem.item_id] = { item: feeItem, qty: totalKits };
+    } else {
+      delete _kioskCart[feeItem.item_id];
+    }
+  }
+
+  function kioskIsMakersFee(item) {
+    return (item.sku || '').toUpperCase() === MAKERS_FEE_SKU;
+  }
+
   // ===== Cart Totals =====
 
   function kioskCalcTotals() {
@@ -550,7 +598,7 @@
     Object.keys(_kioskCart).forEach(function (id) {
       var entry = _kioskCart[id];
       var qty = entry.qty;
-      var rate = kioskEffectiveRate(entry.item);
+      var rate = parseFloat(entry.item.rate) || 0;
       subtotal += rate * qty;
       taxTotal += kioskItemTax(entry.item, qty);
     });
@@ -651,12 +699,20 @@
     var sel = document.getElementById('kiosk-category-filter');
     if (!sel) return;
 
+    var typeFilter = _kioskFilters.type;
     var cats = {};
     _kioskProducts.forEach(function (p) {
+      // Filter categories based on selected type
+      if (typeFilter === 'consignment') {
+        if (!kioskIsConsignment(p)) return;
+      } else if (typeFilter) {
+        if ((p.product_type || '').toLowerCase() !== typeFilter) return;
+      }
       var cat = kioskItemCategory(p);
       if (cat) cats[cat] = true;
     });
 
+    var prev = sel.value;
     while (sel.options.length > 1) sel.remove(1);
 
     Object.keys(cats).sort().forEach(function (cat) {
@@ -665,6 +721,73 @@
       opt.textContent = cat;
       sel.appendChild(opt);
     });
+
+    // Restore previous selection if still valid
+    if (cats[prev]) {
+      sel.value = prev;
+    } else {
+      sel.value = '';
+      _kioskFilters.category = '';
+    }
+  }
+
+  // ===== Filter + Sort Products =====
+
+  function kioskGetFilteredProducts() {
+    var search = (_kioskFilters.search || '').toLowerCase().trim();
+    var cat = _kioskFilters.category;
+    var type = _kioskFilters.type;
+    var stockStatus = _kioskFilters.stockStatus;
+    var hideOos = _kioskFilters.hideOos;
+
+    var filtered = _kioskProducts.filter(function (p) {
+      // Hide maker's fee from product grid
+      if (kioskIsMakersFee(p)) return false;
+
+      var ptype = (p.product_type || '').toLowerCase();
+      var isService = ptype === 'service';
+      var stock = parseFloat(p.stock_on_hand) || 0;
+
+      // Type filter
+      if (type === 'consignment') {
+        if (!kioskIsConsignment(p)) return false;
+      } else if (type) {
+        if (ptype !== type) return false;
+      }
+
+      // Category filter
+      var itemCat = kioskItemCategory(p);
+      if (cat && itemCat.toLowerCase() !== cat.toLowerCase()) return false;
+
+      // Stock status filter
+      if (stockStatus === 'in-stock' && stock <= 0 && !isService) return false;
+      if (stockStatus === 'low-stock' && (stock <= 0 || stock > 5)) return false;
+      if (stockStatus === 'out-of-stock' && stock > 0) return false;
+
+      // Hide OOS (skip services)
+      if (hideOos && stock <= 0 && !isService) return false;
+
+      // Text search
+      if (search) {
+        var haystack = ((p.name || '') + ' ' + (p.sku || '') + ' ' + itemCat + ' ' + ptype).toLowerCase();
+        if (haystack.indexOf(search) === -1) return false;
+      }
+      return true;
+    });
+
+    // Sort
+    var sort = _kioskFilters.sort || 'name-asc';
+    filtered.sort(function (a, b) {
+      switch (sort) {
+        case 'name-asc': return (a.name || '').localeCompare(b.name || '');
+        case 'name-desc': return (b.name || '').localeCompare(a.name || '');
+        case 'price-asc': return (parseFloat(a.rate) || 0) - (parseFloat(b.rate) || 0);
+        case 'price-desc': return (parseFloat(b.rate) || 0) - (parseFloat(a.rate) || 0);
+        case 'stock-asc': return (parseFloat(a.stock_on_hand) || 0) - (parseFloat(b.stock_on_hand) || 0);
+        default: return 0;
+      }
+    });
+    return filtered;
   }
 
   // ===== Render Product Grid =====
@@ -672,51 +795,56 @@
   function kioskRenderProducts() {
     var grid = document.getElementById('kiosk-product-grid');
     if (!grid) return;
+    var filtered = kioskGetFilteredProducts();
 
-    var searchTerm = (document.getElementById('kiosk-search') || {}).value || '';
-    searchTerm = searchTerm.toLowerCase().trim();
-
-    var catFilter = (document.getElementById('kiosk-category-filter') || {}).value || '';
-
-    var filtered = _kioskProducts.filter(function (p) {
-      if (_kioskHideOutOfStock && (parseFloat(p.stock_on_hand) || 0) <= 0) return false;
-      var cat = kioskItemCategory(p);
-      if (catFilter && cat.toLowerCase() !== catFilter.toLowerCase()) return false;
-      if (searchTerm) {
-        var haystack = ((p.name || '') + ' ' + (p.sku || '') + ' ' + cat).toLowerCase();
-        if (haystack.indexOf(searchTerm) === -1) return false;
-      }
-      return true;
-    });
+    // Update result count
+    var countEl = document.getElementById('kiosk-result-count');
+    if (countEl) countEl.textContent = 'Showing ' + filtered.length + ' of ' + _kioskProducts.length + ' products';
 
     if (filtered.length === 0) {
-      grid.innerHTML = '<p class="kiosk-loading">No products match your search.</p>';
+      grid.innerHTML = '<p class="kiosk-loading">No products match your filters.</p>';
       return;
     }
+    if (_kioskViewMode === 'list') {
+      kioskRenderProductList(grid, filtered);
+    } else {
+      kioskRenderProductGrid(grid, filtered);
+    }
+  }
 
+  function kioskRenderProductGrid(grid, filtered) {
     var html = '';
     filtered.forEach(function (p) {
       var cartEntry = _kioskCart[p.item_id];
       var inCart = cartEntry ? cartEntry.qty : 0;
       var stock = parseFloat(p.stock_on_hand) || 0;
-      var outOfStock = stock <= 0;
-      var lowStock = !outOfStock && stock <= 5;
+      var ptype = (p.product_type || '').toLowerCase();
+      var isService = ptype === 'service';
+      var outOfStock = !isService && stock <= 0;
+      var lowStock = !outOfStock && !isService && stock <= 5;
 
       var cardClass = 'kiosk-product-card' + (outOfStock ? ' kiosk-product-card--out-of-stock' : '');
 
+      var placeholderEmoji = isService ? '&#9881;' : '&#127817;';
       var imgHtml;
       if (p.image_name && p.sku) {
         imgHtml = '<img class="kiosk-product-img" src="images/products/' +
           encodeURIComponent(p.sku) + '.png" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';">' +
-          '<div class="kiosk-product-img-placeholder" style="display:none;">&#127817;</div>';
+          '<div class="kiosk-product-img-placeholder" style="display:none;">' + placeholderEmoji + '</div>';
       } else {
-        imgHtml = '<div class="kiosk-product-img-placeholder">&#127817;</div>';
+        imgHtml = '<div class="kiosk-product-img-placeholder">' + placeholderEmoji + '</div>';
       }
 
-      var stockLabel = outOfStock ? 'Out of stock' :
-        (lowStock ? 'Low stock (' + Math.round(stock) + ')' : 'In stock');
-      var stockClass = outOfStock ? 'kiosk-product-stock--out' :
-        (lowStock ? 'kiosk-product-stock--low' : '');
+      var stockLabel, stockClass;
+      if (isService) {
+        stockLabel = '';
+        stockClass = '';
+      } else {
+        stockLabel = outOfStock ? 'Out of stock' :
+          (lowStock ? 'Low stock (' + Math.round(stock) + ')' : 'In stock');
+        stockClass = outOfStock ? 'kiosk-product-stock--out' :
+          (lowStock ? 'kiosk-product-stock--low' : '');
+      }
 
       html += '<div class="' + cardClass + '" data-item-id="' + p.item_id + '">';
       if (inCart > 0) {
@@ -725,15 +853,16 @@
       if (kioskIsConsignment(p)) {
         html += '<div class="kiosk-consignment-badge">Consignment</div>';
       }
+      if (isService) {
+        html += '<div class="kiosk-service-badge">Service</div>';
+      }
       html += imgHtml;
-      var effectiveRate = kioskEffectiveRate(p);
-      var isKit = (p.product_type || '').toLowerCase() === 'kit';
+      var displayRate = parseFloat(p.rate) || 0;
       html += '<div class="kiosk-product-body">';
-      html += '<div class="kiosk-product-name">' + (p.name || '') + '</div>';
-      if (p.sku) html += '<div class="kiosk-product-sku">' + p.sku + '</div>';
-      html += '<div class="kiosk-product-price">' + kioskFmt(effectiveRate) + '</div>';
-      if (isKit) html += '<div class="kiosk-product-makers-fee">incl. $' + MAKERS_FEE + ' maker\'s fee</div>';
-      html += '<div class="kiosk-product-stock ' + stockClass + '">' + stockLabel + '</div>';
+      html += '<div class="kiosk-product-name">' + escapeHTML(p.name || '') + '</div>';
+      if (p.sku) html += '<div class="kiosk-product-sku">' + escapeHTML(p.sku) + '</div>';
+      html += '<div class="kiosk-product-price">' + kioskFmt(displayRate) + '</div>';
+      if (stockLabel) html += '<div class="kiosk-product-stock ' + stockClass + '">' + stockLabel + '</div>';
       html += '</div>';
       html += '</div>';
     });
@@ -751,6 +880,85 @@
     });
   }
 
+  function kioskRenderProductList(grid, filtered) {
+    var html = '<table class="kiosk-list-table">';
+    html += '<thead><tr>';
+    html += '<th>Name</th>';
+    html += '<th>Type</th>';
+    html += '<th>Category</th>';
+    html += '<th>Price</th>';
+    html += '<th>Stock</th>';
+    html += '<th></th>';
+    html += '</tr></thead>';
+    html += '<tbody>';
+
+    filtered.forEach(function (p) {
+      var stock = parseFloat(p.stock_on_hand) || 0;
+      var ptype = (p.product_type || '').toLowerCase();
+      var isService = ptype === 'service';
+      var outOfStock = !isService && stock <= 0;
+      var rowClass = outOfStock ? ' kiosk-list-row--oos' : '';
+      var displayRate = parseFloat(p.rate) || 0;
+      var cat = kioskItemCategory(p);
+
+      html += '<tr class="kiosk-list-row' + rowClass + '" data-item-id="' + escapeHTML(p.item_id) + '">';
+      html += '<td><div class="kiosk-list-name">' + escapeHTML(p.name || '') + '</div>';
+      if (p.sku) html += '<div class="kiosk-list-sku">' + escapeHTML(p.sku) + '</div>';
+      html += '</td>';
+
+      // Type badge
+      html += '<td>';
+      if (isService) {
+        html += '<span class="kiosk-service-badge">Service</span>';
+      } else if (kioskIsConsignment(p)) {
+        html += '<span class="kiosk-consignment-badge">Consignment</span>';
+      } else if (ptype) {
+        html += '<span class="kiosk-type-badge">' + escapeHTML(ptype.charAt(0).toUpperCase() + ptype.slice(1)) + '</span>';
+      }
+      html += '</td>';
+
+      html += '<td>' + escapeHTML(cat) + '</td>';
+      html += '<td>' + kioskFmt(displayRate) + '</td>';
+
+      // Stock
+      html += '<td>';
+      if (isService) {
+        html += '<span class="kiosk-list-service-stock">Service</span>';
+      } else if (outOfStock) {
+        html += '<span class="kiosk-product-stock--out">Out of stock</span>';
+      } else if (stock <= 5) {
+        html += '<span class="kiosk-product-stock--low">Low (' + Math.round(stock) + ')</span>';
+      } else {
+        html += Math.round(stock);
+      }
+      html += '</td>';
+
+      // Add button
+      html += '<td>';
+      if (!outOfStock) {
+        html += '<button type="button" class="kiosk-list-add-btn" data-item-id="' + escapeHTML(p.item_id) + '">+</button>';
+      }
+      html += '</td>';
+
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    grid.innerHTML = html;
+
+    Array.prototype.forEach.call(grid.querySelectorAll('.kiosk-list-add-btn'), function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var itemId = btn.getAttribute('data-item-id');
+        var product = null;
+        for (var i = 0; i < _kioskProducts.length; i++) {
+          if (_kioskProducts[i].item_id === itemId) { product = _kioskProducts[i]; break; }
+        }
+        if (product) kioskAddToCart(product);
+      });
+    });
+  }
+
   // ===== Cart Management =====
 
   function kioskAddToCart(product) {
@@ -760,6 +968,12 @@
     } else {
       _kioskCart[id] = { item: product, qty: 1 };
     }
+
+    // If adding a kit, sync maker's fee line
+    if ((product.product_type || '').toLowerCase() === 'kit') {
+      kioskSyncMakersFee();
+    }
+
     kioskRenderCart();
     kioskRenderProducts();
   }
@@ -954,6 +1168,7 @@
   }
 
   function kioskSetQty(itemId, qty) {
+    var wasKit = _kioskCart[itemId] && (_kioskCart[itemId].item.product_type || '').toLowerCase() === 'kit';
     if (qty <= 0) {
       delete _kioskCart[itemId];
     } else {
@@ -961,6 +1176,15 @@
         _kioskCart[itemId].qty = qty;
       }
     }
+    if (wasKit) kioskSyncMakersFee();
+    kioskRenderCart();
+    kioskRenderProducts();
+  }
+
+  function kioskRemoveFromCart(itemId) {
+    var wasKit = _kioskCart[itemId] && (_kioskCart[itemId].item.product_type || '').toLowerCase() === 'kit';
+    delete _kioskCart[itemId];
+    if (wasKit) kioskSyncMakersFee();
     kioskRenderCart();
     kioskRenderProducts();
   }
@@ -993,16 +1217,26 @@
       var entry = _kioskCart[id];
       var item = entry.item;
       var qty = entry.qty;
-      var lineTotal = kioskEffectiveRate(item) * qty;
+      var rate = parseFloat(item.rate) || 0;
+      var lineTotal = rate * qty;
+      var isFee = kioskIsMakersFee(item);
 
       html += '<div class="kiosk-cart-line">';
-      html += '<div class="kiosk-cart-line-name" title="' + (item.name || '') + '">' + (item.name || '') + '</div>';
-      html += '<div class="kiosk-cart-qty">';
-      html += '<button class="kiosk-qty-btn" data-action="dec" data-id="' + id + '">-</button>';
-      html += '<span class="kiosk-qty-val">' + qty + '</span>';
-      html += '<button class="kiosk-qty-btn" data-action="inc" data-id="' + id + '">+</button>';
-      html += '</div>';
+      html += '<div class="kiosk-cart-line-name" title="' + escapeHTML(item.name || '') + '">' + escapeHTML(item.name || '') + '</div>';
+      if (isFee) {
+        // Maker's fee qty is auto-managed; show read-only
+        html += '<div class="kiosk-cart-qty"><span class="kiosk-qty-val">' + qty + '</span></div>';
+      } else {
+        html += '<div class="kiosk-cart-qty">';
+        html += '<button class="kiosk-qty-btn" data-action="dec" data-id="' + id + '">-</button>';
+        html += '<span class="kiosk-qty-val">' + qty + '</span>';
+        html += '<button class="kiosk-qty-btn" data-action="inc" data-id="' + id + '">+</button>';
+        html += '</div>';
+      }
       html += '<div class="kiosk-cart-line-total">' + kioskFmt(lineTotal) + '</div>';
+      if (!isFee) {
+        html += '<button class="kiosk-cart-remove-btn" data-id="' + id + '">&times;</button>';
+      }
       html += '</div>';
     });
 
@@ -1015,6 +1249,13 @@
         if (!_kioskCart[id]) return;
         var newQty = _kioskCart[id].qty + (action === 'inc' ? 1 : -1);
         kioskSetQty(id, newQty);
+      });
+    });
+
+    container.querySelectorAll('.kiosk-cart-remove-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-id');
+        kioskRemoveFromCart(id);
       });
     });
 
@@ -1230,7 +1471,7 @@
         item_id: entry.item.item_id,
         name: entry.item.name || '',
         quantity: entry.qty,
-        rate: kioskEffectiveRate(entry.item),
+        rate: parseFloat(entry.item.rate) || 0,
         product_type: entry.item.product_type || ''
       };
     });
@@ -1872,7 +2113,7 @@
         var html = '';
         matches.forEach(function (p) {
           html += '<div class="kiosk-dropdown-item" data-item-id="' + escapeHTML(p.item_id) + '">';
-          html += escapeHTML(p.name || '') + ' <span style="color:var(--ink-tertiary);">' + kioskFmt(kioskEffectiveRate(p)) + '</span>';
+          html += escapeHTML(p.name || '') + ' <span style="color:var(--ink-tertiary);">' + kioskFmt(parseFloat(p.rate) || 0) + '</span>';
           html += '</div>';
         });
         itemDropdown.innerHTML = html;
@@ -1937,7 +2178,7 @@
       _kioskSoItems.push({
         item_id: product.item_id,
         name: product.name || '',
-        rate: kioskEffectiveRate(product),
+        rate: parseFloat(product.rate) || 0,
         quantity: 1
       });
     }
@@ -2092,17 +2333,51 @@
   // ===== Init Kiosk Tab =====
 
   function initKioskSaleTab() {
+    // Search input
     var searchInput = document.getElementById('kiosk-search');
     if (searchInput) {
       searchInput.addEventListener('input', function () {
         clearTimeout(_kioskSearchTimer);
+        _kioskFilters.search = searchInput.value;
         _kioskSearchTimer = setTimeout(kioskRenderProducts, 200);
       });
     }
 
+    // Category filter
     var catFilter = document.getElementById('kiosk-category-filter');
     if (catFilter) {
-      catFilter.addEventListener('change', kioskRenderProducts);
+      catFilter.addEventListener('change', function () {
+        _kioskFilters.category = catFilter.value;
+        kioskRenderProducts();
+      });
+    }
+
+    // Type filter
+    var typeFilter = document.getElementById('kiosk-type-filter');
+    if (typeFilter) {
+      typeFilter.addEventListener('change', function () {
+        _kioskFilters.type = typeFilter.value;
+        kioskPopulateCategories();
+        kioskRenderProducts();
+      });
+    }
+
+    // Stock status filter
+    var stockFilter = document.getElementById('kiosk-stock-filter');
+    if (stockFilter) {
+      stockFilter.addEventListener('change', function () {
+        _kioskFilters.stockStatus = stockFilter.value;
+        kioskRenderProducts();
+      });
+    }
+
+    // Sort select
+    var sortSelect = document.getElementById('kiosk-sort');
+    if (sortSelect) {
+      sortSelect.addEventListener('change', function () {
+        _kioskFilters.sort = sortSelect.value;
+        kioskRenderProducts();
+      });
     }
 
     var refreshBtn = document.getElementById('kiosk-products-refresh');
@@ -2121,13 +2396,30 @@
       });
     }
 
+    // Hide out-of-stock toggle
     var oosToggle = document.getElementById('kiosk-hide-oos');
     if (oosToggle) {
       oosToggle.addEventListener('change', function () {
         _kioskHideOutOfStock = oosToggle.checked;
+        _kioskFilters.hideOos = oosToggle.checked;
         kioskRenderProducts();
       });
     }
+
+    // View mode toggle
+    var viewBtns = document.querySelectorAll('.kiosk-view-btn');
+    viewBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var view = btn.getAttribute('data-view');
+        if (view === _kioskViewMode) return;
+        _kioskViewMode = view;
+        localStorage.setItem('sv-kiosk-view-mode', view);
+        viewBtns.forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-view') === view); });
+        kioskRenderProducts();
+      });
+    });
+    // Set initial active state for view toggle
+    viewBtns.forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-view') === _kioskViewMode); });
 
     var checkoutBtn = document.getElementById('kiosk-checkout-btn');
     if (checkoutBtn) {

@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="favicon.ico">
-  <link rel="stylesheet" href="css/kiosk.min.css?v=moavti8b">
+  <link rel="stylesheet" href="css/kiosk.min.css?v=mobiu8jq">
   <script src="js/lib/constants.js"></script>
   <script src="js/lib/utils.js"></script>
   <script src="js/lib/auth.js"></script>
@@ -19,7 +19,7 @@
   <script src="js/admin-config.js"></script>
   <script src="js/vendor/qrcode.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="js/kiosk.min.js?v=moavti8b"></script>
+  <script src="js/kiosk.min.js?v=mobiu8jq"></script>
 </head>
 <body>
 
@@ -61,13 +61,39 @@
         <!-- Left: Product browser -->
         <div class="kiosk-product-pane">
           <div class="kiosk-search-bar">
-            <input type="text" id="kiosk-search" class="kiosk-search-input" placeholder="Search products..." autocomplete="off" inputmode="search" />
-            <select id="kiosk-category-filter" class="kiosk-category-select">
-              <option value="">All Categories</option>
-            </select>
-            <label class="kiosk-oos-toggle"><input type="checkbox" id="kiosk-hide-oos"> Hide OOS</label>
+            <input type="text" id="kiosk-search" class="kiosk-search-input" placeholder="Search products..." autocomplete="off" inputmode="search">
+            <div class="kiosk-view-toggle">
+              <button type="button" class="kiosk-view-btn active" data-view="grid" id="kiosk-view-grid-btn" title="Grid view">&#9638;</button>
+              <button type="button" class="kiosk-view-btn" data-view="list" id="kiosk-view-list-btn" title="List view">&#9776;</button>
+            </div>
             <button type="button" class="btn-secondary kiosk-refresh-btn" id="kiosk-products-refresh" title="Refresh products">&#8635;</button>
           </div>
+          <div class="kiosk-filter-bar">
+            <select id="kiosk-type-filter" class="kiosk-filter-select">
+              <option value="">All Types</option>
+              <option value="kit">Kits</option>
+              <option value="ingredient">Ingredients</option>
+              <option value="service">Services</option>
+              <option value="consignment">Consignment</option>
+            </select>
+            <select id="kiosk-category-filter" class="kiosk-filter-select">
+              <option value="">All Categories</option>
+            </select>
+            <select id="kiosk-stock-filter" class="kiosk-filter-select">
+              <option value="">Any Stock</option>
+              <option value="in-stock">In Stock</option>
+              <option value="low-stock">Low Stock</option>
+              <option value="out-of-stock">Out of Stock</option>
+            </select>
+            <select id="kiosk-sort" class="kiosk-filter-select">
+              <option value="name-asc">Name A-Z</option>
+              <option value="name-desc">Name Z-A</option>
+              <option value="price-asc">Price: Low-High</option>
+              <option value="price-desc">Price: High-Low</option>
+            </select>
+            <label class="kiosk-oos-toggle"><input type="checkbox" id="kiosk-hide-oos"> Hide OOS</label>
+          </div>
+          <div class="kiosk-result-count" id="kiosk-result-count"></div>
           <div id="kiosk-product-grid" class="kiosk-product-grid">
             <p class="kiosk-loading">Loading products...</p>
           </div>
