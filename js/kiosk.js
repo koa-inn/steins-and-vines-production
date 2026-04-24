@@ -771,7 +771,7 @@
 
       // Text search
       if (search) {
-        var haystack = ((p.name || '') + ' ' + (p.sku || '') + ' ' + itemCat + ' ' + ptype).toLowerCase();
+        var haystack = ((p.name || '') + ' ' + (p.sku || '') + ' ' + itemCat + ' ' + itemType).toLowerCase();
         if (haystack.indexOf(search) === -1) return false;
       }
       return true;
