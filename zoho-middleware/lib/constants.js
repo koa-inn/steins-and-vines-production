@@ -50,6 +50,9 @@ var CACHE_KEYS = {
 
   // Consignment
   CONSIGNMENT_REPORT_PREFIX: 'consignment:report:',  // append YYYY-MM
+
+  // Kiosk discount presets
+  KIOSK_DISCOUNT_PRESETS: 'kiosk:discount-presets',
 };
 
 // ---------------------------------------------------------------------------

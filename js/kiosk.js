@@ -482,6 +482,12 @@
   var _kioskCustomer = null; // { contact_id, name, email } or null (walk-in)
   var _kioskHideOutOfStock = false;
 
+  var _kioskDiscount = null;
+  // null = no discount
+  // { presetId: 'id', name: 'Staff 10%', type: 'percentage'|'fixed', value: 10, scope: 'cart'|'item', targetItemId: '' }
+
+  var _kioskDiscountPresets = [];
+
   // Customer browse mode state
   var _kioskCbTab = 'kits';
   var _kioskCbSearch = '';
@@ -615,11 +621,23 @@
       subtotal += rate * qty;
     });
     subtotal = parseFloat(subtotal.toFixed(2));
-    var taxTotal = parseFloat((subtotal * KIOSK_TAX_RATE).toFixed(2));
+
+    var discountAmount = 0;
+    if (_kioskDiscount) {
+      if (_kioskDiscount.type === 'percentage') {
+        discountAmount = parseFloat((subtotal * _kioskDiscount.value / 100).toFixed(2));
+      } else {
+        discountAmount = Math.min(parseFloat(_kioskDiscount.value) || 0, subtotal);
+      }
+    }
+
+    var taxableAmount = subtotal - discountAmount;
+    var taxTotal = parseFloat((taxableAmount * KIOSK_TAX_RATE).toFixed(2));
     return {
       subtotal: subtotal,
+      discount: discountAmount,
       tax: taxTotal,
-      total: parseFloat((subtotal + taxTotal).toFixed(2))
+      total: parseFloat((taxableAmount + taxTotal).toFixed(2))
     };
   }
 
@@ -1220,6 +1238,8 @@
   function kioskClearCart() {
     _kioskMakersFeeWaived = false;
     _kioskCart = {};
+    _kioskDiscount = null;
+    kioskUpdateDiscountDisplay();
     kioskRenderCart();
     kioskRenderProducts();
   }
@@ -1233,11 +1253,15 @@
 
     var keys = Object.keys(_kioskCart);
 
+    var discountBtn = document.getElementById('kiosk-discount-btn');
+
     if (keys.length === 0) {
       container.innerHTML = '<p class="kiosk-cart-empty">No items in cart</p>';
       if (totalsEl) totalsEl.style.display = 'none';
       if (checkoutBtn) checkoutBtn.disabled = true;
       if (checkoutTotal) checkoutTotal.textContent = '$0.00';
+      if (discountBtn) discountBtn.disabled = true;
+      kioskUpdateDiscountDisplay();
       return;
     }
 
@@ -1305,6 +1329,7 @@
         if (taxEl) taxEl.textContent = kioskFmt(totals.tax);
         if (totalEl2) totalEl2.textContent = kioskFmt(totals.total);
         if (checkoutTotal) checkoutTotal.textContent = kioskFmt(totals.total);
+        kioskUpdateDiscountDisplay();
       });
       input.addEventListener('change', function () {
         var id = input.getAttribute('data-id');
@@ -1334,6 +1359,8 @@
     if (totalsEl) totalsEl.style.display = '';
     if (checkoutBtn) checkoutBtn.disabled = false;
     if (checkoutTotal) checkoutTotal.textContent = kioskFmt(totals.total);
+    if (discountBtn) discountBtn.disabled = kioskCartIsEmpty();
+    kioskUpdateDiscountDisplay();
   }
 
   // ===== Checkout Flow =====
@@ -1566,6 +1593,9 @@
         itemHtml += '<span>' + kioskFmt((it.rate || 0) * (it.quantity || 1)) + '</span>';
         itemHtml += '</div>';
       });
+      if (totals.discount > 0) {
+        itemHtml += '<div class="kiosk-payment-item-row"><span>Discount: ' + escapeHTML(_kioskDiscount ? _kioskDiscount.name : '') + '</span><span>-' + kioskFmt(totals.discount) + '</span></div>';
+      }
       if (totals.tax > 0) {
         itemHtml += '<div class="kiosk-payment-item-row"><span>Tax</span><span>' + kioskFmt(totals.tax) + '</span></div>';
       }
@@ -1610,7 +1640,8 @@
           body: JSON.stringify({
             items: items,
             reference_number: refNumber,
-            contact_id: _kioskCustomer ? _kioskCustomer.contact_id : ''
+            contact_id: _kioskCustomer ? _kioskCustomer.contact_id : '',
+            discount: _kioskDiscount ? { preset_id: _kioskDiscount.presetId, name: _kioskDiscount.name, type: _kioskDiscount.type, value: _kioskDiscount.value, scope: _kioskDiscount.scope } : undefined
           })
         })
         .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -2397,6 +2428,243 @@
     });
   }
 
+  // ===== Discount System =====
+
+  function kioskLoadDiscountPresets() {
+    var mwUrl = kioskMwUrl();
+    if (!mwUrl) return;
+    fetch(mwUrl + '/api/kiosk/discounts')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _kioskDiscountPresets = (data.discounts || []).filter(function (d) { return d.active; });
+      })
+      .catch(function () {});
+  }
+
+  function kioskShowDiscountPopover() {
+    var popover = document.getElementById('kiosk-discount-popover');
+    var list = document.getElementById('kiosk-discount-preset-list');
+    if (!popover || !list) return;
+
+    var html = '';
+    _kioskDiscountPresets.forEach(function (p) {
+      var detail = p.type === 'percentage' ? (p.value + '% off') : ('$' + parseFloat(p.value).toFixed(2) + ' off');
+      detail += p.scope === 'item' ? ' (per item)' : ' (cart)';
+      html += '<div class="kiosk-discount-preset-row" data-preset-id="' + escapeHTML(p.id) + '">';
+      html += '<span class="kiosk-discount-preset-name">' + escapeHTML(p.name) + '</span>';
+      html += '<span class="kiosk-discount-preset-detail">' + detail + '</span>';
+      html += '</div>';
+    });
+    if (!_kioskDiscountPresets.length) {
+      html = '<div style="padding:1rem;color:var(--ink-tertiary);text-align:center;">No presets configured</div>';
+    }
+    list.innerHTML = html;
+
+    list.querySelectorAll('.kiosk-discount-preset-row').forEach(function (row) {
+      row.addEventListener('click', function () {
+        var id = row.getAttribute('data-preset-id');
+        var preset = null;
+        for (var i = 0; i < _kioskDiscountPresets.length; i++) {
+          if (_kioskDiscountPresets[i].id === id) { preset = _kioskDiscountPresets[i]; break; }
+        }
+        if (preset) kioskApplyDiscount(preset);
+      });
+    });
+
+    popover.style.display = '';
+  }
+
+  function kioskApplyDiscount(preset) {
+    _kioskDiscount = {
+      presetId: preset.id,
+      name: preset.name,
+      type: preset.type,
+      value: preset.value,
+      scope: preset.scope,
+      targetItemId: null
+    };
+
+    document.getElementById('kiosk-discount-popover').style.display = 'none';
+    kioskUpdateDiscountDisplay();
+    kioskRenderCart();
+  }
+
+  function kioskRemoveDiscount() {
+    _kioskDiscount = null;
+    kioskUpdateDiscountDisplay();
+    kioskRenderCart();
+  }
+
+  function kioskUpdateDiscountDisplay() {
+    var btn = document.getElementById('kiosk-discount-btn');
+    var applied = document.getElementById('kiosk-discount-applied');
+    var nameEl = document.getElementById('kiosk-discount-applied-name');
+    var amountEl = document.getElementById('kiosk-discount-applied-amount');
+    var discountRow = document.getElementById('kiosk-discount-total-row');
+    var discountLabel = document.getElementById('kiosk-discount-total-label');
+    var discountAmount = document.getElementById('kiosk-discount-total-amount');
+
+    if (_kioskDiscount) {
+      if (btn) btn.style.display = 'none';
+      if (applied) applied.style.display = '';
+      if (nameEl) nameEl.textContent = _kioskDiscount.name;
+
+      var savings = kioskCalcDiscountAmount();
+      if (amountEl) amountEl.textContent = '-' + kioskFmt(savings);
+      if (discountRow) discountRow.style.display = '';
+      if (discountLabel) discountLabel.textContent = 'Discount: ' + _kioskDiscount.name;
+      if (discountAmount) discountAmount.textContent = '-' + kioskFmt(savings);
+    } else {
+      if (btn) { btn.style.display = ''; btn.disabled = kioskCartIsEmpty(); }
+      if (applied) applied.style.display = 'none';
+      if (discountRow) discountRow.style.display = 'none';
+    }
+  }
+
+  function kioskCalcDiscountAmount() {
+    if (!_kioskDiscount) return 0;
+    var totals = kioskCalcTotals();
+    var subtotal = totals.subtotal;
+
+    if (_kioskDiscount.type === 'percentage') {
+      return parseFloat((subtotal * _kioskDiscount.value / 100).toFixed(2));
+    } else {
+      return Math.min(_kioskDiscount.value, subtotal);
+    }
+  }
+
+  function kioskShowDiscountMgmt() {
+    var modal = document.getElementById('kiosk-discount-mgmt-modal');
+    if (!modal) return;
+    modal.style.display = '';
+    kioskRenderDiscountMgmtList();
+
+    var closeBtn = document.getElementById('kiosk-discount-mgmt-close');
+    if (closeBtn) closeBtn.onclick = function () { modal.style.display = 'none'; };
+
+    var addBtn = document.getElementById('kiosk-discount-add-btn');
+    var form = document.getElementById('kiosk-discount-form');
+    if (addBtn && form) {
+      addBtn.onclick = function () {
+        form.style.display = '';
+        addBtn.style.display = 'none';
+        document.getElementById('kiosk-discount-form-name').value = '';
+        document.getElementById('kiosk-discount-form-value').value = '';
+      };
+    }
+
+    var typeBtns = modal.querySelectorAll('.kiosk-discount-type-btn');
+    typeBtns.forEach(function (btn) {
+      btn.onclick = function () {
+        typeBtns.forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+      };
+    });
+
+    var scopeBtns = modal.querySelectorAll('.kiosk-discount-scope-btn');
+    scopeBtns.forEach(function (btn) {
+      btn.onclick = function () {
+        scopeBtns.forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+      };
+    });
+
+    var saveBtn = document.getElementById('kiosk-discount-save-btn');
+    if (saveBtn) {
+      saveBtn.onclick = function () {
+        var name = (document.getElementById('kiosk-discount-form-name').value || '').trim();
+        var value = parseFloat(document.getElementById('kiosk-discount-form-value').value);
+        var typeBtn = modal.querySelector('.kiosk-discount-type-btn.active');
+        var scopeBtn = modal.querySelector('.kiosk-discount-scope-btn.active');
+        var type = typeBtn ? typeBtn.getAttribute('data-type') : 'percentage';
+        var scope = scopeBtn ? scopeBtn.getAttribute('data-scope') : 'cart';
+
+        if (!name) { showToast('Enter a discount name', 'error'); return; }
+        if (!isFinite(value) || value <= 0) { showToast('Enter a valid value', 'error'); return; }
+        if (type === 'percentage' && value > 100) { showToast('Percentage cannot exceed 100%', 'error'); return; }
+
+        var mwUrl = kioskMwUrl();
+        fetch(mwUrl + '/api/kiosk/discounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+          body: JSON.stringify({ name: name, type: type, value: value, scope: scope })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.ok) {
+            showToast('Preset saved', 'success');
+            kioskLoadDiscountPresets();
+            form.style.display = 'none';
+            document.getElementById('kiosk-discount-add-btn').style.display = '';
+            kioskRenderDiscountMgmtList();
+            setTimeout(function () { kioskRenderDiscountMgmtList(); }, 500);
+          } else {
+            showToast(data.error || 'Failed to save', 'error');
+          }
+        })
+        .catch(function () { showToast('Network error', 'error'); });
+      };
+    }
+
+    var cancelFormBtn = document.getElementById('kiosk-discount-cancel-btn');
+    if (cancelFormBtn) {
+      cancelFormBtn.onclick = function () {
+        form.style.display = 'none';
+        document.getElementById('kiosk-discount-add-btn').style.display = '';
+      };
+    }
+  }
+
+  function kioskRenderDiscountMgmtList() {
+    var list = document.getElementById('kiosk-discount-mgmt-list');
+    if (!list) return;
+
+    var mwUrl = kioskMwUrl();
+    fetch(mwUrl + '/api/kiosk/discounts')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var presets = data.discounts || [];
+        _kioskDiscountPresets = presets.filter(function (d) { return d.active; });
+
+        if (!presets.length) {
+          list.innerHTML = '<p style="padding:0.75rem 0;color:var(--ink-tertiary);text-align:center;">No presets yet</p>';
+          return;
+        }
+
+        var html = '';
+        presets.forEach(function (p) {
+          var detail = p.type === 'percentage' ? (p.value + '%') : ('$' + parseFloat(p.value).toFixed(2));
+          detail += ' \u00b7 ' + (p.scope === 'item' ? 'Per Item' : 'Cart');
+          html += '<div class="kiosk-discount-mgmt-row" data-id="' + escapeHTML(p.id) + '">';
+          html += '<span class="kiosk-discount-mgmt-name">' + escapeHTML(p.name) + '</span>';
+          html += '<span class="kiosk-discount-mgmt-info">' + detail + '</span>';
+          html += '<button type="button" class="kiosk-discount-mgmt-delete" data-id="' + escapeHTML(p.id) + '">&times;</button>';
+          html += '</div>';
+        });
+        list.innerHTML = html;
+
+        list.querySelectorAll('.kiosk-discount-mgmt-delete').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.getAttribute('data-id');
+            if (!confirm('Delete this preset?')) return;
+            fetch(mwUrl + '/api/kiosk/discounts/' + encodeURIComponent(id), {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+            })
+            .then(function () {
+              showToast('Preset deleted', 'success');
+              kioskLoadDiscountPresets();
+              kioskRenderDiscountMgmtList();
+            })
+            .catch(function () { showToast('Failed to delete', 'error'); });
+          });
+        });
+      })
+      .catch(function () {
+        list.innerHTML = '<p style="padding:0.75rem 0;color:#c00;">Failed to load presets</p>';
+      });
+  }
+
   // ===== Init Kiosk Tab =====
 
   function initKioskSaleTab() {
@@ -2641,6 +2909,34 @@
     if (collectBack) {
       collectBack.addEventListener('click', function () { kioskShowView('browse'); });
     }
+
+    // Discount popover
+    var discountBtnInit = document.getElementById('kiosk-discount-btn');
+    if (discountBtnInit) {
+      discountBtnInit.addEventListener('click', kioskShowDiscountPopover);
+    }
+    var discountCloseBtn = document.getElementById('kiosk-discount-close-btn');
+    if (discountCloseBtn) {
+      discountCloseBtn.addEventListener('click', function () {
+        document.getElementById('kiosk-discount-popover').style.display = 'none';
+      });
+    }
+    var discountRemoveBtn = document.getElementById('kiosk-discount-remove-btn');
+    if (discountRemoveBtn) {
+      discountRemoveBtn.addEventListener('click', kioskRemoveDiscount);
+    }
+
+    // Discount management
+    var discountManageBtn = document.getElementById('kiosk-discount-manage-btn');
+    if (discountManageBtn) {
+      discountManageBtn.addEventListener('click', function () {
+        document.getElementById('kiosk-discount-popover').style.display = 'none';
+        kioskShowDiscountMgmt();
+      });
+    }
+
+    // Load discount presets
+    kioskLoadDiscountPresets();
   }
 
   // ===== Bootstrap =====
