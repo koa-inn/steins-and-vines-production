@@ -16,6 +16,8 @@ var RECENT_ORDERS_CACHE_KEY = C.CACHE_KEYS.RECENT_ORDERS;
 var RECENT_ORDERS_CACHE_TTL = 60; // seconds
 var IDEMPOTENCY_KEY_TTL = 300; // 5 minutes in seconds
 
+var crypto = require('crypto');
+
 var router = express.Router();
 
 function isConsignmentItem(catalogItem) {
@@ -454,6 +456,28 @@ router.get('/api/pos/status', function (req, res) {
     diagnostics: diag,
     _v: '20260312-1'
   });
+});
+
+/**
+ * POST /api/kiosk/verify-pin
+ * Verify a 4-digit kiosk access PIN.
+ */
+router.post('/api/kiosk/verify-pin', function (req, res) {
+  var pin = req.body && req.body.pin;
+
+  if (typeof pin !== 'string' || !/^\d{4}$/.test(pin)) {
+    return res.status(400).json({ ok: false, error: 'PIN must be exactly 4 digits' });
+  }
+
+  if (!process.env.KIOSK_PIN) {
+    return res.status(503).json({ ok: false, error: 'PIN not configured' });
+  }
+
+  var match = crypto.timingSafeEqual(Buffer.from(pin), Buffer.from(process.env.KIOSK_PIN));
+  if (match) {
+    return res.json({ ok: true });
+  }
+  return res.status(401).json({ ok: false, error: 'Invalid PIN' });
 });
 
 router.post('/api/kiosk/sale/confirm', function (req, res) {

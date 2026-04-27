@@ -328,8 +328,19 @@ var paymentLimiter = rateLimit({
   message: { error: 'Too many requests, please try again in a minute' }
 });
 
+var pinLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: makeRedisStore(60 * 1000, 'pin'),
+  skip: redisUnavailableSkip,
+  message: { error: 'Too many PIN attempts, please try again in a minute' }
+});
+
 app.use('/api', apiLimiter);
 app.use('/api', requireAllowedReferer);
+app.use('/api/kiosk/verify-pin', pinLimiter);
 app.use('/api/payment', paymentLimiter);
 app.use('/api/checkout', paymentLimiter);
 app.use('/api/pos/sale', paymentLimiter);

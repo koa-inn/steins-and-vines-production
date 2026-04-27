@@ -15,13 +15,25 @@
   // ===== Persistent Session =====
   var SESSION_KEY = 'sv-kiosk-session';
 
-  function saveSession(token, expiresIn, email) {
+  function saveSession(token, expiresIn, email, name) {
+    var existing = loadSessionRaw();
     var data = {
       token: token,
       expires_at: Date.now() + (expiresIn * 1000),
-      email: email
+      email: email,
+      name: name || (existing && existing.name) || '',
+      auth_at: (existing && existing.auth_at) ? existing.auth_at : Date.now()
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+  }
+
+  /** Load session without expiry check (for PIN flow). */
+  function loadSessionRaw() {
+    try {
+      var raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) { return null; }
   }
 
   function loadSession() {
@@ -33,6 +45,11 @@
       if (data.expires_at < Date.now() + 5 * 60 * 1000) return null;
       return data;
     } catch (e) { return null; }
+  }
+
+  function isSessionValidForPin(session) {
+    if (!session || !session.email || !session.auth_at) return false;
+    return (Date.now() - session.auth_at) < SESSION_MAX_AGE;
   }
 
   function clearSession() {
@@ -102,6 +119,13 @@
     var signoutBtn = document.getElementById('kiosk-signout');
     if (signoutBtn) signoutBtn.addEventListener('click', kioskSignOut);
 
+    // Check for PIN-lockable session first (no token refresh needed)
+    var savedRaw = loadSessionRaw();
+    if (savedRaw && isSessionValidForPin(savedRaw)) {
+      showLockScreen(savedRaw);
+      return;
+    }
+
     // Try restoring a saved session via silent token refresh
     var saved = loadSession();
     if (saved) {
@@ -156,7 +180,7 @@
     fetchGoogleUserInfo(accessToken)
       .then(function (info) {
         userEmail = info.email;
-        saveSession(accessToken, expiresIn, userEmail);
+        saveSession(accessToken, expiresIn, userEmail, info.name || '');
         kioskCheckAuthorization();
       })
       .catch(function () {
@@ -201,6 +225,7 @@
       tokenClient.requestAccessToken({ prompt: '' });
     }, 50 * 60 * 1000);
 
+    startInactivityTimer();
     kioskCheckTerminal();
     kioskLoadProducts();
   }
@@ -211,6 +236,7 @@
   }
 
   function kioskSignOut() {
+    stopInactivityTimer();
     if (_tokenRefreshTimer) { clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null; }
     if (accessToken) {
       google.accounts.oauth2.revoke(accessToken);
@@ -247,6 +273,182 @@
     if (emailEl) emailEl.textContent = '';
 
     showSignInButton();
+  }
+
+  // ===== PIN Lock Screen =====
+
+  function showLockScreen(session) {
+    _isLocked = true;
+    _pinBuffer = '';
+    _pinAttempts = 0;
+    var lockScreen = document.getElementById('kiosk-lock-screen');
+    var userEl = document.getElementById('kiosk-lock-user');
+    var errorEl = document.getElementById('kiosk-lock-error');
+    var dots = document.querySelectorAll('.kiosk-lock-dot');
+
+    if (userEl) userEl.textContent = session.name || session.email || '';
+    if (errorEl) errorEl.textContent = '';
+    dots.forEach(function (d) { d.classList.remove('kiosk-lock-dot--filled'); });
+
+    lockScreen.style.display = '';
+    lockScreen.classList.remove('kiosk-lock--exiting');
+
+    // Wire keypad
+    var keypad = document.getElementById('kiosk-lock-keypad');
+    keypad.classList.remove('kiosk-lock-keypad--locked');
+    keypad.querySelectorAll('.kiosk-lock-key[data-digit]').forEach(function (key) {
+      key.onclick = function () { pinEntry(key.getAttribute('data-digit')); };
+    });
+
+    var backspace = document.getElementById('kiosk-lock-backspace');
+    if (backspace) backspace.onclick = pinBackspace;
+
+    var signoutBtn = document.getElementById('kiosk-lock-signout');
+    if (signoutBtn) signoutBtn.onclick = function () {
+      lockScreen.style.display = 'none';
+      kioskSignOut();
+    };
+  }
+
+  function hideLockScreen() {
+    var lockScreen = document.getElementById('kiosk-lock-screen');
+    lockScreen.classList.add('kiosk-lock--exiting');
+    setTimeout(function () {
+      lockScreen.style.display = 'none';
+      lockScreen.classList.remove('kiosk-lock--exiting');
+      _isLocked = false;
+    }, 250);
+  }
+
+  function pinEntry(digit) {
+    if (_pinBuffer.length >= 4) return;
+    _pinBuffer += digit;
+    var dots = document.querySelectorAll('.kiosk-lock-dot');
+    if (dots[_pinBuffer.length - 1]) dots[_pinBuffer.length - 1].classList.add('kiosk-lock-dot--filled');
+    if (_pinBuffer.length === 4) {
+      setTimeout(pinSubmit, 150);
+    }
+  }
+
+  function pinBackspace() {
+    if (_pinBuffer.length === 0) return;
+    _pinBuffer = _pinBuffer.slice(0, -1);
+    var dots = document.querySelectorAll('.kiosk-lock-dot');
+    dots[_pinBuffer.length].classList.remove('kiosk-lock-dot--filled');
+  }
+
+  function pinClearDots() {
+    _pinBuffer = '';
+    document.querySelectorAll('.kiosk-lock-dot').forEach(function (d) {
+      d.classList.remove('kiosk-lock-dot--filled');
+    });
+  }
+
+  function pinSubmit() {
+    var mwUrl = kioskMwUrl();
+    fetch(mwUrl + '/api/kiosk/verify-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+      body: JSON.stringify({ pin: _pinBuffer })
+    })
+    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+    .then(function (result) {
+      if (result.data.ok) {
+        hideLockScreen();
+        unlockAfterPin();
+      } else {
+        _pinAttempts++;
+        var dotsContainer = document.getElementById('kiosk-lock-dots');
+        var errorEl = document.getElementById('kiosk-lock-error');
+
+        if (dotsContainer) {
+          dotsContainer.classList.add('kiosk-lock-dots--error');
+          setTimeout(function () {
+            dotsContainer.classList.remove('kiosk-lock-dots--error');
+            pinClearDots();
+          }, 600);
+        }
+
+        if (_pinAttempts >= 5) {
+          if (errorEl) errorEl.textContent = 'Too many attempts \u2014 try again in 1 minute';
+          var keypad = document.getElementById('kiosk-lock-keypad');
+          if (keypad) keypad.classList.add('kiosk-lock-keypad--locked');
+          setTimeout(function () {
+            _pinAttempts = 0;
+            if (keypad) keypad.classList.remove('kiosk-lock-keypad--locked');
+            if (errorEl) errorEl.textContent = '';
+          }, 60000);
+        } else {
+          if (errorEl) {
+            errorEl.textContent = 'Incorrect PIN';
+            setTimeout(function () { errorEl.textContent = ''; }, 2000);
+          }
+        }
+      }
+    })
+    .catch(function () {
+      var errorEl = document.getElementById('kiosk-lock-error');
+      if (errorEl) errorEl.textContent = 'Cannot verify \u2014 check connection';
+      pinClearDots();
+    });
+  }
+
+  function unlockAfterPin() {
+    var saved = loadSession();
+    if (!saved) {
+      // Token expired — try silent refresh
+      var savedRaw = loadSessionRaw();
+      if (!savedRaw) { kioskSignOut(); return; }
+      try {
+        tokenClient.requestAccessToken({ prompt: '', login_hint: savedRaw.email });
+      } catch (e) {
+        kioskSignOut();
+      }
+      return;
+    }
+
+    // Token still valid — go straight to app
+    accessToken = saved.token;
+    userEmail = saved.email;
+    showKioskApp();
+  }
+
+  // ===== Inactivity Timer =====
+
+  function startInactivityTimer() {
+    stopInactivityTimer();
+    var events = ['touchstart', 'click', 'keydown'];
+    function resetTimer() {
+      if (_isLocked) return;
+      clearTimeout(_inactivityTimer);
+      _inactivityTimer = setTimeout(lockKiosk, INACTIVITY_TIMEOUT);
+    }
+    events.forEach(function (evt) {
+      document.addEventListener(evt, resetTimer, { passive: true });
+    });
+    _inactivityTimer = setTimeout(lockKiosk, INACTIVITY_TIMEOUT);
+    // Store cleanup function
+    window._kioskInactivityCleanup = function () {
+      events.forEach(function (evt) {
+        document.removeEventListener(evt, resetTimer);
+      });
+      clearTimeout(_inactivityTimer);
+    };
+  }
+
+  function stopInactivityTimer() {
+    if (window._kioskInactivityCleanup) window._kioskInactivityCleanup();
+    clearTimeout(_inactivityTimer);
+  }
+
+  function lockKiosk() {
+    stopInactivityTimer();
+    var saved = loadSessionRaw();
+    if (saved && isSessionValidForPin(saved)) {
+      showLockScreen(saved);
+    } else {
+      kioskSignOut();
+    }
   }
 
   // ===== Admin API Helpers =====
@@ -467,6 +669,14 @@
     h += '</div></body></html>';
     return h;
   }
+
+  // ===== PIN Lock State =====
+  var _pinBuffer = '';
+  var _pinAttempts = 0;
+  var _inactivityTimer = null;
+  var _isLocked = false;
+  var INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+  var SESSION_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
   // ===== Kiosk Sale State =====
 

@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="favicon.ico">
-  <link rel="stylesheet" href="css/kiosk.min.css?v=moheqswq">
+  <link rel="stylesheet" href="css/kiosk.min.css?v=mohg8xav">
   <script src="js/lib/constants.js"></script>
   <script src="js/lib/utils.js"></script>
   <script src="js/lib/auth.js"></script>
@@ -19,7 +19,7 @@
   <script src="js/admin-config.js"></script>
   <script src="js/vendor/qrcode.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="js/kiosk.min.js?v=moheqswq"></script>
+  <script src="js/kiosk.min.js?v=mohg8xav"></script>
 </head>
 <body>
 
@@ -374,6 +374,36 @@
           <button type="button" class="btn-secondary kiosk-discount-cancel-btn" id="kiosk-discount-cancel-btn" style="flex:1;min-height:44px;">Cancel</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="kiosk-lock-screen" style="display:none;">
+    <div class="kiosk-lock-card">
+      <img src="images/SV_Logo_Wordmark_green.svg" alt="Steins &amp; Vines" class="kiosk-lock-logo">
+      <div class="kiosk-lock-status">&#128274; Locked</div>
+      <div class="kiosk-lock-user" id="kiosk-lock-user"></div>
+      <div class="kiosk-lock-dots" id="kiosk-lock-dots">
+        <div class="kiosk-lock-dot"></div>
+        <div class="kiosk-lock-dot"></div>
+        <div class="kiosk-lock-dot"></div>
+        <div class="kiosk-lock-dot"></div>
+      </div>
+      <div class="kiosk-lock-error" id="kiosk-lock-error"></div>
+      <div class="kiosk-lock-keypad" id="kiosk-lock-keypad">
+        <button type="button" class="kiosk-lock-key" data-digit="1">1</button>
+        <button type="button" class="kiosk-lock-key" data-digit="2">2</button>
+        <button type="button" class="kiosk-lock-key" data-digit="3">3</button>
+        <button type="button" class="kiosk-lock-key" data-digit="4">4</button>
+        <button type="button" class="kiosk-lock-key" data-digit="5">5</button>
+        <button type="button" class="kiosk-lock-key" data-digit="6">6</button>
+        <button type="button" class="kiosk-lock-key" data-digit="7">7</button>
+        <button type="button" class="kiosk-lock-key" data-digit="8">8</button>
+        <button type="button" class="kiosk-lock-key" data-digit="9">9</button>
+        <div class="kiosk-lock-key--ghost"></div>
+        <button type="button" class="kiosk-lock-key" data-digit="0">0</button>
+        <button type="button" class="kiosk-lock-key kiosk-lock-key--backspace" id="kiosk-lock-backspace">&#9003;</button>
+      </div>
+      <button type="button" class="kiosk-lock-signout" id="kiosk-lock-signout">Sign out</button>
     </div>
   </div>
 
