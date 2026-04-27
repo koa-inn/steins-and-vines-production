@@ -518,14 +518,14 @@ img {
 
 .kiosk-product-img {
   width: 100%;
-  height: 120px;
+  height: 80px;
   object-fit: cover;
   background: var(--cellar-canvas);
   display: block;
 }
 .kiosk-product-img-placeholder {
   width: 100%;
-  height: 120px;
+  height: 80px;
   background: var(--cellar-canvas);
   display: flex;
   align-items: center;
