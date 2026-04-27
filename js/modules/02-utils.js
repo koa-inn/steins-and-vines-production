@@ -97,10 +97,10 @@ function escapeHTML(str) {
 // ===== Responsive Product Image Helper =====
 
 function setResponsiveImg(img, sku) {
-  img.src = 'images/products/' + sku + '.png';
+  img.src = '/images/products/' + sku + '.png';
   img.width = 400;
   img.height = 400;
-  img.srcset = 'images/products/' + sku + '-400w.webp 400w, images/products/' + sku + '-800w.webp 800w';
+  img.srcset = '/images/products/' + sku + '-400w.webp 400w, /images/products/' + sku + '-800w.webp 800w';
   img.sizes = '(max-width: 768px) 45vw, 200px';
 }
 
