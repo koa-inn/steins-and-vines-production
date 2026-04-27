@@ -774,9 +774,6 @@
     var hideOos = _kioskFilters.hideOos;
 
     var filtered = _kioskProducts.filter(function (p) {
-      // Hide maker's fee from product grid
-      if (kioskIsMakersFee(p)) return false;
-
       var itemType = kioskGetItemType(p);
       var isService = itemType === 'service';
       var stock = parseFloat(p.stock_on_hand) || 0;
@@ -1010,8 +1007,9 @@
       _kioskCart[id] = { item: product, qty: 1 };
     }
 
-    // If adding a kit, sync maker's fee line
+    // If adding a kit, reset waiver and sync maker's fee
     if (kioskGetItemType(product) === 'kit') {
+      _kioskMakersFeeWaived = false;
       kioskSyncMakersFee();
     }
 
@@ -1272,14 +1270,10 @@
       var qty = entry.qty;
       var rate = parseFloat(item.rate) || 0;
       var lineTotal = rate * qty;
-      var isFee = kioskIsMakersFee(item);
-
       html += '<div class="kiosk-cart-line">';
       var isWeight = kioskIsWeightItem(item);
       html += '<div class="kiosk-cart-line-name" title="' + escapeHTML(item.name || '') + '">' + escapeHTML(item.name || '') + '</div>';
-      if (isFee) {
-        html += '<div class="kiosk-cart-qty"><span class="kiosk-qty-val">' + qty + '</span></div>';
-      } else if (isWeight) {
+      if (isWeight) {
         html += '<div class="kiosk-cart-qty">';
         html += '<input type="number" class="kiosk-qty-input" data-id="' + id + '" value="' + qty + '" step="0.01" min="0.001" inputmode="decimal">';
         html += '<span class="kiosk-qty-unit">kg</span>';
