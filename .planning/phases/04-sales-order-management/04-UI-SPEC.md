@@ -5,6 +5,7 @@ status: draft
 shadcn_initialized: false
 preset: none
 created: 2026-04-27
+revised: 2026-04-27
 ---
 
 # Phase 4 — UI Design Contract
@@ -34,10 +35,10 @@ Kiosk uses rem-based spacing derived from 16px base, mapped to 8-point grid:
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| xs | 4px (0.25rem) | Icon gap, chip internal padding (vertical) |
+| xs | 4px (0.25rem) | Icon gap, chip internal vertical padding |
 | sm | 8px (0.5rem) | Gap between chips, gap between action controls, card internal gap |
 | md | 16px (1rem) | Card padding, section padding |
-| lg | 20px (1.25rem) | Collect header/footer horizontal padding (matches existing .kiosk-collect-header) |
+| lg | 24px (1.5rem) | Collect header/footer horizontal padding |
 | xl | 32px (2rem) | Not used in this phase |
 | 2xl | 48px (3rem) | Not used in this phase |
 | 3xl | 64px (4rem) | Not used in this phase |
@@ -54,12 +55,22 @@ Exceptions:
 
 All sizes use the base 16px html font-size. Values below match the existing kiosk type scale.
 
+Two weights only: 400 (body/meta) and 700 (primary/interactive).
+
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body / card meta | 14px (0.875rem) | 400 | 1.5 |
-| Label / chip text | 13px (0.82rem) | 600 | 1 |
+| Label / chip text | 13px (0.82rem) | 400 | 1 |
 | Card primary (SO number, customer) | 15px (0.95rem) | 700 | 1.25 |
 | Balance / amount display | 19px (1.2rem) | 700 | 1 |
+
+Component size mapping (all mapped to declared scale):
+- Action buttons (`.kiosk-so-card-actions .btn`): use 15px (0.95rem) — mapped from 0.9rem
+- Reorder button (`.kiosk-so-reorder-btn`): use 13px (0.82rem) — mapped from 0.85rem
+- SO banner label (`.kiosk-cart-so-banner`): use 13px (0.82rem) — mapped from 0.8rem
+
+Presentational exception:
+- `.kiosk-cart-so-clear` unicode &times; character: `font-size: 1.1rem` (18px). This is a presentational glyph-scaling exception, not a typographic role. Not included in the declared 4-size scale.
 
 Source: Existing `.kiosk-so-number` (0.95rem/700), `.kiosk-so-balance` (1.2rem/700), `.kiosk-so-customer` (0.9rem/400), `.kiosk-so-date` (0.82rem/400) — rounded to nearest clean scale point.
 
@@ -73,14 +84,14 @@ All values from `css/kiosk.css` :root. No new color tokens introduced in this ph
 |------|-------|-------|
 | Dominant (60%) | var(--cellar-canvas) = #e8e2ca | View background |
 | Secondary (30%) | var(--cellar-raised) = #faf8f2 | SO card background, collect header/footer background, chip inactive background |
-| Accent (10%) | var(--stain) = #370e13 | Primary buttons (Pay, Import to Cart, Reorder), active chip border+text, focus ring |
+| Accent (10%) | var(--stain) = #370e13 | Primary buttons (Pay, Import to Cart, Reorder Items), active chip border+text, focus ring |
 | Destructive | var(--batch-danger) = #a83232 | None in Phase 4 (no delete actions) |
 
 Accent reserved for:
-1. "Collect [amount]" pay button on actionable SO cards (open/draft)
+1. "Collect [amount]" pay button on actionable SO cards (open/draft) — primary visual anchor
 2. "Import to Cart" button on actionable SO cards (open/draft)
 3. Active status chip — border and text color when chip is selected
-4. "Reorder" button on closed/paid SO cards
+4. "Reorder Items" button on closed/paid SO cards
 5. Focus ring (2px solid var(--stain)) on all interactive elements
 
 Secondary semantic colors for status chips (read-only status indicators, not CTA):
@@ -95,6 +106,8 @@ Paid/closed SO card visual treatment:
 - Border: 1px solid var(--ledger-line) (softened from --ledger-emphasis used on actionable cards)
 - Opacity: 1 (full — staff needs to read these for reorder)
 - Paid badge (already exists as .kiosk-so-paid-badge): var(--batch-success-bg) background, var(--batch-success) text
+
+Focal point declaration: The primary visual anchor in the SO collect view is the "Collect $XX.XX" button rendered in `.btn` (var(--stain) background) on each actionable SO card. All other interactive elements use `.btn-secondary` (outlined) to maintain clear hierarchy.
 
 ---
 
@@ -125,20 +138,20 @@ Paid/closed SO card visual treatment:
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 8px 20px;
+  padding: 8px 24px;
   border-bottom: 1px solid var(--ledger-line);
   background: var(--cellar-raised);
   flex-shrink: 0;
 }
 .kiosk-so-chip {
-  padding: 6px 14px;
+  padding: 4px 12px;
   min-height: 36px;
   border-radius: 20px;
   border: 2px solid var(--ledger-emphasis);
   background: var(--cellar-raised);
   color: var(--ink-secondary);
   font-size: 0.82rem;
-  font-weight: 600;
+  font-weight: 400;
   cursor: pointer;
   font-family: var(--font-body);
   transition: background 0.15s, color 0.15s, border-color 0.15s;
@@ -177,7 +190,7 @@ Extends existing `.kiosk-so-card`. No structural change to existing card shell, 
 .kiosk-so-card-actions .btn-secondary {
   flex: 1;
   min-height: 48px;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 700;
   padding: 0.75rem;
 }
@@ -194,12 +207,12 @@ Note: "Collect" button is `.btn` (stain/primary). "Import to Cart" is `.btn-seco
 <div class="kiosk-so-card-actions">
   <div class="kiosk-so-paid-badge">Paid</div>
   <button type="button" class="btn-secondary kiosk-so-reorder-btn" data-so-id="...">
-    Reorder
+    Reorder Items
   </button>
 </div>
 ```
 
-`.kiosk-so-paid-badge` already exists in CSS. Reorder button uses `.btn-secondary` full-width is not applied — badge and button share the row at natural widths.
+`.kiosk-so-paid-badge` already exists in CSS. Reorder button uses `.btn-secondary` — badge and button share the row at natural widths.
 
 **CSS spec:**
 ```
@@ -212,7 +225,7 @@ Note: "Collect" button is `.btn` (stain/primary). "Import to Cart" is `.btn-seco
 .kiosk-so-reorder-btn {
   margin-left: auto;
   min-height: 44px;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   padding: 0.5rem 1rem;
 }
 ```
@@ -225,7 +238,7 @@ When an SO has been imported to cart, a banner appears at the top of the cart pa
 ```html
 <div class="kiosk-cart-so-banner">
   <span class="kiosk-cart-so-label">Order: <strong>SO-XXXXXX</strong></span>
-  <button type="button" class="kiosk-cart-so-clear" title="Detach SO">&#215;</button>
+  <button type="button" class="kiosk-cart-so-clear" title="Detach SO" aria-label="Detach SO">&#215;</button>
 </div>
 ```
 
@@ -238,8 +251,8 @@ When an SO has been imported to cart, a banner appears at the top of the cart pa
   background: var(--batch-info-bg);
   border: 1px solid var(--batch-info);
   border-radius: var(--r-md);
-  padding: 6px 10px;
-  font-size: 0.8rem;
+  padding: 8px 12px;
+  font-size: 0.82rem;
   color: var(--ink-secondary);
   min-height: 36px;
 }
@@ -249,7 +262,7 @@ When an SO has been imported to cart, a banner appears at the top of the cart pa
   border: none;
   cursor: pointer;
   color: var(--ink-secondary);
-  font-size: 1.1rem;
+  font-size: 1.1rem; /* presentational exception — glyph scaling only */
   min-width: 28px;
   min-height: 28px;
   display: flex;
@@ -268,19 +281,19 @@ Note: Detaching SO banner does NOT clear the cart — it only unlinks the SO ass
 |---------|------|
 | Primary CTA — collect payment | "Collect $XX.XX" (amount dynamically inserted, verb-first) |
 | Secondary CTA — import | "Import to Cart" |
-| Tertiary CTA — reorder | "Reorder" |
+| Tertiary CTA — reorder | "Reorder Items" |
 | Status chip: open | "Open" |
 | Status chip: draft | "Draft" |
 | Status chip: closed | "Closed" |
 | Status chip: paid | "Paid" |
 | Status chip: all | "All" |
-| Empty state (no orders match filter) | Heading: "No orders found" / Body: "Try a different filter or search, or create a new order." |
+| Empty state (no orders match active filter) | Heading: "No orders match this filter" / Body: "Try a different filter or search, or create a new order." |
 | Empty state (on All with no orders) | Heading: "No sales orders" / Body: "Create a new order to get started." |
-| Error state — load failure | "Could not load sales orders. Check connection and try again." (retry button: "Retry") |
+| Error state — load failure | "Could not load sales orders. Check connection and try again." (retry button: "Retry Loading") |
 | Error state — SO update failed | "Order update failed — payment not taken. Check connection and retry." |
 | Error state — payment failed after update | "Payment failed. The order has been updated. Retry to charge the terminal." (retry button: "Retry Payment") |
-| Import confirm dialog (cart has items) | "Replace current cart with items from [SO number]? Current cart will be cleared." / Confirm: "Replace Cart" / Cancel: "Cancel" |
-| Reorder confirm dialog | "Create a new order with the same items as [SO number]?" / Confirm: "Create Order" / Cancel: "Cancel" |
+| Import confirm dialog (cart has items) | "Replace current cart with items from [SO number]? Current cart will be cleared." / Confirm: "Replace Cart" / Cancel: "Keep Cart" |
+| Reorder confirm dialog | "Create a new order with the same items as [SO number]?" / Confirm: "Create Order" / Cancel: "Go Back" |
 | Cart SO banner label | "Order: [SO number]" |
 | Post-payment success toast | "Payment collected — order closed." |
 | Post-reorder success toast | "New order created: [new SO number]" |
@@ -312,7 +325,7 @@ Source: Copywriting for existing patterns from `kioskRenderSoList()`. New copy f
 - Staff taps "Collect $XX.XX" button — existing `kioskCollectPayment(soId)` flow, no change
 
 ### Reorder (closed/paid SOs)
-1. Staff taps "Reorder" on a closed/paid SO card
+1. Staff taps "Reorder Items" on a closed/paid SO card
 2. `confirm()` dialog: copy above
 3. On confirm: call middleware to create a new SO with the same line items (customer + line items copied, new date, new SO number)
 4. On success: show toast "New order created: [new SO number]", reload SO list (invalidate cache), default filter returns to Open+Draft (new SO will be visible)
