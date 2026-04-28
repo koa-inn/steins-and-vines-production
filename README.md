@@ -79,6 +79,8 @@ steins-and-vines/
 │   │   ├── catalog.js          # Product/ingredient/service catalog (cached)
 │   │   ├── checkout.js         # Checkout flow (reCAPTCHA, price anchoring, charge)
 │   │   ├── collect.js          # Collect payment on existing SO via terminal (Deluge-triggered)
+│   │   ├── consignment.js      # Consignment sales report (artisan payout aggregation)
+│   │   ├── discounts.js        # Kiosk discount preset CRUD (stored in Redis)
 │   │   ├── items.js            # Zoho item CRUD + image proxy
 │   │   ├── payments.js         # Payment void + refund
 │   │   ├── pos.js              # Kiosk + POS terminal sale + salesorder endpoints
@@ -90,6 +92,7 @@ steins-and-vines/
 │   ├── lib/
 │   │   ├── cache.js            # Redis wrapper (connect, get, set, del)
 │   │   ├── checkRedis.js       # Redis health check helper
+│   │   ├── checkout-helpers.js # Checkout/booking HTTP helpers (services snapshot, timeslot fetch)
 │   │   ├── constants.js        # Shared cache keys + config constants
 │   │   ├── eventLog.js         # Lightweight event audit logger
 │   │   ├── gp.js               # Global Payments SDK init (CNP + terminal)
@@ -125,7 +128,7 @@ steins-and-vines/
 - Node.js 20+
 - Redis (for middleware caching and rate limiting)
 - A Zoho Books/Inventory account with API credentials
-- Global Payments sandbox credentials (for payment testing)
+- Helcim sandbox credentials (for payment testing)
 
 ### Frontend
 

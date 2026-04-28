@@ -446,6 +446,72 @@ Migrate item custom fields in bulk.
 
 ---
 
+## Consignment
+
+### `GET /api/admin/consignment-report`
+Returns consignment sales aggregated by artisan for a given month. Reads from invoices in Zoho that have a consignment details custom field (`ZOHO_CF_CONSIGNMENT_DETAILS`) populated with a JSON array of artisan payout data.
+
+**Auth:** `MW_API_KEY` header
+**Query:** `?month=YYYY-MM` (defaults to current month)
+**Cache:** Redis, 5 minutes
+**Response:**
+```json
+{
+  "month": "2026-04",
+  "artisans": [
+    {
+      "artisan_name": "...",
+      "commission_rate": 0.3,
+      "total_sales": 150.00,
+      "total_payout": 105.00,
+      "store_commission": 45.00,
+      "items_sold": 6,
+      "sales": [{ "invoice_number": "INV-001", "date": "...", "item_name": "...", "quantity": 2, "sale_amount": 50.00, "artisan_payout": 35.00 }]
+    }
+  ],
+  "totals": { "total_sales": 150.00, "total_payouts": 105.00, "total_store_commission": 45.00 }
+}
+```
+
+---
+
+## Kiosk Discounts
+
+Discount presets are stored in Redis and displayed in the kiosk UI for quick discounting at point-of-sale.
+
+### `GET /api/kiosk/discounts`
+List all discount presets.
+
+**Auth:** None required (reads from Redis cache)
+**Response:** `{ ok: true, discounts: [...] }`
+
+### `POST /api/kiosk/discounts`
+Create a new discount preset.
+
+**Auth:** None required
+**Body:**
+```json
+{ "name": "Staff Discount", "type": "percentage", "value": 10, "scope": "cart" }
+```
+`type`: `"percentage"` or `"fixed"`. `scope`: `"cart"` or `"item"`.
+
+**Response:** `{ ok: true, discount: { id, name, type, value, scope, active, created_at } }`
+
+### `PUT /api/kiosk/discounts/:id`
+Update an existing discount preset. All fields are optional (partial update).
+
+**Auth:** None required
+**Body:** Any subset of `{ name, type, value, scope, active }`
+**Response:** `{ ok: true, discount: { ...updated } }`
+
+### `DELETE /api/kiosk/discounts/:id`
+Delete a discount preset.
+
+**Auth:** None required
+**Response:** `{ ok: true }`
+
+---
+
 ## Webhooks
 
 ### `POST /api/webhooks/helcim`

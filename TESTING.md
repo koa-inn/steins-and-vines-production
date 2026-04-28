@@ -51,6 +51,8 @@ cd zoho-middleware && npm run test:coverage
 | `zoho-middleware/routes/catalog.js` (catalog route handlers) | 80% | ✅ Done |
 | `zoho-middleware/routes/pos.js` (kiosk salesorders — `GET /api/kiosk/salesorders`) | 85% | ✅ Done |
 | `zoho-middleware/lib/inventory-ledger.js` (in-memory ledger) | 90% | ✅ Done |
+| `zoho-middleware/routes/consignment.js` (consignment report route) | 85% | ✅ Done |
+| `zoho-middleware/routes/discounts.js` (kiosk discount preset CRUD) | 90% | ✅ Done |
 
 ---
 
