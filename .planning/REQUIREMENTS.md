@@ -7,10 +7,10 @@
 
 ### Stock Accuracy
 
-- [ ] **STOCK-01**: Kiosk displays current stock levels for each product from Zoho Inventory
-- [ ] **STOCK-02**: When cart quantity exceeds available stock, user sees a warning with option to override or reduce quantity
+- [x] **STOCK-01**: Kiosk displays current stock levels for each product from Zoho Inventory
+- [x] **STOCK-02**: When cart quantity exceeds available stock, user sees a warning with option to override or reduce quantity
 - [ ] **STOCK-03**: Stock levels update after a completed sale without requiring manual cache bust
-- [ ] **STOCK-04**: Out-of-stock items show a warning when added to cart with option to override (existing behavior — verify working)
+- [x] **STOCK-04**: Out-of-stock items show a warning when added to cart with option to override (existing behavior — verify working)
 
 ### Catalog Display
 
@@ -51,10 +51,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STOCK-01 | Phase 1 | Pending |
-| STOCK-02 | Phase 1 | Pending |
+| STOCK-01 | Phase 1 | Complete (01-02) |
+| STOCK-02 | Phase 1 | Complete (01-02) |
 | STOCK-03 | Phase 2 | Pending |
-| STOCK-04 | Phase 1 | Pending |
+| STOCK-04 | Phase 1 | Complete (01-02) |
 | CAT-01 | Phase 1 | Complete (01-01) |
 | CAT-02 | Phase 1 | Complete (01-01) |
 | SO-01 | Phase 2 | Pending |
@@ -71,4 +71,4 @@
 
 ---
 *Requirements defined: 2026-04-27*
-*Last updated: 2026-04-27 after roadmap creation*
+*Last updated: 2026-04-28 after Plan 01-02 completion*

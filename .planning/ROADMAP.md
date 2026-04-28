@@ -34,7 +34,7 @@ Plans:
 **Wave 1**
 - [x] 01-01-PLAN.md — Fix category filter: kioskItemCategory returns category_name only, add Other option for uncategorized items
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 01-02-PLAN.md — Add stock overflow warning: confirm dialog when cart qty exceeds stock, verify existing stock/cache behaviors
+- [x] 01-02-PLAN.md — Add stock overflow warning: confirm dialog when cart qty exceeds stock, verify existing stock/cache behaviors
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 01-03-PLAN.md — Deploy to staging and human verification of all Phase 1 changes
 
@@ -74,6 +74,6 @@ Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Catalog & Stock Display | 1/3 | Executing | - |
+| 1. Catalog & Stock Display | 2/3 | Executing | - |
 | 2. Sales Order Integrity | 0/0 | Not started | - |
 | 3. Resilience & Session Stability | 0/0 | Not started | - |

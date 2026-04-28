@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 01 Plan 01 complete
-last_updated: "2026-04-28T05:00:17Z"
-last_activity: 2026-04-28 -- Phase 01 Plan 01 executed (category filter fix)
+stopped_at: Phase 01 Plan 02 complete
+last_updated: "2026-04-28T05:04:36Z"
+last_activity: 2026-04-28 -- Phase 01 Plan 02 executed (stock overflow warning)
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
-  percent: 33
+  completed_plans: 2
+  percent: 67
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 01 (catalog-stock-display) — EXECUTING
-Plan: 2 of 3
-Status: Plan 01 complete, awaiting Plan 02
-Last activity: 2026-04-28 -- Phase 01 Plan 01 executed (category filter fix)
+Plan: 3 of 3
+Status: Plan 02 complete, awaiting Plan 03
+Last activity: 2026-04-28 -- Phase 01 Plan 02 executed (stock overflow warning)
 
-Progress: [███░░░░░░░] 33%
+Progress: [██████░░░░] 67%
 
 ## Performance Metrics
 
@@ -63,6 +63,8 @@ Recent decisions affecting current work:
 - Stock warning uses override (not hard block) -- staff may know about incoming shipments or floor samples
 - Use __other__ sentinel (not empty string) for uncategorized filter so empty category still means "all categories"
 - Only append "Other" option when at least one product in current type filter scope has no category_name
+- kioskCheckStockOverflow is advisory only; stock <= 0 returns true (skip) since out-of-stock confirm handles that case
+- Qty increase guard in kioskSetQty: only fire dialog when qty > current qty — decreasing must remain silent
 
 ### Pending Todos
 
@@ -74,6 +76,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-28T05:00:17Z
-Stopped at: Phase 01 Plan 01 complete
-Resume file: .planning/phases/01-catalog-stock-display/01-02-PLAN.md
+Last session: 2026-04-28T05:04:36Z
+Stopped at: Phase 01 Plan 02 complete
+Resume file: .planning/phases/01-catalog-stock-display/01-03-PLAN.md
