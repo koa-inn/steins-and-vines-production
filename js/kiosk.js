@@ -1124,11 +1124,15 @@
       if (isService) {
         stockLabel = '';
         stockClass = '';
+      } else if (outOfStock) {
+        stockLabel = stock < 0 ? (Math.round(stock) + ' in stock') : 'Out of stock';
+        stockClass = 'kiosk-product-stock--out';
+      } else if (lowStock) {
+        stockLabel = 'Low stock (' + Math.round(stock) + ')';
+        stockClass = 'kiosk-product-stock--low';
       } else {
-        stockLabel = outOfStock ? 'Out of stock' :
-          (lowStock ? 'Low stock (' + Math.round(stock) + ')' : 'In stock');
-        stockClass = outOfStock ? 'kiosk-product-stock--out' :
-          (lowStock ? 'kiosk-product-stock--low' : '');
+        stockLabel = 'In stock';
+        stockClass = '';
       }
 
       html += '<div class="' + cardClass + '" data-item-id="' + p.item_id + '">';
@@ -2173,6 +2177,7 @@
     var newSaleBtn = document.getElementById('kiosk-new-sale-btn');
     if (newSaleBtn) {
       newSaleBtn.onclick = function () {
+        kioskLoadProducts(true);
         _kioskCustomer = null;
         kioskClearImportedSo();
         kioskShowView('browse');
@@ -2660,6 +2665,7 @@
         var newSaleBtn = document.getElementById('kiosk-new-sale-btn');
         if (newSaleBtn) {
           newSaleBtn.onclick = function () {
+            kioskLoadProducts(true);
             _kioskSoPayingId = null;
             if (_kioskImportedSoId) {
               // D-07: Return to empty cart/product grid after SO payment
