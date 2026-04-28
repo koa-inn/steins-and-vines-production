@@ -87,6 +87,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-28T14:35:47Z
-Stopped at: Completed 04-02-PLAN.md
-Resume file: None (Phase 04 complete)
+Last session: 2026-04-28
+Stopped at: Phase 2 context gathered
+Resume file: .planning/phases/02-sales-order-integrity/02-CONTEXT.md
