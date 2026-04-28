@@ -142,23 +142,40 @@ function processSale(body, idempotencyKey, req, res) {
     }
 
     // Build line items using catalog price, ignoring client-supplied rate
+    // D-03: Include per-item tax_id from catalog so Zoho computes tax using its rules
     var subtotal = 0;
     var lineItems = body.items.map(function (item) {
       var qty = Number(item.quantity) || 1;
-      var rate = catalogMap[item.item_id].rate; // authoritative price from catalog
+      var catalogItem = catalogMap[item.item_id];
+      var rate = catalogItem.rate; // authoritative price from catalog
       subtotal += qty * rate;
-      return {
+      var li = {
         item_id: item.item_id,
         name: item.name || '',
         quantity: qty,
         rate: rate
       };
+      if (catalogItem.tax_id) {
+        li.tax_id = catalogItem.tax_id;
+      }
+      return li;
     });
     subtotal = Math.round(subtotal * 100) / 100;
 
-    // Item #2: Compute tax server-side. Ignore client-supplied tax_total.
-    var taxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
-    var taxTotal = Math.round(subtotal * taxRate * 100) / 100;
+    // Item #2: Compute tax server-side using per-item tax_percentage from catalog.
+    // D-04: Fallback to KIOSK_TAX_RATE when item has no tax_id and no tax_percentage.
+    var taxTotal = 0;
+    var defaultTaxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
+    lineItems.forEach(function (li) {
+      var catalogItem = catalogMap[li.item_id];
+      var pct = catalogItem.tax_percentage;
+      if (!pct && !catalogItem.tax_id) {
+        // D-04 fallback: no tax_id configured, use default rate
+        pct = defaultTaxRate * 100;
+      }
+      taxTotal += (li.quantity * li.rate) * ((pct || 0) / 100);
+    });
+    taxTotal = Math.round(taxTotal * 100) / 100;
     var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
 
     processSaleWithPrices(body, idempotencyKey, req, res,
@@ -504,9 +521,14 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
     var subtotal = 0;
     var lineItems = body.items.map(function (item) {
       var qty = Number(item.quantity) || 1;
-      var rate = catalogMap[item.item_id].rate;
+      var catalogItem = catalogMap[item.item_id];
+      var rate = catalogItem.rate;
       subtotal += qty * rate;
-      return { item_id: item.item_id, name: item.name || '', quantity: qty, rate: rate };
+      var li = { item_id: item.item_id, name: item.name || '', quantity: qty, rate: rate };
+      if (catalogItem.tax_id) {
+        li.tax_id = catalogItem.tax_id;
+      }
+      return li;
     });
     subtotal = Math.round(subtotal * 100) / 100;
 
@@ -589,8 +611,27 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
         subtotal = Math.round(subtotal * 100) / 100;
       }
 
-    var taxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
-    var taxTotal = Math.round(subtotal * taxRate * 100) / 100;
+    // Per-item tax computation using catalog tax_percentage (D-03/D-04)
+    var taxTotal = 0;
+    var defaultTaxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
+    lineItems.forEach(function (li) {
+      var catalogItem = catalogMap[li.item_id];
+      var lineTotal = li.quantity * li.rate;
+      if (li.discount) {
+        if (typeof li.discount === 'string' && li.discount.indexOf('%') !== -1) {
+          lineTotal = lineTotal * (1 - parseFloat(li.discount) / 100);
+        } else {
+          lineTotal = lineTotal - Number(li.discount);
+        }
+      }
+      lineTotal = Math.max(lineTotal, 0);
+      var pct = catalogItem.tax_percentage;
+      if (!pct && !catalogItem.tax_id) {
+        pct = defaultTaxRate * 100;
+      }
+      taxTotal += lineTotal * ((pct || 0) / 100);
+    });
+    taxTotal = Math.round(taxTotal * 100) / 100;
     var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
     var refNumber = (body.reference_number || 'KIOSK-' + Date.now()).slice(0, 64);
     var txnId = body.transaction_id || 'manual-confirm';
