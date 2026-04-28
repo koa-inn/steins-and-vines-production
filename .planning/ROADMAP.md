@@ -48,11 +48,13 @@ Plans:
   2. Tax amounts on the sales order match Zoho tax rules for each line item
   3. If Zoho sales order creation fails after a successful Helcim charge, the payment is auto-voided and staff see an on-screen notification
   4. After a completed sale, kiosk product stock levels update without staff needing to manually refresh or bust the cache
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+**Wave 1**
+- [ ] 02-01-PLAN.md — Per-item tax_id on invoice line items for both sale flows + SO-to-Invoice conversion in salesorder-pay
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 02-02-PLAN.md — Full-screen void error with transaction ID, post-sale product refresh on receipt dismiss, negative stock display
 
 ### Phase 3: Resilience & Session Stability
 **Goal**: The kiosk recovers gracefully from network problems, terminal issues, and session interruptions without leaving staff stranded
@@ -92,6 +94,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Catalog & Stock Display | 3/3 | Complete | 2026-04-28 |
-| 2. Sales Order Integrity | 0/0 | Not started | - |
+| 2. Sales Order Integrity | 0/2 | Planned | - |
 | 3. Resilience & Session Stability | 0/0 | Not started | - |
 | 4. Sales Order Management | 2/2 | Complete | 2026-04-28 |
