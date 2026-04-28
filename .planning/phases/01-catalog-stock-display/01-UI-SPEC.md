@@ -54,14 +54,16 @@ Source: pre-populated from `css/kiosk.css` — existing spacing observed through
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
-| Body | 16px (1rem) | 400 | 1.6 |
-| Label / small UI text | 12–13px (0.75–0.82rem) | 400 / 600 (semibold for emphasis) | 1.4 |
-| Heading / product name | 14–15px (0.875–0.95rem) | 600 | 1.25 |
-| Display / price | 16–17px (1–1.05rem) | 700 | 1.2 |
+| Body / label / small UI text | 12–16px (0.75–1rem) | 400 | 1.4–1.6 |
+| Heading / product name / display / price | 14–17px (0.875–1.05rem) | 700 | 1.2–1.25 |
 
-Notes:
+**Declared weights: 400 (regular) and 700 (bold/emphasis) — maximum 2.**
+
+Implementation notes (mapping pre-existing three-weight system to this contract):
+- `css/kiosk.css` currently uses `font-weight: 400`, `600`, and `700`. The `600` (semibold) usage on product names and labels is inherited debt — Phase 1 introduces no new weight declarations.
+- For spec purposes: map `600` → `700` (both read as "emphasis" weight). The executor must not introduce a third weight. Existing `600` declarations in `css/kiosk.css` are frozen-in-place inherited code; only new code written in Phase 1 must respect the 2-weight contract.
 - Font inputs: must be `font-size: 1rem` (≥ 16px) to prevent iOS Safari auto-zoom on focus — verified enforced in `.kiosk-search-input`, `.admin-input`, `.kiosk-category-select`
-- Product name in card: `0.9rem`, `font-weight: 600`, `-webkit-line-clamp: 2` — existing, keep as-is
+- Product name in card: `0.9rem`, `font-weight: 600` (pre-existing, frozen — maps to emphasis tier), `-webkit-line-clamp: 2`
 - SKU / metadata: `0.72rem`, `font-family: monospace`, `color: var(--ink-tertiary)` — existing, keep as-is
 - Category badge text (new, for stock overflow dialog): match existing `0.85rem` body size within `confirm()` native dialog — no custom CSS needed
 
@@ -207,8 +209,8 @@ All components are existing CSS classes in `css/kiosk.css`. Phase 1 introduces n
 | State | Condition | Visual Treatment |
 |-------|-----------|-----------------|
 | In stock | `stock_on_hand > lowThreshold` | Stock count in `.kiosk-product-stock` (ink-tertiary text) |
-| Low stock | `stock_on_hand > 0 && stock_on_hand <= lowThreshold` | `.kiosk-product-stock--low` (warning color, semibold) |
-| Out of stock | `stock_on_hand <= 0` | `.kiosk-product-stock--out` (danger color, semibold) + `.kiosk-product-card--out-of-stock` (opacity 0.55) |
+| Low stock | `stock_on_hand > 0 && stock_on_hand <= lowThreshold` | `.kiosk-product-stock--low` (warning color, weight 700) |
+| Out of stock | `stock_on_hand <= 0` | `.kiosk-product-stock--out` (danger color, weight 700) + `.kiosk-product-card--out-of-stock` (opacity 0.55) |
 
 Note: Low stock threshold is determined by existing `kiosk.js` logic (STOCK-01 is verify-only — no new threshold logic).
 
