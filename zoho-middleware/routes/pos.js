@@ -975,7 +975,8 @@ router.get('/api/kiosk/salesorders', function (req, res) {
         zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'open' })),
         zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'draft' })),
         zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'closed' })),
-        zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'confirmed' }))
+        zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'confirmed' })),
+        zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'invoiced' }))
       ]).then(function (results) {
         var combined = results.reduce(function (acc, r) {
           return acc.concat(r.salesorders || []);
@@ -1411,6 +1412,50 @@ router.put('/api/kiosk/salesorder-update', function (req, res) {
       }
       log.error('[kiosk/so-update] Zoho error: ' + msg);
       res.status(502).json({ error: 'Failed to update sales order' });
+    });
+});
+
+/**
+ * GET /api/kiosk/salesorder/:id
+ * Fetch a single Sales Order detail from Zoho, including line_items.
+ * The list endpoint (/salesorders) does not return line_items.
+ */
+router.get('/api/kiosk/salesorder/:id', function (req, res) {
+  var soId = req.params.id;
+  if (!soId || typeof soId !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid salesorder_id' });
+  }
+
+  zohoGet('/salesorders/' + soId)
+    .then(function (data) {
+      var so = data.salesorder || {};
+      res.json({
+        salesorder_id: so.salesorder_id || '',
+        salesorder_number: so.salesorder_number || '',
+        customer_name: so.customer_name || '',
+        customer_id: so.customer_id || '',
+        balance: so.balance || 0,
+        total: so.total || 0,
+        status: so.status || '',
+        date: so.date || '',
+        line_items: (so.line_items || []).map(function (li) {
+          return {
+            item_id: li.item_id || '',
+            name: li.name || li.description || '',
+            quantity: li.quantity || 1,
+            rate: li.rate || 0,
+            amount: li.item_total || li.amount || 0
+          };
+        })
+      });
+    })
+    .catch(function (err) {
+      var msg = err.message;
+      if (err.response && err.response.data) {
+        msg = err.response.data.message || err.response.data.error || msg;
+      }
+      log.error('[kiosk/so-detail] Zoho error: ' + msg);
+      res.status(502).json({ error: 'Failed to fetch sales order' });
     });
 });
 

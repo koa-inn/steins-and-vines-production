@@ -1526,6 +1526,13 @@
 
     if (keys.length === 0) {
       container.innerHTML = bannerHtml + '<p class="kiosk-cart-empty">No items in cart</p>';
+      var soClearEmpty = container.querySelector('.kiosk-cart-so-clear');
+      if (soClearEmpty) {
+        soClearEmpty.addEventListener('click', function () {
+          kioskClearImportedSo();
+          kioskRenderCart();
+        });
+      }
       if (totalsEl) totalsEl.style.display = 'none';
       if (checkoutBtn) checkoutBtn.disabled = true;
       if (checkoutTotal) checkoutTotal.textContent = '$0.00';
@@ -2236,7 +2243,7 @@
     if (_kioskSoActiveChips.indexOf('all') === -1) {
       chipFiltered = _kioskSalesOrders.filter(function (so) {
         // Map Zoho 'confirmed' status to our 'paid' chip
-        var displayStatus = so.status === 'confirmed' ? 'paid' : so.status;
+        var displayStatus = (so.status === 'confirmed' || so.status === 'invoiced') ? 'paid' : so.status;
         return _kioskSoActiveChips.indexOf(displayStatus) !== -1;
       });
     }
@@ -2267,7 +2274,7 @@
     filtered.forEach(function (so) {
       var balance = parseFloat(so.balance) || 0;
       var lineItems = so.line_items || [];
-      var displayStatus = so.status === 'confirmed' ? 'paid' : so.status;
+      var displayStatus = (so.status === 'confirmed' || so.status === 'invoiced') ? 'paid' : so.status;
       var isActionable = displayStatus === 'open' || displayStatus === 'draft';
 
       html += '<div class="kiosk-so-card" data-so-id="' + escapeHTML(so.salesorder_id) + '">';
@@ -2280,13 +2287,8 @@
       html += '<span class="kiosk-so-date">' + escapeHTML(so.date || '') + '</span>';
       html += '</div>';
 
-      if (lineItems.length > 0) {
-        html += '<div class="kiosk-so-card-items">';
-        lineItems.forEach(function (li) {
-          html += '<div>' + escapeHTML(li.name || li.description || '') + ' &times; ' + (li.quantity || 1) + '</div>';
-        });
-        html += '</div>';
-      }
+      html += '<div class="kiosk-so-card-detail" data-so-detail="' + escapeHTML(so.salesorder_id) + '" style="display:none;"></div>';
+      html += '<button type="button" class="kiosk-so-toggle-btn" data-so-id="' + escapeHTML(so.salesorder_id) + '">View Items &#9662;</button>';
 
       // Action row (per D-05, D-11)
       html += '<div class="kiosk-so-card-actions">';
@@ -2336,6 +2338,60 @@
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         kioskReorderSo(btn.getAttribute('data-so-id'));
+      });
+    });
+
+    // Wire view-items toggle buttons
+    Array.prototype.forEach.call(list.querySelectorAll('.kiosk-so-toggle-btn'), function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var soId = btn.getAttribute('data-so-id');
+        var detailEl = list.querySelector('[data-so-detail="' + soId + '"]');
+        if (!detailEl) return;
+
+        if (detailEl.style.display !== 'none') {
+          detailEl.style.display = 'none';
+          btn.innerHTML = 'View Items &#9662;';
+          return;
+        }
+
+        if (detailEl.getAttribute('data-loaded')) {
+          detailEl.style.display = '';
+          btn.innerHTML = 'Hide Items &#9652;';
+          return;
+        }
+
+        btn.innerHTML = 'Loading...';
+        var mwUrl = kioskMwUrl();
+        fetch(mwUrl + '/api/kiosk/salesorder/' + encodeURIComponent(soId), {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (detail) {
+          var items = detail.line_items || [];
+          if (items.length === 0) {
+            detailEl.innerHTML = '<div class="kiosk-so-detail-empty">No line items</div>';
+          } else {
+            var itemsHtml = '';
+            items.forEach(function (li) {
+              itemsHtml += '<div class="kiosk-so-detail-row">';
+              itemsHtml += '<span class="kiosk-so-detail-name">' + escapeHTML(li.name || '') + '</span>';
+              itemsHtml += '<span class="kiosk-so-detail-qty">&times; ' + (li.quantity || 1) + '</span>';
+              itemsHtml += '<span class="kiosk-so-detail-rate">' + kioskFmt(li.rate || 0) + '</span>';
+              itemsHtml += '</div>';
+            });
+            detailEl.innerHTML = itemsHtml;
+          }
+          detailEl.setAttribute('data-loaded', 'true');
+          detailEl.style.display = '';
+          btn.innerHTML = 'Hide Items &#9652;';
+        })
+        .catch(function () {
+          detailEl.innerHTML = '<div class="kiosk-so-detail-empty">Could not load items</div>';
+          detailEl.style.display = '';
+          btn.innerHTML = 'View Items &#9662;';
+        });
       });
     });
   }
@@ -2390,38 +2446,56 @@
       if (!confirm('Replace current cart with items from ' + (so.salesorder_number || '') + '? Current cart will be cleared.')) return;
     }
 
-    // Ensure products are loaded before mapping
     if (!_kioskProductsLoaded) {
       showToast('Products are still loading. Please wait and try again.', 'info');
       return;
     }
 
-    _kioskCart = {};
-    _kioskDiscount = null;
-    var skipped = 0;
+    showToast('Loading order items...', 'info');
 
-    (so.line_items || []).forEach(function (li) {
-      if (!li.item_id) { skipped++; return; }
-      var product = kioskFindProductById(li.item_id);
-      if (product) {
-        _kioskCart[product.item_id] = { item: product, qty: li.quantity || 1 };
-      } else {
-        skipped++;
+    var mwUrl = kioskMwUrl();
+    fetch(mwUrl + '/api/kiosk/salesorder/' + encodeURIComponent(soId), {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (detail) {
+      var lineItems = detail.line_items || [];
+      if (lineItems.length === 0) {
+        showToast('This order has no line items to import', 'warning');
+        return;
       }
+
+      _kioskCart = {};
+      _kioskDiscount = null;
+      var skipped = 0;
+
+      lineItems.forEach(function (li) {
+        if (!li.item_id) { skipped++; return; }
+        var product = kioskFindProductById(li.item_id);
+        if (product) {
+          _kioskCart[product.item_id] = { item: product, qty: li.quantity || 1 };
+        } else {
+          skipped++;
+        }
+      });
+
+      _kioskImportedSoId = so.salesorder_id;
+      _kioskImportedSoNumber = so.salesorder_number || '';
+      _kioskImportedSoUpdated = false;
+
+      if (skipped > 0) {
+        showToast(skipped + ' item(s) not found in current catalog — skipped', 'warning');
+      }
+
+      kioskSyncMakersFee();
+      kioskRenderCart();
+      kioskRenderProducts();
+      kioskShowView('browse');
+    })
+    .catch(function () {
+      showToast('Could not load order details — check connection', 'error');
     });
-
-    _kioskImportedSoId = so.salesorder_id;
-    _kioskImportedSoNumber = so.salesorder_number || '';
-    _kioskImportedSoUpdated = false;
-
-    if (skipped > 0) {
-      showToast(skipped + ' item(s) not found in current catalog — skipped', 'warning');
-    }
-
-    kioskSyncMakersFee();
-    kioskRenderCart();
-    kioskRenderProducts();
-    kioskShowView('browse');
   }
 
   // ===== Reorder SO (D-11) =====

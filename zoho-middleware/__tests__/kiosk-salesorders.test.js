@@ -127,6 +127,7 @@ describe('GET /api/kiosk/salesorders', function () {
       .mockResolvedValueOnce({ salesorders: mockSOs })
       .mockResolvedValueOnce({ salesorders: [] })
       .mockResolvedValueOnce({ salesorders: [] })
+      .mockResolvedValueOnce({ salesorders: [] })
       .mockResolvedValueOnce({ salesorders: [] });
 
     var req = makeReq(null, {});
@@ -169,6 +170,7 @@ describe('GET /api/kiosk/salesorders', function () {
       .mockResolvedValueOnce({ salesorders: mockSOs })
       .mockResolvedValueOnce({ salesorders: [] })
       .mockResolvedValueOnce({ salesorders: [] })
+      .mockResolvedValueOnce({ salesorders: [] })
       .mockResolvedValueOnce({ salesorders: [] });
 
     var req = makeReq(null, { search: 'alice' });
@@ -209,6 +211,7 @@ describe('GET /api/kiosk/salesorders', function () {
       .mockResolvedValueOnce({ salesorders: mockSOs })
       .mockResolvedValueOnce({ salesorders: [] })
       .mockResolvedValueOnce({ salesorders: [] })
+      .mockResolvedValueOnce({ salesorders: [] })
       .mockResolvedValueOnce({ salesorders: [] });
 
     var req = makeReq(null, {});
@@ -222,7 +225,7 @@ describe('GET /api/kiosk/salesorders', function () {
     });
   });
 
-  test('fetches 4 statuses (open, draft, closed, confirmed)', function () {
+  test('fetches 5 statuses (open, draft, closed, confirmed, invoiced)', function () {
     zohoApi.zohoGet.mockResolvedValue({ salesorders: [] });
 
     var req = makeReq(null, {});
@@ -230,10 +233,10 @@ describe('GET /api/kiosk/salesorders', function () {
     getSalesordersHandler(req, res);
 
     return flushPromises().then(function () {
-      expect(zohoApi.zohoGet).toHaveBeenCalledTimes(4);
+      expect(zohoApi.zohoGet).toHaveBeenCalledTimes(5);
       var calls = zohoApi.zohoGet.mock.calls;
       var statuses = calls.map(function (c) { return c[1].status; }).sort();
-      expect(statuses).toEqual(['closed', 'confirmed', 'draft', 'open']);
+      expect(statuses).toEqual(['closed', 'confirmed', 'draft', 'invoiced', 'open']);
     });
   });
 });

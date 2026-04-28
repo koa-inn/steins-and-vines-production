@@ -2511,3 +2511,57 @@ img {
   align-items: center;
   justify-content: center;
 }
+
+/* ===== SO Card Detail Expand (Phase 4: SOM-02) ===== */
+
+.kiosk-so-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--stain);
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  padding: 2px 0;
+  text-align: left;
+}
+
+.kiosk-so-card-detail {
+  padding: 6px 0;
+  border-top: 1px solid var(--ledger-line);
+  margin-top: 4px;
+}
+
+.kiosk-so-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 0.82rem;
+  color: var(--ink-secondary);
+}
+
+.kiosk-so-detail-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kiosk-so-detail-qty {
+  flex-shrink: 0;
+  color: var(--ink-muted);
+}
+
+.kiosk-so-detail-rate {
+  flex-shrink: 0;
+  font-weight: 600;
+  min-width: 60px;
+  text-align: right;
+}
+
+.kiosk-so-detail-empty {
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  font-style: italic;
+  padding: 4px 0;
+}
