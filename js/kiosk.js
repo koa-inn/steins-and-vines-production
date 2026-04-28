@@ -885,6 +885,10 @@
       if (el) el.style.display = (v === name) ? '' : 'none';
     });
     _kioskCurrentView = name;
+    if (name === 'browse') {
+      var bmBtn = document.getElementById('kiosk-browse-mode-btn');
+      if (bmBtn) bmBtn.style.display = '';
+    }
   }
 
   // ===== Terminal Status Bar =====

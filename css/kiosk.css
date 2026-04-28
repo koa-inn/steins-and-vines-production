@@ -2515,14 +2515,17 @@ img {
 /* ===== SO Card Detail Expand (Phase 4: SOM-02) ===== */
 
 .kiosk-so-toggle-btn {
+  display: block;
   background: none;
   border: none;
   cursor: pointer;
   color: var(--stain);
-  font-size: 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 600;
   font-family: var(--font-body);
-  padding: 2px 0;
+  padding: 6px 0 2px;
   text-align: left;
+  text-decoration: underline;
 }
 
 .kiosk-so-card-detail {
