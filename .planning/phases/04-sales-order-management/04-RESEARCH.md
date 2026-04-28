@@ -595,22 +595,25 @@ if (_kioskImportedSoId && !_kioskImportedSoUpdated) {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Zoho SO status values and auto-close behavior (A1, A2)**
    - What we know: Zoho docs say auto-close happens via invoice conversion; `customerpayments` records payment but status transition is unconfirmed
    - What's unclear: Does `POST /customerpayments` + `salesorders_to_apply` auto-transition SO status?
    - Recommendation: During Wave 1, test against the live Zoho org by applying a payment via the existing `kioskCollectPayment()` flow and checking the SO status in the Zoho UI. Log the status before and after. This determines whether D-06 requires an explicit status update call.
+   - RESOLVED: D-06 grants Claude discretion. Plan relies on existing `customerpayments` flow via `kioskCollectPayment()`. If auto-close doesn't happen, add explicit status update during implementation. Live-org verification deferred to execution.
 
 2. **Closed SO line_items from Zoho include `item_id`?**
    - What we know: The GET `/salesorders` list endpoint returns `line_items` including `item_id` in the Zoho response (the current code strips it — that's our doing, not Zoho's)
    - What's unclear: Do closed/historical SOs still have valid `item_id` values pointing to current catalog items, or have some items been deleted from Zoho Inventory?
    - Recommendation: Add graceful skip (already in the import-to-cart pattern above) for items not found in `_kioskProducts`. Show a warning toast with the count of skipped items.
+   - RESOLVED: Plan 02 `kioskImportSoToCart` skips items not found in `_kioskProducts` with a warning toast showing skipped count.
 
 3. **`requireApiKey` middleware on PUT endpoint**
    - What we know: Existing POST endpoints in pos.js use `requireApiKey` for protected operations
    - What's unclear: Whether the PUT endpoint pattern in pos.js follows the same middleware chain as POST
    - Recommendation: Confirm by grepping for `requireApiKey` usage in pos.js and apply the same pattern.
+   - RESOLVED: Plan 01 uses inline `x-api-key` header check (same pattern as pos.js line 847-850) rather than `requireApiKey` middleware wrapper. Both are valid; inline check matches the closest analog.
 
 ---
 
