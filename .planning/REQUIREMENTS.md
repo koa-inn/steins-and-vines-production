@@ -69,9 +69,9 @@
 | REL-01 | Phase 3 | Pending |
 | REL-02 | Phase 3 | Pending |
 | REL-03 | Phase 3 | Pending |
-| SOM-01 | Phase 4 | Pending |
-| SOM-02 | Phase 4 | Pending |
-| SOM-03 | Phase 4 | Pending |
+| SOM-01 | Phase 4 | In Progress (04-01: backend 4-status GET) |
+| SOM-02 | Phase 4 | In Progress (04-01: item_id in GET response) |
+| SOM-03 | Phase 4 | In Progress (04-01: PUT salesorder-update endpoint) |
 
 **Coverage:**
 - v1 requirements: 15 total
@@ -80,4 +80,4 @@
 
 ---
 *Requirements defined: 2026-04-27*
-*Last updated: 2026-04-28 — Phase 4 (Sales Order Management) requirements added*
+*Last updated: 2026-04-28 — Phase 4 Plan 01 backend complete (SOM-01/02/03 in progress)*

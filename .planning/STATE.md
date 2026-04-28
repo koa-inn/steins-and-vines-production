@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready
-stopped_at: Phase 4 planned
-last_updated: "2026-04-28T07:30:00.000Z"
-last_activity: "2026-04-28 -- Phase 4: Sales Order Management planned (2 plans, 2 waves)"
+status: executing
+stopped_at: Phase 4 Plan 1 complete
+last_updated: "2026-04-28T14:27:26Z"
+last_activity: "2026-04-28 -- Phase 04 Plan 01 complete: SO middleware extension (4-status GET + PUT update)"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_plans: 5
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State
@@ -25,26 +25,27 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 01 (catalog-stock-display) — COMPLETE
-Plan: 3 of 3 complete
-Status: Phase 1 fully complete — human verified and approved on staging ("looks pretty good")
-Last activity: 2026-04-28 -- Phase 01 Plan 03 Task 2: human verification approved
+Phase: 04 (sales-order-management) — IN PROGRESS
+Plan: 1 of 2 complete
+Status: Plan 01 complete — SO middleware extended with 4-status GET and PUT update endpoint
+Last activity: 2026-04-28 -- Phase 04 Plan 01 complete (2 tasks, 12 tests added)
 
-Progress: [██████████] 100% (Phase 1)
+Progress: [████████░░] 80% (Overall)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 3
-- Average duration: ~8 min/plan
-- Total execution time: ~25 min
+- Total plans completed: 4
+- Average duration: ~7 min/plan
+- Total execution time: ~29 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-catalog-stock-display | 3 | ~25 min | ~8 min |
+| 04-sales-order-management | 1 | ~4 min | ~4 min |
 
 **Recent Trend:**
 
@@ -66,6 +67,8 @@ Recent decisions affecting current work:
 - kioskCheckStockOverflow is advisory only; stock <= 0 returns true (skip) since out-of-stock confirm handles that case
 - Qty increase guard in kioskSetQty: only fire dialog when qty > current qty — decreasing must remain silent
 - Phase 1 human-verified on staging and approved before any production push (workflow rule enforced)
+- Used reduce+concat for combining 4-status results instead of manual array concatenation (04-01)
+- PUT endpoint returns generic error message on Zoho failure for info disclosure mitigation (04-01)
 
 ### Roadmap Evolution
 
@@ -81,6 +84,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-28T06:02:38.625Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-sales-order-management/04-CONTEXT.md
+Last session: 2026-04-28T14:27:26Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: .planning/phases/04-sales-order-management/04-02-PLAN.md

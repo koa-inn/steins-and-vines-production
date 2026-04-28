@@ -79,8 +79,10 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+**Wave 1**
+- [x] 04-01-PLAN.md -- Extend GET /api/kiosk/salesorders (4-status fetch, item_id) + new PUT /api/kiosk/salesorder-update endpoint
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 04-02-PLAN.md -- Kiosk frontend SO tab with cart import and payment flow
 
 ## Progress
 
@@ -92,4 +94,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Catalog & Stock Display | 3/3 | Complete | 2026-04-28 |
 | 2. Sales Order Integrity | 0/0 | Not started | - |
 | 3. Resilience & Session Stability | 0/0 | Not started | - |
-| 4. Sales Order Management | 0/0 | Not started | - |
+| 4. Sales Order Management | 1/2 | In progress | - |
