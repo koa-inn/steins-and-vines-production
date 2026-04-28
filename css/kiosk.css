@@ -2396,3 +2396,118 @@ img {
 .kiosk-lock-signout:active {
   color: var(--stain);
 }
+
+/* ===== Sales Order Status Chips (Phase 4: SOM-01) ===== */
+
+.kiosk-so-status-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--ledger-line);
+  background: var(--cellar-raised);
+  flex-shrink: 0;
+}
+
+.kiosk-so-chip {
+  padding: 4px 12px;
+  min-height: 36px;
+  border-radius: 20px;
+  border: 2px solid var(--ledger-emphasis);
+  background: var(--cellar-raised);
+  color: var(--ink-secondary);
+  font-size: 0.82rem;
+  font-weight: 400;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.kiosk-so-chip--open.active {
+  background: var(--cellar-green);
+  border-color: var(--cellar-green);
+  color: #fff;
+}
+
+.kiosk-so-chip--draft.active {
+  background: var(--barrel);
+  border-color: var(--barrel);
+  color: #fff;
+}
+
+.kiosk-so-chip--closed.active {
+  background: var(--ink-secondary);
+  border-color: var(--ink-secondary);
+  color: #fff;
+}
+
+.kiosk-so-chip--paid.active {
+  background: var(--batch-success);
+  border-color: var(--batch-success);
+  color: #fff;
+}
+
+.kiosk-so-chip--all.active {
+  background: var(--stain);
+  border-color: var(--stain);
+  color: var(--cellar-canvas);
+}
+
+/* ===== SO Card Action Row (Phase 4: SOM-01/02) ===== */
+
+.kiosk-so-card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.kiosk-so-card-actions .btn,
+.kiosk-so-card-actions .btn-secondary {
+  flex: 1;
+  min-height: 48px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 0.75rem;
+}
+
+.kiosk-so-reorder-btn {
+  margin-left: auto;
+  min-height: 44px;
+  font-size: 0.82rem;
+  padding: 0.5rem 1rem;
+}
+
+/* ===== Cart Import Banner (Phase 4: SOM-02) ===== */
+
+.kiosk-cart-so-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--batch-info-bg);
+  border: 1px solid var(--batch-info);
+  border-radius: var(--r-md);
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  color: var(--ink-secondary);
+  min-height: 36px;
+  margin-bottom: 8px;
+}
+
+.kiosk-cart-so-banner strong {
+  color: var(--ink-primary);
+  font-weight: 700;
+}
+
+.kiosk-cart-so-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-secondary);
+  font-size: 1.1rem;
+  min-width: 28px;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
