@@ -1458,6 +1458,10 @@
       delete _kioskCart[itemId];
     } else {
       if (_kioskCart[itemId]) {
+        // Only check overflow on qty increase, not decrease (D-01)
+        if (qty > _kioskCart[itemId].qty) {
+          if (!kioskCheckStockOverflow(_kioskCart[itemId].item, qty)) return;
+        }
         _kioskCart[itemId].qty = qty;
       }
     }
