@@ -1287,12 +1287,35 @@ router.post('/api/kiosk/salesorder-pay', function (req, res) {
                 amount: balance
               });
 
-              res.json({
-                ok: true,
-                transaction_id: txnId,
-                salesorder_number: soNumber,
-                amount: balance,
-                card_type: paymentMode
+              // D-02: Create invoice from SO for stock deduction
+              var invoiceFromSoChain = zohoPost('/invoices/fromsalesorder?salesorder_id=' + soId, {})
+                .then(function (invoiceData) {
+                  var invoice = (invoiceData && invoiceData.invoice) || {};
+                  var invoiceId = invoice.invoice_id || '';
+                  log.info('[kiosk/so-pay] Invoice created from SO: ' + (invoice.invoice_number || '') + ' id=' + invoiceId);
+                  if (invoiceId) {
+                    return zohoPost('/invoices/' + invoiceId + '/submit', {}).catch(function (submitErr) {
+                      log.warn('[kiosk/so-pay] Invoice submit failed (non-fatal): ' + submitErr.message);
+                    });
+                  }
+                })
+                .catch(function (invErr) {
+                  // Non-fatal: SO is paid, but invoice creation failed
+                  // Stock won't auto-decrement until next Zoho reconcile
+                  log.error('[kiosk/so-pay] Invoice from SO failed (non-fatal): ' + invErr.message);
+                });
+
+              invoiceFromSoChain.then(function () {
+                // Bust kiosk products cache so stock reflects after invoice submit
+                cache.del(KIOSK_PRODUCTS_CACHE_KEY).catch(function () {});
+
+                res.json({
+                  ok: true,
+                  transaction_id: txnId,
+                  salesorder_number: soNumber,
+                  amount: balance,
+                  card_type: paymentMode
+                });
               });
             })
             .catch(function (payErr) {

@@ -372,4 +372,130 @@ describe('pos routes — per-item tax on line items', function () {
       handlers['/api/kiosk/sale/confirm'](req, res);
     });
   });
+
+  // --- salesorder-pay SO-to-Invoice tests ---
+
+  describe('/api/kiosk/salesorder-pay — SO-to-Invoice conversion', function () {
+
+    test('salesorder-pay calls zohoPost with /invoices/fromsalesorder after payment recording', function (done) {
+      var soData = {
+        salesorder: {
+          salesorder_id: 'so-123',
+          salesorder_number: 'SO-001',
+          customer_id: 'cust-1',
+          balance: 150.00,
+          order_status: 'open'
+        }
+      };
+
+      // zohoGet returns SO data
+      zohoApi.zohoGet.mockResolvedValue(soData);
+
+      // Track zohoPost calls in order
+      var postCallIndex = 0;
+      zohoApi.zohoPost.mockImplementation(function (url) {
+        postCallIndex++;
+        if (url.indexOf('/customerpayments') !== -1) {
+          return Promise.resolve({ payment: { payment_id: 'pay-1' } });
+        }
+        if (url.indexOf('/invoices/fromsalesorder') !== -1) {
+          return Promise.resolve({ invoice: { invoice_id: 'inv-from-so', invoice_number: 'INV-FROM-SO-001' } });
+        }
+        if (url.indexOf('/submit') !== -1) {
+          return Promise.resolve({});
+        }
+        return Promise.resolve({});
+      });
+
+      var req = {
+        body: { salesorder_id: 'so-123' }
+      };
+      var res = mockRes();
+
+      res.json.mockImplementation(function (body) {
+        try {
+          expect(body.ok).toBe(true);
+          // Verify fromsalesorder was called
+          var fromsalesorderCall = zohoApi.zohoPost.mock.calls.find(function (c) {
+            return c[0].indexOf('/invoices/fromsalesorder') !== -1;
+          });
+          expect(fromsalesorderCall).toBeTruthy();
+          expect(fromsalesorderCall[0]).toContain('salesorder_id=so-123');
+
+          // Verify submit was called after fromsalesorder
+          var submitCall = zohoApi.zohoPost.mock.calls.find(function (c) {
+            return c[0].indexOf('/invoices/inv-from-so/submit') !== -1;
+          });
+          expect(submitCall).toBeTruthy();
+
+          // Verify kiosk products cache was busted
+          var delCalls = cache.del.mock.calls.map(function (c) { return c[0]; });
+          expect(delCalls).toContain('test:kiosk-products');
+
+          done();
+        } catch (e) { done(e); }
+      });
+      res.status.mockImplementation(function (code) {
+        if (code >= 400) {
+          return { json: function (body) { done(new Error('Got status ' + code + ': ' + JSON.stringify(body))); } };
+        }
+        return res;
+      });
+
+      handlers['/api/kiosk/salesorder-pay'](req, res);
+    });
+
+    test('salesorder-pay handles invoice creation failure non-fatally', function (done) {
+      var soData = {
+        salesorder: {
+          salesorder_id: 'so-456',
+          salesorder_number: 'SO-002',
+          customer_id: 'cust-2',
+          balance: 200.00,
+          order_status: 'open'
+        }
+      };
+
+      zohoApi.zohoGet.mockResolvedValue(soData);
+
+      zohoApi.zohoPost.mockImplementation(function (url) {
+        if (url.indexOf('/customerpayments') !== -1) {
+          return Promise.resolve({ payment: { payment_id: 'pay-2' } });
+        }
+        if (url.indexOf('/invoices/fromsalesorder') !== -1) {
+          return Promise.reject(new Error('Zoho API error: rate limited'));
+        }
+        return Promise.resolve({});
+      });
+
+      var req = {
+        body: { salesorder_id: 'so-456' }
+      };
+      var res = mockRes();
+      var log = require('../lib/logger');
+
+      res.json.mockImplementation(function (body) {
+        try {
+          // Despite invoice failure, response should still be ok
+          expect(body.ok).toBe(true);
+          expect(body.salesorder_number).toBe('SO-002');
+          // Should have logged the error
+          var errorCalls = log.error.mock.calls.map(function (c) { return c[0]; });
+          var invoiceError = errorCalls.find(function (msg) {
+            return msg.indexOf('Invoice from SO failed (non-fatal)') !== -1;
+          });
+          expect(invoiceError).toBeTruthy();
+          done();
+        } catch (e) { done(e); }
+      });
+      res.status.mockImplementation(function (code) {
+        if (code >= 400) {
+          return { json: function (body) { done(new Error('Got status ' + code + ': ' + JSON.stringify(body))); } };
+        }
+        return res;
+      });
+
+      handlers['/api/kiosk/salesorder-pay'](req, res);
+    });
+  });
 });
