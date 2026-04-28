@@ -28,11 +28,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. When a user adds more items than available stock, a warning appears with options to override or reduce quantity
   4. Out-of-stock items display a clear warning when added to cart, with override available for staff
   5. Product category labels come from `category_name`, not fallback `product_type` values
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [ ] 01-01-PLAN.md — Fix category filter: kioskItemCategory returns category_name only, add Other option for uncategorized items
+- [ ] 01-02-PLAN.md — Add stock overflow warning: confirm dialog when cart qty exceeds stock, verify existing stock/cache behaviors
+- [ ] 01-03-PLAN.md — Deploy to staging and human verification of all Phase 1 changes
 
 ### Phase 2: Sales Order Integrity
 **Goal**: Every kiosk payment results in a Zoho sales order with correct line items, amounts, and tax -- and stock levels refresh automatically after the sale
@@ -70,6 +71,6 @@ Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Catalog & Stock Display | 0/0 | Not started | - |
+| 1. Catalog & Stock Display | 0/3 | Planning complete | - |
 | 2. Sales Order Integrity | 0/0 | Not started | - |
 | 3. Resilience & Session Stability | 0/0 | Not started | - |
