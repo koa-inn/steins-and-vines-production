@@ -759,7 +759,7 @@
   }
 
   function kioskItemCategory(p) {
-    return p.category_name || p.cf_type || p.product_type || '';
+    return p.category_name || '';
   }
 
   function kioskIsWeightItem(p) {
@@ -965,8 +965,24 @@
       sel.appendChild(opt);
     });
 
+    // Add "Other" for uncategorized items within current type filter (D-06)
+    var hasUncategorized = _kioskProducts.some(function (p) {
+      if (typeFilter === 'consignment') {
+        if (!kioskIsConsignment(p)) return false;
+      } else if (typeFilter) {
+        if ((p.product_type || '').toLowerCase() !== typeFilter) return false;
+      }
+      return !kioskItemCategory(p);
+    });
+    if (hasUncategorized) {
+      var otherOpt = document.createElement('option');
+      otherOpt.value = '__other__';
+      otherOpt.textContent = 'Other';
+      sel.appendChild(otherOpt);
+    }
+
     // Restore previous selection if still valid
-    if (cats[prev]) {
+    if (cats[prev] || prev === '__other__') {
       sel.value = prev;
     } else {
       sel.value = '';
@@ -993,7 +1009,9 @@
 
       // Category filter
       var itemCat = kioskItemCategory(p);
-      if (cat && itemCat.toLowerCase() !== cat.toLowerCase()) return false;
+      if (cat === '__other__') {
+        if (itemCat !== '') return false;
+      } else if (cat && itemCat.toLowerCase() !== cat.toLowerCase()) return false;
 
       // Stock status filter
       if (stockStatus === 'in-stock' && stock <= 0 && !isService) return false;
