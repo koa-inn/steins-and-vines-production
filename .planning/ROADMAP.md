@@ -13,7 +13,7 @@ The kiosk works end-to-end but needs hardening before daily production use. This
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Catalog & Stock Display** - Products show correct categories and accurate stock levels with override warnings
-- [ ] **Phase 2: Sales Order Integrity** - Every completed sale creates a correct Zoho sales order with proper tax and post-sale stock refresh
+- [x] **Phase 2: Sales Order Integrity** - Every completed sale creates a correct Zoho sales order with proper tax and post-sale stock refresh
 - [ ] **Phase 3: Resilience & Session Stability** - Kiosk handles network failures, terminal timeouts, and session refresh gracefully
 - [ ] **Phase 4: Sales Order Management** - Staff can view all sales orders (including closed), import existing SOs into the kiosk cart, process payment, and mark SOs as closed/paid
 
@@ -54,7 +54,7 @@ Plans:
 **Wave 1**
 - [x] 02-01-PLAN.md — Per-item tax_id on invoice line items for both sale flows + SO-to-Invoice conversion in salesorder-pay
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 02-02-PLAN.md — Full-screen void error with transaction ID, post-sale product refresh on receipt dismiss, negative stock display
+- [x] 02-02-PLAN.md — Full-screen void error with transaction ID, post-sale product refresh on receipt dismiss, negative stock display
 
 ### Phase 3: Resilience & Session Stability
 **Goal**: The kiosk recovers gracefully from network problems, terminal issues, and session interruptions without leaving staff stranded
@@ -94,6 +94,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Catalog & Stock Display | 3/3 | Complete | 2026-04-28 |
-| 2. Sales Order Integrity | 1/2 | Executing | - |
+| 2. Sales Order Integrity | 2/2 | Complete | 2026-04-28 |
 | 3. Resilience & Session Stability | 0/0 | Not started | - |
 | 4. Sales Order Management | 2/2 | Complete | 2026-04-28 |
