@@ -10,6 +10,7 @@ var C = require('../lib/constants');
 
 var zohoGet = zohoApi.zohoGet;
 var zohoPost = zohoApi.zohoPost;
+var zohoPut = zohoApi.zohoPut;
 
 var KIOSK_PRODUCTS_CACHE_KEY = C.CACHE_KEYS.KIOSK_PRODUCTS;
 var RECENT_ORDERS_CACHE_KEY = C.CACHE_KEYS.RECENT_ORDERS;
@@ -968,13 +969,17 @@ router.get('/api/kiosk/salesorders', function (req, res) {
         return cached;
       }
 
-      log.info('[kiosk/salesorders] Cache miss — fetching from Zoho (draft + open)');
+      log.info('[kiosk/salesorders] Cache miss — fetching from Zoho (all statuses)');
       var fetchParams = { sort_column: 'date', sort_order: 'D' };
       return Promise.all([
         zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'open' })),
-        zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'draft' }))
+        zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'draft' })),
+        zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'closed' })),
+        zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'confirmed' }))
       ]).then(function (results) {
-        var combined = (results[0].salesorders || []).concat(results[1].salesorders || []);
+        var combined = results.reduce(function (acc, r) {
+          return acc.concat(r.salesorders || []);
+        }, []);
         combined.sort(function (a, b) {
           return (b.date || '').localeCompare(a.date || '');
         });
@@ -990,6 +995,7 @@ router.get('/api/kiosk/salesorders', function (req, res) {
             date: so.date || '',
             line_items: (so.line_items || []).map(function (li) {
               return {
+                item_id: li.item_id || '',
                 name: li.name || li.description || '',
                 quantity: li.quantity || 1,
                 rate: li.rate || 0,
@@ -1322,6 +1328,89 @@ router.post('/api/kiosk/salesorder-pay', function (req, res) {
       if (!res.headersSent) {
         res.status(502).json({ error: 'Failed to process sales order payment' });
       }
+    });
+});
+
+/**
+ * PUT /api/kiosk/salesorder-update
+ * Update line items on an existing Sales Order in Zoho.
+ * Called before terminal payment when cart was imported from an SO.
+ *
+ * Expected body:
+ * {
+ *   salesorder_id: "zoho_so_id",
+ *   items: [{ item_id, name, quantity, rate }]
+ * }
+ *
+ * Response: { ok, salesorder_id, salesorder_number, total, balance }
+ */
+router.put('/api/kiosk/salesorder-update', function (req, res) {
+  var apiKey = req.headers['x-api-key'] || req.query.api_key;
+  if (apiKey !== process.env.MW_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  var body = req.body || {};
+
+  var soId = body.salesorder_id;
+  if (!soId || typeof soId !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid salesorder_id' });
+  }
+  if (!Array.isArray(body.items) || body.items.length === 0) {
+    return res.status(400).json({ error: 'Items array is required and must not be empty' });
+  }
+  for (var i = 0; i < body.items.length; i++) {
+    var item = body.items[i];
+    if (!item.item_id || typeof item.item_id !== 'string') {
+      return res.status(400).json({ error: 'Invalid item_id for item ' + i });
+    }
+    var qty = Number(item.quantity);
+    if (!qty || qty <= 0) {
+      return res.status(400).json({ error: 'Invalid quantity for item ' + i });
+    }
+    var rate = Number(item.rate);
+    if (isNaN(rate) || rate < 0) {
+      return res.status(400).json({ error: 'Invalid rate for item ' + i });
+    }
+  }
+
+  var payload = {
+    line_items: body.items.map(function (item) {
+      return {
+        item_id: item.item_id,
+        quantity: item.quantity,
+        rate: item.rate,
+        name: item.name || ''
+      };
+    })
+  };
+
+  log.info('[kiosk/so-update] Updating SO=' + soId + ' items=' + body.items.length);
+
+  zohoPut('/salesorders/' + soId, payload)
+    .then(function (data) {
+      var so = data.salesorder || {};
+      cache.del(KIOSK_SO_CACHE_KEY).catch(function () {});
+      eventLog.logEvent('kiosk.salesorder_updated', {
+        soId: soId,
+        soNumber: so.salesorder_number || '',
+        itemCount: body.items.length
+      });
+      res.json({
+        ok: true,
+        salesorder_id: soId,
+        salesorder_number: so.salesorder_number || '',
+        total: so.total || 0,
+        balance: so.balance || 0
+      });
+    })
+    .catch(function (err) {
+      var msg = err.message;
+      if (err.response && err.response.data) {
+        msg = err.response.data.message || err.response.data.error || msg;
+      }
+      log.error('[kiosk/so-update] Zoho error: ' + msg);
+      res.status(502).json({ error: 'Failed to update sales order' });
     });
 });
 

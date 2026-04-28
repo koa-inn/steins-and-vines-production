@@ -1,7 +1,7 @@
 'use strict';
 
 jest.mock('express', () => {
-  var router = { get: jest.fn(), post: jest.fn() };
+  var router = { get: jest.fn(), post: jest.fn(), put: jest.fn() };
   var express = function () {};
   express.Router = function () { return router; };
   return express;
