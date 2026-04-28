@@ -2290,16 +2290,17 @@
 
       // Action row (per D-05, D-11)
       html += '<div class="kiosk-so-card-actions">';
-      if (isActionable && balance > 0) {
-        // D-05: existing Pay button + new Import to Cart button
-        html += '<button type="button" class="btn kiosk-so-pay-btn" data-so-id="' + escapeHTML(so.salesorder_id) + '">';
-        html += 'Collect ' + kioskFmt(balance);
-        html += '</button>';
+      if (isActionable) {
+        if (balance > 0) {
+          html += '<button type="button" class="btn kiosk-so-pay-btn" data-so-id="' + escapeHTML(so.salesorder_id) + '">';
+          html += 'Collect ' + kioskFmt(balance);
+          html += '</button>';
+        } else {
+          html += '<div class="kiosk-so-paid-badge">Paid</div>';
+        }
         html += '<button type="button" class="btn-secondary kiosk-so-import-btn" data-so-id="' + escapeHTML(so.salesorder_id) + '">';
         html += 'Import to Cart';
         html += '</button>';
-      } else if (isActionable && balance <= 0) {
-        html += '<div class="kiosk-so-paid-badge">Paid</div>';
       } else {
         // D-11: closed/paid SO -- Reorder button
         html += '<div class="kiosk-so-paid-badge">' + escapeHTML(displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)) + '</div>';
