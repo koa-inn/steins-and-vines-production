@@ -766,6 +766,19 @@
     return (p.unit || '').toLowerCase() === 'kg';
   }
 
+  // Stock overflow warning — fires when cart qty would exceed stock_on_hand (D-01, D-02, D-03)
+  function kioskCheckStockOverflow(product, newQty) {
+    var stock = parseFloat(product.stock_on_hand) || 0;
+    var isService = (product.product_type || '').toLowerCase() === 'service';
+    // Skip: services have no stock tracking, weight items are bulk, out-of-stock handled elsewhere (D-04)
+    if (isService || kioskIsWeightItem(product) || stock <= 0) return true;
+    if (newQty > stock) {
+      var name = product.name || 'This item';
+      return confirm('"' + name + '" — only ' + stock + ' in stock, cart would have ' + newQty + '. Add anyway?');
+    }
+    return true;
+  }
+
   function kioskItemTax(item, qty) {
     var rate = parseFloat(item.rate) || 0;
     var pct = parseFloat(item.tax_percentage) || 0;
@@ -1229,10 +1242,15 @@
       if (!isFinite(qty) || qty <= 0) return;
       qty = Math.round(qty * 1000) / 1000;
       _kioskCart[id] = { item: product, qty: qty };
-    } else if (_kioskCart[id]) {
-      _kioskCart[id].qty += 1;
     } else {
-      _kioskCart[id] = { item: product, qty: 1 };
+      var currentQty = _kioskCart[id] ? _kioskCart[id].qty : 0;
+      var newQty = currentQty + 1;
+      if (!kioskCheckStockOverflow(product, newQty)) return;
+      if (_kioskCart[id]) {
+        _kioskCart[id].qty = newQty;
+      } else {
+        _kioskCart[id] = { item: product, qty: 1 };
+      }
     }
 
     // If adding a kit, reset waiver and sync maker's fee
