@@ -1990,7 +1990,13 @@
               kioskClearCart();
             }
           } else {
-            kioskShowError('Sale Error', (result.data && result.data.error) || 'Failed to create invoice.', true);
+            if (result.data && result.data.payment_voided) {
+              kioskShowError('Payment Voided',
+                'Your payment was automatically reversed. No charge was made to the customer.',
+                true, { txnId: result.data.voided_transaction_id || '' });
+            } else {
+              kioskShowError('Sale Error', (result.data && result.data.error) || 'Failed to create invoice.', true);
+            }
           }
         })
         .catch(function () {
@@ -2176,16 +2182,26 @@
 
   // ===== Error View =====
 
-  function kioskShowError(title, msg, canRetry) {
+  function kioskShowError(title, msg, canRetry, extra) {
     kioskShowView('error');
 
     var titleEl = document.getElementById('kiosk-error-title');
     var msgEl = document.getElementById('kiosk-error-msg');
     var retryBtn = document.getElementById('kiosk-retry-btn');
     var backBtn = document.getElementById('kiosk-back-btn');
+    var detailEl = document.getElementById('kiosk-error-detail');
 
     if (titleEl) titleEl.textContent = title;
     if (msgEl) msgEl.textContent = msg;
+
+    if (detailEl) {
+      if (extra && extra.txnId) {
+        detailEl.textContent = 'Ref: ' + extra.txnId;
+        detailEl.style.display = '';
+      } else {
+        detailEl.style.display = 'none';
+      }
+    }
 
     if (retryBtn) {
       retryBtn.style.display = canRetry ? '' : 'none';
@@ -2661,6 +2677,10 @@
         kioskShowSoError('Payment Declined', result.data.error || 'Card was declined. Please try a different payment method.', true);
       } else if (result.status === 504) {
         kioskShowSoError('Terminal Timeout', result.data.error || 'Terminal did not respond in time. Please try again.', true);
+      } else if (result.data && result.data.payment_voided) {
+        kioskShowSoError('Payment Voided',
+          'Your payment was automatically reversed. No charge was made to the customer.',
+          true, { txnId: result.data.voided_transaction_id || '' });
       } else {
         kioskShowSoError('Payment Error', (result.data && result.data.error) || 'An error occurred. Please try again.', true);
       }
@@ -2672,16 +2692,26 @@
     });
   }
 
-  function kioskShowSoError(title, msg, canRetry) {
+  function kioskShowSoError(title, msg, canRetry, extra) {
     kioskShowView('error');
 
     var titleEl = document.getElementById('kiosk-error-title');
     var msgEl = document.getElementById('kiosk-error-msg');
     var retryBtn = document.getElementById('kiosk-retry-btn');
     var backBtn = document.getElementById('kiosk-back-btn');
+    var detailEl = document.getElementById('kiosk-error-detail');
 
     if (titleEl) titleEl.textContent = title;
     if (msgEl) msgEl.textContent = msg;
+
+    if (detailEl) {
+      if (extra && extra.txnId) {
+        detailEl.textContent = 'Ref: ' + extra.txnId;
+        detailEl.style.display = '';
+      } else {
+        detailEl.style.display = 'none';
+      }
+    }
 
     if (retryBtn) {
       retryBtn.style.display = canRetry ? '' : 'none';
