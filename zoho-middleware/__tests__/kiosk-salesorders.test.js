@@ -44,7 +44,7 @@ var cache = require('../lib/cache');
 // ---------------------------------------------------------------------------
 // Mock express.Router and capture route registrations
 // ---------------------------------------------------------------------------
-var _routeRegistry = { get: [], post: [] };
+var _routeRegistry = { get: [], post: [], put: [] };
 
 jest.mock('express', function () {
   var router = {
@@ -53,6 +53,9 @@ jest.mock('express', function () {
     }),
     post: jest.fn(function (path, handler) {
       _routeRegistry.post.push({ path: path, handler: handler });
+    }),
+    put: jest.fn(function (path, handler) {
+      _routeRegistry.put.push({ path: path, handler: handler });
     })
   };
   var express = function () {};
@@ -74,12 +77,13 @@ function findHandler(method, path) {
 var getSalesordersHandler = findHandler('get', '/api/kiosk/salesorders');
 var createSalesorderHandler = findHandler('post', '/api/kiosk/salesorder-create');
 var paySalesorderHandler = findHandler('post', '/api/kiosk/salesorder-pay');
+var updateSalesorderHandler = findHandler('put', '/api/kiosk/salesorder-update');
 
 // ---------------------------------------------------------------------------
 // Helpers — fake req/res for handler testing
 // ---------------------------------------------------------------------------
-function makeReq(body, query) {
-  return { body: body || {}, query: query || {} };
+function makeReq(body, query, headers) {
+  return { body: body || {}, query: query || {}, headers: headers || {} };
 }
 
 function makeRes() {
@@ -121,6 +125,8 @@ describe('GET /api/kiosk/salesorders', function () {
     ];
     zohoApi.zohoGet
       .mockResolvedValueOnce({ salesorders: mockSOs })
+      .mockResolvedValueOnce({ salesorders: [] })
+      .mockResolvedValueOnce({ salesorders: [] })
       .mockResolvedValueOnce({ salesorders: [] });
 
     var req = makeReq(null, {});
@@ -161,6 +167,8 @@ describe('GET /api/kiosk/salesorders', function () {
     ];
     zohoApi.zohoGet
       .mockResolvedValueOnce({ salesorders: mockSOs })
+      .mockResolvedValueOnce({ salesorders: [] })
+      .mockResolvedValueOnce({ salesorders: [] })
       .mockResolvedValueOnce({ salesorders: [] });
 
     var req = makeReq(null, { search: 'alice' });
@@ -186,6 +194,46 @@ describe('GET /api/kiosk/salesorders', function () {
 
     return flushPromises().then(function () {
       expect(res.status).toHaveBeenCalledWith(502);
+    });
+  });
+
+  test('returns item_id in line_items when present', function () {
+    var mockSOs = [
+      {
+        salesorder_id: 'SO-100', salesorder_number: 'SO-100', customer_name: 'Test',
+        total: 50, balance: 50, status: 'open', date: '2026-04-27',
+        line_items: [{ item_id: 'ITEM-A', name: 'Kit', quantity: 1, rate: 50, amount: 50 }]
+      }
+    ];
+    zohoApi.zohoGet
+      .mockResolvedValueOnce({ salesorders: mockSOs })
+      .mockResolvedValueOnce({ salesorders: [] })
+      .mockResolvedValueOnce({ salesorders: [] })
+      .mockResolvedValueOnce({ salesorders: [] });
+
+    var req = makeReq(null, {});
+    var res = makeRes();
+    getSalesordersHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(res.json).toHaveBeenCalled();
+      var orders = res._json.salesorders;
+      expect(orders[0].line_items[0].item_id).toBe('ITEM-A');
+    });
+  });
+
+  test('fetches 4 statuses (open, draft, closed, confirmed)', function () {
+    zohoApi.zohoGet.mockResolvedValue({ salesorders: [] });
+
+    var req = makeReq(null, {});
+    var res = makeRes();
+    getSalesordersHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(zohoApi.zohoGet).toHaveBeenCalledTimes(4);
+      var calls = zohoApi.zohoGet.mock.calls;
+      var statuses = calls.map(function (c) { return c[1].status; }).sort();
+      expect(statuses).toEqual(['closed', 'confirmed', 'draft', 'open']);
     });
   });
 });
@@ -483,6 +531,145 @@ describe('POST /api/kiosk/salesorder-pay', function () {
     }).then(function () {
       expect(helcimLib.voidTransaction).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(502);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PUT /api/kiosk/salesorder-update
+// ---------------------------------------------------------------------------
+describe('PUT /api/kiosk/salesorder-update', function () {
+  var OLD_MW_KEY;
+
+  beforeEach(function () {
+    jest.clearAllMocks();
+    cache.del.mockResolvedValue(1);
+    OLD_MW_KEY = process.env.MW_API_KEY;
+    process.env.MW_API_KEY = 'test-api-key';
+  });
+
+  afterEach(function () {
+    process.env.MW_API_KEY = OLD_MW_KEY;
+  });
+
+  test('returns 401 without valid API key', function () {
+    var req = makeReq({ salesorder_id: 'SO-1', items: [{ item_id: 'A', name: 'X', quantity: 1, rate: 10 }] }, {}, { 'x-api-key': 'wrong-key' });
+    var res = makeRes();
+    updateSalesorderHandler(req, res);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res._json.error).toBe('Unauthorized');
+  });
+
+  test('returns 400 when salesorder_id missing', function () {
+    var req = makeReq({ items: [{ item_id: 'A', name: 'X', quantity: 1, rate: 10 }] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    updateSalesorderHandler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res._json.error).toContain('salesorder_id');
+  });
+
+  test('returns 400 when items array is empty', function () {
+    var req = makeReq({ salesorder_id: 'SO-1', items: [] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    updateSalesorderHandler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res._json.error).toContain('Items');
+  });
+
+  test('returns 400 when items is not an array', function () {
+    var req = makeReq({ salesorder_id: 'SO-1', items: 'not-array' }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    updateSalesorderHandler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test('returns 400 when item_id missing from item', function () {
+    var req = makeReq({ salesorder_id: 'SO-1', items: [{ name: 'X', quantity: 1, rate: 10 }] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    updateSalesorderHandler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res._json.error).toContain('item_id');
+  });
+
+  test('returns 400 when quantity is zero', function () {
+    var req = makeReq({ salesorder_id: 'SO-1', items: [{ item_id: 'A', name: 'X', quantity: 0, rate: 10 }] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    updateSalesorderHandler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res._json.error).toContain('quantity');
+  });
+
+  test('returns 400 when rate is negative', function () {
+    var req = makeReq({ salesorder_id: 'SO-1', items: [{ item_id: 'A', name: 'X', quantity: 1, rate: -5 }] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    updateSalesorderHandler(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res._json.error).toContain('rate');
+  });
+
+  test('happy path: updates SO and returns ok with cache bust', function () {
+    zohoApi.zohoPut.mockResolvedValue({
+      salesorder: { salesorder_id: 'SO-1', salesorder_number: 'SO-001', total: 75, balance: 75 }
+    });
+
+    var req = makeReq(
+      { salesorder_id: 'SO-1', items: [{ item_id: 'ITEM-A', name: 'Kit', quantity: 1, rate: 75 }] },
+      {},
+      { 'x-api-key': 'test-api-key' }
+    );
+    var res = makeRes();
+    updateSalesorderHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(zohoApi.zohoPut).toHaveBeenCalledWith('/salesorders/SO-1', {
+        line_items: [{ item_id: 'ITEM-A', quantity: 1, rate: 75, name: 'Kit' }]
+      });
+      expect(cache.del).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalled();
+      expect(res._json.ok).toBe(true);
+      expect(res._json.salesorder_id).toBe('SO-1');
+      expect(res._json.salesorder_number).toBe('SO-001');
+      expect(res._json.total).toBe(75);
+      expect(res._json.balance).toBe(75);
+    });
+  });
+
+  test('returns 502 when Zoho API fails', function () {
+    zohoApi.zohoPut.mockRejectedValue(new Error('Zoho timeout'));
+
+    var req = makeReq(
+      { salesorder_id: 'SO-1', items: [{ item_id: 'ITEM-A', name: 'Kit', quantity: 1, rate: 75 }] },
+      {},
+      { 'x-api-key': 'test-api-key' }
+    );
+    var res = makeRes();
+    updateSalesorderHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(502);
+      expect(res._json.error).toContain('Failed to update');
+    });
+  });
+
+  test('handles multiple items in payload', function () {
+    zohoApi.zohoPut.mockResolvedValue({
+      salesorder: { salesorder_id: 'SO-2', salesorder_number: 'SO-002', total: 150, balance: 150 }
+    });
+
+    var items = [
+      { item_id: 'ITEM-A', name: 'Kit A', quantity: 2, rate: 50 },
+      { item_id: 'ITEM-B', name: 'Kit B', quantity: 1, rate: 50 }
+    ];
+    var req = makeReq({ salesorder_id: 'SO-2', items: items }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    updateSalesorderHandler(req, res);
+
+    return flushPromises().then(function () {
+      var callPayload = zohoApi.zohoPut.mock.calls[0][1];
+      expect(callPayload.line_items).toHaveLength(2);
+      expect(callPayload.line_items[0].item_id).toBe('ITEM-A');
+      expect(callPayload.line_items[1].item_id).toBe('ITEM-B');
+      expect(res._json.ok).toBe(true);
     });
   });
 });
