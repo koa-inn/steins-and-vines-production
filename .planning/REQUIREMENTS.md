@@ -14,8 +14,8 @@
 
 ### Catalog Display
 
-- [ ] **CAT-01**: Category filter dropdown only shows actual product categories, not Zoho item types ("goods", "services")
-- [ ] **CAT-02**: Products display correct category labels derived from `category_name`, not fallback to `product_type`
+- [x] **CAT-01**: Category filter dropdown only shows actual product categories, not Zoho item types ("goods", "services")
+- [x] **CAT-02**: Products display correct category labels derived from `category_name`, not fallback to `product_type`
 
 ### Sales Orders
 
@@ -55,8 +55,8 @@
 | STOCK-02 | Phase 1 | Pending |
 | STOCK-03 | Phase 2 | Pending |
 | STOCK-04 | Phase 1 | Pending |
-| CAT-01 | Phase 1 | Pending |
-| CAT-02 | Phase 1 | Pending |
+| CAT-01 | Phase 1 | Complete (01-01) |
+| CAT-02 | Phase 1 | Complete (01-01) |
 | SO-01 | Phase 2 | Pending |
 | SO-02 | Phase 2 | Pending |
 | SO-03 | Phase 2 | Pending |

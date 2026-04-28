@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready to execute
-stopped_at: Phase 1 planned
-last_updated: "2026-04-28T01:30:00.000Z"
-last_activity: 2026-04-27 -- Phase 1 planned (3 plans in 3 waves)
+status: executing
+stopped_at: Phase 01 Plan 01 complete
+last_updated: "2026-04-28T05:00:17Z"
+last_activity: 2026-04-28 -- Phase 01 Plan 01 executed (category filter fix)
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 3
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 33
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Every kiosk sale must result in an accurate Zoho sales order with correct stock deduction.
-**Current focus:** Phase 1 - Catalog & Stock Display
+**Current focus:** Phase 01 — catalog-stock-display
 
 ## Current Position
 
-Phase: 1 of 3 (Catalog & Stock Display)
-Plan: 0 of 3 in current phase
-Status: Ready to execute
-Last activity: 2026-04-27 -- Phase 1 planned (3 plans in 3 waves)
+Phase: 01 (catalog-stock-display) — EXECUTING
+Plan: 2 of 3
+Status: Plan 01 complete, awaiting Plan 02
+Last activity: 2026-04-28 -- Phase 01 Plan 01 executed (category filter fix)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -44,11 +44,11 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01-catalog-stock-display | 1 | 1 min | 1 min |
 
 **Recent Trend:**
 
-- Last 5 plans: -
+- Last 5 plans: 1 min
 - Trend: -
 
 *Updated after each plan completion*
@@ -61,17 +61,19 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - Stock warning uses override (not hard block) -- staff may know about incoming shipments or floor samples
+- Use __other__ sentinel (not empty string) for uncategorized filter so empty category still means "all categories"
+- Only append "Other" option when at least one product in current type filter scope has no category_name
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
-None yet.
+None.
 
 ## Session Continuity
 
-Last session: 2026-04-27T19:37:37.596Z
-Stopped at: Phase 1 planned
-Resume file: .planning/phases/01-catalog-stock-display/01-01-PLAN.md
+Last session: 2026-04-28T05:00:17Z
+Stopped at: Phase 01 Plan 01 complete
+Resume file: .planning/phases/01-catalog-stock-display/01-02-PLAN.md
