@@ -23,6 +23,12 @@
 - [ ] **SO-02**: Sales order includes correct tax calculation matching Zoho tax rules
 - [ ] **SO-03**: Failed Zoho sales order creation after successful payment triggers auto-void and staff notification
 
+### Sales Order Management
+
+- [ ] **SOM-01**: Sales order list shows all statuses (open, draft, closed, paid) with a filter toggle
+- [ ] **SOM-02**: Staff can import an existing Zoho sales order's line items into the kiosk cart for payment
+- [ ] **SOM-03**: After payment on an imported SO, the sales order is marked closed/paid in Zoho with payment linked
+
 ### Reliability
 
 - [ ] **REL-01**: Kiosk handles network interruptions gracefully during product load, cart operations, and payment
@@ -63,12 +69,15 @@
 | REL-01 | Phase 3 | Pending |
 | REL-02 | Phase 3 | Pending |
 | REL-03 | Phase 3 | Pending |
+| SOM-01 | Phase 4 | Pending |
+| SOM-02 | Phase 4 | Pending |
+| SOM-03 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 12 total
-- Mapped to phases: 12
+- v1 requirements: 15 total
+- Mapped to phases: 15
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-27*
-*Last updated: 2026-04-28 after Plan 01-02 completion*
+*Last updated: 2026-04-28 — Phase 4 (Sales Order Management) requirements added*

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The kiosk works end-to-end but needs hardening before daily production use. This roadmap fixes what users see (stock levels and catalog display), ensures what happens after payment is correct (Zoho sales orders with accurate line items and tax), and then hardens the system against real-world conditions (network failures, terminal timeouts, session stability). Three phases, each delivering a verifiable capability.
+The kiosk works end-to-end but needs hardening before daily production use. This roadmap fixes what users see (stock levels and catalog display), ensures what happens after payment is correct (Zoho sales orders with accurate line items and tax), hardens the system against real-world conditions (network failures, terminal timeouts, session stability), and adds sales order management workflows. Four phases, each delivering a verifiable capability.
 
 ## Phases
 
@@ -15,6 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Catalog & Stock Display** - Products show correct categories and accurate stock levels with override warnings
 - [ ] **Phase 2: Sales Order Integrity** - Every completed sale creates a correct Zoho sales order with proper tax and post-sale stock refresh
 - [ ] **Phase 3: Resilience & Session Stability** - Kiosk handles network failures, terminal timeouts, and session refresh gracefully
+- [ ] **Phase 4: Sales Order Management** - Staff can view all sales orders (including closed), import existing SOs into the kiosk cart, process payment, and mark SOs as closed/paid
 
 ## Phase Details
 
@@ -67,13 +68,28 @@ Plans:
 - [ ] 03-01: TBD
 - [ ] 03-02: TBD
 
+### Phase 4: Sales Order Management
+**Goal**: Staff can view all sales orders (including closed/paid), import an existing Zoho SO into the kiosk cart, process payment, and have the SO marked as closed/paid in Zoho
+**Depends on**: Phase 2
+**Requirements**: SOM-01, SOM-02, SOM-03
+**Success Criteria** (what must be TRUE):
+  1. Sales order list shows all statuses (open, draft, closed, paid) with a filter toggle — not just open/draft
+  2. Staff can select an existing sales order and load its line items into the kiosk cart for payment processing
+  3. After payment is collected on an imported SO, the sales order is marked as closed/paid in Zoho with the payment linked
+**Plans**: TBD
+
+Plans:
+- [ ] 04-01: TBD
+- [ ] 04-02: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Catalog & Stock Display | 3/3 | Complete | 2026-04-28 |
 | 2. Sales Order Integrity | 0/0 | Not started | - |
 | 3. Resilience & Session Stability | 0/0 | Not started | - |
+| 4. Sales Order Management | 0/0 | Not started | - |

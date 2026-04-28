@@ -7,7 +7,7 @@ stopped_at: Phase 01 complete — human verified and approved on staging
 last_updated: "2026-04-28T05:22:28Z"
 last_activity: 2026-04-28 -- Phase 01 Plan 03 human verified and approved — Phase 1 complete
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 1
   total_plans: 3
   completed_plans: 3
@@ -66,6 +66,10 @@ Recent decisions affecting current work:
 - kioskCheckStockOverflow is advisory only; stock <= 0 returns true (skip) since out-of-stock confirm handles that case
 - Qty increase guard in kioskSetQty: only fire dialog when qty > current qty — decreasing must remain silent
 - Phase 1 human-verified on staging and approved before any production push (workflow rule enforced)
+
+### Roadmap Evolution
+
+- Phase 4 added: Sales Order Management — view all SOs (including closed), import SO into cart, process payment, mark closed/paid in Zoho
 
 ### Pending Todos
 
