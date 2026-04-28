@@ -52,7 +52,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 02-01-PLAN.md — Per-item tax_id on invoice line items for both sale flows + SO-to-Invoice conversion in salesorder-pay
+- [x] 02-01-PLAN.md — Per-item tax_id on invoice line items for both sale flows + SO-to-Invoice conversion in salesorder-pay
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 02-02-PLAN.md — Full-screen void error with transaction ID, post-sale product refresh on receipt dismiss, negative stock display
 
@@ -94,6 +94,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Catalog & Stock Display | 3/3 | Complete | 2026-04-28 |
-| 2. Sales Order Integrity | 0/2 | Planned | - |
+| 2. Sales Order Integrity | 1/2 | Executing | - |
 | 3. Resilience & Session Stability | 0/0 | Not started | - |
 | 4. Sales Order Management | 2/2 | Complete | 2026-04-28 |

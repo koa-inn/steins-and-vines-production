@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_execute
-stopped_at: Phase 2 planned
-last_updated: "2026-04-28T18:00:00Z"
-last_activity: "2026-04-28 -- Phase 02 planned: 2 plans in 2 waves (Sales Order Integrity)"
+status: executing
+stopped_at: Phase 02, Plan 01 complete
+last_updated: "2026-04-28T21:27:00Z"
+last_activity: "2026-04-28 -- Phase 02 Plan 01 complete: per-item tax + SO-to-Invoice"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  total_plans: 7
+  completed_plans: 6
+  percent: 86
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 02 (sales-order-integrity) — PLANNED
-Plan: 0 of 2 complete
-Status: Ready to execute — 2 plans in 2 waves
-Last activity: 2026-04-28 -- Phase 02 planned (2 plans: per-item tax + SO-to-Invoice, frontend error/refresh/stock)
+Phase: 02 (sales-order-integrity) — EXECUTING
+Plan: 1 of 2 complete
+Status: Plan 01 done (per-item tax + SO-to-Invoice), Plan 02 ready
+Last activity: 2026-04-28 -- Plan 01 complete: per-item tax_id on line items, SO-to-Invoice conversion
 
-Progress: [██████████] 100% (Overall)
+Progress: [████████░░] 86% (Overall — 6 of 7 plans)
 
 ## Performance Metrics
 
@@ -46,11 +46,12 @@ Progress: [██████████] 100% (Overall)
 |-------|-------|-------|----------|
 | 01-catalog-stock-display | 3 | ~25 min | ~8 min |
 | 04-sales-order-management | 2 | ~9 min | ~4 min |
+| 02-sales-order-integrity | 1 | ~5 min | ~5 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 1 min
-- Trend: -
+- Last 6 plans: ~5 min
+- Trend: stable
 
 *Updated after each plan completion*
 
@@ -72,6 +73,9 @@ Recent decisions affecting current work:
 - Search is now client-side only (kioskRenderSoList) -- no re-fetch per keystroke (04-02)
 - Zoho status 'confirmed' maps to display status 'paid' in chip filter (04-02)
 - Detaching SO banner only clears association, cart items remain (04-02)
+- tax_id read from server-side catalogMap only, never from request body (02-01, T-02-01 mitigation)
+- Invoice creation from SO is non-fatal -- SO is paid even if invoice fails (02-01)
+- KIOSK_TAX_RATE kept as fallback for items with no tax_id and no tax_percentage (02-01, D-04)
 
 ### Roadmap Evolution
 
@@ -88,5 +92,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-04-28
-Stopped at: Phase 2 planned, ready to execute
-Resume file: .planning/phases/02-sales-order-integrity/02-01-PLAN.md
+Stopped at: Phase 02 Plan 01 complete, Plan 02 ready
+Resume file: .planning/phases/02-sales-order-integrity/02-02-PLAN.md

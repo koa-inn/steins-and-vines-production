@@ -19,9 +19,9 @@
 
 ### Sales Orders
 
-- [ ] **SO-01**: Completed kiosk sale creates a sales order in Zoho Books with correct line items, quantities, and amounts
-- [ ] **SO-02**: Sales order includes correct tax calculation matching Zoho tax rules
-- [ ] **SO-03**: Failed Zoho sales order creation after successful payment triggers auto-void and staff notification
+- [x] **SO-01**: Completed kiosk sale creates a sales order in Zoho Books with correct line items, quantities, and amounts
+- [x] **SO-02**: Sales order includes correct tax calculation matching Zoho tax rules
+- [x] **SO-03**: Failed Zoho sales order creation after successful payment triggers auto-void and staff notification
 
 ### Sales Order Management
 
@@ -63,9 +63,9 @@
 | STOCK-04 | Phase 1 | Complete (01-02) |
 | CAT-01 | Phase 1 | Complete (01-01) |
 | CAT-02 | Phase 1 | Complete (01-01) |
-| SO-01 | Phase 2 | Pending |
-| SO-02 | Phase 2 | Pending |
-| SO-03 | Phase 2 | Pending |
+| SO-01 | Phase 2 Plan 01 | Complete |
+| SO-02 | Phase 2 Plan 01 | Complete |
+| SO-03 | Phase 2 Plan 01 | Complete |
 | REL-01 | Phase 3 | Pending |
 | REL-02 | Phase 3 | Pending |
 | REL-03 | Phase 3 | Pending |
