@@ -25,9 +25,9 @@
 
 ### Sales Order Management
 
-- [ ] **SOM-01**: Sales order list shows all statuses (open, draft, closed, paid) with a filter toggle
-- [ ] **SOM-02**: Staff can import an existing Zoho sales order's line items into the kiosk cart for payment
-- [ ] **SOM-03**: After payment on an imported SO, the sales order is marked closed/paid in Zoho with payment linked
+- [x] **SOM-01**: Sales order list shows all statuses (open, draft, closed, paid) with a filter toggle
+- [x] **SOM-02**: Staff can import an existing Zoho sales order's line items into the kiosk cart for payment
+- [x] **SOM-03**: After payment on an imported SO, the sales order is marked closed/paid in Zoho with payment linked
 
 ### Reliability
 
@@ -69,9 +69,9 @@
 | REL-01 | Phase 3 | Pending |
 | REL-02 | Phase 3 | Pending |
 | REL-03 | Phase 3 | Pending |
-| SOM-01 | Phase 4 | In Progress (04-01: backend 4-status GET) |
-| SOM-02 | Phase 4 | In Progress (04-01: item_id in GET response) |
-| SOM-03 | Phase 4 | In Progress (04-01: PUT salesorder-update endpoint) |
+| SOM-01 | Phase 4 | Complete (04-01: backend + 04-02: chip filter) |
+| SOM-02 | Phase 4 | Complete (04-01: item_id/PUT + 04-02: import-to-cart) |
+| SOM-03 | Phase 4 | Complete (04-01: PUT + 04-02: checkout fork) |
 
 **Coverage:**
 - v1 requirements: 15 total
@@ -80,4 +80,4 @@
 
 ---
 *Requirements defined: 2026-04-27*
-*Last updated: 2026-04-28 — Phase 4 Plan 01 backend complete (SOM-01/02/03 in progress)*
+*Last updated: 2026-04-28 — Phase 4 complete (SOM-01/02/03 all complete)*

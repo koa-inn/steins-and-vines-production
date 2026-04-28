@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 4 Plan 1 complete
-last_updated: "2026-04-28T14:27:26Z"
-last_activity: "2026-04-28 -- Phase 04 Plan 01 complete: SO middleware extension (4-status GET + PUT update)"
+stopped_at: Phase 4 Plan 2 complete
+last_updated: "2026-04-28T14:35:47Z"
+last_activity: "2026-04-28 -- Phase 04 Plan 02 complete: Kiosk SO frontend (chip filter, import, reorder, checkout fork)"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 4
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -25,27 +25,27 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 04 (sales-order-management) — IN PROGRESS
-Plan: 1 of 2 complete
-Status: Plan 01 complete — SO middleware extended with 4-status GET and PUT update endpoint
-Last activity: 2026-04-28 -- Phase 04 Plan 01 complete (2 tasks, 12 tests added)
+Phase: 04 (sales-order-management) — COMPLETE
+Plan: 2 of 2 complete
+Status: Phase 04 complete — SO middleware + kiosk frontend (chip filter, import-to-cart, reorder, checkout fork)
+Last activity: 2026-04-28 -- Phase 04 Plan 02 complete (2 tasks, 254 frontend tests pass)
 
-Progress: [████████░░] 80% (Overall)
+Progress: [██████████] 100% (Overall)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 4
+- Total plans completed: 5
 - Average duration: ~7 min/plan
-- Total execution time: ~29 min
+- Total execution time: ~33 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-catalog-stock-display | 3 | ~25 min | ~8 min |
-| 04-sales-order-management | 1 | ~4 min | ~4 min |
+| 04-sales-order-management | 2 | ~9 min | ~4 min |
 
 **Recent Trend:**
 
@@ -69,6 +69,9 @@ Recent decisions affecting current work:
 - Phase 1 human-verified on staging and approved before any production push (workflow rule enforced)
 - Used reduce+concat for combining 4-status results instead of manual array concatenation (04-01)
 - PUT endpoint returns generic error message on Zoho failure for info disclosure mitigation (04-01)
+- Search is now client-side only (kioskRenderSoList) -- no re-fetch per keystroke (04-02)
+- Zoho status 'confirmed' maps to display status 'paid' in chip filter (04-02)
+- Detaching SO banner only clears association, cart items remain (04-02)
 
 ### Roadmap Evolution
 
@@ -84,6 +87,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-28T14:27:26Z
-Stopped at: Completed 04-01-PLAN.md
-Resume file: .planning/phases/04-sales-order-management/04-02-PLAN.md
+Last session: 2026-04-28T14:35:47Z
+Stopped at: Completed 04-02-PLAN.md
+Resume file: None (Phase 04 complete)
