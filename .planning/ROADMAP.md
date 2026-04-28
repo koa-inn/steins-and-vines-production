@@ -31,8 +31,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 3 plans
 
 Plans:
+**Wave 1**
 - [ ] 01-01-PLAN.md — Fix category filter: kioskItemCategory returns category_name only, add Other option for uncategorized items
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 01-02-PLAN.md — Add stock overflow warning: confirm dialog when cart qty exceeds stock, verify existing stock/cache behaviors
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 01-03-PLAN.md — Deploy to staging and human verification of all Phase 1 changes
 
 ### Phase 2: Sales Order Integrity
