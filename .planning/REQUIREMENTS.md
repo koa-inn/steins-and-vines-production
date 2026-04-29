@@ -10,7 +10,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 ### Auth Reliability
 
 - [x] **AUTH-01**: Staff session persists for at least 7 days without re-login
-- [ ] **AUTH-02**: If a token expires mid-session, form data is preserved through the refresh flow
+- [x] **AUTH-02**: If a token expires mid-session, form data is preserved through the refresh flow
 - [x] **AUTH-03**: Only one login prompt appears at a time (no stacked/duplicate auth dialogs)
 - [x] **AUTH-04**: Staff sees a clear warning before session expires with option to extend
 
@@ -51,7 +51,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | AUTH-01 | Phase 5 | Complete (05-01) |
-| AUTH-02 | Phase 5 | Pending (05-02) |
+| AUTH-02 | Phase 5 | Complete (05-02) |
 | AUTH-03 | Phase 5 | Complete (05-01) |
 | AUTH-04 | Phase 5 | Complete (05-01) |
 | INTG-01 | Phase 6 | Pending |
