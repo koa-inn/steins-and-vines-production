@@ -76,7 +76,7 @@ Plans:
 
 ## Phases
 
-- [ ] **Phase 5: Auth Reliability** - BrewPad sessions persist reliably, form data survives token refresh, and login prompts never stack
+- [x] **Phase 5: Auth Reliability** - BrewPad sessions persist reliably, form data survives token refresh, and login prompts never stack (completed 2026-04-29)
 - [ ] **Phase 6: Kiosk-to-Brewpad Integration** - Kit sales on the kiosk auto-create linked batches in BrewPad
 - [ ] **Phase 7: Zoho Audit Trail** - Full traceability from Zoho sale through fermentation to batch completion
 

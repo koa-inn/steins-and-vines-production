@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Staff can trust BrewPad to save their work and see the full journey from kit sale to finished batch.
-**Current focus:** Phase 5 -- Auth Reliability (ready to plan)
+**Current focus:** Phase 6 -- Kiosk-to-Brewpad Integration (ready to discuss)
 
 ## Current Position
 
