@@ -230,6 +230,13 @@ app.use('/api', function (req, res, next) {
     return res.status(503).json({ error: 'Server not configured: API_SECRET_KEY is not set. Contact your administrator.' });
   }
   if (req.headers['x-api-key'] === API_SECRET_KEY) return next();
+  var sent = req.headers['x-api-key'];
+  log.warn('[api-key] Forbidden: method=' + req.method + ' path=' + req.path +
+    ' header-present=' + (sent !== undefined) +
+    ' header-length=' + (sent ? sent.length : 0) +
+    ' expected-length=' + API_SECRET_KEY.length +
+    ' origin=' + (req.headers.origin || 'none') +
+    ' referer=' + (req.headers.referer || 'none'));
   res.status(403).json({ error: 'Forbidden' });
 });
 
