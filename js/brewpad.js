@@ -74,6 +74,9 @@ function renderDataGapWarning(readings, now) {
   var _tokenWarnTimer = null;
   var _silentRefreshTimer = null;
   var _handlingUnauthorized = false;
+  var _refreshInFlight = false;
+  var _lastTokenTime = 0;
+  var _visibilityListenerAdded = false;
   var _activeTab = 'dashboard';
 
   // Batches
@@ -149,11 +152,12 @@ function renderDataGapWarning(readings, now) {
 
   var SESSION_KEY = 'sv-brewpad-session';
 
-  function saveSession(token, expiresIn, email) {
+  function saveSession(token, expiresIn, email, loginAt) {
     localStorage.setItem(SESSION_KEY, JSON.stringify({
       token: token,
       expires_at: Date.now() + (expiresIn * 1000),
-      email: email
+      email: email,
+      login_at: loginAt || Date.now()
     }));
   }
 
@@ -162,8 +166,13 @@ function renderDataGapWarning(readings, now) {
       var raw = localStorage.getItem(SESSION_KEY);
       if (!raw) return null;
       var data = JSON.parse(raw);
-      if (data.expires_at < Date.now() + 5 * 60 * 1000) return null;
-      return data;
+      var sevenDays = 7 * 24 * 60 * 60 * 1000;
+      if (data.login_at && (Date.now() - data.login_at > sevenDays)) {
+        localStorage.removeItem(SESSION_KEY);
+        return null;
+      }
+      var tokenValid = data.expires_at > Date.now() + 5 * 60 * 1000;
+      return { email: data.email, token: tokenValid ? data.token : null, expires_at: data.expires_at, tokenValid: tokenValid, login_at: data.login_at };
     } catch (e) { return null; }
   }
 
@@ -211,7 +220,15 @@ function renderDataGapWarning(readings, now) {
     tokenClient = gsiInitTokenClient({
       client_id: SHEETS_CONFIG.CLIENT_ID,
       scope: SHEETS_CONFIG.SCOPES + ' https://www.googleapis.com/auth/userinfo.email',
-      callback: onTokenResponse
+      callback: onTokenResponse,
+      error_callback: function (err) {
+        _refreshInFlight = false;
+        var dot = document.getElementById('bp-auth-dot');
+        if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--offline'; dot.title = 'Not signed in'; }
+        if (accessToken) {
+          handleUnauthorized();
+        }
+      }
     });
 
     var signoutBtn = document.getElementById('bp-signout');
@@ -270,8 +287,26 @@ function renderDataGapWarning(readings, now) {
     }
   }
 
+  function tryRefreshToken() {
+    if (_refreshInFlight || _handlingUnauthorized) return;
+    var session = loadSession();
+    var email = (session && session.email) || userEmail || '';
+    if (!tokenClient) return;
+    _refreshInFlight = true;
+    var dot = document.getElementById('bp-auth-dot');
+    if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--refreshing'; dot.title = 'Refreshing session...'; }
+    try {
+      tokenClient.requestAccessToken({ prompt: '', login_hint: email });
+    } catch (err) {
+      _refreshInFlight = false;
+      if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--offline'; dot.title = 'Not signed in'; }
+      handleUnauthorized();
+    }
+  }
+
   function onTokenResponse(response) {
     if (_silentRefreshTimer) { clearTimeout(_silentRefreshTimer); _silentRefreshTimer = null; }
+    _refreshInFlight = false;
     _handlingUnauthorized = false;
     if (response.error) {
       if (accessToken) {
@@ -285,12 +320,19 @@ function renderDataGapWarning(readings, now) {
       return;
     }
     accessToken = response.access_token;
+    _lastTokenTime = Date.now();
     var expiresIn = response.expires_in || 3600;
+    // Remove session expired overlay if present
+    var overlay = document.getElementById('bp-session-overlay');
+    if (overlay) { overlay.parentNode.removeChild(overlay); }
     // fetchGoogleUserInfo defined in js/lib/auth.js
     fetchGoogleUserInfo(accessToken)
       .then(function (info) {
         userEmail = info.email;
-        saveSession(accessToken, expiresIn, userEmail);
+        // Preserve login_at across token refreshes (7-day session persistence)
+        var prevLoginAt;
+        try { var prev = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}'); prevLoginAt = prev.login_at; } catch (e) {}
+        saveSession(accessToken, expiresIn, userEmail, prevLoginAt);
         checkAuthorization();
       })
       .catch(function () { showDenied(); });
@@ -339,10 +381,10 @@ function renderDataGapWarning(readings, now) {
 
     if (_tokenRefreshTimer) clearInterval(_tokenRefreshTimer);
     _tokenRefreshTimer = setInterval(function () {
-      tokenClient.requestAccessToken({ prompt: '' });
+      tryRefreshToken();
     }, 50 * 60 * 1000);
 
-    // Warn 5 minutes before token expiry
+    // Auto-refresh 5 minutes before token expiry (D-07: silent refresh, no toast on success)
     if (_tokenWarnTimer) clearTimeout(_tokenWarnTimer);
     var sessionData = null;
     try { var raw = localStorage.getItem(SESSION_KEY); if (raw) sessionData = JSON.parse(raw); } catch (e) {}
@@ -350,10 +392,21 @@ function renderDataGapWarning(readings, now) {
       var remainMs = sessionData.expires_at - Date.now();
       var warnMs = Math.max(0, remainMs - 300000); // 5 minutes before expiry
       _tokenWarnTimer = setTimeout(function () {
-        showToast('Session expiring soon \u2014 tap to stay signed in', 'warning', { duration: 8000 });
-        var d = document.getElementById('bp-auth-dot');
-        if (d) { d.className = 'bp-auth-dot bp-auth-dot--warning'; d.title = 'Session expiring soon'; }
+        tryRefreshToken();
       }, warnMs);
+    }
+
+    // Visibility-based wake detection (D-01): on iPad wake from sleep, refresh if stale
+    if (!_visibilityListenerAdded) {
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) return;
+        if (!accessToken) return;
+        var elapsed = Date.now() - _lastTokenTime;
+        if (elapsed > 45 * 60 * 1000) {
+          tryRefreshToken();
+        }
+      });
+      _visibilityListenerAdded = true;
     }
 
     // Multi-tab session sync: if another tab signs out, sign out this tab too
