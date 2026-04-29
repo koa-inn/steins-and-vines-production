@@ -144,11 +144,8 @@ describe('pos routes — per-item tax on line items', function () {
 
   describe('/api/kiosk/sale — processSale per-item tax', function () {
 
-    test('lineItems include tax_id when catalogItem has a truthy tax_id', function (done) {
+    test('returns 202 pending and pushes to terminal with correct total (item with tax_id)', function (done) {
       cache.get.mockResolvedValue(CATALOG_WITH_TAX);
-      zohoApi.zohoPost.mockResolvedValue({
-        invoice: { invoice_id: 'inv-1', invoice_number: 'INV-001' }
-      });
 
       var req = {
         body: {
@@ -157,15 +154,12 @@ describe('pos routes — per-item tax on line items', function () {
       };
       var res = mockRes();
 
-      res.json.mockImplementation(function () {
+      res.json.mockImplementation(function (body) {
         try {
-          // Check that zohoPost was called with invoice payload containing tax_id
-          var invoiceCall = zohoApi.zohoPost.mock.calls.find(function (c) {
-            return c[0] === '/invoices';
-          });
-          expect(invoiceCall).toBeTruthy();
-          var payload = invoiceCall[1];
-          expect(payload.line_items[0].tax_id).toBe('tax-gst-5');
+          expect(body.pending).toBe(true);
+          expect(body.reference).toBeTruthy();
+          var termCall = helcimLib.terminalPurchase.mock.calls[0];
+          expect(termCall[0]).toBe(105); // 100 + (100 * 0.05)
           done();
         } catch (e) { done(e); }
       });
@@ -179,11 +173,8 @@ describe('pos routes — per-item tax on line items', function () {
       handlers['/api/kiosk/sale'](req, res);
     });
 
-    test('lineItems do NOT include tax_id when catalogItem.tax_id is empty string', function (done) {
+    test('returns 202 pending for item without tax_id (uses KIOSK_TAX_RATE fallback)', function (done) {
       cache.get.mockResolvedValue(CATALOG_WITH_TAX);
-      zohoApi.zohoPost.mockResolvedValue({
-        invoice: { invoice_id: 'inv-2', invoice_number: 'INV-002' }
-      });
 
       var req = {
         body: {
@@ -192,14 +183,12 @@ describe('pos routes — per-item tax on line items', function () {
       };
       var res = mockRes();
 
-      res.json.mockImplementation(function () {
+      res.json.mockImplementation(function (body) {
         try {
-          var invoiceCall = zohoApi.zohoPost.mock.calls.find(function (c) {
-            return c[0] === '/invoices';
-          });
-          expect(invoiceCall).toBeTruthy();
-          var payload = invoiceCall[1];
-          expect(payload.line_items[0]).not.toHaveProperty('tax_id');
+          expect(body.pending).toBe(true);
+          expect(body.reference).toBeTruthy();
+          var termCall = helcimLib.terminalPurchase.mock.calls[0];
+          expect(termCall[0]).toBe(52.50); // 50 + (50 * 0.05) fallback
           done();
         } catch (e) { done(e); }
       });

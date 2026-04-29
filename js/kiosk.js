@@ -1909,7 +1909,7 @@
       return;
     }
 
-    // === Existing new-sale flow continues below (unchanged) ===
+    // === New-sale flow: push to terminal, poll status, confirm on approval ===
     kioskShowView('payment');
 
     var amountEl = document.getElementById('kiosk-payment-amount');
@@ -1956,57 +1956,132 @@
     }
 
     var refNumber = 'KIOSK-' + Date.now();
-
-    // Show confirm/cancel buttons immediately — staff confirms after card reader approves
-    if (spinnerEl) spinnerEl.style.display = 'none';
-    if (msgEl) msgEl.textContent = 'Waiting for payment on card reader...';
+    var saleCompleted = false;
+    var pollTimer = null;
 
     var confirmBtn = document.getElementById('kiosk-confirm-payment');
-    if (confirmBtn) {
-      confirmBtn.style.display = '';
-      confirmBtn.disabled = false;
-      confirmBtn.onclick = function () {
-        confirmBtn.disabled = true;
-        if (cancelBtn) cancelBtn.disabled = true;
-        if (msgEl) msgEl.textContent = 'Processing sale...';
-        if (spinnerEl) spinnerEl.style.display = '';
+    if (confirmBtn) confirmBtn.style.display = 'none';
 
-        fetch(mwUrl + '/api/kiosk/sale/confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
-          body: JSON.stringify({
-            items: items,
-            reference_number: refNumber,
-            contact_id: _kioskCustomer ? _kioskCustomer.contact_id : '',
-            discount: _kioskDiscount ? { preset_id: _kioskDiscount.presetId, name: _kioskDiscount.name, type: _kioskDiscount.type, value: _kioskDiscount.value, scope: _kioskDiscount.scope } : undefined
-          })
+    function handleSaleResult(result) {
+      if (cancelled || saleCompleted) return;
+      saleCompleted = true;
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      if (spinnerEl) spinnerEl.style.display = 'none';
+      if (confirmBtn) confirmBtn.style.display = 'none';
+      if (result.status === 201 && result.data.ok) {
+        _kioskSaleData = result.data;
+        var kitItems = items.filter(function (it) { return kioskGetItemType(it) === 'kit'; });
+        if (kitItems.length > 0) {
+          kioskShowBatchReview(result.data, totals, items, kitItems);
+        } else {
+          kioskShowReceipt(result.data, totals, items, []);
+          kioskClearCart();
+        }
+      } else {
+        if (result.data && result.data.payment_voided) {
+          kioskShowError('Payment Voided',
+            'Your payment was automatically reversed. No charge was made to the customer.',
+            true, { txnId: result.data.voided_transaction_id || '' });
+        } else {
+          kioskShowError('Sale Error', (result.data && result.data.error) || 'Failed to create invoice.', true);
+        }
+      }
+    }
+
+    function confirmSale(txnId) {
+      if (cancelled || saleCompleted) return;
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      if (msgEl) msgEl.textContent = 'Creating invoice...';
+      if (spinnerEl) spinnerEl.style.display = '';
+      if (confirmBtn) confirmBtn.style.display = 'none';
+      if (cancelBtn) cancelBtn.disabled = true;
+
+      fetch(mwUrl + '/api/kiosk/sale/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+        body: JSON.stringify({
+          items: items,
+          reference_number: refNumber,
+          transaction_id: txnId,
+          contact_id: _kioskCustomer ? _kioskCustomer.contact_id : '',
+          discount: _kioskDiscount ? { preset_id: _kioskDiscount.presetId, name: _kioskDiscount.name, type: _kioskDiscount.type, value: _kioskDiscount.value, scope: _kioskDiscount.scope } : undefined
         })
-        .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
-        .then(function (result) {
-          if (spinnerEl) spinnerEl.style.display = 'none';
-          if (result.status === 201 && result.data.ok) {
-            _kioskSaleData = result.data;
-            var kitItems = items.filter(function (it) { return kioskGetItemType(it) === 'kit'; });
-            if (kitItems.length > 0) {
-              kioskShowBatchReview(result.data, totals, items, kitItems);
-            } else {
-              kioskShowReceipt(result.data, totals, items, []);
-              kioskClearCart();
-            }
-          } else {
-            if (result.data && result.data.payment_voided) {
-              kioskShowError('Payment Voided',
-                'Your payment was automatically reversed. No charge was made to the customer.',
-                true, { txnId: result.data.voided_transaction_id || '' });
-            } else {
-              kioskShowError('Sale Error', (result.data && result.data.error) || 'Failed to create invoice.', true);
-            }
+      })
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+      .then(function (result) { handleSaleResult(result); })
+      .catch(function () {
+        if (cancelled || saleCompleted) return;
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        kioskShowError('Connection Error', 'Could not reach the server. Please try again.', true);
+      });
+    }
+
+    // Step 1: Push payment to terminal via backend
+    fetch(mwUrl + '/api/kiosk/sale', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+      body: JSON.stringify({
+        items: items,
+        reference_number: refNumber,
+        idempotency_key: refNumber
+      })
+    })
+    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+    .then(function (result) {
+      if (cancelled || saleCompleted) return;
+      if (result.status !== 202 || !result.data.pending) {
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        kioskShowError('Terminal Error', (result.data && result.data.error) || 'Failed to push to terminal.', true);
+        return;
+      }
+
+      // Step 2: Poll for terminal result every 3 seconds
+      var pollRef = result.data.reference;
+      pollTimer = setInterval(function () {
+        if (cancelled || saleCompleted) { clearInterval(pollTimer); pollTimer = null; return; }
+        fetch(mwUrl + '/api/kiosk/sale/status?ref=' + encodeURIComponent(pollRef), {
+          headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (statusData) {
+          if (cancelled || saleCompleted) return;
+          if (statusData.status === 'approved') {
+            confirmSale(statusData.transaction_id);
+          } else if (statusData.status === 'declined') {
+            if (saleCompleted) return;
+            saleCompleted = true;
+            if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+            if (spinnerEl) spinnerEl.style.display = 'none';
+            if (confirmBtn) confirmBtn.style.display = 'none';
+            kioskShowError('Payment Declined', 'The card was declined. Please try a different payment method.', true);
           }
         })
-        .catch(function () {
-          if (spinnerEl) spinnerEl.style.display = 'none';
-          kioskShowError('Connection Error', 'Could not reach the server. Please try again.', true);
-        });
+        .catch(function () {});
+      }, 3000);
+    })
+    .catch(function () {
+      if (cancelled || saleCompleted) return;
+      if (spinnerEl) spinnerEl.style.display = 'none';
+      if (msgEl) msgEl.textContent = 'Terminal connection lost. Confirm manually if payment was taken.';
+    });
+
+    // Show manual confirm fallback after 15 seconds
+    setTimeout(function () {
+      if (cancelled || saleCompleted) return;
+      if (confirmBtn) {
+        confirmBtn.style.display = '';
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Confirm Manually';
+      }
+      if (msgEl) msgEl.textContent = 'Waiting for terminal... or confirm manually if payment was taken.';
+    }, 15000);
+
+    if (confirmBtn) {
+      confirmBtn.onclick = function () {
+        if (saleCompleted) return;
+        confirmBtn.disabled = true;
+        if (cancelBtn) cancelBtn.disabled = true;
+        confirmSale('manual-confirm');
       };
     }
   }

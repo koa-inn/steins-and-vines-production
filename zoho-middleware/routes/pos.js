@@ -200,267 +200,60 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
     ? body.reference_number.slice(0, 64)
     : ('KIOSK-' + Date.now());
 
-  log.info('[pos/kiosk/sale] Starting kiosk sale: total=$' + grandTotal.toFixed(2) +
+  log.info('[pos/kiosk/sale] Pushing to terminal: total=$' + grandTotal.toFixed(2) +
     ' ref=' + refNumber + ' items=' + lineItems.length);
 
-  // Step 1: Send payment to POS terminal
-  // Push payment request to Helcim Smart Terminal (202 Accepted immediately).
-  // Result is delivered via webhook; poll as fallback with 5s intervals up to 90s.
-  var TERMINAL_TIMEOUT_MS = 180000;
-  var POLL_INTERVAL_MS = 5000;
-
   helcimLib.terminalPurchase(grandTotal, refNumber)
-    .then(function (pushResult) {
-      log.info('[pos/kiosk/sale] Terminal push sent: ref=' + refNumber + ' idem=' + pushResult.idempotencyKey);
-
-      // Poll for result — Helcim terminal responds asynchronously
-      var pollStart = Date.now();
-      function poll() {
-        return helcimLib.pollTerminalResult(refNumber).then(function (result) {
-          if (result.approved) {
-            return result;
-          }
-          if (result.status === 'DECLINED') {
-            var declineErr = new Error('Payment declined');
-            declineErr.isDeclined = true;
-            throw declineErr;
-          }
-          if (Date.now() - pollStart >= TERMINAL_TIMEOUT_MS) {
-            throw new Error('Terminal timeout after 90s');
-          }
-          // Still pending — wait and retry
-          return new Promise(function (resolve) {
-            setTimeout(function () { resolve(poll()); }, POLL_INTERVAL_MS);
-          });
-        });
-      }
-
-      return poll();
-    })
-    .then(function (termResponse) {
-      if (!termResponse.approved) {
-        log.warn('[pos/kiosk/sale] Terminal declined');
-        return res.status(402).json({
-          error: 'Payment declined',
-          code: 'DECLINED'
-        });
-      }
-
-      var txnId = termResponse.transactionId || '';
-      log.info('[pos/kiosk/sale] Terminal approved: txn=' + txnId);
-
-      // Step 2: Create Zoho Books Invoice
-      // Use a generic "Walk-in Customer" contact (or create one if configured).
-      // The invoice records the sale and auto-decrements inventory on confirm.
-      var today = new Date().toISOString().slice(0, 10);
-
-      // Build Zoho invoice — use cash_sale mode so it auto-marks as paid
-      var invoicePayload = {
-        date: today,
-        reference_number: refNumber,
-        payment_terms: 0,
-        payment_terms_label: 'Due on Receipt',
-        line_items: lineItems,
-        notes: 'In-store kiosk sale. Terminal txn: ' + txnId,
-        custom_fields: []
+    .then(function () {
+      var responseBody = {
+        pending: true,
+        reference: refNumber
       };
 
-      // Attach customer contact: always use the server-configured walk-in contact.
-      // Never trust a caller-supplied contact_id — that would allow attaching
-      // a kiosk invoice to an arbitrary Zoho contact (Item #8).
-      var contactId = process.env.KIOSK_CONTACT_ID || '';
-      if (contactId) invoicePayload.customer_id = contactId;
+      var cacheWrite = idempotencyKey
+        ? cache.set(idempotencyKey, responseBody, IDEMPOTENCY_KEY_TTL).catch(function () {})
+        : Promise.resolve();
 
-      // Attach transaction ID to custom field if configured
-      if (txnId && process.env.ZOHO_CF_TRANSACTION_ID) {
-        invoicePayload.custom_fields.push({
-          api_name: process.env.ZOHO_CF_TRANSACTION_ID,
-          value: txnId
-        });
-      }
-
-      // Detect consignment items and build tracking data
-      var consignmentDetails = [];
-      if (catalogMap) {
-        lineItems.forEach(function (li) {
-          var info = extractConsignmentInfo(catalogMap[li.item_id]);
-          if (info) {
-            consignmentDetails.push({
-              item_id: li.item_id,
-              item_name: li.name,
-              quantity: li.quantity,
-              sale_amount: Math.round(li.quantity * li.rate * 100) / 100,
-              artisan_name: info.artisan_name,
-              commission_rate: info.commission_rate,
-              artisan_payout: Math.round(li.quantity * li.rate * (info.commission_rate / 100) * 100) / 100
-            });
-          }
-        });
-      }
-      var hasConsignment = consignmentDetails.length > 0;
-
-      if (hasConsignment && process.env.ZOHO_CF_CONSIGNMENT_SALE) {
-        invoicePayload.custom_fields.push({
-          api_name: process.env.ZOHO_CF_CONSIGNMENT_SALE,
-          value: true
-        });
-      }
-      if (hasConsignment && process.env.ZOHO_CF_CONSIGNMENT_DETAILS) {
-        invoicePayload.custom_fields.push({
-          api_name: process.env.ZOHO_CF_CONSIGNMENT_DETAILS,
-          value: JSON.stringify(consignmentDetails)
-        });
-      }
-
-      return zohoPost('/invoices', invoicePayload)
-        .then(function (invoiceData) {
-          var invoice = invoiceData.invoice || {};
-          var invoiceId = invoice.invoice_id || '';
-          var invoiceNumber = invoice.invoice_number || '';
-
-          log.info('[pos/kiosk/sale] Invoice created: ' + invoiceNumber + ' id=' + invoiceId);
-
-          // Step 3: Mark invoice as sent + record payment so inventory adjusts
-          // Zoho auto-decrements stock when an invoice is confirmed.
-          // We record a cash payment against it to mark as paid.
-          var paymentChain = Promise.resolve();
-
-          if (invoiceId) {
-            paymentChain = zohoPost('/invoices/' + invoiceId + '/submit', {})
-              .catch(function (submitErr) {
-                // Non-fatal — invoice exists, stock will still adjust
-                log.warn('[pos/kiosk/sale] Invoice submit failed (non-fatal): ' + submitErr.message);
-              })
-              .then(function () {
-                // Record the payment against the invoice.
-                // Item #16: Use creditcard (or debitcard if terminal reports debit)
-                // rather than 'cash', since payment was taken via card terminal.
-                var cardType = (termResponse.cardType || '').toLowerCase();
-                var paymentMode = (cardType.indexOf('debit') !== -1) ? 'debitcard' : 'creditcard';
-
-                return zohoPost('/customerpayments', {
-                  payment_mode: paymentMode,
-                  amount: grandTotal,
-                  date: today,
-                  reference_number: txnId || refNumber,
-                  invoices: [{ invoice_id: invoiceId, amount_applied: grandTotal }],
-                  notes: 'Kiosk POS payment. Terminal txn: ' + txnId
-                });
-              })
-              .then(function () {
-                log.info('[pos/kiosk/sale] Payment recorded for invoice ' + invoiceNumber);
-              })
-              .catch(function (payErr) {
-                // Non-fatal — invoice and stock adjustment still happened
-                log.error('[pos/kiosk/sale] Payment recording failed (non-fatal): ' + payErr.message);
-              });
-          }
-
-          return paymentChain.then(function () {
-            // Invalidate kiosk product cache so stock counts refresh
-            cache.del(KIOSK_PRODUCTS_CACHE_KEY);
-
-            // Fire-and-forget: decrement inventory ledger for sold items
-            ledger.decrementStock(lineItems, 'kiosk:' + (invoiceNumber || 'unknown')).catch(function (err) {
-              log.error('[pos/kiosk/sale] Inventory ledger decrement failed (non-fatal): ' + err.message);
-            });
-
-            var responseBody = {
-              ok: true,
-              transaction_id: txnId,
-              auth_code: termResponse.authorizationCode || '',
-              invoice_id: invoiceId,
-              invoice_number: invoiceNumber,
-              reference_number: refNumber,
-              subtotal: subtotal,
-              tax_total: taxTotal,
-              total: grandTotal,
-              date: today
-            };
-
-            // Store result before responding so immediate retries hit the cache
-            var cacheWrite = idempotencyKey
-              ? cache.set(idempotencyKey, responseBody, IDEMPOTENCY_KEY_TTL).catch(function () {})
-              : Promise.resolve();
-
-            return cacheWrite.then(function () {
-              eventLog.logEvent('kiosk.sale_completed', {
-                txnId: txnId,
-                itemCount: lineItems.length,
-                grandTotal: grandTotal,
-                invoiceNumber: invoiceNumber
-              });
-              if (hasConsignment) {
-                eventLog.logEvent('kiosk.consignment_sale', {
-                  invoiceNumber: invoiceNumber,
-                  itemCount: consignmentDetails.length,
-                  totalPayout: consignmentDetails.reduce(function (sum, d) { return sum + d.artisan_payout; }, 0)
-                });
-              }
-              res.status(201).json(responseBody);
-            });
-          });
-        })
-        .catch(function (invoiceErr) {
-          // Zoho invoice failed — void the terminal transaction
-          var invoiceMsg = invoiceErr.message;
-          if (invoiceErr.response && invoiceErr.response.data) {
-            invoiceMsg = invoiceErr.response.data.message || invoiceErr.response.data.error || invoiceMsg;
-          }
-          log.error('[pos/kiosk/sale] Invoice creation failed after payment — voiding txn=' + txnId + ': ' + invoiceMsg);
-          eventLog.logEvent('kiosk.sale_failed_after_charge', {
-            txnId: txnId,
-            itemCount: lineItems.length,
-            grandTotal: grandTotal
-          });
-
-          helcimLib.voidTransaction(txnId)
-            .then(function () {
-              log.info('[pos/kiosk/sale] Voided txn=' + txnId + ' after invoice failure');
-            })
-            .catch(function (voidErr) {
-              log.error('[pos/kiosk/sale] CRITICAL: Void failed for txn=' + txnId + ': ' + voidErr.message);
-              // Write a durable Redis record so this survives log rotation.
-              var failRecord = {
-                txnId: txnId,
-                amount: grandTotal,
-                timestamp: new Date().toISOString(),
-                error: voidErr.message,
-                needs_manual_review: true
-              };
-              cache.set('sv:void-failure:' + Date.now(), failRecord, 60 * 60 * 24 * 30)
-                .catch(function (redisErr) {
-                  log.error('[pos/kiosk/sale] CRITICAL: Failed to persist void-failure record: ' + redisErr.message);
-                });
-              mailer.sendVoidFailureAlert({
-                txnId: txnId,
-                amount: grandTotal,
-                error: voidErr.message,
-                timestamp: failRecord.timestamp
-              }).catch(function (mailErr) {
-                log.error('[pos/kiosk/sale] Void failure alert email failed: ' + mailErr.message);
-              });
-            })
-            .then(function () {
-              if (res.headersSent) return;
-              res.status(502).json({
-                error: 'Payment was taken but order could not be recorded. Please contact support.',
-                payment_voided: true,
-                voided_transaction_id: txnId
-              });
-            });
-        });
+      return cacheWrite.then(function () {
+        res.status(202).json(responseBody);
+      });
     })
     .catch(function (termErr) {
-      // Item #17: A timeout means txnId is unavailable — no void attempt possible.
-      if (termErr.message === 'Terminal timeout after 90s') {
-        log.warn('[pos/kiosk/sale] Terminal timed out after 90s — no txn to void');
-        return res.status(504).json({ error: 'Terminal did not respond in time. Please try again.' });
-      }
-      log.error('[pos/kiosk/sale] Terminal error: ' + termErr.message);
+      log.error('[pos/kiosk/sale] Terminal push failed: ' + termErr.message);
       res.status(502).json({ error: 'Terminal error — please try again' });
     });
 }
+
+/**
+ * GET /api/kiosk/sale/status
+ * Poll for terminal payment result. Single Redis/API check, no long polling.
+ * Query: ?ref=KIOSK-xxxxx
+ */
+router.get('/api/kiosk/sale/status', function (req, res) {
+  var ref = req.query.ref;
+  if (!ref || typeof ref !== 'string') {
+    return res.status(400).json({ error: 'Missing ref parameter' });
+  }
+
+  helcimLib.pollTerminalResult(ref)
+    .then(function (result) {
+      if (result.approved) {
+        return res.json({
+          status: 'approved',
+          transaction_id: result.transactionId || '',
+          card_type: result.cardType || ''
+        });
+      }
+      if (result.status === 'DECLINED') {
+        return res.json({ status: 'declined' });
+      }
+      res.json({ status: 'pending' });
+    })
+    .catch(function (err) {
+      log.error('[pos/kiosk/sale/status] Poll error: ' + err.message);
+      res.json({ status: 'pending' });
+    });
+});
 
 /**
  * GET /api/pos/status
