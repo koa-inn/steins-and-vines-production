@@ -1,83 +1,71 @@
-# Requirements: Kiosk Production Readiness
+# Requirements: Brewpad Reliability & Integration
 
-**Defined:** 2026-04-27
-**Core Value:** Every kiosk sale must result in an accurate Zoho sales order with correct stock deduction.
+**Defined:** 2026-04-29
+**Core Value:** Staff can trust BrewPad to save their work and see the full journey from kit sale to finished batch.
 
-## v1 Requirements
+## v1.1 Requirements
 
-### Stock Accuracy
+Requirements for this milestone. Each maps to roadmap phases.
 
-- [x] **STOCK-01**: Kiosk displays current stock levels for each product from Zoho Inventory
-- [x] **STOCK-02**: When cart quantity exceeds available stock, user sees a warning with option to override or reduce quantity
-- [x] **STOCK-03**: Stock levels update after a completed sale without requiring manual cache bust
-- [x] **STOCK-04**: Out-of-stock items show a warning when added to cart with option to override (existing behavior — verify working)
+### Auth Reliability
 
-### Catalog Display
+- [ ] **AUTH-01**: Staff session persists for at least 7 days without re-login
+- [ ] **AUTH-02**: If a token expires mid-session, form data is preserved through the refresh flow
+- [ ] **AUTH-03**: Only one login prompt appears at a time (no stacked/duplicate auth dialogs)
+- [ ] **AUTH-04**: Staff sees a clear warning before session expires with option to extend
 
-- [x] **CAT-01**: Category filter dropdown only shows actual product categories, not Zoho item types ("goods", "services")
-- [x] **CAT-02**: Products display correct category labels derived from `category_name`, not fallback to `product_type`
+### Kiosk Integration
 
-### Sales Orders
+- [ ] **INTG-01**: When a kit is sold on the kiosk, a batch is auto-created in BrewPad with customer name, product, and SO reference
+- [ ] **INTG-02**: Auto-created batches appear in the BrewPad batch list with a "from kiosk" indicator
+- [ ] **INTG-03**: Batch detail view shows the linked sales order number with a reference back to Zoho
 
-- [x] **SO-01**: Completed kiosk sale creates a sales order in Zoho Books with correct line items, quantities, and amounts
-- [x] **SO-02**: Sales order includes correct tax calculation matching Zoho tax rules
-- [x] **SO-03**: Failed Zoho sales order creation after successful payment triggers auto-void and staff notification
+### Zoho Audit Trail
 
-### Sales Order Management
-
-- [x] **SOM-01**: Sales order list shows all statuses (open, draft, closed, paid) with a filter toggle
-- [x] **SOM-02**: Staff can import an existing Zoho sales order's line items into the kiosk cart for payment
-- [x] **SOM-03**: After payment on an imported SO, the sales order is marked closed/paid in Zoho with payment linked
-
-### Reliability
-
-- [ ] **REL-01**: Kiosk handles network interruptions gracefully during product load, cart operations, and payment
-- [ ] **REL-02**: Kiosk handles Helcim terminal timeout without leaving the UI in a broken state
-- [ ] **REL-03**: PIN login works reliably across sessions and after page refresh
+- [ ] **ZOHO-01**: Batch stores its originating Zoho SO number and customer ID
+- [ ] **ZOHO-02**: Zoho sales order shows linked batch status (active/complete) via custom field or note
+- [ ] **ZOHO-03**: Staff can view the full audit trail: sale → batch → fermentation progress → completion
 
 ## v2 Requirements
 
-### Kiosk Enhancements
+Deferred to future release. Tracked but not in current roadmap.
 
-- **ENH-01**: Receipt printing from kiosk
-- **ENH-02**: Shift/daily sales reporting
-- **ENH-03**: Refund processing through kiosk
-- **ENH-04**: Barcode/SKU scanner input
+### Batch Workflow Enhancements
+
+- **BWF-01**: Batch completion triggers inventory adjustment in Zoho
+- **BWF-02**: Automated notifications when batches need attention (overdue tasks, stale readings)
+- **BWF-03**: Batch templates pre-populated from fermentation schedules
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Online checkout changes | Separate system, not part of kiosk readiness |
-| Admin dashboard changes | No kiosk admin work in scope |
-| New payment methods | Helcim terminal is the only kiosk payment method |
-| Kiosk UI redesign | Polish only, no structural UI changes |
+| Brewpad UI redesign | Current UI works; focus is reliability and integration only |
+| Online checkout → batch creation | Kiosk-only for now; online checkout is a separate system |
+| Refund/void handling in batch context | Future milestone |
+| New brewpad tabs or views | Not needed for reliability + integration goals |
+| Kiosk UI changes beyond batch handoff | Kiosk milestone is paused pending Helcim webhook fix |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STOCK-01 | Phase 1 | Complete (01-02) |
-| STOCK-02 | Phase 1 | Complete (01-02) |
-| STOCK-03 | Phase 2 Plan 02 | Complete |
-| STOCK-04 | Phase 1 | Complete (01-02) |
-| CAT-01 | Phase 1 | Complete (01-01) |
-| CAT-02 | Phase 1 | Complete (01-01) |
-| SO-01 | Phase 2 Plan 01 | Complete |
-| SO-02 | Phase 2 Plan 01 | Complete |
-| SO-03 | Phase 2 Plan 01 | Complete |
-| REL-01 | Phase 3 | Pending |
-| REL-02 | Phase 3 | Pending |
-| REL-03 | Phase 3 | Pending |
-| SOM-01 | Phase 4 | Complete (04-01: backend + 04-02: chip filter) |
-| SOM-02 | Phase 4 | Complete (04-01: item_id/PUT + 04-02: import-to-cart) |
-| SOM-03 | Phase 4 | Complete (04-01: PUT + 04-02: checkout fork) |
+| AUTH-01 | — | Pending |
+| AUTH-02 | — | Pending |
+| AUTH-03 | — | Pending |
+| AUTH-04 | — | Pending |
+| INTG-01 | — | Pending |
+| INTG-02 | — | Pending |
+| INTG-03 | — | Pending |
+| ZOHO-01 | — | Pending |
+| ZOHO-02 | — | Pending |
+| ZOHO-03 | — | Pending |
 
 **Coverage:**
-- v1 requirements: 15 total
-- Mapped to phases: 15
-- Unmapped: 0
+- v1.1 requirements: 10 total
+- Mapped to phases: 0
+- Unmapped: 10 ⚠️
 
 ---
-*Requirements defined: 2026-04-27*
-*Last updated: 2026-04-28 — Phase 2 complete (STOCK-03 complete via 02-02)*
+*Requirements defined: 2026-04-29*
+*Last updated: 2026-04-29 after initial definition*
