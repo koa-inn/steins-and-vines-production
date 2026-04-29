@@ -2537,31 +2537,42 @@
     var mwUrl = kioskMwUrl();
     if (!mwUrl) { showToast('Middleware URL not configured', 'error'); return; }
 
-    var payload = {
-      customer_id: so.customer_id,
-      items: (so.line_items || []).filter(function (li) { return !!li.item_id; }).map(function (li) {
-        return { item_id: li.item_id, name: li.name, quantity: li.quantity, rate: li.rate };
-      })
-    };
+    showToast('Loading order items...', 'info');
 
-    if (payload.items.length === 0) {
-      showToast('No items could be copied from this order', 'error');
-      return;
-    }
-
-    fetch(mwUrl + '/api/kiosk/salesorder-create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
-      body: JSON.stringify(payload)
+    fetch(mwUrl + '/api/kiosk/salesorder/' + encodeURIComponent(soId), {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
     })
-    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
-    .then(function (result) {
-      if (result.data && result.data.ok) {
-        showToast('New order created: ' + escapeHTML(result.data.salesorder_number || ''), 'success');
-        kioskLoadSalesOrders();
-      } else {
-        showToast((result.data && result.data.error) || 'Could not create order', 'error');
+    .then(function (r) { return r.json(); })
+    .then(function (detail) {
+      var lineItems = (detail.line_items || []).filter(function (li) { return !!li.item_id; });
+
+      if (lineItems.length === 0) {
+        showToast('No items could be copied from this order', 'error');
+        return;
       }
+
+      var payload = {
+        customer_id: so.customer_id,
+        items: lineItems.map(function (li) {
+          return { item_id: li.item_id, name: li.name, quantity: li.quantity, rate: li.rate };
+        })
+      };
+
+      return fetch(mwUrl + '/api/kiosk/salesorder-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+        body: JSON.stringify(payload)
+      })
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+      .then(function (result) {
+        if (result.data && result.data.ok) {
+          showToast('New order created: ' + escapeHTML(result.data.salesorder_number || ''), 'success');
+          kioskLoadSalesOrders();
+        } else {
+          showToast((result.data && result.data.error) || 'Could not create order', 'error');
+        }
+      });
     })
     .catch(function () {
       showToast('Could not create order — network error', 'error');
