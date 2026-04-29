@@ -2297,7 +2297,9 @@
     // Step 4: Render cards
     var html = '';
     filtered.forEach(function (so) {
+      var total = parseFloat(so.total) || 0;
       var balance = parseFloat(so.balance) || 0;
+      var displayAmount = balance > 0 ? balance : total;
       var lineItems = so.line_items || [];
       var displayStatus = (so.status === 'confirmed' || so.status === 'invoiced') ? 'paid' : so.status;
       var isActionable = displayStatus === 'open' || displayStatus === 'draft';
@@ -2305,7 +2307,7 @@
       html += '<div class="kiosk-so-card" data-so-id="' + escapeHTML(so.salesorder_id) + '">';
       html += '<div class="kiosk-so-card-header">';
       html += '<span class="kiosk-so-number">' + escapeHTML(so.salesorder_number || '') + '</span>';
-      html += '<span class="kiosk-so-balance">' + kioskFmt(balance) + '</span>';
+      html += '<span class="kiosk-so-balance">' + kioskFmt(displayAmount) + '</span>';
       html += '</div>';
       html += '<div class="kiosk-so-card-body">';
       html += '<span class="kiosk-so-customer">' + escapeHTML(so.customer_name || 'Unknown') + '</span>';
@@ -2318,9 +2320,9 @@
       // Action row (per D-05, D-11)
       html += '<div class="kiosk-so-card-actions">';
       if (isActionable) {
-        if (balance > 0) {
+        if (displayAmount > 0) {
           html += '<button type="button" class="btn kiosk-so-pay-btn" data-so-id="' + escapeHTML(so.salesorder_id) + '">';
-          html += 'Collect ' + kioskFmt(balance);
+          html += 'Collect ' + kioskFmt(displayAmount);
           html += '</button>';
         } else {
           html += '<div class="kiosk-so-paid-badge">Paid</div>';
