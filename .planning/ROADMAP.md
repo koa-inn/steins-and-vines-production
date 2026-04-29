@@ -91,7 +91,11 @@ Plans:
   2. If a staff member is mid-way through entering a plato reading or editing a batch and the OAuth token expires, the token refreshes silently and the form data they entered is still there when the refresh completes
   3. When a token refresh or login is triggered, only one login prompt appears at a time -- no stacked dialogs, no duplicate GSI popups
   4. A clear "session expiring" warning appears before the session actually expires, giving staff the option to extend without interruption
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 05-01-PLAN.md -- Auth refresh infrastructure: mutex, visibility handler, 7-day session persistence, error_callback, timer modifications, auth dot CSS
+- [ ] 05-02-PLAN.md -- Form state protection: 5 form type save/restore registry, session expired overlay, restore toast, unit tests
 
 ### Phase 6: Kiosk-to-Brewpad Integration
 **Goal**: When a kit is sold on the kiosk, a batch is automatically created in BrewPad so staff never have to manually duplicate sale data
@@ -124,6 +128,6 @@ Phases execute in numeric order: 5 -> 6 -> 7
 | 2. Sales Order Integrity | v1.0 | 2/2 | Complete | 2026-04-28 |
 | 3. Resilience & Session Stability | v1.0 | 1/1+ | In progress | - |
 | 4. Sales Order Management | v1.0 | 2/2 | Complete | 2026-04-28 |
-| 5. Auth Reliability | v1.1 | 0/? | Not started | - |
+| 5. Auth Reliability | v1.1 | 0/2 | Planned | - |
 | 6. Kiosk-to-Brewpad Integration | v1.1 | 0/? | Not started | - |
 | 7. Zoho Audit Trail | v1.1 | 0/? | Not started | - |
