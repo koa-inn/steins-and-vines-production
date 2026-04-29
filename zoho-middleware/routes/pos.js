@@ -244,7 +244,7 @@ router.get('/api/kiosk/sale/status', function (req, res) {
           card_type: result.cardType || ''
         });
       }
-      if (result.status === 'DECLINED') {
+      if (result.status === 'DECLINED' || result.status === 'CANCELLED') {
         return res.json({ status: 'declined' });
       }
       res.json({ status: 'pending' });

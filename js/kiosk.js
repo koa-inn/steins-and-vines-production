@@ -1958,6 +1958,8 @@
     var refNumber = 'KIOSK-' + Date.now();
     var saleCompleted = false;
     var pollTimer = null;
+    var pollStart = Date.now();
+    var POLL_TIMEOUT_MS = 120000;
 
     var confirmBtn = document.getElementById('kiosk-confirm-payment');
     if (confirmBtn) confirmBtn.style.display = 'none';
@@ -2039,6 +2041,13 @@
       var pollRef = result.data.reference;
       pollTimer = setInterval(function () {
         if (cancelled || saleCompleted) { clearInterval(pollTimer); pollTimer = null; return; }
+        if (Date.now() - pollStart >= POLL_TIMEOUT_MS) {
+          if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+          if (spinnerEl) spinnerEl.style.display = 'none';
+          if (msgEl) msgEl.textContent = 'Terminal did not respond. Confirm manually if payment was taken, or cancel.';
+          if (confirmBtn) { confirmBtn.style.display = ''; confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Manually'; }
+          return;
+        }
         fetch(mwUrl + '/api/kiosk/sale/status?ref=' + encodeURIComponent(pollRef), {
           headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
         })
@@ -2053,7 +2062,7 @@
             if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
             if (spinnerEl) spinnerEl.style.display = 'none';
             if (confirmBtn) confirmBtn.style.display = 'none';
-            kioskShowError('Payment Declined', 'The card was declined. Please try a different payment method.', true);
+            kioskShowError('Payment Declined', 'The card was declined or cancelled on the terminal. Please try again.', true);
           }
         })
         .catch(function () {});
