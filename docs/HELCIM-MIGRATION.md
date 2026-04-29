@@ -184,7 +184,7 @@ Helcim's Smart Terminal **cannot pair with iPad** — it pairs only with iPhone 
 
 **Tasks:**
 - [ ] Create `zoho-middleware/routes/webhooks.js`:
-  - `POST /api/webhooks/helcim` — receive Helcim webhook events
+  - `POST /api/webhooks/terminal` — receive Helcim webhook events
   - Verify HMAC-SHA256 signature using `helcimLib.verifyWebhookSignature()`
   - Handle `cardTransaction` events:
     - On `APPROVED` purchase: trigger Zoho invoice + payment recording (for async terminal flow)
@@ -194,7 +194,7 @@ Helcim's Smart Terminal **cannot pair with iPad** — it pairs only with iPhone 
 - [ ] Register route in `zoho-middleware/server.js`
 - [ ] Add webhook URL to Helcim Hub configuration
 - [ ] Write tests for webhook signature verification and event handling
-- [ ] Update `openapi.yaml` — add `POST /api/webhooks/helcim` route
+- [ ] Update `openapi.yaml` — add `POST /api/webhooks/terminal` route
 
 **Files touched:** `routes/webhooks.js` (new), `zoho-middleware/server.js`, `openapi.yaml`
 
@@ -305,7 +305,7 @@ Helcim's Smart Terminal **cannot pair with iPad** — it pairs only with iPhone 
 - [ ] Set Railway staging env vars: `HELCIM_API_TOKEN`, `HELCIM_WEBHOOK_SECRET`, `HELCIM_DEVICE_CODE` (sandbox values)
 - [ ] Set `PAYMENT_DISABLED=false` in `js/modules/01-config.js` for staging only
 - [ ] `git push origin main` → deploy to staging
-- [ ] Configure Helcim webhook in Helcim Hub to point to `https://svmiddleware-staging.up.railway.app/api/webhooks/helcim`
+- [ ] Configure Helcim webhook in Helcim Hub to point to `https://svmiddleware-staging.up.railway.app/api/webhooks/terminal`
 - [ ] **Online checkout testing on staging:**
   - Complete full checkout with sandbox test card: `4124 9399 9999 9990` (Visa, approved)
   - Test declined card: `4000 0000 0000 1992`
@@ -329,7 +329,7 @@ Helcim's Smart Terminal **cannot pair with iPad** — it pairs only with iPhone 
 - [ ] Set Railway production env vars: `HELCIM_API_TOKEN`, `HELCIM_WEBHOOK_SECRET`, `HELCIM_DEVICE_CODE` (production values)
 - [ ] Set `PAYMENT_DISABLED=false` for production
 - [ ] Follow CNAME swap protocol: verify `cat CNAME` = `steinsandvines.ca` before `git push production main`
-- [ ] Configure Helcim production webhook to point to `https://svmiddleware-production.up.railway.app/api/webhooks/helcim`
+- [ ] Configure Helcim production webhook to point to `https://svmiddleware-production.up.railway.app/api/webhooks/terminal`
 - [ ] Physical Smart Terminal: pair with production Helcim account
 - [ ] Monitor first live transactions in Helcim Hub + Railway logs
 - [ ] Update GitHub Issues board — close GP-related issues, open any new Helcim tracking issues

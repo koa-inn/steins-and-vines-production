@@ -56,7 +56,7 @@
 - Used by: `zoho-middleware/routes/pos.js`, `zoho-middleware/routes/collect.js`
 
 **Helcim Webhooks:**
-- Endpoint: `POST /api/webhooks/helcim` (`zoho-middleware/routes/webhooks.js`)
+- Endpoint: `POST /api/webhooks/terminal` (`zoho-middleware/routes/webhooks.js`)
 - Events handled: `cardTransaction` (purchase/refund/void), `terminalCancel`
 - Verification: HMAC-SHA256 with `HELCIM_WEBHOOK_SECRET` (fail-open if not configured)
 - Terminal results cached in Redis for kiosk polling (5-min TTL)
@@ -257,7 +257,7 @@
 ## Webhooks & Callbacks
 
 **Incoming:**
-- `POST /api/webhooks/helcim` - Helcim payment events (cardTransaction, terminalCancel)
+- `POST /api/webhooks/terminal` - Helcim payment events (cardTransaction, terminalCancel)
   - HMAC-SHA256 signature verification via `HELCIM_WEBHOOK_SECRET`
   - Processes terminal results and collect-flow payment recording
 

@@ -306,7 +306,7 @@ Collect payment on an existing Sales Order via the Helcim terminal. Pushes to th
 ## Collect (Deluge-triggered terminal payment)
 
 ### `POST /api/pos/collect`
-Collect payment on an existing Zoho Sales Order via the Helcim Smart Terminal. Intended to be called by a Zoho Inventory Deluge script (server-to-server). Returns `202 Accepted` immediately after the terminal push; the Helcim webhook handler (`POST /api/webhooks/helcim`) processes the result asynchronously.
+Collect payment on an existing Zoho Sales Order via the Helcim Smart Terminal. Intended to be called by a Zoho Inventory Deluge script (server-to-server). Returns `202 Accepted` immediately after the terminal push; the Helcim webhook handler (`POST /api/webhooks/terminal`) processes the result asynchronously.
 
 **Auth:** API Key
 **Rate limit:** 10 req/min
@@ -514,7 +514,7 @@ Delete a discount preset.
 
 ## Webhooks
 
-### `POST /api/webhooks/helcim`
+### `POST /api/webhooks/terminal`
 Receive and process Helcim webhook events (`cardTransaction`, `terminalCancel`). Used by the kiosk terminal flow to deliver payment results asynchronously.
 
 **Auth:** Public (signature-verified via HMAC-SHA256 using `HELCIM_WEBHOOK_SECRET`)
