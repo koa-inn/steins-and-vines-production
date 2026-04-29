@@ -77,6 +77,7 @@ function renderDataGapWarning(readings, now) {
   var _refreshInFlight = false;
   var _lastTokenTime = 0;
   var _visibilityListenerAdded = false;
+  var _formSavers = [];
   var _activeTab = 'dashboard';
 
   // Batches
@@ -287,6 +288,30 @@ function renderDataGapWarning(readings, now) {
     }
   }
 
+  function showSessionExpiredOverlay() {
+    var existing = document.getElementById('bp-session-overlay');
+    if (existing) return;
+    var overlay = document.createElement('div');
+    overlay.id = 'bp-session-overlay';
+    overlay.className = 'bp-session-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Session expired');
+    overlay.innerHTML =
+      '<div class="bp-session-overlay-card">' +
+      '<h2>Session expired</h2>' +
+      '<p>Sign in to continue. Your in-progress work has been saved.</p>' +
+      '<button type="button" class="btn" id="bp-session-overlay-signin">Sign in with Google</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    requestAnimationFrame(function () {
+      overlay.classList.add('bp-session-overlay--visible');
+    });
+    document.getElementById('bp-session-overlay-signin').addEventListener('click', function () {
+      if (tokenClient) tokenClient.requestAccessToken();
+    });
+  }
+
   function tryRefreshToken() {
     if (_refreshInFlight || _handlingUnauthorized) return;
     var session = loadSession();
@@ -419,38 +444,13 @@ function renderDataGapWarning(readings, now) {
 
     eagerLoad();
 
-    // Restore in-progress create-batch form draft after re-login
-    var draft = null;
-    try { var draftRaw = sessionStorage.getItem('sv-brewpad-form-draft'); if (draftRaw) draft = JSON.parse(draftRaw); } catch (e) {}
-    if (draft) {
-      sessionStorage.removeItem('sv-brewpad-form-draft');
-      showToast('Your in-progress batch form has been restored', 'success');
-      // Switch to batches tab so create sheet is visible
-      switchTab('batches');
-      openCreateSheet();
-      setTimeout(function () {
-        var fields = [
-          ['bp-new-product-text', 'productText'],
-          ['bp-new-product-sku', 'productSku'],
-          ['bp-new-product-name', 'productName'],
-          ['bp-new-customer-text', 'customerText'],
-          ['bp-new-customer-id', 'customerId'],
-          ['bp-new-customer-name-hidden', 'customerNameHidden'],
-          ['bp-new-customer-email', 'customerEmail'],
-          ['bp-new-start-date', 'startDate'],
-          ['bp-new-schedule', 'schedule'],
-          ['bp-new-vessel-text', 'vesselText'],
-          ['bp-new-vessel', 'vessel'],
-          ['bp-new-shelf', 'shelf'],
-          ['bp-new-bin', 'bin'],
-          ['bp-new-notes', 'notes']
-        ];
-        for (var i = 0; i < fields.length; i++) {
-          var el = document.getElementById(fields[i][0]);
-          if (el && draft[fields[i][1]]) el.value = draft[fields[i][1]];
-        }
-      }, 150);
-    }
+    // Restore any in-progress form drafts after re-login (D-06)
+    setTimeout(function () {
+      var wasRestored = restoreAllFormDrafts();
+      if (wasRestored) {
+        showToast('Your in-progress work has been restored', 'success');
+      }
+    }, 200);
   }
 
   function showDenied() {
@@ -474,52 +474,46 @@ function renderDataGapWarning(readings, now) {
     if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--offline'; dot.title = 'Not signed in'; }
   }
 
+  function saveAllFormDrafts() {
+    _formSavers.forEach(function (saver) {
+      try {
+        var data = saver.save();
+        if (data) {
+          sessionStorage.setItem(saver.key, JSON.stringify(data));
+        }
+      } catch (e) {}
+    });
+  }
+
+  function restoreAllFormDrafts() {
+    var restored = false;
+    _formSavers.forEach(function (saver) {
+      try {
+        var raw = sessionStorage.getItem(saver.key);
+        if (raw) {
+          saver.restore(JSON.parse(raw));
+          sessionStorage.removeItem(saver.key);
+          restored = true;
+        }
+      } catch (e) {}
+    });
+    return restored;
+  }
+
   function handleUnauthorized() {
     if (_handlingUnauthorized) return;
     _handlingUnauthorized = true;
     if (_tokenRefreshTimer) { clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null; }
     if (_tokenWarnTimer) { clearTimeout(_tokenWarnTimer); _tokenWarnTimer = null; }
 
-    // Save in-progress create-batch form if it's open
-    var createSheet = document.getElementById('bp-create-sheet');
-    if (createSheet && createSheet.style.display !== 'none') {
-      var formState = {};
-      var draftFields = [
-        ['bp-new-product-text', 'productText'],
-        ['bp-new-product-sku', 'productSku'],
-        ['bp-new-product-name', 'productName'],
-        ['bp-new-customer-text', 'customerText'],
-        ['bp-new-customer-id', 'customerId'],
-        ['bp-new-customer-name-hidden', 'customerNameHidden'],
-        ['bp-new-customer-email', 'customerEmail'],
-        ['bp-new-start-date', 'startDate'],
-        ['bp-new-schedule', 'schedule'],
-        ['bp-new-vessel-text', 'vesselText'],
-        ['bp-new-vessel', 'vessel'],
-        ['bp-new-shelf', 'shelf'],
-        ['bp-new-bin', 'bin'],
-        ['bp-new-notes', 'notes']
-      ];
-      var hasData = false;
-      for (var i = 0; i < draftFields.length; i++) {
-        var el = document.getElementById(draftFields[i][0]);
-        if (el && el.value) { formState[draftFields[i][1]] = el.value; hasData = true; }
-      }
-      if (hasData) {
-        try { sessionStorage.setItem('sv-brewpad-form-draft', JSON.stringify(formState)); } catch (e) {}
-      }
-    }
+    saveAllFormDrafts();
 
     clearSession();
     accessToken = null;
     userEmail = null;
-    document.getElementById('bp-signin').style.display = '';
-    document.getElementById('bp-app').style.display = 'none';
-    var emailEl = document.getElementById('bp-user-email');
-    if (emailEl) emailEl.textContent = '';
     var dot = document.getElementById('bp-auth-dot');
     if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--offline'; dot.title = 'Not signed in'; }
-    showSignInButton();
+    showSessionExpiredOverlay();
   }
 
   // ===== API Helpers =====
@@ -3876,6 +3870,214 @@ function renderDataGapWarning(readings, now) {
       });
     }
   }
+
+  // ===== Form Saver Registry =====
+  // Each saver: { key: string, save: fn -> object|null, restore: fn(data) }
+  // save() returns null if there is nothing to save (form not open / no data entered).
+  // restore() repopulates DOM fields; uses 150ms setTimeout to let tab/sheet render first.
+
+  // Saver 1: Create-batch form
+  _formSavers.push({
+    key: 'sv-brewpad-form-draft',
+    save: function () {
+      var createSheet = document.getElementById('bp-create-sheet');
+      if (!createSheet || createSheet.style.display === 'none') return null;
+      var formState = {};
+      var draftFields = [
+        ['bp-new-product-text', 'productText'],
+        ['bp-new-product-sku', 'productSku'],
+        ['bp-new-product-name', 'productName'],
+        ['bp-new-customer-text', 'customerText'],
+        ['bp-new-customer-id', 'customerId'],
+        ['bp-new-customer-name-hidden', 'customerNameHidden'],
+        ['bp-new-customer-email', 'customerEmail'],
+        ['bp-new-start-date', 'startDate'],
+        ['bp-new-schedule', 'schedule'],
+        ['bp-new-vessel-text', 'vesselText'],
+        ['bp-new-vessel', 'vessel'],
+        ['bp-new-shelf', 'shelf'],
+        ['bp-new-bin', 'bin'],
+        ['bp-new-notes', 'notes']
+      ];
+      var hasData = false;
+      for (var i = 0; i < draftFields.length; i++) {
+        var el = document.getElementById(draftFields[i][0]);
+        if (el && el.value) { formState[draftFields[i][1]] = el.value; hasData = true; }
+      }
+      return hasData ? formState : null;
+    },
+    restore: function (draft) {
+      switchTab('batches');
+      openCreateSheet();
+      setTimeout(function () {
+        var fields = [
+          ['bp-new-product-text', 'productText'],
+          ['bp-new-product-sku', 'productSku'],
+          ['bp-new-product-name', 'productName'],
+          ['bp-new-customer-text', 'customerText'],
+          ['bp-new-customer-id', 'customerId'],
+          ['bp-new-customer-name-hidden', 'customerNameHidden'],
+          ['bp-new-customer-email', 'customerEmail'],
+          ['bp-new-start-date', 'startDate'],
+          ['bp-new-schedule', 'schedule'],
+          ['bp-new-vessel-text', 'vesselText'],
+          ['bp-new-vessel', 'vessel'],
+          ['bp-new-shelf', 'shelf'],
+          ['bp-new-bin', 'bin'],
+          ['bp-new-notes', 'notes']
+        ];
+        for (var i = 0; i < fields.length; i++) {
+          var el = document.getElementById(fields[i][0]);
+          if (el && draft[fields[i][1]]) el.value = draft[fields[i][1]];
+        }
+      }, 150);
+    }
+  });
+
+  // Saver 2: Multi-batch measurements
+  _formSavers.push({
+    key: 'sv-brewpad-meas-draft',
+    save: function () {
+      if (typeof saveMeasGridValues === 'function') saveMeasGridValues();
+      var hasEntries = false;
+      for (var k in _measMultiData) { if (_measMultiData.hasOwnProperty(k)) { hasEntries = true; break; } }
+      if (!hasEntries) return null;
+      return { measData: _measMultiData, sharedDate: _measSharedDate || '' };
+    },
+    restore: function (draft) {
+      if (draft.measData) {
+        for (var k in draft.measData) {
+          if (draft.measData.hasOwnProperty(k)) _measMultiData[k] = draft.measData[k];
+        }
+      }
+      if (draft.sharedDate) _measSharedDate = draft.sharedDate;
+    }
+  });
+
+  // Saver 3: Batch detail (location + notes)
+  _formSavers.push({
+    key: 'sv-brewpad-detail-draft',
+    save: function () {
+      if (!_detailBatchId) return null;
+      var vessel = document.getElementById('bp-edit-vessel');
+      var shelf = document.getElementById('bp-edit-shelf');
+      var bin = document.getElementById('bp-edit-bin');
+      var notes = document.getElementById('bp-detail-notes');
+      var hasData = false;
+      var state = { batchId: _detailBatchId };
+      if (vessel && vessel.value) { state.vessel = vessel.value; hasData = true; }
+      if (shelf && shelf.value) { state.shelf = shelf.value; hasData = true; }
+      if (bin && bin.value) { state.bin = bin.value; hasData = true; }
+      if (notes && notes.value) { state.notes = notes.value; hasData = true; }
+      return hasData ? state : null;
+    },
+    restore: function (draft) {
+      if (!draft.batchId) return;
+      _detailBatchId = draft.batchId;
+      setTimeout(function () {
+        var vessel = document.getElementById('bp-edit-vessel');
+        var shelf = document.getElementById('bp-edit-shelf');
+        var bin = document.getElementById('bp-edit-bin');
+        var notes = document.getElementById('bp-detail-notes');
+        if (vessel && draft.vessel) vessel.value = draft.vessel;
+        if (shelf && draft.shelf) shelf.value = draft.shelf;
+        if (bin && draft.bin) bin.value = draft.bin;
+        if (notes && draft.notes) notes.value = draft.notes;
+      }, 150);
+    }
+  });
+
+  // Saver 4: Single-reading entry in batch detail
+  _formSavers.push({
+    key: 'sv-brewpad-reading-draft',
+    save: function () {
+      if (!_detailBatchId) return null;
+      var state = { batchId: _detailBatchId };
+      var hasData = false;
+      var readingFields = [
+        ['bp-detail-plato-date', 'platoDate'],
+        ['bp-detail-plato-val', 'platoVal'],
+        ['bp-detail-plato-temp', 'platoTemp'],
+        ['bp-detail-plato-ph', 'platoPh'],
+        ['bp-detail-plato-notes', 'platoNotes']
+      ];
+      for (var i = 0; i < readingFields.length; i++) {
+        var el = document.getElementById(readingFields[i][0]);
+        if (el && el.value) { state[readingFields[i][1]] = el.value; hasData = true; }
+      }
+      if (_detailPlatoStaging && _detailPlatoStaging.length > 0) {
+        state.staging = _detailPlatoStaging;
+        hasData = true;
+      }
+      return hasData ? state : null;
+    },
+    restore: function (draft) {
+      if (!draft.batchId) return;
+      _detailBatchId = draft.batchId;
+      if (draft.staging) _detailPlatoStaging = draft.staging;
+      setTimeout(function () {
+        var fields = [
+          ['bp-detail-plato-date', 'platoDate'],
+          ['bp-detail-plato-val', 'platoVal'],
+          ['bp-detail-plato-temp', 'platoTemp'],
+          ['bp-detail-plato-ph', 'platoPh'],
+          ['bp-detail-plato-notes', 'platoNotes']
+        ];
+        for (var i = 0; i < fields.length; i++) {
+          var el = document.getElementById(fields[i][0]);
+          if (el && draft[fields[i][1]]) el.value = draft[fields[i][1]];
+        }
+      }, 150);
+    }
+  });
+
+  // Saver 5: Schedule template editor
+  _formSavers.push({
+    key: 'sv-brewpad-sched-draft',
+    save: function () {
+      var schedSheet = document.getElementById('bp-sched-sheet');
+      if (!schedSheet || schedSheet.style.display === 'none') return null;
+      var state = {};
+      var hasData = false;
+      var schedFields = [
+        ['bp-sched-name', 'name'],
+        ['bp-sched-desc', 'desc'],
+        ['bp-sched-category', 'category'],
+        ['bp-sched-pkg-title', 'pkgTitle'],
+        ['bp-sched-pkg-desc', 'pkgDesc']
+      ];
+      for (var i = 0; i < schedFields.length; i++) {
+        var el = document.getElementById(schedFields[i][0]);
+        if (el && el.value) { state[schedFields[i][1]] = el.value; hasData = true; }
+      }
+      if (_schedSteps && _schedSteps.length > 0) {
+        state.steps = _schedSteps;
+        hasData = true;
+      }
+      if (typeof _editingScheduleId !== 'undefined' && _editingScheduleId) {
+        state.editingId = _editingScheduleId;
+      }
+      return hasData ? state : null;
+    },
+    restore: function (draft) {
+      switchTab('schedules');
+      openSchedSheet(draft.editingId || null);
+      setTimeout(function () {
+        var fields = [
+          ['bp-sched-name', 'name'],
+          ['bp-sched-desc', 'desc'],
+          ['bp-sched-category', 'category'],
+          ['bp-sched-pkg-title', 'pkgTitle'],
+          ['bp-sched-pkg-desc', 'pkgDesc']
+        ];
+        for (var i = 0; i < fields.length; i++) {
+          var el = document.getElementById(fields[i][0]);
+          if (el && draft[fields[i][1]]) el.value = draft[fields[i][1]];
+        }
+        if (draft.steps) _schedSteps = draft.steps;
+      }, 150);
+    }
+  });
 
   // ===== Bootstrap =====
 
