@@ -2465,10 +2465,11 @@ img {
 .kiosk-so-card-actions .btn,
 .kiosk-so-card-actions .btn-secondary {
   flex: 1;
-  min-height: 48px;
+  height: 48px;
   font-size: 0.95rem;
   font-weight: 700;
-  padding: 0.75rem;
+  padding: 0 0.75rem;
+  white-space: nowrap;
 }
 
 .kiosk-so-reorder-btn {
