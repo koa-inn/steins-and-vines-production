@@ -27,7 +27,7 @@ var TERMINAL_RESULT_TTL = 300; // 5 minutes
  * The express.json() middleware must run AFTER this route captures rawBody,
  * or use express.raw() on this route specifically.
  */
-router.post('/api/webhooks/terminal', express.raw({ type: 'application/json' }), function (req, res) {
+router.post(['/api/webhooks/terminal', '/webhooks/terminal'], express.raw({ type: 'application/json' }), function (req, res) {
   var webhookId = req.headers['webhook-id'] || '';
   var timestamp = req.headers['webhook-timestamp'] || '';
   var signature = req.headers['webhook-signature'] || '';
