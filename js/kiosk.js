@@ -1959,7 +1959,7 @@
     var saleCompleted = false;
     var pollTimer = null;
     var pollStart = Date.now();
-    var POLL_TIMEOUT_MS = 120000;
+    var POLL_TIMEOUT_MS = 45000;
 
     var confirmBtn = document.getElementById('kiosk-confirm-payment');
     if (confirmBtn) confirmBtn.style.display = 'none';

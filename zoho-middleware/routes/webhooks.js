@@ -152,27 +152,50 @@ function handleCardTransaction(event) {
 /**
  * Handle terminalCancel webhook events.
  * Fires when a customer or cashier cancels a pending terminal transaction.
- * Cache the cancellation so kiosk polling resolves with DECLINED status.
+ * Cache the cancellation so kiosk polling resolves with CANCELLED status.
+ *
+ * Helcim sends invoiceNumber as empty string in cancel events, so we look up
+ * the pending invoice by device code (cached during terminalPurchase).
  */
 function handleTerminalCancel(event) {
   var data = event.data || {};
   var invoiceNumber = data.invoiceNumber || '';
+  var deviceCode = data.deviceCode || helcimLib.getDeviceCode() || '';
 
-  log.info('[webhook/helcim] terminalCancel: invoice=' + invoiceNumber);
+  log.info('[webhook/helcim] terminalCancel: invoice=' + invoiceNumber + ' device=' + deviceCode);
 
-  if (invoiceNumber) {
-    var cacheKey = 'helcim:terminal:result:' + invoiceNumber;
-    cache.set(cacheKey, JSON.stringify({
-      status: 'DECLINED',
-      transactionId: null,
-      approved: false,
-      cardType: ''
-    }), TERMINAL_RESULT_TTL).catch(function (err) {
+  var cancelResult = JSON.stringify({
+    status: 'CANCELLED',
+    transactionId: null,
+    approved: false,
+    cardType: ''
+  });
+
+  function cacheCancel(ref) {
+    if (!ref) return;
+    var cacheKey = 'helcim:terminal:result:' + ref;
+    cache.set(cacheKey, cancelResult, TERMINAL_RESULT_TTL).then(function () {
+      log.info('[webhook/helcim] Cached cancel for ref=' + ref);
+    }).catch(function (err) {
       log.warn('[webhook/helcim] Failed to cache terminal cancel: ' + err.message);
     });
   }
 
-  eventLog.logEvent('helcim.terminal_cancel', { invoiceNumber: invoiceNumber });
+  if (invoiceNumber) {
+    cacheCancel(invoiceNumber);
+  } else if (deviceCode) {
+    // Look up pending invoice by device code
+    cache.get('helcim:terminal:pending:' + deviceCode).then(function (pendingRef) {
+      if (pendingRef) {
+        cacheCancel(pendingRef);
+        cache.del('helcim:terminal:pending:' + deviceCode).catch(function () {});
+      } else {
+        log.warn('[webhook/helcim] terminalCancel: no pending invoice found for device=' + deviceCode);
+      }
+    }).catch(function () {});
+  }
+
+  eventLog.logEvent('helcim.terminal_cancel', { invoiceNumber: invoiceNumber, deviceCode: deviceCode });
 }
 
 module.exports = router;

@@ -216,6 +216,13 @@ function terminalPurchase(amount, invoiceNumber, idempotencyKey) {
       timeout: 15000
     }
   ).then(function () {
+    // Cache pending invoice by device code so terminalCancel webhook can correlate
+    var pendingCache;
+    try { pendingCache = require('./cache'); } catch (e) { pendingCache = null; }
+    if (pendingCache && invoiceNumber) {
+      pendingCache.set('helcim:terminal:pending:' + HELCIM_DEVICE_CODE, invoiceNumber, 300)
+        .catch(function () {});
+    }
     return { ok: true, status: 'pending', idempotencyKey: idemKey };
   });
 }
@@ -334,10 +341,13 @@ function cancelTerminal() {
   });
 }
 
+function getDeviceCode() { return HELCIM_DEVICE_CODE; }
+
 module.exports = {
   init: init,
   isEnabled: isEnabled,
   isTerminalEnabled: isTerminalEnabled,
+  getDeviceCode: getDeviceCode,
   getDepositAmount: getDepositAmount,
   getTerminalDiagnostics: getTerminalDiagnostics,
   initializeCheckout: initializeCheckout,
