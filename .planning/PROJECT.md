@@ -1,64 +1,78 @@
-# Steins & Vines — Kiosk Production Readiness
+# Steins & Vines — Brewpad Reliability & Integration
 
 ## What This Is
 
-The Steins & Vines in-store kiosk POS system (`kiosk.html` + `js/kiosk.js`) allows staff and customers to browse products, add to cart, and pay via Helcim smart terminal. This milestone focuses on hardening the kiosk for daily production use — fixing bugs found during in-store testing, verifying stock accuracy, and ensuring proper Zoho integration.
+The Steins & Vines BrewPad (`brewpad.html` + `js/brewpad.js`) is an iPad-first batch management terminal used by staff to track fermentation batches, tasks, plato readings, and schedules. This milestone focuses on making BrewPad rock-solid for daily use and connecting it to the kiosk/Zoho ecosystem so batch tracking flows naturally from kit sales.
 
 ## Core Value
 
-**Every kiosk sale must result in an accurate Zoho sales order with correct stock deduction.** If the payment goes through, the inventory and accounting must reflect it. No ghost sales, no phantom stock.
+**Staff can trust BrewPad to save their work and see the full journey from kit sale to finished batch.** Auth never silently expires, form data is never lost, and every batch traces back to its sales order.
+
+## Current Milestone: v1.1 Brewpad Reliability & Integration
+
+**Goal:** Make BrewPad auth bulletproof and connect it to kiosk sales and Zoho for a seamless sale-to-batch workflow.
+
+**Target features:**
+- Auth that doesn't silently expire and lose form data
+- No duplicate login prompts
+- Kiosk kit sale auto-creates a batch linked to customer and sales order
+- Zoho integration for full audit trail (sale → batch → fermentation → done)
 
 ## Requirements
 
 ### Validated
 
-- ✓ Product catalog display from Zoho Inventory — existing (`js/kiosk.js`, `GET /api/kiosk/products`)
-- ✓ Cart system with add/remove/quantity — existing (`js/kiosk.js`)
-- ✓ Helcim POS terminal payment flow — existing (`POST /api/kiosk/sale`, `POST /api/pos/collect`)
-- ✓ Zoho sales order creation after payment — existing (`zoho-middleware/routes/pos.js`)
-- ✓ Auto-void if Zoho fails after charge — existing (`zoho-middleware/routes/pos.js`)
-- ✓ Helcim webhook for async payment results — existing (`POST /api/webhooks/helcim`)
-- ✓ PIN login for staff access — recently added
-- ✓ Redis product caching (5 min TTL) — existing (`zoho:kiosk-products`)
+- ✓ Dashboard with batch status overview and upcoming tasks — existing
+- ✓ Batch list with sorting, filtering, and detail view — existing
+- ✓ Plato reading entry and chart visualization — existing
+- ✓ Task management with grouping and completion — existing
+- ✓ Multi-batch measurement entry — existing
+- ✓ Fermentation schedule templates — existing
+- ✓ Batch QR codes and PDF label generation — existing
+- ✓ Google OAuth staff authentication — existing (but unreliable)
+- ✓ Batch creation with product/customer search — existing
 
 ### Active
 
-- [ ] Stock warning when cart quantity exceeds available stock (with user override)
-- [ ] Category filter should not show Zoho item types ("goods", "services") as filter options
-- [ ] Stock levels display accurately and update after sales
-- [ ] Sales orders create properly in Zoho with correct line items and amounts
-- [ ] Edge case handling: network hiccups, terminal timeouts, concurrent sales
+- [ ] Auth sessions that persist reliably without silent expiry
+- [ ] Form state protection — unsaved work survives auth refresh
+- [ ] No duplicate/stacked login prompts
+- [ ] Kit sale on kiosk auto-creates a batch in brewpad
+- [ ] Batches linked to Zoho sales orders for audit trail
+- [ ] Batch lifecycle visible from sale through fermentation to completion
 
 ### Out of Scope
 
-- New kiosk features (refunds, shift reports, receipt printing) — future milestone
-- Online checkout changes — separate system, not part of this milestone
-- Admin dashboard changes — no kiosk admin work in scope
+- New batch management features (refunds, advanced analytics) — future milestone
+- Kiosk UI changes beyond what's needed for batch creation handoff
+- Online checkout integration — kiosk-only for now
+- Brewpad redesign or new tabs — reliability and integration only
 
 ## Context
 
-- Kiosk is a standalone IIFE app (`js/kiosk.js`, 3154 lines) served from GitHub Pages
-- Middleware on Railway handles Zoho and Helcim API calls
-- `HELCIM_DEVICE_CODE` env var targets the physical terminal
-- Kiosk products use a separate Redis cache key (`zoho:kiosk-products`) from the online catalog
-- PIN login was just added — stability needs verification during testing
-- The kiosk has been tested in-store but is not yet relied on for daily sales
-- `zoho-middleware/routes/pos.js` (1328 lines) is the largest middleware route file
+- BrewPad is a standalone IIFE app (`js/brewpad.js`, 3868 lines) served from GitHub Pages
+- Uses Google OAuth (GSI) for authentication, tokens refresh via `_silentRefreshTimer`
+- Backend is Google Apps Script (`adminApi.gs`) with Google Sheets as database
+- Batch data: 5 Sheets tabs (Batches, FermSchedules, BatchTasks, PlatoReadings, VesselHistory)
+- Kiosk creates Zoho sales orders via Railway middleware when kits are sold
+- Current batch creation is fully manual — no connection to kiosk sales
+- Auth issues: silent token expiry, form data loss on re-login, duplicate auth prompts
+- Staff use BrewPad on iPad primarily
 
 ## Constraints
 
 - **Tech stack**: Vanilla JS (ES5 + `var`), no framework changes — match existing patterns
+- **Auth**: Google OAuth via GSI library — cannot switch auth providers
+- **Backend**: Google Apps Script + Sheets for batch data — Zoho for sales/inventory
 - **Deployment**: Changes go to staging first, production only after manual approval
-- **Testing**: `cd zoho-middleware && npm test` must pass; kiosk routes have low test coverage currently
-- **Zoho API**: Rate-limited; stock checks must use cached data where possible
-- **Terminal**: Helcim smart terminal is the only payment method for kiosk (no manual entry)
+- **iPad-first**: UI must work well on iPad Safari
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Stock warning with override (not hard block) | Staff may know about incoming shipments or need to sell floor samples | — Pending |
-| Polish existing kiosk, not rebuild | System works end-to-end; focus on edge cases and reliability | — Pending |
+| Keep Google Sheets as batch backend | Already working, staff familiar, Apps Script API adequate | — Pending |
+| Bridge kiosk→brewpad via middleware | Kiosk already talks to middleware; middleware can trigger batch creation | — Pending |
 
 ## Evolution
 
@@ -78,4 +92,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-27 after initialization*
+*Last updated: 2026-04-29 after milestone v1.1 initialization*
