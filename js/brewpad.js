@@ -43,6 +43,18 @@ function filterBatchesByStatus(batches, filter) {
   });
 }
 
+// Session staleness check — returns true if token is older than thresholdMs
+function isSessionStale(lastTokenTime, thresholdMs) {
+  if (!lastTokenTime || !thresholdMs) return true;
+  return Date.now() - lastTokenTime > thresholdMs;
+}
+
+// Session expiry check — returns true if login_at is older than maxAgeMs
+function isSessionExpired(loginAt, maxAgeMs) {
+  if (!loginAt || !maxAgeMs) return true;
+  return Date.now() - loginAt > maxAgeMs;
+}
+
 // Plato-based ABV estimation formula
 function calcAbv(og, fg) {
   return (og - fg) / (2.0665 - 0.010665 * og);
@@ -167,8 +179,7 @@ function renderDataGapWarning(readings, now) {
       var raw = localStorage.getItem(SESSION_KEY);
       if (!raw) return null;
       var data = JSON.parse(raw);
-      var sevenDays = 7 * 24 * 60 * 60 * 1000;
-      if (data.login_at && (Date.now() - data.login_at > sevenDays)) {
+      if (data.login_at && isSessionExpired(data.login_at, 7 * 24 * 60 * 60 * 1000)) {
         localStorage.removeItem(SESSION_KEY);
         return null;
       }
@@ -426,8 +437,7 @@ function renderDataGapWarning(readings, now) {
       document.addEventListener('visibilitychange', function () {
         if (document.hidden) return;
         if (!accessToken) return;
-        var elapsed = Date.now() - _lastTokenTime;
-        if (elapsed > 45 * 60 * 1000) {
+        if (isSessionStale(_lastTokenTime, 45 * 60 * 1000)) {
           tryRefreshToken();
         }
       });
@@ -4118,6 +4128,8 @@ if (typeof module !== 'undefined' && module.exports) {
     escapeHTML: escapeHTML, fmtDate: fmtDate, todayStr: todayStr,
     isOverdue: isOverdue, isToday: isToday,
     filterBatchesByStatus: filterBatchesByStatus,
-    calcAbv: calcAbv, renderDataGapWarning: renderDataGapWarning
+    calcAbv: calcAbv, renderDataGapWarning: renderDataGapWarning,
+    isSessionStale: isSessionStale,
+    isSessionExpired: isSessionExpired
   };
 }
