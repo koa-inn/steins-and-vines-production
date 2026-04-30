@@ -226,6 +226,8 @@ app.use('/api', function (req, res, next) {
   if (req.method === 'GET') return next();
   // /api/checkout is public — protected by reCAPTCHA + rate limit instead of API key
   if (req.path === '/checkout') return next();
+  // Webhooks are protected by HMAC signature verification, not API key
+  if (req.path.indexOf('/webhooks/') === 0) return next();
   if (!API_SECRET_KEY) {
     return res.status(503).json({ error: 'Server not configured: API_SECRET_KEY is not set. Contact your administrator.' });
   }
