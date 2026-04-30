@@ -498,21 +498,21 @@ describe('GET /api/kiosk/products — tax rule enrichment', function () {
     });
   });
 
-  test('preserves existing tax_percentage when already set', function () {
+  test('sales_tax_rule_id overrides tax_percentage even when already set', function () {
     var items = [makeItem({
       item_id: 'k2',
       name: 'Beer Kit',
       rate: 150,
-      tax_percentage: 7,
+      tax_percentage: 5,
       sales_tax_rule_id: STANDARD_RULE_ID,
       tax_id: 'some-tax',
-      tax_name: 'Custom Tax'
+      tax_name: 'GST'
     })];
     mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
 
     return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
-      expect(res._body.items[0].tax_percentage).toBe(7);
-      expect(res._body.items[0].tax_name).toBe('Custom Tax');
+      expect(res._body.items[0].tax_percentage).toBe(12);
+      expect(res._body.items[0].tax_name).toBe('GST + PST');
     });
   });
 

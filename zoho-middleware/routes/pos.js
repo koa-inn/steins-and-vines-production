@@ -19,6 +19,12 @@ var IDEMPOTENCY_KEY_TTL = 300; // 5 minutes in seconds
 
 var crypto = require('crypto');
 
+var _TAX_RULE_PCT = {};
+_TAX_RULE_PCT[process.env.ZOHO_TAX_STANDARD_RULE || '109900000000033423'] = 12;
+_TAX_RULE_PCT[process.env.ZOHO_TAX_ZERO_RULE     || '109900000000033411'] = 0;
+_TAX_RULE_PCT[process.env.ZOHO_TAX_SERVICES_RULE || '109900000000033417'] = 5;
+_TAX_RULE_PCT[process.env.ZOHO_TAX_LIQUOR_RULE   || '109900000000033429'] = 15;
+
 var router = express.Router();
 
 function isConsignmentItem(catalogItem) {
@@ -162,18 +168,18 @@ function processSale(body, idempotencyKey, req, res) {
     });
     subtotal = Math.round(subtotal * 100) / 100;
 
-    // Item #2: Compute tax server-side using per-item tax_percentage from catalog.
-    // D-04: Fallback to KIOSK_TAX_RATE when item has no tax_id and no tax_percentage.
+    // Item #2: Compute tax server-side. Tax rule is authoritative when present.
     var taxTotal = 0;
     var defaultTaxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
     lineItems.forEach(function (li) {
       var catalogItem = catalogMap[li.item_id];
-      var pct = catalogItem.tax_percentage;
-      if (!pct && !catalogItem.tax_id) {
-        // D-04 fallback: no tax_id configured, use default rate
+      var pct = catalogItem.tax_percentage || 0;
+      if (catalogItem.sales_tax_rule_id && _TAX_RULE_PCT[catalogItem.sales_tax_rule_id] !== undefined) {
+        pct = _TAX_RULE_PCT[catalogItem.sales_tax_rule_id];
+      } else if (!pct && !catalogItem.tax_id) {
         pct = defaultTaxRate * 100;
       }
-      taxTotal += (li.quantity * li.rate) * ((pct || 0) / 100);
+      taxTotal += (li.quantity * li.rate) * (pct / 100);
     });
     taxTotal = Math.round(taxTotal * 100) / 100;
     var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;

@@ -716,9 +716,11 @@ router.get('/api/kiosk/products', function (req, res) {
           var sellable = allItems.filter(function (item) {
             return item.rate > 0;
           }).map(function (item) {
+            // Tax rule is authoritative — _rawItemsCache may have been mutated
+            // by ingredients/services enrichment (shared object references).
             var pct = item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0;
             var tName = item.tax_name || '';
-            if (!pct && item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
+            if (item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
               pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
               tName = _TAX_RULE_NAME[item.sales_tax_rule_id] || tName;
             }
