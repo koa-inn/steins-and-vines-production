@@ -24,28 +24,23 @@ var TERMINAL_RESULT_TTL = 300; // 5 minutes
  * Configured in Helcim Hub > Integrations > Webhooks.
  *
  * Security: raw body is required for signature verification.
- * The express.json() middleware must run AFTER this route captures rawBody,
- * or use express.raw() on this route specifically.
+ * Captured via express.json({ verify }) callback in server.js (req.rawBody).
  */
-router.post(['/api/webhooks/terminal', '/webhooks/terminal'], express.raw({ type: 'application/json' }), function (req, res) {
+router.post(['/api/webhooks/terminal', '/webhooks/terminal'], function (req, res) {
   var webhookId = req.headers['webhook-id'] || '';
   var timestamp = req.headers['webhook-timestamp'] || '';
   var signature = req.headers['webhook-signature'] || '';
-  var rawBody = req.body ? req.body.toString() : '';
+  // rawBody captured by express.json verify callback in server.js
+  var rawBody = req.rawBody ? req.rawBody.toString() : '';
 
   // Verify HMAC-SHA256 signature
   if (!helcimLib.verifyWebhookSignature(webhookId, timestamp, rawBody, signature)) {
-    log.warn('[webhook/helcim] Invalid signature — rejected');
+    log.warn('[webhook/helcim] Invalid signature — rejected (body_len=' + rawBody.length + ')');
     return res.status(401).json({ error: 'Invalid signature' });
   }
 
-  var event;
-  try {
-    event = JSON.parse(rawBody);
-  } catch (e) {
-    log.warn('[webhook/helcim] Invalid JSON body');
-    return res.status(400).json({ error: 'Invalid JSON' });
-  }
+  // Body already parsed by express.json()
+  var event = req.body;
 
   // Respond 200 immediately — process asynchronously to avoid webhook timeout
   res.status(200).json({ received: true });

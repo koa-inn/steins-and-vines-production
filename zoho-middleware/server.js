@@ -36,7 +36,10 @@ var PORT = process.env.PORT || 3001;
 // ---------------------------------------------------------------------------
 
 app.use(helmet());
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({
+  limit: '1mb',
+  verify: function (req, res, buf) { req.rawBody = buf; }
+}));
 // H3: CORS origin whitelist — only allow requests from known frontend origins
 var allowedOrigins = [
   'https://steinsandvines.ca',

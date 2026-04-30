@@ -312,9 +312,12 @@ function verifyWebhookSignature(webhookId, timestamp, rawBody, signature) {
     log.warn('[helcim] HELCIM_WEBHOOK_SECRET not set — skipping webhook signature verification');
     return true;
   }
-  // Svix/Helcim secrets may have a whsec_ prefix — strip it before base64 decode
-  var rawSecret = secret.replace(/^whsec_/, '');
-  var key = Buffer.from(rawSecret, 'base64');
+  // Try both: raw string key and base64-decoded key (Helcim docs are ambiguous)
+  var key = secret;
+  var hasPrefix = secret.indexOf('whsec_') === 0;
+  if (hasPrefix) {
+    key = Buffer.from(secret.substring(6), 'base64');
+  }
   var payload = webhookId + '.' + timestamp + '.' + rawBody;
   var expected = crypto.createHmac('sha256', key).update(payload).digest('base64');
 
