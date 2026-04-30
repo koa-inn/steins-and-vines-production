@@ -312,11 +312,16 @@ function verifyWebhookSignature(webhookId, timestamp, rawBody, signature) {
     log.warn('[helcim] HELCIM_WEBHOOK_SECRET not set — skipping webhook signature verification');
     return true;
   }
-  var key = Buffer.from(secret, 'base64');
+  // Svix/Helcim secrets may have a whsec_ prefix — strip it before base64 decode
+  var rawSecret = secret.replace(/^whsec_/, '');
+  var key = Buffer.from(rawSecret, 'base64');
   var payload = webhookId + '.' + timestamp + '.' + rawBody;
   var expected = crypto.createHmac('sha256', key).update(payload).digest('base64');
 
   var candidates = (signature || '').split(' ');
+  log.info('[helcim] Webhook sig verify: secret_prefix=' + secret.substring(0, 6) +
+    ' key_len=' + key.length + ' candidates=' + candidates.length +
+    ' expected_len=' + expected.length);
   for (var i = 0; i < candidates.length; i++) {
     var sig = candidates[i];
     // Strip version prefix (e.g. "v1,") if present
@@ -327,7 +332,8 @@ function verifyWebhookSignature(webhookId, timestamp, rawBody, signature) {
         return true;
       }
     } catch (e) {
-      // length mismatch — try next candidate
+      log.info('[helcim] Webhook sig candidate ' + i + ' length mismatch: expected=' +
+        Buffer.from(expected).length + ' got=' + Buffer.from(sig).length);
     }
   }
   return false;

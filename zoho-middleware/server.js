@@ -324,6 +324,7 @@ var apiLimiter = rateLimit({
   legacyHeaders: false,
   store: makeRedisStore(60 * 1000, 'api'),
   skip: redisUnavailableSkip,
+  validate: { singleCount: false },
   message: { error: 'Too many requests, please try again later' }
 });
 
@@ -334,6 +335,7 @@ var paymentLimiter = rateLimit({
   legacyHeaders: false,
   store: makeRedisStore(60 * 1000, 'payment'),
   skip: redisUnavailableSkip,
+  validate: { singleCount: false },
   message: { error: 'Too many requests, please try again in a minute' }
 });
 
@@ -344,6 +346,7 @@ var pinLimiter = rateLimit({
   legacyHeaders: false,
   store: makeRedisStore(60 * 1000, 'pin'),
   skip: redisUnavailableSkip,
+  validate: { singleCount: false },
   message: { error: 'Too many PIN attempts, please try again in a minute' }
 });
 
@@ -353,7 +356,10 @@ app.use('/api/kiosk/verify-pin', pinLimiter);
 app.use('/api/payment', paymentLimiter);
 app.use('/api/checkout', paymentLimiter);
 app.use('/api/pos/sale', paymentLimiter);
-app.use('/api/kiosk/sale', paymentLimiter);
+app.use('/api/kiosk/sale', function (req, res, next) {
+  if (req.path === '/status') return next();
+  paymentLimiter(req, res, next);
+});
 app.use('/api/pos/collect', paymentLimiter);
 app.use('/api/kiosk/salesorder-pay', paymentLimiter);
 
