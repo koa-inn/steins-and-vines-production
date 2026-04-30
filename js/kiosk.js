@@ -253,6 +253,8 @@
 
     var emailEl = document.getElementById('kiosk-user-email');
     if (emailEl) emailEl.textContent = '';
+
+    showSignInButton();
   }
 
   function handleUnauthorized() {
