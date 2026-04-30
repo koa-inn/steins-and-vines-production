@@ -467,3 +467,65 @@ describe('GET /api/services — bulk detail enrichment', function () {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// GET /api/kiosk/products — tax rule enrichment
+// ---------------------------------------------------------------------------
+
+describe('GET /api/kiosk/products — tax rule enrichment', function () {
+  var mocks;
+
+  beforeEach(function () {
+    mocks = resetAndLoadCatalog();
+    setupDefaultMocks(mocks);
+  });
+
+  test('derives tax_percentage from sales_tax_rule_id when tax_percentage is 0', function () {
+    var items = [makeItem({
+      item_id: 'k1',
+      name: 'Wine Kit',
+      rate: 200,
+      tax_percentage: 0,
+      sales_tax_rule_id: STANDARD_RULE_ID,
+      tax_id: '',
+      tax_name: ''
+    })];
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+
+    return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
+      expect(res._body.items[0].tax_percentage).toBe(12);
+      expect(res._body.items[0].tax_name).toBe('GST + PST');
+    });
+  });
+
+  test('preserves existing tax_percentage when already set', function () {
+    var items = [makeItem({
+      item_id: 'k2',
+      name: 'Beer Kit',
+      rate: 150,
+      tax_percentage: 7,
+      sales_tax_rule_id: STANDARD_RULE_ID,
+      tax_id: 'some-tax',
+      tax_name: 'Custom Tax'
+    })];
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+
+    return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
+      expect(res._body.items[0].tax_percentage).toBe(7);
+      expect(res._body.items[0].tax_name).toBe('Custom Tax');
+    });
+  });
+
+  test('filters out items with rate 0', function () {
+    var items = [
+      makeItem({ item_id: 'k3', rate: 0 }),
+      makeItem({ item_id: 'k4', rate: 10 })
+    ];
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+
+    return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
+      expect(res._body.items.length).toBe(1);
+      expect(res._body.items[0].item_id).toBe('k4');
+    });
+  });
+});

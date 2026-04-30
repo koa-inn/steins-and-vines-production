@@ -716,6 +716,12 @@ router.get('/api/kiosk/products', function (req, res) {
           var sellable = allItems.filter(function (item) {
             return item.rate > 0;
           }).map(function (item) {
+            var pct = item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0;
+            var tName = item.tax_name || '';
+            if (!pct && item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
+              pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
+              tName = _TAX_RULE_NAME[item.sales_tax_rule_id] || tName;
+            }
             return {
               item_id:       item.item_id,
               name:          item.name,
@@ -726,8 +732,8 @@ router.get('/api/kiosk/products', function (req, res) {
               product_type:  item.product_type || '',
               image_name:    item.image_name || '',
               tax_id:        item.tax_id || '',
-              tax_name:      item.tax_name || '',
-              tax_percentage: item.tax_percentage != null ? item.tax_percentage : 0,
+              tax_name:      tName,
+              tax_percentage: pct,
               custom_fields: item.custom_fields || [],
               group_name:    item.group_name || '',
               cf_type:       item.cf_type || '',
