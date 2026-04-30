@@ -847,7 +847,7 @@
 
   // ===== Cart Totals =====
 
-  var KIOSK_TAX_RATE = 0.05; // 5% GST — matches server-side KIOSK_TAX_RATE default
+  var KIOSK_TAX_RATE_DEFAULT = 0.05; // 5% GST fallback when item has no tax_percentage
 
   function kioskCalcTotals() {
     var subtotal = 0;
@@ -868,8 +868,20 @@
       }
     }
 
+    // Per-item tax using catalog tax_percentage (matches server-side calculation)
+    var discountRatio = subtotal > 0 ? (subtotal - discountAmount) / subtotal : 0;
+    var taxTotal = 0;
+    Object.keys(_kioskCart).forEach(function (id) {
+      var entry = _kioskCart[id];
+      var qty = entry.qty;
+      var rate = parseFloat(entry.item.rate) || 0;
+      var lineTotal = rate * qty * discountRatio;
+      var pct = parseFloat(entry.item.tax_percentage);
+      if (isNaN(pct)) pct = KIOSK_TAX_RATE_DEFAULT * 100;
+      taxTotal += lineTotal * (pct / 100);
+    });
+    taxTotal = parseFloat(taxTotal.toFixed(2));
     var taxableAmount = subtotal - discountAmount;
-    var taxTotal = parseFloat((taxableAmount * KIOSK_TAX_RATE).toFixed(2));
     return {
       subtotal: subtotal,
       discount: discountAmount,

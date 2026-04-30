@@ -312,33 +312,30 @@ function verifyWebhookSignature(webhookId, timestamp, rawBody, signature) {
     log.warn('[helcim] HELCIM_WEBHOOK_SECRET not set — skipping webhook signature verification');
     return true;
   }
-  // Try both: raw string key and base64-decoded key (Helcim docs are ambiguous)
-  var key = secret;
-  var hasPrefix = secret.indexOf('whsec_') === 0;
-  if (hasPrefix) {
-    key = Buffer.from(secret.substring(6), 'base64');
-  }
+  var rawSecret = secret.replace(/^whsec_/, '');
   var payload = webhookId + '.' + timestamp + '.' + rawBody;
-  var expected = crypto.createHmac('sha256', key).update(payload).digest('base64');
+
+  // Try base64-decoded key first (Svix standard), then raw string as fallback
+  var keys = [Buffer.from(rawSecret, 'base64'), rawSecret];
 
   var candidates = (signature || '').split(' ');
-  log.info('[helcim] Webhook sig verify: secret_prefix=' + secret.substring(0, 6) +
-    ' key_len=' + key.length + ' candidates=' + candidates.length +
-    ' expected_len=' + expected.length);
-  for (var i = 0; i < candidates.length; i++) {
-    var sig = candidates[i];
-    // Strip version prefix (e.g. "v1,") if present
-    var commaIdx = sig.indexOf(',');
-    if (commaIdx !== -1) sig = sig.substring(commaIdx + 1);
-    try {
-      if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) {
-        return true;
+  for (var k = 0; k < keys.length; k++) {
+    var expected = crypto.createHmac('sha256', keys[k]).update(payload).digest('base64');
+    for (var i = 0; i < candidates.length; i++) {
+      var sig = candidates[i];
+      var commaIdx = sig.indexOf(',');
+      if (commaIdx !== -1) sig = sig.substring(commaIdx + 1);
+      try {
+        if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) {
+          return true;
+        }
+      } catch (e) {
+        // length mismatch — try next
       }
-    } catch (e) {
-      log.info('[helcim] Webhook sig candidate ' + i + ' length mismatch: expected=' +
-        Buffer.from(expected).length + ' got=' + Buffer.from(sig).length);
     }
   }
+  log.warn('[helcim] Webhook sig mismatch: tried base64+raw keys, ' +
+    candidates.length + ' candidate(s), body_len=' + rawBody.length);
   return false;
 }
 
