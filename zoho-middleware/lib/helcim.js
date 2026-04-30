@@ -312,33 +312,30 @@ function verifyWebhookSignature(webhookId, timestamp, rawBody, signature) {
     log.warn('[helcim] HELCIM_WEBHOOK_SECRET not set — skipping webhook signature verification');
     return true;
   }
+  var key = Buffer.from(secret, 'base64');
   var payload = webhookId + '.' + timestamp + '.' + rawBody;
-  var expected = crypto.createHmac('sha256', secret).update(payload).digest('base64');
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(expected),
-      Buffer.from(signature || '')
-    );
-  } catch (e) {
-    return false;
+  var expected = crypto.createHmac('sha256', key).update(payload).digest('base64');
+
+  var candidates = (signature || '').split(' ');
+  for (var i = 0; i < candidates.length; i++) {
+    var sig = candidates[i];
+    // Strip version prefix (e.g. "v1,") if present
+    var commaIdx = sig.indexOf(',');
+    if (commaIdx !== -1) sig = sig.substring(commaIdx + 1);
+    try {
+      if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) {
+        return true;
+      }
+    } catch (e) {
+      // length mismatch — try next candidate
+    }
   }
+  return false;
 }
 
 function cancelTerminal() {
-  if (!HELCIM_API_TOKEN || !HELCIM_DEVICE_CODE) {
-    return Promise.reject(new Error('Helcim terminal not configured'));
-  }
-  return axios.post(
-    HELCIM_BASE_URL + '/devices/' + encodeURIComponent(HELCIM_DEVICE_CODE) + '/cancel',
-    {},
-    { headers: helcimHeaders(), timeout: 10000 }
-  ).then(function () {
-    log.info('[helcim] Terminal cancel sent');
-    return { ok: true };
-  }).catch(function (err) {
-    log.warn('[helcim] Terminal cancel failed: ' + (err.response ? err.response.status : err.message));
-    return { ok: false };
-  });
+  log.info('[helcim] Cancel requested — cancellation must happen on the physical terminal');
+  return Promise.resolve({ ok: false, device_cancel_required: true });
 }
 
 function getDeviceCode() { return HELCIM_DEVICE_CODE; }
