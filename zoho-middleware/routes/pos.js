@@ -27,6 +27,102 @@ _TAX_RULE_PCT[process.env.ZOHO_TAX_LIQUOR_RULE   || '109900000000033429'] = 15;
 
 var router = express.Router();
 
+// Resolve and apply a discount preset to lineItems.
+// Returns a promise that resolves to { discountApplied, subtotal } or
+// { error, status } if validation fails. Resolves to null if no discount.
+function resolveDiscount(body, lineItems, subtotal) {
+  if (!body.discount || !body.discount.preset_id) return Promise.resolve(null);
+
+  return cache.get(C.CACHE_KEYS.KIOSK_DISCOUNT_PRESETS).then(function (presets) {
+    presets = Array.isArray(presets) ? presets : [];
+    var preset = null;
+    for (var i = 0; i < presets.length; i++) {
+      if (presets[i].id === body.discount.preset_id) { preset = presets[i]; break; }
+    }
+    if (!preset) return { error: 'Discount preset not found', status: 400 };
+    if (!preset.active) return { error: 'Discount preset is inactive', status: 400 };
+    if (preset.scope === 'item' && !body.discount.target_item_id) {
+      return { error: 'target_item_id required for item-level discount', status: 400 };
+    }
+    if (preset.scope === 'item') {
+      var found = false;
+      for (var j = 0; j < lineItems.length; j++) {
+        if (lineItems[j].item_id === body.discount.target_item_id) { found = true; break; }
+      }
+      if (!found) return { error: 'target_item_id not found in cart', status: 400 };
+    }
+
+    var discountApplied = null;
+    if (preset.scope === 'cart') {
+      if (preset.type === 'percentage') {
+        lineItems.forEach(function (li) { li.discount = preset.value + '%'; });
+        discountApplied = { preset_id: preset.id, name: preset.name, type: 'percentage', value: preset.value, scope: 'cart' };
+      } else {
+        var fixedAmount = Math.min(preset.value, subtotal);
+        lineItems.forEach(function (li) {
+          var lineTotal = li.quantity * li.rate;
+          var share = subtotal > 0 ? Math.round(fixedAmount * (lineTotal / subtotal) * 100) / 100 : 0;
+          li.discount = share;
+        });
+        discountApplied = { preset_id: preset.id, name: preset.name, type: 'fixed', value: fixedAmount, scope: 'cart' };
+      }
+    } else {
+      var targetId = body.discount.target_item_id;
+      lineItems.forEach(function (li) {
+        if (li.item_id === targetId) {
+          if (preset.type === 'percentage') {
+            li.discount = preset.value + '%';
+          } else {
+            var itemTotal = li.quantity * li.rate;
+            li.discount = Math.min(preset.value, itemTotal);
+          }
+        }
+      });
+      discountApplied = { preset_id: preset.id, name: preset.name, type: preset.type, value: preset.value, scope: 'item', target_item_id: targetId };
+    }
+
+    var newSubtotal = 0;
+    lineItems.forEach(function (li) {
+      var lt = li.quantity * li.rate;
+      if (li.discount) {
+        if (typeof li.discount === 'string' && li.discount.indexOf('%') !== -1) {
+          lt = lt * (1 - parseFloat(li.discount) / 100);
+        } else {
+          lt = lt - Number(li.discount);
+        }
+      }
+      newSubtotal += Math.max(lt, 0);
+    });
+    return { discountApplied: discountApplied, subtotal: Math.round(newSubtotal * 100) / 100 };
+  });
+}
+
+// Compute per-line-item tax total, respecting discounts already on lineItems.
+function computeTax(lineItems, catalogMap) {
+  var taxTotal = 0;
+  var defaultTaxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
+  lineItems.forEach(function (li) {
+    var catalogItem = catalogMap[li.item_id];
+    var lineTotal = li.quantity * li.rate;
+    if (li.discount) {
+      if (typeof li.discount === 'string' && li.discount.indexOf('%') !== -1) {
+        lineTotal = lineTotal * (1 - parseFloat(li.discount) / 100);
+      } else {
+        lineTotal = lineTotal - Number(li.discount);
+      }
+    }
+    lineTotal = Math.max(lineTotal, 0);
+    var pct = catalogItem.tax_percentage || 0;
+    if (catalogItem.sales_tax_rule_id && _TAX_RULE_PCT[catalogItem.sales_tax_rule_id] !== undefined) {
+      pct = _TAX_RULE_PCT[catalogItem.sales_tax_rule_id];
+    } else if (!pct && !catalogItem.tax_id) {
+      pct = defaultTaxRate * 100;
+    }
+    taxTotal += lineTotal * ((pct || 0) / 100);
+  });
+  return Math.round(taxTotal * 100) / 100;
+}
+
 function isConsignmentItem(catalogItem) {
   if (!catalogItem) return false;
   if ((catalogItem.cf_type || '').toLowerCase() === 'consignment') return true;
@@ -168,24 +264,21 @@ function processSale(body, idempotencyKey, req, res) {
     });
     subtotal = Math.round(subtotal * 100) / 100;
 
-    // Item #2: Compute tax server-side. Tax rule is authoritative when present.
-    var taxTotal = 0;
-    var defaultTaxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
-    lineItems.forEach(function (li) {
-      var catalogItem = catalogMap[li.item_id];
-      var pct = catalogItem.tax_percentage || 0;
-      if (catalogItem.sales_tax_rule_id && _TAX_RULE_PCT[catalogItem.sales_tax_rule_id] !== undefined) {
-        pct = _TAX_RULE_PCT[catalogItem.sales_tax_rule_id];
-      } else if (!pct && !catalogItem.tax_id) {
-        pct = defaultTaxRate * 100;
+    // Apply discount (if any) before computing tax and terminal charge
+    resolveDiscount(body, lineItems, subtotal).then(function (discResult) {
+      if (discResult && discResult.error) {
+        return res.status(discResult.status).json({ error: discResult.error });
       }
-      taxTotal += (li.quantity * li.rate) * (pct / 100);
-    });
-    taxTotal = Math.round(taxTotal * 100) / 100;
-    var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
+      if (discResult) {
+        subtotal = discResult.subtotal;
+      }
 
-    processSaleWithPrices(body, idempotencyKey, req, res,
-      lineItems, subtotal, taxTotal, grandTotal, catalogMap);
+      var taxTotal = computeTax(lineItems, catalogMap);
+      var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
+
+      processSaleWithPrices(body, idempotencyKey, req, res,
+        lineItems, subtotal, taxTotal, grandTotal, catalogMap);
+    });
   }).catch(function (cacheErr) {
     log.error('[pos/kiosk/sale] Catalog cache read failed: ' + cacheErr.message);
     res.status(503).json({ error: 'Unable to verify item prices. Please try again.' });
@@ -331,106 +424,18 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
     });
     subtotal = Math.round(subtotal * 100) / 100;
 
-    // --- Discount application ---
-    var discountChain = Promise.resolve(null);
-    if (body.discount && body.discount.preset_id) {
-      discountChain = cache.get(C.CACHE_KEYS.KIOSK_DISCOUNT_PRESETS).then(function (presets) {
-        presets = Array.isArray(presets) ? presets : [];
-        var preset = null;
-        for (var di = 0; di < presets.length; di++) {
-          if (presets[di].id === body.discount.preset_id) { preset = presets[di]; break; }
-        }
-        if (!preset) return { error: 'Discount preset not found', status: 400 };
-        if (!preset.active) return { error: 'Discount preset is inactive', status: 400 };
-        if (preset.scope === 'item' && !body.discount.target_item_id) {
-          return { error: 'target_item_id required for item-level discount', status: 400 };
-        }
-        if (preset.scope === 'item') {
-          var targetFound = false;
-          for (var ti = 0; ti < lineItems.length; ti++) {
-            if (lineItems[ti].item_id === body.discount.target_item_id) { targetFound = true; break; }
-          }
-          if (!targetFound) return { error: 'target_item_id not found in cart', status: 400 };
-        }
-        return preset;
-      });
-    }
-
-    return discountChain.then(function (discountResult) {
-      if (discountResult && discountResult.error) {
-        return res.status(discountResult.status).json({ error: discountResult.error });
+    return resolveDiscount(body, lineItems, subtotal).then(function (discResult) {
+      if (discResult && discResult.error) {
+        return res.status(discResult.status).json({ error: discResult.error });
       }
 
       var discountApplied = null;
-      if (discountResult) {
-        var preset = discountResult;
-        if (preset.scope === 'cart') {
-          if (preset.type === 'percentage') {
-            lineItems.forEach(function (li) { li.discount = preset.value + '%'; });
-            discountApplied = { preset_id: preset.id, name: preset.name, type: 'percentage', value: preset.value, scope: 'cart' };
-          } else {
-            // Fixed cart discount: distribute pro-rata across line items
-            var fixedAmount = Math.min(preset.value, subtotal);
-            lineItems.forEach(function (li) {
-              var lineTotal = li.quantity * li.rate;
-              var share = subtotal > 0 ? Math.round(fixedAmount * (lineTotal / subtotal) * 100) / 100 : 0;
-              li.discount = share;
-            });
-            discountApplied = { preset_id: preset.id, name: preset.name, type: 'fixed', value: fixedAmount, scope: 'cart' };
-          }
-        } else {
-          // Item-level discount
-          var targetId = body.discount.target_item_id;
-          lineItems.forEach(function (li) {
-            if (li.item_id === targetId) {
-              if (preset.type === 'percentage') {
-                li.discount = preset.value + '%';
-              } else {
-                var itemTotal = li.quantity * li.rate;
-                li.discount = Math.min(preset.value, itemTotal);
-              }
-            }
-          });
-          discountApplied = { preset_id: preset.id, name: preset.name, type: preset.type, value: preset.value, scope: 'item', target_item_id: targetId };
-        }
-
-        // Recalculate subtotal after discounts
-        subtotal = 0;
-        lineItems.forEach(function (li) {
-          var lineTotal = li.quantity * li.rate;
-          if (li.discount) {
-            if (typeof li.discount === 'string' && li.discount.indexOf('%') !== -1) {
-              lineTotal = lineTotal * (1 - parseFloat(li.discount) / 100);
-            } else {
-              lineTotal = lineTotal - Number(li.discount);
-            }
-          }
-          subtotal += Math.max(lineTotal, 0);
-        });
-        subtotal = Math.round(subtotal * 100) / 100;
+      if (discResult) {
+        subtotal = discResult.subtotal;
+        discountApplied = discResult.discountApplied;
       }
 
-    // Per-item tax computation using catalog tax_percentage (D-03/D-04)
-    var taxTotal = 0;
-    var defaultTaxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
-    lineItems.forEach(function (li) {
-      var catalogItem = catalogMap[li.item_id];
-      var lineTotal = li.quantity * li.rate;
-      if (li.discount) {
-        if (typeof li.discount === 'string' && li.discount.indexOf('%') !== -1) {
-          lineTotal = lineTotal * (1 - parseFloat(li.discount) / 100);
-        } else {
-          lineTotal = lineTotal - Number(li.discount);
-        }
-      }
-      lineTotal = Math.max(lineTotal, 0);
-      var pct = catalogItem.tax_percentage;
-      if (!pct && !catalogItem.tax_id) {
-        pct = defaultTaxRate * 100;
-      }
-      taxTotal += lineTotal * ((pct || 0) / 100);
-    });
-    taxTotal = Math.round(taxTotal * 100) / 100;
+    var taxTotal = computeTax(lineItems, catalogMap);
     var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
     var refNumber = (body.reference_number || 'KIOSK-' + Date.now()).slice(0, 64);
     var txnId = body.transaction_id || 'manual-confirm';
@@ -455,7 +460,6 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
     if (body.contact_id) invoicePayload.customer_id = body.contact_id;
     else if (contactId) invoicePayload.customer_id = contactId;
 
-    // Consignment tracking
     var consignmentDetails = [];
     lineItems.forEach(function (li) {
       var info = extractConsignmentInfo(catalogMap[li.item_id]);
@@ -514,7 +518,7 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
         res.status(201).json(result);
       });
     });
-    }); // end discountChain.then
+    }); // end resolveDiscount.then
   }).catch(function (err) {
     log.error('[pos/kiosk/sale/confirm] Error: ' + err.message);
     res.status(502).json({ error: 'Failed to create invoice. Please try again.' });
