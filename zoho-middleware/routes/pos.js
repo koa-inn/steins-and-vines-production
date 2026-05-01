@@ -822,9 +822,15 @@ router.get('/api/kiosk/salesorders', function (req, res) {
         zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'confirmed' })),
         zohoGet('/salesorders', Object.assign({}, fetchParams, { status: 'invoiced' }))
       ]).then(function (results) {
-        var combined = results.reduce(function (acc, r) {
+        var all = results.reduce(function (acc, r) {
           return acc.concat(r.salesorders || []);
         }, []);
+        var seen = {};
+        var combined = all.filter(function (so) {
+          if (seen[so.salesorder_id]) return false;
+          seen[so.salesorder_id] = true;
+          return true;
+        });
         combined.sort(function (a, b) {
           return (b.date || '').localeCompare(a.date || '');
         });
