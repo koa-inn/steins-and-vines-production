@@ -2039,7 +2039,8 @@
       body: JSON.stringify({
         items: items,
         reference_number: refNumber,
-        idempotency_key: refNumber
+        idempotency_key: refNumber,
+        discount: _kioskDiscount ? { preset_id: _kioskDiscount.presetId, name: _kioskDiscount.name, type: _kioskDiscount.type, value: _kioskDiscount.value, scope: _kioskDiscount.scope } : undefined
       })
     })
     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
