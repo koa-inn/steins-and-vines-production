@@ -480,39 +480,58 @@ describe('GET /api/kiosk/products — tax rule enrichment', function () {
     setupDefaultMocks(mocks);
   });
 
-  test('derives tax_percentage from sales_tax_rule_id when tax_percentage is 0', function () {
+  test('enriches tax from detail endpoint when list API returns no tax info', function () {
     var items = [makeItem({
       item_id: 'k1',
       name: 'Wine Kit',
       rate: 200,
       tax_percentage: 0,
-      sales_tax_rule_id: STANDARD_RULE_ID,
+      sales_tax_rule_id: '',
       tax_id: '',
       tax_name: ''
     })];
     mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue({
+      'k1': { tax_id: 'tax-gst-pst', tax_name: 'BC PST + GST', tax_percentage: 12 }
+    });
 
     return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
       expect(res._body.items[0].tax_percentage).toBe(12);
-      expect(res._body.items[0].tax_name).toBe('GST + PST');
+      expect(res._body.items[0].tax_name).toBe('BC PST + GST');
+      expect(res._body.items[0].tax_id).toBe('tax-gst-pst');
     });
   });
 
-  test('sales_tax_rule_id overrides tax_percentage even when already set', function () {
+  test('sales_tax_rule_id from detail overrides tax_percentage', function () {
     var items = [makeItem({
       item_id: 'k2',
       name: 'Beer Kit',
       rate: 150,
-      tax_percentage: 5,
-      sales_tax_rule_id: STANDARD_RULE_ID,
-      tax_id: 'some-tax',
-      tax_name: 'GST'
+      tax_percentage: 0,
+      tax_id: '',
+      tax_name: ''
     })];
     mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue({
+      'k2': { tax_percentage: 5, tax_name: 'GST', sales_tax_rule_id: STANDARD_RULE_ID }
+    });
 
     return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
       expect(res._body.items[0].tax_percentage).toBe(12);
       expect(res._body.items[0].tax_name).toBe('GST + PST');
+      expect(res._body.items[0].sales_tax_rule_id).toBe(STANDARD_RULE_ID);
+    });
+  });
+
+  test('uses taxes array sum when tax_percentage is 0 and no rule', function () {
+    var items = [makeItem({ item_id: 'k5', rate: 100, tax_percentage: 0 })];
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue({
+      'k5': { tax_percentage: 0, taxes: [{ tax_percentage: 5 }, { tax_percentage: 7 }] }
+    });
+
+    return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
+      expect(res._body.items[0].tax_percentage).toBe(12);
     });
   });
 
@@ -522,10 +541,27 @@ describe('GET /api/kiosk/products — tax rule enrichment', function () {
       makeItem({ item_id: 'k4', rate: 10 })
     ];
     mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue({
+      'k4': { tax_percentage: 5, tax_name: 'GST', tax_id: 'tax-gst' }
+    });
 
     return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
       expect(res._body.items.length).toBe(1);
       expect(res._body.items[0].item_id).toBe('k4');
+    });
+  });
+
+  test('calls fetchItemDetailsBulk with sellable item IDs only', function () {
+    var items = [
+      makeItem({ item_id: 'k6', rate: 50 }),
+      makeItem({ item_id: 'k7', rate: 0 }),
+      makeItem({ item_id: 'k8', rate: 25 })
+    ];
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue({});
+
+    return callHandler('/api/kiosk/products', { query: {} }).then(function () {
+      expect(mocks.zohoApi.fetchItemDetailsBulk).toHaveBeenCalledWith(['k6', 'k8']);
     });
   });
 });

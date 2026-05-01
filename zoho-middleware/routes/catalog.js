@@ -710,50 +710,62 @@ router.get('/api/kiosk/products', function (req, res) {
 
       return fetchAllItemsCached()
         .then(function (allItems) {
-          // Use list endpoint data directly — tax_percentage, image_name, stock_on_hand
-          // are all included in the Zoho items list response, so no per-item detail
-          // calls are needed (which caused rate limiting with large catalogs).
-          var sellable = allItems.filter(function (item) {
+          var filtered = allItems.filter(function (item) {
             return item.rate > 0;
-          }).map(function (item) {
-            // Tax rule is authoritative — _rawItemsCache may have been mutated
-            // by ingredients/services enrichment (shared object references).
-            var pct = item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0;
-            var tName = item.tax_name || '';
-            if (item.sales_tax_rule_id && _TAX_RULE_PCT[item.sales_tax_rule_id] !== undefined) {
-              pct = _TAX_RULE_PCT[item.sales_tax_rule_id];
-              tName = _TAX_RULE_NAME[item.sales_tax_rule_id] || tName;
-            }
-            return {
-              item_id:       item.item_id,
-              name:          item.name,
-              sku:           item.sku || '',
-              rate:          item.rate,
-              stock_on_hand: item.stock_on_hand != null ? item.stock_on_hand : 0,
-              category_name: item.category_name || '',
-              product_type:  item.product_type || '',
-              image_name:    item.image_name || '',
-              tax_id:        item.tax_id || '',
-              tax_name:      tName,
-              tax_percentage: pct,
-              custom_fields: item.custom_fields || [],
-              group_name:    item.group_name || '',
-              cf_type:       item.cf_type || '',
-              unit:          item.unit || ''
-            };
           });
 
-          cache.set(KIOSK_PRODUCTS_CACHE_KEY, sellable, KIOSK_PRODUCTS_CACHE_TTL);
-          log.info('[api/kiosk/products] Cached ' + sellable.length + ' sellable items');
-          // Reconcile inventory ledger with fresh kiosk catalog
-          ledger.reconcile(sellable).catch(function (err) {
-            log.error('[api/kiosk/products] Inventory ledger reconcile failed: ' + err.message);
-          });
-          return ledger.overlayStock(sellable).then(function (overlaid) {
-            res.json({ source: 'zoho', items: overlaid });
-          }).catch(function (err) {
-            log.error('[api/kiosk/products] overlayStock failed: ' + err.message);
-            res.json({ source: 'zoho', items: sellable });
+          var itemIds = filtered.map(function (item) { return item.item_id; });
+          // The list API does not reliably return tax fields — fetch per-item
+          // details in bulk (3 calls for ~250 items, only on cache miss every 5 min).
+          return fetchItemDetailsBulk(itemIds).then(function (detailMap) {
+            var sellable = filtered.map(function (item) {
+              var detail = detailMap[item.item_id] || {};
+
+              var taxId = detail.tax_id || item.tax_id || '';
+              var tName = detail.tax_name || item.tax_name || '';
+              var pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
+                ? parseFloat(detail.tax_percentage)
+                : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0);
+              if (!pct && detail.taxes && detail.taxes.length) {
+                pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
+              }
+              var ruleId = detail.sales_tax_rule_id || item.sales_tax_rule_id || '';
+              if (ruleId && _TAX_RULE_PCT[ruleId] !== undefined) {
+                pct = _TAX_RULE_PCT[ruleId];
+                tName = _TAX_RULE_NAME[ruleId] || tName;
+              }
+
+              return {
+                item_id:       item.item_id,
+                name:          item.name,
+                sku:           item.sku || '',
+                rate:          item.rate,
+                stock_on_hand: item.stock_on_hand != null ? item.stock_on_hand : 0,
+                category_name: item.category_name || '',
+                product_type:  item.product_type || '',
+                image_name:    detail.image_name || item.image_name || '',
+                tax_id:        taxId,
+                tax_name:      tName,
+                tax_percentage: pct,
+                sales_tax_rule_id: ruleId,
+                custom_fields: detail.custom_fields || item.custom_fields || [],
+                group_name:    item.group_name || '',
+                cf_type:       item.cf_type || '',
+                unit:          item.unit || ''
+              };
+            });
+
+            cache.set(KIOSK_PRODUCTS_CACHE_KEY, sellable, KIOSK_PRODUCTS_CACHE_TTL);
+            log.info('[api/kiosk/products] Cached ' + sellable.length + ' sellable items');
+            ledger.reconcile(sellable).catch(function (err) {
+              log.error('[api/kiosk/products] Inventory ledger reconcile failed: ' + err.message);
+            });
+            return ledger.overlayStock(sellable).then(function (overlaid) {
+              res.json({ source: 'zoho', items: overlaid });
+            }).catch(function (err) {
+              log.error('[api/kiosk/products] overlayStock failed: ' + err.message);
+              res.json({ source: 'zoho', items: sellable });
+            });
           });
         });
     })
