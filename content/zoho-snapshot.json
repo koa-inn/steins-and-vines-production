@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T07:55:38.326Z",
+  "generated_at": "2026-05-02T07:15:46.423Z",
   "products": [
     {
       "name": "Acai Raspberry Rapture",
@@ -2595,7 +2595,7 @@
       "name": "750mL Bordeaux Bottle Brown",
       "unit": "pcs",
       "price_per_unit": "2.5",
-      "stock": "0",
+      "stock": "-29",
       "description": "",
       "sku": "bor-brown",
       "category": "",
