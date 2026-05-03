@@ -197,6 +197,13 @@ function doPost(e) {
       if (action === 'add_reservation') {
         return _jsonResponse(addReservation(payload));
       }
+      if (action === 'create_batch') {
+        var batchResult = createBatch(payload, 'kiosk-middleware');
+        if (batchResult.ok && batchResult.batch_id) {
+          _invalidateBatchCache(batchResult.batch_id);
+        }
+        return _jsonResponse(batchResult);
+      }
       return _jsonResponse({ ok: false, error: 'invalid_action', message: 'Unknown server action: ' + action });
     }
 
@@ -1640,14 +1647,18 @@ function setVesselStatus(vesselId, newStatus) {
 // --- POST: Create Batch ---
 
 function createBatch(payload, userEmail) {
-  if (!payload.product_sku || !payload.customer_name || !payload.start_date || !payload.schedule_id) {
-    return { ok: false, error: 'missing_fields', message: 'product_sku, customer_name, start_date, and schedule_id are required' };
+  var isPending = !payload.schedule_id || !payload.start_date;
+  if (!payload.product_sku || !payload.customer_name) {
+    return { ok: false, error: 'missing_fields', message: 'product_sku and customer_name are required' };
   }
 
-  // Validate schedule exists
-  var schedResult = findRowById(FERM_SCHEDULES_SHEET_NAME, payload.schedule_id);
-  if (schedResult.row === -1) {
-    return { ok: false, error: 'not_found', message: 'Schedule not found: ' + payload.schedule_id };
+  // Validate schedule exists (skip for pending batches)
+  var schedResult = null;
+  if (!isPending) {
+    schedResult = findRowById(FERM_SCHEDULES_SHEET_NAME, payload.schedule_id);
+    if (schedResult.row === -1) {
+      return { ok: false, error: 'not_found', message: 'Schedule not found: ' + payload.schedule_id };
+    }
   }
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1673,21 +1684,23 @@ function createBatch(payload, userEmail) {
     var batchId = generateNextId(BATCHES_SHEET_NAME, 'SV-B-', 6);
     var accessToken = Utilities.getUuid().replace(/-/g, '');
     var now = new Date().toISOString();
-    var scheduleSnapshot = schedResult.data.steps || '[]';
-    var steps;
-    try { steps = JSON.parse(scheduleSnapshot); } catch (e) { steps = []; }
+    var scheduleSnapshot = isPending ? '' : (schedResult.data.steps || '[]');
+    var steps = [];
+    if (!isPending) {
+      try { steps = JSON.parse(scheduleSnapshot); } catch (e) { steps = []; }
+    }
 
     // Append batch row
     batchesSheet.appendRow([
       batchId,
-      'primary',
+      isPending ? 'pending' : 'primary',
       sanitizeInput(payload.product_sku),
       sanitizeInput(payload.product_name || ''),
       sanitizeInput(payload.customer_id || ''),
       sanitizeInput(payload.customer_name),
-      sanitizeInput(payload.customer_email || ''),
-      payload.start_date,
-      payload.schedule_id,
+      sanitizeInput(payload.source === 'kiosk' ? '' : (payload.customer_email || '')),
+      payload.start_date || '',
+      payload.schedule_id || '',
       scheduleSnapshot,
       sanitizeInput(payload.vessel_id || ''),
       sanitizeInput(payload.shelf_id || ''),
@@ -1697,67 +1710,75 @@ function createBatch(payload, userEmail) {
       sanitizeInput(payload.reservation_id || ''),
       now,
       userEmail,
-      now
+      now,
+      sanitizeInput(payload.source || 'manual'),
+      sanitizeInput(payload.zoho_so_number || '')
     ]);
 
-    // Create tasks from schedule (steps already parsed above)
     var tasksCreated = 0;
     var taskErrors = [];
-    for (var i = 0; i < steps.length; i++) {
-      try {
-        var step = steps[i];
-        var taskId = generateNextId(BATCH_TASKS_SHEET_NAME, 'BT-', 6);
-        var dueDate = calculateDueDate(toDateOnly(payload.start_date), step.day_offset);
 
-        tasksSheet.appendRow([
-          taskId,
-          batchId,
-          step.step_number || (i + 1),
-          sanitizeInput(step.title || ''),
-          sanitizeInput(step.description || ''),
-          step.day_offset,
-          dueDate,
-          step.is_packaging ? 'TRUE' : 'FALSE',
-          step.is_transfer ? 'TRUE' : 'FALSE',
-          'FALSE', // completed
-          '',      // completed_at
-          '',      // completed_by
-          '',      // notes
-          now      // last_updated
-        ]);
-        tasksCreated++;
-      } catch (taskErr) {
-        taskErrors.push('Step ' + (i + 1) + ': ' + taskErr.message);
+    if (!isPending) {
+      // Create tasks from schedule (steps already parsed above)
+      for (var i = 0; i < steps.length; i++) {
+        try {
+          var step = steps[i];
+          var taskId = generateNextId(BATCH_TASKS_SHEET_NAME, 'BT-', 6);
+          var dueDate = calculateDueDate(toDateOnly(payload.start_date), step.day_offset);
+
+          tasksSheet.appendRow([
+            taskId,
+            batchId,
+            step.step_number || (i + 1),
+            sanitizeInput(step.title || ''),
+            sanitizeInput(step.description || ''),
+            step.day_offset,
+            dueDate,
+            step.is_packaging ? 'TRUE' : 'FALSE',
+            step.is_transfer ? 'TRUE' : 'FALSE',
+            'FALSE', // completed
+            '',      // completed_at
+            '',      // completed_by
+            '',      // notes
+            now      // last_updated
+          ]);
+          tasksCreated++;
+        } catch (taskErr) {
+          taskErrors.push('Step ' + (i + 1) + ': ' + taskErr.message);
+        }
       }
-    }
 
-    // Record initial vessel placement
-    if (payload.vessel_id || payload.shelf_id || payload.bin_id) {
-      try {
-        var vhId = generateNextId(VESSEL_HISTORY_SHEET_NAME, 'VH-', 6);
-        vesselSheet.appendRow([
-          vhId,
-          batchId,
-          sanitizeInput(payload.vessel_id || ''),
-          sanitizeInput(payload.shelf_id || ''),
-          sanitizeInput(payload.bin_id || ''),
-          now,
-          userEmail,
-          'Initial placement'
-        ]);
-      } catch (vhErr) {
-        taskErrors.push('Vessel history: ' + vhErr.message);
+      // Record initial vessel placement
+      if (payload.vessel_id || payload.shelf_id || payload.bin_id) {
+        try {
+          var vhId = generateNextId(VESSEL_HISTORY_SHEET_NAME, 'VH-', 6);
+          vesselSheet.appendRow([
+            vhId,
+            batchId,
+            sanitizeInput(payload.vessel_id || ''),
+            sanitizeInput(payload.shelf_id || ''),
+            sanitizeInput(payload.bin_id || ''),
+            now,
+            userEmail,
+            'Initial placement'
+          ]);
+        } catch (vhErr) {
+          taskErrors.push('Vessel history: ' + vhErr.message);
+        }
       }
-    }
 
-    // Mark vessel as in-use
-    if (payload.vessel_id) {
-      try { setVesselStatus(payload.vessel_id, 'In-Use'); } catch (vsErr) {
-        taskErrors.push('Vessel status: ' + vsErr.message);
+      // Mark vessel as in-use
+      if (payload.vessel_id) {
+        try { setVesselStatus(payload.vessel_id, 'In-Use'); } catch (vsErr) {
+          taskErrors.push('Vessel status: ' + vsErr.message);
+        }
       }
     }
 
     var resp = { ok: true, batch_id: batchId, access_token: accessToken, tasks_created: tasksCreated };
+    if (isPending) {
+      resp.status = 'pending';
+    }
     if (taskErrors.length > 0) {
       resp.warnings = taskErrors;
     }
