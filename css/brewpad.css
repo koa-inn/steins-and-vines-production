@@ -413,6 +413,27 @@ img { max-width: 100%; height: auto; display: block; }
 .bp-status-badge--warning { background: var(--batch-warning-bg); color: var(--batch-warning); }
 .bp-status-badge--danger  { background: var(--batch-danger-bg);  color: var(--batch-danger);  }
 .bp-status-badge--info    { background: var(--batch-info-bg);    color: var(--batch-info);    }
+
+/* Pending status badge -- neutral warm grey (D-06, D-11) */
+.bp-status-badge--neutral {
+  background: rgba(154, 134, 114, 0.10);
+  color: var(--ink-secondary);
+}
+
+/* Kiosk source indicator -- blue-slate, visible only on pending kiosk batches (D-11) */
+.bp-kiosk-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(74, 111, 138, 0.12);
+  color: var(--batch-info);
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
 .bp-status-clickable { cursor: pointer; }
 .bp-status-clickable:hover { opacity: 0.8; }
 

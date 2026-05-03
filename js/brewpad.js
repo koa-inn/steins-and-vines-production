@@ -74,6 +74,17 @@ function renderDataGapWarning(readings, now) {
     '\u26a0\ufe0f Last reading ' + daysSince + ' day' + (daysSince !== 1 ? 's' : '') + ' ago</div>';
 }
 
+/**
+ * Determine if a batch should show the kiosk source badge.
+ * Per D-11: visible only when source=kiosk AND status=pending.
+ * @param {string} source - batch source value
+ * @param {string} status - batch status value (already lowercased statusKey)
+ * @returns {boolean}
+ */
+function shouldShowKioskBadge(source, status) {
+  return source === 'kiosk' && (status || '').toLowerCase() === 'pending';
+}
+
 (function () {
   'use strict';
 
@@ -965,8 +976,8 @@ function renderDataGapWarning(readings, now) {
       });
   }
 
-  var STATUS_LABELS = { primary: 'Primary', secondary: 'Secondary', complete: 'Complete', active: 'Active', packaging: 'Packaging' };
-  var STATUS_COLORS = { primary: 'info', secondary: 'warning', complete: 'success', active: 'info', packaging: 'warning' };
+  var STATUS_LABELS = { primary: 'Primary', secondary: 'Secondary', complete: 'Complete', active: 'Active', packaging: 'Packaging', pending: 'Pending' };
+  var STATUS_COLORS = { primary: 'info', secondary: 'warning', complete: 'success', active: 'info', packaging: 'warning', pending: 'neutral' };
 
   function renderBatchList() {
     var pane = document.getElementById('bp-batch-list-pane');
@@ -1002,6 +1013,7 @@ function renderDataGapWarning(readings, now) {
       // Filter bar
       shellHtml += '<div class="bp-batch-filters">';
       var filterOpts = [
+        { val: 'pending', label: 'Pending' },
         { val: 'active', label: 'Active' },
         { val: 'primary', label: 'Primary' },
         { val: 'secondary', label: 'Secondary' },
@@ -1097,7 +1109,11 @@ function renderDataGapWarning(readings, now) {
 
     var resultsHtml = '';
     if (filtered.length === 0) {
-      resultsHtml += '<p class="bp-empty">No batches found.</p>';
+      if (_batchStatusFilter === 'pending') {
+        resultsHtml += ‘<p class="bp-empty"><strong>No pending batches</strong><br>Kiosk sales with Maker’s Fee will appear here automatically.</p>’;
+      } else {
+        resultsHtml += '<p class="bp-empty">No batches found.</p>';
+      }
     } else if (_batchViewMode === 'table') {
       // Compact table view
       var today = todayStr();
@@ -1146,7 +1162,11 @@ function renderDataGapWarning(readings, now) {
         resultsHtml += '<td>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</td>';
         resultsHtml += '<td>' + escapeHTML(b.customer_name || '\u2014') + '</td>';
         resultsHtml += '<td>' + escapeHTML(loc || '\u2014') + '</td>';
-        resultsHtml += '<td><span class="bp-status-badge bp-status-badge--' + statusColor + '" style="font-size:0.72rem;padding:1px 6px;">' + escapeHTML(statusLabel) + '</span></td>';
+        resultsHtml += '<td><span class="bp-status-badge bp-status-badge--' + statusColor + '" style="font-size:0.72rem;padding:1px 6px;">' + escapeHTML(statusLabel) + '</span>';
+        if (shouldShowKioskBadge(b.source, statusKey)) {
+          resultsHtml += ' <span class="bp-kiosk-badge">Kiosk</span>';
+        }
+        resultsHtml += '</td>';
         resultsHtml += '<td>' + days + '</td>';
         resultsHtml += '</tr>';
       });
@@ -1180,6 +1200,9 @@ function renderDataGapWarning(readings, now) {
         resultsHtml += '<div class="bp-batch-card-header">';
         resultsHtml += '<span class="bp-batch-id">' + escapeHTML(b.batch_id) + '</span>';
         resultsHtml += '<span class="bp-status-badge bp-status-badge--' + statusColor + '">' + escapeHTML(statusLabel) + '</span>';
+        if (shouldShowKioskBadge(b.source, statusKey)) {
+          resultsHtml += ' <span class="bp-kiosk-badge">Kiosk</span>';
+        }
         resultsHtml += '</div>';
         resultsHtml += '<div class="bp-batch-card-name">' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</div>';
         if (b.customer_name) resultsHtml += '<div class="bp-batch-card-customer">' + escapeHTML(b.customer_name) + '</div>';
@@ -1539,6 +1562,9 @@ function renderDataGapWarning(readings, now) {
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Product</span><span>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</span></div>';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Customer</span><span>' + escapeHTML(b.customer_name || '\u2014') + '</span></div>';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Start</span><span>' + fmtDate(b.start_date) + '</span></div>';
+    if (b.zoho_so_number) {
+      html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Zoho Ref</span><span>' + escapeHTML(b.zoho_so_number) + '</span></div>';
+    }
     html += '</div>';
 
     // Location
@@ -4130,6 +4156,7 @@ if (typeof module !== 'undefined' && module.exports) {
     filterBatchesByStatus: filterBatchesByStatus,
     calcAbv: calcAbv, renderDataGapWarning: renderDataGapWarning,
     isSessionStale: isSessionStale,
-    isSessionExpired: isSessionExpired
+    isSessionExpired: isSessionExpired,
+    shouldShowKioskBadge: shouldShowKioskBadge
   };
 }
