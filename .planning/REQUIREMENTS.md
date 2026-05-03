@@ -17,8 +17,8 @@ Requirements for this milestone. Each maps to roadmap phases.
 ### Kiosk Integration
 
 - [ ] **INTG-01**: When a kit is sold on the kiosk, a batch is auto-created in BrewPad with customer name, product, and SO reference
-- [ ] **INTG-02**: Auto-created batches appear in the BrewPad batch list with a "from kiosk" indicator
-- [ ] **INTG-03**: Batch detail view shows the linked sales order number with a reference back to Zoho
+- [x] **INTG-02**: Auto-created batches appear in the BrewPad batch list with a "from kiosk" indicator
+- [x] **INTG-03**: Batch detail view shows the linked sales order number with a reference back to Zoho
 
 ### Zoho Audit Trail
 
@@ -55,8 +55,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | AUTH-03 | Phase 5 | Complete (05-01) |
 | AUTH-04 | Phase 5 | Complete (05-01) |
 | INTG-01 | Phase 6 | Pending |
-| INTG-02 | Phase 6 | Pending |
-| INTG-03 | Phase 6 | Pending |
+| INTG-02 | Phase 6 | Complete (06-03) |
+| INTG-03 | Phase 6 | Complete (06-03) |
 | ZOHO-01 | Phase 7 | Pending |
 | ZOHO-02 | Phase 7 | Pending |
 | ZOHO-03 | Phase 7 | Pending |

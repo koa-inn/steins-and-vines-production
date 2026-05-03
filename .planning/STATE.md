@@ -25,20 +25,20 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 ## Current Position
 
-Phase: 6 of 7 (Kiosk-to-Brewpad Integration) -- PLANNED
-Plan: 0 of 3 complete
-Status: Ready to execute — 3 plans in 1 wave
-Last activity: 2026-05-03 -- Phase 6 planned (3 plans: Apps Script pending mode, middleware integration, BrewPad UI)
+Phase: 6 of 7 (Kiosk-to-Brewpad Integration) -- IN PROGRESS
+Plan: 2 of 3 complete
+Status: Executing -- plans 06-02 and 06-03 complete, plan 06-01 remaining
+Last activity: 2026-05-03 -- Plan 06-02 executed (brewpad-integration.js module, pos.js hook, retry sweep, 23 unit tests)
 
-Progress: [##########] 100% (Phase 5)
+Progress: [######----] 67% (Phase 6)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 2
-- Average duration: 16 min
-- Total execution time: 31 min
+- Total plans completed: 4
+- Average duration: 11 min
+- Total execution time: 42 min
 
 ## Accumulated Context
 
@@ -51,6 +51,13 @@ Progress: [##########] 100% (Phase 5)
 - D-09 implemented: showSessionExpiredOverlay() shows blocking overlay (z-index 1000, role=dialog, aria-modal) instead of showSignInButton() on auth failure
 - D-06 implemented: restoreAllFormDrafts() returns bool; showApp() shows "Your in-progress work has been restored" toast when any draft restored
 - D-05 implemented: all 5 form types (create-batch, measurements, batch detail, reading, schedule) registered in _formSavers registry
+
+- D-11 implemented: Kiosk badge uses shouldShowKioskBadge(source, status) -- visible only when source=kiosk AND status=pending
+- D-12 implemented: Zoho Ref row in detail view only (not list row), conditionally rendered when zoho_so_number present
+- Neutral warm grey for Pending badge (not amber/warning) to avoid semantic collision with Secondary fermentation status
+- skipRetryQueue parameter in callAppsScriptCreateBatch prevents double-queueing during retry sweep
+- Retry sweep placed outside Zoho auth conditional since it calls Apps Script, not Zoho
+- callAppsScriptCreateBatch returns { ok: true/false } so retry sweep distinguishes success from app error
 
 ### Roadmap Evolution
 
@@ -67,5 +74,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-05-03
-Stopped at: Phase 6 planned — ready to execute
+Stopped at: Plans 06-02 and 06-03 complete; plan 06-01 remaining
 Resume file: .planning/phases/06-kiosk-to-brewpad-integration/06-01-PLAN.md
