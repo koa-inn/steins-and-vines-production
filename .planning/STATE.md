@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-29)
 
 **Core value:** Staff can trust BrewPad to save their work and see the full journey from kit sale to finished batch.
-**Current focus:** Phase 6 -- Kiosk-to-Brewpad Integration (context gathered, ready to plan)
+**Current focus:** Phase 6 -- Kiosk-to-Brewpad Integration (planned, ready to execute)
 
 ## Current Position
 
-Phase: 5 of 7 (Auth Reliability) -- COMPLETE
-Plan: 2 of 2 complete
-Status: Phase Complete — ready for Phase 6
-Last activity: 2026-04-29 -- Plan 05-02 executed (form state protection, session overlay, 10 unit tests)
+Phase: 6 of 7 (Kiosk-to-Brewpad Integration) -- PLANNED
+Plan: 0 of 3 complete
+Status: Ready to execute — 3 plans in 1 wave
+Last activity: 2026-05-03 -- Phase 6 planned (3 plans: Apps Script pending mode, middleware integration, BrewPad UI)
 
 Progress: [##########] 100% (Phase 5)
 
@@ -67,5 +67,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-05-03
-Stopped at: Phase 6 context gathered — ready for planning
-Resume file: .planning/phases/06-kiosk-to-brewpad-integration/06-CONTEXT.md
+Stopped at: Phase 6 planned — ready to execute
+Resume file: .planning/phases/06-kiosk-to-brewpad-integration/06-01-PLAN.md
