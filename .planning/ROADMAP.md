@@ -105,7 +105,12 @@ Plans:
   1. After a kit sale completes on the kiosk, a new batch appears in BrewPad's batch list within 30 seconds -- with customer name, product name, and Zoho SO number pre-filled
   2. Auto-created batches are visually distinguishable in the batch list (a "from kiosk" badge or indicator) so staff know which batches were auto-generated vs. manually created
   3. Opening the detail view of an auto-created batch shows the linked Zoho sales order number as a visible reference
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 06-01-PLAN.md -- Apps Script pending batch mode: createBatch accepts optional schedule, doPost server-token branch handles create_batch action, Batches sheet column setup
+- [ ] 06-02-PLAN.md -- Middleware integration: brewpad-integration.js module with fire-and-forget Apps Script call, Redis retry queue, pos.js hook, server.js retry sweep
+- [ ] 06-03-PLAN.md -- BrewPad frontend: Pending status badge, Kiosk source badge, Pending filter button, Zoho Ref in detail view, unit tests, build
 
 ### Phase 7: Zoho Audit Trail
 **Goal**: Every batch carries its full provenance from sale to completion, and Zoho reflects batch status so the business has a single source of truth
@@ -129,5 +134,5 @@ Phases execute in numeric order: 5 -> 6 -> 7
 | 3. Resilience & Session Stability | v1.0 | 1/1+ | In progress | - |
 | 4. Sales Order Management | v1.0 | 2/2 | Complete | 2026-04-28 |
 | 5. Auth Reliability | v1.1 | 2/2 | Complete | 2026-04-29 |
-| 6. Kiosk-to-Brewpad Integration | v1.1 | 0/? | Not started | - |
+| 6. Kiosk-to-Brewpad Integration | v1.1 | 0/3 | Not started | - |
 | 7. Zoho Audit Trail | v1.1 | 0/? | Not started | - |
