@@ -24,6 +24,7 @@ var log = require('./lib/logger');
 var C = require('./lib/constants');
 var helcimLib = require('./lib/helcim');
 var cron = require('node-cron');
+var brewpadIntegration = require('./lib/brewpad-integration');
 
 var nodemailer = require('nodemailer');
 
@@ -447,6 +448,15 @@ cache.init().then(function () {
       });
       log.info('[cron] Scheduled warm-up registered: 05:00 and 13:00 UTC daily');
     }
+
+    // Retry pending batch creations every 5 minutes (D-04)
+    // Runs regardless of Zoho auth state since it calls Apps Script, not Zoho
+    setInterval(function () {
+      brewpadIntegration.retryPendingBatches().catch(function (err) {
+        log.error('[brewpad] Retry sweep failed: ' + err.message);
+      });
+    }, 5 * 60 * 1000);
+    log.info('[brewpad] Batch retry sweep registered: every 5 minutes');
   });
 
   process.on('SIGTERM', function () {

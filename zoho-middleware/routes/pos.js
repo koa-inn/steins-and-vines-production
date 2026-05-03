@@ -7,6 +7,7 @@ var eventLog = require('../lib/eventLog');
 var mailer = require('../lib/mailer');
 var ledger = require('../lib/inventory-ledger');
 var C = require('../lib/constants');
+var brewpadIntegration = require('../lib/brewpad-integration');
 
 var zohoGet = zohoApi.zohoGet;
 var zohoPost = zohoApi.zohoPost;
@@ -509,6 +510,9 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
         eventLog.logEvent('kiosk.sale_completed', {
           txnId: txnId, itemCount: lineItems.length, grandTotal: grandTotal, invoiceNumber: invoiceNumber
         });
+
+        // Trigger batch creation for kit items with Maker's Fee (fire-and-forget per D-01)
+        brewpadIntegration.createBatchesFromSale(lineItems, invoiceNumber, body.customer_name || '', body.contact_id || '', catalogMap);
 
         var result = {
           ok: true, transaction_id: txnId, invoice_id: invoiceId, invoice_number: invoiceNumber,
