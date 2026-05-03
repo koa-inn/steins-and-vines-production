@@ -1110,7 +1110,7 @@ function shouldShowKioskBadge(source, status) {
     var resultsHtml = '';
     if (filtered.length === 0) {
       if (_batchStatusFilter === 'pending') {
-        resultsHtml += ‘<p class="bp-empty"><strong>No pending batches</strong><br>Kiosk sales with Maker’s Fee will appear here automatically.</p>’;
+        resultsHtml += '<p class="bp-empty"><strong>No pending batches</strong><br>Kiosk sales with Maker&#39;s Fee will appear here automatically.</p>';
       } else {
         resultsHtml += '<p class="bp-empty">No batches found.</p>';
       }
