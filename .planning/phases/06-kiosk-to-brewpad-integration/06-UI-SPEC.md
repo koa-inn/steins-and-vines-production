@@ -32,6 +32,11 @@ token vocabulary with two new CSS rules:
 
 No other CSS files are modified.
 
+**Visual hierarchy note:** This phase introduces no new primary screens or layout regions.
+All new elements (Pending badge, Kiosk badge, Zoho Ref row, Pending filter button) slot
+into the existing BrewPad layout hierarchy and inherit its established visual priority
+structure. No hierarchy decisions are required for this phase.
+
 ---
 
 ## Spacing Scale
@@ -64,18 +69,20 @@ Exceptions:
 All values are from the existing `css/brewpad.css` declarations. No new type styles
 are introduced by this phase.
 
+Maximum 4 sizes, 2 weights.
+
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 16px (1rem) | 400 | 1.6 |
-| Label / Secondary info | 14px (0.875rem) | 400 | inherited |
-| Badge / Status label | 11.5px (0.72rem) | 700 | 1 |
 | Heading / Card name | 15.2px (0.95rem) | 600 | inherited |
+| Label / Secondary info | 14px (0.875rem) | 400 | inherited |
+| Badge / Status label | 11.5px (0.72rem) | 600 | 1 |
 
-New elements introduced in this phase follow existing size assignments:
-- "Pending" filter button label: 12.8px (0.8rem), weight 700 — matches existing `.bp-filter-btn` rule
-- "Kiosk" badge text: 11.2px (0.7rem), weight 600 — matches `.bp-badge` rule
-- "Zoho Ref" detail row label: 14px (0.875rem), weight 700 — matches `.bp-detail-info-label` rule
-- "Zoho Ref" detail row value: 14px (0.875rem), weight 400 — matches `.bp-detail-info-row` rule
+New elements introduced in this phase use the closest existing size:
+- "Pending" filter button label: 14px (0.875rem), weight 600 — matches existing `.bp-filter-btn` label size
+- "Kiosk" badge text: 11.5px (0.72rem), weight 600 — uses badge size row above
+- "Zoho Ref" detail row label: 14px (0.875rem), weight 600 — matches `.bp-detail-info-label`
+- "Zoho Ref" detail row value: 14px (0.875rem), weight 400 — matches `.bp-detail-info-row`
 
 ---
 
@@ -124,7 +131,7 @@ New CSS rules to add to `css/brewpad.css` (append after existing `.bp-status-bad
 /* Kiosk source indicator — blue-slate, matches bp-badge--transfer semantic */
 .bp-kiosk-badge {
   display: inline-block;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   padding: 1px 6px;
   border-radius: 4px;
   font-weight: 600;
@@ -254,6 +261,7 @@ any third-party component registry. Registry safety gate is not applicable.
 | Kiosk badge visibility condition | CONTEXT.md D-11 | Source=kiosk AND status=pending only |
 | SO number in detail only (not list) | CONTEXT.md D-12 | Confirmed: detail view only |
 | No email in UI | CONTEXT.md D-09 | Zoho Ref row shows SO number; no email field |
+| Typography collapsed to 4 sizes, 2 weights | Checker revision 2026-05-03 | 12.8px → 14px; 11.2px → 11.5px; weight 700 → 600 throughout |
 
 ---
 
