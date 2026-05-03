@@ -53,6 +53,9 @@ var CACHE_KEYS = {
 
   // Kiosk discount presets
   KIOSK_DISCOUNT_PRESETS: 'kiosk:discount-presets',
+
+  // Brewpad batch creation retry queue
+  BATCH_RETRY_PREFIX:     'brewpad:pending-batch:',
 };
 
 // ---------------------------------------------------------------------------
