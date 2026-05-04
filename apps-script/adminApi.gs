@@ -1711,6 +1711,7 @@ function createBatch(payload, userEmail) {
       now,
       userEmail,
       now,
+      '',
       sanitizeInput(payload.source || 'manual'),
       sanitizeInput(payload.zoho_so_number || '')
     ]);
