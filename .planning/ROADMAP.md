@@ -108,7 +108,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 06-01-PLAN.md -- Apps Script pending batch mode: createBatch accepts optional schedule, doPost server-token branch handles create_batch action, Batches sheet column setup
+- [x] 06-01-PLAN.md -- Apps Script pending batch mode: createBatch accepts optional schedule, doPost server-token branch handles create_batch action, Batches sheet column setup
 - [x] 06-02-PLAN.md -- Middleware integration: brewpad-integration.js module with fire-and-forget Apps Script call, Redis retry queue, pos.js hook, server.js retry sweep
 - [x] 06-03-PLAN.md -- BrewPad frontend: Pending status badge, Kiosk source badge, Pending filter button, Zoho Ref in detail view, unit tests, build
 
@@ -134,5 +134,5 @@ Phases execute in numeric order: 5 -> 6 -> 7
 | 3. Resilience & Session Stability | v1.0 | 1/1+ | In progress | - |
 | 4. Sales Order Management | v1.0 | 2/2 | Complete | 2026-04-28 |
 | 5. Auth Reliability | v1.1 | 2/2 | Complete | 2026-04-29 |
-| 6. Kiosk-to-Brewpad Integration | v1.1 | 2/3 | In progress | - |
+| 6. Kiosk-to-Brewpad Integration | v1.1 | 3/3 | Complete | 2026-05-03 |
 | 7. Zoho Audit Trail | v1.1 | 0/? | Not started | - |
