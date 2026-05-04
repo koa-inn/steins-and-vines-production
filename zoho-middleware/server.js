@@ -199,6 +199,8 @@ app.post('/api/contact', contactLimiter, async function(req, res) {
 var OFFLINE_CAPABLE_POSTS = ['/contacts', '/bookings', '/checkout'];
 
 app.use('/api', function (req, res, next) {
+  // Promo validate is Redis-only — never needs Zoho
+  if (req.method === 'POST' && req.path === '/promo/validate') return next();
   if (!zohoAuth.isAuthenticated()) {
     if (req.method === 'POST' && OFFLINE_CAPABLE_POSTS.indexOf(req.path) !== -1) {
       req.zohoOffline = true;
