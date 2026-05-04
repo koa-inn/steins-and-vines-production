@@ -29,7 +29,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 ### First-Batch Promo
 
 - [ ] **PROMO-01**: Homepage displays a prominent banner advertising 20% off first batch with promo code FIRSTBATCH
-- [ ] **PROMO-02**: Checkout flow accepts a promo code input field and applies 20% discount to kit line items when valid
+- [x] **PROMO-02**: Checkout flow accepts a promo code input field and applies 20% discount to kit line items when valid
 - [ ] **PROMO-03**: Middleware validates promo code and enforces one redemption per email address via Redis
 
 ### Content & SEO Push
