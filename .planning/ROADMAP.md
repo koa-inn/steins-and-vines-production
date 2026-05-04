@@ -132,14 +132,14 @@ Plans:
   3. If a customer email has already redeemed FIRSTBATCH, the code is rejected with a clear message -- enforced server-side via Redis
   4. Checkout form fields (name, email, phone) persist across page refresh via localStorage
   5. Cart merge feasibility assessment documents all affected code paths and proposes an implementation roadmap
-**Plans:** 4/6 plans executed
+**Plans:** 5/6 plans executed
 
 Plans:
 - [x] 08-01-PLAN.md -- Server-side promo validation: POST /api/promo/validate endpoint, PROMO_REDEEMED_PREFIX constant, Redis redemption check, admin reset endpoint, unit tests
 - [x] 08-02-PLAN.md -- Checkout integration: promo code widget in 12-checkout.js, server-side re-validation and Maker's Fee discount in checkout.js, redemption burn after SO creation, promo CSS
 - [x] 08-03-PLAN.md -- Homepage banner: promo-banner in content/home.json, #promo-banner element in index.html, initPromoBanner() in 13-init.js, dismiss button CSS
 - [x] 08-04-PLAN.md -- Gap closure: fix promo discount display in dual-cart combined totals (re-render trigger + regression test)
-- [ ] 08-05-PLAN.md -- Checkout form persistence: localStorage-based save/restore for name, email, phone fields
+- [x] 08-05-PLAN.md -- Checkout form persistence: localStorage-based save/restore for name, email, phone fields
 - [ ] 08-06-PLAN.md -- Cart merge feasibility assessment: impact analysis of unifying dual cart into single cart
 
 ### Phase 9: Content & SEO Push
@@ -166,5 +166,5 @@ Phases execute in numeric order: 5 -> 6 -> 7 (Phases 8 and 9 can run in parallel
 | 5. Auth Reliability | v1.1 | 2/2 | Complete | 2026-04-29 |
 | 6. Kiosk-to-Brewpad Integration | v1.1 | 3/3 | Complete | 2026-05-03 |
 | 7. Zoho Audit Trail | v1.1 | 0/? | Not started | - |
-| 8. First-Batch Promo | v1.1 | 4/6 | In Progress|  |
+| 8. First-Batch Promo | v1.1 | 5/6 | In Progress|  |
 | 9. Content & SEO Push | v1.1 | 0/? | Not started | - |
