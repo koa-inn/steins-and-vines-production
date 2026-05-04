@@ -1,7 +1,6 @@
-# Docs Validation Report — Steins & Vines
+# Documentation Validation Report — Steins & Vines
 
-**Date:** 2026-04-27  
-**Run type:** Automated weekly validation
+**Run date:** 2026-05-04 (automated weekly task)
 
 ---
 
@@ -9,135 +8,103 @@
 
 | File | Status | Notes |
 |------|--------|-------|
-| `README.md` | ⚠️ Fixed | 2 issues auto-fixed |
-| `docs/API.md` | ⚠️ Fixed | 5 undocumented endpoints added |
-| `zoho-middleware/.env.example` | ⚠️ Fixed | 2 missing env vars added |
-| `TESTING.md` | ⚠️ Fixed | 2 missing campaign entries added |
-| `docs/DEPLOYMENT.md` | ✅ Pass | No drift detected |
-| `docs/ARCHITECTURE.md` | ❌ Needs Manual Review | GP→Helcim migration not reflected in diagrams |
+| `README.md` | ⚠️ Fixed | 3 missing entries in project structure tree |
+| `docs/API.md` | ⚠️ Fixed | `promo.js` routes entirely undocumented |
+| `zoho-middleware/.env.example` | ⚠️ Fixed | `KIOSK_PIN` missing |
+| `docs/DEPLOYMENT.md` | ✅ Pass | Accurate; no changes needed |
+| `docs/ARCHITECTURE.md` | 🔴 Manual review | Checkout flow diagrams reference GP; Helcim is active provider |
+| `TESTING.md` | ⚠️ Minor drift | 2 tested modules not in campaign tracker |
+| `style_guide.md` | ✅ Pass | Not codebase-dependent; no audit needed |
 
 ---
 
 ## Auto-Fixed Items
 
-### 1. README.md — Missing route files in project structure tree
+### 1. `README.md` — Missing project structure entries
 
-**Before:** `consignment.js` and `discounts.js` were absent from the `zoho-middleware/routes/` section of the project tree.
+Three files exist in the codebase but were absent from the project tree in `README.md`.
 
-**After:** Added:
+**Added:**
+- `zoho-middleware/routes/promo.js` — Promo code validation + per-email redemption tracking
+- `zoho-middleware/lib/brewpad-integration.js` — Brew day batch creation triggered by kit sales
+- `zoho-middleware/openapi.yaml` — OpenAPI 3.0 spec for the middleware API
+
+### 2. `docs/API.md` — Undocumented promo endpoints
+
+`zoho-middleware/routes/promo.js` is mounted in `server.js` and has 3 active routes, none of which appeared anywhere in `API.md`.
+
+**Added a new "Promo Codes" section** documenting:
+- `POST /api/promo/validate` — Public. Validates the `FIRSTBATCH` code and checks per-email redemption via Redis. Fails open on Redis unavailability.
+- `DELETE /api/promo/redemption/:email` — API Key. Clears a redemption record so a customer can redeem again.
+- `POST /api/promo/seed-kiosk` — API Key. Seeds the `FIRSTBATCH` preset into the kiosk discount store. Idempotent.
+
+### 3. `zoho-middleware/.env.example` — Missing `KIOSK_PIN`
+
+`KIOSK_PIN` is referenced in `zoho-middleware/lib/validateEnv.js` (startup validation) and `zoho-middleware/routes/pos.js` (timing-safe comparison for kiosk PIN verification), but was absent from `.env.example`.
+
+**Added** under the `── Kiosk ──` section:
 ```
-│   │   ├── consignment.js      # Consignment sales report (artisan payout aggregation)
-│   │   ├── discounts.js        # Kiosk discount preset CRUD (stored in Redis)
+# KIOSK_PIN=                               # Four-digit PIN for kiosk access verification (POST /api/pos/verify-pin)
 ```
-
-Both files exist on disk (`zoho-middleware/routes/consignment.js`, `zoho-middleware/routes/discounts.js`) and are mounted in `server.js` at lines 355–356.
-
----
-
-### 2. README.md — Stale payment provider in Local Setup prerequisites
-
-**Before:** `- Global Payments sandbox credentials (for payment testing)`
-
-**After:** `- Helcim sandbox credentials (for payment testing)`
-
-Verified against `zoho-middleware/routes/checkout.js` and `zoho-middleware/routes/payments.js` — both exclusively use `helcimLib`. GP is present only as a legacy commented-out block in `.env.example` ("No longer used for new checkouts").
-
----
-
-### 3. docs/API.md — Missing Consignment Report endpoint
-
-Added new section **Consignment** documenting `GET /api/admin/consignment-report`. Source: `zoho-middleware/routes/consignment.js`. Auth: `MW_API_KEY` header. Returns artisan payout aggregation by month with Redis caching (5 min TTL).
-
----
-
-### 4. docs/API.md — Missing Kiosk Discounts endpoints
-
-Added new section **Kiosk Discounts** documenting all four CRUD endpoints from `zoho-middleware/routes/discounts.js`:
-- `GET /api/kiosk/discounts`
-- `POST /api/kiosk/discounts`
-- `PUT /api/kiosk/discounts/:id`
-- `DELETE /api/kiosk/discounts/:id`
-
-Presets are stored in Redis with a 30-day TTL.
-
----
-
-### 5. zoho-middleware/.env.example — Missing consignment custom field env vars
-
-Two env vars referenced in source code were not documented in `.env.example`:
-
-| Variable | Used In | Purpose |
-|----------|---------|---------|
-| `ZOHO_CF_CONSIGNMENT_DETAILS` | `routes/consignment.js` | API name of invoice custom field holding JSON artisan payout data |
-| `ZOHO_CF_CONSIGNMENT_SALE` | `routes/pos.js` (lines 282, 284, 606, 607) | API name of boolean custom field marking a sale as consignment |
-
-Both added as optional commented-out entries with descriptive comments.
-
----
-
-### 6. TESTING.md — Missing campaign progress entries
-
-Two test files exist in `zoho-middleware/__tests__/` that were not reflected in the campaign progress table:
-- `consignment.test.js`
-- `discounts.test.js`
-
-Added both to the campaign table with estimated coverage targets (85% and 90% respectively, based on visual inspection of test file completeness relative to route complexity).
 
 ---
 
 ## Items Requiring Manual Review
 
-### A. docs/ARCHITECTURE.md — Payment provider mismatch throughout (Global Payments → Helcim)
+### 1. `docs/ARCHITECTURE.md` — Payment provider diagrams are out of date 🔴
 
-**Severity:** Medium — documentation is factually incorrect but does not affect runtime behaviour.
+**Priority: High**
 
-The architecture document still describes Global Payments (GP) as the primary payment provider in all three places:
+The architecture diagrams in `ARCHITECTURE.md` show **Global Payments (GP)** as the payment provider throughout:
+- System overview diagram: `GP[Global Payments Card-Not-Present + Terminal]`
+- Checkout data flow: shows `GP JS SDK → GP API` for tokenization and charging
+- Kiosk POS flow: shows `GP Terminal` for in-store payment
 
-1. **System Overview diagram** (`graph TB`) — references `GP[Global Payments<br/>Card-Not-Present<br/>+ Terminal]` as the single payments node. The actual system now uses Helcim for both online checkout (HelcimPay.js iframe) and the Smart Terminal.
+However, based on the current codebase:
+- `zoho-middleware/.env.example` marks all GP credentials as commented out with the note *"Legacy CNP payment provider. No longer used for new checkouts."*
+- `docs/API.md` documents `POST /api/payment/initialize` as a **HelcimPay.js** checkout session
+- `POST /api/kiosk/salesorder-pay` and `POST /api/pos/collect` both describe Helcim Smart Terminal flows
+- `zoho-middleware/lib/helcim.js` is the active payment client
 
-2. **Customer Checkout sequence diagram** — references `GP_JS`, `GP_API`, "Tokenize card (client-side)" via a GP JS SDK. Actual flow: HelcimPay.js iframe handles tokenization, the middleware receives a Helcim transaction ID after the iframe completes.
+`ARCHITECTURE.md` needs its three Mermaid diagrams and the "Key Architectural Decisions" prose updated to reflect Helcim as the current payment provider. The void-on-failure description still refers to voiding "the GP transaction."
 
-3. **Kiosk POS Sale sequence diagram** — references `GP_TERM as GP Terminal`. Actual flow uses the Helcim Smart Terminal via `lib/helcim.js`.
-
-4. **Narrative descriptions** — "GP card charge", "voids the GP transaction", "Rather than having the frontend call Zoho and GP APIs directly…" all reference GP.
-
-**Recommended fix:** Update all three mermaid diagrams and the surrounding narrative to replace `GP`/`Global Payments` with `Helcim`. The checkout sequence diagram requires the most care — the Helcim flow differs from the old GP flow (payment is processed inside the HelcimPay.js iframe before the form submits; the middleware receives the result via `postMessage`/the submitted `payment_token` field rather than charging a tokenized card server-side). The `POST /api/checkout` description in `API.md` has a parallel inaccuracy: "GP card charge, Zoho Sales Order creation" should read "Helcim void-if-needed + SO creation (card was pre-charged in iframe)".
+Note: `zoho-middleware/openapi.yaml` also still describes payment tags as "Global Payments card tokenization, charging, and voiding" — this should be updated at the same time.
 
 **Suggested GitHub Issue:**
 
 | Title | Labels | Priority | Description |
 |-------|--------|----------|-------------|
-| Update ARCHITECTURE.md and API.md checkout description for Helcim migration | `documentation`, `tech-debt` | Medium | ARCHITECTURE.md still documents Global Payments as the payment provider in all three mermaid diagrams and narrative text. API.md `POST /api/checkout` description also says "GP card charge". All references should be updated to Helcim, noting the HelcimPay.js iframe pre-charge model. |
+| Update ARCHITECTURE.md + openapi.yaml: replace GP with Helcim as primary payment provider | `documentation`, `technical-debt` | High | All three Mermaid diagrams and the key decisions section still reference Global Payments. Helcim is now the active provider for both online checkout (HelcimPay.js) and in-store terminal (Helcim Smart Terminal). Update diagrams and prose. Also update the openapi.yaml `payments`/`pos` tag descriptions. |
+
+### 2. `TESTING.md` — Campaign tracker missing two recently-tested modules ⚠️
+
+**Priority: Low**
+
+Two test files exist in `zoho-middleware/__tests__/` for modules that are not mentioned anywhere in the TESTING.md campaign tracker:
+
+- `brewpad-integration.test.js` → tests `zoho-middleware/lib/brewpad-integration.js`
+- `promo.test.js` → tests `zoho-middleware/routes/promo.js`
+
+These appear to have been written and merged without a corresponding TESTING.md update. Consider adding them to a completed campaign row to keep the tracker accurate.
 
 ---
 
 ## Checks That Passed
 
-**docs/DEPLOYMENT.md:**
-- Two-repository model (staging + production) matches `.github/workflows/tests.yml` and `CLAUDE.md`.
-- All referenced npm scripts (`npm run build`, `npm run test:e2e`) exist in root `package.json`.
-- Environment variable guidance is consistent with `.env.example`.
-- Cache management section matches cron schedule documented in `server.js`.
+**README.md npm scripts** — All scripts listed in the README (`npm test`, `npm run test:coverage`, `npm run lint`, `npm run build`, `cd zoho-middleware && npm test`, `npm run test:e2e`) are present in `package.json` and `zoho-middleware/package.json`. ✅
 
-**TESTING.md:**
-- All npm test commands (`npm test`, `npm run test:coverage`, `cd zoho-middleware && npm test`) verified against root and middleware `package.json` scripts.
-- Coverage thresholds documented ("middleware ≥35% lines, frontend ≥5% lines") match `jest.config.js` (`coverageThreshold: { global: { lines: 5 } }`) and `zoho-middleware/jest.config.js` (`coverageThreshold: { global: { lines: 35 } }`).
-- Campaign progress entries for previously completed work still match actual test files in `zoho-middleware/__tests__/` and `tests/frontend/`.
+**TESTING.md coverage thresholds** — TESTING.md documents middleware ≥35% lines and frontend ≥5% lines. Both match the values in `jest.config.js` (root: `{ global: { lines: 5 } }`) and `zoho-middleware/jest.config.js` (`{ global: { lines: 35 } }`). ✅
 
-**zoho-middleware/.env.example — existing entries:**
-- All non-GP env vars referenced in source code are documented.
-- Removed vars (`ZOHO_CF_DEPOSIT`, `ZOHO_CF_BALANCE`, `GP_DEPOSIT_AMOUNT`) are correctly commented out with "Removed Apr 2026" notes.
-- GP credentials are correctly marked as legacy / commented out.
+**TESTING.md test commands** — All described commands map to real `package.json` scripts. ✅
 
-**README.md — npm scripts:**
-- All scripts in root `package.json` (`test`, `test:coverage`, `lint`, `build`, `test:e2e`, `test:e2e:headed`) match what's documented in the README.
-- All scripts in `zoho-middleware/package.json` (`npm test`, `npm run test:coverage`, `npm run dev`) match the README middleware setup section.
+**DEPLOYMENT.md structure** — Two-repository model, Railway middleware deployment, and `git push production main` workflow are accurate. Pre-deploy checklist and rollback steps match the current repo structure. ✅
 
-**README.md — tech stack:**
-- Frontend: static HTML / vanilla JS (ES5) / CSS on GitHub Pages — correct.
-- Middleware: Express.js on Railway — confirmed via `railway.toml` and `zoho-middleware/package.json`.
-- Integrations: Zoho, Helcim, Redis, Sentry, Google Apps Script — all confirmed present in `zoho-middleware/package.json` dependencies and source.
+**DEPLOYMENT.md env var references** — Environment variable handling advice (Railway dashboard, `.env.example`) is accurate. ✅
 
----
+**API.md rate limits** — The rate limit table in API.md (general 60 req/min, payment/checkout 10 req/min, product requests 10 req/min, contact form 5 req/min) matches the `rateLimit` configurations in `zoho-middleware/server.js`. ✅
 
-*Generated by automated weekly docs validation task.*
+**API.md endpoints vs route files** — All other route files (`auth.js`, `bookings.js`, `catalog.js`, `checkout.js`, `collect.js`, `consignment.js`, `discounts.js`, `items.js`, `payments.js`, `pos.js`, `purchaseorders.js`, `requests.js`, `taxes.js`, `webhooks.js`) have corresponding sections in `API.md`. ✅
+
+**`.env.example` completeness (remaining vars)** — All other project-specific `process.env.*` references in `zoho-middleware/` are documented in `.env.example` (either as active entries or commented-out optional vars). ✅
+
+**ARCHITECTURE.md file references** — All referenced lib files, route files, and directories mentioned in the architecture description exist at their documented paths. ✅

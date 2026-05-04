@@ -250,6 +250,18 @@ document.addEventListener('DOMContentLoaded', function () {
     } catch(e) {}
   }
 
+  // Landing copy "Read more" toggle on product sub-pages
+  var lcToggle = document.querySelector('.landing-copy-toggle');
+  if (lcToggle) {
+    lcToggle.addEventListener('click', function () {
+      var section = document.getElementById('landing-copy');
+      var expanded = section.classList.toggle('is-expanded');
+      lcToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      lcToggle.textContent = expanded ? 'Show less' : lcToggle.getAttribute('data-label');
+    });
+    lcToggle.setAttribute('data-label', lcToggle.textContent);
+  }
+
   // Product catalog loader — shared by products.html, ingredients.html, and clean-URL sub-pages
   if (page === 'products' || page === 'ingredients' || page === 'ferment-in-store' || page === 'ingredients-supplies') {
     loadProducts();

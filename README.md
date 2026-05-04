@@ -84,12 +84,14 @@ steins-and-vines/
 │   │   ├── items.js            # Zoho item CRUD + image proxy
 │   │   ├── payments.js         # Payment void + refund
 │   │   ├── pos.js              # Kiosk + POS terminal sale + salesorder endpoints
+│   │   ├── promo.js            # Promo code validation + per-email redemption tracking
 │   │   ├── purchaseorders.js   # Purchase order management
 │   │   ├── requests.js         # Product request form
 │   │   ├── taxes.js            # Tax classification + Zoho tax rules
 │   │   └── webhooks.js         # Helcim webhook receiver
 │   ├── client/                 # Client-side helpers (Helcim integration, React hooks)
 │   ├── lib/
+│   │   ├── brewpad-integration.js  # Brew day batch creation triggered by kit sales
 │   │   ├── cache.js            # Redis wrapper (connect, get, set, del)
 │   │   ├── checkRedis.js       # Redis health check helper
 │   │   ├── checkout-helpers.js # Checkout/booking HTTP helpers (services snapshot, timeslot fetch)
@@ -105,6 +107,7 @@ steins-and-vines/
 │   │   ├── validateEnv.js      # Startup env var validation
 │   │   ├── zoho-api.js         # Zoho API helpers with retry + pagination
 │   │   └── zohoAuth.js         # Zoho OAuth2 flow, token encryption, auto-refresh
+│   ├── openapi.yaml            # OpenAPI 3.0 spec for the middleware API
 │   └── __tests__/              # Middleware unit tests
 │
 ├── tests/

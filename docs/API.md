@@ -512,6 +512,37 @@ Delete a discount preset.
 
 ---
 
+## Promo Codes
+
+### `POST /api/promo/validate`
+Validate a promo code and check per-email redemption eligibility. The current active code is `FIRSTBATCH` (20% off). Fails open if Redis is unavailable — a Redis outage will not block legitimate customers.
+
+**Auth:** Public
+**Body:**
+```json
+{ "code": "FIRSTBATCH", "email": "customer@example.com" }
+```
+**Response (valid):**
+```json
+{ "ok": true, "discountPct": 20, "code": "FIRSTBATCH" }
+```
+Returns `400` if the code is invalid, the email is missing, or the code has already been redeemed for that email address.
+
+### `DELETE /api/promo/redemption/:email`
+Clear a per-email redemption record so the customer can redeem again. Admin use only.
+
+**Auth:** API Key
+**Response:** `{ ok: true, email: "...", message: "Redemption cleared" }`
+
+### `POST /api/promo/seed-kiosk`
+Create the `FIRSTBATCH` discount preset in the kiosk preset store so staff can apply it from the kiosk UI. Idempotent — no-op if the preset already exists.
+
+**Auth:** API Key
+**Response (created):** `201 { ok: true, message: "FIRSTBATCH preset created", preset: { ... } }`
+**Response (exists):** `200 { ok: true, message: "FIRSTBATCH preset already exists", preset: { ... } }`
+
+---
+
 ## Webhooks
 
 ### `POST /api/webhooks/terminal`
