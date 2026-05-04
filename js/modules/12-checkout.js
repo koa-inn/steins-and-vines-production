@@ -1335,6 +1335,9 @@ function renderCheckoutIngredientSection() {
   fermentItems.forEach(function (i) {
     var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
     var d = parseFloat(i.discount) || 0;
+    if (_promoApplied && i._item_type !== 'ingredient' && i._item_type !== 'service') {
+      d = _promoApplied.discountPct;
+    }
     if (d > 0) p *= (1 - d / 100);
     var pct = parseFloat(i.tax_percentage) || 0;
     fermentTotal += p * (i.qty || 1) * (1 + pct / 100);
@@ -1343,7 +1346,8 @@ function renderCheckoutIngredientSection() {
   // but its GST is NOT included in the kit's tax_percentage (kits are zero-rated).
   // Add only the Maker's Fee tax to fermentTotal, not the fee itself.
   if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
-    var mfRateCombined = parseFloat(_makersFeeItem.rate) || 50;
+    var mfRateBase2 = parseFloat(_makersFeeItem.rate) || 50;
+    var mfRateCombined = _promoApplied ? Math.round(mfRateBase2 * (1 - _promoApplied.discountPct / 100) * 100) / 100 : mfRateBase2;
     var mfTaxPctCombined = parseFloat(_makersFeeItem.tax_percentage);
     var mfKitQtyCombined = 0;
     fermentItems.forEach(function (i) {
@@ -1594,13 +1598,17 @@ function updateDualCartTotalSummary() {
   fermentItems.forEach(function (i) {
     var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
     var d = parseFloat(i.discount) || 0;
+    if (_promoApplied && i._item_type !== 'ingredient' && i._item_type !== 'service') {
+      d = _promoApplied.discountPct;
+    }
     if (d > 0) p *= (1 - d / 100);
     var pct = parseFloat(i.tax_percentage) || 0;
     fermentTotal += p * (i.qty || 1) * (1 + pct / 100);
   });
   // Add Maker's Fee tax (fee is already in kit price, but GST is not)
   if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
-    var mfR = parseFloat(_makersFeeItem.rate) || 50;
+    var mfRBase3 = parseFloat(_makersFeeItem.rate) || 50;
+    var mfR = _promoApplied ? Math.round(mfRBase3 * (1 - _promoApplied.discountPct / 100) * 100) / 100 : mfRBase3;
     var mfTP = parseFloat(_makersFeeItem.tax_percentage);
     var mfKQ = 0;
     fermentItems.forEach(function (i) {
