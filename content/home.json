@@ -1,4 +1,11 @@
 {
+  "promo-banner": {
+    "enabled": true,
+    "tag": "Limited Offer",
+    "text": "20% off your first batch — use code <strong>FIRSTBATCH</strong> at checkout",
+    "cta": "Reserve Your Batch",
+    "cta-href": "products/ferment-in-store.html"
+  },
   "hero-title": "Craft Your Own Beer & Wine",
   "hero-subtitle": "Your brew.\u00a0\u00a0Your vintage.\u00a0\u00a0Right Here In Squamish.",
   "hero-cta": "Reserve Your Batch",
