@@ -155,7 +155,7 @@ Plans:
 Plans:
 **Wave 1** *(no dependencies — run in parallel)*
 - [x] 09-01-PLAN.md -- Homepage testimonials: reviews.json, testimonial CSS, loadTestimonials() in 13-init.js, testimonials section in index.html
-- [ ] 09-02-PLAN.md -- SEO landing copy: inline HTML sections in ferment-in-store.html and ingredients-supplies.html with compliance-reviewed content
+- [x] 09-02-PLAN.md -- SEO landing copy: inline HTML sections in ferment-in-store.html and ingredients-supplies.html with compliance-reviewed content
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 09-03-PLAN.md -- Facility photos: user provides photos, placement on landing pages + homepage + about page, photo CSS, visual verification
