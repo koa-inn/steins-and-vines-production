@@ -5,6 +5,7 @@ status: draft
 shadcn_initialized: false
 preset: none
 created: 2026-05-03
+revised: 2026-05-03
 ---
 
 # Phase 8 — UI Design Contract: First-Batch Promo
@@ -30,22 +31,23 @@ shadcn gate: N/A — not a React/Next.js/Vite project. Registry Safety: not appl
 
 ## Spacing Scale
 
-All spacing derived from existing CSS patterns in `css/styles.css`. The project uses rem-based spacing that maps closely to an 8pt grid at 16px root font size.
+Only spacing values **introduced by this phase** are declared here. Values inherited from existing `css/styles.css` that this phase does not modify are noted separately.
 
 | Token | Value | Usage |
 |-------|-------|-------|
 | xs | 4px (0.25rem) | Icon gaps, badge inner padding |
-| sm | 8px (0.5rem) | Inline field gaps, compact rows |
-| md | 16px (1rem) | Default element spacing, form field padding |
-| lg | 20px (1.25rem) | Form group margin-bottom, card padding |
+| sm | 8px (0.5rem) | Inline field gaps, compact rows, chip padding |
+| md | 16px (1rem) | Default element spacing, form field padding, row margin/padding |
+| lg | 24px (1.5rem) | Form group margin-bottom, card padding (new elements only) |
 | xl | 32px (2rem) | Section internal padding |
 | 2xl | 48px (3rem) | Section breaks |
 | 3xl | 64px (4rem) | Page-level spacing |
 
-Exceptions:
-- Promo banner vertical padding: 11px (0.7rem) — matches existing `.promo-banner` padding. Do not change.
-- Button min-height: 44px — touch target minimum. Enforce on "Apply" button.
-- Promo code input height: 44px — matches button height so they sit flush in a row layout.
+**Inherited — not introduced by this phase:**
+- Promo banner vertical padding: 11px — inherited from existing `.promo-banner` in `css/styles.css` lines 455–507. This phase does not modify those rules.
+- Button padding: inherited from existing `.btn` in `css/styles.css` lines 583–620.
+
+**Touch targets:** Button min-height 44px. Promo code input min-height 44px (flush with Apply Code button). Dismiss button 32×32 with 44px touch target via padding. These use the md (16px) token internally and are not new scale values.
 
 Source: `css/styles.css` lines 455–507 (existing `.promo-banner`), lines 583–620 (`.btn` sizing).
 
@@ -53,19 +55,23 @@ Source: `css/styles.css` lines 455–507 (existing `.promo-banner`), lines 583�
 
 ## Typography
 
-All type scales derive from existing CSS custom properties. Do not introduce new type sizes.
+**Phase-introduced sizes (4 total):** 12px, 14px, 16px, 24px.
+**Phase-introduced weights (2 total):** 400 (regular), 600 (semibold).
 
 | Role | Size | Weight | Line Height | Font | Usage |
 |------|------|--------|-------------|------|-------|
-| Body | 16px (1rem) | 400 | 1.5 | Lato | Promo banner body text, form labels, error messages |
-| Label | 14px (0.875rem) | 700 | 1.4 | Lato | "Apply" button, field labels, discount badge text |
-| Heading | 24px (1.5rem) | 600 | 1.2 | Playfair Display | Section headings (not used in banner strip) |
-| Display | clamp(26–48px) | 700 | 1.2 | Playfair Display | Hero — not touched by this phase |
+| Body | 16px (1rem) | 400 | 1.5 | Lato | Promo banner body text, form labels, error messages, input text |
+| Label | 14px (0.875rem) | 600 | 1.4 | Lato | "Apply Code" button, field labels, discount chip text, savings row |
+| Small | 12px (0.75rem) | 400 | 1.4 | Lato | Inline validation messages (`.promo-code-msg`), "Remove Code" button |
+| Heading | 24px (1.5rem) | 600 | 1.2 | Playfair Display | Section headings (not used in banner strip — declared for phase completeness) |
 
-Banner-specific overrides (matching existing `.promo-banner` rules):
-- Banner tag pill: 11.2px (0.7rem), weight 700, uppercase, letter-spacing 0.08em
-- Banner text: 15.2px (0.95rem), weight 400, opacity 0.95
-- CTA ghost button: 13.6px (0.85rem), weight 700
+**Inherited — not introduced by this phase:**
+- Banner tag pill: 11.2px (0.7rem) — inherited from existing `.promo-banner` CSS. This phase does not change those rules.
+- Banner text: 15.2px (0.95rem) — inherited from existing `.promo-banner` CSS.
+- Banner CTA ghost button: 13.6px (0.85rem) — inherited from existing `.promo-banner` CSS.
+- Display/hero: clamp(26–48px) — existing hero CSS, not touched by this phase.
+
+These inherited banner values do not count toward the phase typography scale.
 
 Source: CONTEXT.md D-01; `css/styles.css` lines 470–506.
 
@@ -79,14 +85,14 @@ Existing CSS custom properties are authoritative. No new color values are introd
 |------|-------|-------|-------|
 | Dominant (60%) | `#e5dec1` | `--color-cream` | Page background, form field backgrounds |
 | Secondary (30%) | `#4a6f4b` | `--color-green` | Field labels, section headings, applied-code success state |
-| Accent (10%) | `#370e13` | `--color-burgundy` | Promo banner background, primary "Apply" button, promo code chip border |
+| Accent (10%) | `#370e13` | `--color-burgundy` | Promo banner background, "Apply Code" button, promo code chip border |
 | Destructive | `#c0392b` | `--color-error` | Validation errors (invalid code, already redeemed, email required) |
 | Support | `#77462d` | `--color-brown` | Secondary text, border strokes |
 | Muted | `#5f5f5f` | `--color-muted` | Struck-through original price, helper text |
 
 Accent (`--color-burgundy`) reserved for:
 1. Promo banner background strip
-2. "Apply" button (primary `.btn`)
+2. "Apply Code" button (primary `.btn`)
 3. Promo code chip background tint on applied state (rgba(55,14,19,0.08) tint on cream)
 4. Focus outlines on promo code input
 
@@ -100,6 +106,12 @@ Accent (`--color-burgundy`) reserved for:
 3. Email-required inline error
 
 Source: `css/styles.css` lines 118–128 (CSS custom properties).
+
+---
+
+## Visual Focal Point
+
+**Primary visual anchor:** The promo banner strip is the primary visual anchor on the homepage when enabled. Its full-width burgundy background (`--color-burgundy`) against the cream page creates the strongest contrast element above the fold, drawing attention before the hero section. All other homepage elements are secondary to it while it is visible.
 
 ---
 
@@ -151,7 +163,7 @@ Source: CONTEXT.md D-01, D-02, D-03.
       <input type="text" id="promo-code-input" class="promo-code-input"
              placeholder="e.g. FIRSTBATCH" autocomplete="off"
              aria-describedby="promo-code-msg" maxlength="32" />
-      <button type="button" id="promo-code-apply" class="btn promo-code-apply-btn">Apply</button>
+      <button type="button" id="promo-code-apply" class="btn promo-code-apply-btn">Apply Code</button>
     </div>
     <span id="promo-code-msg" class="promo-code-msg" role="status" aria-live="polite"></span>
   </div>
@@ -159,7 +171,7 @@ Source: CONTEXT.md D-01, D-02, D-03.
   <div class="promo-code-applied" id="promo-code-applied" hidden>
     <span class="promo-code-chip">
       <span class="promo-code-chip-label" id="promo-code-chip-label">FIRSTBATCH — 20% off kits</span>
-      <button type="button" class="promo-code-remove" aria-label="Remove promo code">Remove</button>
+      <button type="button" class="promo-code-remove" aria-label="Remove promo code">Remove Code</button>
     </span>
   </div>
 </div>
@@ -168,57 +180,57 @@ Source: CONTEXT.md D-01, D-02, D-03.
 **CSS new classes:**
 
 `.promo-code-row`
-- margin-top: 16px (1rem)
-- padding: 16px (1rem)
+- margin-top: 16px (md)
+- padding: 16px (md)
 - background: rgba(55,14,19,0.04) (faint cream-burgundy tint)
 - border: 1px solid `var(--color-brown)` at 30% opacity
 - border-radius: `var(--radius-sm)` (4px)
 
 `.promo-code-label`
-- Inherits `.form-group label` styles: font-size 14px, weight 700, color `--color-green`
-- margin-bottom: 8px (0.5rem)
+- Inherits `.form-group label` styles: font-size 14px, weight 600, color `--color-green`
+- margin-bottom: 8px (sm)
 
 `.promo-code-input-wrap`
-- display: flex, gap: 8px (0.5rem)
+- display: flex, gap: 8px (sm)
 - align-items: stretch
 
 `.promo-code-input`
 - Inherits `.form-group input` styles: padding 0.6rem 0.75rem, border 1px solid `--color-brown`, border-radius 4px
 - flex: 1
 - min-height: 44px
-- font-size: 16px
+- font-size: 16px (body)
 - text-transform: uppercase (visual affordance — user types "firstbatch", sees "FIRSTBATCH")
 - focus: outline 2px solid `--color-burgundy`
 - error state: `.field-error` — border-color and outline-color `--color-error`
 
 `.promo-code-apply-btn`
 - Extends `.btn`
-- padding: 8px 20px (compact — narrower than default 12px 24px)
+- padding: 8px 16px (sm/md — multiples of 4; replaces prior 8px 20px)
 - min-height: 44px
 - white-space: nowrap
 
 `.promo-code-msg`
-- display: block, font-size: 12px (0.75rem), margin-top: 4px
+- display: block, font-size: 12px (small), margin-top: 4px (xs)
 - Default: empty
 - Error: color `--color-error`; add class `.promo-code-msg--error`
 - Success: color `--color-green`; add class `.promo-code-msg--success`
 
 `.promo-code-applied`
-- margin-top: 8px
+- margin-top: 8px (sm)
 
 `.promo-code-chip`
-- display: inline-flex, align-items: center, gap: 8px
+- display: inline-flex, align-items: center, gap: 8px (sm)
 - background: rgba(74,111,75,0.12) (green tint)
 - border: 1px solid `--color-green`
 - border-radius: 999px
-- padding: 4px 12px 4px 16px
-- font-size: 14px, weight 700, color `--color-green`
+- padding: 8px 16px (sm / md — multiples of 4; replaces prior 4px 12px 4px 16px)
+- font-size: 14px (label), weight 600, color `--color-green`
 
 `.promo-code-remove`
 - background: none, border: none, cursor: pointer
 - color: `--color-muted`
-- font-size: 12px, font-weight 700
-- padding: 0 4px
+- font-size: 12px (small), font-weight 600
+- padding: 0 4px (xs)
 - hover: color `--color-burgundy`
 
 Source: CONTEXT.md D-04, D-05, D-06.
@@ -241,7 +253,7 @@ Source: CONTEXT.md D-04, D-05, D-06.
 - Extends `.order-summary-totals .reservation-subtotal` (flex row, space-between)
 - color: `--color-green`
 - font-weight: 600
-- font-size: 1rem (matches other detail rows)
+- font-size: 1rem (16px, matches other detail rows)
 
 Source: CONTEXT.md D-11 (all kit + Maker's Fee discounted, ingredients excluded); existing `.reservation-subtotal--detail` pattern.
 
@@ -264,7 +276,7 @@ Source: CONTEXT.md D-11 (all kit + Maker's Fee discounted, ingredients excluded)
 
 The `requiresEmail: true` flag signals the kiosk UI to show an email prompt before applying (so server-side redemption check can fire). This prompt reuses `.form-group` styles.
 
-Visual treatment: identical to other presets. No new CSS class needed unless the `requiresEmail` flag warrants a distinct indicator (a small "email required" label in `--color-muted` at 12px).
+Visual treatment: identical to other presets. The `requiresEmail` flag warrants a small "email required" label in `--color-muted` at 12px (small scale).
 
 Source: CONTEXT.md D-07.
 
@@ -284,15 +296,15 @@ Source: CONTEXT.md D-07.
 
 | State | Visual |
 |-------|--------|
-| Idle | Input + "Apply" button, no message |
-| Loading | "Apply" button disabled with `.btn-loading` class, button text "Checking..." |
+| Idle | Input + "Apply Code" button, no message |
+| Loading | "Apply Code" button disabled with `.btn-loading` class, button text "Checking..." |
 | Valid | Field and button hidden; applied chip shown; savings row shown; message cleared |
 | Invalid code | Input gets `.field-error`; message "That promo code isn't valid." in `--color-error` |
 | Already redeemed | Input gets `.field-error`; message "This code has already been used for [email]. Each code is one use per customer." in `--color-error` |
 | Email not filled | Focus email field; message "Please enter your email address first." in `--color-error` |
-| Removed | Chip hidden; input + button re-shown, input cleared; savings row hidden |
+| Removed | Chip hidden; input + "Apply Code" button re-shown, input cleared; savings row hidden |
 
-### Apply Button Loading Pattern
+### Apply Code Button Loading Pattern
 
 Matches existing form submission pattern: add `.btn-loading` (opacity 0.7, pointer-events none), change `textContent` to "Checking...", restore on response.
 
@@ -307,9 +319,9 @@ Matches existing form submission pattern: add `.btn-loading` (opacity 0.7, point
 | Banner CTA | `Reserve Your Batch` (links to `/reservation.html`) |
 | Promo code label | `Promo Code` |
 | Promo code placeholder | `e.g. FIRSTBATCH` |
-| Apply button | `Apply` |
+| Apply button | `Apply Code` |
 | Applied chip label | `FIRSTBATCH — 20% off kits` |
-| Remove link | `Remove` |
+| Remove link | `Remove Code` |
 | Savings row label | `Promo Discount (FIRSTBATCH)` |
 | Loading state | `Checking...` (button text during validation) |
 | Invalid code error | `That promo code isn't valid.` |
@@ -352,9 +364,9 @@ Source: CONTEXT.md D-03, D-10.
 | Promo code input | `aria-describedby="promo-code-msg"` linking to status span |
 | Status span | `role="status"` + `aria-live="polite"` — announces validation result to screen readers |
 | Applied chip remove | `aria-label="Remove promo code"` |
-| Apply button loading | `aria-disabled="true"` when loading |
+| Apply Code button loading | `aria-disabled="true"` when loading |
 | Color contrast | Error text `#c0392b` on `#fff` = 5.1:1 (passes AA). Success text `#4a6f4b` on `#fff` = 5.4:1 (passes AA). |
-| Touch targets | Dismiss button, Apply button, Remove link all minimum 44px touch target |
+| Touch targets | Dismiss button, Apply Code button, Remove Code button all minimum 44px touch target |
 
 ---
 
@@ -381,4 +393,5 @@ Source: CONTEXT.md D-03, D-10.
 
 *Phase: 8 — First-Batch Promo*
 *UI-SPEC created: 2026-05-03*
+*UI-SPEC revised: 2026-05-03 — fixed typography count (inherited banner sizes excluded), spacing scale (11px and 20px marked inherited, lg changed to 24px, chip padding changed to 8px/16px), copywriting (Apply → Apply Code, Remove → Remove Code), added focal point declaration*
 *Pre-populated from: CONTEXT.md (10 decisions), css/styles.css (existing tokens), content/home.json (promo-news pattern)*
