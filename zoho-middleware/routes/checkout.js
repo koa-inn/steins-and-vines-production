@@ -315,6 +315,49 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       }
     }
 
+    // --- Promo code re-validation (server-authoritative) ---
+    // Acquire lock to prevent concurrent double-burn (Pitfall 1 from RESEARCH.md)
+    var promoDiscount = 0;
+    if (body.promo_code === 'FIRSTBATCH' && customerEmail) {
+      var promoKey = C.CACHE_KEYS.PROMO_REDEEMED_PREFIX + customerEmail.toLowerCase();
+
+      // Acquire per-email lock to prevent two simultaneous checkout requests burning the same code
+      var lockAcquired = false;
+      try {
+        lockAcquired = await cache.acquireLock(promoKey, 30);
+      } catch (lockErr) {
+        // Lock acquisition failed — fail open (allow through)
+        lockAcquired = true;
+        log.warn('[checkout] Promo lock acquisition failed, proceeding: ' + lockErr.message);
+      }
+
+      // Re-validate: check Redis to confirm not already redeemed
+      try {
+        var promoExisting = await cache.get(promoKey);
+        if (!promoExisting) {
+          promoDiscount = 20;
+          log.info('[checkout] Promo FIRSTBATCH validated for checkout by ' + customerEmail);
+        } else {
+          log.warn('[checkout] Promo code FIRSTBATCH rejected — already redeemed by ' + customerEmail);
+        }
+      } catch (promoCheckErr) {
+        // Fail open — allow discount if Redis unavailable
+        promoDiscount = 20;
+        log.warn('[checkout] Promo Redis check failed, allowing discount: ' + promoCheckErr.message);
+      }
+    }
+
+    // C3 enforcement: strip unauthorized item discounts if no valid promo code
+    // This prevents clients from injecting discount fields on items without a valid promo
+    if (promoDiscount === 0) {
+      (body.items || []).forEach(function (item) {
+        if (item.discount && parseFloat(item.discount) > 0) {
+          log.warn('[checkout] Stripped unauthorized discount on item ' + (item.name || item.item_id));
+          item.discount = 0;
+        }
+      });
+    }
+
     // Resolve the Maker's Fee item now — needed for both stripping and injection below.
     var MAKERS_FEE_ITEM_ID = process.env.MAKERS_FEE_ITEM_ID || '';
     var makersFeeItem = findMakersFeeItem(services, MAKERS_FEE_ITEM_ID);
@@ -334,6 +377,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
     // Server-side Maker's Fee injection.
     // Count total kit quantity (non-service items from the stripped list), then inject
     // the fee as an authoritative line item so the Zoho invoice always reflects it.
+    // Per D-11: when promo is active, apply 20% discount to Maker's Fee rate.
     var kitQtyTotal = 0;
     for (var kqi = 0; kqi < checkoutItems.length; kqi++) {
       var kqiItem = checkoutItems[kqi];
@@ -346,14 +390,19 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         log.error('[checkout] Maker\'s Fee item not found in services catalog — check MAKERS_FEE_ITEM_ID env var');
         return res.status(503).json({ error: 'Order configuration error. Please contact us.' });
       }
+      var makersFeeRate = makersFeeItem.rate;
+      if (promoDiscount > 0) {
+        makersFeeRate = Math.round(makersFeeItem.rate * (1 - promoDiscount / 100) * 100) / 100;
+        log.info('[checkout] Promo applied to Maker\'s Fee: original=' + makersFeeItem.rate + ' discounted=' + makersFeeRate);
+      }
       lineItems.push({
         item_id: makersFeeItem.item_id,
         name: makersFeeItem.name || "Maker's Fee",
         quantity: kitQtyTotal,
-        rate: makersFeeItem.rate
+        rate: makersFeeRate
       });
-      orderTotal = Math.round((orderTotal + makersFeeItem.rate * kitQtyTotal) * 100) / 100;
-      log.info('[checkout] Injected Maker\'s Fee: qty=' + kitQtyTotal + ' rate=' + makersFeeItem.rate + ' item_id=' + makersFeeItem.item_id);
+      orderTotal = Math.round((orderTotal + makersFeeRate * kitQtyTotal) * 100) / 100;
+      log.info('[checkout] Injected Maker\'s Fee: qty=' + kitQtyTotal + ' rate=' + makersFeeRate + ' item_id=' + makersFeeItem.item_id);
     }
 
     // Full amount charged — deposit equals the order total when payment was taken
@@ -440,6 +489,15 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
 
       var soId = data.salesorder ? data.salesorder.salesorder_id : null;
       var soNumber = data.salesorder ? data.salesorder.salesorder_number : null;
+
+      // Burn promo redemption AFTER successful SO creation (per D-09).
+      // Fire-and-forget with 5-year TTL — do not block the response.
+      if (soId && promoDiscount > 0 && customerEmail) {
+        var burnKey = C.CACHE_KEYS.PROMO_REDEEMED_PREFIX + customerEmail.toLowerCase();
+        cache.set(burnKey, { redeemedAt: new Date().toISOString(), soId: soId }, 5 * 365 * 24 * 60 * 60)
+          .catch(function (burnErr) { log.error('[promo] Failed to burn redemption: ' + burnErr.message); });
+        log.info('[promo] Redemption burned for FIRSTBATCH, email=' + customerEmail + ' soId=' + soId);
+      }
 
       // Use the Zoho SO total (tax-inclusive) for payment recording.
       // buildLineItems returns the pre-tax subtotal; Zoho applies tax rules

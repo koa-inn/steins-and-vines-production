@@ -5958,6 +5958,9 @@ var _checkoutSubmitting = false;
 // and the page is loaded without a ?cart= param (or with no specific single-cart intent)
 var _isDualCart = false;
 
+// Promo code state — set when a valid promo code is applied at checkout
+var _promoApplied = null; // { code: 'FIRSTBATCH', discountPct: 20 } or null
+
 // Form validation functions defined in 12a-checkout-validation.js:
 //   getRecaptchaToken, validateCheckoutForm, renumberVisibleSteps,
 //   formatPhoneInput, isValidEmail, isValidPhone,
@@ -6227,6 +6230,111 @@ function refreshReservationDependents() {
   }
 }
 
+// =============================================================================
+// Promo code functions
+// =============================================================================
+
+function applyPromoCode() {
+  var codeInput = document.getElementById('promo-code-input');
+  var code = (codeInput ? codeInput.value : '').trim();
+  var emailEl = document.getElementById('res-email');
+  var email = (emailEl ? emailEl.value : '').trim();
+  var msgEl = document.getElementById('promo-code-msg');
+  var applyBtn = document.getElementById('promo-code-apply');
+
+  // Clear previous messages
+  if (msgEl) { msgEl.textContent = ''; msgEl.className = 'promo-code-msg'; }
+
+  // Validate client-side
+  if (!code) {
+    if (msgEl) { msgEl.textContent = 'Enter a promo code.'; msgEl.className = 'promo-code-msg promo-code-msg--error'; }
+    return;
+  }
+  if (!email || email.indexOf('@') === -1) {
+    if (msgEl) { msgEl.textContent = 'Please enter your email address first.'; msgEl.className = 'promo-code-msg promo-code-msg--error'; }
+    if (emailEl) emailEl.focus();
+    return;
+  }
+
+  // Loading state
+  if (applyBtn) { applyBtn.textContent = 'Checking...'; applyBtn.classList.add('btn-loading'); applyBtn.setAttribute('aria-disabled', 'true'); }
+
+  var mw = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
+  fetch(mw + '/api/promo/validate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: code, email: email })
+  }).then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+  .then(function (result) {
+    if (result.data.ok) {
+      _promoApplied = { code: result.data.code, discountPct: result.data.discountPct };
+      renderReservationItems(); // re-render with discount badges + applied chip
+    } else {
+      if (msgEl) { msgEl.textContent = result.data.error || 'Invalid promo code.'; msgEl.className = 'promo-code-msg promo-code-msg--error'; }
+      if (applyBtn) { applyBtn.textContent = 'Apply Code'; applyBtn.classList.remove('btn-loading'); applyBtn.removeAttribute('aria-disabled'); }
+    }
+  }).catch(function () {
+    if (msgEl) { msgEl.textContent = 'Could not verify code — check your connection and try again.'; msgEl.className = 'promo-code-msg promo-code-msg--error'; }
+    if (applyBtn) { applyBtn.textContent = 'Apply Code'; applyBtn.classList.remove('btn-loading'); applyBtn.removeAttribute('aria-disabled'); }
+  });
+}
+
+function renderPromoWidget(container) {
+  // Only render for ferment cart (not ingredient-only checkout)
+  var cartKey = (typeof URLSearchParams !== 'undefined')
+    ? (new URLSearchParams(window.location.search).get('cart') || 'ferment')
+    : 'ferment';
+  if (cartKey === 'ingredient') return;
+
+  var row = document.createElement('div');
+  row.className = 'promo-code-row';
+  row.id = 'promo-code-row';
+
+  if (_promoApplied) {
+    // Applied state: show chip with remove button
+    row.innerHTML =
+      '<div class="promo-code-applied" id="promo-code-applied">' +
+        '<span class="promo-code-chip">' +
+          '<span class="promo-code-chip-label">FIRSTBATCH — 20% off kits</span>' +
+          '<button type="button" class="promo-code-remove" aria-label="Remove promo code">Remove Code</button>' +
+        '</span>' +
+      '</div>';
+    var removeBtn = row.querySelector('.promo-code-remove');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', function () {
+        _promoApplied = null;
+        renderReservationItems();
+      });
+    }
+  } else {
+    // Not-applied state: show input + apply button
+    row.innerHTML =
+      '<div class="promo-code-field">' +
+        '<label for="promo-code-input" class="promo-code-label">Promo Code</label>' +
+        '<div class="promo-code-input-wrap">' +
+          '<input type="text" id="promo-code-input" class="promo-code-input"' +
+          ' placeholder="e.g. FIRSTBATCH" autocomplete="off"' +
+          ' aria-describedby="promo-code-msg" maxlength="32" />' +
+          '<button type="button" id="promo-code-apply" class="btn promo-code-apply-btn">Apply Code</button>' +
+        '</div>' +
+        '<span id="promo-code-msg" class="promo-code-msg" role="status" aria-live="polite"></span>' +
+      '</div>';
+    var applyBtn = row.querySelector('#promo-code-apply');
+    if (applyBtn) {
+      applyBtn.addEventListener('click', applyPromoCode);
+    }
+    // Allow Enter key in input to trigger apply
+    var inputEl = row.querySelector('#promo-code-input');
+    if (inputEl) {
+      inputEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); applyPromoCode(); }
+      });
+    }
+  }
+
+  container.appendChild(row);
+}
+
 function renderReservationItems() {
   var container = document.getElementById('reservation-items');
   var emptyMsg = document.getElementById('reservation-empty');
@@ -6327,10 +6435,15 @@ function renderReservationItems() {
     nameSpan.className = 'table-name';
     nameSpan.textContent = item.name;
     tdName.appendChild(nameSpan);
-    if (item.discount && parseFloat(item.discount) > 0) {
+    // Apply promo discount to kits at render time (NOT persisted to localStorage)
+    var effectiveDiscount = parseFloat(item.discount) || 0;
+    if (_promoApplied && item._item_type !== 'ingredient' && item._item_type !== 'service') {
+      effectiveDiscount = _promoApplied.discountPct;
+    }
+    if (effectiveDiscount > 0) {
       var badge = document.createElement('span');
       badge.className = 'discount-badge-sm';
-      badge.textContent = Math.round(parseFloat(item.discount)) + '% OFF';
+      badge.textContent = Math.round(effectiveDiscount) + '% OFF';
       tdName.appendChild(badge);
     }
     if ((item.item_type || 'kit') === 'kit') {
@@ -6371,9 +6484,9 @@ function renderReservationItems() {
     var tdPrice = document.createElement('td');
     tdPrice.setAttribute('data-label', 'Price');
     if (item.price) {
-      if (item.discount && parseFloat(item.discount) > 0) {
+      if (effectiveDiscount > 0) {
         var origNum = parseFloat((item.price || '0').replace('$', '')) || 0;
-        var disc = parseFloat(item.discount);
+        var disc = effectiveDiscount;
         tdPrice.className = 'table-prices';
         tdPrice.innerHTML = '<span class="table-price-original">' + formatCurrency(item.price) + '</span><span class="table-price-sale">' + formatCurrency(origNum * (1 - disc / 100)) + '</span>';
       } else {
@@ -6535,9 +6648,11 @@ function renderReservationItems() {
 
     // Per-kit inline breakdown: Kit supplies → Maker's Fee → Kit Total
     if ((item.item_type || 'kit') === 'kit') {
-      var bFeeRate = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
+      var bFeeRateBase = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
+      // Apply promo discount to Maker's Fee in breakdown display when promo is active
+      var bFeeRate = (_promoApplied) ? Math.round(bFeeRateBase * (1 - _promoApplied.discountPct / 100) * 100) / 100 : bFeeRateBase;
       var bPrice = parseFloat(String(item.price || '0').replace(/[^0-9.]/g, '')) || 0;
-      var bDisc = parseFloat(item.discount) || 0;
+      var bDisc = effectiveDiscount; // use effectiveDiscount which includes promo override
       if (bDisc > 0) bPrice *= (1 - bDisc / 100);
       var bQty = parseFloat(item.qty) || 1;
       var bSupplies = (bPrice - bFeeRate) * bQty;
@@ -6572,11 +6687,19 @@ function renderReservationItems() {
     renderMillingSection(items, container);
   }
 
+  // Promo code widget — rendered below the items table, above the totals summary
+  renderPromoWidget(container);
+
   // --- Totals Summary ---
   // DISPLAY ESTIMATE ONLY — server recomputes authoritative totals at checkout
   var sub = 0; items.forEach(function (i) {
     var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
-    var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); sub += p * (i.qty || 1);
+    // Apply promo discount to kit items at render time
+    var d = parseFloat(i.discount) || 0;
+    if (_promoApplied && i._item_type !== 'ingredient' && i._item_type !== 'service') {
+      d = _promoApplied.discountPct;
+    }
+    if (d > 0) p *= (1 - d / 100); sub += p * (i.qty || 1);
   });
 
   // Group taxes by name for breakdown display
@@ -6584,6 +6707,9 @@ function renderReservationItems() {
   items.forEach(function (i) {
     var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
     var d = parseFloat(i.discount) || 0;
+    if (_promoApplied && i._item_type !== 'ingredient' && i._item_type !== 'service') {
+      d = _promoApplied.discountPct;
+    }
     if (d > 0) p *= (1 - d / 100);
     var pct = parseFloat(i.tax_percentage) || 0;
     if (pct > 0) {
@@ -6595,7 +6721,9 @@ function renderReservationItems() {
   // Add Maker's Fee GST (fee is not a cart item — read from _makersFeeItem)
   if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
     var mfTaxPct = parseFloat(_makersFeeItem.tax_percentage);
-    var mfRate = parseFloat(_makersFeeItem.rate) || 50;
+    var mfRateBase = parseFloat(_makersFeeItem.rate) || 50;
+    // Apply promo discount to Maker's Fee in tax calculation when promo active
+    var mfRate = _promoApplied ? Math.round(mfRateBase * (1 - _promoApplied.discountPct / 100) * 100) / 100 : mfRateBase;
     var mfKitQty = 0;
     items.forEach(function (i) {
       if ((i.item_type || 'kit') === 'kit') mfKitQty += (parseFloat(i.qty) || 1);
@@ -6628,6 +6756,31 @@ function renderReservationItems() {
     taxRow.innerHTML = '<span>' + name + '</span><span>' + formatCurrency(taxGroups[name]) + '</span>';
     sWrap.appendChild(taxRow);
   });
+
+  // Promo savings row — inserted above Total row when promo is applied
+  if (_promoApplied) {
+    var savingsTotal = 0;
+    items.forEach(function (i) {
+      if (i._item_type !== 'ingredient' && i._item_type !== 'service') {
+        var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
+        savingsTotal += p * (i.qty || 1) * (_promoApplied.discountPct / 100);
+      }
+    });
+    // Also include Maker's Fee savings if _makersFeeItem loaded
+    if (_makersFeeItem && _makersFeeItem.rate) {
+      var kitQtyForSavings = items.reduce(function (sum, i) {
+        return (i._item_type !== 'ingredient' && i._item_type !== 'service') ? sum + (parseFloat(i.qty) || 1) : sum;
+      }, 0);
+      savingsTotal += parseFloat(_makersFeeItem.rate) * kitQtyForSavings * (_promoApplied.discountPct / 100);
+    }
+    if (savingsTotal > 0) {
+      var savingsRow = document.createElement('div');
+      savingsRow.className = 'reservation-subtotal reservation-subtotal--savings';
+      savingsRow.id = 'promo-savings-row';
+      savingsRow.innerHTML = '<span>Promo Discount (FIRSTBATCH)</span><span class="promo-savings-amount">-' + formatCurrency(savingsTotal) + '</span>';
+      sWrap.appendChild(savingsRow);
+    }
+  }
 
   // Total row — sub already includes Maker's Fee so no feeRate added here
   var grandTotal = sub + taxTotal;
@@ -7123,15 +7276,20 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError, transactio
   var fermentError = null;
   var ingredientError = null;
 
-  // Helper: build line items array from cart items
+  // Helper: build line items array from cart items, applying promo discount to kit items
   function buildLines(items) {
     return items.map(function (i) {
+      var discountVal = i.discount || 0;
+      // Apply promo discount to kit items at submission time (not ingredient/service)
+      if (_promoApplied && (i._item_type || 'kit') !== 'ingredient' && (i._item_type || 'kit') !== 'service') {
+        discountVal = _promoApplied.discountPct;
+      }
       return {
         name: i.name,
         quantity: i.qty || 1,
         rate: parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0,
         item_id: i.zoho_item_id,
-        discount: i.discount
+        discount: discountVal
       };
     });
   }
@@ -7178,7 +7336,8 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError, transactio
         timeslot: resolvedTimeslot,
         honeypot: honeypotVal,
         recaptcha_token: recaptchaToken,
-        cart_key: FERMENT_CART_KEY
+        cart_key: FERMENT_CART_KEY,
+        promo_code: _promoApplied ? _promoApplied.code : undefined
       })
     }).then(function (r) { return r.json(); })
     .then(function (fR) {
@@ -7264,6 +7423,9 @@ function showDualCartConfirmation(results) {
     }
     summaryEl.innerHTML = html;
   }
+
+  // Clear promo state after successful checkout (prevents stale state on back-navigation)
+  _promoApplied = null;
 
   // Clear carts that succeeded
   localStorage.removeItem(FERMENT_CART_KEY);
@@ -7446,14 +7608,22 @@ function setupReservationForm() {
       var _dualCharge = 0;
       _dualFermentItems.forEach(function (i) {
         var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
-        var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100);
+        var d = parseFloat(i.discount) || 0;
+        // Apply promo discount to kit items in charge calculation
+        if (_promoApplied && (i._item_type || 'kit') !== 'ingredient' && (i._item_type || 'kit') !== 'service') {
+          d = _promoApplied.discountPct;
+        }
+        if (d > 0) p *= (1 - d / 100);
         _dualCharge += p * (i.qty || 1) * (1 + (parseFloat(i.tax_percentage) || 0) / 100);
       });
       if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
-        var _mfR = parseFloat(_makersFeeItem.rate) || 50;
+        var _mfRBase = parseFloat(_makersFeeItem.rate) || 50;
+        // Apply promo discount to Maker's Fee in charge calculation
+        var _mfR = _promoApplied ? Math.round(_mfRBase * (1 - _promoApplied.discountPct / 100) * 100) / 100 : _mfRBase;
         var _mfTP = parseFloat(_makersFeeItem.tax_percentage);
         var _mfKQ = 0;
         _dualFermentItems.forEach(function (i) { if ((i.item_type || 'kit') === 'kit') _mfKQ += (parseFloat(i.qty) || 1); });
+        // Add only the MF tax (the MF rate itself is already in kit item prices)
         _dualCharge += _mfR * _mfKQ * (_mfTP / 100);
       }
       _dualIngredientItems.forEach(function (i) {
@@ -7547,10 +7717,12 @@ function setupReservationForm() {
     var originalBtnText = sub.textContent;
     sub.disabled = true; sub.textContent = 'Processing...';
 
-    var orderTot = 0; items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); orderTot += p * (i.qty || 1); });
-    var tax = 0; items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (d > 0) p *= (1 - d / 100); tax += p * (i.qty || 1) * ((parseFloat(i.tax_percentage) || 0) / 100); });
+    var orderTot = 0; items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (_promoApplied && (i._item_type || 'kit') !== 'ingredient' && (i._item_type || 'kit') !== 'service') { d = _promoApplied.discountPct; } if (d > 0) p *= (1 - d / 100); orderTot += p * (i.qty || 1); });
+    var tax = 0; items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (_promoApplied && (i._item_type || 'kit') !== 'ingredient' && (i._item_type || 'kit') !== 'service') { d = _promoApplied.discountPct; } if (d > 0) p *= (1 - d / 100); tax += p * (i.qty || 1) * ((parseFloat(i.tax_percentage) || 0) / 100); });
     if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
-      var _scMfRate = parseFloat(_makersFeeItem.rate) || 50;
+      var _scMfRateBase = parseFloat(_makersFeeItem.rate) || 50;
+      // Apply promo discount to Maker's Fee in single-cart charge calculation
+      var _scMfRate = _promoApplied ? Math.round(_scMfRateBase * (1 - _promoApplied.discountPct / 100) * 100) / 100 : _scMfRateBase;
       var _scMfTax = parseFloat(_makersFeeItem.tax_percentage);
       var _scMfKitQty = 0;
       items.forEach(function (i) { if ((i.item_type || 'kit') === 'kit') _scMfKitQty += (parseFloat(i.qty) || 1); });
@@ -7610,7 +7782,14 @@ function setupReservationForm() {
           var slot = sel ? sel.value : 'In-store pickup'; var parts = slot.split(' ');
           var bProm = (slot === 'Walk-in \u2014 Immediate') ? Promise.resolve({ booking_id: null, timeslot: slot }) : fetch(mw + '/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY }, body: JSON.stringify({ date: parts[0], time: parts.slice(1).join(' '), customer: { name: document.getElementById('res-name').value, email: document.getElementById('res-email').value }, notes: items.map(function (i) { return i.name; }).join(', ') }) }).then(function (r) { return r.json(); });
           return bProm.then(function (bD) {
-            var lines = items.map(function (i) { return { name: i.name, quantity: i.qty || 1, rate: parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0, item_id: i.zoho_item_id, discount: i.discount }; });
+            var lines = items.map(function (i) {
+              var lineDiscount = i.discount || 0;
+              // Apply promo discount to kit items at submission time
+              if (_promoApplied && (i._item_type || 'kit') !== 'ingredient' && (i._item_type || 'kit') !== 'service') {
+                lineDiscount = _promoApplied.discountPct;
+              }
+              return { name: i.name, quantity: i.qty || 1, rate: parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0, item_id: i.zoho_item_id, discount: lineDiscount };
+            });
             // M8: Milling service null guard
             if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem && _millingServiceItem.item_id) {
               lines.push({ name: 'Milling Service', quantity: 1, rate: _millingServiceItem.rate, item_id: _millingServiceItem.item_id });
@@ -7624,7 +7803,8 @@ function setupReservationForm() {
                 payment_token: (charge > 0 && _paymentConfig && _paymentConfig.enabled) ? _helcimTransactionId : '',
                 timeslot: bD.timeslot,
                 honeypot: honeypotVal,
-                recaptcha_token: recaptchaToken
+                recaptcha_token: recaptchaToken,
+                promo_code: _promoApplied ? _promoApplied.code : undefined
               })
             }).then(function (r) { return r.json(); });
           });
@@ -7634,6 +7814,9 @@ function setupReservationForm() {
         if (!oR || (!oR.ok && !oR.success)) {
           throw new Error(oR && oR.error ? oR.error : 'Checkout failed. Please try again or call us.');
         }
+
+        // Clear promo state after successful checkout (prevents stale state on back-navigation)
+        _promoApplied = null;
 
         // H4: Only clear the cart that was checked out
         var checkoutCartKey = getActiveCheckoutCart();
