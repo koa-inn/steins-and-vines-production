@@ -36,7 +36,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 - [ ] **SEO-01**: Ferment-in-store and ingredients/supplies product pages have unique landing page copy with SEO-targeted content
 - [ ] **SEO-02**: Professional facility/process photos are added to key pages (homepage, product pages)
-- [ ] **SEO-03**: Google Review testimonials displayed on the site with links back to original reviews for authenticity
+- [x] **SEO-03**: Google Review testimonials displayed on the site with links back to original reviews for authenticity
 
 ## v2 Requirements
 
