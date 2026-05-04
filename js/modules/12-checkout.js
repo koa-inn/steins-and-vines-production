@@ -2009,5 +2009,5 @@ function setupContactSubmit() {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { formatTimeslot: formatTimeslot, formatPhoneInput: formatPhoneInput, isValidEmail: isValidEmail, isValidPhone: isValidPhone, calcCompletionRange: calcCompletionRange };
+  module.exports = { formatTimeslot: formatTimeslot, formatPhoneInput: formatPhoneInput, isValidEmail: isValidEmail, isValidPhone: isValidPhone, calcCompletionRange: calcCompletionRange, applyPromoCode: applyPromoCode, renderCheckoutIngredientSection: renderCheckoutIngredientSection };
 }
