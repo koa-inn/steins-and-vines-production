@@ -565,22 +565,13 @@ npm run build
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Photo file names and actual photo count**
-   - What we know: User will drop photos into `images/`. Subfolder `images/facility/` is the recommended convention.
-   - What's unclear: File names are unknown until user provides photos. The planner cannot specify exact `src` attributes.
-   - Recommendation: Plan should include a task "User provides facility photos" as a prerequisite gate, or plan tasks to accept placeholder filenames that the user fills in.
+1. **Photo file names and actual photo count** — RESOLVED via Plan 03 Task 1 (checkpoint:human-action gate requiring user to provide photos before placement proceeds)
 
-2. **Exact review content (text, names, URLs)**
-   - What we know: Reviews are manually curated, 3 reviews, stored in a JSON file, user provides the content.
-   - What's unclear: The actual review text and Google Business Profile URL are not known until the user provides them.
-   - Recommendation: Plan should create the `content/reviews.json` with placeholder content and instruct the user to fill in the actual review data before the testimonials section goes live.
+2. **Exact review content (text, names, URLs)** — RESOLVED via Plan 01 (creates placeholder reviews.json) + Plan 03 Task 1 (checkpoint gate requiring user to update with real review content)
 
-3. **Exact landing page copy text**
-   - What we know: The full copy was provided in the discussion session and is in the DISCUSSION-LOG.md.
-   - What's unclear: The DISCUSSION-LOG.md is marked "Audit trail only — do not use as input to planning." The copy itself is not in a file the executor can reference directly.
-   - Recommendation: The plan should instruct the executor to read the DISCUSSION-LOG.md for the verbatim copy content, or the user should provide the copy as a file drop before the copy-writing task runs.
+3. **Exact landing page copy text** — RESOLVED via Plan 02 Task 0 (checkpoint:human-action gate requiring user to save verbatim copy to 09-LANDING-COPY.md before Tasks 1+2 proceed)
 
 ---
 

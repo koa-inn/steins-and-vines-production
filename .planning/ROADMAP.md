@@ -150,7 +150,15 @@ Plans:
   1. Ferment-in-store and ingredients/supplies product pages have unique, SEO-targeted landing copy that describes what the business offers and why
   2. Professional facility/process photos appear on the homepage and product pages
   3. Customer testimonials from Google Reviews are displayed on the site with links back to the original reviews
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+**Wave 1** *(no dependencies — run in parallel)*
+- [ ] 09-01-PLAN.md -- Homepage testimonials: reviews.json, testimonial CSS, loadTestimonials() in 13-init.js, testimonials section in index.html
+- [ ] 09-02-PLAN.md -- SEO landing copy: inline HTML sections in ferment-in-store.html and ingredients-supplies.html with compliance-reviewed content
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 09-03-PLAN.md -- Facility photos: user provides photos, placement on landing pages + homepage + about page, photo CSS, visual verification
 
 ## Progress
 
@@ -167,4 +175,4 @@ Phases execute in numeric order: 5 -> 6 -> 7 (Phases 8 and 9 can run in parallel
 | 6. Kiosk-to-Brewpad Integration | v1.1 | 3/3 | Complete | 2026-05-03 |
 | 7. Zoho Audit Trail | v1.1 | 0/? | Not started | - |
 | 8. First-Batch Promo | v1.1 | 6/6 | Complete   | 2026-05-04 |
-| 9. Content & SEO Push | v1.1 | 0/? | Not started | - |
+| 9. Content & SEO Push | v1.1 | 0/3 | Ready to execute | - |
