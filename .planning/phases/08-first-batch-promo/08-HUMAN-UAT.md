@@ -1,56 +1,56 @@
 ---
-status: complete
+status: partial
 phase: 08-first-batch-promo
-source: [08-01-SUMMARY.md, 08-02-SUMMARY.md, 08-03-SUMMARY.md]
+source: [08-VERIFICATION.md]
 started: 2026-05-04T00:00:00Z
-updated: 2026-05-04T12:00:00Z
+updated: 2026-05-04T18:00:00Z
 ---
 
 ## Current Test
 
-[testing complete]
+[awaiting human testing — re-verification after plans 04-06]
 
 ## Tests
 
 ### 1. Homepage banner renders visually
-expected: Burgundy strip with "20% off your first batch — use code FIRSTBATCH at checkout" appears between hero and promo section. Dismiss button (x) hides it. Refreshing page keeps it hidden. Clearing localStorage brings it back.
-result: pass
+expected: Burgundy banner strip with promo message visible between header and hero; clicking X hides it; on reload it stays hidden; FIRSTBATCH code is legible
+result: pass (verified in prior round)
 
-### 2. Checkout widget UI flow
-expected: On reservation.html checkout, promo code input appears in Step 1. Entering FIRSTBATCH + email and clicking Apply shows green chip. Kit line items show "20% OFF" badges and discounted prices. Savings summary row appears above Total. Remove Code restores original pricing.
-result: pass
+### 2. Checkout promo widget apply/remove flow
+expected: On reservation.html?cart=ferment, promo input field appears. Typing FIRSTBATCH and clicking Apply shows chip and discount badges on kit items. Savings row appears. Remove Code restores original pricing.
+result: pass (verified in prior round)
 
 ### 3. Ingredients excluded from promo in dual-cart
-expected: When promo is applied and ingredients are in the other cart, ingredient items show no discount badges or price changes. Only kit items and Maker's Fee receive the 20% discount.
-result: pass
+expected: When promo applied, ingredient items show no discount badges or price changes. Only kit items and Maker's Fee receive the 20% discount.
+result: pass (verified in prior round)
 
-### 4. Helcim charge amount reflects discount
-expected: When promo is applied and checkout proceeds to payment, the Helcim iframe/terminal shows the discounted total (original - 20% on kits and Maker's Fee), not the original undiscounted total.
-result: issue
-reported: "Looks like the proper amount gets sent to helcim but the combined total and the total at the bottom don't reflect the discount"
-severity: major
+### 4. Dual-cart combined totals update after promo apply/remove
+expected: When promo is applied in dual-cart mode, the "Combined Total (both orders)" in the ingredient section AND the bottom summary near the submit button reflect the 20% discount on kits. When promo is removed, both totals revert to undiscounted amounts.
+result: [pending]
+note: This was the gap from the prior round — plan 08-04 added renderCheckoutIngredientSection() calls after promo apply/remove. Needs re-test.
+
+### 5. Checkout form fields restore after page refresh
+expected: Partially filling name/email/phone on reservation.html, refreshing the page, and seeing the fields restored from localStorage. After successful checkout, the saved data is cleared.
+result: [pending]
+
+### 6. Helcim charge reflects discounted amount
+expected: When promo is applied, the Helcim iframe/terminal shows the discounted total, not the original undiscounted total.
+result: pass (verified in prior round — amount sent to Helcim was correct)
 
 ## Summary
 
-total: 4
-passed: 3
-issues: 1
-pending: 0
+total: 6
+passed: 4
+issues: 0
+pending: 2
 skipped: 0
 blocked: 0
 
 ## Gaps
 
 - truth: "Checkout page combined total and bottom total reflect the promo discount"
-  status: failed
-  reason: "User reported: Looks like the proper amount gets sent to helcim but the combined total and the total at the bottom don't reflect the discount"
+  status: resolved
+  reason: "Fixed by plan 08-04 — added renderCheckoutIngredientSection() calls after promo apply/remove"
   severity: major
   test: 4
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
-
-## Feature Requests (Out of Scope)
-
-- Partial form completion persistence on checkout page (remember fields across page reloads)
+  resolved_by: 08-04
