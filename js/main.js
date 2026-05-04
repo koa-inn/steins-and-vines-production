@@ -6274,6 +6274,7 @@ function applyPromoCode() {
     if (result.data.ok) {
       _promoApplied = { code: result.data.code, discountPct: result.data.discountPct };
       renderReservationItems(); // re-render with discount badges + applied chip
+      if (_isDualCart) renderCheckoutIngredientSection();
     } else {
       if (msgEl) { msgEl.textContent = result.data.error || 'Invalid promo code.'; msgEl.className = 'promo-code-msg promo-code-msg--error'; }
       if (applyBtn) { applyBtn.textContent = 'Apply Code'; applyBtn.classList.remove('btn-loading'); applyBtn.removeAttribute('aria-disabled'); }
@@ -6309,6 +6310,7 @@ function renderPromoWidget(container) {
       removeBtn.addEventListener('click', function () {
         _promoApplied = null;
         renderReservationItems();
+        if (_isDualCart) renderCheckoutIngredientSection();
       });
     }
   } else {
@@ -7932,7 +7934,11 @@ function setupContactSubmit() {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { formatTimeslot: formatTimeslot, formatPhoneInput: formatPhoneInput, isValidEmail: isValidEmail, isValidPhone: isValidPhone, calcCompletionRange: calcCompletionRange };
+  module.exports = { formatTimeslot: formatTimeslot, formatPhoneInput: formatPhoneInput, isValidEmail: isValidEmail, isValidPhone: isValidPhone, calcCompletionRange: calcCompletionRange, applyPromoCode: applyPromoCode, renderCheckoutIngredientSection: renderCheckoutIngredientSection,
+    // Test-only helpers — only available in Node/test environment
+    _setDualCartForTest: function (v) { _isDualCart = v; },
+    _setPromoAppliedForTest: function (v) { _promoApplied = v; }
+  };
 }
 // ===== Promo Banner =====
 function initPromoBanner() {
