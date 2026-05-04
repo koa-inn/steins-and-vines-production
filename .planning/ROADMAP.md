@@ -130,7 +130,12 @@ Plans:
   1. Homepage displays a prominent banner advertising "20% off your first batch" with the code FIRSTBATCH clearly visible
   2. Checkout flow has a promo code input field that accepts FIRSTBATCH and applies a 20% discount to kit line items before payment
   3. If a customer email has already redeemed FIRSTBATCH, the code is rejected with a clear message -- enforced server-side via Redis
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 08-01-PLAN.md -- Server-side promo validation: POST /api/promo/validate endpoint, PROMO_REDEEMED_PREFIX constant, Redis redemption check, admin reset endpoint, unit tests
+- [ ] 08-02-PLAN.md -- Checkout integration: promo code widget in 12-checkout.js, server-side re-validation and Maker's Fee discount in checkout.js, redemption burn after SO creation, promo CSS
+- [ ] 08-03-PLAN.md -- Homepage banner: promo-banner in content/home.json, #promo-banner element in index.html, initPromoBanner() in 13-init.js, dismiss button CSS
 
 ### Phase 9: Content & SEO Push
 **Goal**: Product pages and homepage feel professional, trustworthy, and discoverable — with real facility photos, SEO landing copy, and linked Google Review testimonials
@@ -156,5 +161,5 @@ Phases execute in numeric order: 5 -> 6 -> 7 (Phases 8 and 9 can run in parallel
 | 5. Auth Reliability | v1.1 | 2/2 | Complete | 2026-04-29 |
 | 6. Kiosk-to-Brewpad Integration | v1.1 | 3/3 | Complete | 2026-05-03 |
 | 7. Zoho Audit Trail | v1.1 | 0/? | Not started | - |
-| 8. First-Batch Promo | v1.1 | 0/? | Not started | - |
+| 8. First-Batch Promo | v1.1 | 0/3 | Planned | - |
 | 9. Content & SEO Push | v1.1 | 0/? | Not started | - |
