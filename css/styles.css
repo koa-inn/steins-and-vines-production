@@ -507,6 +507,32 @@ small, .text-small {
   .promo-banner-cta { display: none; }
 }
 
+/* Promo banner dismiss button */
+.promo-banner .container {
+  position: relative;
+}
+.promo-banner-dismiss {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(255,255,255,0.6);
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.promo-banner-dismiss:hover {
+  color: rgba(255,255,255,1);
+}
+
 /* ===== Hero ===== */
 .hero {
   position: relative;

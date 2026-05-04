@@ -7721,6 +7721,57 @@ function setupContactSubmit() {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { formatTimeslot: formatTimeslot, formatPhoneInput: formatPhoneInput, isValidEmail: isValidEmail, isValidPhone: isValidPhone, calcCompletionRange: calcCompletionRange };
 }
+// ===== Promo Banner =====
+function initPromoBanner() {
+  // D-02: Skip if already dismissed via localStorage
+  try {
+    if (localStorage.getItem('sv-promo-banner-dismissed')) return;
+  } catch (e) { /* localStorage unavailable — proceed */ }
+
+  // Skip banner in kiosk mode
+  var isKiosk = (window.location.search.indexOf('kiosk=1') !== -1) ||
+                (window.navigator.standalone === true);
+  if (isKiosk) return;
+
+  // Fetch content/home.json (may already be cached by content loader)
+  fetch('content/home.json')
+    .then(function (r) { return r.ok ? r.json() : {}; })
+    .then(function (data) {
+      var config = data['promo-banner'];
+      if (!config || !config.enabled) return;
+
+      var el = document.getElementById('promo-banner');
+      if (!el) return;
+
+      // Populate banner content
+      var tagEl = el.querySelector('.promo-banner-tag');
+      var textEl = el.querySelector('.promo-banner-text');
+      var ctaEl = el.querySelector('.promo-banner-cta');
+      var dismissEl = el.querySelector('.promo-banner-dismiss');
+
+      if (tagEl) tagEl.textContent = config.tag || '';
+      if (textEl) textEl.innerHTML = config.text || '';
+      if (ctaEl) {
+        ctaEl.textContent = config.cta || '';
+        ctaEl.href = config['cta-href'] || '#';
+      }
+
+      // Show banner by removing .hidden class (project convention)
+      el.classList.remove('hidden');
+
+      // Dismiss handler
+      if (dismissEl) {
+        dismissEl.addEventListener('click', function () {
+          el.classList.add('hidden');
+          try {
+            localStorage.setItem('sv-promo-banner-dismissed', '1');
+          } catch (e) { /* silently fail */ }
+        });
+      }
+    })
+    .catch(function () { /* silently fail — banner is non-critical */ });
+}
+
 // Mobile nav toggle
 document.addEventListener('DOMContentLoaded', function () {
   // Kiosk mode: activated by ?kiosk=1 or iPad home-screen launch
@@ -7969,6 +8020,7 @@ document.addEventListener('DOMContentLoaded', function () {
     loadFeaturedProducts();
     initCartDrawer();
     setupBeerWaitlistForm();
+    initPromoBanner();
   }
 
   // NOTE: loadFooterHours() is intentionally NOT called. It derives hours
