@@ -5961,6 +5961,41 @@ var _isDualCart = false;
 // Promo code state — set when a valid promo code is applied at checkout
 var _promoApplied = null; // { code: 'FIRSTBATCH', discountPct: 20 } or null
 
+// --- Checkout form draft persistence ---
+var _FORM_DRAFT_KEY = 'sv-checkout-form-draft';
+
+function saveCheckoutFormDraft() {
+  try {
+    var name  = (document.getElementById('res-name')  || {}).value || '';
+    var email = (document.getElementById('res-email') || {}).value || '';
+    var phone = (document.getElementById('res-phone') || {}).value || '';
+    if (!name && !email && !phone) {
+      localStorage.removeItem(_FORM_DRAFT_KEY);
+      return;
+    }
+    localStorage.setItem(_FORM_DRAFT_KEY, JSON.stringify({ name: name, email: email, phone: phone }));
+  } catch (e) {}
+}
+
+function restoreCheckoutFormDraft() {
+  try {
+    var raw = localStorage.getItem(_FORM_DRAFT_KEY);
+    if (!raw) return;
+    var draft = JSON.parse(raw);
+    if (!draft.name && !draft.email && !draft.phone) return;
+    var nameEl  = document.getElementById('res-name');
+    var emailEl = document.getElementById('res-email');
+    var phoneEl = document.getElementById('res-phone');
+    if (nameEl  && draft.name)  nameEl.value  = draft.name;
+    if (emailEl && draft.email) emailEl.value = draft.email;
+    if (phoneEl && draft.phone) phoneEl.value = draft.phone;
+  } catch (e) {}
+}
+
+function clearCheckoutFormDraft() {
+  try { localStorage.removeItem(_FORM_DRAFT_KEY); } catch (e) {}
+}
+
 // Form validation functions defined in 12a-checkout-validation.js:
 //   getRecaptchaToken, validateCheckoutForm, renumberVisibleSteps,
 //   formatPhoneInput, isValidEmail, isValidPhone,
@@ -6074,6 +6109,7 @@ function initReservationPage() {
   }
 
   renderReservationItems();
+  restoreCheckoutFormDraft();
 
   var items = getAllCartItems();
   var hasKits = items.some(function (item) { return (item.item_type || 'kit') === 'kit'; });
@@ -7460,6 +7496,7 @@ function showDualCartConfirmation(results) {
   if (!results.ingredientFailed) {
     localStorage.removeItem(INGREDIENT_CART_KEY);
   }
+  clearCheckoutFormDraft();
 
   if (results.ingredientFailed) {
     // Partial success — show a notice inside the confirmation
@@ -7573,6 +7610,12 @@ function setupReservationForm() {
   var f = document.getElementById('reservation-form'); if (!f) return;
   var sec = document.getElementById('payment-section'); var err = document.getElementById('payment-error');
   var mw = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
+
+  // Auto-save form draft on input so partial fills survive page reload
+  ['res-name', 'res-email', 'res-phone'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', saveCheckoutFormDraft);
+  });
   if (!document.body.classList.contains('kiosk-mode') && sec && (typeof PAYMENT_DISABLED === 'undefined' || !PAYMENT_DISABLED)) {
     _paymentConfig = { enabled: true, env: 'helcim' };
 
@@ -7858,6 +7901,7 @@ function setupReservationForm() {
           localStorage.removeItem(FERMENT_CART_KEY);
           localStorage.removeItem(INGREDIENT_CART_KEY);
         }
+        clearCheckoutFormDraft();
 
         ['reservation-list', 'timeslot-picker', 'reservation-form-section'].forEach(function (id) {
           var el = document.getElementById(id); if (el) el.classList.add('hidden');
@@ -7935,6 +7979,9 @@ function setupContactSubmit() {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { formatTimeslot: formatTimeslot, formatPhoneInput: formatPhoneInput, isValidEmail: isValidEmail, isValidPhone: isValidPhone, calcCompletionRange: calcCompletionRange, applyPromoCode: applyPromoCode, renderCheckoutIngredientSection: renderCheckoutIngredientSection,
+    saveCheckoutFormDraft: saveCheckoutFormDraft,
+    restoreCheckoutFormDraft: restoreCheckoutFormDraft,
+    clearCheckoutFormDraft: clearCheckoutFormDraft,
     // Test-only helpers — only available in Node/test environment
     _setDualCartForTest: function (v) { _isDualCart = v; },
     _setPromoAppliedForTest: function (v) { _promoApplied = v; }
