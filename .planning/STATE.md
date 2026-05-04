@@ -4,7 +4,7 @@ milestone: v1.1
 milestone_name: Brewpad Reliability & Integration
 status: executing
 last_updated: "2026-05-03T00:00:00.000Z"
-last_activity: 2026-05-03 -- Phase 6 executed (3 plans: Apps Script pending mode, middleware integration, BrewPad UI)
+last_activity: 2026-05-03 -- Phase 8 context gathered (First-Batch Promo)
 progress:
   total_phases: 3
   completed_phases: 2
@@ -24,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-04-29)
 
 ## Current Position
 
-Phase: 6 of 7 (Kiosk-to-Brewpad Integration) -- COMPLETE
-Plan: 3 of 3 complete
-Status: Phase 6 complete — awaiting human verification on staging before production deploy
-Last activity: 2026-05-03 -- Phase 6 all plans executed (Apps Script pending mode, middleware batch integration, BrewPad UI)
+Phase: 8 of 9 (First-Batch Promo) -- CONTEXT GATHERED
+Plan: 0 of ? (not yet planned)
+Status: Phase 8 context gathered — ready for planning
+Last activity: 2026-05-03 -- Phase 8 context discussion (banner, promo UX, redemption, discount scope)
 
 Progress: [##########] 100% (Phase 6)
 
@@ -73,5 +73,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-05-03
-Stopped at: Phase 6 complete — human verification pending on staging
-Resume file: .planning/phases/06-kiosk-to-brewpad-integration/06-VERIFICATION.md
+Stopped at: Phase 8 context gathered — ready for planning
+Resume file: .planning/phases/08-first-batch-promo/08-CONTEXT.md
