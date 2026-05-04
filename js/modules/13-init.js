@@ -298,6 +298,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initCartDrawer();
     setupBeerWaitlistForm();
     initPromoBanner();
+    loadTestimonials();
   }
 
   // NOTE: loadFooterHours() is intentionally NOT called. It derives hours
@@ -606,6 +607,36 @@ function loadOpenHours() {
     .catch(function () {
       return fetchAndRender(localUrl).catch(function () {});
     });
+}
+
+function loadTestimonials() {
+  var container = document.getElementById('testimonials-grid');
+  if (!container) return;
+
+  fetch('content/reviews.json')
+    .then(function (res) { return res.ok ? res.json() : {}; })
+    .then(function (data) {
+      var reviews = data.reviews;
+      if (!reviews || !reviews.length) return;
+
+      var html = '';
+      reviews.forEach(function (r) {
+        var stars = '';
+        for (var i = 0; i < 5; i++) {
+          stars += i < r.rating ? '&#9733;' : '&#9734;';
+        }
+        html += '<div class="testimonial-card">'
+          + '<div class="testimonial-stars" aria-label="' + r.rating + ' out of 5 stars">' + stars + '</div>'
+          + '<blockquote class="testimonial-text"><p>' + escapeHTML(r.text) + '</p>'
+          + '<footer class="testimonial-name">&mdash; ' + escapeHTML(r.name) + '</footer>'
+          + '</blockquote>'
+          + '<a href="' + escapeHTML(r.url) + '" class="testimonial-link"'
+          + ' target="_blank" rel="noopener">View on Google</a>'
+          + '</div>';
+      });
+      container.innerHTML = html;
+    })
+    .catch(function () { /* silently fail - testimonials are non-critical */ });
 }
 
 function loadFAQ() {
