@@ -8318,7 +8318,6 @@ document.addEventListener('DOMContentLoaded', function () {
     initCartDrawer();
     setupBeerWaitlistForm();
     initPromoBanner();
-    loadTestimonials();
   }
 
   // NOTE: loadFooterHours() is intentionally NOT called. It derives hours
