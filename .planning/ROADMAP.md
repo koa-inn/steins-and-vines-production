@@ -132,10 +132,20 @@ Plans:
   3. If a customer email has already redeemed FIRSTBATCH, the code is rejected with a clear message -- enforced server-side via Redis
 **Plans**: TBD
 
+### Phase 9: Content & SEO Push
+**Goal**: Product pages and homepage feel professional, trustworthy, and discoverable — with real facility photos, SEO landing copy, and linked Google Review testimonials
+**Depends on**: Nothing (independent — can run in parallel with Phase 8)
+**Requirements**: SEO-01, SEO-02, SEO-03
+**Success Criteria** (what must be TRUE):
+  1. Ferment-in-store and ingredients/supplies product pages have unique, SEO-targeted landing copy that describes what the business offers and why
+  2. Professional facility/process photos appear on the homepage and product pages
+  3. Customer testimonials from Google Reviews are displayed on the site with links back to the original reviews
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 5 -> 6 -> 7 (Phase 8 can run independently)
+Phases execute in numeric order: 5 -> 6 -> 7 (Phases 8 and 9 can run in parallel, independent of 7)
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -147,3 +157,4 @@ Phases execute in numeric order: 5 -> 6 -> 7 (Phase 8 can run independently)
 | 6. Kiosk-to-Brewpad Integration | v1.1 | 3/3 | Complete | 2026-05-03 |
 | 7. Zoho Audit Trail | v1.1 | 0/? | Not started | - |
 | 8. First-Batch Promo | v1.1 | 0/? | Not started | - |
+| 9. Content & SEO Push | v1.1 | 0/? | Not started | - |

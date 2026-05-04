@@ -32,6 +32,12 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [ ] **PROMO-02**: Checkout flow accepts a promo code input field and applies 20% discount to kit line items when valid
 - [ ] **PROMO-03**: Middleware validates promo code and enforces one redemption per email address via Redis
 
+### Content & SEO Push
+
+- [ ] **SEO-01**: Ferment-in-store and ingredients/supplies product pages have unique landing page copy with SEO-targeted content
+- [ ] **SEO-02**: Professional facility/process photos are added to key pages (homepage, product pages)
+- [ ] **SEO-03**: Google Review testimonials displayed on the site with links back to original reviews for authenticity
+
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
