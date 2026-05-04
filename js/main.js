@@ -1723,6 +1723,25 @@ function loadProducts() {
           } else if (scrollAttempts < 10) {
             scrollAttempts++;
             setTimeout(tryScrollToProduct, 100);
+          } else {
+            // SKU not found in current tab — try switching to ingredients
+            var ingTab = document.querySelector('.product-tab-btn[data-product-tab="ingredients"]');
+            if (ingTab && !ingTab.classList.contains('active')) {
+              ingTab.click();
+              var ingAttempts = 0;
+              function tryScrollIngredient() {
+                var card = document.querySelector('[data-sku="' + targetSku + '"]');
+                if (card) {
+                  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  card.classList.add('highlight');
+                  setTimeout(function () { card.classList.remove('highlight'); }, 2000);
+                } else if (ingAttempts < 10) {
+                  ingAttempts++;
+                  setTimeout(tryScrollIngredient, 100);
+                }
+              }
+              setTimeout(tryScrollIngredient, 50);
+            }
           }
         }
         setTimeout(tryScrollToProduct, 50);
