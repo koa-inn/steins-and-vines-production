@@ -58,15 +58,20 @@ Source: existing `.intro { padding: 3rem 0 }`, `.testimonial-card { padding: 1.5
 
 All sizes are relative to the `html { font-size: 16px }` base declared in `styles.css`.
 
+Maximum 4 sizes, maximum 2 weights.
+
 | Role | Size | Weight | Line Height | Font Stack | Usage |
 |------|------|--------|-------------|-----------|-------|
-| Body | 16px (1rem) | 400 | 1.6 | `--font-body` (Lato) | Landing page copy paragraphs |
+| Body | 16px (1rem) | 400 | 1.6 | `--font-body` (Lato) | Landing page copy paragraphs, testimonial quote text, star rating characters |
 | Label / Small | 14px (0.875rem) | 700 | 1.4 | `--font-body` (Lato) | Reviewer name, "View on Google" link |
-| Heading h2 | clamp(22px, fluid, 36px) | 600 | 1.2 | `--font-display` (Playfair Display) | "What Our Customers Say", landing page h2s |
-| Heading h3 | 24px (1.5rem) | 600 | 1.2 | `--font-display` (Playfair Display) | Landing page sub-section headings |
+| Heading h3 | 24px (1.5rem) | 700 | 1.2 | `--font-display` (Playfair Display) | Landing page sub-section headings |
+| Heading h2 | clamp(22px, 4vw, 36px) | 700 | 1.2 | `--font-display` (Playfair Display) | "What Our Customers Say", landing page h2s |
 
-Testimonial quote text: 15px (0.95rem), weight 400, line-height 1.6, italic — matches `.location-address` sizing pattern.
-Star rating: 17.6px (1.1rem), weight 400 — sized for visual clarity at small card widths.
+Notes on consolidation:
+- Testimonial quote text: `1rem` (body size) weight 400, italic — merged from prior `0.95rem` standalone.
+- Star rating: `1rem` (body size) — merged from prior `1.1rem` standalone. Visual size difference is negligible at card widths.
+- `.testimonial-link`: `0.875rem` (label size) — merged from prior `0.8rem` standalone.
+- h2 and h3 weight changed from 600 to 700 — eliminates the third weight, keeps headings bold against body.
 
 Source: `css/styles.css` lines 141–214, RESEARCH.md Pattern 4.
 
@@ -91,6 +96,12 @@ Accent (`--color-green`) reserved for: section h2 headings, reviewer name citati
 Card border: `rgba(74, 111, 75, 0.2)` — a 20% opacity green, matching the existing subtle border pattern seen in product cards.
 
 Source: `css/styles.css` lines 116–138 (`:root`), RESEARCH.md Pattern 4, CONTEXT.md D-10/D-11.
+
+---
+
+## Visual Focal Point
+
+The primary visual anchor on the homepage is the testimonial section heading "What Our Customers Say" — rendered in `--color-green` Playfair Display h2 — positioned immediately below the "Why Make Your Own Wine?" section, which anchors visitor attention before the social-proof cards appear.
 
 ---
 
@@ -140,11 +151,11 @@ Semantic note: `<blockquote>` with `<footer>` for attribution (not `<cite>`) —
 | `.testimonials` | `padding: 3rem 0; text-align: center` |
 | `.testimonials h2` | `color: var(--color-green); margin-bottom: 2rem` |
 | `.testimonials-grid` | `display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: 1rem` |
-| `.testimonial-card` | `background: white; border: 1px solid rgba(74,111,75,0.2); border-radius: var(--radius-sm); padding: 1.5rem; text-align: left; display: flex; flex-direction: column; gap: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08)` |
-| `.testimonial-stars` | `color: var(--color-brown); font-size: 1.1rem; letter-spacing: 0.05em` |
-| `.testimonial-text` | `font-style: italic; font-size: 0.95rem; line-height: 1.6; color: var(--color-text); flex: 1; margin: 0` |
+| `.testimonial-card` | `background: white; border: 1px solid rgba(74,111,75,0.2); border-radius: var(--radius-sm); padding: 1.5rem; text-align: left; display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08)` |
+| `.testimonial-stars` | `color: var(--color-brown); font-size: 1rem; letter-spacing: 0.05em` |
+| `.testimonial-text` | `font-style: italic; font-size: 1rem; line-height: 1.6; color: var(--color-text); flex: 1; margin: 0` |
 | `.testimonial-name` | `font-weight: 700; font-style: normal; font-size: 0.875rem; color: var(--color-green); display: block; margin-top: 0.5rem` |
-| `.testimonial-link` | `font-size: 0.8rem; color: var(--color-burgundy); text-decoration: underline; align-self: flex-start` |
+| `.testimonial-link` | `font-size: 0.875rem; color: var(--color-burgundy); text-decoration: underline; align-self: flex-start` |
 
 ### 2. Landing Copy Section (NEW)
 
