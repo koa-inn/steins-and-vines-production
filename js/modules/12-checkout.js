@@ -314,8 +314,10 @@ function refreshReservationDependents() {
 function applyPromoCode() {
   var codeInput = document.getElementById('promo-code-input');
   var code = (codeInput ? codeInput.value : '').trim();
-  var emailEl = document.getElementById('res-email');
-  var email = (emailEl ? emailEl.value : '').trim();
+  var promoEmailEl = document.getElementById('promo-email-input');
+  var mainEmailEl = document.getElementById('res-email');
+  var email = (promoEmailEl ? promoEmailEl.value : '').trim();
+  if (!email && mainEmailEl) email = mainEmailEl.value.trim();
   var msgEl = document.getElementById('promo-code-msg');
   var applyBtn = document.getElementById('promo-code-apply');
 
@@ -328,10 +330,13 @@ function applyPromoCode() {
     return;
   }
   if (!email || email.indexOf('@') === -1) {
-    if (msgEl) { msgEl.textContent = 'Please enter your email address first.'; msgEl.className = 'promo-code-msg promo-code-msg--error'; }
-    if (emailEl) emailEl.focus();
+    if (msgEl) { msgEl.textContent = 'Please enter your email to apply the code.'; msgEl.className = 'promo-code-msg promo-code-msg--error'; }
+    if (promoEmailEl) promoEmailEl.focus();
     return;
   }
+
+  // Sync promo email to the main checkout email field
+  if (mainEmailEl && !mainEmailEl.value.trim()) mainEmailEl.value = email;
 
   // Loading state
   if (applyBtn) { applyBtn.textContent = 'Checking...'; applyBtn.classList.add('btn-loading'); applyBtn.setAttribute('aria-disabled', 'true'); }
@@ -384,15 +389,21 @@ function renderPromoWidget(container) {
       });
     }
   } else {
-    // Not-applied state: show input + apply button
+    // Not-applied state: show email + code inputs with apply button
+    var existingEmail = '';
+    var mainEmailEl = document.getElementById('res-email');
+    if (mainEmailEl && mainEmailEl.value.trim()) existingEmail = mainEmailEl.value.trim();
     row.innerHTML =
       '<div class="promo-code-field">' +
-        '<label for="promo-code-input" class="promo-code-label">Promo Code</label>' +
+        '<label class="promo-code-label">Have a promo code?</label>' +
         '<div class="promo-code-input-wrap">' +
+          '<input type="email" id="promo-email-input" class="promo-code-input promo-code-email"' +
+          ' placeholder="Your email" autocomplete="email" inputmode="email"' +
+          ' value="' + escapeHTML(existingEmail) + '" />' +
           '<input type="text" id="promo-code-input" class="promo-code-input"' +
-          ' placeholder="e.g. FIRSTBATCH" autocomplete="off"' +
+          ' placeholder="Code" autocomplete="off"' +
           ' aria-describedby="promo-code-msg" maxlength="32" />' +
-          '<button type="button" id="promo-code-apply" class="btn promo-code-apply-btn">Apply Code</button>' +
+          '<button type="button" id="promo-code-apply" class="btn promo-code-apply-btn">Apply</button>' +
         '</div>' +
         '<span id="promo-code-msg" class="promo-code-msg" role="status" aria-live="polite"></span>' +
       '</div>';
@@ -400,7 +411,18 @@ function renderPromoWidget(container) {
     if (applyBtn) {
       applyBtn.addEventListener('click', applyPromoCode);
     }
-    // Allow Enter key in input to trigger apply
+    // Sync promo email → main checkout email on input
+    var promoEmailInput = row.querySelector('#promo-email-input');
+    if (promoEmailInput) {
+      promoEmailInput.addEventListener('input', function () {
+        var mainEl = document.getElementById('res-email');
+        if (mainEl) mainEl.value = promoEmailInput.value;
+      });
+      promoEmailInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); applyPromoCode(); }
+      });
+    }
+    // Allow Enter key in code input to trigger apply
     var inputEl = row.querySelector('#promo-code-input');
     if (inputEl) {
       inputEl.addEventListener('keydown', function (e) {

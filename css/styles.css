@@ -6716,6 +6716,10 @@ footer {
   text-transform: uppercase;
   background: #fff;
 }
+.promo-code-email {
+  text-transform: none;
+  flex: 1.5;
+}
 .promo-code-input:focus {
   outline: 2px solid var(--color-burgundy);
   outline-offset: -1px;
@@ -6730,6 +6734,10 @@ footer {
   padding: 0.5rem 1rem;
   min-height: 44px;
   white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .promo-code-input-wrap { flex-wrap: wrap; }
+  .promo-code-email { flex-basis: 100%; }
 }
 .promo-code-msg {
   display: block;
