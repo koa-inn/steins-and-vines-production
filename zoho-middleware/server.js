@@ -230,6 +230,8 @@ app.use('/api', function (req, res, next) {
   if (req.method === 'GET') return next();
   // /api/checkout is public — protected by reCAPTCHA + rate limit instead of API key
   if (req.path === '/checkout') return next();
+  // Promo validation is called from public checkout page without API key
+  if (req.path === '/promo/validate') return next();
   // Webhooks are protected by HMAC signature verification, not API key
   if (req.path.indexOf('/webhooks/') === 0) return next();
   if (!API_SECRET_KEY) {
@@ -384,6 +386,7 @@ app.use('/', require('./routes/collect'));
 app.use('/', require('./routes/purchaseorders'));
 app.use('/', require('./routes/consignment'));
 app.use('/', require('./routes/discounts'));
+app.use('/', require('./routes/promo'));
 app.use(require('./routes/webhooks'));
 
 // Sentry error handler (must be after routes, before other error handlers)
