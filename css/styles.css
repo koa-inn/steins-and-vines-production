@@ -6870,3 +6870,18 @@ footer {
 .landing-copy .btn {
   margin-top: 1.5rem;
 }
+
+/* ===== Facility Photos ===== */
+.facility-photo {
+  margin: 2rem auto;
+  max-width: 800px;
+}
+
+.facility-photo-img {
+  border: 8px solid var(--color-brown);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  height: auto;
+  display: block;
+}
