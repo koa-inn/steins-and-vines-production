@@ -6848,3 +6848,25 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== Landing Copy (SEO sections on product landing pages) ===== */
+.landing-copy {
+  padding: 3rem 0;
+  text-align: center;
+}
+
+.landing-copy h2,
+.landing-copy h3 {
+  color: var(--color-green);
+  margin-bottom: 1rem;
+}
+
+.landing-copy p {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 800px;
+}
+
+.landing-copy .btn {
+  margin-top: 1.5rem;
+}
