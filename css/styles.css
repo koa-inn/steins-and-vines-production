@@ -6684,3 +6684,87 @@ footer {
   color: #555;
   margin-bottom: 1rem;
 }
+
+/* ===== Promo Code Widget (checkout) ===== */
+.promo-code-row {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(55,14,19,0.04);
+  border: 1px solid rgba(119,70,45,0.3);
+  border-radius: 4px;
+}
+.promo-code-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-green);
+  margin-bottom: 0.5rem;
+}
+.promo-code-input-wrap {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+.promo-code-input {
+  flex: 1;
+  min-height: 44px;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--color-brown);
+  border-radius: 4px;
+  font-size: 1rem;
+  font-family: inherit;
+  text-transform: uppercase;
+  background: #fff;
+}
+.promo-code-input:focus {
+  outline: 2px solid var(--color-burgundy);
+  outline-offset: -1px;
+}
+.promo-code-input.field-error {
+  border-color: var(--color-error);
+}
+.promo-code-input.field-error:focus {
+  outline-color: var(--color-error);
+}
+.promo-code-apply-btn {
+  padding: 0.5rem 1rem;
+  min-height: 44px;
+  white-space: nowrap;
+}
+.promo-code-msg {
+  display: block;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  min-height: 1em;
+}
+.promo-code-msg--error { color: var(--color-error); }
+.promo-code-msg--success { color: var(--color-green); }
+.promo-code-applied { margin-top: 0.5rem; }
+.promo-code-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(74,111,75,0.12);
+  border: 1px solid var(--color-green);
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-green);
+}
+.promo-code-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0 0.25rem;
+}
+.promo-code-remove:hover { color: var(--color-burgundy); }
+
+/* Promo savings row in order summary */
+.reservation-subtotal--savings {
+  color: var(--color-green);
+  font-weight: 600;
+}
