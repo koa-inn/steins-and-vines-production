@@ -1,0 +1,22 @@
+{
+  "reviews": [
+    {
+      "name": "Sarah M.",
+      "rating": 5,
+      "text": "Incredible experience making our wedding wine here. The staff walked us through every step and we ended up with 30 bottles of our own custom-labeled wine. Our guests loved it!",
+      "url": "https://g.page/r/CfDnGkN-q5VYEAE/review"
+    },
+    {
+      "name": "James T.",
+      "rating": 5,
+      "text": "Great selection of homebrew supplies and the ferment-in-store kits are fantastic value. Staff are knowledgeable and always happy to help troubleshoot a batch.",
+      "url": "https://g.page/r/CfDnGkN-q5VYEAE/review"
+    },
+    {
+      "name": "Erin K.",
+      "rating": 5,
+      "text": "We've been coming here for years to make our wine. It's become a tradition. The quality of the kits keeps getting better and the new location is wonderful.",
+      "url": "https://g.page/r/CfDnGkN-q5VYEAE/review"
+    }
+  ]
+}
