@@ -26,6 +26,12 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [ ] **ZOHO-02**: Zoho sales order shows linked batch status (active/complete) via custom field or note
 - [ ] **ZOHO-03**: Staff can view the full audit trail: sale → batch → fermentation progress → completion
 
+### First-Batch Promo
+
+- [ ] **PROMO-01**: Homepage displays a prominent banner advertising 20% off first batch with promo code FIRSTBATCH
+- [ ] **PROMO-02**: Checkout flow accepts a promo code input field and applies 20% discount to kit line items when valid
+- [ ] **PROMO-03**: Middleware validates promo code and enforces one redemption per email address via Redis
+
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in current roadmap.

@@ -122,10 +122,20 @@ Plans:
   3. Staff can view a single timeline or summary showing the full lifecycle: sale date and SO number, batch creation, fermentation start, key milestones, and completion -- without switching between BrewPad and Zoho
 **Plans**: TBD
 
+### Phase 8: First-Batch Promo
+**Goal**: New customers see a 20% discount offer on the homepage and can apply promo code FIRSTBATCH at checkout, with one-use-per-email enforcement
+**Depends on**: Nothing (independent of Phase 7)
+**Requirements**: PROMO-01, PROMO-02, PROMO-03
+**Success Criteria** (what must be TRUE):
+  1. Homepage displays a prominent banner advertising "20% off your first batch" with the code FIRSTBATCH clearly visible
+  2. Checkout flow has a promo code input field that accepts FIRSTBATCH and applies a 20% discount to kit line items before payment
+  3. If a customer email has already redeemed FIRSTBATCH, the code is rejected with a clear message -- enforced server-side via Redis
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 5 -> 6 -> 7
+Phases execute in numeric order: 5 -> 6 -> 7 (Phase 8 can run independently)
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -136,3 +146,4 @@ Phases execute in numeric order: 5 -> 6 -> 7
 | 5. Auth Reliability | v1.1 | 2/2 | Complete | 2026-04-29 |
 | 6. Kiosk-to-Brewpad Integration | v1.1 | 3/3 | Complete | 2026-05-03 |
 | 7. Zoho Audit Trail | v1.1 | 0/? | Not started | - |
+| 8. First-Batch Promo | v1.1 | 0/? | Not started | - |
