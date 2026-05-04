@@ -56,6 +56,9 @@ var CACHE_KEYS = {
 
   // Brewpad batch creation retry queue
   BATCH_RETRY_PREFIX:     'brewpad:pending-batch:',
+
+  // Promo code redemption tracking
+  PROMO_REDEEMED_PREFIX:  'promo:firstbatch:redeemed:',  // append lowercased email
 };
 
 // ---------------------------------------------------------------------------
