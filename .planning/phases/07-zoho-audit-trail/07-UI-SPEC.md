@@ -35,7 +35,7 @@ Declared values (multiples of 4 — inferred from existing `brewpad.css` measure
 |-------|-------|-------|
 | xs | 4px | Icon gaps, badge margin, dot-to-line spacing in timeline |
 | sm | 8px | Info-row padding, gap inside search results, section-title margin-bottom |
-| md | 16px | Detail pane inner padding, section gap |
+| md | 16px | Detail pane inner padding, section gap, `.bp-lifecycle-timeline` margin-bottom, `.bp-link-so-wrap` margin-bottom |
 | lg | 24px | Between major timeline sections |
 | xl | 32px | Not used in this phase |
 | 2xl | 48px | Not used in this phase |
@@ -97,7 +97,7 @@ New CSS classes to be added to `css/brewpad.css`. All follow existing `.bp-` nam
 ### Timeline Section
 
 ```
-.bp-lifecycle-timeline          — wrapper div, margin-bottom 18px (matches .bp-detail-section)
+.bp-lifecycle-timeline          — wrapper div, margin-bottom 16px (md — matches .bp-detail-section)
 .bp-lifecycle-title             — reuse .bp-detail-section-title (12px, 700, uppercase, --ink-tertiary)
 .bp-timeline-track              — vertical flex column, gap 0px (dots and lines are adjacent)
 .bp-timeline-event              — flex row, align-items flex-start, gap 12px, padding 0 0 16px 0
@@ -116,7 +116,7 @@ New CSS classes to be added to `css/brewpad.css`. All follow existing `.bp-` nam
 ### Link to Sales Order Button and Search
 
 ```
-.bp-link-so-wrap                — flex column, gap 8px, margin-bottom 14px (inside .bp-detail-section)
+.bp-link-so-wrap                — flex column, gap 8px, margin-bottom 16px (md — inside .bp-detail-section)
 .bp-link-so-btn                 — reuse .btn .bp-btn-sm (existing green button styles)
 .bp-so-search-wrap              — flex row, gap 8px, align-items center
 .bp-so-search-input             — reuse .bp-inline-input (existing text input styles), flex 1, placeholder: "Customer name or SO number…"
@@ -128,7 +128,7 @@ New CSS classes to be added to `css/brewpad.css`. All follow existing `.bp-` nam
 .bp-so-result-meta              — font-size 0.75rem, color --ink-secondary (SO number + date)
 .bp-so-linked-display           — flex row, gap 8px, align-items center, font-size 0.875rem (shows confirmed link)
 .bp-so-linked-text              — color --ink-primary (SO number)
-.bp-so-change-btn               — font-size 0.75rem, color --cellar-green, background none, border none, cursor pointer, text-decoration underline; label: "Change"
+.bp-so-change-btn               — font-size 0.75rem, color --cellar-green, background none, border none, cursor pointer, text-decoration underline; label: "Change Linked Order"
 ```
 
 ### Sync Status Indicator
@@ -149,13 +149,13 @@ Source: CONTEXT.md (D-07–D-09, D-11), existing `brewpad.css` patterns.
 ### Link to Sales Order Flow
 
 1. Batch detail view always shows "Link to Sales Order" button in the SO info area (below Zoho Ref row, or replacing the empty SO area if none set). Button label: **"Link to Sales Order"** (no SO linked) or reveals search immediately on click when already linked.
-2. On click: button hides; `.bp-so-search-wrap` appears inline with a text input and a "Cancel" link.
+2. On click: button hides; `.bp-so-search-wrap` appears inline with a text input and a **"Close search"** link (when no SO is currently linked) or a **"Keep current link"** link (when an SO is already linked).
 3. User types 2+ characters → debounced 400ms → `GET /api/batch/search-so?q={query}` → results appear in `.bp-so-results` dropdown beneath input.
 4. While fetching: input shows no spinner (keep it simple), results area shows a single `.bp-so-result-item` with text "Searching…" in `--ink-muted`.
 5. No results: single item with "No matching orders found" in `--ink-muted`.
-6. Staff clicks a result: dropdown closes, search UI hides, `.bp-so-linked-display` appears showing SO number + "Change" link. `POST /api/batch/sync-zoho` is fired fire-and-forget with batch_id + SO data.
-7. "Change" link: replaces `.bp-so-linked-display` with the search input again (same flow from step 2).
-8. "Cancel" link: search UI hides, returns to previous state (either button or linked display).
+6. Staff clicks a result: dropdown closes, search UI hides, `.bp-so-linked-display` appears showing SO number + "Change Linked Order" link. `POST /api/batch/sync-zoho` is fired fire-and-forget with batch_id + SO data.
+7. "Change Linked Order" link: replaces `.bp-so-linked-display` with the search input again (same flow from step 2, dismissal link reads "Keep current link").
+8. "Close search" / "Keep current link" link: search UI hides, returns to previous state (either button or linked display).
 
 ### Timeline Rendering
 
@@ -191,11 +191,12 @@ Source: CONTEXT.md (D-04, D-06, D-08, D-09, D-11).
 | Timeline event: batch completed | "Batch Completed" |
 | Pending event note | "(pending)" |
 | Primary CTA: no SO linked | "Link to Sales Order" |
-| Primary CTA: SO linked, change | "Change" |
+| Primary CTA: SO linked, change | "Change Linked Order" |
 | SO search placeholder | "Customer name or SO number…" |
 | SO search: loading | "Searching…" |
 | SO search: no results | "No matching orders found" |
-| SO search: cancel | "Cancel" |
+| SO search dismiss: no SO linked | "Close search" |
+| SO search dismiss: SO already linked | "Keep current link" |
 | Sync indicator: in progress | "syncing…" |
 | Sync indicator: failed | "sync failed — will retry" |
 | Empty state: no SO linked (Zoho Ref row) | "— Link to Sales Order" (dash + link/button) |
@@ -217,12 +218,14 @@ The batch detail view in `js/brewpad.js` renders sections sequentially. New Phas
 [Info grid: Product, Customer, Start, Zoho Ref + sync indicator]   ← extend existing
   └─ [Link to Sales Order button / linked display / search UI]       ← NEW, below Zoho Ref row
 [Location section]                                                   ← existing, unchanged
-[Lifecycle section]                                                  ← NEW, after Location
+[Lifecycle section]                                                  ← NEW, after Location  ← PRIMARY VISUAL ANCHOR
 [Tasks section]                                                      ← existing, shifted down
 [Measurements section]                                               ← existing, shifted down
 [Notes section]                                                      ← existing, shifted down
 [Footer actions]                                                     ← existing, unchanged
 ```
+
+**Primary visual anchor:** The Lifecycle timeline section. It is the largest new visual element in this phase and should draw the eye immediately upon scrolling past the info grid.
 
 Source: CONTEXT.md (D-07), `js/brewpad.js` line ~1547 (batch detail render).
 
