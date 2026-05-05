@@ -1713,7 +1713,9 @@ function createBatch(payload, userEmail) {
       now,
       '',
       sanitizeInput(payload.source || 'manual'),
-      sanitizeInput(payload.zoho_so_number || '')
+      sanitizeInput(payload.zoho_so_number || ''),
+      isPending ? '' : (payload.start_date || now),  // col 23: fermentation_started_at (Phase 7)
+      ''                                              // col 24: completed_at (Phase 7)
     ]);
 
     var tasksCreated = 0;
@@ -1876,7 +1878,12 @@ function updateBatch(payload, userEmail) {
   }
 
   // Apply updates
-  var allowedFields = ['status', 'vessel_id', 'shelf_id', 'bin_id', 'notes'];
+  var allowedFields = [
+    'status', 'vessel_id', 'shelf_id', 'bin_id', 'notes',
+    // Phase 7: SO linking fields (D-04, D-05) and lifecycle date columns (D-09)
+    'zoho_so_number', 'customer_id', 'customer_name', 'product_name',
+    'fermentation_started_at', 'completed_at'
+  ];
   allowedFields.forEach(function (field) {
     if (updates[field] !== undefined) {
       var colIndex = headers.indexOf(field);
@@ -1898,6 +1905,13 @@ function updateBatch(payload, userEmail) {
         setVesselStatus(vesselId, 'Empty');
       } else if (!wasActive && isActive) {
         setVesselStatus(vesselId, 'In-Use');
+      }
+    }
+    // Phase 7: write fermentation_started_at when pending batch transitions to active (D-09)
+    if (oldStatus === 'pending') {
+      var fermCol = headers.indexOf('fermentation_started_at');
+      if (fermCol !== -1) {
+        sheet.getRange(row, fermCol + 1).setValue(now);
       }
     }
   }
@@ -2261,6 +2275,9 @@ function handlePackagingCompletion(batchId, timestamp) {
   var luCol = result.headers.indexOf('last_updated');
   if (statusCol !== -1) result.sheet.getRange(result.row, statusCol + 1).setValue('complete');
   if (luCol !== -1) result.sheet.getRange(result.row, luCol + 1).setValue(timestamp);
+  // Phase 7: record batch completion timestamp (D-09)
+  var completedAtCol = result.headers.indexOf('completed_at');
+  if (completedAtCol !== -1) result.sheet.getRange(result.row, completedAtCol + 1).setValue(timestamp);
 
   // Release the vessel back to available
   var vesselId = String(result.data.vessel_id || '');
