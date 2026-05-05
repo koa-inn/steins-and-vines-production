@@ -85,6 +85,38 @@ function shouldShowKioskBadge(source, status) {
   return source === 'kiosk' && (status || '').toLowerCase() === 'pending';
 }
 
+function buildLifecycleTimeline(batch, soDate) {
+  var events = [
+    { label: 'Sale & Invoice Created', date: soDate, soRef: batch.zoho_so_number || '' },
+    { label: 'Batch Created',          date: batch.created_at },
+    { label: 'Fermentation Started',   date: batch.fermentation_started_at },
+    { label: 'Batch Completed',        date: batch.completed_at }
+  ];
+
+  var html = '<div class="bp-timeline">';
+  for (var i = 0; i < events.length; i++) {
+    var ev = events[i];
+    var done = !!ev.date;
+    html += '<div class="bp-timeline-item' + (done ? ' bp-timeline-item--done' : '') + '">';
+    html += '<div class="bp-timeline-spine">';
+    html += '<div class="bp-timeline-dot ' + (done ? 'bp-timeline-dot--done' : 'bp-timeline-dot--pending') + '"></div>';
+    html += '<div class="bp-timeline-line"></div>';
+    html += '</div>';
+    html += '<div class="bp-timeline-body">';
+    var labelText = ev.label;
+    if (ev.soRef) labelText += ' — ' + escapeHTML(ev.soRef);
+    html += '<span class="bp-timeline-label">' + labelText + '</span>';
+    if (done) {
+      html += '<span class="bp-timeline-date">' + fmtDate(ev.date) + '</span>';
+    } else {
+      html += '<span class="bp-timeline-pending-note">(pending)</span>';
+    }
+    html += '</div></div>';
+  }
+  html += '</div>';
+  return html;
+}
+
 (function () {
   'use strict';
 
@@ -133,6 +165,8 @@ function shouldShowKioskBadge(source, status) {
   var _detailPlatoReadings = [];
   var _detailStartDate = null;
   var _detailBatchId = null;
+  var _soSearchTimer = null;
+  var _currentBatchDetail = null;
 
   // Tasks
   var _upcomingTasks = [];
@@ -599,6 +633,160 @@ function shouldShowKioskBadge(source, status) {
 
   function mwUrl() {
     return (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL) || '';
+  }
+
+  function mwApiKey() {
+    return (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) || '';
+  }
+
+  function showSyncIndicator(state) {
+    var el = document.getElementById('bp-sync-indicator');
+    if (!el) return;
+    if (state === 'ok') {
+      el.style.display = 'none';
+      el.className = 'bp-sync-indicator';
+      el.textContent = '';
+      return;
+    }
+    el.style.display = '';
+    if (state === 'syncing') {
+      el.className = 'bp-sync-indicator bp-sync-indicator--syncing';
+      el.textContent = 'syncing…';
+    } else {
+      el.className = 'bp-sync-indicator bp-sync-indicator--failed';
+      el.textContent = 'sync failed — will retry';
+    }
+  }
+
+  function callSyncZoho(batchId, soId, status) {
+    if (!soId) return;
+    showSyncIndicator('syncing');
+    fetch(mwUrl() + '/api/batch/sync-zoho', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': mwApiKey() },
+      body: JSON.stringify({ batch_id: batchId, so_id: soId, status: status })
+    }).then(function (r) { return r.json(); })
+      .then(function (data) {
+        showSyncIndicator(data.ok ? 'ok' : 'failed');
+      })
+      .catch(function () {
+        showSyncIndicator('failed');
+      });
+  }
+
+  function fetchSoSearch(term) {
+    var resultsEl = document.getElementById('bp-so-search-results');
+    if (!resultsEl) return;
+    resultsEl.innerHTML = '<div class="bp-so-result-item" style="color:var(--ink-muted);">Searching…</div>';
+
+    fetch(mwUrl() + '/api/batch/search-invoices?search=' + encodeURIComponent(term), {
+      headers: { 'x-api-key': mwApiKey() }
+    }).then(function (r) { return r.json(); })
+      .then(function (data) {
+        var orders = data.invoices || [];
+        if (orders.length === 0) {
+          resultsEl.innerHTML = '<div class="bp-so-result-item" style="color:var(--ink-muted);">No matching invoices found</div>';
+          return;
+        }
+        var html = '';
+        for (var i = 0; i < orders.length; i++) {
+          var inv = orders[i];
+          html += '<div class="bp-so-result-item" data-so-id="' + escapeHTML(inv.invoice_id) + '"'
+               + ' data-so-number="' + escapeHTML(inv.invoice_number) + '"'
+               + ' data-customer-name="' + escapeHTML(inv.customer_name) + '"'
+               + ' data-customer-id="' + escapeHTML(inv.customer_id || '') + '"'
+               + ' data-so-date="' + escapeHTML(inv.date || '') + '"'
+               + ' data-product-name="' + escapeHTML((inv.line_items && inv.line_items[0] ? inv.line_items[0].name : '') || '') + '">';
+          html += '<span class="bp-so-result-name">' + escapeHTML(inv.customer_name) + '</span>';
+          html += '<span class="bp-so-result-meta">' + escapeHTML(inv.invoice_number) + ' — ' + fmtDate(inv.date) + '</span>';
+          html += '</div>';
+        }
+        resultsEl.innerHTML = html;
+
+        var items = resultsEl.querySelectorAll('.bp-so-result-item[data-so-id]');
+        for (var j = 0; j < items.length; j++) {
+          items[j].addEventListener('click', function () {
+            handleSoSelect(this);
+          });
+        }
+      })
+      .catch(function () {
+        resultsEl.innerHTML = '<div class="bp-so-result-item" style="color:var(--ink-muted);">Search unavailable — check connection</div>';
+      });
+  }
+
+  function handleSoSelect(el) {
+    var soId = el.getAttribute('data-so-id');
+    var soNumber = el.getAttribute('data-so-number');
+    var customerName = el.getAttribute('data-customer-name');
+    var customerId = el.getAttribute('data-customer-id');
+    var productName = el.getAttribute('data-product-name');
+    var soDate = el.getAttribute('data-so-date');
+
+    if (!_detailBatchId || !soId) return;
+
+    var updates = {
+      zoho_so_number: soNumber,
+      customer_id: customerId,
+      customer_name: customerName,
+      product_name: productName
+    };
+
+    adminApiPost('update_batch', { batch_id: _detailBatchId, updates: updates })
+      .then(function () {
+        if (_currentBatchDetail) {
+          _currentBatchDetail.zoho_so_number = soNumber;
+          _currentBatchDetail.customer_name = customerName;
+          _currentBatchDetail.customer_id = customerId;
+          _currentBatchDetail.product_name = productName;
+        }
+
+        showLinkedSo(soNumber);
+
+        var syncStatus = 'pending';
+        if (_currentBatchDetail) {
+          var curStatus = String(_currentBatchDetail.status || '').toLowerCase();
+          if (curStatus === 'complete') syncStatus = 'complete';
+          else if (curStatus !== 'pending') syncStatus = 'active';
+        }
+        callSyncZoho(_detailBatchId, soId, syncStatus);
+
+        var timelineEl = document.getElementById('bp-lifecycle-timeline');
+        if (timelineEl && _currentBatchDetail) {
+          timelineEl.innerHTML = buildLifecycleTimeline(_currentBatchDetail, soDate);
+        }
+
+        showToast('Invoice linked', 'success');
+        _batchesLoaded = false;
+        _allBatchesData = [];
+        _eagerLoadTime = 0;
+        try { sessionStorage.removeItem('sv-bp-batch-' + _detailBatchId); } catch (e) {}
+      })
+      .catch(function () {
+        showToast('Failed to link invoice. Try again.', 'error');
+      });
+  }
+
+  function showLinkedSo(soNumber) {
+    var searchWrap = document.getElementById('bp-link-so-search');
+    var linkedDisplay = document.getElementById('bp-so-linked-display');
+    var linkBtn = document.getElementById('bp-link-so-btn');
+    if (searchWrap) searchWrap.style.display = 'none';
+    if (linkBtn) linkBtn.style.display = 'none';
+    if (linkedDisplay) {
+      linkedDisplay.style.display = '';
+      linkedDisplay.innerHTML = '<span class="bp-so-linked-text">' + escapeHTML(soNumber) + '</span>'
+        + '<button type="button" class="bp-so-change-btn" id="bp-so-change-link">Change Linked Order</button>';
+      var changeBtn = document.getElementById('bp-so-change-link');
+      if (changeBtn) {
+        changeBtn.addEventListener('click', function () {
+          linkedDisplay.style.display = 'none';
+          if (searchWrap) searchWrap.style.display = '';
+          var dismissLink = document.getElementById('bp-so-dismiss');
+          if (dismissLink) dismissLink.textContent = 'Keep current link';
+        });
+      }
+    }
   }
 
   // ===== Utilities =====
@@ -1533,6 +1721,7 @@ function shouldShowKioskBadge(source, status) {
     _detailPlatoReadings = readings.slice();
     _detailStartDate = b.start_date || null;
     _detailBatchId = b.batch_id;
+    _currentBatchDetail = b;
 
     var statusKey = String(b.status || '').toLowerCase();
     var statusLabel = STATUS_LABELS[statusKey] || b.status || '';
@@ -1563,8 +1752,31 @@ function shouldShowKioskBadge(source, status) {
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Customer</span><span>' + escapeHTML(b.customer_name || '\u2014') + '</span></div>';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Start</span><span>' + fmtDate(b.start_date) + '</span></div>';
     if (b.zoho_so_number) {
-      html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Zoho Ref</span><span>' + escapeHTML(b.zoho_so_number) + '</span></div>';
+      html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Zoho Ref</span><span>' + escapeHTML(b.zoho_so_number) + '<span class="bp-sync-indicator" id="bp-sync-indicator" style="display:none;"></span></span></div>';
     }
+    html += '</div>';
+
+    // Invoice linking
+    html += '<div class="bp-detail-section">';
+    html += '<div class="bp-detail-section-title">Invoice</div>';
+    html += '<div class="bp-link-so-wrap">';
+    if (b.zoho_so_number) {
+      html += '<div class="bp-so-linked-display" id="bp-so-linked-display">';
+      html += '<span class="bp-so-linked-text">' + escapeHTML(b.zoho_so_number) + '</span>';
+      html += '<button type="button" class="bp-so-change-btn" id="bp-so-change-link">Change Linked Order</button>';
+      html += '</div>';
+    } else {
+      html += '<div id="bp-so-linked-display" style="display:none;"></div>';
+    }
+    html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-link-so-btn"' + (b.zoho_so_number ? ' style="display:none;"' : '') + '>Link to Invoice</button>';
+    html += '<div id="bp-link-so-search" style="display:none;">';
+    html += '<div class="bp-so-search-wrap">';
+    html += '<input type="text" id="bp-so-search-input" class="bp-inline-input" placeholder="Customer name or invoice number…" autocomplete="off">';
+    html += '<button type="button" class="bp-so-dismiss-link" id="bp-so-dismiss">' + (b.zoho_so_number ? 'Keep current link' : 'Close search') + '</button>';
+    html += '</div>';
+    html += '<div class="bp-so-results" id="bp-so-search-results"></div>';
+    html += '</div>';
+    html += '</div>';
     html += '</div>';
 
     // Location
@@ -1581,6 +1793,12 @@ function shouldShowKioskBadge(source, status) {
     html += '<input type="text" id="bp-edit-bin" class="bp-inline-input bp-bin-input" value="' + escapeHTML(b.bin_id || '') + '" placeholder="01">';
     html += '<button type="button" class="btn bp-btn-sm" id="bp-save-location">Save</button>';
     html += '</div></div>';
+
+    // Lifecycle timeline
+    html += '<div class="bp-detail-section">';
+    html += '<div class="bp-detail-section-title">Lifecycle</div>';
+    html += '<div id="bp-lifecycle-timeline">' + buildLifecycleTimeline(b, null) + '</div>';
+    html += '</div>';
 
     // Tasks
     html += '<div class="bp-detail-section">';
@@ -1691,6 +1909,9 @@ function shouldShowKioskBadge(source, status) {
             statusBadge.className = 'bp-status-badge bp-status-badge--' + (STATUS_COLORS[next] || 'info') + ' bp-status-clickable';
             statusBadge.setAttribute('aria-label', 'Batch status: ' + (STATUS_LABELS[next] || next) + '. Click to change.');
             showToast('Status updated', 'success');
+            var syncStatus = 'active';
+            if (next === 'complete') syncStatus = 'complete';
+            callSyncZoho(b.batch_id, b.zoho_so_number, syncStatus);
             // Update the cached batch and refresh list immediately
             for (var bi = 0; bi < _batchesData.length; bi++) {
               if (_batchesData[bi].batch_id === b.batch_id) { _batchesData[bi].status = next; break; }
@@ -1707,6 +1928,89 @@ function shouldShowKioskBadge(source, status) {
           }
         );
       });
+    }
+
+    // Invoice linking event listeners
+    var linkSoBtn = document.getElementById('bp-link-so-btn');
+    if (linkSoBtn) {
+      linkSoBtn.addEventListener('click', function () {
+        linkSoBtn.style.display = 'none';
+        var searchWrap = document.getElementById('bp-link-so-search');
+        if (searchWrap) searchWrap.style.display = '';
+        var searchInput = document.getElementById('bp-so-search-input');
+        if (searchInput) searchInput.focus();
+      });
+    }
+
+    var soSearchInput = document.getElementById('bp-so-search-input');
+    if (soSearchInput) {
+      soSearchInput.addEventListener('input', function () {
+        var term = soSearchInput.value.trim();
+        clearTimeout(_soSearchTimer);
+        if (!term || term.length < 2) {
+          var resultsEl = document.getElementById('bp-so-search-results');
+          if (resultsEl) resultsEl.innerHTML = '';
+          return;
+        }
+        _soSearchTimer = setTimeout(function () {
+          fetchSoSearch(term);
+        }, 400);
+      });
+    }
+
+    var soDismiss = document.getElementById('bp-so-dismiss');
+    if (soDismiss) {
+      soDismiss.addEventListener('click', function () {
+        var searchWrap = document.getElementById('bp-link-so-search');
+        if (searchWrap) searchWrap.style.display = 'none';
+        var linkedDisplay = document.getElementById('bp-so-linked-display');
+        if (linkedDisplay && linkedDisplay.innerHTML.trim()) {
+          linkedDisplay.style.display = '';
+        } else {
+          if (linkSoBtn) linkSoBtn.style.display = '';
+        }
+      });
+    }
+
+    var changeLink = document.getElementById('bp-so-change-link');
+    if (changeLink) {
+      changeLink.addEventListener('click', function () {
+        var linkedDisplay = document.getElementById('bp-so-linked-display');
+        if (linkedDisplay) linkedDisplay.style.display = 'none';
+        var searchWrap = document.getElementById('bp-link-so-search');
+        if (searchWrap) searchWrap.style.display = '';
+        var dismissLink = document.getElementById('bp-so-dismiss');
+        if (dismissLink) dismissLink.textContent = 'Keep current link';
+        var searchInput = document.getElementById('bp-so-search-input');
+        if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+      });
+    }
+
+    // Lazy-fetch invoice date for timeline
+    if (b.zoho_so_number) {
+      var searchTerm = b.customer_name || '';
+      if (searchTerm) {
+        fetch(mwUrl() + '/api/batch/search-invoices?search=' + encodeURIComponent(searchTerm), {
+          headers: { 'x-api-key': mwApiKey() }
+        }).then(function (r) { return r.json(); })
+          .then(function (data) {
+            var invoices = data.invoices || [];
+            var matchingInv = null;
+            for (var k = 0; k < invoices.length; k++) {
+              if (invoices[k].invoice_number === b.zoho_so_number) {
+                matchingInv = invoices[k];
+                break;
+              }
+            }
+            if (matchingInv && matchingInv.date) {
+              var timelineEl = document.getElementById('bp-lifecycle-timeline');
+              if (timelineEl) {
+                timelineEl.innerHTML = buildLifecycleTimeline(b, matchingInv.date);
+              }
+            }
+          })
+          .catch(function () {});
+      }
     }
 
     // Readings handlers
@@ -4157,6 +4461,7 @@ if (typeof module !== 'undefined' && module.exports) {
     calcAbv: calcAbv, renderDataGapWarning: renderDataGapWarning,
     isSessionStale: isSessionStale,
     isSessionExpired: isSessionExpired,
-    shouldShowKioskBadge: shouldShowKioskBadge
+    shouldShowKioskBadge: shouldShowKioskBadge,
+    buildLifecycleTimeline: buildLifecycleTimeline
   };
 }
