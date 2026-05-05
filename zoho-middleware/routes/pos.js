@@ -1292,6 +1292,71 @@ router.put('/api/kiosk/salesorder-update', function (req, res) {
     });
 });
 
+// Phase 7: Sync batch status to Zoho invoice custom field (D-01, D-02, D-03)
+router.post('/api/batch/sync-zoho', function (req, res) {
+  var apiKey = req.headers['x-api-key'] || req.query.api_key;
+  if (apiKey !== process.env.MW_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  var body = req.body || {};
+  var soId = body.so_id;
+  var batchId = body.batch_id;
+  var status = body.status;
+
+  if (!soId || typeof soId !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid so_id' });
+  }
+  if (!batchId || typeof batchId !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid batch_id' });
+  }
+  var validStatuses = ['pending', 'active', 'complete'];
+  if (!status || validStatuses.indexOf(status) === -1) {
+    return res.status(400).json({ error: 'Invalid status — must be one of: ' + validStatuses.join(', ') });
+  }
+
+  brewpadIntegration.syncBatchToZoho(soId, batchId, status)
+    .then(function (result) {
+      res.json(result);
+    })
+    .catch(function (err) {
+      log.error('[batch/sync-zoho] Unexpected error: ' + err.message);
+      res.status(500).json({ ok: false, error: 'Internal error' });
+    });
+});
+
+// Phase 7: Search invoices for batch linking (D-04)
+router.get('/api/batch/search-invoices', function (req, res) {
+  var apiKey = req.headers['x-api-key'] || req.query.api_key;
+  if (apiKey !== process.env.MW_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  var search = (req.query.search || '').trim();
+  if (!search || search.length < 2) {
+    return res.status(400).json({ error: 'Search term must be at least 2 characters' });
+  }
+
+  zohoGet('/invoices?search_text=' + encodeURIComponent(search))
+    .then(function (data) {
+      var invoices = (data.invoices || []).map(function (inv) {
+        return {
+          invoice_id: inv.invoice_id,
+          invoice_number: inv.invoice_number,
+          customer_name: inv.customer_name,
+          customer_id: inv.customer_id || '',
+          date: inv.date || '',
+          line_items: inv.line_items || []
+        };
+      });
+      res.json({ invoices: invoices });
+    })
+    .catch(function (err) {
+      log.error('[batch/search-invoices] Zoho error: ' + (err.message || err));
+      res.status(502).json({ error: 'Invoice search failed' });
+    });
+});
+
 /**
  * GET /api/kiosk/salesorder/:id
  * Fetch a single Sales Order detail from Zoho, including line_items.

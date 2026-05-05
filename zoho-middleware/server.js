@@ -454,14 +454,19 @@ cache.init().then(function () {
       log.info('[cron] Scheduled warm-up registered: 05:00 and 13:00 UTC daily');
     }
 
-    // Retry pending batch creations every 5 minutes (D-04)
-    // Runs regardless of Zoho auth state since it calls Apps Script, not Zoho
+    // Retry pending batch creations + Zoho sync retries every 5 minutes (D-04, D-10)
+    // Runs regardless of Zoho auth state since Apps Script calls don't need Zoho auth.
+    // retrySyncQueue skips gracefully if Zoho is not authenticated.
     setInterval(function () {
       brewpadIntegration.retryPendingBatches().catch(function (err) {
         log.error('[brewpad] Retry sweep failed: ' + err.message);
       });
+      // Phase 7: also sweep Zoho sync retries (D-10)
+      brewpadIntegration.retrySyncQueue().catch(function (err) {
+        log.error('[brewpad] Zoho sync retry sweep failed: ' + err.message);
+      });
     }, 5 * 60 * 1000);
-    log.info('[brewpad] Batch retry sweep registered: every 5 minutes');
+    log.info('[brewpad] Batch + Zoho sync retry sweeps registered: every 5 minutes');
   });
 
   process.on('SIGTERM', function () {
