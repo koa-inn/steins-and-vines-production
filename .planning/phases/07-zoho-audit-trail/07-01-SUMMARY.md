@@ -153,6 +153,20 @@ No new threat surface introduced beyond the plan's threat register.
 - `GET /api/batch/search-invoices` is ready for Plan 07-03 (BrewPad "Link to Invoice" UI)
 - ZOHO_CF_BATCH_STATUS env var setup is a prerequisite before any sync will write to Zoho (otherwise graceful skip)
 
+## Self-Check: PASSED
+
+- FOUND: zoho-middleware/lib/constants.js (BATCH_SYNC_RETRY_PREFIX added)
+- FOUND: zoho-middleware/lib/validateEnv.js (ZOHO_CF_BATCH_STATUS added)
+- FOUND: zoho-middleware/lib/brewpad-integration.js (syncBatchToZoho, queueSyncForRetry, retrySyncQueue exported)
+- FOUND: zoho-middleware/routes/pos.js (POST /api/batch/sync-zoho, GET /api/batch/search-invoices added)
+- FOUND: zoho-middleware/server.js (retrySyncQueue in single setInterval)
+- FOUND: zoho-middleware/__tests__/batch-sync.test.js (16 tests, all pass)
+- FOUND: .planning/phases/07-zoho-audit-trail/07-01-SUMMARY.md
+- FOUND: commit 38a795b (Task 1)
+- FOUND: commit 1920811 (Task 2)
+- Full test suite: 442 middleware + 286 frontend = 728 tests passing
+- Lint: 0 errors (79 warnings, all pre-existing)
+
 ---
 *Phase: 07-zoho-audit-trail*
 *Completed: 2026-05-04*
