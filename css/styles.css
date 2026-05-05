@@ -451,6 +451,143 @@ small, .text-small {
   text-decoration: none;
 }
 
+/* ===== Nav Dropdown (Products) ===== */
+.nav-dropdown {
+  position: relative;
+}
+
+.nav-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  list-style: none;
+  background: var(--color-cream);
+  border: 1px solid var(--color-green);
+  border-radius: 4px;
+  padding: 0.4rem 0;
+  min-width: 180px;
+  z-index: 210;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  margin-top: 4px;
+}
+
+.nav-dropdown:hover .nav-dropdown-menu,
+.nav-dropdown:focus-within .nav-dropdown-menu,
+.nav-dropdown.open .nav-dropdown-menu {
+  display: block;
+}
+
+.nav-dropdown-menu a {
+  display: block;
+  padding: 0.5rem 1rem;
+  font-size: 0.825rem;
+  white-space: nowrap;
+  border-bottom: none;
+}
+
+.nav-dropdown-menu a:hover {
+  background: rgba(74, 111, 75, 0.08);
+}
+
+@media (max-width: 768px) {
+  .nav-dropdown-menu {
+    position: static;
+    transform: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    min-width: auto;
+    margin-top: 0;
+    background: rgba(74, 111, 75, 0.04);
+  }
+  .nav-dropdown-menu a {
+    padding: 10px 1.5rem;
+    font-size: 0.8rem;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ===== Phone Call/Text Popover ===== */
+.header-phone-wrap {
+  position: relative;
+  cursor: pointer;
+}
+
+.header-phone-number {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-green);
+  white-space: nowrap;
+}
+
+.header-phone-hint {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: var(--color-green);
+  opacity: 0.7;
+  text-align: center;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.header-phone-popover {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-green);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 210;
+  padding: 0.35rem 0;
+  min-width: 130px;
+}
+
+.header-phone-popover.open {
+  display: block;
+}
+
+.header-phone-popover a {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-green);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.header-phone-popover a:hover {
+  background: rgba(74, 111, 75, 0.08);
+  color: var(--color-burgundy);
+}
+
+@media (max-width: 768px) {
+  .header-phone-number {
+    font-size: 0.85rem;
+  }
+  .header-phone-hint {
+    font-size: 0.6rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-phone-hint {
+    display: none;
+  }
+}
+
 /* ===== Promo Banner ===== */
 .promo-banner {
   background: var(--color-burgundy);

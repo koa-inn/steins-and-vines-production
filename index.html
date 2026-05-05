@@ -69,7 +69,7 @@
     }
     @media(max-width:480px){.title-icon{display:none}}
   </style>
-  <link rel="stylesheet" href="css/styles.min.css?v=morusmn6">
+  <link rel="stylesheet" href="css/styles.min.css?v=morwqmoa">
   <script type="module" src="https://w.behold.so/widget.js"></script>
   <script type="application/ld+json">
   {
@@ -120,13 +120,26 @@
       <a href="index.html" class="logo"><img src="images/SV_Logo_Wordmark_green.svg" alt="Steins &amp; Vines Home"></a>
       <div class="header-contact">
         <span class="open-status" hidden></span>
-        <a href="tel:+16045674565" class="header-phone" aria-label="Call Steins and Vines at (604) 567-4565">(604) 567-4565</a>
+        <div class="header-phone-wrap" aria-label="Contact phone number">
+          <span class="header-phone-number">(604) 567-4565</span>
+          <span class="header-phone-hint">call or text</span>
+          <div class="header-phone-popover" role="menu">
+            <a href="tel:+16045674565" role="menuitem">&#128222; Call</a>
+            <a href="sms:+16045674565" role="menuitem">&#128172; Text</a>
+          </div>
+        </div>
       </div>
       <nav class="main-nav">
         <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">&#9776;</button>
         <ul class="nav-list">
           <li><a href="index.html" class="active">Home</a></li>
-          <li><a href="products/ferment-in-store.html">Products</a></li>
+          <li class="nav-dropdown">
+            <a href="products/ferment-in-store.html">Products</a>
+            <ul class="nav-dropdown-menu">
+              <li><a href="products/ferment-in-store.html">Ferment in Store</a></li>
+              <li><a href="products/ingredients-supplies.html">Ingredients &amp; Supplies</a></li>
+            </ul>
+          </li>
           <li><a href="about.html">About</a></li>
           <li><a href="contact.html">Contact</a></li>
         </ul>
@@ -377,8 +390,8 @@
 
   <script src="js/vendor/sentry.min.js"></script>
   <script src="js/sentry-init.js"></script>
-  <script src="js/sheets-config.js?v=morusmn6" defer></script>
-  <script src="js/main.min.js?v=morusmn6" defer></script>
+  <script src="js/sheets-config.js?v=morwqmoa" defer></script>
+  <script src="js/main.min.js?v=morwqmoa" defer></script>
   
 </body>
 </html>

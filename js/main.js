@@ -8135,10 +8135,12 @@ document.addEventListener('DOMContentLoaded', function () {
       closeNav();
     });
 
-    // Auto-close mobile nav when a link is tapped
+    // Auto-close mobile nav when a link is tapped (except dropdown parent)
     var navLinks = navList.querySelectorAll('a');
     navLinks.forEach(function (link) {
-      link.addEventListener('click', function () {
+      link.addEventListener('click', function (e) {
+        var isDropdownParent = link.parentElement && link.parentElement.classList.contains('nav-dropdown');
+        if (isDropdownParent && window.innerWidth <= 768) return;
         closeNav();
       });
     });
@@ -8162,6 +8164,35 @@ document.addEventListener('DOMContentLoaded', function () {
         first.focus();
       }
     });
+  }
+
+  // Phone popover (call or text)
+  var phoneWrap = document.querySelector('.header-phone-wrap');
+  var phonePopover = document.querySelector('.header-phone-popover');
+  if (phoneWrap && phonePopover) {
+    phoneWrap.addEventListener('click', function (e) {
+      if (e.target.closest('.header-phone-popover')) return;
+      phonePopover.classList.toggle('open');
+    });
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.header-phone-wrap')) {
+        phonePopover.classList.remove('open');
+      }
+    });
+  }
+
+  // Nav dropdown toggle for mobile (touch devices)
+  var navDropdown = document.querySelector('.nav-dropdown');
+  if (navDropdown) {
+    var dropdownLink = navDropdown.querySelector(':scope > a');
+    if (dropdownLink) {
+      dropdownLink.addEventListener('click', function (e) {
+        if (window.innerWidth <= 768) {
+          e.preventDefault();
+          navDropdown.classList.toggle('open');
+        }
+      });
+    }
   }
 
   // Dismiss open tasting-notes tooltips when tapping outside
