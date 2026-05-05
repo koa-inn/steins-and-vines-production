@@ -120,7 +120,15 @@ Plans:
   1. Every batch record (whether auto-created or manual) stores the originating Zoho SO number and customer ID, visible in the batch detail view
   2. The corresponding Zoho sales order shows the batch's current status (active or complete) -- via a custom field or note that updates as the batch progresses
   3. Staff can view a single timeline or summary showing the full lifecycle: sale date and SO number, batch creation, fermentation start, key milestones, and completion -- without switching between BrewPad and Zoho
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+**Wave 1** *(no dependencies -- run in parallel)*
+- [ ] 07-01-PLAN.md -- Middleware Zoho sync: POST /api/batch/sync-zoho endpoint, syncBatchToZoho/retrySyncQueue in brewpad-integration.js, Redis retry queue, unit tests
+- [ ] 07-02-PLAN.md -- Apps Script backend: extend updateBatch allowedFields for SO linking, fermentation_started_at in updateBatchSchedule, completed_at in handlePackagingCompletion, createBatch appendRow extension
+
+**Wave 2** *(depends on Wave 1)*
+- [ ] 07-03-PLAN.md -- BrewPad frontend: lifecycle timeline, Link to Sales Order search/link UI, Zoho sync indicator, CSS, unit tests, build
 
 ### Phase 8: First-Batch Promo
 **Goal**: New customers see a 20% discount offer on the homepage and can apply promo code FIRSTBATCH at checkout, with one-use-per-email enforcement, plus checkout form persistence and cart merge feasibility
@@ -173,6 +181,6 @@ Phases execute in numeric order: 5 -> 6 -> 7 (Phases 8 and 9 can run in parallel
 | 4. Sales Order Management | v1.0 | 2/2 | Complete | 2026-04-28 |
 | 5. Auth Reliability | v1.1 | 2/2 | Complete | 2026-04-29 |
 | 6. Kiosk-to-Brewpad Integration | v1.1 | 3/3 | Complete | 2026-05-03 |
-| 7. Zoho Audit Trail | v1.1 | 0/? | Not started | - |
+| 7. Zoho Audit Trail | v1.1 | 0/3 | Not started | - |
 | 8. First-Batch Promo | v1.1 | 6/6 | Complete   | 2026-05-04 |
 | 9. Content & SEO Push | v1.1 | 3/3 | Complete | 2026-05-04 |
