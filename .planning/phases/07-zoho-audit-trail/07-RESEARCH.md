@@ -322,15 +322,19 @@ This is a one-time human action. The planner should include it as a Wave 0 prere
 
 ---
 
-### Pitfall 4: `fermentation_started_at` Has No Clear Single Trigger
+### Pitfall 4: `fermentation_started_at` Trigger Is the Status Badge Click (RESOLVED)
 
-**What goes wrong:** D-09 says Apps Script populates `fermentation_started_at` on "schedule assigned." In the current code, when a pending batch gets a schedule, the client calls `update_batch_schedule` (line 248 in doPost switch) which transitions status from `pending` to `primary`. There is no separate "fermentation started" event — it coincides with schedule assignment. If the batch was created non-pending (already had a start_date), `fermentation_started_at` should be set at creation.
+**What goes wrong:** D-09 says Apps Script populates `fermentation_started_at` on "schedule assigned." However, `update_batch_schedule` (doPost line 248) does NOT transition status -- it only updates the schedule_snapshot and reconciles tasks. The actual pending-to-primary transition happens when staff clicks the status badge in BrewPad's batch detail view (brewpad.js line 1678-1687), which calls `adminApiPost('update_batch', { batch_id: ..., updates: { status: 'primary' } })`.
 
-**Why it happens:** The batch lifecycle has two creation paths: kiosk-created (always pending → activated later) and manually-created (may have start_date from the start).
+**Resolution (verified via direct codebase read):**
+- `updateBatchSchedule` (adminApi.gs line 1963) only writes `schedule_snapshot` and `last_updated`. It does NOT change status.
+- `update_batch_schedule` is defined in the doPost switch (line 248) but is never called from brewpad.js.
+- Status transitions happen via `update_batch` action. The status badge click handler (brewpad.js line 1678) cycles through `['primary', 'secondary', 'complete']`. When `cur` is `'pending'`, `indexOf('pending')` returns -1, so `next = order[0] = 'primary'`.
+- Therefore, `fermentation_started_at` must be written inside `updateBatch` (adminApi.gs line 1890 area) when the old status is `'pending'` and the new status is non-pending, NOT in `updateBatchSchedule`.
 
-**How to avoid:** Write `fermentation_started_at = now` inside `update_batch_schedule` when transitioning from pending to primary. For non-pending batches created via `createBatch`, write `fermentation_started_at = start_date` at creation time.
+**How to avoid:** Add `fermentation_started_at` write logic inside `updateBatch` after the allowedFields loop, conditioned on `oldStatus === 'pending'` and `updates.status !== undefined && updates.status !== 'pending'`. For non-pending batches created via `createBatch`, write `fermentation_started_at = start_date` at creation time.
 
-**Warning signs:** Timeline shows "Fermentation started" as "(pending)" for manually-created active batches.
+**Warning signs:** Timeline shows "Fermentation started" as "(pending)" for kiosk-created batches that were activated.
 
 ---
 
@@ -449,23 +453,21 @@ var allowedFields = [
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | Zoho Books API accepts `custom_fields` array on PUT `/salesorders/{id}` the same way as on POST `/invoices` | Sync endpoint, Code Examples | The PUT body schema may differ from POST; would need to check Zoho Books API docs and test manually before assuming the payload format is identical |
+| A1 | Zoho Books API accepts `custom_fields` array on PUT `/salesorders/{id}` the same way as on POST `/invoices` | Sync endpoint, Code Examples | The PUT body schema may differ from POST; Plan 07-01 includes a pre-execution verification task to test this before building the full implementation |
 | A2 | `cf_batch_status` will be the auto-generated API name for a field named "Batch Status" in Zoho | Environment Availability | Zoho may generate a different API name; staff must verify the actual API name after field creation |
-| A3 | The `update_batch_schedule` Apps Script action is what fires when a pending batch gets a schedule assigned | Pitfall 4 | If there is a separate code path for activating pending batches, `fermentation_started_at` write must go there instead |
+| A3 | ~~The `update_batch_schedule` Apps Script action is what fires when a pending batch gets a schedule assigned~~ **RESOLVED:** Pending-to-primary transition happens via `updateBatch` (called from status badge click handler in brewpad.js line 1687). `updateBatchSchedule` does NOT change status -- it only updates schedule_snapshot and reconciles tasks. | Pitfall 4 | N/A -- resolved by direct codebase read |
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does Zoho Books PUT /salesorders/{id} support partial updates (only custom_fields)?**
    - What we know: `zohoPut('/salesorders/' + soId, payload)` is used in `/api/kiosk/salesorder-update` with a `{ line_items: [...] }` payload and it works.
    - What's unclear: Whether a body with only `custom_fields` and no `line_items` is accepted, or whether Zoho requires the full SO payload.
-   - Recommendation: A1 above is an assumption. The planner should include a verification step: test the PUT with only `custom_fields` in the payload against a real Zoho SO before writing the full implementation.
+   - **Resolution:** Cannot be confirmed without a live API test. Plan 07-01 Task 1 includes a pre-execution verification step: test the PUT with only `custom_fields` in the payload against a real Zoho SO. If the partial PUT fails, the task specifies a fallback approach (fetch the SO first, merge custom_fields, then PUT the full payload).
 
 2. **Which Apps Script action activates a pending batch (sets fermentation_started_at)?**
-   - What we know: `update_batch_schedule` exists (doPost line 248). `updateBatch` handles status transitions.
-   - What's unclear: Whether schedule assignment goes through `update_batch` or `update_batch_schedule` — the detail view was not fully traced for this flow.
-   - Recommendation: Read `update_batch_schedule` function before implementing to confirm it transitions `pending → primary`.
+   - **RESOLVED by direct codebase read:** The `updateBatch` function (adminApi.gs line 1794) handles ALL status transitions. BrewPad's status badge click handler (brewpad.js line 1678-1687) calls `adminApiPost('update_batch', { batch_id: ..., updates: { status: next } })`. When a pending batch's badge is clicked, `next` resolves to `'primary'` (because `indexOf('pending')` returns -1, so `(idx + 1) % 3 = 0`, selecting `order[0] = 'primary'`). The `update_batch_schedule` action is defined in doPost (line 248) but is never called from any frontend code -- it exists for future schedule editing. Therefore, `fermentation_started_at` must be written inside `updateBatch`, not `updateBatchSchedule`.
 
 ---
 
@@ -479,7 +481,7 @@ var allowedFields = [
 |---------------|---------|-----------------|
 | V2 Authentication | Yes — new endpoint | `x-api-key` check (`MW_API_KEY`), same as all protected routes in pos.js |
 | V4 Access Control | Yes | Referer guard already applies to all `/api/*` routes (server.js line 362) |
-| V5 Input Validation | Yes | Validate `so_id`, `batch_id`, `status_label` in request body; reject missing/invalid |
+| V5 Input Validation | Yes | Validate `so_id`, `batch_id`, `status` enum in request body; reject missing/invalid |
 
 ### Known Threat Patterns
 
@@ -501,8 +503,8 @@ var allowedFields = [
 - `zoho-middleware/lib/brewpad-integration.js` — full file; Redis retry queue pattern (lines 96-111); retry sweep (lines 152-202)
 - `zoho-middleware/lib/constants.js` — full file; `BATCH_RETRY_PREFIX` key (line 58)
 - `zoho-middleware/lib/validateEnv.js` — full file; OPTIONAL env var registration pattern
-- `apps-script/adminApi.gs` — `createBatch` (lines 1649-1717); `updateBatch` (lines 1794-1909); `handlePackagingCompletion` (lines 2241-2270); `getBatchDetail` (lines 1291-1335); doPost action routing (lines 197-297)
-- `js/brewpad.js` — `renderBatchDetail` (lines 1527-1611); `shouldShowKioskBadge` (lines 78-85); module.exports (lines 4152-4162)
+- `apps-script/adminApi.gs` — `createBatch` (lines 1649-1717); `updateBatch` (lines 1794-1909); `updateBatchSchedule` (lines 1963-2071); `handlePackagingCompletion` (lines 2241-2270); `getBatchDetail` (lines 1291-1335); doPost action routing (lines 197-297)
+- `js/brewpad.js` — `renderBatchDetail` (lines 1527-1611); status badge click handler (lines 1678-1709); `shouldShowKioskBadge` (lines 78-85); module.exports (lines 4152-4162)
 - `.planning/phases/07-zoho-audit-trail/07-CONTEXT.md` — locked decisions D-01 through D-11
 - `.planning/config.json` — `nyquist_validation: false`, `security_enforcement: true`
 
@@ -518,7 +520,9 @@ var allowedFields = [
 - Standard stack: HIGH — all components verified in codebase; no new libraries
 - Architecture: HIGH — all integration points traced to specific line numbers
 - Pitfalls: HIGH — identified from direct code inspection of existing patterns
-- Zoho API custom field on PUT: ASSUMED (A1) — extrapolated from POST behavior; needs verification
+- Zoho API custom field on PUT: ASSUMED (A1) — extrapolated from POST behavior; pre-execution verification task added to Plan 07-01
+- fermentation_started_at trigger: RESOLVED — `updateBatch` confirmed as the status transition handler
 
 **Research date:** 2026-05-04
+**Revision date:** 2026-05-04 (resolved open questions Q1, Q2; fixed Pitfall 4 and Assumption A3)
 **Valid until:** 2026-06-04 (stable codebase; 30-day window)
