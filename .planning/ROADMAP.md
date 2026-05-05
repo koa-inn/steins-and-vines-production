@@ -158,7 +158,7 @@ Plans:
 - [x] 09-02-PLAN.md -- SEO landing copy: inline HTML sections in ferment-in-store.html and ingredients-supplies.html with compliance-reviewed content
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 09-03-PLAN.md -- Facility photos: user provides photos, placement on landing pages + homepage + about page, photo CSS, visual verification
+- [x] 09-03-PLAN.md -- Facility photos: user provides photos, placement on landing pages + homepage + about page, photo CSS, visual verification
 
 ## Progress
 
@@ -175,4 +175,4 @@ Phases execute in numeric order: 5 -> 6 -> 7 (Phases 8 and 9 can run in parallel
 | 6. Kiosk-to-Brewpad Integration | v1.1 | 3/3 | Complete | 2026-05-03 |
 | 7. Zoho Audit Trail | v1.1 | 0/? | Not started | - |
 | 8. First-Batch Promo | v1.1 | 6/6 | Complete   | 2026-05-04 |
-| 9. Content & SEO Push | v1.1 | 0/3 | Ready to execute | - |
+| 9. Content & SEO Push | v1.1 | 3/3 | Complete | 2026-05-04 |
