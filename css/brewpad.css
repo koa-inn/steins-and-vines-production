@@ -1778,3 +1778,183 @@ img { max-width: 100%; height: auto; display: block; }
   color: var(--cellar-muted);
   font-size: 0.95rem;
 }
+
+/* Phase 7: Lifecycle Timeline */
+.bp-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 16px;
+}
+.bp-timeline-item {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 0 0 16px 0;
+  position: relative;
+}
+.bp-timeline-item:last-child {
+  padding-bottom: 0;
+}
+.bp-timeline-spine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 20px;
+  flex-shrink: 0;
+}
+.bp-timeline-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0;
+}
+.bp-timeline-dot--done {
+  background: var(--cellar-green);
+}
+.bp-timeline-dot--pending {
+  background: transparent;
+  border: 2px solid var(--ledger-emphasis);
+}
+.bp-timeline-line {
+  width: 2px;
+  flex: 1;
+  min-height: 16px;
+  background: var(--ledger-line);
+  margin-top: 4px;
+}
+.bp-timeline-item:last-child .bp-timeline-line {
+  display: none;
+}
+.bp-timeline-body {
+  flex: 1;
+  padding-top: 0;
+}
+.bp-timeline-label {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  display: block;
+}
+.bp-timeline-item--done .bp-timeline-label {
+  font-weight: 700;
+  color: var(--ink-primary);
+}
+.bp-timeline-item:not(.bp-timeline-item--done) .bp-timeline-label {
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+.bp-timeline-date {
+  font-size: 0.75rem;
+  color: var(--ink-tertiary);
+  margin-top: 2px;
+  display: block;
+}
+.bp-timeline-pending-note {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  font-style: italic;
+  display: block;
+  margin-top: 2px;
+}
+
+/* Phase 7: Link to Invoice */
+.bp-link-so-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.bp-so-search-wrap {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  position: relative;
+}
+.bp-so-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-line);
+  border-radius: var(--r-md, 6px);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  margin-top: 4px;
+}
+.bp-so-result-item {
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--ledger-soft, rgba(0,0,0,0.06));
+}
+.bp-so-result-item:last-child {
+  border-bottom: none;
+}
+.bp-so-result-item:hover {
+  background: var(--cellar-canvas);
+}
+.bp-so-result-name {
+  font-weight: 700;
+  color: var(--ink-primary);
+  display: block;
+}
+.bp-so-result-meta {
+  font-size: 0.75rem;
+  color: var(--ink-secondary);
+}
+.bp-so-linked-display {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.875rem;
+}
+.bp-so-linked-text {
+  color: var(--ink-primary);
+}
+.bp-so-change-btn {
+  font-size: 0.75rem;
+  color: var(--cellar-green);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+.bp-so-dismiss-link {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  margin-left: auto;
+}
+
+/* Phase 7: Sync Status Indicator */
+.bp-sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-left: 8px;
+}
+.bp-sync-indicator--syncing {
+  color: var(--batch-info);
+}
+.bp-sync-indicator--failed {
+  color: var(--batch-danger);
+}
