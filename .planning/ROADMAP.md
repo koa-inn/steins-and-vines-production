@@ -124,8 +124,8 @@ Plans:
 
 Plans:
 **Wave 1** *(no dependencies -- run in parallel)*
-- [ ] 07-01-PLAN.md -- Middleware Zoho sync: POST /api/batch/sync-zoho endpoint, syncBatchToZoho/retrySyncQueue in brewpad-integration.js, Redis retry queue, unit tests
-- [ ] 07-02-PLAN.md -- Apps Script backend: extend updateBatch allowedFields for SO linking, fermentation_started_at in updateBatchSchedule, completed_at in handlePackagingCompletion, createBatch appendRow extension
+- [x] 07-01-PLAN.md -- Middleware Zoho sync: POST /api/batch/sync-zoho endpoint, syncBatchToZoho/retrySyncQueue in brewpad-integration.js, Redis retry queue, unit tests
+- [x] 07-02-PLAN.md -- Apps Script backend: extend updateBatch allowedFields for SO linking, fermentation_started_at in updateBatchSchedule, completed_at in handlePackagingCompletion, createBatch appendRow extension
 
 **Wave 2** *(depends on Wave 1)*
 - [ ] 07-03-PLAN.md -- BrewPad frontend: lifecycle timeline, Link to Sales Order search/link UI, Zoho sync indicator, CSS, unit tests, build
