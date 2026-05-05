@@ -128,7 +128,7 @@ Plans:
 - [x] 07-02-PLAN.md -- Apps Script backend: extend updateBatch allowedFields for SO linking, fermentation_started_at in updateBatchSchedule, completed_at in handlePackagingCompletion, createBatch appendRow extension
 
 **Wave 2** *(depends on Wave 1)*
-- [ ] 07-03-PLAN.md -- BrewPad frontend: lifecycle timeline, Link to Sales Order search/link UI, Zoho sync indicator, CSS, unit tests, build
+- [x] 07-03-PLAN.md -- BrewPad frontend: lifecycle timeline, Link to Sales Order search/link UI, Zoho sync indicator, CSS, unit tests, build
 
 ### Phase 8: First-Batch Promo
 **Goal**: New customers see a 20% discount offer on the homepage and can apply promo code FIRSTBATCH at checkout, with one-use-per-email enforcement, plus checkout form persistence and cart merge feasibility
