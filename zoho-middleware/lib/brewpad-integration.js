@@ -6,10 +6,16 @@ var eventLog = require('./eventLog');
 var cache = require('./cache');
 var C = require('./constants');
 var checkoutHelpers = require('./checkout-helpers');
+var zohoApi = require('./zoho-api');
+var zohoPut = zohoApi.zohoPut;
 
 var RETRY_TTL = 86400;   // 24 hours
 var MAX_RETRIES = 3;
 var RETRY_PREFIX = C.CACHE_KEYS.BATCH_RETRY_PREFIX;
+
+var SYNC_RETRY_TTL = 86400;   // 24 hours
+var SYNC_MAX_RETRIES = 3;
+var SYNC_RETRY_PREFIX = C.CACHE_KEYS.BATCH_SYNC_RETRY_PREFIX;
 
 /**
  * Detect kit items that need batch creation.
@@ -141,7 +147,15 @@ function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId
       zoho_so_number: invoiceNumber || ''
     };
 
-    callAppsScriptCreateBatch(batchPayload);
+    callAppsScriptCreateBatch(batchPayload).then(function (result) {
+      // Phase 7: D-02 -- sync "Pending" status to Zoho invoice on batch creation
+      // Note: zoho_so_number is the invoice number (e.g. "INV-00123"), not the internal
+      // invoice ID. The Zoho Books API accepts invoice numbers as identifiers in PUT paths.
+      if (result && result.ok && batchPayload.zoho_so_number) {
+        syncBatchToZoho(batchPayload.zoho_so_number, result.batch_id || '', 'pending')
+          .catch(function () {}); // fire-and-forget; errors already queued for retry
+      }
+    });
   });
 }
 
@@ -201,9 +215,138 @@ function retryPendingBatches() {
   });
 }
 
+/**
+ * Sync batch status to a Zoho invoice custom field.
+ * Constructs the status label server-side from validated enum + batch_id.
+ * Per T-07-01: status is validated against enum; label is not caller-supplied.
+ * Per D-01: label format is "Active — SV-B-000123".
+ *
+ * @param {string} soId     - Zoho invoice ID or invoice number
+ * @param {string} batchId  - batch ID (e.g. "SV-B-000123")
+ * @param {string} status   - one of ['pending', 'active', 'complete']
+ * @returns {Promise<{ok: boolean, skipped?: boolean, queued?: boolean}>}
+ */
+function syncBatchToZoho(soId, batchId, status) {
+  var validStatuses = ['pending', 'active', 'complete'];
+  if (validStatuses.indexOf(status) === -1) {
+    return Promise.reject(new Error('Invalid status "' + status + '" — must be one of: ' + validStatuses.join(', ')));
+  }
+
+  var cfName = process.env.ZOHO_CF_BATCH_STATUS;
+  if (!cfName) {
+    log.warn('[batch/sync-zoho] ZOHO_CF_BATCH_STATUS not configured -- skipping');
+    return Promise.resolve({ ok: true, skipped: true });
+  }
+
+  // Construct status label server-side (T-07-01: prevents arbitrary text injection)
+  var statusLabel = status.charAt(0).toUpperCase() + status.slice(1) + ' — ' + batchId;
+
+  var payload = {
+    custom_fields: [{ api_name: cfName, value: statusLabel }]
+  };
+
+  return zohoPut('/invoices/' + soId, payload)
+    .then(function () {
+      eventLog.logEvent('batch.zoho_sync_ok', { batchId: batchId, soId: soId, status: status });
+      return { ok: true };
+    })
+    .catch(function (err) {
+      var msg = err.response && err.response.data
+        ? (err.response.data.message || err.response.data.error || err.message)
+        : err.message;
+      log.error('[batch/sync-zoho] Zoho error syncing batchId=' + batchId + ' soId=' + soId + ': ' + msg);
+      return queueSyncForRetry({ so_id: soId, batch_id: batchId, status: status }, msg).then(function () {
+        return { ok: false, queued: true };
+      });
+    });
+}
+
+/**
+ * Store a failed Zoho sync payload in Redis for later retry.
+ * Mirrors queueForRetry; uses BATCH_SYNC_RETRY_PREFIX.
+ *
+ * @param {Object} payload - { so_id, batch_id, status }
+ * @param {string} reason  - why it failed
+ */
+function queueSyncForRetry(payload, reason) {
+  var key = SYNC_RETRY_PREFIX + Date.now() + '-' + (payload.batch_id || 'unknown');
+  var retryData = {
+    payload: payload,
+    attempts: 0,
+    reason: reason,
+    queued_at: new Date().toISOString()
+  };
+
+  eventLog.logEvent('batch.zoho_sync_retry_queued', {
+    batchId: payload.batch_id || '',
+    reason: reason
+  });
+
+  return cache.set(key, retryData, SYNC_RETRY_TTL);
+}
+
+/**
+ * Retry sweep: scan Redis for pending Zoho sync keys and retry them.
+ * Called by setInterval in server.js every 5 minutes (alongside retryPendingBatches).
+ * Max SYNC_MAX_RETRIES (3) attempts per item; after that, log error and delete key.
+ */
+function retrySyncQueue() {
+  if (!cache.isConnected()) return Promise.resolve();
+
+  return cache.getClient().then(function (c) {
+    if (!c) return;
+    return c.keys(SYNC_RETRY_PREFIX + '*');
+  }).then(function (keys) {
+    if (!keys || keys.length === 0) return;
+
+    log.info('[brewpad] Zoho sync retry sweep: found ' + keys.length + ' pending sync(s)');
+
+    var chain = Promise.resolve();
+    keys.forEach(function (key) {
+      chain = chain.then(function () {
+        return cache.get(key).then(function (retryData) {
+          if (!retryData || !retryData.payload) {
+            return cache.del(key);
+          }
+
+          retryData.attempts = (retryData.attempts || 0) + 1;
+
+          if (retryData.attempts > SYNC_MAX_RETRIES) {
+            log.error('[brewpad] Max Zoho sync retries exceeded for key=' + key + ' batchId=' + (retryData.payload.batch_id || '?') + ' -- removing from queue');
+            eventLog.logEvent('batch.zoho_sync_retry_exhausted', {
+              batchId: retryData.payload.batch_id || '',
+              attempts: retryData.attempts
+            });
+            return cache.del(key);
+          }
+
+          log.info('[brewpad] Retrying Zoho sync: attempt ' + retryData.attempts + '/' + SYNC_MAX_RETRIES + ' key=' + key);
+
+          return syncBatchToZoho(retryData.payload.so_id, retryData.payload.batch_id, retryData.payload.status).then(function (result) {
+            if (result && result.ok) {
+              return cache.del(key);
+            }
+            // syncBatchToZoho queued again internally — update attempt count
+            return cache.set(key, retryData, SYNC_RETRY_TTL);
+          }).catch(function () {
+            return cache.set(key, retryData, SYNC_RETRY_TTL);
+          });
+        });
+      });
+    });
+
+    return chain;
+  }).catch(function (err) {
+    log.error('[brewpad] Zoho sync retry sweep error: ' + err.message);
+  });
+}
+
 module.exports = {
   createBatchesFromSale: createBatchesFromSale,
   retryPendingBatches: retryPendingBatches,
   detectKitItems: detectKitItems,
-  callAppsScriptCreateBatch: callAppsScriptCreateBatch
+  callAppsScriptCreateBatch: callAppsScriptCreateBatch,
+  syncBatchToZoho: syncBatchToZoho,
+  queueSyncForRetry: queueSyncForRetry,
+  retrySyncQueue: retrySyncQueue
 };

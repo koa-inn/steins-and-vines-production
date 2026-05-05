@@ -38,6 +38,7 @@ var OPTIONAL = [
   { name: 'ZOHO_CF_BALANCE',          desc: 'Zoho custom field: balance due' },
   { name: 'ZOHO_CF_APPOINTMENT_ID',   desc: 'Zoho custom field: appointment ID' },
   { name: 'ZOHO_CF_TRANSACTION_ID',   desc: 'Zoho custom field: transaction ID' },
+  { name: 'ZOHO_CF_BATCH_STATUS',    desc: 'Zoho custom field API name for batch status on invoices (e.g. cf_batch_status)' },
   { name: 'ZOHO_TAX_STANDARD_ID',     desc: 'Zoho tax ID: standard rate' },
   { name: 'ZOHO_TAX_STANDARD_RULE',   desc: 'Zoho tax rule: standard rate' },
   { name: 'ZOHO_TAX_LIQUOR_ID',       desc: 'Zoho tax ID: liquor rate' },

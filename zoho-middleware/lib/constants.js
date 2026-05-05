@@ -57,6 +57,9 @@ var CACHE_KEYS = {
   // Brewpad batch creation retry queue
   BATCH_RETRY_PREFIX:     'brewpad:pending-batch:',
 
+  // Brewpad Zoho sync retry queue (Phase 7)
+  BATCH_SYNC_RETRY_PREFIX: 'brewpad:zoho-sync:',
+
   // Promo code redemption tracking
   PROMO_REDEEMED_PREFIX:  'promo:firstbatch:redeemed:',  // append lowercased email
 };
