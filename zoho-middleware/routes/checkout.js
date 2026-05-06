@@ -524,6 +524,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         notes: body.notes || ''
       }).catch(function (mailErr) {
         log.warn('[checkout] Staff notification email failed (non-fatal): ' + mailErr.message);
+        eventLog.logEvent('checkout.staff_email_failed', {
+          orderNumber: soNumber || '',
+          errorMsg: (mailErr.message || '').substring(0, 100)
+        });
       });
 
       // Fire-and-forget: write to admin panel Google Sheets
@@ -564,7 +568,21 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         }).then(function () {
           log.info('[checkout] Order confirmation email sent to customer for SO=' + soNumber);
         }).catch(function (emailErr) {
-          log.warn('[checkout] Customer confirmation email failed (non-fatal): ' + emailErr.message);
+          log.warn('[checkout] Zoho email failed, sending SMTP fallback: ' + emailErr.message);
+          mailer.sendCustomerConfirmation({
+            email: customerEmail,
+            orderNumber: soNumber || '',
+            items: lineItems,
+            timeslot: body.timeslot || ''
+          }).then(function () {
+            log.info('[checkout] Fallback SMTP confirmation sent for SO=' + soNumber);
+          }).catch(function (fallbackErr) {
+            log.error('[checkout] Fallback SMTP email also failed: ' + fallbackErr.message);
+            eventLog.logEvent('checkout.customer_email_failed', {
+              orderNumber: soNumber || '',
+              errorMsg: (fallbackErr.message || '').substring(0, 100)
+            });
+          });
         });
       }
 

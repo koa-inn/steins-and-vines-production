@@ -143,8 +143,57 @@ function sendVoidFailureAlert(data) {
   });
 }
 
+/**
+ * Send a plain-text order confirmation email directly via SMTP.
+ * Used as a fallback when the Zoho email API fails.
+ *
+ * @param {Object} data
+ * @param {string} data.email        - Customer email address
+ * @param {string} data.orderNumber  - Zoho Sales Order number (e.g. SO-001234)
+ * @param {Array}  data.items        - [{ name, quantity, rate }]
+ * @param {string} data.timeslot     - Human-readable timeslot string
+ */
+function sendCustomerConfirmation(data) {
+  var to = data.email;
+  if (!to) return Promise.reject(new Error('No customer email provided'));
+
+  var orderNumber = data.orderNumber || '';
+  var items = data.items || [];
+  var timeslot = data.timeslot || '';
+
+  var subject = 'Steins & Vines — Order Confirmation ' + orderNumber;
+
+  var itemLines = items.map(function (it) {
+    return '  - ' + (it.name || 'Item') + ' x ' + (it.quantity || 1);
+  }).join('\n');
+
+  var body = [
+    'Thank you for your order with Steins & Vines!',
+    '',
+    'Order Number: ' + orderNumber,
+    timeslot ? 'Timeslot: ' + timeslot : '',
+    '',
+    'Items:',
+    itemLines || '  (none)',
+    '',
+    'If you have any questions, reply to this email or call us at (604) 567-4565.',
+    '',
+    'Steins & Vines',
+    '38021 Cleveland Ave, Squamish, BC'
+  ].filter(function (line) { return line !== ''; }).join('\n');
+
+  return createTransport().sendMail({
+    from: process.env.SMTP_USER,
+    to: to,
+    replyTo: process.env.CONTACT_TO || 'hello@steinsandvines.ca',
+    subject: subject,
+    text: body
+  });
+}
+
 module.exports = {
   sendOfflineOrderNotification: sendOfflineOrderNotification,
   sendReservationNotification: sendReservationNotification,
-  sendVoidFailureAlert: sendVoidFailureAlert
+  sendVoidFailureAlert: sendVoidFailureAlert,
+  sendCustomerConfirmation: sendCustomerConfirmation
 };
