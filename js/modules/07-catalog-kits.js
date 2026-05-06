@@ -8,7 +8,7 @@ function loadProducts() {
   var allProducts = [];
   var _kitsFuse = null;
   var userHasSorted = false;
-  var activeFilters = { type: [], brand: [], subcategory: [], time: [], body: [], oak: [], sweetness: [] };
+  var activeFilters = { type: [], brand: [], manufacturer: [], subcategory: [], time: [], body: [], oak: [], sweetness: [] };
   var saleFilterActive = false;
 
   var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
@@ -165,7 +165,7 @@ function loadProducts() {
 
       if (typeof Fuse !== 'undefined') {
         _kitsFuse = new Fuse(allProducts, {
-          keys: ['name', 'brand', 'subcategory', 'tasting_notes'],
+          keys: ['name', 'brand', 'manufacturer', 'subcategory', 'tasting_notes'],
           threshold: 0.35,
           minMatchCharLength: 2,
           ignoreLocation: true
@@ -174,6 +174,7 @@ function loadProducts() {
 
       buildFilterRow('filter-type', 'type', 'Type:');
       buildFilterRow('filter-brand', 'brand', 'Brand:');
+      buildFilterRow('filter-manufacturer', 'manufacturer', 'Producer:');
       buildFilterRow('filter-subcategory', 'subcategory', 'Style:');
       buildFilterRow('filter-time', 'time', 'Production Time:');
       buildFilterRow('filter-body', 'body', 'Body:');
@@ -433,7 +434,7 @@ function loadProducts() {
   }
 
   function matchesFilters(product, excludeField) {
-    var fields = ['type', 'brand', 'subcategory', 'time', 'body', 'oak', 'sweetness'];
+    var fields = ['type', 'brand', 'manufacturer', 'subcategory', 'time', 'body', 'oak', 'sweetness'];
     for (var i = 0; i < fields.length; i++) {
       var f = fields[i];
       if (f === excludeField) continue;
@@ -443,7 +444,7 @@ function loadProducts() {
   }
 
   function updateFilterAvailability() {
-    var fields = ['type', 'brand', 'subcategory', 'time', 'body', 'oak', 'sweetness'];
+    var fields = ['type', 'brand', 'manufacturer', 'subcategory', 'time', 'body', 'oak', 'sweetness'];
     fields.forEach(function (field) {
       var containerId = 'filter-' + (field === 'subcategory' ? 'subcategory' : field);
       var container = document.getElementById(containerId);
