@@ -5289,10 +5289,12 @@ function renderCartSidebar() {
 
     // Maker's Fee — nested inside the kit row as an indented detail line
     if ((item.item_type || 'kit') === 'kit') {
-      var feeRateSb = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
+      var feeRateSb = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 45;
+      var matFeeRateSb = (_materialsFeeItem && parseFloat(_materialsFeeItem.rate)) ? parseFloat(_materialsFeeItem.rate) : 5;
+      var totalFeeSb = (feeRateSb + matFeeRateSb) * (parseFloat(item.qty) || 1);
       var feeDetailSb = document.createElement('div');
       feeDetailSb.className = 'cart-sidebar-fee-nested';
-      feeDetailSb.textContent = '\u21B3 Includes ' + ((_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee") + ' (' + formatCurrency(feeRateSb * (parseFloat(item.qty) || 1)) + ')';
+      feeDetailSb.textContent = '\u21B3 Includes fees (' + formatCurrency(totalFeeSb) + ')';
       row.appendChild(feeDetailSb);
     }
 
@@ -5484,10 +5486,12 @@ function renderCartDrawer() {
 
     // Maker's Fee — nested inside the kit row as an indented detail line
     if ((item.item_type || 'kit') === 'kit') {
-      var feeRateDr = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
+      var feeRateDr = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 45;
+      var matFeeRateDr = (_materialsFeeItem && parseFloat(_materialsFeeItem.rate)) ? parseFloat(_materialsFeeItem.rate) : 5;
+      var totalFeeDr = (feeRateDr + matFeeRateDr) * (parseFloat(item.qty) || 1);
       var feeDetailDr = document.createElement('div');
       feeDetailDr.className = 'cart-sidebar-fee-nested';
-      feeDetailDr.textContent = '\u21B3 Includes ' + ((_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee") + ' (' + formatCurrency(feeRateDr * (parseFloat(item.qty) || 1)) + ')';
+      feeDetailDr.textContent = '\u21B3 Includes fees (' + formatCurrency(totalFeeDr) + ')';
       row.appendChild(feeDetailDr);
     }
 
@@ -5963,7 +5967,8 @@ function saveMilledKeys() {
 
 // Maker's fee state
 var _makersFeeItem = null;     // Zoho item for MAKERS-FEE (fetched lazily when kits present)
-var _makersFeeLoaded = false;  // true once fetch has been attempted
+var _materialsFeeItem = null;  // Zoho item for MAT-FEE (fetched lazily when kits present)
+var _makersFeeLoaded = false;  // true once fetch has been attempted (covers both fee items)
 var _prevHasKits = null;       // tracks previous hasKits state to avoid redundant timeslot reloads
 
 // Payment state
@@ -6108,7 +6113,9 @@ function initReservationPage() {
           var name = (services[i].name || '').toLowerCase();
           if (sku === 'MAKERS-FEE' || name.indexOf('makers fee') !== -1 || name.indexOf("maker's fee") !== -1) {
             _makersFeeItem = services[i];
-            break;
+          }
+          if (sku === 'MAT-FEE' || name.indexOf('materials fee') !== -1) {
+            _materialsFeeItem = services[i];
           }
         }
         renderReservationItems();
@@ -6291,8 +6298,12 @@ function refreshReservationDependents() {
       var svcs = data.items || [];
       for (var i = 0; i < svcs.length; i++) {
         var sku = (svcs[i].sku || svcs[i].item_code || '').toUpperCase();
-        if (sku === 'MAKERS-FEE' || (svcs[i].name || '').toLowerCase().indexOf('makers fee') !== -1) {
-          _makersFeeItem = svcs[i]; break;
+        var name = (svcs[i].name || '').toLowerCase();
+        if (sku === 'MAKERS-FEE' || name.indexOf('makers fee') !== -1) {
+          _makersFeeItem = svcs[i];
+        }
+        if (sku === 'MAT-FEE' || name.indexOf('materials fee') !== -1) {
+          _materialsFeeItem = svcs[i];
         }
       }
       renderReservationItems();
@@ -6740,20 +6751,24 @@ function renderReservationItems() {
 
     tbody.appendChild(tr);
 
-    // Per-kit inline breakdown: Kit supplies → Maker's Fee → Kit Total
+    // Per-kit inline breakdown: Kit supplies → Maker's Fee → Materials Fee → Kit Total
     if ((item.item_type || 'kit') === 'kit') {
-      var bFeeRateBase = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
+      var bFeeRateBase = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 45;
       // Apply promo discount to Maker's Fee in breakdown display when promo is active
       var bFeeRate = (_promoApplied) ? Math.round(bFeeRateBase * (1 - _promoApplied.discountPct / 100) * 100) / 100 : bFeeRateBase;
+      var bMatFeeRateBase = (_materialsFeeItem && parseFloat(_materialsFeeItem.rate)) ? parseFloat(_materialsFeeItem.rate) : 5;
+      var bMatFeeRate = (_promoApplied) ? Math.round(bMatFeeRateBase * (1 - _promoApplied.discountPct / 100) * 100) / 100 : bMatFeeRateBase;
       var bPrice = parseFloat(String(item.price || '0').replace(/[^0-9.]/g, '')) || 0;
       var bDisc = effectiveDiscount; // use effectiveDiscount which includes promo override
       if (bDisc > 0) bPrice *= (1 - bDisc / 100);
       var bQty = parseFloat(item.qty) || 1;
-      var bSupplies = (bPrice - bFeeRate) * bQty;
+      var bSupplies = (bPrice - bFeeRate - bMatFeeRate) * bQty;
       if (bSupplies < 0) bSupplies = 0;
       var bFee = bFeeRate * bQty;
+      var bMatFee = bMatFeeRate * bQty;
       var bTotal = bPrice * bQty;
       var bFeeName = (_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee";
+      var bMatFeeName = (_materialsFeeItem && _materialsFeeItem.name) ? _materialsFeeItem.name : 'Materials Fee';
       var breakTr = document.createElement('tr');
       breakTr.className = 'kit-breakdown-row';
       var breakTd = document.createElement('td');
@@ -6764,6 +6779,7 @@ function renderReservationItems() {
       breakWrap.innerHTML =
         '<div class="reservation-subtotal reservation-subtotal--breakdown"><span>Kit supplies</span><span>' + formatCurrency(bSupplies) + '</span></div>' +
         '<div class="reservation-subtotal reservation-subtotal--breakdown"><span>' + bFeeName + '</span><span>' + formatCurrency(bFee) + '</span></div>' +
+        '<div class="reservation-subtotal reservation-subtotal--breakdown"><span>' + bMatFeeName + '</span><span>' + formatCurrency(bMatFee) + '</span></div>' +
         '<div class="reservation-subtotal reservation-subtotal--breakdown reservation-subtotal--breakdown-total"><span>Kit Total</span><span>' + formatCurrency(bTotal) + '</span></div>';
       breakTd.appendChild(breakWrap);
       breakTr.appendChild(breakTd);
@@ -6815,7 +6831,7 @@ function renderReservationItems() {
   // Add Maker's Fee GST (fee is not a cart item — read from _makersFeeItem)
   if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
     var mfTaxPct = parseFloat(_makersFeeItem.tax_percentage);
-    var mfRateBase = parseFloat(_makersFeeItem.rate) || 50;
+    var mfRateBase = parseFloat(_makersFeeItem.rate) || 45;
     // Apply promo discount to Maker's Fee in tax calculation when promo active
     var mfRate = _promoApplied ? Math.round(mfRateBase * (1 - _promoApplied.discountPct / 100) * 100) / 100 : mfRateBase;
     var mfKitQty = 0;
@@ -6828,6 +6844,23 @@ function renderReservationItems() {
         ? _makersFeeItem.tax_name.trim() : 'GST';
       if (!taxGroups[mfTaxLabel]) taxGroups[mfTaxLabel] = 0;
       taxGroups[mfTaxLabel] += mfTaxAmt;
+    }
+  }
+  // Add Materials Fee tax (GST+PST — read from _materialsFeeItem)
+  if (_materialsFeeItem && (parseFloat(_materialsFeeItem.tax_percentage) || 0) > 0) {
+    var matTaxPct = parseFloat(_materialsFeeItem.tax_percentage);
+    var matRateBase = parseFloat(_materialsFeeItem.rate) || 5;
+    var matRate = _promoApplied ? Math.round(matRateBase * (1 - _promoApplied.discountPct / 100) * 100) / 100 : matRateBase;
+    var matKitQty = 0;
+    items.forEach(function (i) {
+      if ((i.item_type || 'kit') === 'kit') matKitQty += (parseFloat(i.qty) || 1);
+    });
+    var matTaxAmt = Math.round(matRate * matKitQty * (matTaxPct / 100) * 100) / 100;
+    if (matTaxAmt > 0) {
+      var matTaxLabel = (_materialsFeeItem.tax_name && _materialsFeeItem.tax_name.trim())
+        ? _materialsFeeItem.tax_name.trim() : 'GST+PST';
+      if (!taxGroups[matTaxLabel]) taxGroups[matTaxLabel] = 0;
+      taxGroups[matTaxLabel] += matTaxAmt;
     }
   }
   var taxTotal = 0;
@@ -6860,12 +6893,15 @@ function renderReservationItems() {
         savingsTotal += p * (i.qty || 1) * (_promoApplied.discountPct / 100);
       }
     });
-    // Also include Maker's Fee savings if _makersFeeItem loaded
+    // Also include Maker's Fee + Materials Fee savings if loaded
+    var kitQtyForSavings = items.reduce(function (sum, i) {
+      return (i._item_type !== 'ingredient' && i._item_type !== 'service') ? sum + (parseFloat(i.qty) || 1) : sum;
+    }, 0);
     if (_makersFeeItem && _makersFeeItem.rate) {
-      var kitQtyForSavings = items.reduce(function (sum, i) {
-        return (i._item_type !== 'ingredient' && i._item_type !== 'service') ? sum + (parseFloat(i.qty) || 1) : sum;
-      }, 0);
       savingsTotal += parseFloat(_makersFeeItem.rate) * kitQtyForSavings * (_promoApplied.discountPct / 100);
+    }
+    if (_materialsFeeItem && _materialsFeeItem.rate) {
+      savingsTotal += parseFloat(_materialsFeeItem.rate) * kitQtyForSavings * (_promoApplied.discountPct / 100);
     }
     if (savingsTotal > 0) {
       var savingsRow = document.createElement('div');
@@ -7341,7 +7377,7 @@ function renderCheckoutIngredientSection() {
   // but its GST is NOT included in the kit's tax_percentage (kits are zero-rated).
   // Add only the Maker's Fee tax to fermentTotal, not the fee itself.
   if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
-    var mfRateBase2 = parseFloat(_makersFeeItem.rate) || 50;
+    var mfRateBase2 = parseFloat(_makersFeeItem.rate) || 45;
     var mfRateCombined = _promoApplied ? Math.round(mfRateBase2 * (1 - _promoApplied.discountPct / 100) * 100) / 100 : mfRateBase2;
     var mfTaxPctCombined = parseFloat(_makersFeeItem.tax_percentage);
     var mfKitQtyCombined = 0;
@@ -7349,6 +7385,17 @@ function renderCheckoutIngredientSection() {
       if ((i.item_type || 'kit') === 'kit') mfKitQtyCombined += (parseFloat(i.qty) || 1);
     });
     fermentTotal += mfRateCombined * mfKitQtyCombined * (mfTaxPctCombined / 100);
+  }
+  // Add Materials Fee tax (GST+PST) to fermentTotal
+  if (_materialsFeeItem && (parseFloat(_materialsFeeItem.tax_percentage) || 0) > 0) {
+    var matRateBase2 = parseFloat(_materialsFeeItem.rate) || 5;
+    var matRateCombined = _promoApplied ? Math.round(matRateBase2 * (1 - _promoApplied.discountPct / 100) * 100) / 100 : matRateBase2;
+    var matTaxPctCombined = parseFloat(_materialsFeeItem.tax_percentage);
+    var matKitQtyCombined = 0;
+    fermentItems.forEach(function (i) {
+      if ((i.item_type || 'kit') === 'kit') matKitQtyCombined += (parseFloat(i.qty) || 1);
+    });
+    fermentTotal += matRateCombined * matKitQtyCombined * (matTaxPctCombined / 100);
   }
   var combinedTotal = fermentTotal + subtotal + taxTotal;
   var grandWrap = document.createElement('div');
@@ -7620,7 +7667,7 @@ function updateDualCartTotalSummary() {
   });
   // Add Maker's Fee tax (fee is already in kit price, but GST is not)
   if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
-    var mfRBase3 = parseFloat(_makersFeeItem.rate) || 50;
+    var mfRBase3 = parseFloat(_makersFeeItem.rate) || 45;
     var mfR = _promoApplied ? Math.round(mfRBase3 * (1 - _promoApplied.discountPct / 100) * 100) / 100 : mfRBase3;
     var mfTP = parseFloat(_makersFeeItem.tax_percentage);
     var mfKQ = 0;
@@ -7628,6 +7675,17 @@ function updateDualCartTotalSummary() {
       if ((i.item_type || 'kit') === 'kit') mfKQ += (parseFloat(i.qty) || 1);
     });
     fermentTotal += mfR * mfKQ * (mfTP / 100);
+  }
+  // Add Materials Fee tax (GST+PST)
+  if (_materialsFeeItem && (parseFloat(_materialsFeeItem.tax_percentage) || 0) > 0) {
+    var matRBase3 = parseFloat(_materialsFeeItem.rate) || 5;
+    var matR = _promoApplied ? Math.round(matRBase3 * (1 - _promoApplied.discountPct / 100) * 100) / 100 : matRBase3;
+    var matTP = parseFloat(_materialsFeeItem.tax_percentage);
+    var matKQ = 0;
+    fermentItems.forEach(function (i) {
+      if ((i.item_type || 'kit') === 'kit') matKQ += (parseFloat(i.qty) || 1);
+    });
+    fermentTotal += matR * matKQ * (matTP / 100);
   }
   var ingTotal = 0;
   ingredientItems.forEach(function (i) {
@@ -7757,7 +7815,7 @@ function setupReservationForm() {
         _dualCharge += p * (i.qty || 1) * (1 + (parseFloat(i.tax_percentage) || 0) / 100);
       });
       if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
-        var _mfRBase = parseFloat(_makersFeeItem.rate) || 50;
+        var _mfRBase = parseFloat(_makersFeeItem.rate) || 45;
         // Apply promo discount to Maker's Fee in charge calculation
         var _mfR = _promoApplied ? Math.round(_mfRBase * (1 - _promoApplied.discountPct / 100) * 100) / 100 : _mfRBase;
         var _mfTP = parseFloat(_makersFeeItem.tax_percentage);
@@ -7765,6 +7823,15 @@ function setupReservationForm() {
         _dualFermentItems.forEach(function (i) { if ((i.item_type || 'kit') === 'kit') _mfKQ += (parseFloat(i.qty) || 1); });
         // Add only the MF tax (the MF rate itself is already in kit item prices)
         _dualCharge += _mfR * _mfKQ * (_mfTP / 100);
+      }
+      // Add Materials Fee tax (GST+PST)
+      if (_materialsFeeItem && (parseFloat(_materialsFeeItem.tax_percentage) || 0) > 0) {
+        var _matRBase = parseFloat(_materialsFeeItem.rate) || 5;
+        var _matR = _promoApplied ? Math.round(_matRBase * (1 - _promoApplied.discountPct / 100) * 100) / 100 : _matRBase;
+        var _matTP = parseFloat(_materialsFeeItem.tax_percentage);
+        var _matKQ = 0;
+        _dualFermentItems.forEach(function (i) { if ((i.item_type || 'kit') === 'kit') _matKQ += (parseFloat(i.qty) || 1); });
+        _dualCharge += _matR * _matKQ * (_matTP / 100);
       }
       _dualIngredientItems.forEach(function (i) {
         var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0;
@@ -7873,13 +7940,22 @@ function setupReservationForm() {
     var orderTot = 0; items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (_promoApplied && (i._item_type || 'kit') !== 'ingredient' && (i._item_type || 'kit') !== 'service') { d = _promoApplied.discountPct; } if (d > 0) p *= (1 - d / 100); orderTot += p * (i.qty || 1); });
     var tax = 0; items.forEach(function (i) { var p = parseFloat(String(i.price || '0').replace(/[^0-9.]/g, '')) || 0; var d = parseFloat(i.discount) || 0; if (_promoApplied && (i._item_type || 'kit') !== 'ingredient' && (i._item_type || 'kit') !== 'service') { d = _promoApplied.discountPct; } if (d > 0) p *= (1 - d / 100); tax += p * (i.qty || 1) * ((parseFloat(i.tax_percentage) || 0) / 100); });
     if (_makersFeeItem && (parseFloat(_makersFeeItem.tax_percentage) || 0) > 0) {
-      var _scMfRateBase = parseFloat(_makersFeeItem.rate) || 50;
+      var _scMfRateBase = parseFloat(_makersFeeItem.rate) || 45;
       // Apply promo discount to Maker's Fee in single-cart charge calculation
       var _scMfRate = _promoApplied ? Math.round(_scMfRateBase * (1 - _promoApplied.discountPct / 100) * 100) / 100 : _scMfRateBase;
       var _scMfTax = parseFloat(_makersFeeItem.tax_percentage);
       var _scMfKitQty = 0;
       items.forEach(function (i) { if ((i.item_type || 'kit') === 'kit') _scMfKitQty += (parseFloat(i.qty) || 1); });
       tax += _scMfRate * _scMfKitQty * (_scMfTax / 100);
+    }
+    // Add Materials Fee tax (GST+PST) in single-cart charge calculation
+    if (_materialsFeeItem && (parseFloat(_materialsFeeItem.tax_percentage) || 0) > 0) {
+      var _scMatRateBase = parseFloat(_materialsFeeItem.rate) || 5;
+      var _scMatRate = _promoApplied ? Math.round(_scMatRateBase * (1 - _promoApplied.discountPct / 100) * 100) / 100 : _scMatRateBase;
+      var _scMatTax = parseFloat(_materialsFeeItem.tax_percentage);
+      var _scMatKitQty = 0;
+      items.forEach(function (i) { if ((i.item_type || 'kit') === 'kit') _scMatKitQty += (parseFloat(i.qty) || 1); });
+      tax += _scMatRate * _scMatKitQty * (_scMatTax / 100);
     }
     if (Object.keys(_milledItemKeys).length > 0 && _millingServiceItem) {
       var _scMlRate = parseFloat(_millingServiceItem.rate) || 0;

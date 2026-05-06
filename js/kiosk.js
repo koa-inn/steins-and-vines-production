@@ -716,8 +716,10 @@
   var _kioskImportedSoUpdated = false;  // true after SO update succeeds -- skip on retry (D-08)
   var _kioskSoActiveChips = ['open', 'draft'];  // default active chip filter (D-10)
 
-  var MAKERS_FEE = 50; // Added to kit rates for in-store pricing
+  var MAKERS_FEE = 45; // Added to kit rates for in-store pricing
   var MAKERS_FEE_SKU = 'MAKERS-FEE';
+  var MATERIALS_FEE = 5; // Materials fee (corks etc.) — carries PST
+  var MATERIALS_FEE_SKU = 'MAT-FEE';
 
   // ===== Filter State =====
 
@@ -743,10 +745,10 @@
     return '$' + (parseFloat(amount) || 0).toFixed(2);
   }
 
-  // Returns item rate including $50 maker's fee for kits
+  // Returns item rate including maker's fee + materials fee for kits
   function kioskEffectiveRate(product) {
     var base = parseFloat(product.rate) || 0;
-    return (kioskGetItemType(product) === 'kit') ? base + MAKERS_FEE : base;
+    return (kioskGetItemType(product) === 'kit') ? base + MAKERS_FEE + MATERIALS_FEE : base;
   }
 
   function kioskGetItemType(p) {
@@ -808,6 +810,13 @@
     return null;
   }
 
+  function kioskFindMaterialsFee() {
+    for (var i = 0; i < _kioskProducts.length; i++) {
+      if ((_kioskProducts[i].sku || '').toUpperCase() === MATERIALS_FEE_SKU) return _kioskProducts[i];
+    }
+    return null;
+  }
+
   function kioskCountKitsInCart() {
     var count = 0;
     var keys = Object.keys(_kioskCart);
@@ -820,21 +829,24 @@
     return count;
   }
 
-  function kioskSyncMakersFee() {
+  function kioskSyncKitFees() {
     if (_kioskMakersFeeWaived) return;
-    var feeItem = kioskFindMakersFee();
-    if (!feeItem) return;
+    var makersFee = kioskFindMakersFee();
+    var materialsFee = kioskFindMaterialsFee();
     var totalKits = kioskCountKitsInCart();
     if (totalKits > 0) {
-      _kioskCart[feeItem.item_id] = { item: feeItem, qty: totalKits };
+      if (makersFee) _kioskCart[makersFee.item_id] = { item: makersFee, qty: totalKits };
+      if (materialsFee) _kioskCart[materialsFee.item_id] = { item: materialsFee, qty: totalKits };
     } else {
-      delete _kioskCart[feeItem.item_id];
+      if (makersFee) delete _kioskCart[makersFee.item_id];
+      if (materialsFee) delete _kioskCart[materialsFee.item_id];
       _kioskMakersFeeWaived = false;
     }
   }
 
-  function kioskIsMakersFee(item) {
-    return (item.sku || '').toUpperCase() === MAKERS_FEE_SKU;
+  function kioskIsKitFee(item) {
+    var sku = (item.sku || '').toUpperCase();
+    return sku === MAKERS_FEE_SKU || sku === MATERIALS_FEE_SKU;
   }
 
   function kioskFindProductById(itemId) {
@@ -1290,7 +1302,7 @@
     // If adding a kit, reset waiver and sync maker's fee
     if (kioskGetItemType(product) === 'kit') {
       _kioskMakersFeeWaived = false;
-      kioskSyncMakersFee();
+      kioskSyncKitFees();
     }
 
     kioskRenderCart();
@@ -1499,19 +1511,19 @@
         _kioskCart[itemId].qty = qty;
       }
     }
-    if (wasKit) kioskSyncMakersFee();
+    if (wasKit) kioskSyncKitFees();
     kioskRenderCart();
     kioskRenderProducts();
   }
 
   function kioskRemoveFromCart(itemId) {
-    var wasFee = _kioskCart[itemId] && kioskIsMakersFee(_kioskCart[itemId].item);
+    var wasFee = _kioskCart[itemId] && kioskIsKitFee(_kioskCart[itemId].item);
     var wasKit = _kioskCart[itemId] && kioskGetItemType(_kioskCart[itemId].item) === 'kit';
     delete _kioskCart[itemId];
     if (wasFee) {
       _kioskMakersFeeWaived = true;
     } else if (wasKit) {
-      kioskSyncMakersFee();
+      kioskSyncKitFees();
     }
     kioskRenderCart();
     kioskRenderProducts();
@@ -2614,7 +2626,7 @@
         showToast(skipped + ' item(s) not found in current catalog — skipped', 'warning');
       }
 
-      kioskSyncMakersFee();
+      kioskSyncKitFees();
       kioskRenderCart();
       kioskRenderProducts();
       kioskShowView('browse');
