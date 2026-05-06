@@ -174,7 +174,7 @@ function doRefreshProducts() {
             var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
             item.brand = detail.brand || '';
-            item.manufacturer = detail.manufacturer || '';
+            item.manufacturer = detail.manufacturer || item.manufacturer || '';
             item.image_name = detail.image_name || '';
             item.tax_id = detail.tax_id || item.tax_id || '';
             item.tax_name = detail.tax_name || item.tax_name || '';
@@ -542,7 +542,7 @@ function doRefreshIngredients() {
             var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
             item.brand = detail.brand || '';
-            item.manufacturer = detail.manufacturer || '';
+            item.manufacturer = detail.manufacturer || item.manufacturer || '';
             item.tax_id = detail.tax_id || item.tax_id || '';
             item.tax_name = detail.tax_name || item.tax_name || '';
             var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
