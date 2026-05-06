@@ -46,6 +46,7 @@ Declared values (must be multiples of 4):
 
 Exceptions: none. All producer element spacing uses grid-aligned values:
 - `.producer` margin-bottom on label cards: `0.25rem` (4px) — matches `.brand` margin-bottom on beer cards.
+- `.product-producer` margin-bottom on default cards: `0.25rem` (4px) — same as label cards for consistency.
 - `.cart-sidebar-item-producer` margin-bottom: `0` — brand's own top margin handles the gap.
 
 Source: RESEARCH.md Pattern 3 / CSS scouting.
@@ -228,7 +229,7 @@ New rules to add to `css/styles.css`, grouped near existing `.label-wine .brand`
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-muted);
-  margin-bottom: 0.1rem;
+  margin-bottom: 0.25rem;
 }
 
 /* Producer line — cart sidebar */
