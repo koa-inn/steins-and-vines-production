@@ -781,7 +781,9 @@ function renderCartSidebar() {
 
     var nameEl = document.createElement('div');
     nameEl.className = 'cart-sidebar-item-name';
-    nameEl.textContent = item.name;
+    nameEl.textContent = item.manufacturer
+      ? item.manufacturer + ' — ' + item.name
+      : item.name;
     info.appendChild(nameEl);
 
     if (item.brand) {
@@ -968,7 +970,9 @@ function renderCartDrawer() {
 
     var nameEl = document.createElement('div');
     nameEl.className = 'cart-sidebar-item-name';
-    nameEl.textContent = item.name;
+    nameEl.textContent = item.manufacturer
+      ? item.manufacturer + ' — ' + item.name
+      : item.name;
     info.appendChild(nameEl);
 
     if (item.brand) {

@@ -2288,13 +2288,17 @@
       var tr = document.createElement('tr');
 
       appendTd(tr, kit.sku || '');
+
+      // Zoho data for this kit (moved before producer column which needs it)
+      var zohoEntry = (kit.sku && zohoKitMap.hasOwnProperty(kit.sku)) ? zohoKitMap[kit.sku] : null;
+
+      // Producer from Zoho API (NOT from Sheets kitsData — kit.manufacturer is always empty)
+      appendTd(tr, (zohoEntry && zohoEntry.manufacturer) ? zohoEntry.manufacturer : '');
+
       appendTd(tr, kit.brand || '');
       appendTd(tr, kit.name || '');
       appendTd(tr, kit.type || '');
       appendTd(tr, kit.tint || '');
-
-      // Zoho data for this kit
-      var zohoEntry = (kit.sku && zohoKitMap.hasOwnProperty(kit.sku)) ? zohoKitMap[kit.sku] : null;
 
       // Stock cell — read-only from Zoho when available, otherwise editable from Sheets
       var stockTd = document.createElement('td');

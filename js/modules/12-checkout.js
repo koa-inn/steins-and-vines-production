@@ -564,10 +564,12 @@ function renderReservationItems() {
   var thead = document.createElement('thead');
   var hasTime = items.some(function (it) { return (it.time || '').trim() !== ''; });
   var hasBrand = items.some(function (it) { return (it.brand || '').trim() !== ''; });
+  var hasManufacturer = items.some(function (it) { return (it.manufacturer || '').trim() !== ''; });
   var theadTr = document.createElement('tr');
-  ['Name', 'Type', 'Brand', 'Time', 'Price', 'Status', 'Qty', ''].forEach(function (label) {
+  ['Name', 'Type', 'Producer', 'Brand', 'Time', 'Price', 'Status', 'Qty', ''].forEach(function (label) {
     if (label === 'Time' && !hasTime) return;
     if (label === 'Brand' && !hasBrand) return;
+    if (label === 'Producer' && !hasManufacturer) return;
     var th = document.createElement('th'); th.textContent = label;
     if (label === 'Price') th.style.textAlign = 'right';
     if (label === 'Status') th.style.textAlign = 'center';
@@ -622,6 +624,14 @@ function renderReservationItems() {
     var typeLabel = (item.item_type || 'kit').charAt(0).toUpperCase() + (item.item_type || 'kit').slice(1);
     tdType.textContent = typeLabel;
     tr.appendChild(tdType);
+
+    // Producer
+    if (hasManufacturer) {
+      var tdManufacturer = document.createElement('td');
+      tdManufacturer.setAttribute('data-label', 'Producer');
+      tdManufacturer.textContent = item.manufacturer || '';
+      tr.appendChild(tdManufacturer);
+    }
 
     // Brand
     if (hasBrand) {
