@@ -134,7 +134,8 @@ function loadFeaturedProducts() {
             subcategory: z.subcategory || '',
             tasting_notes: z.tasting_notes || '',
             retail_kit: z.retail_kit || '',
-            retail_instore: z.retail_instore || ''
+            retail_instore: z.retail_instore || '',
+            manufacturer: z.manufacturer || ''
           };
           if (z.custom_fields && z.custom_fields.length) {
             z.custom_fields.forEach(function (cf) {

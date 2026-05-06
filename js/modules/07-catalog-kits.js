@@ -78,7 +78,8 @@ function loadProducts() {
             time: z.time || '',
             millable: z.millable || '',
             retail_kit: z.retail_kit || '',
-            retail_instore: z.retail_instore || ''
+            retail_instore: z.retail_instore || '',
+            manufacturer: z.manufacturer || ''
           };
           // Flatten custom fields if present (raw Zoho response — overrides top-level fields)
           if (z.custom_fields && z.custom_fields.length) {
