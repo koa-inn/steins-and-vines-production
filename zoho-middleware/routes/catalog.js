@@ -174,7 +174,7 @@ function doRefreshProducts() {
             var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
             item.brand = detail.brand || '';
-            item.manufacturer = detail.manufacturer_name || '';
+            item.manufacturer = detail.manufacturer || '';
             item.image_name = detail.image_name || '';
             item.tax_id = detail.tax_id || item.tax_id || '';
             item.tax_name = detail.tax_name || item.tax_name || '';
@@ -542,7 +542,7 @@ function doRefreshIngredients() {
             var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
             item.brand = detail.brand || '';
-            item.manufacturer = detail.manufacturer_name || '';
+            item.manufacturer = detail.manufacturer || '';
             item.tax_id = detail.tax_id || item.tax_id || '';
             item.tax_name = detail.tax_name || item.tax_name || '';
             var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
@@ -747,7 +747,7 @@ router.get('/api/kiosk/products', function (req, res) {
                 product_type:  item.product_type || '',
                 image_name:    detail.image_name || item.image_name || '',
                 brand:         detail.brand || item.brand || '',
-                manufacturer:  detail.manufacturer_name || item.manufacturer || '',
+                manufacturer:  detail.manufacturer || item.manufacturer || '',
                 tax_id:        taxId,
                 tax_name:      tName,
                 tax_percentage: pct,

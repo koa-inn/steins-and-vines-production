@@ -223,14 +223,14 @@ describe('GET /api/products — bulk detail enrichment', function () {
     });
   });
 
-  test('enriches manufacturer from detail.manufacturer_name field', function () {
+  test('enriches manufacturer from detail.manufacturer field', function () {
     var items = [makeItem({ item_id: 'i1', name: 'Wine Kit A' })];
     var detailMap = {
       'i1': {
         item_id: 'i1',
         custom_fields: [{ label: 'Type', value: 'wine' }],
         brand: 'Chardonnay',
-        manufacturer_name: 'RJS Craft Winemaking',
+        manufacturer: 'RJS Craft Winemaking',
         image_name: '',
         tax_id: '',
         tax_name: 'GST',
@@ -253,7 +253,7 @@ describe('GET /api/products — bulk detail enrichment', function () {
     });
   });
 
-  test('manufacturer defaults to empty string when manufacturer_name absent from detail', function () {
+  test('manufacturer defaults to empty string when manufacturer absent from detail', function () {
     var items = [makeItem({ item_id: 'i1', name: 'Wine Kit A' })];
     var detailMap = {
       'i1': {
@@ -624,7 +624,7 @@ describe('GET /api/kiosk/products — tax rule enrichment', function () {
     });
   });
 
-  test('enriches manufacturer from detail.manufacturer_name in kiosk product response', function () {
+  test('enriches manufacturer from detail.manufacturer in kiosk product response', function () {
     var items = [makeItem({
       item_id: 'k9',
       name: 'White Wine Kit',
@@ -636,7 +636,7 @@ describe('GET /api/kiosk/products — tax rule enrichment', function () {
       'k9': {
         tax_percentage: 12,
         tax_name: 'BC PST + GST',
-        manufacturer_name: 'Winexpert'
+        manufacturer: 'Winexpert'
       }
     });
 
