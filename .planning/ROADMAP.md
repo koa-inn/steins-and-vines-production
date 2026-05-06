@@ -184,3 +184,23 @@ Phases execute in numeric order: 5 -> 6 -> 7 (Phases 8 and 9 can run in parallel
 | 7. Zoho Audit Trail | v1.1 | 0/3 | Not started | - |
 | 8. First-Batch Promo | v1.1 | 6/6 | Complete   | 2026-05-04 |
 | 9. Content & SEO Push | v1.1 | 3/3 | Complete | 2026-05-04 |
+| 10. Checkout Payment Safety | v1.1 | 2/3 | In Progress|  |
+
+### Phase 10: Checkout Payment Safety
+**Goal**: Prevent duplicate Helcim charges during checkout by implementing a proper payment state machine, clearing stale tokens on error, and ensuring confirmation reaches both customer and store — zero tolerance for silent charge failures
+**Depends on**: Phase 8 (shares checkout.js code)
+**Requirements**: PAY-SAFE-01, PAY-SAFE-02, PAY-SAFE-03
+**Success Criteria** (what must be TRUE):
+  1. After a failed `/api/checkout` call where the card was charged, the user CANNOT trigger a second Helcim iframe — they see a "Processing refund..." state until the void confirms or times out
+  2. The `_helcimCheckoutToken` and `_helcimTransactionId` variables are both cleared to null on every error path (single-cart catch, dual-cart onError, ABORTED postMessage)
+  3. If the Zoho confirmation email (`/salesorders/{id}/email`) fails, the customer still sees a success page AND a fallback email is sent via the SMTP mailer
+  4. Frontend generates and sends a unique idempotency key per checkout attempt — server rejects duplicates with 409 rather than creating a second sales order
+**Plans:** 2/3 plans executed
+
+Plans:
+**Wave 1** *(no dependencies — run in parallel)*
+- [x] 10-01-PLAN.md -- Frontend payment state machine: cooldown lock, clear all Helcim state on error paths, client-side idempotency key generation, unit tests
+- [x] 10-02-PLAN.md -- Server-side fallback email: sendCustomerConfirmation in mailer.js, Zoho email .catch() fallback, staff email eventLog, unit tests
+
+**Wave 2** *(depends on Wave 1)*
+- [ ] 10-03-PLAN.md -- Integration verification: full test suite pass, lint clean, npm run build produces deployable artifacts
