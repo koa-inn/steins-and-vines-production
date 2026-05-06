@@ -125,6 +125,11 @@ router.post('/api/checkout', async function (req, res) {
           log.info('[checkout] Idempotent replay: ' + idempotencyKey);
           return res.status(201).json(cached);
         }
+        // H1: Atomic lock prevents TOCTOU race on concurrent duplicate requests
+        var lockAcquired = await cache.acquireLock(idempotencyKey, CHECKOUT_IDEMPOTENCY_TTL);
+        if (!lockAcquired) {
+          return res.status(409).json({ error: 'Checkout already in progress' });
+        }
         processCheckout(body, idempotencyKey, res, zohoOffline);
       } catch (e) {
         processCheckout(body, idempotencyKey, res, zohoOffline);
