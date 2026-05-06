@@ -5977,6 +5977,17 @@ var _checkoutIdempotencyKey = null;
 var _PAYMENT_COOLDOWN_MS = 30000;
 var _paymentCooldownTimer = null;
 
+// H3: Reset payment state when page is restored from bfcache
+window.addEventListener('pageshow', function (event) {
+  if (event.persisted) {
+    _helcimTransactionId = null;
+    _helcimCheckoutToken = null;
+    _checkoutIdempotencyKey = null;
+    _checkoutSubmitting = false;
+    clearPaymentCooldown();
+  }
+});
+
 // Dual-cart state — set true when both ferment and ingredient carts have items
 // and the page is loaded without a ?cart= param (or with no specific single-cart intent)
 var _isDualCart = false;
@@ -7668,6 +7679,10 @@ function setupReservationForm() {
     // Uses dynamic _helcimCheckoutToken so the listener works with
     // tokens fetched at submit time (not page load).
     window.addEventListener('message', function (event) {
+      // H4: Validate postMessage origin — only accept from Helcim payment iframe
+      if (event.origin !== 'https://secure.helcim.app' && event.origin !== 'https://myhelcim.com') {
+        return;
+      }
       var data = event.data || {};
       if (!_helcimCheckoutToken) return;
       if (data.eventName !== 'helcim-pay-js-' + _helcimCheckoutToken) return;
@@ -7699,7 +7714,7 @@ function setupReservationForm() {
   f.addEventListener('submit', function (e) {
     e.preventDefault();
     if (_checkoutSubmitting) return;
-    if (_paymentChargeInFlight) {
+    if (_paymentChargeInFlight && !_helcimTransactionId) {
       showToast('Payment processing — please wait...', 'info');
       return;
     }
@@ -7781,15 +7796,23 @@ function setupReservationForm() {
               function (results) {
                 _checkoutSubmitting = false;
                 clearPaymentCooldown();
+                _helcimTransactionId = null;
+                _helcimCheckoutToken = null;
+                _checkoutIdempotencyKey = null;
                 showDualCartConfirmation(results);
               },
               function (err, partialFermentResult) {
                 _checkoutSubmitting = false;
-                _helcimTransactionId = null;
                 _helcimCheckoutToken = null;
                 clearPaymentCooldown();
+                if (partialFermentResult && partialFermentResult.ok) {
+                  showToast('Kit order confirmed! Ingredient order failed — please contact us or try again.', 'error');
+                  saveReservation([], FERMENT_CART_KEY);
+                  if (typeof refreshAllReserveControls === 'function') refreshAllReserveControls();
+                } else {
+                  showToast(err.message || 'Checkout failed. Please try again.', 'error');
+                }
                 if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
-                showToast(err.message || 'An error occurred. Please try again or call us.', 'error');
               },
               txnId
             );
@@ -7948,6 +7971,9 @@ function setupReservationForm() {
         }
 
         clearPaymentCooldown();
+        _helcimTransactionId = null;
+        _helcimCheckoutToken = null;
+        _checkoutIdempotencyKey = null;
 
         // Clear promo state after successful checkout (prevents stale state on back-navigation)
         _promoApplied = null;
@@ -8016,8 +8042,7 @@ function setupReservationForm() {
       }).catch(function (err) {
         showToast(err.message, 'error');
         // M14: Restore submit button after error
-        // Clear Helcim transaction ID so retry requires fresh payment (prevents stale/voided token reuse)
-        _helcimTransactionId = null;
+        // Keep _helcimTransactionId alive so retry reuses same payment (C2 fix)
         _helcimCheckoutToken = null;
         clearPaymentCooldown();
         sub.disabled = false; sub.textContent = originalBtnText; _checkoutSubmitting = false;
@@ -8047,6 +8072,7 @@ if (typeof module !== 'undefined' && module.exports) {
     _setDualCartForTest: function (v) { _isDualCart = v; },
     _setPromoAppliedForTest: function (v) { _promoApplied = v; },
     _setPaymentChargeInFlightForTest: function (v) { _paymentChargeInFlight = v; },
+    _setTransactionIdForTest: function (v) { _helcimTransactionId = v; },
     _getPaymentStateForTest: function () { return { chargeInFlight: _paymentChargeInFlight, checkoutToken: _helcimCheckoutToken, transactionId: _helcimTransactionId, idempotencyKey: _checkoutIdempotencyKey }; },
     generateIdempotencyKey: generateIdempotencyKey,
     clearPaymentCooldown: clearPaymentCooldown
