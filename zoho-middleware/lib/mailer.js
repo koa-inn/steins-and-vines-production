@@ -122,9 +122,9 @@ function sendReservationNotification(orderData) {
  */
 function sendVoidFailureAlert(data) {
   var to = process.env.CONTACT_TO || 'hello@steinsandvines.ca';
-  var subject = '[ACTION REQUIRED] GP void failed — manual review needed';
+  var subject = '[ACTION REQUIRED] Helcim void failed — manual review needed';
   var body = [
-    'A Global Payments transaction void FAILED after a Zoho order failure.',
+    'A Helcim transaction void FAILED after a Zoho order failure.',
     'Manual action is required to void this transaction.',
     '',
     'Transaction ID: ' + (data.txnId || 'unknown'),
@@ -132,7 +132,7 @@ function sendVoidFailureAlert(data) {
     'Error:          ' + (data.error || 'unknown'),
     'Timestamp:      ' + (data.timestamp || new Date().toISOString()),
     '',
-    'Please void this transaction manually in the Global Payments dashboard.'
+    'Please void this transaction manually in the Helcim dashboard.'
   ].join('\n');
 
   return createTransport().sendMail({

@@ -144,6 +144,19 @@ router.post('/api/checkout', async function (req, res) {
     if (!captcha.success || captcha.score < 0.5) {
       log.warn('[checkout] reCAPTCHA rejected — score: ' + (captcha.score || 0) +
         ', action: ' + (captcha.action || '') + ', errors: ' + JSON.stringify(captcha['error-codes'] || []));
+      // Void any already-charged Helcim payment before rejecting
+      if (body.payment_token && helcimLib.isEnabled()) {
+        log.error('[checkout] Voiding txn=' + body.payment_token + ' after reCAPTCHA rejection');
+        helcimLib.voidTransaction(body.payment_token).catch(function (vErr) {
+          log.error('[checkout] Void after reCAPTCHA rejection failed: ' + vErr.message);
+          mailer.sendVoidFailureAlert({
+            txnId: body.payment_token,
+            amount: 0,
+            error: 'reCAPTCHA rejected (score=' + (captcha.score || 0) + ') — void failed: ' + vErr.message,
+            timestamp: new Date().toISOString()
+          }).catch(function () {});
+        });
+      }
       return res.status(400).json({ error: 'Request could not be verified. Please try again.' });
     }
     return proceed();
