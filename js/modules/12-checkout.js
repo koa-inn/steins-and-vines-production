@@ -1757,7 +1757,7 @@ function setupReservationForm() {
   f.addEventListener('submit', function (e) {
     e.preventDefault();
     if (_checkoutSubmitting) return;
-    if (_paymentChargeInFlight) {
+    if (_paymentChargeInFlight && !_helcimTransactionId) {
       showToast('Payment processing — please wait...', 'info');
       return;
     }
