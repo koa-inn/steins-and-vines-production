@@ -35,6 +35,17 @@ var _checkoutIdempotencyKey = null;
 var _PAYMENT_COOLDOWN_MS = 30000;
 var _paymentCooldownTimer = null;
 
+// H3: Reset payment state when page is restored from bfcache
+window.addEventListener('pageshow', function (event) {
+  if (event.persisted) {
+    _helcimTransactionId = null;
+    _helcimCheckoutToken = null;
+    _checkoutIdempotencyKey = null;
+    _checkoutSubmitting = false;
+    clearPaymentCooldown();
+  }
+});
+
 // Dual-cart state — set true when both ferment and ingredient carts have items
 // and the page is loaded without a ?cart= param (or with no specific single-cart intent)
 var _isDualCart = false;
@@ -1843,6 +1854,9 @@ function setupReservationForm() {
               function (results) {
                 _checkoutSubmitting = false;
                 clearPaymentCooldown();
+                _helcimTransactionId = null;
+                _helcimCheckoutToken = null;
+                _checkoutIdempotencyKey = null;
                 showDualCartConfirmation(results);
               },
               function (err, partialFermentResult) {
@@ -2015,6 +2029,9 @@ function setupReservationForm() {
         }
 
         clearPaymentCooldown();
+        _helcimTransactionId = null;
+        _helcimCheckoutToken = null;
+        _checkoutIdempotencyKey = null;
 
         // Clear promo state after successful checkout (prevents stale state on back-navigation)
         _promoApplied = null;
