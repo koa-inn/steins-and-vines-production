@@ -44,9 +44,9 @@ Declared values (must be multiples of 4):
 | 2xl | 48px | Major section breaks |
 | 3xl | 64px | Page-level spacing |
 
-Exceptions:
-- `.producer` margin-bottom on label cards: `0.15rem` (~2.4px) — intentionally tight to preserve compact label layout. Follows the same micro-spacing pattern as `.brand` margin-bottom (`0.25rem` on beer cards, `0.5rem` on wine cards).
-- `.cart-sidebar-item-producer` margin-bottom: `0.05rem` — same micro-pattern as `.cart-sidebar-item-brand` (margin-top `0.1rem`).
+Exceptions: none. All producer element spacing uses grid-aligned values:
+- `.producer` margin-bottom on label cards: `0.25rem` (4px) — matches `.brand` margin-bottom on beer cards.
+- `.cart-sidebar-item-producer` margin-bottom: `0` — brand's own top margin handles the gap.
 
 Source: RESEARCH.md Pattern 3 / CSS scouting.
 
@@ -58,14 +58,14 @@ Source: RESEARCH.md Pattern 3 / CSS scouting.
 |------|------|--------|-------------|------|-------|
 | Body | 16px (1rem) | 400 | 1.6 | `--font-body` | General page text |
 | Label / small | 10px (0.625rem) | 700 | 1.2 | `--font-body` | `.brand` on wine label cards |
-| Producer line — label cards | 8.8px (0.55rem) | 600 | 1.2 | `--font-body` | New `.producer` class on wine + beer label cards — smaller than brand to establish hierarchy |
-| Producer line — default card | 9.6px (0.6rem) | 600 | 1.2 | `--font-body` | New `.product-producer` class on default `.product-card` elements |
-| Producer line — cart sidebar | 10.4px (0.65rem) | 400 | 1.2 | `--font-body` | New `.cart-sidebar-item-producer` — matches `.cart-sidebar-item-brand` weight |
+| Producer line | 9.6px (0.6rem) | 400 | 1.2 | `--font-body` | All producer displays: `.producer` on label cards, `.product-producer` on default cards, `.cart-sidebar-item-producer` in cart sidebar |
 
 Typography hierarchy for kit cards (top to bottom):
-1. `.producer` — 0.55rem, uppercase, muted color, wide letter-spacing (smallest — "who made it")
-2. `.brand` — 0.625rem, uppercase, brown/gold color (identity)
+1. `.producer` — 0.6rem, weight 400, uppercase, muted color, wide letter-spacing (smallest — "who made it")
+2. `.brand` — 0.625rem, weight 700, uppercase, brown/gold color (identity)
 3. `.wine-name` / `.beer-name` / `h4` — 1rem–1.6rem (what you're buying)
+
+Rationale: weight 400 for producer reinforces the hierarchy — bold 700 is reserved for brand identity, regular 400 signals contextual metadata. A single 0.6rem size across all producer contexts is perceptibly subordinate to `.brand` (0.625rem) while remaining legible.
 
 Source: CONTEXT.md D-02; RESEARCH.md CSS code examples; `css/styles.css` lines 4352–4358, 4520.
 
@@ -202,29 +202,29 @@ New rules to add to `css/styles.css`, grouped near existing `.label-wine .brand`
 /* Producer line — wine label cards */
 .label-wine .producer {
   font-family: var(--font-body);
-  font-size: 0.55rem;
-  font-weight: 600;
+  font-size: 0.6rem;
+  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.15em;
   color: var(--color-muted);
-  margin-bottom: 0.15rem;
+  margin-bottom: 0.25rem;
 }
 
 /* Producer line — beer label cards */
 .label-beer .producer {
   font-family: var(--font-body);
-  font-size: 0.55rem;
-  font-weight: 600;
+  font-size: 0.6rem;
+  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.15em;
   color: var(--color-muted);
-  margin-bottom: 0.15rem;
+  margin-bottom: 0.25rem;
 }
 
 /* Producer line — default product cards */
 .product-producer {
   font-size: 0.6rem;
-  font-weight: 600;
+  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-muted);
@@ -233,13 +233,14 @@ New rules to add to `css/styles.css`, grouped near existing `.label-wine .brand`
 
 /* Producer line — cart sidebar */
 .cart-sidebar-item-producer {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
+  font-weight: 400;
   color: var(--color-muted);
-  margin-bottom: 0.05rem;
+  margin-bottom: 0;
 }
 ```
 
-Rationale for 0.55rem on label cards: `.brand` on wine label cards is `0.625rem`. Producer at `0.55rem` is ~12% smaller — perceptibly subordinate without being illegible. Beer `.brand` is `0.6875rem`; producer at `0.55rem` is ~20% smaller, matching the more dramatic hierarchy of the beer card layout.
+Rationale: A single `0.6rem` size is used across all producer contexts. At `0.6rem`, producer is perceptibly subordinate to `.brand` (`0.625rem` on wine, `0.6875rem` on beer) without being illegible. Weight `400` (regular) signals contextual metadata, reserving weight `700` for brand identity. Margin `0.25rem` (4px) on label cards matches the existing `.brand` margin-bottom on beer cards and sits on the 4px grid. No margin on the cart sidebar element lets the brand element's own spacing handle the gap.
 
 Source: RESEARCH.md CSS code examples; `css/styles.css` lines 4352, 4520.
 
