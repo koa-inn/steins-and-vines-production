@@ -2130,6 +2130,7 @@ if (typeof module !== 'undefined' && module.exports) {
     _setDualCartForTest: function (v) { _isDualCart = v; },
     _setPromoAppliedForTest: function (v) { _promoApplied = v; },
     _setPaymentChargeInFlightForTest: function (v) { _paymentChargeInFlight = v; },
+    _setTransactionIdForTest: function (v) { _helcimTransactionId = v; },
     _getPaymentStateForTest: function () { return { chargeInFlight: _paymentChargeInFlight, checkoutToken: _helcimCheckoutToken, transactionId: _helcimTransactionId, idempotencyKey: _checkoutIdempotencyKey }; },
     generateIdempotencyKey: generateIdempotencyKey,
     clearPaymentCooldown: clearPaymentCooldown
