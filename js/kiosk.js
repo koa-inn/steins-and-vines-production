@@ -1173,6 +1173,9 @@
       html += imgHtml;
       var displayRate = parseFloat(p.rate) || 0;
       html += '<div class="kiosk-product-body">';
+      if (p.manufacturer && kioskGetItemType(p) === 'kit') {
+        html += '<div class="kiosk-product-producer">' + escapeHTML(p.manufacturer) + '</div>';
+      }
       html += '<div class="kiosk-product-name">' + escapeHTML(p.name || '') + '</div>';
       if (p.sku) html += '<div class="kiosk-product-sku">' + escapeHTML(p.sku) + '</div>';
       html += '<div class="kiosk-product-price">' + kioskFmt(displayRate) + '</div>';
@@ -1222,7 +1225,10 @@
       var typeLabel = itemType.charAt(0).toUpperCase() + itemType.slice(1);
 
       html += '<tr class="kiosk-list-row' + rowClass + '" data-item-id="' + escapeHTML(p.item_id) + '">';
-      html += '<td><div class="kiosk-list-name">' + escapeHTML(p.name || '') + '</div>';
+      var kioskListName = p.manufacturer && kioskGetItemType(p) === 'kit'
+        ? escapeHTML(p.manufacturer) + ' — ' + escapeHTML(p.name || '')
+        : escapeHTML(p.name || '');
+      html += '<td><div class="kiosk-list-name">' + kioskListName + '</div>';
       if (p.sku) html += '<div class="kiosk-list-sku">' + escapeHTML(p.sku) + '</div>';
       html += '</td>';
 
