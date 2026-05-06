@@ -223,6 +223,65 @@ describe('GET /api/products — bulk detail enrichment', function () {
     });
   });
 
+  test('enriches manufacturer from detail.manufacturer_name field', function () {
+    var items = [makeItem({ item_id: 'i1', name: 'Wine Kit A' })];
+    var detailMap = {
+      'i1': {
+        item_id: 'i1',
+        custom_fields: [{ label: 'Type', value: 'wine' }],
+        brand: 'Chardonnay',
+        manufacturer_name: 'RJS Craft Winemaking',
+        image_name: '',
+        tax_id: '',
+        tax_name: 'GST',
+        tax_percentage: 12,
+        sales_tax_rule_id: '',
+        vendor_id: '',
+        vendor_name: ''
+      }
+    };
+
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue(detailMap);
+
+    return callHandler('/api/products').then(function () {
+      var cachedItems = mocks.cache.set.mock.calls
+        .filter(function (c) { return c[0] === 'zoho:products'; })
+        .map(function (c) { return c[1]; })[0];
+      expect(cachedItems).toBeDefined();
+      expect(cachedItems[0].manufacturer).toBe('RJS Craft Winemaking');
+    });
+  });
+
+  test('manufacturer defaults to empty string when manufacturer_name absent from detail', function () {
+    var items = [makeItem({ item_id: 'i1', name: 'Wine Kit A' })];
+    var detailMap = {
+      'i1': {
+        item_id: 'i1',
+        custom_fields: [{ label: 'Type', value: 'wine' }],
+        brand: 'Chardonnay',
+        image_name: '',
+        tax_id: '',
+        tax_name: 'GST',
+        tax_percentage: 12,
+        sales_tax_rule_id: '',
+        vendor_id: '',
+        vendor_name: ''
+      }
+    };
+
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue(detailMap);
+
+    return callHandler('/api/products').then(function () {
+      var cachedItems = mocks.cache.set.mock.calls
+        .filter(function (c) { return c[0] === 'zoho:products'; })
+        .map(function (c) { return c[1]; })[0];
+      expect(cachedItems).toBeDefined();
+      expect(cachedItems[0].manufacturer).toBe('');
+    });
+  });
+
   test('preserves sales_tax_rule_id from list item when detailMap returns null for it', function () {
     // Regression: /itemdetails bulk endpoint does not return sales_tax_rule_id.
     // The list /items endpoint does. The fix ensures we fall back to item.sales_tax_rule_id.
@@ -562,6 +621,27 @@ describe('GET /api/kiosk/products — tax rule enrichment', function () {
 
     return callHandler('/api/kiosk/products', { query: {} }).then(function () {
       expect(mocks.zohoApi.fetchItemDetailsBulk).toHaveBeenCalledWith(['k6', 'k8']);
+    });
+  });
+
+  test('enriches manufacturer from detail.manufacturer_name in kiosk product response', function () {
+    var items = [makeItem({
+      item_id: 'k9',
+      name: 'White Wine Kit',
+      rate: 220,
+      tax_percentage: 0
+    })];
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue({
+      'k9': {
+        tax_percentage: 12,
+        tax_name: 'BC PST + GST',
+        manufacturer_name: 'Winexpert'
+      }
+    });
+
+    return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
+      expect(res._body.items[0].manufacturer).toBe('Winexpert');
     });
   });
 });

@@ -174,6 +174,7 @@ function doRefreshProducts() {
             var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
             item.brand = detail.brand || '';
+            item.manufacturer = detail.manufacturer_name || '';
             item.image_name = detail.image_name || '';
             item.tax_id = detail.tax_id || item.tax_id || '';
             item.tax_name = detail.tax_name || item.tax_name || '';
@@ -541,6 +542,7 @@ function doRefreshIngredients() {
             var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
             item.brand = detail.brand || '';
+            item.manufacturer = detail.manufacturer_name || '';
             item.tax_id = detail.tax_id || item.tax_id || '';
             item.tax_name = detail.tax_name || item.tax_name || '';
             var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
@@ -744,6 +746,8 @@ router.get('/api/kiosk/products', function (req, res) {
                 category_name: item.category_name || '',
                 product_type:  item.product_type || '',
                 image_name:    detail.image_name || item.image_name || '',
+                brand:         detail.brand || item.brand || '',
+                manufacturer:  detail.manufacturer_name || item.manufacturer || '',
                 tax_id:        taxId,
                 tax_name:      tName,
                 tax_percentage: pct,
@@ -813,6 +817,7 @@ router.get('/api/snapshot', function (req, res) {
       sku:            z.sku || '',
       item_id:        z.item_id || '',
       brand:          z.brand || '',
+      manufacturer:   z.manufacturer || '',
       stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
       description:    z.description || '',
       discount:       z.discount != null ? String(z.discount) : '0',
