@@ -902,10 +902,12 @@ function renderCartSidebar() {
 
     // Maker's Fee — nested inside the kit row as an indented detail line
     if ((item.item_type || 'kit') === 'kit') {
-      var feeRateSb = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
+      var feeRateSb = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 45;
+      var matFeeRateSb = (_materialsFeeItem && parseFloat(_materialsFeeItem.rate)) ? parseFloat(_materialsFeeItem.rate) : 5;
+      var totalFeeSb = (feeRateSb + matFeeRateSb) * (parseFloat(item.qty) || 1);
       var feeDetailSb = document.createElement('div');
       feeDetailSb.className = 'cart-sidebar-fee-nested';
-      feeDetailSb.textContent = '\u21B3 Includes ' + ((_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee") + ' (' + formatCurrency(feeRateSb * (parseFloat(item.qty) || 1)) + ')';
+      feeDetailSb.textContent = '\u21B3 Includes fees (' + formatCurrency(totalFeeSb) + ')';
       row.appendChild(feeDetailSb);
     }
 
@@ -1097,10 +1099,12 @@ function renderCartDrawer() {
 
     // Maker's Fee — nested inside the kit row as an indented detail line
     if ((item.item_type || 'kit') === 'kit') {
-      var feeRateDr = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 50;
+      var feeRateDr = (_makersFeeItem && parseFloat(_makersFeeItem.rate)) ? parseFloat(_makersFeeItem.rate) : 45;
+      var matFeeRateDr = (_materialsFeeItem && parseFloat(_materialsFeeItem.rate)) ? parseFloat(_materialsFeeItem.rate) : 5;
+      var totalFeeDr = (feeRateDr + matFeeRateDr) * (parseFloat(item.qty) || 1);
       var feeDetailDr = document.createElement('div');
       feeDetailDr.className = 'cart-sidebar-fee-nested';
-      feeDetailDr.textContent = '\u21B3 Includes ' + ((_makersFeeItem && _makersFeeItem.name) ? _makersFeeItem.name : "Maker's Fee") + ' (' + formatCurrency(feeRateDr * (parseFloat(item.qty) || 1)) + ')';
+      feeDetailDr.textContent = '\u21B3 Includes fees (' + formatCurrency(totalFeeDr) + ')';
       row.appendChild(feeDetailDr);
     }
 
