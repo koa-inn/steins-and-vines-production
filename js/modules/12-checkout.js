@@ -1726,6 +1726,10 @@ function setupReservationForm() {
     // Uses dynamic _helcimCheckoutToken so the listener works with
     // tokens fetched at submit time (not page load).
     window.addEventListener('message', function (event) {
+      // H4: Validate postMessage origin — only accept from Helcim payment iframe
+      if (event.origin !== 'https://secure.helcim.app' && event.origin !== 'https://myhelcim.com') {
+        return;
+      }
       var data = event.data || {};
       if (!_helcimCheckoutToken) return;
       if (data.eventName !== 'helcim-pay-js-' + _helcimCheckoutToken) return;
