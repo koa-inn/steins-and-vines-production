@@ -1843,11 +1843,16 @@ function setupReservationForm() {
               },
               function (err, partialFermentResult) {
                 _checkoutSubmitting = false;
-                _helcimTransactionId = null;
                 _helcimCheckoutToken = null;
                 clearPaymentCooldown();
+                if (partialFermentResult && partialFermentResult.ok) {
+                  showToast('Kit order confirmed! Ingredient order failed — please contact us or try again.', 'error');
+                  saveReservation([], FERMENT_CART_KEY);
+                  if (typeof refreshAllReserveControls === 'function') refreshAllReserveControls();
+                } else {
+                  showToast(err.message || 'Checkout failed. Please try again.', 'error');
+                }
                 if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
-                showToast(err.message || 'An error occurred. Please try again or call us.', 'error');
               },
               txnId
             );
@@ -2074,8 +2079,7 @@ function setupReservationForm() {
       }).catch(function (err) {
         showToast(err.message, 'error');
         // M14: Restore submit button after error
-        // Clear Helcim transaction ID so retry requires fresh payment (prevents stale/voided token reuse)
-        _helcimTransactionId = null;
+        // Keep _helcimTransactionId alive so retry reuses same payment (C2 fix)
         _helcimCheckoutToken = null;
         clearPaymentCooldown();
         sub.disabled = false; sub.textContent = originalBtnText; _checkoutSubmitting = false;
