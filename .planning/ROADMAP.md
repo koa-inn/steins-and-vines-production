@@ -79,6 +79,7 @@ Plans:
 - [x] **Phase 5: Auth Reliability** - BrewPad sessions persist reliably, form data survives token refresh, and login prompts never stack (completed 2026-04-29)
 - [ ] **Phase 6: Kiosk-to-Brewpad Integration** - Kit sales on the kiosk auto-create linked batches in BrewPad
 - [ ] **Phase 7: Zoho Audit Trail** - Full traceability from Zoho sale through fermentation to batch completion
+- [ ] **Phase 11: Producer & Brand Visibility** - Kit product cards show producer and brand so customers can distinguish kits from multiple producers
 
 ## Phase Details
 
@@ -185,6 +186,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 (Phases 8 and 9 can run in parallel
 | 8. First-Batch Promo | v1.1 | 6/6 | Complete   | 2026-05-04 |
 | 9. Content & SEO Push | v1.1 | 3/3 | Complete | 2026-05-04 |
 | 10. Checkout Payment Safety | v1.1 | 4/4 | Complete   | 2026-05-06 |
+| 11. Producer & Brand Visibility | v1.1 | 0/3 | Not started | - |
 
 ### Phase 10: Checkout Payment Safety
 **Goal**: Prevent duplicate Helcim charges during checkout by implementing a proper payment state machine, clearing stale tokens on error, and ensuring confirmation reaches both customer and store — zero tolerance for silent charge failures
@@ -204,3 +206,21 @@ Plans:
 
 **Wave 2** *(depends on Wave 1)*
 - [x] 10-03-PLAN.md -- Integration verification: full test suite pass, lint clean, npm run build produces deployable artifacts
+
+### Phase 11: Producer & Brand Visibility
+**Goal**: Kit product cards and all product name displays show the producer (Zoho Manufacturer field) and brand in a consistent "Producer Brand - Product Name" format, so customers can distinguish kits from multiple producers
+**Depends on**: Phase 8 (shares catalog and product card code)
+**Requirements**: PROD-VIS-01, PROD-VIS-02, PROD-VIS-03
+**Success Criteria** (what must be TRUE):
+  1. Middleware pipes the Zoho `manufacturer` field through catalog enrichment and returns it in the product API response
+  2. All kit card types (wine label, beer label, default) display producer and brand above or before the product name
+  3. Checkout review, cart sidebar, kiosk cards, and admin views show producer/brand context where space allows
+**Plans:** 3 plans
+
+Plans:
+**Wave 1** *(no dependencies)*
+- [ ] 11-01-PLAN.md -- Middleware enrichment: add manufacturer_name to 3 catalog.js enrichment paths + shapeProduct(), unit tests
+**Wave 2** *(depends on Wave 1 -- needs manufacturer in API response)*
+- [ ] 11-02-PLAN.md -- Product card producers: add producer element to 6 card builders (3 featured + 3 catalog), Producer filter on catalog page, all CSS, frontend tests, build
+**Wave 3** *(depends on Wave 1 + Wave 2 -- needs CSS classes from Plan 02)*
+- [ ] 11-03-PLAN.md -- Compact view producers: cart sidebar (inline per D-03), checkout table, kiosk grid/list, admin kit table, HTML changes, frontend tests, build
