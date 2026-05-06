@@ -574,6 +574,13 @@ function loadFeaturedProducts() {
     var brand = document.createElement('div');
     brand.className = 'brand';
     brand.textContent = product.brand || '';
+
+    if (product.manufacturer) {
+      var producer = document.createElement('div');
+      producer.className = 'producer';
+      producer.textContent = product.manufacturer;
+      body.appendChild(producer);
+    }
     body.appendChild(brand);
 
     var ornament = document.createElement('div');
@@ -649,6 +656,13 @@ function loadFeaturedProducts() {
     logo.innerHTML = SV_LOGO_SVG;
     body.appendChild(logo);
 
+    if (product.manufacturer) {
+      var producer = document.createElement('div');
+      producer.className = 'producer';
+      producer.textContent = product.manufacturer;
+      body.appendChild(producer);
+    }
+
     var brand = document.createElement('div');
     brand.className = 'brand';
     brand.textContent = product.brand || '';
@@ -718,6 +732,13 @@ function loadFeaturedProducts() {
     var cardBrand = document.createElement('p');
     cardBrand.className = 'product-brand';
     cardBrand.textContent = product.brand || '';
+
+    if (product.manufacturer) {
+      var cardProducer = document.createElement('p');
+      cardProducer.className = 'product-producer';
+      cardProducer.textContent = product.manufacturer;
+      header.appendChild(cardProducer);
+    }
     header.appendChild(cardBrand);
 
     var cardName = document.createElement('h4');

@@ -4358,6 +4358,51 @@ behold-widget {
   color: var(--color-brown);
   margin-bottom: 0.5rem;
 }
+/* Producer line -- wine label cards */
+.label-wine .producer {
+  font-family: var(--font-body);
+  font-size: 0.6rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--color-muted);
+  margin-bottom: 0.25rem;
+}
+/* Producer line -- beer label cards */
+.label-beer .producer {
+  font-family: var(--font-body);
+  font-size: 0.6rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--color-muted);
+  margin-bottom: 0.25rem;
+}
+/* Producer line -- default product cards */
+.product-producer {
+  font-size: 0.6rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+  margin-bottom: 0.25rem;
+}
+/* Producer line -- cart sidebar (used by Plan 03) */
+.cart-sidebar-item-producer {
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: var(--color-muted);
+  margin-bottom: 0;
+}
+/* Producer line -- kiosk grid card (used by Plan 03) */
+.kiosk-product-producer {
+  font-size: 0.65rem;
+  color: var(--color-muted, #5f5f5f);
+  margin-bottom: 0.15rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
 .label-wine .ornament {
   width: 60%;
   height: 1px;
