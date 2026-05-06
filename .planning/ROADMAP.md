@@ -79,7 +79,7 @@ Plans:
 - [x] **Phase 5: Auth Reliability** - BrewPad sessions persist reliably, form data survives token refresh, and login prompts never stack (completed 2026-04-29)
 - [ ] **Phase 6: Kiosk-to-Brewpad Integration** - Kit sales on the kiosk auto-create linked batches in BrewPad
 - [ ] **Phase 7: Zoho Audit Trail** - Full traceability from Zoho sale through fermentation to batch completion
-- [ ] **Phase 11: Producer & Brand Visibility** - Kit product cards show producer and brand so customers can distinguish kits from multiple producers
+- [x] **Phase 11: Producer & Brand Visibility** - Kit product cards show producer and brand so customers can distinguish kits from multiple producers (completed 2026-05-06)
 
 ## Phase Details
 
@@ -186,7 +186,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 (Phases 8 and 9 can run in parallel
 | 8. First-Batch Promo | v1.1 | 6/6 | Complete   | 2026-05-04 |
 | 9. Content & SEO Push | v1.1 | 3/3 | Complete | 2026-05-04 |
 | 10. Checkout Payment Safety | v1.1 | 4/4 | Complete   | 2026-05-06 |
-| 11. Producer & Brand Visibility | v1.1 | 2/3 | In Progress|  |
+| 11. Producer & Brand Visibility | v1.1 | 3/3 | Complete   | 2026-05-06 |
 
 ### Phase 10: Checkout Payment Safety
 **Goal**: Prevent duplicate Helcim charges during checkout by implementing a proper payment state machine, clearing stale tokens on error, and ensuring confirmation reaches both customer and store — zero tolerance for silent charge failures
@@ -215,7 +215,7 @@ Plans:
   1. Middleware pipes the Zoho `manufacturer` field through catalog enrichment and returns it in the product API response
   2. All kit card types (wine label, beer label, default) display producer and brand above or before the product name
   3. Checkout review, cart sidebar, kiosk cards, and admin views show producer/brand context where space allows
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 **Wave 1** *(no dependencies)*
@@ -223,4 +223,4 @@ Plans:
 **Wave 2** *(depends on Wave 1 -- needs manufacturer in API response)*
 - [x] 11-02-PLAN.md -- Product card producers: add producer element to 6 card builders (3 featured + 3 catalog), Producer filter on catalog page, all CSS, frontend tests, build
 **Wave 3** *(depends on Wave 1 + Wave 2 -- needs CSS classes from Plan 02)*
-- [ ] 11-03-PLAN.md -- Compact view producers: cart sidebar (inline per D-03), checkout table, kiosk grid/list, admin kit table, HTML changes, frontend tests, build
+- [x] 11-03-PLAN.md -- Compact view producers: cart sidebar (inline per D-03), checkout table, kiosk grid/list, admin kit table, HTML changes, frontend tests, build
