@@ -493,6 +493,7 @@ function loadProducts() {
     var filtered = allProducts.filter(function (r) {
       if (activeFilters.type.length > 0 && activeFilters.type.indexOf(r.type) === -1) return false;
       if (activeFilters.brand.length > 0 && activeFilters.brand.indexOf(r.brand) === -1) return false;
+      if (activeFilters.manufacturer.length > 0 && activeFilters.manufacturer.indexOf(r.manufacturer) === -1) return false;
       if (activeFilters.subcategory.length > 0 && activeFilters.subcategory.indexOf(r.subcategory) === -1) return false;
       if (activeFilters.time.length > 0 && activeFilters.time.indexOf(r.time) === -1) return false;
       if (activeFilters.body.length > 0 && activeFilters.body.indexOf(r.body) === -1) return false;

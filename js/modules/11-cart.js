@@ -130,6 +130,7 @@ function setReservationQty(product, qty) {
     items.push({
       name: product.name,
       brand: product.brand || '',
+      manufacturer: product.manufacturer || '',
       price: product.retail_instore || product.retail_kit || product.price_per_unit || product.price || '',
       discount: product.discount || '',
       stock: effectiveStock,
@@ -169,7 +170,6 @@ function setReservationQty(product, qty) {
 
 function refreshAllReserveControls() {
   var wraps = document.querySelectorAll('.product-reserve-wrap');
-  console.log('[Cart] Refreshing ' + wraps.length + ' reserve controls');
   wraps.forEach(function (wrap) {
     if (!wrap._reserveProduct) return;
     var fn = wrap._reserveRenderer || renderReserveControl;
