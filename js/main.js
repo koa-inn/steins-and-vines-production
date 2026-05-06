@@ -5972,6 +5972,10 @@ var _helcimTransactionId = null;
 var _helcimCheckoutToken = null;
 var _awaitingPaymentSubmit = false;
 var _checkoutSubmitting = false;
+var _paymentChargeInFlight = false;
+var _checkoutIdempotencyKey = null;
+var _PAYMENT_COOLDOWN_MS = 30000;
+var _paymentCooldownTimer = null;
 
 // Dual-cart state — set true when both ferment and ingredient carts have items
 // and the page is loaded without a ?cart= param (or with no specific single-cart intent)
@@ -7420,7 +7424,8 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError, transactio
         honeypot: honeypotVal,
         recaptcha_token: recaptchaToken,
         cart_key: FERMENT_CART_KEY,
-        promo_code: _promoApplied ? _promoApplied.code : undefined
+        promo_code: _promoApplied ? _promoApplied.code : undefined,
+        idempotency_key: _checkoutIdempotencyKey
       })
     }).then(function (r) { return r.json(); })
     .then(function (fR) {
@@ -7446,7 +7451,8 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError, transactio
             timeslot: '',
             honeypot: honeypotVal,
             recaptcha_token: ingToken,
-            cart_key: INGREDIENT_CART_KEY
+            cart_key: INGREDIENT_CART_KEY,
+            idempotency_key: _checkoutIdempotencyKey ? _checkoutIdempotencyKey + '-ing' : undefined
           })
         }).then(function (r) { return r.json(); });
       });
@@ -7555,6 +7561,21 @@ function showDualCartConfirmation(results) {
   }
 }
 
+function generateIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 9);
+}
+
+function clearPaymentCooldown() {
+  _paymentChargeInFlight = false;
+  if (_paymentCooldownTimer) {
+    clearTimeout(_paymentCooldownTimer);
+    _paymentCooldownTimer = null;
+  }
+}
+
 function setupBeerWaitlistForm() {
   var f = document.getElementById('beer-waitlist-form'); if (!f) return;
   f.addEventListener('submit', function (e) {
@@ -7653,6 +7674,8 @@ function setupReservationForm() {
       if (data.eventStatus === 'SUCCESS') {
         var txn = data.eventMessage && data.eventMessage.data && data.eventMessage.data.data;
         _helcimTransactionId = (txn && txn.transactionId) ? String(txn.transactionId) : '';
+        _paymentChargeInFlight = true;
+        _paymentCooldownTimer = setTimeout(clearPaymentCooldown, _PAYMENT_COOLDOWN_MS);
         if (typeof removeHelcimPayIframe === 'function') removeHelcimPayIframe();
         if (_awaitingPaymentSubmit) {
           _awaitingPaymentSubmit = false;
@@ -7661,6 +7684,7 @@ function setupReservationForm() {
         }
       } else if (data.eventStatus === 'ABORTED') {
         _helcimTransactionId = null;
+        _helcimCheckoutToken = null;
         _awaitingPaymentSubmit = false;
         var sub2 = f.querySelector('button[type="submit"]');
         if (sub2) { sub2.disabled = false; sub2.textContent = 'Submit Payment'; }
@@ -7675,6 +7699,10 @@ function setupReservationForm() {
   f.addEventListener('submit', function (e) {
     e.preventDefault();
     if (_checkoutSubmitting) return;
+    if (_paymentChargeInFlight) {
+      showToast('Payment processing — please wait...', 'info');
+      return;
+    }
     if (!navigator.onLine) { showToast('Offline', 'error'); return; }
 
     // H8: Client-side validation before proceeding
@@ -7685,6 +7713,9 @@ function setupReservationForm() {
     }
 
     _checkoutSubmitting = true;
+    if (!_helcimTransactionId) {
+      _checkoutIdempotencyKey = generateIdempotencyKey();
+    }
 
     // Dual-cart path: both carts have items and no specific ?cart= was supplied
     if (_isDualCart) {
@@ -7749,10 +7780,14 @@ function setupReservationForm() {
             submitDualCart(contactData, dualToken,
               function (results) {
                 _checkoutSubmitting = false;
+                clearPaymentCooldown();
                 showDualCartConfirmation(results);
               },
               function (err, partialFermentResult) {
                 _checkoutSubmitting = false;
+                _helcimTransactionId = null;
+                _helcimCheckoutToken = null;
+                clearPaymentCooldown();
                 if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
                 showToast(err.message || 'An error occurred. Please try again or call us.', 'error');
               },
@@ -7786,6 +7821,7 @@ function setupReservationForm() {
             appendHelcimPayIframe(cfg.checkoutToken);
           }).catch(function () {
             _awaitingPaymentSubmit = false;
+            _helcimCheckoutToken = null;
             showToast('Payment not available — please try again later.', 'error');
             _checkoutSubmitting = false; if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
           });
@@ -7854,6 +7890,7 @@ function setupReservationForm() {
           appendHelcimPayIframe(cfg.checkoutToken);
         }).catch(function (initErr) {
           _awaitingPaymentSubmit = false;
+          _helcimCheckoutToken = null;
           showToast('Payment not available — please try again later.', 'error');
           sub.disabled = false; sub.textContent = originalBtnText; _checkoutSubmitting = false;
         });
@@ -7898,7 +7935,8 @@ function setupReservationForm() {
                 timeslot: bD.timeslot,
                 honeypot: honeypotVal,
                 recaptcha_token: recaptchaToken,
-                promo_code: _promoApplied ? _promoApplied.code : undefined
+                promo_code: _promoApplied ? _promoApplied.code : undefined,
+                idempotency_key: _checkoutIdempotencyKey
               })
             }).then(function (r) { return r.json(); });
           });
@@ -7908,6 +7946,8 @@ function setupReservationForm() {
         if (!oR || (!oR.ok && !oR.success)) {
           throw new Error(oR && oR.error ? oR.error : 'Checkout failed. Please try again or call us.');
         }
+
+        clearPaymentCooldown();
 
         // Clear promo state after successful checkout (prevents stale state on back-navigation)
         _promoApplied = null;
@@ -7978,6 +8018,8 @@ function setupReservationForm() {
         // M14: Restore submit button after error
         // Clear Helcim transaction ID so retry requires fresh payment (prevents stale/voided token reuse)
         _helcimTransactionId = null;
+        _helcimCheckoutToken = null;
+        clearPaymentCooldown();
         sub.disabled = false; sub.textContent = originalBtnText; _checkoutSubmitting = false;
       });
     }); // end getRecaptchaToken
@@ -8003,7 +8045,11 @@ if (typeof module !== 'undefined' && module.exports) {
     clearCheckoutFormDraft: clearCheckoutFormDraft,
     // Test-only helpers — only available in Node/test environment
     _setDualCartForTest: function (v) { _isDualCart = v; },
-    _setPromoAppliedForTest: function (v) { _promoApplied = v; }
+    _setPromoAppliedForTest: function (v) { _promoApplied = v; },
+    _setPaymentChargeInFlightForTest: function (v) { _paymentChargeInFlight = v; },
+    _getPaymentStateForTest: function () { return { chargeInFlight: _paymentChargeInFlight, checkoutToken: _helcimCheckoutToken, transactionId: _helcimTransactionId, idempotencyKey: _checkoutIdempotencyKey }; },
+    generateIdempotencyKey: generateIdempotencyKey,
+    clearPaymentCooldown: clearPaymentCooldown
   };
 }
 // ===== Promo Banner =====
