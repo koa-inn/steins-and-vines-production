@@ -38,6 +38,12 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [ ] **SEO-02**: Professional facility/process photos are added to key pages (homepage, product pages)
 - [x] **SEO-03**: Google Review testimonials displayed on the site with links back to original reviews for authenticity
 
+### Checkout Payment Safety
+
+- [ ] **PAY-SAFE-01**: After a Helcim charge + checkout failure, duplicate charges are impossible — frontend blocks re-payment until void is confirmed or a cooldown expires
+- [ ] **PAY-SAFE-02**: Every error path in both single-cart and dual-cart checkout clears all Helcim state (`_helcimTransactionId`, `_helcimCheckoutToken`) so stale tokens cannot be reused
+- [ ] **PAY-SAFE-03**: Customer always receives confirmation — if Zoho email fails, a fallback SMTP email is sent; frontend shows success page regardless of email delivery
+
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
