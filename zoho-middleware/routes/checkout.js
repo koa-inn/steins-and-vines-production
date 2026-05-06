@@ -14,6 +14,7 @@ var verifyRecaptcha = helpers.verifyRecaptcha;
 var notifyAdminPanel = helpers.notifyAdminPanel;
 var buildLineItems = helpers.buildLineItems;
 var findMakersFeeItem = helpers.findMakersFeeItem;
+var findMaterialsFeeItem = helpers.findMaterialsFeeItem;
 
 var zohoPost = zohoApi.zohoPost;
 var zohoGet = zohoApi.zohoGet;
@@ -376,15 +377,20 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       });
     }
 
-    // Resolve the Maker's Fee item now — needed for both stripping and injection below.
+    // Resolve the Maker's Fee and Materials Fee items now — needed for both stripping and injection below.
     var MAKERS_FEE_ITEM_ID = process.env.MAKERS_FEE_ITEM_ID || '';
     var makersFeeItem = findMakersFeeItem(services, MAKERS_FEE_ITEM_ID);
+    var MATERIALS_FEE_ITEM_ID = process.env.MATERIALS_FEE_ITEM_ID || '';
+    var materialsFeeItem = findMaterialsFeeItem(services, MATERIALS_FEE_ITEM_ID);
 
-    // Strip any client-submitted Maker's Fee entries before building line items.
-    // The server always injects the fee server-side; if the client also submitted it,
+    // Strip any client-submitted Maker's Fee and Materials Fee entries before building line items.
+    // The server always injects fee items server-side; if the client also submitted them,
     // both entries would reach Zoho causing double-billing.
-    var checkoutItems = makersFeeItem
-      ? body.items.filter(function (i) { return i.item_id !== makersFeeItem.item_id; })
+    var feeItemIds = {};
+    if (makersFeeItem) feeItemIds[makersFeeItem.item_id] = true;
+    if (materialsFeeItem) feeItemIds[materialsFeeItem.item_id] = true;
+    var checkoutItems = (makersFeeItem || materialsFeeItem)
+      ? body.items.filter(function (i) { return !feeItemIds[i.item_id]; })
       : body.items;
 
     // --- Build line items from authoritative catalog prices only ---
@@ -421,6 +427,25 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       });
       orderTotal = Math.round((orderTotal + makersFeeRate * kitQtyTotal) * 100) / 100;
       log.info('[checkout] Injected Maker\'s Fee: qty=' + kitQtyTotal + ' rate=' + makersFeeRate + ' item_id=' + makersFeeItem.item_id);
+
+      // Materials Fee injection — same pattern as Maker's Fee but graceful degradation (non-blocking)
+      if (materialsFeeItem) {
+        var materialsFeeRate = materialsFeeItem.rate;
+        if (promoDiscount > 0) {
+          materialsFeeRate = Math.round(materialsFeeItem.rate * (1 - promoDiscount / 100) * 100) / 100;
+          log.info('[checkout] Promo applied to Materials Fee: original=' + materialsFeeItem.rate + ' discounted=' + materialsFeeRate);
+        }
+        lineItems.push({
+          item_id: materialsFeeItem.item_id,
+          name: materialsFeeItem.name || 'Materials Fee',
+          quantity: kitQtyTotal,
+          rate: materialsFeeRate
+        });
+        orderTotal = Math.round((orderTotal + materialsFeeRate * kitQtyTotal) * 100) / 100;
+        log.info('[checkout] Injected Materials Fee: qty=' + kitQtyTotal + ' rate=' + materialsFeeRate + ' item_id=' + materialsFeeItem.item_id);
+      } else {
+        log.warn('[checkout] Materials Fee item not found in services catalog — skipping (non-fatal)');
+      }
     }
 
     // Full amount charged — deposit equals the order total when payment was taken
@@ -891,3 +916,4 @@ module.exports = router;
 module.exports.verifyRecaptcha = verifyRecaptcha;
 module.exports.buildLineItems = buildLineItems;
 module.exports.findMakersFeeItem = findMakersFeeItem;
+module.exports.findMaterialsFeeItem = findMaterialsFeeItem;

@@ -39,6 +39,7 @@ var helpers = require('../lib/checkout-helpers');
 var verifyRecaptcha = helpers.verifyRecaptcha;
 var buildLineItems = helpers.buildLineItems;
 var findMakersFeeItem = helpers.findMakersFeeItem;
+var findMaterialsFeeItem = helpers.findMaterialsFeeItem;
 var payments = require('../routes/payments');
 var handlePaymentInitialize = payments.handlePaymentInitialize;
 
@@ -320,6 +321,61 @@ describe('findMakersFeeItem', () => {
   test('falls through to SKU match when item_id env var does not match', () => {
     // '999' does not match any item_id, so SKU 'MAKERS-FEE' match fires instead
     expect(findMakersFeeItem(services, '999')).toEqual(services[1]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findMaterialsFeeItem
+// ---------------------------------------------------------------------------
+describe('findMaterialsFeeItem', () => {
+  var services = [
+    { item_id: '111', name: 'Milling Fee', sku: 'MILLED', rate: 10 },
+    { item_id: '222', name: 'Makers Fee', sku: 'MAKERS-FEE', rate: 45 },
+    { item_id: '444', name: 'Materials Fee', sku: 'MAT-FEE', rate: 5, tax_percentage: 12, tax_name: 'GST+PST' },
+    { item_id: '333', name: 'Wine Carbonation', sku: 'CARB-WINE', rate: 35 }
+  ];
+
+  test('finds by explicit item_id match (MATERIALS_FEE_ITEM_ID env var)', () => {
+    expect(findMaterialsFeeItem(services, '444')).toEqual(services[2]);
+  });
+
+  test('item_id match takes priority — returns first match by id regardless of SKU', () => {
+    expect(findMaterialsFeeItem(services, '111')).toEqual(services[0]);
+  });
+
+  test('finds by SKU MAT-FEE when item_id env var is empty', () => {
+    expect(findMaterialsFeeItem(services, '')).toEqual(services[2]);
+  });
+
+  test('finds by name containing "materials fee" (case-insensitive)', () => {
+    var svcs = [{ item_id: '99', name: 'Materials Fee Service', sku: 'OTHER', rate: 5 }];
+    expect(findMaterialsFeeItem(svcs, '')).toEqual(svcs[0]);
+  });
+
+  test('returns null when no match found', () => {
+    var svcs = [{ item_id: '1', name: 'Milling', sku: 'MILL', rate: 10 }];
+    expect(findMaterialsFeeItem(svcs, '')).toBeNull();
+  });
+
+  test('returns null for empty services array', () => {
+    expect(findMaterialsFeeItem([], '444')).toBeNull();
+  });
+
+  test('returns null for null services', () => {
+    expect(findMaterialsFeeItem(null, '')).toBeNull();
+  });
+
+  test('returns null for non-array services', () => {
+    expect(findMaterialsFeeItem('not-an-array', '')).toBeNull();
+  });
+
+  test('skips null entries in services array gracefully', () => {
+    var svcs = [null, { item_id: '444', name: 'Materials Fee', sku: 'MAT-FEE', rate: 5 }];
+    expect(findMaterialsFeeItem(svcs, '')).toEqual(svcs[1]);
+  });
+
+  test('falls through to SKU match when item_id env var does not match', () => {
+    expect(findMaterialsFeeItem(services, '999')).toEqual(services[2]);
   });
 });
 

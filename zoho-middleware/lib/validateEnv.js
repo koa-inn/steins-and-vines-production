@@ -32,6 +32,7 @@ var OPTIONAL = [
   { name: 'RECAPTCHA_SECRET_KEY',     desc: 'Google reCAPTCHA secret (fail-open if missing)' },
   { name: 'INVENTORY_LEDGER_ENABLED', desc: 'Enable Redis inventory ledger (true/false)' },
   { name: 'MAKERS_FEE_ITEM_ID',       desc: 'Zoho item ID for the Maker\'s Fee line item' },
+  { name: 'MATERIALS_FEE_ITEM_ID',    desc: 'Zoho item ID for the Materials Fee line item' },
   { name: 'ZOHO_CF_STATUS',           desc: 'Zoho custom field: reservation status' },
   { name: 'ZOHO_CF_TIMESLOT',         desc: 'Zoho custom field: timeslot' },
   { name: 'ZOHO_CF_DEPOSIT',          desc: 'Zoho custom field: deposit amount' },

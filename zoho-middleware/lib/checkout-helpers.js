@@ -170,11 +170,32 @@ function findMakersFeeItem(services, makersFeeItemId) {
   return null;
 }
 
+/**
+ * Find the Materials Fee item in the services catalog.
+ * Searches by MATERIALS_FEE_ITEM_ID env var first, then by SKU 'MAT-FEE', then by name.
+ * @param {Array}  services           - Services catalog array from cache or snapshot
+ * @param {string} materialsFeeItemId - Value of MATERIALS_FEE_ITEM_ID env var (may be empty string)
+ * @returns {object|null} The matching service item, or null if not found
+ */
+function findMaterialsFeeItem(services, materialsFeeItemId) {
+  if (!Array.isArray(services)) return null;
+  for (var i = 0; i < services.length; i++) {
+    var s = services[i];
+    if (!s) continue;
+    if (materialsFeeItemId && s.item_id === materialsFeeItemId) return s;
+    var sku = (s.sku || '').toUpperCase();
+    var name = (s.name || '').toLowerCase();
+    if (sku === 'MAT-FEE' || name.indexOf('materials fee') !== -1) return s;
+  }
+  return null;
+}
+
 module.exports = {
   readServicesSnapshot: readServicesSnapshot,
   withTimeout: withTimeout,
   verifyRecaptcha: verifyRecaptcha,
   notifyAdminPanel: notifyAdminPanel,
   buildLineItems: buildLineItems,
-  findMakersFeeItem: findMakersFeeItem
+  findMakersFeeItem: findMakersFeeItem,
+  findMaterialsFeeItem: findMaterialsFeeItem
 };
