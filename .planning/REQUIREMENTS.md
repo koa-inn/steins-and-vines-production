@@ -24,7 +24,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 - [ ] **ZOHO-01**: Batch stores its originating Zoho SO number and customer ID
 - [ ] **ZOHO-02**: Zoho sales order shows linked batch status (active/complete) via custom field or note
-- [ ] **ZOHO-03**: Staff can view the full audit trail: sale → batch → fermentation progress → completion
+- [ ] **ZOHO-03**: Staff can view the full audit trail: sale -> batch -> fermentation progress -> completion
 
 ### First-Batch Promo
 
@@ -40,9 +40,15 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Checkout Payment Safety
 
-- [ ] **PAY-SAFE-01**: After a Helcim charge + checkout failure, duplicate charges are impossible — frontend blocks re-payment until void is confirmed or a cooldown expires
+- [ ] **PAY-SAFE-01**: After a Helcim charge + checkout failure, duplicate charges are impossible -- frontend blocks re-payment until void is confirmed or a cooldown expires
 - [ ] **PAY-SAFE-02**: Every error path in both single-cart and dual-cart checkout clears all Helcim state (`_helcimTransactionId`, `_helcimCheckoutToken`) so stale tokens cannot be reused
-- [ ] **PAY-SAFE-03**: Customer always receives confirmation — if Zoho email fails, a fallback SMTP email is sent; frontend shows success page regardless of email delivery
+- [ ] **PAY-SAFE-03**: Customer always receives confirmation -- if Zoho email fails, a fallback SMTP email is sent; frontend shows success page regardless of email delivery
+
+### Producer & Brand Visibility
+
+- [ ] **PROD-VIS-01**: Middleware pipes the Zoho `manufacturer` field through catalog enrichment and returns it in the product API response
+- [ ] **PROD-VIS-02**: All kit card types (wine label, beer label, default) display producer and brand above or before the product name
+- [ ] **PROD-VIS-03**: Checkout review, cart sidebar, kiosk cards, and admin views show producer/brand context where space allows
 
 ## v2 Requirements
 
@@ -59,7 +65,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | Feature | Reason |
 |---------|--------|
 | Brewpad UI redesign | Current UI works; focus is reliability and integration only |
-| Online checkout → batch creation | Kiosk-only for now; online checkout is a separate system |
+| Online checkout -> batch creation | Kiosk-only for now; online checkout is a separate system |
 | Refund/void handling in batch context | Future milestone |
 | New brewpad tabs or views | Not needed for reliability + integration goals |
 | Kiosk UI changes beyond batch handoff | Kiosk milestone is paused pending Helcim webhook fix |
@@ -78,12 +84,15 @@ Deferred to future release. Tracked but not in current roadmap.
 | ZOHO-01 | Phase 7 | Pending |
 | ZOHO-02 | Phase 7 | Pending |
 | ZOHO-03 | Phase 7 | Pending |
+| PROD-VIS-01 | Phase 11 | Pending (11-01) |
+| PROD-VIS-02 | Phase 11 | Pending (11-02) |
+| PROD-VIS-03 | Phase 11 | Pending (11-03) |
 
 **Coverage:**
-- v1.1 requirements: 10 total
-- Mapped to phases: 10
+- v1.1 requirements: 13 total
+- Mapped to phases: 13
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-29*
-*Last updated: 2026-04-29 after roadmap creation*
+*Last updated: 2026-05-06 after Phase 11 planning*
