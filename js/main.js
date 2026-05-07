@@ -2637,7 +2637,7 @@ function loadProducts() {
           { label: 'Time', sort: 'time', field: 'time' },
           { label: 'In-Store Price', sort: 'price', field: 'retail_instore' },
           { label: 'Kit Price', sort: 'price', field: 'retail_kit' },
-          { label: '', sort: 'reserved', field: null },
+          { label: '', sort: null, field: null },
           { label: '', sort: null, field: null }
         ];
         // Determine which columns have data in this group
