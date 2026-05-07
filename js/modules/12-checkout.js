@@ -56,6 +56,13 @@ var _isDualCart = false;
 // Promo code state — set when a valid promo code is applied at checkout
 var _promoApplied = null; // { code: 'FIRSTBATCH', discountPct: 20 } or null
 
+function extractHelcimTransactionId(postMessageData) {
+  var em = postMessageData && postMessageData.eventMessage;
+  if (typeof em === 'string') { try { em = JSON.parse(em); } catch (e) { return ''; } }
+  var txn = em && em.data;
+  return (txn && txn.transactionId) ? String(txn.transactionId) : '';
+}
+
 // --- Checkout form draft persistence ---
 var _FORM_DRAFT_KEY = 'sv-checkout-form-draft';
 
@@ -1813,8 +1820,7 @@ function setupReservationForm() {
       if (!_matchToken) return;
       if (data.eventName !== 'helcim-pay-js-' + _matchToken) return;
       if (data.eventStatus === 'SUCCESS') {
-        var txn = data.eventMessage && data.eventMessage.data && data.eventMessage.data.data;
-        _helcimTransactionId = (txn && txn.transactionId) ? String(txn.transactionId) : '';
+        _helcimTransactionId = extractHelcimTransactionId(data);
         _paymentChargeInFlight = true;
         _paymentCooldownTimer = setTimeout(clearPaymentCooldown, _PAYMENT_COOLDOWN_MS);
         if (typeof removeHelcimPayIframe === 'function') removeHelcimPayIframe();
@@ -2228,6 +2234,7 @@ if (typeof module !== 'undefined' && module.exports) {
     _setTransactionIdForTest: function (v) { _helcimTransactionId = v; },
     _setSecretTokenForTest: function (v) { _helcimSecretToken = v; },
     _getPaymentStateForTest: function () { return { chargeInFlight: _paymentChargeInFlight, checkoutToken: _helcimCheckoutToken, secretToken: _helcimSecretToken, transactionId: _helcimTransactionId, idempotencyKey: _checkoutIdempotencyKey }; },
+    _extractHelcimTransactionId: extractHelcimTransactionId,
     generateIdempotencyKey: generateIdempotencyKey,
     clearPaymentCooldown: clearPaymentCooldown
   };
