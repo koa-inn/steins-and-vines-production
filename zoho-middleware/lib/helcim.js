@@ -106,7 +106,7 @@ function helcimHeaders(idempotencyKey) {
  *
  * @param {number} amount   - Amount to charge (e.g. 50.00)
  * @param {string} currency - ISO currency code (default 'CAD')
- * @returns {Promise<{ checkoutToken: string }>}
+ * @returns {Promise<{ checkoutToken: string, secretToken: string }>}
  */
 function initializeCheckout(amount, currency) {
   if (!HELCIM_API_TOKEN) {
@@ -124,7 +124,7 @@ function initializeCheckout(amount, currency) {
     if (!data.checkoutToken) {
       throw new Error('Helcim initialize did not return checkoutToken');
     }
-    return { checkoutToken: data.checkoutToken };
+    return { checkoutToken: data.checkoutToken, secretToken: data.secretToken || '' };
   });
 }
 

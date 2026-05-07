@@ -6025,6 +6025,7 @@ var _prevHasKits = null;       // tracks previous hasKits state to avoid redunda
 var _paymentConfig = null;
 var _helcimTransactionId = null;
 var _helcimCheckoutToken = null;
+var _helcimSecretToken = null;
 var _awaitingPaymentSubmit = false;
 var _checkoutSubmitting = false;
 var _paymentChargeInFlight = false;
@@ -6037,6 +6038,7 @@ window.addEventListener('pageshow', function (event) {
   if (event.persisted) {
     _helcimTransactionId = null;
     _helcimCheckoutToken = null;
+    _helcimSecretToken = null;
     _checkoutIdempotencyKey = null;
     _checkoutSubmitting = false;
     clearPaymentCooldown();
@@ -7802,8 +7804,10 @@ function setupReservationForm() {
         return;
       }
       var data = event.data || {};
-      if (!_helcimCheckoutToken) return;
-      if (data.eventName !== 'helcim-pay-js-' + _helcimCheckoutToken) return;
+      if (typeof data === 'string') { try { data = JSON.parse(data); } catch (e) { return; } }
+      var _matchToken = _helcimSecretToken || _helcimCheckoutToken;
+      if (!_matchToken) return;
+      if (data.eventName !== 'helcim-pay-js-' + _matchToken) return;
       if (data.eventStatus === 'SUCCESS') {
         var txn = data.eventMessage && data.eventMessage.data && data.eventMessage.data.data;
         _helcimTransactionId = (txn && txn.transactionId) ? String(txn.transactionId) : '';
@@ -7818,6 +7822,7 @@ function setupReservationForm() {
       } else if (data.eventStatus === 'ABORTED') {
         _helcimTransactionId = null;
         _helcimCheckoutToken = null;
+        _helcimSecretToken = null;
         _awaitingPaymentSubmit = false;
         var sub2 = f.querySelector('button[type="submit"]');
         if (sub2) { sub2.disabled = false; sub2.textContent = 'Submit Payment'; }
@@ -7925,12 +7930,14 @@ function setupReservationForm() {
                 clearPaymentCooldown();
                 _helcimTransactionId = null;
                 _helcimCheckoutToken = null;
+                _helcimSecretToken = null;
                 _checkoutIdempotencyKey = null;
                 showDualCartConfirmation(results);
               },
               function (err, partialFermentResult) {
                 _checkoutSubmitting = false;
                 _helcimCheckoutToken = null;
+                _helcimSecretToken = null;
                 clearPaymentCooldown();
                 if (partialFermentResult && partialFermentResult.ok) {
                   showToast('Kit order confirmed! Ingredient order failed — please contact us or try again.', 'error');
@@ -7967,11 +7974,13 @@ function setupReservationForm() {
               throw new Error(cfg && cfg.error ? cfg.error : 'Payment initialization failed');
             }
             _helcimCheckoutToken = cfg.checkoutToken;
+            _helcimSecretToken = cfg.secretToken || '';
             if (_dualSub) _dualSub.textContent = 'Waiting for payment...';
             appendHelcimPayIframe(cfg.checkoutToken);
           }).catch(function () {
             _awaitingPaymentSubmit = false;
             _helcimCheckoutToken = null;
+            _helcimSecretToken = null;
             showToast('Payment not available — please try again later.', 'error');
             _checkoutSubmitting = false; if (_dualSub) { _dualSub.disabled = false; _dualSub.textContent = _dualOriginalText; }
           });
@@ -8045,11 +8054,13 @@ function setupReservationForm() {
             throw new Error(cfg && cfg.error ? cfg.error : 'Payment initialization failed');
           }
           _helcimCheckoutToken = cfg.checkoutToken;
+          _helcimSecretToken = cfg.secretToken || '';
           sub.textContent = 'Waiting for payment...';
           appendHelcimPayIframe(cfg.checkoutToken);
         }).catch(function (initErr) {
           _awaitingPaymentSubmit = false;
           _helcimCheckoutToken = null;
+          _helcimSecretToken = null;
           showToast('Payment not available — please try again later.', 'error');
           sub.disabled = false; sub.textContent = originalBtnText; _checkoutSubmitting = false;
         });
@@ -8109,6 +8120,7 @@ function setupReservationForm() {
         clearPaymentCooldown();
         _helcimTransactionId = null;
         _helcimCheckoutToken = null;
+        _helcimSecretToken = null;
         _checkoutIdempotencyKey = null;
 
         // Clear promo state after successful checkout (prevents stale state on back-navigation)
@@ -8180,6 +8192,7 @@ function setupReservationForm() {
         // M14: Restore submit button after error
         // Keep _helcimTransactionId alive so retry reuses same payment (C2 fix)
         _helcimCheckoutToken = null;
+        _helcimSecretToken = null;
         clearPaymentCooldown();
         sub.disabled = false; sub.textContent = originalBtnText; _checkoutSubmitting = false;
       });
@@ -8209,7 +8222,8 @@ if (typeof module !== 'undefined' && module.exports) {
     _setPromoAppliedForTest: function (v) { _promoApplied = v; },
     _setPaymentChargeInFlightForTest: function (v) { _paymentChargeInFlight = v; },
     _setTransactionIdForTest: function (v) { _helcimTransactionId = v; },
-    _getPaymentStateForTest: function () { return { chargeInFlight: _paymentChargeInFlight, checkoutToken: _helcimCheckoutToken, transactionId: _helcimTransactionId, idempotencyKey: _checkoutIdempotencyKey }; },
+    _setSecretTokenForTest: function (v) { _helcimSecretToken = v; },
+    _getPaymentStateForTest: function () { return { chargeInFlight: _paymentChargeInFlight, checkoutToken: _helcimCheckoutToken, secretToken: _helcimSecretToken, transactionId: _helcimTransactionId, idempotencyKey: _checkoutIdempotencyKey }; },
     generateIdempotencyKey: generateIdempotencyKey,
     clearPaymentCooldown: clearPaymentCooldown
   };

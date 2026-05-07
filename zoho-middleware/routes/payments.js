@@ -22,7 +22,7 @@ function handlePaymentInitialize(req, res) {
   }
   helcimLib.initializeCheckout(amount, 'CAD')
     .then(function (result) {
-      res.json({ checkoutToken: result.checkoutToken, depositAmount: amount });
+      res.json({ checkoutToken: result.checkoutToken, secretToken: result.secretToken, depositAmount: amount });
     })
     .catch(function (err) {
       log.error('[payment/initialize] Failed: ' + err.message);
