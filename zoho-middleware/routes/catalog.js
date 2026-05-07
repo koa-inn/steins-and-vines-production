@@ -173,7 +173,7 @@ function doRefreshProducts() {
           items.forEach(function (item) {
             var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
-            item.brand = detail.brand || '';
+            item.brand = detail.brand || item.brand || '';
             item.manufacturer = detail.manufacturer || item.manufacturer || '';
             item.image_name = detail.image_name || '';
             item.tax_id = detail.tax_id || item.tax_id || '';
@@ -541,7 +541,7 @@ function doRefreshIngredients() {
           items.forEach(function (item) {
             var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
-            item.brand = detail.brand || '';
+            item.brand = detail.brand || item.brand || '';
             item.manufacturer = detail.manufacturer || item.manufacturer || '';
             item.tax_id = detail.tax_id || item.tax_id || '';
             item.tax_name = detail.tax_name || item.tax_name || '';
