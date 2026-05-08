@@ -131,7 +131,7 @@ function queueForRetry(payload, reason) {
  * @param {string} contactId     - from body.contact_id
  * @param {Object} catalogMap    - product catalog lookup (may be used for SKU enrichment)
  */
-function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId, catalogMap) {
+function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId, catalogMap, invoiceId) {
   var kitItems = detectKitItems(lineItems);
   if (kitItems.length === 0) return;
 
@@ -148,11 +148,8 @@ function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId
     };
 
     callAppsScriptCreateBatch(batchPayload).then(function (result) {
-      // Phase 7: D-02 -- sync "Pending" status to Zoho invoice on batch creation
-      // Note: zoho_so_number is the invoice number (e.g. "INV-00123"), not the internal
-      // invoice ID. The Zoho Books API accepts invoice numbers as identifiers in PUT paths.
-      if (result && result.ok && batchPayload.zoho_so_number) {
-        syncBatchToZoho(batchPayload.zoho_so_number, result.batch_id || '', 'pending')
+      if (result && result.ok && invoiceId) {
+        syncBatchToZoho(invoiceId, result.batch_id || '', 'pending')
           .catch(function () {}); // fire-and-forget; errors already queued for retry
       }
     });
@@ -226,7 +223,8 @@ function retryPendingBatches() {
  * @param {string} status   - one of ['pending', 'active', 'complete']
  * @returns {Promise<{ok: boolean, skipped?: boolean, queued?: boolean}>}
  */
-function syncBatchToZoho(soId, batchId, status) {
+function syncBatchToZoho(soId, batchId, status, opts) {
+  var skipQueue = opts && opts.skipQueue;
   var validStatuses = ['pending', 'active', 'complete'];
   if (validStatuses.indexOf(status) === -1) {
     return Promise.reject(new Error('Invalid status "' + status + '" — must be one of: ' + validStatuses.join(', ')));
@@ -238,7 +236,6 @@ function syncBatchToZoho(soId, batchId, status) {
     return Promise.resolve({ ok: true, skipped: true });
   }
 
-  // Construct status label server-side (T-07-01: prevents arbitrary text injection)
   var statusLabel = status.charAt(0).toUpperCase() + status.slice(1) + ' — ' + batchId;
 
   var payload = {
@@ -255,6 +252,9 @@ function syncBatchToZoho(soId, batchId, status) {
         ? (err.response.data.message || err.response.data.error || err.message)
         : err.message;
       log.error('[batch/sync-zoho] Zoho error syncing batchId=' + batchId + ' soId=' + soId + ': ' + msg);
+      if (skipQueue) {
+        return { ok: false, error: msg };
+      }
       return queueSyncForRetry({ so_id: soId, batch_id: batchId, status: status }, msg).then(function () {
         return { ok: false, queued: true };
       });
@@ -322,11 +322,10 @@ function retrySyncQueue() {
 
           log.info('[brewpad] Retrying Zoho sync: attempt ' + retryData.attempts + '/' + SYNC_MAX_RETRIES + ' key=' + key);
 
-          return syncBatchToZoho(retryData.payload.so_id, retryData.payload.batch_id, retryData.payload.status).then(function (result) {
+          return syncBatchToZoho(retryData.payload.so_id, retryData.payload.batch_id, retryData.payload.status, { skipQueue: true }).then(function (result) {
             if (result && result.ok) {
               return cache.del(key);
             }
-            // syncBatchToZoho queued again internally — update attempt count
             return cache.set(key, retryData, SYNC_RETRY_TTL);
           }).catch(function () {
             return cache.set(key, retryData, SYNC_RETRY_TTL);

@@ -529,6 +529,11 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       var data;
       try {
         if (useInvoice) {
+          // Invoice module doesn't have the SO custom fields — strip them
+          delete salesOrder.custom_fields;
+          salesOrder.payment_terms = 0;
+          salesOrder.payment_terms_label = 'Due on Receipt';
+          salesOrder.reference_number = transactionId;
           data = await zohoPost('/invoices', salesOrder);
         } else {
           data = await zohoPost('/salesorders', salesOrder);

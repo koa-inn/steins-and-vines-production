@@ -512,7 +512,7 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
         });
 
         // Trigger batch creation for kit items with Maker's Fee (fire-and-forget per D-01)
-        brewpadIntegration.createBatchesFromSale(lineItems, invoiceNumber, body.customer_name || '', body.contact_id || '', catalogMap);
+        brewpadIntegration.createBatchesFromSale(lineItems, invoiceNumber, body.customer_name || '', body.contact_id || '', catalogMap, invoiceId);
 
         var result = {
           ok: true, transaction_id: txnId, invoice_id: invoiceId, invoice_number: invoiceNumber,
