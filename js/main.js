@@ -6055,8 +6055,12 @@ var _promoApplied = null; // { code: 'FIRSTBATCH', discountPct: 20 } or null
 function extractHelcimTransactionId(postMessageData) {
   var em = postMessageData && postMessageData.eventMessage;
   if (typeof em === 'string') { try { em = JSON.parse(em); } catch (e) { return ''; } }
-  var txn = em && em.data;
-  return (txn && txn.transactionId) ? String(txn.transactionId) : '';
+  // Helcim wraps the response: { data: { hash, data: { transactionId, ... } }, status: 200 }
+  var inner = em && em.data && em.data.data;
+  if (inner && inner.transactionId) return String(inner.transactionId);
+  // Fallback: flat structure (em.data.transactionId)
+  var flat = em && em.data;
+  return (flat && flat.transactionId) ? String(flat.transactionId) : '';
 }
 
 // --- Checkout form draft persistence ---
@@ -7813,10 +7817,10 @@ function setupReservationForm() {
       }
       var data = event.data || {};
       if (typeof data === 'string') { try { data = JSON.parse(data); } catch (e) { return; } }
-      var _matchToken = _helcimSecretToken || _helcimCheckoutToken;
-      console.log('[HELCIM DEBUG] after parse — eventName:', data.eventName, 'matchToken:', _matchToken, 'expected:', 'helcim-pay-js-' + _matchToken);
-      if (!_matchToken) return;
-      if (data.eventName !== 'helcim-pay-js-' + _matchToken) return;
+      var _nameMatchesCheckout = _helcimCheckoutToken && data.eventName === 'helcim-pay-js-' + _helcimCheckoutToken;
+      var _nameMatchesSecret = _helcimSecretToken && data.eventName === 'helcim-pay-js-' + _helcimSecretToken;
+      console.log('[HELCIM DEBUG] after parse — eventName:', data.eventName, 'checkoutToken:', _helcimCheckoutToken, 'secretToken:', _helcimSecretToken, 'matchesCheckout:', _nameMatchesCheckout, 'matchesSecret:', _nameMatchesSecret);
+      if (!_nameMatchesCheckout && !_nameMatchesSecret) return;
       if (data.eventStatus === 'SUCCESS') {
         _helcimTransactionId = extractHelcimTransactionId(data);
         console.log('[HELCIM DEBUG] extracted transactionId:', _helcimTransactionId, 'eventMessage type:', typeof data.eventMessage, 'eventMessage:', JSON.stringify(data.eventMessage, null, 2));

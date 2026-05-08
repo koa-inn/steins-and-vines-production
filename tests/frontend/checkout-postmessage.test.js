@@ -8,7 +8,7 @@ beforeEach(function () { localStorage.clear(); });
 
 var checkoutMod = require('../../js/modules/12-checkout');
 
-describe('postMessage secretToken matching', function () {
+describe('postMessage token matching', function () {
   test('_getPaymentStateForTest exposes secretToken field', function () {
     var state = checkoutMod._getPaymentStateForTest();
     expect(state).toHaveProperty('secretToken');
@@ -23,58 +23,68 @@ describe('postMessage secretToken matching', function () {
     checkoutMod._setSecretTokenForTest('sec-abc-123');
     var state = checkoutMod._getPaymentStateForTest();
     expect(state.secretToken).toBe('sec-abc-123');
-    // cleanup
     checkoutMod._setSecretTokenForTest(null);
   });
 
-  test('postMessage eventName should match against secretToken, not checkoutToken', function () {
-    // This test documents the root cause: Helcim uses secretToken in eventName,
-    // not checkoutToken. The frontend must store and match against secretToken.
+  test('Helcim uses checkoutToken in eventName, secretToken is a separate field', function () {
     var secretToken = 'secret-token-xyz';
     var checkoutToken = 'checkout-token-abc';
-    var expectedEventName = 'helcim-pay-js-' + secretToken;
-    var wrongEventName = 'helcim-pay-js-' + checkoutToken;
-
-    // These are different tokens and must not be confused
-    expect(expectedEventName).not.toBe(wrongEventName);
-    expect(expectedEventName).toBe('helcim-pay-js-secret-token-xyz');
+    expect(secretToken).not.toBe(checkoutToken);
+    expect('helcim-pay-js-' + checkoutToken).toBe('helcim-pay-js-checkout-token-abc');
   });
 });
 
 describe('extractHelcimTransactionId', function () {
   var extract = checkoutMod._extractHelcimTransactionId;
 
-  test('extracts transactionId from Helcim postMessage structure (eventMessage.data.transactionId)', function () {
+  test('extracts from real Helcim structure: stringified eventMessage with data.data nesting', function () {
     var helcimData = {
-      eventName: 'helcim-pay-js-secret123',
+      eventName: 'helcim-pay-js-checkout123',
       eventStatus: 'SUCCESS',
+      eventMessage: JSON.stringify({
+        data: {
+          hash: '5048d8e1c1782412a6da91e3427d4e1b',
+          data: { transactionId: '48122609', status: 'APPROVED', amount: '4', currency: 'CAD' }
+        },
+        status: 200,
+        statusText: '',
+        headers: { 'content-type': 'application/json' }
+      })
+    };
+    expect(extract(helcimData)).toBe('48122609');
+  });
+
+  test('extracts from object eventMessage with data.data nesting', function () {
+    var helcimData = {
       eventMessage: {
-        hash: 'abc123hash',
-        data: { transactionId: 25133280, amount: 100, status: 'APPROVAL' }
+        data: {
+          hash: 'abc123',
+          data: { transactionId: 25133280, amount: 100 }
+        },
+        status: 200
       }
     };
     expect(extract(helcimData)).toBe('25133280');
   });
 
-  test('handles eventMessage as JSON string', function () {
+  test('falls back to flat eventMessage.data.transactionId', function () {
     var helcimData = {
-      eventName: 'helcim-pay-js-secret123',
-      eventStatus: 'SUCCESS',
-      eventMessage: JSON.stringify({
+      eventMessage: {
         hash: 'abc123hash',
-        data: { transactionId: 99887766, amount: 50 }
-      })
+        data: { transactionId: 99887766, amount: 50, status: 'APPROVAL' }
+      }
     };
     expect(extract(helcimData)).toBe('99887766');
   });
 
-  test('returns empty string when eventMessage has wrong nesting (old bug: data.data.transactionId)', function () {
-    var wrongStructure = {
-      eventMessage: { data: { data: { transactionId: 12345 } } }
+  test('handles stringified flat eventMessage', function () {
+    var helcimData = {
+      eventMessage: JSON.stringify({
+        hash: 'abc123hash',
+        data: { transactionId: 11223344, amount: 50 }
+      })
     };
-    // transactionId is at data.data level — extractor should NOT find it
-    // (it only looks at eventMessage.data.transactionId)
-    expect(extract(wrongStructure)).toBe('');
+    expect(extract(helcimData)).toBe('11223344');
   });
 
   test('returns empty string for missing eventMessage', function () {
@@ -88,7 +98,7 @@ describe('extractHelcimTransactionId', function () {
   });
 
   test('coerces numeric transactionId to string', function () {
-    var data = { eventMessage: { data: { transactionId: 12345 } } };
+    var data = { eventMessage: { data: { hash: 'x', data: { transactionId: 12345 } }, status: 200 } };
     expect(extract(data)).toBe('12345');
     expect(typeof extract(data)).toBe('string');
   });
