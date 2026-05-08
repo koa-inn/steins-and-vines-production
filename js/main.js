@@ -7806,6 +7806,7 @@ function setupReservationForm() {
     // Uses dynamic _helcimCheckoutToken so the listener works with
     // tokens fetched at submit time (not page load).
     window.addEventListener('message', function (event) {
+      console.log('[HELCIM DEBUG] raw postMessage origin:', event.origin, 'data type:', typeof event.data, 'data:', typeof event.data === 'string' ? event.data.substring(0, 500) : JSON.stringify(event.data, null, 2).substring(0, 1000));
       // H4: Validate postMessage origin — only accept from Helcim payment iframe
       if (event.origin !== 'https://secure.helcim.app' && event.origin !== 'https://myhelcim.com') {
         return;
@@ -7813,9 +7814,9 @@ function setupReservationForm() {
       var data = event.data || {};
       if (typeof data === 'string') { try { data = JSON.parse(data); } catch (e) { return; } }
       var _matchToken = _helcimSecretToken || _helcimCheckoutToken;
+      console.log('[HELCIM DEBUG] after parse — eventName:', data.eventName, 'matchToken:', _matchToken, 'expected:', 'helcim-pay-js-' + _matchToken);
       if (!_matchToken) return;
       if (data.eventName !== 'helcim-pay-js-' + _matchToken) return;
-      console.log('[HELCIM DEBUG] postMessage received:', JSON.stringify(data, null, 2));
       if (data.eventStatus === 'SUCCESS') {
         _helcimTransactionId = extractHelcimTransactionId(data);
         console.log('[HELCIM DEBUG] extracted transactionId:', _helcimTransactionId, 'eventMessage type:', typeof data.eventMessage, 'eventMessage:', JSON.stringify(data.eventMessage, null, 2));
