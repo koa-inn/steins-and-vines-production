@@ -524,28 +524,29 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         }
       }
 
+      // Paid orders → Zoho Invoice; unpaid reservations → Zoho Sales Order
+      var useInvoice = !!transactionId;
       var data;
       try {
-        data = await zohoPost('/salesorders', salesOrder);
-      } catch (soErr) {
-        // Item #15 — Warn if a freshly created contact is now orphaned because the SO failed
-        if (contactWasFresh) {
-          log.warn('[checkout] Orphan contact created — sales order failed. contact_id=' + customerId + ' err=' + soErr.message);
+        if (useInvoice) {
+          data = await zohoPost('/invoices', salesOrder);
+        } else {
+          data = await zohoPost('/salesorders', salesOrder);
         }
-        throw soErr;
+      } catch (createErr) {
+        if (contactWasFresh) {
+          log.warn('[checkout] Orphan contact created — ' + (useInvoice ? 'invoice' : 'sales order') + ' failed. contact_id=' + customerId + ' err=' + createErr.message);
+        }
+        throw createErr;
       }
 
-      // Mark product cache stale so the next request triggers a background
-      // refresh (stale-while-revalidate). Deleting the cache key outright
-      // would leave the products endpoint with no data during the Zoho
-      // round-trip and can trigger 429 rate-limit storms if Zoho is busy.
       cache.del(C.CACHE_KEYS.PRODUCTS_TS);
 
-      var soId = data.salesorder ? data.salesorder.salesorder_id : null;
-      var soNumber = data.salesorder ? data.salesorder.salesorder_number : null;
+      var zohoEntity = useInvoice ? data.invoice : data.salesorder;
+      var soId = zohoEntity ? (zohoEntity.invoice_id || zohoEntity.salesorder_id) : null;
+      var soNumber = zohoEntity ? (zohoEntity.invoice_number || zohoEntity.salesorder_number) : null;
+      log.info('[checkout] Created ' + (useInvoice ? 'Invoice' : 'Sales Order') + ' ' + soNumber + ' id=' + soId);
 
-      // Burn promo redemption AFTER successful SO creation (per D-09).
-      // Fire-and-forget with 5-year TTL — do not block the response.
       if (soId && promoDiscount > 0 && customerEmail) {
         var burnKey = C.CACHE_KEYS.PROMO_REDEEMED_PREFIX + customerEmail.toLowerCase();
         cache.set(burnKey, { redeemedAt: new Date().toISOString(), soId: soId }, 5 * 365 * 24 * 60 * 60)
@@ -553,14 +554,11 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         log.info('[promo] Redemption burned for FIRSTBATCH, email=' + customerEmail + ' soId=' + soId);
       }
 
-      // Use the Zoho SO total (tax-inclusive) for payment recording.
-      // buildLineItems returns the pre-tax subtotal; Zoho applies tax rules
-      // server-side. Using the SO response total ensures the recorded payment
-      // matches what Zoho expects, preventing an unpaid balance.
-      if (transactionId && data.salesorder && data.salesorder.total != null) {
-        var soTotal = parseFloat(data.salesorder.total);
-        if (!isNaN(soTotal)) {
-          depositAmount = Math.round(soTotal * 100) / 100;
+      // Use the Zoho response total (tax-inclusive) for payment recording.
+      if (transactionId && zohoEntity && zohoEntity.total != null) {
+        var zohoTotal = parseFloat(zohoEntity.total);
+        if (!isNaN(zohoTotal)) {
+          depositAmount = Math.round(zohoTotal * 100) / 100;
         }
       }
 
@@ -594,33 +592,38 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       // If an online payment was charged, record it in Zoho Books
       if (transactionId && depositAmount > 0 && soId) {
         try {
-          await zohoPost('/customerpayments', {
+          var paymentBody = {
             customer_id: customerId,
             payment_mode: 'creditcard',
             amount: depositAmount,
             date: new Date().toISOString().slice(0, 10),
             reference_number: transactionId,
-            notes: 'Online payment for Sales Order ' + (soNumber || soId),
-            // Item #7 — Apply the payment directly to the sales order
-            salesorders_to_apply: [{ salesorder_id: soId, amount_applied: depositAmount }]
-          });
-          log.info('[checkout] Payment recorded for SO=' + soNumber);
+            notes: 'Online payment for ' + (useInvoice ? 'Invoice' : 'Sales Order') + ' ' + (soNumber || soId)
+          };
+          if (useInvoice) {
+            paymentBody.invoices = [{ invoice_id: soId, amount_applied: depositAmount }];
+          } else {
+            paymentBody.salesorders_to_apply = [{ salesorder_id: soId, amount_applied: depositAmount }];
+          }
+          await zohoPost('/customerpayments', paymentBody);
+          log.info('[checkout] Payment recorded for ' + (useInvoice ? 'INV' : 'SO') + '=' + soNumber);
         } catch (payErr) {
-          // Payment recording failed — log but don't fail the order
-          // The transaction ID custom field on the SO still has the reference
           log.error('[checkout] Payment recording failed (non-fatal): ' + payErr.message);
         }
       }
 
-      // Fire-and-forget: email the sales order (invoice PDF) to the customer
+      // Fire-and-forget: email confirmation to the customer
       // Only for paid orders — unpaid reservations are confirmed manually by staff
       if (transactionId && soId && customerEmail) {
-        zohoPost('/salesorders/' + soId + '/email', {
+        var emailEndpoint = useInvoice
+          ? '/invoices/' + soId + '/email'
+          : '/salesorders/' + soId + '/email';
+        zohoPost(emailEndpoint, {
           to_mail_ids: [customerEmail],
           subject: 'Steins & Vines — Order Confirmation ' + (soNumber || ''),
           body: 'Thank you for your order! Please find your order confirmation attached.\n\nIf you have any questions, reply to this email or call us at (604) 567-4565.'
         }).then(function () {
-          log.info('[checkout] Order confirmation email sent to customer for SO=' + soNumber);
+          log.info('[checkout] Order confirmation email sent to customer for ' + soNumber);
         }).catch(function (emailErr) {
           log.warn('[checkout] Zoho email failed, sending SMTP fallback: ' + emailErr.message);
           mailer.sendCustomerConfirmation({
@@ -629,7 +632,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
             items: lineItems,
             timeslot: body.timeslot || ''
           }).then(function () {
-            log.info('[checkout] Fallback SMTP confirmation sent for SO=' + soNumber);
+            log.info('[checkout] Fallback SMTP confirmation sent for ' + soNumber);
           }).catch(function (fallbackErr) {
             log.error('[checkout] Fallback SMTP email also failed: ' + fallbackErr.message);
             eventLog.logEvent('checkout.customer_email_failed', {
