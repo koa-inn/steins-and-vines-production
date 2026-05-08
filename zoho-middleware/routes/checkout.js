@@ -404,15 +404,21 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
     var orderTotal = built.orderTotal;
 
     // Server-side Maker's Fee injection.
-    // Count total kit quantity (non-service items from the stripped list), then inject
+    // Count total kit quantity (non-service, non-ingredient items), then inject
     // the fee as an authoritative line item so the Zoho invoice always reflects it.
     // Per D-11: when promo is active, apply 20% discount to Maker's Fee rate.
+    // Ingredient-only carts (cart_key=sv-cart-ingredients) never have kits.
     var kitQtyTotal = 0;
-    for (var kqi = 0; kqi < checkoutItems.length; kqi++) {
-      var kqiItem = checkoutItems[kqi];
-      var kqiIsService = Array.isArray(services) &&
-        services.some(function (s) { return s && s.item_id === kqiItem.item_id; });
-      if (!kqiIsService) kitQtyTotal += (Number(kqiItem.quantity) || 1);
+    var isIngredientCart = body.cart_key === 'sv-cart-ingredients';
+    if (!isIngredientCart) {
+      for (var kqi = 0; kqi < checkoutItems.length; kqi++) {
+        var kqiItem = checkoutItems[kqi];
+        var kqiIsService = Array.isArray(services) &&
+          services.some(function (s) { return s && s.item_id === kqiItem.item_id; });
+        var kqiIsIngredient = Array.isArray(ingredients) &&
+          ingredients.some(function (ing) { return ing && ing.item_id === kqiItem.item_id; });
+        if (!kqiIsService && !kqiIsIngredient) kitQtyTotal += (Number(kqiItem.quantity) || 1);
+      }
     }
     if (kitQtyTotal > 0) {
       if (!makersFeeItem) {
@@ -898,10 +904,14 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
     // runs — so the early-return path in runCheckout never fires after a charge.
     var MAKERS_FEE_ITEM_ID_PRE = process.env.MAKERS_FEE_ITEM_ID || '';
     var preKitQty = 0;
-    for (var pkq = 0; pkq < body.items.length; pkq++) {
-      var pkqItem = body.items[pkq];
-      var pkqIsService = Array.isArray(preServices) && preServices.some(function (s) { return s && s.item_id === pkqItem.item_id; });
-      if (!pkqIsService) preKitQty += (Number(pkqItem.quantity) || 1);
+    var preIsIngredientCart = body.cart_key === 'sv-cart-ingredients';
+    if (!preIsIngredientCart) {
+      for (var pkq = 0; pkq < body.items.length; pkq++) {
+        var pkqItem = body.items[pkq];
+        var pkqIsService = Array.isArray(preServices) && preServices.some(function (s) { return s && s.item_id === pkqItem.item_id; });
+        var pkqIsIngredient = Array.isArray(preIngredients) && preIngredients.some(function (ing) { return ing && ing.item_id === pkqItem.item_id; });
+        if (!pkqIsService && !pkqIsIngredient) preKitQty += (Number(pkqItem.quantity) || 1);
+      }
     }
     if (preKitQty > 0 && !findMakersFeeItem(preServices, MAKERS_FEE_ITEM_ID_PRE)) {
       log.error('[checkout/pre-validate] Maker\'s Fee item not found in services catalog — voiding txn=' + transactionId);
