@@ -7815,8 +7815,10 @@ function setupReservationForm() {
       var _matchToken = _helcimSecretToken || _helcimCheckoutToken;
       if (!_matchToken) return;
       if (data.eventName !== 'helcim-pay-js-' + _matchToken) return;
+      console.log('[HELCIM DEBUG] postMessage received:', JSON.stringify(data, null, 2));
       if (data.eventStatus === 'SUCCESS') {
         _helcimTransactionId = extractHelcimTransactionId(data);
+        console.log('[HELCIM DEBUG] extracted transactionId:', _helcimTransactionId, 'eventMessage type:', typeof data.eventMessage, 'eventMessage:', JSON.stringify(data.eventMessage, null, 2));
         _paymentChargeInFlight = true;
         _paymentCooldownTimer = setTimeout(clearPaymentCooldown, _PAYMENT_COOLDOWN_MS);
         if (typeof removeHelcimPayIframe === 'function') removeHelcimPayIframe();
