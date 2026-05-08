@@ -190,8 +190,19 @@ function findMaterialsFeeItem(services, materialsFeeItemId) {
   return null;
 }
 
+function readIngredientsFileCache() {
+  try {
+    var data = JSON.parse(fs.readFileSync(
+      path.join(__dirname, '..', 'ingredients-cache.json'), 'utf8'
+    ));
+    if (Array.isArray(data) && data.length > 0) return data;
+  } catch (e) {}
+  return [];
+}
+
 module.exports = {
   readServicesSnapshot: readServicesSnapshot,
+  readIngredientsFileCache: readIngredientsFileCache,
   withTimeout: withTimeout,
   verifyRecaptcha: verifyRecaptcha,
   notifyAdminPanel: notifyAdminPanel,

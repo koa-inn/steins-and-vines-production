@@ -9,6 +9,7 @@ var C = require('../lib/constants');
 var helpers = require('../lib/checkout-helpers');
 
 var readServicesSnapshot = helpers.readServicesSnapshot;
+var readIngredientsFileCache = helpers.readIngredientsFileCache;
 var withTimeout = helpers.withTimeout;
 var verifyRecaptcha = helpers.verifyRecaptcha;
 var notifyAdminPanel = helpers.notifyAdminPanel;
@@ -296,6 +297,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
     if (!Array.isArray(services) || services.length === 0) {
       log.warn('[checkout] Services cache empty — using snapshot fallback');
       services = readServicesSnapshot();
+    }
+    if (!Array.isArray(ingredients) || ingredients.length === 0) {
+      log.warn('[checkout] Ingredients cache empty — using file cache fallback');
+      ingredients = readIngredientsFileCache();
     }
     // Build item_id → rate lookup from the authoritative catalog (products + services)
     var catalogMap = {};
@@ -847,6 +852,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
     if (!Array.isArray(preServices) || preServices.length === 0) {
       log.warn('[checkout/pre-validate] Services cache empty — using snapshot fallback');
       preServices = readServicesSnapshot();
+    }
+    if (!Array.isArray(preIngredients) || preIngredients.length === 0) {
+      log.warn('[checkout/pre-validate] Ingredients cache empty — using file cache fallback');
+      preIngredients = readIngredientsFileCache();
     }
 
     if (!Array.isArray(preCatalog) || preCatalog.length === 0) {
