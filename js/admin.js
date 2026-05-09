@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-08T00:29:26.338Z';
+  var BUILD_TIMESTAMP = '2026-05-09T02:01:58.060Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -31,6 +31,14 @@
 
   // Dashboard summary (server-side aggregated metrics for accurate counts with pagination)
   var dashboardSummary = null;
+
+  // Display helper: prefers firstname+lastname, falls back to customer_name (legacy batches)
+  function getCustomerDisplayName(b) {
+    if (b.customer_firstname || b.customer_lastname) {
+      return ((b.customer_firstname || '') + ' ' + (b.customer_lastname || '')).trim();
+    }
+    return b.customer_name || '';
+  }
 
   // Pending changes queue: [{item, field, value, sheetName, headers}]
   var pendingChanges = [];
@@ -5615,7 +5623,7 @@
     var filtered = batchesData;
     if (search) {
       filtered = filtered.filter(function (b) {
-        return (String(b.batch_id) + ' ' + String(b.product_name) + ' ' + String(b.customer_name) + ' ' + String(b.vessel_id)).toLowerCase().indexOf(search) !== -1;
+        return (String(b.batch_id) + ' ' + String(b.product_name) + ' ' + String(getCustomerDisplayName(b) || b.customer_name) + ' ' + String(b.vessel_id)).toLowerCase().indexOf(search) !== -1;
       });
     }
 
@@ -5662,7 +5670,7 @@
       html += '<tr data-batch-id="' + b.batch_id + '">';
       html += '<td class="batch-id-cell">' + escapeHTML(b.batch_id) + '</td>';
       html += '<td>' + escapeHTML(b.product_name || b.product_sku || '—') + '</td>';
-      html += '<td>' + escapeHTML(b.customer_name || '—') + '</td>';
+      html += '<td>' + escapeHTML(getCustomerDisplayName(b) || '—') + '</td>';
       html += '<td><span class="batch-status batch-status--' + statusInfo.color + '">' + statusInfo.label + '</span></td>';
       html += '<td>' + startDate + '</td>';
       html += '<td>' + location + '</td>';
@@ -5762,7 +5770,7 @@
     // Info grid
     html += '<div class="batch-detail-grid">';
     html += '<div class="batch-detail-col"><strong>Product:</strong> ' + escapeHTML(b.product_name || b.product_sku) + '</div>';
-    html += '<div class="batch-detail-col"><strong>Customer:</strong> ' + escapeHTML(b.customer_name || '—') + '</div>';
+    html += '<div class="batch-detail-col"><strong>Customer:</strong> ' + escapeHTML(getCustomerDisplayName(b) || '—') + '</div>';
     html += '<div class="batch-detail-col"><strong>Start Date:</strong> ' + (b.start_date ? String(b.start_date).substring(0, 10) : '—') + '</div>';
     html += '<div class="batch-detail-col"><strong>Shelf:</strong> ' + escapeHTML(b.shelf_id || '—') + ' &nbsp;<strong>Bin:</strong> ' + escapeHTML(b.bin_id || '—') + ' &nbsp;<strong>Vessel:</strong> ' + escapeHTML(b.vessel_id || '—') + '</div>';
     html += '</div>';
@@ -6662,6 +6670,8 @@
     html += '<div class="admin-kit-search-dropdown" id="batch-customer-dropdown" style="display:none;"></div>';
     html += '<input type="hidden" id="batch-customer-id" value="">';
     html += '<input type="hidden" id="batch-customer-name" value="">';
+    html += '<input type="hidden" id="batch-customer-firstname" value="">';
+    html += '<input type="hidden" id="batch-customer-lastname" value="">';
     html += '<input type="hidden" id="batch-customer-email-val" value="">';
     html += '</div></div>';
     html += '<div id="batch-customer-info" class="batch-customer-info" style="display:none;"></div>';
@@ -6762,6 +6772,9 @@
 
     function selectCustomer(name, email, contactId) {
       document.getElementById('batch-customer-name').value = name;
+      var nameParts = name.split(/\s+/);
+      document.getElementById('batch-customer-firstname').value = nameParts[0] || '';
+      document.getElementById('batch-customer-lastname').value = nameParts.slice(1).join(' ') || '';
       document.getElementById('batch-customer-email-val').value = email || '';
       document.getElementById('batch-customer-id').value = contactId || '';
       custInput.value = name;
@@ -6776,6 +6789,8 @@
         custInfo.style.display = '';
         custInfo.querySelector('.batch-customer-clear').addEventListener('click', function () {
           document.getElementById('batch-customer-name').value = '';
+          document.getElementById('batch-customer-firstname').value = '';
+          document.getElementById('batch-customer-lastname').value = '';
           document.getElementById('batch-customer-email-val').value = '';
           document.getElementById('batch-customer-id').value = '';
           custInput.value = '';
@@ -6912,11 +6927,22 @@
       submitBtn.disabled = true;
       submitBtn.textContent = 'Creating...';
 
+      var custFirstname = document.getElementById('batch-customer-firstname').value;
+      var custLastname = document.getElementById('batch-customer-lastname').value;
+      // If no split values but have customerName (typed directly), split it
+      if (!custFirstname && customerName) {
+        var adminNameParts = customerName.split(/\s+/);
+        custFirstname = adminNameParts[0] || '';
+        custLastname = adminNameParts.slice(1).join(' ') || '';
+      }
+
       function doCreateBatch(resolvedId) {
         adminApiPost('create_batch', {
           product_sku: sku,
           product_name: productName,
           customer_id: resolvedId || customerId,
+          customer_firstname: custFirstname,
+          customer_lastname: custLastname,
           customer_name: customerName,
           customer_email: customerEmail,
           start_date: startDate,
@@ -7626,7 +7652,7 @@
     body += '<div style="margin:10px auto;">' + svg + '</div>';
     body += '<p><strong>' + batchId + '</strong></p>';
     body += '<p>' + escapeHTML(batchData.product_name || '') + '</p>';
-    body += '<p>' + escapeHTML(batchData.customer_name || '') + '</p>';
+    body += '<p>' + escapeHTML(getCustomerDisplayName(batchData) || '') + '</p>';
     body += '<p style="font-size:0.8rem;word-break:break-all;color:#666;">' + url + '</p>';
     body += '<button type="button" class="btn" id="qr-print-btn">Print Label</button>';
     body += '<button type="button" class="btn-secondary" id="qr-copy-url-btn" style="margin-left:8px;">Copy URL</button>';
@@ -7657,7 +7683,7 @@
       '<div class="batch-id">' + batchId + '</div>' +
       '<div class="qr">' + svg + '</div>' +
       '<div class="info"><strong>' + escapeHTML(batchData.product_name || '') + '</strong></div>' +
-      '<div class="info">' + escapeHTML(batchData.customer_name || '') + '</div>' +
+      '<div class="info">' + escapeHTML(getCustomerDisplayName(batchData) || '') + '</div>' +
       '<div class="info">Started: ' + escapeHTML(batchData.start_date || '') + '</div>' +
       '<div class="info">Shelf: ' + escapeHTML(batchData.shelf_id || '?') + ' | Bin: ' + escapeHTML(batchData.bin_id || '?') + ' | Vessel: ' + escapeHTML(batchData.vessel_id || '?') + '</div>' +
       '</div></body></html>'
@@ -7736,7 +7762,7 @@
 
     // Info grid
     h += '<div class="info-grid">';
-    h += '<span class="lbl">Customer:</span><span class="val">' + (isBlank ? '<span class="write-line"></span>' : escapeHTML(b.customer_name || '')) + '</span>';
+    h += '<span class="lbl">Customer:</span><span class="val">' + (isBlank ? '<span class="write-line"></span>' : escapeHTML(getCustomerDisplayName(b) || '')) + '</span>';
     h += '<span class="lbl">Email:</span><span class="val">' + (isBlank ? '<span class="write-line"></span>' : escapeHTML(b.customer_email || '')) + '</span>';
     h += '<span class="lbl">Phone:</span><span class="val">' + (isBlank ? '<span class="write-line"></span>' : escapeHTML(b.customer_phone || '')) + '</span>';
     h += '<span class="lbl">Start Date:</span><span class="val">' + (isBlank ? '<span class="write-line"></span>' : escapeHTML(String(b.start_date || '').substring(0, 10))) + '</span>';
@@ -8608,6 +8634,8 @@
               adminApiPost('create_batch', {
                 product_name: it.name,
                 product_sku: it.item_id || '',
+                customer_firstname: _kioskCustomer ? _kioskCustomer.name.split(/\s+/)[0] : 'Walk-In',
+                customer_lastname: _kioskCustomer ? _kioskCustomer.name.split(/\s+/).slice(1).join(' ') : '',
                 customer_name: _kioskCustomer ? _kioskCustomer.name : 'Walk-In',
                 customer_email: _kioskCustomer ? (_kioskCustomer.email || '') : '',
                 start_date: today,
@@ -8731,6 +8759,8 @@
           var html = buildBatchLabelHTML({
             batch: {
               batch_id: b.batch_id,
+              customer_firstname: _kioskCustomer ? _kioskCustomer.name.split(/\s+/)[0] : 'Walk-In',
+              customer_lastname: _kioskCustomer ? _kioskCustomer.name.split(/\s+/).slice(1).join(' ') : '',
               customer_name: _kioskCustomer ? _kioskCustomer.name : 'Walk-In',
               customer_email: _kioskCustomer ? (_kioskCustomer.email || '') : '',
               start_date: b.start_date || today

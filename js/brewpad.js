@@ -30,6 +30,14 @@ function isToday(dateStr) {
   return String(dateStr).substring(0, 10) === todayStr();
 }
 
+// Display helper: prefers firstname+lastname, falls back to customer_name (legacy batches)
+function getCustomerDisplayName(b) {
+  if (b.customer_firstname || b.customer_lastname) {
+    return ((b.customer_firstname || '') + ' ' + (b.customer_lastname || '')).trim();
+  }
+  return b.customer_name || '';
+}
+
 function filterBatchesByStatus(batches, filter) {
   if (!filter || filter === 'all') return batches.slice();
   if (filter === 'active') {
@@ -1028,7 +1036,7 @@ function buildLifecycleTimeline(batch, soDate) {
         html += '<span class="bp-task-title">' + escapeHTML(t.title || ('Step ' + t.step_number)) + '</span>';
         var overdueDate = escapeHTML(String(t.due_date).slice(0, 10));
         html += '<span style="font-size:0.75rem;color:#d32f2f;font-weight:600;margin-left:6px;">Overdue \u2014 ' + overdueDate + '</span>';
-        if (t.customer_name) html += '<span class="bp-task-customer">' + escapeHTML(t.customer_name) + '</span>';
+        if (getCustomerDisplayName(t)) html += '<span class="bp-task-customer">' + escapeHTML(getCustomerDisplayName(t)) + '</span>';
         var meta = getBatchMeta(t.batch_id);
         if (meta) html += '<span class="bp-task-meta">' + escapeHTML(meta) + '</span>';
         html += '</div></div>';
@@ -1040,7 +1048,7 @@ function buildLifecycleTimeline(batch, soDate) {
         html += '<div class="bp-task-body">';
         html += '<button type="button" class="bp-batch-chip" data-batch-id="' + escapeHTML(t.batch_id || '') + '">' + escapeHTML(t.batch_id || '') + '</button>';
         html += '<span class="bp-task-title">' + escapeHTML(t.title || ('Step ' + t.step_number)) + '</span>';
-        if (t.customer_name) html += '<span class="bp-task-customer">' + escapeHTML(t.customer_name) + '</span>';
+        if (getCustomerDisplayName(t)) html += '<span class="bp-task-customer">' + escapeHTML(getCustomerDisplayName(t)) + '</span>';
         var meta = getBatchMeta(t.batch_id);
         if (meta) html += '<span class="bp-task-meta">' + escapeHTML(meta) + '</span>';
         html += '</div></div>';
@@ -1175,7 +1183,7 @@ function buildLifecycleTimeline(batch, soDate) {
     var filtered = _batchesData.filter(function (b) {
       if (!search) return true;
       var hay = (String(b.batch_id) + ' ' + String(b.product_name || '') + ' ' +
-        String(b.customer_name || '') + ' ' + String(b.vessel_id || '')).toLowerCase();
+        String(getCustomerDisplayName(b) || b.customer_name || '') + ' ' + String(b.vessel_id || '')).toLowerCase();
       return hay.indexOf(search) !== -1;
     });
     if (_batchProductFilter) {
@@ -1348,7 +1356,7 @@ function buildLifecycleTimeline(batch, soDate) {
         resultsHtml += '<tr class="' + rowCls + '" data-batch-id="' + escapeHTML(b.batch_id) + '">';
         resultsHtml += '<td class="bp-batch-tr-id">' + escapeHTML(b.batch_id) + (overdueCount > 0 ? ' <span class="bp-urgent-dot">\u25cf</span>' : '') + '</td>';
         resultsHtml += '<td>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</td>';
-        resultsHtml += '<td>' + escapeHTML(b.customer_name || '\u2014') + '</td>';
+        resultsHtml += '<td>' + escapeHTML(getCustomerDisplayName(b) || '\u2014') + '</td>';
         resultsHtml += '<td>' + escapeHTML(loc || '\u2014') + '</td>';
         resultsHtml += '<td><span class="bp-status-badge bp-status-badge--' + statusColor + '" style="font-size:0.72rem;padding:1px 6px;">' + escapeHTML(statusLabel) + '</span>';
         if (shouldShowKioskBadge(b.source, statusKey)) {
@@ -1393,7 +1401,7 @@ function buildLifecycleTimeline(batch, soDate) {
         }
         resultsHtml += '</div>';
         resultsHtml += '<div class="bp-batch-card-name">' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</div>';
-        if (b.customer_name) resultsHtml += '<div class="bp-batch-card-customer">' + escapeHTML(b.customer_name) + '</div>';
+        if (getCustomerDisplayName(b)) resultsHtml += '<div class="bp-batch-card-customer">' + escapeHTML(getCustomerDisplayName(b)) + '</div>';
         resultsHtml += '<div class="bp-batch-card-footer">';
         if (tasksTotal > 0) resultsHtml += '<span class="bp-task-progress">' + tasksDone + '/' + tasksTotal + ' tasks</span>';
         var loc = [b.shelf_id, b.bin_id, b.vessel_id].filter(Boolean).join(' \u00b7 ');
@@ -1453,7 +1461,7 @@ function buildLifecycleTimeline(batch, soDate) {
     // Info grid — matches renderBatchDetail structure
     html += '<div class="bp-detail-info">';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Product</span><span>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</span></div>';
-    html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Customer</span><span>' + escapeHTML(b.customer_name || '\u2014') + '</span></div>';
+    html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Customer</span><span>' + escapeHTML(getCustomerDisplayName(b) || '\u2014') + '</span></div>';
     var loc = [b.vessel_id, b.shelf_id, b.bin_id].filter(Boolean).join(' \u00b7 ');
     if (loc) html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Location</span><span>' + escapeHTML(loc) + '</span></div>';
     if (b.start_date) html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Start</span><span>' + fmtDate(b.start_date) + '</span></div>';
@@ -1749,7 +1757,7 @@ function buildLifecycleTimeline(batch, soDate) {
     // Info grid
     html += '<div class="bp-detail-info">';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Product</span><span>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</span></div>';
-    html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Customer</span><span>' + escapeHTML(b.customer_name || '\u2014') + '</span></div>';
+    html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Customer</span><span>' + escapeHTML(getCustomerDisplayName(b) || '\u2014') + '</span></div>';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Start</span><span>' + fmtDate(b.start_date) + '</span></div>';
     if (b.zoho_so_number) {
       html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Zoho Ref</span><span>' + escapeHTML(b.zoho_so_number) + '<span class="bp-sync-indicator" id="bp-sync-indicator" style="display:none;"></span></span></div>';
@@ -1988,7 +1996,7 @@ function buildLifecycleTimeline(batch, soDate) {
 
     // Lazy-fetch invoice date for timeline
     if (b.zoho_so_number) {
-      var searchTerm = b.customer_name || '';
+      var searchTerm = getCustomerDisplayName(b) || '';
       if (searchTerm) {
         fetch(mwUrl() + '/api/batch/search-invoices?search=' + encodeURIComponent(searchTerm), {
           headers: { 'x-api-key': mwApiKey() }
@@ -2206,7 +2214,7 @@ function buildLifecycleTimeline(batch, soDate) {
     }
 
     var loc = [b.shelf_id, b.bin_id, b.vessel_id].filter(Boolean).join(' \u2013 ') || null;
-    infoRow('Customer', b.customer_name || null);
+    infoRow('Customer', getCustomerDisplayName(b) || null);
     infoRow('Email', b.customer_email || null);
     infoRow('Phone', b.customer_phone || null);
     infoRow('Start Date', b.start_date ? String(b.start_date).slice(0, 10) : null);
@@ -2771,11 +2779,14 @@ function buildLifecycleTimeline(batch, soDate) {
     html += '<div class="bp-vessel-dropdown" id="bp-new-customer-dropdown" style="display:none;"></div>';
     html += '<input type="hidden" id="bp-new-customer-id">';
     html += '<input type="hidden" id="bp-new-customer-name-hidden">';
+    html += '<input type="hidden" id="bp-new-customer-firstname-hidden">';
+    html += '<input type="hidden" id="bp-new-customer-lastname-hidden">';
     html += '<input type="hidden" id="bp-new-customer-email">';
     html += '</div>';
     html += '<div id="bp-new-customer-section" style="display:none;" class="bp-new-customer-wrap">';
     html += '<div class="bp-form-subgroup">';
-    html += '<input type="text"  id="bp-nc-name"  class="bp-inline-input" placeholder="Full name *" autocomplete="name">';
+    html += '<input type="text"  id="bp-nc-firstname"  class="bp-inline-input" placeholder="First name *" autocomplete="given-name">';
+    html += '<input type="text"  id="bp-nc-lastname"  class="bp-inline-input" placeholder="Last name" autocomplete="family-name">';
     html += '<input type="email" id="bp-nc-email" class="bp-inline-input" placeholder="Email *" autocomplete="email" inputmode="email">';
     html += '<input type="tel"   id="bp-nc-phone" class="bp-inline-input" placeholder="Phone (optional)" autocomplete="tel" inputmode="tel">';
     html += '<button type="button" class="btn bp-btn-sm" id="bp-nc-save">Add Customer</button>';
@@ -2857,10 +2868,21 @@ function buildLifecycleTimeline(batch, soDate) {
         var shelf       = (document.getElementById('bp-new-shelf') || {}).value || '';
         var bin         = (document.getElementById('bp-new-bin') || {}).value || '';
         var notes       = (document.getElementById('bp-new-notes') || {}).value || '';
+        var customerFirstname = (document.getElementById('bp-new-customer-firstname-hidden') || {}).value || '';
+        var customerLastname  = (document.getElementById('bp-new-customer-lastname-hidden') || {}).value || '';
         var customerName = (document.getElementById('bp-new-customer-name-hidden') || {}).value || '';
-        if (!customerName) {
+        // Fallback: if user typed directly (no search/select), split the text input
+        if (!customerFirstname) {
           var custText = document.getElementById('bp-new-customer-text');
-          if (custText && custText.value.trim()) customerName = custText.value.trim();
+          if (custText && custText.value.trim()) {
+            var nameParts = custText.value.trim().split(/\s+/);
+            customerFirstname = nameParts[0] || '';
+            customerLastname  = nameParts.slice(1).join(' ') || '';
+            customerName = custText.value.trim();
+          }
+        }
+        if (!customerName) {
+          customerName = ((customerFirstname || '') + ' ' + (customerLastname || '')).trim();
         }
         var customerEmail = (document.getElementById('bp-new-customer-email') || {}).value || '';
 
@@ -2868,6 +2890,8 @@ function buildLifecycleTimeline(batch, soDate) {
         adminApiPost('create_batch', {
           product_name: productName,
           product_sku: productSku,
+          customer_firstname: customerFirstname || 'Walk-In',
+          customer_lastname: customerLastname || '',
           customer_name: customerName || 'Walk-In',
           customer_email: customerEmail,
           start_date: startDate,
@@ -2967,6 +2991,8 @@ function buildLifecycleTimeline(batch, soDate) {
     var dropdown = document.getElementById('bp-new-customer-dropdown');
     var custId    = document.getElementById('bp-new-customer-id');
     var custName  = document.getElementById('bp-new-customer-name-hidden');
+    var custFirstname = document.getElementById('bp-new-customer-firstname-hidden');
+    var custLastname  = document.getElementById('bp-new-customer-lastname-hidden');
     var custEmail = document.getElementById('bp-new-customer-email');
     var ncSection = document.getElementById('bp-new-customer-section');
     if (!input || !dropdown) return;
@@ -3004,10 +3030,14 @@ function buildLifecycleTimeline(batch, soDate) {
             Array.prototype.forEach.call(dropdown.querySelectorAll('.bp-vessel-option[data-cid]'), function (opt) {
               opt.addEventListener('mousedown', function (e) {
                 e.preventDefault();
+                var fullName = opt.getAttribute('data-cname');
+                var nameParts = fullName.split(/\s+/);
                 if (custId)    custId.value    = opt.getAttribute('data-cid');
-                if (custName)  custName.value  = opt.getAttribute('data-cname');
+                if (custName)  custName.value  = fullName;
+                if (custFirstname) custFirstname.value = nameParts[0] || '';
+                if (custLastname)  custLastname.value  = nameParts.slice(1).join(' ') || '';
                 if (custEmail) custEmail.value = opt.getAttribute('data-cemail');
-                input.value = opt.getAttribute('data-cname');
+                input.value = fullName;
                 dropdown.style.display = 'none';
                 if (ncSection) ncSection.style.display = 'none';
               });
@@ -3029,11 +3059,13 @@ function buildLifecycleTimeline(batch, soDate) {
     var ncSaveBtn = document.getElementById('bp-nc-save');
     if (ncSaveBtn) {
       ncSaveBtn.addEventListener('click', function () {
-        var name  = ((document.getElementById('bp-nc-name') || {}).value || '').trim();
+        var firstName = ((document.getElementById('bp-nc-firstname') || {}).value || '').trim();
+        var lastName  = ((document.getElementById('bp-nc-lastname') || {}).value || '').trim();
+        var name  = (firstName + ' ' + lastName).trim();
         var email = ((document.getElementById('bp-nc-email') || {}).value || '').trim();
         var phone = ((document.getElementById('bp-nc-phone') || {}).value || '').trim();
-        if (!name)  { showToast('Name is required', 'error');  return; }
-        if (!email) { showToast('Email is required', 'error'); return; }
+        if (!firstName) { showToast('First name is required', 'error'); return; }
+        if (!email)     { showToast('Email is required', 'error'); return; }
         ncSaveBtn.disabled = true;
         fetch(base + '/api/contacts', {
           method: 'POST',
@@ -3046,6 +3078,8 @@ function buildLifecycleTimeline(batch, soDate) {
             if (data.contact_id) {
               if (custId)    custId.value    = data.contact_id;
               if (custName)  custName.value  = name;
+              if (custFirstname) custFirstname.value = firstName;
+              if (custLastname)  custLastname.value  = lastName;
               if (custEmail) custEmail.value = email;
               input.value = name;
               if (ncSection) ncSection.style.display = 'none';
@@ -3124,7 +3158,7 @@ function buildLifecycleTimeline(batch, soDate) {
     if (_taskSearch) {
       var searchLower = _taskSearch.toLowerCase();
       filteredTasks = filteredTasks.filter(function (t) {
-        return ((t.title || '') + ' ' + (t.product_name || '') + ' ' + (t.customer_name || '') + ' ' + (t.batch_id || '')).toLowerCase().indexOf(searchLower) !== -1;
+        return ((t.title || '') + ' ' + (t.product_name || '') + ' ' + (getCustomerDisplayName(t) || '') + ' ' + (t.batch_id || '')).toLowerCase().indexOf(searchLower) !== -1;
       });
     }
 
@@ -3189,7 +3223,7 @@ function buildLifecycleTimeline(batch, soDate) {
           html += '<button type="button" class="bp-batch-chip" data-batch-id="' + escapeHTML(t.batch_id || '') + '" title="Open batch">' + escapeHTML(t.batch_id || '') + '</button>';
           html += '<span class="bp-task-title">' + escapeHTML(t.title || ('Step ' + t.step_number)) + '</span>';
           if (t.due_date) html += '<span class="bp-task-due">' + fmtDate(t.due_date) + '</span>';
-          if (t.customer_name) html += '<span class="bp-task-customer">' + escapeHTML(t.customer_name) + '</span>';
+          if (getCustomerDisplayName(t)) html += '<span class="bp-task-customer">' + escapeHTML(getCustomerDisplayName(t)) + '</span>';
           var meta = getBatchMeta(t.batch_id);
           if (meta) html += '<span class="bp-task-meta">' + escapeHTML(meta) + '</span>';
           html += '</div></div>';
@@ -4230,6 +4264,8 @@ function buildLifecycleTimeline(batch, soDate) {
         ['bp-new-customer-text', 'customerText'],
         ['bp-new-customer-id', 'customerId'],
         ['bp-new-customer-name-hidden', 'customerNameHidden'],
+        ['bp-new-customer-firstname-hidden', 'customerFirstnameHidden'],
+        ['bp-new-customer-lastname-hidden', 'customerLastnameHidden'],
         ['bp-new-customer-email', 'customerEmail'],
         ['bp-new-start-date', 'startDate'],
         ['bp-new-schedule', 'schedule'],
@@ -4257,6 +4293,8 @@ function buildLifecycleTimeline(batch, soDate) {
           ['bp-new-customer-text', 'customerText'],
           ['bp-new-customer-id', 'customerId'],
           ['bp-new-customer-name-hidden', 'customerNameHidden'],
+          ['bp-new-customer-firstname-hidden', 'customerFirstnameHidden'],
+          ['bp-new-customer-lastname-hidden', 'customerLastnameHidden'],
           ['bp-new-customer-email', 'customerEmail'],
           ['bp-new-start-date', 'startDate'],
           ['bp-new-schedule', 'schedule'],
@@ -4458,6 +4496,7 @@ if (typeof module !== 'undefined' && module.exports) {
     escapeHTML: escapeHTML, fmtDate: fmtDate, todayStr: todayStr,
     isOverdue: isOverdue, isToday: isToday,
     filterBatchesByStatus: filterBatchesByStatus,
+    getCustomerDisplayName: getCustomerDisplayName,
     calcAbv: calcAbv, renderDataGapWarning: renderDataGapWarning,
     isSessionStale: isSessionStale,
     isSessionExpired: isSessionExpired,
