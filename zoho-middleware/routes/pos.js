@@ -1107,20 +1107,28 @@ router.post('/api/kiosk/salesorder-pay', function (req, res) {
                   var invoiceId = invoice.invoice_id || '';
                   log.info('[kiosk/so-pay] Invoice created from SO: ' + (invoice.invoice_number || '') + ' id=' + invoiceId);
                   if (invoiceId) {
-                    return zohoPost('/invoices/' + invoiceId + '/submit', {}).catch(function (submitErr) {
+                    zohoPost('/invoices/' + invoiceId + '/submit', {}).catch(function (submitErr) {
                       log.warn('[kiosk/so-pay] Invoice submit failed (non-fatal): ' + submitErr.message);
                     });
                   }
+                  return invoiceId;
                 })
                 .catch(function (invErr) {
                   // Non-fatal: SO is paid, but invoice creation failed
                   // Stock won't auto-decrement until next Zoho reconcile
                   log.error('[kiosk/so-pay] Invoice from SO failed (non-fatal): ' + invErr.message);
+                  return '';
                 });
 
-              invoiceFromSoChain.then(function () {
+              invoiceFromSoChain.then(function (invoiceId) {
                 // Bust kiosk products cache so stock reflects after invoice submit
                 cache.del(KIOSK_PRODUCTS_CACHE_KEY).catch(function () {});
+
+                // Trigger batch creation for kit items (fire-and-forget per D-01)
+                var soLineItems = (so.line_items || []).map(function (li) {
+                  return { item_id: li.item_id || '', name: li.name || li.description || '', sku: li.sku || '', quantity: li.quantity || 1, rate: li.rate || 0 };
+                });
+                brewpadIntegration.createBatchesFromSale(soLineItems, soNumber, so.customer_name || '', customerId, null, invoiceId);
 
                 res.json({
                   ok: true,

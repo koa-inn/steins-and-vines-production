@@ -50,12 +50,14 @@ describe('brewpad-integration', function () {
     process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
     process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-token';
     process.env.MAKERS_FEE_ITEM_ID = '';
+    process.env.MATERIALS_FEE_ITEM_ID = '';
   });
 
   afterEach(function () {
     delete process.env.APPS_SCRIPT_URL;
     delete process.env.APPS_SCRIPT_SERVER_TOKEN;
     delete process.env.MAKERS_FEE_ITEM_ID;
+    delete process.env.MATERIALS_FEE_ITEM_ID;
   });
 
   describe('detectKitItems', function () {
@@ -105,6 +107,41 @@ describe('brewpad-integration', function () {
       expect(result[0].item_id).toBe('kit-1');
     });
 
+    it('excludes Materials Fee from kit items (by name)', function () {
+      var items = [
+        { name: 'Red Wine Kit', sku: 'RW-001', item_id: '1' },
+        { name: 'Makers Fee', sku: 'MAKERS-FEE', item_id: '99' },
+        { name: 'Materials Fee', sku: 'MAT-FEE', item_id: '100' }
+      ];
+      var result = brewpadIntegration.detectKitItems(items);
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Red Wine Kit');
+    });
+
+    it('excludes Materials Fee even without sku field (kiosk line items)', function () {
+      // Real kiosk line items don't have sku — detection by name only
+      var items = [
+        { item_id: 'kit1', name: 'Grand Cru International Merlot', quantity: 1, rate: 135 },
+        { item_id: '109900000000046478', name: 'Makers Fee', quantity: 1, rate: 45 },
+        { item_id: '109900000000515004', name: 'Materials Fee', quantity: 1, rate: 5 }
+      ];
+      var result = brewpadIntegration.detectKitItems(items);
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Grand Cru International Merlot');
+    });
+
+    it('excludes Materials Fee by MATERIALS_FEE_ITEM_ID env var', function () {
+      process.env.MATERIALS_FEE_ITEM_ID = 'mat-fee-99';
+      var items = [
+        { name: 'Wine Kit', item_id: 'kit-1' },
+        { name: 'Makers Fee', item_id: 'fee-1' },
+        { name: 'Other Service', item_id: 'mat-fee-99' }
+      ];
+      var result = brewpadIntegration.detectKitItems(items);
+      expect(result).toHaveLength(1);
+      expect(result[0].item_id).toBe('kit-1');
+    });
+
   });
 
   describe('createBatchesFromSale', function () {
@@ -124,6 +161,20 @@ describe('brewpad-integration', function () {
       ];
       brewpadIntegration.createBatchesFromSale(items, 'INV-001', 'Jane Doe', 'C-123', null);
       expect(axios.post).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not create batch for Materials Fee item', function () {
+      axios.post.mockResolvedValue({ data: { ok: true, batch_id: 'SV-B-000001' } });
+      var items = [
+        { name: 'Red Wine Kit', sku: 'RW-001', item_id: '1' },
+        { name: "Maker's Fee", sku: 'MAKERS-FEE', item_id: '99' },
+        { name: 'Materials Fee', sku: 'MAT-FEE', item_id: '100' }
+      ];
+      brewpadIntegration.createBatchesFromSale(items, 'INV-001', 'Jane', 'C-1', null);
+      // Only 1 batch created (Red Wine Kit), not 2 (which would include Materials Fee)
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      var callPayload = JSON.parse(axios.post.mock.calls[0][1]);
+      expect(callPayload.product_name).toBe('Red Wine Kit');
     });
 
     it('uses Walk-in Customer when customerName is empty', function () {

@@ -23,7 +23,7 @@ var SYNC_RETRY_PREFIX = C.CACHE_KEYS.BATCH_SYNC_RETRY_PREFIX;
  * Per D-03: one batch per non-fee kit line item.
  *
  * @param {Array} lineItems - from the sale payload
- * @returns {Array} kit items (excluding the Maker's Fee item itself)
+ * @returns {Array} kit items (excluding all fee items: Maker's Fee + Materials Fee)
  */
 function detectKitItems(lineItems) {
   if (!Array.isArray(lineItems) || lineItems.length === 0) return [];
@@ -32,9 +32,13 @@ function detectKitItems(lineItems) {
   var feeItem = checkoutHelpers.findMakersFeeItem(lineItems, makersFeeItemId);
   if (!feeItem) return [];  // No Maker's Fee = not a ferment-in-store sale
 
+  // Also find Materials Fee to exclude it from kit items
+  var materialsFeeItemId = process.env.MATERIALS_FEE_ITEM_ID || '';
+  var matFeeItem = checkoutHelpers.findMaterialsFeeItem(lineItems, materialsFeeItemId);
+
   // Return all non-fee items (the actual kits)
   return lineItems.filter(function (item) {
-    return item !== feeItem;
+    return item !== feeItem && item !== matFeeItem;
   });
 }
 
@@ -118,7 +122,7 @@ function queueForRetry(payload, reason) {
 
 /**
  * Main entry point: create batches from a completed kiosk sale.
- * Called fire-and-forget from pos.js sale/confirm handler.
+ * Called fire-and-forget from pos.js sale/confirm and salesorder-pay handlers.
  *
  * Per D-02: only fires when Maker's Fee is present.
  * Per D-03: one batch per kit line item.
