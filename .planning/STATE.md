@@ -83,10 +83,11 @@ None.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260506-b85 | Split Maker's Fee into Maker's Fee ($45) + Materials Fee ($5 w/ PST) | 2026-05-06 | 7e5b302 | [260506-b85-split-makers-fee-materials](./quick/260506-b85-split-makers-fee-materials/) |
+| 260508-c4f | Customer name split (first/last) for BrewPad | 2026-05-08 | 0494ff5 | [260508-c4f-customer-name-split](./quick/260508-c4f-customer-name-split/) |
 
 ## Session Continuity
 
-Last session: 2026-05-06T20:29:25.987Z
-Last activity: 2026-05-06 - Completed quick task 260506-b85: Split Maker's Fee into Maker's Fee ($45) + Materials Fee ($5 w/ PST)
-Stopped at: Phase 11 UI-SPEC approved
-Resume: Phase 7 (Zoho Audit Trail) needs discussion and planning
+Last session: 2026-05-09T00:00:00Z
+Last activity: 2026-05-09 - Completed quick task 260508-c4f: Customer name split (first/last) for BrewPad
+Stopped at: Quick task 260508-c4f complete
+Resume: Deploy Apps Script changes manually, then test on staging
