@@ -144,6 +144,35 @@ describe('brewpad-integration', function () {
 
   });
 
+  describe('splitCustomerName', function () {
+
+    it('splits "Jane Doe" into first=Jane, last=Doe', function () {
+      var result = brewpadIntegration.splitCustomerName('Jane Doe');
+      expect(result).toEqual({ first: 'Jane', last: 'Doe' });
+    });
+
+    it('handles single name "Jane" as first=Jane, last=""', function () {
+      var result = brewpadIntegration.splitCustomerName('Jane');
+      expect(result).toEqual({ first: 'Jane', last: '' });
+    });
+
+    it('handles multi-part last "Mary Jane Watson" as first=Mary, last=Jane Watson', function () {
+      var result = brewpadIntegration.splitCustomerName('Mary Jane Watson');
+      expect(result).toEqual({ first: 'Mary', last: 'Jane Watson' });
+    });
+
+    it('handles empty string as first="", last=""', function () {
+      var result = brewpadIntegration.splitCustomerName('');
+      expect(result).toEqual({ first: '', last: '' });
+    });
+
+    it('trims whitespace', function () {
+      var result = brewpadIntegration.splitCustomerName('  Jane   Doe  ');
+      expect(result).toEqual({ first: 'Jane', last: 'Doe' });
+    });
+
+  });
+
   describe('createBatchesFromSale', function () {
 
     it('does nothing when no Makers Fee is present', function () {
@@ -161,6 +190,10 @@ describe('brewpad-integration', function () {
       ];
       brewpadIntegration.createBatchesFromSale(items, 'INV-001', 'Jane Doe', 'C-123', null);
       expect(axios.post).toHaveBeenCalledTimes(2);
+      // Verify first/last name split in payload
+      var callPayload = JSON.parse(axios.post.mock.calls[0][1]);
+      expect(callPayload.customer_firstname).toBe('Jane');
+      expect(callPayload.customer_lastname).toBe('Doe');
     });
 
     it('does not create batch for Materials Fee item', function () {
@@ -186,6 +219,8 @@ describe('brewpad-integration', function () {
       brewpadIntegration.createBatchesFromSale(items, 'INV-001', '', '', null);
       var callPayload = JSON.parse(axios.post.mock.calls[0][1]);
       expect(callPayload.customer_name).toBe('Walk-in Customer');
+      expect(callPayload.customer_firstname).toBe('Walk-in');
+      expect(callPayload.customer_lastname).toBe('Customer');
     });
 
     it('does not include customer_email in payload', function () {

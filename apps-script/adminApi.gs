@@ -1470,6 +1470,8 @@ function getTasksCalendar(startDate, endDate) {
       batch_id: t.batch_id,
       product_name: batch.product_name || '',
       customer_name: batch.customer_name || '',
+      customer_firstname: batch.customer_firstname || '',
+      customer_lastname: batch.customer_lastname || '',
       vessel_id: batch.vessel_id || '',
       shelf_id: batch.shelf_id || '',
       title: t.title || '',
@@ -1508,6 +1510,8 @@ function getTasksUpcoming(limit) {
       batch_id: t.batch_id,
       product_name: batch.product_name || '',
       customer_name: batch.customer_name || '',
+      customer_firstname: batch.customer_firstname || '',
+      customer_lastname: batch.customer_lastname || '',
       vessel_id: batch.vessel_id || '',
       shelf_id: batch.shelf_id || '',
       bin_id: batch.bin_id || '',
@@ -1648,8 +1652,13 @@ function setVesselStatus(vesselId, newStatus) {
 
 function createBatch(payload, userEmail) {
   var isPending = !payload.schedule_id || !payload.start_date;
-  if (!payload.product_sku || !payload.customer_name) {
-    return { ok: false, error: 'missing_fields', message: 'product_sku and customer_name are required' };
+  if (!payload.product_sku || (!payload.customer_name && !payload.customer_firstname)) {
+    return { ok: false, error: 'missing_fields', message: 'product_sku and customer name are required' };
+  }
+
+  // Auto-compose customer_name from first/last if not provided (backward compat)
+  if (!payload.customer_name && payload.customer_firstname) {
+    payload.customer_name = (payload.customer_firstname + ' ' + (payload.customer_lastname || '')).trim();
   }
 
   // Validate schedule exists (skip for pending batches)
@@ -1717,6 +1726,14 @@ function createBatch(payload, userEmail) {
       isPending ? '' : (payload.start_date || now),  // col 23: fermentation_started_at (Phase 7)
       ''                                              // col 24: completed_at (Phase 7)
     ]);
+
+    // Write customer_firstname / customer_lastname by header lookup (avoids positional coupling)
+    var headers = batchesSheet.getRange(1, 1, 1, batchesSheet.getLastColumn()).getValues()[0];
+    var newRow = batchesSheet.getLastRow();
+    var fnCol = headers.indexOf('customer_firstname');
+    var lnCol = headers.indexOf('customer_lastname');
+    if (fnCol !== -1) batchesSheet.getRange(newRow, fnCol + 1).setValue(sanitizeInput(payload.customer_firstname || ''));
+    if (lnCol !== -1) batchesSheet.getRange(newRow, lnCol + 1).setValue(sanitizeInput(payload.customer_lastname || ''));
 
     var tasksCreated = 0;
     var taskErrors = [];
@@ -1882,6 +1899,7 @@ function updateBatch(payload, userEmail) {
     'status', 'vessel_id', 'shelf_id', 'bin_id', 'notes',
     // Phase 7: SO linking fields (D-04, D-05) and lifecycle date columns (D-09)
     'zoho_so_number', 'customer_id', 'customer_name', 'product_name',
+    'customer_firstname', 'customer_lastname',
     'fermentation_started_at', 'completed_at'
   ];
   allowedFields.forEach(function (field) {

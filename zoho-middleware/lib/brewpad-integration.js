@@ -18,6 +18,21 @@ var SYNC_MAX_RETRIES = 3;
 var SYNC_RETRY_PREFIX = C.CACHE_KEYS.BATCH_SYNC_RETRY_PREFIX;
 
 /**
+ * Split a full customer name into first and last name parts.
+ * First word becomes firstname, everything after becomes lastname.
+ *
+ * @param {string} fullName - e.g. "Jane Doe", "Mary Jane Watson", "Jane"
+ * @returns {{first: string, last: string}}
+ */
+function splitCustomerName(fullName) {
+  var trimmed = (fullName || '').trim();
+  if (!trimmed) return { first: '', last: '' };
+  var parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return { first: parts[0], last: '' };
+  return { first: parts[0], last: parts.slice(1).join(' ') };
+}
+
+/**
  * Detect kit items that need batch creation.
  * Per D-02: only sales with a Maker's Fee trigger batch creation.
  * Per D-03: one batch per non-fee kit line item.
@@ -142,10 +157,13 @@ function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId
   log.info('[brewpad] Detected ' + kitItems.length + ' kit item(s) for batch creation, invoice=' + invoiceNumber);
 
   kitItems.forEach(function (item) {
+    var nameParts = splitCustomerName(customerName);
     var batchPayload = {
       product_sku: item.sku || item.item_id || '',
       product_name: item.name || '',
       customer_name: customerName || 'Walk-in Customer',
+      customer_firstname: nameParts.first || (customerName ? '' : 'Walk-in'),
+      customer_lastname: nameParts.last || (customerName ? '' : 'Customer'),
       customer_id: contactId || '',
       source: 'kiosk',
       zoho_so_number: invoiceNumber || ''
@@ -349,6 +367,7 @@ module.exports = {
   retryPendingBatches: retryPendingBatches,
   detectKitItems: detectKitItems,
   callAppsScriptCreateBatch: callAppsScriptCreateBatch,
+  splitCustomerName: splitCustomerName,
   syncBatchToZoho: syncBatchToZoho,
   queueSyncForRetry: queueSyncForRetry,
   retrySyncQueue: retrySyncQueue
