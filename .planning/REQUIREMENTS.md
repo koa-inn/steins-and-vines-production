@@ -91,37 +91,37 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RDM-01 | — | Pending |
-| RDM-02 | — | Pending |
-| RDM-03 | — | Pending |
-| RDM-04 | — | Pending |
-| RDM-05 | — | Pending |
-| API-01 | — | Pending |
-| API-02 | — | Pending |
-| API-03 | — | Pending |
-| ADM-01 | — | Pending |
-| ADM-02 | — | Pending |
-| ADM-03 | — | Pending |
-| IMP-01 | — | Pending |
-| IMP-02 | — | Pending |
-| IMP-03 | — | Pending |
-| IMP-04 | — | Pending |
-| KSK-01 | — | Pending |
-| KSK-02 | — | Pending |
-| KSK-03 | — | Pending |
-| KSK-04 | — | Pending |
-| BAT-01 | — | Pending |
-| BAT-02 | — | Pending |
-| BAT-03 | — | Pending |
-| INV-01 | — | Pending |
-| INV-02 | — | Pending |
-| INV-03 | — | Pending |
+| RDM-01 | Phase 12 | Pending |
+| RDM-02 | Phase 12 | Pending |
+| RDM-03 | Phase 12 | Pending |
+| RDM-04 | Phase 12 | Pending |
+| RDM-05 | Phase 12 | Pending |
+| API-01 | Phase 13 | Pending |
+| API-02 | Phase 13 | Pending |
+| API-03 | Phase 13 | Pending |
+| ADM-01 | Phase 13 | Pending |
+| ADM-02 | Phase 13 | Pending |
+| ADM-03 | Phase 13 | Pending |
+| IMP-01 | Phase 15 | Pending |
+| IMP-02 | Phase 15 | Pending |
+| IMP-03 | Phase 15 | Pending |
+| IMP-04 | Phase 15 | Pending |
+| KSK-01 | Phase 14 | Pending |
+| KSK-02 | Phase 14 | Pending |
+| KSK-03 | Phase 14 | Pending |
+| KSK-04 | Phase 14 | Pending |
+| BAT-01 | Phase 14 | Pending |
+| BAT-02 | Phase 14 | Pending |
+| BAT-03 | Phase 14 | Pending |
+| INV-01 | Phase 14 | Pending |
+| INV-02 | Phase 14 | Pending |
+| INV-03 | Phase 14 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 25 total
-- Mapped to phases: 0
-- Unmapped: 25 ⚠️
+- Mapped to phases: 25
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-09*
-*Last updated: 2026-05-09 after initial definition*
+*Last updated: 2026-05-09 after roadmap creation (Phases 12-15)*

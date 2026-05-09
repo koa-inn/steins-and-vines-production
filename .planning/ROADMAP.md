@@ -224,3 +224,76 @@ Plans:
 - [x] 11-02-PLAN.md -- Product card producers: add producer element to 6 card builders (3 featured + 3 catalog), Producer filter on catalog page, all CSS, frontend tests, build
 **Wave 3** *(depends on Wave 1 + Wave 2 -- needs CSS classes from Plan 02)*
 - [x] 11-03-PLAN.md -- Compact view producers: cart sidebar (inline per D-03), checkout table, kiosk grid/list, admin kit table, HTML changes, frontend tests, build
+
+---
+
+## v2.0 Recipe-Based Products
+
+**Milestone Goal:** Customers can browse pre-made beer and ferment recipes, and staff can sell them through the kiosk with ingredient-level inventory deduction, automatic batch creation in BrewPad, and a feature flag preventing live sales until the federal brewing licence is granted.
+
+## Phases
+
+- [ ] **Phase 12: Recipe Data Foundation** - Recipe schema, Apps Script CRUD, feature flag, and Brewing Fee service item established before any sale code is written
+- [ ] **Phase 13: Middleware API + Admin Recipe Management** - Staff can create, edit, and activate recipes via the admin panel; middleware API exposes recipe CRUD and availability checking
+- [ ] **Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation** - Staff can select a recipe on the kiosk, process payment, have ingredients deducted from Zoho Inventory, and get a batch auto-created in BrewPad
+- [ ] **Phase 15: BeerXML Import** - Staff can upload a BeerXML file, review an ingredient-to-SKU mapping table, and save the recipe as a draft without manual data entry
+
+## Phase Details
+
+### Phase 12: Recipe Data Foundation
+**Goal**: The recipe schema, feature gate, and service fee item are locked in place so no downstream code can be built on an unstable foundation
+**Depends on**: Nothing (first phase of v2.0 milestone)
+**Requirements**: RDM-01, RDM-02, RDM-03, RDM-04, RDM-05
+**Success Criteria** (what must be TRUE):
+  1. A Google Sheets "Recipes" tab exists with columns for name, style metadata (ABV, IBU, colour, batch size), ingredient list (Zoho SKUs and quantities as JSON), locked_price, brewing_fee, and status
+  2. Apps Script exposes `create_recipe`, `get_recipes`, and `update_recipe` actions authenticated by server token
+  3. A `recipe_id` column and a `recipe_snapshot` JSON column exist in the Batches sheet, populated at sale time and never updated by recipe edits afterward
+  4. Middleware refuses all recipe-sale confirm requests when `BEER_SALES_ENABLED` is false (env var, Railway-managed, defaults to false)
+  5. A Zoho "Brewing Fee" service item is created in Zoho Books and its item ID is set as `BREWING_FEE_ITEM_ID` in Railway env vars
+**Plans**: TBD
+
+### Phase 13: Middleware API + Admin Recipe Management
+**Goal**: Staff have a working admin interface to create and manage recipes, and the middleware API is the authoritative contract that kiosk and admin both depend on
+**Depends on**: Phase 12
+**Requirements**: API-01, API-02, API-03, ADM-01, ADM-02, ADM-03
+**Success Criteria** (what must be TRUE):
+  1. Staff can open the admin panel, navigate to a "Recipes" tab, and see a list of all recipes with their status (draft, active, inactive)
+  2. Staff can create a new recipe by entering a name, style metadata, ingredient line items (Zoho SKU lookup with quantity), locked price, and brewing fee — and save it
+  3. Staff can edit an existing recipe's ingredients, price, or fee, and activate or deactivate it without affecting any already-created batch snapshots
+  4. The middleware `GET /api/recipes/:id/availability` endpoint returns whether all ingredient SKUs have sufficient Zoho stock for a given recipe quantity
+  5. The middleware resolves all ingredient references to Zoho item IDs server-side — the client supplies only a recipe ID, never raw SKU lists
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation
+**Goal**: A complete recipe sale can be processed end-to-end on the kiosk — ingredients reserved, payment collected, Zoho invoice created, inventory deducted, and a single batch record created in BrewPad
+**Depends on**: Phase 13
+**Requirements**: KSK-01, KSK-02, KSK-03, KSK-04, BAT-01, BAT-02, BAT-03, INV-01, INV-02, INV-03
+**Success Criteria** (what must be TRUE):
+  1. Staff can open a "Recipes" tab on the kiosk, browse active recipes, and select one — the kiosk cart auto-populates with all ingredient line items and the brewing fee in one action
+  2. The kiosk refuses to proceed to payment for any recipe sale when `BEER_SALES_ENABLED` is false, enforced server-side at the confirm endpoint
+  3. A completed recipe sale creates a Zoho invoice with one line item per ingredient plus a brewing fee line item, and each ingredient's stock level in Zoho Inventory decreases by the recipe quantity
+  4. Within 30 seconds of a successful recipe sale, exactly one new batch appears in BrewPad — linked to the recipe ID, carrying the full ingredient snapshot at time of sale, and showing the Zoho SO number
+  5. If payment fails or is cancelled after ingredients are reserved, reserved ingredient quantities are released and no partial batch is created
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 15: BeerXML Import
+**Goal**: Staff can import a recipe from any BeerSmith-compatible .xml export rather than entering every ingredient manually, with a mandatory review step before any data is saved
+**Depends on**: Phase 13 (requires admin recipe UI and API to exist before the import flow can deposit into them)
+**Requirements**: IMP-01, IMP-02, IMP-03, IMP-04
+**Success Criteria** (what must be TRUE):
+  1. Staff can upload a .xml file in the admin Recipes tab and see a parsed ingredient list extracted from the BeerXML — fermentables, hops, yeast, and misc items with quantities in kg (using AMOUNT, not DISPLAY_AMOUNT)
+  2. Each parsed ingredient is shown alongside its closest Zoho SKU match; staff can accept, reject, or manually correct each mapping before saving
+  3. The imported recipe is saved with status "draft" — it does not appear in the kiosk recipe browser or the public site until staff explicitly activate it after setting a price
+  4. A BeerXML file larger than 500KB or containing malformed XML is rejected at upload with a clear error message before any parsing occurs
+**Plans**: TBD
+
+## Progress
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 12. Recipe Data Foundation | v2.0 | 0/TBD | Not started | - |
+| 13. Middleware API + Admin Recipe Management | v2.0 | 0/TBD | Not started | - |
+| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 0/TBD | Not started | - |
+| 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |

@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Recipe-Based Products
 status: planning
-last_updated: "2026-05-09T19:25:47.688Z"
+last_updated: "2026-05-09T00:00:00.000Z"
 last_activity: 2026-05-09
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,55 +17,37 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-29)
+See: .planning/PROJECT.md (updated 2026-05-09)
 
-**Core value:** Staff can trust BrewPad to save their work and see the full journey from kit sale to finished batch.
-**Current focus:** Phase 11 — producer-brand-visibility
+**Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
+**Current focus:** Phase 12 — Recipe Data Foundation (ready to plan)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-09 — Milestone v2.0 started
+Phase: 12 of 15 (Recipe Data Foundation)
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-05-09 — v2.0 roadmap created, Phases 12-15 defined
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
-
-- Total plans completed: 8
-- Average duration: 10 min
-- Total execution time: 52 min
+- Total plans completed: 0 (this milestone)
+- Average duration: — min
+- Total execution time: — min
 
 ## Accumulated Context
 
 ### Decisions
 
-- D-07 implemented: 5-min warning timer calls tryRefreshToken() for silent auto-refresh instead of showing a toast
-- D-08 implemented: silent success path shows no toast — staff never interrupted during normal use
-- D-04 resolved as interactive-during-refresh: app stays interactive while _refreshInFlight is true; overlay only on failure (D-09)
-- Preserve login_at across refreshes by reading raw localStorage before saveSession (avoids circular dep with loadSession)
-- D-09 implemented: showSessionExpiredOverlay() shows blocking overlay (z-index 1000, role=dialog, aria-modal) instead of showSignInButton() on auth failure
-- D-06 implemented: restoreAllFormDrafts() returns bool; showApp() shows "Your in-progress work has been restored" toast when any draft restored
-- D-05 implemented: all 5 form types (create-batch, measurements, batch detail, reading, schedule) registered in _formSavers registry
-
-- D-11 implemented: Kiosk badge uses shouldShowKioskBadge(source, status) -- visible only when source=kiosk AND status=pending
-- D-12 implemented: Zoho Ref row in detail view only (not list row), conditionally rendered when zoho_so_number present
-- Neutral warm grey for Pending badge (not amber/warning) to avoid semantic collision with Secondary fermentation status
-- skipRetryQueue parameter in callAppsScriptCreateBatch prevents double-queueing during retry sweep
-- Retry sweep placed outside Zoho auth conditional since it calls Apps Script, not Zoho
-- callAppsScriptCreateBatch returns { ok: true/false } so retry sweep distinguishes success from app error
-- [Phase 08]: Re-render trigger placed synchronously after renderReservationItems() in both applyPromoCode() and Remove handler — no event-based indirection needed
-- [Phase ?]: Form draft pattern: _FORM_DRAFT_KEY constant with save-on-input, restore-on-load, clear-on-success in 12-checkout.js
-- [Phase ?]: Cart merge feasibility confirmed: ~900 lines deletable across 6 files via 4-phase refactor; staff validation required on separate Zoho SOs before Phase C
-- [Phase 09-01]: Testimonials placed after Why Make Your Own Wine? section; silent .catch() (non-critical); placeholder reviews need user replacement before production
-- [Phase 09-02]: SEO landing copy added inline to ferment-in-store.html and ingredients-supplies.html; copy used verbatim per D-01; no placeholders per D-03; .landing-copy CSS added and built
-- [Phase 09-03]: Facility photos placed on 4 pages (ferment-in-store, ingredients-supplies, homepage, about); .facility-photo CSS added; all imgs have alt text, lazy loading, explicit dimensions
-
-### Roadmap Evolution
-
-- 2026-04-29: v1.1 roadmap created with 3 phases (5-7), continuing from v1.0 Phase 4
-- 2026-05-06: Phase 11 added: Producer & Brand Visibility — display Zoho Manufacturer + Brand on kit product cards and all product name displays
+- [v2.0 Roadmap]: Recipes stored in Google Sheets "Recipes" tab, not Zoho composite items — composite items do not auto-deduct components via REST API invoice path
+- [v2.0 Roadmap]: locked_price on recipe record set explicitly by staff — never computed at runtime from live Zoho ingredient rates to avoid pricing drift
+- [v2.0 Roadmap]: recipe_snapshot JSON serialized to Batches sheet at sale time — immune to future recipe edits; unretrofit-able, must be in schema before first sale
+- [v2.0 Roadmap]: BEER_SALES_ENABLED env var gates kiosk confirm endpoint server-side — UI hiding alone is insufficient; env var managed on Railway, defaults false
+- [v2.0 Roadmap]: detectRecipeSale() separate from detectKitItems() — recipe sales must not trigger one batch per ingredient line item
+- [v2.0 Roadmap]: BeerXML import (Phase 15) deferred after core kiosk flow (Phase 14) — manual recipe entry unblocks kiosk testing without import
 
 ### Pending Todos
 
@@ -73,18 +55,12 @@ None.
 
 ### Blockers/Concerns
 
-- Helcim webhook configuration blocked by Helcim Hub UI bug (support ticket pending) -- affects kiosk cancel detection but not brewpad work directly
-
-### Quick Tasks Completed
-
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-| 260506-b85 | Split Maker's Fee into Maker's Fee ($45) + Materials Fee ($5 w/ PST) | 2026-05-06 | 7e5b302 | [260506-b85-split-makers-fee-materials](./quick/260506-b85-split-makers-fee-materials/) |
-| 260508-c4f | Customer name split (first/last) for BrewPad | 2026-05-08 | 0494ff5 | [260508-c4f-customer-name-split](./quick/260508-c4f-customer-name-split/) |
+- Federal brewing licence pending — BEER_SALES_ENABLED must remain false in Railway production until licence granted; public recipe browsing (informational) can go live earlier
+- Tax treatment for brewing service fee vs. ingredient sales under BC ferment-in-store model needs confirmation before first live recipe sale
+- Redis reservation mechanism for multi-ingredient inventory (Lua script vs MULTI/EXEC vs recipe-sale mutex) — design decision required at Phase 14 planning time
 
 ## Session Continuity
 
 Last session: 2026-05-09T00:00:00Z
-Last activity: 2026-05-09 - Completed quick task 260508-c4f: Customer name split (first/last) for BrewPad
-Stopped at: Quick task 260508-c4f complete
-Resume: Deploy Apps Script changes manually, then test on staging
+Stopped at: v2.0 roadmap created (Phases 12-15)
+Resume file: None
