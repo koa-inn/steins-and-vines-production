@@ -250,7 +250,12 @@ Plans:
   3. A `recipe_id` column and a `recipe_snapshot` JSON column exist in the Batches sheet, populated at sale time and never updated by recipe edits afterward
   4. Middleware refuses all recipe-sale confirm requests when `BEER_SALES_ENABLED` is false (env var, Railway-managed, defaults to false)
   5. A Zoho "Brewing Fee" service item is created in Zoho Books and its item ID is set as `BREWING_FEE_ITEM_ID` in Railway env vars
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+**Wave 1** *(no dependencies -- run in parallel)*
+- [ ] 12-01-PLAN.md -- Apps Script recipe CRUD: Recipes + RecipeIngredients sheet constants, create/get/update/delete recipe actions, setupRecipeTabs utility, cache invalidation
+- [ ] 12-02-PLAN.md -- Infrastructure scaffolding: BEER_SALES_ENABLED env var, CACHE_KEYS.RECIPES, ITEM_TYPES.RECIPE, Batches sheet recipe_id/recipe_snapshot columns
 
 ### Phase 13: Middleware API + Admin Recipe Management
 **Goal**: Staff have a working admin interface to create and manage recipes, and the middleware API is the authoritative contract that kiosk and admin both depend on
@@ -293,7 +298,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 12. Recipe Data Foundation | v2.0 | 0/TBD | Not started | - |
+| 12. Recipe Data Foundation | v2.0 | 0/2 | Not started | - |
 | 13. Middleware API + Admin Recipe Management | v2.0 | 0/TBD | Not started | - |
 | 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 0/TBD | Not started | - |
 | 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |
