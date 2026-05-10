@@ -54,6 +54,8 @@ var FERM_SCHEDULES_SHEET_NAME = 'FermSchedules';
 var BATCH_TASKS_SHEET_NAME = 'BatchTasks';
 var PLATO_READINGS_SHEET_NAME = 'PlatoReadings';
 var VESSEL_HISTORY_SHEET_NAME = 'VesselHistory';
+var RECIPES_SHEET_NAME = 'Recipes';
+var RECIPE_INGREDIENTS_SHEET_NAME = 'RecipeIngredients';
 
 /**
  * Handle GET requests
@@ -163,6 +165,17 @@ function doGet(e) {
       case 'get_vessels':
         return _jsonResponse({ ok: true, data: getVessels() });
 
+      // Recipe endpoints
+      case 'get_recipes':
+        return _jsonResponse({ ok: true, data: _cachedGet('gr', 300, function() {
+          return getRecipes(limit, offset, e.parameter.status || 'all');
+        })});
+
+      case 'get_recipe':
+        return _jsonResponse({ ok: true, data: _cachedGet('gr:' + (e.parameter.recipe_id || ''), 300, function() {
+          return getRecipeDetail(e.parameter.recipe_id);
+        })});
+
       default:
         return _jsonResponse({ ok: false, error: 'invalid_action', message: 'Unknown action: ' + action });
     }
@@ -203,6 +216,11 @@ function doPost(e) {
           _invalidateBatchCache(batchResult.batch_id);
         }
         return _jsonResponse(batchResult);
+      }
+      if (action === 'create_recipe') {
+        var recipeResult = createRecipe(payload, 'middleware');
+        _invalidateRecipeCache(recipeResult.recipe_id);
+        return _jsonResponse(recipeResult);
       }
       return _jsonResponse({ ok: false, error: 'invalid_action', message: 'Unknown server action: ' + action });
     }
@@ -296,6 +314,23 @@ function doPost(e) {
 
       case 'delete_ferm_schedule':
         return _jsonResponse(deleteFermSchedule(payload));
+
+      // Recipe CRUD endpoints (staff-auth)
+      case 'create_recipe': {
+        var r = createRecipe(payload, authResult.email);
+        _invalidateRecipeCache(r.recipe_id);
+        return _jsonResponse(r);
+      }
+      case 'update_recipe': {
+        var r = updateRecipe(payload, authResult.email);
+        _invalidateRecipeCache(payload.recipe_id);
+        return _jsonResponse(r);
+      }
+      case 'delete_recipe': {
+        var r = deleteRecipe(payload, authResult.email);
+        _invalidateRecipeCache(payload.recipe_id);
+        return _jsonResponse(r);
+      }
 
       case 'regenerate_batch_token': {
         var r = regenerateBatchToken(payload);
@@ -2876,6 +2911,385 @@ function testAuth() {
   var result = checkAuthorization();
   Logger.log('Auth result: ' + JSON.stringify(result));
   return result;
+}
+
+// ===== RECIPE CRUD =====
+
+/**
+ * Invalidate all recipe-related caches after a write operation.
+ * @param {string} recipeId - The recipe ID that was modified
+ */
+function _invalidateRecipeCache(recipeId) {
+  var cache = CacheService.getScriptCache();
+  var keys = ['gr', 'grl'];
+  if (recipeId) {
+    keys.push('gr:' + recipeId);
+  }
+  cache.removeAll(keys);
+}
+
+/**
+ * GET: List all recipes with optional status filter and pagination.
+ * @param {number} limit - Max results (0 = no limit)
+ * @param {number} offset - Offset for pagination
+ * @param {string} status - 'all', 'draft', 'active', or 'inactive'
+ * @returns {{ recipes: Array, total: number, filtered: number }}
+ */
+function getRecipes(limit, offset, status) {
+  var recipes = sheetToObjects(RECIPES_SHEET_NAME);
+  var total = recipes.length;
+
+  // Filter by status
+  if (status && status !== 'all') {
+    recipes = recipes.filter(function (r) {
+      return String(r.status || '').toLowerCase() === status.toLowerCase();
+    });
+  }
+
+  var filtered = recipes.length;
+
+  // Sort newest first
+  recipes.sort(function (a, b) {
+    return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+  });
+
+  // Paginate
+  if (limit > 0) {
+    recipes = recipes.slice(offset, offset + limit);
+  } else if (offset > 0) {
+    recipes = recipes.slice(offset);
+  }
+
+  // Enrich with ingredient counts
+  var allIngredients = sheetToObjects(RECIPE_INGREDIENTS_SHEET_NAME);
+  recipes.forEach(function (r) {
+    r.ingredient_count = allIngredients.filter(function (ing) {
+      return String(ing.recipe_id) === String(r.recipe_id);
+    }).length;
+    delete r._row;
+  });
+
+  return { recipes: recipes, total: total, filtered: filtered };
+}
+
+/**
+ * GET: Full recipe detail including ingredient list.
+ * @param {string} recipeId
+ * @returns {{ recipe: Object, ingredients: Array }}
+ */
+function getRecipeDetail(recipeId) {
+  if (!recipeId) {
+    return { ok: false, error: 'missing_id', message: 'recipe_id is required' };
+  }
+
+  var result = findRowById(RECIPES_SHEET_NAME, recipeId);
+  if (result.row === -1) {
+    return { ok: false, error: 'not_found', message: 'Recipe not found: ' + recipeId };
+  }
+
+  var recipe = result.data;
+  delete recipe._row;
+
+  var allIngredients = sheetToObjects(RECIPE_INGREDIENTS_SHEET_NAME);
+  var ingredients = allIngredients.filter(function (ing) {
+    return String(ing.recipe_id) === String(recipeId);
+  });
+  ingredients.forEach(function (ing) { delete ing._row; });
+
+  return { recipe: recipe, ingredients: ingredients };
+}
+
+/**
+ * POST: Create a new recipe with optional ingredient rows.
+ * @param {Object} payload - Recipe fields + optional ingredients array
+ * @param {string} userEmail - Authenticated staff email
+ */
+function createRecipe(payload, userEmail) {
+  if (!payload.name) {
+    return { ok: false, error: 'missing_fields', message: 'name is required' };
+  }
+
+  var ingredients;
+  if (payload.ingredients !== undefined) {
+    try {
+      ingredients = typeof payload.ingredients === 'string' ? JSON.parse(payload.ingredients) : payload.ingredients;
+    } catch (e) {
+      return { ok: false, error: 'invalid_data', message: 'Invalid ingredients JSON' };
+    }
+  }
+
+  var lock = acquireScriptLock(15000);
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var recipesSheet = ss.getSheetByName(RECIPES_SHEET_NAME);
+    if (!recipesSheet) {
+      return { ok: false, error: 'sheet_not_found', message: 'Recipes sheet not found' };
+    }
+
+    var recipeId = generateNextId(RECIPES_SHEET_NAME, 'SV-R-', 6);
+    var serviceFee = payload.service_fee !== undefined ? Number(payload.service_fee) : 45;
+    var materialsFee = payload.materials_fee !== undefined ? Number(payload.materials_fee) : 5;
+    var now = new Date().toISOString();
+
+    recipesSheet.appendRow([
+      recipeId,
+      sanitizeInput(payload.name),
+      sanitizeInput(payload.style || ''),
+      sanitizeInput(payload.description || ''),
+      payload.status || 'draft',
+      payload.locked_price !== undefined ? Number(payload.locked_price) : '',
+      serviceFee,
+      materialsFee,
+      payload.batch_size_l !== undefined ? Number(payload.batch_size_l) : '',
+      payload.abv !== undefined ? Number(payload.abv) : '',
+      payload.ibu !== undefined ? Number(payload.ibu) : '',
+      payload.colour_srm !== undefined ? Number(payload.colour_srm) : '',
+      sanitizeInput(payload.notes || ''),
+      now,
+      userEmail,
+      now
+    ]);
+
+    var ingredientErrors = [];
+    var ingredientsCreated = 0;
+
+    if (ingredients && ingredients.length > 0) {
+      var ingSheet = ss.getSheetByName(RECIPE_INGREDIENTS_SHEET_NAME);
+      if (ingSheet) {
+        for (var i = 0; i < ingredients.length; i++) {
+          try {
+            var ing = ingredients[i];
+            var ingId = generateNextId(RECIPE_INGREDIENTS_SHEET_NAME, 'RI-', 6);
+            ingSheet.appendRow([
+              ingId,
+              recipeId,
+              sanitizeInput(ing.item_id || ''),
+              sanitizeInput(ing.item_name || ''),
+              ing.quantity !== undefined ? Number(ing.quantity) : 0,
+              sanitizeInput(ing.unit || '')
+            ]);
+            ingredientsCreated++;
+          } catch (ingErr) {
+            ingredientErrors.push('Ingredient ' + (i + 1) + ': ' + ingErr.message);
+          }
+        }
+      }
+    }
+
+    invalidateSheetCache(RECIPES_SHEET_NAME);
+    invalidateSheetCache(RECIPE_INGREDIENTS_SHEET_NAME);
+
+    var resp = { ok: true, recipe_id: recipeId, ingredients_created: ingredientsCreated };
+    if (ingredientErrors.length > 0) {
+      resp.ingredient_errors = ingredientErrors;
+    }
+    return resp;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * POST: Update an existing recipe's fields and optionally replace its ingredient list.
+ * @param {Object} payload - recipe_id required; any other field is optional
+ * @param {string} userEmail - Authenticated staff email
+ */
+function updateRecipe(payload, userEmail) {
+  if (!payload.recipe_id) {
+    return { ok: false, error: 'missing_id', message: 'recipe_id is required' };
+  }
+
+  var result = findRowById(RECIPES_SHEET_NAME, payload.recipe_id);
+  if (result.row === -1) {
+    return { ok: false, error: 'not_found', message: 'Recipe not found: ' + payload.recipe_id };
+  }
+
+  var headers = result.headers;
+  var sheet = result.sheet;
+  var row = result.row;
+  var now = new Date().toISOString();
+
+  // Update string fields via header lookup
+  var stringFields = ['name', 'style', 'description', 'status', 'notes'];
+  stringFields.forEach(function (field) {
+    if (payload[field] !== undefined) {
+      var col = headers.indexOf(field);
+      if (col !== -1) sheet.getRange(row, col + 1).setValue(sanitizeInput(payload[field]));
+    }
+  });
+
+  // Update numeric fields via header lookup (no sanitizeInput on numbers)
+  var numericFields = ['locked_price', 'service_fee', 'materials_fee', 'batch_size_l', 'abv', 'ibu', 'colour_srm'];
+  numericFields.forEach(function (field) {
+    if (payload[field] !== undefined) {
+      var col = headers.indexOf(field);
+      if (col !== -1) sheet.getRange(row, col + 1).setValue(Number(payload[field]));
+    }
+  });
+
+  // Always update updated_at
+  var luCol = headers.indexOf('updated_at');
+  if (luCol !== -1) sheet.getRange(row, luCol + 1).setValue(now);
+
+  // Replace ingredient list if provided
+  if (payload.ingredients !== undefined) {
+    var ingredients;
+    try {
+      ingredients = typeof payload.ingredients === 'string' ? JSON.parse(payload.ingredients) : payload.ingredients;
+    } catch (e) {
+      return { ok: false, error: 'invalid_data', message: 'Invalid ingredients JSON' };
+    }
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ingSheet = ss.getSheetByName(RECIPE_INGREDIENTS_SHEET_NAME);
+
+    // Delete all existing ingredient rows for this recipe
+    if (ingSheet && ingSheet.getLastRow() > 1) {
+      var ingData = ingSheet.getDataRange().getValues();
+      var ingHeaders = ingData[0];
+      var ridCol = ingHeaders.indexOf('recipe_id');
+      var rowsToDelete = [];
+      for (var i = 1; i < ingData.length; i++) {
+        if (String(ingData[i][ridCol]) === String(payload.recipe_id)) {
+          rowsToDelete.push(i + 1);
+        }
+      }
+      for (var j = rowsToDelete.length - 1; j >= 0; j--) {
+        ingSheet.deleteRow(rowsToDelete[j]);
+      }
+    }
+
+    // Insert new ingredient rows
+    if (ingSheet && ingredients && ingredients.length > 0) {
+      for (var k = 0; k < ingredients.length; k++) {
+        var ing = ingredients[k];
+        var ingId = generateNextId(RECIPE_INGREDIENTS_SHEET_NAME, 'RI-', 6);
+        ingSheet.appendRow([
+          ingId,
+          payload.recipe_id,
+          sanitizeInput(ing.item_id || ''),
+          sanitizeInput(ing.item_name || ''),
+          ing.quantity !== undefined ? Number(ing.quantity) : 0,
+          sanitizeInput(ing.unit || '')
+        ]);
+      }
+    }
+
+    invalidateSheetCache(RECIPE_INGREDIENTS_SHEET_NAME);
+  }
+
+  invalidateSheetCache(RECIPES_SHEET_NAME);
+
+  return { ok: true, message: 'Recipe updated' };
+}
+
+/**
+ * POST: Delete a recipe.
+ * Per D-07: soft-deactivates (status=inactive) if any batch references the recipe.
+ * Hard-deletes (removes rows) if no batch references exist.
+ * @param {Object} payload - recipe_id required
+ * @param {string} userEmail - Authenticated staff email
+ */
+function deleteRecipe(payload, userEmail) {
+  if (!payload.recipe_id) {
+    return { ok: false, error: 'missing_id', message: 'recipe_id is required' };
+  }
+
+  var result = findRowById(RECIPES_SHEET_NAME, payload.recipe_id);
+  if (result.row === -1) {
+    return { ok: false, error: 'not_found', message: 'Recipe not found: ' + payload.recipe_id };
+  }
+
+  // Check if any batch references this recipe
+  var batches = sheetToObjects(BATCHES_SHEET_NAME);
+  var hasReferences = batches.some(function (b) {
+    return String(b.recipe_id || '') === String(payload.recipe_id);
+  });
+
+  if (hasReferences) {
+    // Soft-deactivate: set status to inactive
+    var headers = result.headers;
+    var sheet = result.sheet;
+    var row = result.row;
+    var now = new Date().toISOString();
+
+    var statusCol = headers.indexOf('status');
+    if (statusCol !== -1) sheet.getRange(row, statusCol + 1).setValue('inactive');
+
+    var luCol = headers.indexOf('updated_at');
+    if (luCol !== -1) sheet.getRange(row, luCol + 1).setValue(now);
+
+    invalidateSheetCache(RECIPES_SHEET_NAME);
+
+    return { ok: true, message: 'Recipe deactivated (has batch references)', deactivated: true };
+  }
+
+  // Hard delete: remove ingredient rows first, then the recipe row
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ingSheet = ss.getSheetByName(RECIPE_INGREDIENTS_SHEET_NAME);
+
+  if (ingSheet && ingSheet.getLastRow() > 1) {
+    var ingData = ingSheet.getDataRange().getValues();
+    var ingHeaders = ingData[0];
+    var ridCol = ingHeaders.indexOf('recipe_id');
+    var rowsToDelete = [];
+    for (var i = 1; i < ingData.length; i++) {
+      if (String(ingData[i][ridCol]) === String(payload.recipe_id)) {
+        rowsToDelete.push(i + 1);
+      }
+    }
+    for (var j = rowsToDelete.length - 1; j >= 0; j--) {
+      ingSheet.deleteRow(rowsToDelete[j]);
+    }
+  }
+
+  result.sheet.deleteRow(result.row);
+
+  invalidateSheetCache(RECIPES_SHEET_NAME);
+  invalidateSheetCache(RECIPE_INGREDIENTS_SHEET_NAME);
+
+  return { ok: true, message: 'Recipe deleted', deleted: true };
+}
+
+/**
+ * Run manually from Apps Script editor to create Recipes and RecipeIngredients tabs.
+ * Safe to re-run — skips tabs that already exist.
+ */
+function setupRecipeTabs() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Recipes tab
+  var recipesSheet = ss.getSheetByName(RECIPES_SHEET_NAME);
+  if (!recipesSheet) {
+    recipesSheet = ss.insertSheet(RECIPES_SHEET_NAME);
+    recipesSheet.appendRow([
+      'recipe_id', 'name', 'style', 'description', 'status',
+      'locked_price', 'service_fee', 'materials_fee',
+      'batch_size_l', 'abv', 'ibu', 'colour_srm',
+      'notes', 'created_at', 'created_by', 'updated_at'
+    ]);
+    recipesSheet.getRange(1, 1, 1, 16).setFontWeight('bold');
+    recipesSheet.setFrozenRows(1);
+    Logger.log('Created Recipes tab with 16 columns');
+  } else {
+    Logger.log('Recipes tab already exists — skipped');
+  }
+
+  // RecipeIngredients tab
+  var ingSheet = ss.getSheetByName(RECIPE_INGREDIENTS_SHEET_NAME);
+  if (!ingSheet) {
+    ingSheet = ss.insertSheet(RECIPE_INGREDIENTS_SHEET_NAME);
+    ingSheet.appendRow([
+      'ingredient_id', 'recipe_id', 'item_id', 'item_name', 'quantity', 'unit'
+    ]);
+    ingSheet.getRange(1, 1, 1, 6).setFontWeight('bold');
+    ingSheet.setFrozenRows(1);
+    Logger.log('Created RecipeIngredients tab with 6 columns');
+  } else {
+    Logger.log('RecipeIngredients tab already exists — skipped');
+  }
+
+  Logger.log('Recipe tab setup complete');
 }
 
 /**
