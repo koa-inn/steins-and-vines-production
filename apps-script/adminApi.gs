@@ -1770,6 +1770,20 @@ function createBatch(payload, userEmail) {
     if (fnCol !== -1) batchesSheet.getRange(newRow, fnCol + 1).setValue(sanitizeInput(payload.customer_firstname || ''));
     if (lnCol !== -1) batchesSheet.getRange(newRow, lnCol + 1).setValue(sanitizeInput(payload.customer_lastname || ''));
 
+    // Write recipe_id / recipe_snapshot by header lookup (avoids positional coupling)
+    if (payload.recipe_id || payload.recipe_snapshot) {
+      var bHeaders = batchesSheet.getRange(1, 1, 1, batchesSheet.getLastColumn()).getValues()[0];
+      var recipeRow = batchesSheet.getLastRow();
+      var recipeIdCol = bHeaders.indexOf('recipe_id');
+      var snapshotCol = bHeaders.indexOf('recipe_snapshot');
+      if (recipeIdCol !== -1 && payload.recipe_id) {
+        batchesSheet.getRange(recipeRow, recipeIdCol + 1).setValue(sanitizeInput(payload.recipe_id));
+      }
+      if (snapshotCol !== -1 && payload.recipe_snapshot) {
+        batchesSheet.getRange(recipeRow, snapshotCol + 1).setValue(payload.recipe_snapshot);
+      }
+    }
+
     var tasksCreated = 0;
     var taskErrors = [];
 
@@ -3287,6 +3301,28 @@ function setupRecipeTabs() {
     Logger.log('Created RecipeIngredients tab with 6 columns');
   } else {
     Logger.log('RecipeIngredients tab already exists — skipped');
+  }
+
+  // Add recipe_id and recipe_snapshot columns to Batches tab (if not present)
+  var batchesSheet = ss.getSheetByName(BATCHES_SHEET_NAME);
+  if (batchesSheet) {
+    var bHeaders = batchesSheet.getRange(1, 1, 1, batchesSheet.getLastColumn()).getValues()[0];
+    if (bHeaders.indexOf('recipe_id') === -1) {
+      var nextCol = batchesSheet.getLastColumn() + 1;
+      batchesSheet.getRange(1, nextCol).setValue('recipe_id');
+      batchesSheet.getRange(1, nextCol).setFontWeight('bold');
+      Logger.log('Added recipe_id column to Batches tab at column ' + nextCol);
+    } else {
+      Logger.log('recipe_id column already exists in Batches tab');
+    }
+    if (bHeaders.indexOf('recipe_snapshot') === -1) {
+      var snapCol = batchesSheet.getLastColumn() + 1;
+      batchesSheet.getRange(1, snapCol).setValue('recipe_snapshot');
+      batchesSheet.getRange(1, snapCol).setFontWeight('bold');
+      Logger.log('Added recipe_snapshot column to Batches tab at column ' + snapCol);
+    } else {
+      Logger.log('recipe_snapshot column already exists in Batches tab');
+    }
   }
 
   Logger.log('Recipe tab setup complete');
