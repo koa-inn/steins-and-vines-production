@@ -62,6 +62,10 @@ var CACHE_KEYS = {
 
   // Promo code redemption tracking
   PROMO_REDEEMED_PREFIX:  'promo:firstbatch:redeemed:',  // append lowercased email
+
+  // Recipes (Apps Script sourced, Redis cached)
+  RECIPES:             'sv:recipes',
+  RECIPES_TS:          'sv:recipes:ts',
 };
 
 // ---------------------------------------------------------------------------
