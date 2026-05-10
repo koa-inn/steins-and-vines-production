@@ -21,7 +21,8 @@ var ITEM_TYPES = {
   KIT:          'kit',
   INGREDIENT:   'ingredient',
   SERVICE:      'service',
-  KIT_PURCHASE: 'kit-purchase'  // kit added directly to ingredient cart for purchase
+  KIT_PURCHASE: 'kit-purchase',  // kit added directly to ingredient cart for purchase
+  RECIPE:       'recipe'
 };
 
 // ---------------------------------------------------------------------------

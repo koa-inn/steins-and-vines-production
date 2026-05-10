@@ -56,6 +56,7 @@ var OPTIONAL = [
   { name: 'KIOSK_TAX_RATE',           desc: 'Tax rate for kiosk sales' },
   { name: 'MW_API_KEY',               desc: 'Alias for API_SECRET_KEY (legacy)' },
   { name: 'KIOSK_PIN',                desc: 'Four-digit PIN for kiosk access verification' },
+  { name: 'BEER_SALES_ENABLED',       desc: 'Enable beer recipe sales in kiosk and public browsing (true/false, default: false)' },
 ];
 
 function validateEnv() {
