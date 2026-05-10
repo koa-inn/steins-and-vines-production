@@ -13,7 +13,7 @@ Requirements for recipe-based product system. Each maps to roadmap phases.
 - [ ] **RDM-02**: Recipe schema stores style metadata (ABV, IBU, colour, batch size) for display purposes
 - [ ] **RDM-03**: Each batch created from a recipe sale stores a full ingredient snapshot at time of sale (immune to future recipe edits)
 - [ ] **RDM-04**: Recipe sales are gated behind a `BEER_SALES_ENABLED` env var that defaults to false
-- [ ] **RDM-05**: A Zoho "Brewing Fee" service item exists and is referenced via `BREWING_FEE_ITEM_ID` env var (mirrors Maker's Fee pattern)
+- [ ] **RDM-05**: The existing Maker's Fee (`MAKERS_FEE_ITEM_ID`) and Materials Fee (`MATERIALS_FEE_ITEM_ID`) Zoho service items are confirmed set in Railway and reused for recipe sales (per D-03 — no separate Brewing Fee item needed)
 
 ### Middleware Recipe API
 
@@ -124,4 +124,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-09*
-*Last updated: 2026-05-09 after roadmap creation (Phases 12-15)*
+*Last updated: 2026-05-09 after roadmap creation (Phases 12-15), RDM-05 updated per D-03 decision*

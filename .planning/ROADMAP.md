@@ -233,7 +233,7 @@ Plans:
 
 ## Phases
 
-- [ ] **Phase 12: Recipe Data Foundation** - Recipe schema, Apps Script CRUD, feature flag, and Brewing Fee service item established before any sale code is written
+- [ ] **Phase 12: Recipe Data Foundation** - Recipe schema, Apps Script CRUD, feature flag, and fee item confirmation established before any sale code is written
 - [ ] **Phase 13: Middleware API + Admin Recipe Management** - Staff can create, edit, and activate recipes via the admin panel; middleware API exposes recipe CRUD and availability checking
 - [ ] **Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation** - Staff can select a recipe on the kiosk, process payment, have ingredients deducted from Zoho Inventory, and get a batch auto-created in BrewPad
 - [ ] **Phase 15: BeerXML Import** - Staff can upload a BeerXML file, review an ingredient-to-SKU mapping table, and save the recipe as a draft without manual data entry
@@ -241,21 +241,23 @@ Plans:
 ## Phase Details
 
 ### Phase 12: Recipe Data Foundation
-**Goal**: The recipe schema, feature gate, and service fee item are locked in place so no downstream code can be built on an unstable foundation
+**Goal**: The recipe schema, feature gate, and fee item confirmation are locked in place so no downstream code can be built on an unstable foundation
 **Depends on**: Nothing (first phase of v2.0 milestone)
 **Requirements**: RDM-01, RDM-02, RDM-03, RDM-04, RDM-05
 **Success Criteria** (what must be TRUE):
-  1. A Google Sheets "Recipes" tab exists with columns for name, style metadata (ABV, IBU, colour, batch size), ingredient list (Zoho SKUs and quantities as JSON), locked_price, brewing_fee, and status
-  2. Apps Script exposes `create_recipe`, `get_recipes`, and `update_recipe` actions authenticated by server token
+  1. A Google Sheets "Recipes" tab exists with columns for name, style metadata (ABV, IBU, colour, batch size), a separate RecipeIngredients tab (Zoho SKUs and quantities), locked_price, service_fee, materials_fee, and status
+  2. Apps Script exposes `create_recipe`, `get_recipes`, `update_recipe`, and `delete_recipe` actions authenticated by staff OAuth (primary) and server token (create_recipe only, for middleware integration)
   3. A `recipe_id` column and a `recipe_snapshot` JSON column exist in the Batches sheet, populated at sale time and never updated by recipe edits afterward
   4. Middleware refuses all recipe-sale confirm requests when `BEER_SALES_ENABLED` is false (env var, Railway-managed, defaults to false)
-  5. A Zoho "Brewing Fee" service item is created in Zoho Books and its item ID is set as `BREWING_FEE_ITEM_ID` in Railway env vars
+  5. The existing Maker's Fee (`MAKERS_FEE_ITEM_ID`) and Materials Fee (`MATERIALS_FEE_ITEM_ID`) Zoho service items are confirmed set in Railway env vars and will be reused for recipe sales (per D-03 -- no new Zoho service items created)
 **Plans:** 2 plans
 
 Plans:
-**Wave 1** *(no dependencies -- run in parallel)*
+**Wave 1**
 - [ ] 12-01-PLAN.md -- Apps Script recipe CRUD: Recipes + RecipeIngredients sheet constants, create/get/update/delete recipe actions, setupRecipeTabs utility, cache invalidation
-- [ ] 12-02-PLAN.md -- Infrastructure scaffolding: BEER_SALES_ENABLED env var, CACHE_KEYS.RECIPES, ITEM_TYPES.RECIPE, Batches sheet recipe_id/recipe_snapshot columns
+
+**Wave 2** *(depends on Wave 1 -- extends setupRecipeTabs and modifies adminApi.gs)*
+- [ ] 12-02-PLAN.md -- Infrastructure scaffolding: BEER_SALES_ENABLED env var, CACHE_KEYS.RECIPES, ITEM_TYPES.RECIPE, Batches sheet recipe_id/recipe_snapshot columns, fee env var confirmation
 
 ### Phase 13: Middleware API + Admin Recipe Management
 **Goal**: Staff have a working admin interface to create and manage recipes, and the middleware API is the authoritative contract that kiosk and admin both depend on
