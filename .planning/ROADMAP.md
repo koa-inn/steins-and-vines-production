@@ -269,8 +269,19 @@ Plans:
   3. Staff can edit an existing recipe's ingredients, price, or fee, and activate or deactivate it without affecting any already-created batch snapshots
   4. The middleware `GET /api/recipes/:id/availability` endpoint returns whether all ingredient SKUs have sufficient Zoho stock for a given recipe quantity
   5. The middleware resolves all ingredient references to Zoho item IDs server-side — the client supplies only a recipe ID, never raw SKU lists
-**Plans**: TBD
+**Plans:** 4 plans
 **UI hint**: yes
+
+Plans:
+**Wave 1** *(no dependencies -- run in parallel)*
+- [ ] 13-01-PLAN.md -- Apps Script bug fixes: CR-01 lock protection on updateRecipe/deleteRecipe, WR-01 hard error on missing sheet, WR-02 dead cache key removal, WR-03 parameterized cache key
+- [ ] 13-02-PLAN.md -- Middleware recipe API: routes/recipes.js with CRUD + availability endpoints, Redis caching, activation guardrail, unit tests, server.js mount
+
+**Wave 2** *(depends on Wave 1 Plan 02)*
+- [ ] 13-03-PLAN.md -- Admin Recipes tab: HTML shell, recipe list/detail/editor views, ingredient autocomplete, availability indicators, activation guardrail, CSS, frontend tests, build
+
+**Wave 3** *(depends on Wave 1 + Wave 2)*
+- [ ] 13-04-PLAN.md -- Deploy to staging, Apps Script deployment, human verification of full CRUD and availability flow
 
 ### Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation
 **Goal**: A complete recipe sale can be processed end-to-end on the kiosk — ingredients reserved, payment collected, Zoho invoice created, inventory deducted, and a single batch record created in BrewPad
@@ -301,6 +312,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 12. Recipe Data Foundation | v2.0 | 2/2 | Complete    | 2026-05-16 |
-| 13. Middleware API + Admin Recipe Management | v2.0 | 0/TBD | Not started | - |
+| 13. Middleware API + Admin Recipe Management | v2.0 | 0/4 | Planned | - |
 | 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 0/TBD | Not started | - |
 | 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |
