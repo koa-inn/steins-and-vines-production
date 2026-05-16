@@ -9,11 +9,11 @@ Requirements for recipe-based product system. Each maps to roadmap phases.
 
 ### Recipe Data Model
 
-- [ ] **RDM-01**: Staff can define a recipe as a named collection of Zoho ingredient SKUs with quantities, a locked price, and a brewing fee
-- [ ] **RDM-02**: Recipe schema stores style metadata (ABV, IBU, colour, batch size) for display purposes
-- [ ] **RDM-03**: Each batch created from a recipe sale stores a full ingredient snapshot at time of sale (immune to future recipe edits)
-- [ ] **RDM-04**: Recipe sales are gated behind a `BEER_SALES_ENABLED` env var that defaults to false
-- [ ] **RDM-05**: The existing Maker's Fee (`MAKERS_FEE_ITEM_ID`) and Materials Fee (`MATERIALS_FEE_ITEM_ID`) Zoho service items are confirmed set in Railway and reused for recipe sales (per D-03 — no separate Brewing Fee item needed)
+- [x] **RDM-01**: Staff can define a recipe as a named collection of Zoho ingredient SKUs with quantities, a locked price, and a brewing fee
+- [x] **RDM-02**: Recipe schema stores style metadata (ABV, IBU, colour, batch size) for display purposes
+- [x] **RDM-03**: Each batch created from a recipe sale stores a full ingredient snapshot at time of sale (immune to future recipe edits)
+- [x] **RDM-04**: Recipe sales are gated behind a `BEER_SALES_ENABLED` env var that defaults to false
+- [x] **RDM-05**: The existing Maker's Fee (`MAKERS_FEE_ITEM_ID`) and Materials Fee (`MATERIALS_FEE_ITEM_ID`) Zoho service items are confirmed set in Railway and reused for recipe sales (per D-03 — no separate Brewing Fee item needed)
 
 ### Middleware Recipe API
 
@@ -91,11 +91,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RDM-01 | Phase 12 | Pending |
-| RDM-02 | Phase 12 | Pending |
-| RDM-03 | Phase 12 | Pending |
-| RDM-04 | Phase 12 | Pending |
-| RDM-05 | Phase 12 | Pending |
+| RDM-01 | Phase 12 | Complete |
+| RDM-02 | Phase 12 | Complete |
+| RDM-03 | Phase 12 | Complete |
+| RDM-04 | Phase 12 | Complete |
+| RDM-05 | Phase 12 | Complete |
 | API-01 | Phase 13 | Pending |
 | API-02 | Phase 13 | Pending |
 | API-03 | Phase 13 | Pending |

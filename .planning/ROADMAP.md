@@ -248,7 +248,7 @@ Plans:
   1. A Google Sheets "Recipes" tab exists with columns for name, style metadata (ABV, IBU, colour, batch size), a separate RecipeIngredients tab (Zoho SKUs and quantities), locked_price, service_fee, materials_fee, and status
   2. Apps Script exposes `create_recipe`, `get_recipes`, `update_recipe`, and `delete_recipe` actions authenticated by staff OAuth (primary) and server token (create_recipe only, for middleware integration)
   3. A `recipe_id` column and a `recipe_snapshot` JSON column exist in the Batches sheet, populated at sale time and never updated by recipe edits afterward
-  4. Middleware refuses all recipe-sale confirm requests when `BEER_SALES_ENABLED` is false (env var, Railway-managed, defaults to false)
+  4. `BEER_SALES_ENABLED` env var is registered in middleware startup validation and set to `false` in Railway (enforcement at the confirm endpoint is delivered in Phase 14 SC2)
   5. The existing Maker's Fee (`MAKERS_FEE_ITEM_ID`) and Materials Fee (`MATERIALS_FEE_ITEM_ID`) Zoho service items are confirmed set in Railway env vars and will be reused for recipe sales (per D-03 -- no new Zoho service items created)
 **Plans:** 2/2 plans complete
 
@@ -300,7 +300,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 12. Recipe Data Foundation | v2.0 | 2/2 | Complete   | 2026-05-16 |
+| 12. Recipe Data Foundation | v2.0 | 2/2 | Complete    | 2026-05-16 |
 | 13. Middleware API + Admin Recipe Management | v2.0 | 0/TBD | Not started | - |
 | 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 0/TBD | Not started | - |
 | 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |
