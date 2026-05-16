@@ -233,7 +233,7 @@ Plans:
 
 ## Phases
 
-- [ ] **Phase 12: Recipe Data Foundation** - Recipe schema, Apps Script CRUD, feature flag, and fee item confirmation established before any sale code is written
+- [x] **Phase 12: Recipe Data Foundation** - Recipe schema, Apps Script CRUD, feature flag, and fee item confirmation established before any sale code is written (completed 2026-05-16)
 - [ ] **Phase 13: Middleware API + Admin Recipe Management** - Staff can create, edit, and activate recipes via the admin panel; middleware API exposes recipe CRUD and availability checking
 - [ ] **Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation** - Staff can select a recipe on the kiosk, process payment, have ingredients deducted from Zoho Inventory, and get a batch auto-created in BrewPad
 - [ ] **Phase 15: BeerXML Import** - Staff can upload a BeerXML file, review an ingredient-to-SKU mapping table, and save the recipe as a draft without manual data entry
@@ -250,14 +250,14 @@ Plans:
   3. A `recipe_id` column and a `recipe_snapshot` JSON column exist in the Batches sheet, populated at sale time and never updated by recipe edits afterward
   4. Middleware refuses all recipe-sale confirm requests when `BEER_SALES_ENABLED` is false (env var, Railway-managed, defaults to false)
   5. The existing Maker's Fee (`MAKERS_FEE_ITEM_ID`) and Materials Fee (`MATERIALS_FEE_ITEM_ID`) Zoho service items are confirmed set in Railway env vars and will be reused for recipe sales (per D-03 -- no new Zoho service items created)
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 **Wave 1**
 - [x] 12-01-PLAN.md -- Apps Script recipe CRUD: Recipes + RecipeIngredients sheet constants, create/get/update/delete recipe actions, setupRecipeTabs utility, cache invalidation
 
 **Wave 2** *(depends on Wave 1 -- extends setupRecipeTabs and modifies adminApi.gs)*
-- [ ] 12-02-PLAN.md -- Infrastructure scaffolding: BEER_SALES_ENABLED env var, CACHE_KEYS.RECIPES, ITEM_TYPES.RECIPE, Batches sheet recipe_id/recipe_snapshot columns, fee env var confirmation
+- [x] 12-02-PLAN.md -- Infrastructure scaffolding: BEER_SALES_ENABLED env var, CACHE_KEYS.RECIPES, ITEM_TYPES.RECIPE, Batches sheet recipe_id/recipe_snapshot columns, fee env var confirmation
 
 ### Phase 13: Middleware API + Admin Recipe Management
 **Goal**: Staff have a working admin interface to create and manage recipes, and the middleware API is the authoritative contract that kiosk and admin both depend on
@@ -300,7 +300,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 12. Recipe Data Foundation | v2.0 | 1/2 | In Progress|  |
+| 12. Recipe Data Foundation | v2.0 | 2/2 | Complete   | 2026-05-16 |
 | 13. Middleware API + Admin Recipe Management | v2.0 | 0/TBD | Not started | - |
 | 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 0/TBD | Not started | - |
 | 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |
