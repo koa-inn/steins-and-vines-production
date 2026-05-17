@@ -1225,7 +1225,7 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (!data.ok || !data.recipe) {
+        if (!data.recipe) {
           alert('Failed to load recipe details');
           return;
         }

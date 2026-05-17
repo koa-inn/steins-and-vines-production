@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T15:05:27.637Z';
+  var BUILD_TIMESTAMP = '2026-05-17T15:08:37.767Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -9906,7 +9906,7 @@
     fetch(mw + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), { headers: headers })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (!data.ok || !data.recipe) {
+        if (!data.recipe) {
           alert('Failed to load recipe details');
           return;
         }
