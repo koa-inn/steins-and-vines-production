@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T03:15:29.531Z';
+  var BUILD_TIMESTAMP = '2026-05-17T03:35:42.408Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8061,7 +8061,7 @@
   function loadIngredientCatalogForRecipes() {
     var mwUrl = getRecipesMwUrl();
     if (!mwUrl) return;
-    fetch(mwUrl + '/api/catalog/ingredients', { headers: getRecipesMwHeaders(false) })
+    fetch(mwUrl + '/api/ingredients', { headers: getRecipesMwHeaders(false) })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
       .then(function (data) {
         _recipesState.catalog = data.items || data.ingredients || data || [];
