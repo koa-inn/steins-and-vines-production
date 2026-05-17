@@ -69,6 +69,13 @@ var CACHE_KEYS = {
 };
 
 // ---------------------------------------------------------------------------
+// Redis lock keys — mutex identifiers (used with cache.acquireLock)
+// ---------------------------------------------------------------------------
+var LOCK_KEYS = {
+  RECIPE_SALE: 'recipe-sale',  // one recipe sale at a time (per D-04)
+};
+
+// ---------------------------------------------------------------------------
 // Redis key prefixes — inventory ledger (inv:*)
 // ---------------------------------------------------------------------------
 var LEDGER_KEYS = {
@@ -89,6 +96,7 @@ var KIT_CATEGORIES = ['wine', 'beer', 'cider', 'seltzer'];
 
 module.exports = {
   CACHE_KEYS:         CACHE_KEYS,
+  LOCK_KEYS:          LOCK_KEYS,
   LEDGER_KEYS:        LEDGER_KEYS,
   RATE_LIMIT_PREFIX:  RATE_LIMIT_PREFIX,
   KIT_CATEGORIES:     KIT_CATEGORIES,

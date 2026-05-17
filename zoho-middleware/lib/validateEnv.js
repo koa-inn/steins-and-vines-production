@@ -57,6 +57,7 @@ var OPTIONAL = [
   { name: 'MW_API_KEY',               desc: 'Alias for API_SECRET_KEY (legacy)' },
   { name: 'KIOSK_PIN',                desc: 'Four-digit PIN for kiosk access verification' },
   { name: 'BEER_SALES_ENABLED',       desc: 'Enable beer recipe sales in kiosk and public browsing (true/false, default: false)' },
+  { name: 'MILLING_FEE_ITEM_ID',      desc: 'Zoho item ID for the grain milling fee service item (take-out recipe sales)' },
 ];
 
 function validateEnv() {
