@@ -293,8 +293,20 @@ Plans:
   3. A completed recipe sale creates a Zoho invoice with one line item per ingredient plus a brewing fee line item, and each ingredient's stock level in Zoho Inventory decreases by the recipe quantity
   4. Within 30 seconds of a successful recipe sale, exactly one new batch appears in BrewPad — linked to the recipe ID, carrying the full ingredient snapshot at time of sale, and showing the Zoho SO number
   5. If payment fails or is cancelled after ingredients are reserved, reserved ingredient quantities are released and no partial batch is created
-**Plans**: TBD
+**Plans:** 5 plans
 **UI hint**: yes
+
+Plans:
+**Wave 1** *(no dependencies -- run in parallel)*
+- [ ] 14-01-PLAN.md -- Foundation wiring: LOCK_KEYS.RECIPE_SALE constant, MILLING_FEE_ITEM_ID env var, detectRecipeSale() in brewpad-integration.js, unit tests
+- [ ] 14-02-PLAN.md -- Recipe sale endpoint: pos-recipe.js with initiate + confirm handlers, mutex, feature gate, void-on-failure, server.js mount, unit tests
+
+**Wave 2** *(depends on Wave 1 Plan 02)*
+- [ ] 14-03-PLAN.md -- Kiosk recipe browser UI: mode toggle, recipe cards, sale-type prompt, availability check, cart population, checkout routing in admin.js + admin.html
+- [ ] 14-04-PLAN.md -- Recipe browser CSS: mode toggle, sale-type buttons, availability banners, milling toggle styles in kiosk.css
+
+**Wave 3** *(depends on all Wave 1 + Wave 2)*
+- [ ] 14-05-PLAN.md -- Integration verification: full test suite, lint, build, staging deploy, human verification of recipe sale flow
 
 ### Phase 15: BeerXML Import
 **Goal**: Staff can import a recipe from any BeerSmith-compatible .xml export rather than entering every ingredient manually, with a mandatory review step before any data is saved
@@ -313,5 +325,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 12. Recipe Data Foundation | v2.0 | 2/2 | Complete    | 2026-05-16 |
 | 13. Middleware API + Admin Recipe Management | v2.0 | 4/4 | Complete   | 2026-05-17 |
-| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 0/TBD | Not started | - |
+| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 0/5 | Not started | - |
 | 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |
