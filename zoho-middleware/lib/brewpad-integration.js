@@ -362,6 +362,36 @@ function retrySyncQueue() {
   });
 }
 
+/**
+ * Create a single batch from a recipe sale.
+ * Separate code path from detectKitItems/createBatchesFromSale per D-10.
+ * Creates exactly ONE batch regardless of the number of ingredient line items.
+ * Fire-and-forget per D-12 — failure is silent; staff can create batch manually.
+ *
+ * @param {string} recipeId        - recipe ID (e.g. "RCP-0001")
+ * @param {Object} recipeSnapshot  - recipe object at time of sale (name, style, ingredients, etc.)
+ * @param {string} invoiceNumber   - Zoho invoice number
+ * @param {string} customerName    - full customer name (or empty for walk-in)
+ * @param {string} contactId       - Zoho contact ID (or empty for walk-in)
+ */
+function detectRecipeSale(recipeId, recipeSnapshot, invoiceNumber, customerName, contactId) {
+  if (!recipeId) return;
+  var nameParts = splitCustomerName(customerName);
+  var batchPayload = {
+    product_sku:        recipeId,
+    product_name:       (recipeSnapshot && recipeSnapshot.name) || recipeId,
+    customer_name:      customerName || 'Walk-in Customer',
+    customer_firstname: nameParts.first || (customerName ? '' : 'Walk-in'),
+    customer_lastname:  nameParts.last  || (customerName ? '' : 'Customer'),
+    customer_id:        contactId || '',
+    source:             'kiosk_recipe',
+    zoho_so_number:     invoiceNumber || '',
+    recipe_id:          recipeId,
+    recipe_snapshot:    JSON.stringify(recipeSnapshot || {})
+  };
+  callAppsScriptCreateBatch(batchPayload).catch(function () {});
+}
+
 module.exports = {
   createBatchesFromSale: createBatchesFromSale,
   retryPendingBatches: retryPendingBatches,
@@ -370,5 +400,6 @@ module.exports = {
   splitCustomerName: splitCustomerName,
   syncBatchToZoho: syncBatchToZoho,
   queueSyncForRetry: queueSyncForRetry,
-  retrySyncQueue: retrySyncQueue
+  retrySyncQueue: retrySyncQueue,
+  detectRecipeSale: detectRecipeSale
 };
