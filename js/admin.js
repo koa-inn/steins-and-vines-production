@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T05:38:35.637Z';
+  var BUILD_TIMESTAMP = '2026-05-17T13:55:12.614Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8703,6 +8703,16 @@
   var _kioskCustomer = null;     // { contact_id, name, email } or null (walk-in)
   var _kioskTabActive = false;
 
+  // ---- Recipe browser state ----
+  var _kioskMode = 'products';        // 'products' | 'recipes'
+  var _kioskRecipes = [];
+  var _kioskRecipesLoaded = false;
+  var _kioskRecipesLoading = false;
+  var _kioskSelectedRecipe = null;    // full recipe object from API
+  var _kioskSaleType = null;          // 'in-store' | 'take-out' | null
+  var _kioskMillGrain = false;
+  var _kioskRecipeAvailability = null; // availability response from API
+
   // ---- Helpers ----
 
   function kioskMwUrl() {
@@ -8973,6 +8983,11 @@
 
   function kioskClearCart() {
     _kioskCart = {};
+    // Reset recipe state on cart clear
+    _kioskSelectedRecipe = null;
+    _kioskSaleType = null;
+    _kioskMillGrain = false;
+    _kioskRecipeAvailability = null;
     kioskRenderCart();
     kioskRenderProducts();
   }
@@ -9290,21 +9305,84 @@
     var refNumber = 'KIOSK-' + Date.now();
     var idempotencyKey = refNumber + '-' + Math.random().toString(36).slice(2, 9);
 
-    // POST to /api/kiosk/sale — this blocks until the terminal responds
-    fetch(mwUrl + '/api/kiosk/sale', {
+    // Determine sale endpoint: recipe sale or standard kiosk sale
+    var isRecipeSale = !!(_kioskCart && _kioskCart._recipeContext);
+    var saleUrl = isRecipeSale
+      ? mwUrl + '/api/kiosk/recipe-sale'
+      : mwUrl + '/api/kiosk/sale';
+    var existingSaleBody = {
+      items: items,
+      tax_total: totals.tax,
+      reference_number: refNumber,
+      contact_id: _kioskCustomer ? _kioskCustomer.contact_id : '',
+      idempotency_key: idempotencyKey
+    };
+    var recipeSaleBody = isRecipeSale ? {
+      recipe_id: _kioskCart._recipeContext.recipe_id,
+      sale_type: _kioskCart._recipeContext.sale_type,
+      mill_grain: _kioskCart._recipeContext.mill_grain,
+      customer_name: (_kioskCustomer && _kioskCustomer.name) || '',
+      contact_id: (_kioskCustomer && _kioskCustomer.contact_id) || '',
+      reference_number: refNumber,
+      idempotency_key: idempotencyKey
+    } : null;
+    var saleBody = isRecipeSale ? recipeSaleBody : existingSaleBody;
+
+    // POST to sale endpoint — this blocks until the terminal responds
+    fetch(saleUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items: items,
-        tax_total: totals.tax,
-        reference_number: refNumber,
-        contact_id: _kioskCustomer ? _kioskCustomer.contact_id : '',
-        idempotency_key: idempotencyKey
-      })
+      body: JSON.stringify(saleBody)
     })
     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
     .then(function (result) {
       if (cancelled) return;
+
+      // Recipe sale: 202 pending → call confirm endpoint to finalize invoice
+      if (isRecipeSale && result.status === 202 && result.data && result.data.pending) {
+        var confirmUrl = mwUrl + '/api/kiosk/recipe-sale/confirm';
+        var confirmBody = {
+          recipe_id: saleBody.recipe_id,
+          sale_type: saleBody.sale_type,
+          mill_grain: saleBody.mill_grain,
+          customer_name: saleBody.customer_name || '',
+          contact_id: saleBody.contact_id || '',
+          reference: result.data.reference,
+          transaction_id: result.data.transaction_id || ''
+        };
+        fetch(confirmUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(confirmBody)
+        })
+        .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+        .then(function (confirmResult) {
+          if (spinnerEl) spinnerEl.style.display = 'none';
+          if (confirmResult.status === 201 && confirmResult.data.ok) {
+            _kioskSaleData = confirmResult.data;
+            kioskShowReceipt(confirmResult.data, totals, items, []);
+            kioskClearCart();
+          } else if (confirmResult.data && confirmResult.data.payment_voided) {
+            kioskShowError(
+              'Sale Could Not Complete',
+              (confirmResult.data.error || 'Payment was taken but could not be recorded. Payment has been voided.'),
+              false
+            );
+          } else {
+            kioskShowError(
+              'Sale Error',
+              (confirmResult.data && confirmResult.data.error) || 'An error occurred. Please try again.',
+              true
+            );
+          }
+        })
+        .catch(function () {
+          if (spinnerEl) spinnerEl.style.display = 'none';
+          kioskShowError('Connection Error', 'Could not confirm the recipe sale. Contact staff for assistance.', false);
+        });
+        return;
+      }
+
       if (spinnerEl) spinnerEl.style.display = 'none';
 
       if (result.status === 201 && result.data.ok) {
@@ -9543,6 +9621,370 @@
     if (checkoutBtn) {
       checkoutBtn.addEventListener('click', kioskStartCheckout);
     }
+
+    // ---- Recipe browser event listeners ----
+
+    // Mode toggle
+    var modeProdsBtn = document.getElementById('kiosk-mode-products');
+    var modeRecipesBtn = document.getElementById('kiosk-mode-recipes');
+    if (modeProdsBtn) modeProdsBtn.addEventListener('click', function () { kioskSetMode('products'); });
+    if (modeRecipesBtn) modeRecipesBtn.addEventListener('click', function () { kioskSetMode('recipes'); });
+
+    // Recipe prompt back button
+    var recipeBackBtn = document.getElementById('kiosk-recipe-back');
+    if (recipeBackBtn) recipeBackBtn.addEventListener('click', function () {
+      var prompt = document.getElementById('kiosk-recipe-prompt');
+      var grid = document.getElementById('kiosk-recipe-grid');
+      if (prompt) prompt.style.display = 'none';
+      if (grid) grid.style.display = '';
+      _kioskSelectedRecipe = null;
+      _kioskSaleType = null;
+    });
+
+    // Sale-type buttons
+    var inStoreSaleBtn = document.getElementById('kiosk-btn-in-store');
+    if (inStoreSaleBtn) inStoreSaleBtn.addEventListener('click', function () { kioskSelectSaleType('in-store'); });
+
+    var takeOutSaleBtn = document.getElementById('kiosk-btn-take-out');
+    if (takeOutSaleBtn) takeOutSaleBtn.addEventListener('click', function () { kioskSelectSaleType('take-out'); });
+
+    // Milling checkbox
+    var millCheckboxEl = document.getElementById('kiosk-mill-grain');
+    if (millCheckboxEl) millCheckboxEl.addEventListener('change', function () {
+      _kioskMillGrain = millCheckboxEl.checked;
+    });
+
+    // Add recipe to cart button
+    var addRecipeBtn = document.getElementById('kiosk-add-recipe-to-cart');
+    if (addRecipeBtn) addRecipeBtn.addEventListener('click', kioskAddRecipeToCart);
+  }
+
+  // ---- Recipe browser: mode toggle ----
+
+  function kioskSetMode(mode) {
+    _kioskMode = mode;
+    var prodGrid = document.getElementById('kiosk-product-grid');
+    var recipeGrid = document.getElementById('kiosk-recipe-grid');
+    var recipePrompt = document.getElementById('kiosk-recipe-prompt');
+    var searchBar = document.querySelector('.kiosk-search-bar');
+
+    // Toggle visibility
+    if (prodGrid) prodGrid.style.display = mode === 'products' ? '' : 'none';
+    if (recipeGrid) recipeGrid.style.display = mode === 'recipes' ? '' : 'none';
+    if (recipePrompt) recipePrompt.style.display = 'none'; // always hide prompt on mode switch
+    if (searchBar) searchBar.style.display = mode === 'products' ? '' : 'none';
+
+    // Toggle active state on mode buttons
+    var btns = document.querySelectorAll('.kiosk-mode-toggle__btn');
+    btns.forEach(function (btn) {
+      if (btn.getAttribute('data-mode') === mode) {
+        btn.classList.add('kiosk-mode-toggle__btn--active');
+      } else {
+        btn.classList.remove('kiosk-mode-toggle__btn--active');
+      }
+    });
+
+    // Load recipes on first switch
+    if (mode === 'recipes' && !_kioskRecipesLoaded && !_kioskRecipesLoading) {
+      kioskLoadRecipes();
+    }
+  }
+
+  // ---- Recipe browser: load recipes ----
+
+  function kioskLoadRecipes(forceRefresh) {
+    if (_kioskRecipesLoading) return;
+    if (_kioskRecipesLoaded && !forceRefresh) {
+      kioskRenderRecipes();
+      return;
+    }
+    _kioskRecipesLoading = true;
+    var grid = document.getElementById('kiosk-recipe-grid');
+    if (grid) grid.innerHTML = '<p class="kiosk-loading">Loading recipes...</p>';
+    var mw = kioskMwUrl();
+    var headers = {};
+    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
+      headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
+    }
+    fetch(mw + '/api/recipes?status=active', { headers: headers })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _kioskRecipes = (data.ok && data.recipes) ? data.recipes : [];
+        _kioskRecipesLoaded = true;
+        _kioskRecipesLoading = false;
+        kioskRenderRecipes();
+      })
+      .catch(function (err) {
+        _kioskRecipesLoading = false;
+        if (grid) grid.innerHTML = '<p class="kiosk-loading">Failed to load recipes: ' + err.message + '</p>';
+      });
+  }
+
+  // ---- Recipe browser: render recipe cards ----
+
+  function kioskRenderRecipes() {
+    var grid = document.getElementById('kiosk-recipe-grid');
+    if (!grid) return;
+    if (_kioskRecipes.length === 0) {
+      grid.innerHTML = '<div class="kiosk-cart-empty"><p><strong>No active recipes</strong></p><p>No recipes are currently active. Ask an admin to activate a recipe.</p></div>';
+      return;
+    }
+    var html = '';
+    _kioskRecipes.forEach(function (r) {
+      html += '<div class="kiosk-product-card kiosk-recipe-card" data-recipe-id="' + (r.recipe_id || '') + '">';
+      html += '<div class="kiosk-product-body">';
+      html += '<div class="kiosk-type-badge kiosk-type-badge--kit">Recipe</div>';
+      html += '<div class="kiosk-product-name">' + (r.name || '') + '</div>';
+      html += '<div class="kiosk-product-sku">' + (r.style || '') + (r.abv ? ' &middot; ' + r.abv + '%' : '') + '</div>';
+      html += '<div class="kiosk-product-price">' + kioskFmt(r.locked_price) + '</div>';
+      html += '<div class="kiosk-product-stock">incl. brewing fee</div>';
+      html += '</div></div>';
+    });
+    grid.innerHTML = html;
+
+    // Attach click handlers
+    var cards = grid.querySelectorAll('.kiosk-recipe-card');
+    cards.forEach(function (card) {
+      card.addEventListener('click', function () {
+        var recipeId = card.getAttribute('data-recipe-id');
+        var recipe = _kioskRecipes.find(function (r) { return r.recipe_id === recipeId; });
+        if (recipe) kioskShowRecipePrompt(recipe);
+      });
+    });
+  }
+
+  // ---- Recipe browser: sale-type prompt ----
+
+  function kioskShowRecipePrompt(recipe) {
+    _kioskSelectedRecipe = recipe;
+    _kioskSaleType = null;
+    _kioskMillGrain = false;
+    _kioskRecipeAvailability = null;
+
+    var grid = document.getElementById('kiosk-recipe-grid');
+    var prompt = document.getElementById('kiosk-recipe-prompt');
+    if (grid) grid.style.display = 'none';
+    if (prompt) prompt.style.display = '';
+
+    // Set recipe name
+    var nameEl = document.getElementById('kiosk-recipe-selected-name');
+    if (nameEl) nameEl.textContent = recipe.name || '';
+
+    // Reset sale-type button states
+    var inStoreBtn = document.getElementById('kiosk-btn-in-store');
+    var takeOutBtn = document.getElementById('kiosk-btn-take-out');
+    if (inStoreBtn) { inStoreBtn.classList.remove('kiosk-sale-type-btn--selected'); inStoreBtn.classList.add('btn-secondary'); }
+    if (takeOutBtn) { takeOutBtn.classList.remove('kiosk-sale-type-btn--selected'); takeOutBtn.classList.add('btn-secondary'); }
+
+    // Hide milling toggle and add-to-cart
+    var millingToggle = document.getElementById('kiosk-milling-toggle');
+    var addBtn = document.getElementById('kiosk-add-recipe-to-cart');
+    var millCheckbox = document.getElementById('kiosk-mill-grain');
+    if (millingToggle) millingToggle.style.display = 'none';
+    if (addBtn) addBtn.style.display = 'none';
+    if (millCheckbox) millCheckbox.checked = false;
+
+    // Clear availability banner
+    var bannerEl = document.getElementById('kiosk-avail-banner');
+    if (bannerEl) bannerEl.innerHTML = '';
+
+    // Check availability
+    kioskCheckRecipeAvailability(recipe.recipe_id);
+  }
+
+  function kioskSelectSaleType(saleType) {
+    _kioskSaleType = saleType;
+    var inStoreBtn = document.getElementById('kiosk-btn-in-store');
+    var takeOutBtn = document.getElementById('kiosk-btn-take-out');
+    var millingToggle = document.getElementById('kiosk-milling-toggle');
+    var addBtn = document.getElementById('kiosk-add-recipe-to-cart');
+
+    // Update button states
+    if (inStoreBtn) {
+      if (saleType === 'in-store') { inStoreBtn.classList.add('kiosk-sale-type-btn--selected'); inStoreBtn.classList.remove('btn-secondary'); }
+      else { inStoreBtn.classList.remove('kiosk-sale-type-btn--selected'); inStoreBtn.classList.add('btn-secondary'); }
+    }
+    if (takeOutBtn) {
+      if (saleType === 'take-out') { takeOutBtn.classList.add('kiosk-sale-type-btn--selected'); takeOutBtn.classList.remove('btn-secondary'); }
+      else { takeOutBtn.classList.remove('kiosk-sale-type-btn--selected'); takeOutBtn.classList.add('btn-secondary'); }
+    }
+
+    // Show milling toggle only for take-out (D-03)
+    if (millingToggle) millingToggle.style.display = saleType === 'take-out' ? '' : 'none';
+
+    // Show add-to-cart if availability allows
+    kioskUpdateAddToCartButton();
+  }
+
+  function kioskUpdateAddToCartButton() {
+    var addBtn = document.getElementById('kiosk-add-recipe-to-cart');
+    if (!addBtn || !_kioskSelectedRecipe || !_kioskSaleType) {
+      if (addBtn) addBtn.style.display = 'none';
+      return;
+    }
+
+    // Block if availability is cannot_brew or unknown (Pitfall 5)
+    var avail = _kioskRecipeAvailability;
+    if (avail && (avail.summary === 'cannot_brew' || avail.summary === 'unknown')) {
+      addBtn.style.display = 'none';
+      return;
+    }
+
+    // Show button with price
+    var price = parseFloat(_kioskSelectedRecipe.locked_price) || 0;
+    addBtn.textContent = 'Add to Cart — ' + kioskFmt(price);
+    addBtn.style.display = '';
+  }
+
+  // ---- Recipe browser: availability check ----
+
+  function kioskCheckRecipeAvailability(recipeId) {
+    var bannerEl = document.getElementById('kiosk-avail-banner');
+    if (bannerEl) bannerEl.innerHTML = '<p class="kiosk-loading">Checking stock...</p>';
+    var mw = kioskMwUrl();
+    var headers = {};
+    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
+      headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
+    }
+    fetch(mw + '/api/recipes/' + encodeURIComponent(recipeId) + '/availability', { headers: headers })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _kioskRecipeAvailability = data;
+        kioskRenderAvailBanner(data);
+        kioskUpdateAddToCartButton();
+      })
+      .catch(function () {
+        _kioskRecipeAvailability = { summary: 'unknown' };
+        kioskRenderAvailBanner({ summary: 'unknown' });
+        kioskUpdateAddToCartButton();
+      });
+  }
+
+  function kioskRenderAvailBanner(avail) {
+    var bannerEl = document.getElementById('kiosk-avail-banner');
+    if (!bannerEl) return;
+    var summary = avail.summary || 'unknown';
+    if (summary === 'all_ok') {
+      bannerEl.innerHTML = '';
+      return;
+    }
+    if (summary === 'some_low') {
+      bannerEl.innerHTML = '<div class="kiosk-avail-warning">Some ingredients are low — this may be the last batch. <button type="button" class="btn-secondary" id="kiosk-avail-dismiss" style="margin-left:8px;padding:4px 12px;font-size:0.82rem;">Proceed anyway</button></div>';
+      var dismissBtn = document.getElementById('kiosk-avail-dismiss');
+      if (dismissBtn) {
+        dismissBtn.addEventListener('click', function () { bannerEl.innerHTML = ''; });
+      }
+      return;
+    }
+    if (summary === 'cannot_brew') {
+      bannerEl.innerHTML = '<div class="kiosk-avail-block">Cannot proceed: one or more ingredients are out of stock.</div>';
+      return;
+    }
+    // unknown
+    bannerEl.innerHTML = '<div class="kiosk-avail-block">Stock data unavailable — refresh and try again.</div>';
+  }
+
+  // ---- Recipe browser: add recipe to cart ----
+
+  function kioskAddRecipeToCart() {
+    if (!_kioskSelectedRecipe || !_kioskSaleType) return;
+    var recipe = _kioskSelectedRecipe;
+    var avail = _kioskRecipeAvailability;
+
+    // Block if cannot_brew or unknown
+    if (avail && (avail.summary === 'cannot_brew' || avail.summary === 'unknown')) return;
+
+    // Clear existing cart (recipe sale replaces any existing items)
+    _kioskCart = {};
+
+    // Fetch full recipe detail to get ingredients with item_ids
+    var mw = kioskMwUrl();
+    var headers = {};
+    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
+      headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
+    }
+    fetch(mw + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), { headers: headers })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok || !data.recipe) {
+          alert('Failed to load recipe details');
+          return;
+        }
+        var fullRecipe = data.recipe;
+        var ingredients = data.ingredients || [];
+
+        // Store recipe context for the sale endpoint
+        _kioskCart._recipeContext = {
+          recipe_id: recipe.recipe_id,
+          recipe_name: recipe.name,
+          sale_type: _kioskSaleType,
+          mill_grain: _kioskMillGrain,
+          locked_price: recipe.locked_price,
+          ingredients: ingredients
+        };
+
+        // Add each ingredient as a cart line item for display
+        ingredients.forEach(function (ing) {
+          var displayKey = 'recipe-ing-' + (ing.item_id || ing.ingredient_id);
+          _kioskCart[displayKey] = {
+            item: {
+              item_id: ing.item_id,
+              name: ing.item_name + ' · ' + (ing.quantity || 0) + ' ' + (ing.unit || ''),
+              rate: 0, // Display only — server computes actual rates
+              tax_percentage: 0,
+              product_type: 'recipe_ingredient',
+              _recipe_ingredient: true
+            },
+            qty: 1
+          };
+        });
+
+        // Add fee line items for display
+        if (_kioskSaleType === 'in-store') {
+          _kioskCart['recipe-fee-brewing'] = {
+            item: {
+              item_id: 'fee-brewing',
+              name: 'Brewing Fee',
+              rate: parseFloat(fullRecipe.service_fee) || 0,
+              tax_percentage: 5,
+              product_type: 'fee',
+              _recipe_fee: true
+            },
+            qty: 1
+          };
+          _kioskCart['recipe-fee-materials'] = {
+            item: {
+              item_id: 'fee-materials',
+              name: 'Materials Fee',
+              rate: parseFloat(fullRecipe.materials_fee) || 0,
+              tax_percentage: 12,
+              product_type: 'fee',
+              _recipe_fee: true
+            },
+            qty: 1
+          };
+        }
+        if (_kioskSaleType === 'take-out' && _kioskMillGrain) {
+          _kioskCart['recipe-fee-milling'] = {
+            item: {
+              item_id: 'fee-milling',
+              name: 'Milling Fee',
+              rate: 0, // Server resolves actual rate
+              tax_percentage: 0,
+              product_type: 'fee',
+              _recipe_fee: true
+            },
+            qty: 1
+          };
+        }
+
+        // Switch back to products mode and render cart
+        kioskSetMode('products');
+        kioskRenderCart();
+      })
+      .catch(function (err) {
+        alert('Failed to load recipe: ' + err.message);
+      });
   }
 
   // Hook into tab navigation: lazy-load on first visit, show/hide terminal bar
