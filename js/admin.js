@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T15:20:07.618Z';
+  var BUILD_TIMESTAMP = '2026-05-17T15:28:34.977Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -9970,60 +9970,19 @@
         ingredients: ingredients
       };
 
-      // Add each ingredient as a cart line item for display
-      ingredients.forEach(function (ing) {
-        var displayKey = 'recipe-ing-' + (ing.item_id || ing.ingredient_id);
-        _kioskCart[displayKey] = {
-          item: {
-            item_id: ing.item_id,
-            name: ing.item_name + ' \xb7 ' + (ing.quantity || 0) + ' ' + (ing.unit || ''),
-            rate: 0, // Display only — server computes actual rates
-            tax_percentage: 0,
-            product_type: 'recipe_ingredient',
-            _recipe_ingredient: true
-          },
-          qty: 1
-        };
-      });
-
-      // Add fee line items for display
-      if (_kioskSaleType === 'in-store') {
-        _kioskCart['recipe-fee-brewing'] = {
-          item: {
-            item_id: 'fee-brewing',
-            name: 'Brewing Fee',
-            rate: parseFloat(fullRecipe.service_fee) || 0,
-            tax_percentage: 5,
-            product_type: 'fee',
-            _recipe_fee: true
-          },
-          qty: 1
-        };
-        _kioskCart['recipe-fee-materials'] = {
-          item: {
-            item_id: 'fee-materials',
-            name: 'Materials Fee',
-            rate: parseFloat(fullRecipe.materials_fee) || 0,
-            tax_percentage: 12,
-            product_type: 'fee',
-            _recipe_fee: true
-          },
-          qty: 1
-        };
-      }
-      if (_kioskSaleType === 'take-out' && _kioskMillGrain) {
-        _kioskCart['recipe-fee-milling'] = {
-          item: {
-            item_id: 'fee-milling',
-            name: 'Milling Fee',
-            rate: 0, // Server resolves actual rate
-            tax_percentage: 0,
-            product_type: 'fee',
-            _recipe_fee: true
-          },
-          qty: 1
-        };
-      }
+      var saleLabel = _kioskSaleType === 'in-store' ? 'Ferment in Store' : 'Take Out';
+      var recipeName = escapeHTML(recipe.name || recipe.recipe_id);
+      _kioskCart['recipe-sale'] = {
+        item: {
+          item_id: recipe.recipe_id,
+          name: recipeName + ' (' + saleLabel + ')',
+          rate: parseFloat(recipe.locked_price) || 0,
+          tax_percentage: 0,
+          product_type: 'recipe',
+          _recipe_sale: true
+        },
+        qty: 1
+      };
 
       // Switch back to products mode and render cart
       kioskSetMode('products');
