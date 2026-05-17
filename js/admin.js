@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T17:43:33.961Z';
+  var BUILD_TIMESTAMP = '2026-05-17T17:50:14.656Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -9643,7 +9643,7 @@
       var prompt = document.getElementById('kiosk-recipe-prompt');
       var grid = document.getElementById('kiosk-recipe-grid');
       if (prompt) prompt.style.display = 'none';
-      if (grid) grid.style.display = '';
+      if (grid) grid.style.display = 'grid';
       _kioskSelectedRecipe = null;
       _kioskSaleType = null;
     });

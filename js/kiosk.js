@@ -4275,7 +4275,7 @@
       var prompt = document.getElementById('kiosk-recipe-prompt');
       var recipeGrid = document.getElementById('kiosk-recipe-grid');
       if (prompt) prompt.style.display = 'none';
-      if (recipeGrid) recipeGrid.style.display = '';
+      if (recipeGrid) recipeGrid.style.display = 'grid';
       _kioskSelectedRecipe = null;
       _kioskSaleType = null;
     });
