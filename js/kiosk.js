@@ -1053,7 +1053,7 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        _kioskRecipes = (data.ok && data.recipes) ? data.recipes : [];
+        _kioskRecipes = data.recipes || [];
         _kioskRecipesLoaded = true;
         _kioskRecipesLoading = false;
         kioskRenderRecipes();

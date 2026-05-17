@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T14:49:13.357Z';
+  var BUILD_TIMESTAMP = '2026-05-17T15:05:27.637Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -9709,7 +9709,7 @@
     fetch(mw + '/api/recipes?status=active', { headers: headers })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        _kioskRecipes = (data.ok && data.recipes) ? data.recipes : [];
+        _kioskRecipes = data.recipes || [];
         _kioskRecipesLoaded = true;
         _kioskRecipesLoading = false;
         kioskRenderRecipes();
