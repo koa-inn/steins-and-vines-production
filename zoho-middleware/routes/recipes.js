@@ -81,7 +81,7 @@ router.get('/api/recipes', function (req, res) {
       log.info('[api/recipes] Cache hit status=' + status);
       return res.json({ source: 'cache', recipes: cached.recipes, total: cached.total });
     }
-    return callAppsScriptGet('get_recipes', { status: status, limit: limit, offset: offset })
+    return callAppsScriptPost('get_recipes', { status: status, limit: limit, offset: offset })
       .then(function (data) {
         if (data && data.ok === false) {
           log.warn('[api/recipes] Apps Script rejected: ' + (data.error || '') + ' ' + (data.message || ''));
@@ -113,7 +113,7 @@ router.get('/api/recipes/:id', function (req, res) {
       log.info('[api/recipes/' + recipeId + '] Cache hit');
       return res.json(cached);
     }
-    return callAppsScriptGet('get_recipe', { recipe_id: recipeId })
+    return callAppsScriptPost('get_recipe', { recipe_id: recipeId })
       .then(function (data) {
         if (!data.ok) {
           return res.status(404).json({ error: data.message || 'Recipe not found' });
@@ -137,7 +137,7 @@ router.get('/api/recipes/:id/availability', function (req, res) {
   var recipeId = req.params.id;
 
   // Step 1: Fetch recipe ingredients from Apps Script (server fetches item_ids, never client — API-02)
-  callAppsScriptGet('get_recipe', { recipe_id: recipeId }).then(function (data) {
+  callAppsScriptPost('get_recipe', { recipe_id: recipeId }).then(function (data) {
     if (!data.ok) {
       return res.status(404).json({ error: data.message || 'Recipe not found' });
     }

@@ -91,13 +91,13 @@ describe('GET /api/recipes', function () {
       expect(res._body.source).toBe('cache');
       expect(res._body.recipes).toEqual(cached.recipes);
       expect(res._body.total).toBe(1);
-      expect(mocks.axios.get).not.toHaveBeenCalled();
+      expect(mocks.axios.post).not.toHaveBeenCalled();
     });
   });
 
   test('fetches from Apps Script on cache miss and caches result', function () {
     mocks.cache.get.mockResolvedValue(null);
-    mocks.axios.get.mockResolvedValue({
+    mocks.axios.post.mockResolvedValue({
       data: { ok: true, data: { recipes: [{ recipe_id: 'SV-R-000001' }], total: 1 } }
     });
     return callHandler('GET', '/api/recipes', { query: { status: 'active' } }).then(function (res) {
@@ -109,7 +109,7 @@ describe('GET /api/recipes', function () {
 
   test('returns 502 on Apps Script error', function () {
     mocks.cache.get.mockResolvedValue(null);
-    mocks.axios.get.mockRejectedValue(new Error('timeout'));
+    mocks.axios.post.mockRejectedValue(new Error('timeout'));
     return callHandler('GET', '/api/recipes', { query: {} }).then(function (res) {
       expect(res._status).toBe(502);
       expect(res._body.error).toBe('Unable to fetch recipes');
@@ -133,13 +133,13 @@ describe('GET /api/recipes/:id', function () {
     mocks.cache.get.mockResolvedValue(cached);
     return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-000001' } }).then(function (res) {
       expect(res._body.recipe.recipe_id).toBe('SV-R-000001');
-      expect(mocks.axios.get).not.toHaveBeenCalled();
+      expect(mocks.axios.post).not.toHaveBeenCalled();
     });
   });
 
   test('fetches and caches on miss', function () {
     mocks.cache.get.mockResolvedValue(null);
-    mocks.axios.get.mockResolvedValue({
+    mocks.axios.post.mockResolvedValue({
       data: { ok: true, data: { recipe: { recipe_id: 'SV-R-000001' }, ingredients: [{ item_id: '123' }] } }
     });
     return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-000001' } }).then(function (res) {
@@ -151,7 +151,7 @@ describe('GET /api/recipes/:id', function () {
 
   test('returns 404 when Apps Script returns ok:false', function () {
     mocks.cache.get.mockResolvedValue(null);
-    mocks.axios.get.mockResolvedValue({
+    mocks.axios.post.mockResolvedValue({
       data: { ok: false, message: 'Recipe not found' }
     });
     return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-999999' } }).then(function (res) {
@@ -173,7 +173,7 @@ describe('GET /api/recipes/:id/availability', function () {
 
   test('returns per-ingredient status with stock data from ingredients cache', function () {
     // Apps Script returns recipe with ingredients
-    mocks.axios.get.mockResolvedValue({
+    mocks.axios.post.mockResolvedValue({
       data: {
         ok: true,
         data: {
@@ -210,7 +210,7 @@ describe('GET /api/recipes/:id/availability', function () {
   });
 
   test('returns status unknown when ingredients cache is cold', function () {
-    mocks.axios.get.mockResolvedValue({
+    mocks.axios.post.mockResolvedValue({
       data: {
         ok: true,
         data: {

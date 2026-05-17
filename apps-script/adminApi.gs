@@ -243,6 +243,21 @@ function doPost(e) {
         _invalidateRecipeCache(payload.recipe_id);
         return _jsonResponse(deleteResult);
       }
+      if (action === 'get_recipes') {
+        var grLimit = parseInt(payload.limit, 10) || 0;
+        var grOffset = parseInt(payload.offset, 10) || 0;
+        var grStatus = payload.status || 'all';
+        var grCacheKey = 'gr:list:' + grStatus + ':' + grLimit + ':' + grOffset;
+        return _jsonResponse({ ok: true, data: _cachedGet(grCacheKey, 300, function() {
+          return getRecipes(grLimit, grOffset, grStatus);
+        })});
+      }
+      if (action === 'get_recipe') {
+        var grId = payload.recipe_id || '';
+        return _jsonResponse({ ok: true, data: _cachedGet('gr:' + grId, 300, function() {
+          return getRecipeDetail(grId);
+        })});
+      }
       return _jsonResponse({ ok: false, error: 'invalid_action', message: 'Unknown server action: ' + action });
     }
 
