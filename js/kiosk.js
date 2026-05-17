@@ -1424,7 +1424,7 @@
               item_id: ing.item_id,
               name: escapeHTML(ing.item_name) + ' (' + ing.quantity + ' ' + escapeHTML(ing.unit || '') + ')',
               rate: ingRate,
-              tax_percentage: 0,
+              tax_percentage: Number(ing.tax_percentage) || 0,
               product_type: 'recipe_ingredient'
             },
             qty: 1
@@ -1449,7 +1449,7 @@
         if (_kioskSaleType === 'take-out' && _kioskMillGrain) {
           var millingFee = Number(recipe.milling_fee_rate || fullRecipe.milling_fee_rate) || 0;
           _kioskCart['recipe-fee-milling'] = {
-            item: { item_id: 'fee-milling', name: 'Milling Fee', rate: millingFee, tax_percentage: 0, product_type: 'fee' },
+            item: { item_id: 'fee-milling', name: 'Milling Fee', rate: millingFee, tax_percentage: Number(recipe.milling_fee_tax || fullRecipe.milling_fee_tax) || 0, product_type: 'fee' },
             qty: 1
           };
         }

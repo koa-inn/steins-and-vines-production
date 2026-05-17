@@ -77,6 +77,7 @@ function enrichWithComputedPrice(recipe, ingredients) {
       var entry = map[ing.item_id];
       if (entry) {
         ing.rate = Number(entry.rate) || 0;
+        ing.tax_percentage = Number(entry.tax_percentage) || 0;
         ing.tax_id = entry.sales_tax_rule_id || entry.tax_id || '';
         total += (Number(ing.quantity) || 0) * ing.rate;
       }
@@ -88,12 +89,14 @@ function enrichWithComputedPrice(recipe, ingredients) {
     if (millingId) {
       if (map[millingId]) {
         recipe.milling_fee_rate = Number(map[millingId].rate) || 0;
+        recipe.milling_fee_tax = Number(map[millingId].tax_percentage) || 0;
       } else {
         return cache.get(C.CACHE_KEYS.KIOSK_PRODUCTS).then(function (kioskItems) {
           if (!kioskItems || !Array.isArray(kioskItems)) return;
           for (var i = 0; i < kioskItems.length; i++) {
             if (kioskItems[i].item_id === millingId || (kioskItems[i].sku || '').toUpperCase() === millingId.toUpperCase()) {
               recipe.milling_fee_rate = Number(kioskItems[i].rate) || 0;
+              recipe.milling_fee_tax = Number(kioskItems[i].tax_percentage) || 0;
               break;
             }
           }
