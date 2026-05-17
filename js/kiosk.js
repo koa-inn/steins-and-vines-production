@@ -1067,6 +1067,14 @@
       });
   }
 
+  function kioskRecipePrice(recipe) {
+    if (recipe.pricing_mode === 'dynamic' && Number(recipe.computed_price) > 0) return recipe.computed_price;
+    if (recipe.pricing_mode !== 'dynamic' && Number(recipe.locked_price) > 0) return recipe.locked_price;
+    if (Number(recipe.computed_price) > 0) return recipe.computed_price;
+    if (Number(recipe.locked_price) > 0) return recipe.locked_price;
+    return 0;
+  }
+
   function kioskRenderRecipes() {
     if (_kioskMode !== 'recipes') return;
     var grid = document.getElementById('kiosk-recipe-grid');
@@ -1082,9 +1090,9 @@
       html += '<div class="kiosk-type-badge kiosk-type-badge--kit">Recipe</div>';
       html += '<div class="kiosk-product-name">' + escapeHTML(r.name || '') + '</div>';
       html += '<div class="kiosk-product-sku">' + escapeHTML(r.style || '') + (r.abv ? ' &middot; ' + r.abv + '%' : '') + '</div>';
-      var hasPrice = Number(r.locked_price) > 0;
-      html += '<div class="kiosk-product-price">' + (hasPrice ? kioskFmt(r.locked_price) : 'Market price') + '</div>';
-      html += '<div class="kiosk-product-stock">' + (hasPrice ? 'incl. brewing fee' : 'based on ingredients') + '</div>';
+      var rPrice = kioskRecipePrice(r);
+      html += '<div class="kiosk-product-price">' + (rPrice > 0 ? kioskFmt(rPrice) : 'Market price') + '</div>';
+      html += '<div class="kiosk-product-stock">' + (r.pricing_mode === 'dynamic' ? 'based on ingredients' : 'incl. brewing fee') + '</div>';
       html += '</div></div>';
     });
     grid.innerHTML = html;
@@ -1122,14 +1130,12 @@
       summaryHtml += escapeHTML(recipe.style || '') + (recipe.abv ? ' &middot; ' + recipe.abv + '% ABV' : '');
       summaryHtml += '</div>';
       summaryHtml += '<div style="font-size:1.1rem;font-weight:700;color:var(--barrel);margin:0.5rem 0;">';
-      var hasLockedPrice = Number(recipe.locked_price) > 0;
-      var isDynamic = recipe.pricing_mode === 'dynamic' || !hasLockedPrice;
-      if (isDynamic && hasLockedPrice) {
-        summaryHtml += kioskFmt(recipe.locked_price) + ' est. per batch (price based on ingredients)';
-      } else if (isDynamic) {
-        summaryHtml += 'Price based on current ingredient rates';
+      var promptPrice = kioskRecipePrice(recipe);
+      if (promptPrice > 0) {
+        summaryHtml += kioskFmt(promptPrice) + ' per batch';
+        if (recipe.pricing_mode === 'dynamic') summaryHtml += ' (based on ingredients)';
       } else {
-        summaryHtml += kioskFmt(recipe.locked_price) + ' per batch';
+        summaryHtml += 'Price calculated at checkout';
       }
       summaryHtml += '</div>';
       summaryHtml += '<div id="kiosk-recipe-ingredients" style="margin:0.75rem 0;font-size:0.85rem;color:var(--ink-secondary);">Loading ingredients...</div>';
@@ -1162,6 +1168,17 @@
             ingHtml2 += '</ul>';
             ingEl2.innerHTML = ingHtml2;
             recipe._fetchedDetail = data;
+            if (data.recipe && data.recipe.computed_price != null) {
+              recipe.computed_price = data.recipe.computed_price;
+              var priceEl = document.querySelector('#kiosk-recipe-summary div:nth-child(2)');
+              if (priceEl) {
+                var updatedPrice = kioskRecipePrice(recipe);
+                if (updatedPrice > 0) {
+                  priceEl.textContent = kioskFmt(updatedPrice) + ' per batch' + (recipe.pricing_mode === 'dynamic' ? ' (based on ingredients)' : '');
+                }
+              }
+              kioskUpdateAddToCartButton();
+            }
           })
           .catch(function () {
             var ingEl3 = document.getElementById('kiosk-recipe-ingredients');
@@ -1221,7 +1238,7 @@
       return;
     }
 
-    var price = parseFloat(_kioskSelectedRecipe.locked_price) || 0;
+    var price = kioskRecipePrice(_kioskSelectedRecipe);
     addBtn.textContent = price > 0 ? 'Add to Cart — ' + kioskFmt(price) : 'Add to Cart';
     addBtn.style.display = '';
   }
@@ -1298,15 +1315,14 @@
 
       var saleLabel = _kioskSaleType === 'in-store' ? 'Ferment in Store' : 'Take Out';
       var recipeName = escapeHTML(recipe.name || recipe.recipe_id);
-      var hasLP = Number(recipe.locked_price) > 0;
-      var isDynamic = (fullRecipe.pricing_mode || recipe.pricing_mode) === 'dynamic' || !hasLP;
+      var cartPrice = kioskRecipePrice(fullRecipe.pricing_mode ? fullRecipe : recipe);
       var displayName = recipeName + ' (' + saleLabel + ')';
-      if (isDynamic && !hasLP) displayName += ' — price at checkout';
+      if (cartPrice <= 0) displayName += ' — price at checkout';
       _kioskCart['recipe-sale'] = {
         item: {
           item_id: recipe.recipe_id,
           name: displayName,
-          rate: parseFloat(recipe.locked_price) || 0,
+          rate: cartPrice,
           tax_percentage: 0,
           product_type: 'recipe',
           _recipe_sale: true

@@ -66,6 +66,23 @@ function bustRecipeCache(recipeId) {
   return Promise.all(keys.map(function (k) { return cache.del(k); }));
 }
 
+function enrichWithComputedPrice(recipe, ingredients) {
+  if (!recipe || recipe.pricing_mode !== 'dynamic') return Promise.resolve();
+  return cache.get(C.CACHE_KEYS.INGREDIENTS).then(function (catalog) {
+    if (!catalog || !Array.isArray(catalog)) return;
+    var map = {};
+    catalog.forEach(function (item) { if (item && item.item_id) map[item.item_id] = item; });
+    var total = 0;
+    (ingredients || []).forEach(function (ing) {
+      var entry = map[ing.item_id];
+      if (entry) total += (Number(ing.quantity) || 0) * (Number(entry.rate) || 0);
+    });
+    total += Number(recipe.service_fee) || 0;
+    total += Number(recipe.materials_fee) || 0;
+    recipe.computed_price = Math.round(total * 100) / 100;
+  }).catch(function () {});
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/recipes — List recipes with optional status filter
 // ---------------------------------------------------------------------------
@@ -111,7 +128,9 @@ router.get('/api/recipes/:id', function (req, res) {
   cache.get(cacheKey).then(function (cached) {
     if (cached) {
       log.info('[api/recipes/' + recipeId + '] Cache hit');
-      return res.json(cached);
+      return enrichWithComputedPrice(cached.recipe, cached.ingredients).then(function () {
+        res.json(cached);
+      });
     }
     return callAppsScriptPost('get_recipe', { recipe_id: recipeId })
       .then(function (data) {
@@ -120,8 +139,10 @@ router.get('/api/recipes/:id', function (req, res) {
         }
         var detail = data.data || {};
         var result = { recipe: detail.recipe || detail, ingredients: detail.ingredients || [] };
-        cache.set(cacheKey, result, RECIPES_CACHE_TTL);
-        res.json(result);
+        return enrichWithComputedPrice(result.recipe, result.ingredients).then(function () {
+          cache.set(cacheKey, result, RECIPES_CACHE_TTL);
+          res.json(result);
+        });
       });
   }).catch(function (err) {
     log.error('[api/recipes/' + recipeId + '] ' + err.message);
