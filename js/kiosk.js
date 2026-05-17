@@ -2400,9 +2400,11 @@
       return {
         item_id: entry.item.item_id,
         name: entry.item.name || '',
+        sku: entry.item.sku || '',
         quantity: entry.qty,
         rate: parseFloat(entry.item.rate) || 0,
-        product_type: entry.item.product_type || ''
+        product_type: entry.item.product_type || '',
+        cf_type: entry.item.cf_type || ''
       };
     });
 
@@ -2613,6 +2615,7 @@
           items: items,
           reference_number: refNumber,
           transaction_id: txnId,
+          customer_name: _kioskCustomer ? _kioskCustomer.name : '',
           contact_id: _kioskCustomer ? _kioskCustomer.contact_id : '',
           discount: _kioskDiscount ? { preset_id: _kioskDiscount.presetId, name: _kioskDiscount.name, type: _kioskDiscount.type, value: _kioskDiscount.value, scope: _kioskDiscount.scope } : undefined
         })

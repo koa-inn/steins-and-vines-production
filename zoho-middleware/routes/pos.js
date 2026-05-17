@@ -255,6 +255,7 @@ function processSale(body, idempotencyKey, req, res) {
       var li = {
         item_id: item.item_id,
         name: item.name || '',
+        sku: catalogItem.sku || '',
         quantity: qty,
         rate: rate
       };
@@ -417,7 +418,7 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
       var catalogItem = catalogMap[item.item_id];
       var rate = catalogItem.rate;
       subtotal += qty * rate;
-      var li = { item_id: item.item_id, name: item.name || '', quantity: qty, rate: rate };
+      var li = { item_id: item.item_id, name: item.name || '', sku: catalogItem.sku || '', quantity: qty, rate: rate };
       if (catalogItem.tax_id) {
         li.tax_id = catalogItem.tax_id;
       }
