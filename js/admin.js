@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T19:00:17.692Z';
+  var BUILD_TIMESTAMP = '2026-05-17T20:48:32.033Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8682,6 +8682,24 @@
         document.getElementById('recipe-status-error').textContent = '';
       });
     }
+
+    var beerxmlImportBtn = document.getElementById('recipes-import-beerxml-btn');
+    var beerxmlFileInput = document.getElementById('recipes-beerxml-file');
+    if (beerxmlImportBtn && beerxmlFileInput) {
+      beerxmlImportBtn.addEventListener('click', function () {
+        if (!_recipesState.catalogLoaded) {
+          showToast('Loading ingredient catalog, please try again in a moment.', 'warning');
+          return;
+        }
+        beerxmlFileInput.click();
+      });
+      beerxmlFileInput.addEventListener('change', function () {
+        if (beerxmlFileInput.files.length > 0) {
+          validateAndReadBeerXML(beerxmlFileInput.files[0]);
+        }
+        beerxmlFileInput.value = '';
+      });
+    }
   }
 
   // ===== BEERXML PARSER =====
@@ -8800,6 +8818,321 @@
         skipped:        false
       };
     });
+  }
+
+  // ===== BEERXML IMPORT UI =====
+
+  function validateAndReadBeerXML(file) {
+    var MAX_BYTES = 500 * 1024;
+    if (!file) return;
+    if (file.size > MAX_BYTES) {
+      showToast('BeerXML file is too large (max 500 KB). Please export a single recipe.', 'error');
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var text = e.target.result;
+      var parser = new DOMParser();
+      var xmlDoc = parser.parseFromString(text, 'application/xml');
+      if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+        showToast('The file contains invalid XML. Please re-export from your brewing software.', 'error');
+        return;
+      }
+      var recipeCount = xmlDoc.getElementsByTagName('RECIPE').length;
+      if (recipeCount === 0) {
+        showToast('No valid BeerXML recipe found in this file.', 'error');
+        return;
+      }
+      if (recipeCount > 1) {
+        showToast('This file contains multiple recipes — importing the first one.', 'info');
+      }
+      var parsed = parseBeerXML(xmlDoc);
+      if (!parsed) {
+        showToast('No valid BeerXML recipe found in this file.', 'error');
+        return;
+      }
+      if (!parsed.ingredients || parsed.ingredients.length === 0) {
+        showToast('No ingredients found in this BeerXML file.', 'error');
+        return;
+      }
+      var matched = autoMatchIngredients(parsed);
+      showBeerXMLReviewModal(parsed, matched);
+    };
+    reader.readAsText(file);
+  }
+
+  function _buildBeerXMLBadge(confidence) {
+    var badgeClass = confidence === 'high' ? 'beerxml-match-high'
+                   : confidence === 'low'  ? 'beerxml-match-low'
+                   : 'beerxml-match-none';
+    var badgeLabel = confidence === 'high' ? 'Matched'
+                   : confidence === 'low'  ? 'Review'
+                   : 'No match';
+    return '<span class="' + badgeClass + '" aria-label="Match confidence: ' + escapeHTML(confidence) + '">' + badgeLabel + '</span>';
+  }
+
+  function _buildBeerXMLMatchCell(row, idx) {
+    if (row.skipped) {
+      return '<span class="beerxml-match-none" aria-label="Match confidence: none">Skipped</span>';
+    }
+    if (row.zoho_match) {
+      return '<span class="beerxml-matched-info">' + escapeHTML(row.zoho_match.name || '') + ' &mdash; ' + escapeHTML(row.zoho_match.sku || '') + '</span>'
+           + ' <button type="button" class="beerxml-skip-btn beerxml-change-btn" data-row-idx="' + idx + '">Change</button>';
+    }
+    return '<input type="text" class="beerxml-match-search" data-row-idx="' + idx + '" placeholder="Search catalog…" autocomplete="off">';
+  }
+
+  function _buildBeerXMLRowHTML(row, idx) {
+    var skippedClass = row.skipped ? ' beerxml-row-skipped' : '';
+    var skipLabel = row.skipped ? 'Restore' : 'Skip';
+    var skipAriaLabel = row.skipped
+      ? 'Restore ' + escapeHTML(row.beerxml_name)
+      : 'Skip ' + escapeHTML(row.beerxml_name);
+    var badgeHTML = row.skipped
+      ? '<span class="beerxml-match-none" aria-label="Match confidence: none">Skipped</span>'
+      : _buildBeerXMLBadge(row.confidence);
+
+    return '<tr class="beerxml-review-row' + skippedClass + '" data-row-idx="' + idx + '">'
+      + '<td>' + escapeHTML(row.beerxml_name) + '<span class="beerxml-type-label">' + escapeHTML(row.beerxml_type) + '</span></td>'
+      + '<td>' + escapeHTML(row.amount_display) + '</td>'
+      + '<td>' + escapeHTML(row.unit) + '</td>'
+      + '<td class="beerxml-match-cell" data-row-idx="' + idx + '">' + _buildBeerXMLMatchCell(row, idx) + '</td>'
+      + '<td>' + badgeHTML + ' <button type="button" class="beerxml-skip-btn" data-row-idx="' + idx + '" aria-label="' + skipAriaLabel + '">' + skipLabel + '</button></td>'
+      + '</tr>';
+  }
+
+  function showBeerXMLReviewModal(parsed, matchedRows) {
+    // Widen modal for 5-column table
+    var modalContent = document.querySelector('.admin-modal-content');
+    if (modalContent) modalContent.classList.add('admin-modal-content--wide');
+
+    // Register cleanup to remove wide class
+    _modalCleanupHandlers.push(function () {
+      var mc = document.querySelector('.admin-modal-content');
+      if (mc) mc.classList.remove('admin-modal-content--wide');
+    });
+
+    var metaLine = '';
+    if (parsed.style) metaLine += escapeHTML(parsed.style);
+    if (parsed.abv) metaLine += (metaLine ? ' &middot; ' : '') + parsed.abv.toFixed(1) + '% ABV';
+    if (parsed.batch_size_l) metaLine += (metaLine ? ' &middot; ' : '') + parsed.batch_size_l.toFixed(1) + ' L';
+
+    var rowsHTML = '';
+    for (var i = 0; i < matchedRows.length; i++) {
+      rowsHTML += _buildBeerXMLRowHTML(matchedRows[i], i);
+    }
+
+    var bodyHTML = ''
+      + '<p class="beerxml-meta-line">' + metaLine + '</p>'
+      + '<div style="overflow-x:auto;">'
+      + '<table class="beerxml-review-table" role="grid">'
+      + '<thead><tr>'
+      + '<th>BeerXML Ingredient</th>'
+      + '<th>Amount</th>'
+      + '<th>Unit</th>'
+      + '<th>Zoho Match</th>'
+      + '<th>Status / Action</th>'
+      + '</tr></thead>'
+      + '<tbody id="beerxml-review-tbody">' + rowsHTML + '</tbody>'
+      + '</table>'
+      + '</div>'
+      + '<div style="display:flex;gap:var(--sp-4);justify-content:flex-end;margin-top:var(--sp-6);">'
+      + '<button type="button" class="btn-secondary" id="beerxml-cancel-btn" aria-label="Discard Import">Discard Import</button>'
+      + '<button type="button" class="btn" id="beerxml-confirm-btn" disabled>Confirm Import</button>'
+      + '</div>';
+
+    openModal('Review Import: ' + escapeHTML(parsed.name || ''), bodyHTML);
+
+    // --- Wire event listeners ---
+
+    var confirmBtn = document.getElementById('beerxml-confirm-btn');
+    var cancelBtn = document.getElementById('beerxml-cancel-btn');
+    var tbody = document.getElementById('beerxml-review-tbody');
+
+    function canConfirm() {
+      return matchedRows.some(function (r) { return !r.skipped && r.zoho_match; });
+    }
+
+    function refreshConfirmBtn() {
+      if (confirmBtn) confirmBtn.disabled = !canConfirm();
+    }
+
+    function rerenderRow(idx) {
+      var row = matchedRows[idx];
+      var tr = tbody ? tbody.querySelector('tr[data-row-idx="' + idx + '"]') : null;
+      if (!tr) return;
+      tr.className = 'beerxml-review-row' + (row.skipped ? ' beerxml-row-skipped' : '');
+      // Zoho match cell
+      var matchCell = tr.querySelector('td.beerxml-match-cell');
+      if (matchCell) matchCell.innerHTML = _buildBeerXMLMatchCell(row, idx);
+      // Badge + skip btn cell (last td)
+      var tds = tr.querySelectorAll('td');
+      var actionTd = tds[tds.length - 1];
+      if (actionTd) {
+        var badgeHTML = row.skipped
+          ? '<span class="beerxml-match-none" aria-label="Match confidence: none">Skipped</span>'
+          : _buildBeerXMLBadge(row.confidence);
+        var skipLabel = row.skipped ? 'Restore' : 'Skip';
+        var skipAriaLabel = row.skipped
+          ? 'Restore ' + escapeHTML(row.beerxml_name)
+          : 'Skip ' + escapeHTML(row.beerxml_name);
+        actionTd.innerHTML = badgeHTML + ' <button type="button" class="beerxml-skip-btn" data-row-idx="' + idx + '" aria-label="' + skipAriaLabel + '">' + skipLabel + '</button>';
+      }
+      // Rebind autocomplete on newly rendered search inputs
+      wireAutocompleteInRow(tr, idx);
+      refreshConfirmBtn();
+    }
+
+    var _searchTimers = {};
+
+    function wireAutocompleteInRow(tr, rowIdx) {
+      var searchInput = tr.querySelector('.beerxml-match-search[data-row-idx="' + rowIdx + '"]');
+      if (!searchInput) return;
+      searchInput.addEventListener('input', function () {
+        clearTimeout(_searchTimers[rowIdx]);
+        var q = searchInput.value;
+        _searchTimers[rowIdx] = setTimeout(function () {
+          showBeerXMLAutocomplete(searchInput, rowIdx);
+        }, 200);
+      });
+      searchInput.addEventListener('blur', function () {
+        // Delay to allow mousedown on item
+        setTimeout(function () { hideBeerXMLAutocomplete(searchInput); }, 150);
+      });
+    }
+
+    function showBeerXMLAutocomplete(input, rowIdx) {
+      hideBeerXMLAutocomplete(input);
+      var matches = filterIngredientCatalog(input.value);
+      if (matches.length === 0) return;
+      var drop = document.createElement('div');
+      drop.className = 'beerxml-autocomplete-list';
+      drop.setAttribute('role', 'listbox');
+      matches.forEach(function (item) {
+        var opt = document.createElement('div');
+        opt.className = 'beerxml-autocomplete-item';
+        opt.setAttribute('role', 'option');
+        opt.innerHTML = escapeHTML(item.name || '') + ' &mdash; <span style="color:var(--ink-tertiary)">' + escapeHTML(item.sku || '') + '</span>';
+        opt.addEventListener('mousedown', function (e) {
+          e.preventDefault();
+          matchedRows[rowIdx].zoho_match = item;
+          matchedRows[rowIdx].confidence = 'high';
+          rerenderRow(rowIdx);
+        });
+        drop.appendChild(opt);
+      });
+      input.parentNode.appendChild(drop);
+    }
+
+    function hideBeerXMLAutocomplete(input) {
+      var existing = input.parentNode && input.parentNode.querySelector('.beerxml-autocomplete-list');
+      if (existing) existing.remove();
+    }
+
+    // Wire initial autocomplete on search inputs
+    if (tbody) {
+      for (var j = 0; j < matchedRows.length; j++) {
+        var tr = tbody.querySelector('tr[data-row-idx="' + j + '"]');
+        if (tr) wireAutocompleteInRow(tr, j);
+      }
+    }
+
+    // Event delegation for skip/restore and change buttons
+    if (tbody) {
+      tbody.addEventListener('click', function (e) {
+        var btn = e.target.closest('.beerxml-skip-btn');
+        if (!btn) return;
+        if (btn.classList.contains('beerxml-change-btn')) {
+          // "Change" button — switch matched row back to search input
+          var changeIdx = parseInt(btn.getAttribute('data-row-idx'), 10);
+          if (!isNaN(changeIdx)) {
+            matchedRows[changeIdx].zoho_match = null;
+            matchedRows[changeIdx].confidence = 'none';
+            rerenderRow(changeIdx);
+          }
+          return;
+        }
+        // Skip / Restore button
+        var skipIdx = parseInt(btn.getAttribute('data-row-idx'), 10);
+        if (!isNaN(skipIdx)) {
+          matchedRows[skipIdx].skipped = !matchedRows[skipIdx].skipped;
+          rerenderRow(skipIdx);
+        }
+      });
+    }
+
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', function () {
+        confirmBeerXMLImport(parsed, matchedRows);
+      });
+    }
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function () {
+        var mc = document.querySelector('.admin-modal-content');
+        if (mc) mc.classList.remove('admin-modal-content--wide');
+        closeModal();
+      });
+    }
+
+    // Close/overlay remove wide class
+    var closeBtn = document.getElementById('admin-modal-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function () {
+        var mc = document.querySelector('.admin-modal-content');
+        if (mc) mc.classList.remove('admin-modal-content--wide');
+      });
+    }
+    var overlay = document.getElementById('admin-modal-overlay');
+    if (overlay) {
+      overlay.addEventListener('click', function () {
+        var mc = document.querySelector('.admin-modal-content');
+        if (mc) mc.classList.remove('admin-modal-content--wide');
+      });
+    }
+
+    // Focus close button for accessibility
+    var closeBtnFocus = document.getElementById('admin-modal-close');
+    if (closeBtnFocus) closeBtnFocus.focus();
+
+    refreshConfirmBtn();
+  }
+
+  function confirmBeerXMLImport(parsedRecipe, confirmedRows) {
+    var modalContent = document.querySelector('.admin-modal-content');
+    if (modalContent) modalContent.classList.remove('admin-modal-content--wide');
+    closeModal();
+
+    openRecipeDetail(null);
+
+    populateRecipeForm({
+      name:         parsedRecipe.name,
+      style:        parsedRecipe.style,
+      abv:          parsedRecipe.abv,
+      batch_size_l: parsedRecipe.batch_size_l,
+      ibu:          parsedRecipe.ibu,
+      colour_srm:   parsedRecipe.colour_srm,
+      status:       'draft'
+    });
+
+    var ings = [];
+    confirmedRows.forEach(function (row) {
+      if (row.skipped || !row.zoho_match) return;
+      ings.push({
+        item_id:       row.zoho_match.item_id,
+        item_name:     row.zoho_match.name || '',
+        sku:           row.zoho_match.sku || '',
+        quantity:      row.quantity,
+        unit:          row.unit,
+        purchase_rate: parseFloat(row.zoho_match.purchase_rate) || 0,
+        rate:          parseFloat(row.zoho_match.rate || row.zoho_match.price_per_unit) || 0
+      });
+    });
+
+    _recipesState.currentIngredients = ings;
+    renderIngredientRows(ings, null);
+
+    showToast('Recipe imported from BeerXML. Set a price and activate when ready.', 'success');
   }
 
   // Module exports for testing
