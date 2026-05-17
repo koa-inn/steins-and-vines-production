@@ -1445,6 +1445,14 @@
             };
           }
         }
+        // Add milling fee for take-out when checked
+        if (_kioskSaleType === 'take-out' && _kioskMillGrain) {
+          var millingFee = Number(recipe.milling_fee_rate || fullRecipe.milling_fee_rate) || 0;
+          _kioskCart['recipe-fee-milling'] = {
+            item: { item_id: 'fee-milling', name: 'Milling Fee', rate: millingFee, tax_percentage: 0, product_type: 'fee' },
+            qty: 1
+          };
+        }
       } else {
         // Locked mode: ingredient lines as info-only (rate=0), plus single total line
         ingredients.forEach(function (ing) {

@@ -85,8 +85,20 @@ function enrichWithComputedPrice(recipe, ingredients) {
     total += Number(recipe.materials_fee) || 0;
     recipe.computed_price = Math.round(total * 100) / 100;
     var millingId = process.env.MILLING_FEE_ITEM_ID;
-    if (millingId && map[millingId]) {
-      recipe.milling_fee_rate = Number(map[millingId].rate) || 0;
+    if (millingId) {
+      if (map[millingId]) {
+        recipe.milling_fee_rate = Number(map[millingId].rate) || 0;
+      } else {
+        return cache.get(C.CACHE_KEYS.KIOSK_PRODUCTS).then(function (kioskItems) {
+          if (!kioskItems || !Array.isArray(kioskItems)) return;
+          for (var i = 0; i < kioskItems.length; i++) {
+            if (kioskItems[i].item_id === millingId) {
+              recipe.milling_fee_rate = Number(kioskItems[i].rate) || 0;
+              break;
+            }
+          }
+        }).catch(function () {});
+      }
     }
   }).catch(function () {});
 }
@@ -95,13 +107,27 @@ function enrichListPrices(recipes) {
   var dynamicRecipes = recipes.filter(function (r) { return r.pricing_mode === 'dynamic'; });
   if (dynamicRecipes.length === 0) return Promise.resolve();
 
-  return cache.get(C.CACHE_KEYS.INGREDIENTS).then(function (catalog) {
+  return Promise.all([
+    cache.get(C.CACHE_KEYS.INGREDIENTS),
+    cache.get(C.CACHE_KEYS.KIOSK_PRODUCTS)
+  ]).then(function (caches) {
+    var catalog = caches[0];
+    var kioskItems = caches[1];
     if (!catalog || !Array.isArray(catalog)) return;
     var map = {};
     catalog.forEach(function (item) { if (item && item.item_id) map[item.item_id] = item; });
 
     var millingId = process.env.MILLING_FEE_ITEM_ID;
-    var millingRate = (millingId && map[millingId]) ? (Number(map[millingId].rate) || 0) : 0;
+    var millingRate = 0;
+    if (millingId) {
+      if (map[millingId]) {
+        millingRate = Number(map[millingId].rate) || 0;
+      } else if (kioskItems && Array.isArray(kioskItems)) {
+        for (var k = 0; k < kioskItems.length; k++) {
+          if (kioskItems[k].item_id === millingId) { millingRate = Number(kioskItems[k].rate) || 0; break; }
+        }
+      }
+    }
 
     return Promise.all(dynamicRecipes.map(function (recipe) {
       var detailKey = C.CACHE_KEYS.RECIPES + ':' + recipe.recipe_id;

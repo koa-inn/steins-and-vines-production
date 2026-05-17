@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T17:50:14.656Z';
+  var BUILD_TIMESTAMP = '2026-05-17T17:57:57.252Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -10130,6 +10130,14 @@
               qty: 1
             };
           }
+        }
+        // Add milling fee for take-out when checked
+        if (_kioskSaleType === 'take-out' && _kioskMillGrain) {
+          var millingFee = Number(recipe.milling_fee_rate || fullRecipe.milling_fee_rate) || 0;
+          _kioskCart['recipe-fee-milling'] = {
+            item: { item_id: 'fee-milling', name: 'Milling Fee', rate: millingFee, tax_percentage: 0, product_type: 'fee' },
+            qty: 1
+          };
         }
       } else {
         // Locked mode: ingredient lines as info-only (rate=0), plus single total line
