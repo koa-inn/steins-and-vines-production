@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Recipe-Based Products
-status: completed
-stopped_at: Completed 13-03, ready for 13-04
-last_updated: "2026-05-17T06:05:23.120Z"
-last_activity: 2026-05-17 -- Phase 13 Plan 03 complete
+status: ready_to_execute
+stopped_at: Phase 14 planned
+last_updated: "2026-05-17T18:00:00.000Z"
+last_activity: 2026-05-17 -- Phase 14 planned (5 plans in 4 waves)
 progress:
   total_phases: 11
   completed_phases: 2
-  total_plans: 6
+  total_plans: 11
   completed_plans: 6
-  percent: 100
+  percent: 55
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-09)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 13 — Middleware API + Admin Recipe Management
+**Current focus:** Phase 14 — Kiosk Recipe Sales, Inventory, and Batch Creation
 
 ## Current Position
 
-Phase: 13 (Middleware API + Admin Recipe Management) — EXECUTING
-Plan: 4 of 4
-Status: Plan 03 complete, ready for Plan 04
-Last activity: 2026-05-17 -- Phase 13 Plan 03 complete
+Phase: 14 (Kiosk Recipe Sales, Inventory, and Batch Creation) — PLANNED
+Plan: 0 of 5
+Status: Ready to execute (5 plans in 4 waves)
+Last activity: 2026-05-17 -- Phase 14 planned
 
-Progress: [########░░] 83%
+Progress: [#####░░░░░] 55%
 
 ## Performance Metrics
 
@@ -67,10 +67,10 @@ None.
 
 - Federal brewing licence pending — BEER_SALES_ENABLED must remain false in Railway production until licence granted; public recipe browsing (informational) can go live earlier
 - Tax treatment for brewing service fee vs. ingredient sales under BC ferment-in-store model needs confirmation before first live recipe sale
-- Redis reservation mechanism for multi-ingredient inventory (Lua script vs MULTI/EXEC vs recipe-sale mutex) — design decision required at Phase 14 planning time
+- Redis reservation mechanism for multi-ingredient inventory — RESOLVED: simple mutex via cache.acquireLock('recipe-sale', 30) per D-04; one recipe sale at a time fits single-kiosk reality
 
 ## Session Continuity
 
-Last session: 2026-05-17T03:20:00Z
-Stopped at: Completed 13-03, ready for 13-04
-Resume file: .planning/phases/13-middleware-api-admin-recipe-management/13-03-SUMMARY.md
+Last session: 2026-05-17T12:51:27.263Z
+Stopped at: Phase 14 UI-SPEC approved
+Resume file: .planning/phases/14-kiosk-recipe-sales-inventory-batch-creation/14-UI-SPEC.md
