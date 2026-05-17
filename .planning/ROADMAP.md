@@ -236,7 +236,7 @@ Plans:
 - [x] **Phase 12: Recipe Data Foundation** - Recipe schema, Apps Script CRUD, feature flag, and fee item confirmation established before any sale code is written (completed 2026-05-16)
 - [x] **Phase 13: Middleware API + Admin Recipe Management** - Staff can create, edit, and activate recipes via the admin panel; middleware API exposes recipe CRUD and availability checking (completed 2026-05-17)
 - [x] **Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation** - Staff can select a recipe on the kiosk, process payment, have ingredients deducted from Zoho Inventory, and get a batch auto-created in BrewPad (completed 2026-05-17)
-- [ ] **Phase 15: BeerXML Import** - Staff can upload a BeerXML file, review an ingredient-to-SKU mapping table, and save the recipe as a draft without manual data entry
+- [x] **Phase 15: BeerXML Import** - Staff can upload a BeerXML file, review an ingredient-to-SKU mapping table, and save the recipe as a draft without manual data entry (completed 2026-05-17)
 
 ## Phase Details
 
@@ -324,7 +324,7 @@ Plans:
 - [x] 15-01-PLAN.md -- TDD: parseBeerXML and autoMatchIngredients pure functions with unit tests (fermentable/hop/yeast/misc extraction, kg/g/pcs conversion, fuzzy catalog matching with confidence scoring)
 
 **Wave 2** *(depends on Wave 1 -- needs parser and matcher functions)*
-- [ ] 15-02-PLAN.md -- Import UI: admin.html button + file input, CSS confidence badges and review table styles, validateAndReadBeerXML + showBeerXMLReviewModal + confirmBeerXMLImport in admin.js, build, human verification
+- [x] 15-02-PLAN.md -- Import UI: admin.html button + file input, CSS confidence badges and review table styles, validateAndReadBeerXML + showBeerXMLReviewModal + confirmBeerXMLImport in admin.js, build, human verification
 
 ## Progress
 
@@ -333,4 +333,4 @@ Plans:
 | 12. Recipe Data Foundation | v2.0 | 2/2 | Complete    | 2026-05-16 |
 | 13. Middleware API + Admin Recipe Management | v2.0 | 4/4 | Complete   | 2026-05-17 |
 | 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 5/5 | Complete    | 2026-05-17 |
-| 15. BeerXML Import | v2.0 | 1/2 | In Progress|  |
+| 15. BeerXML Import | v2.0 | 2/2 | Complete   | 2026-05-17 |
