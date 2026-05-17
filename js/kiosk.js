@@ -1154,11 +1154,12 @@
           .then(function (resp) { return resp.json(); })
           .then(function (data) {
             recipe._fetchedDetail = data;
-            if (data.recipe && data.recipe.computed_price != null) {
-              recipe.computed_price = data.recipe.computed_price;
+            if (data.recipe) {
+              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price;
+              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate;
               var priceEl = grid.querySelector('[data-recipe-price-id="' + recipe.recipe_id + '"]');
               if (priceEl) {
-                var warm = Number(recipe.computed_price);
+                var warm = kioskRecipePrice(recipe);
                 priceEl.textContent = warm > 0 ? kioskFmt(warm) : 'Market price';
               }
             }
@@ -1236,14 +1237,14 @@
               ingEl2.innerHTML = ingHtml2;
             }
             recipe._fetchedDetail = data;
-            if (data.recipe && data.recipe.computed_price != null) {
-              recipe.computed_price = data.recipe.computed_price;
-              // Also update the card price in the grid (if still rendered)
+            if (data.recipe) {
+              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price;
+              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate;
               var cardGrid = document.getElementById('kiosk-recipe-grid');
               if (cardGrid) {
                 var cardPriceEl = cardGrid.querySelector('[data-recipe-price-id="' + recipe.recipe_id + '"]');
                 if (cardPriceEl) {
-                  var warm = Number(recipe.computed_price);
+                  var warm = kioskRecipePrice(recipe);
                   cardPriceEl.textContent = warm > 0 ? kioskFmt(warm) : 'Market price';
                 }
               }
@@ -1282,12 +1283,16 @@
     if (!priceEl || !_kioskSelectedRecipe) return;
     var recipe = _kioskSelectedRecipe;
     var contextPrice = kioskRecipePriceForContext(recipe, _kioskSaleType);
+    var millingRate = Number(recipe.milling_fee_rate) || 0;
+    if (_kioskMillGrain && _kioskSaleType === 'take-out' && millingRate > 0) {
+      contextPrice += millingRate;
+    }
     if (contextPrice > 0) {
       var label = kioskFmt(contextPrice) + ' per batch';
       if (recipe.pricing_mode === 'dynamic') {
         label += _kioskSaleType === 'take-out' ? ' (ingredients only)' : ' (based on ingredients)';
       }
-      if (_kioskMillGrain) label += ' + milling';
+      if (_kioskMillGrain && _kioskSaleType === 'take-out') label += ' (incl. milling)';
       priceEl.textContent = label;
     } else {
       priceEl.textContent = 'Price calculated at checkout';
@@ -1329,8 +1334,11 @@
     }
 
     var price = kioskRecipePriceForContext(_kioskSelectedRecipe, _kioskSaleType);
+    var millingRate = Number(_kioskSelectedRecipe.milling_fee_rate) || 0;
+    if (_kioskMillGrain && _kioskSaleType === 'take-out' && millingRate > 0) {
+      price += millingRate;
+    }
     var btnLabel = price > 0 ? 'Add to Cart — ' + kioskFmt(price) : 'Add to Cart';
-    if (_kioskMillGrain) btnLabel += ' + milling';
     addBtn.textContent = btnLabel;
     addBtn.style.display = '';
   }

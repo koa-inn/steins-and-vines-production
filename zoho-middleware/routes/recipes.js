@@ -84,6 +84,10 @@ function enrichWithComputedPrice(recipe, ingredients) {
     total += Number(recipe.service_fee) || 0;
     total += Number(recipe.materials_fee) || 0;
     recipe.computed_price = Math.round(total * 100) / 100;
+    var millingId = process.env.MILLING_FEE_ITEM_ID;
+    if (millingId && map[millingId]) {
+      recipe.milling_fee_rate = Number(map[millingId].rate) || 0;
+    }
   }).catch(function () {});
 }
 
