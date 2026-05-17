@@ -234,7 +234,7 @@ Plans:
 ## Phases
 
 - [x] **Phase 12: Recipe Data Foundation** - Recipe schema, Apps Script CRUD, feature flag, and fee item confirmation established before any sale code is written (completed 2026-05-16)
-- [ ] **Phase 13: Middleware API + Admin Recipe Management** - Staff can create, edit, and activate recipes via the admin panel; middleware API exposes recipe CRUD and availability checking
+- [x] **Phase 13: Middleware API + Admin Recipe Management** - Staff can create, edit, and activate recipes via the admin panel; middleware API exposes recipe CRUD and availability checking (completed 2026-05-17)
 - [ ] **Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation** - Staff can select a recipe on the kiosk, process payment, have ingredients deducted from Zoho Inventory, and get a batch auto-created in BrewPad
 - [ ] **Phase 15: BeerXML Import** - Staff can upload a BeerXML file, review an ingredient-to-SKU mapping table, and save the recipe as a draft without manual data entry
 
@@ -269,7 +269,7 @@ Plans:
   3. Staff can edit an existing recipe's ingredients, price, or fee, and activate or deactivate it without affecting any already-created batch snapshots
   4. The middleware `GET /api/recipes/:id/availability` endpoint returns whether all ingredient SKUs have sufficient Zoho stock for a given recipe quantity
   5. The middleware resolves all ingredient references to Zoho item IDs server-side — the client supplies only a recipe ID, never raw SKU lists
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
 **UI hint**: yes
 
 Plans:
@@ -281,7 +281,7 @@ Plans:
 - [x] 13-03-PLAN.md -- Admin Recipes tab: HTML shell, recipe list/detail/editor views, ingredient autocomplete, availability indicators, activation guardrail, CSS, frontend tests, build
 
 **Wave 3** *(depends on Wave 1 + Wave 2)*
-- [ ] 13-04-PLAN.md -- Deploy to staging, Apps Script deployment, human verification of full CRUD and availability flow
+- [x] 13-04-PLAN.md -- Deploy to staging, Apps Script deployment, human verification of full CRUD and availability flow
 
 ### Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation
 **Goal**: A complete recipe sale can be processed end-to-end on the kiosk — ingredients reserved, payment collected, Zoho invoice created, inventory deducted, and a single batch record created in BrewPad
@@ -312,6 +312,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 12. Recipe Data Foundation | v2.0 | 2/2 | Complete    | 2026-05-16 |
-| 13. Middleware API + Admin Recipe Management | v2.0 | 2/4 | In Progress | - |
+| 13. Middleware API + Admin Recipe Management | v2.0 | 4/4 | Complete   | 2026-05-17 |
 | 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 0/TBD | Not started | - |
 | 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |
