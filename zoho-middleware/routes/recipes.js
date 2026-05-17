@@ -77,7 +77,7 @@ router.get('/api/recipes', function (req, res) {
   var cacheKey = C.CACHE_KEYS.RECIPES + ':' + status + ':' + limit + ':' + offset;
 
   cache.get(cacheKey).then(function (cached) {
-    if (cached) {
+    if (cached && cached.recipes) {
       log.info('[api/recipes] Cache hit status=' + status);
       return res.json({ source: 'cache', recipes: cached.recipes, total: cached.total });
     }
@@ -263,6 +263,20 @@ router.delete('/api/recipes/:id', function (req, res) {
   }).catch(function (err) {
     log.error('[api/recipes] DELETE ' + req.params.id + ' failed: ' + err.message);
     res.status(502).json({ error: 'Unable to delete recipe' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/recipes/bust-cache — Manual cache invalidation for admin use
+// ---------------------------------------------------------------------------
+
+router.post('/api/recipes/bust-cache', function (req, res) {
+  bustRecipeCache(null).then(function () {
+    log.info('[api/recipes] Manual cache bust');
+    res.json({ ok: true, message: 'Recipe cache cleared' });
+  }).catch(function (err) {
+    log.error('[api/recipes] Cache bust failed: ' + err.message);
+    res.status(500).json({ error: 'Cache bust failed' });
   });
 });
 
