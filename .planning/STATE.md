@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Recipe-Based Products
-status: executing
-stopped_at: Phase 14 UI-SPEC approved
-last_updated: "2026-05-17T13:56:11Z"
-last_activity: 2026-05-17 -- Phase 14 Plan 03 completed
+status: checkpoint
+stopped_at: Phase 14 Plan 05 Task 1 complete — awaiting human verification on staging
+last_updated: "2026-05-17T18:43:00Z"
+last_activity: 2026-05-17 -- Phase 14 Plan 05 Task 1 complete (866 tests, lint, build all pass)
 progress:
   total_phases: 11
   completed_phases: 2
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-09)
 
 ## Current Position
 
-Phase: 14 (Kiosk Recipe Sales, Inventory, and Batch Creation) — EXECUTING
-Plan: 4 of 5
-Status: Executing Phase 14
-Last activity: 2026-05-17 -- Phase 14 Plan 03 completed
+Phase: 14 (Kiosk Recipe Sales, Inventory, and Batch Creation) — CHECKPOINT
+Plan: 5 of 5
+Status: Awaiting human verification on staging (Task 2 checkpoint)
+Last activity: 2026-05-17 -- Phase 14 Plan 05 Task 1 complete (866 tests, lint, build pass)
 
 Progress: [######░░░░] 60%
 
@@ -82,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-17T13:56:11Z
-Stopped at: Phase 14 Plan 03 complete
-Resume file: .planning/phases/14-kiosk-recipe-sales-inventory-batch-creation/14-04-PLAN.md
+Last session: 2026-05-17T18:43:00Z
+Stopped at: Phase 14 Plan 05 Task 1 complete — checkpoint:human-verify awaiting staging sign-off
+Resume file: .planning/phases/14-kiosk-recipe-sales-inventory-batch-creation/14-05-PLAN.md

@@ -306,7 +306,7 @@ Plans:
 - [x] 14-04-PLAN.md -- Recipe browser CSS: mode toggle, sale-type buttons, availability banners, milling toggle styles in kiosk.css
 
 **Wave 3** *(depends on all Wave 1 + Wave 2)*
-- [ ] 14-05-PLAN.md -- Integration verification: full test suite, lint, build, staging deploy, human verification of recipe sale flow
+- [~] 14-05-PLAN.md -- Integration verification: full test suite, lint, build, staging deploy, human verification of recipe sale flow (Task 1 complete — awaiting human staging sign-off)
 
 ### Phase 15: BeerXML Import
 **Goal**: Staff can import a recipe from any BeerSmith-compatible .xml export rather than entering every ingredient manually, with a mandatory review step before any data is saved
@@ -325,5 +325,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 12. Recipe Data Foundation | v2.0 | 2/2 | Complete    | 2026-05-16 |
 | 13. Middleware API + Admin Recipe Management | v2.0 | 4/4 | Complete   | 2026-05-17 |
-| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 3/5 | In Progress|  |
+| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 4/5 + checkpoint | In Progress (checkpoint) |  |
 | 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |
