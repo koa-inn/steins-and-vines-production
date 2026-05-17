@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T03:35:42.408Z';
+  var BUILD_TIMESTAMP = '2026-05-17T03:47:00.160Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8277,11 +8277,20 @@
     }
 
     var html = '';
+    var totalCost = 0;
+    var totalRetail = 0;
     ingredients.forEach(function (ing, idx) {
       var avail = availMap[String(ing.item_id)] || {};
       var dotClass = 'ing-status-dot ing-status-dot--' + (avail.status || 'unknown');
       var stockText = avail.stock_on_hand != null ? avail.stock_on_hand + ' ' + (ing.unit || '') + ' available' : '';
       var dotTitle = avail.status === 'unknown' ? 'Stock data loading -- try again shortly' : (avail.batches_possible != null ? avail.batches_possible + ' batch(es) possible' : '');
+      var qty = parseFloat(ing.quantity) || 0;
+      var costEach = parseFloat(ing.purchase_rate) || 0;
+      var retailEach = parseFloat(ing.rate) || 0;
+      var lineCost = qty * costEach;
+      var lineRetail = qty * retailEach;
+      totalCost += lineCost;
+      totalRetail += lineRetail;
 
       html += '<tr class="recipes-ing-row" data-ing-idx="' + idx + '" data-item-id="' + escapeHTML(String(ing.item_id || '')) + '">';
       html += '<td class="ing-autocomplete-wrap">';
@@ -8289,12 +8298,26 @@
       html += '</td>';
       html += '<td><input type="number" class="admin-input ing-qty" value="' + (ing.quantity || '') + '" step="0.01" min="0" inputmode="decimal" /></td>';
       html += '<td class="ing-unit">' + escapeHTML(ing.unit || '') + '</td>';
+      html += '<td class="ing-cost">' + (costEach > 0 ? '$' + lineCost.toFixed(2) : '—') + '</td>';
+      html += '<td class="ing-retail">' + (retailEach > 0 ? '$' + lineRetail.toFixed(2) : '—') + '</td>';
       html += '<td><span class="ing-stock-hint">' + escapeHTML(stockText) + '</span></td>';
       html += '<td><span class="' + dotClass + '" title="' + escapeHTML(dotTitle) + '"></span></td>';
       html += '<td><button type="button" class="btn-secondary ing-remove" aria-label="Remove ' + escapeHTML(ing.item_name || 'ingredient') + '">&#10005;</button></td>';
       html += '</tr>';
     });
     tbody.innerHTML = html;
+
+    var tfoot = document.getElementById('recipes-ingredients-foot');
+    if (tfoot) {
+      if (ingredients.length > 0 && (totalCost > 0 || totalRetail > 0)) {
+        tfoot.innerHTML = '<tr class="recipes-ing-totals"><td colspan="3"><strong>Totals</strong></td>' +
+          '<td class="ing-cost"><strong>' + (totalCost > 0 ? '$' + totalCost.toFixed(2) : '—') + '</strong></td>' +
+          '<td class="ing-retail"><strong>' + (totalRetail > 0 ? '$' + totalRetail.toFixed(2) : '—') + '</strong></td>' +
+          '<td colspan="3"></td></tr>';
+      } else {
+        tfoot.innerHTML = '';
+      }
+    }
 
     // Attach event listeners
     attachIngredientRowListeners();
@@ -8323,6 +8346,7 @@
         if (_recipesState.currentIngredients[idx]) {
           _recipesState.currentIngredients[idx].quantity = parseFloat(input.value) || 0;
         }
+        updateIngredientTotals();
       });
     });
 
@@ -8391,6 +8415,8 @@
       _recipesState.currentIngredients[idx].item_name = item.name || '';
       _recipesState.currentIngredients[idx].sku = item.sku || '';
       _recipesState.currentIngredients[idx].unit = item.unit || '';
+      _recipesState.currentIngredients[idx].purchase_rate = parseFloat(item.purchase_rate) || 0;
+      _recipesState.currentIngredients[idx].rate = parseFloat(item.rate || item.price_per_unit) || 0;
     }
 
     // Update unit display and stock hint
@@ -8402,6 +8428,7 @@
       hintSpan.textContent = stockVal + ' ' + (item.unit || '') + ' available';
     }
     row.setAttribute('data-item-id', item.item_id || '');
+    updateIngredientTotals();
   }
 
   // Add ingredient row
@@ -8419,6 +8446,39 @@
     if (tbody) {
       var lastSearch = tbody.querySelector('.recipes-ing-row:last-child .ing-search');
       if (lastSearch) lastSearch.focus();
+    }
+  }
+
+  function updateIngredientTotals() {
+    var ingredients = _recipesState.currentIngredients || [];
+    var totalCost = 0;
+    var totalRetail = 0;
+    var rows = document.querySelectorAll('.recipes-ing-row');
+    ingredients.forEach(function (ing, idx) {
+      var qty = parseFloat(ing.quantity) || 0;
+      var costEach = parseFloat(ing.purchase_rate) || 0;
+      var retailEach = parseFloat(ing.rate) || 0;
+      var lineCost = qty * costEach;
+      var lineRetail = qty * retailEach;
+      totalCost += lineCost;
+      totalRetail += lineRetail;
+      if (rows[idx]) {
+        var costTd = rows[idx].querySelector('.ing-cost');
+        var retailTd = rows[idx].querySelector('.ing-retail');
+        if (costTd) costTd.textContent = costEach > 0 ? '$' + lineCost.toFixed(2) : '—';
+        if (retailTd) retailTd.textContent = retailEach > 0 ? '$' + lineRetail.toFixed(2) : '—';
+      }
+    });
+    var tfoot = document.getElementById('recipes-ingredients-foot');
+    if (tfoot) {
+      if (ingredients.length > 0 && (totalCost > 0 || totalRetail > 0)) {
+        tfoot.innerHTML = '<tr class="recipes-ing-totals"><td colspan="3"><strong>Totals</strong></td>' +
+          '<td class="ing-cost"><strong>' + (totalCost > 0 ? '$' + totalCost.toFixed(2) : '—') + '</strong></td>' +
+          '<td class="ing-retail"><strong>' + (totalRetail > 0 ? '$' + totalRetail.toFixed(2) : '—') + '</strong></td>' +
+          '<td colspan="3"></td></tr>';
+      } else {
+        tfoot.innerHTML = '';
+      }
     }
   }
 

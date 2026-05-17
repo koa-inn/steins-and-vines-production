@@ -3047,6 +3047,14 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   font-size: 12px;
   color: var(--ink-tertiary);
 }
+.ing-cost, .ing-retail {
+  font-size: 13px;
+  white-space: nowrap;
+}
+.recipes-ing-totals td {
+  border-top: 2px solid var(--ink-muted, #b8a898);
+  padding-top: 8px;
+}
 
 .ing-autocomplete-wrap {
   position: relative;
