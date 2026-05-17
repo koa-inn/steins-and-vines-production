@@ -547,22 +547,25 @@ initTabNavigation = function () {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Terminal charge amount vs locked_price discrepancy (Pitfall 3)**
+1. **Terminal charge amount vs locked_price discrepancy (Pitfall 3)** -- RESOLVED
    - What we know: `locked_price` is the customer-facing display price; invoice line items use Zoho ingredient rates + fee which may not sum to `locked_price`.
    - What's unclear: Which amount should the Helcim terminal charge? If `locked_price` differs from the sum of ingredient rates + fee, the invoice and terminal amounts diverge.
    - Recommendation: Planner must confirm with user before implementation. Most likely intent: charge the sum of ingredient Zoho rates + applicable fee (making `locked_price` an approximate "starting from" price for browsing), OR adjust ingredient rates so they sum to `locked_price`. This must be decided before implementing the confirm endpoint.
+   - **RESOLVED:** Plan 02 implements server-authoritative pricing: terminal charges the sum of ingredient Zoho rates + applicable fees (not locked_price). locked_price is used for kiosk display only (Plan 03).
 
-2. **Milling fee Zoho item ID**
+2. **Milling fee Zoho item ID** -- RESOLVED
    - What we know: `MAKERS_FEE_ITEM_ID` and `MATERIALS_FEE_ITEM_ID` are in Railway. The milling fee is "the existing Zoho service item" (D-03) but no `MILLING_FEE_ITEM_ID` env var exists yet.
    - What's unclear: Has the Zoho milling fee service item been created? What is its item_id?
    - Recommendation: Add a Wave 0 task to identify and register `MILLING_FEE_ITEM_ID` in Railway. Take-out milling sales are blocked gracefully until configured.
+   - **RESOLVED:** Plan 01 Task 1 registers MILLING_FEE_ITEM_ID in validateEnv.js OPTIONAL list. Plan 05 includes user_setup for Railway dashboard configuration. Take-out milling is blocked with clear 400 error until env var is set.
 
-3. **Availability summary 'some_low' handling at checkout**
+3. **Availability summary 'some_low' handling at checkout** -- RESOLVED
    - What we know: The availability endpoint returns `'all_ok'`, `'some_low'`, `'cannot_brew'`, or `'unknown'`.
    - What's unclear: Should `'some_low'` block checkout (conservative) or show a warning and allow staff to proceed (practical)?
-   - Recommendation: Show a yellow banner "Some ingredients are low stock — this may be the last batch" with a "Proceed anyway" confirmation tap. Blocks on `'cannot_brew'` and `'unknown'` only.
+   - Recommendation (adopted): Show a yellow banner "Some ingredients are low stock — this may be the last batch" with a "Proceed anyway" confirmation tap. Blocks on `'cannot_brew'` and `'unknown'` only.
+   - **RESOLVED:** Plan 03 Task 3 implements yellow dismissible banner for some_low, red blocking banner for cannot_brew and unknown.
 
 ---
 
