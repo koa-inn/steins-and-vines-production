@@ -60,6 +60,10 @@
 
         <!-- Left: Product browser -->
         <div class="kiosk-product-pane">
+          <div class="kiosk-mode-toggle">
+            <button type="button" class="kiosk-mode-toggle__btn kiosk-mode-toggle__btn--active" id="kiosk-mode-products" data-mode="products">Products</button>
+            <button type="button" class="kiosk-mode-toggle__btn" id="kiosk-mode-recipes" data-mode="recipes">Recipes</button>
+          </div>
           <div class="kiosk-search-bar">
             <input type="text" id="kiosk-search" class="kiosk-search-input" placeholder="Search products..." autocomplete="off" inputmode="search">
             <div class="kiosk-view-toggle">
@@ -96,6 +100,26 @@
           <div class="kiosk-result-count" id="kiosk-result-count"></div>
           <div id="kiosk-product-grid" class="kiosk-product-grid">
             <p class="kiosk-loading">Loading products...</p>
+          </div>
+          <div id="kiosk-recipe-grid" class="kiosk-product-grid" style="display:none;">
+            <p class="kiosk-loading">Loading recipes...</p>
+          </div>
+          <div id="kiosk-recipe-prompt" style="display:none;">
+            <button type="button" class="btn-secondary" id="kiosk-recipe-back">&#8592; Back</button>
+            <div class="kiosk-recipe-selected-name" id="kiosk-recipe-selected-name"></div>
+            <div id="kiosk-avail-banner"></div>
+            <div class="kiosk-sale-type-btns">
+              <button type="button" class="kiosk-sale-type-btn btn-secondary" id="kiosk-btn-in-store">Ferment in Store</button>
+              <button type="button" class="kiosk-sale-type-btn btn-secondary" id="kiosk-btn-take-out">Take Out</button>
+            </div>
+            <div id="kiosk-milling-toggle" class="kiosk-milling-toggle" style="display:none;">
+              <label>
+                <input type="checkbox" id="kiosk-mill-grain" /> Mill grain?
+              </label>
+            </div>
+            <button type="button" class="btn kiosk-add-recipe-btn" id="kiosk-add-recipe-to-cart" style="display:none;">
+              Add to Cart
+            </button>
           </div>
         </div>
 
