@@ -325,5 +325,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 12. Recipe Data Foundation | v2.0 | 2/2 | Complete    | 2026-05-16 |
 | 13. Middleware API + Admin Recipe Management | v2.0 | 4/4 | Complete   | 2026-05-17 |
-| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 5/5 | Complete   | 2026-05-17 |
+| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 5/5 | Complete    | 2026-05-17 |
 | 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |

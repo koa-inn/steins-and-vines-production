@@ -36,22 +36,22 @@ Requirements for recipe-based product system. Each maps to roadmap phases.
 
 ### Kiosk Recipe Sales
 
-- [ ] **KSK-01**: Kiosk has a recipe browser tab where staff can browse and select active recipes
-- [ ] **KSK-02**: Selecting a recipe auto-populates the kiosk cart with all ingredient line items plus the brewing fee
-- [ ] **KSK-03**: Recipe sale processes through existing Helcim terminal flow and creates a Zoho invoice with per-ingredient line items
-- [ ] **KSK-04**: Kiosk recipe sale endpoint rejects requests when `BEER_SALES_ENABLED` is false
+- [x] **KSK-01**: Kiosk has a recipe browser tab where staff can browse and select active recipes
+- [x] **KSK-02**: Selecting a recipe auto-populates the kiosk cart with all ingredient line items plus the brewing fee
+- [x] **KSK-03**: Recipe sale processes through existing Helcim terminal flow and creates a Zoho invoice with per-ingredient line items
+- [x] **KSK-04**: Kiosk recipe sale endpoint rejects requests when `BEER_SALES_ENABLED` is false
 
 ### Batch Integration
 
-- [ ] **BAT-01**: Recipe sale on kiosk auto-creates exactly one batch in BrewPad linked to the recipe and customer
-- [ ] **BAT-02**: Batch creation uses a separate code path from kit batch detection (not `detectKitItems`)
-- [ ] **BAT-03**: Auto-created recipe batch stores recipe_id, recipe_snapshot, and Zoho SO number
+- [x] **BAT-01**: Recipe sale on kiosk auto-creates exactly one batch in BrewPad linked to the recipe and customer
+- [x] **BAT-02**: Batch creation uses a separate code path from kit batch detection (not `detectKitItems`)
+- [x] **BAT-03**: Auto-created recipe batch stores recipe_id, recipe_snapshot, and Zoho SO number
 
 ### Inventory Management
 
-- [ ] **INV-01**: Recipe sale deducts each ingredient individually from Zoho Inventory via invoice line items
-- [ ] **INV-02**: Pre-sale ingredient reservation via Redis prevents race conditions when multiple recipe sales share ingredients
-- [ ] **INV-03**: Failed or cancelled payment releases reserved ingredient quantities
+- [x] **INV-01**: Recipe sale deducts each ingredient individually from Zoho Inventory via invoice line items
+- [x] **INV-02**: Pre-sale ingredient reservation via Redis prevents race conditions when multiple recipe sales share ingredients
+- [x] **INV-03**: Failed or cancelled payment releases reserved ingredient quantities
 
 ## v2.1 Requirements
 
@@ -106,16 +106,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | IMP-02 | Phase 15 | Pending |
 | IMP-03 | Phase 15 | Pending |
 | IMP-04 | Phase 15 | Pending |
-| KSK-01 | Phase 14 | Pending |
-| KSK-02 | Phase 14 | Pending |
-| KSK-03 | Phase 14 | Pending |
-| KSK-04 | Phase 14 | Pending |
-| BAT-01 | Phase 14 | Pending |
-| BAT-02 | Phase 14 | Pending |
-| BAT-03 | Phase 14 | Pending |
-| INV-01 | Phase 14 | Pending |
-| INV-02 | Phase 14 | Pending |
-| INV-03 | Phase 14 | Pending |
+| KSK-01 | Phase 14 | Complete |
+| KSK-02 | Phase 14 | Complete |
+| KSK-03 | Phase 14 | Complete |
+| KSK-04 | Phase 14 | Complete |
+| BAT-01 | Phase 14 | Complete |
+| BAT-02 | Phase 14 | Complete |
+| BAT-03 | Phase 14 | Complete |
+| INV-01 | Phase 14 | Complete |
+| INV-02 | Phase 14 | Complete |
+| INV-03 | Phase 14 | Complete |
 
 **Coverage:**
 - v2.0 requirements: 25 total
