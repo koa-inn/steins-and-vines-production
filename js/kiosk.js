@@ -1300,12 +1300,13 @@
       var recipeName = escapeHTML(recipe.name || recipe.recipe_id);
       var hasLP = Number(recipe.locked_price) > 0;
       var isDynamic = (fullRecipe.pricing_mode || recipe.pricing_mode) === 'dynamic' || !hasLP;
-      var displayName = recipeName + ' (' + saleLabel + ')' + (isDynamic ? ' — price at checkout' : '');
+      var displayName = recipeName + ' (' + saleLabel + ')';
+      if (isDynamic && !hasLP) displayName += ' — price at checkout';
       _kioskCart['recipe-sale'] = {
         item: {
           item_id: recipe.recipe_id,
           name: displayName,
-          rate: isDynamic ? 0 : (parseFloat(recipe.locked_price) || 0),
+          rate: parseFloat(recipe.locked_price) || 0,
           tax_percentage: 0,
           product_type: 'recipe',
           _recipe_sale: true
