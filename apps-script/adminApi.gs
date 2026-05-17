@@ -87,9 +87,19 @@ function doGet(e) {
     }
   }
 
-  var authResult = checkAuthorization(e);
-  if (!authResult.authorized) {
-    return _jsonResponse({ ok: false, error: 'unauthorized', message: authResult.message });
+  // Server-token bypass for middleware GET requests (recipes, etc.)
+  var serverTokenParam = e.parameter.server_token || '';
+  var storedTokenForGet = PropertiesService.getScriptProperties().getProperty('SERVER_TOKEN');
+  var isServerAuth = (serverTokenParam && storedTokenForGet && serverTokenParam === storedTokenForGet);
+  var authResult = { authorized: false, email: null, message: '' };
+
+  if (isServerAuth) {
+    authResult = { authorized: true, email: 'middleware', message: '' };
+  } else {
+    authResult = checkAuthorization(e);
+    if (!authResult.authorized) {
+      return _jsonResponse({ ok: false, error: 'unauthorized', message: authResult.message });
+    }
   }
 
   // Pagination parameters
