@@ -92,7 +92,7 @@ function enrichWithComputedPrice(recipe, ingredients) {
         return cache.get(C.CACHE_KEYS.KIOSK_PRODUCTS).then(function (kioskItems) {
           if (!kioskItems || !Array.isArray(kioskItems)) return;
           for (var i = 0; i < kioskItems.length; i++) {
-            if (kioskItems[i].item_id === millingId) {
+            if (kioskItems[i].item_id === millingId || (kioskItems[i].sku || '').toUpperCase() === millingId.toUpperCase()) {
               recipe.milling_fee_rate = Number(kioskItems[i].rate) || 0;
               break;
             }
@@ -124,7 +124,7 @@ function enrichListPrices(recipes) {
         millingRate = Number(map[millingId].rate) || 0;
       } else if (kioskItems && Array.isArray(kioskItems)) {
         for (var k = 0; k < kioskItems.length; k++) {
-          if (kioskItems[k].item_id === millingId) { millingRate = Number(kioskItems[k].rate) || 0; break; }
+          if (kioskItems[k].item_id === millingId || (kioskItems[k].sku || '').toUpperCase() === millingId.toUpperCase()) { millingRate = Number(kioskItems[k].rate) || 0; break; }
         }
       }
     }
@@ -208,6 +208,7 @@ router.get('/api/recipes/:id', function (req, res) {
     if (cached) {
       log.info('[api/recipes/' + recipeId + '] Cache hit');
       return enrichWithComputedPrice(cached.recipe, cached.ingredients).then(function () {
+        cache.set(cacheKey, cached, RECIPES_CACHE_TTL);
         res.json(cached);
       });
     }
