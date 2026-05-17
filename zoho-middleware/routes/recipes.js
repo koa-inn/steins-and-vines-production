@@ -83,9 +83,15 @@ router.get('/api/recipes', function (req, res) {
     }
     return callAppsScriptGet('get_recipes', { status: status, limit: limit, offset: offset })
       .then(function (data) {
+        if (data && data.ok === false) {
+          log.warn('[api/recipes] Apps Script rejected: ' + (data.error || '') + ' ' + (data.message || ''));
+          return res.status(502).json({ error: 'Apps Script error: ' + (data.error || 'unknown'), detail: data.message || '' });
+        }
         var payload = data.data || {};
-        cache.set(cacheKey, payload, RECIPES_CACHE_TTL);
-        cache.set(C.CACHE_KEYS.RECIPES_TS, Date.now(), RECIPES_CACHE_TTL);
+        if (payload.recipes && payload.recipes.length > 0) {
+          cache.set(cacheKey, payload, RECIPES_CACHE_TTL);
+          cache.set(C.CACHE_KEYS.RECIPES_TS, Date.now(), RECIPES_CACHE_TTL);
+        }
         res.json({ source: 'apps-script', recipes: payload.recipes || [], total: payload.total || 0 });
       });
   }).catch(function (err) {
