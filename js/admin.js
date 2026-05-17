@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T05:31:18.045Z';
+  var BUILD_TIMESTAMP = '2026-05-17T05:38:35.637Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8173,6 +8173,7 @@
 
     var titleEl = document.getElementById('recipes-detail-title');
     var deleteBtn = document.getElementById('recipes-delete-btn');
+    var dupBtn = document.getElementById('recipes-duplicate-btn');
     var saveBtn = document.getElementById('recipes-save-btn');
     if (saveBtn) saveBtn.disabled = false;
     if (saveBtn) saveBtn.textContent = 'Save Recipe';
@@ -8181,6 +8182,7 @@
       // New recipe mode
       if (titleEl) titleEl.textContent = 'New Recipe';
       if (deleteBtn) deleteBtn.style.display = 'none';
+      if (dupBtn) dupBtn.style.display = 'none';
       populateRecipeForm(null, []);
       renderAvailabilityBanner(null);
       renderIngredientRows([]);
@@ -8189,6 +8191,7 @@
 
     if (titleEl) titleEl.textContent = 'Loading...';
     if (deleteBtn) deleteBtn.style.display = '';
+    if (dupBtn) dupBtn.style.display = '';
     renderAvailabilityBanner({ summary: 'loading' });
 
     // Fetch detail + availability in parallel (D-06)
@@ -8608,6 +8611,29 @@
   }
 
   // Controls initialization
+  function duplicateRecipe() {
+    var recipe = _recipesState.currentRecipe;
+    if (!recipe) return;
+    _recipesState.currentRecipeId = null;
+    _recipesState.currentRecipe = Object.assign({}, recipe, {
+      recipe_id: '',
+      name: 'Copy of ' + (recipe.name || ''),
+      status: 'draft'
+    });
+    _recipesState.currentIngredients = (_recipesState.currentIngredients || []).map(function (ing) {
+      return Object.assign({}, ing);
+    });
+    var titleEl = document.getElementById('recipes-detail-title');
+    var deleteBtn = document.getElementById('recipes-delete-btn');
+    var dupBtn = document.getElementById('recipes-duplicate-btn');
+    if (titleEl) titleEl.textContent = 'New Recipe (Duplicate)';
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    if (dupBtn) dupBtn.style.display = 'none';
+    populateRecipeForm(_recipesState.currentRecipe, _recipesState.currentIngredients);
+    renderIngredientRows(_recipesState.currentIngredients, _recipesState.availability);
+    showToast('Recipe duplicated — edit and save as new', 'success');
+  }
+
   function initRecipesControls() {
     var filterSelect = document.getElementById('recipes-status-filter');
     if (filterSelect) {
@@ -8635,6 +8661,11 @@
     var deleteBtn = document.getElementById('recipes-delete-btn');
     if (deleteBtn) {
       deleteBtn.addEventListener('click', function () { deleteRecipe(); });
+    }
+
+    var dupBtn = document.getElementById('recipes-duplicate-btn');
+    if (dupBtn) {
+      dupBtn.addEventListener('click', function () { duplicateRecipe(); });
     }
 
     var addIngBtn = document.getElementById('recipes-add-ingredient-btn');
