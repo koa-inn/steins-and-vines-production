@@ -10,8 +10,8 @@ progress:
   total_phases: 11
   completed_phases: 2
   total_plans: 11
-  completed_plans: 7
-  percent: 64
+  completed_plans: 8
+  percent: 73
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-05-09)
 ## Current Position
 
 Phase: 14 (Kiosk Recipe Sales, Inventory, and Batch Creation) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Executing Phase 14
-Last activity: 2026-05-17 -- Phase 14 Plan 01 completed
+Last activity: 2026-05-17 -- Phase 14 Plan 02 completed
 
 Progress: [#####░░░░░] 55%
 
@@ -61,6 +61,10 @@ Progress: [#####░░░░░] 55%
 - [14-01]: detectRecipeSale uses source 'kiosk_recipe' not 'kiosk' — distinguishes recipe batches from kit batches in BrewPad
 - [14-01]: LOCK_KEYS object added as sibling to CACHE_KEYS in constants.js for centralized mutex key management
 - [14-01]: detectRecipeSale .catch(()=>{}) fire-and-forget — Apps Script failure after payment is silent per D-12
+- [14-02]: pos-recipe.js is a standalone route file — not modifying pos.js avoids branching in complex handler
+- [14-02]: Terminal charge = sum of ingredient Zoho catalog rates + applicable fees (not locked_price per D-08 resolution)
+- [14-02]: detectRecipeSale called only for in-store sales (take-out creates no batch per D-09)
+- [14-02]: RECIPES_TS cache also busted after sale to ensure freshness of recipe availability data
 
 ### Pending Todos
 
@@ -74,6 +78,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-17T13:40:21Z
-Stopped at: Phase 14 Plan 01 complete
-Resume file: .planning/phases/14-kiosk-recipe-sales-inventory-batch-creation/14-02-PLAN.md
+Last session: 2026-05-17T14:05:00Z
+Stopped at: Phase 14 Plan 02 complete
+Resume file: .planning/phases/14-kiosk-recipe-sales-inventory-batch-creation/14-03-PLAN.md
