@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T16:46:51.381Z';
+  var BUILD_TIMESTAMP = '2026-05-17T17:30:42.671Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8500,6 +8500,10 @@
 
   // Activation guardrail (D-02)
   function canActivateRecipe(formData, ingredients) {
+    var lockedPrice = parseFloat(formData && formData.locked_price);
+    if (!lockedPrice || isNaN(lockedPrice) || lockedPrice <= 0) {
+      return { ok: false, reason: 'Set a valid locked price before activating this recipe.' };
+    }
     if (!ingredients || ingredients.length === 0) {
       return { ok: false, reason: 'Add at least one ingredient before activating this recipe.' };
     }
@@ -9655,6 +9659,7 @@
     var millCheckboxEl = document.getElementById('kiosk-mill-grain');
     if (millCheckboxEl) millCheckboxEl.addEventListener('change', function () {
       _kioskMillGrain = millCheckboxEl.checked;
+      kioskUpdateSummaryPrice();
       kioskUpdateAddToCartButton();
     });
 
@@ -9732,6 +9737,26 @@
     return 0;
   }
 
+  // Returns the display price adjusted for sale type context.
+  // Dynamic recipes: take-out excludes service_fee + materials_fee from computed_price.
+  // Locked recipes: always use locked_price regardless of sale type.
+  function kioskRecipePriceForContext(recipe, saleType) {
+    if (!recipe) return 0;
+    if (recipe.pricing_mode === 'dynamic') {
+      var base = Number(recipe.computed_price);
+      if (!(base > 0)) return Number(recipe.locked_price) > 0 ? Number(recipe.locked_price) : 0;
+      if (saleType === 'take-out') {
+        var serviceFee = Number(recipe.service_fee) || 0;
+        var materialsFee = Number(recipe.materials_fee) || 0;
+        var takeOut = Math.round((base - serviceFee - materialsFee) * 100) / 100;
+        return takeOut > 0 ? takeOut : base;
+      }
+      return base;
+    }
+    // Locked mode: same price regardless of sale type
+    return Number(recipe.locked_price) > 0 ? Number(recipe.locked_price) : 0;
+  }
+
   // ---- Recipe browser: render recipe cards ----
 
   function kioskRenderRecipes() {
@@ -9750,7 +9775,7 @@
       html += '<div class="kiosk-product-name">' + (r.name || '') + '</div>';
       html += '<div class="kiosk-product-sku">' + (r.style || '') + (r.abv ? ' &middot; ' + r.abv + '%' : '') + '</div>';
       var rPrice = kioskRecipePrice(r);
-      html += '<div class="kiosk-product-price">' + (rPrice > 0 ? kioskFmt(rPrice) : 'Market price') + '</div>';
+      html += '<div class="kiosk-product-price" data-recipe-price-id="' + (r.recipe_id || '') + '">' + (rPrice > 0 ? kioskFmt(rPrice) : 'Market price') + '</div>';
       html += '<div class="kiosk-product-stock">' + (r.pricing_mode === 'dynamic' ? 'based on ingredients' : 'incl. brewing fee') + '</div>';
       html += '</div></div>';
     });
@@ -9764,6 +9789,44 @@
         var recipe = _kioskRecipes.find(function (r) { return r.recipe_id === recipeId; });
         if (recipe) kioskShowRecipePrompt(recipe);
       });
+    });
+
+    // Background-warm computed_price for dynamic recipes whose detail cache was cold.
+    _kioskRecipes.forEach(function (r) {
+      if (r.pricing_mode !== 'dynamic') return;
+      if (Number(r.computed_price) > 0) return;
+      if (r._fetchedDetail) {
+        if (r._fetchedDetail.recipe && r._fetchedDetail.recipe.computed_price != null) {
+          r.computed_price = r._fetchedDetail.recipe.computed_price;
+          var priceCell = grid.querySelector('[data-recipe-price-id="' + r.recipe_id + '"]');
+          if (priceCell) {
+            var warm = Number(r.computed_price);
+            priceCell.textContent = warm > 0 ? kioskFmt(warm) : 'Market price';
+          }
+        }
+        return;
+      }
+      (function (recipe) {
+        var mwWarm = kioskMwUrl();
+        var hdrsWarm = {};
+        if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
+          hdrsWarm['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
+        }
+        fetch(mwWarm + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), { headers: hdrsWarm })
+          .then(function (resp) { return resp.json(); })
+          .then(function (data) {
+            recipe._fetchedDetail = data;
+            if (data.recipe && data.recipe.computed_price != null) {
+              recipe.computed_price = data.recipe.computed_price;
+              var priceEl = grid.querySelector('[data-recipe-price-id="' + recipe.recipe_id + '"]');
+              if (priceEl) {
+                var warm = Number(recipe.computed_price);
+                priceEl.textContent = warm > 0 ? kioskFmt(warm) : 'Market price';
+              }
+            }
+          })
+          .catch(function () {});
+      }(r));
     });
   }
 
@@ -9784,13 +9847,15 @@
     var nameEl = document.getElementById('kiosk-recipe-selected-name');
     if (nameEl) nameEl.textContent = recipe.name || '';
 
-    // Bug 3: Show recipe summary (style, ABV, price, ingredients)
+    // Show recipe summary (style, ABV, base price, ingredients).
+    // The price shown here is the base price before sale-type selection.
+    // kioskUpdateSummaryPrice() is called again after sale-type changes.
     var summaryEl = document.getElementById('kiosk-recipe-summary');
     if (summaryEl) {
       var summaryHtml = '<div style="margin:0.5rem 0;color:var(--ink-secondary);font-size:0.9rem;">';
       summaryHtml += (recipe.style || '') + (recipe.abv ? ' &middot; ' + recipe.abv + '% ABV' : '');
       summaryHtml += '</div>';
-      summaryHtml += '<div style="font-size:1.1rem;font-weight:700;color:var(--barrel);margin:0.5rem 0;">';
+      summaryHtml += '<div id="kiosk-recipe-summary-price" style="font-size:1.1rem;font-weight:700;color:var(--barrel);margin:0.5rem 0;">';
       var promptPrice = kioskRecipePrice(recipe);
       if (promptPrice > 0) {
         summaryHtml += kioskFmt(promptPrice) + ' per batch';
@@ -9813,6 +9878,12 @@
           ingHtml += '</ul>';
           ingEl.innerHTML = ingHtml;
         }
+        // Update computed_price on recipe in case card fetch already populated it
+        if (recipe._fetchedDetail.recipe && recipe._fetchedDetail.recipe.computed_price != null) {
+          recipe.computed_price = recipe._fetchedDetail.recipe.computed_price;
+          kioskUpdateSummaryPrice();
+          kioskUpdateAddToCartButton();
+        }
       } else {
         var mwForSummary = kioskMwUrl();
         var hdrs = {};
@@ -9823,23 +9894,27 @@
           .then(function (r) { return r.json(); })
           .then(function (data) {
             var ingEl2 = document.getElementById('kiosk-recipe-ingredients');
-            if (!ingEl2 || !data.ingredients) return;
-            var ingHtml2 = '<strong>Ingredients:</strong><ul style="margin:0.25rem 0;padding-left:1.25rem;">';
-            data.ingredients.forEach(function (ing) {
-              ingHtml2 += '<li>' + (ing.item_name || '') + ' — ' + ing.quantity + ' ' + (ing.unit || '') + '</li>';
-            });
-            ingHtml2 += '</ul>';
-            ingEl2.innerHTML = ingHtml2;
+            if (ingEl2 && data.ingredients) {
+              var ingHtml2 = '<strong>Ingredients:</strong><ul style="margin:0.25rem 0;padding-left:1.25rem;">';
+              data.ingredients.forEach(function (ing) {
+                ingHtml2 += '<li>' + (ing.item_name || '') + ' — ' + ing.quantity + ' ' + (ing.unit || '') + '</li>';
+              });
+              ingHtml2 += '</ul>';
+              ingEl2.innerHTML = ingHtml2;
+            }
             recipe._fetchedDetail = data;
             if (data.recipe && data.recipe.computed_price != null) {
               recipe.computed_price = data.recipe.computed_price;
-              var priceEl = document.querySelector('#kiosk-recipe-summary div:nth-child(2)');
-              if (priceEl) {
-                var updatedPrice = kioskRecipePrice(recipe);
-                if (updatedPrice > 0) {
-                  priceEl.textContent = kioskFmt(updatedPrice) + ' per batch' + (recipe.pricing_mode === 'dynamic' ? ' (based on ingredients)' : '');
+              // Also update the card price in the grid (if still rendered)
+              var cardGrid = document.getElementById('kiosk-recipe-grid');
+              if (cardGrid) {
+                var cardPriceEl = cardGrid.querySelector('[data-recipe-price-id="' + recipe.recipe_id + '"]');
+                if (cardPriceEl) {
+                  var warm = Number(recipe.computed_price);
+                  cardPriceEl.textContent = warm > 0 ? kioskFmt(warm) : 'Market price';
                 }
               }
+              kioskUpdateSummaryPrice();
               kioskUpdateAddToCartButton();
             }
           })
@@ -9872,6 +9947,24 @@
     kioskCheckRecipeAvailability(recipe.recipe_id);
   }
 
+  // Updates #kiosk-recipe-summary-price to reflect current sale type and computed_price.
+  function kioskUpdateSummaryPrice() {
+    var priceEl = document.getElementById('kiosk-recipe-summary-price');
+    if (!priceEl || !_kioskSelectedRecipe) return;
+    var recipe = _kioskSelectedRecipe;
+    var contextPrice = kioskRecipePriceForContext(recipe, _kioskSaleType);
+    if (contextPrice > 0) {
+      var label = kioskFmt(contextPrice) + ' per batch';
+      if (recipe.pricing_mode === 'dynamic') {
+        label += _kioskSaleType === 'take-out' ? ' (ingredients only)' : ' (based on ingredients)';
+      }
+      if (_kioskMillGrain) label += ' + milling';
+      priceEl.textContent = label;
+    } else {
+      priceEl.textContent = 'Price calculated at checkout';
+    }
+  }
+
   function kioskSelectSaleType(saleType) {
     _kioskSaleType = saleType;
     var inStoreBtn = document.getElementById('kiosk-btn-in-store');
@@ -9892,7 +9985,8 @@
     // Show milling toggle only for take-out (D-03)
     if (millingToggle) millingToggle.style.display = saleType === 'take-out' ? '' : 'none';
 
-    // Show add-to-cart if availability allows
+    // Update summary price and add-to-cart button
+    kioskUpdateSummaryPrice();
     kioskUpdateAddToCartButton();
   }
 
@@ -9910,8 +10004,10 @@
       return;
     }
 
-    var price = kioskRecipePrice(_kioskSelectedRecipe);
-    addBtn.textContent = price > 0 ? 'Add to Cart — ' + kioskFmt(price) : 'Add to Cart';
+    var price = kioskRecipePriceForContext(_kioskSelectedRecipe, _kioskSaleType);
+    var btnLabel = price > 0 ? 'Add to Cart — ' + kioskFmt(price) : 'Add to Cart';
+    if (_kioskMillGrain) btnLabel += ' + milling';
+    addBtn.textContent = btnLabel;
     addBtn.style.display = '';
   }
 
