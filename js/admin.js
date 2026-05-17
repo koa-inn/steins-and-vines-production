@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T16:28:05.834Z';
+  var BUILD_TIMESTAMP = '2026-05-17T16:46:51.381Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -9983,6 +9983,7 @@
       }
       var fullRecipe = data.recipe;
       var ingredients = data.ingredients || [];
+      var pricingMode = fullRecipe.pricing_mode || recipe.pricing_mode || (Number(recipe.locked_price) > 0 ? 'locked' : 'dynamic');
 
       // Store recipe context in separate variable (not inside _kioskCart)
       _kioskRecipeContext = {
@@ -9991,26 +9992,68 @@
         sale_type: _kioskSaleType,
         mill_grain: _kioskMillGrain,
         locked_price: recipe.locked_price,
-        pricing_mode: fullRecipe.pricing_mode || recipe.pricing_mode || (Number(recipe.locked_price) > 0 ? 'locked' : 'dynamic'),
+        pricing_mode: pricingMode,
         ingredients: ingredients
       };
 
-      var saleLabel = _kioskSaleType === 'in-store' ? 'Ferment in Store' : 'Take Out';
-      var recipeName = escapeHTML(recipe.name || recipe.recipe_id);
-      var cartPrice = kioskRecipePrice(fullRecipe.pricing_mode ? fullRecipe : recipe);
-      var displayName = recipeName + ' (' + saleLabel + ')';
-      if (cartPrice <= 0) displayName += ' — price at checkout';
-      _kioskCart['recipe-sale'] = {
-        item: {
-          item_id: recipe.recipe_id,
-          name: displayName,
-          rate: cartPrice,
-          tax_percentage: 0,
-          product_type: 'recipe',
-          _recipe_sale: true
-        },
-        qty: 1
-      };
+      if (pricingMode === 'dynamic') {
+        // Add each ingredient as a priced line item
+        ingredients.forEach(function (ing) {
+          var key = 'recipe-ing-' + (ing.item_id || ing.ingredient_id);
+          var ingRate = (Number(ing.rate) || 0) * (Number(ing.quantity) || 0);
+          _kioskCart[key] = {
+            item: {
+              item_id: ing.item_id,
+              name: escapeHTML(ing.item_name) + ' (' + ing.quantity + ' ' + escapeHTML(ing.unit || '') + ')',
+              rate: ingRate,
+              tax_percentage: 0,
+              product_type: 'recipe_ingredient'
+            },
+            qty: 1
+          };
+        });
+        // Add fee lines for in-store sales
+        if (_kioskSaleType === 'in-store') {
+          if (Number(fullRecipe.service_fee) > 0) {
+            _kioskCart['recipe-fee-brewing'] = {
+              item: { item_id: 'fee-brewing', name: 'Brewing Fee', rate: parseFloat(fullRecipe.service_fee) || 0, tax_percentage: 0, product_type: 'fee' },
+              qty: 1
+            };
+          }
+          if (Number(fullRecipe.materials_fee) > 0) {
+            _kioskCart['recipe-fee-materials'] = {
+              item: { item_id: 'fee-materials', name: 'Materials Fee', rate: parseFloat(fullRecipe.materials_fee) || 0, tax_percentage: 0, product_type: 'fee' },
+              qty: 1
+            };
+          }
+        }
+      } else {
+        // Locked mode: ingredient lines as info-only (rate=0), plus single total line
+        ingredients.forEach(function (ing) {
+          var key = 'recipe-ing-' + (ing.item_id || ing.ingredient_id);
+          _kioskCart[key] = {
+            item: {
+              item_id: ing.item_id,
+              name: escapeHTML(ing.item_name) + ' (' + ing.quantity + ' ' + escapeHTML(ing.unit || '') + ')',
+              rate: 0,
+              tax_percentage: 0,
+              product_type: 'recipe_ingredient'
+            },
+            qty: 1
+          };
+        });
+        // Single total line at locked_price
+        _kioskCart['recipe-total'] = {
+          item: {
+            item_id: recipe.recipe_id,
+            name: escapeHTML(recipe.name || recipe.recipe_id) + ' — Package Price',
+            rate: parseFloat(recipe.locked_price) || 0,
+            tax_percentage: 0,
+            product_type: 'recipe'
+          },
+          qty: 1
+        };
+      }
 
       // Switch back to products mode and render cart
       kioskSetMode('products');
