@@ -43,7 +43,6 @@ Declared values (multiples of 4):
 Exceptions:
 - Touch targets: all tap targets maintain min-height 44px (iOS tap target minimum) — matches existing `.btn` and `.btn-secondary` which declare `min-height: 44px`
 - Recipe prompt sale-type buttons: min-height 64px (large tap targets — staff makes this choice dozens of times per day; D-02 priority)
-- Card body internal padding: 0.55rem 0.65rem 0.7rem — matches `.kiosk-product-body` exactly; recipe cards inherit this
 
 ---
 
@@ -53,10 +52,10 @@ Exceptions:
 |------|------|--------|-------------|--------|
 | Body | 16px (1rem) | 400 | 1.6 | Detected: css/kiosk.css lines 67, 74, 77 |
 | Label / small copy | 13px (0.82rem–0.875rem) | 400 | 1.4 | Detected: css/kiosk.css lines 230, 235 |
-| Heading / card name | 14.4px (0.9rem) | 600 | 1.25 | Detected: .kiosk-product-name css/kiosk.css lines 545–548 |
-| Price / display | 16px (1rem) | 700 | 1.0 | Detected: .kiosk-product-price css/kiosk.css lines 562–565 |
+| Heading / card name / price / display | 14.4px–16px (0.9rem–1rem) | 700 | 1.0–1.25 | Detected: .kiosk-product-name (600→700, matches existing CSS) and .kiosk-product-price css/kiosk.css lines 545–565 |
 
 Notes:
+- Two weights only: 400 (body, label, small copy) and 700 (card name, price, buttons). Weight 600 is not used — `.kiosk-product-name` is promoted to 700 to match the existing two-weight system in kiosk.css.
 - Input font-size must be 16px (1rem) minimum to prevent iOS Safari auto-zoom on focus (existing constraint, css/kiosk.css line 421)
 - Button font-size: 0.875rem at weight 700 — matches existing `.btn` and `.btn-secondary`
 
@@ -99,7 +98,7 @@ Type badge for recipes (follows `.kiosk-type-badge` pattern):
 | Component | CSS Class | Where Used in This Phase |
 |-----------|-----------|--------------------------|
 | Product card | `.kiosk-product-card` | Recipe card base layout |
-| Card body | `.kiosk-product-body` | Recipe card content area |
+| Card body | `.kiosk-product-body` | Recipe card content area — padding inherited as-is from existing kiosk.css; not redeclared |
 | Product name | `.kiosk-product-name` | Recipe name (2-line clamp) |
 | Product price | `.kiosk-product-price` | `locked_price` display |
 | Product stock | `.kiosk-product-stock`, `--low`, `--out` | Availability summary text |
@@ -131,6 +130,8 @@ Type badge for recipes (follows `.kiosk-type-badge` pattern):
 ### Kiosk Browse View — Recipe Mode
 
 The existing `.kiosk-browse-layout` (grid: 1fr 340px) is preserved. Only the left `.kiosk-product-pane` content changes when recipe mode is active.
+
+Primary visual anchor on the recipe browse screen: the recipe card price (`.kiosk-product-price`, weight 700, color `--barrel`) is the dominant focal element on each card, drawing the eye to the locked price before name or style details.
 
 ```
 ┌─────────────────────────────────────────┬──────────────────┐
