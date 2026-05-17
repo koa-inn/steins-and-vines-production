@@ -37,11 +37,13 @@ Admin panel uses named spacing tokens defined in `css/admin.css` lines 44–50. 
 |-------|-------|-------|
 | `--sp-1` | 4px | Icon gaps, tight inline padding, badge vertical padding |
 | `--sp-2` | 8px | Compact element spacing, gap between toast items |
-| `--sp-3` | 12px | Row padding, header nav gaps, ingredient row vertical rhythm |
+| `--sp-3` | 12px | **Pre-existing codebase token only** — row padding, header nav gaps, ingredient row vertical rhythm. Not part of this phase's spacing contract; new CSS classes in this phase do not introduce `--sp-3` usage. |
 | `--sp-4` | 16px | Default element spacing, table cell padding, form group margin |
 | `--sp-6` | 24px | Section padding, modal body padding, action bar padding |
 | `--sp-8` | 32px | Layout gaps, heading margin |
 | `--sp-12` | 48px | Major section breaks, page-level top/bottom padding |
+
+**This phase's spacing contract:** {4, 8, 16, 24, 32, 48, 64}px — all multiples of 4. `--sp-3` (12px) is inherited from the existing admin CSS and appears in reused components; it is not declared as a new spacing value for this phase.
 
 Exceptions:
 - Review modal content width: `max-width: 800px` (overrides default modal 560px to accommodate 5-column ingredient table — per RESEARCH.md review modal HTML pattern)
@@ -51,12 +53,12 @@ Exceptions:
 
 ## Typography
 
-All sizes from actual `css/admin.css` measurements. Font is always `--font-body` (Lato) in admin UI.
+All sizes from actual `css/admin.css` measurements. Font is always `--font-body` (Lato) in admin UI. Maximum 4 font sizes in this phase.
 
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
 | Body / table cell | 13px | 400 | 1.4 | Ingredient names in review table, modal body copy, form labels |
-| Label / meta | 11px | 700 | 1.3 | Table column headers (uppercase, letter-spacing 0.05em), status badges |
+| Label / meta | 11px | 700 | 1.3 | Table column headers (uppercase, letter-spacing 0.05em), status badges, skip/restore toggle button, original BeerXML value sub-text |
 | Sub-heading | 16px | 700 | 1.2 | Modal header `h3`, section headings in recipe form |
 | Section heading | 20px | 700 | 1.2 | Tab-level headings (matches existing `.admin-section-title` pattern) |
 
@@ -86,6 +88,8 @@ Accent reserved for:
 
 Second semantic color (destructive) reserved for: skip row action, "No match" confidence indicator, error toast stripe.
 
+**Review modal focal point:** The confidence badge column is the primary visual anchor. Its three-color status system (green "Matched" / amber "Review" / red "No match") draws the eye immediately to rows requiring staff action. The badge column must be visually prominent — badges are rendered as filled pill shapes, not text-only, so the color differential is immediately legible at a scan.
+
 ---
 
 ## Component Inventory
@@ -97,7 +101,7 @@ Reused from existing admin CSS — no new components created. New CSS classes ar
 | Component | CSS class(es) | Phase use |
 |-----------|--------------|-----------|
 | Primary button | `.btn` | "Import from BeerXML" trigger, "Confirm Import" in modal |
-| Secondary button | `.btn-secondary` | "Cancel" in review modal |
+| Secondary button | `.btn-secondary` | "Discard Import" in review modal |
 | Admin modal overlay | `.admin-modal`, `.admin-modal-overlay`, `.admin-modal-content` | BeerXML review modal container |
 | Modal header | `.admin-modal-header`, `.admin-modal-close` | Review modal title + close X |
 | Modal body | `.admin-modal-body` | Scrollable review table area |
@@ -105,18 +109,18 @@ Reused from existing admin CSS — no new components created. New CSS classes ar
 | Error toast | `.admin-toast`, `.admin-toast--error` | File size error, malformed XML error, no-match toast |
 | Info toast | `.admin-toast`, `.admin-toast--info` | "Multiple recipes found — importing first" notice |
 | Draft badge | `.recipes-badge-draft` | Status shown in modal header for imported recipe |
-| Detail actions bar | `.recipes-detail-actions` | Modal footer with Confirm/Cancel buttons |
+| Detail actions bar | `.recipes-detail-actions` | Modal footer with Confirm/Discard Import buttons |
 
 ### New CSS Classes (additive to `css/admin.css`)
 
 | Class | Purpose | Specification |
 |-------|---------|---------------|
 | `.beerxml-review-table` | Wrapper for the 5-column mapping table | Inherits `.admin-table` styles; no additional styling beyond `width: 100%` |
-| `.beerxml-match-high` | High-confidence match badge | Background: `--batch-success-bg` (#3d7a40 at 8% opacity); color: `--batch-success` (#3d7a40); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700 |
+| `.beerxml-match-high` | High-confidence match badge | Background: `--batch-success-bg` (#3d7a40 at 8% opacity); color: `--batch-success` (#3d7a40); padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700 |
 | `.beerxml-match-low` | Low-confidence match badge | Background: `--batch-warning-bg` (#b87a1a at 8% opacity); color: `--batch-warning` (#b87a1a); same dimensions as above |
 | `.beerxml-match-none` | No match badge | Background: `--batch-danger-bg` (#a83232 at 8% opacity); color: `--batch-danger` (#a83232); same dimensions as above |
 | `.beerxml-row-skipped` | Skipped ingredient row | opacity: 0.45; background: transparent (overrides even-row tint) |
-| `.beerxml-skip-btn` | Per-row skip/restore toggle | Background: none; border: none; color: `--ink-muted`; font-size: 12px; cursor: pointer; padding: 0 `--sp-1`; text-decoration: underline |
+| `.beerxml-skip-btn` | Per-row skip/restore toggle | Background: none; border: none; color: `--ink-muted`; font-size: 11px; cursor: pointer; padding: 0 `--sp-1`; text-decoration: underline |
 | `.beerxml-orig-value` | Original BeerXML amount display | color: `--ink-tertiary`; font-size: 11px; display: block (shown below converted value in same cell) |
 
 ---
@@ -159,7 +163,7 @@ Row alternating background: matches `.admin-table tbody tr:nth-child(even)` — 
 - Sub-header metadata line: style, ABV, batch size in `--ink-secondary` at 13px
 - Body: scrollable (`.admin-modal-body` overflow-y: auto), max-height constrainted by `.admin-modal-content` `max-height: 88vh`
 - "Confirm Import" button: `.btn` — disabled until at least one non-skipped row has a valid Zoho match
-- "Cancel" button: `.btn-secondary` — closes modal, resets file input value to ''
+- "Discard Import" button: `.btn-secondary` — `aria-label="Discard Import"` — closes modal, resets file input value to ''
 
 ### Per-Row Zoho Match Interaction
 - Autocomplete search input: same `.ing-search` pattern as existing ingredient editor
@@ -184,7 +188,7 @@ Row alternating background: matches `.admin-table tbody tr:nth-child(even)` — 
 | Primary CTA (trigger button) | "Import from BeerXML" |
 | Modal title | "Review Import: {recipe name}" |
 | Modal confirm CTA | "Confirm Import" |
-| Modal cancel | "Cancel" |
+| Modal cancel | "Discard Import" (aria-label: "Discard Import") |
 | Skip row action | "Skip" |
 | Restore skipped row | "Restore" |
 | Post-import success toast | "Recipe imported from BeerXML. Set a price and activate when ready." |
@@ -210,6 +214,7 @@ No destructive actions in this phase. Skipping a row is reversible ("Restore"). 
 - Focus management: on modal open, focus moves to modal close button; on modal close, focus returns to "Import from BeerXML" trigger button
 - Confidence badges: add `aria-label` to each badge span — e.g., `aria-label="Match confidence: high"` — since color alone cannot convey status
 - Skip button: `aria-label="Skip {ingredient name}"` / `aria-label="Restore {ingredient name}"`
+- "Discard Import" button: `aria-label="Discard Import"` on the `.btn-secondary` element
 - File input: `aria-label="Select BeerXML file"` (hidden input, associated with button trigger)
 - "Confirm Import" disabled state: `disabled` attribute set on button element (not just `pointer-events: none`) so screen readers announce unavailability
 
@@ -260,3 +265,4 @@ No shadcn, no third-party registries. Zero new npm dependencies. All components 
 | css/admin.css (codebase) | All spacing tokens, color tokens, typography sizes, modal/table/badge/toast CSS |
 | css/styles.css (codebase) | Font families, color hex values, button styles, min-height touch target |
 | User input | 0 (all questions answered by upstream artifacts) |
+| Checker revision (2026-05-17) | 3 blocking fixes: cancel label → "Discard Import"; skip-btn font-size 12px → 11px; badge padding 2px 8px → 4px 8px; --sp-3 noted as pre-existing token only |
