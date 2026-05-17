@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Recipe-Based Products
 status: executing
-stopped_at: Phase 13 context gathered
-last_updated: "2026-05-16T18:39:38.659Z"
-last_activity: 2026-05-16 -- Phase 13 planning complete
+stopped_at: Completed 13-01, ready for 13-02
+last_updated: "2026-05-17T02:50:50Z"
+last_activity: 2026-05-17 -- Phase 13 Plan 01 complete
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 6
-  completed_plans: 2
-  percent: 33
+  completed_plans: 3
+  percent: 50
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-09)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 12 — recipe-data-foundation
+**Current focus:** Phase 13 — Middleware API + Admin Recipe Management
 
 ## Current Position
 
-Phase: 13
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-16 -- Phase 13 planning complete
+Phase: 13 (Middleware API + Admin Recipe Management) — EXECUTING
+Plan: 2 of 4
+Status: Plan 01 complete, ready for Plan 02
+Last activity: 2026-05-17 -- Phase 13 Plan 01 complete
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [#####░░░░░] 50%
 
 ## Performance Metrics
 
@@ -50,6 +50,9 @@ Progress: [░░░░░░░░░░] 0%
 - [v2.0 Roadmap]: BEER_SALES_ENABLED env var gates kiosk confirm endpoint server-side — UI hiding alone is insufficient; env var managed on Railway, defaults false
 - [v2.0 Roadmap]: detectRecipeSale() separate from detectKitItems() — recipe sales must not trigger one batch per ingredient line item
 - [v2.0 Roadmap]: BeerXML import (Phase 15) deferred after core kiosk flow (Phase 14) — manual recipe entry unblocks kiosk testing without import
+- [13-01]: CR-01 lock placement — validation guard stays above lock to avoid unnecessary lock contention on invalid input
+- [13-01]: _invalidateRecipeCache clears status-variant keys (all/draft/active/inactive at :0:0) covering default admin UI queries
+- [13-01]: Server-token block passes 'middleware' as userEmail, matching existing create_recipe pattern
 
 ### Pending Todos
 
@@ -63,6 +66,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-16T17:21:45.518Z
-Stopped at: Phase 13 context gathered
-Resume file: .planning/phases/13-middleware-api-admin-recipe-management/13-CONTEXT.md
+Last session: 2026-05-17T02:50:50Z
+Stopped at: Completed 13-01, ready for 13-02
+Resume file: .planning/phases/13-middleware-api-admin-recipe-management/13-01-SUMMARY.md

@@ -274,7 +274,7 @@ Plans:
 
 Plans:
 **Wave 1** *(no dependencies -- run in parallel)*
-- [ ] 13-01-PLAN.md -- Apps Script bug fixes: CR-01 lock protection on updateRecipe/deleteRecipe, WR-01 hard error on missing sheet, WR-02 dead cache key removal, WR-03 parameterized cache key
+- [x] 13-01-PLAN.md -- Apps Script bug fixes: CR-01 lock protection on updateRecipe/deleteRecipe, WR-01 hard error on missing sheet, WR-02 dead cache key removal, WR-03 parameterized cache key
 - [ ] 13-02-PLAN.md -- Middleware recipe API: routes/recipes.js with CRUD + availability endpoints, Redis caching, activation guardrail, unit tests, server.js mount
 
 **Wave 2** *(depends on Wave 1 Plan 02)*
