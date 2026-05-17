@@ -230,11 +230,10 @@ router.put('/api/recipes/:id', function (req, res) {
 
   // D-02 activation guardrail — enforce server-side (Pitfall 7, T-13-04)
   if (payload.status === 'active') {
-    var price = parseFloat(payload.locked_price);
     var ingCount = parseInt(payload.ingredient_count, 10) || 0;
-    if (!(price > 0) || ingCount < 1) {
+    if (ingCount < 1) {
       return res.status(422).json({
-        error: 'Cannot activate recipe: locked_price must be set and at least one ingredient must exist'
+        error: 'Cannot activate recipe: at least one ingredient must exist'
       });
     }
   }

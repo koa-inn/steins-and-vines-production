@@ -88,11 +88,12 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
         });
 
         // Compute grand total based on pricing_mode
-        var pricingMode = recipe.pricing_mode || 'locked';
+        var hasLockedPrice = Number(recipe.locked_price) > 0;
+        var pricingMode = recipe.pricing_mode || (hasLockedPrice ? 'locked' : 'dynamic');
         var grandTotal = 0;
 
-        if (pricingMode === 'locked') {
-          grandTotal = Number(recipe.locked_price) || 0;
+        if (pricingMode === 'locked' && hasLockedPrice) {
+          grandTotal = Number(recipe.locked_price);
           if (body.sale_type === 'take-out' && millGrain) {
             if (!process.env.MILLING_FEE_ITEM_ID) {
               return res.status(400).json({ error: 'Milling fee not configured. Contact admin.' });
@@ -281,10 +282,11 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
 
         // Determine authoritative grand total based on pricing_mode
         // Invoice line items always use per-ingredient rates for inventory deduction
-        var pricingMode = recipe.pricing_mode || 'locked';
+        var hasLockedPrice = Number(recipe.locked_price) > 0;
+        var pricingMode = recipe.pricing_mode || (hasLockedPrice ? 'locked' : 'dynamic');
         var grandTotal;
-        if (pricingMode === 'locked') {
-          grandTotal = Number(recipe.locked_price) || 0;
+        if (pricingMode === 'locked' && hasLockedPrice) {
+          grandTotal = Number(recipe.locked_price);
           // For take-out with milling, add milling fee on top of locked price
           if (body.sale_type === 'take-out' && millGrain) {
             var millingLineItem = lineItems.find(function (li) { return li.item_id === process.env.MILLING_FEE_ITEM_ID; });

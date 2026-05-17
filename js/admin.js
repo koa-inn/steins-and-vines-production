@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T15:35:27.430Z';
+  var BUILD_TIMESTAMP = '2026-05-17T15:57:35.865Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8500,13 +8500,6 @@
 
   // Activation guardrail (D-02)
   function canActivateRecipe(formData, ingredients) {
-    var mode = formData.pricing_mode || 'locked';
-    if (mode === 'locked') {
-      var price = parseFloat(formData.locked_price);
-      if (!(price > 0)) {
-        return { ok: false, reason: 'Set a locked price before activating this recipe.' };
-      }
-    }
     if (!ingredients || ingredients.length === 0) {
       return { ok: false, reason: 'Add at least one ingredient before activating this recipe.' };
     }
@@ -9748,8 +9741,9 @@
       html += '<div class="kiosk-type-badge kiosk-type-badge--kit">Recipe</div>';
       html += '<div class="kiosk-product-name">' + (r.name || '') + '</div>';
       html += '<div class="kiosk-product-sku">' + (r.style || '') + (r.abv ? ' &middot; ' + r.abv + '%' : '') + '</div>';
-      html += '<div class="kiosk-product-price">' + kioskFmt(r.locked_price) + '</div>';
-      html += '<div class="kiosk-product-stock">incl. brewing fee</div>';
+      var hasPrice = Number(r.locked_price) > 0;
+      html += '<div class="kiosk-product-price">' + (hasPrice ? kioskFmt(r.locked_price) : 'Market price') + '</div>';
+      html += '<div class="kiosk-product-stock">' + (hasPrice ? 'incl. brewing fee' : 'based on ingredients') + '</div>';
       html += '</div></div>';
     });
     grid.innerHTML = html;
@@ -9789,8 +9783,12 @@
       summaryHtml += (recipe.style || '') + (recipe.abv ? ' &middot; ' + recipe.abv + '% ABV' : '');
       summaryHtml += '</div>';
       summaryHtml += '<div style="font-size:1.1rem;font-weight:700;color:var(--barrel);margin:0.5rem 0;">';
-      if (recipe.pricing_mode === 'dynamic') {
-        summaryHtml += kioskFmt(recipe.locked_price) + ' est. per batch (price based on current ingredient rates)';
+      var hasLockedPrice = Number(recipe.locked_price) > 0;
+      var isDynamic = recipe.pricing_mode === 'dynamic' || !hasLockedPrice;
+      if (isDynamic && hasLockedPrice) {
+        summaryHtml += kioskFmt(recipe.locked_price) + ' est. per batch (price based on ingredients)';
+      } else if (isDynamic) {
+        summaryHtml += 'Price based on current ingredient rates';
       } else {
         summaryHtml += kioskFmt(recipe.locked_price) + ' per batch';
       }
@@ -9895,9 +9893,8 @@
       return;
     }
 
-    // Show button with price
     var price = parseFloat(_kioskSelectedRecipe.locked_price) || 0;
-    addBtn.textContent = 'Add to Cart — ' + kioskFmt(price);
+    addBtn.textContent = price > 0 ? 'Add to Cart — ' + kioskFmt(price) : 'Add to Cart';
     addBtn.style.display = '';
   }
 
@@ -9977,14 +9974,15 @@
         sale_type: _kioskSaleType,
         mill_grain: _kioskMillGrain,
         locked_price: recipe.locked_price,
-        pricing_mode: fullRecipe.pricing_mode || recipe.pricing_mode || 'locked',
+        pricing_mode: fullRecipe.pricing_mode || recipe.pricing_mode || (Number(recipe.locked_price) > 0 ? 'locked' : 'dynamic'),
         ingredients: ingredients
       };
 
       var saleLabel = _kioskSaleType === 'in-store' ? 'Ferment in Store' : 'Take Out';
       var recipeName = escapeHTML(recipe.name || recipe.recipe_id);
-      var isDynamic = (fullRecipe.pricing_mode || recipe.pricing_mode || 'locked') === 'dynamic';
-      var displayName = recipeName + ' (' + saleLabel + ')' + (isDynamic ? ' (est.)' : '');
+      var hasLP = Number(recipe.locked_price) > 0;
+      var isDynamic = (fullRecipe.pricing_mode || recipe.pricing_mode) === 'dynamic' || !hasLP;
+      var displayName = recipeName + ' (' + saleLabel + ')' + (isDynamic ? ' (price at checkout)' : '');
       _kioskCart['recipe-sale'] = {
         item: {
           item_id: recipe.recipe_id,
