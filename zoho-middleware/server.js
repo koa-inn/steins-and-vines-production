@@ -389,6 +389,7 @@ app.use('/', require('./routes/purchaseorders'));
 app.use('/', require('./routes/consignment'));
 app.use('/', require('./routes/discounts'));
 app.use('/', require('./routes/promo'));
+app.use('/', require('./routes/recipes'));
 app.use(require('./routes/webhooks'));
 
 // Sentry error handler (must be after routes, before other error handlers)
