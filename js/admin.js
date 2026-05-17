@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T20:48:32.033Z';
+  var BUILD_TIMESTAMP = '2026-05-17T22:20:01.148Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8804,8 +8804,8 @@
       var results = filterIngredientCatalog(ing.beerxml_name);
       var best = results.length > 0 ? results[0] : null;
       var confidence = best ? (results.length === 1 ? 'high' : 'low') : 'none';
-      var quantity = ing.beerxml_type === 'hop' ? (ing.amount_kg * 1000)
-                     : ing.beerxml_type === 'yeast' ? 1
+      var quantity = ing.beerxml_type === 'yeast' ? 1
+                     : ing.unit === 'g' ? Math.round(ing.amount_kg * 1000 * 1000) / 1000
                      : ing.amount_kg;
       return {
         beerxml_name:   ing.beerxml_name,
@@ -8857,6 +8857,9 @@
       }
       var matched = autoMatchIngredients(parsed);
       showBeerXMLReviewModal(parsed, matched);
+    };
+    reader.onerror = function () {
+      showToast('Failed to read the file. Please try again.', 'error');
     };
     reader.readAsText(file);
   }

@@ -382,4 +382,36 @@ describe('autoMatchIngredients', function () {
     expect(result).toHaveLength(1);
     expect(result[0].quantity).toBe(1);
   });
+
+  test('sets misc weight quantity to amount_kg * 1000 (grams)', function () {
+    var parsed = {
+      ingredients: [
+        { beerxml_name: 'Irish Moss', beerxml_type: 'misc', amount_kg: 0.007, amount_display: '7.0 g', unit: 'g' }
+      ]
+    };
+    var result = admin.autoMatchIngredients(parsed);
+    expect(result).toHaveLength(1);
+    expect(result[0].quantity).toBe(7);
+  });
+
+  test('sets misc volume quantity to raw amount_kg', function () {
+    var parsed = {
+      ingredients: [
+        { beerxml_name: 'Lactic Acid', beerxml_type: 'misc', amount_kg: 0.005, amount_display: '0.005 L', unit: 'L' }
+      ]
+    };
+    var result = admin.autoMatchIngredients(parsed);
+    expect(result).toHaveLength(1);
+    expect(result[0].quantity).toBe(0.005);
+  });
+
+  test('avoids floating-point precision artifacts in gram quantities', function () {
+    var parsed = {
+      ingredients: [
+        { beerxml_name: 'Cascade Hops', beerxml_type: 'hop', amount_kg: 0.0142, amount_display: '14.2 g', unit: 'g' }
+      ]
+    };
+    var result = admin.autoMatchIngredients(parsed);
+    expect(result[0].quantity).toBe(14.2);
+  });
 });
