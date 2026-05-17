@@ -321,7 +321,7 @@ Plans:
 
 Plans:
 **Wave 1** *(no dependencies)*
-- [ ] 15-01-PLAN.md -- TDD: parseBeerXML and autoMatchIngredients pure functions with unit tests (fermentable/hop/yeast/misc extraction, kg/g/pcs conversion, fuzzy catalog matching with confidence scoring)
+- [x] 15-01-PLAN.md -- TDD: parseBeerXML and autoMatchIngredients pure functions with unit tests (fermentable/hop/yeast/misc extraction, kg/g/pcs conversion, fuzzy catalog matching with confidence scoring)
 
 **Wave 2** *(depends on Wave 1 -- needs parser and matcher functions)*
 - [ ] 15-02-PLAN.md -- Import UI: admin.html button + file input, CSS confidence badges and review table styles, validateAndReadBeerXML + showBeerXMLReviewModal + confirmBeerXMLImport in admin.js, build, human verification
@@ -333,4 +333,4 @@ Plans:
 | 12. Recipe Data Foundation | v2.0 | 2/2 | Complete    | 2026-05-16 |
 | 13. Middleware API + Admin Recipe Management | v2.0 | 4/4 | Complete   | 2026-05-17 |
 | 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 5/5 | Complete    | 2026-05-17 |
-| 15. BeerXML Import | v2.0 | 0/2 | Not started | - |
+| 15. BeerXML Import | v2.0 | 1/2 | In Progress|  |

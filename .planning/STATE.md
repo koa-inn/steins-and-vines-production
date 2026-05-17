@@ -4,7 +4,7 @@ milestone: v2.0
 milestone_name: Recipe-Based Products
 status: executing
 stopped_at: "Phase 14 Plan 05 Task 1 complete — checkpoint:human-verify awaiting staging sign-off"
-last_updated: "2026-05-17T20:28:07.661Z"
+last_updated: "2026-05-17T20:37:36.436Z"
 last_activity: 2026-05-17 -- Phase 15 execution started
 progress:
   total_phases: 11
@@ -21,11 +21,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-09)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 15 — BeerXML Import
+**Current focus:** Phase 15 — beerxml-import
 
 ## Current Position
 
-Phase: 15 (BeerXML Import) — EXECUTING
+Phase: 15 (beerxml-import) — EXECUTING
 Plan: 1 of 2
 Status: Executing Phase 15
 Last activity: 2026-05-17 -- Phase 15 execution started
