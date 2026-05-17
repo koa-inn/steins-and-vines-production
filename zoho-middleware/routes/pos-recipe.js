@@ -90,6 +90,7 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
         // Compute grand total based on pricing_mode
         var hasLockedPrice = Number(recipe.locked_price) > 0;
         var pricingMode = recipe.pricing_mode || (hasLockedPrice ? 'locked' : 'dynamic');
+        log.info('[recipe-sale] pricing_mode=' + pricingMode + ' (raw=' + recipe.pricing_mode + ') locked_price=' + recipe.locked_price + ' hasLockedPrice=' + hasLockedPrice);
         var grandTotal = 0;
 
         if (pricingMode === 'locked' && hasLockedPrice) {
@@ -127,6 +128,7 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
         }
 
         grandTotal = Math.round(grandTotal * 100) / 100;
+        log.info('[recipe-sale] grandTotal=' + grandTotal + ' pricingMode=' + pricingMode);
 
         // Acquire Redis mutex before terminal push (D-04, INV-02)
         cache.acquireLock(C.LOCK_KEYS.RECIPE_SALE, 30).then(function (acquired) {

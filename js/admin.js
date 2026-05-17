@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T16:07:19.693Z';
+  var BUILD_TIMESTAMP = '2026-05-17T16:17:11.959Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -9982,12 +9982,12 @@
       var recipeName = escapeHTML(recipe.name || recipe.recipe_id);
       var hasLP = Number(recipe.locked_price) > 0;
       var isDynamic = (fullRecipe.pricing_mode || recipe.pricing_mode) === 'dynamic' || !hasLP;
-      var displayName = recipeName + ' (' + saleLabel + ')' + (isDynamic ? ' (price at checkout)' : '');
+      var displayName = recipeName + ' (' + saleLabel + ')' + (isDynamic ? ' — price at checkout' : '');
       _kioskCart['recipe-sale'] = {
         item: {
           item_id: recipe.recipe_id,
           name: displayName,
-          rate: parseFloat(recipe.locked_price) || 0,
+          rate: isDynamic ? 0 : (parseFloat(recipe.locked_price) || 0),
           tax_percentage: 0,
           product_type: 'recipe',
           _recipe_sale: true
