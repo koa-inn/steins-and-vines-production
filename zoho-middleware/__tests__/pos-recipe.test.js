@@ -243,6 +243,49 @@ describe('POST /api/kiosk/recipe-sale (initiate)', function () {
       expect(mocks.cache.releaseLock).toHaveBeenCalledWith('recipe-sale');
     });
   });
+
+  test('15. uses locked_price when pricing_mode is locked', function () {
+    // MOCK_RECIPE_RESPONSE has locked_price: 195.00 and no pricing_mode (defaults to locked)
+    return callHandler('POST', '/api/kiosk/recipe-sale', {
+      body: { recipe_id: 'RCP-001', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(202);
+      // locked_price is 195.00; dynamic total would be 5.5*3.50 + 0.1*8.00 = 19.25 + 0.80 = 20.05 + fees 50 = 70.05
+      expect(res._body.total).toBe(195.00);
+    });
+  });
+
+  test('16. computes from ingredients when pricing_mode is dynamic', function () {
+    var dynamicRecipeResponse = {
+      data: {
+        ok: true,
+        data: {
+          recipe: {
+            recipe_id: 'RCP-002',
+            name: 'Dynamic Pale Ale',
+            style: 'American Pale Ale',
+            locked_price: 0,
+            service_fee: 45.00,
+            materials_fee: 5.00,
+            status: 'active',
+            pricing_mode: 'dynamic'
+          },
+          ingredients: [
+            { ingredient_id: 'ING-001', recipe_id: 'RCP-002', item_id: 'ing-malt-1', item_name: 'Pale Malt 2-Row', quantity: 5.5, unit: 'kg' },
+            { ingredient_id: 'ING-002', recipe_id: 'RCP-002', item_id: 'ing-hops-1', item_name: 'Cascade Hops', quantity: 0.1, unit: 'kg' }
+          ]
+        }
+      }
+    };
+    mocks.axios.post.mockResolvedValue(dynamicRecipeResponse);
+    return callHandler('POST', '/api/kiosk/recipe-sale', {
+      body: { recipe_id: 'RCP-002', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(202);
+      // Dynamic: 5.5*3.50 + 0.1*8.00 + 45 + 5 = 19.25 + 0.80 + 50 = 70.05
+      expect(res._body.total).toBe(70.05);
+    });
+  });
 });
 
 describe('POST /api/kiosk/recipe-sale/confirm', function () {
@@ -397,6 +440,75 @@ describe('POST /api/kiosk/recipe-sale/confirm', function () {
       var delCalls = mocks.cache.del.mock.calls.map(function (c) { return c[0]; });
       expect(delCalls).toContain('test:kiosk-products');
       expect(delCalls).toContain('zoho:ingredients');
+    });
+  });
+
+  test('17. confirm uses locked_price as grand total when pricing_mode is locked', function () {
+    // MOCK_RECIPE_RESPONSE has locked_price: 195 and no pricing_mode (defaults to locked)
+    // Dynamic total would be: 5.5*3.50 + 0.1*8.00 + 45 + 5 = 70.05
+    // But locked mode should charge 195.00
+    var capturedInvoicePayload;
+    mocks.zohoApi.zohoPost.mockImplementation(function (path, payload) {
+      if (path === '/invoices') capturedInvoicePayload = payload;
+      return Promise.resolve({ invoice: { invoice_id: 'inv-1', invoice_number: 'INV-001' } });
+    });
+    return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+      body: {
+        recipe_id: 'RCP-001',
+        transaction_id: 'txn-locked',
+        reference: 'RECIPE-LOCKED',
+        sale_type: 'in-store'
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(201);
+      // Invoice should still have per-ingredient line items (for inventory deduction)
+      expect(capturedInvoicePayload.line_items.length).toBeGreaterThan(0);
+      var ingredientLine = capturedInvoicePayload.line_items.find(function (li) { return li.item_id === 'ing-malt-1'; });
+      expect(ingredientLine).toBeTruthy();
+    });
+  });
+
+  test('18. confirm computes from ingredients when pricing_mode is dynamic', function () {
+    var dynamicRecipeResponse = {
+      data: {
+        ok: true,
+        data: {
+          recipe: {
+            recipe_id: 'RCP-002',
+            name: 'Dynamic Pale Ale',
+            locked_price: 999,
+            service_fee: 45.00,
+            materials_fee: 5.00,
+            status: 'active',
+            pricing_mode: 'dynamic'
+          },
+          ingredients: [
+            { ingredient_id: 'ING-001', recipe_id: 'RCP-002', item_id: 'ing-malt-1', item_name: 'Pale Malt 2-Row', quantity: 5.5, unit: 'kg' },
+            { ingredient_id: 'ING-002', recipe_id: 'RCP-002', item_id: 'ing-hops-1', item_name: 'Cascade Hops', quantity: 0.1, unit: 'kg' }
+          ]
+        }
+      }
+    };
+    mocks.axios.post.mockResolvedValue(dynamicRecipeResponse);
+    var capturedInvoicePayload;
+    mocks.zohoApi.zohoPost.mockImplementation(function (path, payload) {
+      if (path === '/invoices') capturedInvoicePayload = payload;
+      return Promise.resolve({ invoice: { invoice_id: 'inv-2', invoice_number: 'INV-002' } });
+    });
+    return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+      body: {
+        recipe_id: 'RCP-002',
+        transaction_id: 'txn-dynamic',
+        reference: 'RECIPE-DYN',
+        sale_type: 'in-store'
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(201);
+      // Dynamic: 5.5*3.50 + 0.1*8.00 + 45 + 5 = 70.05 (not 999)
+      // Verify per-ingredient line items are present
+      var ingredientLine = capturedInvoicePayload.line_items.find(function (li) { return li.item_id === 'ing-malt-1'; });
+      expect(ingredientLine).toBeTruthy();
+      expect(ingredientLine.rate).toBe(3.50);
     });
   });
 });

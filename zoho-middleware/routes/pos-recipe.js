@@ -87,27 +87,41 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
           if (item && item.item_id) catalogMap[item.item_id] = item;
         });
 
-        // Sum ingredient rates
+        // Compute grand total based on pricing_mode
+        var pricingMode = recipe.pricing_mode || 'locked';
         var grandTotal = 0;
-        for (var i = 0; i < ingredients.length; i++) {
-          var ing = ingredients[i];
-          var catalogEntry = catalogMap[ing.item_id];
-          if (catalogEntry) {
-            grandTotal += (Number(ing.quantity) || 0) * (Number(catalogEntry.rate) || 0);
-          }
-        }
 
-        // Add applicable fees
-        if (body.sale_type === 'in-store') {
-          grandTotal += Number(recipe.service_fee) || 0;
-          grandTotal += Number(recipe.materials_fee) || 0;
-        } else if (body.sale_type === 'take-out' && millGrain) {
-          if (!process.env.MILLING_FEE_ITEM_ID) {
-            return res.status(400).json({ error: 'Milling fee not configured. Contact admin.' });
+        if (pricingMode === 'locked') {
+          grandTotal = Number(recipe.locked_price) || 0;
+          if (body.sale_type === 'take-out' && millGrain) {
+            if (!process.env.MILLING_FEE_ITEM_ID) {
+              return res.status(400).json({ error: 'Milling fee not configured. Contact admin.' });
+            }
+            var millingEntry = catalogMap[process.env.MILLING_FEE_ITEM_ID];
+            if (millingEntry) {
+              grandTotal += Number(millingEntry.rate) || 0;
+            }
           }
-          var millingEntry = catalogMap[process.env.MILLING_FEE_ITEM_ID];
-          if (millingEntry) {
-            grandTotal += Number(millingEntry.rate) || 0;
+        } else {
+          // Dynamic: sum ingredient catalog rates + applicable fees
+          for (var i = 0; i < ingredients.length; i++) {
+            var ing = ingredients[i];
+            var catalogEntry = catalogMap[ing.item_id];
+            if (catalogEntry) {
+              grandTotal += (Number(ing.quantity) || 0) * (Number(catalogEntry.rate) || 0);
+            }
+          }
+          if (body.sale_type === 'in-store') {
+            grandTotal += Number(recipe.service_fee) || 0;
+            grandTotal += Number(recipe.materials_fee) || 0;
+          } else if (body.sale_type === 'take-out' && millGrain) {
+            if (!process.env.MILLING_FEE_ITEM_ID) {
+              return res.status(400).json({ error: 'Milling fee not configured. Contact admin.' });
+            }
+            var millingEntry = catalogMap[process.env.MILLING_FEE_ITEM_ID];
+            if (millingEntry) {
+              grandTotal += Number(millingEntry.rate) || 0;
+            }
           }
         }
 
@@ -207,15 +221,15 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
           if (item && item.item_id) catalogMap[item.item_id] = item;
         });
 
-        // Build invoice line items — one per ingredient (D-06, D-07, INV-01)
-        var grandTotal = 0;
+        // Build invoice line items — always per-ingredient for Zoho inventory deduction (D-06, D-07, INV-01)
+        var dynamicTotal = 0;
         var lineItems = [];
         for (var i = 0; i < ingredients.length; i++) {
           var ing = ingredients[i];
           var catalogEntry = catalogMap[ing.item_id];
           var ingredientRate = catalogEntry ? (Number(catalogEntry.rate) || 0) : 0;
           var ingredientQty = Number(ing.quantity) || 0;
-          grandTotal += ingredientQty * ingredientRate;
+          dynamicTotal += ingredientQty * ingredientRate;
           var li = {
             item_id: ing.item_id,
             name: ing.item_name,
@@ -228,12 +242,12 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
           lineItems.push(li);
         }
 
-        // Add applicable fee line items
+        // Add applicable fee line items (always added to invoice for record-keeping)
         if (body.sale_type === 'in-store') {
           var serviceFee = Number(recipe.service_fee) || 0;
           var materialsFee = Number(recipe.materials_fee) || 0;
-          grandTotal += serviceFee;
-          grandTotal += materialsFee;
+          dynamicTotal += serviceFee;
+          dynamicTotal += materialsFee;
           if (process.env.MAKERS_FEE_ITEM_ID) {
             lineItems.push({
               item_id: process.env.MAKERS_FEE_ITEM_ID,
@@ -256,13 +270,28 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
           }
           var millingEntry = catalogMap[process.env.MILLING_FEE_ITEM_ID];
           var millingRate = millingEntry ? (Number(millingEntry.rate) || 0) : 0;
-          grandTotal += millingRate;
+          dynamicTotal += millingRate;
           lineItems.push({
             item_id: process.env.MILLING_FEE_ITEM_ID,
             name: 'Milling Fee',
             quantity: 1,
             rate: millingRate
           });
+        }
+
+        // Determine authoritative grand total based on pricing_mode
+        // Invoice line items always use per-ingredient rates for inventory deduction
+        var pricingMode = recipe.pricing_mode || 'locked';
+        var grandTotal;
+        if (pricingMode === 'locked') {
+          grandTotal = Number(recipe.locked_price) || 0;
+          // For take-out with milling, add milling fee on top of locked price
+          if (body.sale_type === 'take-out' && millGrain) {
+            var millingLineItem = lineItems.find(function (li) { return li.item_id === process.env.MILLING_FEE_ITEM_ID; });
+            if (millingLineItem) grandTotal += millingLineItem.rate || 0;
+          }
+        } else {
+          grandTotal = dynamicTotal;
         }
 
         grandTotal = Math.round(grandTotal * 100) / 100;
