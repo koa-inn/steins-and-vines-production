@@ -940,7 +940,7 @@
     var resultCount = document.getElementById('kiosk-result-count');
 
     if (prodGrid) prodGrid.style.display = mode === 'products' ? '' : 'none';
-    if (recipeGrid) recipeGrid.style.display = mode === 'recipes' ? '' : 'none';
+    if (recipeGrid) recipeGrid.style.display = mode === 'recipes' ? 'grid' : 'none';
     if (recipePrompt) recipePrompt.style.display = 'none';
     if (searchBar) searchBar.style.display = mode === 'products' ? '' : 'none';
     if (filterBar) filterBar.style.display = mode === 'products' ? '' : 'none';

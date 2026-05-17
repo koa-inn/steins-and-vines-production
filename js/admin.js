@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T14:23:59.702Z';
+  var BUILD_TIMESTAMP = '2026-05-17T14:49:13.357Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -9670,7 +9670,7 @@
 
     // Toggle visibility
     if (prodGrid) prodGrid.style.display = mode === 'products' ? '' : 'none';
-    if (recipeGrid) recipeGrid.style.display = mode === 'recipes' ? '' : 'none';
+    if (recipeGrid) recipeGrid.style.display = mode === 'recipes' ? 'grid' : 'none';
     if (recipePrompt) recipePrompt.style.display = 'none'; // always hide prompt on mode switch
     if (searchBar) searchBar.style.display = mode === 'products' ? '' : 'none';
 
