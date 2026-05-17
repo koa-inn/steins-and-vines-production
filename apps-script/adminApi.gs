@@ -223,6 +223,16 @@ function doPost(e) {
         _invalidateRecipeCache(recipeResult.recipe_id);
         return _jsonResponse(recipeResult);
       }
+      if (action === 'update_recipe') {
+        var updateResult = updateRecipe(payload, 'middleware');
+        _invalidateRecipeCache(payload.recipe_id);
+        return _jsonResponse(updateResult);
+      }
+      if (action === 'delete_recipe') {
+        var deleteResult = deleteRecipe(payload, 'middleware');
+        _invalidateRecipeCache(payload.recipe_id);
+        return _jsonResponse(deleteResult);
+      }
       return _jsonResponse({ ok: false, error: 'invalid_action', message: 'Unknown server action: ' + action });
     }
 
