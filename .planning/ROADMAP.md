@@ -293,7 +293,7 @@ Plans:
   3. A completed recipe sale creates a Zoho invoice with one line item per ingredient plus a brewing fee line item, and each ingredient's stock level in Zoho Inventory decreases by the recipe quantity
   4. Within 30 seconds of a successful recipe sale, exactly one new batch appears in BrewPad — linked to the recipe ID, carrying the full ingredient snapshot at time of sale, and showing the Zoho SO number
   5. If payment fails or is cancelled after ingredients are reserved, reserved ingredient quantities are released and no partial batch is created
-**Plans:** 5 plans
+**Plans:** 2/5 plans executed
 **UI hint**: yes
 
 Plans:
@@ -303,7 +303,7 @@ Plans:
 
 **Wave 2** *(depends on Wave 1 Plan 02)*
 - [ ] 14-03-PLAN.md -- Kiosk recipe browser UI: mode toggle, recipe cards, sale-type prompt, availability check, cart population, checkout routing in admin.js + admin.html
-- [ ] 14-04-PLAN.md -- Recipe browser CSS: mode toggle, sale-type buttons, availability banners, milling toggle styles in kiosk.css
+- [x] 14-04-PLAN.md -- Recipe browser CSS: mode toggle, sale-type buttons, availability banners, milling toggle styles in kiosk.css
 
 **Wave 3** *(depends on all Wave 1 + Wave 2)*
 - [ ] 14-05-PLAN.md -- Integration verification: full test suite, lint, build, staging deploy, human verification of recipe sale flow
@@ -325,5 +325,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 12. Recipe Data Foundation | v2.0 | 2/2 | Complete    | 2026-05-16 |
 | 13. Middleware API + Admin Recipe Management | v2.0 | 4/4 | Complete   | 2026-05-17 |
-| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 1/5 | In progress | - |
+| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 2/5 | In Progress|  |
 | 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |
