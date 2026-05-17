@@ -75,11 +75,41 @@ function enrichWithComputedPrice(recipe, ingredients) {
     var total = 0;
     (ingredients || []).forEach(function (ing) {
       var entry = map[ing.item_id];
-      if (entry) total += (Number(ing.quantity) || 0) * (Number(entry.rate) || 0);
+      if (entry) {
+        ing.rate = Number(entry.rate) || 0;
+        ing.tax_id = entry.sales_tax_rule_id || entry.tax_id || '';
+        total += (Number(ing.quantity) || 0) * ing.rate;
+      }
     });
     total += Number(recipe.service_fee) || 0;
     total += Number(recipe.materials_fee) || 0;
     recipe.computed_price = Math.round(total * 100) / 100;
+  }).catch(function () {});
+}
+
+function enrichListPrices(recipes) {
+  var dynamicRecipes = recipes.filter(function (r) { return r.pricing_mode === 'dynamic'; });
+  if (dynamicRecipes.length === 0) return Promise.resolve();
+
+  return cache.get(C.CACHE_KEYS.INGREDIENTS).then(function (catalog) {
+    if (!catalog || !Array.isArray(catalog)) return;
+    var map = {};
+    catalog.forEach(function (item) { if (item && item.item_id) map[item.item_id] = item; });
+
+    return Promise.all(dynamicRecipes.map(function (recipe) {
+      var detailKey = C.CACHE_KEYS.RECIPES + ':' + recipe.recipe_id;
+      return cache.get(detailKey).then(function (detail) {
+        if (!detail || !detail.ingredients) return;
+        var total = 0;
+        detail.ingredients.forEach(function (ing) {
+          var entry = map[ing.item_id];
+          if (entry) total += (Number(ing.quantity) || 0) * (Number(entry.rate) || 0);
+        });
+        total += Number(recipe.service_fee) || 0;
+        total += Number(recipe.materials_fee) || 0;
+        recipe.computed_price = Math.round(total * 100) / 100;
+      }).catch(function () {});
+    }));
   }).catch(function () {});
 }
 
@@ -96,7 +126,9 @@ router.get('/api/recipes', function (req, res) {
   cache.get(cacheKey).then(function (cached) {
     if (cached && cached.recipes) {
       log.info('[api/recipes] Cache hit status=' + status);
-      return res.json({ source: 'cache', recipes: cached.recipes, total: cached.total });
+      return enrichListPrices(cached.recipes).then(function () {
+        res.json({ source: 'cache', recipes: cached.recipes, total: cached.total });
+      });
     }
     return callAppsScriptPost('get_recipes', { status: status, limit: limit, offset: offset })
       .then(function (data) {
@@ -109,7 +141,10 @@ router.get('/api/recipes', function (req, res) {
           cache.set(cacheKey, payload, RECIPES_CACHE_TTL);
           cache.set(C.CACHE_KEYS.RECIPES_TS, Date.now(), RECIPES_CACHE_TTL);
         }
-        res.json({ source: 'apps-script', recipes: payload.recipes || [], total: payload.total || 0 });
+        var recipeList = payload.recipes || [];
+        return enrichListPrices(recipeList).then(function () {
+          res.json({ source: 'apps-script', recipes: recipeList, total: payload.total || 0 });
+        });
       });
   }).catch(function (err) {
     log.error('[api/recipes] ' + err.message);
