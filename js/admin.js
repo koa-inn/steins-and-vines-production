@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T18:53:54.209Z';
+  var BUILD_TIMESTAMP = '2026-05-17T19:00:17.692Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -10172,10 +10172,8 @@
       kioskRenderCart();
     }
 
-    // Reuse data fetched during kioskShowRecipePrompt if available (Bug 3 cache)
-    if (recipe._fetchedDetail) {
-      processRecipeData(recipe._fetchedDetail);
-    } else {
+    // Always fetch fresh to ensure tax rates and prices are current
+    {
       var mw = kioskMwUrl();
       var headers = {};
       if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {

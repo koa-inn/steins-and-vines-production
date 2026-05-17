@@ -1485,10 +1485,8 @@
       kioskRenderCart();
     }
 
-    // Reuse data fetched during kioskShowRecipePrompt if available (Bug 3 cache)
-    if (recipe._fetchedDetail) {
-      processRecipeData(recipe._fetchedDetail);
-    } else {
+    // Always fetch fresh to ensure tax rates and prices are current
+    {
       var mw = kioskMwUrl();
       fetch(mw + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), {
         headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
