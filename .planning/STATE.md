@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Recipe-Based Products
-status: ready_to_execute
-stopped_at: Phase 14 planned
-last_updated: "2026-05-17T18:00:00.000Z"
-last_activity: 2026-05-17 -- Phase 14 planned (5 plans in 4 waves)
+status: executing
+stopped_at: Phase 14 UI-SPEC approved
+last_updated: "2026-05-17T13:35:49.441Z"
+last_activity: 2026-05-17 -- Phase 14 execution started
 progress:
   total_phases: 11
   completed_phases: 2
   total_plans: 11
-  completed_plans: 6
-  percent: 55
+  completed_plans: 7
+  percent: 64
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-09)
 
 ## Current Position
 
-Phase: 14 (Kiosk Recipe Sales, Inventory, and Batch Creation) — PLANNED
-Plan: 0 of 5
-Status: Ready to execute (5 plans in 4 waves)
-Last activity: 2026-05-17 -- Phase 14 planned
+Phase: 14 (Kiosk Recipe Sales, Inventory, and Batch Creation) — EXECUTING
+Plan: 2 of 5
+Status: Executing Phase 14
+Last activity: 2026-05-17 -- Phase 14 Plan 01 completed
 
 Progress: [#####░░░░░] 55%
 
@@ -58,6 +58,9 @@ Progress: [#####░░░░░] 55%
 - [13-02]: Method+path composite key in test mocks to avoid handler collision on shared path patterns
 - [13-03]: Recipes tab placed after Batches in tab order (operational flow: recipe -> sale -> batch)
 - [13-03]: initRecipesControls called only from initRecipesTab (no DOMContentLoaded) to prevent double event listener binding
+- [14-01]: detectRecipeSale uses source 'kiosk_recipe' not 'kiosk' — distinguishes recipe batches from kit batches in BrewPad
+- [14-01]: LOCK_KEYS object added as sibling to CACHE_KEYS in constants.js for centralized mutex key management
+- [14-01]: detectRecipeSale .catch(()=>{}) fire-and-forget — Apps Script failure after payment is silent per D-12
 
 ### Pending Todos
 
@@ -71,6 +74,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-17T12:51:27.263Z
-Stopped at: Phase 14 UI-SPEC approved
-Resume file: .planning/phases/14-kiosk-recipe-sales-inventory-batch-creation/14-UI-SPEC.md
+Last session: 2026-05-17T13:40:21Z
+Stopped at: Phase 14 Plan 01 complete
+Resume file: .planning/phases/14-kiosk-recipe-sales-inventory-batch-creation/14-02-PLAN.md

@@ -298,7 +298,7 @@ Plans:
 
 Plans:
 **Wave 1** *(no dependencies -- run in parallel)*
-- [ ] 14-01-PLAN.md -- Foundation wiring: LOCK_KEYS.RECIPE_SALE constant, MILLING_FEE_ITEM_ID env var, detectRecipeSale() in brewpad-integration.js, unit tests
+- [x] 14-01-PLAN.md -- Foundation wiring: LOCK_KEYS.RECIPE_SALE constant, MILLING_FEE_ITEM_ID env var, detectRecipeSale() in brewpad-integration.js, unit tests
 - [ ] 14-02-PLAN.md -- Recipe sale endpoint: pos-recipe.js with initiate + confirm handlers, mutex, feature gate, void-on-failure, server.js mount, unit tests
 
 **Wave 2** *(depends on Wave 1 Plan 02)*
@@ -325,5 +325,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 12. Recipe Data Foundation | v2.0 | 2/2 | Complete    | 2026-05-16 |
 | 13. Middleware API + Admin Recipe Management | v2.0 | 4/4 | Complete   | 2026-05-17 |
-| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 0/5 | Not started | - |
+| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 1/5 | In progress | - |
 | 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |
