@@ -235,7 +235,7 @@ Plans:
 
 - [x] **Phase 12: Recipe Data Foundation** - Recipe schema, Apps Script CRUD, feature flag, and fee item confirmation established before any sale code is written (completed 2026-05-16)
 - [x] **Phase 13: Middleware API + Admin Recipe Management** - Staff can create, edit, and activate recipes via the admin panel; middleware API exposes recipe CRUD and availability checking (completed 2026-05-17)
-- [ ] **Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation** - Staff can select a recipe on the kiosk, process payment, have ingredients deducted from Zoho Inventory, and get a batch auto-created in BrewPad
+- [x] **Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation** - Staff can select a recipe on the kiosk, process payment, have ingredients deducted from Zoho Inventory, and get a batch auto-created in BrewPad (completed 2026-05-17)
 - [ ] **Phase 15: BeerXML Import** - Staff can upload a BeerXML file, review an ingredient-to-SKU mapping table, and save the recipe as a draft without manual data entry
 
 ## Phase Details
@@ -293,7 +293,7 @@ Plans:
   3. A completed recipe sale creates a Zoho invoice with one line item per ingredient plus a brewing fee line item, and each ingredient's stock level in Zoho Inventory decreases by the recipe quantity
   4. Within 30 seconds of a successful recipe sale, exactly one new batch appears in BrewPad — linked to the recipe ID, carrying the full ingredient snapshot at time of sale, and showing the Zoho SO number
   5. If payment fails or is cancelled after ingredients are reserved, reserved ingredient quantities are released and no partial batch is created
-**Plans:** 3/5 plans executed
+**Plans:** 5/5 plans complete
 **UI hint**: yes
 
 Plans:
@@ -325,5 +325,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 12. Recipe Data Foundation | v2.0 | 2/2 | Complete    | 2026-05-16 |
 | 13. Middleware API + Admin Recipe Management | v2.0 | 4/4 | Complete   | 2026-05-17 |
-| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 4/5 + checkpoint | In Progress (checkpoint) |  |
+| 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 5/5 | Complete   | 2026-05-17 |
 | 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |
