@@ -1121,7 +1121,11 @@
       summaryHtml += escapeHTML(recipe.style || '') + (recipe.abv ? ' &middot; ' + recipe.abv + '% ABV' : '');
       summaryHtml += '</div>';
       summaryHtml += '<div style="font-size:1.1rem;font-weight:700;color:var(--barrel);margin:0.5rem 0;">';
-      summaryHtml += kioskFmt(recipe.locked_price) + ' per batch';
+      if (recipe.pricing_mode === 'dynamic') {
+        summaryHtml += kioskFmt(recipe.locked_price) + ' est. per batch (price based on current ingredient rates)';
+      } else {
+        summaryHtml += kioskFmt(recipe.locked_price) + ' per batch';
+      }
       summaryHtml += '</div>';
       summaryHtml += '<div id="kiosk-recipe-ingredients" style="margin:0.75rem 0;font-size:0.85rem;color:var(--ink-secondary);">Loading ingredients...</div>';
       summaryEl.innerHTML = summaryHtml;
@@ -1283,15 +1287,18 @@
         sale_type: _kioskSaleType,
         mill_grain: _kioskMillGrain,
         locked_price: recipe.locked_price,
+        pricing_mode: fullRecipe.pricing_mode || recipe.pricing_mode || 'locked',
         ingredients: ingredients
       };
 
       var saleLabel = _kioskSaleType === 'in-store' ? 'Ferment in Store' : 'Take Out';
       var recipeName = escapeHTML(recipe.name || recipe.recipe_id);
+      var isDynamic = (fullRecipe.pricing_mode || recipe.pricing_mode || 'locked') === 'dynamic';
+      var displayName = recipeName + ' (' + saleLabel + ')' + (isDynamic ? ' (est.)' : '');
       _kioskCart['recipe-sale'] = {
         item: {
           item_id: recipe.recipe_id,
-          name: recipeName + ' (' + saleLabel + ')',
+          name: displayName,
           rate: parseFloat(recipe.locked_price) || 0,
           tax_percentage: 0,
           product_type: 'recipe',
