@@ -29,10 +29,10 @@ Requirements for recipe-based product system. Each maps to roadmap phases.
 
 ### BeerXML Import
 
-- [ ] **IMP-01**: Staff can upload a BeerXML file (.xml) from any brewing software (BeerSmith, Brewfather, Brewtarget, etc.)
-- [ ] **IMP-02**: Parser extracts fermentables, hops, yeast, and misc ingredients with correct units (kg, using AMOUNT not DISPLAY_AMOUNT)
-- [ ] **IMP-03**: Staff review an ingredient-to-Zoho-SKU mapping table before saving, with manual match/correction per ingredient
-- [ ] **IMP-04**: Imported recipe saves as draft status until staff sets a price and activates it
+- [x] **IMP-01**: Staff can upload a BeerXML file (.xml) from any brewing software (BeerSmith, Brewfather, Brewtarget, etc.)
+- [x] **IMP-02**: Parser extracts fermentables, hops, yeast, and misc ingredients with correct units (kg, using AMOUNT not DISPLAY_AMOUNT)
+- [x] **IMP-03**: Staff review an ingredient-to-Zoho-SKU mapping table before saving, with manual match/correction per ingredient
+- [x] **IMP-04**: Imported recipe saves as draft status until staff sets a price and activates it
 
 ### Kiosk Recipe Sales
 
@@ -102,10 +102,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ADM-01 | Phase 13 | Pending |
 | ADM-02 | Phase 13 | Pending |
 | ADM-03 | Phase 13 | Pending |
-| IMP-01 | Phase 15 | Pending |
-| IMP-02 | Phase 15 | Pending |
-| IMP-03 | Phase 15 | Pending |
-| IMP-04 | Phase 15 | Pending |
+| IMP-01 | Phase 15 | Complete |
+| IMP-02 | Phase 15 | Complete |
+| IMP-03 | Phase 15 | Complete |
+| IMP-04 | Phase 15 | Complete |
 | KSK-01 | Phase 14 | Complete |
 | KSK-02 | Phase 14 | Complete |
 | KSK-03 | Phase 14 | Complete |
