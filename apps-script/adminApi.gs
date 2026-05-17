@@ -167,7 +167,8 @@ function doGet(e) {
 
       // Recipe endpoints
       case 'get_recipes':
-        return _jsonResponse({ ok: true, data: _cachedGet('gr', 300, function() {
+        var recipesCacheKey = 'gr:list:' + (e.parameter.status || 'all') + ':' + limit + ':' + offset;
+        return _jsonResponse({ ok: true, data: _cachedGet(recipesCacheKey, 300, function() {
           return getRecipes(limit, offset, e.parameter.status || 'all');
         })});
 
@@ -2935,7 +2936,10 @@ function testAuth() {
  */
 function _invalidateRecipeCache(recipeId) {
   var cache = CacheService.getScriptCache();
-  var keys = ['gr', 'grl'];
+  var keys = [];
+  ['all', 'draft', 'active', 'inactive'].forEach(function(s) {
+    keys.push('gr:list:' + s + ':0:0');
+  });
   if (recipeId) {
     keys.push('gr:' + recipeId);
   }
@@ -3069,23 +3073,24 @@ function createRecipe(payload, userEmail) {
 
     if (ingredients && ingredients.length > 0) {
       var ingSheet = ss.getSheetByName(RECIPE_INGREDIENTS_SHEET_NAME);
-      if (ingSheet) {
-        for (var i = 0; i < ingredients.length; i++) {
-          try {
-            var ing = ingredients[i];
-            var ingId = generateNextId(RECIPE_INGREDIENTS_SHEET_NAME, 'RI-', 6);
-            ingSheet.appendRow([
-              ingId,
-              recipeId,
-              sanitizeInput(ing.item_id || ''),
-              sanitizeInput(ing.item_name || ''),
-              ing.quantity !== undefined ? Number(ing.quantity) : 0,
-              sanitizeInput(ing.unit || '')
-            ]);
-            ingredientsCreated++;
-          } catch (ingErr) {
-            ingredientErrors.push('Ingredient ' + (i + 1) + ': ' + ingErr.message);
-          }
+      if (!ingSheet) {
+        return { ok: false, error: 'sheet_not_found', message: 'RecipeIngredients sheet not found -- run setupRecipeTabs() first' };
+      }
+      for (var i = 0; i < ingredients.length; i++) {
+        try {
+          var ing = ingredients[i];
+          var ingId = generateNextId(RECIPE_INGREDIENTS_SHEET_NAME, 'RI-', 6);
+          ingSheet.appendRow([
+            ingId,
+            recipeId,
+            sanitizeInput(ing.item_id || ''),
+            sanitizeInput(ing.item_name || ''),
+            ing.quantity !== undefined ? Number(ing.quantity) : 0,
+            sanitizeInput(ing.unit || '')
+          ]);
+          ingredientsCreated++;
+        } catch (ingErr) {
+          ingredientErrors.push('Ingredient ' + (i + 1) + ': ' + ingErr.message);
         }
       }
     }
@@ -3113,51 +3118,142 @@ function updateRecipe(payload, userEmail) {
     return { ok: false, error: 'missing_id', message: 'recipe_id is required' };
   }
 
-  var result = findRowById(RECIPES_SHEET_NAME, payload.recipe_id);
-  if (result.row === -1) {
-    return { ok: false, error: 'not_found', message: 'Recipe not found: ' + payload.recipe_id };
+  var lock = acquireScriptLock(15000);
+  try {
+    var result = findRowById(RECIPES_SHEET_NAME, payload.recipe_id);
+    if (result.row === -1) {
+      return { ok: false, error: 'not_found', message: 'Recipe not found: ' + payload.recipe_id };
+    }
+
+    var headers = result.headers;
+    var sheet = result.sheet;
+    var row = result.row;
+    var now = new Date().toISOString();
+
+    // Update string fields via header lookup
+    var stringFields = ['name', 'style', 'description', 'status', 'notes'];
+    stringFields.forEach(function (field) {
+      if (payload[field] !== undefined) {
+        var col = headers.indexOf(field);
+        if (col !== -1) sheet.getRange(row, col + 1).setValue(sanitizeInput(payload[field]));
+      }
+    });
+
+    // Update numeric fields via header lookup (no sanitizeInput on numbers)
+    var numericFields = ['locked_price', 'service_fee', 'materials_fee', 'batch_size_l', 'abv', 'ibu', 'colour_srm'];
+    numericFields.forEach(function (field) {
+      if (payload[field] !== undefined) {
+        var col = headers.indexOf(field);
+        if (col !== -1) sheet.getRange(row, col + 1).setValue(Number(payload[field]));
+      }
+    });
+
+    // Always update updated_at
+    var luCol = headers.indexOf('updated_at');
+    if (luCol !== -1) sheet.getRange(row, luCol + 1).setValue(now);
+
+    // Replace ingredient list if provided
+    if (payload.ingredients !== undefined) {
+      var ingredients;
+      try {
+        ingredients = typeof payload.ingredients === 'string' ? JSON.parse(payload.ingredients) : payload.ingredients;
+      } catch (e) {
+        return { ok: false, error: 'invalid_data', message: 'Invalid ingredients JSON' };
+      }
+
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var ingSheet = ss.getSheetByName(RECIPE_INGREDIENTS_SHEET_NAME);
+
+      // Delete all existing ingredient rows for this recipe
+      if (ingSheet && ingSheet.getLastRow() > 1) {
+        var ingData = ingSheet.getDataRange().getValues();
+        var ingHeaders = ingData[0];
+        var ridCol = ingHeaders.indexOf('recipe_id');
+        var rowsToDelete = [];
+        for (var i = 1; i < ingData.length; i++) {
+          if (String(ingData[i][ridCol]) === String(payload.recipe_id)) {
+            rowsToDelete.push(i + 1);
+          }
+        }
+        for (var j = rowsToDelete.length - 1; j >= 0; j--) {
+          ingSheet.deleteRow(rowsToDelete[j]);
+        }
+      }
+
+      // Insert new ingredient rows
+      if (ingSheet && ingredients && ingredients.length > 0) {
+        for (var k = 0; k < ingredients.length; k++) {
+          var ing = ingredients[k];
+          var ingId = generateNextId(RECIPE_INGREDIENTS_SHEET_NAME, 'RI-', 6);
+          ingSheet.appendRow([
+            ingId,
+            payload.recipe_id,
+            sanitizeInput(ing.item_id || ''),
+            sanitizeInput(ing.item_name || ''),
+            ing.quantity !== undefined ? Number(ing.quantity) : 0,
+            sanitizeInput(ing.unit || '')
+          ]);
+        }
+      }
+
+      invalidateSheetCache(RECIPE_INGREDIENTS_SHEET_NAME);
+    }
+
+    invalidateSheetCache(RECIPES_SHEET_NAME);
+
+    return { ok: true, message: 'Recipe updated' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * POST: Delete a recipe.
+ * Per D-07: soft-deactivates (status=inactive) if any batch references the recipe.
+ * Hard-deletes (removes rows) if no batch references exist.
+ * @param {Object} payload - recipe_id required
+ * @param {string} userEmail - Authenticated staff email
+ */
+function deleteRecipe(payload, userEmail) {
+  if (!payload.recipe_id) {
+    return { ok: false, error: 'missing_id', message: 'recipe_id is required' };
   }
 
-  var headers = result.headers;
-  var sheet = result.sheet;
-  var row = result.row;
-  var now = new Date().toISOString();
-
-  // Update string fields via header lookup
-  var stringFields = ['name', 'style', 'description', 'status', 'notes'];
-  stringFields.forEach(function (field) {
-    if (payload[field] !== undefined) {
-      var col = headers.indexOf(field);
-      if (col !== -1) sheet.getRange(row, col + 1).setValue(sanitizeInput(payload[field]));
-    }
-  });
-
-  // Update numeric fields via header lookup (no sanitizeInput on numbers)
-  var numericFields = ['locked_price', 'service_fee', 'materials_fee', 'batch_size_l', 'abv', 'ibu', 'colour_srm'];
-  numericFields.forEach(function (field) {
-    if (payload[field] !== undefined) {
-      var col = headers.indexOf(field);
-      if (col !== -1) sheet.getRange(row, col + 1).setValue(Number(payload[field]));
-    }
-  });
-
-  // Always update updated_at
-  var luCol = headers.indexOf('updated_at');
-  if (luCol !== -1) sheet.getRange(row, luCol + 1).setValue(now);
-
-  // Replace ingredient list if provided
-  if (payload.ingredients !== undefined) {
-    var ingredients;
-    try {
-      ingredients = typeof payload.ingredients === 'string' ? JSON.parse(payload.ingredients) : payload.ingredients;
-    } catch (e) {
-      return { ok: false, error: 'invalid_data', message: 'Invalid ingredients JSON' };
+  var lock = acquireScriptLock(15000);
+  try {
+    var result = findRowById(RECIPES_SHEET_NAME, payload.recipe_id);
+    if (result.row === -1) {
+      return { ok: false, error: 'not_found', message: 'Recipe not found: ' + payload.recipe_id };
     }
 
+    // Check if any batch references this recipe
+    var batches = sheetToObjects(BATCHES_SHEET_NAME);
+    var hasReferences = batches.some(function (b) {
+      return String(b.recipe_id || '') === String(payload.recipe_id);
+    });
+
+    if (hasReferences) {
+      // Soft-deactivate: set status to inactive
+      var headers = result.headers;
+      var sheet = result.sheet;
+      var row = result.row;
+      var now = new Date().toISOString();
+
+      var statusCol = headers.indexOf('status');
+      if (statusCol !== -1) sheet.getRange(row, statusCol + 1).setValue('inactive');
+
+      var luCol = headers.indexOf('updated_at');
+      if (luCol !== -1) sheet.getRange(row, luCol + 1).setValue(now);
+
+      invalidateSheetCache(RECIPES_SHEET_NAME);
+
+      return { ok: true, message: 'Recipe deactivated (has batch references)', deactivated: true };
+    }
+
+    // Hard delete: remove ingredient rows first, then the recipe row
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var ingSheet = ss.getSheetByName(RECIPE_INGREDIENTS_SHEET_NAME);
 
-    // Delete all existing ingredient rows for this recipe
     if (ingSheet && ingSheet.getLastRow() > 1) {
       var ingData = ingSheet.getDataRange().getValues();
       var ingHeaders = ingData[0];
@@ -3173,96 +3269,15 @@ function updateRecipe(payload, userEmail) {
       }
     }
 
-    // Insert new ingredient rows
-    if (ingSheet && ingredients && ingredients.length > 0) {
-      for (var k = 0; k < ingredients.length; k++) {
-        var ing = ingredients[k];
-        var ingId = generateNextId(RECIPE_INGREDIENTS_SHEET_NAME, 'RI-', 6);
-        ingSheet.appendRow([
-          ingId,
-          payload.recipe_id,
-          sanitizeInput(ing.item_id || ''),
-          sanitizeInput(ing.item_name || ''),
-          ing.quantity !== undefined ? Number(ing.quantity) : 0,
-          sanitizeInput(ing.unit || '')
-        ]);
-      }
-    }
-
-    invalidateSheetCache(RECIPE_INGREDIENTS_SHEET_NAME);
-  }
-
-  invalidateSheetCache(RECIPES_SHEET_NAME);
-
-  return { ok: true, message: 'Recipe updated' };
-}
-
-/**
- * POST: Delete a recipe.
- * Per D-07: soft-deactivates (status=inactive) if any batch references the recipe.
- * Hard-deletes (removes rows) if no batch references exist.
- * @param {Object} payload - recipe_id required
- * @param {string} userEmail - Authenticated staff email
- */
-function deleteRecipe(payload, userEmail) {
-  if (!payload.recipe_id) {
-    return { ok: false, error: 'missing_id', message: 'recipe_id is required' };
-  }
-
-  var result = findRowById(RECIPES_SHEET_NAME, payload.recipe_id);
-  if (result.row === -1) {
-    return { ok: false, error: 'not_found', message: 'Recipe not found: ' + payload.recipe_id };
-  }
-
-  // Check if any batch references this recipe
-  var batches = sheetToObjects(BATCHES_SHEET_NAME);
-  var hasReferences = batches.some(function (b) {
-    return String(b.recipe_id || '') === String(payload.recipe_id);
-  });
-
-  if (hasReferences) {
-    // Soft-deactivate: set status to inactive
-    var headers = result.headers;
-    var sheet = result.sheet;
-    var row = result.row;
-    var now = new Date().toISOString();
-
-    var statusCol = headers.indexOf('status');
-    if (statusCol !== -1) sheet.getRange(row, statusCol + 1).setValue('inactive');
-
-    var luCol = headers.indexOf('updated_at');
-    if (luCol !== -1) sheet.getRange(row, luCol + 1).setValue(now);
+    result.sheet.deleteRow(result.row);
 
     invalidateSheetCache(RECIPES_SHEET_NAME);
+    invalidateSheetCache(RECIPE_INGREDIENTS_SHEET_NAME);
 
-    return { ok: true, message: 'Recipe deactivated (has batch references)', deactivated: true };
+    return { ok: true, message: 'Recipe deleted', deleted: true };
+  } finally {
+    lock.releaseLock();
   }
-
-  // Hard delete: remove ingredient rows first, then the recipe row
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var ingSheet = ss.getSheetByName(RECIPE_INGREDIENTS_SHEET_NAME);
-
-  if (ingSheet && ingSheet.getLastRow() > 1) {
-    var ingData = ingSheet.getDataRange().getValues();
-    var ingHeaders = ingData[0];
-    var ridCol = ingHeaders.indexOf('recipe_id');
-    var rowsToDelete = [];
-    for (var i = 1; i < ingData.length; i++) {
-      if (String(ingData[i][ridCol]) === String(payload.recipe_id)) {
-        rowsToDelete.push(i + 1);
-      }
-    }
-    for (var j = rowsToDelete.length - 1; j >= 0; j--) {
-      ingSheet.deleteRow(rowsToDelete[j]);
-    }
-  }
-
-  result.sheet.deleteRow(result.row);
-
-  invalidateSheetCache(RECIPES_SHEET_NAME);
-  invalidateSheetCache(RECIPE_INGREDIENTS_SHEET_NAME);
-
-  return { ok: true, message: 'Recipe deleted', deleted: true };
 }
 
 /**
