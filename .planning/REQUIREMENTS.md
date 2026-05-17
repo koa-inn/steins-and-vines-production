@@ -17,9 +17,9 @@ Requirements for recipe-based product system. Each maps to roadmap phases.
 
 ### Middleware Recipe API
 
-- [ ] **API-01**: Middleware exposes GET/POST/PUT/DELETE endpoints for recipe CRUD with Redis caching
-- [ ] **API-02**: Recipe API resolves ingredient references to Zoho item IDs server-side (never trusts client)
-- [ ] **API-03**: Recipe availability endpoint checks all ingredient stock levels against recipe quantities
+- [x] **API-01**: Middleware exposes GET/POST/PUT/DELETE endpoints for recipe CRUD with Redis caching
+- [x] **API-02**: Recipe API resolves ingredient references to Zoho item IDs server-side (never trusts client)
+- [x] **API-03**: Recipe availability endpoint checks all ingredient stock levels against recipe quantities
 
 ### Admin Recipe Management
 
@@ -96,9 +96,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RDM-03 | Phase 12 | Complete |
 | RDM-04 | Phase 12 | Complete |
 | RDM-05 | Phase 12 | Complete |
-| API-01 | Phase 13 | Pending |
-| API-02 | Phase 13 | Pending |
-| API-03 | Phase 13 | Pending |
+| API-01 | Phase 13 | Complete |
+| API-02 | Phase 13 | Complete |
+| API-03 | Phase 13 | Complete |
 | ADM-01 | Phase 13 | Pending |
 | ADM-02 | Phase 13 | Pending |
 | ADM-03 | Phase 13 | Pending |

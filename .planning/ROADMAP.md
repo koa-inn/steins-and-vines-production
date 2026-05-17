@@ -275,7 +275,7 @@ Plans:
 Plans:
 **Wave 1** *(no dependencies -- run in parallel)*
 - [x] 13-01-PLAN.md -- Apps Script bug fixes: CR-01 lock protection on updateRecipe/deleteRecipe, WR-01 hard error on missing sheet, WR-02 dead cache key removal, WR-03 parameterized cache key
-- [ ] 13-02-PLAN.md -- Middleware recipe API: routes/recipes.js with CRUD + availability endpoints, Redis caching, activation guardrail, unit tests, server.js mount
+- [x] 13-02-PLAN.md -- Middleware recipe API: routes/recipes.js with CRUD + availability endpoints, Redis caching, activation guardrail, unit tests, server.js mount
 
 **Wave 2** *(depends on Wave 1 Plan 02)*
 - [ ] 13-03-PLAN.md -- Admin Recipes tab: HTML shell, recipe list/detail/editor views, ingredient autocomplete, availability indicators, activation guardrail, CSS, frontend tests, build
@@ -312,6 +312,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 12. Recipe Data Foundation | v2.0 | 2/2 | Complete    | 2026-05-16 |
-| 13. Middleware API + Admin Recipe Management | v2.0 | 0/4 | Planned | - |
+| 13. Middleware API + Admin Recipe Management | v2.0 | 2/4 | In Progress | - |
 | 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 0/TBD | Not started | - |
 | 15. BeerXML Import | v2.0 | 0/TBD | Not started | - |
