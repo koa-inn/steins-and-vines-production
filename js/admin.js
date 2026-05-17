@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T18:27:05.798Z';
+  var BUILD_TIMESTAMP = '2026-05-17T18:53:54.209Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -10120,13 +10120,13 @@
         if (_kioskSaleType === 'in-store') {
           if (Number(fullRecipe.service_fee) > 0) {
             _kioskCart['recipe-fee-brewing'] = {
-              item: { item_id: 'fee-brewing', name: 'Brewing Fee', rate: parseFloat(fullRecipe.service_fee) || 0, tax_percentage: 0, product_type: 'fee' },
+              item: { item_id: 'fee-brewing', name: 'Brewing Fee', rate: parseFloat(fullRecipe.service_fee) || 0, tax_percentage: Number(fullRecipe.brewing_fee_tax) || 0, product_type: 'fee' },
               qty: 1
             };
           }
           if (Number(fullRecipe.materials_fee) > 0) {
             _kioskCart['recipe-fee-materials'] = {
-              item: { item_id: 'fee-materials', name: 'Materials Fee', rate: parseFloat(fullRecipe.materials_fee) || 0, tax_percentage: 0, product_type: 'fee' },
+              item: { item_id: 'fee-materials', name: 'Materials Fee', rate: parseFloat(fullRecipe.materials_fee) || 0, tax_percentage: Number(fullRecipe.materials_fee_tax) || 0, product_type: 'fee' },
               qty: 1
             };
           }

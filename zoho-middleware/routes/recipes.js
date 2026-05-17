@@ -85,24 +85,21 @@ function enrichWithComputedPrice(recipe, ingredients) {
     total += Number(recipe.service_fee) || 0;
     total += Number(recipe.materials_fee) || 0;
     recipe.computed_price = Math.round(total * 100) / 100;
-    var millingId = process.env.MILLING_FEE_ITEM_ID;
-    if (millingId) {
-      if (map[millingId]) {
-        recipe.milling_fee_rate = Number(map[millingId].rate) || 0;
-        recipe.milling_fee_tax = Number(map[millingId].tax_percentage) || 0;
-      } else {
-        return cache.get(C.CACHE_KEYS.KIOSK_PRODUCTS).then(function (kioskItems) {
-          if (!kioskItems || !Array.isArray(kioskItems)) return;
-          for (var i = 0; i < kioskItems.length; i++) {
-            if (kioskItems[i].item_id === millingId || (kioskItems[i].sku || '').toUpperCase() === millingId.toUpperCase()) {
-              recipe.milling_fee_rate = Number(kioskItems[i].rate) || 0;
-              recipe.milling_fee_tax = Number(kioskItems[i].tax_percentage) || 0;
-              break;
-            }
-          }
-        }).catch(function () {});
+    return cache.get(C.CACHE_KEYS.KIOSK_PRODUCTS).then(function (kioskItems) {
+      if (!kioskItems || !Array.isArray(kioskItems)) return;
+      var feeSkus = { 'BREW-FEE': 'brewing_fee_tax', 'MAT-FEE': 'materials_fee_tax', 'MILLED': 'milling_fee_tax' };
+      var millingId = process.env.MILLING_FEE_ITEM_ID;
+      for (var i = 0; i < kioskItems.length; i++) {
+        var sku = (kioskItems[i].sku || '').toUpperCase();
+        if (feeSkus[sku]) {
+          recipe[feeSkus[sku]] = Number(kioskItems[i].tax_percentage) || 0;
+        }
+        if (sku === 'MILLED' || (millingId && (kioskItems[i].item_id === millingId || sku === millingId.toUpperCase()))) {
+          recipe.milling_fee_rate = Number(kioskItems[i].rate) || 0;
+          recipe.milling_fee_tax = Number(kioskItems[i].tax_percentage) || 0;
+        }
       }
-    }
+    }).catch(function () {});
   }).catch(function () {});
 }
 
