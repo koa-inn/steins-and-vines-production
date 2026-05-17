@@ -278,7 +278,7 @@ Plans:
 - [x] 13-02-PLAN.md -- Middleware recipe API: routes/recipes.js with CRUD + availability endpoints, Redis caching, activation guardrail, unit tests, server.js mount
 
 **Wave 2** *(depends on Wave 1 Plan 02)*
-- [ ] 13-03-PLAN.md -- Admin Recipes tab: HTML shell, recipe list/detail/editor views, ingredient autocomplete, availability indicators, activation guardrail, CSS, frontend tests, build
+- [x] 13-03-PLAN.md -- Admin Recipes tab: HTML shell, recipe list/detail/editor views, ingredient autocomplete, availability indicators, activation guardrail, CSS, frontend tests, build
 
 **Wave 3** *(depends on Wave 1 + Wave 2)*
 - [ ] 13-04-PLAN.md -- Deploy to staging, Apps Script deployment, human verification of full CRUD and availability flow

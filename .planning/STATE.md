@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Recipe-Based Products
 status: executing
-stopped_at: Completed 13-02, ready for 13-03
-last_updated: "2026-05-17T03:04:00Z"
-last_activity: 2026-05-17 -- Phase 13 Plan 02 complete
+stopped_at: Completed 13-03, ready for 13-04
+last_updated: "2026-05-17T03:20:00Z"
+last_activity: 2026-05-17 -- Phase 13 Plan 03 complete
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
-  percent: 67
+  completed_plans: 5
+  percent: 83
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-09)
 ## Current Position
 
 Phase: 13 (Middleware API + Admin Recipe Management) — EXECUTING
-Plan: 3 of 4
-Status: Plan 02 complete, ready for Plan 03
-Last activity: 2026-05-17 -- Phase 13 Plan 02 complete
+Plan: 4 of 4
+Status: Plan 03 complete, ready for Plan 04
+Last activity: 2026-05-17 -- Phase 13 Plan 03 complete
 
-Progress: [######░░░░] 67%
+Progress: [########░░] 83%
 
 ## Performance Metrics
 
@@ -56,6 +56,8 @@ Progress: [######░░░░] 67%
 - [13-02]: Availability returns 'unknown' when ingredient cache is cold rather than triggering blocking Zoho refresh
 - [13-02]: bustRecipeCache clears all 4 status-variant list keys at default pagination (:0:0)
 - [13-02]: Method+path composite key in test mocks to avoid handler collision on shared path patterns
+- [13-03]: Recipes tab placed after Batches in tab order (operational flow: recipe -> sale -> batch)
+- [13-03]: initRecipesControls called only from initRecipesTab (no DOMContentLoaded) to prevent double event listener binding
 
 ### Pending Todos
 
@@ -69,6 +71,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-17T03:04:00Z
-Stopped at: Completed 13-02, ready for 13-03
-Resume file: .planning/phases/13-middleware-api-admin-recipe-management/13-02-SUMMARY.md
+Last session: 2026-05-17T03:20:00Z
+Stopped at: Completed 13-03, ready for 13-04
+Resume file: .planning/phases/13-middleware-api-admin-recipe-management/13-03-SUMMARY.md
