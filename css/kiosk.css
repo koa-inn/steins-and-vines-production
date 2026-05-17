@@ -869,8 +869,6 @@ img {
   font-size: 0.7rem;
   color: var(--ink-tertiary);
 }
-  flex-shrink: 0;
-}
 
 .kiosk-cart-title {
   font-size: 1.1rem;
