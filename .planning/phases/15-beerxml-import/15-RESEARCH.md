@@ -254,15 +254,26 @@ function parseBeerXML(xmlDoc) {
     ingredients:   []
   };
 
-  // FERMENTABLES: AMOUNT in kg per spec
+  // FERMENTABLES: AMOUNT in kg per spec, with lbs detection heuristic per D-08
   var ferms = recipe.getElementsByTagName('FERMENTABLE');
+  var rawFermAmounts = [];
   for (var i = 0; i < ferms.length; i++) {
-    var amtKg = parseFloat(getTagText(ferms[i], 'AMOUNT')) || 0;
+    rawFermAmounts.push(parseFloat(getTagText(ferms[i], 'AMOUNT')) || 0);
+  }
+  // D-08 heuristic: if any single fermentable AMOUNT > 20, all are probably in lbs
+  var LBS_THRESHOLD = 20;
+  var LBS_TO_KG = 0.453592;
+  var fermLooksLikeLbs = rawFermAmounts.some(function (amt) { return amt > LBS_THRESHOLD; });
+
+  for (var i = 0; i < ferms.length; i++) {
+    var rawAmt = rawFermAmounts[i];
+    var amtKg = fermLooksLikeLbs ? rawAmt * LBS_TO_KG : rawAmt;
+    var displaySuffix = fermLooksLikeLbs ? ' (converted from lbs)' : '';
     parsed.ingredients.push({
       beerxml_name:    getTagText(ferms[i], 'NAME'),
       beerxml_type:    'fermentable',
-      amount_kg:       amtKg,
-      amount_display:  amtKg.toFixed(3) + ' kg',
+      amount_kg:       parseFloat(amtKg.toFixed(3)),
+      amount_display:  amtKg.toFixed(3) + ' kg' + displaySuffix,
       unit:            'kg'
     });
   }
@@ -605,30 +616,27 @@ document.body.appendChild(modalEl);
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | BeerSmith exports AMOUNT in kg even when user's settings are imperial | Code Examples / Pitfalls | Fermentable/hop quantities would be ~2.2x too large; D-08 detection logic would need lbs detection heuristic |
+| A1 | BeerSmith exports AMOUNT in kg even when user's settings are imperial | Code Examples / Pitfalls | Fermentable/hop quantities would be ~2.2x too large; D-08 lbs detection heuristic (threshold > 20 for fermentables) catches this case and converts via * 0.453592 |
 | A2 | filterIngredientCatalog(query) returns up to 6 results via `.slice(0,6)` — adequate for auto-matching (take first result) | Architecture / Don't Hand-Roll | If catalog returns 0 results for BeerXML names due to poor naming overlap, all confidence=none; staff must manually assign every row |
 | A3 | The Zoho ingredient catalog uses 'g' as unit for hops and 'kg' for fermentables, making unit-based routing reliable | Code Examples | If catalog mixes units, the unit shown in review table may be wrong; staff review step is the safety net |
 
-**Claims A1-A3 tagged `[ASSUMED]`** — not verified against live Zoho catalog or live BeerSmith export during this session. The review table (IMP-03, D-07) is the safety net for all three: staff confirms quantities and units before save.
+**Claims A1-A3 tagged `[ASSUMED]`** — not verified against live Zoho catalog or live BeerSmith export during this session. The review table (IMP-03, D-07) is the safety net for all three: staff confirms quantities and units before save. A1 is additionally mitigated by the D-08 lbs detection heuristic in parseBeerXML.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Multiple recipes in one BeerXML file**
    - What we know: BeerXML allows `<RECIPES>` to contain multiple `<RECIPE>` elements; BeerSmith export wizard defaults to the selected recipe only but can export all.
-   - What's unclear: Should the planner build a recipe-picker step, or just always use the first?
-   - Recommendation: Per Claude's discretion, import first recipe + show toast "N recipes found; importing the first." This keeps the review flow simple and staff can re-export for other recipes.
+   - RESOLVED: Per Claude's discretion, import first recipe + show toast "N recipes found; importing the first." This keeps the review flow simple and staff can re-export for other recipes.
 
 2. **BeerXML EST_COLOR field units (SRM vs EBC)**
    - What we know: EST_COLOR in BeerXML 1.0 is in SRM. The recipe form has `colour_srm`.
-   - What's unclear: Some BeerSmith setups display EBC (1 SRM ≈ 1.97 EBC). The raw EST_COLOR field is always SRM per spec.
-   - Recommendation: Populate `colour_srm` directly from EST_COLOR; show in review table so staff can correct if needed.
+   - RESOLVED: Populate `colour_srm` directly from EST_COLOR; the raw EST_COLOR field is always SRM per spec. Show in review table so staff can correct if needed.
 
 3. **No IBU field in RECIPE element**
    - What we know: BeerXML 1.0 has `EST_IBU` as an estimated field; not always present.
-   - What's unclear: If missing, recipe IBU field should be left blank (0 or empty string).
-   - Recommendation: `parseFloat(getTagText(recipe, 'EST_IBU')) || 0` — 0 defaults to blank display.
+   - RESOLVED: `parseFloat(getTagText(recipe, 'EST_IBU')) || 0` — 0 defaults to blank display. Missing IBU is a non-issue for the import flow.
 
 ---
 
@@ -661,7 +669,7 @@ document.body.appendChild(modalEl);
 
 ### Primary (HIGH confidence)
 - `js/admin.js` (project codebase) — filterIngredientCatalog (line 8384), addIngredientRow (line 8451), openRecipeDetail (line 8168), populateRecipeForm (line 8233), importOrderCSV pattern (line 3680), module.exports export pattern (line 8687)
-- `admin.html` (project codebase) — recipes tab structure (line 446–581), existing button/form IDs
+- `admin.html` (project codebase) — recipes tab structure (line 446-581), existing button/form IDs
 - `css/admin.css` (project codebase) — .admin-modal (line 727), .recipes-* classes (line 2956+)
 - `tests/frontend/admin-recipes.test.js` (project codebase) — test patterns, mock setup for DOMParser/FileReader in jsdom env
 - [beerxml.com/beerxml.htm](https://beerxml.com/beerxml.htm) — BeerXML 1.0 specification, AMOUNT units (kg for fermentables/hops), AMOUNT_IS_WEIGHT flag, STYLE/NAME element, EST_ABV, BATCH_SIZE
