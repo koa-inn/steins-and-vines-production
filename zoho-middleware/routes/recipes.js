@@ -100,9 +100,22 @@ function enrichListPrices(recipes) {
     var map = {};
     catalog.forEach(function (item) { if (item && item.item_id) map[item.item_id] = item; });
 
+    var millingId = process.env.MILLING_FEE_ITEM_ID;
+    var millingRate = (millingId && map[millingId]) ? (Number(map[millingId].rate) || 0) : 0;
+
     return Promise.all(dynamicRecipes.map(function (recipe) {
       var detailKey = C.CACHE_KEYS.RECIPES + ':' + recipe.recipe_id;
       return cache.get(detailKey).then(function (detail) {
+        if (!detail || !detail.ingredients) {
+          return callAppsScriptPost('get_recipe', { recipe_id: recipe.recipe_id }).then(function (data) {
+            if (!data || !data.ok || !data.data) return null;
+            var result = { recipe: data.data.recipe || data.data, ingredients: data.data.ingredients || [] };
+            cache.set(detailKey, result, RECIPES_CACHE_TTL);
+            return result;
+          }).catch(function () { return null; });
+        }
+        return detail;
+      }).then(function (detail) {
         if (!detail || !detail.ingredients) return;
         var total = 0;
         detail.ingredients.forEach(function (ing) {
@@ -112,6 +125,7 @@ function enrichListPrices(recipes) {
         total += Number(recipe.service_fee) || 0;
         total += Number(recipe.materials_fee) || 0;
         recipe.computed_price = Math.round(total * 100) / 100;
+        if (millingRate > 0) recipe.milling_fee_rate = millingRate;
       }).catch(function () {});
     }));
   }).catch(function () {});
