@@ -105,6 +105,20 @@ None — no external service configuration required.
 - `MILLING_FEE_ITEM_ID` registered — Plan 02 can read `process.env.MILLING_FEE_ITEM_ID`
 - Full middleware test suite passes: 492 tests, 23 suites, 0 failures
 
+## Self-Check: PASSED
+
+**Created files:**
+- FOUND: zoho-middleware/__tests__/brewpad-recipe.test.js
+- FOUND: .planning/phases/14-kiosk-recipe-sales-inventory-batch-creation/14-01-SUMMARY.md
+
+**Commits:**
+- FOUND: 2ff7d1c (feat(14-01): add LOCK_KEYS.RECIPE_SALE constant and MILLING_FEE_ITEM_ID env var)
+- FOUND: 71f3cdb (feat(14-01): add detectRecipeSale() to brewpad-integration.js with 9 unit tests)
+
+**Test verification:**
+- 9/9 brewpad-recipe.test.js tests pass
+- 492/492 middleware tests pass (23 suites)
+
 ---
 *Phase: 14-kiosk-recipe-sales-inventory-batch-creation*
 *Completed: 2026-05-17*
