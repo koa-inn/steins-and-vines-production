@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T03:47:00.160Z';
+  var BUILD_TIMESTAMP = '2026-05-17T05:31:18.045Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8202,7 +8202,18 @@
       var detail = results[0];
       var avail = results[1];
       _recipesState.currentRecipe = detail.recipe || detail;
-      _recipesState.currentIngredients = detail.ingredients || [];
+      _recipesState.currentIngredients = (detail.ingredients || []).map(function (ing) {
+        if (_recipesState.catalogLoaded && ing.item_id) {
+          var match = _recipesState.catalog.find(function (c) {
+            return String(c.item_id) === String(ing.item_id);
+          });
+          if (match) {
+            ing.purchase_rate = parseFloat(match.purchase_rate) || 0;
+            ing.rate = parseFloat(match.rate || match.price_per_unit) || 0;
+          }
+        }
+        return ing;
+      });
       _recipesState.availability = avail;
 
       if (titleEl) titleEl.textContent = escapeHTML(_recipesState.currentRecipe.name || 'Recipe');
