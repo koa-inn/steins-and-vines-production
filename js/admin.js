@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-05-17T15:28:34.977Z';
+  var BUILD_TIMESTAMP = '2026-05-17T15:35:27.430Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8243,6 +8243,8 @@
     document.getElementById('recipe-service-fee').value = r.service_fee != null ? r.service_fee : 45;
     document.getElementById('recipe-materials-fee').value = r.materials_fee != null ? r.materials_fee : 5;
     document.getElementById('recipe-status').value = r.status || 'draft';
+    var pricingModeSelect = document.getElementById('recipe-pricing-mode');
+    if (pricingModeSelect) pricingModeSelect.value = r.pricing_mode || 'locked';
     _recipesState.previousStatus = r.status || 'draft';
     document.getElementById('recipe-status-error').textContent = '';
   }
@@ -8498,9 +8500,12 @@
 
   // Activation guardrail (D-02)
   function canActivateRecipe(formData, ingredients) {
-    var price = parseFloat(formData.locked_price);
-    if (!(price > 0)) {
-      return { ok: false, reason: 'Set a locked price before activating this recipe.' };
+    var mode = formData.pricing_mode || 'locked';
+    if (mode === 'locked') {
+      var price = parseFloat(formData.locked_price);
+      if (!(price > 0)) {
+        return { ok: false, reason: 'Set a locked price before activating this recipe.' };
+      }
     }
     if (!ingredients || ingredients.length === 0) {
       return { ok: false, reason: 'Add at least one ingredient before activating this recipe.' };
@@ -8521,6 +8526,7 @@
       abv: parseFloat(document.getElementById('recipe-abv').value) || 0,
       ibu: parseInt(document.getElementById('recipe-ibu').value, 10) || 0,
       colour_srm: parseInt(document.getElementById('recipe-colour').value, 10) || 0,
+      pricing_mode: document.getElementById('recipe-pricing-mode') ? document.getElementById('recipe-pricing-mode').value : 'locked',
       locked_price: parseFloat(document.getElementById('recipe-locked-price').value) || 0,
       service_fee: parseFloat(document.getElementById('recipe-service-fee').value) || 45,
       materials_fee: parseFloat(document.getElementById('recipe-materials-fee').value) || 5,
@@ -9783,7 +9789,11 @@
       summaryHtml += (recipe.style || '') + (recipe.abv ? ' &middot; ' + recipe.abv + '% ABV' : '');
       summaryHtml += '</div>';
       summaryHtml += '<div style="font-size:1.1rem;font-weight:700;color:var(--barrel);margin:0.5rem 0;">';
-      summaryHtml += kioskFmt(recipe.locked_price) + ' per batch';
+      if (recipe.pricing_mode === 'dynamic') {
+        summaryHtml += kioskFmt(recipe.locked_price) + ' est. per batch (price based on current ingredient rates)';
+      } else {
+        summaryHtml += kioskFmt(recipe.locked_price) + ' per batch';
+      }
       summaryHtml += '</div>';
       summaryHtml += '<div id="kiosk-recipe-ingredients" style="margin:0.75rem 0;font-size:0.85rem;color:var(--ink-secondary);">Loading ingredients...</div>';
       summaryEl.innerHTML = summaryHtml;
@@ -9967,15 +9977,18 @@
         sale_type: _kioskSaleType,
         mill_grain: _kioskMillGrain,
         locked_price: recipe.locked_price,
+        pricing_mode: fullRecipe.pricing_mode || recipe.pricing_mode || 'locked',
         ingredients: ingredients
       };
 
       var saleLabel = _kioskSaleType === 'in-store' ? 'Ferment in Store' : 'Take Out';
       var recipeName = escapeHTML(recipe.name || recipe.recipe_id);
+      var isDynamic = (fullRecipe.pricing_mode || recipe.pricing_mode || 'locked') === 'dynamic';
+      var displayName = recipeName + ' (' + saleLabel + ')' + (isDynamic ? ' (est.)' : '');
       _kioskCart['recipe-sale'] = {
         item: {
           item_id: recipe.recipe_id,
-          name: recipeName + ' (' + saleLabel + ')',
+          name: displayName,
           rate: parseFloat(recipe.locked_price) || 0,
           tax_percentage: 0,
           product_type: 'recipe',
