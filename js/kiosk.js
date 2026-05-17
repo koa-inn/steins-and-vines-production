@@ -726,6 +726,7 @@
   var _kioskSaleType = null;
   var _kioskMillGrain = false;
   var _kioskRecipeAvailability = null;
+  var _kioskRecipeContext = null; // { recipe_id, recipe_name, sale_type, mill_grain, locked_price, ingredients }
 
   var MAKERS_FEE = 45; // Added to kit rates for in-store pricing
   var MAKERS_FEE_SKU = 'MAKERS-FEE';
@@ -876,6 +877,7 @@
     var subtotal = 0;
     Object.keys(_kioskCart).forEach(function (id) {
       var entry = _kioskCart[id];
+      if (!entry || !entry.item) return; // skip non-item entries (defensive guard)
       var qty = entry.qty;
       var rate = parseFloat(entry.item.rate) || 0;
       subtotal += rate * qty;
@@ -1066,6 +1068,7 @@
   }
 
   function kioskRenderRecipes() {
+    if (_kioskMode !== 'recipes') return;
     var grid = document.getElementById('kiosk-recipe-grid');
     if (!grid) return;
     if (_kioskRecipes.length === 0) {
@@ -1110,6 +1113,53 @@
 
     var nameEl = document.getElementById('kiosk-recipe-selected-name');
     if (nameEl) nameEl.textContent = recipe.name || '';
+
+    // Bug 3: Show recipe summary (style, ABV, price, ingredients)
+    var summaryEl = document.getElementById('kiosk-recipe-summary');
+    if (summaryEl) {
+      var summaryHtml = '<div style="margin:0.5rem 0;color:var(--ink-secondary);font-size:0.9rem;">';
+      summaryHtml += escapeHTML(recipe.style || '') + (recipe.abv ? ' &middot; ' + recipe.abv + '% ABV' : '');
+      summaryHtml += '</div>';
+      summaryHtml += '<div style="font-size:1.1rem;font-weight:700;color:var(--barrel);margin:0.5rem 0;">';
+      summaryHtml += kioskFmt(recipe.locked_price) + ' per batch';
+      summaryHtml += '</div>';
+      summaryHtml += '<div id="kiosk-recipe-ingredients" style="margin:0.75rem 0;font-size:0.85rem;color:var(--ink-secondary);">Loading ingredients...</div>';
+      summaryEl.innerHTML = summaryHtml;
+
+      // Fetch ingredients for display; cache on recipe object for reuse in kioskAddRecipeToCart
+      if (recipe._fetchedDetail) {
+        var ingEl = document.getElementById('kiosk-recipe-ingredients');
+        if (ingEl && recipe._fetchedDetail.ingredients) {
+          var ingHtml = '<strong>Ingredients:</strong><ul style="margin:0.25rem 0;padding-left:1.25rem;">';
+          recipe._fetchedDetail.ingredients.forEach(function (ing) {
+            ingHtml += '<li>' + escapeHTML(ing.item_name) + ' — ' + ing.quantity + ' ' + escapeHTML(ing.unit || '') + '</li>';
+          });
+          ingHtml += '</ul>';
+          ingEl.innerHTML = ingHtml;
+        }
+      } else {
+        var mwForSummary = kioskMwUrl();
+        fetch(mwForSummary + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), {
+          headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var ingEl2 = document.getElementById('kiosk-recipe-ingredients');
+            if (!ingEl2 || !data.ingredients) return;
+            var ingHtml2 = '<strong>Ingredients:</strong><ul style="margin:0.25rem 0;padding-left:1.25rem;">';
+            data.ingredients.forEach(function (ing) {
+              ingHtml2 += '<li>' + escapeHTML(ing.item_name) + ' — ' + ing.quantity + ' ' + escapeHTML(ing.unit || '') + '</li>';
+            });
+            ingHtml2 += '</ul>';
+            ingEl2.innerHTML = ingHtml2;
+            recipe._fetchedDetail = data;
+          })
+          .catch(function () {
+            var ingEl3 = document.getElementById('kiosk-recipe-ingredients');
+            if (ingEl3) ingEl3.innerHTML = '';
+          });
+      }
+    }
 
     var inStoreBtn = document.getElementById('kiosk-btn-in-store');
     var takeOutBtn = document.getElementById('kiosk-btn-take-out');
@@ -1219,87 +1269,94 @@
 
     _kioskCart = {};
 
-    var mw = kioskMwUrl();
-    fetch(mw + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), {
-      headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (!data.recipe) {
-          alert('Failed to load recipe details');
-          return;
-        }
-        var fullRecipe = data.recipe;
-        var ingredients = data.ingredients || [];
+    function processRecipeData(data) {
+      if (!data.recipe) {
+        alert('Failed to load recipe details');
+        return;
+      }
+      var fullRecipe = data.recipe;
+      var ingredients = data.ingredients || [];
 
-        _kioskCart._recipeContext = {
-          recipe_id: recipe.recipe_id,
-          recipe_name: recipe.name,
-          sale_type: _kioskSaleType,
-          mill_grain: _kioskMillGrain,
-          locked_price: recipe.locked_price,
-          ingredients: ingredients
+      _kioskRecipeContext = {
+        recipe_id: recipe.recipe_id,
+        recipe_name: recipe.name,
+        sale_type: _kioskSaleType,
+        mill_grain: _kioskMillGrain,
+        locked_price: recipe.locked_price,
+        ingredients: ingredients
+      };
+
+      ingredients.forEach(function (ing) {
+        var displayKey = 'recipe-ing-' + (ing.item_id || ing.ingredient_id);
+        _kioskCart[displayKey] = {
+          item: {
+            item_id: ing.item_id,
+            name: ing.item_name + ' \xb7 ' + (ing.quantity || 0) + ' ' + (ing.unit || ''),
+            rate: 0,
+            tax_percentage: 0,
+            product_type: 'recipe_ingredient',
+            _recipe_ingredient: true
+          },
+          qty: 1
         };
-
-        ingredients.forEach(function (ing) {
-          var displayKey = 'recipe-ing-' + (ing.item_id || ing.ingredient_id);
-          _kioskCart[displayKey] = {
-            item: {
-              item_id: ing.item_id,
-              name: ing.item_name + ' \xb7 ' + (ing.quantity || 0) + ' ' + (ing.unit || ''),
-              rate: 0,
-              tax_percentage: 0,
-              product_type: 'recipe_ingredient',
-              _recipe_ingredient: true
-            },
-            qty: 1
-          };
-        });
-
-        if (_kioskSaleType === 'in-store') {
-          _kioskCart['recipe-fee-brewing'] = {
-            item: {
-              item_id: 'fee-brewing',
-              name: 'Brewing Fee',
-              rate: parseFloat(fullRecipe.service_fee) || 0,
-              tax_percentage: 5,
-              product_type: 'fee',
-              _recipe_fee: true
-            },
-            qty: 1
-          };
-          _kioskCart['recipe-fee-materials'] = {
-            item: {
-              item_id: 'fee-materials',
-              name: 'Materials Fee',
-              rate: parseFloat(fullRecipe.materials_fee) || 0,
-              tax_percentage: 12,
-              product_type: 'fee',
-              _recipe_fee: true
-            },
-            qty: 1
-          };
-        }
-        if (_kioskSaleType === 'take-out' && _kioskMillGrain) {
-          _kioskCart['recipe-fee-milling'] = {
-            item: {
-              item_id: 'fee-milling',
-              name: 'Milling Fee',
-              rate: 0,
-              tax_percentage: 0,
-              product_type: 'fee',
-              _recipe_fee: true
-            },
-            qty: 1
-          };
-        }
-
-        kioskSetMode('products');
-        kioskRenderCart();
-      })
-      .catch(function (err) {
-        alert('Failed to load recipe: ' + err.message);
       });
+
+      if (_kioskSaleType === 'in-store') {
+        _kioskCart['recipe-fee-brewing'] = {
+          item: {
+            item_id: 'fee-brewing',
+            name: 'Brewing Fee',
+            rate: parseFloat(fullRecipe.service_fee) || 0,
+            tax_percentage: 5,
+            product_type: 'fee',
+            _recipe_fee: true
+          },
+          qty: 1
+        };
+        _kioskCart['recipe-fee-materials'] = {
+          item: {
+            item_id: 'fee-materials',
+            name: 'Materials Fee',
+            rate: parseFloat(fullRecipe.materials_fee) || 0,
+            tax_percentage: 12,
+            product_type: 'fee',
+            _recipe_fee: true
+          },
+          qty: 1
+        };
+      }
+      if (_kioskSaleType === 'take-out' && _kioskMillGrain) {
+        _kioskCart['recipe-fee-milling'] = {
+          item: {
+            item_id: 'fee-milling',
+            name: 'Milling Fee',
+            rate: 0,
+            tax_percentage: 0,
+            product_type: 'fee',
+            _recipe_fee: true
+          },
+          qty: 1
+        };
+      }
+
+      kioskSetMode('products');
+      kioskRenderCart();
+    }
+
+    // Reuse data fetched during kioskShowRecipePrompt if available (Bug 3 cache)
+    if (recipe._fetchedDetail) {
+      processRecipeData(recipe._fetchedDetail);
+    } else {
+      var mw = kioskMwUrl();
+      fetch(mw + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), {
+        headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+      })
+        .then(function (r) { return r.json(); })
+        .then(processRecipeData)
+        .catch(function (err) {
+          alert('Failed to load recipe: ' + err.message);
+        });
+    }
   }
 
   function kioskPopulateCategories() {
@@ -1852,6 +1909,7 @@
     _kioskSaleType = null;
     _kioskMillGrain = false;
     _kioskRecipeAvailability = null;
+    _kioskRecipeContext = null;
     kioskUpdateDiscountDisplay();
     kioskRenderCart();
     kioskRenderProducts();
@@ -1897,6 +1955,7 @@
     var html = '';
     keys.forEach(function (id) {
       var entry = _kioskCart[id];
+      if (!entry || !entry.item) return; // skip non-item entries (defensive guard)
       var item = entry.item;
       var qty = entry.qty;
       var rate = parseFloat(item.rate) || 0;
@@ -2307,14 +2366,14 @@
     var POLL_TIMEOUT_MS = 45000;
 
     // Determine sale endpoint: recipe sale or standard kiosk sale
-    var isRecipeSale = !!(_kioskCart && _kioskCart._recipeContext);
+    var isRecipeSale = !!_kioskRecipeContext;
     var saleUrl = isRecipeSale
       ? mwUrl + '/api/kiosk/recipe-sale'
       : mwUrl + '/api/kiosk/sale';
     var recipeSaleBody = isRecipeSale ? {
-      recipe_id: _kioskCart._recipeContext.recipe_id,
-      sale_type: _kioskCart._recipeContext.sale_type,
-      mill_grain: _kioskCart._recipeContext.mill_grain,
+      recipe_id: _kioskRecipeContext.recipe_id,
+      sale_type: _kioskRecipeContext.sale_type,
+      mill_grain: _kioskRecipeContext.mill_grain,
       customer_name: (_kioskCustomer && _kioskCustomer.name) || '',
       contact_id: (_kioskCustomer && _kioskCustomer.contact_id) || '',
       reference_number: refNumber,
@@ -4096,6 +4155,7 @@
     var millCheckboxEl = document.getElementById('kiosk-mill-grain');
     if (millCheckboxEl) millCheckboxEl.addEventListener('change', function () {
       _kioskMillGrain = millCheckboxEl.checked;
+      kioskUpdateAddToCartButton();
     });
 
     var addRecipeBtn = document.getElementById('kiosk-add-recipe-to-cart');
