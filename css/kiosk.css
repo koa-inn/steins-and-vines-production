@@ -62,14 +62,14 @@
   --ease-out: cubic-bezier(0.25, 0, 0.25, 1);
 }
 
-/* ===== Base Body ===== */
-html {
+/* ===== Base Body (kiosk.html only — scoped to avoid breaking admin.html) ===== */
+html:has(#kiosk-signin) {
   font-size: 16px;
   height: 100%;
   overflow: hidden;
 }
 
-body {
+body:has(#kiosk-signin) {
   font-family: var(--font-body);
   font-weight: 400;
   color: var(--ink-primary);
