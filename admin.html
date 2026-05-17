@@ -119,6 +119,7 @@
           <!-- Tab navigation -->
           <div class="admin-tabs">
             <button type="button" class="admin-tab-btn" data-tab="batches">Batches</button>
+            <button type="button" class="admin-tab-btn" data-tab="recipes">Recipes</button>
             <button type="button" class="admin-tab-btn" data-tab="scheduling">Scheduling</button>
             <button type="button" class="admin-tab-btn active" data-tab="reservations">Reservations &amp; Holds</button>
             <button type="button" class="admin-tab-btn" data-tab="kiosk-orders">Kiosk Orders</button>
@@ -435,6 +436,136 @@
               </div>
               <div id="schedules-list" class="schedules-list"></div>
               <p class="admin-empty" id="schedules-empty" style="display:none;">No schedule templates. Create one to get started.</p>
+            </div>
+          </div>
+
+          <!-- Tab: Recipes -->
+          <div class="admin-tab-panel" id="tab-recipes">
+            <!-- List view -->
+            <div id="recipes-list-view">
+              <div class="admin-panel-header">
+                <h2>Recipes</h2>
+                <div class="admin-panel-actions">
+                  <div class="admin-filter-row">
+                    <label for="recipes-status-filter">Status</label>
+                    <select id="recipes-status-filter" class="admin-select">
+                      <option value="all">All</option>
+                      <option value="draft">Draft</option>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                  <button type="button" class="btn" id="recipes-new-btn">+ New Recipe</button>
+                </div>
+              </div>
+              <div class="admin-table-wrap">
+                <table class="admin-table" id="recipes-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Style</th>
+                      <th>Status</th>
+                      <th>Price</th>
+                      <th>Ingredients</th>
+                      <th>Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recipes-tbody"></tbody>
+                </table>
+              </div>
+              <p class="admin-empty" id="recipes-empty" style="display:none;">No recipes yet. Create your first recipe to get started.</p>
+            </div>
+            <!-- Detail/editor view -->
+            <div id="recipes-detail-view" style="display:none;">
+              <div class="admin-panel-header">
+                <button type="button" class="btn-secondary" id="recipes-back-btn">&larr; Back to list</button>
+                <h2 id="recipes-detail-title">New Recipe</h2>
+              </div>
+              <div id="recipes-availability-banner" class="recipes-availability-banner" aria-live="polite"></div>
+              <div id="recipes-editor-form">
+                <div class="recipes-form-grid">
+                  <div class="recipes-form-field">
+                    <label for="recipe-name">Name</label>
+                    <input type="text" id="recipe-name" class="admin-input" placeholder="e.g. Pale Ale" />
+                  </div>
+                  <div class="recipes-form-field">
+                    <label for="recipe-style">Style</label>
+                    <input type="text" id="recipe-style" class="admin-input" placeholder="e.g. American Pale Ale" />
+                  </div>
+                  <div class="recipes-form-field">
+                    <label for="recipe-description">Description</label>
+                    <textarea id="recipe-description" class="admin-input" rows="2" placeholder="Optional notes"></textarea>
+                  </div>
+                </div>
+                <div class="recipes-form-grid recipes-form-grid--narrow">
+                  <div class="recipes-form-field">
+                    <label for="recipe-batch-size">Batch Size (L)</label>
+                    <input type="number" id="recipe-batch-size" class="admin-input" step="0.1" min="0" inputmode="decimal" />
+                  </div>
+                  <div class="recipes-form-field">
+                    <label for="recipe-abv">ABV (%)</label>
+                    <input type="number" id="recipe-abv" class="admin-input" step="0.1" min="0" inputmode="decimal" />
+                  </div>
+                  <div class="recipes-form-field">
+                    <label for="recipe-ibu">IBU</label>
+                    <input type="number" id="recipe-ibu" class="admin-input" step="1" min="0" inputmode="numeric" />
+                  </div>
+                  <div class="recipes-form-field">
+                    <label for="recipe-colour">Colour (SRM)</label>
+                    <input type="number" id="recipe-colour" class="admin-input" step="1" min="0" inputmode="numeric" />
+                  </div>
+                </div>
+                <h3 class="recipes-section-heading">Pricing</h3>
+                <div class="recipes-form-grid recipes-form-grid--narrow">
+                  <div class="recipes-form-field">
+                    <label for="recipe-locked-price">Locked Price ($)</label>
+                    <input type="number" id="recipe-locked-price" class="admin-input" step="0.01" min="0" inputmode="decimal" />
+                  </div>
+                  <div class="recipes-form-field">
+                    <label for="recipe-service-fee">Service Fee ($)</label>
+                    <input type="number" id="recipe-service-fee" class="admin-input" step="0.01" min="0" value="45" inputmode="decimal" />
+                  </div>
+                  <div class="recipes-form-field">
+                    <label for="recipe-materials-fee">Materials Fee ($)</label>
+                    <input type="number" id="recipe-materials-fee" class="admin-input" step="0.01" min="0" value="5" inputmode="decimal" />
+                  </div>
+                </div>
+                <div class="recipes-form-grid recipes-form-grid--narrow">
+                  <div class="recipes-form-field">
+                    <label for="recipe-status">Status</label>
+                    <select id="recipe-status" class="admin-select">
+                      <option value="draft">Draft</option>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                    <span id="recipe-status-error" class="recipes-inline-error" role="alert"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="admin-panel-header" style="margin-top: var(--sp-6);">
+                <h3 class="recipes-section-heading">Ingredients</h3>
+                <button type="button" class="btn-secondary" id="recipes-add-ingredient-btn">+ Add Ingredient</button>
+              </div>
+              <div id="recipes-ingredients-editor">
+                <table class="admin-table" id="recipes-ingredients-table">
+                  <thead>
+                    <tr>
+                      <th>Ingredient</th>
+                      <th>Quantity</th>
+                      <th>Unit</th>
+                      <th>Stock</th>
+                      <th>Status</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="recipes-ingredients-body"></tbody>
+                </table>
+                <p class="admin-empty" id="recipes-ingredients-empty">No ingredients added yet.</p>
+              </div>
+              <div class="recipes-detail-actions">
+                <button type="button" class="btn" id="recipes-save-btn">Save Recipe</button>
+                <button type="button" class="admin-btn-danger" id="recipes-delete-btn" style="display:none;">Delete Recipe</button>
+              </div>
             </div>
           </div>
 
