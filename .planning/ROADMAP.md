@@ -302,7 +302,7 @@ Plans:
 - [x] 14-02-PLAN.md -- Recipe sale endpoint: pos-recipe.js with initiate + confirm handlers, mutex, feature gate, void-on-failure, server.js mount, unit tests
 
 **Wave 2** *(depends on Wave 1 Plan 02)*
-- [ ] 14-03-PLAN.md -- Kiosk recipe browser UI: mode toggle, recipe cards, sale-type prompt, availability check, cart population, checkout routing in admin.js + admin.html
+- [x] 14-03-PLAN.md -- Kiosk recipe browser UI: mode toggle, recipe cards, sale-type prompt, availability check, cart population, checkout routing in admin.js + admin.html
 - [x] 14-04-PLAN.md -- Recipe browser CSS: mode toggle, sale-type buttons, availability banners, milling toggle styles in kiosk.css
 
 **Wave 3** *(depends on all Wave 1 + Wave 2)*

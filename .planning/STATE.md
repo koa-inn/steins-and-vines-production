@@ -4,13 +4,13 @@ milestone: v2.0
 milestone_name: Recipe-Based Products
 status: executing
 stopped_at: Phase 14 UI-SPEC approved
-last_updated: "2026-05-17T13:35:49.441Z"
-last_activity: 2026-05-17 -- Phase 14 execution started
+last_updated: "2026-05-17T13:56:11Z"
+last_activity: 2026-05-17 -- Phase 14 Plan 03 completed
 progress:
   total_phases: 11
   completed_phases: 2
   total_plans: 11
-  completed_plans: 8
+  completed_plans: 9
   percent: 73
 ---
 
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-05-09)
 ## Current Position
 
 Phase: 14 (Kiosk Recipe Sales, Inventory, and Batch Creation) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Executing Phase 14
-Last activity: 2026-05-17 -- Phase 14 Plan 02 completed
+Last activity: 2026-05-17 -- Phase 14 Plan 03 completed
 
-Progress: [#####░░░░░] 55%
+Progress: [######░░░░] 60%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 4 (this milestone)
+- Total plans completed: 5 (this milestone)
 - Average duration: — min
 - Total execution time: — min
 
@@ -65,6 +65,10 @@ Progress: [#####░░░░░] 55%
 - [14-02]: Terminal charge = sum of ingredient Zoho catalog rates + applicable fees (not locked_price per D-08 resolution)
 - [14-02]: detectRecipeSale called only for in-store sales (take-out creates no batch per D-09)
 - [14-02]: RECIPES_TS cache also busted after sale to ensure freshness of recipe availability data
+- [14-03]: Recipe cart items use rate=0 display-only — server recomputes all rates at confirm (T-14-11 accept)
+- [14-03]: _kioskCart._recipeContext sentinel detects recipe sales in checkout — avoids modifying existing product flow
+- [14-03]: Recipe 202 pending handled by calling /confirm immediately — admin.js kiosk is staff-facing, no polling needed
+- [14-03]: milling toggle shown only for take-out (D-03) — JS enforces visibility, server enforces logic
 
 ### Pending Todos
 
@@ -78,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-17T14:05:00Z
-Stopped at: Phase 14 Plan 02 complete
-Resume file: .planning/phases/14-kiosk-recipe-sales-inventory-batch-creation/14-03-PLAN.md
+Last session: 2026-05-17T13:56:11Z
+Stopped at: Phase 14 Plan 03 complete
+Resume file: .planning/phases/14-kiosk-recipe-sales-inventory-batch-creation/14-04-PLAN.md
