@@ -8684,12 +8684,132 @@
     }
   }
 
+  // ===== BEERXML PARSER =====
+
+  function getTagText(parent, tagName) {
+    var els = parent.getElementsByTagName(tagName);
+    return els.length > 0 ? (els[0].textContent || '').trim() : '';
+  }
+
+  function parseBeerXML(xmlDoc) {
+    var recipes = xmlDoc.getElementsByTagName('RECIPE');
+    if (recipes.length === 0) return null;
+    var recipe = recipes[0];
+
+    // Extract style name from first STYLE child element
+    var styleEls = recipe.getElementsByTagName('STYLE');
+    var style = styleEls.length > 0 ? getTagText(styleEls[0], 'NAME') : '';
+
+    var parsed = {
+      name: getTagText(recipe, 'NAME'),
+      style: style,
+      abv: parseFloat(getTagText(recipe, 'EST_ABV')) || 0,
+      batch_size_l: parseFloat(getTagText(recipe, 'BATCH_SIZE')) || 0,
+      ibu: parseFloat(getTagText(recipe, 'IBU')) || parseFloat(getTagText(recipe, 'EST_IBU')) || 0,
+      colour_srm: parseFloat(getTagText(recipe, 'EST_COLOR')) || 0,
+      ingredients: []
+    };
+
+    // --- FERMENTABLES with D-08 lbs detection heuristic ---
+    var ferms = recipe.getElementsByTagName('FERMENTABLE');
+    var rawFermAmounts = [];
+    var i;
+    for (i = 0; i < ferms.length; i++) {
+      rawFermAmounts.push(parseFloat(getTagText(ferms[i], 'AMOUNT')) || 0);
+    }
+    // D-08 heuristic: if any single fermentable AMOUNT > 20, all are probably in lbs.
+    // Rationale: a single fermentable exceeding 20 kg (~44 lbs) is implausible for homebrew.
+    // The review table (D-09) is the safety net for edge cases (e.g. commercial batches).
+    var LBS_THRESHOLD = 20;
+    var LBS_TO_KG = 0.453592;
+    var fermLooksLikeLbs = rawFermAmounts.some(function (amt) { return amt > LBS_THRESHOLD; });
+    for (i = 0; i < ferms.length; i++) {
+      var rawAmt = rawFermAmounts[i];
+      var amtKg = fermLooksLikeLbs ? rawAmt * LBS_TO_KG : rawAmt;
+      var displaySuffix = fermLooksLikeLbs ? ' (converted from lbs)' : '';
+      parsed.ingredients.push({
+        beerxml_name: getTagText(ferms[i], 'NAME'),
+        beerxml_type: 'fermentable',
+        amount_kg: parseFloat(amtKg.toFixed(3)),
+        amount_display: amtKg.toFixed(3) + ' kg' + displaySuffix,
+        unit: 'kg'
+      });
+    }
+
+    // --- HOPS: convert kg to grams ---
+    var hops = recipe.getElementsByTagName('HOP');
+    for (i = 0; i < hops.length; i++) {
+      var hopKg = parseFloat(getTagText(hops[i], 'AMOUNT')) || 0;
+      var hopG = hopKg * 1000;
+      parsed.ingredients.push({
+        beerxml_name: getTagText(hops[i], 'NAME'),
+        beerxml_type: 'hop',
+        amount_kg: hopKg,
+        amount_display: hopG.toFixed(1) + ' g',
+        unit: 'g'
+      });
+    }
+
+    // --- YEASTS: hardcode 1 pcs per D-10 ---
+    var yeasts = recipe.getElementsByTagName('YEAST');
+    for (i = 0; i < yeasts.length; i++) {
+      parsed.ingredients.push({
+        beerxml_name: getTagText(yeasts[i], 'NAME'),
+        beerxml_type: 'yeast',
+        amount_kg: 1,
+        amount_display: '1 pcs',
+        unit: 'pcs'
+      });
+    }
+
+    // --- MISCS: unit based on AMOUNT_IS_WEIGHT flag ---
+    var miscs = recipe.getElementsByTagName('MISC');
+    for (i = 0; i < miscs.length; i++) {
+      var miscAmt = parseFloat(getTagText(miscs[i], 'AMOUNT')) || 0;
+      var isWeight = getTagText(miscs[i], 'AMOUNT_IS_WEIGHT').toLowerCase() === 'true';
+      var miscUnit = isWeight ? 'g' : 'L';
+      var miscDisplay = isWeight ? (miscAmt * 1000).toFixed(1) + ' g' : miscAmt.toFixed(3) + ' L';
+      parsed.ingredients.push({
+        beerxml_name: getTagText(miscs[i], 'NAME'),
+        beerxml_type: 'misc',
+        amount_kg: miscAmt,
+        amount_display: miscDisplay,
+        unit: miscUnit
+      });
+    }
+
+    return parsed;
+  }
+
+  function autoMatchIngredients(parsed) {
+    return (parsed.ingredients || []).map(function (ing) {
+      var results = filterIngredientCatalog(ing.beerxml_name);
+      var best = results.length > 0 ? results[0] : null;
+      var confidence = best ? (results.length === 1 ? 'high' : 'low') : 'none';
+      var quantity = ing.beerxml_type === 'hop' ? (ing.amount_kg * 1000)
+                     : ing.beerxml_type === 'yeast' ? 1
+                     : ing.amount_kg;
+      return {
+        beerxml_name:   ing.beerxml_name,
+        beerxml_type:   ing.beerxml_type,
+        amount_display: ing.amount_display,
+        unit:           ing.unit,
+        quantity:       quantity,
+        zoho_match:     best,
+        confidence:     confidence,
+        skipped:        false
+      };
+    });
+  }
+
   // Module exports for testing
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = Object.assign(module.exports || {}, {
       canActivateRecipe: canActivateRecipe,
       filterIngredientCatalog: filterIngredientCatalog,
-      _recipesState: _recipesState
+      _recipesState: _recipesState,
+      parseBeerXML: parseBeerXML,
+      autoMatchIngredients: autoMatchIngredients
     });
   }
 
