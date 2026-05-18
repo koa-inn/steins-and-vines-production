@@ -17,9 +17,9 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#4a6f4b">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://www.googletagmanager.com https://www.google-analytics.com; connect-src 'self' https://docs.google.com https://*.googleusercontent.com https://script.google.com https://sheets.googleapis.com https://www.googleapis.com https://svmiddleware-production.up.railway.app https://o4511012754358272.ingest.de.sentry.io https://www.google-analytics.com https://www.googletagmanager.com https://*.analytics.google.com; frame-src 'self' https://www.googletagmanager.com https://www.google.com">
-  <meta name="description" content="Design custom labels for your homebrew wine bottles and cans at Steins &amp; Vines in Squamish. Upload your artwork, preview on our mockup tool, and order professional prints.">
+  <meta name="description" content="Design custom labels for wine bottles, beer cans, hot sauce, kombucha, and more at Steins &amp; Vines in Squamish. Professional label printing for homebrewers, events, and small businesses. Starting from $0.15/label.">
   <meta property="og:title" content="Custom Label Printing in Squamish | Steins &amp; Vines">
-  <meta property="og:description" content="Design and preview custom labels for your homebrew bottles and cans. Professional printing service from Steins &amp; Vines in Squamish, BC.">
+  <meta property="og:description" content="Professional label printing at Steins &amp; Vines in Squamish. Upload your design, preview on our mockup tool, and order prints for any bottle or can &mdash; no membership required.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://steinsandvines.ca/custom-labels">
   <meta property="og:image" content="https://steinsandvines.ca/images/icon-512.png">
@@ -70,8 +70,8 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mpb63gt4">
-  <link rel="stylesheet" href="css/labels.min.css?v=mpb63gt4">
+  <link rel="stylesheet" href="css/styles.min.css?v=mpbmryc6">
+  <link rel="stylesheet" href="css/labels.min.css?v=mpbmryc6">
 </head>
 <body data-page="labels">
   <!-- Google Tag Manager (noscript) -->
@@ -117,7 +117,7 @@
     <section class="labels-hero">
       <div class="container">
         <h1>Custom Label Printing</h1>
-        <p>Make your homebrew look as good as it tastes. Professional-quality labels designed by you, printed by us.</p>
+        <p>Your design. Your bottle. We&rsquo;ll make it look amazing &mdash; for homebrewers, events, or your small business.</p>
       </div>
     </section>
 
@@ -141,6 +141,9 @@
             <p>Peel and stick your labels onto your bottles or cans. It is that easy.</p>
           </div>
         </div>
+        <div class="labels-anyone-callout">
+          <strong>Not a Steins &amp; Vines member?</strong> No problem &mdash; bring us any bottle or can and we&rsquo;ll print labels for it. Homebrewers, farmers market vendors, wedding favours, corporate gifts &mdash; everyone is welcome.
+        </div>
       </div>
     </section>
 
@@ -150,46 +153,43 @@
         <div class="labels-setup-fee">
           <strong>$10 one-time setup fee per design</strong>
         </div>
-        <div class="labels-pricing-table-wrap">
-          <table class="labels-pricing-table" id="labels-pricing-table">
-            <thead>
-              <tr>
-                <th>Label Type</th>
-                <th>Size</th>
-                <th>Price Per Label</th>
-                <th>Min. Order</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td>Wine Bottle &mdash; Front</td><td>4&quot; &times; 5&quot;</td><td>$2.50</td><td>24</td></tr>
-              <tr><td>Wine Bottle &mdash; Back</td><td>3&quot; &times; 4&quot;</td><td>$2.00</td><td>24</td></tr>
-              <tr><td>Wine Bottle &mdash; Wrap</td><td>4&quot; &times; 10&quot;</td><td>$3.50</td><td>24</td></tr>
-              <tr><td>Can &mdash; Standard (355 ml)</td><td>8.25&quot; &times; 3.5&quot;</td><td>$3.00</td><td>48</td></tr>
-              <tr><td>Can &mdash; Tall (473 ml)</td><td>8.25&quot; &times; 4.75&quot;</td><td>$3.50</td><td>48</td></tr>
-            </tbody>
-          </table>
+        <div class="labels-pricing-table-wrap" id="labels-pricing-table-wrap">
+          <!-- Populated by buildPricingTable() in 14-labels.js -->
         </div>
-        <p class="labels-pricing-note">Prices are estimates and may vary. Contact us for a custom quote.</p>
+        <p class="labels-pricing-note">Prices shown per label. A $10 setup fee applies per design. Minimum order quantities vary by size &mdash; ask us for a quote.</p>
       </div>
     </section>
 
     <section class="labels-mockup">
       <div class="container">
         <h2>Preview Your Label</h2>
-        <p>Upload your design to see how it looks on a wine bottle or can.</p>
+        <p>Upload your design to see how it looks flat, on a can, or on a bottle.</p>
         <div class="labels-mockup-controls">
-          <div class="labels-template-selector" role="tablist" aria-label="Template type">
-            <button type="button" class="labels-template-btn active" data-template="bottle" role="tab" aria-selected="true">Wine Bottle</button>
-            <button type="button" class="labels-template-btn" data-template="can" role="tab" aria-selected="false">Can</button>
-          </div>
           <div class="labels-upload-controls">
             <label for="labels-upload" class="btn labels-upload-btn">Upload Your Design</label>
             <input type="file" id="labels-upload" accept=".png,.jpg,.jpeg,.webp" hidden>
-            <button type="button" class="btn-secondary labels-reset-btn" id="labels-reset" disabled>Reset</button>
+            <button type="button" class="btn-secondary labels-reset-btn" id="labels-reset" disabled>Reset Preview</button>
           </div>
         </div>
-        <div class="labels-canvas-wrap">
-          <canvas id="labels-canvas" width="600" height="800"></canvas>
+        <div class="labels-type-selector" id="labels-type-selector">
+          <label for="labels-type-select">Label size:</label>
+          <select id="labels-type-select">
+            <!-- Populated by JS from LABEL_DATA -->
+          </select>
+        </div>
+        <div class="labels-previews" id="labels-previews">
+          <div class="labels-preview-col labels-preview-flat">
+            <div class="labels-preview-label">Flat View</div>
+            <canvas id="labels-canvas-flat" aria-label="Flat label preview"></canvas>
+          </div>
+          <div class="labels-preview-col labels-preview-can" id="preview-can-wrap">
+            <div class="labels-preview-label">On a Can</div>
+            <canvas id="labels-canvas-can" aria-label="Label preview on a can"></canvas>
+          </div>
+          <div class="labels-preview-col labels-preview-bottle" id="preview-bottle-wrap">
+            <div class="labels-preview-label">On a Bottle</div>
+            <canvas id="labels-canvas-bottle" aria-label="Label preview on a bottle"></canvas>
+          </div>
         </div>
         <p class="labels-mockup-hint">Accepted formats: PNG, JPG, WEBP. Max file size: 5 MB.</p>
       </div>
@@ -201,7 +201,7 @@
         <div class="labels-guidelines-grid">
           <div class="labels-guideline">
             <h3>File Format</h3>
-            <p>PNG preferred for best quality. JPG and WEBP also accepted. Resolution: 300 DPI recommended for crisp print results.</p>
+            <p>PNG or JPG preferred. WEBP also accepted. 300 DPI recommended for crisp results.</p>
           </div>
           <div class="labels-guideline">
             <h3>Bleed &amp; Safe Area</h3>
@@ -209,17 +209,11 @@
           </div>
           <div class="labels-guideline">
             <h3>Colour Mode</h3>
-            <p>CMYK is ideal for print accuracy. RGB uploads are accepted and will be converted during production.</p>
+            <p>CMYK is ideal for print accuracy. RGB files are accepted and will be converted. Our waterproof BOPP labels are laminated and dishwasher-safe &mdash; no peeling in the fridge.</p>
           </div>
           <div class="labels-guideline">
-            <h3>Label Dimensions</h3>
-            <ul>
-              <li>Wine Front: 4&quot; &times; 5&quot;</li>
-              <li>Wine Back: 3&quot; &times; 4&quot;</li>
-              <li>Wine Wrap: 4&quot; &times; 10&quot;</li>
-              <li>Can 355 ml: 8.25&quot; &times; 3.5&quot;</li>
-              <li>Can 473 ml: 8.25&quot; &times; 4.75&quot;</li>
-            </ul>
+            <h3>Print Dimensions</h3>
+            <p>Max print width: 4.25&quot;. See the pricing table above for all available label sizes. Contact us if you need a custom size.</p>
           </div>
         </div>
       </div>
@@ -228,7 +222,7 @@
     <section class="labels-cta">
       <div class="container">
         <h2>Ready to Get Started?</h2>
-        <p>Send us your design and we will take it from there. Labels are typically ready in 5&ndash;7 business days.</p>
+        <p>Stop by the shop with your design file or email it to us. Labels are typically ready in 5&ndash;7 business days.</p>
         <a href="contact.html" class="btn">Contact Us</a>
       </div>
     </section>
@@ -262,7 +256,7 @@
   <script src="js/vendor/sentry.min.js"></script>
   <script src="js/sentry-init.js"></script>
   <script src="js/sheets-config.js" defer></script>
-  <script src="js/main.min.js?v=mpb63gt4" defer></script>
-  <script src="js/modules/14-labels.min.js?v=mpb63gt4" defer></script>
+  <script src="js/main.min.js?v=mpbmryc6" defer></script>
+  <script src="js/modules/14-labels.min.js?v=mpbmryc6" defer></script>
 </body>
 </html>

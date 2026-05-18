@@ -211,7 +211,31 @@
   margin-bottom: 1rem;
 }
 
-#labels-canvas {
+.labels-mockup-hint {
+  font-size: 0.85rem;
+  color: #777;
+}
+
+/* 3-preview layout -- D-01 */
+.labels-previews {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.labels-preview-col {
+  flex: 1;
+  min-width: 180px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.labels-preview-col canvas {
   max-width: 100%;
   height: auto;
   border: 1px solid #ddd;
@@ -219,9 +243,72 @@
   background-color: #fafafa;
 }
 
-.labels-mockup-hint {
-  font-size: 0.85rem;
-  color: #777;
+.labels-preview-label {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* D-06: hide incompatible container preview */
+.labels-preview-col.hidden {
+  display: none;
+}
+
+/* Label type selector */
+.labels-type-selector {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.labels-type-selector label {
+  font-family: var(--font-body);
+  font-weight: 700;
+  margin-right: 0.5rem;
+}
+
+.labels-type-selector select {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--color-green);
+  border-radius: 6px;
+  background: var(--color-white);
+  color: var(--color-green);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+/* Pricing group headings -- D-13 */
+.labels-pricing-group-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-burgundy);
+  margin-top: 2rem;
+  margin-bottom: 0.25rem;
+}
+
+.labels-pricing-group-title:first-child {
+  margin-top: 0;
+}
+
+.labels-pricing-group-subtitle {
+  font-size: 0.9rem;
+  color: var(--color-muted);
+  margin-bottom: 1rem;
+}
+
+/* Anyone callout -- D-11 */
+.labels-anyone-callout {
+  background-color: var(--color-cream);
+  border-left: 4px solid var(--color-green);
+  padding: 1rem 1.5rem;
+  border-radius: 0 8px 8px 0;
+  margin: 2rem auto;
+  max-width: 600px;
+  font-size: 1rem;
 }
 
 /* Design Guidelines */
@@ -315,8 +402,13 @@
     max-width: 100%;
   }
 
-  #labels-canvas {
-    max-width: 100%;
+  .labels-previews {
+    flex-direction: column;
+    align-items: center;
+  }
+  .labels-preview-col {
+    max-width: 320px;
+    width: 100%;
   }
 
   .labels-mockup-controls {
