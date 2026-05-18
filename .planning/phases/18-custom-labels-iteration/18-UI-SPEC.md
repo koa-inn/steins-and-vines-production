@@ -54,17 +54,20 @@ Source: `css/labels.css` verified 2026-05-18.
 
 Existing site typography from `css/styles.css` — no changes for this phase. All rules below are inherited, not new.
 
+**Consolidated type scale (4 sizes, 2 weights maximum):**
+
 | Role | Family | Size | Weight | Line Height |
 |------|--------|------|--------|-------------|
 | Body | Lato, Helvetica Neue, Arial | 16px (1rem) | 400 | 1.6 |
-| Small / table cell | Lato | 14px (0.875rem) | 400 | 1.5 |
-| Preview column label | Lato | 13.6px (0.85rem) | 600 | 1.2 |
-| Section heading (h2) | Playfair Display | clamp(1.375rem, 3vw+0.75rem, 2.25rem) | 600 | 1.2 |
-| Subsection heading (h3) | Playfair Display | 1.5rem (24px) | 600 | 1.2 |
-| Pricing group title (h3 in table context) | Playfair Display | 1.5rem | 600 | 1.2 |
-| Canvas dimension label | Lato, Arial (canvas font) | 13px | 400 | n/a (canvas) |
+| Small / table cell / preview column label | Lato | 14px (0.875rem) | 400 | 1.5 |
+| Section heading (h2) | Playfair Display | clamp(1.375rem, 3vw+0.75rem, 2.25rem) | 700 | 1.2 |
+| Subsection heading (h3) | Playfair Display | 1.5rem (24px) | 700 | 1.2 |
 
-Active font weights: 400 (regular) and 600/700 (semibold/bold). Lato 300/400/700 loaded; Playfair Display 400/600/700 loaded. Never use weights outside these loaded values.
+**Consolidation notes:**
+- 13px (canvas dimension label) and 13.6px/0.85rem (preview column label) are both unified at 14px. Canvas dimension text uses `14px Lato, Arial, sans-serif`.
+- Pricing group title `<h3>` uses the same h3 slot (1.5rem, weight 700).
+- Weight 600 (semibold) eliminated. All previous 600 uses (headings, preview column label, section headings) now use 700. Body and small text remain at 400.
+- Active loaded weights: Lato 400/700; Playfair Display 400/700. Never use 300 or 600 in new CSS rules.
 
 Source: `css/styles.css` lines 116–230, verified 2026-05-18.
 
@@ -88,6 +91,21 @@ Accent (`--color-green`) reserved for: hero background, numbered step circles, s
 Canvas backgrounds: `#fafafa` (near-white) — existing `.labels-canvas-wrap canvas { background-color: #fafafa }`. Provides contrast behind the placeholder label image.
 
 Source: `css/styles.css` :root + `css/labels.css`, verified 2026-05-18.
+
+---
+
+## Visual Hierarchy
+
+**Primary focal point: the 3-canvas preview panel.**
+
+The three side-by-side canvases (Flat View / On a Can / On a Bottle) are the dominant visual element of this page and must be the first thing the eye lands on after the hero headline. Design decisions that reinforce this:
+
+- The `.labels-previews` flex container occupies the full content width with no competing visual elements alongside it.
+- Upload controls sit above the canvases with reduced visual weight (secondary button style) so they read as inputs to the focal panel, not competitors.
+- Section background contrast (`.labels-mockup` section uses the dominant cream, not the secondary off-white) keeps the canvas area visually isolated.
+- On mobile, the stacked canvases retain their role as the page's visual anchor — the upload control collapses above them, not between them.
+
+Secondary focal point: the pricing table. Tertiary: the design guidelines cards.
 
 ---
 
@@ -158,7 +176,7 @@ Rendered as a `<select>` element (not tabs, not button group). Rationale: simple
 
 **Flat preview (D-03):**
 - Canvas renders label image in a centered rectangle at the label's actual aspect ratio (width:height from `LABEL_DATA`)
-- Dimension text `W" x H"` rendered below the rectangle in canvas (font: `13px Lato, Arial, sans-serif`)
+- Dimension text `W" x H"` rendered below the rectangle in canvas (font: `14px Lato, Arial, sans-serif`)
 - For circle labels: dimension text reads `D" circle`
 - Thin border: `1px solid rgba(0,0,0,0.2)` around the label rectangle
 
@@ -209,7 +227,7 @@ All copy decisions from CONTEXT.md D-09, D-10, D-11. Exact wording is Claude's d
 | Hero subheadline | Your design. Your bottle. We'll make it look amazing. — for homebrewers, events, or your small business. |
 | "Anyone can" callout (D-11) | Not a Steins & Vines member? No problem. Bring us any bottle or can — we print labels for anyone. |
 | Upload CTA | Upload Your Design |
-| Reset button | Reset |
+| Reset button | Reset Preview |
 | Mockup section heading | Preview Your Label |
 | Mockup intro | Upload your design to see how it looks flat, on a can, or on a bottle. |
 | Mockup upload hint | Accepted formats: PNG, JPG, WEBP. Max file size: 5 MB. |
@@ -297,7 +315,7 @@ Inherits existing site accessibility patterns from `css/styles.css`:
 Phase-specific requirements:
 - `<select>` label-type dropdown: wrap in `<label>` with visible text "Label size:"
 - Upload `<label for="labels-upload">` already provides accessible name for hidden file input — preserve
-- Reset `<button>` has text content "Reset" — no additional labelling needed
+- Reset `<button>` has text content "Reset Preview" — no additional labelling needed
 - Canvas elements: add `aria-label` to each canvas describing its purpose (e.g., `aria-label="Flat label preview"`)
 - Preview column labels (`.labels-preview-label`) are decorative — no landmark role needed
 - Error messages: rendered as `role="alert"` or `aria-live="polite"` so screen readers announce them
