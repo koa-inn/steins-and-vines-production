@@ -414,7 +414,7 @@ function kioskSaveRecipeQuickEdit(recipeId, fields) {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **sanitizeInput() behavior with JSON**
    - What we know: `sanitizeInput()` is called on all field values in `updateBatch()`. `createBatch()` uses a direct `setValue()` for recipe_snapshot (line 1819 — bypasses sanitizeInput).
