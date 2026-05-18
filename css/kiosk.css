@@ -2724,4 +2724,33 @@ img {
 .kiosk-avail-dot--ok { background: var(--batch-success); }
 .kiosk-avail-dot--low { background: var(--batch-warning); }
 .kiosk-avail-dot--out { background: var(--batch-danger); }
+
+/* Phase 16: Kiosk recipe quick-edit panel */
+.kiosk-recipe-quick-edit {
+  padding: 0;
+}
+.kiosk-recipe-quick-edit label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+.kiosk-recipe-quick-edit input,
+.kiosk-recipe-quick-edit textarea,
+.kiosk-recipe-quick-edit select {
+  font-size: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.kiosk-quick-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.kiosk-quick-edit-actions .btn,
+.kiosk-quick-edit-actions .btn-secondary {
+  flex: 1;
+  min-height: 44px;
+}
 .kiosk-avail-dot--unknown { background: var(--ink-muted); }
