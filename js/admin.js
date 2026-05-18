@@ -10322,6 +10322,8 @@
       }
       summaryHtml += '</div>';
       summaryHtml += '<div id="kiosk-recipe-ingredients" style="margin:0.75rem 0;font-size:0.85rem;color:var(--ink-secondary);">Loading ingredients...</div>';
+      summaryHtml += '<div id="kiosk-recipe-quick-edit-wrap" class="kiosk-recipe-quick-edit"></div>';
+      summaryHtml += '<button type="button" class="btn" id="kiosk-recipe-quick-edit-btn" style="margin-top:0.75rem;width:100%;">Edit Recipe</button>';
       summaryEl.innerHTML = summaryHtml;
 
       // Fetch ingredients for display; cache on recipe object for reuse in kioskAddRecipeToCart
@@ -10380,6 +10382,41 @@
             if (ingEl3) ingEl3.innerHTML = '';
           });
       }
+
+      // Wire quick-edit button
+      var qeBtn = document.getElementById('kiosk-recipe-quick-edit-btn');
+      if (qeBtn) {
+        qeBtn.addEventListener('click', function () {
+          var wrap = document.getElementById('kiosk-recipe-quick-edit-wrap');
+          if (!wrap) return;
+          qeBtn.style.display = 'none';
+          wrap.innerHTML =
+            '<label style="display:block;margin-bottom:0.5rem;font-size:0.85rem;font-weight:600;">Recipe Name</label>' +
+            '<input type="text" id="kqe-name" class="bp-inline-input" style="width:100%;margin-bottom:0.75rem;font-size:16px;" value="' + escapeHTML(recipe.name || '') + '">' +
+            '<label style="display:block;margin-bottom:0.5rem;font-size:0.85rem;font-weight:600;">Notes</label>' +
+            '<textarea id="kqe-notes" class="bp-inline-input" rows="3" style="width:100%;margin-bottom:0.75rem;font-size:16px;">' + escapeHTML(recipe.notes || '') + '</textarea>' +
+            '<label style="display:block;margin-bottom:0.5rem;font-size:0.85rem;font-weight:600;">Locked Price ($)</label>' +
+            '<input type="number" id="kqe-price" class="bp-inline-input" style="width:100%;margin-bottom:0.75rem;font-size:16px;" step="0.01" min="0" inputmode="decimal" value="' + escapeHTML(String(recipe.locked_price || '')) + '">' +
+            '<label style="display:block;margin-bottom:0.5rem;font-size:0.85rem;font-weight:600;">Status</label>' +
+            '<select id="kqe-status" class="bp-inline-input" style="width:100%;margin-bottom:1rem;font-size:16px;">' +
+              '<option value="draft"' + (recipe.status === 'draft' ? ' selected' : '') + '>Draft</option>' +
+              '<option value="active"' + (recipe.status === 'active' ? ' selected' : '') + '>Active</option>' +
+            '</select>' +
+            '<div class="kiosk-quick-edit-actions">' +
+              '<button type="button" class="btn" id="kqe-save">Save Changes</button>' +
+              '<button type="button" class="btn-secondary" id="kqe-cancel">Discard Changes</button>' +
+            '</div>';
+
+          document.getElementById('kqe-cancel').addEventListener('click', function () {
+            wrap.innerHTML = '';
+            qeBtn.style.display = '';
+          });
+
+          document.getElementById('kqe-save').addEventListener('click', function () {
+            kioskSaveRecipeQuickEdit(recipe, wrap, qeBtn);
+          });
+        });
+      }
     }
 
     // Reset sale-type button states
@@ -10402,6 +10439,47 @@
 
     // Check availability
     kioskCheckRecipeAvailability(recipe.recipe_id);
+  }
+
+  function kioskSaveRecipeQuickEdit(recipe, wrap, qeBtn) {
+    var saveBtn = document.getElementById('kqe-save');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
+    var fields = {
+      name: (document.getElementById('kqe-name') || {}).value || recipe.name,
+      notes: (document.getElementById('kqe-notes') || {}).value || '',
+      locked_price: parseFloat((document.getElementById('kqe-price') || {}).value) || 0,
+      status: (document.getElementById('kqe-status') || {}).value || recipe.status
+    };
+
+    var mw = kioskMwUrl();
+    var headers = { 'Content-Type': 'application/json' };
+    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
+      headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
+    }
+
+    fetch(mw + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), {
+      method: 'PUT',
+      headers: headers,
+      body: JSON.stringify(fields)
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok && data.error) throw new Error(data.error);
+        recipe.name = fields.name;
+        recipe.notes = fields.notes;
+        recipe.locked_price = fields.locked_price;
+        recipe.status = fields.status;
+        showToast('Recipe updated.', 'success');
+        wrap.innerHTML = '';
+        qeBtn.style.display = '';
+        var nameEl = document.getElementById('kiosk-recipe-selected-name');
+        if (nameEl) nameEl.textContent = fields.name;
+      })
+      .catch(function (err) {
+        showToast('Could not update recipe: ' + (err.message || 'unknown error'), 'error');
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+      });
   }
 
   // Updates #kiosk-recipe-summary-price to reflect current sale type and computed_price.
