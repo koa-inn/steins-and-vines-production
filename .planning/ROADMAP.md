@@ -259,12 +259,12 @@ Plans:
   3. Canvas mockup tool lets users switch between wine bottle and can templates, upload artwork (PNG/JPG/WEBP under 5MB), and see it composited into the label region
   4. Default mockup state shows placeholder label; reset button returns to placeholder
   5. Page layout matches existing site (same header, footer, fonts, CSS variables)
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
 **Wave 1** *(no dependencies -- run in parallel)*
-- [ ] 17-01-PLAN.md -- HTML page + CSS + SVG templates + nav updates on 6 pages + sitemap
-- [ ] 17-02-PLAN.md -- Canvas mockup tool JS module (14-labels.js): template selector, upload, compositing, reset
+- [x] 17-01-PLAN.md -- HTML page + CSS + SVG templates + nav updates on 6 pages + sitemap
+- [x] 17-02-PLAN.md -- Canvas mockup tool JS module (14-labels.js): template selector, upload, compositing, reset
 
 **Wave 2** *(depends on Wave 1)*
 - [ ] 17-03-PLAN.md -- Build pipeline integration, test/lint, human visual verification
