@@ -209,6 +209,7 @@ function buildLifecycleTimeline(batch, soDate) {
 
   // Product catalog
   var _kitCatalog = null;
+  var _productPickerTab = 'kits'; // 'kits' | 'recipes' — Phase 16 tabbed picker state
 
   var CACHE_TTL = 300000;       // 5min per-tab cache (single-user — safe to cache aggressively)
   var CACHE_TTL_LONG = 600000;  // 10min for batch list + dashboard
@@ -2763,14 +2764,21 @@ function buildLifecycleTimeline(batch, soDate) {
     html += '<button type="button" class="bp-create-close" id="bp-create-close">&times;</button>';
     html += '</div>';
 
-    // Product
+    // Product \u2014 tabbed picker per D-01 (Phase 16)
     html += '<div class="bp-form-group"><label>Product</label>';
+    html += '<div class="bp-product-tabs">';
+    html += '<div class="bp-product-tab-bar">';
+    html += '<button type="button" class="bp-product-tab bp-product-tab--active" data-picker-tab="kits">Kits</button>';
+    html += '<button type="button" class="bp-product-tab" data-picker-tab="recipes">Recipes</button>';
+    html += '</div>';
     html += '<div class="bp-vessel-wrap">';
     html += '<input type="text" id="bp-new-product-text" class="bp-inline-input" placeholder="Search kits\u2026" autocomplete="off">';
     html += '<div class="bp-vessel-dropdown" id="bp-new-product-dropdown" style="display:none;"></div>';
     html += '<input type="hidden" id="bp-new-product-sku">';
     html += '<input type="hidden" id="bp-new-product-name">';
-    html += '</div></div>';
+    html += '<input type="hidden" id="bp-new-recipe-id">';
+    html += '<input type="hidden" id="bp-new-recipe-snapshot">';
+    html += '</div></div></div>';
 
     // Customer
     html += '<div class="bp-form-group"><label>Customer <span class="bp-optional">(optional)</span></label>';
@@ -2829,7 +2837,36 @@ function buildLifecycleTimeline(batch, soDate) {
     document.getElementById('bp-create-close').addEventListener('click', closeCreateSheet);
     document.getElementById('bp-create-cancel').addEventListener('click', closeCreateSheet);
 
+    _productPickerTab = 'kits'; // reset tab state on each form open
     bindProductSearch();
+    bindRecipePickerSearch();
+
+    // Phase 16: Tab switcher — binds Kits/Recipes tab buttons
+    Array.prototype.forEach.call(document.querySelectorAll('.bp-product-tab'), function (btn) {
+      btn.addEventListener('click', function () {
+        _productPickerTab = btn.getAttribute('data-picker-tab') || 'kits';
+        Array.prototype.forEach.call(document.querySelectorAll('.bp-product-tab'), function (b) {
+          b.classList.toggle('bp-product-tab--active', b === btn);
+        });
+        var input = document.getElementById('bp-new-product-text');
+        var dropdown = document.getElementById('bp-new-product-dropdown');
+        var skuHidden = document.getElementById('bp-new-product-sku');
+        var nameHidden = document.getElementById('bp-new-product-name');
+        var recipeIdHidden = document.getElementById('bp-new-recipe-id');
+        var snapshotHidden = document.getElementById('bp-new-recipe-snapshot');
+        if (input) {
+          input.value = '';
+          input.placeholder = _productPickerTab === 'kits' ? 'Search kits…' : 'Search recipes…';
+          input.focus();
+        }
+        if (dropdown) dropdown.style.display = 'none';
+        if (skuHidden) skuHidden.value = '';
+        if (nameHidden) nameHidden.value = '';
+        if (recipeIdHidden) recipeIdHidden.value = '';
+        if (snapshotHidden) snapshotHidden.value = '';
+      });
+    });
+
     bindCustomerSearch();
 
     var vInput = document.getElementById('bp-new-vessel-text');
@@ -2899,7 +2936,9 @@ function buildLifecycleTimeline(batch, soDate) {
           shelf_id: shelf,
           bin_id: bin,
           schedule_id: scheduleId,
-          notes: notes
+          notes: notes,
+          recipe_id: (document.getElementById('bp-new-recipe-id') || {}).value || '',
+          recipe_snapshot: (document.getElementById('bp-new-recipe-snapshot') || {}).value || ''
         })
           .then(function (result) {
             showToast('Batch ' + (result.batch_id || '') + ' created', 'success');
@@ -2928,6 +2967,7 @@ function buildLifecycleTimeline(batch, soDate) {
     if (!input || !dropdown || !skuHidden || !nameHidden) return;
 
     function showProductOptions(term) {
+      if (_productPickerTab !== 'kits') return; // Phase 16: guard \u2014 kits tab only
       if (!_kitCatalog) {
         dropdown.innerHTML = '<div class="bp-vessel-option bp-vessel-option--empty">Loading catalog\u2026</div>';
         dropdown.style.display = '';
@@ -2968,6 +3008,94 @@ function buildLifecycleTimeline(batch, soDate) {
     input.addEventListener('blur', function () {
       setTimeout(function () { dropdown.style.display = 'none'; }, 200);
     });
+  }
+
+  // Phase 16: Recipe picker search — fetches /api/recipes?status=active from middleware
+  function bindRecipePickerSearch() {
+    var input    = document.getElementById('bp-new-product-text');
+    var dropdown = document.getElementById('bp-new-product-dropdown');
+    var nameHidden = document.getElementById('bp-new-product-name');
+    var recipeIdHidden = document.getElementById('bp-new-recipe-id');
+    var snapshotHidden = document.getElementById('bp-new-recipe-snapshot');
+    if (!input || !dropdown) return;
+
+    var _recipeCatalog = null;
+
+    function showRecipeOptions(term) {
+      if (_productPickerTab !== 'recipes') return;
+      if (!_recipeCatalog) {
+        dropdown.innerHTML = '<div class="bp-vessel-option bp-vessel-option--empty">Loading recipes…</div>';
+        dropdown.style.display = '';
+        fetch(mwUrl() + '/api/recipes?status=active', {
+          headers: { 'x-api-key': mwApiKey() }
+        }).then(function (r) { return r.json(); })
+          .then(function (data) {
+            _recipeCatalog = data.recipes || [];
+            showRecipeOptions(term);
+          })
+          .catch(function () { _recipeCatalog = []; showRecipeOptions(term); });
+        return;
+      }
+      var matches = _recipeCatalog.filter(function (r) {
+        if (!term) return true;
+        return ((r.name || '') + ' ' + (r.style || '')).toLowerCase().indexOf(term.toLowerCase()) !== -1;
+      }).slice(0, 15);
+      dropdown.innerHTML = matches.length === 0
+        ? '<div class="bp-vessel-option bp-vessel-option--empty">No recipes found</div>'
+        : matches.map(function (r) {
+            return '<div class="bp-vessel-option" data-rid="' + escapeHTML(r.recipe_id || '') +
+              '" data-rname="' + escapeHTML(r.name || '') + '">' +
+              escapeHTML(r.name || '') +
+              (r.abv ? ' <span style="color:var(--ink-muted);font-size:0.82em;">' + escapeHTML(String(r.abv)) + '% ABV</span>' : '') +
+              '</div>';
+          }).join('');
+      dropdown.style.display = '';
+
+      // Selecting a recipe: fetch full detail for snapshot, then populate hiddens
+      Array.prototype.forEach.call(dropdown.querySelectorAll('.bp-vessel-option[data-rid]'), function (opt) {
+        opt.addEventListener('mousedown', function (e) {
+          e.preventDefault();
+          var rid = opt.getAttribute('data-rid');
+          var rname = opt.getAttribute('data-rname');
+          input.value = rname;
+          if (nameHidden) nameHidden.value = rname;
+          if (recipeIdHidden) recipeIdHidden.value = rid;
+          dropdown.style.display = 'none';
+          // Fetch full recipe for snapshot
+          fetch(mwUrl() + '/api/recipes/' + encodeURIComponent(rid), {
+            headers: { 'x-api-key': mwApiKey() }
+          }).then(function (r) { return r.json(); })
+            .then(function (data) {
+              var snap = data.recipe || {};
+              // Trim to essential fields only (T-16-03: avoid 50k cell limit)
+              var minimal = {
+                name: snap.name, style: snap.style, abv: snap.abv,
+                ibu: snap.ibu, batch_size_l: snap.batch_size_l,
+                ingredients: (data.ingredients || []).map(function (i) {
+                  return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit };
+                })
+              };
+              if (snapshotHidden) snapshotHidden.value = JSON.stringify(minimal);
+            })
+            .catch(function () { if (snapshotHidden) snapshotHidden.value = ''; });
+        });
+      });
+    }
+
+    input.addEventListener('focus', function () {
+      if (_productPickerTab === 'recipes') showRecipeOptions(input.value);
+    });
+    var timer;
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      if (nameHidden) nameHidden.value = '';
+      if (recipeIdHidden) recipeIdHidden.value = '';
+      if (snapshotHidden) snapshotHidden.value = '';
+      timer = setTimeout(function () {
+        if (_productPickerTab === 'recipes') showRecipeOptions(input.value);
+      }, 200);
+    });
+    // blur already handled by existing bindProductSearch — shared input element
   }
 
   function loadKitCatalog(cb) {

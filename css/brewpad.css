@@ -1958,3 +1958,28 @@ img { max-width: 100%; height: auto; display: block; }
 .bp-sync-indicator--failed {
   color: var(--batch-danger);
 }
+
+/* Phase 16: Product picker tab bar */
+.bp-product-tab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--ledger-soft);
+  margin-bottom: 8px;
+}
+.bp-product-tab {
+  font-size: 0.82rem;
+  font-weight: 400;
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+.bp-product-tab:hover {
+  color: var(--barrel);
+}
+.bp-product-tab--active {
+  border-bottom-color: var(--barrel);
+  font-weight: 700;
+  color: var(--ink-primary);
+}
