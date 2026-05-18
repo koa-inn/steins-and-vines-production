@@ -279,12 +279,12 @@ Plans:
   3. Hero copy and page messaging address all audiences (homebrewers, events, small businesses) -- not just homebrewers
   4. Design guidelines mention max print width 4.25 inches and waterproof BOPP material
   5. Label-type selector drives container show/hide (bottle-only labels hide can preview)
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
 **Wave 1** *(no dependencies -- run in parallel)*
-- [ ] 18-01-PLAN.md -- Photo assets, HTML 3-canvas structure, CSS 3-column layout, broadened copy, pricing wrapper, SEO meta
-- [ ] 18-02-PLAN.md -- JS engine: LABEL_DATA constant, 3-canvas rendering with cylindrical warp, label-type selector, pricing table builder
+- [x] 18-01-PLAN.md -- Photo assets, HTML 3-canvas structure, CSS 3-column layout, broadened copy, pricing wrapper, SEO meta
+- [x] 18-02-PLAN.md -- JS engine: LABEL_DATA constant, 3-canvas rendering with cylindrical warp, label-type selector, pricing table builder
 
 **Wave 2** *(depends on Wave 1)*
 - [ ] 18-03-PLAN.md -- Build, lint, test, label region tuning, human visual verification
