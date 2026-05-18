@@ -248,6 +248,37 @@ Plans:
 **Wave 2** *(depends on Plan 01 -- needs allowedFields patch for recipe_snapshot writes)*
 - [x] 16-02-PLAN.md -- BrewPad batch detail collapsible Recipe section: view/edit snapshot, attach existing recipe, create recipe from batch
 
+### Phase 17: Custom Labels Page
+
+**Goal:** A new public-facing page at /custom-labels.html showcasing the custom label printing service with pricing table, label options, design guidelines, and an interactive canvas-based mockup tool where customers upload artwork to preview on wine bottle or can templates
+**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09, D-10, D-11, D-12, D-13, D-14, D-15, D-16, D-17, D-18
+**Depends on:** Nothing (independent)
+**Success Criteria** (what must be TRUE):
+  1. custom-labels.html loads with hero, how-it-works, pricing table, mockup tool, design guidelines, and CTA sections
+  2. Products dropdown nav on all 6 public pages includes "Custom Labels" link
+  3. Canvas mockup tool lets users switch between wine bottle and can templates, upload artwork (PNG/JPG/WEBP under 5MB), and see it composited into the label region
+  4. Default mockup state shows placeholder label; reset button returns to placeholder
+  5. Page layout matches existing site (same header, footer, fonts, CSS variables)
+**Plans:** 3 plans
+
+Plans:
+**Wave 1** *(no dependencies -- run in parallel)*
+- [ ] 17-01-PLAN.md -- HTML page + CSS + SVG templates + nav updates on 6 pages + sitemap
+- [ ] 17-02-PLAN.md -- Canvas mockup tool JS module (14-labels.js): template selector, upload, compositing, reset
+
+**Wave 2** *(depends on Wave 1)*
+- [ ] 17-03-PLAN.md -- Build pipeline integration, test/lint, human visual verification
+
+### Phase 18: custom-labels-page A new public-facing page at /custom-labels.html showcasing custom label printing service with pricing, label options, and an interactive canvas-based mockup tool where customers upload artwork to preview on bottle/can templates
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 17
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 18 to break down)
+
 ---
 
 ## v2.0 Recipe-Based Products
