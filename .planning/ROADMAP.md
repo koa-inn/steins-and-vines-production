@@ -269,9 +269,8 @@ Plans:
 **Wave 2** *(depends on Wave 1)*
 - [x] 17-03-PLAN.md -- Build pipeline integration, test/lint, human visual verification
 
-### Phase 18: custom-labels-page A new public-facing page at /custom-labels.html showcasing custom label printing service with pricing, label options, and an interactive canvas-based mockup tool where customers upload artwork to preview on bottle/can templates
-
-**Goal:** [To be planned]
+### Phase 18: Custom Labels Iteration
+**Goal:** Upgrade the custom labels page with a photo-realistic 3-preview mockup tool (flat label view + real can photo + real bottle photo), broader copy positioning the service for any customer (not just homebrewers), real Epson CW-C4000 printer specs in design guidelines, and accurate BOPP/paper material information
 **Requirements**: TBD
 **Depends on:** Phase 17
 **Plans:** 0 plans
