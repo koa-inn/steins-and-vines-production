@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Recipe-Based Products
 status: executing
-stopped_at: Plan 17-03 Task 2 checkpoint (human-verify)
-last_updated: "2026-05-18T19:33:58.180Z"
-last_activity: 2026-05-18 -- Phase 18 planning complete
+stopped_at: Plan 18-03 Task 2 checkpoint (human-verify)
+last_updated: "2026-05-18T21:30:00.000Z"
+last_activity: 2026-05-18 -- Phase 18 Plan 03 Task 1 complete; awaiting human visual verification
 progress:
   total_phases: 14
   completed_phases: 13
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-09)
 ## Current Position
 
 Phase: 18
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-18 -- Phase 18 planning complete
+Plan: 03 (Task 2 checkpoint — human-verify)
+Status: Paused at checkpoint
+Last activity: 2026-05-18 -- Phase 18 Plan 03 Task 1 complete; awaiting human visual verification
 
-Progress: [######░░░░] 60%
+Progress: [#######░░░] 70%
 
 ## Performance Metrics
 
@@ -67,6 +67,8 @@ Progress: [######░░░░] 60%
 - [14-02]: RECIPES_TS cache also busted after sale to ensure freshness of recipe availability data
 - [14-03]: Recipe cart items use rate=0 display-only — server recomputes all rates at confirm (T-14-11 accept)
 - [14-03]: _kioskCart._recipeContext sentinel detects recipe sales in checkout — avoids modifying existing product flow
+- [18-03]: can-photo.jpg removed (wrong subject: cocktail drinks) — can-template.svg fallback provides purpose-built can illustration for label mockup
+- [18-03]: PHOTO_LABEL_REGIONS for can derived mathematically from SVG viewBox (600x800) scaled to canvas (280x420); bottle from photo inspection of 280x560 product shot
 - [14-03]: Recipe 202 pending handled by calling /confirm immediately — admin.js kiosk is staff-facing, no polling needed
 - [14-03]: milling toggle shown only for take-out (D-03) — JS enforces visibility, server enforces logic
 
@@ -82,6 +84,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-18T12:43:38Z
-Stopped at: Plan 17-03 Task 2 checkpoint (human-verify)
-Resume file: .planning/phases/17-custom-labels-page/17-03-PLAN.md
+Last session: 2026-05-18T21:30:00Z
+Stopped at: Plan 18-03 Task 2 checkpoint (human-verify)
+Resume file: .planning/phases/18-custom-labels-iteration/18-03-PLAN.md
