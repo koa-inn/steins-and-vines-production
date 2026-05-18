@@ -225,6 +225,16 @@ Plans:
 **Wave 3** *(depends on Wave 1 + Wave 2 -- needs CSS classes from Plan 02)*
 - [x] 11-03-PLAN.md -- Compact view producers: cart sidebar (inline per D-03), checkout table, kiosk grid/list, admin kit table, HTML changes, frontend tests, build
 
+### Phase 16: Recipe Management — BrewPad, Kiosk & Batch Integration
+
+**Goal:** Staff can browse, edit, and select recipes from BrewPad and kiosk when creating batches. Recipe editing is available in admin, kiosk, and BrewPad. Selecting a recipe when starting a batch pre-fills product info and attaches the recipe snapshot.
+**Requirements**: TBD
+**Depends on:** Phase 15
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 16 to break down)
+
 ---
 
 ## v2.0 Recipe-Based Products
