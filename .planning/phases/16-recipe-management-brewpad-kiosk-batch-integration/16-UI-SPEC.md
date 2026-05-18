@@ -46,8 +46,9 @@ Declared values (must be multiples of 4):
 
 **Exceptions:**
 - Touch targets in kiosk (sale type buttons): minimum 64px height — matches `.kiosk-sale-type-btn { min-height: 64px }` existing pattern
-- Form group internal padding: 12px (`.bp-form-subgroup { padding: 12px }`) — pre-existing, not a new exception
-- Recipe section margin-bottom: 18px (matches `.bp-detail-section { margin-bottom: 18px }` existing value, not a round multiple — inherited, do not change)
+- Form group internal padding: 12px (`.bp-form-subgroup { padding: 12px }`) — pre-existing, not a new exception introduced by Phase 16
+
+**Note on inherited values:** `.bp-detail-section { margin-bottom: 18px }` is an existing value not touched by Phase 16. It is not declared here because Phase 16 does not introduce or modify it.
 
 **Source:** `css/brewpad.css` lines 734-1256; `css/kiosk.css` lines 498-2653.
 
@@ -62,11 +63,17 @@ Declared values (must be multiples of 4):
 | Form label | 13.1px (0.82rem) | 700 | default |
 | Recipe name / display | 20px (1.25rem) | 700 | 1.25 |
 
+**Declared weights:** 400 (regular) and 700 (bold) only. No other weights are used in Phase 16 components.
+
+**Size mapping for component specs:** All component-level font sizes must resolve to one of the four declared roles above:
+- Sub-label sizes (0.72rem, 0.78rem) → 12px (label role)
+- Small body sizes (0.8rem, 0.85rem, 0.9rem) → treat as body (16px) or form-label (13.1px) context — do not introduce additional discrete size values in CSS beyond what already exists in the component files
+
 **Notes:**
 - 16px is the base `font-size: 16px` on `html` in both brewpad.css and kiosk.css. Inputs must remain at 16px minimum to prevent iOS Safari auto-zoom (explicit comment in brewpad.css line 152).
 - Section title style (`text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; font-weight: 700; color: var(--ink-tertiary)`) is the established pattern for ALL `.bp-detail-section-title` elements including the new Recipe section title. Do not deviate.
 - Recipe display name in kiosk prompt: `.kiosk-recipe-selected-name { font-family: var(--font-display); font-size: 1.25rem; font-weight: 700 }` — use this for recipe name in kiosk quick-edit prompt header.
-- Product card names in kiosk grid: `font-size: 0.9rem; font-weight: 600; line-height: 1.25` — applies to recipe cards rendered in `.kiosk-recipe-grid`.
+- Product card names in kiosk recipe grid: inherit the form-label role (13.1px, 700) for the name line and the label role (12px, 400) for the style/ABV sub-line. Do not introduce weight 600.
 
 **Source:** `css/brewpad.css` lines 70-82, 738-747, 1222-1228; `css/kiosk.css` lines 67-77, 545-553, 2621-2627.
 
@@ -124,13 +131,15 @@ Replaces single product text input in `buildCreateForm()`. Two tabs: "Kits" (exi
 - Matches the `.kiosk-mode-toggle__btn` pattern from `kiosk.css` lines 2593-2618 — use same visual language in BrewPad context.
 
 **Recipe dropdown item format:**
-- One line: `[Recipe Name]` — `font-weight: 600; font-size: 0.9rem`
-- Second line: `[Style] · [ABV]%` — `font-size: 0.78rem; color: var(--ink-tertiary)`
+- One line: `[Recipe Name]` — `font-weight: 700` (bold role)
+- Second line: `[Style] · [ABV]%` — label role (12px, 400, `color: var(--ink-tertiary)`)
 - Reuses `.bp-vessel-dropdown` existing scroll list item style
 
 #### 2. BrewPad Collapsible Recipe Section (`.bp-detail-section--recipe`)
 
 Extends `.bp-detail-section`. Added after the Notes section in `renderBatchDetail()`.
+
+**Primary focal point — batch detail:** The collapsible Recipe section toggle header anchors the new interaction area. The chevron and section title are the visual entry point for all recipe functionality on this screen.
 
 **Toggle header:**
 - Inherits `.bp-detail-section-title` styles exactly (12px, 700, uppercase, `--ink-tertiary`)
@@ -143,18 +152,18 @@ Extends `.bp-detail-section`. Added after the Notes section in `renderBatchDetai
 **Section body — State A (has recipe_snapshot):**
 | Element | Spec |
 |---------|------|
-| Recipe metadata row | `display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 12px; font-size: 0.85rem` |
-| Metadata label | `font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--ink-tertiary)` |
-| Metadata value | `font-size: 0.9rem; font-weight: 600; color: var(--ink-primary)` |
-| Ingredient table | Full-width table, `font-size: 0.85rem`, alternating row bg `--cellar-canvas` / `--cellar-surface` |
-| "Edit Recipe" button | `.btn-secondary` (existing) — small size: `font-size: 0.8rem; padding: 4px 12px` |
+| Recipe metadata row | `display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 12px` — form-label role (13.1px) |
+| Metadata label | label role: 12px, 700, uppercase, `color: var(--ink-tertiary)` |
+| Metadata value | form-label role: 13.1px, 700, `color: var(--ink-primary)` |
+| Ingredient table | Full-width table, form-label role (13.1px), alternating row bg `--cellar-canvas` / `--cellar-surface` |
+| "Edit Recipe" button | `.btn-secondary` (existing) — small size: body role (16px) at existing `.btn-secondary` padding |
 
 Metadata fields shown: Style, ABV (%), IBU, Batch Size (L). One row, wrapping on narrow screens.
 
 **Section body — State B (no recipe_snapshot — kit batch):**
 | Element | Spec |
 |---------|------|
-| Prompt text | `font-size: 0.85rem; color: var(--ink-secondary); margin-bottom: 12px` |
+| Prompt text | form-label role: 13.1px, 400, `color: var(--ink-secondary); margin-bottom: 12px` |
 | "Attach Recipe" button | `.btn-secondary` (existing) |
 | "Create Recipe" button | `.btn` (existing primary style) |
 | Button row | `display: flex; gap: 8px` |
@@ -162,7 +171,7 @@ Metadata fields shown: Style, ABV (%), IBU, Batch Size (L). One row, wrapping on
 **Inline edit mode (triggered by "Edit Recipe" button):**
 - Ingredient table rows switch from read-only text to `<input type="number">` for quantity
 - Notes cells become `<textarea>` 2 rows
-- "Save Changes" button (`.btn`) + "Cancel" button (`.btn-secondary`) appear below table
+- "Save Changes" button (`.btn`) + "Discard Changes" button (`.btn-secondary`) appear below table
 - No modal — inline replacement within the section body, consistent with existing bp inline edit pattern
 
 #### 3. Create Recipe from Batch — Slide-out Panel (`.bp-recipe-create-sheet`)
@@ -179,12 +188,14 @@ Metadata fields shown: Style, ABV (%), IBU, Batch Size (L). One row, wrapping on
 
 **Decision from Claude's Discretion:** Added as a second state within the existing recipe prompt/detail view — not a separate navigation level. After staff taps a recipe card, the recipe detail pane shows a "Edit Recipe" button in the action row. Tapping it transforms the detail pane into quick-edit mode inline.
 
+**Primary focal point — kiosk recipe panel:** The "Edit Recipe" button is the primary CTA. It is the sole entry point to edit mode and should be visually prominent within the action row using the `.btn` (primary) style.
+
 **Quick-edit fields per D-03/D-09:** Name, Notes, Price (locked_price), Status (draft/active select).
 
 **Field layout:**
 ```
 .kiosk-recipe-quick-edit (panel, inherits existing kiosk panel padding: 1rem)
-  h3 "Edit Recipe"  — font-display, 1rem, --ink-primary
+  h3 "Edit Recipe"  — font-display, body role (16px), --ink-primary
   form
     label + input.bp-inline-input  for Name
     label + textarea (3 rows)      for Notes
@@ -192,7 +203,7 @@ Metadata fields shown: Style, ABV (%), IBU, Batch Size (L). One row, wrapping on
     label + select                 for Status (draft / active)
   .kiosk-quick-edit-actions
     button.btn "Save Changes"
-    button.btn-secondary "Cancel"
+    button.btn-secondary "Discard Changes"
 ```
 
 - Status select values: `draft` and `active` only
@@ -216,10 +227,10 @@ Metadata fields shown: Style, ABV (%), IBU, Batch Size (L). One row, wrapping on
 | Create Recipe button | "Create Recipe" |
 | Recipe create slide-out title | "Create Recipe from Batch" |
 | Inline edit mode — save button | "Save Changes" |
-| Inline edit mode — cancel button | "Cancel" |
+| Inline edit mode — cancel button | "Discard Changes" |
 | Kiosk recipe quick-edit — title | "Edit Recipe" |
 | Kiosk quick-edit — save button | "Save Changes" |
-| Kiosk quick-edit — cancel button | "Cancel" |
+| Kiosk quick-edit — cancel button | "Discard Changes" |
 | Primary CTA (BrewPad new batch with recipe) | "Create Batch" (unchanged — existing label) |
 | Empty state — recipe picker (no results) | "No recipes found. Try a different name." |
 | Empty state — kiosk recipe grid | "No active recipes. Add recipes in the Admin panel." |
@@ -254,9 +265,9 @@ Metadata fields shown: Style, ABV (%), IBU, Batch Size (L). One row, wrapping on
 |---------|----------|
 | Batch detail renders | Recipe section appended after Notes; collapsed by default (`aria-expanded="false"`, body `display:none`) |
 | Click / Enter / Space on section header | Toggle: `aria-expanded` flips; body `display` toggles; chevron rotates 90deg |
-| "Edit Recipe" clicked | Ingredient table rows replace text with inputs; quantity `<input type="number">`; notes `<textarea>`; Save/Cancel row appears |
+| "Edit Recipe" clicked | Ingredient table rows replace text with inputs; quantity `<input type="number">`; notes `<textarea>`; Save/Discard Changes row appears |
 | "Save Changes" clicked | Button disables; `adminApiPost('update_batch', {updates: {recipe_snapshot, recipe_id}})` fires; on success: inline edit mode exits, section re-renders with updated data, success toast shows; on error: button re-enables, error toast shows |
-| "Cancel" clicked | Inputs revert to read-only display; no API call |
+| "Discard Changes" clicked | Inputs revert to read-only display; no API call |
 | "Attach Recipe" clicked | Inline recipe search input appears below button; staff searches and selects; `update_batch` fires with recipe_id + snapshot; on success section re-renders with State A |
 | "Create Recipe" clicked | Button disables; `.bp-recipe-create-sheet` slide-out panel opens |
 | Recipe create save | `POST /api/recipes` → on success: `update_batch` with recipe_id + snapshot → panel closes → Recipe section re-renders State A |
@@ -268,7 +279,7 @@ Metadata fields shown: Style, ABV (%), IBU, Batch Size (L). One row, wrapping on
 | Staff taps recipe card | Existing recipe detail pane opens; "Edit Recipe" button visible below metadata |
 | "Edit Recipe" clicked | Pane transitions to quick-edit form (fields pre-filled from current recipe data); status field pre-filled with current status |
 | "Save Changes" clicked | Button disables; `PUT /api/recipes/:id` fires with all 4 fields (name, notes, locked_price, status); on success: success toast, return to read-only detail view; on error: button re-enables, error toast |
-| "Cancel" clicked | Return to read-only detail view; no API call |
+| "Discard Changes" clicked | Return to read-only detail view; no API call |
 
 ---
 
