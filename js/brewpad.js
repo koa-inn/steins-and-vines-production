@@ -1721,6 +1721,384 @@ function buildLifecycleTimeline(batch, soDate) {
     sheet.classList.add('bp-confirm-sheet--visible');
   }
 
+  // Phase 16: Recipe section helpers
+
+  function buildRecipeIngredientTable(ingredients, editable) {
+    if (!ingredients || !ingredients.length) return '<p style="color:var(--ink-muted);font-size:0.85rem;">No ingredients listed.</p>';
+    var html = '<table class="bp-recipe-ing-table"><thead><tr>';
+    html += '<th scope="col">Ingredient</th>';
+    html += '<th scope="col" style="text-align:right;">Qty</th>';
+    html += '<th scope="col">Unit</th></tr></thead><tbody>';
+    ingredients.forEach(function (ing, i) {
+      html += '<tr>';
+      html += '<td>' + escapeHTML(ing.item_name || '') + '</td>';
+      if (editable) {
+        html += '<td style="text-align:right;"><input type="number" class="bp-inline-input bp-recipe-qty" data-idx="' + i + '" value="' + escapeHTML(String(ing.quantity || '')) + '" style="width:70px;text-align:right;" step="0.01" min="0"></td>';
+      } else {
+        html += '<td style="text-align:right;">' + escapeHTML(String(ing.quantity || '')) + '</td>';
+      }
+      html += '<td>' + escapeHTML(ing.unit || '') + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  }
+
+  function readIngredientTableEdits(wrap, snapIngredients) {
+    var inputs = wrap.querySelectorAll('.bp-recipe-qty');
+    var result = [];
+    Array.prototype.forEach.call(inputs, function (input) {
+      var idx = parseInt(input.getAttribute('data-idx'), 10);
+      if (!isNaN(idx) && snapIngredients && snapIngredients[idx]) {
+        var copy = {};
+        Object.keys(snapIngredients[idx]).forEach(function (k) { copy[k] = snapIngredients[idx][k]; });
+        copy.quantity = parseFloat(input.value) || 0;
+        result.push(copy);
+      }
+    });
+    return result;
+  }
+
+  function openRecipeAttachPanel(b, sectionBodyEl) {
+    if (!sectionBodyEl) return;
+    var emptyDiv = sectionBodyEl.querySelector('.bp-recipe-empty');
+    if (!emptyDiv) return;
+    emptyDiv.innerHTML =
+      '<div class="bp-vessel-wrap" id="bp-recipe-attach-wrap">' +
+      '<input type="text" id="bp-recipe-attach-input" class="bp-inline-input" placeholder="Search recipes…" autocomplete="off">' +
+      '<div class="bp-vessel-dropdown" id="bp-recipe-attach-dropdown" style="display:none;"></div>' +
+      '</div>' +
+      '<button type="button" class="btn-secondary bp-btn-sm" id="bp-recipe-attach-cancel" style="margin-top:6px;">Cancel</button>';
+
+    var input = document.getElementById('bp-recipe-attach-input');
+    var dropdown = document.getElementById('bp-recipe-attach-dropdown');
+    var cancelBtn = document.getElementById('bp-recipe-attach-cancel');
+    var _catalog = null;
+
+    function showAttachOptions(term) {
+      if (!_catalog) {
+        dropdown.innerHTML = '<div class="bp-vessel-option bp-vessel-option--empty">Loading recipes…</div>';
+        dropdown.style.display = '';
+        fetch(mwUrl() + '/api/recipes?status=active', { headers: { 'x-api-key': mwApiKey() } })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            _catalog = data.recipes || [];
+            showAttachOptions(term);
+          })
+          .catch(function () { _catalog = []; showAttachOptions(term); });
+        return;
+      }
+      var matches = _catalog.filter(function (r) {
+        if (!term) return true;
+        return ((r.name || '') + ' ' + (r.style || '')).toLowerCase().indexOf(term.toLowerCase()) !== -1;
+      }).slice(0, 15);
+      dropdown.innerHTML = matches.length === 0
+        ? '<div class="bp-vessel-option bp-vessel-option--empty">No recipes found</div>'
+        : matches.map(function (r) {
+            return '<div class="bp-vessel-option" data-rid="' + escapeHTML(r.recipe_id || '') +
+              '" data-rname="' + escapeHTML(r.name || '') + '">' +
+              escapeHTML(r.name || '') +
+              (r.abv ? ' <span style="color:var(--ink-muted);font-size:0.82em;">' + escapeHTML(String(r.abv)) + '% ABV</span>' : '') +
+              '</div>';
+          }).join('');
+      dropdown.style.display = '';
+      Array.prototype.forEach.call(dropdown.querySelectorAll('.bp-vessel-option[data-rid]'), function (opt) {
+        opt.addEventListener('mousedown', function (e) {
+          e.preventDefault();
+          var rid = opt.getAttribute('data-rid');
+          input.value = opt.getAttribute('data-rname') || '';
+          dropdown.style.display = 'none';
+          fetch(mwUrl() + '/api/recipes/' + encodeURIComponent(rid), { headers: { 'x-api-key': mwApiKey() } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              var snap = data.recipe || {};
+              var minimal = {
+                name: snap.name, style: snap.style, abv: snap.abv,
+                ibu: snap.ibu, batch_size_l: snap.batch_size_l, notes: snap.notes || '',
+                ingredients: (data.ingredients || []).map(function (i) {
+                  return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit };
+                })
+              };
+              return adminApiPost('update_batch', {
+                batch_id: b.batch_id,
+                updates: { recipe_id: rid, recipe_snapshot: JSON.stringify(minimal) }
+              }).then(function () {
+                b.recipe_id = rid;
+                b.recipe_snapshot = JSON.stringify(minimal);
+                try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e2) {}
+                showToast('Recipe attached', 'success');
+                renderRecipeSectionBody(sectionBodyEl, b, minimal);
+              });
+            })
+            .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+        });
+      });
+    }
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function () {
+        emptyDiv.innerHTML =
+          '<p style="color:var(--ink-secondary);font-size:0.82rem;margin:0 0 8px 0;">No recipe attached to this batch.</p>' +
+          '<div class="bp-recipe-btn-row">' +
+          '<button type="button" class="btn-secondary bp-btn-sm" id="bp-recipe-attach-btn">Attach Recipe</button>' +
+          '<button type="button" class="btn bp-btn-sm" id="bp-recipe-create-btn">Create Recipe</button>' +
+          '</div>';
+        bindRecipeEmptyBtns(b, sectionBodyEl, emptyDiv);
+      });
+    }
+
+    if (input) {
+      input.addEventListener('focus', function () { showAttachOptions(input.value); });
+      input.addEventListener('input', function () {
+        clearTimeout(input._timer);
+        input._timer = setTimeout(function () { showAttachOptions(input.value); }, 200);
+      });
+      input.addEventListener('blur', function () {
+        setTimeout(function () { dropdown.style.display = 'none'; }, 200);
+      });
+      input.focus();
+    }
+  }
+
+  function openRecipeFromBatchSheet(b, sectionBodyEl) {
+    var createBtn = document.getElementById('bp-recipe-create-btn');
+    if (createBtn) createBtn.disabled = true;
+
+    // Build a dedicated recipe-create sheet dynamically
+    var existing = document.getElementById('bp-recipe-create-sheet');
+    if (existing) existing.parentNode.removeChild(existing);
+
+    var appEl = document.getElementById('bp-app') || document.body;
+    var sheetEl = document.createElement('div');
+    sheetEl.id = 'bp-recipe-create-sheet';
+    sheetEl.className = 'bp-create-sheet';
+    sheetEl.style.display = '';
+    sheetEl.innerHTML =
+      '<div class="bp-create-sheet-inner" id="bp-recipe-create-sheet-inner">' +
+      '<div class="bp-create-sheet-header">' +
+      '<span class="bp-create-sheet-title">Create Recipe from Batch</span>' +
+      '<button type="button" class="bp-create-sheet-close" id="bp-recipe-sheet-close">×</button>' +
+      '</div>' +
+      '<div class="bp-create-sheet-body" id="bp-recipe-create-body">' +
+      '<div class="bp-form-group">' +
+        '<label>Name <span class="bp-required">*</span></label>' +
+        '<input type="text" id="bp-rcs-name" class="bp-inline-input" value="' + escapeHTML(b.product_name || '') + '" required>' +
+      '</div>' +
+      '<div class="bp-form-group">' +
+        '<label>Style</label>' +
+        '<input type="text" id="bp-rcs-style" class="bp-inline-input" placeholder="e.g. Cabernet Sauvignon">' +
+      '</div>' +
+      '<div class="bp-form-group">' +
+        '<label>ABV (%)</label>' +
+        '<input type="number" id="bp-rcs-abv" class="bp-inline-input" step="0.1" min="0">' +
+      '</div>' +
+      '<div class="bp-form-group">' +
+        '<label>IBU</label>' +
+        '<input type="number" id="bp-rcs-ibu" class="bp-inline-input" step="1" min="0">' +
+      '</div>' +
+      '<div class="bp-form-group">' +
+        '<label>Batch Size (L)</label>' +
+        '<input type="number" id="bp-rcs-batch-size" class="bp-inline-input" step="0.5" min="0">' +
+      '</div>' +
+      '<div class="bp-form-actions">' +
+        '<button type="button" class="btn" id="bp-rcs-save">Save Recipe</button>' +
+        '<button type="button" class="btn-secondary" id="bp-rcs-cancel">Cancel</button>' +
+      '</div>' +
+      '</div>' +
+      '</div>';
+    appEl.appendChild(sheetEl);
+
+    function closeRcSheet() {
+      sheetEl.classList.remove('bp-create-sheet--open');
+      setTimeout(function () {
+        if (sheetEl.parentNode) sheetEl.parentNode.removeChild(sheetEl);
+      }, 180);
+      if (createBtn) createBtn.disabled = false;
+    }
+
+    setTimeout(function () { sheetEl.classList.add('bp-create-sheet--open'); }, 10);
+
+    sheetEl.addEventListener('click', function (e) { if (e.target === sheetEl) closeRcSheet(); });
+    var closeX = document.getElementById('bp-recipe-sheet-close');
+    if (closeX) closeX.addEventListener('click', closeRcSheet);
+    var cancelRcs = document.getElementById('bp-rcs-cancel');
+    if (cancelRcs) cancelRcs.addEventListener('click', closeRcSheet);
+
+    var saveRcs = document.getElementById('bp-rcs-save');
+    if (saveRcs) {
+      saveRcs.addEventListener('click', function () {
+        var nameVal = (document.getElementById('bp-rcs-name') || {}).value || '';
+        if (!nameVal.trim()) { showToast('Recipe name is required.', 'error'); return; }
+        saveRcs.disabled = true;
+        var payload = {
+          name: nameVal.trim(),
+          style: (document.getElementById('bp-rcs-style') || {}).value || '',
+          abv: parseFloat((document.getElementById('bp-rcs-abv') || {}).value) || 0,
+          ibu: parseFloat((document.getElementById('bp-rcs-ibu') || {}).value) || 0,
+          batch_size_l: parseFloat((document.getElementById('bp-rcs-batch-size') || {}).value) || 0,
+          locked_price: 0,
+          status: 'draft',
+          ingredients: []
+        };
+        fetch(mwUrl() + '/api/recipes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': mwApiKey() },
+          body: JSON.stringify(payload)
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!data.ok && data.error) throw new Error(data.error);
+            var newId = (data.recipe && data.recipe.recipe_id) || data.recipe_id || '';
+            var snap = {
+              name: payload.name, style: payload.style,
+              abv: payload.abv, ibu: payload.ibu,
+              batch_size_l: payload.batch_size_l, notes: '',
+              ingredients: []
+            };
+            return adminApiPost('update_batch', {
+              batch_id: b.batch_id,
+              updates: { recipe_id: newId, recipe_snapshot: JSON.stringify(snap) }
+            }).then(function () {
+              b.recipe_id = newId;
+              b.recipe_snapshot = JSON.stringify(snap);
+              try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e2) {}
+              showToast('Recipe created and linked', 'success');
+              closeRcSheet();
+              if (sectionBodyEl) renderRecipeSectionBody(sectionBodyEl, b, snap);
+            });
+          })
+          .catch(function (err) {
+            showToast('Could not create recipe. Please try again.', 'error');
+            saveRcs.disabled = false;
+          });
+      });
+    }
+
+    var firstInput = document.getElementById('bp-rcs-name');
+    if (firstInput) setTimeout(function () { firstInput.focus(); }, 50);
+  }
+
+  function buildRecipeSummaryHtml(snap) {
+    var html = '<div class="bp-recipe-summary" id="bp-recipe-meta-wrap">';
+    if (snap.name) html += '<div><span class="bp-detail-info-label">Name</span> ' + escapeHTML(snap.name) + '</div>';
+    if (snap.style) html += '<div><span class="bp-detail-info-label">Style</span> ' + escapeHTML(snap.style) + '</div>';
+    if (snap.abv) html += '<div><span class="bp-detail-info-label">ABV</span> ' + escapeHTML(String(snap.abv)) + '%</div>';
+    if (snap.ibu) html += '<div><span class="bp-detail-info-label">IBU</span> ' + escapeHTML(String(snap.ibu)) + '</div>';
+    if (snap.batch_size_l) html += '<div><span class="bp-detail-info-label">Batch Size</span> ' + escapeHTML(String(snap.batch_size_l)) + ' L</div>';
+    if (snap.notes) html += '<div style="width:100%;"><span class="bp-detail-info-label">Notes</span> ' + escapeHTML(snap.notes) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function renderRecipeSectionBody(sectionBodyEl, b, snap) {
+    if (!sectionBodyEl) return;
+    sectionBodyEl.innerHTML =
+      buildRecipeSummaryHtml(snap) +
+      '<div id="bp-recipe-ingredient-wrap">' + buildRecipeIngredientTable(snap.ingredients || [], false) + '</div>' +
+      '<div class="bp-detail-actions" style="border-top:none;padding-top:8px;">' +
+        '<button type="button" class="btn bp-btn-sm" id="bp-recipe-edit-btn">Edit Snapshot</button>' +
+        '<button type="button" class="btn bp-btn-sm" id="bp-recipe-save-btn" style="display:none;">Save Changes</button>' +
+        '<button type="button" class="btn-secondary bp-btn-sm" id="bp-recipe-cancel-btn" style="display:none;">Discard Changes</button>' +
+      '</div>';
+    bindRecipeEditHandlers(b, sectionBodyEl, snap);
+  }
+
+  function bindRecipeEditHandlers(b, sectionBodyEl, snapRef) {
+    var snap = snapRef; // mutable local reference
+    var editBtn = document.getElementById('bp-recipe-edit-btn');
+    var saveBtn = document.getElementById('bp-recipe-save-btn');
+    var cancelBtn = document.getElementById('bp-recipe-cancel-btn');
+    var ingredientWrap = document.getElementById('bp-recipe-ingredient-wrap');
+    var metaWrap = document.getElementById('bp-recipe-meta-wrap');
+
+    if (editBtn) {
+      editBtn.addEventListener('click', function () {
+        // Replace read-only metadata with editable form fields (D-04: all fields)
+        if (metaWrap) {
+          metaWrap.className = 'bp-recipe-edit-form';
+          metaWrap.id = 'bp-recipe-meta-wrap';
+          metaWrap.innerHTML =
+            '<div class="bp-recipe-edit-row">' +
+              '<label class="bp-recipe-edit-label">Name</label>' +
+              '<input type="text" id="bp-recipe-edit-name" class="bp-inline-input" value="' + escapeHTML(snap.name || '') + '">' +
+            '</div>' +
+            '<div class="bp-recipe-edit-row">' +
+              '<label class="bp-recipe-edit-label">Style</label>' +
+              '<input type="text" id="bp-recipe-edit-style" class="bp-inline-input" value="' + escapeHTML(snap.style || '') + '">' +
+            '</div>' +
+            '<div class="bp-recipe-edit-row-inline">' +
+              '<div><label class="bp-recipe-edit-label">ABV (%)</label>' +
+                '<input type="number" id="bp-recipe-edit-abv" class="bp-inline-input" value="' + escapeHTML(String(snap.abv || '')) + '" step="0.1" min="0" style="width:80px;"></div>' +
+              '<div><label class="bp-recipe-edit-label">IBU</label>' +
+                '<input type="number" id="bp-recipe-edit-ibu" class="bp-inline-input" value="' + escapeHTML(String(snap.ibu || '')) + '" step="1" min="0" style="width:80px;"></div>' +
+              '<div><label class="bp-recipe-edit-label">Batch Size (L)</label>' +
+                '<input type="number" id="bp-recipe-edit-batch-size" class="bp-inline-input" value="' + escapeHTML(String(snap.batch_size_l || '')) + '" step="0.5" min="0" style="width:80px;"></div>' +
+            '</div>' +
+            '<div class="bp-recipe-edit-row">' +
+              '<label class="bp-recipe-edit-label">Notes</label>' +
+              '<textarea id="bp-recipe-edit-notes" class="bp-inline-input" rows="2">' + escapeHTML(snap.notes || '') + '</textarea>' +
+            '</div>';
+        }
+        if (ingredientWrap) ingredientWrap.innerHTML = buildRecipeIngredientTable(snap.ingredients || [], true);
+        editBtn.style.display = 'none';
+        if (saveBtn) saveBtn.style.display = '';
+        if (cancelBtn) cancelBtn.style.display = '';
+      });
+    }
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function () {
+        saveBtn.disabled = true;
+        var editedIngredients = ingredientWrap ? readIngredientTableEdits(ingredientWrap, snap.ingredients) : (snap.ingredients || []);
+        var editedSnap = {
+          name: (document.getElementById('bp-recipe-edit-name') || {}).value || snap.name || '',
+          style: (document.getElementById('bp-recipe-edit-style') || {}).value || '',
+          abv: parseFloat((document.getElementById('bp-recipe-edit-abv') || {}).value) || snap.abv || 0,
+          ibu: parseFloat((document.getElementById('bp-recipe-edit-ibu') || {}).value) || snap.ibu || 0,
+          batch_size_l: parseFloat((document.getElementById('bp-recipe-edit-batch-size') || {}).value) || snap.batch_size_l || 0,
+          notes: (document.getElementById('bp-recipe-edit-notes') || {}).value || '',
+          ingredients: editedIngredients
+        };
+        adminApiPost('update_batch', {
+          batch_id: b.batch_id,
+          updates: { recipe_snapshot: JSON.stringify(editedSnap) }
+        })
+          .then(function () {
+            snap = editedSnap;
+            b.recipe_snapshot = JSON.stringify(editedSnap);
+            try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e) {}
+            showToast('Recipe snapshot saved', 'success');
+            renderRecipeSectionBody(sectionBodyEl, b, snap);
+          })
+          .catch(function (err) {
+            showToast('Save failed: ' + err.message, 'error');
+            saveBtn.disabled = false;
+          });
+      });
+    }
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function () {
+        renderRecipeSectionBody(sectionBodyEl, b, snap);
+      });
+    }
+  }
+
+  function bindRecipeEmptyBtns(b, sectionBodyEl, emptyDiv) {
+    var attachBtn = document.getElementById('bp-recipe-attach-btn');
+    if (attachBtn) {
+      attachBtn.addEventListener('click', function () {
+        openRecipeAttachPanel(b, sectionBodyEl);
+      });
+    }
+    var createBtn = document.getElementById('bp-recipe-create-btn');
+    if (createBtn) {
+      createBtn.addEventListener('click', function () {
+        openRecipeFromBatchSheet(b, sectionBodyEl);
+      });
+    }
+  }
+
   function renderBatchDetail(data) {
     var b = data.batch || {};
     var tasks = data.tasks || [];
@@ -1827,6 +2205,34 @@ function buildLifecycleTimeline(batch, soDate) {
     html += '<textarea id="bp-detail-notes" class="bp-inline-input bp-notes-input" rows="3" placeholder="Auto-saved\u2026">' + escapeHTML(b.notes || '') + '</textarea>';
     html += '</div>';
 
+    // Recipe section (Phase 16)
+    var _batchSnap = null;
+    if (b.recipe_snapshot) {
+      try { _batchSnap = JSON.parse(b.recipe_snapshot); } catch (e) { _batchSnap = null; }
+    }
+    html += '<div class="bp-detail-section bp-detail-section--recipe">';
+    html += '<div class="bp-detail-section-title bp-detail-section-toggle" id="bp-recipe-section-toggle" role="button" tabindex="0" aria-expanded="false">';
+    html += 'Recipe <span class="bp-section-toggle-icon">&#9656;</span>';
+    html += '</div>';
+    html += '<div id="bp-recipe-section-body" style="display:none;">';
+    if (_batchSnap) {
+      html += buildRecipeSummaryHtml(_batchSnap);
+      html += '<div id="bp-recipe-ingredient-wrap">' + buildRecipeIngredientTable(_batchSnap.ingredients || [], false) + '</div>';
+      html += '<div class="bp-detail-actions" style="border-top:none;padding-top:8px;">';
+      html += '<button type="button" class="btn bp-btn-sm" id="bp-recipe-edit-btn">Edit Snapshot</button>';
+      html += '<button type="button" class="btn bp-btn-sm" id="bp-recipe-save-btn" style="display:none;">Save Changes</button>';
+      html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-recipe-cancel-btn" style="display:none;">Discard Changes</button>';
+      html += '</div>';
+    } else {
+      html += '<div class="bp-recipe-empty">';
+      html += '<p style="color:var(--ink-secondary);font-size:0.82rem;margin:0 0 8px 0;">No recipe attached to this batch.</p>';
+      html += '<div class="bp-recipe-btn-row">';
+      html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-recipe-attach-btn">Attach Recipe</button>';
+      html += '<button type="button" class="btn bp-btn-sm" id="bp-recipe-create-btn">Create Recipe</button>';
+      html += '</div></div>';
+    }
+    html += '</div></div>';
+
     // Footer actions
     html += '<div class="bp-detail-actions">';
     html += '<button type="button" class="btn-secondary bp-btn-sm bp-danger-btn" id="bp-delete-batch-btn">Delete Batch</button>';
@@ -1837,6 +2243,30 @@ function buildLifecycleTimeline(batch, soDate) {
     var detailPane = document.getElementById('bp-batch-detail-pane');
     if (!detailPane) return;
     detailPane.innerHTML = html;
+
+    // Recipe section toggle + interactions (Phase 16)
+    var toggleBtn = document.getElementById('bp-recipe-section-toggle');
+    var recipeBody = document.getElementById('bp-recipe-section-body');
+    if (toggleBtn && recipeBody) {
+      function handleRecipeToggle() {
+        var expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
+        toggleBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        recipeBody.style.display = expanded ? 'none' : '';
+        var icon = toggleBtn.querySelector('.bp-section-toggle-icon');
+        if (icon) icon.style.transform = expanded ? '' : 'rotate(90deg)';
+      }
+      toggleBtn.addEventListener('click', handleRecipeToggle);
+      toggleBtn.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRecipeToggle(); }
+      });
+    }
+    if (_batchSnap && recipeBody) {
+      bindRecipeEditHandlers(b, recipeBody, _batchSnap);
+    }
+    if (!_batchSnap && recipeBody) {
+      var emptyDiv = recipeBody.querySelector('.bp-recipe-empty');
+      bindRecipeEmptyBtns(b, recipeBody, emptyDiv);
+    }
 
     // Back button (portrait)
     var backBtn = document.getElementById('bp-detail-back');

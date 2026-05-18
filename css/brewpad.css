@@ -1983,3 +1983,95 @@ img { max-width: 100%; height: auto; display: block; }
   font-weight: 700;
   color: var(--ink-primary);
 }
+
+/* Phase 16: Collapsible recipe section toggle */
+.bp-detail-section-toggle {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.bp-detail-section-toggle:hover {
+  color: var(--barrel);
+}
+.bp-section-toggle-icon {
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+/* Phase 16: Recipe summary metadata row */
+.bp-recipe-summary {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.bp-recipe-summary > div {
+  font-size: 0.82rem;
+}
+
+/* Phase 16: Recipe ingredient table */
+.bp-recipe-ing-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.bp-recipe-ing-table th {
+  text-align: left;
+  padding: 4px 6px;
+  color: var(--ink-tertiary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.bp-recipe-ing-table td {
+  padding: 4px 6px;
+}
+.bp-recipe-ing-table tbody tr:nth-child(even) {
+  background: var(--cellar-canvas);
+}
+.bp-recipe-ing-table tbody tr:nth-child(odd) {
+  background: var(--cellar-surface, var(--cellar-raised));
+}
+
+/* Phase 16: Recipe edit-mode form fields (D-04 — all fields editable) */
+.bp-recipe-edit-form {
+  margin-bottom: 12px;
+}
+.bp-recipe-edit-row {
+  margin-bottom: 8px;
+}
+.bp-recipe-edit-row-inline {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.bp-recipe-edit-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-tertiary);
+  margin-bottom: 4px;
+}
+
+/* Phase 16: Recipe empty state */
+.bp-recipe-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+}
+.bp-recipe-empty p {
+  color: var(--ink-secondary);
+  font-size: 0.82rem;
+  margin: 0 0 8px 0;
+}
+.bp-recipe-empty .bp-recipe-btn-row {
+  display: flex;
+  gap: 8px;
+}
