@@ -92,10 +92,13 @@
   var PLACEHOLDER_PATH = 'images/labels/placeholder-label.svg';
   var MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB per D-10
 
-  // Label region coordinates on photo canvases (empirical -- tune after photos are in place)
+  // Label region coordinates on photo/SVG canvases (tuned 2026-05-18)
+  // Can: derived from can-template.svg label rect (SVG viewBox 600x800 -> canvas 280x420)
+  //   SVG label rect: x=210, y=240, w=180, h=320 -> scale x=0.467, y=0.525
+  // Bottle: derived from bottle-photo.jpg (280x560) -- blank label area on bottle body
   var PHOTO_LABEL_REGIONS = {
-    can:    { x: 50, y: 100, w: 180, h: 200 },
-    bottle: { x: 60, y: 200, w: 160, h: 130 }
+    can:    { x: 95, y: 125, w: 90, h: 170 },
+    bottle: { x: 55, y: 190, w: 120, h: 170 }
   };
 
   // Module state
