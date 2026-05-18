@@ -358,4 +358,4 @@ Plans:
 | 13. Middleware API + Admin Recipe Management | v2.0 | 4/4 | Complete   | 2026-05-17 |
 | 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 5/5 | Complete    | 2026-05-17 |
 | 15. BeerXML Import | v2.0 | 2/2 | Complete    | 2026-05-17 |
-| 16. Recipe Management -- BrewPad, Kiosk & Batch | v2.0 | 3/3 | Complete   | 2026-05-18 |
+| 16. Recipe Management -- BrewPad, Kiosk & Batch | v2.0 | 3/3 | Complete    | 2026-05-18 |
