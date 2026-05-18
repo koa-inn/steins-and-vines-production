@@ -3483,21 +3483,20 @@ function buildLifecycleTimeline(batch, soDate) {
 
       // Selecting a recipe: fetch full detail for snapshot, then populate hiddens
       Array.prototype.forEach.call(dropdown.querySelectorAll('.bp-vessel-option[data-rid]'), function (opt) {
-        opt.addEventListener('mousedown', function (e) {
+        function selectRecipe(e) {
           e.preventDefault();
+          e.stopPropagation();
           var rid = opt.getAttribute('data-rid');
           var rname = opt.getAttribute('data-rname');
           input.value = rname;
           if (nameHidden) nameHidden.value = rname;
           if (recipeIdHidden) recipeIdHidden.value = rid;
           dropdown.style.display = 'none';
-          // Fetch full recipe for snapshot
           fetch(mwUrl() + '/api/recipes/' + encodeURIComponent(rid), {
             headers: { 'x-api-key': mwApiKey() }
           }).then(function (r) { return r.json(); })
             .then(function (data) {
               var snap = data.recipe || {};
-              // Trim to essential fields only (T-16-03: avoid 50k cell limit)
               var minimal = {
                 name: snap.name, style: snap.style, abv: snap.abv,
                 ibu: snap.ibu, batch_size_l: snap.batch_size_l,
@@ -3508,7 +3507,9 @@ function buildLifecycleTimeline(batch, soDate) {
               if (snapshotHidden) snapshotHidden.value = JSON.stringify(minimal);
             })
             .catch(function () { if (snapshotHidden) snapshotHidden.value = ''; });
-        });
+        }
+        opt.addEventListener('mousedown', selectRecipe);
+        opt.addEventListener('touchstart', selectRecipe, { passive: false });
       });
     }
 
