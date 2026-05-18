@@ -271,12 +271,23 @@ Plans:
 
 ### Phase 18: Custom Labels Iteration
 **Goal:** Upgrade the custom labels page with a photo-realistic 3-preview mockup tool (flat label view + real can photo + real bottle photo), broader copy positioning the service for any customer (not just homebrewers), real Epson CW-C4000 printer specs in design guidelines, and accurate BOPP/paper material information
-**Requirements**: TBD
+**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09, D-10, D-11, D-12, D-13, D-14, D-15, D-16, D-17, D-18
 **Depends on:** Phase 17
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. Three-preview mockup tool shows flat view, can photo, and bottle photo side by side with uploaded image composited onto all three
+  2. Pricing table shows real COGS prices grouped by material type (BOPP, Poly, Paper) with Best For column
+  3. Hero copy and page messaging address all audiences (homebrewers, events, small businesses) -- not just homebrewers
+  4. Design guidelines mention max print width 4.25 inches and waterproof BOPP material
+  5. Label-type selector drives container show/hide (bottle-only labels hide can preview)
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 18 to break down)
+**Wave 1** *(no dependencies -- run in parallel)*
+- [ ] 18-01-PLAN.md -- Photo assets, HTML 3-canvas structure, CSS 3-column layout, broadened copy, pricing wrapper, SEO meta
+- [ ] 18-02-PLAN.md -- JS engine: LABEL_DATA constant, 3-canvas rendering with cylindrical warp, label-type selector, pricing table builder
+
+**Wave 2** *(depends on Wave 1)*
+- [ ] 18-03-PLAN.md -- Build, lint, test, label region tuning, human visual verification
 
 ---
 
