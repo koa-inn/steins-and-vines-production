@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="600" height="800">
+  <!-- Beverage can silhouette -->
+  <defs>
+    <linearGradient id="canGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#5a5a5a"/>
+      <stop offset="30%" stop-color="#808080"/>
+      <stop offset="70%" stop-color="#808080"/>
+      <stop offset="100%" stop-color="#5a5a5a"/>
+    </linearGradient>
+  </defs>
+  <!-- Can body -->
+  <rect x="200" y="140" width="200" height="520" rx="8" fill="url(#canGrad)"/>
+  <!-- Can top rim -->
+  <ellipse cx="300" cy="140" rx="100" ry="20" fill="#6a6a6a"/>
+  <!-- Can top -->
+  <ellipse cx="300" cy="140" rx="80" ry="14" fill="#909090"/>
+  <!-- Pull tab -->
+  <ellipse cx="300" cy="138" rx="20" ry="6" fill="#a0a0a0" stroke="#888" stroke-width="1"/>
+  <!-- Can bottom rim -->
+  <ellipse cx="300" cy="660" rx="100" ry="20" fill="#6a6a6a"/>
+  <!-- Label wrap region (light area) -->
+  <rect x="210" y="240" width="180" height="320" rx="4" fill="#fff" opacity="0.88"/>
+</svg>

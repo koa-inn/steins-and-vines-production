@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="600" height="800">
+  <!-- Wine bottle silhouette -->
+  <defs>
+    <linearGradient id="bottleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3a5a3c"/>
+      <stop offset="40%" stop-color="#4a6f4b"/>
+      <stop offset="60%" stop-color="#4a6f4b"/>
+      <stop offset="100%" stop-color="#3a5a3c"/>
+    </linearGradient>
+  </defs>
+  <!-- Bottle body -->
+  <path d="M270 60 L270 180 Q220 220 220 280 L220 720 Q220 750 250 750 L350 750 Q380 750 380 720 L380 280 Q380 220 330 180 L330 60 Z" fill="url(#bottleGrad)"/>
+  <!-- Bottle cap -->
+  <rect x="278" y="40" width="44" height="24" rx="4" fill="#5a8a5c"/>
+  <!-- Label region (white area) -->
+  <rect x="240" y="380" width="120" height="150" rx="4" fill="#fff" opacity="0.92"/>
+</svg>
