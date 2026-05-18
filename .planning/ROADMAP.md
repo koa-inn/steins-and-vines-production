@@ -228,12 +228,25 @@ Plans:
 ### Phase 16: Recipe Management — BrewPad, Kiosk & Batch Integration
 
 **Goal:** Staff can browse, edit, and select recipes from BrewPad and kiosk when creating batches. Recipe editing is available in admin, kiosk, and BrewPad. Selecting a recipe when starting a batch pre-fills product info and attaches the recipe snapshot.
-**Requirements**: TBD
+**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09
 **Depends on:** Phase 15
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. BrewPad New Batch form has a tabbed [Kits]/[Recipes] product picker — selecting a recipe pre-fills product name and attaches recipe_snapshot JSON to the batch
+  2. Every batch detail view in BrewPad shows a collapsible Recipe section with metadata, ingredient table, and inline editing for batch-local recipe modifications
+  3. Kit batches (no recipe_snapshot) can attach an existing recipe or create a new one from the batch detail view
+  4. Kiosk recipe detail pane has a quick-edit form for name, notes, locked price, and status — works even when BEER_SALES_ENABLED is false
+  5. Apps Script updateBatch() accepts recipe_id and recipe_snapshot fields, enabling all batch-level recipe writes
+  6. Batch-local recipe edits modify only that batch's snapshot — the master recipe record is never affected
+**Plans:** 3 plans
+**UI hint**: yes
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 16 to break down)
+**Wave 1** *(no dependencies -- run in parallel)*
+- [ ] 16-01-PLAN.md -- Apps Script updateBatch allowedFields patch + BrewPad tabbed product picker [Kits/Recipes] in buildCreateForm
+- [ ] 16-03-PLAN.md -- Kiosk recipe quick-edit: inline form for name, notes, price, status in recipe detail pane via PUT /api/recipes/:id
+
+**Wave 2** *(depends on Plan 01 -- needs allowedFields patch for recipe_snapshot writes)*
+- [ ] 16-02-PLAN.md -- BrewPad batch detail collapsible Recipe section: view/edit snapshot, attach existing recipe, create recipe from batch
 
 ---
 
@@ -247,6 +260,7 @@ Plans:
 - [x] **Phase 13: Middleware API + Admin Recipe Management** - Staff can create, edit, and activate recipes via the admin panel; middleware API exposes recipe CRUD and availability checking (completed 2026-05-17)
 - [x] **Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation** - Staff can select a recipe on the kiosk, process payment, have ingredients deducted from Zoho Inventory, and get a batch auto-created in BrewPad (completed 2026-05-17)
 - [x] **Phase 15: BeerXML Import** - Staff can upload a BeerXML file, review an ingredient-to-SKU mapping table, and save the recipe as a draft without manual data entry (completed 2026-05-17)
+- [ ] **Phase 16: Recipe Management -- BrewPad, Kiosk & Batch Integration** - Staff can browse, edit, and select recipes from BrewPad and kiosk; batch detail shows recipe data with inline editing
 
 ## Phase Details
 
@@ -344,3 +358,4 @@ Plans:
 | 13. Middleware API + Admin Recipe Management | v2.0 | 4/4 | Complete   | 2026-05-17 |
 | 14. Kiosk Recipe Sales, Inventory, and Batch Creation | v2.0 | 5/5 | Complete    | 2026-05-17 |
 | 15. BeerXML Import | v2.0 | 2/2 | Complete    | 2026-05-17 |
+| 16. Recipe Management -- BrewPad, Kiosk & Batch | v2.0 | 0/3 | Not started | - |
