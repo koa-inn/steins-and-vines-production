@@ -4,8 +4,8 @@ milestone: v2.0
 milestone_name: Recipe-Based Products
 status: executing
 stopped_at: Phase 16 context gathered
-last_updated: "2026-05-18T03:22:16.035Z"
-last_activity: 2026-05-18 -- Phase 16 planning complete
+last_updated: "2026-05-18T03:25:34.343Z"
+last_activity: 2026-05-18 -- Phase 16 execution started
 progress:
   total_phases: 12
   completed_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-09)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 15 — beerxml-import
+**Current focus:** Phase 16 — recipe-management-brewpad-kiosk-batch-integration
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-18 -- Phase 16 planning complete
+Phase: 16 (recipe-management-brewpad-kiosk-batch-integration) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 16
+Last activity: 2026-05-18 -- Phase 16 execution started
 
 Progress: [######░░░░] 60%
 
