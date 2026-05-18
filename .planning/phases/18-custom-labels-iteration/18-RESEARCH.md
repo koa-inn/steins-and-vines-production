@@ -669,27 +669,31 @@ The CSP on `custom-labels.html` restricts `img-src` to `'self' data:` — the ne
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Continuous roll label (4x100) in pricing table**
    - What we know: SKU 814042, $0.15/inch, "4x100 Continuous Satin BOPP"
    - What's unclear: How to represent a continuous roll in the mockup tool (D-06 container compatibility; it has no fixed label height)
    - Recommendation: Show it in the pricing table as-is with a note "price per inch"; exclude it from the mockup label-type selector (no canvas preview for continuous roll)
+   - **RESOLVED:** Implemented per recommendation. LABEL_DATA entry has `continuous: true` flag; `buildPricingTable()` shows it with "/inch" pricing; `renderFlat()` shows "Continuous roll -- no flat preview" message; `populateLabelTypeSelector()` includes it as an option but flat canvas handles the special case. Can/bottle previews still render (they use the width for warp).
 
 2. **Container compatibility for unlisted SKUs**
    - What we know: COGS CSV "Uses" field is blank for most labels except 814051 (both) and 814022 (bottle)
    - What's unclear: Should unlabeled SKUs default to 'both', 'bottle', or 'can'?
    - Recommendation: Default to 'both' (show all previews) for unlisted SKUs — conservative choice that never hides a relevant preview
+   - **RESOLVED:** Implemented per recommendation. All unlisted SKUs have `containers: 'both'` in LABEL_DATA. Only SKU 814022 (4x6 Matte BOPP) is `containers: 'bottle'`.
 
 3. **Bottle placeholder photo selection**
    - What we know: User specified "source a free stock photo of a dark unlabeled wine bottle"
    - What's unclear: Which specific Pexels photo to use
    - Recommendation: Planner specifies a candidate Pexels URL (e.g. search "wine bottle blank dark green"); user will swap in their own photo later
+   - **RESOLVED:** Plan 01 Task 1 downloads a Pexels free-license dark wine bottle photo to `images/labels/bottle-photo.jpg`. User confirmed they will swap in their own photo later (D-17).
 
 4. **Label type selector UI**
    - What we know: D-06 requires label-type selection to drive container compatibility show/hide
    - What's unclear: Should this be a dropdown select, a scrollable list, or tabs? The CONTEXT.md doesn't specify.
    - Recommendation: A `<select>` dropdown is the simplest ES5 pattern; renders well on mobile. Planner can choose a styled list if preferred.
+   - **RESOLVED:** Implemented as a `<select>` dropdown per recommendation. Plan 01 creates the HTML element (`<select id="labels-type-select">`); Plan 02 `populateLabelTypeSelector()` populates options from LABEL_DATA and `handleLabelTypeChange()` drives container show/hide.
 
 ---
 
