@@ -1723,8 +1723,8 @@ function setVesselStatus(vesselId, newStatus) {
 
 function createBatch(payload, userEmail) {
   var isPending = !payload.schedule_id || !payload.start_date;
-  if (!payload.product_sku || (!payload.customer_name && !payload.customer_firstname)) {
-    return { ok: false, error: 'missing_fields', message: 'product_sku and customer name are required' };
+  if ((!payload.product_sku && !payload.recipe_id) || (!payload.customer_name && !payload.customer_firstname)) {
+    return { ok: false, error: 'missing_fields', message: 'product_sku (or recipe_id) and customer name are required' };
   }
 
   // Auto-compose customer_name from first/last if not provided (backward compat)
