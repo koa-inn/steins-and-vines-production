@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-17T08:04:37.751Z",
+  "generated_at": "2026-05-18T09:33:10.085Z",
   "products": [
     {
       "name": "Acai Raspberry Rapture",
@@ -8786,6 +8786,18 @@
     }
   ],
   "services": [
+    {
+      "name": "Brewing Fee",
+      "item_id": "109900000000572096",
+      "price": "45",
+      "description": "",
+      "sku": "BREW-FEE",
+      "stock": "0",
+      "discount": "0",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
     {
       "name": "Makers Fee",
       "item_id": "109900000000046478",
