@@ -1985,7 +1985,8 @@ function updateBatch(payload, userEmail) {
     // Phase 7: SO linking fields (D-04, D-05) and lifecycle date columns (D-09)
     'zoho_so_number', 'customer_id', 'customer_name', 'product_name',
     'customer_firstname', 'customer_lastname',
-    'fermentation_started_at', 'completed_at'
+    'fermentation_started_at', 'completed_at',
+    'recipe_id'   // Phase 16: recipe_id safe through sanitizeInput
   ];
   allowedFields.forEach(function (field) {
     if (updates[field] !== undefined) {
@@ -1995,6 +1996,19 @@ function updateBatch(payload, userEmail) {
       }
     }
   });
+
+  // Phase 16: Handle recipe_snapshot separately — raw setValue, bypass sanitizeInput
+  // (sanitizeInput strips HTML tags which can appear in serialized JSON and corrupt it)
+  // This mirrors createBatch() line 1819 which also uses raw setValue for recipe_snapshot.
+  if (updates.recipe_snapshot !== undefined) {
+    try { JSON.parse(updates.recipe_snapshot); } catch (e) {
+      return { ok: false, error: 'invalid_snapshot', message: 'recipe_snapshot is not valid JSON' };
+    }
+    var snapCol = headers.indexOf('recipe_snapshot');
+    if (snapCol !== -1) {
+      sheet.getRange(row, snapCol + 1).setValue(updates.recipe_snapshot); // raw — no sanitizeInput
+    }
+  }
 
   // Handle vessel status when batch status changes
   if (updates.status !== undefined) {
