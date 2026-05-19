@@ -106,23 +106,32 @@
 
 .labels-pricing-table {
   width: 100%;
-  max-width: 700px;
+  max-width: 500px;
   margin: 0 auto;
   border-collapse: collapse;
+  font-size: 0.92rem;
 }
 
 .labels-pricing-table th,
 .labels-pricing-table td {
-  padding: 0.75rem 1rem;
+  padding: 0.4rem 0.75rem;
   text-align: left;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid #eee;
 }
 
 .labels-pricing-table th {
   font-family: var(--font-display);
   font-weight: 600;
-  color: var(--color-burgundy);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
   border-bottom: 2px solid var(--color-burgundy);
+  padding-bottom: 0.5rem;
+}
+
+.labels-pricing-table td:last-child {
+  text-align: right;
 }
 
 .labels-pricing-note {
@@ -281,24 +290,6 @@
   min-height: 44px;
 }
 
-/* Pricing group headings -- D-13 */
-.labels-pricing-group-title {
-  font-family: var(--font-display);
-  font-weight: 700;
-  color: var(--color-burgundy);
-  margin-top: 2rem;
-  margin-bottom: 0.25rem;
-}
-
-.labels-pricing-group-title:first-child {
-  margin-top: 0;
-}
-
-.labels-pricing-group-subtitle {
-  font-size: 0.9rem;
-  color: var(--color-muted);
-  margin-bottom: 1rem;
-}
 
 /* Anyone callout -- D-11 */
 .labels-anyone-callout {
@@ -309,6 +300,99 @@
   margin: 2rem auto;
   max-width: 600px;
   font-size: 1rem;
+}
+
+/* Materials description */
+.labels-materials {
+  padding: 3rem 0;
+  background-color: #f8f6f0;
+}
+
+.labels-materials h2 {
+  font-family: var(--font-display);
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.labels-materials-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+.labels-material-card {
+  padding: 1.25rem;
+  background: var(--color-white);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.labels-material-card h3 {
+  font-family: var(--font-display);
+  color: var(--color-burgundy);
+  margin-bottom: 0.5rem;
+  font-size: 1.05rem;
+}
+
+.labels-material-card p {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+/* Example gallery -- placeholder images */
+.labels-examples {
+  padding: 4rem 0;
+  background-color: var(--color-white);
+}
+
+.labels-examples h2 {
+  font-family: var(--font-display);
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.labels-example-gallery {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.labels-example-item {
+  flex: 1;
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.labels-example-placeholder {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #f0ede6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.labels-example-placeholder img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.labels-example-placeholder.no-image::after {
+  content: attr(data-label);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--color-muted);
+  text-align: center;
+  padding: 1rem;
+}
+
+.labels-example-placeholder.no-image img {
+  display: none;
 }
 
 /* Design Guidelines */
@@ -411,13 +495,19 @@
     width: 100%;
   }
 
-  .labels-mockup-controls {
+  .labels-example-gallery {
     flex-direction: column;
+    align-items: center;
+  }
+
+  .labels-example-item {
+    max-width: 280px;
+    width: 100%;
   }
 
   .labels-pricing-table th,
   .labels-pricing-table td {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.9rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.85rem;
   }
 }

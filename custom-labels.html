@@ -70,8 +70,8 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mpbpbske">
-  <link rel="stylesheet" href="css/labels.min.css?v=mpbpbske">
+  <link rel="stylesheet" href="css/styles.min.css?v=mpbz8u6x">
+  <link rel="stylesheet" href="css/labels.min.css?v=mpbz8u6x">
 </head>
 <body data-page="labels">
   <!-- Google Tag Manager (noscript) -->
@@ -138,11 +138,11 @@
           <div class="labels-step">
             <span class="labels-step-number">3</span>
             <h3>You Apply</h3>
-            <p>Peel and stick your labels onto your bottles or cans. It is that easy.</p>
+            <p>Peel and stick your labels onto your bottles, cans, or whatever! It is that easy.</p>
           </div>
         </div>
         <div class="labels-anyone-callout">
-          <strong>Not a Steins &amp; Vines member?</strong> No problem &mdash; bring us any bottle or can and we&rsquo;ll print labels for it. Homebrewers, farmers market vendors, wedding favours, corporate gifts &mdash; everyone is welcome.
+          Bring us any bottle or can and we&rsquo;ll print labels for it. Homebrewers, farmers market vendors, wedding favours, corporate gifts &mdash; everyone is welcome.
         </div>
       </div>
     </section>
@@ -151,49 +151,31 @@
       <div class="container">
         <h2>Label Options &amp; Pricing</h2>
         <div class="labels-setup-fee">
-          <strong>$10 one-time setup fee per design</strong>
+          <strong>$10 setup fee per design</strong>
         </div>
         <div class="labels-pricing-table-wrap" id="labels-pricing-table-wrap">
           <!-- Populated by buildPricingTable() in 14-labels.js -->
         </div>
-        <p class="labels-pricing-note">Prices shown per label. A $10 setup fee applies per design. Minimum order quantities vary by size &mdash; ask us for a quote.</p>
+        <p class="labels-pricing-note">A typical wine batch is ~29 bottles (750 mL) and a beer batch is ~84 cans (355 mL).</p>
       </div>
     </section>
 
-    <section class="labels-mockup">
+    <section class="labels-materials">
       <div class="container">
-        <h2>Preview Your Label</h2>
-        <p>Upload your design to see how it looks flat, on a can, or on a bottle.</p>
-        <div class="labels-mockup-controls">
-          <div class="labels-upload-controls">
-            <label for="labels-upload" class="btn labels-upload-btn">Upload Your Design</label>
-            <input type="file" id="labels-upload" accept=".png,.jpg,.jpeg,.webp" hidden>
-            <button type="button" class="btn-secondary labels-reset-btn" id="labels-reset" disabled>Reset Preview</button>
+        <h2>About Our Label Materials</h2>
+        <div class="labels-materials-grid">
+          <div class="labels-material-card">
+            <h3>Waterproof</h3>
+            <p>Laminated and dishwasher-safe. Won&rsquo;t peel, smudge, or fade &mdash; perfect for anything that goes in a fridge, cooler, or gets handled a lot.</p>
+          </div>
+          <div class="labels-material-card">
+            <h3>Paper</h3>
+            <p>Budget-friendly with vibrant colour reproduction. Best for dry environments like pantry items, gifts, or event favours.</p>
           </div>
         </div>
-        <div class="labels-type-selector" id="labels-type-selector">
-          <label for="labels-type-select">Label size:</label>
-          <select id="labels-type-select">
-            <!-- Populated by JS from LABEL_DATA -->
-          </select>
-        </div>
-        <div class="labels-previews" id="labels-previews">
-          <div class="labels-preview-col labels-preview-flat">
-            <div class="labels-preview-label">Flat View</div>
-            <canvas id="labels-canvas-flat" aria-label="Flat label preview"></canvas>
-          </div>
-          <div class="labels-preview-col labels-preview-can" id="preview-can-wrap">
-            <div class="labels-preview-label">On a Can</div>
-            <canvas id="labels-canvas-can" aria-label="Label preview on a can"></canvas>
-          </div>
-          <div class="labels-preview-col labels-preview-bottle" id="preview-bottle-wrap">
-            <div class="labels-preview-label">On a Bottle</div>
-            <canvas id="labels-canvas-bottle" aria-label="Label preview on a bottle"></canvas>
-          </div>
-        </div>
-        <p class="labels-mockup-hint">Accepted formats: PNG, JPG, WEBP. Max file size: 5 MB.</p>
       </div>
     </section>
+
 
     <section class="labels-guidelines">
       <div class="container">
@@ -222,7 +204,7 @@
     <section class="labels-cta">
       <div class="container">
         <h2>Ready to Get Started?</h2>
-        <p>Stop by the shop with your design file or email it to us. Labels are typically ready in 5&ndash;7 business days.</p>
+        <p>Stop by the shop with your design file or email it to us. Labels are typically ready next business day.</p>
         <a href="contact.html" class="btn">Contact Us</a>
       </div>
     </section>
@@ -256,7 +238,7 @@
   <script src="js/vendor/sentry.min.js"></script>
   <script src="js/sentry-init.js"></script>
   <script src="js/sheets-config.js" defer></script>
-  <script src="js/main.min.js?v=mpbpbske" defer></script>
-  <script src="js/modules/14-labels.min.js?v=mpbpbske" defer></script>
+  <script src="js/main.min.js?v=mpbz8u6x" defer></script>
+  <script src="js/modules/14-labels.min.js?v=mpbz8u6x" defer></script>
 </body>
 </html>

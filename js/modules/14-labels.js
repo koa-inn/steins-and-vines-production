@@ -11,7 +11,7 @@
     { sku: '814022',       name: '4x6 Matte BOPP',              w: 4,   h: 6,   material: 'bopp',  price: 1.15, containers: 'bottle', uses: '750mL Wine Bottle' },
     { sku: '814021',       name: '4x4 Matte BOPP',              w: 4,   h: 4,   material: 'bopp',  price: 0.75, containers: 'both',   uses: '' },
     { sku: '814053',       name: '2.5" Circle Satin BOPP',      w: 2.5, h: 2.5, material: 'bopp',  price: 0.30, containers: 'both',   uses: '' },
-    { sku: '814042',       name: '4x100 Continuous Satin BOPP', w: 4,   h: 100, material: 'bopp',  price: 0.15, containers: 'both',   uses: 'price per inch', continuous: true },
+    // SKU 814042 (4x100 Continuous Satin BOPP) omitted from public pricing -- available on request
     // Matte Poly (Durable)
     { sku: '14024-c4000',  name: '3x5 Matte Poly',              w: 3,   h: 5,   material: 'poly',  price: 0.70, containers: 'both',   uses: '' },
     { sku: '14018-c4000',  name: '4x3 Matte Poly',              w: 4,   h: 3,   material: 'poly',  price: 0.50, containers: 'both',   uses: '' },
@@ -26,56 +26,53 @@
     { sku: '11037-c4000',  name: '2" Circle High Gloss Paper',  w: 2,   h: 2,   material: 'paper', price: 0.15, containers: 'both',   uses: '' }
   ];
 
-  // Build pricing table from LABEL_DATA -- D-12, D-13, D-14
+  var MATERIAL_LABELS = {
+    bopp:  'Waterproof',
+    poly:  'Waterproof',
+    paper: 'Paper'
+  };
+
   function buildPricingTable() {
     var tableWrap = document.getElementById('labels-pricing-table-wrap');
     if (!tableWrap) return;
 
-    var groups = [
-      { key: 'bopp',  label: 'Satin / Matte BOPP',  subtitle: 'Waterproof &mdash; ideal for bottles and cans in wet or refrigerated environments' },
-      { key: 'poly',  label: 'Matte Poly',           subtitle: 'Durable matte finish for everyday use' },
-      { key: 'paper', label: 'High Gloss Paper',     subtitle: 'Budget-friendly with vibrant colour reproduction' }
-    ];
+    var html = '<table class="labels-pricing-table"><thead><tr>';
+    html += '<th>Size</th><th>Material</th><th style="text-align:right">Per Label</th>';
+    html += '</tr></thead><tbody>';
 
-    var html = '';
-    groups.forEach(function (group) {
-      var rows = LABEL_DATA.filter(function (l) { return l.material === group.key; });
-      if (!rows.length) return;
-
-      html += '<h3 class="labels-pricing-group-title">' + group.label + '</h3>';
-      html += '<p class="labels-pricing-group-subtitle">' + group.subtitle + '</p>';
-      html += '<table class="labels-pricing-table"><thead><tr>';
-      html += '<th>Label</th><th>Size</th><th>Price Per Label</th><th>Best For</th>';
-      html += '</tr></thead><tbody>';
-
-      rows.forEach(function (l) {
-        var sizeStr;
-        if (l.continuous) {
-          sizeStr = l.w + '" wide (continuous roll)';
-        } else if (l.w === l.h) {
-          sizeStr = l.w + '" circle';
-        } else {
-          sizeStr = l.w + '" &times; ' + l.h + '"';
-        }
-
-        var priceStr = l.continuous ? '$' + l.price.toFixed(2) + '/inch' : '$' + l.price.toFixed(2);
-
-        var fits = l.uses || (l.containers === 'bottle' ? 'Bottles' : l.containers === 'can' ? 'Cans' : 'Bottles &amp; Cans');
-
-        html += '<tr>';
-        html += '<td>' + l.name + '</td>';
-        html += '<td>' + sizeStr + '</td>';
-        html += '<td>' + priceStr + '</td>';
-        html += '<td>' + fits + '</td>';
-        html += '</tr>';
-      });
-
-      html += '</tbody></table>';
+    var sorted = LABEL_DATA.filter(function (l) { return !l.continuous; });
+    var matOrder = { paper: 0, poly: 1, bopp: 2 };
+    sorted.sort(function (a, b) {
+      var aCircle = a.name.indexOf('Circle') !== -1 ? 1 : 0;
+      var bCircle = b.name.indexOf('Circle') !== -1 ? 1 : 0;
+      if (aCircle !== bCircle) return aCircle - bCircle;
+      var aMat = matOrder[a.material] || 0;
+      var bMat = matOrder[b.material] || 0;
+      if (aMat !== bMat) return aMat - bMat;
+      return a.price - b.price;
     });
 
-    // D-12: setup fee note
-    html += '<p class="labels-pricing-note"><strong>Setup fee:</strong> A $10 setup fee applies per design.</p>';
+    sorted.forEach(function (l) {
+      var sizeStr;
+      var isCircle = l.name.indexOf('Circle') !== -1;
+      if (l.continuous) {
+        sizeStr = l.w + '" wide continuous roll';
+      } else if (isCircle) {
+        sizeStr = l.w + '" circle';
+      } else {
+        sizeStr = l.w + '" &times; ' + l.h + '"';
+      }
 
+      var priceStr = l.continuous ? '$' + l.price.toFixed(2) + '/inch' : '$' + l.price.toFixed(2);
+
+      html += '<tr>';
+      html += '<td>' + sizeStr + '</td>';
+      html += '<td>' + (MATERIAL_LABELS[l.material] || l.material) + '</td>';
+      html += '<td>' + priceStr + '</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
     tableWrap.innerHTML = html;
   }
 
@@ -483,8 +480,12 @@
 
   // Initialization (DOMContentLoaded)
   function init() {
+    // Build pricing table (always runs if wrapper exists)
+    buildPricingTable();
+
+    // Canvas preview tool — disabled pending proper product photos
     _canvasFlat = document.getElementById('labels-canvas-flat');
-    if (!_canvasFlat) return; // Not on the labels page
+    if (!_canvasFlat) return;
 
     _ctxFlat = _canvasFlat.getContext('2d');
     _canvasFlat.width = 300;
@@ -508,28 +509,18 @@
     _resetBtn = document.getElementById('labels-reset');
     _typeSelect = document.getElementById('labels-type-select');
 
-    // Build pricing table
-    buildPricingTable();
-
-    // Populate label type selector
     populateLabelTypeSelector();
 
-    // Preload images then render
     preloadImages(function () {
       renderAll();
     });
 
-    // Label type change handler
     if (_typeSelect) {
       _typeSelect.addEventListener('change', handleLabelTypeChange);
     }
-
-    // File upload handler per D-10
     if (_fileInput) {
       _fileInput.addEventListener('change', handleFileUpload);
     }
-
-    // Reset button per D-13
     if (_resetBtn) {
       _resetBtn.addEventListener('click', handleReset);
     }
