@@ -3,28 +3,59 @@
 /* Mylar bag foil background — dark brushed-metal texture via CSS gradients */
 body[data-page="hops"] {
   background:
+    /* Broad diagonal light streaks — simulates foil catching light */
+    linear-gradient(
+      155deg,
+      transparent 0%,
+      transparent 20%,
+      rgba(255, 255, 255, 0.07) 25%,
+      transparent 30%,
+      transparent 45%,
+      rgba(255, 255, 255, 0.05) 48%,
+      rgba(255, 255, 255, 0.09) 50%,
+      rgba(255, 255, 255, 0.05) 52%,
+      transparent 55%,
+      transparent 70%,
+      rgba(255, 255, 255, 0.06) 75%,
+      transparent 80%,
+      transparent 100%
+    ),
+    /* Vertical brushed grain — wide strokes */
     repeating-linear-gradient(
       90deg,
       transparent,
-      rgba(255, 255, 255, 0.015) 1px,
-      transparent 2px,
-      transparent 4px
+      rgba(255, 255, 255, 0.04) 8px,
+      transparent 12px,
+      rgba(255, 255, 255, 0.06) 40px,
+      transparent 44px,
+      transparent 60px,
+      rgba(255, 255, 255, 0.03) 80px,
+      transparent 85px,
+      transparent 120px
     ),
+    /* Secondary grain layer — offset angle for depth */
     repeating-linear-gradient(
-      95deg,
+      88deg,
       transparent,
-      rgba(255, 255, 255, 0.008) 1px,
-      transparent 3px,
-      transparent 6px
+      rgba(255, 255, 255, 0.025) 20px,
+      transparent 25px,
+      transparent 70px,
+      rgba(255, 255, 255, 0.04) 90px,
+      transparent 95px,
+      transparent 150px
     ),
+    /* Base gradient — stark dark-to-lighter shifts like foil creases */
     linear-gradient(
       180deg,
-      #1a1a1a 0%,
-      #222 20%,
-      #1d1d1d 40%,
-      #252525 60%,
-      #1a1a1a 80%,
-      #202020 100%
+      #111 0%,
+      #1e1e1e 8%,
+      #141414 15%,
+      #2a2a2a 30%,
+      #181818 45%,
+      #252525 55%,
+      #131313 70%,
+      #222 85%,
+      #1a1a1a 100%
     );
   background-color: #1a1a1a;
 }
