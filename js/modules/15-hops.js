@@ -520,64 +520,6 @@ function buildHopCard(group) {
     detail.appendChild(notesP);
   }
 
-  // Size toggle (only if 2+ variants)
-  var hopSizeToggleGroup = null;
-  if (group.variants.length >= 2) {
-    hopSizeToggleGroup = document.createElement('div');
-    hopSizeToggleGroup.className = 'hop-size-toggle-group';
-
-    group.variants.forEach(function (v, idx) {
-      var sizeBtn = document.createElement('button');
-      sizeBtn.type = 'button';
-      sizeBtn.className = 'hop-size-btn' + (idx === 0 ? ' active' : '');
-      sizeBtn.setAttribute('aria-pressed', idx === 0 ? 'true' : 'false');
-
-      // Extract size label from name suffix
-      var sizeMatch = (v.name || '').match(/\s*[-–]\s*(\d+\s*(?:oz|g))\s*$/i);
-      sizeBtn.textContent = sizeMatch ? sizeMatch[1] : v.name;
-
-      sizeBtn.addEventListener('click', (function (clickedIdx, clickedVariant) {
-        return function () {
-          selectedVariantIdx = clickedIdx;
-          // Update active state on all size buttons
-          var allSizeBtns = hopSizeToggleGroup.querySelectorAll('.hop-size-btn');
-          allSizeBtns.forEach(function (b, bi) {
-            b.classList.toggle('active', bi === clickedIdx);
-            b.setAttribute('aria-pressed', bi === clickedIdx ? 'true' : 'false');
-          });
-          // Update price display
-          priceSpan.textContent = formatCurrency(clickedVariant.price_per_unit || 0);
-          // Update cart reserve wrap to new variant
-          var newHopForCart = buildHopCartObject(clickedVariant);
-          var newProductKey = clickedVariant.name + '|';
-          var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(clickedVariant))
-            ? renderWeightControl : renderReserveControl;
-          reserveWrap._reserveProduct = newHopForCart;
-          reserveWrap._reserveKey = newProductKey;
-          reserveWrap._reserveRenderer = renderer;
-          renderer(reserveWrap, newHopForCart, newProductKey);
-        };
-      })(idx, v));
-
-      hopSizeToggleGroup.appendChild(sizeBtn);
-    });
-
-    detail.appendChild(hopSizeToggleGroup);
-  }
-
-  // Cart reserve wrap
-  var reserveWrap = document.createElement('div');
-  reserveWrap.className = 'product-reserve-wrap';
-  var hopForCart = buildHopCartObject(variant);
-  var productKey = variant.name + '|';
-  var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
-    ? renderWeightControl : renderReserveControl;
-  reserveWrap._reserveProduct = hopForCart;
-  reserveWrap._reserveKey = productKey;
-  reserveWrap._reserveRenderer = renderer;
-  renderer(reserveWrap, hopForCart, productKey);
-  detail.appendChild(reserveWrap);
-
   notesBody.appendChild(detail);
 
   // Toggle click handler (notes-wrap pattern from 04-label-cards.js)
@@ -596,6 +538,60 @@ function buildHopCard(group) {
   notesWrap.appendChild(toggle);
   notesWrap.appendChild(notesBody);
   card.appendChild(notesWrap);
+
+  // Size toggle (only if 2+ variants) — visible on collapsed card
+  var hopSizeToggleGroup = null;
+  var reserveWrap = document.createElement('div');
+  reserveWrap.className = 'product-reserve-wrap';
+  var hopForCart = buildHopCartObject(variant);
+  var productKey = variant.name + '|';
+  var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
+    ? renderWeightControl : renderReserveControl;
+  reserveWrap._reserveProduct = hopForCart;
+  reserveWrap._reserveKey = productKey;
+  reserveWrap._reserveRenderer = renderer;
+  renderer(reserveWrap, hopForCart, productKey);
+
+  if (group.variants.length >= 2) {
+    hopSizeToggleGroup = document.createElement('div');
+    hopSizeToggleGroup.className = 'hop-size-toggle-group';
+
+    group.variants.forEach(function (v, idx) {
+      var sizeBtn = document.createElement('button');
+      sizeBtn.type = 'button';
+      sizeBtn.className = 'hop-size-btn' + (idx === 0 ? ' active' : '');
+      sizeBtn.setAttribute('aria-pressed', idx === 0 ? 'true' : 'false');
+
+      var sizeMatch = (v.name || '').match(/\s*[-–]\s*(\d+\s*(?:oz|g))\s*$/i);
+      sizeBtn.textContent = sizeMatch ? sizeMatch[1] : v.name;
+
+      sizeBtn.addEventListener('click', (function (clickedIdx, clickedVariant) {
+        return function () {
+          selectedVariantIdx = clickedIdx;
+          var allSizeBtns = hopSizeToggleGroup.querySelectorAll('.hop-size-btn');
+          allSizeBtns.forEach(function (b, bi) {
+            b.classList.toggle('active', bi === clickedIdx);
+            b.setAttribute('aria-pressed', bi === clickedIdx ? 'true' : 'false');
+          });
+          priceSpan.textContent = formatCurrency(clickedVariant.price_per_unit || 0);
+          var newHopForCart = buildHopCartObject(clickedVariant);
+          var newProductKey = clickedVariant.name + '|';
+          var newRenderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(clickedVariant))
+            ? renderWeightControl : renderReserveControl;
+          reserveWrap._reserveProduct = newHopForCart;
+          reserveWrap._reserveKey = newProductKey;
+          reserveWrap._reserveRenderer = newRenderer;
+          newRenderer(reserveWrap, newHopForCart, newProductKey);
+        };
+      })(idx, v));
+
+      hopSizeToggleGroup.appendChild(sizeBtn);
+    });
+
+    card.appendChild(hopSizeToggleGroup);
+  }
+
+  card.appendChild(reserveWrap);
 
   // Inject product schema for default variant
   if (typeof injectProductSchema !== 'undefined') {
