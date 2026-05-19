@@ -310,7 +310,7 @@ function loadHops(callback) {
       _hopGroups = groupHopsByVariant(_allHops);
       if (typeof Fuse !== 'undefined') {
         _hopsFuse = new Fuse(_allHops, {
-          keys: ['name', 'description'],
+          keys: ['name', 'tasting_notes', 'description'],
           threshold: 0.35,
           minMatchCharLength: 2,
           ignoreLocation: true
@@ -511,11 +511,12 @@ function buildHopCard(group) {
     detail.appendChild(originP);
   }
 
-  // Notes/history
-  if (variant.description) {
+  // Notes/history — prefer tasting_notes (custom field), fall back to description
+  var hopNotes = variant.tasting_notes || variant.description || '';
+  if (hopNotes) {
     var notesP = document.createElement('p');
     notesP.className = 'hop-notes';
-    notesP.textContent = variant.description;
+    notesP.textContent = hopNotes;
     detail.appendChild(notesP);
   }
 
