@@ -245,8 +245,8 @@ body[data-page="hops"] .site-footer {
 }
 .hop-size-btn.active {
   border-color: var(--color-green);
-  color: var(--color-green);
-  background: rgba(74, 111, 75, 0.08);
+  color: #fff;
+  background: var(--color-green);
 }
 .hop-size-btn:focus-visible {
   outline: 2px solid var(--color-burgundy);
