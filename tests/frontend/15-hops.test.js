@@ -34,6 +34,18 @@ describe('groupHopsByVariant', function () {
     expect(groups[0].variants[1].price_per_unit).toBe('12.00');
   });
 
+  test('groups gram-suffixed variants by name stem', function () {
+    var items = [
+      { name: 'UK East Kent Golding-100g', price_per_unit: '8.00' },
+      { name: 'UK East Kent Golding-500g', price_per_unit: '30.00' }
+    ];
+    var groups = hops.groupHopsByVariant(items);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].name).toBe('UK East Kent Golding');
+    expect(groups[0].variants).toHaveLength(2);
+    expect(groups[0].variants[0].price_per_unit).toBe('8.00');
+  });
+
   test('returns empty array for empty input', function () {
     expect(hops.groupHopsByVariant([])).toEqual([]);
   });

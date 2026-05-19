@@ -34,7 +34,7 @@ function groupHopsByVariant(items) {
   var groups = {};
   var order = [];
   items.forEach(function (item) {
-    var stem = (item.name || '').replace(/\s*[-–]\s*\d+\s*oz\s*$/i, '').trim();
+    var stem = (item.name || '').replace(/\s*[-–]\s*\d+\s*(?:oz|g)\s*$/i, '').trim();
     if (!stem) stem = item.name || '';
     if (!groups[stem]) {
       groups[stem] = { name: stem, variants: [] };
@@ -304,8 +304,8 @@ function loadHops(callback) {
       _allHops = items.filter(function (r) {
         var p = parseFloat(r.price_per_unit || '0') || 0;
         if (p <= 0) return false;
-        var nameLower = (r.name || '').toLowerCase();
-        return nameLower.indexOf('hop') !== -1 && nameLower.indexOf('pellet') !== -1;
+        var subcat = (r.subcategory || '').toLowerCase();
+        return subcat === 'hops';
       });
       _hopGroups = groupHopsByVariant(_allHops);
       if (typeof Fuse !== 'undefined') {
@@ -532,7 +532,7 @@ function buildHopCard(group) {
       sizeBtn.setAttribute('aria-pressed', idx === 0 ? 'true' : 'false');
 
       // Extract size label from name suffix
-      var sizeMatch = (v.name || '').match(/\s*[-–]\s*(\d+\s*oz)\s*$/i);
+      var sizeMatch = (v.name || '').match(/\s*[-–]\s*(\d+\s*(?:oz|g))\s*$/i);
       sizeBtn.textContent = sizeMatch ? sizeMatch[1] : v.name;
 
       sizeBtn.addEventListener('click', (function (clickedIdx, clickedVariant) {
