@@ -70,10 +70,21 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mpcqn77p">
-  <link rel="stylesheet" href="css/hops.min.css?v=mpcqn77p">
+  <link rel="stylesheet" href="css/styles.min.css?v=mpcqxz8w">
+  <link rel="stylesheet" href="css/hops.min.css?v=mpcqxz8w">
 </head>
 <body data-page="hops">
+  <!-- SVG filter for crumpled foil texture -->
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <filter id="foil" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="turbulence" baseFrequency="0.025 0.035" numOctaves="5" seed="7" result="bigFolds"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.08 0.12" numOctaves="4" seed="3" result="fineCrinkle"/>
+      <feMerge result="noise"><feMergeNode in="bigFolds"/><feMergeNode in="fineCrinkle"/></feMerge>
+      <feSpecularLighting in="noise" surfaceScale="12" specularConstant="0.75" specularExponent="28" lighting-color="#888" result="spec">
+        <feDistantLight azimuth="225" elevation="45"/>
+      </feSpecularLighting>
+    </filter>
+  </svg>
   <!-- Google Tag Manager (noscript) -->
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NHRCGLC5"
   height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -182,7 +193,7 @@
   <script src="js/vendor/sentry.min.js"></script>
   <script src="js/sentry-init.js"></script>
   <script src="js/sheets-config.js" defer></script>
-  <script src="js/main.min.js?v=mpcqn77p" defer></script>
-  <script src="js/modules/15-hops.min.js?v=mpcqn77p" defer></script>
+  <script src="js/main.min.js?v=mpcqxz8w" defer></script>
+  <script src="js/modules/15-hops.min.js?v=mpcqxz8w" defer></script>
 </body>
 </html>
