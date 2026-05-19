@@ -1,0 +1,233 @@
+/* Hops page -- hops.html */
+
+/* Hero */
+.hops-hero {
+  background-color: var(--color-green);
+  color: var(--color-cream);
+  text-align: center;
+  padding: 5rem 0;
+}
+.hops-hero h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-cream);
+  margin-bottom: 0.75rem;
+}
+.hops-hero p {
+  font-family: var(--font-body);
+  font-size: 1.125rem;
+  max-width: 40ch;
+  margin: 0 auto;
+}
+
+/* Intro */
+.hops-intro {
+  padding: 2rem 0 0;
+}
+.hops-intro p {
+  max-width: 65ch;
+  margin: 0 auto;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+/* Catalog section */
+.hops-catalog-section {
+  padding: 2rem 0 4rem;
+}
+
+/* Hop card -- extends .product-card (do not redeclare .product-card rules) */
+.hop-card {
+  border-top: 3px solid var(--color-green);
+  text-align: center;
+}
+.hop-card h4 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-burgundy);
+  margin: 0.5rem 0 0.25rem;
+}
+
+/* Alpha acid spec */
+.hop-alpha {
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+  margin: 0.25rem 0;
+}
+
+/* Flavor tags */
+.hop-flavor-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: center;
+  margin: 0.4rem 0;
+}
+.hop-flavor-tag {
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 8px;
+  background: rgba(74, 111, 75, 0.1);
+  border: 1px solid var(--color-green);
+  color: var(--color-green);
+  border-radius: 999px;
+  font-family: var(--font-body);
+}
+
+/* Accordion override -- hop panel needs taller max-height than default 600px */
+.hop-notes-body {
+  max-height: 900px;
+}
+
+/* Expanded detail panel */
+.hop-detail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 1rem 0;
+}
+
+/* Radar chart SVG */
+.hop-radar-wrap {
+  width: 200px;
+  height: 200px;
+}
+.hop-radar {
+  width: 100%;
+  height: 100%;
+}
+.radar-bg {
+  fill: none;
+  stroke: var(--color-green);
+  stroke-width: 1;
+  opacity: 0.2;
+}
+.radar-axis {
+  stroke: rgba(0, 0, 0, 0.15);
+  stroke-width: 1;
+}
+.radar-fill {
+  fill: rgba(74, 111, 75, 0.25);
+  stroke: var(--color-green);
+  stroke-width: 2;
+}
+.radar-label {
+  font-size: 14px;
+  fill: #5f5f5f;
+  font-family: var(--font-body);
+}
+.radar-web {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.1);
+  stroke-width: 1;
+}
+
+/* Specs */
+.hop-specs {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+.hop-specs strong {
+  font-weight: 700;
+}
+
+/* Origin */
+.hop-origin {
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+.hop-origin strong {
+  font-weight: 700;
+}
+
+/* Notes/history text */
+.hop-notes {
+  font-size: 0.875rem;
+  color: var(--color-text);
+  line-height: 1.5;
+  max-width: 52ch;
+  text-align: left;
+}
+
+/* Size toggle */
+.hop-size-toggle-group {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 0.75rem 0;
+}
+.hop-size-btn {
+  padding: 8px 16px;
+  min-height: 44px;
+  border: 2px solid var(--color-brown, #77462d);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-brown, #77462d);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.hop-size-btn:hover {
+  border-color: var(--color-green);
+  color: var(--color-green);
+}
+.hop-size-btn.active {
+  border-color: var(--color-green);
+  color: var(--color-green);
+  background: rgba(74, 111, 75, 0.08);
+}
+.hop-size-btn:focus-visible {
+  outline: 2px solid var(--color-burgundy);
+  outline-offset: 2px;
+}
+
+/* Price display in expanded panel */
+.hop-price {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-burgundy);
+  margin: 0.25rem 0;
+}
+
+/* No-data radar placeholder */
+.hop-radar-placeholder {
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  font-style: italic;
+  text-align: center;
+  padding: 1rem 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hops-hero {
+    padding: 3rem 0;
+  }
+  .hop-radar-wrap {
+    width: 160px;
+    height: 160px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hop-radar-wrap {
+    width: 140px;
+    height: 140px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hop-notes-body {
+    transition: none;
+  }
+}
