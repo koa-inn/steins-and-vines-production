@@ -3,61 +3,100 @@
 /* Mylar bag foil background — dark brushed-metal texture via CSS gradients */
 body[data-page="hops"] {
   background:
-    /* Broad diagonal light streaks — simulates foil catching light */
+    /* Sharp diagonal crease — bright slash across the page */
     linear-gradient(
-      155deg,
+      135deg,
       transparent 0%,
-      transparent 20%,
-      rgba(255, 255, 255, 0.07) 25%,
-      transparent 30%,
-      transparent 45%,
-      rgba(255, 255, 255, 0.05) 48%,
-      rgba(255, 255, 255, 0.09) 50%,
-      rgba(255, 255, 255, 0.05) 52%,
-      transparent 55%,
-      transparent 70%,
-      rgba(255, 255, 255, 0.06) 75%,
-      transparent 80%,
+      transparent 22%,
+      rgba(255, 255, 255, 0.18) 23%,
+      rgba(255, 255, 255, 0.25) 24%,
+      rgba(255, 255, 255, 0.18) 25%,
+      transparent 26%,
       transparent 100%
     ),
-    /* Vertical brushed grain — wide strokes */
-    repeating-linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.04) 8px,
-      transparent 12px,
-      rgba(255, 255, 255, 0.06) 40px,
-      transparent 44px,
-      transparent 60px,
-      rgba(255, 255, 255, 0.03) 80px,
-      transparent 85px,
-      transparent 120px
+    /* Opposite-angle crease — crossing wrinkle */
+    linear-gradient(
+      -40deg,
+      transparent 0%,
+      transparent 55%,
+      rgba(255, 255, 255, 0.12) 57%,
+      rgba(255, 255, 255, 0.20) 58%,
+      rgba(255, 255, 255, 0.12) 59%,
+      transparent 61%,
+      transparent 100%
     ),
-    /* Secondary grain layer — offset angle for depth */
-    repeating-linear-gradient(
-      88deg,
-      transparent,
-      rgba(255, 255, 255, 0.025) 20px,
-      transparent 25px,
-      transparent 70px,
-      rgba(255, 255, 255, 0.04) 90px,
-      transparent 95px,
-      transparent 150px
+    /* Shallow wrinkle — nearly horizontal */
+    linear-gradient(
+      170deg,
+      transparent 0%,
+      transparent 38%,
+      rgba(255, 255, 255, 0.08) 39%,
+      rgba(255, 255, 255, 0.15) 40%,
+      rgba(255, 255, 255, 0.08) 41%,
+      transparent 42%,
+      transparent 68%,
+      rgba(255, 255, 255, 0.06) 69%,
+      rgba(255, 255, 255, 0.12) 70%,
+      rgba(255, 255, 255, 0.06) 71%,
+      transparent 72%,
+      transparent 100%
     ),
-    /* Base gradient — stark dark-to-lighter shifts like foil creases */
+    /* Steep wrinkle — nearly vertical */
+    linear-gradient(
+      80deg,
+      transparent 0%,
+      transparent 15%,
+      rgba(255, 255, 255, 0.10) 16%,
+      rgba(255, 255, 255, 0.18) 17%,
+      rgba(255, 255, 255, 0.10) 18%,
+      transparent 19%,
+      transparent 75%,
+      rgba(255, 255, 255, 0.07) 76%,
+      rgba(255, 255, 255, 0.14) 77%,
+      rgba(255, 255, 255, 0.07) 78%,
+      transparent 79%,
+      transparent 100%
+    ),
+    /* Broad hot-spot glow — simulates overhead light reflection */
+    radial-gradient(
+      ellipse 80% 50% at 35% 30%,
+      rgba(255, 255, 255, 0.10) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 70% 65%,
+      rgba(255, 255, 255, 0.06) 0%,
+      transparent 60%
+    ),
+    /* Fine brushed grain — multi-angle */
+    repeating-linear-gradient(
+      92deg,
+      transparent 0px,
+      rgba(255, 255, 255, 0.05) 6px,
+      transparent 8px,
+      transparent 30px
+    ),
+    repeating-linear-gradient(
+      85deg,
+      transparent 0px,
+      rgba(255, 255, 255, 0.03) 15px,
+      transparent 18px,
+      transparent 50px
+    ),
+    /* Base — high contrast dark shifts */
     linear-gradient(
       180deg,
-      #111 0%,
-      #1e1e1e 8%,
-      #141414 15%,
-      #2a2a2a 30%,
-      #181818 45%,
-      #252525 55%,
-      #131313 70%,
-      #222 85%,
-      #1a1a1a 100%
+      #0d0d0d 0%,
+      #1a1a1a 10%,
+      #0f0f0f 20%,
+      #2a2a2a 35%,
+      #111 50%,
+      #282828 65%,
+      #0e0e0e 80%,
+      #1c1c1c 90%,
+      #111 100%
     );
-  background-color: #1a1a1a;
+  background-color: #111;
 }
 body[data-page="hops"] .site-footer {
   background-color: #111;
