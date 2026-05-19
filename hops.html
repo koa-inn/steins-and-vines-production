@@ -70,39 +70,34 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mpcrek44">
-  <link rel="stylesheet" href="css/hops.min.css?v=mpcrek44">
+  <link rel="stylesheet" href="css/styles.min.css?v=mpcuigm2">
+  <link rel="stylesheet" href="css/hops.min.css?v=mpcuigm2">
 </head>
 <body data-page="hops">
   <!-- SVG filter for crumpled foil texture -->
   <svg width="0" height="0" aria-hidden="true" style="position:absolute">
-    <filter id="foil" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="sRGB">
-      <!-- LAYER 1: Fine wrinkle texture (the crinkly surface detail) -->
-      <feTurbulence type="turbulence" baseFrequency="0.008 0.012" numOctaves="5" seed="3" result="wrinkleNoise"/>
+    <filter id="foil2" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <!-- LAYER 1: Surface texture -->
+      <feTurbulence type="fractalNoise" baseFrequency="0.0015 0.002" numOctaves="3" seed="3" result="wrinkleNoise"/>
       <feSpecularLighting in="wrinkleNoise" surfaceScale="18" specularConstant="0.9" specularExponent="25" lighting-color="#fff" result="wrinkleSpec">
         <feDistantLight azimuth="225" elevation="40"/>
       </feSpecularLighting>
-      <!-- Wrinkle layer on black base -->
       <feFlood flood-color="#0a0a0a" result="black"/>
       <feBlend in="black" in2="wrinkleSpec" mode="screen" result="wrinkleLayer"/>
-
-      <!-- LAYER 2: Large smooth folds (broad panels + sharp crease lines) -->
-      <feTurbulence type="turbulence" baseFrequency="0.002 0.004" numOctaves="2" seed="7" result="rawFolds"/>
+      <!-- LAYER 2: Large folds -->
+      <feTurbulence type="fractalNoise" baseFrequency="0.005 0.002" numOctaves="3" seed="7" result="rawFolds"/>
       <feComponentTransfer in="rawFolds" result="folds">
-        <feFuncR type="gamma" amplitude="1" exponent="0.3" offset="0"/>
-        <feFuncG type="gamma" amplitude="1" exponent="0.3" offset="0"/>
-        <feFuncB type="gamma" amplitude="1" exponent="0.3" offset="0"/>
+        <feFuncR type="gamma" amplitude="1" exponent="0.2" offset="0"/>
+        <feFuncG type="gamma" amplitude="1" exponent="0.2" offset="0"/>
+        <feFuncB type="gamma" amplitude="1" exponent="0.2" offset="0"/>
       </feComponentTransfer>
-      <!-- Diffuse: broad fold body panels -->
-      <feDiffuseLighting in="folds" surfaceScale="25" diffuseConstant="0.7" result="foldDiffuse">
+      <feDiffuseLighting in="folds" surfaceScale="30" diffuseConstant="0.8" result="foldDiffuse">
         <feDistantLight azimuth="225" elevation="35"/>
       </feDiffuseLighting>
-      <!-- Specular: bright fold crease highlights -->
-      <feSpecularLighting in="folds" surfaceScale="25" specularConstant="1.4" specularExponent="40" lighting-color="#fff" result="foldSpec">
+      <feSpecularLighting in="folds" surfaceScale="30" specularConstant="2.0" specularExponent="35" lighting-color="#fff" result="foldSpec">
         <feDistantLight azimuth="225" elevation="35"/>
       </feSpecularLighting>
-
-      <!-- COMPOSITE: wrinkle base × fold diffuse, then add fold specular -->
+      <!-- Composite -->
       <feBlend in="wrinkleLayer" in2="foldDiffuse" mode="multiply" result="combined"/>
       <feBlend in="combined" in2="foldSpec" mode="screen"/>
     </filter>
@@ -155,13 +150,14 @@
       </div>
     </section>
 
-    <section class="hops-intro">
-      <div class="container">
-        <p>Explore our hop pellet catalog below. Each variety includes a sensory profile chart showing flavour characteristics, alpha acid percentage, and origin information. Use the filters to find hops by flavour profile, or search by name.</p>
-      </div>
-    </section>
-
+    <div class="bag-perforation" aria-hidden="true"></div>
     <section class="hops-catalog-section">
+      <div class="bag-seal" aria-hidden="true"></div>
+      <div class="hops-intro">
+        <div class="container">
+          <p>Explore our hop pellet catalog below. Each variety includes a sensory profile chart showing flavour characteristics, alpha acid percentage, and origin information. Use the filters to find hops by flavour profile, or search by name.</p>
+        </div>
+      </div>
       <div class="container">
         <div class="catalog-controls">
           <div class="catalog-search-wrap">
@@ -215,7 +211,7 @@
   <script src="js/vendor/sentry.min.js"></script>
   <script src="js/sentry-init.js"></script>
   <script src="js/sheets-config.js" defer></script>
-  <script src="js/main.min.js?v=mpcrek44" defer></script>
-  <script src="js/modules/15-hops.min.js?v=mpcrek44" defer></script>
+  <script src="js/main.min.js?v=mpcuigm2" defer></script>
+  <script src="js/modules/15-hops.min.js?v=mpcuigm2" defer></script>
 </body>
 </html>

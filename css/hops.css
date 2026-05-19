@@ -2,38 +2,66 @@
 
 /* Mylar bag foil background — dark brushed-metal texture via CSS gradients */
 body[data-page="hops"] {
-  background-color: #0a0a0a;
-  position: relative;
+  background-color: var(--color-cream);
 }
-body[data-page="hops"]::before {
+body[data-page="hops"] .hops-intro,
+body[data-page="hops"] .hops-catalog-section,
+body[data-page="hops"] .site-footer {
+  position: relative;
+  z-index: 1;
+}
+body[data-page="hops"] .hops-catalog-section {
+  overflow: hidden;
+}
+body[data-page="hops"] .hops-catalog-section::before {
   content: '';
   position: absolute;
   inset: 0;
   background: #0a0a0a;
-  filter: url(#foil);
+  filter: url(#foil2) blur(1.5px) brightness(3.2);
   z-index: 0;
   pointer-events: none;
 }
-body[data-page="hops"] > * {
+body[data-page="hops"] .hops-catalog-section::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(255,255,255,0.25) 0%, transparent 70%),
+    radial-gradient(ellipse 100% 100% at 50% 50%, transparent 40%, rgba(0,0,0,0.5) 100%);
+}
+body[data-page="hops"] .hops-catalog-section > * {
   position: relative;
   z-index: 1;
 }
 body[data-page="hops"] .site-footer {
-  background-color: #111;
+  background-color: #0a0a0a;
 }
 
 /* Hero */
 .hops-hero {
-  background:
-    linear-gradient(
-      135deg,
-      rgba(74, 111, 75, 0.9) 0%,
-      rgba(55, 85, 56, 0.95) 50%,
-      rgba(74, 111, 75, 0.9) 100%
-    );
+  background: var(--color-green);
   color: var(--color-cream);
   text-align: center;
   padding: 5rem 0;
+  margin-bottom: 0;
+  position: relative;
+  z-index: 2;
+}
+.hops-hero::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='6' preserveAspectRatio='none'%3E%3Cpolygon points='0,0 7,6 14,0' fill='%234a6f4b'/%3E%3C/svg%3E") repeat-x bottom;
+  background-size: 14px 6px;
+  z-index: 3;
+  transform: translateY(100%);
 }
 .hops-hero h1 {
   font-family: var(--font-display);
@@ -50,32 +78,52 @@ body[data-page="hops"] .site-footer {
 
 /* Intro */
 .hops-intro {
-  padding: 2rem 0 0;
+  padding: 3rem 0 2rem;
 }
 .hops-intro p {
   max-width: 65ch;
   margin: 0 auto;
   text-align: center;
-  color: #aaa;
+  color: #ddd;
+  background: var(--color-cream);
+  color: var(--color-text);
+  padding: 1.25rem 2rem;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Heat-sealed bag edge */
+.bag-seal {
+  position: relative;
+  z-index: 2;
+  height: 38px;
+  margin: 0;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(153,153,153,0.85) 0px,
+      rgba(204,204,204,0.85) 1px,
+      rgba(238,238,238,0.85) 2px,
+      rgba(187,187,187,0.85) 3px,
+      rgba(136,136,136,0.85) 4px,
+      rgba(170,170,170,0.85) 5px,
+      rgba(221,221,221,0.85) 6px,
+      rgba(153,153,153,0.85) 7px
+    );
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  border-bottom: 2px solid #666;
+}
+/* Sawtooth perforation — hidden, hero edge handles it */
+.bag-perforation {
+  display: none;
 }
 
 /* Catalog section */
 .hops-catalog-section {
-  padding: 2rem 0 4rem;
-}
-.hops-catalog-section .catalog-search,
-.hops-catalog-section .catalog-sort {
-  background-color: #2a2a2a;
-  color: #ddd;
-  border-color: #444;
-}
-.hops-catalog-section .catalog-search::placeholder {
-  color: #888;
-}
-.hops-catalog-section .catalog-filter-btn {
-  background-color: #2a2a2a;
-  color: #ccc;
-  border-color: #444;
+  padding: 10px 0 4rem;
 }
 .hops-catalog-section .catalog-filter-btn.active {
   background-color: var(--color-green);
@@ -84,6 +132,23 @@ body[data-page="hops"] .site-footer {
 }
 .hops-catalog-section .catalog-controls {
   position: static;
+  background: var(--color-cream);
+  padding: 1.25rem 2rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.hops-catalog-section .catalog-filter-row {
+  flex-wrap: nowrap;
+  width: auto;
+  max-width: none;
+  justify-content: center;
+  padding-left: 0;
+  background: var(--color-cream);
+  padding: 1rem 1.5rem;
+  border-radius: 4px;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Hop card -- extends .product-card (do not redeclare .product-card rules) */
