@@ -5,6 +5,7 @@ status: draft
 shadcn_initialized: false
 preset: none
 created: 2026-05-18
+revised: 2026-05-18
 ---
 
 # Phase 19 — UI Design Contract
@@ -59,13 +60,14 @@ Source: styles.css `.product-grid`, `.catalog-filter-btn`, `.notes-toggle` — a
 | Body | 16px (1rem) | 400 (regular) | 1.6 | `--font-body` |
 | Label / small spec | 14px (0.875rem) | 700 (bold) | 1.4 | `--font-body` |
 | Hop name (card heading) | 24px (1.5rem) | 700 | 1.2 | `--font-display` |
-| Page heading | clamp(22px, 3vw+12px, 36px) | 600 | 1.2 | `--font-display` |
+| Page heading | 28px (1.75rem) | 700 | 1.2 | `--font-display` |
 
-Additional micro text (alpha %, origin badge): 11px (0.6875rem), weight 700, uppercase, letter-spacing 0.08em — matches existing `.abv` class pattern.
+Micro text tier (alpha acid %, origin badge, flavor tags, radar axis labels): 12px (0.75rem). Applied as follows:
+- Alpha acid % and origin badge: weight 700, uppercase, letter-spacing 0.08em, `color: var(--color-muted)` — matches existing `.abv` class pattern.
+- Flavor tags: weight 700, uppercase — matches `.product-card-category` pattern.
+- Radar axis labels: weight 400, fill `var(--color-muted)`, rendered as SVG `<text font-size="12">`.
 
-Flavor tags: 12px (0.75rem), weight 700, uppercase — matches `.product-card-category` pattern.
-
-Radar axis labels: 11px (0.6875rem), weight 400, fill `var(--color-muted)` rendered as SVG `<text>`.
+Two weights in use across the entire phase: **400 (regular)** and **700 (bold)**. No other weights permitted.
 
 Source: styles.css typography block (lines 190–230), `.abv` class.
 
@@ -117,10 +119,10 @@ Source: styles.css `:root` variables (lines 117–138), CONTEXT.md D-14.
 | Component | CSS Class | Spec |
 |-----------|-----------|------|
 | Hop card (collapsed) | `.hop-card` | Extends `.product-card`. White background, `border-top: 3px solid var(--color-green)` (green accent instead of burgundy to signal hops context). `border: 1px solid var(--color-brown)`. |
-| Flavor tag pill | `.hop-flavor-tag` | 12px, weight 700, uppercase. `background: rgba(74,111,75,0.1)`, `border: 1px solid var(--color-green)`, `color: var(--color-green)`, border-radius 999px, padding 2px 10px. Max 3 visible per card. |
-| Alpha acid spec | `.hop-alpha` | Matches `.abv` class exactly: 11px, uppercase, letter-spacing 0.08em, `color: var(--color-muted)`. |
+| Flavor tag pill | `.hop-flavor-tag` | 12px, weight 700, uppercase. `background: rgba(74,111,75,0.1)`, `border: 1px solid var(--color-green)`, `color: var(--color-green)`, border-radius 999px, `padding: 4px 8px`. Max 3 visible per card. |
+| Alpha acid spec | `.hop-alpha` | 12px, weight 700, uppercase, letter-spacing 0.08em, `color: var(--color-muted)`. Matches `.abv` class exactly. |
 | Size toggle group | `.hop-size-toggle-group` | `display: flex; gap: 8px`. Two `<button>` children with class `.hop-size-btn`. |
-| Size toggle button | `.hop-size-btn` | 14px, weight 700, `border: 2px solid var(--color-brown)`, border-radius 4px, padding 6px 16px, min-height 44px, background transparent, color `--color-brown`. Active state: `border-color: var(--color-green)`, `color: var(--color-green)`. |
+| Size toggle button | `.hop-size-btn` | 14px, weight 700, `border: 2px solid var(--color-brown)`, border-radius 4px, `padding: 8px 16px`, min-height 44px, background transparent, color `--color-brown`. Active state: `border-color: var(--color-green)`, `color: var(--color-green)`. |
 | Radar chart container | `.hop-radar-wrap` | Width 200px, height 200px, centered in expanded card. Contains single inline `<svg>` element. |
 | Expanded detail panel | `.hop-detail` | Uses `.notes-body` max-height animation. Inner layout: `display: flex; flex-direction: column; align-items: center; gap: 16px`. |
 | Origin spec line | `.hop-origin` | 14px, weight 400, `color: var(--color-muted)`. Preceded by label "Origin:" weight 700. |
@@ -161,7 +163,7 @@ Source: styles.css `:root` variables (lines 117–138), CONTEXT.md D-14.
 - Polygon stroke: `var(--color-green)`, stroke-width 2.
 - Background web lines: 5 concentric hexagons at scale 1–5, stroke `rgba(0,0,0,0.1)`, stroke-width 1.
 - Axis lines: from center to each vertex, stroke `rgba(0,0,0,0.15)`, stroke-width 1.
-- Axis labels: SVG `<text>` elements, font-size 11, fill `#5f5f5f`, text-anchor varies by position (start/middle/end to avoid clipping).
+- Axis labels: SVG `<text>` elements, font-size 12, fill `#5f5f5f`, text-anchor varies by position (start/middle/end to avoid clipping).
 - If all 6 scores are 0 (no data), render greyed-out empty web with message "Sensory data coming soon" below chart in `.hop-notes` style.
 - Accessibility: `role="img"`, `aria-label="{hop name} sensory profile: Citrus {n}/5, Tropical {n}/5, ..."`.
 
