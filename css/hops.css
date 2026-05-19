@@ -81,7 +81,7 @@
 }
 
 /* Accordion override -- hop panel needs taller max-height than default 600px */
-.hop-notes-body {
+.notes-wrap.open .hop-notes-body {
   max-height: 900px;
 }
 
@@ -97,8 +97,8 @@
 
 /* Radar chart SVG */
 .hop-radar-wrap {
-  width: 200px;
-  height: 200px;
+  width: 160px;
+  height: 160px;
 }
 .hop-radar {
   width: 100%;
@@ -214,15 +214,15 @@
     padding: 3rem 0;
   }
   .hop-radar-wrap {
-    width: 160px;
-    height: 160px;
+    width: 140px;
+    height: 140px;
   }
 }
 
 @media (max-width: 480px) {
   .hop-radar-wrap {
-    width: 140px;
-    height: 140px;
+    width: 120px;
+    height: 120px;
   }
 }
 
