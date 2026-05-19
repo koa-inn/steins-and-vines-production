@@ -291,13 +291,26 @@ Plans:
 
 ### Phase 19: Hop Inventory Catalog
 
-**Goal:** Dedicated hop browsing section with product cards, expandable detail panels, and radar charts showing hop attributes (aroma, bitterness, etc.)
-**Requirements**: TBD
+**Goal:** Dedicated hops.html page functioning as both a brew-education resource and a shopping tool, with hop product cards featuring inline SVG radar charts for 6-axis sensory profiles, accordion expand panels, size-variant toggle between two SKUs per hop, flavor profile filters, text search, sort controls, and Add to Cart integration via the ingredients cart
+**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09, D-10, D-11, D-12, D-13, D-14, D-15, D-16, D-17, D-18, D-19
 **Depends on:** Phase 18
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. hops.html loads with hero, intro, filter/sort controls, and product card grid populated from Zoho Inventory via middleware
+  2. Products dropdown nav on all 9 public pages (8 existing + hops.html) includes "Hops" link between "Ingredients & Supplies" and "Custom Labels"
+  3. Collapsed hop cards show name, alpha acid %, price, and 2-3 top flavor note tags
+  4. Expanding a card reveals an inline SVG 6-axis radar chart (Citrus, Tropical, Floral, Spicy, Pine, Herbal scored 0-5) with semi-transparent green fill and darker green stroke
+  5. Expanded cards show origin, notes/history text, size variant toggle buttons, price display, and Add to Cart
+  6. Size toggle switches between two SKUs per hop updating price; single "Add to Cart" button adds the selected variant to the ingredients cart (sv-cart-ingredients)
+  7. Flavor profile filter buttons, text search, and sort controls (name, alpha acid, price) all work correctly
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 19 to break down)
+**Wave 1** *(no dependencies -- run in parallel)*
+- [ ] 19-01-PLAN.md -- HTML page + CSS + nav updates on 9 pages + sitemap + SEO meta
+- [ ] 19-02-PLAN.md -- JS module (15-hops.js): data loading, radar chart, card rendering, accordion, size toggle, filters, search, sort, cart integration, unit tests
+
+**Wave 2** *(depends on Wave 1)*
+- [ ] 19-03-PLAN.md -- Build pipeline integration (package.json), test/lint/build verification, human visual verification
 
 ---
 

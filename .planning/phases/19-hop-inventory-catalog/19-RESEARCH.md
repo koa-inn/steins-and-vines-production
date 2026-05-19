@@ -720,22 +720,25 @@ renderer(reserveWrap, hopForCart, productKey);
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Size variant SKU structure (HIGHEST PRIORITY)**
    - What we know: Current Zoho data has one kg-priced SKU per hop. D-10 says "two size variants per hop... as separate Zoho SKUs."
    - What's unclear: (a) Have these SKUs already been created in Zoho? (b) If so, what naming convention do they use? (c) If not yet created, does the implementation proceed with a single-size version first?
    - Recommendation: Staff confirms Zoho SKU state before Wave 1 implementation. If not yet created, implement with single-size fallback and a `// TODO: size toggle` comment, then add grouping when SKUs are ready.
+   - RESOLVED: Implement `groupHopsByVariant` with single-variant fallback — size toggle is omitted when only 1 SKU exists. Staff can add size-variant SKUs in Zoho at any time; the code handles 1 or 2 variants gracefully.
 
 2. **Hop identification filter (how to separate hops from other ingredients)**
    - What we know: Hops currently have no Zoho `category` field set (snapshot shows empty). Name contains "Hop Pellets" for most items.
    - What's unclear: Will staff add a Zoho category/subcategory for hops? Or do we filter by name pattern?
    - Recommendation: Add a Zoho custom field `cf_type = "hop"` OR use the name pattern `item.name.toLowerCase().indexOf('hop pellet') !== -1` as a reliable filter. Confirm with staff whether a structured category is preferred.
+   - RESOLVED: Filter by `name.indexOf('hop') !== -1 && name.indexOf('pellet') !== -1` (name pattern). Falls back cleanly if staff later adds a structured category.
 
 3. **Radar chart display when all scores are 0**
    - What we know: Existing hops have no sensory data yet.
    - What's unclear: Should the accordion show an empty radar (just axes, no fill) or hide the chart entirely?
    - Recommendation: Hide the radar SVG and show a placeholder "Sensory scores coming soon" text when all scores are 0. Avoids visual confusion.
+   - RESOLVED: Show `.hop-radar-placeholder` with "Sensory data coming soon" text when all 6 scores are 0. Radar chart is hidden entirely until staff populates Zoho custom fields.
 
 ---
 
