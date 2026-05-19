@@ -1,8 +1,46 @@
 /* Hops page -- hops.html */
 
+/* Mylar bag foil background — dark brushed-metal texture via CSS gradients */
+body[data-page="hops"] {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.015) 1px,
+      transparent 2px,
+      transparent 4px
+    ),
+    repeating-linear-gradient(
+      95deg,
+      transparent,
+      rgba(255, 255, 255, 0.008) 1px,
+      transparent 3px,
+      transparent 6px
+    ),
+    linear-gradient(
+      180deg,
+      #1a1a1a 0%,
+      #222 20%,
+      #1d1d1d 40%,
+      #252525 60%,
+      #1a1a1a 80%,
+      #202020 100%
+    );
+  background-color: #1a1a1a;
+}
+body[data-page="hops"] .site-footer {
+  background-color: #111;
+}
+
 /* Hero */
 .hops-hero {
-  background-color: var(--color-green);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(74, 111, 75, 0.9) 0%,
+      rgba(55, 85, 56, 0.95) 50%,
+      rgba(74, 111, 75, 0.9) 100%
+    );
   color: var(--color-cream);
   text-align: center;
   padding: 5rem 0;
@@ -28,12 +66,31 @@
   max-width: 65ch;
   margin: 0 auto;
   text-align: center;
-  color: var(--color-muted);
+  color: #aaa;
 }
 
 /* Catalog section */
 .hops-catalog-section {
   padding: 2rem 0 4rem;
+}
+.hops-catalog-section .catalog-search,
+.hops-catalog-section .catalog-sort {
+  background-color: #2a2a2a;
+  color: #ddd;
+  border-color: #444;
+}
+.hops-catalog-section .catalog-search::placeholder {
+  color: #888;
+}
+.hops-catalog-section .catalog-filter-btn {
+  background-color: #2a2a2a;
+  color: #ccc;
+  border-color: #444;
+}
+.hops-catalog-section .catalog-filter-btn.active {
+  background-color: var(--color-green);
+  color: #fff;
+  border-color: var(--color-green);
 }
 .hops-catalog-section .catalog-controls {
   position: static;
@@ -43,6 +100,8 @@
 .hop-card {
   border-top: 3px solid var(--color-green);
   text-align: center;
+  background: #fff;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
 }
 .hop-card h4 {
   font-family: var(--font-display);
