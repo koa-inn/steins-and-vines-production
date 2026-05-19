@@ -70,19 +70,34 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mpcr5522">
-  <link rel="stylesheet" href="css/hops.min.css?v=mpcr5522">
+  <link rel="stylesheet" href="css/styles.min.css?v=mpcr9zy7">
+  <link rel="stylesheet" href="css/hops.min.css?v=mpcr9zy7">
 </head>
 <body data-page="hops">
   <!-- SVG filter for crumpled foil texture -->
   <svg width="0" height="0" aria-hidden="true" style="position:absolute">
-    <filter id="foil" x="0%" y="0%" width="100%" height="100%">
-      <feTurbulence type="turbulence" baseFrequency="0.003 0.005" numOctaves="5" seed="7" result="bigFolds"/>
-      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="4" seed="3" result="fineCrinkle"/>
-      <feMerge result="noise"><feMergeNode in="bigFolds"/><feMergeNode in="fineCrinkle"/></feMerge>
-      <feSpecularLighting in="noise" surfaceScale="35" specularConstant="1.2" specularExponent="18" lighting-color="#fff" result="spec">
-        <feDistantLight azimuth="225" elevation="40"/>
+    <filter id="foil" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <!-- Smooth large-scale folds only — 2 octaves, no fine detail -->
+      <feTurbulence type="turbulence" baseFrequency="0.002 0.004" numOctaves="2" seed="7" result="rawFolds"/>
+      <!-- Sharpen into flat panels with steep crease transitions -->
+      <feComponentTransfer in="rawFolds" result="folds">
+        <feFuncR type="gamma" amplitude="1" exponent="0.3" offset="0"/>
+        <feFuncG type="gamma" amplitude="1" exponent="0.3" offset="0"/>
+        <feFuncB type="gamma" amplitude="1" exponent="0.3" offset="0"/>
+      </feComponentTransfer>
+      <!-- Diffuse: broad fold body panels -->
+      <feDiffuseLighting in="folds" surfaceScale="25" diffuseConstant="0.7" result="diffuse">
+        <feDistantLight azimuth="225" elevation="35"/>
+      </feDiffuseLighting>
+      <!-- Specular: bright crease highlights -->
+      <feSpecularLighting in="folds" surfaceScale="25" specularConstant="1.4" specularExponent="40" lighting-color="#fff" result="specular">
+        <feDistantLight azimuth="225" elevation="35"/>
       </feSpecularLighting>
+      <!-- Darken diffuse against black base -->
+      <feFlood flood-color="#111" result="black"/>
+      <feBlend in="black" in2="diffuse" mode="multiply" result="darkFolds"/>
+      <!-- Add bright crease highlights on top -->
+      <feBlend in="darkFolds" in2="specular" mode="screen"/>
     </filter>
   </svg>
   <!-- Google Tag Manager (noscript) -->
@@ -193,7 +208,7 @@
   <script src="js/vendor/sentry.min.js"></script>
   <script src="js/sentry-init.js"></script>
   <script src="js/sheets-config.js" defer></script>
-  <script src="js/main.min.js?v=mpcr5522" defer></script>
-  <script src="js/modules/15-hops.min.js?v=mpcr5522" defer></script>
+  <script src="js/main.min.js?v=mpcr9zy7" defer></script>
+  <script src="js/modules/15-hops.min.js?v=mpcr9zy7" defer></script>
 </body>
 </html>
