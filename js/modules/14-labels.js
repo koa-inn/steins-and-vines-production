@@ -7,23 +7,23 @@
   // D-08: SKUs 11013-c4000 and 11034-c4000 excluded (Used for packaging)
   var LABEL_DATA = [
     // Satin / Matte BOPP (Waterproof)
-    { sku: '814051',       name: '4x3 Satin BOPP',              w: 4,   h: 3,   material: 'bopp',  price: 0.70, containers: 'both',   uses: '355mL Beer Bottle, 750mL Wine Bottle, 355mL Can' },
-    { sku: '814022',       name: '4x6 Matte BOPP',              w: 4,   h: 6,   material: 'bopp',  price: 1.80, containers: 'bottle', uses: '750mL Wine Bottle' },
-    { sku: '814021',       name: '4x4 Matte BOPP',              w: 4,   h: 4,   material: 'bopp',  price: 1.15, containers: 'both',   uses: '' },
-    { sku: '814053',       name: '2.5" Circle Satin BOPP',      w: 2.5, h: 2.5, material: 'bopp',  price: 0.45, containers: 'both',   uses: '' },
+    { sku: '814051',       name: '4x3 Satin BOPP',              w: 4,   h: 3,   material: 'bopp',  finish: 'Satin',  price: 0.70, containers: 'both',   uses: '355mL Beer Bottle, 750mL Wine Bottle, 355mL Can' },
+    { sku: '814022',       name: '4x6 Matte BOPP',              w: 4,   h: 6,   material: 'bopp',  finish: 'Matte',  price: 1.80, containers: 'bottle', uses: '750mL Wine Bottle' },
+    { sku: '814021',       name: '4x4 Matte BOPP',              w: 4,   h: 4,   material: 'bopp',  finish: 'Matte',  price: 1.15, containers: 'both',   uses: '' },
+    { sku: '814053',       name: '2.5" Circle Satin BOPP',      w: 2.5, h: 2.5, material: 'bopp',  finish: 'Satin',  price: 0.45, containers: 'both',   uses: '' },
     // SKU 814042 (4x100 Continuous Satin BOPP) omitted from public pricing -- available on request
     // Matte Poly (Durable)
-    { sku: '14024-c4000',  name: '3x5 Matte Poly',              w: 3,   h: 5,   material: 'poly',  price: 1.10, containers: 'both',   uses: '' },
-    { sku: '14018-c4000',  name: '4x3 Matte Poly',              w: 4,   h: 3,   material: 'poly',  price: 0.80, containers: 'both',   uses: '' },
-    { sku: '14037-c4000',  name: '2" Circle Matte Poly',        w: 2,   h: 2,   material: 'poly',  price: 0.40, containers: 'both',   uses: '' },
+    { sku: '14024-c4000',  name: '3x5 Matte Poly',              w: 3,   h: 5,   material: 'poly',  finish: 'Matte',  price: 1.10, containers: 'both',   uses: '' },
+    { sku: '14018-c4000',  name: '4x3 Matte Poly',              w: 4,   h: 3,   material: 'poly',  finish: 'Matte',  price: 0.80, containers: 'both',   uses: '' },
+    { sku: '14037-c4000',  name: '2" Circle Matte Poly',        w: 2,   h: 2,   material: 'poly',  finish: 'Matte',  price: 0.40, containers: 'both',   uses: '' },
     // High Gloss Paper (Budget) -- packaging SKUs excluded per D-08
-    { sku: '11029-c4000',  name: '3x3 High Gloss Paper',        w: 3,   h: 3,   material: 'paper', price: 0.45, containers: 'both',   uses: '' },
-    { sku: '11016-c4000',  name: '4x2 High Gloss Paper',        w: 4,   h: 2,   material: 'paper', price: 0.40, containers: 'both',   uses: '' },
-    { sku: '11025-c4000',  name: '3x6 High Gloss Paper',        w: 3,   h: 6,   material: 'paper', price: 1.00, containers: 'both',   uses: '' },
-    { sku: '11019-c4000',  name: '4x4 High Gloss Paper',        w: 4,   h: 4,   material: 'paper', price: 0.80, containers: 'both',   uses: '' },
-    { sku: '11024-c4000',  name: '3x5 High Gloss Paper',        w: 3,   h: 5,   material: 'paper', price: 0.85, containers: 'both',   uses: '' },
-    { sku: '11039-c4000',  name: '3" Circle High Gloss Paper',  w: 3,   h: 3,   material: 'paper', price: 0.45, containers: 'both',   uses: '' },
-    { sku: '11037-c4000',  name: '2" Circle High Gloss Paper',  w: 2,   h: 2,   material: 'paper', price: 0.25, containers: 'both',   uses: '' }
+    { sku: '11029-c4000',  name: '3x3 High Gloss Paper',        w: 3,   h: 3,   material: 'paper', finish: 'Gloss',  price: 0.45, containers: 'both',   uses: '' },
+    { sku: '11016-c4000',  name: '4x2 High Gloss Paper',        w: 4,   h: 2,   material: 'paper', finish: 'Gloss',  price: 0.40, containers: 'both',   uses: '' },
+    { sku: '11025-c4000',  name: '3x6 High Gloss Paper',        w: 3,   h: 6,   material: 'paper', finish: 'Gloss',  price: 1.00, containers: 'both',   uses: '' },
+    { sku: '11019-c4000',  name: '4x4 High Gloss Paper',        w: 4,   h: 4,   material: 'paper', finish: 'Gloss',  price: 0.80, containers: 'both',   uses: '' },
+    { sku: '11024-c4000',  name: '3x5 High Gloss Paper',        w: 3,   h: 5,   material: 'paper', finish: 'Gloss',  price: 0.85, containers: 'both',   uses: '' },
+    { sku: '11039-c4000',  name: '3" Circle High Gloss Paper',  w: 3,   h: 3,   material: 'paper', finish: 'Gloss',  price: 0.45, containers: 'both',   uses: '' },
+    { sku: '11037-c4000',  name: '2" Circle High Gloss Paper',  w: 2,   h: 2,   material: 'paper', finish: 'Gloss',  price: 0.25, containers: 'both',   uses: '' }
   ];
 
   var MATERIAL_LABELS = {
@@ -37,7 +37,7 @@
     if (!tableWrap) return;
 
     var html = '<table class="labels-pricing-table"><thead><tr>';
-    html += '<th>Size</th><th>Material</th><th style="text-align:right">Per Label</th>';
+    html += '<th>Size</th><th>Material</th><th>Finish</th><th style="text-align:right">Per Label</th>';
     html += '</tr></thead><tbody>';
 
     var sorted = LABEL_DATA.filter(function (l) { return !l.continuous; });
@@ -68,6 +68,7 @@
       html += '<tr>';
       html += '<td>' + sizeStr + '</td>';
       html += '<td>' + (MATERIAL_LABELS[l.material] || l.material) + '</td>';
+      html += '<td>' + (l.finish || '') + '</td>';
       html += '<td>' + priceStr + '</td>';
       html += '</tr>';
     });
