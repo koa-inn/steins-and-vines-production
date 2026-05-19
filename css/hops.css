@@ -35,6 +35,9 @@
 .hops-catalog-section {
   padding: 2rem 0 4rem;
 }
+.hops-catalog-section .catalog-controls {
+  position: static;
+}
 
 /* Hop card -- extends .product-card (do not redeclare .product-card rules) */
 .hop-card {
