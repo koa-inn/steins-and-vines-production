@@ -131,7 +131,7 @@ body[data-page="hops"] .site-footer {
 .hop-card {
   border-top: 3px solid var(--color-green);
   text-align: center;
-  background: #fff;
+  background: var(--color-cream);
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
 }
 .hop-card h4 {
