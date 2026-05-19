@@ -289,6 +289,16 @@ Plans:
 **Wave 2** *(depends on Wave 1)*
 - [x] 18-03-PLAN.md -- Build, lint, test, label region tuning, human visual verification (checkpoint: awaiting human sign-off)
 
+### Phase 19: Hop Inventory Catalog
+
+**Goal:** Dedicated hop browsing section with product cards, expandable detail panels, and radar charts showing hop attributes (aroma, bitterness, etc.)
+**Requirements**: TBD
+**Depends on:** Phase 18
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 19 to break down)
+
 ---
 
 ## v2.0 Recipe-Based Products
