@@ -1,0 +1,52 @@
+name: Deploy Production (filtered)
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: true
+
+jobs:
+  check-repo:
+    runs-on: ubuntu-latest
+    outputs:
+      is_production: ${{ steps.check.outputs.is_production }}
+    steps:
+      - id: check
+        run: |
+          if [[ "${{ github.repository }}" == *"-production" ]]; then
+            echo "is_production=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_production=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: check-repo
+    if: needs.check-repo.outputs.is_production == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove hidden pages
+        run: |
+          rm -f hops.html css/hops.css js/15-hops.js
+          sed -i '/<li><a href="hops\.html">Hops<\/a><\/li>/d' *.html
+          sed -i '/<li><a href="\.\.\/hops\.html">Hops<\/a><\/li>/d' products/*.html
+          sed -i '/steinsandvines\.ca\/hops/,/<\/url>/d' sitemap.xml
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
