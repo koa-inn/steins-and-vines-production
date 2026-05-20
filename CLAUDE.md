@@ -59,9 +59,10 @@ npm run test:e2e                  # Playwright
 
 ## Deployment
 - **Staging:** `git push origin main` → `staging.steinsandvines.ca`
-- **Production:** `git push production main` → `steinsandvines.ca`
+- **Production:** `git push production main --force` → `steinsandvines.ca`
 - **ALL changes go to staging first** — never push directly to production without staging approval
-- Verify `cat CNAME` before any production push — must read `steinsandvines.ca`
+- CNAME is in `.gitignore` — domains are managed via GitHub Pages settings, not the file
+- `enforce-cname.yml` workflow auto-corrects the domain after every push to either repo
 
 ## Compact Instructions
 When auto-compacting, preserve: current task from `docs/tasks.md`, all modified file paths, implementation plan, and which test suites need to run.

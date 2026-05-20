@@ -1,0 +1,40 @@
+name: Enforce Custom Domain
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  enforce-domain:
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+    steps:
+      - name: Determine expected domain
+        id: domain
+        run: |
+          REPO="${{ github.repository }}"
+          if [[ "$REPO" == *"-production" ]]; then
+            echo "cname=steinsandvines.ca" >> "$GITHUB_OUTPUT"
+          elif [[ "$REPO" == *"-staging" ]]; then
+            echo "cname=staging.steinsandvines.ca" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unknown repo — skipping"
+            exit 0
+          fi
+
+      - name: Check and fix domain
+        if: steps.domain.outputs.cname
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXPECTED="${{ steps.domain.outputs.cname }}"
+          CURRENT=$(gh api repos/${{ github.repository }}/pages --jq '.cname // empty' 2>/dev/null || true)
+
+          if [ "$CURRENT" = "$EXPECTED" ]; then
+            echo "Domain is correct: $CURRENT"
+          else
+            echo "Domain mismatch! Current: '${CURRENT:-null}', Expected: '$EXPECTED'"
+            gh api repos/${{ github.repository }}/pages -X PUT -f cname="$EXPECTED"
+            echo "Fixed: domain set to $EXPECTED"
+          fi

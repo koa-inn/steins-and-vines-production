@@ -39,3 +39,6 @@ product-label-templates.html
 
 # Cleanup script (one-time use)
 cleanup.sh
+
+# Domain managed via GitHub Pages settings, not this file
+CNAME
