@@ -328,7 +328,7 @@ Helcim's Smart Terminal **cannot pair with iPad** — it pairs only with iPhone 
 - [ ] Formally cancel GP contract (or confirm buyout program activated)
 - [ ] Set Railway production env vars: `HELCIM_API_TOKEN`, `HELCIM_WEBHOOK_SECRET`, `HELCIM_DEVICE_CODE` (production values)
 - [ ] Set `PAYMENT_DISABLED=false` for production
-- [ ] Follow CNAME swap protocol: verify `cat CNAME` = `steinsandvines.ca` before `git push production main`
+- [ ] Push to production: `git push production main --force` (CNAME is managed via GitHub Pages settings — no swap needed)
 - [ ] Configure Helcim production webhook to point to `https://svmiddleware-production.up.railway.app/api/webhooks/terminal`
 - [ ] Physical Smart Terminal: pair with production Helcim account
 - [ ] Monitor first live transactions in Helcim Hub + Railway logs

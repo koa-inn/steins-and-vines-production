@@ -268,7 +268,7 @@ The rationale is that blocking real customers because Google's API is slow is a 
 1. Generate a new key: `openssl rand -base64 32`
 2. Update Railway env var `API_SECRET_KEY` immediately (takes effect on next request; no restart needed).
 3. Update `js/sheets-config.js` (`MW_API_KEY` field).
-4. Push to staging, verify, then push to production following the normal STAGING FIRST workflow.
+4. Push to staging (`git push origin main`), verify, then push to production (`git push production main --force`) following the normal STAGING FIRST workflow.
 5. Review Railway logs for any anomalous POST/PUT/DELETE requests during the exposure window.
 
 ### If a card charge fails to void

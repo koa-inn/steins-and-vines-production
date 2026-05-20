@@ -78,12 +78,13 @@ Once staging is verified:
    ```
 2. Push staging to production:
    ```bash
-   git push production main
+   git push production main --force
    ```
-3. GitHub Pages deploys the production frontend
-4. If middleware changes are involved: update Railway production environment to deploy the same commit
-5. Verify production health: `curl https://api.steinsandvines.ca/health`
-6. Spot-check the live site: `steinsandvines.ca`
+3. The `deploy-production.yml` GitHub Actions workflow builds and deploys the site. This workflow filters out pages that should be hidden on production (e.g., hops.html) before publishing.
+4. The `enforce-cname.yml` workflow runs on every push and auto-corrects the custom domain if it drifts.
+5. If middleware changes are involved: update Railway production environment to deploy the same commit.
+6. Verify production health: `curl https://api.steinsandvines.ca/health`
+7. Spot-check the live site: `steinsandvines.ca`
 
 ---
 
@@ -104,7 +105,7 @@ Once staging is verified:
 3. Push the revert:
    ```bash
    git push origin main                # Staging
-   git push production main            # Production (if promoted)
+   git push production main --force    # Production (if promoted)
    ```
 
 **Do not use `git reset --hard` or force-push** — this rewrites history and can cause issues for other collaborators.
@@ -115,6 +116,25 @@ Once staging is verified:
 2. Click on the previous successful deployment
 3. Click "Redeploy" to restore the last working version
 4. Alternatively, revert the code and push (same as frontend rollback)
+
+---
+
+## Custom Domain Management
+
+Custom domains for GitHub Pages are managed via **GitHub Pages settings**, not a CNAME file.
+
+- `CNAME` is in `.gitignore` — it is never committed or swapped during deploys.
+- Each repo's domain is set once in its GitHub Pages settings:
+  - **Staging:** `staging.steinsandvines.ca`
+  - **Production:** `steinsandvines.ca`
+- The `enforce-cname.yml` workflow runs on every push to either repo and auto-corrects the domain if it drifts.
+- The domain `steinsandvines.ca` is verified under the `koa-inn` GitHub account (DNS TXT record: `_github-pages-challenge-koa-inn`).
+
+### Production Page Filtering
+
+The production repo uses Actions-based Pages deployment (`deploy-production.yml`) instead of legacy builds. This workflow removes pages that should not be public on production before publishing. To hide or unhide a page, edit the "Remove hidden pages" step in `.github/workflows/deploy-production.yml`.
+
+Staging uses legacy GitHub Pages builds and publishes all pages as-is.
 
 ---
 

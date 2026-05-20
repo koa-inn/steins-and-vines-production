@@ -116,7 +116,9 @@ steins-and-vines/
 │
 ├── .github/workflows/
 │   ├── tests.yml               # CI pipeline (unit + E2E tests)
-│   └── update-snapshot.yml     # Scheduled catalog snapshot export
+│   ├── update-snapshot.yml     # Scheduled catalog snapshot export
+│   ├── enforce-cname.yml       # Auto-corrects custom domain after every push
+│   └── deploy-production.yml   # Filtered Pages deploy (strips hidden pages on production)
 ├── style_guide.md              # Brand style guide (827 lines)
 ├── TESTING.md                  # Testing SOP + campaign tracker
 ├── jest.config.js              # Frontend test config
