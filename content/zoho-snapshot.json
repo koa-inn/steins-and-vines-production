@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-20T08:48:45.809Z",
+  "generated_at": "2026-05-21T08:50:44.616Z",
   "products": [
     {
       "name": "Acai Raspberry Rapture",
@@ -2861,7 +2861,7 @@
       "item_id": "109900000000021885",
       "brand": "Cru International",
       "manufacturer": "RJS Craft Winemaking",
-      "stock": "13",
+      "stock": "12",
       "description": "Luxurious flavours of dark plums and chocolate greet the nose, while hints of blackberries, toasted oak, and spices are found on the palate of this great Italian classic.",
       "discount": "0",
       "_zoho_category": "",
@@ -6403,7 +6403,7 @@
       "name": "750mL Bordeaux Bottle Clear",
       "unit": "pcs",
       "price_per_unit": "2.5",
-      "stock": "240",
+      "stock": "228",
       "description": "",
       "sku": "bor-clear",
       "category": "",
