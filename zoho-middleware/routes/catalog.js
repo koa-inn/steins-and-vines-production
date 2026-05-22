@@ -563,7 +563,7 @@ function doRefreshIngredients() {
             var cf = (item.custom_fields || []).find(function (f) {
               return f.label === 'Internal Only';
             });
-            if (cf && cf.value === 'true') {
+            if (cf && (cf.value === true || cf.value === 'true')) {
               log.info('[api/ingredients] Hiding internal-only item: ' + item.name);
               return false;
             }
