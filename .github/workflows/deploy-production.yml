@@ -37,10 +37,16 @@ jobs:
 
       - name: Remove hidden pages
         run: |
-          rm -f hops.html css/hops.css js/15-hops.js
+          # Hops page
+          rm -f hops.html css/hops.css css/hops.min.css js/modules/15-hops.js js/modules/15-hops.min.js
           sed -i '/<li><a href="hops\.html">Hops<\/a><\/li>/d' *.html
           sed -i '/<li><a href="\.\.\/hops\.html">Hops<\/a><\/li>/d' products/*.html
           sed -i '/steinsandvines\.ca\/hops/,/<\/url>/d' sitemap.xml
+          # Custom Labels page
+          rm -f custom-labels.html css/labels.css css/labels.min.css js/modules/14-labels.js js/modules/14-labels.min.js
+          sed -i '/<li><a href="custom-labels\.html">Custom Labels<\/a><\/li>/d' *.html
+          sed -i '/<li><a href="\.\.\/custom-labels\.html">Custom Labels<\/a><\/li>/d' products/*.html
+          sed -i '/steinsandvines\.ca\/custom-labels/,/<\/url>/d' sitemap.xml
 
       - uses: actions/configure-pages@v5
 
