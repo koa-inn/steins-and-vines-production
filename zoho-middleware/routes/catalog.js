@@ -541,6 +541,7 @@ function doRefreshIngredients() {
           items.forEach(function (item) {
             var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
+            if (detail.sales_description) item.sales_description = detail.sales_description;
             item.brand = detail.brand || item.brand || '';
             item.manufacturer = detail.manufacturer || item.manufacturer || '';
             item.tax_id = detail.tax_id || item.tax_id || '';
@@ -558,7 +559,16 @@ function doRefreshIngredients() {
             }
             item.tax_percentage = _pct;
           });
-          var enriched = items;
+          var enriched = items.filter(function (item) {
+            var cf = (item.custom_fields || []).find(function (f) {
+              return f.label === 'Internal Only';
+            });
+            if (cf && cf.value === 'true') {
+              log.info('[api/ingredients] Hiding internal-only item: ' + item.name);
+              return false;
+            }
+            return true;
+          });
 
           _ingredientsRefreshPromise = null;
           if (enriched.length > 0) {
@@ -842,6 +852,7 @@ router.get('/api/snapshot', function (req, res) {
       price_per_unit: z.rate != null ? String(z.rate) : '',
       stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
       description:    z.description || '',
+      sales_description: z.sales_description || '',
       sku:            z.sku || '',
       category:       z.category_name || '',
       low_amount:     '',
