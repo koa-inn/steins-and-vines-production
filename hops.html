@@ -70,8 +70,8 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mpcuigm2">
-  <link rel="stylesheet" href="css/hops.min.css?v=mpcuigm2">
+  <link rel="stylesheet" href="css/styles.min.css?v=mpe2kizf">
+  <link rel="stylesheet" href="css/hops.min.css?v=mpe2kizf">
 </head>
 <body data-page="hops">
   <!-- SVG filter for crumpled foil texture -->
@@ -146,41 +146,41 @@
     <section class="hops-hero">
       <div class="container">
         <h1>Hops</h1>
-        <p>Browse our selection of brewing hops &mdash; from citrusy American varieties to classic European nobles.</p>
+        <p>Browse hop pellets for homebrewing and craft beer. Citrus, tropical, floral, and noble varieties available in Squamish.</p>
       </div>
     </section>
 
-    <div class="bag-perforation" aria-hidden="true"></div>
+    <div class="bag-shadow-wrap">
     <section class="hops-catalog-section">
       <div class="bag-seal" aria-hidden="true"></div>
-      <div class="hops-intro">
-        <div class="container">
-          <p>Explore our hop pellet catalog below. Each variety includes a sensory profile chart showing flavour characteristics, alpha acid percentage, and origin information. Use the filters to find hops by flavour profile, or search by name.</p>
-        </div>
-      </div>
       <div class="container">
-        <div class="catalog-controls">
-          <div class="catalog-search-wrap">
-            <input type="text" id="hops-search" class="catalog-search" placeholder="Search hops..." aria-label="Search hops">
+        <div class="hops-toolbar">
+          <p class="hops-toolbar-intro">Explore our hop pellet catalog. Each variety includes a sensory profile chart, alpha acid percentage, and origin. Filter by flavour or search by name.</p>
+          <div class="catalog-controls">
+            <div class="catalog-search-wrap">
+              <input type="text" id="hops-search" class="catalog-search" placeholder="Search hops..." aria-label="Search hops">
+            </div>
+            <div class="catalog-sort-wrap">
+              <select id="hops-sort" class="catalog-sort" aria-label="Sort hops">
+                <option value="name-asc">Name (A-Z)</option>
+                <option value="name-desc">Name (Z-A)</option>
+                <option value="alpha-desc">Alpha Acid (High-Low)</option>
+                <option value="price-asc">Price (Low-High)</option>
+                <option value="price-desc">Price (High-Low)</option>
+              </select>
+            </div>
           </div>
-          <div class="catalog-sort-wrap">
-            <select id="hops-sort" class="catalog-sort" aria-label="Sort hops">
-              <option value="name-asc">Name (A-Z)</option>
-              <option value="name-desc">Name (Z-A)</option>
-              <option value="alpha-desc">Alpha Acid (High-Low)</option>
-              <option value="price-asc">Price (Low-High)</option>
-              <option value="price-desc">Price (High-Low)</option>
-            </select>
+          <div id="hops-filter-row" class="catalog-filter-row">
+            <!-- JS populates flavor profile filter buttons -->
           </div>
         </div>
-        <div id="hops-filter-row" class="catalog-filter-row">
-          <!-- JS populates flavor profile filter buttons -->
-        </div>
-        <div id="hops-catalog" class="product-grid">
+        <div id="hops-catalog" class="product-grid" aria-live="polite">
           <!-- JS populates hop cards -->
         </div>
       </div>
+      <div class="bag-seal-bottom" aria-hidden="true"></div>
     </section>
+    </div>
   </main>
 
   <footer class="site-footer">
@@ -211,7 +211,7 @@
   <script src="js/vendor/sentry.min.js"></script>
   <script src="js/sentry-init.js"></script>
   <script src="js/sheets-config.js" defer></script>
-  <script src="js/main.min.js?v=mpcuigm2" defer></script>
-  <script src="js/modules/15-hops.min.js?v=mpcuigm2" defer></script>
+  <script src="js/main.min.js?v=mpe2kizf" defer></script>
+  <script src="js/modules/15-hops.min.js?v=mpe2kizf" defer></script>
 </body>
 </html>

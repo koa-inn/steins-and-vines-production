@@ -8,6 +8,12 @@ var _allHops = [];
 var _hopGroups = [];
 var _hopsFuse = null;
 var _activeFlavorFilters = [];
+var _openPanel = null;
+var _openCard = null;
+var _compareMode = false;
+var _compareItems = [];
+var _compareBusy = false;
+var DESKTOP_BREAKPOINT = 768;
 
 var HOP_AXES = ['citrus', 'tropical', 'floral', 'spicy', 'pine', 'herbal'];
 var HOP_AXIS_LABELS = ['Citrus', 'Tropical', 'Floral', 'Spicy', 'Pine', 'Herbal'];
@@ -223,6 +229,7 @@ function loadHops(callback) {
       price_per_unit: z.price_per_unit != null ? String(z.price_per_unit) : (z.rate != null ? String(z.rate) : ''),
       stock: z.stock != null ? String(z.stock) : (z.stock_on_hand != null ? String(z.stock_on_hand) : '0'),
       description: z.description || '',
+      sales_description: z.sales_description || '',
       sku: z.sku || '',
       category: z.category || z.category_name || '',
       zoho_item_id: z.item_id || '',
@@ -413,22 +420,687 @@ function wireHopEvents() {
   if (sortSelect) {
     sortSelect.addEventListener('change', function () { renderHops(); });
   }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && _openPanel) {
+      var toggleBtn = _openCard ? _openCard.querySelector('.notes-toggle') : null;
+      closeHopPanel();
+      if (toggleBtn) toggleBtn.focus();
+    }
+  });
+  if (window.matchMedia) {
+    window.matchMedia('(max-width: ' + (DESKTOP_BREAKPOINT - 1) + 'px)').addEventListener('change', function () {
+      closeHopPanel();
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Card builder
 // ---------------------------------------------------------------------------
 
+function closeHopPanel() {
+  if (_openPanel && _openPanel.parentNode) {
+    _openPanel.parentNode.removeChild(_openPanel);
+  }
+  if (_openCard) {
+    _openCard.classList.remove('hop-card--active');
+    var btn = _openCard.querySelector('.notes-toggle');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+  _openPanel = null;
+  _openCard = null;
+  _compareMode = false;
+  _compareItems = [];
+  var comparing = document.querySelectorAll('.hop-card--comparing');
+  for (var i = 0; i < comparing.length; i++) {
+    comparing[i].classList.remove('hop-card--comparing');
+  }
+  var activeGrid = document.querySelector('.hops-grid--compare-active');
+  if (activeGrid) activeGrid.classList.remove('hops-grid--compare-active');
+}
+
+function findCardByGroupName(name) {
+  var cards = document.querySelectorAll('.hop-card h2');
+  for (var i = 0; i < cards.length; i++) {
+    if (cards[i].textContent === name) return cards[i].closest('.hop-card');
+  }
+  return null;
+}
+
+function findRowEnd(card, grid) {
+  var cards = grid.querySelectorAll('.product-card');
+  var top = card.offsetTop;
+  var last = card;
+  for (var i = 0; i < cards.length; i++) {
+    if (cards[i].offsetTop === top) last = cards[i];
+  }
+  return last;
+}
+
+function getRowHeight(card, grid) {
+  var cards = grid.querySelectorAll('.product-card');
+  var top = card.offsetTop;
+  var maxH = 0;
+  for (var i = 0; i < cards.length; i++) {
+    if (cards[i].offsetTop === top && cards[i].offsetHeight > maxH) {
+      maxH = cards[i].offsetHeight;
+    }
+  }
+  return maxH;
+}
+
+function buildCompareColumn(group, variant, removable) {
+  var col = document.createElement('div');
+  col.className = 'hop-compare-column';
+
+  var header = document.createElement('div');
+  header.className = 'hop-compare-col-header';
+  var nameEl = document.createElement('strong');
+  nameEl.textContent = group.name;
+  header.appendChild(nameEl);
+  if (removable) {
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'hop-compare-remove';
+    removeBtn.setAttribute('aria-label', 'Remove ' + group.name);
+    removeBtn.innerHTML = '&times;';
+    removeBtn.addEventListener('click', function () {
+      for (var i = 0; i < _compareItems.length; i++) {
+        if (_compareItems[i].group.name === group.name) {
+          _compareItems.splice(i, 1);
+          break;
+        }
+      }
+      var card = findCardByGroupName(group.name);
+      if (card) card.classList.remove('hop-card--comparing');
+      if (_compareItems.length === 0) {
+        closeHopPanel();
+      } else {
+        openComparePanel();
+      }
+    });
+    header.appendChild(removeBtn);
+  }
+  col.appendChild(header);
+
+  // Radar
+  var radarRow = document.createElement('div');
+  radarRow.className = 'hop-compare-row hop-compare-row--radar';
+  var radarWrap = document.createElement('div');
+  radarWrap.className = 'hop-radar-wrap';
+  var hasScore = HOP_AXES.some(function (a) { return parseFloat(variant[a] || 0) > 0; });
+  if (hasScore) {
+    radarWrap.appendChild(buildHopRadarChart(variant));
+  } else {
+    var ph = document.createElement('div');
+    ph.className = 'hop-radar-placeholder';
+    ph.textContent = 'No data';
+    radarWrap.appendChild(ph);
+  }
+  radarRow.appendChild(radarWrap);
+  col.appendChild(radarRow);
+
+  // Alpha acid
+  var alphaRow = document.createElement('div');
+  alphaRow.className = 'hop-compare-row hop-compare-row--specs';
+  alphaRow.textContent = variant.alpha_acid || '-';
+  col.appendChild(alphaRow);
+
+  // Origin
+  var originRow = document.createElement('div');
+  originRow.className = 'hop-compare-row hop-compare-row--specs';
+  originRow.textContent = variant.origin || '-';
+  col.appendChild(originRow);
+
+  // Tasting notes
+  var tnRow = document.createElement('div');
+  tnRow.className = 'hop-compare-row hop-compare-row--specs';
+  tnRow.textContent = variant.tasting_notes || '-';
+  col.appendChild(tnRow);
+
+  // Description
+  var descRow = document.createElement('div');
+  descRow.className = 'hop-compare-row hop-compare-row--desc';
+  var descText = variant.sales_description || variant.description || '';
+  if (descText.length > 200) descText = descText.substring(0, 200) + '...';
+  descRow.textContent = descText || '-';
+  col.appendChild(descRow);
+
+  // Price + size toggle + cart
+  var cartRow = document.createElement('div');
+  cartRow.className = 'hop-compare-row hop-compare-row--cart';
+
+  var priceSpan = document.createElement('span');
+  priceSpan.className = 'hop-price';
+  priceSpan.textContent = formatCurrency(variant.price_per_unit || 0);
+  cartRow.appendChild(priceSpan);
+
+  if (group.variants.length >= 2) {
+    var sizeGroup = document.createElement('div');
+    sizeGroup.className = 'hop-size-toggle-group';
+    sizeGroup.setAttribute('role', 'group');
+    sizeGroup.setAttribute('aria-label', 'Select size');
+    var currentIdx = group.variants.indexOf(variant);
+    group.variants.forEach(function (v, idx) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'hop-size-btn' + (idx === currentIdx ? ' active' : '');
+      btn.setAttribute('aria-pressed', idx === currentIdx ? 'true' : 'false');
+      var m = (v.name || '').match(/\s*[-–]\s*(\d+\s*(?:oz|g))\s*$/i);
+      btn.textContent = m ? m[1] : v.name;
+      btn.addEventListener('click', (function (ci, cv) {
+        return function () {
+          var all = sizeGroup.querySelectorAll('.hop-size-btn');
+          all.forEach(function (b, bi) {
+            b.classList.toggle('active', bi === ci);
+            b.setAttribute('aria-pressed', bi === ci ? 'true' : 'false');
+          });
+          priceSpan.textContent = formatCurrency(cv.price_per_unit || 0);
+          var cart = buildHopCartObject(cv);
+          var key = cv.name + '|';
+          var ren = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(cv))
+            ? renderWeightControl : renderReserveControl;
+          reserveWrap._reserveProduct = cart;
+          reserveWrap._reserveKey = key;
+          reserveWrap._reserveRenderer = ren;
+          ren(reserveWrap, cart, key);
+          // Update the stored variant for this compare item
+          for (var j = 0; j < _compareItems.length; j++) {
+            if (_compareItems[j].group.name === group.name) {
+              _compareItems[j].variant = cv;
+              break;
+            }
+          }
+        };
+      })(idx, v));
+      sizeGroup.appendChild(btn);
+    });
+    cartRow.appendChild(sizeGroup);
+  }
+
+  var reserveWrap = document.createElement('div');
+  reserveWrap.className = 'product-reserve-wrap';
+  var hopForCart = buildHopCartObject(variant);
+  var productKey = variant.name + '|';
+  var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
+    ? renderWeightControl : renderReserveControl;
+  reserveWrap._reserveProduct = hopForCart;
+  reserveWrap._reserveKey = productKey;
+  reserveWrap._reserveRenderer = renderer;
+  renderer(reserveWrap, hopForCart, productKey);
+  cartRow.appendChild(reserveWrap);
+
+  col.appendChild(cartRow);
+  return col;
+}
+
+function buildComparePanel() {
+  var panel = document.createElement('div');
+  panel.className = 'hop-detail-panel hop-compare-panel';
+
+  var close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'hop-panel-close';
+  close.setAttribute('aria-label', 'Close comparison');
+  close.innerHTML = '&times;';
+  close.addEventListener('click', closeHopPanel);
+  panel.appendChild(close);
+
+  var header = document.createElement('div');
+  header.className = 'hop-compare-header';
+  var title = document.createElement('h3');
+  title.textContent = _compareItems.length + ' hop' + (_compareItems.length !== 1 ? 's' : '') + ' selected (max 3)';
+  title.setAttribute('aria-live', 'polite');
+  header.appendChild(title);
+  var clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'hop-compare-clear';
+  clearBtn.textContent = 'Clear comparison';
+  clearBtn.addEventListener('click', closeHopPanel);
+  header.appendChild(clearBtn);
+  if (_compareItems.length < 3) {
+    var hint = document.createElement('span');
+    hint.className = 'hop-compare-hint';
+    hint.textContent = 'Click "Hop Details" on any card to add it';
+    header.appendChild(hint);
+  }
+  panel.appendChild(header);
+
+  var usedNames = {};
+  for (var u = 0; u < _compareItems.length; u++) {
+    usedNames[_compareItems[u].group.name] = true;
+  }
+
+  var table = document.createElement('table');
+  table.className = 'hop-compare-table';
+  table.setAttribute('role', 'table');
+  table.setAttribute('aria-label', 'Hop comparison');
+
+  var rowDefs = [
+    { label: '', key: 'header' },
+    { label: 'Sensory Profile', key: 'radar' },
+    { label: 'Alpha Acid', key: 'alpha' },
+    { label: 'Origin', key: 'origin' },
+    { label: 'Flavour Profile', key: 'tasting' },
+    { label: 'Description', key: 'desc' },
+    { label: 'Price & Cart', key: 'cart' }
+  ];
+
+  rowDefs.forEach(function (def) {
+    var tr = document.createElement('tr');
+    tr.className = 'hop-compare-tr hop-compare-tr--' + def.key;
+    var th = document.createElement('th');
+    th.className = 'hop-compare-th';
+    th.textContent = def.label;
+    th.setAttribute('scope', 'row');
+    tr.appendChild(th);
+
+    for (var i = 0; i < 3; i++) {
+      var td = document.createElement('td');
+      td.className = 'hop-compare-td';
+      if (i < _compareItems.length) {
+        td.appendChild(buildCompareCellContent(def.key, _compareItems[i].group, _compareItems[i].variant));
+      } else if (def.key === 'header') {
+        td.appendChild(buildCompareSlotDropdown(usedNames));
+      } else {
+        td.innerHTML = '<span class="hop-compare-empty-cell">&mdash;</span>';
+      }
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  });
+
+  panel.appendChild(table);
+  return panel;
+}
+
+function buildCompareCellContent(key, group, variant) {
+  var frag = document.createDocumentFragment();
+
+  if (key === 'header') {
+    var nameEl = document.createElement('strong');
+    nameEl.textContent = group.name;
+    frag.appendChild(nameEl);
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'hop-compare-remove';
+    removeBtn.setAttribute('aria-label', 'Remove ' + group.name);
+    removeBtn.innerHTML = '&times;';
+    removeBtn.addEventListener('click', function () {
+      for (var i = 0; i < _compareItems.length; i++) {
+        if (_compareItems[i].group.name === group.name) {
+          _compareItems.splice(i, 1);
+          break;
+        }
+      }
+      var card = findCardByGroupName(group.name);
+      if (card) card.classList.remove('hop-card--comparing');
+      if (_compareItems.length === 0) { closeHopPanel(); } else { openComparePanel(); }
+    });
+    frag.appendChild(removeBtn);
+  } else if (key === 'radar') {
+    var radarWrap = document.createElement('div');
+    radarWrap.className = 'hop-radar-wrap';
+    var hasScore = HOP_AXES.some(function (a) { return parseFloat(variant[a] || 0) > 0; });
+    if (hasScore) {
+      radarWrap.appendChild(buildHopRadarChart(variant));
+    } else {
+      var ph = document.createElement('span');
+      ph.className = 'hop-radar-placeholder';
+      ph.textContent = 'No data';
+      radarWrap.appendChild(ph);
+    }
+    frag.appendChild(radarWrap);
+  } else if (key === 'alpha') {
+    frag.appendChild(document.createTextNode(variant.alpha_acid || '-'));
+  } else if (key === 'origin') {
+    frag.appendChild(document.createTextNode(variant.origin || '-'));
+  } else if (key === 'tasting') {
+    frag.appendChild(document.createTextNode(variant.tasting_notes || '-'));
+  } else if (key === 'desc') {
+    var descText = variant.sales_description || variant.description || '-';
+    var descWrap = document.createElement('div');
+    descWrap.className = 'hop-compare-desc-wrap';
+    var descP = document.createElement('p');
+    descP.className = 'hop-compare-desc-text';
+    descP.textContent = descText;
+    descWrap.appendChild(descP);
+    if (descText.length > 120) {
+      var readMore = document.createElement('button');
+      readMore.type = 'button';
+      readMore.className = 'hop-compare-read-more';
+      readMore.textContent = 'Read more';
+      readMore.addEventListener('click', function () {
+        var popup = descWrap.querySelector('.hop-compare-desc-popup');
+        if (popup) {
+          popup.parentNode.removeChild(popup);
+          readMore.textContent = 'Read more';
+          return;
+        }
+        popup = document.createElement('div');
+        popup.className = 'hop-compare-desc-popup';
+        popup.textContent = descText;
+        var closePopup = document.createElement('button');
+        closePopup.type = 'button';
+        closePopup.className = 'hop-compare-popup-close';
+        closePopup.setAttribute('aria-label', 'Close');
+        closePopup.innerHTML = '&times;';
+        closePopup.addEventListener('click', function () {
+          popup.parentNode.removeChild(popup);
+          readMore.textContent = 'Read more';
+        });
+        popup.appendChild(closePopup);
+        descWrap.appendChild(popup);
+        readMore.textContent = 'Read less';
+      });
+      descWrap.appendChild(readMore);
+    }
+    frag.appendChild(descWrap);
+  } else if (key === 'cart') {
+    var priceSpan = document.createElement('span');
+    priceSpan.className = 'hop-price';
+    priceSpan.textContent = formatCurrency(variant.price_per_unit || 0);
+    frag.appendChild(priceSpan);
+
+    if (group.variants.length >= 2) {
+      var sizeGroup = document.createElement('div');
+      sizeGroup.className = 'hop-size-toggle-group';
+      sizeGroup.setAttribute('role', 'group');
+      sizeGroup.setAttribute('aria-label', 'Select size');
+      var currentIdx = group.variants.indexOf(variant);
+      group.variants.forEach(function (v, idx) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'hop-size-btn' + (idx === currentIdx ? ' active' : '');
+        btn.setAttribute('aria-pressed', idx === currentIdx ? 'true' : 'false');
+        var m = (v.name || '').match(/\s*[-–]\s*(\d+\s*(?:oz|g))\s*$/i);
+        btn.textContent = m ? m[1] : v.name;
+        btn.addEventListener('click', (function (ci, cv) {
+          return function () {
+            var all = sizeGroup.querySelectorAll('.hop-size-btn');
+            all.forEach(function (b, bi) {
+              b.classList.toggle('active', bi === ci);
+              b.setAttribute('aria-pressed', bi === ci ? 'true' : 'false');
+            });
+            priceSpan.textContent = formatCurrency(cv.price_per_unit || 0);
+            var cart = buildHopCartObject(cv);
+            var pkey = cv.name + '|';
+            var ren = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(cv))
+              ? renderWeightControl : renderReserveControl;
+            reserveWrap._reserveProduct = cart;
+            reserveWrap._reserveKey = pkey;
+            reserveWrap._reserveRenderer = ren;
+            ren(reserveWrap, cart, pkey);
+            for (var j = 0; j < _compareItems.length; j++) {
+              if (_compareItems[j].group.name === group.name) {
+                _compareItems[j].variant = cv;
+                break;
+              }
+            }
+          };
+        })(idx, v));
+        sizeGroup.appendChild(btn);
+      });
+      frag.appendChild(sizeGroup);
+    }
+
+    var reserveWrap = document.createElement('div');
+    reserveWrap.className = 'product-reserve-wrap';
+    var hopForCart = buildHopCartObject(variant);
+    var productKey = variant.name + '|';
+    var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
+      ? renderWeightControl : renderReserveControl;
+    reserveWrap._reserveProduct = hopForCart;
+    reserveWrap._reserveKey = productKey;
+    reserveWrap._reserveRenderer = renderer;
+    renderer(reserveWrap, hopForCart, productKey);
+    frag.appendChild(reserveWrap);
+  }
+
+  return frag;
+}
+
+function buildCompareSlotDropdown(usedNames) {
+  var slot = document.createElement('div');
+  slot.className = 'hop-compare-slot-empty';
+
+  var selectId = 'compare-slot-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4);
+  var label = document.createElement('label');
+  label.className = 'hop-compare-select-label';
+  label.textContent = 'Add a hop:';
+  label.setAttribute('for', selectId);
+  slot.appendChild(label);
+
+  var select = document.createElement('select');
+  select.className = 'hop-compare-select';
+  select.id = selectId;
+
+  var defaultOpt = document.createElement('option');
+  defaultOpt.value = '';
+  defaultOpt.textContent = 'Select a hop...';
+  select.appendChild(defaultOpt);
+
+  _hopGroups.forEach(function (group) {
+    if (usedNames[group.name]) return;
+    var opt = document.createElement('option');
+    opt.value = group.name;
+    opt.textContent = group.name;
+    select.appendChild(opt);
+  });
+
+  select.addEventListener('change', function () {
+    var name = select.value;
+    if (!name) return;
+    for (var g = 0; g < _hopGroups.length; g++) {
+      if (_hopGroups[g].name === name) {
+        _compareItems.push({ group: _hopGroups[g], variant: _hopGroups[g].variants[0] });
+        openComparePanel();
+        break;
+      }
+    }
+  });
+
+  slot.appendChild(select);
+  return slot;
+}
+
+function openComparePanel() {
+  if (_openPanel && _openPanel.parentNode) {
+    _openPanel.parentNode.removeChild(_openPanel);
+  }
+  if (_compareItems.length === 0) return;
+
+  var firstCard = findCardByGroupName(_compareItems[0].group.name);
+  if (!firstCard) return;
+
+  var grid = firstCard.parentNode;
+  var rowEnd = findRowEnd(firstCard, grid);
+  var rowHeight = getRowHeight(firstCard, grid);
+  var gap = parseFloat(getComputedStyle(grid).rowGap) || 0;
+
+  var panel = buildComparePanel();
+  panel.style.marginTop = '-' + (rowHeight + gap) + 'px';
+  panel.style.minHeight = rowHeight + 'px';
+  rowEnd.parentNode.insertBefore(panel, rowEnd.nextSibling);
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  var closeBtn = panel.querySelector('.hop-panel-close');
+  if (closeBtn) closeBtn.focus();
+
+  grid.classList.add('hops-grid--compare-active');
+  _openPanel = panel;
+  _openCard = firstCard;
+}
+
+function buildDetailPanel(group, variant) {
+  var panel = document.createElement('div');
+  panel.className = 'hop-detail-panel';
+
+  var close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'hop-panel-close';
+  close.setAttribute('aria-label', 'Close details');
+  close.innerHTML = '&times;';
+  close.addEventListener('click', closeHopPanel);
+  panel.appendChild(close);
+
+  var inner = document.createElement('div');
+  inner.className = 'hop-panel-inner';
+
+  // Left: radar chart
+  var left = document.createElement('div');
+  left.className = 'hop-panel-left';
+  var radarWrap = document.createElement('div');
+  radarWrap.className = 'hop-radar-wrap';
+  var hasAnyScore = HOP_AXES.some(function (axis) {
+    return parseFloat(variant[axis] || 0) > 0;
+  });
+  if (hasAnyScore) {
+    radarWrap.appendChild(buildHopRadarChart(variant));
+  } else {
+    var placeholder = document.createElement('div');
+    placeholder.className = 'hop-radar-placeholder';
+    placeholder.textContent = 'Sensory data coming soon';
+    radarWrap.appendChild(placeholder);
+  }
+  left.appendChild(radarWrap);
+
+  // Tasting notes (flavor keywords) below radar
+  var tastingNotes = variant.tasting_notes || '';
+  if (tastingNotes) {
+    var tnP = document.createElement('p');
+    tnP.className = 'hop-tasting-notes';
+    tnP.textContent = tastingNotes;
+    left.appendChild(tnP);
+  }
+
+  inner.appendChild(left);
+
+  // Center: specs + description
+  var center = document.createElement('div');
+  center.className = 'hop-panel-center';
+
+  var panelHeading = document.createElement('h3');
+  panelHeading.className = 'hop-panel-name';
+  panelHeading.textContent = group.name;
+  center.appendChild(panelHeading);
+
+  var alphaVal = variant.alpha_acid || '';
+  if (alphaVal) {
+    var specsDiv = document.createElement('div');
+    specsDiv.className = 'hop-specs';
+    specsDiv.textContent = 'Alpha Acid: ' + (alphaVal.indexOf('%') !== -1 ? alphaVal : alphaVal + '%');
+    center.appendChild(specsDiv);
+  }
+
+  if (variant.origin) {
+    var originP = document.createElement('p');
+    originP.className = 'hop-origin';
+    originP.textContent = 'Origin: ' + variant.origin;
+    center.appendChild(originP);
+  }
+
+  var hopNotes = variant.sales_description || variant.description || '';
+  if (hopNotes) {
+    var notesP = document.createElement('p');
+    notesP.className = 'hop-notes';
+    notesP.textContent = hopNotes;
+    center.appendChild(notesP);
+  }
+
+  inner.appendChild(center);
+
+  // Right: size toggle + cart
+  var right = document.createElement('div');
+  right.className = 'hop-panel-right';
+
+  var priceSpan = document.createElement('span');
+  priceSpan.className = 'hop-price';
+  priceSpan.textContent = formatCurrency(variant.price_per_unit || 0);
+  right.appendChild(priceSpan);
+
+  var reserveWrap = document.createElement('div');
+  reserveWrap.className = 'product-reserve-wrap';
+  var hopForCart = buildHopCartObject(variant);
+  var productKey = variant.name + '|';
+  var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
+    ? renderWeightControl : renderReserveControl;
+  reserveWrap._reserveProduct = hopForCart;
+  reserveWrap._reserveKey = productKey;
+  reserveWrap._reserveRenderer = renderer;
+  renderer(reserveWrap, hopForCart, productKey);
+
+  if (group.variants.length >= 2) {
+    var hopSizeToggleGroup = document.createElement('div');
+    hopSizeToggleGroup.className = 'hop-size-toggle-group';
+    group.variants.forEach(function (v, idx) {
+      var sizeBtn = document.createElement('button');
+      sizeBtn.type = 'button';
+      sizeBtn.className = 'hop-size-btn' + (idx === 0 ? ' active' : '');
+      sizeBtn.setAttribute('aria-pressed', idx === 0 ? 'true' : 'false');
+      var sizeMatch = (v.name || '').match(/\s*[-–]\s*(\d+\s*(?:oz|g))\s*$/i);
+      sizeBtn.textContent = sizeMatch ? sizeMatch[1] : v.name;
+      sizeBtn.addEventListener('click', (function (clickedIdx, clickedVariant) {
+        return function () {
+          var allSizeBtns = hopSizeToggleGroup.querySelectorAll('.hop-size-btn');
+          allSizeBtns.forEach(function (b, bi) {
+            b.classList.toggle('active', bi === clickedIdx);
+            b.setAttribute('aria-pressed', bi === clickedIdx ? 'true' : 'false');
+          });
+          priceSpan.textContent = formatCurrency(clickedVariant.price_per_unit || 0);
+          var newHopForCart = buildHopCartObject(clickedVariant);
+          var newProductKey = clickedVariant.name + '|';
+          var newRenderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(clickedVariant))
+            ? renderWeightControl : renderReserveControl;
+          reserveWrap._reserveProduct = newHopForCart;
+          reserveWrap._reserveKey = newProductKey;
+          reserveWrap._reserveRenderer = newRenderer;
+          newRenderer(reserveWrap, newHopForCart, newProductKey);
+        };
+      })(idx, v));
+      hopSizeToggleGroup.appendChild(sizeBtn);
+    });
+    right.appendChild(hopSizeToggleGroup);
+  }
+
+  right.appendChild(reserveWrap);
+
+  if (_hopGroups.length >= 2) {
+    var compareBtn = document.createElement('button');
+    compareBtn.type = 'button';
+    compareBtn.className = 'hop-compare-btn';
+    compareBtn.textContent = 'Compare Hops';
+    compareBtn.addEventListener('click', function () {
+      _compareMode = true;
+      _compareItems = [{ group: group, variant: variant }];
+      var card = findCardByGroupName(group.name);
+      if (card) {
+        card.classList.remove('hop-card--active');
+        card.classList.add('hop-card--comparing');
+      }
+      if (_openCard) {
+        _openCard.classList.remove('hop-card--active');
+        var oldBtn = _openCard.querySelector('.notes-toggle');
+        if (oldBtn) oldBtn.setAttribute('aria-expanded', 'false');
+      }
+      openComparePanel();
+    });
+    right.appendChild(compareBtn);
+  }
+
+  inner.appendChild(right);
+
+  panel.appendChild(inner);
+  return panel;
+}
+
 function buildHopCard(group) {
   var card = document.createElement('div');
   card.className = 'product-card hop-card';
 
-  // Track currently selected variant (index into group.variants)
   var selectedVariantIdx = 0;
   var variant = group.variants[selectedVariantIdx];
 
-  // --- Collapsed section ---
-  var heading = document.createElement('h4');
+  var heading = document.createElement('h2');
   heading.textContent = group.name;
   card.appendChild(heading);
 
@@ -436,7 +1108,6 @@ function buildHopCard(group) {
   alphaEl.className = 'hop-alpha';
   var alphaVal = variant.alpha_acid || '';
   if (alphaVal) {
-    // alpha_acid may already include "%" or be a bare number
     var alphaDisplay = alphaVal.indexOf('%') !== -1 ? alphaVal : alphaVal + '%';
     alphaEl.textContent = 'Alpha Acid: ' + alphaDisplay;
     card.appendChild(alphaEl);
@@ -461,85 +1132,7 @@ function buildHopCard(group) {
   priceRow.appendChild(priceSpan);
   card.appendChild(priceRow);
 
-  // --- Accordion toggle (notes-wrap pattern) ---
-  var notesWrap = document.createElement('div');
-  notesWrap.className = 'notes-wrap';
-
-  var toggle = document.createElement('button');
-  toggle.type = 'button';
-  toggle.className = 'notes-toggle';
-  toggle.setAttribute('aria-expanded', 'false');
-  toggle.innerHTML = 'Hop Details <span class="chevron">&#9660;</span>';
-
-  var notesBody = document.createElement('div');
-  notesBody.className = 'notes-body hop-notes-body';
-
-  // --- Expanded panel ---
-  var detail = document.createElement('div');
-  detail.className = 'hop-detail';
-
-  // Radar chart or placeholder
-  var radarWrap = document.createElement('div');
-  radarWrap.className = 'hop-radar-wrap';
-  var hasAnyScore = HOP_AXES.some(function (axis) {
-    return parseFloat(variant[axis] || 0) > 0;
-  });
-  if (hasAnyScore) {
-    radarWrap.appendChild(buildHopRadarChart(variant));
-  } else {
-    var placeholder = document.createElement('div');
-    placeholder.className = 'hop-radar-placeholder';
-    placeholder.textContent = 'Sensory data coming soon';
-    radarWrap.appendChild(placeholder);
-  }
-  detail.appendChild(radarWrap);
-
-  // Specs (alpha acid in expanded view)
-  var specsDiv = document.createElement('div');
-  specsDiv.className = 'hop-specs';
-  if (alphaVal) {
-    var alphaDisplay2 = alphaVal.indexOf('%') !== -1 ? alphaVal : alphaVal + '%';
-    specsDiv.textContent = 'Alpha Acid: ' + alphaDisplay2;
-  }
-  detail.appendChild(specsDiv);
-
-  // Origin
-  if (variant.origin) {
-    var originP = document.createElement('p');
-    originP.className = 'hop-origin';
-    originP.textContent = 'Origin: ' + variant.origin;
-    detail.appendChild(originP);
-  }
-
-  // Notes/history — prefer tasting_notes (custom field), fall back to description
-  var hopNotes = variant.tasting_notes || variant.description || '';
-  if (hopNotes) {
-    var notesP = document.createElement('p');
-    notesP.className = 'hop-notes';
-    notesP.textContent = hopNotes;
-    detail.appendChild(notesP);
-  }
-
-  notesBody.appendChild(detail);
-
-  // Toggle click handler (notes-wrap pattern from 04-label-cards.js)
-  toggle.addEventListener('click', (function (w, t, prod) {
-    return function () {
-      var isOpen = w.classList.toggle('open');
-      t.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-      if (isOpen) {
-        if (typeof trackEvent !== 'undefined') {
-          trackEvent('detail', prod.sku || '', prod.name || '');
-        }
-      }
-    };
-  })(notesWrap, toggle, variant));
-
-  notesWrap.appendChild(toggle);
-  notesWrap.appendChild(notesBody);
-  card.appendChild(notesWrap);
-
-  // Size toggle (only if 2+ variants) — visible on collapsed card
+  // Size toggle (only if 2+ variants) — above details toggle for purchase flow
   var hopSizeToggleGroup = null;
   var reserveWrap = document.createElement('div');
   reserveWrap.className = 'product-reserve-wrap';
@@ -555,16 +1148,15 @@ function buildHopCard(group) {
   if (group.variants.length >= 2) {
     hopSizeToggleGroup = document.createElement('div');
     hopSizeToggleGroup.className = 'hop-size-toggle-group';
-
+    hopSizeToggleGroup.setAttribute('role', 'group');
+    hopSizeToggleGroup.setAttribute('aria-label', 'Select size');
     group.variants.forEach(function (v, idx) {
       var sizeBtn = document.createElement('button');
       sizeBtn.type = 'button';
       sizeBtn.className = 'hop-size-btn' + (idx === 0 ? ' active' : '');
       sizeBtn.setAttribute('aria-pressed', idx === 0 ? 'true' : 'false');
-
       var sizeMatch = (v.name || '').match(/\s*[-–]\s*(\d+\s*(?:oz|g))\s*$/i);
       sizeBtn.textContent = sizeMatch ? sizeMatch[1] : v.name;
-
       sizeBtn.addEventListener('click', (function (clickedIdx, clickedVariant) {
         return function () {
           selectedVariantIdx = clickedIdx;
@@ -584,14 +1176,84 @@ function buildHopCard(group) {
           newRenderer(reserveWrap, newHopForCart, newProductKey);
         };
       })(idx, v));
-
       hopSizeToggleGroup.appendChild(sizeBtn);
     });
-
     card.appendChild(hopSizeToggleGroup);
   }
 
   card.appendChild(reserveWrap);
+
+  // Toggle button — after cart controls
+  var toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'notes-toggle';
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.innerHTML = 'Hop Details <span class="chevron">&#9660;</span>';
+
+  toggle.addEventListener('click', (function (c, g, getVariant, t) {
+    return function () {
+      var v = getVariant();
+      var isDesktop = window.innerWidth >= DESKTOP_BREAKPOINT;
+
+      if (_compareMode && isDesktop) {
+        if (_compareBusy) return;
+        _compareBusy = true;
+        var groupName = g.name;
+        var existingIdx = -1;
+        for (var ci = 0; ci < _compareItems.length; ci++) {
+          if (_compareItems[ci].group.name === groupName) { existingIdx = ci; break; }
+        }
+        if (existingIdx !== -1) {
+          _compareItems.splice(existingIdx, 1);
+          c.classList.remove('hop-card--comparing');
+          if (_compareItems.length === 0) { closeHopPanel(); } else { openComparePanel(); }
+        } else if (_compareItems.length < 3) {
+          _compareItems.push({ group: g, variant: v });
+          c.classList.add('hop-card--comparing');
+          openComparePanel();
+        }
+        _compareBusy = false;
+        return;
+      }
+
+      if (isDesktop) {
+        if (_openCard === c) {
+          closeHopPanel();
+          return;
+        }
+        closeHopPanel();
+        c.classList.add('hop-card--active');
+        t.setAttribute('aria-expanded', 'true');
+        var grid = c.parentNode;
+        var rowEnd = findRowEnd(c, grid);
+        var rowHeight = getRowHeight(c, grid);
+        var gap = parseFloat(getComputedStyle(grid).rowGap) || 0;
+        var panel = buildDetailPanel(g, v);
+        panel.style.marginTop = '-' + (rowHeight + gap) + 'px';
+        panel.style.minHeight = rowHeight + 'px';
+        rowEnd.parentNode.insertBefore(panel, rowEnd.nextSibling);
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        var closeBtn = panel.querySelector('.hop-panel-close');
+        if (closeBtn) closeBtn.focus();
+        _openPanel = panel;
+        _openCard = c;
+        if (typeof trackEvent !== 'undefined') {
+          trackEvent('detail', v.sku || '', v.name || '');
+        }
+      } else {
+        // Mobile: rebuild accordion with current variant
+        var notesBody = c.querySelector('.hop-notes-body');
+        if (notesBody) notesBody.parentNode.removeChild(notesBody);
+        notesBody = buildMobileDetail(g, v);
+        c.insertBefore(notesBody, t.nextSibling);
+        notesBody.style.maxHeight = notesBody.scrollHeight + 'px';
+        t.setAttribute('aria-expanded', 'true');
+        notesBody.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    };
+  })(card, group, function () { return group.variants[selectedVariantIdx]; }, toggle));
+
+  card.appendChild(toggle);
 
   // Inject product schema for default variant
   if (typeof injectProductSchema !== 'undefined') {
@@ -599,6 +1261,58 @@ function buildHopCard(group) {
   }
 
   return card;
+}
+
+function buildMobileDetail(group, variant) {
+  var body = document.createElement('div');
+  body.className = 'notes-body hop-notes-body';
+  body.style.maxHeight = '0px';
+  body.style.overflow = 'hidden';
+  body.style.transition = 'max-height 0.3s ease';
+
+  var detail = document.createElement('div');
+  detail.className = 'hop-detail';
+
+  var radarWrap = document.createElement('div');
+  radarWrap.className = 'hop-radar-wrap';
+  var hasAnyScore = HOP_AXES.some(function (axis) {
+    return parseFloat(variant[axis] || 0) > 0;
+  });
+  if (hasAnyScore) {
+    radarWrap.appendChild(buildHopRadarChart(variant));
+  } else {
+    var placeholder = document.createElement('div');
+    placeholder.className = 'hop-radar-placeholder';
+    placeholder.textContent = 'Sensory data coming soon';
+    radarWrap.appendChild(placeholder);
+  }
+  detail.appendChild(radarWrap);
+
+  var alphaVal = variant.alpha_acid || '';
+  if (alphaVal) {
+    var specsDiv = document.createElement('div');
+    specsDiv.className = 'hop-specs';
+    specsDiv.textContent = 'Alpha Acid: ' + (alphaVal.indexOf('%') !== -1 ? alphaVal : alphaVal + '%');
+    detail.appendChild(specsDiv);
+  }
+
+  if (variant.origin) {
+    var originP = document.createElement('p');
+    originP.className = 'hop-origin';
+    originP.textContent = 'Origin: ' + variant.origin;
+    detail.appendChild(originP);
+  }
+
+  var hopNotes = variant.sales_description || variant.description || '';
+  if (hopNotes) {
+    var notesP = document.createElement('p');
+    notesP.className = 'hop-notes';
+    notesP.textContent = hopNotes;
+    detail.appendChild(notesP);
+  }
+
+  body.appendChild(detail);
+  return body;
 }
 
 function buildHopCartObject(item) {
@@ -631,6 +1345,7 @@ function buildHopCartObject(item) {
 // ---------------------------------------------------------------------------
 
 function renderHops() {
+  closeHopPanel();
   var catalog = document.getElementById('hops-catalog');
   if (!catalog) return;
 
@@ -681,8 +1396,8 @@ function renderHops() {
       case 'name-desc':
         return (b.name || '').localeCompare(a.name || '');
       case 'alpha-desc':
-        var aAlpha = parseFloat((av.alpha_acid || '0').replace(/[^0-9.]/g, '')) || 0;
-        var bAlpha = parseFloat((bv.alpha_acid || '0').replace(/[^0-9.]/g, '')) || 0;
+        var aAlpha = parseFloat(((av.alpha_acid || '0').match(/[\d.]+/) || ['0'])[0]) || 0;
+        var bAlpha = parseFloat(((bv.alpha_acid || '0').match(/[\d.]+/) || ['0'])[0]) || 0;
         return bAlpha - aAlpha;
       case 'price-asc':
         return (parseFloat(av.price_per_unit) || 0) - (parseFloat(bv.price_per_unit) || 0);
@@ -708,12 +1423,9 @@ function renderHops() {
     return;
   }
 
-  var grid = document.createElement('div');
-  grid.className = 'product-grid';
   filtered.forEach(function (group) {
-    grid.appendChild(buildHopCard(group));
+    catalog.appendChild(buildHopCard(group));
   });
-  catalog.appendChild(grid);
 
   if (typeof equalizeCardHeights !== 'undefined') {
     equalizeCardHeights();
@@ -728,6 +1440,10 @@ function renderHops() {
 // ---------------------------------------------------------------------------
 
 document.addEventListener('DOMContentLoaded', function () {
+  var catalog = document.getElementById('hops-catalog');
+  if (catalog) {
+    catalog.innerHTML = '<div class="hops-loading"><p>Loading hops...</p></div>';
+  }
   loadHops(function () {
     buildHopFilters();
     wireHopEvents();
