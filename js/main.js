@@ -4529,6 +4529,7 @@ function getEffectiveMax(product) {
   if (isNaN(maxOrder) || maxOrder <= 0) maxOrder = Infinity;
   if (itemType === 'ingredient' || itemType === 'service') {
     var stock = parseInt(product.stock, 10) || 0;
+    if (stock <= 0) return 0;
     return Math.min(maxOrder, stock);
   }
   return maxOrder;
@@ -4701,6 +4702,16 @@ function renderWeightControl(wrap, product, productKey) {
   var decimals = isKg ? 2 : 0;
   var pricePerUnit = parseFloat((product.price_per_unit || '0').replace(/[^0-9.]/g, '')) || 0;
   var currentQty = getReservedQty(productKey);
+
+  if (stockAmt <= 0 && currentQty === 0) {
+    var oosBtn = document.createElement('button');
+    oosBtn.type = 'button';
+    oosBtn.className = 'product-reserve-btn product-reserve-btn--disabled';
+    oosBtn.textContent = 'Out of Stock';
+    oosBtn.disabled = true;
+    wrap.appendChild(oosBtn);
+    return;
+  }
 
   if (currentQty === 0) {
     var addBtn = document.createElement('button');
@@ -4922,6 +4933,16 @@ function renderWeightControlCompact(wrap, product, productKey) {
   var decimals = isKg ? 2 : 0;
   var pricePerUnit = parseFloat((product.price_per_unit || '0').replace(/[^0-9.]/g, '')) || 0;
   var currentQty = getReservedQty(productKey);
+
+  if (stockAmt <= 0 && currentQty === 0) {
+    var oosBtn = document.createElement('button');
+    oosBtn.type = 'button';
+    oosBtn.className = 'product-reserve-btn product-reserve-btn--disabled';
+    oosBtn.textContent = 'Out of Stock';
+    oosBtn.disabled = true;
+    wrap.appendChild(oosBtn);
+    return;
+  }
 
   if (currentQty === 0) {
     var addBtn = document.createElement('button');
