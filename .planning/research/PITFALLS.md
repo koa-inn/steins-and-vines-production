@@ -1,346 +1,270 @@
-# Pitfalls Research
+# Domain Pitfalls: v3.0 Catalog Subpages
 
-**Domain:** Recipe-based fermentation products added to existing ferment-in-store e-commerce/POS system
-**Researched:** 2026-05-09
-**Confidence:** HIGH (system internals read directly; external pitfalls verified with official docs and community sources)
+**Domain:** Adding 5 ingredient-category subpages + sub-nav + cross-category search to an existing vanilla JS e-commerce site
+**Researched:** 2026-05-27
+**Scope:** Pitfalls specific to THIS codebase, v3.0 milestone — not generic web dev advice
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Inventory Race Condition on Multi-Ingredient Recipe Sales
-
-**What goes wrong:**
-A recipe sale deducts 8-15 individual ingredient line items. If two customers purchase the same recipe simultaneously (or one kiosk sale and one online order overlap), both transactions read the same stock levels before either write completes. Both see sufficient stock. Both proceed. Both deduct. One sale's deduction is silently overwritten — stock goes negative or an ingredient is committed when there wasn't enough.
-
-**Why it happens:**
-The existing `inventory-ledger.js` uses Redis `incrByFloat` per item in a pipeline, which is atomic per item. However, there is no check-then-reserve transaction that spans multiple items. The current flow is: check catalog → build line items → charge terminal → create invoice → decrement stock. The gap between "check" and "decrement" for 10+ items is wide enough for a race.
-
-For the current single-SKU kit sales this is low risk — one item per sale. For recipes with 10-15 ingredients it becomes a real problem because the cumulative window is proportionally larger and the ingredient pool is shared with the separately-sold ingredients tab.
-
-**How to avoid:**
-Implement a reservation step before payment. Before collecting payment:
-1. Attempt to atomically reserve all recipe ingredients in Redis using `DECRBY` with a floor check (Lua script or pipeline that reads then conditionally decrements).
-2. If any ingredient can't be reserved (would go below zero), abort the sale and display which ingredient is out of stock.
-3. On payment success: confirm reservation (it's already decremented). On payment failure: restore reservation with `INCRBY`.
-
-Concretely: write a `reserveIngredients(lineItems)` function in `inventory-ledger.js` that uses a single Redis Lua script covering all items atomically, or use Redis `MULTI/EXEC` watch on all stock keys (optimistic locking). A simpler acceptable alternative given kiosk-only sales volume: add a recipe sale mutex key (e.g., `recipe:sale:lock`) with a short TTL to serialize recipe sales without blocking ingredient sales.
-
-**Warning signs:**
-- Zoho Inventory shows stock at -1 or -2 for an ingredient that should have been blocked.
-- Two batch records for the same brew date with the same customer but different Zoho invoice numbers (two sales went through).
-- Staff reports "we ran out but the system showed in stock."
-
-**Phase to address:**
-Recipe data model phase (Phase 1) — before any recipe sales flow is built. The reservation model must be designed before the kiosk sale route is extended.
+Mistakes that cause rewrites, broken production deploys, or silent data/cart loss.
 
 ---
 
-### Pitfall 2: Pricing Drift When Recipe Price Is Computed as Sum of Live Ingredient Rates
+### Pitfall 1: SVG Filter Breaks position:fixed on Every New Subpage
 
-**What goes wrong:**
-If the recipe's displayed price is computed at browse time by summing current Zoho ingredient rates, the price shown to the customer changes whenever a supplier raises an ingredient price. A customer browses, sees $62 for a pale ale, and ten minutes later during checkout the price recalculates to $67 because malt was updated in Zoho. Or worse: the price is cached at $62 and a sale goes through at the lower price, eroding margin.
+**What goes wrong:** Any subpage that uses an inline `<svg>` filter element in its hero (like the foil texture on hops.html) makes the filtered element a CSS containing block. All `position:fixed` children — the cart sidebar, the reservation bar, the mobile nav backdrop, and the search overlay — will position relative to the filtered element instead of the viewport. The sub-nav bar (if position:sticky or position:fixed) will also misbehave.
 
-Ingredient prices fluctuate: hop prices are particularly volatile seasonally. A 20% increase in one primary ingredient (e.g., pale malt at ~5 kg per batch) can silently move a recipe from 40% margin to 28% margin without any alert.
+**Why it happens:** This is spec-compliant W3C behavior: any element with a non-`none` `filter` CSS property becomes a containing block for fixed and absolutely positioned descendants. The hops page already hit this exact bug. Each new subpage with a decorative hero filter will reproduce it independently.
 
-**Why it happens:**
-Developers naturally reach for "just sum the ingredients" as the recipe price — it's accurate and auto-updating. But live rate summation couples pricing to inventory cost in ways that are hard to control. The existing pricing module (`pricing.js`) is server-authoritative and uses catalog rates — that's correct — but recipes don't yet exist as first-class catalog items.
+**Consequences:** Cart sidebar snaps to wrong position on pages with visual FX. Nav backdrop misaligns on mobile. Search overlay anchors inside the content section instead of over the full viewport. On mobile, visible immediately; on desktop, only on scroll.
 
-**How to avoid:**
-Store a `locked_price` on each recipe in Google Sheets that is explicitly set by staff, not computed live. The locked price is the price customers see and what Zoho charges. Separately store a `cost_basis` (sum of ingredient rates at time of last lock) so staff can see margin. Show staff a warning when current ingredient costs have drifted more than X% from cost basis. Never compute a customer-facing price from live ingredient rates at runtime.
+**Prevention:**
+- Never apply `filter` to an element that is a structural ancestor of `position:fixed` elements.
+- Apply decorative filters only to pseudo-elements (`::before`/`::after`) of non-ancestor elements. The hops page already does this correctly: `.hops-catalog-section::before { filter: url(#foil2) blur(1.5px); }` — follow this exact pattern on all new subpages.
+- The SVG filter element itself (`<svg width="0" height="0">`) must remain at the top of `<body>` before the header. It does not create a containing block on its own — only elements with CSS `filter:` do.
+- After any new hero CSS lands, manually test: open the sidebar and confirm it is flush with the right edge of the viewport, not clipped inside the content section.
 
-For the brewing fee: define it as a flat line item (like the existing Maker's Fee/Materials Fee pattern) separate from ingredient cost. This gives pricing control independent of ingredient market prices.
+**Detection:** Sidebar or nav backdrop appears to end partway up the page rather than covering the full viewport height.
 
-**Warning signs:**
-- Recipe prices on the public site change between page loads.
-- Staff notices the recipe "should cost $65" but system shows $58 on some days.
-- Margin reports show unexplained variance week to week despite stable sales volume.
-
-**Phase to address:**
-Recipe data model phase — locked_price and cost_basis fields must be in the recipe schema from the start. Pricing drift is impossible to retrofit once customers have seen "live price" behavior.
+**Phase:** Template design phase — establish the hero CSS pattern before writing any per-page decorative styles.
 
 ---
 
-### Pitfall 3: BeerXML Unit Ambiguity and BeerSmith Non-Compliance
+### Pitfall 2: `stamp:pages` Build Script Has a Hardcoded Page List That Will Be Silently Incomplete
 
-**What goes wrong:**
-BeerXML mandates kilograms for all weights and liters for all volumes. BeerSmith's export does not strictly comply with the BeerXML spec — the Brewtarget manual documents this explicitly: "Beersmith does not strictly adhere to XML standards or even BeerXML itself, so you may have some trouble importing recipes from time to time." BeerSmith 2's BeerXML export was documented as "not yet complete" at release.
+**What goes wrong:** The `stamp:pages` npm script in `package.json` contains an explicit array of 9 HTML files. Every new subpage must be added to this list. If forgotten, that page ships with a stale `?v=` cache-buster on its CSS and JS references. The service worker is now a self-unregistering stub, so the GitHub Pages CDN cache is the only layer that can serve stale files — and it can do so for hours.
 
-Specific failure modes:
-- `AMOUNT_IS_WEIGHT` flag defaults to `FALSE` (volume) for yeast and misc items. A dry yeast packet recorded as 11g will be interpreted as 11 liters if this flag is absent or false.
-- Display-only fields in Appendix A (like `DISPLAY_AMOUNT`) are explicitly marked "not for use in calculations" — but they often contain human-readable values like "2 oz" that look like the real amount. Importing `DISPLAY_AMOUNT` instead of `AMOUNT` will give wildly wrong quantities.
-- Booleans must be uppercase `TRUE`/`FALSE` — any other value (including `true`, `1`, `yes`) is technically invalid and parsers that use `=== 'TRUE'` will misread flags.
-- Hop alpha acid is expressed as a percentage (0-100), not a decimal (0-1). Misreading 5.5% as 0.055 produces hop quantities 100x off, which may still pass a sanity check for small recipes.
-- Tag order is not guaranteed — any field can appear in any position. An XML parser that assumes sequential order (common with naive manual parsing) will silently skip fields.
+**Concrete current list:** `products.html`, `ingredients.html`, `reservation.html`, `about.html`, `contact.html`, `products/ferment-in-store.html`, `products/ingredients-supplies.html`, `custom-labels.html`, `hops.html`. Five new subpages will each need to be added.
 
-**How to avoid:**
-Write the BeerXML importer against the spec, not against BeerSmith's specific output. Test against at least three sources: BeerSmith export, Brewfather export, Brewtarget export — they all differ. Validate `AMOUNT_IS_WEIGHT` explicitly before treating any amount as weight or volume. Reject or warn on `DISPLAY_AMOUNT` if `AMOUNT` is present. Parse with a real XML parser (not regex or string splitting). Add a "review before import" step where staff sees a table of mapped ingredients before committing, so unit errors are caught visually.
+**Why it happens:** The build was designed incrementally — one page at a time. With 5 subpages arriving together, the list grows significantly and is easy to miss because it lives inside a `node -e` inline script in `package.json`.
 
-Canonical unit assertions to check on import:
-- Grain amounts: must be in kg, typically 0.1–10 kg per ingredient per batch
-- Hop amounts: must be in kg, typically 0.01–0.2 kg per ingredient per batch
-- Water volumes: must be in liters, typically 20–30 liters per batch
-- Yeast: check `AMOUNT_IS_WEIGHT`; typical dry yeast packet = 0.011 kg
+**Consequences:** A new subpage that was not added to `stamp:pages` will reference an old cache-busting version of `styles.min.css` or `main.min.js`. Users see broken layouts or stale JS behavior.
 
-**Warning signs:**
-- An imported recipe shows 2000 kg of pale malt (forgot to convert from grams, or misread display value).
-- A dry yeast ingredient maps to 11 L quantity.
-- Import produces a recipe with zero ingredients (tag name casing mismatch — BeerXML requires uppercase tags, some tools export mixed case).
-- Hop bittering shows 0% IBU contribution (alpha acid misread as decimal instead of percentage).
+**Prevention:**
+- Treat the `stamp:pages` update as an atomic part of page creation — it must be in the same commit as the new HTML file.
+- Also update `minify:css` to add the new page's CSS file, and `minify:js` to add its standalone module terser step. These are a three-part atomic change every time a new page is created.
+- Consider refactoring `stamp:pages` to use `fs.readdirSync` with a glob after this milestone, but do NOT do it during this milestone — it risks breaking existing stamping.
 
-**Phase to address:**
-BeerSmith import phase — validation and preview step must be built before any recipe is auto-imported into the system. No import should commit to Sheets without staff review.
+**Detection:** After `npm run build`, the `?v=` cache version in a new subpage must match the version in an existing page from the same build run.
+
+**Phase:** First subpage creation — repeat for each.
 
 ---
 
-### Pitfall 4: Recipe-as-Cart Confuses the Existing Dual-Cart Architecture
+### Pitfall 3: Standalone Module Global Variable Namespace Collision
 
-**What goes wrong:**
-The existing system has two carts with separate storage keys (`sv-cart-ferment` and `sv-cart-ingredients`), separate checkout flows, and explicit routing via `_item_type`. A recipe sale is fundamentally different: it is a set of ingredients that should not go into the ingredients cart (the customer isn't buying them to take home), but it also isn't a single-SKU kit that goes in the ferment cart.
+**What goes wrong:** Each new subpage loads `main.min.js` (13 concatenated modules compiled from `js/modules/01–13`) plus its own standalone module (e.g., `js/modules/16-grains.js`). The concatenated bundle exposes many top-level `var` names on `window`: `_allIngredients`, `_ingredientsFuse`, `_ingredientFilters`, `_ingredientTypeOrder`, `MW_CACHE_KEY`, `MW_CACHE_TS_KEY`, `MW_CACHE_TTL`, `catalogViewMode`, `_allHops`, `_hopGroups`, `_hopsFuse`, and more. A standalone module that declares any of these names will silently overwrite the shared state from `main.min.js`.
 
-If recipes are naively added to the ingredients cart, staff checking out a recipe at the kiosk will also check out any ingredients the customer separately added. If recipes are added to the ferment cart, the checkout flow will expect a Maker's Fee item and a single kit SKU — neither of which maps to a multi-ingredient recipe.
+**Why it happens:** ES5 `var` at top level is always `window.*`. There is no module scope boundary. The hops module (`15-hops.js`) deliberately avoids this by using `_allHops` instead of `_allIngredients`. As more category modules are added, the probability of an accidental collision rises.
 
-A second failure mode: `getReservedQty(productKey)` searches both carts. If an ingredient appears in a recipe cart and the customer separately adds it to the ingredients cart, the displayed quantity combines them, confusing staff.
+**Consequences:** A `var _allIngredients = []` at the top of `16-grains.js` silently replaces the shared state. Any call to `renderIngredients()` after grains data loads will use the grains array, not the full ingredients array. Cart re-renders that call `renderIngredients()` will display wrong items — and this will only manifest on pages where both modules are loaded.
 
-**Why it happens:**
-The dual-cart system was designed for two distinct product types. Recipe sales are a third type. Adding them by shoehorning into one of the existing carts is expedient but breaks assumptions throughout cart rendering, checkout routing, and BrewPad batch detection.
+**Prevention:**
+- Every new standalone module must use page-scoped variable names: `_grainsAll`, `_yeastAll`, `_additivesAll`, `_grainsFuse`, `_yeastFuse`, etc. Never reuse names from `08-catalog-ingredients.js`.
+- Add a comment block at the top of each new module (mirror `15-hops.js` lines 1-6): list globals it depends on from `main.min.js` and declare all its own names are prefixed.
+- Standalone modules must NOT call `renderIngredients()`, `buildIngredientFilters()`, or `wireIngredientEvents()` — those functions target DOM elements (`#product-catalog`, `.product-tab-btn`) that do not exist on subpages.
 
-**How to avoid:**
-Recipe sales at the kiosk should bypass the client-side cart system entirely for the initial implementation. The kiosk staff selects a recipe, the middleware receives the recipe ID, explodes it into ingredient line items server-side, adds the brewing fee, and processes as a single atomic kiosk sale. The kiosk UI shows the recipe selection but the cart is not a persistent multi-item cart — it's a one-shot "select recipe → confirm → charge" flow with a summary view.
+**Detection:** On a subpage, run `window._allIngredients` in the console immediately after the page loads — it should be the empty array from the bundle init, not populated with the subpage's category data.
 
-This avoids modifying the dual-cart architecture and keeps the recipe sale path isolated. The existing `processSale` in `pos.js` can accept an expanded line items array; nothing needs to change in the cart client code.
-
-**Warning signs:**
-- The cart count badge shows ingredient quantities that include recipe ingredients.
-- A customer tries to add a recipe to their cart alongside loose ingredient purchases and sees a combined checkout.
-- BrewPad batch detection (`detectKitItems`) fires for recipe ingredients and tries to create one batch per ingredient rather than one batch per recipe.
-
-**Phase to address:**
-Kiosk recipe sales phase — the architectural boundary must be drawn explicitly in the kiosk UI before any recipe sale code is merged. Document clearly: recipe sales are a distinct server-side flow, not a cart-based flow.
+**Phase:** Establish naming convention before writing the first subpage module. Document in the module template.
 
 ---
 
-### Pitfall 5: Zoho API Rate Budget Exhaustion During Multi-Item Recipe Deduction
+### Pitfall 4: Cross-Category Search Aggregating Per-Cache Data Produces Version-Skewed Results
 
-**What goes wrong:**
-A recipe sale with 12 ingredients currently requires no special Zoho handling because Zoho creates the invoice with all line items in a single `POST /invoices` call. However, if the system is extended to do individual per-ingredient inventory adjustments via the Zoho Inventory API (separate from the invoice creation), it could fire 12+ API calls per sale.
+**What goes wrong:** The current data-loading pattern (in `08-catalog-ingredients.js`) caches middleware results in `localStorage` under `sv-ingredients-mw` with a 30-minute TTL. A cross-category search overlay that reads from multiple per-category caches will see different data versions — one category's cache written 25 minutes ago, another just refreshed. Search results will show inconsistent stock levels or prices, or items that appear in search but are absent (or at different prices) on the category page.
 
-At 100 requests/minute and 10 concurrent calls (Zoho's paid plan limits), a burst of 3-4 simultaneous recipe sales in the morning rush could exhaust the per-minute quota. The existing 90-second cooldown backoff in `catalog.js` was already triggered in production (noted in MEMORY.md: "Rate limited at 700ms delay; may need multiple runs for 429 errors"). Adding recipe deduction calls compounds this.
+**Why it happens:** Each standalone module will have its own cache key and TTL clock. There is no global catalog version stamp. The `sv-ingredients-mw` key is already shared across pages — but if subpages introduce new per-category keys (e.g., `sv-grains-mw`), the search overlay can no longer reconstruct a coherent view.
 
-**Why it happens:**
-The existing architecture already pushes against Zoho rate limits during cold-cache catalog refreshes. Recipe sales add a multiplier: instead of 1 API call to create an invoice for a kit sale, a recipe sale might trigger invoice creation + inventory update calls per ingredient.
+**Consequences:** User searches for "Pale Malt", finds it, clicks through to Grains page — the item shows different stock or price, or is not visible because the Grains page is filtering from a fresher cache that has already removed it.
 
-**How to avoid:**
-Use Zoho's invoice line items (already implemented) as the single inventory deduction mechanism — Zoho Inventory deducts stock when an invoice/sales order with those item IDs is created. Do not add separate inventory adjustment API calls per ingredient. The existing `decrementStock` in `inventory-ledger.js` handles the Redis shadow copy immediately; Zoho handles the authoritative deduction via the invoice creation. This design already minimizes Zoho API calls.
+**Prevention:**
+- Do NOT introduce per-category localStorage cache keys. Keep a single shared cache key for all ingredient data (`sv-ingredients-mw` / `sv-ingredients-all-mw`).
+- The preferred architecture: each subpage filters `_allIngredients` (already loaded from a single `/api/ingredients` fetch) by `subcategory` field. No new cache keys. Coherent by construction.
+- The search overlay fetches from the same single endpoint and same cache key, then presents grouped results. It never merges multiple per-category caches.
 
-Verify: confirm in Zoho that creating a sales order/invoice with 12 ingredient line items correctly deducts each ingredient's stock (it should — this is Zoho's standard behavior). Do not add additional `PUT /inventoryadjustments` calls unless Zoho is not deducting correctly.
+**Detection:** Search returns an item; clicking it opens a category page where the item has a different price or is absent.
 
-**Warning signs:**
-- 429 errors spiking in logs coinciding with recipe sales, not just catalog refreshes.
-- Cooldown windows extending past 90 seconds (new rate limit trigger beyond catalog).
-- Ingredient stock in Zoho drifting from expected values (double-deduction if both invoice and adjustment calls fire).
-
-**Phase to address:**
-Kiosk recipe sales phase — confirm Zoho deduction behavior with a test sale before adding any supplementary inventory calls.
+**Phase:** Architecture decision must be made before writing any per-subpage data-fetching code.
 
 ---
 
-### Pitfall 6: Recipe Versioning Breaks Existing Batches When Ingredient Availability Changes
+### Pitfall 5: Sub-Nav Active State Uses Hardcoded Class — Copy-Paste Error Guaranteed
 
-**What goes wrong:**
-A recipe is created with 12 ingredients. Six months later, one hop variety becomes unavailable (out of season, supplier discontinues). Staff updates the recipe to substitute a different hop. Now all historical batches linked to that recipe appear to have used the new hop, which is wrong. The fermentation schedule templates, Plato reading targets, and any QA notes all reference the recipe, not a recipe version. A customer who asks "what did you use in my batch from January" gets incorrect information.
+**What goes wrong:** The existing nav uses hardcoded `class="active"` on anchor tags in each HTML file (e.g., `<a href="hops.html" class="active">Hops</a>` in hops.html). With a sub-nav bar shared across 5 subpages, each copy of the shared sub-nav HTML must have the correct item marked active. Copying the template from one subpage to another without updating the active class means the wrong tab is always highlighted — a copy-paste error that is nearly certain to happen at least once.
 
-A worse scenario: staff edits the recipe quantity for an ingredient, changing the price basis. Existing batch records that reference the recipe ID now reflect the updated quantities, potentially invalidating cost records for completed batches.
+**Why it happens:** No templating system. Active state is manual HTML attribution. The existing nav pattern encourages this because it has always been done this way.
 
-**Why it happens:**
-Recipe data stored in Google Sheets is mutable. Batch records store a reference (recipe ID or name) not a snapshot. This is the same problem version control solves for code, but most developers don't think about it for recipe data until a batch's historical record becomes wrong.
+**Consequences:** Users on the Grains page see "Yeast" highlighted in the sub-nav because the template was copied from the Yeast page. Subtle but erodes trust.
 
-Brewfather solves this by storing "a copy of the recipe as it was when brewed" per batch. This is the right model.
+**Prevention:**
+- Drive sub-nav active state via JavaScript on `DOMContentLoaded`, not via hardcoded HTML class. Use the existing `data-page` body attribute (already present on all pages: `<body data-page="hops">`) to identify the current page.
+- One init function in the standalone module template: read `document.body.dataset.page`, find the sub-nav link whose `data-page` attribute or `href` matches, and add `class="active"`. Do NOT put `class="active"` in the sub-nav HTML.
+- The existing main nav still uses inline active — do not extend that pattern to the sub-nav.
 
-**How to avoid:**
-When a kiosk recipe sale is processed, snapshot the full recipe (all ingredients, quantities, fee structure) into the batch record at creation time. The batch's recipe data is immutable after creation. Recipe updates in admin only affect future sales. The recipe in Sheets is a template; the batch record in Sheets contains the authoritative historical snapshot.
+**Detection:** Open each subpage and confirm the correct sub-nav item is visually highlighted.
 
-For the Google Sheets data model: add a `recipe_snapshot` JSON column to the Batches tab that contains the full ingredient list at time of batch creation. This can be serialized as a JSON string in a single cell (Sheets supports long strings; the 50,000 character cell limit is unlikely to be hit by a recipe snapshot).
-
-**Warning signs:**
-- A batch created 6 months ago shows a hop variety that wasn't available at that time.
-- Updating a recipe changes the displayed ingredient list for historical batches.
-- Cost analysis for completed batches shows inconsistent ingredient costs over time even when the recipe "didn't change."
-
-**Phase to address:**
-Recipe data model phase (Phase 1) — the snapshot field must be in the Batches schema before the first recipe sale. Cannot be added retroactively without data migration.
+**Phase:** Sub-nav implementation. Build active state detection into the sub-nav component before creating any subpage HTML.
 
 ---
 
-### Pitfall 7: Brewing Licence Timing Creates a "Feature Exists But Can't Be Used" Gap
+### Pitfall 6: Cart Sidebar Shows Empty Ferment Cart on Ingredient Subpages
 
-**What goes wrong:**
-The federal brewing licence is pending. If recipe sales are built, tested, and deployed to production before the licence is granted, staff can accidentally ring up a beer recipe sale — or customers on the public site can enquire about (or attempt to purchase) products that cannot yet legally be sold. If the licence takes longer than expected (common with federal approvals), the system sits in an awkward state for an extended period.
+**What goes wrong:** `_activeCartTab` is initialized to `'kits'` in `11-cart.js` and is only updated by tab-click events wired in `10-tabs.js`. On ingredient subpages there are no product tabs — `_activeCartTab` stays at `'kits'` forever. `getCartKey(product)` routes by `product._item_type` and correctly sends ingredient items to `INGREDIENT_CART_KEY`. But `getCartKeyForTab()` — which the reservation bar and sidebar render paths use to decide what to display — will return `FERMENT_CART_KEY` because the active tab is still `'kits'`. The sidebar opens showing the empty ferment cart instead of the ingredient cart that has the items the user just added.
 
-A second risk: the system is designed assuming a certain licence structure. If the licence comes with conditions (e.g., can only sell for on-premises consumption, or specific permit number must appear on all receipts), the system may need changes just before go-live.
+**Why it happens:** The dual-cart system's tab state was designed around the tab-switching UI on the products page. Subpages have no tabs, so the active cart tab is never updated.
 
-**Why it happens:**
-Building ahead of licence is efficient — but it creates pressure to enable features before regulatory clearance, and it makes assumptions about licence conditions that may not hold.
+**Consequences:** User adds a grain to cart on the Grains page. Opens sidebar. Sees an empty cart. Thinks the item was not added. May try to add it again.
 
-**How to avoid:**
-Build the entire recipe system with a feature flag (`BEER_SALES_ENABLED` env var on Railway, defaulting to `false`). Recipe browsing on the public site can be enabled before the licence (informational/coming soon). Recipe sales on the kiosk must be gated behind the flag. The flag requires a Railway env var change to enable — no code deploy needed.
+**Prevention:**
+- Include `_activeCartTab = 'ingredients';` at the very top of each standalone ingredient module's init block, before any cart initialization or data loading. This is a one-line fix that belongs in the module template.
+- Verify: after this assignment, `getCartKeyForTab(_activeCartTab)` must return `INGREDIENT_CART_KEY`. Manually test by adding an item and confirming the sidebar renders the ingredient cart.
 
-Additionally: before enabling, read the licence conditions carefully and confirm no receipt fields, product registration, or tax treatment requirements were missed. In BC, manufactured beer sold on-premises requires PST collection under different rules than brewing ingredient sales (PST-121 bulletin). Confirm the tax rule for "beer brewed and served by a micro-brewery" vs "fermentation service with customer ownership" before the first sale — they may differ.
+**Detection:** Add an ingredient to cart on a subpage. Open the sidebar. Confirm it shows the ingredient cart items.
 
-**Warning signs:**
-- Staff asks "can we sell beer recipes yet?" before licence is granted.
-- Public site shows recipe products with a "buy now" button before licence approval.
-- Recipe sales work on staging but licence conditions haven't been reviewed against the implementation.
-
-**Phase to address:**
-Recipe data model and kiosk recipe sales phases — feature flag implementation is mandatory before any recipe feature ships to production.
+**Phase:** Part of the standalone module template. Include before writing any page-specific code.
 
 ---
 
-### Pitfall 8: BrewPad Batch Detection Fails for Multi-Ingredient Recipe Sales
+### Pitfall 7: All 9+ Public Pages Need Nav HTML Updates When Subpages Are Added
 
-**What goes wrong:**
-The current `detectKitItems` function in `brewpad-integration.js` identifies kit items by the presence of a Maker's Fee line item, then creates one batch per non-fee item. For a recipe sale with 12 ingredient line items, this logic would create 12 batches — one per ingredient — which is completely wrong. A recipe sale should create exactly one batch.
+**What goes wrong:** There is no templating system. Main nav HTML (`<ul class="nav-list">`) is duplicated verbatim in every public page. Adding new ingredient subpages to the Products dropdown requires touching all existing public pages. The current list is: `index.html`, `products.html`, `ingredients.html`, `reservation.html`, `about.html`, `contact.html`, `products/ferment-in-store.html`, `products/ingredients-supplies.html`, `custom-labels.html`, `hops.html` — plus each new subpage. If any page is missed, the nav dropdown is inconsistent across the site.
 
-Additionally, `detectKitItems` filters out only the Maker's Fee and Materials Fee items by their `item_id`. If the recipe brewing fee uses a different fee item ID, it won't be filtered out and may appear as a "kit" to batch creation.
+**Why it happens:** No server-side includes, no JS partial loader for nav. Pure static HTML.
 
-**Why it happens:**
-`detectKitItems` was designed for single-SKU kit sales. The detection heuristic ("presence of Maker's Fee = kit sale; everything else = the kit") breaks immediately when a sale has multiple non-fee line items.
+**Consequences:** Users on `about.html` see a Products dropdown without the Grains page. Users on `grains.html` see it with the Grains page. Support confusion.
 
-**How to avoid:**
-Recipe sales must trigger batch creation through a separate, explicit code path rather than relying on `detectKitItems`. When a recipe sale is processed on the kiosk, the sale payload should include an explicit `recipe_id` field. The `createBatchesFromSale` caller should check for `recipe_id` first and, if present, create one batch linked to the recipe rather than running `detectKitItems`.
+**Prevention:**
+- Before starting nav changes, write out the complete checklist of pages that need updating — every page above plus the new subpages being created.
+- Perform nav updates in one focused commit, not mixed with subpage feature work. This makes review and rollback straightforward.
+- If new subpages live in a subdirectory (e.g., `products/grains.html`), all asset `href` paths need `../` prefix. Use `products/ferment-in-store.html` as the canonical reference for path prefixing — not root-level pages.
 
-The batch payload for a recipe sale needs an additional field: `recipe_id` and `recipe_name` stored in the batch record (and in the snapshot).
+**Detection:** After adding subpages to the nav dropdown, open each page in the checklist and confirm the dropdown shows identical items.
 
-Existing kit sales continue to use `detectKitItems` unchanged. Recipe sales bypass it entirely. Document this explicitly in code comments to prevent future developers from unifying the two paths.
-
-**Warning signs:**
-- A test recipe sale creates 10+ batch records instead of 1.
-- BrewPad shows ingredient names (e.g., "Pale Malt 2-Row") as product names in the batch list.
-- The Zoho batch sync custom field on the invoice gets written 12 times, with the last write overwriting earlier ones.
-
-**Phase to address:**
-Kiosk recipe sales phase — before any recipe sale test, verify the batch creation path explicitly handles `recipe_id` and that `detectKitItems` is not in the call chain for recipe sales.
+**Phase:** Cross-cutting concern — plan as an explicit checklist step, not implicit in subpage feature work.
 
 ---
 
-## Technical Debt Patterns
+## Moderate Pitfalls
 
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Compute recipe price live from ingredient rates | Always accurate, no maintenance | Price volatility visible to customers; margin invisible to staff | Never — use locked_price from day one |
-| Store recipe ingredients as a flat comma-separated list in one Sheets cell | Simple to read | Impossible to query by ingredient; breaks when ingredient names contain commas | Never — use a separate RecipeIngredients tab |
-| Reuse the existing ferment cart for recipe selections | No new cart code | Breaks dual-cart assumptions, cart count wrong, checkout routing wrong | Never — recipe kiosk flow is server-side |
-| Skip the recipe snapshot on batch creation | Simpler batch schema | Historical batches show wrong ingredients after any recipe edit | Never — snapshot is mandatory for data integrity |
-| Parse BeerXML with regex or string splitting | No XML parser dependency | Breaks on attribute order, multiline content, special characters, encoding differences | Never — use a real XML DOM parser |
-| Use a single Sheets tab for all recipe data | Fewer tabs to manage | Google Sheets row/column limits hit sooner; Apps Script reads become slow | Only for MVP with fewer than ~20 recipes |
-| Import BeerXML directly to production without review step | Faster workflow | Silent unit errors (11 liters of yeast) corrupt recipe data | Never — always require staff review before commit |
+### Pitfall 8: Snapshot May Be Missing `subcategory` Field for New Ingredient Categories
 
----
+**What goes wrong:** `content/zoho-snapshot.json` is generated from `/api/snapshot`. The tax pipeline bug (fixed commit `281d796`) revealed that the `/itemdetails` bulk endpoint does not always return `sales_tax_rule_id` — the enrichment step was silently dropping it. The same risk applies to `subcategory` if it is stored as a Zoho `custom_field` rather than a native Zoho field. Items without `subcategory` will fail to appear on the correct subpage when middleware is unavailable and the snapshot is the fallback data source.
 
-## Integration Gotchas
+**Prevention:**
+- Before writing any subpage category filter logic, run `npm run snapshot` locally and inspect the output for a representative sample of ingredient items. Verify `subcategory` is present and correctly populated.
+- If `subcategory` is in `custom_fields`, confirm the enrichment paths in `export-snapshot.js` and the middleware API explicitly promote it to a top-level field (same fix pattern as `sales_tax_rule_id`).
+- After regenerating the snapshot, assert: count ingredients with non-empty `subcategory` and log a warning if the count is zero or lower than expected.
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| Zoho Inventory | Creating separate inventory adjustment API calls per ingredient after invoice creation | Invoice/sales order line items already trigger stock deduction in Zoho — no supplementary calls needed |
-| Zoho Inventory | Treating composite items (assemblies) as the recipe model | Composite items require a separate assembly workflow in Zoho that conflicts with selling ingredients individually; keep recipes in Sheets only |
-| Google Apps Script | Calling Apps Script synchronously and blocking the kiosk sale response | Fire batch creation as a post-sale async call (fire-and-forget with retry queue) — pattern already established in `brewpad-integration.js` |
-| Google Apps Script | Storing recipe snapshots as separate cell values per ingredient field | Serialize the full snapshot as JSON in one cell; Apps Script reads the whole row and deserializes — avoids column proliferation |
-| BeerSmith / BeerXML | Trusting `DISPLAY_AMOUNT` fields over `AMOUNT` fields | `DISPLAY_AMOUNT` is for UI rendering only (per spec, Appendix A); always use `AMOUNT` for calculations |
-| Redis inventory ledger | Decrementing recipe ingredients without checking available stock first | Add pre-sale availability check before payment; a recipe sale that oversells an ingredient is harder to unwind than a declined pre-payment check |
-| Helcim terminal | Processing a recipe sale amount computed from live ingredient rates | Amount must be computed server-side from locked_price, not from summed live rates; mirrors existing server-authoritative pricing pattern |
+**Phase:** Before writing any subcategory filter logic — this must be confirmed early.
 
 ---
 
-## Performance Traps
+### Pitfall 9: localStorage View-Mode Key Collision With Main Products Page
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Apps Script cold-start latency on recipe load | First recipe catalog load takes 3-8 seconds (Apps Script wakes from cold start) | Cache recipe catalog in Redis with same TTL pattern as product catalog; warm on server start | Every time Railway restarts the middleware (Railway restarts are common on free-tier and after deploys) |
-| Fetching full ingredient catalog to validate a recipe ingredient list on every sale | Ingredient catalog fetch on every recipe sale causes Zoho 429s during busy periods | Keep ingredient catalog in Redis (already done for `zoho:ingredients`); validate recipe ingredients against cache not Zoho live | When 5+ simultaneous kiosk recipe sales trigger concurrent Zoho fetches |
-| Google Sheets row scan for recipe lookup | Apps Script reads all rows and filters in memory; slow at 200+ recipes | Add an index by recipe ID using `getValues()` on the ID column first, then `getRow()` for the target | Above ~500 recipe rows in the Sheets tab |
-| BeerXML import parsing large files in the browser | Browser freezes parsing a 500KB BeerXML export with 50+ recipes | Parse on the server (middleware endpoint); browser only sends file, server returns parsed preview JSON | BeerSmith export of full recipe library |
+**What goes wrong:** `05-catalog-view.js` uses keys `catalogViewMode-kits`, `catalogViewMode-ingredients`, `catalogViewMode-services` in localStorage. The hops module uses `hopsViewMode`. If a new standalone module uses a generic view-mode key without a page-specific prefix, it will read/write the same slot as the products page, causing unexpected view-mode switches when navigating between the products page and a subpage.
 
----
+**Prevention:**
+- Each standalone module uses a unique localStorage key: `grainsViewMode`, `yeastViewMode`, etc. Follow `hopsViewMode` exactly.
+- Never use `catalogViewMode-*` keys in standalone modules — those are owned by the main products page tab system.
+- Document the convention in the module template comment block.
 
-## Security Mistakes
-
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Accepting recipe_id from kiosk client and exploding it to ingredients without server-side validation | Client can pass a fake recipe_id that resolves to a crafted ingredient list at unexpected prices | Always resolve recipe_id from server-side Sheets cache; never trust client-supplied ingredient lists for recipe sales |
-| Storing the Apps Script server token in frontend JS for recipe management calls | Token exposed; anyone can modify recipe data | Recipe management is admin-only; token stays in middleware env vars; admin UI calls middleware endpoints, not Apps Script directly |
-| Allowing BeerXML upload without file type and size validation | Malicious XML (billion laughs attack, XXE injection) via upload endpoint | Validate file size limit (e.g., 2MB max), use a safe XML parser with entity expansion limits, strip DOCTYPE declarations |
-| Logging full recipe ingredient lists including quantities at INFO level | PII risk is low but recipe data could leak in log aggregation | Log recipe_id and recipe_name only; not ingredient details |
+**Phase:** Module template design.
 
 ---
 
-## UX Pitfalls
+### Pitfall 10: Search Overlay Trapped by Stacking Context on Subpages With Visual Effects
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| Showing recipe price as "from $X" because ingredients change | Customer arrives in-store with wrong price expectation | Show locked_price only; add "price may vary for custom recipes" disclaimer for custom consultations only |
-| Recipe on the kiosk explodes into 12 ingredient line items on the receipt | Staff and customer confused by the receipt; looks like 12 separate purchases | Show recipe name as primary receipt line; ingredient detail in a collapsible section or a separate "recipe detail" printout |
-| Treating recipe browsing on public site as equivalent to online purchase | Customer thinks they can order online before brewing licence is granted | Clear "reserve in store" / "book a consultation" CTA; no add-to-cart button for recipe products until licence is granted and online sales are enabled |
-| Letting customers build custom recipes entirely self-serve on public site | Out of scope (per PROJECT.md); customers need staff guidance for custom recipes | Custom recipe requests are a consultation request form — not a cart/builder |
-| BrewPad showing recipe batch with ingredient names as product | Staff confused when managing batch — "Pale Malt 2-Row" is not a useful batch description | Recipe batch always shows recipe name and style as primary identifiers |
+**What goes wrong:** The search overlay must render above all page content including the sticky sub-nav and the open cart sidebar. Each new subpage's unique hero/visual treatment may create stacking contexts (via `filter`, `opacity < 1`, `transform`, `will-change`, `isolation: isolate`). An overlay rendered inside a stacking-context ancestor cannot escape that context regardless of z-index value.
 
----
+**Prevention:**
+- Append the search overlay element to `document.body` directly — not inside any page-specific container. Standard practice for site-wide overlays.
+- Before implementing the overlay, audit each subpage's hero CSS for stacking context properties.
+- Define overlay z-index as a CSS custom property at `:root` level. Use a value higher than the cart sidebar's z-index (check `css/styles.css` section 29 for current sidebar z-index values).
 
-## "Looks Done But Isn't" Checklist
-
-- [ ] **BeerXML import:** Preview/review step before committing — verify staff sees a human-readable ingredient table, not raw XML field names.
-- [ ] **Recipe sale on kiosk:** Confirm exactly one batch is created in BrewPad, not one per ingredient.
-- [ ] **Recipe price:** Verify locked_price is used for Helcim charge amount, not a runtime sum of ingredient rates.
-- [ ] **Inventory deduction:** Verify ingredient stock in Zoho decrements correctly from a recipe sale — test with a real test sale and check Zoho inventory before/after.
-- [ ] **Licence gate:** Confirm `BEER_SALES_ENABLED=false` actually prevents recipe sale completion on kiosk (not just hides UI).
-- [ ] **Recipe snapshot on batch:** Open a batch record in Sheets after a test recipe sale and verify the snapshot JSON field is populated with all ingredients and quantities.
-- [ ] **Tax rules for recipes:** Confirm each ingredient line item in the recipe sale invoice uses the correct tax_id (brewing ingredients = 12% BC HST; brewing service fee = 5% GST only) — do not assume the same tax rule applies to all line items.
-- [ ] **Concurrent recipe sale test:** Run two simultaneous kiosk recipe sales for a recipe that uses the same hop with only 2 units in stock — verify only one succeeds.
+**Phase:** Search overlay implementation. Audit subpage CSS first.
 
 ---
 
-## Recovery Strategies
+### Pitfall 11: Cross-Category Search Fuse.js Index Not Available on Pages That Didn't Load Its Data
 
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Race condition resulted in oversold ingredient | MEDIUM | Check Zoho inventory adjustment log; manually adjust stock; contact affected customer if needed; implement reservation before next deployment |
-| BeerXML import committed wrong quantities | LOW | Delete the recipe from Sheets (or mark inactive); re-import with corrected file; no sales have occurred yet so no downstream impact |
-| Wrong recipe version data in historical batches | HIGH | Requires manual data entry to reconstruct original ingredient list from BeerSmith source; add snapshot field retroactively; time-consuming for more than a handful of batches |
-| Recipe sale created 12 batches instead of 1 | LOW | Delete the spurious batch records from Sheets (Apps Script admin endpoint); close the duplicate Zoho invoice custom field entries; fix the batch detection code before re-enabling |
-| Beer sales went live without licence | HIGH | Immediately set `BEER_SALES_ENABLED=false` in Railway; refund any completed recipe sales; review BC LCRB requirements; document that no actual alcohol was sold (ferment-in-store means customer's product, not brewery's) |
-| Locked_price not set on a recipe — sale went through at wrong price | MEDIUM | Void the Helcim transaction; reprocess at correct price; add schema validation that locked_price is required before any recipe can be marked active |
+**What goes wrong:** Each category's Fuse.js instance is initialized inside that category's `loadX().then(...)` callback. On any given subpage, only that page's Fuse instance is initialized. All other categories' Fuse instances are `null` or `undefined`. If the search overlay attempts to call `_grainsFuse.search(q)` while on the Yeast page, it will either throw (null reference) or return no results.
 
----
+**Prevention:**
+- The cross-category search overlay must be self-contained: it fetches all ingredient data into its own array and builds its own independent Fuse.js instance. It does not depend on or reuse any per-page module's Fuse instances.
+- Initialize the search's Fuse index lazily on the first focus event of the search input — not at page load — to avoid blocking render.
+- If the search data is already in the page module's in-memory array (because the page loaded that category), the search can reuse the same data. But the Fuse instance and the search cache must be the overlay's own state.
 
-## Pitfall-to-Phase Mapping
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| Inventory race condition | Phase 1 (Recipe data model) — design reservation model | Integration test: concurrent recipe sales against low-stock ingredient |
-| Pricing drift from live ingredient rates | Phase 1 (Recipe data model) — locked_price required field in schema | Check: recipe price shown on kiosk does not change when Zoho ingredient rate changes |
-| BeerXML unit ambiguity | Phase 2 (BeerSmith import) — validation and review step mandatory | Test: import BeerSmith export, Brewfather export, Brewtarget export and compare parsed quantities |
-| Recipe-as-cart architecture confusion | Phase 3 (Kiosk recipe sales) — recipe flow is server-side, not cart-based | Check: no recipe ingredients appear in `sv-cart-ferment` or `sv-cart-ingredients` storage |
-| Zoho API rate exhaustion | Phase 3 (Kiosk recipe sales) — confirm no supplementary inventory calls | Load test: 3 simultaneous recipe sales; monitor Zoho API call count in logs |
-| Recipe versioning / snapshot | Phase 1 (Recipe data model) — snapshot field in Batches schema | Check: edit a recipe after a test sale; verify batch record still shows original ingredients |
-| Licence timing / feature flag | Phase 1 (Recipe data model) — BEER_SALES_ENABLED flag implemented | Check: flag=false blocks kiosk recipe sale; flag=true enables it; no code deploy required to toggle |
-| BrewPad batch detection failure | Phase 3 (Kiosk recipe sales) — explicit recipe_id path in batch creation | Test: recipe sale creates exactly 1 batch with recipe name, not ingredient names |
+**Phase:** Search overlay implementation.
 
 ---
 
-## Sources
+### Pitfall 12: `sitemap.xml` and JSON-LD Canonical URLs Not Updated for New Pages
 
-- Zoho Inventory API documentation (rate limits): https://www.zoho.com/inventory/api/v1/introduction/
-- BeerXML standard specification: https://beerxml.com/beerxml.htm
-- BeerXML Wikipedia (version history, known limitations): https://en.wikipedia.org/wiki/BeerXML
-- Brewtarget manual (BeerSmith non-compliance note): http://www.brewtarget.org/manual.html
-- Brewfather inventory documentation (recipe versioning model): https://docs.brewfather.app/inventory
-- Google Apps Script best practices (execution time limits, batching): https://developers.google.com/apps-script/guides/support/best-practices
-- BC PST-121 bulletin (liquor producer tax rules): https://www2.gov.bc.ca/assets/gov/taxes/sales-taxes/publications/pst-121-liquor-producers.pdf
-- Medium: Race conditions in production e-commerce inventory systems: https://medium.com/@chaturvediinitin/how-i-eliminated-inventory-race-conditions-in-a-production-e-commerce-system-2302ba81846b
-- Sylius inventory race condition issue (real-world pattern documentation): https://github.com/Sylius/Sylius/issues/2776
-- Direct codebase analysis: `zoho-middleware/lib/inventory-ledger.js`, `zoho-middleware/lib/brewpad-integration.js`, `zoho-middleware/routes/pos.js`, `zoho-middleware/lib/pricing.js`, `zoho-middleware/lib/constants.js`
+**What goes wrong:** `sitemap.xml` is a static file — new subpages will not appear in it automatically. Search engines will not discover the new pages promptly without explicit sitemap entries. Each public page also has a `LocalBusiness` JSON-LD block and `<link rel="canonical">` set manually in the HTML. Copying from another page will leave the wrong canonical URL on the new page — a silent SEO regression.
+
+**Prevention:**
+- Add each new subpage to `sitemap.xml` with `<lastmod>` equal to the deploy date. Treat sitemap update as atomic with page creation.
+- Update `<link rel="canonical">`, `og:url`, `og:title`, `og:description`, and the JSON-LD `"url"` field on every new page before the first deploy.
+- New ingredient subpages must NOT have `<meta name="robots" content="noindex">` — that restriction is for admin/kiosk/batch/brewpad only.
+
+**Phase:** Per-page creation and pre-deploy checklist.
 
 ---
 
-*Pitfalls research for: Recipe-based fermentation products added to ferment-in-store system*
-*Researched: 2026-05-09*
+## Minor Pitfalls
+
+### Pitfall 13: Three-Part Build Script Update Is Required Per New Page
+
+**What goes wrong:** Creating a new page requires three separate `package.json` script updates: (1) add `css/{page}.css` to `minify:css`, (2) add `terser js/modules/{N}-{page}.js` to `minify:js`, (3) add the HTML path to `stamp:pages`. Missing any one produces an inconsistent build. These are all inline strings inside `node -e` calls, easy to miss during code review.
+
+**Prevention:** These three changes must be in the same commit as the new HTML file. Write them as a checklist item in the commit message.
+
+**Phase:** Per-page creation.
+
+---
+
+### Pitfall 14: Kiosk Mode Link Propagation Misses Dynamically Rendered Sub-Nav
+
+**What goes wrong:** `13-init.js` propagates `?kiosk=1` to all internal links at `DOMContentLoaded`. Sub-nav links rendered dynamically by a standalone module after `DOMContentLoaded` are created too late to receive this treatment. Kiosk mode context is lost when navigating between subpages.
+
+**Why it matters:** Low user impact — kiosk users primarily navigate kits, not ingredient subpages. But if kiosk mode is tested on an ingredient subpage, the broken state is confusing to debug.
+
+**Prevention:** If `window.IS_KIOSK` is truthy, append `?kiosk=1` to sub-nav links when rendering them dynamically. A one-line guard in the sub-nav init function is sufficient.
+
+**Phase:** Sub-nav implementation. Low priority.
+
+---
+
+### Pitfall 15: GTM, JSON-LD, and PWA Head Boilerplate Must Be Copied Correctly to Every New Page
+
+**What goes wrong:** Each public page requires 20+ head elements: GTM head snippet and noscript, `LocalBusiness` JSON-LD with correct canonical URL, `og:*` / `twitter:*` meta, PWA meta tags (`apple-mobile-web-app-*`, manifest, theme-color), font preloads, apple-touch-icon. Missing any of these on a new subpage is a silent regression — analytics, SEO, and PWA functionality break without a build error.
+
+**Prevention:** Create one canonical "new public page" template HTML file (e.g., `docs/_template-public-page.html`) with all required head elements and clearly marked placeholders for title, description, canonical URL, and `og:url`. Copy from the template, never from a content page. This should be the first deliverable before any subpage is created.
+
+**Phase:** Before creating the first new subpage.
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Pitfall | Concrete Mitigation |
+|-------------|---------|---------------------|
+| Page template creation | P1: SVG filter breaks fixed elements | Use `::before` pseudo-element for all decorative filters; test sidebar right edge = viewport right edge |
+| Page template creation | P7: Wrong asset paths in `products/` subdirectory | Use `products/ferment-in-store.html` as canonical asset path reference (has `../` prefix) |
+| Page template creation | P15: Missing head boilerplate | Create `docs/_template-public-page.html` before touching any subpage HTML |
+| Standalone module creation | P3: Global var collision with `main.min.js` | Use `_{pageName}All`, `_{pageName}Fuse` naming; document in module header comment |
+| Standalone module creation | P6: Cart tab defaults to `'kits'` | First line of DOMContentLoaded: `_activeCartTab = 'ingredients'` |
+| Standalone module creation | P9: `localStorage` view-mode key collision | Use `{pageName}ViewMode` key, never `catalogViewMode-*` |
+| Build pipeline | P2: `stamp:pages` not updated | Atomic three-part commit: HTML + `stamp:pages` + `minify:css` + `minify:js` |
+| Build pipeline | P13: Missing CSS/JS build entries | Same atomic commit — checklist in commit message |
+| Sub-nav bar | P5: Active state wrong | JS-driven via `data-page` body attribute; no `class="active"` in sub-nav HTML |
+| Sub-nav bar | P7: Nav HTML on all 9+ pages | Single focused commit; write full page checklist first |
+| Sub-nav bar | P14: Kiosk link propagation | Add `IS_KIOSK` guard to sub-nav renderer |
+| Cross-category search | P4: Data version skew | Single shared cache key for all ingredients; filter by `subcategory` in-memory |
+| Cross-category search | P10: Overlay trapped by stacking context | Overlay appended to `document.body`; audit subpage CSS for stacking context properties first |
+| Cross-category search | P11: Fuse instances null on other pages | Search overlay owns its own data fetch and Fuse instance; lazy init on search focus |
+| Zoho data / snapshot | P8: `subcategory` missing from snapshot | Verify snapshot before writing filter logic; add enrichment if field is in `custom_fields` |
+| SEO / launch | P12: sitemap + JSON-LD not updated | Atomic with page creation; use template for canonical/og values |

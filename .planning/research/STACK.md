@@ -322,3 +322,239 @@ cd zoho-middleware && npm install fast-xml-parser@^4.5.0 multer@^1.4.5-lts.1
 
 *Stack research for: Steins & Vines v2.0 Recipe-Based Products*
 *Researched: 2026-05-09*
+
+---
+---
+
+# Stack Research — v3.0 Catalog Subpages
+
+**Milestone:** v3.0 — Ingredient category subpages, shared sub-nav, cross-category search overlay
+**Researched:** 2026-05-27
+**Confidence:** HIGH — all decisions derived from direct codebase analysis; no new external libraries introduced
+
+---
+
+## Constraint Reminder (v3.0)
+
+Every decision must satisfy: vanilla JS ES5 (`var`, no `const`/`let`), no framework, no new build tool dependencies, no new npm packages. The existing `concat:js` + terser + cleancss pipeline must continue working unchanged.
+
+---
+
+## Page Template System
+
+### Approach: Shared standalone module + static HTML per page
+
+| File | Role | Why |
+|------|------|-----|
+| `js/modules/16-catalog-subpage.js` | Shared catalog logic (grid render, filters, data loading, cart integration, search trigger) used by all 5 ingredient subpages | Reuse over duplication; follows the 14-labels/15-hops precedent exactly — standalone file, NOT in `concat:js`, loaded via `<script>` on each subpage |
+| One static `.html` file per category in `products/` | Grains, Yeast, Additives, Packaging, Equipment | Matches existing pattern: `products/ferment-in-store.html`, `products/ingredients-supplies.html` already live there |
+| `<body data-page="grains">` etc. | CSS scoping + content loader hooks | Already used on hops.html and all other pages; allows per-page CSS without specificity conflicts |
+
+**Why not a client-side template engine (Handlebars, Mustache, etc.):** Zero justification for the dependency. The shared module pattern produces less code, no vendor files, and is proven by 14-labels and 15-hops. Template engines solve problems (dynamic HTML at runtime) that static `.html` files already solve better.
+
+**Why not ES modules (`import`/`export`):** The codebase is ES5 `var` throughout. Terser minifies standalone files directly. ESM would require a bundler (webpack/rollup/vite), which changes the build constraint.
+
+**Why not a single SPA page with JS-driven routing:** GitHub Pages is static hosting. The build produces separate `.html` files. A JS router would add complexity for no benefit, and would break direct-URL access and SEO.
+
+---
+
+## Sub-Nav Bar
+
+### Approach: Static HTML in each page's markup + CSS active state via `data-page`
+
+**Pattern:**
+```html
+<nav class="ingredient-subnav" aria-label="Ingredient categories">
+  <a href="ingredients-supplies.html" data-nav="all">All Ingredients</a>
+  <a href="grains.html" data-nav="grains" aria-current="page">Grains</a>
+  <a href="yeast.html" data-nav="yeast">Yeast</a>
+  ...
+</nav>
+```
+
+CSS active state using the existing `data-page` body attribute:
+```css
+body[data-page="grains"] .ingredient-subnav [data-nav="grains"] { /* active styles */ }
+```
+
+**Why static HTML (not JS-injected):** The nav renders before JS loads — no flash of missing nav, survives JS failure, correct for screen readers and crawlers. Navigation is structural, not data-driven. `aria-current="page"` is hardcoded in each page's HTML for correctness without JS.
+
+**Why CSS-only active state:** One selector per page, zero JS. The `data-page` attribute already exists on every page body. This costs nothing.
+
+**Where to put the CSS:** Add a new section (section 16 in the existing TOC) to `css/styles.css`. The sub-nav is a shared component used across the ingredient section — it belongs in the shared stylesheet beside other catalog components. It is not enough code (~40 lines) to justify a new CSS file + new `<link>` tag + build script change.
+
+---
+
+## Per-Page CSS (Category Accent Colors + Hero Styling)
+
+### Approach: New `css/ingredients.css` file
+
+| File | Scope | Why |
+|------|-------|-----|
+| `css/ingredients.css` | All ingredient subpages: shared structural styles + per-page accent overrides | Follows the `css/hops.css` precedent exactly — a dedicated file for an entire page section, loaded only on those pages |
+| `body[data-page="X"]` scoping | Per-category accent colors, hero tints | Same pattern as hops.css; zero specificity conflicts with `styles.css` |
+
+**Why a new file instead of adding to `styles.css`:** The 5 ingredient subpages need shared structural styles (~150 lines) plus per-page accent overrides (~20 lines each = 100 lines). Adding ~250 lines to the already large `styles.css` risks making it unwieldy. The hops page establishes the precedent: section-specific visual styles get their own file.
+
+**Build changes required:**
+- Add `&& cleancss -o css/ingredients.min.css css/ingredients.css` to the `minify:css` script
+- Add the 5 new product page paths to `stamp:pages`; add `ingredients.min.css` version stamp pattern
+
+---
+
+## Cross-Category Search Overlay
+
+### Approach: Fuse.js (already vendored) + new standalone module `16-cross-search.js`
+
+| Technology | Source | Purpose | Why |
+|------------|--------|---------|-----|
+| Fuse.js v7.1.0 | `js/vendor/fuse.min.js` (already in project) | Fuzzy search across all ingredient items | Already vendored and proven on the hops page; zero new vendor files needed |
+| `js/modules/16-cross-search.js` | New standalone module (ES5) | Search overlay controller: build unified index, render grouped results, handle keyboard trap, escape dismiss | Separate concern from the catalog grid logic; separately testable, separately minifiable |
+
+**Fuse.js configuration for cross-category search:**
+
+The hops module already tunes Fuse for ingredient-name search:
+```javascript
+new Fuse(_allHops, {
+  keys: ['name', 'tasting_notes', 'description'],
+  threshold: 0.35,
+  minMatchCharLength: 2,
+  ignoreLocation: true
+});
+```
+
+Cross-category search uses the same settings. The key difference: attach a `_source_category` property to each item before indexing (e.g., `'Hops'`, `'Grains'`, `'Yeast'`) so results can be grouped visually. The `item` field in each Fuse result is the original object — no extra lookup needed.
+
+**Search data source:** `content/zoho-snapshot.json` (same source all ingredient pages already fetch). This is a static JSON file, no middleware round-trip needed for search. The overlay loads and indexes it once on first open. At current data sizes (~200 ingredient items) Fuse indexes in <20ms — no caching or Web Worker needed.
+
+**Why Fuse and not a plain `indexOf` filter:** Fuse is already in the project. Fuzzy matching handles typos ("pellet yest" finds "Pellet Yeast", "Cascad" finds "Cascade"). The hops page already proves it works for ingredient-name lookup.
+
+**Why a separate `16-cross-search.js` and not inline in the catalog helper:** The search overlay is a distinct concern (overlay DOM, keyboard trap, focus management, cross-page navigation links, data loading from snapshot). It may also be loaded on pages that don't need the full catalog grid (e.g., future: search button in the main nav). Separate file = separately testable.
+
+**Overlay keyboard handling (ES5, no library needed):**
+- Open: focus first result
+- Arrow keys: move focus between results
+- Enter: navigate to result page
+- Escape: close overlay, return focus to trigger
+- All of this is standard DOM event handling; no library needed
+
+---
+
+## Deep-Linking
+
+### Approach: Extend existing `?item=SKU` pattern; add `?search=QUERY` for overlay pre-fill
+
+| Pattern | Mechanism | Why |
+|---------|-----------|-----|
+| `?item=SKU` deep link to a product | `handleDeepLinkedItem()` in `02-utils.js` | Already exists, already called by 15-hops. New subpages call it identically — zero changes to the function. |
+| `?search=QUERY` pre-populates overlay | `16-cross-search.js` reads `URLSearchParams('search')` on `DOMContentLoaded`, opens overlay with query pre-filled | Allows sharing a search state (e.g., "search for cascade" link from a recipe page) |
+| Search result links: `grains.html?item=SKU` | Each overlay result item is an `<a>` tag to the appropriate subpage | Static HTML links; no JS routing needed; correct for keyboard and screen readers |
+
+**Why `?item=` not `#sku`:** The existing `handleDeepLinkedItem()` reads `URLSearchParams`, not the hash. Hashes also have browser scroll behavior that conflicts with programmatic `scrollIntoView`. Consistency with existing system is more important than any theoretical hash advantage.
+
+---
+
+## Module Load Order (Each Subpage HTML)
+
+Every ingredient subpage must load scripts in this order to satisfy global dependencies:
+
+1. `js/vendor/fuse.min.js` — makes `Fuse` global (needed by `16-cross-search.js`)
+2. `js/sheets-config.js` — makes `SHEETS_CONFIG` global (needed by catalog data loading)
+3. `js/main.min.js` — makes all shared globals available (`formatCurrency`, `renderReserveControl`, `handleDeepLinkedItem`, etc.)
+4. `js/modules/16-catalog-subpage.min.js` — shared catalog logic
+5. `js/modules/16-cross-search.min.js` — search overlay
+
+This matches the load order on `hops.html` exactly (which also loads `fuse.min.js` → `sheets-config.js` → `main.min.js` → `15-hops.min.js`).
+
+---
+
+## Build Changes Required (v3.0 Only)
+
+| Script | Change |
+|--------|--------|
+| `minify:css` | Append `&& cleancss -o css/ingredients.min.css css/ingredients.css` |
+| `minify:js` | Append `&& terser js/modules/16-catalog-subpage.js -o js/modules/16-catalog-subpage.min.js -c -m && terser js/modules/16-cross-search.js -o js/modules/16-cross-search.min.js -c -m` |
+| `stamp:pages` | Add the 5 new product page paths to the path array; add replacement patterns for `ingredients.min.css`, `16-catalog-subpage.min.js`, `16-cross-search.min.js` |
+
+No new `devDependencies`. No new npm packages anywhere.
+
+---
+
+## File Structure for New v3.0 Code
+
+```
+js/modules/
+  16-catalog-subpage.js        # Shared subpage logic (ES5)
+  16-catalog-subpage.min.js    # Build artifact
+  16-cross-search.js           # Cross-category search overlay (ES5)
+  16-cross-search.min.js       # Build artifact
+
+css/
+  ingredients.css              # Ingredient section shared + per-page styles
+  ingredients.min.css          # Build artifact
+
+products/
+  grains.html
+  yeast.html
+  additives.html
+  packaging.html
+  equipment.html
+```
+
+Note on module numbering: `16-` follows the existing sequence (last used is `15-hops`). Two new modules are created: one for shared catalog scaffolding, one for the search overlay. Both are standalone (not in `concat:js`).
+
+---
+
+## Existing Globals Available to New Modules
+
+These are already in `main.min.js` scope — new modules can call them without wiring:
+
+- `formatCurrency(price)` — 02-utils.js
+- `escapeHTML(str)` — js/lib/utils.js
+- `renderReserveControl(wrap, product, key)` — 11-cart.js
+- `renderWeightControl(wrap, product, key)` — 11-cart.js
+- `hasWeightConfig(item)` — 11-cart.js
+- `setReservationQty(product, qty)` — 11-cart.js
+- `getReservedQty(productKey)` — 11-cart.js
+- `openCartDrawer()` — 11-cart.js
+- `showToast(msg, type)` — 02-utils.js
+- `handleDeepLinkedItem()` — 02-utils.js
+- `buildProductLinkBtn(sku)` — 02-utils.js
+- `injectProductSchema(item, type)` — 02-utils.js or equivalent
+- `trackEvent(name, data)` — 03-events.js
+- `equalizeCardHeights()` — 05-catalog-view.js
+- `Fuse` — js/vendor/fuse.min.js (must be loaded before main.min.js on ingredient subpages)
+
+---
+
+## What NOT to Add (v3.0)
+
+| Rejected Addition | Reason |
+|-------------------|--------|
+| Web Components / Custom Elements | Require ES6 classes; incompatible with ES5 `var` codebase |
+| Any new npm package | Zero justification; Fuse.js is already vendored; all other needs met by existing globals |
+| A `subnav.js` module | Sub-nav is static HTML + CSS; JS is unnecessary overhead |
+| `localStorage` caching for Fuse index | Snapshot is already fetched by catalog modules; at current data size Fuse indexes in <20ms |
+| Hash-based routing (`#grains`) | Conflicts with existing `?item=` deep-link system; breaks `scrollIntoView` |
+| A second fuzzy search library | Fuse.js v7.1.0 is already vendored and proven; no alternative adds value |
+| CSS-in-JS, CSS Modules, Tailwind | Not applicable to a static site with a cleancss pipeline and mature custom design system |
+| Separate `css/subnav.css` | Sub-nav CSS is ~40 lines; too small to justify a new file + new `<link>` tag + build change; belongs in `styles.css` |
+
+---
+
+## Confidence Assessment
+
+| Decision | Confidence | Basis |
+|----------|------------|-------|
+| Standalone module pattern for subpages | HIGH | Direct codebase evidence: 14-labels.js and 15-hops.js prove the pattern works in production |
+| Static HTML per subpage in `products/` | HIGH | `products/` directory already contains `ferment-in-store.html` and `ingredients-supplies.html` |
+| Fuse.js for cross-category search | HIGH | `js/vendor/fuse.min.js` v7.1.0 is already in the repo; hops module shows working implementation with identical data type |
+| No new npm packages needed | HIGH | All requirements satisfied by existing globals and vendor files |
+| `css/ingredients.css` separate file | HIGH | `css/hops.css` establishes the per-section file pattern; precedent is clear |
+| Sub-nav as static HTML + CSS | HIGH | Navigation is structural, not data-driven; static is simpler and more robust |
+| Build changes are minimal | HIGH | `minify:css` and `minify:js` scripts have an established extension pattern (observe hops entries) |
+
+---
+
+*Stack research for: Steins & Vines v3.0 Catalog Subpages*
+*Researched: 2026-05-27*

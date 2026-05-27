@@ -1,12 +1,244 @@
 # Architecture Research
 
 **Domain:** Recipe-based fermentation products — integration with existing S&V stack
-**Researched:** 2026-05-09
+**Researched:** 2026-05-09 (v3.0 catalog subpages section added 2026-05-27)
 **Confidence:** HIGH (based on direct codebase analysis)
 
 ---
 
-## Standard Architecture
+## v3.0 Catalog Subpages: Integration Architecture
+
+**Scope:** 5 new ingredient category subpages (Grains, Yeast, Additives, Packaging, Equipment)
+
+### Established Patterns (from code audit)
+
+#### Module Classification
+
+The codebase has two distinct module categories:
+
+**Concat modules** (01–13, in `js/modules/`): concatenated by `concat:js` into `main.js`, loaded on every page that uses `main.min.js`. These provide all shared globals: `formatCurrency`, `escapeHTML`, `renderReserveControl`, `renderWeightControl`, `setReservationQty`, `getReservedQty`, cart functions, Fuse initialization helpers, `trackEvent`, etc.
+
+**Standalone modules** (`14-labels.js`, `15-hops.js`): NOT in `concat:js`. Loaded per-page as a separate `<script>` after `main.min.js`. They depend on main.js globals but add page-specific state and rendering on top of them.
+
+The `15-hops.js` module is the direct precedent for the new subpages: it makes its own `/api/ingredients` call, applies its own category filter, manages its own `localStorage` cache (key `sv-hops-mw`), and initializes its own Fuse instance over the filtered subset.
+
+#### Page Initialization
+
+`13-init.js` dispatches on `document.body.getAttribute('data-page')` inside `DOMContentLoaded`. Pages are gated by data-page value: `products`, `ingredients`, `ferment-in-store`, `ingredients-supplies` all share the same branch (`loadProducts()` + tabs). The `hops` page gets its own minimal branch (`initCartDrawer()` only; the actual catalog init runs inside `15-hops.js`).
+
+#### Data Source
+
+All ingredient-category pages use the same backend endpoint: `GET /api/ingredients` via the Railway middleware. The response is a flat array of all non-kit, non-service, non-zero-price inventory items. Each item has:
+- `name`, `sku`, `price_per_unit`, `stock`, `unit`, `description`, `tax_percentage`
+- `category` — mapped from Zoho `category_name`
+- Custom fields flattened by `flattenCF`: labels lowercased + spaces to underscores. `type` (from `cf_type`), `subcategory` (from CF "Subcategory"), and any hop-specific fields (`citrus`, `tropical`, etc.) land here.
+
+The snapshot fallback (`/content/zoho-snapshot.json`) mirrors the same shape via `shapeIngredient()`. Subcategory lives as a flattened custom field — it is NOT a top-level Zoho field, so it must come from the detail enrichment pass.
+
+The **Zoho subcategory tagging requirement** means items must have a "Subcategory" custom field populated in Zoho before any category-based filtering works. This is a data prerequisite, not a code prerequisite, and must be completed before the JS filtering logic can be validated end-to-end.
+
+#### CSS Organization
+
+Each standalone page has its own CSS file (`hops.css` → `hops.min.css`, `labels.css` → `labels.min.css`) added to the `minify:css` build step. `styles.css` is global: cart drawer, product card base, catalog controls, filter rows, etc. Page-specific files contain hero decoration, unique color themes, and structural overrides only.
+
+The `body[data-page="X"]` selector pattern scopes styles without wrapper classes.
+
+#### Cart Integration
+
+Subpages use the cart drawer (not the sidebar). `initCartDrawer()` is called from `13-init.js`. Cart drawer HTML is hardcoded in the HTML file. The drawer wires to `sv-cart-ingredients` via `getReservation()` / `saveReservation()`.
+
+#### Build System
+
+- `minify:css`: explicit list — each new CSS file needs a line added
+- `concat:js`: explicit list — standalone modules are NOT added here
+- `minify:js`: explicit list — each new standalone `.js` file needs a terser call added
+- `stamp:pages`: explicit list of HTML files for cache-busting — each new page needs to be added
+
+#### Vendor Scripts
+
+`hops.html` loads `sentry.min.js` (synchronous), then `sentry-init.js`, then `fuse.min.js` (defer), then `sheets-config.js` (defer), then `main.min.js` (defer), then `15-hops.min.js` (defer). The defer order ensures Fuse is available when the module initializes.
+
+---
+
+### Module Strategy: Single Shared Standalone Module
+
+**Use one new standalone module** `js/modules/16-catalog-subpage.js` for all 5 subpages, rather than 5 separate files.
+
+Rationale: The 5 subpages are structurally identical — same data source, same cart integration, same filter/search pattern, different category filter value and hero accent. A single module initialized by `data-page` attribute avoids maintaining 5 near-duplicate files. `15-hops.js` is NOT shared because hops has unique behavior: radar charts, flavor axes, SVG comparison, alpha acid display, foil bag visual effect. None of that complexity exists in the new subpages.
+
+The module config object is defined inline in each HTML file before `16-catalog-subpage.min.js` loads:
+
+```javascript
+var SUBPAGE_CONFIG = {
+  category: 'Grain',        // matches subcategory value from Zoho CF
+  pageId: 'grains',         // matches data-page, localStorage key suffix
+  catalogEl: 'subpage-catalog',
+  searchEl: 'subpage-search',
+  sortEl: 'subpage-sort'
+};
+```
+
+This is ES5-compatible (plain object literal assigned to a global `var`) and follows the existing pattern of `SHEETS_CONFIG` in `sheets-config.js`.
+
+### Data Flow
+
+```
+Page load
+  → main.min.js runs (provides globals: formatCurrency, renderWeightControl, etc.)
+  → fuse.min.js available
+  → 16-catalog-subpage.min.js runs
+      → reads SUBPAGE_CONFIG.category
+      → calls loadSubpageItems(config)
+          → tries localStorage cache 'sv-subpage-{pageId}-mw' (TTL 30 min)
+          → fetches /api/ingredients
+          → filters by subcategory === config.category
+          → stores in _subpageItems
+          → initializes Fuse over _subpageItems
+          → calls renderSubpageItems()
+          → wires search/sort/filter events
+```
+
+The full `/api/ingredients` response is fetched even though only one category is needed. This is correct because:
+
+1. The middleware caches the full ingredient list in Redis; per-category endpoints would require new middleware routes and cache keys.
+2. The hops module already does exactly this — fetches the full `/api/ingredients`, filters locally.
+3. The subpage module uses its own localStorage key (`sv-subpage-{pageId}-mw`) to avoid evicting the main ingredients cache.
+
+Cross-page search reuses the cached full response from any warm subpage localStorage entry, or issues a fresh fetch if all are stale.
+
+### Sub-Nav Bar
+
+The sub-nav is **static HTML** in each page, not dynamically rendered. Dynamic rendering would require knowing which subpages exist before any data loads, creating a flash of missing nav. Static HTML nav is cache-busted by the build stamp.
+
+Sub-nav structure (same block in all 6 ingredient pages, including `ingredients-supplies.html`):
+
+```html
+<nav class="ingredient-subnav" aria-label="Ingredient categories">
+  <a href="/products/ingredients-supplies" data-subnav="all">All</a>
+  <a href="/products/ingredients/grains" data-subnav="grains">Grains</a>
+  <a href="/products/ingredients/yeast" data-subnav="yeast">Yeast</a>
+  <a href="/products/ingredients/additives" data-subnav="additives">Additives</a>
+  <a href="/products/ingredients/packaging" data-subnav="packaging">Packaging</a>
+  <a href="/products/ingredients/equipment" data-subnav="equipment">Equipment</a>
+</nav>
+```
+
+Active state is set in CSS via `body[data-page="grains"] [data-subnav="grains"]` — no JS required. The sub-nav block is duplicated in each file (no SSI/templating on a static site). A note in `CLAUDE.md` should document which files contain the sub-nav block to ensure all are updated together.
+
+Hops (`hops.html`) does NOT get the ingredient sub-nav — hops is a distinct product catalog, not an ingredient category page.
+
+### Search Overlay
+
+The cross-category search overlay operates over the full ingredient dataset. When the user types in the cross-category search input, the overlay reads from the freshest available localStorage cache entry and filters across all categories simultaneously. If no cache is warm, it fetches `/api/ingredients` once. Results are grouped by category (Grain, Yeast, etc.) in the overlay.
+
+This avoids a separate fetch: by the time a user interacts with cross-category search, the subpage's own data fetch has completed and the cache is warm. The overlay logic lives inside `16-catalog-subpage.js` and activates when `document.getElementById('cross-category-search')` is present in the DOM.
+
+### CSS Strategy
+
+**One shared CSS file**: `css/catalog-subpage.css` → `css/catalog-subpage.min.css`.
+
+This file contains:
+- Sub-nav bar styles (`.ingredient-subnav`)
+- Subpage hero styles (`.subpage-hero` with per-category accent via `body[data-page="grains"]`, etc.)
+- Catalog grid, filter, sort styles shared across all 5 pages
+- Search overlay panel (`.ingredient-search-overlay`)
+
+There is no per-page CSS file. The 5 pages differ only in hero accent color/image, covered by `data-page`-scoped rules in the shared file. Hops has its own CSS only because of the elaborate foil bag SVG filter effect — nothing like that exists here.
+
+`styles.css` is not modified. `.ingredient-subnav` and `.subpage-hero` do not belong in the global styles because they are not used outside the ingredient subpages.
+
+### File Layout
+
+New files:
+```
+js/modules/16-catalog-subpage.js       (source)
+js/modules/16-catalog-subpage.min.js   (build artifact)
+css/catalog-subpage.css                (source)
+css/catalog-subpage.min.css            (build artifact)
+products/ingredients/grains.html
+products/ingredients/yeast.html
+products/ingredients/additives.html
+products/ingredients/packaging.html
+products/ingredients/equipment.html
+```
+
+Note: HTML files live in `products/ingredients/` (two levels deep), so asset paths use `../../` prefix (e.g. `../../css/styles.min.css`, `../../js/main.min.js`).
+
+Modified files:
+```
+package.json                        — add minify:css entry, minify:js entry, stamp:pages entry
+products/ingredients-supplies.html  — add sub-nav HTML block
+js/modules/13-init.js               — add new page types to DOMContentLoaded dispatch
+```
+
+`13-init.js` adds a new dispatch branch:
+```javascript
+if (page === 'grains' || page === 'yeast' || page === 'additives' ||
+    page === 'packaging' || page === 'equipment') {
+  initCartDrawer();
+  // 16-catalog-subpage.js self-initializes via SUBPAGE_CONFIG
+}
+```
+
+### Build Order for Catalog Subpages
+
+Dependencies must be completed in this sequence:
+
+1. **Zoho subcategory tagging** (data/ops step) — populate "Subcategory" custom field in Zoho Inventory for each item in Grain/Yeast/Additive/Packaging/Equipment categories. Run `npm run snapshot` after tagging to refresh `content/zoho-snapshot.json`. This gates all JS filtering validation.
+
+2. **`css/catalog-subpage.css`** — write shared CSS. No code dependencies.
+
+3. **`js/modules/16-catalog-subpage.js`** — write JS module. Depends on: cart globals from main.js, Fuse from vendor, `SUBPAGE_CONFIG` from inline script. Does not require subpage HTML to exist yet.
+
+4. **`package.json` build script updates** — add `catalog-subpage` to `minify:css`, add terser call for `16-catalog-subpage.js` to `minify:js`, add new HTML files to `stamp:pages`.
+
+5. **`products/ingredients/grains.html`** (and the other 4) — write HTML shells with `SUBPAGE_CONFIG`, sub-nav, hero, catalog container, cart drawer HTML. Requires CSS class names and JS config shape from steps 2–3.
+
+6. **`products/ingredients-supplies.html`** — add sub-nav block. Can be done any time after sub-nav HTML is finalized.
+
+7. **`npm run build`** — generates all minified artifacts and stamps cache versions.
+
+8. **Write tests** — unit tests for pure functions in `16-catalog-subpage.js` (filter, sort, grouping). Follow existing pattern in `tests/frontend/`.
+
+### Component Boundaries
+
+| Component | Responsibility | Depends On |
+|-----------|---------------|------------|
+| `16-catalog-subpage.js` | Data fetch, category filter, Fuse search, render grid/list, wire events, search overlay | `main.min.js` globals, `fuse.min.js`, `SUBPAGE_CONFIG` |
+| `css/catalog-subpage.css` | Sub-nav layout, hero accent, catalog grid, search overlay panel | None |
+| `products/ingredients/X.html` | Page shell, SUBPAGE_CONFIG inline var, static sub-nav HTML | `styles.min.css`, `catalog-subpage.min.css`, `main.min.js`, `16-catalog-subpage.min.js` |
+| `13-init.js` (modified) | DOMContentLoaded dispatch for new page types, `initCartDrawer()` | Existing cart module |
+| `/api/ingredients` (unchanged) | Returns full ingredient array | Zoho Inventory with subcategory CF populated |
+
+### Key Integration Points with Existing Code
+
+**`renderWeightControl` / `renderReserveControl`**: Called inside `16-catalog-subpage.js` when rendering product cards. Weight items (grain) use `renderWeightControl`; unit items (yeast packets, etc.) use `renderReserveControl`. The `_item_type: 'ingredient'` field must be set on each product object so `getCartKey()` routes to `sv-cart-ingredients`.
+
+**`initCartDrawer()`**: Called by `13-init.js` for the new page types, exactly as it is for hops. Cart drawer HTML is duplicated in each HTML file.
+
+**`reservation-changed` event**: `13-init.js` already listens globally and calls `refreshAllReserveControls()`, `updateReservationBar()`, `renderCartDrawer()`. The subpage module benefits from this automatically — no additional wiring needed.
+
+**Fuse.js**: Already in `js/vendor/fuse.min.js`. Each HTML file loads it with `defer` before `16-catalog-subpage.min.js`. The module guards initialization with `typeof Fuse !== 'undefined'` (same pattern as `08-catalog-ingredients.js` line 120 and `15-hops.js` line 319).
+
+**localStorage cache isolation**: Use key prefix `sv-subpage-{pageId}-mw` (e.g. `sv-subpage-grains-mw`). Avoids collision with `sv-ingredients-mw` (main ingredients tab) and `sv-hops-mw` (hops page).
+
+**Snapshot fallback**: `loadFromSnapshot()` fetches `/content/zoho-snapshot.json` and reads `snap.ingredients`, then applies the category filter. Path must be root-relative `/content/zoho-snapshot.json` (not `../../content/`) to work from `products/ingredients/` when served via GitHub Pages.
+
+### Anti-Patterns to Avoid
+
+**Do not add 5 separate standalone JS modules.** One parameterized module is the correct abstraction. Five files create maintenance debt immediately.
+
+**Do not put sub-nav in `13-init.js` as a dynamic render.** Static HTML is correct for a static site with no server-side templating.
+
+**Do not add `catalog-subpage.js` to `concat:js`.** It is only needed on 5 specific pages; adding it to the main bundle wastes payload on every other page.
+
+**Do not create new middleware endpoints per category.** The existing `/api/ingredients` endpoint is cached in Redis and covers all items. Client-side filtering is adequate for this data volume.
+
+**Do not attempt to share localStorage cache across subpages via a shared full-dataset key.** Per-page isolated caches are simpler and match the hops precedent.
+
+---
+
+## Standard Architecture (v1/v2 — Recipe-Based Products)
 
 ### System Overview
 
@@ -130,7 +362,7 @@ The matching step (BeerXML ingredient name → Zoho `item_id`) is the critical f
 
 **Library recommendation:** `fast-xml-parser` (already likely available or trivially addable) or `beerxml` npm package. Do not use `brauhaus-beerxml` — it requires Brauhaus.js as peer dependency. Prefer `fast-xml-parser` to keep the dependency count low; BeerXML 1.0 is simple enough to parse manually with a generic XML parser.
 
-**Confidence: MEDIUM** — BeerXML format is well-documented and stable. The matching step is the unknown complexity. "beerxml" npm package confirmed at [npmjs.com/package/beerxml](https://www.npmjs.com/package/beerxml).
+**Confidence: MEDIUM** — BeerXML format is well-documented and stable. The matching step is the unknown complexity.
 
 ---
 
@@ -189,9 +421,9 @@ For recipe sales, the line items are simply the individual ingredients — each 
 - The Zoho Inventory API does not support composite items as direct sales order/invoice line items via the REST API in a way that auto-deducts components
 - Creating a composite item per recipe would require staff to pre-bundle stock before each sale — operationally worse
 
-**The brewing fee:** Add a new Zoho Inventory "service" item called "Brewing Fee" (non-inventory, type=service). Reference its `item_id` as `BREWING_FEE_ITEM_ID` env var. This mirrors the existing `MAKERS_FEE_ITEM_ID` pattern exactly. The kiosk auto-adds it when a recipe is loaded (parallel to how `kioskSyncKitFees()` adds Maker's Fee for wine kits).
+**The brewing fee:** Add a new Zoho Inventory "service" item called "Brewing Fee" (non-inventory, type=service). Reference its `item_id` as `BREWING_FEE_ITEM_ID` env var. This mirrors the existing `MAKERS_FEE_ITEM_ID` pattern exactly.
 
-**Confidence: HIGH** — per-ingredient deduction is how the existing online checkout handles ingredients. The kiosk sale confirm path (`/api/kiosk/sale/confirm`) already does this for any item_id in the cart.
+**Confidence: HIGH** — per-ingredient deduction is how the existing online checkout handles ingredients.
 
 ---
 
@@ -199,7 +431,7 @@ For recipe sales, the line items are simply the individual ingredients — each 
 
 **New Sheets tab: "Recipes" only. The "Batches" tab gets a new `recipe_id` column.**
 
-The Batches sheet currently has 24 columns (rows visible in `createBatch()` in `adminApi.gs`). Add `recipe_id` as column 25:
+The Batches sheet currently has 24 columns. Add `recipe_id` as column 25:
 
 ```javascript
 // In createBatch() — new column appended:
@@ -209,31 +441,9 @@ batchesSheet.appendRow([
 ]);
 ```
 
-**Middleware changes in `brewpad-integration.js`:**
+**Batch creation trigger for recipe sales:** Currently `detectKitItems()` requires `MAKERS_FEE_ITEM_ID` to be present (wine kit trigger). Recipe sales use `BREWING_FEE_ITEM_ID` instead. The correct approach is a separate `detectRecipeSale()` function — recipe batches (one batch per recipe) and wine kit batches (one batch per kit line item) have different cardinality. Merging them in `detectKitItems()` would create multiple batches for a recipe sale.
 
-```javascript
-// Extend batchPayload in createBatchesFromSale():
-var batchPayload = {
-  product_sku:   item.sku || item.item_id || '',
-  product_name:  item.name || '',
-  customer_name: customerName || 'Walk-in Customer',
-  // ... existing fields ...
-  recipe_id:     item.recipe_id || ''  // NEW: passed from kiosk if recipe sale
-};
-```
-
-The kiosk `confirm` handler would tag the recipe ID on each ingredient line item before calling `createBatchesFromSale`, or (better) pass it as a separate parameter.
-
-**BrewPad UI:** The batch detail view in `brewpad.js` fetches `get_batch` from Apps Script, which returns the batch row. If `recipe_id` is present, `brewpad.js` can show a "Recipe" section with a link to the recipe details.
-
-**Batch creation trigger for recipe sales:** Currently `detectKitItems()` requires `MAKERS_FEE_ITEM_ID` to be present (wine kit trigger). Recipe sales use `BREWING_FEE_ITEM_ID` instead. Two options:
-
-1. **Extend detectKitItems():** Check for either fee item ID. One batch created per recipe sale (not per ingredient).
-2. **Separate trigger path:** Recipe sales call a new `createBatchFromRecipeSale()` that sends recipe-specific payload including `recipe_id` and all ingredients as a flat list.
-
-Option 2 is cleaner — recipe batches are fundamentally different (one batch per recipe, not one per kit line item). The recipe batch payload would include `recipe_id` and a flattened `ingredients` JSON string for storage on the batch row.
-
-**Confidence: HIGH** — the Sheets + Apps Script pattern is well-understood. Column addition is low-risk.
+**Confidence: HIGH** — the Sheets + Apps Script pattern is well-understood.
 
 ---
 
@@ -241,79 +451,15 @@ Option 2 is cleaner — recipe batches are fundamentally different (one batch pe
 
 **Recommendation: New product type "recipe" rendered by a new module `14-recipes.js`.**
 
-Recipes are NOT Zoho products — they are not in the kits catalog. They live in the Recipes Sheets tab, fetched via Apps Script `get_recipes` (new action). The public site fetches them the same way featured products are fetched: `GET apps-script-url?action=get_recipes`.
+Recipes are NOT Zoho products. They live in the Recipes Sheets tab, fetched via Apps Script `get_recipes` (new action). Recipe cards use the `.label-beer` card style with style-based tint class from `getTintClass()`. A recipe card shows: Name, style, ABV, batch size, ingredient count, brewing fee, "Reserve This Recipe" button (triggers kiosk consultation CTA, not direct online cart add — kiosk-first per PROJECT.md).
 
-**Rendering:** The existing `buildBeerCard()` function in `07-catalog-kits.js` is the closest analog — recipe cards would use the `.label-beer` card style with style-based tint class from `getTintClass()`. A recipe card shows:
-- Name, style, ABV, batch size
-- Ingredient count (e.g., "12 ingredients")
-- Brewing fee
-- "Reserve This Recipe" button (triggers kiosk consultation CTA, not direct online cart add — kiosk-first per PROJECT.md)
+**Products page integration:** Add a "Recipes" tab alongside "Ferment in Store", "Ingredients", "Services" in `10-tabs.js`. The "Reserve" button shows a modal: "Visit us in store to brew this recipe — call XXX or book a time."
 
-**Products page integration:** Add a "Recipes" tab alongside "Ferment in Store", "Ingredients", "Services" in `10-tabs.js`. The tab fetches from Apps Script (not middleware) since recipe data is Sheets-native. The "Reserve" button on a recipe card shows a modal: "Visit us in store to brew this recipe — call XXX or book a time."
-
-**"Build Your Own" option:** A static card at the end of the recipes list pointing to the consultation booking flow. No new UI needed — reuse existing bookings link.
-
-**Confidence: MEDIUM** — rendering is straightforward but the Apps Script fetch for public recipes introduces a new data source on the public site (currently all product data comes from middleware). This is a deliberate architectural split: recipes are staff-managed in Sheets, not Zoho catalog items.
+**Confidence: MEDIUM** — rendering is straightforward but Apps Script fetch for public recipes introduces a new data source on the public site.
 
 ---
 
-### 7. Kiosk Recipe Sale — Cart Handling
-
-**The kiosk cart (`_kioskCart`) handles N ingredients naturally because it is a plain JS object keyed by `item_id`.**
-
-Loading a recipe:
-
-```javascript
-function kioskLoadRecipe(recipe) {
-  // 1. Validate all ingredients are in catalog
-  var missing = [];
-  recipe.ingredients.forEach(function(ing) {
-    if (!_kioskProducts.find(function(p) { return p.item_id === ing.item_id; })) {
-      missing.push(ing.name);
-    }
-  });
-  if (missing.length) {
-    alert('Missing from catalog: ' + missing.join(', '));
-    return;
-  }
-
-  // 2. Confirm with staff (cart replacement or append)
-  if (Object.keys(_kioskCart).length > 0) {
-    if (!confirm('Replace current cart with recipe items?')) return;
-    _kioskCart = {};
-  }
-
-  // 3. Add each ingredient at recipe quantity
-  recipe.ingredients.forEach(function(ing) {
-    var product = kioskFindProductById(ing.item_id);
-    if (product) {
-      _kioskCart[product.item_id] = { item: product, qty: ing.quantity };
-    }
-  });
-
-  // 4. Add brewing fee (mirrors kioskSyncKitFees for wine)
-  var brewFee = kioskFindProductById(BREWING_FEE_ITEM_ID);
-  if (brewFee) {
-    _kioskCart[brewFee.item_id] = { item: brewFee, qty: 1 };
-  }
-
-  // 5. Tag cart with recipe_id for batch creation
-  _kioskActiveRecipeId = recipe.recipe_id;
-
-  kioskRenderCart();
-  kioskRenderProducts();
-}
-```
-
-**Fee structure for beer:** The current wine fee structure ($45 Maker's Fee + $5 Materials Fee) is recognized via `MAKERS_FEE_ITEM_ID` and `MATERIALS_FEE_ITEM_ID` env vars. Beer recipes will use `BREWING_FEE_ITEM_ID` (a new env var pointing to a new Zoho service item). The amount is TBD but the pattern is identical: one Zoho service item, auto-added when a recipe is loaded, auto-removed when cart is cleared.
-
-**Stock validation:** The existing `kioskCheckStockOverflow()` function checks against `stock_on_hand`. For recipe ingredients, quantities may be fractional (kg). The kiosk already handles weight items via `kioskIsWeightItem()` and prompt-for-quantity. Recipe loading bypasses the prompt — it sets quantities directly from the recipe definition.
-
-**Confidence: HIGH** — the kiosk cart pattern accommodates this with minimal changes.
-
----
-
-## New vs Modified Components
+## New vs Modified Components (v2.0 Recipes)
 
 ### New Components
 
@@ -327,7 +473,7 @@ function kioskLoadRecipe(recipe) {
 | Zoho "Brewing Fee" service item | New Zoho item | Fee for beer recipe service (parallel to Maker's Fee) |
 | `BREWING_FEE_ITEM_ID` env var | New env var | Points to Zoho brewing fee service item |
 
-### Modified Components
+### Modified Components (v2.0)
 
 | Component | Change | Risk |
 |-----------|--------|------|
@@ -337,7 +483,28 @@ function kioskLoadRecipe(recipe) {
 | `js/admin.js` | Add recipe management tab: list, create, import BeerXML, edit | MEDIUM — admin IIFE is large, follow existing tab pattern |
 | `apps-script/adminApi.gs` | Add `recipe_id` column to Batches sheet, add recipe CRUD actions | LOW-MEDIUM — column append is safe; schema change needs coordination |
 | `js/modules/10-tabs.js` | Add "Recipes" tab to public product page tab set | LOW |
-| `js/lib/constants.js` | Add `ITEM_TYPES.RECIPE` if needed | LOW |
+
+### New Components (v3.0 Catalog Subpages)
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `js/modules/16-catalog-subpage.js` | New file | Shared standalone module for all 5 subpages |
+| `js/modules/16-catalog-subpage.min.js` | Build artifact | Minified via terser |
+| `css/catalog-subpage.css` | New file | Sub-nav, hero accent, catalog grid, search overlay |
+| `css/catalog-subpage.min.css` | Build artifact | Minified via cleancss |
+| `products/ingredients/grains.html` | New file | Grains category subpage |
+| `products/ingredients/yeast.html` | New file | Yeast category subpage |
+| `products/ingredients/additives.html` | New file | Additives category subpage |
+| `products/ingredients/packaging.html` | New file | Packaging category subpage |
+| `products/ingredients/equipment.html` | New file | Equipment category subpage |
+
+### Modified Components (v3.0)
+
+| Component | Change | Risk |
+|-----------|--------|------|
+| `js/modules/13-init.js` | Add `grains`/`yeast`/`additives`/`packaging`/`equipment` page dispatch | LOW — additive branch |
+| `products/ingredients-supplies.html` | Add ingredient sub-nav block | LOW — HTML addition only |
+| `package.json` | Add CSS minify, JS minify, stamp:pages entries for new files | LOW |
 
 ---
 
@@ -392,57 +559,55 @@ Apps Script: create_batch with recipe_id
   - One batch per recipe sale
 ```
 
-### Recipe → Batch → BrewPad Flow
+### Catalog Subpage Data Flow
 
 ```
-Zoho Invoice Created (all ingredients + brewing fee)
+products/ingredients/grains.html loads
   ↓
-createBatchFromRecipeSale():
-  payload = {
-    product_sku: recipe_id,
-    product_name: recipe.name,
-    recipe_id: "SV-R-000001",
-    customer_name: "...",
-    source: "kiosk-recipe",
-    zoho_so_number: invoiceNumber
-  }
-  → POST to Apps Script (action: create_batch)
+SUBPAGE_CONFIG = { category: 'Grain', pageId: 'grains', ... } (inline script)
   ↓
-Apps Script createBatch():
-  - Writes batch row with recipe_id in col 25
-  - Auto-generates SV-B-NNNNNN batch ID
-  - Returns {ok, batch_id}
+main.min.js + 16-catalog-subpage.min.js execute (deferred)
   ↓
-BrewPad batch detail shows recipe name + link to recipe definition
+loadSubpageItems(SUBPAGE_CONFIG):
+  → Check localStorage 'sv-subpage-grains-mw' (30 min TTL)
+  → If stale/missing: GET /api/ingredients
+  → Filter: items where item.subcategory === 'Grain'
+  → Initialize Fuse over filtered set
+  → renderSubpageItems()
+  → Wire search/sort/filter events
+  ↓
+User types in cross-category search:
+  → Check all 'sv-subpage-*-mw' localStorage entries for warm cache
+  → If none warm: GET /api/ingredients once
+  → Fuse search across full dataset
+  → Render overlay grouped by category
 ```
 
 ---
 
 ## Architectural Patterns to Follow
 
-### Pattern 1: Recipe as Ingredient Collection (Not Composite Item)
+### Pattern 1: Standalone Module with Inline Config
 
-**What:** A recipe is a named collection of `{item_id, quantity, unit}` tuples stored in Google Sheets, not in Zoho Inventory.
-**When to use:** Always for this system. Zoho composite items solve a different problem (physical assembly inventory).
-**Trade-offs:** Requires fuzzy matching on BeerXML import; ingredient item_ids must stay stable (Zoho item deletion would break recipes). Upside: zero Zoho API complexity, flexible editing, staff-accessible.
+**What:** One JS file handles all 5 subpages by reading a `SUBPAGE_CONFIG` object defined inline in each HTML file before the module script loads.
+**When:** Multiple structurally identical pages that differ only in category filter value and hero accent.
+**Precedent:** `SHEETS_CONFIG` in `sheets-config.js` (global config object read by modules).
 
-### Pattern 2: Fee Item via Env Var (Mirror Existing Pattern)
+### Pattern 2: Recipe as Ingredient Collection (Not Composite Item)
+
+**What:** A recipe is a named collection of `{item_id, quantity, unit}` tuples stored in Google Sheets.
+**When:** Always for this system.
+**Trade-offs:** Requires fuzzy matching on BeerXML import; ingredient item_ids must stay stable.
+
+### Pattern 3: Fee Item via Env Var (Mirror Existing Pattern)
 
 **What:** Create one Zoho "service" item for the brewing fee. Store its `item_id` in `BREWING_FEE_ITEM_ID`. The kiosk auto-adds it when a recipe is loaded, exactly as `kioskSyncKitFees()` does for Maker's Fee.
-**When to use:** Whenever recipe sales need a fee line item.
-**Trade-offs:** Fee amount is controlled by the Zoho item price (editable in Zoho UI). If fee varies by recipe complexity, this needs a different approach (rate override in recipe definition, passed to kiosk UI).
 
-### Pattern 3: Apps Script as Recipe Data Store
+### Pattern 4: Static Sub-Nav HTML (No Dynamic Render)
 
-**What:** Google Sheets "Recipes" tab with Apps Script CRUD, accessed by middleware via `APPS_SCRIPT_URL` (same existing endpoint). Recipe data is cached in Redis `sv:recipes` with a 5-min TTL.
-**When to use:** For all recipe read/write operations. Mirrors the batch data pattern.
-**Trade-offs:** Apps Script quota limits (20,000 exec/day). At recipe volumes (dozens, not thousands), this is not a concern.
-
-### Pattern 4: BeerXML Parse Server-Side, Confirm Client-Side
-
-**What:** Upload raw XML to middleware, return parsed + candidate-matched data to admin UI, then admin confirms before saving. Never auto-save without staff confirmation.
-**When to use:** BeerXML import only.
-**Trade-offs:** Two-step UX, but avoids silently creating recipes with wrong ingredient mappings.
+**What:** Sub-nav block duplicated as static HTML in each ingredient page. Active state set via CSS `body[data-page]` scoping. No JS required.
+**When:** Any static multi-page nav on a GitHub Pages site with no SSI.
+**Trade-offs:** Requires updating all files when nav items change. Document which files in CLAUDE.md.
 
 ---
 
@@ -451,92 +616,68 @@ BrewPad batch detail shows recipe name + link to recipe definition
 ### Anti-Pattern 1: Zoho Composite Items for Recipe Inventory
 
 **What people might do:** Create a Zoho composite item per recipe, then sell the composite item on the kiosk invoice.
-**Why it's wrong:** The Zoho Inventory REST API does not support composite items as invoice line items. Composite items require a separate "assembly" workflow (bundle N units before sale). This is for manufacturing, not recipe-to-order.
-**Do this instead:** Sell each ingredient as a separate line item on the Zoho invoice. Zoho deducts each ingredient's stock at invoice submit.
+**Why it's wrong:** The Zoho Inventory REST API does not support composite items as invoice line items. Composite items require a separate "assembly" workflow.
+**Do this instead:** Sell each ingredient as a separate line item on the Zoho invoice.
 
-### Anti-Pattern 2: Recipe Data in Zoho Custom Fields
+### Anti-Pattern 2: 5 Separate Standalone Modules for Subpages
 
-**What people might do:** Store ingredient lists in Zoho item custom fields (e.g., a JSON string in a custom field on a "Recipe" item).
-**Why it's wrong:** Zoho custom fields are for UI display, not structured data. Querying/updating them is slow and fragile. The Zoho API is already heavily rate-limited.
-**Do this instead:** Google Sheets Recipes tab is the canonical store. Zoho only knows about individual ingredients (which are already there).
+**What people might do:** Create `16-grains.js`, `17-yeast.js`, `18-additives.js`, etc.
+**Why it's wrong:** The pages are structurally identical. Five files mean five copies of every bug fix and enhancement.
+**Do this instead:** One parameterized `16-catalog-subpage.js` with `SUBPAGE_CONFIG`.
 
-### Anti-Pattern 3: One Recipe = One New Zoho Item
+### Anti-Pattern 3: Dynamic Sub-Nav Rendering
 
-**What people might do:** Create a new Zoho Inventory item called "Cascade IPA Recipe" and sell that.
-**Why it's wrong:** Recipes are not products — they have no SKU, no stock, no price anchor. Creating fake Zoho items pollutes the catalog and breaks stock tracking.
-**Do this instead:** Recipes live in Sheets. Kiosk expands them to ingredient line items at cart load time.
+**What people might do:** Generate the sub-nav in JS after data loads.
+**Why it's wrong:** Creates flash of missing nav; HTML is no longer self-describing.
+**Do this instead:** Static HTML in each file; CSS `body[data-page]` scoping for active state.
 
-### Anti-Pattern 4: Auto-Triggering Batch via Maker's Fee Detection for Recipe Sales
+### Anti-Pattern 4: Per-Category Middleware Endpoints
 
-**What people might do:** Add BREWING_FEE_ITEM_ID to the existing `detectKitItems()` check alongside MAKERS_FEE_ITEM_ID.
-**Why it's wrong:** Wine kit batches (one batch per kit line item) and recipe batches (one batch for the whole recipe) have different cardinality. Merging them in `detectKitItems()` would create multiple batches for a recipe sale (one per ingredient).
-**Do this instead:** Add a separate `detectRecipeSale()` function. Recipe sales call `createBatchFromRecipeSale()` directly, not `createBatchesFromSale()`.
+**What people might do:** Add `/api/ingredients/grains`, `/api/ingredients/yeast`, etc.
+**Why it's wrong:** New cache keys, new Redis memory, new Railway surface, new tests with no benefit for this data volume.
+**Do this instead:** Client-side filter on the existing `/api/ingredients` response.
+
+### Anti-Pattern 5: Auto-Triggering Recipe Batch via Maker's Fee Detection
+
+**What people might do:** Add `BREWING_FEE_ITEM_ID` to `detectKitItems()` alongside `MAKERS_FEE_ITEM_ID`.
+**Why it's wrong:** Wine kit batches (one per kit item) and recipe batches (one per recipe) have different cardinality. This would create multiple batches for a recipe sale.
+**Do this instead:** Separate `detectRecipeSale()` function; recipe sales call `createBatchFromRecipeSale()`.
 
 ---
 
-## Integration Points
+## Integration Points with External Services
 
-### External Services
-
-| Service | Integration Pattern | Recipe-Specific Notes |
+| Service | Integration Pattern | Subpage-Specific Notes |
 |---------|---------------------|----------------------|
-| Google Apps Script | POST `action=create_recipe/update_recipe/get_recipes` | New actions; same APPS_SCRIPT_URL, same server_token auth |
-| Zoho Inventory | Per-ingredient `item_id` line items on invoice | No new Zoho APIs needed; brewing fee = new Zoho service item |
-| Zoho Books | `POST /invoices` with N ingredient line items | Works today for ingredient checkout; same pattern |
-| Helcim Terminal | Unchanged | Recipe total = sum(ingredients) + brewing fee |
-| Redis | New key `sv:recipes` (list) | Same cache pattern as `sv:kiosk-products` |
-
-### Internal Boundaries
-
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| Admin UI ↔ Middleware | `POST /api/recipes`, `PUT /api/recipes/:id`, `DELETE /api/recipes/:id`, `POST /api/recipes/import-beerxml` | New route file; follows existing patterns |
-| Middleware ↔ Apps Script | `action=create_recipe`, `get_recipes`, `update_recipe` | Same APPS_SCRIPT_URL; add recipe actions to `doPost`/`doGet` |
-| Kiosk ↔ Middleware | `GET /api/recipes` (list), `GET /api/recipes/:id` (detail) | New but follows existing `/api/kiosk/products` pattern |
-| Public site ↔ Apps Script | `GET ?action=get_recipes` (active only, public endpoint, no auth) | Parallel to existing `get_featured`; add to public endpoints in `doGet` |
-| Middleware ↔ brewpad-integration | Pass `recipe_id` through sale confirm → batch creation | Additive change to `processSaleWithPrices` body |
+| `/api/ingredients` (Railway) | GET, cached in Redis | Unchanged; subpages filter client-side |
+| `content/zoho-snapshot.json` | Static file fetch | Subpages use root-relative path `/content/zoho-snapshot.json` |
+| Google Apps Script | Recipe CRUD via `action=` params | Not involved in subpages |
+| Zoho Inventory | Per-ingredient `item_id` on kiosk invoice | Not changed for subpages |
 
 ---
 
-## Build Order (Dependency Sequence)
+## Confidence Assessment
 
-The following order respects architectural dependencies — each phase produces a working system state:
-
-1. **Recipe data model + Sheets schema** — Recipes tab in Google Sheets, create_recipe/get_recipes actions in Apps Script. No code changes yet, just schema.
-
-2. **Brewing fee Zoho item + env var** — Create "Brewing Fee" service item in Zoho, set `BREWING_FEE_ITEM_ID`. Prerequisite for kiosk and batch creation.
-
-3. **Middleware recipe CRUD** — `routes/recipes.js` with GET/POST/PUT endpoints and Redis caching. Includes BeerXML parse endpoint (server-side only, no UI yet). Adds `CACHE_KEYS.RECIPES` to constants.
-
-4. **Admin recipe management UI** — New "Recipes" tab in admin.js: list recipes, create/edit form, BeerXML import modal. Depends on routes from step 3.
-
-5. **Kiosk recipe sale** — `kioskLoadRecipe()`, recipe browser tab in kiosk UI, `_kioskActiveRecipeId`, brewing fee sync. Modify sale confirm path to pass `recipe_id`.
-
-6. **Batch creation for recipe sales** — Extend `brewpad-integration.js` with `createBatchFromRecipeSale()`. Add `recipe_id` column to Batches sheet. BrewPad batch detail shows recipe name.
-
-7. **Public recipe browser** — `14-recipes.js` module, new "Recipes" tab on products page, recipe card rendering. Guard: only show when `recipe.status === 'active'`.
-
----
-
-## Scaling Considerations
-
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| < 50 active recipes | Google Sheets is adequate. Cache full list in Redis. |
-| > 200 recipes | Add pagination to `get_recipes`. Consider a dedicated Redis sorted set for recipe browsing. |
-| Recipe import automation | BeerXML batch import (ZIP of multiple files) could be added without architecture change. |
+| Area | Confidence | Notes |
+|------|------------|-------|
+| Module pattern (standalone) | HIGH | Directly matches `15-hops.js` precedent, verified in source |
+| Data flow via `/api/ingredients` | HIGH | Verified in `catalog.js`, `08-catalog-ingredients.js`, `15-hops.js` |
+| Subcategory field availability | MEDIUM | `flattenCF` maps it from Zoho CF — requires Zoho items to have field populated first |
+| CSS strategy (shared file) | HIGH | Pattern consistent with existing per-page CSS files |
+| Build script changes | HIGH | Verified all four explicit lists from `package.json` |
+| Search overlay (reuse cached data) | MEDIUM | Correct in principle; exact UX interaction design TBD in phase |
+| Sub-nav as static HTML | HIGH | No SSI/templating on static site — duplication is unavoidable |
 
 ---
 
 ## Sources
 
-- Direct codebase analysis: `zoho-middleware/routes/pos.js`, `lib/brewpad-integration.js`, `js/modules/11-cart.js`, `js/kiosk.js`, `js/lib/constants.js`, `apps-script/adminApi.gs`
+- Direct codebase analysis: `js/modules/08-catalog-ingredients.js`, `js/modules/15-hops.js`, `js/modules/13-init.js`, `js/modules/11-cart.js`, `zoho-middleware/routes/catalog.js`, `package.json`, `hops.html`, `products/ferment-in-store.html`
 - [Zoho Inventory Composite Items API](https://www.zoho.com/inventory/api/v1/compositeitems/) — confirmed composite items are not line-itemizable in Sales Orders/Invoices via REST API
-- [Zoho Inventory Sales Orders API](https://www.zoho.com/inventory/api/v1/salesorders/) — line_items accepts `item_id` for standard inventory items only
 - [beerxml npm package](https://www.npmjs.com/package/beerxml) — lightweight BeerXML 1.0 parser for Node.js
 - [BeerXML Standard](https://beerxml.com/) — BeerXML 1.0 schema reference
 
 ---
 
-*Architecture research for: Steins & Vines recipe-based product system integration*
-*Researched: 2026-05-09*
+*Architecture research for: Steins & Vines catalog subpages + recipe-based product system*
+*Originally: 2026-05-09 | Updated for v3.0 catalog subpages: 2026-05-27*
