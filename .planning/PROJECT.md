@@ -8,20 +8,16 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 
 **Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.**
 
-## Current Milestone: v2.0 Recipe-Based Products
+## Current Milestone: v3.0 Catalog Subpages
 
-**Goal:** Customers can browse pre-made beer/ferment recipes or request custom recipes, with ingredient-level inventory tracking, competitive pricing, and seamless flow through kiosk sales, BrewPad batch tracking, and Zoho.
+**Goal:** Break the monolithic ingredients page into dedicated category subpages with shared template structure, cross-category navigation, and unified search.
 
 **Target features:**
-- Recipe data model — recipes as collections of existing ingredient SKUs with quantities and a brewing/service fee
-- BeerSmith import — import recipes from BeerXML format into the system
-- Recipe management — staff can create, edit, and maintain core recipes via admin
-- Public site browsing — customers see core recipes alongside wine kits, with a "build your own" option for custom consultations
-- Kiosk recipe sales — select a recipe, ingredients auto-populate the cart, brewing fee added, sale processed
-- Custom recipe support — staff can build ad-hoc recipes from available ingredients for one-off brews
-- Ingredient-level inventory deduction — recipe sale deducts each ingredient from Zoho Inventory automatically
-- BrewPad integration — batches linked to their recipe and individual ingredients
-- Brewing fee structure — define fee model for beer (likely different from wine's $45+$5)
+- Shared page template system (grid/list, filters, search, cart, sub-nav) reusable across all subpages
+- 5 new subpages: Grains, Yeast, Additives, Packaging, Equipment — simple, clean designs with unique hero/accent
+- Horizontal sub-nav bar on all ingredient pages for category switching
+- Cross-category search with inline overlay showing grouped results
+- Zoho subcategory tagging for all items + snapshot pipeline update
 
 ## Requirements
 
@@ -123,4 +119,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-27 after v2.0 milestone completion*
+*Last updated: 2026-05-27 after v3.0 milestone initialization*
