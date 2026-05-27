@@ -302,7 +302,7 @@ Plans:
   5. Expanded cards show origin, notes/history text, size variant toggle buttons, price display, and Add to Cart
   6. Size toggle switches between two SKUs per hop updating price; single "Add to Cart" button adds the selected variant to the ingredients cart (sv-cart-ingredients)
   7. Flavor profile filter buttons, text search, and sort controls (name, alpha acid, price) all work correctly
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 **Wave 1** *(no dependencies -- run in parallel)*
@@ -310,7 +310,7 @@ Plans:
 - [x] 19-02-PLAN.md -- JS module (15-hops.js): data loading, radar chart, card rendering, accordion, size toggle, filters, search, sort, cart integration, unit tests
 
 **Wave 2** *(depends on Wave 1)*
-- [ ] 19-03-PLAN.md -- Build pipeline integration (package.json), test/lint/build verification, human visual verification
+- [x] 19-03-PLAN.md -- Build pipeline integration (package.json), test/lint/build verification, human visual verification
 
 ---
 
