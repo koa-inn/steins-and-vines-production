@@ -51,21 +51,21 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | — | Not started |
-| DATA-02 | — | Not started |
-| TPL-01 | — | Not started |
-| TPL-02 | — | Not started |
-| TPL-03 | — | Not started |
-| TPL-04 | — | Not started |
-| CAT-01 | — | Not started |
-| CAT-02 | — | Not started |
-| CAT-03 | — | Not started |
-| CAT-04 | — | Not started |
-| CAT-05 | — | Not started |
-| NAV-01 | — | Not started |
-| NAV-02 | — | Not started |
-| NAV-03 | — | Not started |
-| SRCH-01 | — | Not started |
-| SRCH-02 | — | Not started |
-| BUILD-01 | — | Not started |
-| BUILD-02 | — | Not started |
+| DATA-01 | Phase 20 | Not started |
+| DATA-02 | Phase 20 | Not started |
+| TPL-01 | Phase 21 | Not started |
+| TPL-02 | Phase 21 | Not started |
+| TPL-03 | Phase 21 | Not started |
+| TPL-04 | Phase 21 | Not started |
+| BUILD-01 | Phase 21 | Not started |
+| CAT-01 | Phase 22 | Not started |
+| CAT-02 | Phase 22 | Not started |
+| CAT-03 | Phase 22 | Not started |
+| CAT-04 | Phase 22 | Not started |
+| CAT-05 | Phase 22 | Not started |
+| NAV-01 | Phase 22 | Not started |
+| NAV-02 | Phase 22 | Not started |
+| NAV-03 | Phase 22 | Not started |
+| SRCH-01 | Phase 23 | Not started |
+| SRCH-02 | Phase 23 | Not started |
+| BUILD-02 | Phase 24 | Not started |

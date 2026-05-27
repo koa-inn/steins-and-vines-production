@@ -5,6 +5,7 @@
 - ✅ **v1.0 Kiosk Production Readiness** — Phases 1-4 (shipped 2026-04-28)
 - ✅ **v1.1 Brewpad Reliability & Integration** — Phases 5-11 (shipped 2026-05-06)
 - ✅ **v2.0 Recipe-Based Products** — Phases 12-19 (shipped 2026-05-27)
+- 🚧 **v3.0 Catalog Subpages** — Phases 20-24 (in progress)
 
 ## Phases
 
@@ -45,6 +46,73 @@
 
 </details>
 
+### 🚧 v3.0 Catalog Subpages (In Progress)
+
+**Milestone Goal:** Break the monolithic ingredients page into dedicated category subpages with shared template, cross-category navigation, and unified search.
+
+- [ ] **Phase 20: Zoho Data Foundation** - Tag all ingredient items with subcategory; refresh snapshot pipeline
+- [ ] **Phase 21: Shared Template & Build Infrastructure** - Shared JS module, CSS, and build pipeline for all subpages
+- [ ] **Phase 22: Category Subpages & Navigation** - All 5 subpages live with sub-nav and main nav dropdown
+- [ ] **Phase 23: Cross-Category Search** - Search overlay with grouped results and deep-link navigation
+- [ ] **Phase 24: SEO & Staging Deploy** - Per-subpage SEO meta, QA pass, and staging deployment
+
+## Phase Details
+
+### Phase 20: Zoho Data Foundation
+**Goal**: All ingredient items carry accurate subcategory data so the frontend can filter correctly
+**Depends on**: Nothing (first phase of this milestone)
+**Requirements**: DATA-01, DATA-02
+**Success Criteria** (what must be TRUE):
+  1. Every ingredient item in Zoho Inventory has its Subcategory custom field set to one of: Grain, Yeast, Additive, Packaging, Equipment, Hops, or uncategorized
+  2. The nightly snapshot JSON file includes the subcategory field for each ingredient item
+  3. Client-side filtering by subcategory value returns the correct items on a local test page
+**Plans**: TBD
+
+### Phase 21: Shared Template & Build Infrastructure
+**Goal**: A single reusable JS module and CSS file can render any category subpage from a per-page config object, and the build pipeline handles all new files
+**Depends on**: Phase 20
+**Requirements**: TPL-01, TPL-02, TPL-03, TPL-04, BUILD-01
+**Success Criteria** (what must be TRUE):
+  1. A test HTML page using `16-catalog-subpage.js` with a minimal config renders a product grid from the ingredients API filtered to a single subcategory
+  2. Users can switch between grid and list view on the test page
+  3. Out-of-stock items display a visible indicator; a category with no items displays a friendly empty-state message
+  4. Each subpage's hero section displays the category name with a distinct accent color
+  5. `npm run build` completes without errors and produces stamped, minified output for all new CSS and JS files
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 22: Category Subpages & Navigation
+**Goal**: Customers can navigate directly to any ingredient category subpage from anywhere on the site, and all 5 category pages are live
+**Depends on**: Phase 21
+**Requirements**: CAT-01, CAT-02, CAT-03, CAT-04, CAT-05, NAV-01, NAV-02, NAV-03
+**Success Criteria** (what must be TRUE):
+  1. Each of the 5 subpages (Grains, Yeast, Additives, Packaging, Equipment) loads and shows only its category's items with correct cart controls
+  2. A horizontal sub-nav bar appears on every ingredient page showing: All | Hops | Grains | Yeast | Additives | Packaging | Equipment — and the current page's tab is visually highlighted
+  3. The main site Products dropdown includes direct links to each ingredient category subpage
+  4. Weight-based products on the Grains page offer quantity entry in kg/g as appropriate
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 23: Cross-Category Search
+**Goal**: Customers can search across all ingredient categories from a single entry point and jump directly to any matching item
+**Depends on**: Phase 22
+**Requirements**: SRCH-01, SRCH-02
+**Success Criteria** (what must be TRUE):
+  1. Triggering the search icon in the sub-nav opens an overlay with a text input; typing at least 2 characters shows results grouped by category
+  2. Clicking a search result navigates to that item's category subpage with the item's detail panel already expanded
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 24: SEO & Staging Deploy
+**Goal**: Each subpage is discoverable by search engines and the full feature set is verified on staging
+**Depends on**: Phase 23
+**Requirements**: BUILD-02
+**Success Criteria** (what must be TRUE):
+  1. Each subpage has a unique title tag, meta description, og:title, og:description, canonical URL, and LocalBusiness JSON-LD
+  2. sitemap.xml includes entries for all 5 new subpages
+  3. All 5 subpages load correctly on staging.steinsandvines.ca with no console errors
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -52,3 +120,8 @@
 | 1-4 | v1.0 | 8/8 | Complete | 2026-04-28 |
 | 5-11 | v1.1 | 24/24 | Complete | 2026-05-06 |
 | 12-19 | v2.0 | 26/26 | Complete | 2026-05-27 |
+| 20. Zoho Data Foundation | v3.0 | 0/? | Not started | - |
+| 21. Shared Template & Build Infrastructure | v3.0 | 0/? | Not started | - |
+| 22. Category Subpages & Navigation | v3.0 | 0/? | Not started | - |
+| 23. Cross-Category Search | v3.0 | 0/? | Not started | - |
+| 24. SEO & Staging Deploy | v3.0 | 0/? | Not started | - |

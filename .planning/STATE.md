@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Catalog Subpages
 status: planning
-last_updated: "2026-05-27T21:51:50.099Z"
+last_updated: "2026-05-27"
 last_activity: 2026-05-27
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,23 +17,25 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-09)
+See: .planning/PROJECT.md (updated 2026-05-27)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 19 — hop-inventory-catalog
+**Current focus:** Phase 20 — zoho-data-foundation
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 20 of 24 (Zoho Data Foundation)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-27 — Milestone v3.0 started
+Status: Ready to plan
+Last activity: 2026-05-27 — v3.0 roadmap created (Phases 20-24)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 18 (this milestone)
+- Total plans completed: 0 (this milestone)
 - Average duration: — min
 - Total execution time: — min
 
@@ -41,66 +43,23 @@ Last activity: 2026-05-27 — Milestone v3.0 started
 
 ### Decisions
 
-- [v2.0 Roadmap]: Recipes stored in Google Sheets "Recipes" tab, not Zoho composite items — composite items do not auto-deduct components via REST API invoice path
-- [v2.0 Roadmap]: locked_price on recipe record set explicitly by staff — never computed at runtime from live Zoho ingredient rates to avoid pricing drift
-- [v2.0 Roadmap]: recipe_snapshot JSON serialized to Batches sheet at sale time — immune to future recipe edits; unretrofit-able, must be in schema before first sale
-- [v2.0 Roadmap]: BEER_SALES_ENABLED env var gates kiosk confirm endpoint server-side — UI hiding alone is insufficient; env var managed on Railway, defaults false
-- [v2.0 Roadmap]: detectRecipeSale() separate from detectKitItems() — recipe sales must not trigger one batch per ingredient line item
-- [v2.0 Roadmap]: BeerXML import (Phase 15) deferred after core kiosk flow (Phase 14) — manual recipe entry unblocks kiosk testing without import
-- [13-01]: CR-01 lock placement — validation guard stays above lock to avoid unnecessary lock contention on invalid input
-- [13-01]: _invalidateRecipeCache clears status-variant keys (all/draft/active/inactive at :0:0) covering default admin UI queries
-- [13-01]: Server-token block passes 'middleware' as userEmail, matching existing create_recipe pattern
-- [13-02]: Availability returns 'unknown' when ingredient cache is cold rather than triggering blocking Zoho refresh
-- [13-02]: bustRecipeCache clears all 4 status-variant list keys at default pagination (:0:0)
-- [13-02]: Method+path composite key in test mocks to avoid handler collision on shared path patterns
-- [13-03]: Recipes tab placed after Batches in tab order (operational flow: recipe -> sale -> batch)
-- [13-03]: initRecipesControls called only from initRecipesTab (no DOMContentLoaded) to prevent double event listener binding
-- [14-01]: detectRecipeSale uses source 'kiosk_recipe' not 'kiosk' — distinguishes recipe batches from kit batches in BrewPad
-- [14-01]: LOCK_KEYS object added as sibling to CACHE_KEYS in constants.js for centralized mutex key management
-- [14-01]: detectRecipeSale .catch(()=>{}) fire-and-forget — Apps Script failure after payment is silent per D-12
-- [14-02]: pos-recipe.js is a standalone route file — not modifying pos.js avoids branching in complex handler
-- [14-02]: Terminal charge = sum of ingredient Zoho catalog rates + applicable fees (not locked_price per D-08 resolution)
-- [14-02]: detectRecipeSale called only for in-store sales (take-out creates no batch per D-09)
-- [14-02]: RECIPES_TS cache also busted after sale to ensure freshness of recipe availability data
-- [14-03]: Recipe cart items use rate=0 display-only — server recomputes all rates at confirm (T-14-11 accept)
-- [14-03]: _kioskCart._recipeContext sentinel detects recipe sales in checkout — avoids modifying existing product flow
-- [18-03]: can-photo.jpg removed (wrong subject: cocktail drinks) — can-template.svg fallback provides purpose-built can illustration for label mockup
-- [18-03]: PHOTO_LABEL_REGIONS for can derived mathematically from SVG viewBox (600x800) scaled to canvas (280x420); bottle from photo inspection of 280x560 product shot
-- [14-03]: Recipe 202 pending handled by calling /confirm immediately — admin.js kiosk is staff-facing, no polling needed
-- [14-03]: milling toggle shown only for take-out (D-03) — JS enforces visibility, server enforces logic
+- [v3.0 Roadmap]: One shared module `16-catalog-subpage.js` parameterized via `SUBPAGE_CONFIG` per page — not 5 separate modules
+- [v3.0 Roadmap]: Static sub-nav HTML duplicated across pages (no SSI on GitHub Pages), CSS-only active state via `body[data-page]` selector
+- [v3.0 Roadmap]: Fuse.js v7.1.0 already vendored — no new libraries needed
+- [v3.0 Roadmap]: Search overlay uses lazy-init single Fuse instance over all ingredients (single shared cache key)
+- [v3.0 Roadmap]: `_activeCartTab` must be overridden to `'ingredients'` at module init on all subpages
 
 ### Pending Todos
 
 None.
 
-## Deferred Items
-
-Items acknowledged and deferred at milestone close on 2026-05-27:
-
-| Category | Item | Status |
-|----------|------|--------|
-| quick_task | split-makers-fee-materials | missing |
-| quick_task | customer-name-split | missing |
-| todo | hop-compare-mode | pending |
-| uat_gap | Phase 02 UAT | partial |
-| uat_gap | Phase 10 UAT (1 scenario) | partial |
-| uat_gap | Phase 11 UAT (5 scenarios) | partial |
-| uat_gap | Phase 15 UAT (8 scenarios) | partial |
-| uat_gap | Phase 16 UAT (5 scenarios) | partial |
-| verification | Phases 02,04,06,08,10,11,15,16,17 | human_needed |
-
 ### Blockers/Concerns
 
-- Federal brewing licence pending — BEER_SALES_ENABLED must remain false in Railway production until licence granted; public recipe browsing (informational) can go live earlier
-- Tax treatment for brewing service fee vs. ingredient sales under BC ferment-in-store model needs confirmation before first live recipe sale
-- Redis reservation mechanism for multi-ingredient inventory — RESOLVED: simple mutex via cache.acquireLock('recipe-sale', 30) per D-04; one recipe sale at a time fits single-kiosk reality
+- 198/219 ingredients have empty subcategory in Zoho — Phase 20 Zoho tagging is a hard prerequisite before any subpage can show correct data
+- Federal brewing licence pending — BEER_SALES_ENABLED must remain false in Railway production
 
 ## Session Continuity
 
-Last session: 2026-05-19T03:14:19.298Z
-Stopped at: Phase 19 context gathered
-Resume file: .planning/phases/19-hop-inventory-catalog/19-CONTEXT.md
-
-## Operator Next Steps
-
-- Start the next milestone with /gsd-new-milestone
+Last session: 2026-05-27
+Stopped at: Roadmap created, ready to plan Phase 20
+Resume file: None
