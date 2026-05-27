@@ -343,6 +343,11 @@ document.addEventListener('DOMContentLoaded', function () {
     initPromoBanner();
   }
 
+  // Hops page — cart drawer for standalone catalog
+  if (page === 'hops') {
+    initCartDrawer();
+  }
+
   // NOTE: loadFooterHours() is intentionally NOT called. It derives hours
   // from the bookable timeslots CSV, which drifts if the first slot of the
   // day isn't exactly at opening time (e.g. buffered by 30 min for setup).
