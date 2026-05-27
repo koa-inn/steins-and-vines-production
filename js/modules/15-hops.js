@@ -312,7 +312,7 @@ function loadHops(callback) {
       _allHops = items.filter(function (r) {
         var p = parseFloat(r.price_per_unit || '0') || 0;
         if (p <= 0) return false;
-        var subcat = (r.subcategory || '').toLowerCase();
+        var subcat = (r.subcategory || r.category || '').toLowerCase();
         return subcat === 'hops';
       });
       _hopGroups = groupHopsByVariant(_allHops);
