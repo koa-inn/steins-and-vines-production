@@ -1603,6 +1603,23 @@ function renderHops() {
 // Init
 // ---------------------------------------------------------------------------
 
+function updateHopsCartFab() {
+  var fab = document.getElementById('hops-cart-fab');
+  var countEl = document.getElementById('hops-cart-fab-count');
+  if (!fab) return;
+  var items = (typeof getAllCartItems === 'function') ? getAllCartItems() : [];
+  var count = 0;
+  items.forEach(function (item) {
+    count += (typeof isWeightUnit === 'function' && isWeightUnit(item.unit)) ? 1 : (parseFloat(item.qty) || 1);
+  });
+  if (count === 0) {
+    fab.classList.add('hidden');
+  } else {
+    fab.classList.remove('hidden');
+    if (countEl) countEl.textContent = count;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   var catalog = document.getElementById('hops-catalog');
   if (catalog) {
@@ -1613,6 +1630,15 @@ document.addEventListener('DOMContentLoaded', function () {
     wireHopEvents();
     renderHops();
   });
+
+  var fab = document.getElementById('hops-cart-fab');
+  if (fab) {
+    fab.addEventListener('click', function () {
+      if (typeof openCartDrawer === 'function') openCartDrawer();
+    });
+  }
+  updateHopsCartFab();
+  window.addEventListener('reservation-changed', updateHopsCartFab);
 });
 
 if (typeof module !== 'undefined' && module.exports) {

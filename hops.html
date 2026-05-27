@@ -70,8 +70,8 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mpihwixg">
-  <link rel="stylesheet" href="css/hops.min.css?v=mpihwixg">
+  <link rel="stylesheet" href="css/styles.min.css?v=mpo4cn5i">
+  <link rel="stylesheet" href="css/hops.min.css?v=mpo4cn5i">
 </head>
 <body data-page="hops">
   <!-- SVG filter for crumpled foil texture -->
@@ -189,6 +189,32 @@
       <div class="bag-seal-bottom" aria-hidden="true"></div>
     </section>
     </div>
+
+    <!-- Cart drawer (slides in from right) -->
+    <div class="cart-drawer-backdrop" id="cart-drawer-backdrop"></div>
+    <div class="cart-drawer" id="cart-drawer">
+      <div class="cart-drawer-header">
+        <h3 id="cart-drawer-title">Your Cart</h3>
+        <button type="button" class="cart-drawer-close" id="cart-drawer-close" aria-label="Close cart">&times;</button>
+      </div>
+      <div class="cart-drawer-items" id="cart-drawer-items">
+        <p class="cart-sidebar-empty">Your cart is empty.</p>
+      </div>
+      <div class="cart-drawer-footer" id="cart-drawer-footer">
+        <div class="cart-drawer-subtotal">
+          <span>Subtotal</span>
+          <span id="cart-drawer-total">$0.00</span>
+        </div>
+        <a href="reservation.html" class="btn cart-drawer-checkout" id="cart-drawer-checkout">Checkout</a>
+        <button type="button" class="btn-secondary cart-drawer-clear" id="cart-drawer-clear">Clear Cart</button>
+      </div>
+    </div>
+
+    <!-- Floating cart button -->
+    <button type="button" class="hops-cart-fab hidden" id="hops-cart-fab" aria-label="View cart">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      <span class="hops-cart-fab-count" id="hops-cart-fab-count">0</span>
+    </button>
   </main>
 
   <footer class="site-footer">
@@ -219,7 +245,7 @@
   <script src="js/vendor/sentry.min.js"></script>
   <script src="js/sentry-init.js"></script>
   <script src="js/sheets-config.js" defer></script>
-  <script src="js/main.min.js?v=mpihwixg" defer></script>
-  <script src="js/modules/15-hops.min.js?v=mpihwixg" defer></script>
+  <script src="js/main.min.js?v=mpo4cn5i" defer></script>
+  <script src="js/modules/15-hops.min.js?v=mpo4cn5i" defer></script>
 </body>
 </html>
