@@ -43,18 +43,23 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 - ✓ Batches linked to Zoho sales orders for audit trail — v1.1
 - ✓ Batch lifecycle visible from sale through fermentation to completion — v1.1
 
+- ✓ Recipe data model with ingredient lists, quantities, and service fees — v2.0
+- ✓ BeerSmith/BeerXML recipe import — v2.0
+- ✓ Recipe CRUD for staff (admin interface) — v2.0
+- ✓ Kiosk recipe sale with ingredient auto-population — v2.0
+- ✓ Ingredient-level inventory deduction on recipe sale — v2.0
+- ✓ BrewPad batches linked to recipe and individual ingredients — v2.0
+- ✓ Brewing fee structure for beer/fermented products — v2.0
+- ✓ Custom labels page with canvas mockup tool — v2.0
+- ✓ Hop inventory catalog with radar charts and cart integration — v2.0
+
 ### Active
 
-- [ ] Recipe data model with ingredient lists, quantities, and service fees
-- [ ] BeerSmith/BeerXML recipe import
-- [ ] Recipe CRUD for staff (admin interface)
+- [ ] Catalog subpages — dedicated pages per ingredient category (Grains, Yeast, Additives, Packaging, Equipment)
+- [ ] Sub-nav bar for category switching across ingredient pages
+- [ ] Cross-category product search with inline overlay
 - [ ] Pre-made recipes browsable on public site
 - [ ] Custom recipe request flow for customers
-- [ ] Kiosk recipe sale with ingredient auto-population
-- [ ] Custom recipe builder for staff (ad-hoc ingredient selection)
-- [ ] Ingredient-level inventory deduction on recipe sale
-- [ ] BrewPad batches linked to recipe and individual ingredients
-- [ ] Brewing fee structure for beer/fermented products
 
 ### Out of Scope
 
@@ -92,9 +97,13 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 |----------|-----------|---------|
 | Keep Google Sheets as batch backend | Already working, staff familiar, Apps Script API adequate | ✓ Good |
 | Bridge kiosk→brewpad via middleware | Kiosk already talks to middleware; middleware can trigger batch creation | ✓ Good |
-| Recipes as ingredient collections, not new SKUs | Ingredients already in Zoho; avoids duplicate inventory tracking | — Pending |
-| BeerSmith as recipe design tool | Industry standard, BeerXML export is well-documented | — Pending |
-| Kiosk-first for recipe sales | In-store consultation needed for custom recipes; online later | — Pending |
+| Recipes as ingredient collections, not new SKUs | Ingredients already in Zoho; avoids duplicate inventory tracking | ✓ Good |
+| BeerSmith as recipe design tool | Industry standard, BeerXML export is well-documented | ✓ Good |
+| Kiosk-first for recipe sales | In-store consultation needed for custom recipes; online later | ✓ Good |
+| Recipes in Google Sheets, not Zoho composite items | Zoho composite items don't auto-deduct via REST API invoice path | ✓ Good |
+| locked_price set by staff, not computed from live rates | Avoids pricing drift from ingredient cost changes | ✓ Good |
+| recipe_snapshot frozen at sale time | Immune to future recipe edits; batch always reflects what was sold | ✓ Good |
+| Standalone JS modules for subpages (14-labels, 15-hops) | Not in concat:js; loaded independently per page | ✓ Good |
 
 ## Evolution
 
@@ -114,4 +123,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-09 after milestone v2.0 initialization*
+*Last updated: 2026-05-27 after v2.0 milestone completion*

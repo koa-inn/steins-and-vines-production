@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Recipe-Based Products
-status: executing
+status: Awaiting next milestone
 stopped_at: Phase 19 context gathered
-last_updated: "2026-05-27T18:36:46.102Z"
-last_activity: 2026-05-27 -- Phase 19 execution started
+last_updated: "2026-05-27T21:41:41.186Z"
+last_activity: 2026-05-27 — Milestone v2.0 completed and archived
 progress:
   total_phases: 4
   completed_phases: 4
@@ -25,12 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-09)
 
 ## Current Position
 
-Phase: 19 (hop-inventory-catalog) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 19
-Last activity: 2026-05-27 -- Phase 19 execution started
-
-Progress: [#######░░░] 70%
+Phase: Milestone v2.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-05-27 — Milestone v2.0 completed and archived
 
 ## Performance Metrics
 
@@ -76,6 +74,22 @@ Progress: [#######░░░] 70%
 
 None.
 
+## Deferred Items
+
+Items acknowledged and deferred at milestone close on 2026-05-27:
+
+| Category | Item | Status |
+|----------|------|--------|
+| quick_task | split-makers-fee-materials | missing |
+| quick_task | customer-name-split | missing |
+| todo | hop-compare-mode | pending |
+| uat_gap | Phase 02 UAT | partial |
+| uat_gap | Phase 10 UAT (1 scenario) | partial |
+| uat_gap | Phase 11 UAT (5 scenarios) | partial |
+| uat_gap | Phase 15 UAT (8 scenarios) | partial |
+| uat_gap | Phase 16 UAT (5 scenarios) | partial |
+| verification | Phases 02,04,06,08,10,11,15,16,17 | human_needed |
+
 ### Blockers/Concerns
 
 - Federal brewing licence pending — BEER_SALES_ENABLED must remain false in Railway production until licence granted; public recipe browsing (informational) can go live earlier
@@ -87,3 +101,7 @@ None.
 Last session: 2026-05-19T03:14:19.298Z
 Stopped at: Phase 19 context gathered
 Resume file: .planning/phases/19-hop-inventory-catalog/19-CONTEXT.md
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
