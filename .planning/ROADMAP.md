@@ -66,7 +66,10 @@
   1. Every ingredient item in Zoho Inventory has its Subcategory custom field set to one of: Grain, Yeast, Additive, Packaging, Equipment, Hops, or uncategorized
   2. The nightly snapshot JSON file includes the subcategory field for each ingredient item
   3. Client-side filtering by subcategory value returns the correct items on a local test page
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 20-01-PLAN.md — Create bulk tagging script and coverage verification script
+- [ ] 20-02-PLAN.md — Execute tagging workflow and verify 100% coverage
 
 ### Phase 21: Shared Template & Build Infrastructure
 **Goal**: A single reusable JS module and CSS file can render any category subpage from a per-page config object, and the build pipeline handles all new files
@@ -120,7 +123,7 @@
 | 1-4 | v1.0 | 8/8 | Complete | 2026-04-28 |
 | 5-11 | v1.1 | 24/24 | Complete | 2026-05-06 |
 | 12-19 | v2.0 | 26/26 | Complete | 2026-05-27 |
-| 20. Zoho Data Foundation | v3.0 | 0/? | Not started | - |
+| 20. Zoho Data Foundation | v3.0 | 0/2 | Planning | - |
 | 21. Shared Template & Build Infrastructure | v3.0 | 0/? | Not started | - |
 | 22. Category Subpages & Navigation | v3.0 | 0/? | Not started | - |
 | 23. Cross-Category Search | v3.0 | 0/? | Not started | - |
