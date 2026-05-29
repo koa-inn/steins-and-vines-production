@@ -55,14 +55,14 @@ All sizes in rem at base 16px = 1rem. Source: `css/styles.css:142,149,193,197-21
 
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
-| Body | 1rem (16px) | 400 | 1.6 | Card descriptions, detail panel body text, toolbar intro, hero short description |
-| Label | 0.875rem (14px) | 700 | 1.5 | Filter pills, sort options, stock badges, price labels, table row cells, card metadata |
+| Body | 1rem (16px) | 400 | 1.6 | Card descriptions, detail panel body text, toolbar intro, hero short description, hero "Read more" expanded paragraph |
+| Label | 0.875rem (14px) | 700 | 1.5 | Filter pills, sort options, stock badges, price labels, table row cells, card metadata, "Read more" toggle link |
 | Heading | 1.5rem (24px) | 700 | 1.2 | Card product name (h2), detail panel heading |
 | Display | clamp(1.625rem, 4vw + 1rem, 3rem) | 700 | 1.2 | Hero h1 category name (matches hops hero h1 pattern) |
 
-Secondary heading (hero short description): 1.125rem (18px), weight 400, line-height 1.5. Source: `css/hops.css:115`.
-
-Small/meta text: 0.75rem (12px), weight 700 — used for stock badge text only.
+Typography rationale for collapsed sizes:
+- Hero short description uses Body (1rem, weight 400) — it is running text differentiated from the heading by context and weight contrast, not a distinct size.
+- Stock badge text uses Label (0.875rem, weight 700) — its visual identity comes from background color and border-radius; a smaller size is redundant and breaks the 4-size constraint.
 
 ---
 
@@ -106,8 +106,8 @@ Components delivered in `css/catalog-subpage.css` and `js/modules/16-catalog-sub
 - Accent stripe bottom: 6px zigzag SVG border in `--subpage-accent` color (adapts the hops `::after` zigzag pattern)
 - Height: ~150px total (48px top + 48px bottom padding + h1 + description line)
 - h1: Display font, weight 700, `--color-cream`
-- Short description (`.subpage-hero-desc`): 1.125rem, weight 400, `--color-cream`, max-width 40ch centered
-- "Read more" toggle (`.subpage-hero-toggle`): 0.875rem, weight 700, `--color-cream`, underline style, cursor pointer. Expands `.subpage-hero-full` which is `display: none` by default (visible to crawlers via JS unhide on click, not CSS `visibility: hidden`)
+- Short description (`.subpage-hero-desc`): 1rem (Body), weight 400, `--color-cream`, max-width 40ch centered
+- "Read more" toggle (`.subpage-hero-toggle`): 0.875rem (Label), weight 700, `--color-cream`, underline style, cursor pointer. Expands `.subpage-hero-full` which is `display: none` by default (visible to crawlers via JS unhide on click, not CSS `visibility: hidden`)
 
 ### Product Grid (`.subpage-catalog-grid`)
 - CSS grid, `grid-template-columns: repeat(auto-fill, minmax(250px, 1fr))`, max 4 columns at wide viewports
@@ -120,8 +120,8 @@ Components delivered in `css/catalog-subpage.css` and `js/modules/16-catalog-sub
 - `grid-column: 1 / -1` — spans full grid width
 - Background: `--color-cream`, border-top 3px solid `--color-green`
 - Padding: 24px (lg)
-- Close button: top-right corner, text "×", 1.5rem, weight 700, color `--color-text`
-- Content: product name (1.5rem, weight 700), description (1rem, weight 400, line-height 1.6), weight options (if applicable), stock count, cart control
+- Close button: top-right corner, text "×", 1.5rem (Heading size), weight 700, color `--color-text`
+- Content: product name (1.5rem Heading, weight 700), description (1rem Body, weight 400, line-height 1.6), weight options (if applicable), stock count, cart control
 - Smooth scroll into view on open
 
 ### Sort Controls (`.subpage-sort`)
@@ -151,14 +151,14 @@ Components delivered in `css/catalog-subpage.css` and `js/modules/16-catalog-sub
 - Reuse existing class from `js/modules/08-catalog-ingredients.js`
 - `.stock-badge--in`: background `--color-green`, color `--color-cream`, text "In Stock"
 - `.stock-badge--out`: background `--color-muted`, color `--color-white`, text "Out of Stock"
-- Size: 0.75rem, weight 700, border-radius 4px, padding 2px 6px
+- Size: 0.875rem (Label), weight 700, border-radius 4px, padding 2px 6px
 - Out-of-stock cards: cart controls are omitted entirely (no button shown)
 
 ### Empty State (`.catalog-no-results` + `.catalog-no-results-sub`)
 - Reuse existing class from `css/styles.css:2070`
 - Center-aligned, padding 48px 16px
-- Heading: 1.1rem, color `--color-brown`
-- Sub-message: 0.875rem, color `--color-muted`
+- Heading: 1rem (Body), color `--color-brown`
+- Sub-message: 0.875rem (Label), color `--color-muted`
 
 ---
 
@@ -237,14 +237,6 @@ Desktop panel: `grid-column: 1 / -1`, inserted via `insertBefore` as per RESEARC
 
 ---
 
-## Registry Safety
-
-| Registry | Blocks Used | Safety Gate |
-|----------|-------------|-------------|
-| none | n/a | Not applicable |
-
----
-
 ## Checker Sign-Off
 
 - [ ] Dimension 1 Copywriting: PASS
@@ -272,6 +264,8 @@ Desktop panel: `grid-column: 1 / -1`, inserted via `insertBefore` as per RESEARC
 | List view: Name/Price/Stock/Add to Cart columns | CONTEXT.md D-04 |
 | Colors (cream, green, brown, burgundy, error) | css/styles.css:118-129 |
 | Typography scale (display, body, label) | css/styles.css:142-227, css/hops.css hero |
+| Hero desc collapsed to Body (1rem) | Typography revision — running text, context differentiates from heading |
+| Badge text collapsed to Label (0.875rem) | Typography revision — visual identity from color/border-radius, not smaller size |
 | Stock badge classes and behavior | js/modules/08-catalog-ingredients.js:669-677 |
 | Empty state CSS class | css/styles.css:2070 |
 | Retry button pattern | css/hops.css:.catalog-retry-btn |
