@@ -92,8 +92,15 @@ Plans:
   4. Each subpage's hero section displays the category name with a distinct accent color
   5. `npm run build` completes without errors and produces stamped, minified output for all new CSS and JS files
 
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 2 plans
+Plans:
+**Wave 1**
+
+- [ ] 21-01-PLAN.md — Create 16-catalog-subpage.js standalone module and catalog-subpage.css stylesheet
+
+**Wave 2**
+
+- [ ] 21-02-PLAN.md — Test HTML page, unit tests, and build pipeline integration
 
 ### Phase 22: Category Subpages & Navigation
 
@@ -144,7 +151,7 @@ Plans:
 | 5-11 | v1.1 | 24/24 | Complete | 2026-05-06 |
 | 12-19 | v2.0 | 26/26 | Complete | 2026-05-27 |
 | 20. Zoho Data Foundation | v3.0 | 2/2 | Complete | 2026-05-28 |
-| 21. Shared Template & Build Infrastructure | v3.0 | 0/? | Not started | - |
+| 21. Shared Template & Build Infrastructure | v3.0 | 0/2 | Not started | - |
 | 22. Category Subpages & Navigation | v3.0 | 0/? | Not started | - |
 | 23. Cross-Category Search | v3.0 | 0/? | Not started | - |
 | 24. SEO & Staging Deploy | v3.0 | 0/? | Not started | - |
