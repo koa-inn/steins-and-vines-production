@@ -96,7 +96,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 21-01-PLAN.md — Create 16-catalog-subpage.js standalone module and catalog-subpage.css stylesheet
+- [x] 21-01-PLAN.md — Create 16-catalog-subpage.js standalone module and catalog-subpage.css stylesheet
 
 **Wave 2**
 
@@ -151,7 +151,7 @@ Plans:
 | 5-11 | v1.1 | 24/24 | Complete | 2026-05-06 |
 | 12-19 | v2.0 | 26/26 | Complete | 2026-05-27 |
 | 20. Zoho Data Foundation | v3.0 | 2/2 | Complete | 2026-05-28 |
-| 21. Shared Template & Build Infrastructure | v3.0 | 0/2 | Not started | - |
+| 21. Shared Template & Build Infrastructure | v3.0 | 1/2 | In Progress|  |
 | 22. Category Subpages & Navigation | v3.0 | 0/? | Not started | - |
 | 23. Cross-Category Search | v3.0 | 0/? | Not started | - |
 | 24. SEO & Staging Deploy | v3.0 | 0/? | Not started | - |
