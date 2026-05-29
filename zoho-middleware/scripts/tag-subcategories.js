@@ -27,6 +27,8 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 var zohoApi = require('../lib/zoho-api');
+var zohoAuth = require('../lib/zohoAuth');
+var cache = require('../lib/cache');
 
 // ---------------------------------------------------------------------------
 // Config
@@ -175,6 +177,15 @@ async function main() {
     console.log('');
   }
 
+  // Connect to Redis first, then load refresh token and get a fresh access token
+  await cache.init();
+  await zohoAuth.init();
+  if (!zohoAuth.isAuthenticated()) {
+    console.error('[tag-subcategories] Not authenticated — complete OAuth flow first');
+    console.error('[tag-subcategories] Start middleware (node server.js), visit http://localhost:3001/auth/zoho, then re-run.');
+    process.exit(1);
+  }
+
   // Step 1: Fetch all active items from Zoho Inventory
   log('Fetching all active items from Zoho Inventory...');
   var allItems = await zohoApi.fetchAllItems({ status: 'active' });
@@ -189,15 +200,19 @@ async function main() {
     process.exit(1);
   }
 
-  var firstItem = allItems[0];
-  log('[preflight] Inspecting custom fields on first item: ' + firstItem.name);
+  // Pick a cf_type="Ingredient" item for the preflight check — only this Zoho
+  // item group has the Subcategory custom field.
+  var preflightItem = allItems.find(function (item) {
+    return (item.cf_type || '').toLowerCase() === 'ingredient';
+  }) || allItems[0];
+  log('[preflight] Inspecting custom fields on ingredient item: ' + preflightItem.name);
 
-  var itemDetail = await zohoApi.inventoryGet('/items/' + firstItem.item_id);
-  var detailItem = (itemDetail && itemDetail.item) ? itemDetail.item : firstItem;
+  var itemDetail = await zohoApi.inventoryGet('/items/' + preflightItem.item_id);
+  var detailItem = (itemDetail && itemDetail.item) ? itemDetail.item : preflightItem;
   var cfs = detailItem.custom_fields || [];
   var labels = cfs.map(function (cf) { return cf.label || '(no label)'; });
 
-  log('[preflight] Custom fields on ' + firstItem.name + ': ' + (labels.length ? labels.join(', ') : '(none found)'));
+  log('[preflight] Custom fields on ' + preflightItem.name + ': ' + (labels.length ? labels.join(', ') : '(none found)'));
 
   var subcategoryLabelFound = false;
   for (var fi = 0; fi < cfs.length; fi++) {
@@ -215,13 +230,11 @@ async function main() {
   log('[preflight] Confirmed: "Subcategory" custom field exists');
   console.log('');
 
-  // Step 3: Filter to ingredients only
-  // Exclude: services, kit categories (wine/beer/cider/seltzer via cf_type)
+  // Step 3: Filter to cf_type="Ingredient" items only
+  // Only this Zoho item group has the Subcategory CF. Items with cf_type
+  // Equipment/Packaging/Cleaning are already categorized by their cf_type.
   var ingredients = allItems.filter(function (item) {
-    if (item.product_type === 'service') return false;
-    var cfType = (item.cf_type || '').toLowerCase();
-    if (KIT_CATEGORIES.indexOf(cfType) !== -1) return false;
-    return true;
+    return (item.cf_type || '').toLowerCase() === 'ingredient';
   });
 
   log('Ingredient items (after filtering kits and services): ' + ingredients.length);

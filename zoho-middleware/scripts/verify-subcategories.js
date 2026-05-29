@@ -56,13 +56,22 @@ http.get(INGREDIENTS_URL, function (res) {
       process.exit(1);
     }
 
-    // Tally subcategory counts and collect missing items
+    // Tally subcategory counts and collect missing items.
+    // cf_subcategory is authoritative; cf_type is a valid fallback for item
+    // groups that lack the Subcategory custom field (Equipment, Packaging,
+    // Cleaning/Sanitization).
     var counts = {};
     var missing = [];
 
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
-      var sub = (item.subcategory || '').trim();
+      var sub = (item.cf_subcategory || item.subcategory || '').trim();
+      if (!sub) {
+        var cfType = (item.cf_type || '').trim();
+        if (cfType) {
+          sub = cfType;
+        }
+      }
       if (!sub) {
         missing.push(item);
       } else {
