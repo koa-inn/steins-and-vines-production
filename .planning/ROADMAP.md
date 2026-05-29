@@ -50,7 +50,7 @@
 
 **Milestone Goal:** Break the monolithic ingredients page into dedicated category subpages with shared template, cross-category navigation, and unified search.
 
-- [ ] **Phase 20: Zoho Data Foundation** - Tag all ingredient items with subcategory; refresh snapshot pipeline
+- [x] **Phase 20: Zoho Data Foundation** - Tag all ingredient items with subcategory; refresh snapshot pipeline
 - [ ] **Phase 21: Shared Template & Build Infrastructure** - Shared JS module, CSS, and build pipeline for all subpages
 - [ ] **Phase 22: Category Subpages & Navigation** - All 5 subpages live with sub-nav and main nav dropdown
 - [ ] **Phase 23: Cross-Category Search** - Search overlay with grouped results and deep-link navigation
@@ -73,11 +73,11 @@
 Plans:
 **Wave 1**
 
-- [ ] 20-01-PLAN.md — Create bulk tagging script and coverage verification script
+- [x] 20-01-PLAN.md — Create bulk tagging script and coverage verification script
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Wave 2**
 
-- [ ] 20-02-PLAN.md — Execute tagging workflow and verify 100% coverage
+- [x] 20-02-PLAN.md — Execute tagging workflow and verify 100% coverage
 
 ### Phase 21: Shared Template & Build Infrastructure
 
@@ -143,7 +143,7 @@ Plans:
 | 1-4 | v1.0 | 8/8 | Complete | 2026-04-28 |
 | 5-11 | v1.1 | 24/24 | Complete | 2026-05-06 |
 | 12-19 | v2.0 | 26/26 | Complete | 2026-05-27 |
-| 20. Zoho Data Foundation | v3.0 | 0/2 | Planning | - |
+| 20. Zoho Data Foundation | v3.0 | 2/2 | Complete | 2026-05-28 |
 | 21. Shared Template & Build Infrastructure | v3.0 | 0/? | Not started | - |
 | 22. Category Subpages & Navigation | v3.0 | 0/? | Not started | - |
 | 23. Cross-Category Search | v3.0 | 0/? | Not started | - |
