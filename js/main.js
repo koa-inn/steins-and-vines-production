@@ -4308,6 +4308,8 @@ function initProductTabs() {
     if (millNote) millNote.classList.toggle('hidden', tab !== 'ingredients');
     var pickupNote = document.getElementById('ingredients-pickup-note');
     if (pickupNote) pickupNote.classList.toggle('hidden', tab !== 'ingredients');
+    var categoryTeaser = document.getElementById('ingredients-category-teaser');
+    if (categoryTeaser) categoryTeaser.classList.toggle('hidden', tab !== 'ingredients');
 
     var batchNote = document.getElementById('kits-batch-note');
     if (batchNote) batchNote.classList.toggle('hidden', tab !== 'kits');
