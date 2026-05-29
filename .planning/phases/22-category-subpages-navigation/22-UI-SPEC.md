@@ -46,8 +46,9 @@ Declared values (must be multiples of 4):
 Exceptions:
 - Sub-nav pill height: `min-height: 36px` (not a multiple of 4, but matches existing `.catalog-filter-btn` min-height for touch-target parity)
 - Sub-nav search icon button: `min-height: 36px` / `min-width: 36px` (same reason)
-- Sub-nav horizontal padding: 6px vertical / 14px horizontal — matches existing filter pill pattern exactly (source: `css/catalog-subpage.css` lines 211-214)
 - Touch targets on mobile: 44px minimum enforced by existing global mobile rule (source: `css/styles.css`)
+
+Note: Sub-nav pill padding uses `8px vertical / 16px horizontal` — conforming to sm/md tokens. Previous draft had non-conforming `6px / 14px` values; corrected in this revision.
 
 Source: RESEARCH.md pattern 2 (sub-nav CSS), catalog-subpage.css lines 61-230.
 
@@ -65,6 +66,8 @@ All sizes are from the existing established design system. No new type sizes are
 | Small / meta | 14px (0.875rem) | 400 or 700 | 1.5 | Lato | Card price, stock indicator, filter pill labels |
 
 Font weights in use: **400** (regular) and **700** (bold). Weight 600 appears on h2/h3 site-wide but is not introduced new in this phase.
+
+Typography note (13px vs 14px): These sizes are 1px apart and are visually distinct in rendered context because they serve different roles with different weights. Sub-nav pill labels (13px/700) are bold and uppercase-adjacent in a compact pill container; card meta text (14px/400 or 700) is regular-weight in an open card layout. The weight contrast (bold pill vs regular meta) reinforces the size difference and prevents visual confusion. Both sizes are carried forward from existing `css/catalog-subpage.css` — no new sizes introduced.
 
 Source: `css/styles.css` lines 142-227, `css/catalog-subpage.css` lines 34-55.
 
@@ -119,7 +122,7 @@ Second semantic: `--color-burgundy: #370e13` — used for destructive/error stat
 
 **Pills:** 7 anchors — All | Hops | Grains | Yeast | Additives | Packaging | Equipment
 - Each: `<a class="subnav-pill" data-subnav="{slug}">` — `<a>` not `<button>` because these are page navigations
-- `padding: 6px 14px; min-height: 36px; border-radius: 20px`
+- `padding: 8px 16px; min-height: 36px; border-radius: 20px`
 - Border: `1px solid var(--color-green)` inactive; filled `var(--color-green)` active
 - Text: `var(--color-green)` inactive; `var(--color-cream)` active
 - Transition: `background 0.15s, color 0.15s`
