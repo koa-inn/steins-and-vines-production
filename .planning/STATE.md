@@ -4,8 +4,8 @@ milestone: v3.0
 milestone_name: Catalog Subpages
 status: executing
 stopped_at: Phase 22 UI-SPEC approved
-last_updated: "2026-05-29T14:50:10.015Z"
-last_activity: 2026-05-29 -- Phase 22 planning complete
+last_updated: "2026-05-29T14:56:51.755Z"
+last_activity: 2026-05-29 -- Phase 22 execution started
 progress:
   total_phases: 5
   completed_phases: 2
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-27)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 21 — shared-template-build-infrastructure
+**Current focus:** Phase 22 — category-subpages-navigation
 
 ## Current Position
 
-Phase: 21 (shared-template-build-infrastructure) — EXECUTING
-Plan: 1 of 2
-Status: Ready to execute
-Last activity: 2026-05-29 -- Phase 22 planning complete
+Phase: 22 (category-subpages-navigation) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 22
+Last activity: 2026-05-29 -- Phase 22 execution started
 
 Progress: [██░░░░░░░░] 20%
 

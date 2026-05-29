@@ -118,7 +118,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 22-01-PLAN.md — Sub-nav CSS styles, dropdown divider style, and build pipeline stamp:pages update
+- [x] 22-01-PLAN.md — Sub-nav CSS styles, dropdown divider style, and build pipeline stamp:pages update
 
 **Wave 2** (parallel)
 
@@ -160,6 +160,6 @@ Plans:
 | 12-19 | v2.0 | 26/26 | Complete | 2026-05-27 |
 | 20. Zoho Data Foundation | v3.0 | 2/2 | Complete | 2026-05-28 |
 | 21. Shared Template & Build Infrastructure | v3.0 | 2/2 | Complete   | 2026-05-29 |
-| 22. Category Subpages & Navigation | v3.0 | 0/3 | Not started | - |
+| 22. Category Subpages & Navigation | v3.0 | 1/3 | In Progress|  |
 | 23. Cross-Category Search | v3.0 | 0/? | Not started | - |
 | 24. SEO & Staging Deploy | v3.0 | 0/? | Not started | - |
