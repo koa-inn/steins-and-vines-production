@@ -51,7 +51,7 @@
 **Milestone Goal:** Break the monolithic ingredients page into dedicated category subpages with shared template, cross-category navigation, and unified search.
 
 - [x] **Phase 20: Zoho Data Foundation** - Tag all ingredient items with subcategory; refresh snapshot pipeline
-- [ ] **Phase 21: Shared Template & Build Infrastructure** - Shared JS module, CSS, and build pipeline for all subpages
+- [x] **Phase 21: Shared Template & Build Infrastructure** - Shared JS module, CSS, and build pipeline for all subpages (completed 2026-05-29)
 - [ ] **Phase 22: Category Subpages & Navigation** - All 5 subpages live with sub-nav and main nav dropdown
 - [ ] **Phase 23: Cross-Category Search** - Search overlay with grouped results and deep-link navigation
 - [ ] **Phase 24: SEO & Staging Deploy** - Per-subpage SEO meta, QA pass, and staging deployment
@@ -100,7 +100,7 @@ Plans:
 
 **Wave 2**
 
-- [ ] 21-02-PLAN.md — Test HTML page, unit tests, and build pipeline integration
+- [x] 21-02-PLAN.md — Test HTML page, unit tests, and build pipeline integration
 
 ### Phase 22: Category Subpages & Navigation
 
@@ -151,7 +151,7 @@ Plans:
 | 5-11 | v1.1 | 24/24 | Complete | 2026-05-06 |
 | 12-19 | v2.0 | 26/26 | Complete | 2026-05-27 |
 | 20. Zoho Data Foundation | v3.0 | 2/2 | Complete | 2026-05-28 |
-| 21. Shared Template & Build Infrastructure | v3.0 | 1/2 | In Progress|  |
+| 21. Shared Template & Build Infrastructure | v3.0 | 2/2 | Complete   | 2026-05-29 |
 | 22. Category Subpages & Navigation | v3.0 | 0/? | Not started | - |
 | 23. Cross-Category Search | v3.0 | 0/? | Not started | - |
 | 24. SEO & Staging Deploy | v3.0 | 0/? | Not started | - |
