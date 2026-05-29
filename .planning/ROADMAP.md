@@ -123,7 +123,7 @@ Plans:
 **Wave 2** (parallel)
 
 - [ ] 22-02-PLAN.md — Create 5 new category subpages, move hops.html, rebuild ingredients-supplies.html
-- [ ] 22-03-PLAN.md — Update nav dropdown in 9 existing pages and verify navigation end-to-end
+- [x] 22-03-PLAN.md — Update nav dropdown in 9 existing pages and verify navigation end-to-end
 
 ### Phase 23: Cross-Category Search
 
@@ -160,6 +160,6 @@ Plans:
 | 12-19 | v2.0 | 26/26 | Complete | 2026-05-27 |
 | 20. Zoho Data Foundation | v3.0 | 2/2 | Complete | 2026-05-28 |
 | 21. Shared Template & Build Infrastructure | v3.0 | 2/2 | Complete   | 2026-05-29 |
-| 22. Category Subpages & Navigation | v3.0 | 1/3 | In Progress|  |
+| 22. Category Subpages & Navigation | v3.0 | 2/3 | In Progress|  |
 | 23. Cross-Category Search | v3.0 | 0/? | Not started | - |
 | 24. SEO & Staging Deploy | v3.0 | 0/? | Not started | - |
