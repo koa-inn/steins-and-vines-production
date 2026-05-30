@@ -255,11 +255,11 @@
 .product-card.subpage-card h2 {
   font-size: 1rem;
   line-height: 1.3;
-  color: var(--subpage-accent, var(--color-green));
+  color: var(--color-text);
 }
 
 .product-card.subpage-card .stock-badge--in {
-  color: var(--subpage-accent, var(--color-green));
+  color: var(--color-text);
 }
 
 .product-card.subpage-card:hover {
