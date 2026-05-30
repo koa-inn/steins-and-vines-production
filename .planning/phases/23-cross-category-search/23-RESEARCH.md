@@ -676,21 +676,17 @@ The `search-overlay.min.css` link must be added after `catalog-subpage.min.css` 
 | A1 | `groupResultsByCategory()` and `computeResultCap()` are not yet written anywhere in the codebase | Architecture Patterns, Pattern 3 | Low — confirmed by codebase scan; these are new logic in this phase |
 | A2 | `ingredients-supplies.html` does NOT load `16-catalog-subpage.min.js` and the overlay module needs to be self-sufficient on that page | Per-Page Script Loading Variations | HIGH — if wrong, there could be double-initialization. Confirmed by grep: only `main.min.js` is loaded there |
 | A3 | All 7 ingredient pages include `catalog-subpage.min.css` (needed for `.stock-badge` classes) | Pitfall 7 | Medium — confirmed for grains (line 27), hops (line 75), ingredients-supplies (line 74); others presumed same |
-| A4 | `handleDeepLinkedItem()` is NOT called or duplicated in `15-hops.js` (hops subpage) — if it is, the deep-link panel might already work there via a different mechanism | Critical Integration Gap | Low — impact only on hops. Research showed 15-hops.js does not reference `handleDeepLinkedItem` in the lines reviewed |
+| A4 | `15-hops.js` calls `handleDeepLinkedItem()` (line 1600) but `buildHopCard()` does NOT set `data-sku` — deep-link will fail on hops.html without the fix | Critical Integration Gap | RESOLVED — confirmed by code inspection. `buildHopCard()` at line 1121 sets `card.className = 'product-card hop-card'` but has no `setAttribute('data-sku', ...)`. Fix needed: add `data-sku` using `variant.sku` (default variant = `group.variants[0]`). Plan 01 Task 1 addresses this. |
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **How does handleDeepLinkedItem() interact with hops.html?**
-   - What we know: `15-hops.js` builds cards differently from `16-catalog-subpage.js`; it groups hops by variant into expandable blocks
-   - What's unclear: Does `15-hops.js` set `data-sku` on its card elements? If not, deep-link from search overlay to hops subpage also fails.
-   - Recommendation: The planner should include a task to grep for `data-sku` in `15-hops.js` and add `setAttribute('data-sku', ...)` there too if missing.
+   - **RESOLVED:** `15-hops.js` DOES call `handleDeepLinkedItem()` at line 1600 (correcting assumption A4 which originally stated it did not). However, `buildHopCard()` at line 1121 does NOT set `data-sku` on hop cards. The hops card is built from a `group` object with `group.variants[0]` as the default variant, and `variant.sku` contains the SKU string. The fix is identical to the one for `16-catalog-subpage.js`: add `if (variant.sku) { card.setAttribute('data-sku', variant.sku); }` after `card.className = 'product-card hop-card'` in `buildHopCard()`. Plan 01 Task 1 already includes this fix.
 
-2. **Does `ingredients-supplies.html` use `16-catalog-subpage.js` at all?**
-   - What we know: It only loads `main.min.js` and `sheets-config.js`. The "All ingredients" page appears to use a different catalog module from an earlier phase.
-   - What's unclear: How does the "All" page render ingredient cards? Are they `.subpage-card` elements with or without `data-sku`?
-   - Recommendation: The planner should verify what card structure `ingredients-supplies.html` actually renders and whether SRCH-02 deep-link needs to handle that page separately. If users click a search result on `ingredients-supplies.html` and the result navigates back to the same page, the overlay should just close and the page should be filtered.
+2. **Does `ingredients-supplies.html` use `16-catalog-subpage.js` at all, and will SRCH-02 work there for uncategorized items?**
+   - **RESOLVED:** `ingredients-supplies.html` uses `08-catalog-ingredients.js` (bundled in `main.min.js`), NOT `16-catalog-subpage.js`. Crucially, `08-catalog-ingredients.js` ALREADY sets `data-sku` on both table rows (line 456: `tr.setAttribute('data-sku', item.sku)`) and product cards (line 593: `card.setAttribute('data-sku', item.sku)`). It also calls `handleDeepLinkedItem()` at line 1601. Therefore, SRCH-02 deep-link already works on `ingredients-supplies.html` with no additional fix needed. Items with unmapped subcategories (falling through to `ingredients-supplies.html` in `CATEGORY_PAGE_MAP`) will correctly deep-link because that page already has `data-sku` attributes on its cards.
 
 ---
 
@@ -749,7 +745,8 @@ No sanitization is needed for the Fuse query itself. However, the error state me
 
 - `js/modules/16-catalog-subpage.js` — Fuse init (lines 216–224), data loading (lines 85–238), buildCartObject (lines 446–469), debounce (lines 883–891), ESC handler (lines 921–931), module exports (lines 992–997)
 - `js/modules/02-utils.js` — `handleDeepLinkedItem()` (lines 1–38), `[data-sku]` selector (line 9)
-- `js/modules/15-hops.js` — Hops Fuse init (lines 319–326)
+- `js/modules/15-hops.js` — Hops Fuse init (lines 319–326), `buildHopCard()` (line 1121), `handleDeepLinkedItem()` call (line 1600)
+- `js/modules/08-catalog-ingredients.js` — `data-sku` on table rows (line 456), `data-sku` on product cards (line 593), `handleDeepLinkedItem()` call (line 1601)
 - `css/catalog-subpage.css` — subnav styles (lines 594–681), cart drawer backdrop pattern (lines 736–774)
 - `products/grains.html` — search button HTML (lines 88–92), script loading (lines 190–192), CSS loading (lines 26–27)
 - `products/hops.html` — script loading (lines 272–274), CSS loading (line 75)
@@ -763,6 +760,7 @@ No sanitization is needed for the Fuse query itself. However, the error state me
 
 - Per-page script variations confirmed via `grep` across all 7 pages
 - `data-sku` gap confirmed by searching all source modules
+- `08-catalog-ingredients.js` data-sku and handleDeepLinkedItem presence confirmed via grep
 
 ---
 
@@ -772,7 +770,7 @@ No sanitization is needed for the Fuse query itself. However, the error state me
 - Standard stack: HIGH — all libraries are vendored or in devDependencies; no external lookups needed
 - Architecture: HIGH — 16-catalog-subpage.js is a direct and near-complete analog; all patterns verified in source
 - Pitfalls: HIGH — data-sku gap discovered by direct code inspection; cache key collision confirmed by reading MW_CACHE_KEY initialization; script variations confirmed by grep
-- SRCH-02 deep-link: HIGH for the gap; MEDIUM for hops.html specifically (15-hops.js card structure not fully read)
+- SRCH-02 deep-link: HIGH — all three card-building modules inspected: 16-catalog-subpage.js (gap, needs fix), 15-hops.js (gap, needs fix), 08-catalog-ingredients.js (already has data-sku, no fix needed)
 
 **Research date:** 2026-05-30
 **Valid until:** 2026-06-30 (stable codebase, no external dependencies)
