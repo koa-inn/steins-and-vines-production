@@ -541,6 +541,14 @@ function doRefreshIngredients() {
           items.forEach(function (item) {
             var detail = detailMap[item.item_id] || {};
             item.custom_fields = detail.custom_fields || [];
+            // Flatten the Millable custom field so grain ingredients expose the
+            // milling-fee flag the checkout UI looks for (kit path does this too).
+            var millCF = (item.custom_fields || []).find(function (f) {
+              return (f.label || '').toLowerCase() === 'millable';
+            });
+            item.millable = (millCF && millCF.value != null)
+              ? String(millCF.value).toLowerCase()
+              : (item.millable || 'false');
             if (detail.sales_description) item.sales_description = detail.sales_description;
             item.brand = detail.brand || item.brand || '';
             item.manufacturer = detail.manufacturer || item.manufacturer || '';
