@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-29T08:59:31.884Z",
+  "generated_at": "2026-05-30T08:12:09.377Z",
   "products": [
     {
       "name": "Acai Raspberry Rapture",
@@ -6526,7 +6526,7 @@
       "name": "Amarillo-100g",
       "unit": "g",
       "price_per_unit": "9",
-      "stock": "-1",
+      "stock": "0",
       "description": "Discovered by chance in a Liberty hop field at Virgil Gamache Farms in Washington State's Yakima Valley in the late 1990s, Amarillo was commercially introduced in 2003. It is prized for its rich citrus aroma of tangerine, orange, and lemon, backed by light stone fruit notes of apricot and peach and delicate wildflower character. With an alpha acid range of 8-11%, Amarillo is a dual-purpose hop that contributes bright, clean bitterness and intense citrus aroma. A favourite for American craft ales.",
       "sales_description": "",
       "sku": "AMA-100",
@@ -8574,7 +8574,7 @@
       "name": "Mosaic-100g",
       "unit": "g",
       "price_per_unit": "10",
-      "stock": "-1",
+      "stock": "0",
       "description": "Released in 2012 by the Hop Breeding Company, Mosaic is the daughter of Simcoe and Nugget. True to its name, Mosaic delivers a complex tapestry of mango, tangerine, peach, passionfruit, blueberry, earthy pine, and herbal notes. Its layered complexity has made it one of the most sought-after craft brewing hops. With an alpha acid range of 11.5-13.5%, Mosaic is a triple-use hop that provides smooth bitterness, distinctive flavour, and intense aroma. Its strength lies in its ability to add depth and complexity whether used alone or in combination.",
       "sales_description": "",
       "sku": "MOS-100",
@@ -8718,7 +8718,7 @@
       "name": "Nugget-100g",
       "unit": "g",
       "price_per_unit": "6",
-      "stock": "-1",
+      "stock": "0",
       "description": "A high-alpha bittering hop developed in 1982 from a cross of Brewer's Gold and a high-alpha wild hop. Nugget is a workhorse variety valued for its clean, strong bitterness and mild herbal aroma. It carries subtle notes of pine, spice, and light floral character. With an alpha acid range of 11-14%, Nugget delivers firm, smooth bitterness that works well as a base layer in a wide range of styles. A reliable choice for any brew where clean bittering is the goal.",
       "sales_description": "",
       "sku": "NUG-100",
@@ -9646,7 +9646,7 @@
       "name": "UK Fuggle-100g",
       "unit": "g",
       "price_per_unit": "7.5",
-      "stock": "-1",
+      "stock": "0",
       "description": "A cornerstone of British brewing since 1875, Fuggles is prized for its mild, pleasant character. Expect earthy, woody, and gently floral notes with a soft herbal undertone. The aroma is rounded and inviting, with hints of damp countryside, fresh-cut grass, and a touch of fruit. With an alpha acid range of 3-5%, Fuggles is a classic finishing and aroma hop that contributes smooth bitterness without sharpness. Essential for traditional cask ales.",
       "sales_description": "",
       "sku": "UKF-100",
