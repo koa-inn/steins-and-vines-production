@@ -1,0 +1,373 @@
+/* ===== Cross-Category Search Overlay (Phase 23) ===== */
+/* Standalone stylesheet — loaded on all 7 ingredient pages after catalog-subpage.min.css */
+/* Overrides the disabled .subnav-search-btn state from catalog-subpage.css */
+
+/* ---------------------------------------------------------------------------
+   Search Button — enable (overrides disabled state in catalog-subpage.css)
+   --------------------------------------------------------------------------- */
+
+.subnav-search-btn {
+  cursor: pointer;
+  opacity: 1;
+  transition: background 0.15s, color 0.15s;
+}
+
+.subnav-search-btn:hover,
+.subnav-search-btn[aria-expanded="true"] {
+  background: rgba(74, 111, 75, 0.1);
+  color: var(--color-green);
+}
+
+.subnav-search-btn:focus-visible {
+  outline: 2px solid var(--color-green);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Positioning context — desktop dropdown anchors relative to subnav container
+   --------------------------------------------------------------------------- */
+
+.ingredient-subnav .container {
+  position: relative;
+}
+
+/* ---------------------------------------------------------------------------
+   Backdrop
+   --------------------------------------------------------------------------- */
+
+.search-overlay-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 195;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+}
+
+.search-overlay-backdrop.open {
+  display: block;
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ---------------------------------------------------------------------------
+   Panel — desktop dropdown (default)
+   --------------------------------------------------------------------------- */
+
+.search-overlay-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 480px;
+  max-width: calc(100vw - 32px);
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--color-cream);
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  z-index: 196;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: opacity 0.18s ease-out, visibility 0.18s, transform 0.18s ease-out;
+  outline: none; /* focus managed programmatically via role="dialog" */
+}
+
+.search-overlay-panel.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* ---------------------------------------------------------------------------
+   Panel — mobile full-screen
+   --------------------------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  .search-overlay-panel {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion
+   --------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .search-overlay-panel,
+  .search-overlay-backdrop {
+    transition: opacity 0.18s, visibility 0.18s;
+    transform: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Header (input row)
+   --------------------------------------------------------------------------- */
+
+.search-overlay-header {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  gap: 8px;
+  border-bottom: 1px solid rgba(74, 111, 75, 0.12);
+  position: relative;
+}
+
+/* ---------------------------------------------------------------------------
+   Search input
+   --------------------------------------------------------------------------- */
+
+.search-overlay-input {
+  width: 100%;
+  font-size: 16px; /* prevents iOS auto-zoom */
+  padding: 8px 12px;
+  border: 1px solid rgba(74, 111, 75, 0.2);
+  border-radius: 4px;
+  background: white;
+  color: var(--color-text);
+  font-family: var(--font-body, sans-serif);
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.search-overlay-input:focus {
+  outline: 2px solid var(--color-green);
+  outline-offset: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Clear button (appears when input has value)
+   --------------------------------------------------------------------------- */
+
+.search-overlay-clear {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.search-overlay-clear:hover {
+  background: rgba(74, 111, 75, 0.08);
+}
+
+/* ---------------------------------------------------------------------------
+   Close button (mobile only)
+   --------------------------------------------------------------------------- */
+
+.search-overlay-close {
+  display: none;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.search-overlay-close:hover {
+  background: rgba(74, 111, 75, 0.08);
+}
+
+@media (max-width: 767px) {
+  .search-overlay-close {
+    display: flex;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Results container
+   --------------------------------------------------------------------------- */
+
+.search-overlay-results {
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Group headers (category sections)
+   --------------------------------------------------------------------------- */
+
+.search-group-header {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text);
+  background: rgba(74, 111, 75, 0.05);
+  padding: 8px 16px;
+  border-left: 3px solid var(--color-green);
+  margin: 0;
+}
+
+.search-group-count {
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
+/* ---------------------------------------------------------------------------
+   Result rows
+   --------------------------------------------------------------------------- */
+
+.search-result-row {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(74, 111, 75, 0.12);
+  cursor: pointer;
+  text-decoration: none;
+  gap: 8px;
+}
+
+.search-result-row:hover {
+  background: rgba(74, 111, 75, 0.06);
+}
+
+.search-result-row.out-of-stock {
+  opacity: 0.5;
+}
+
+/* ---------------------------------------------------------------------------
+   Result row — name link
+   --------------------------------------------------------------------------- */
+
+.search-result-name {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--color-text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  min-width: 0;
+}
+
+.search-result-name:hover {
+  color: var(--color-green);
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------------------------------------
+   Result row — price
+   --------------------------------------------------------------------------- */
+
+.search-result-price {
+  font-size: 14px;
+  color: var(--color-muted);
+  white-space: nowrap;
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Result row — badge wrapper (for layout; actual badge classes from catalog-subpage.css)
+   --------------------------------------------------------------------------- */
+
+.search-result-badge {
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Result row — inline cart controls wrapper
+   --------------------------------------------------------------------------- */
+
+.search-result-cart-wrap {
+  flex-shrink: 0;
+}
+
+/* Simple cart button for result rows (used when renderReserveControl is unavailable) */
+.search-result-cart {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-green);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.search-result-cart:hover {
+  opacity: 0.85;
+}
+
+/* ---------------------------------------------------------------------------
+   "View all" link
+   --------------------------------------------------------------------------- */
+
+.search-view-all {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-green);
+  padding: 8px 16px;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(74, 111, 75, 0.12);
+}
+
+.search-view-all:hover {
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------------------------------------
+   No-results and error states
+   --------------------------------------------------------------------------- */
+
+.search-no-results {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--color-muted);
+}
+
+.search-no-results p {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.search-no-results p + p {
+  font-size: 14px;
+}
+
+.search-error-state {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
