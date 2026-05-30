@@ -4662,14 +4662,13 @@ function renderReserveControl(wrap, product, productKey) {
     });
 
     var qtyInput = document.createElement('input');
-    qtyInput.type = 'number';
+    qtyInput.type = 'text';
     qtyInput.className = 'qty-input';
     qtyInput.value = isWeight ? parseFloat(qty).toFixed(decimals) : qty;
-    qtyInput.min = '0';
-    qtyInput.max = String(maxQty);
-    qtyInput.step = String(stepSize);
     qtyInput.setAttribute('inputmode', isWeight ? 'decimal' : 'numeric');
+    qtyInput.setAttribute('pattern', isWeight ? '[0-9]*\\.?[0-9]*' : '[0-9]*');
     qtyInput.setAttribute('aria-label', 'Quantity');
+    qtyInput.setAttribute('autocomplete', 'off');
     qtyInput.addEventListener('change', function () {
       var val = parseFloat(qtyInput.value);
       if (isNaN(val) || val < 0) val = 0;
