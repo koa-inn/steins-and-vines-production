@@ -2921,16 +2921,26 @@ behold-widget {
 
 .reservation-table .product-qty-controls {
   padding: 0;
-  width: 165px;
+  border: none;
+  background: none;
+  gap: 4px;
 }
 
 .reservation-table .qty-input {
-  padding: 0 6px;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  max-width: 50px;
 }
 
 .reservation-table .product-qty-controls .qty-btn {
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
+  font-size: 0.875rem;
+  border-radius: 4px;
   font-size: 1.125rem;
   flex-shrink: 0;
 }
