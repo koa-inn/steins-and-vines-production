@@ -2,7 +2,10 @@
 // Standalone module (NOT in concat:js). Loads after main.min.js.
 // Shared globals available: formatCurrency, escapeHTML, renderReserveControl,
 // hasWeightConfig, setReservationQty, getReservedQty, Fuse, handleDeepLinkedItem
+// Wrapped in IIFE to avoid global name collisions with 16-catalog-subpage.js
+// (mapItem, fetchFromMiddleware, loadFromSnapshot, buildCartObject are shared names).
 
+(function () {
 // ---------------------------------------------------------------------------
 // Module-private state
 // ---------------------------------------------------------------------------
@@ -376,7 +379,7 @@ function buildResultRow(item, pageSlug) {
   // Name — link to subpage with ?item=SKU deep-link (D-08)
   var nameLink = document.createElement('a');
   nameLink.className = 'search-result-name';
-  nameLink.href = '../products/' + pageSlug + '?item=' + encodeURIComponent(item.sku || item.name);
+  nameLink.href = '../products/' + pageSlug + (item.sku ? '?item=' + encodeURIComponent(item.sku) : '');
   nameLink.textContent = item.name; // T-23-03: textContent, never innerHTML for product data
   row.appendChild(nameLink);
 
@@ -624,6 +627,7 @@ if (typeof document !== 'undefined') { document.addEventListener('DOMContentLoad
 
   // Wire clear button
   _overlayElements.clearBtn.addEventListener('click', function () {
+    clearTimeout(searchTimer);
     _overlayElements.input.value = '';
     _overlayElements.clearBtn.style.display = 'none';
     _overlayElements.results.innerHTML = '';
@@ -672,3 +676,5 @@ if (typeof module !== 'undefined' && module.exports) {
     computeResultCap: computeResultCap
   };
 }
+
+})(); // end IIFE
