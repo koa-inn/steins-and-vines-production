@@ -262,6 +262,27 @@ body[data-page="hops"] .site-footer {
   flex-basis: 100%;
 }
 
+/* Qty stepper sizing — mirror the subpage fix (.product-card.subpage-card),
+   which never reaches hops because hops cards aren't .subpage-card. Without
+   it the global .qty-input (flex:1, no max-width) stretches into a big white
+   boxed rectangle between the buttons. Cap width + drop the input's own side
+   borders so the control reads as one pill. */
+body[data-page="hops"] .product-qty-controls {
+  max-width: 100%;
+}
+body[data-page="hops"] .qty-btn {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+}
+body[data-page="hops"] .qty-input {
+  min-width: 32px;
+  max-width: 60px;
+  height: 38px;
+  border-left: none;
+  border-right: none;
+}
+
 /* Hop card -- extends .product-card (do not redeclare .product-card rules) */
 .hop-card {
   border-top: 3px solid var(--color-green);
