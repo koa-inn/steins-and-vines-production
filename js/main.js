@@ -4644,29 +4644,39 @@ function renderReserveControl(wrap, product, productKey) {
     var controls = document.createElement('div');
     controls.className = 'product-qty-controls';
 
+    var isWeight = typeof isWeightUnit === 'function' && isWeightUnit(product.unit);
+    var stepSize = isWeight ? 0.01 : 1;
+    var decimals = isWeight ? 2 : 0;
+
     var minusBtn = document.createElement('button');
     minusBtn.type = 'button';
     minusBtn.className = 'qty-btn';
     minusBtn.textContent = '\u2212';
-    minusBtn.addEventListener('click', function () {
-      setReservationQty(product, qty - 1);
+    minusBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var newQty = isWeight
+        ? parseFloat((qty - stepSize).toFixed(decimals))
+        : qty - 1;
+      setReservationQty(product, newQty);
       renderReserveControl(wrap, product, productKey);
     });
 
     var qtyInput = document.createElement('input');
     qtyInput.type = 'number';
     qtyInput.className = 'qty-input';
-    qtyInput.value = qty;
+    qtyInput.value = isWeight ? parseFloat(qty).toFixed(decimals) : qty;
     qtyInput.min = '0';
     qtyInput.max = String(maxQty);
-    qtyInput.step = '1';
-    qtyInput.setAttribute('inputmode', 'numeric');
+    qtyInput.step = String(stepSize);
+    qtyInput.setAttribute('inputmode', isWeight ? 'decimal' : 'numeric');
     qtyInput.setAttribute('aria-label', 'Quantity');
     qtyInput.addEventListener('change', function () {
-      var val = parseInt(qtyInput.value, 10);
+      var val = parseFloat(qtyInput.value);
       if (isNaN(val) || val < 0) val = 0;
       if (val > maxQty) val = maxQty;
-      qtyInput.value = val;
+      if (isWeight) val = parseFloat(val.toFixed(decimals));
+      else val = Math.round(val);
+      qtyInput.value = isWeight ? val.toFixed(decimals) : val;
       setReservationQty(product, val);
       renderReserveControl(wrap, product, productKey);
     });
@@ -4680,8 +4690,12 @@ function renderReserveControl(wrap, product, productKey) {
       plusBtn.disabled = true;
     } else {
       plusBtn.className = 'qty-btn';
-      plusBtn.addEventListener('click', function () {
-        setReservationQty(product, qty + 1);
+      plusBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var newQty = isWeight
+          ? parseFloat((qty + stepSize).toFixed(decimals))
+          : qty + 1;
+        setReservationQty(product, newQty);
         renderReserveControl(wrap, product, productKey);
       });
     }

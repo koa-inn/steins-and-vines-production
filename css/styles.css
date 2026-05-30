@@ -2699,9 +2699,8 @@ behold-widget {
 }
 
 .product-qty-controls {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 0;
   border: 2px solid var(--color-burgundy);
   border-radius: var(--radius-sm);
