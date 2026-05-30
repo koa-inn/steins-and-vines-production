@@ -410,12 +410,15 @@ function buildDetailPanel(item) {
     panel.appendChild(descEl);
   }
 
-  // Stock count
+  // Stock count — hide for weight items
   var stockVal = parseInt(item.stock, 10) || 0;
-  var stockInfo = document.createElement('p');
-  stockInfo.className = 'subpage-detail-stock';
-  stockInfo.textContent = stockVal > 0 ? 'In Stock: ' + stockVal + ' ' + (item.unit || 'units') : 'Out of Stock';
-  panel.appendChild(stockInfo);
+  var panelIsWeight = typeof isWeightUnit === 'function' && isWeightUnit(item.unit);
+  if (!panelIsWeight) {
+    var stockInfo = document.createElement('p');
+    stockInfo.className = 'subpage-detail-stock';
+    stockInfo.textContent = stockVal > 0 ? 'In Stock: ' + stockVal + ' ' + (item.unit || 'units') : 'Out of Stock';
+    panel.appendChild(stockInfo);
+  }
 
   // Cart controls (only for in-stock items)
   if (stockVal > 0) {
@@ -519,11 +522,14 @@ function toggleMobileAccordion(card, item) {
     accordion.appendChild(descEl);
   }
 
-  var stockVal = parseInt(item.stock, 10) || 0;
-  var stockInfo = document.createElement('p');
-  stockInfo.className = 'subpage-detail-stock';
-  stockInfo.textContent = stockVal > 0 ? 'In Stock: ' + stockVal + ' ' + (item.unit || 'units') : 'Out of Stock';
-  accordion.appendChild(stockInfo);
+  var accIsWeight = typeof isWeightUnit === 'function' && isWeightUnit(item.unit);
+  if (!accIsWeight) {
+    var stockVal = parseInt(item.stock, 10) || 0;
+    var stockInfo = document.createElement('p');
+    stockInfo.className = 'subpage-detail-stock';
+    stockInfo.textContent = stockVal > 0 ? 'In Stock: ' + stockVal + ' ' + (item.unit || 'units') : 'Out of Stock';
+    accordion.appendChild(stockInfo);
+  }
 
   card.appendChild(accordion);
   // Trigger transition on next frame
@@ -559,18 +565,21 @@ function buildItemCard(item) {
   }
   card.appendChild(priceEl);
 
-  // Stock badge
+  // Stock badge — hide for weight items (stock less reliably accurate)
   var stockVal = parseInt(item.stock, 10) || 0;
-  var badge = document.createElement('span');
-  badge.className = 'stock-badge';
-  if (stockVal > 0) {
-    badge.classList.add('stock-badge--in');
-    badge.textContent = 'In Stock';
-  } else {
-    badge.classList.add('stock-badge--out');
-    badge.textContent = 'Out of Stock';
+  var itemIsWeight = typeof isWeightUnit === 'function' && isWeightUnit(item.unit);
+  if (!itemIsWeight) {
+    var badge = document.createElement('span');
+    badge.className = 'stock-badge';
+    if (stockVal > 0) {
+      badge.classList.add('stock-badge--in');
+      badge.textContent = 'In Stock';
+    } else {
+      badge.classList.add('stock-badge--out');
+      badge.textContent = 'Out of Stock';
+    }
+    card.appendChild(badge);
   }
-  card.appendChild(badge);
 
   // Cart controls (only for in-stock items)
   // Weight items show only renderReserveControl on cards; full slider in detail panel
