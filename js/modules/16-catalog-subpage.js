@@ -581,18 +581,21 @@ function buildItemCard(item) {
     card.appendChild(badge);
   }
 
-  // Cart controls (only for in-stock items)
-  // Weight items show only renderReserveControl on cards; full slider in detail panel
-  if (stockVal > 0) {
+  // Cart controls. Weight items get the compact weight control (inline slider +
+  // amount + live price) so the customer chooses an amount instead of silently
+  // committing a default unit; non-weight items use the standard reserve button.
+  if (stockVal > 0 || itemIsWeight) {
     var cartObj = buildCartObject(item);
     var productKey = item.name + '|';
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'product-reserve-wrap';
 
+    var cardRenderer = (itemIsWeight && typeof renderWeightControlCompact !== 'undefined')
+      ? renderWeightControlCompact : renderReserveControl;
     reserveWrap._reserveProduct = cartObj;
     reserveWrap._reserveKey = productKey;
-    reserveWrap._reserveRenderer = renderReserveControl;
-    renderReserveControl(reserveWrap, cartObj, productKey);
+    reserveWrap._reserveRenderer = cardRenderer;
+    cardRenderer(reserveWrap, cartObj, productKey);
     card.appendChild(reserveWrap);
   }
 

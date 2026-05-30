@@ -953,7 +953,7 @@ body[data-page="hops"] .site-footer {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    color: rgba(229,222,193,0.5);
+    color: rgba(55,14,19,0.6);
     vertical-align: middle;
   }
   .hops-table td[data-label=""]::before { display: none; }

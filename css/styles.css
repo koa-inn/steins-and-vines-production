@@ -2949,15 +2949,15 @@ behold-widget {
   align-items: baseline;
   justify-content: flex-end;
   gap: 3px;
-  width: 66px;
-  flex: 0 0 66px;
+  width: 72px;
+  flex: 0 0 72px;
 }
 
 .reservation-table .qty-input {
   padding: 0;
   border: none;
   background: none;
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--color-text);
@@ -5760,8 +5760,8 @@ behold-widget {
   align-items: baseline;
   justify-content: flex-end;
   gap: 3px;
-  width: 58px;
-  flex: 0 0 58px;
+  width: 72px;
+  flex: 0 0 72px;
 }
 .cart-sidebar-item-controls .product-qty-controls--weight .qty-input {
   border: none;
@@ -5773,7 +5773,7 @@ behold-widget {
   max-width: 100%;
   flex: 0 1 auto;
   text-align: right;
-  font-size: 0.8125rem;
+  font-size: 1rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--color-burgundy);
@@ -6740,6 +6740,9 @@ footer {
     top: var(--header-height, 80px);
     left: 0;
     right: 0;
+    max-height: calc(100dvh - var(--header-height, 80px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     background-color: var(--color-cream);
     padding: 1rem 0;
     text-align: center;

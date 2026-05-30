@@ -89,12 +89,14 @@ Per-category accent colors (applied via `SUBPAGE_CONFIG.accentColor` → `applyH
 | Category | Accent Color | Rationale |
 |----------|-------------|-----------|
 | Grains | `#8b6f3a` | Warm brown — grain/malt visual |
-| Yeast | `#c4a035` | Amber gold — fermentation warmth |
-| Additives | `#6b5a9e` | Muted purple — chemical/adjunct neutral |
+| Yeast | `#7b5ea7` | Muted purple — fermentation/yeast cue |
+| Additives | `#c2622b` | Terracotta — chemical/adjunct, nudged warmer to read distinct from Grains brown |
 | Packaging | `#4a7fa8` | Steel blue — bottle/container visual |
 | Equipment | `#5a7a6a` | Slate green — tools/hardware neutral |
 
 Source: RESEARCH.md code examples (SUBPAGE_CONFIG per category), CONTEXT.md D-01 (active tab accent), `css/catalog-subpage.css` line 25 (`--subpage-accent`).
+
+> **Implementation note (Phase 22 audit, 2026-05):** Yeast and Additives ship with the colors above rather than the originally-specced amber `#c4a035` / purple `#6b5a9e`. The implemented staging palette (Yeast purple, Additives terracotta) was kept per stakeholder decision; the table records the as-built values. Active-pill backgrounds composite a `rgba(0,0,0,0.35)` overlay over the accent so cream pill text clears WCAG AA contrast.
 
 Accent reserved for:
 1. Active sub-nav pill — filled `--color-green` background with `--color-cream` text (CSS-only, `body[data-page]` selector)
