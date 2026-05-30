@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-05-30T15:15:06.814Z",
+  "phase": "22",
+  "phase_name": "category-subpages-navigation",
+  "phase_dir": ".planning/phases/22-category-subpages-navigation",
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "Milling fix deployed to Railway middleware (cherry-pick onto production/main)", "status": "done", "commit": "b862b96"},
+    {"id": 2, "name": "Phase 22 UI/UX + usability + mobile audit fixes (11 findings)", "status": "done", "commit": "2d50318"},
+    {"id": 3, "name": "Hops mobile cart drawer leak + filter label clip", "status": "done", "commit": "e5f59bc"},
+    {"id": 4, "name": "Hops weight cards -> compact control + shorten mobile search (tangential)", "status": "done", "commit": "63c2a0e"},
+    {"id": 5, "name": "Hops qty stepper sizing to match subpages (real odd-rectangle fix)", "status": "done", "commit": "7732b1f"}
+  ],
+  "remaining_tasks": [
+    {"id": 6, "name": "Human visual sign-off of Phase 22 on staging.steinsandvines.ca (esp. mobile: hops qty stepper, cart drawer, nav scroll, weight cards)", "status": "not_started"},
+    {"id": 7, "name": "Production deploy of full Phase 22 batch via CNAME swap (swap CNAME->steinsandvines.ca, git push production main --force, restore staging CNAME, push origin)", "status": "not_started"},
+    {"id": 8, "name": "Phase 23 Cross-Category Search: /gsd:plan-phase 23 (user chose to wait for Phase 22 sign-off first)", "status": "not_started"},
+    {"id": 9, "name": "Update 22-VERIFICATION.md (was 11/12 human_needed) once staging signed off", "status": "not_started"}
+  ],
+  "blockers": [
+    {"description": "Phase 22 awaiting human visual sign-off on staging before production deploy", "type": "human_action", "workaround": "none — STAGING-FIRST rule is mandatory"}
+  ],
+  "human_actions_pending": [
+    {"action": "Visually verify Phase 22 on staging.steinsandvines.ca, mobile especially (hops page qty stepper, cart drawer at rest, Products dropdown scroll, weight-item cards)", "context": "Mandatory staging-first sign-off before production deploy", "blocking": true}
+  ],
+  "decisions": [
+    {"decision": "Kept staging accent colors (Yeast #7b5ea7 purple, Additives nudged to #c2622b terracotta)", "rationale": "User chose 'Keep staging colors'; recorded as-built in 22-UI-SPEC.md", "phase": "22"},
+    {"decision": "Mobile cart drawer side-drawer geometry scoped to >=1024px on both subpages and hops", "rationale": "Higher-specificity unscoped side-drawer rules beat the global mobile bottom-sheet; gate them so mobile uses bottom-sheet", "phase": "22"},
+    {"decision": "Hold Phase 23 (search) planning until Phase 22 signed off", "rationale": "User explicitly chose 'Wait for 22 sign-off'; search success criteria build on live subpages", "phase": "22"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Ask user whether Phase 22 passed staging sign-off. If yes: production deploy via CNAME swap, then /gsd:plan-phase 23. If issues remain: fix on staging first.",
+  "context_notes": "All work this session is committed and pushed to origin/main (staging). Last commit 7732b1f. The 'odd rectangle by +/- buttons' was the regular qty stepper (.qty-input flex:1 unconstrained on .hop-card), NOT the weight control — subpage fix lives in catalog-subpage.css scoped to .product-card.subpage-card which never reaches hops; mirrored it scoped to body[data-page=hops] in hops.css. The earlier weight-control->compact swap (commit 63c2a0e) was tangential/harmless, can be reverted if undesired. CLAUDE.md requires regression test FIRST on bug fixes — NOT done for these CSS/UI fixes (flagged). Build auto-stamps ?v= on 15 public pages; commits include that churn. CNAME currently staging.steinsandvines.ca."
+}
