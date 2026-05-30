@@ -55,13 +55,14 @@ All sizes use the project base of `font-size: 16px` on `html` (source: `styles.c
 |------|------|--------|-------------|
 | Body / result row name | 16px (1rem) | 400 | 1.5 |
 | Label / price + badge | 14px (0.875rem) | 400 | 1.4 |
-| Group header | 13px (0.8125rem) | 700 | 1.2 |
+| Group header | 14px (0.875rem) | 700 | 1.2 |
 | Search input | 16px (1rem) | 400 | 1.5 |
 
 Notes:
-- Group headers (Grains, Yeast, etc.) use 0.8125rem / 700 — matches `.subnav-pill` font-size (source: `catalog-subpage.css` line 635)
-- Result row name is plain body text, NOT display font — keeps the panel scannable
-- Search input is 16px to prevent iOS auto-zoom (must be >= 16px on input elements)
+- Group headers (Grains, Yeast, etc.) use 14px / 700 — same size as label/price rows, differentiated by weight alone. This gives a clean 3-size scale: 12px (badge), 14px (labels + group headers), 16px (body + input).
+- 12px is reserved exclusively for stock badge text — not used elsewhere.
+- Result row name is plain body text, NOT display font — keeps the panel scannable.
+- Search input is 16px to prevent iOS auto-zoom (must be >= 16px on input elements).
 
 ---
 
@@ -78,7 +79,7 @@ All values from `css/styles.css :root` (lines 118–129).
 
 Accent reserved for:
 - Active/enabled state of `.subnav-search-btn` (icon color + hover background circle)
-- Inline "Add to cart" / stepper button fill
+- Inline cart button fill (icon-only `+` button)
 - Group header left border (3px solid)
 - "View all X in [Category]" link text
 - Search input focus outline (2px solid, matches existing `outline: 2px solid var(--color-green)`)
@@ -95,6 +96,10 @@ Color notes:
 ## Overlay Interaction Contract
 
 Source: D-01, D-02, Claude's Discretion items from `23-CONTEXT.md`.
+
+### Focal Point
+
+The search input is the primary visual anchor. It is auto-focused on overlay open and receives the highest visual weight — full-width, 16px text, prominent focus ring. All other elements (results, group headers, badges) are subordinate to it.
 
 ### Open / Close
 
@@ -137,15 +142,15 @@ Note: Cart FAB sits at `z-index: 1050` (source: `catalog-subpage.css` line 689).
 - Minimum 2 characters before Fuse fires (D-10)
 - 180ms debounce (matches existing pattern, source: `23-CONTEXT.md` line 98)
 - `<input type="search">` with `autocomplete="off"`, `spellcheck="false"`
-- Clear (x) button appears when input has value: 32x32px, icon-only, `color: var(--color-muted)`
+- Clear (x) button appears when input has value: 32x32px, icon-only, `color: var(--color-muted)`, `aria-label="Clear search"`
 
 ### Result Rows
 
 Each row contains (left to right):
 1. Product name — 16px / weight 400 / `--color-text` — full width, truncated with ellipsis at 2 lines
 2. Price with unit — 14px / weight 400 / `--color-muted` — e.g. `$4.50/kg`, `$2.99 each`
-3. Stock badge — 12px / weight 700 / white on green (in-stock) or white on muted (out-of-stock) — `border-radius: 3px`, `padding: 2px 6px`
-4. Cart button — right side, 36x36px touch-friendly, icon-only `+` or stepper if already in cart
+3. Stock badge — 12px / weight 700 / white on green (in-stock) or white on muted (out-of-stock) — `border-radius: 3px`, `padding: 4px 8px`
+4. Cart button — right side, 36x36px touch-friendly, icon-only `+`, `aria-label="Add {product name} to cart"` (no visible text label)
 
 Row height: 48px min-height. Horizontal padding: 16px. Divider: `1px solid rgba(74,111,75,0.12)`.
 
@@ -153,7 +158,7 @@ Out-of-stock rows: `opacity: 0.5`, no cart button rendered (D-07).
 
 ### Weight-based Items (Cart Button)
 
-Inline cart for weight items shows a simplified `+` that adds 1 unit of the smallest unit (e.g. 1 kg). No full weight input in the overlay — that complexity belongs on the subpage detail panel. Clicking the name navigates to the subpage for precise quantity entry.
+Inline cart for weight items shows a simplified icon-only `+` that adds 1 unit of the smallest unit (e.g. 1 kg). No full weight input in the overlay — that complexity belongs on the subpage detail panel. Clicking the name navigates to the subpage for precise quantity entry.
 
 ### Group Headers
 
@@ -161,10 +166,10 @@ Inline cart for weight items shows a simplified `+` that adds 1 unit of the smal
 [Category Name]  (N)
 ```
 
-- Category name: 13px / weight 700 / `--color-text`, `text-transform: uppercase`, `letter-spacing: 0.04em`
-- Match count: 13px / weight 400 / `--color-muted` — format: `(5)` or `(12)`
+- Category name: 14px / weight 700 / `--color-text`, `text-transform: uppercase`, `letter-spacing: 0.04em`
+- Match count: 14px / weight 400 / `--color-muted` — format: `(5)` or `(12)`
 - Left border: `3px solid var(--color-green)`, `padding-left: 8px`
-- Background stripe: `rgba(74,111,75,0.05)`, full-width, `padding: 6px 16px`
+- Background stripe: `rgba(74,111,75,0.05)`, full-width, `padding: 8px 16px`
 - Bottom border: none — natural separation from first result row divider
 
 ### Dynamic Result Cap (D-06)
@@ -175,7 +180,7 @@ Inline cart for weight items shows a simplified `+` that adds 1 unit of the smal
 | 3–4 | 7 |
 | 5+ | 5 |
 
-"View all X in [Category]" link appears below the capped list, `font-size: 13px`, `color: var(--color-green)`, `font-weight: 700`, `padding: 6px 16px 8px`.
+"View all X in [Category]" link appears below the capped list, `font-size: 14px`, `color: var(--color-green)`, `font-weight: 700`, `padding: 8px 16px`.
 
 ---
 
@@ -183,9 +188,9 @@ Inline cart for weight items shows a simplified `+` that adds 1 unit of the smal
 
 | Element | Copy |
 |---------|------|
-| Primary CTA (inline cart) | "Add" (icon + label on wider rows) or icon-only `+` on compact rows |
+| Primary CTA (inline cart) | Icon-only `+` with `aria-label="Add {product name} to cart"` — no visible text label |
 | Search input placeholder | `Search all ingredients...` |
-| No-results heading | `No results found` |
+| No-results heading | `No ingredients match "{query}"` |
 | No-results body | `Try a different spelling or browse a category above.` |
 | Error state (Fuse init failed) | `Search unavailable. Browse categories using the links above.` |
 | "View all" link | `View all {N} in {Category Name}` |
@@ -193,6 +198,7 @@ Inline cart for weight items shows a simplified `+` that adds 1 unit of the smal
 | Out-of-stock badge | `Out of stock` |
 | Screen reader label for search button | `Open ingredient search` |
 | Screen reader label for close button | `Close search` |
+| Screen reader label for clear button | `Clear search` |
 | Screen reader label for cart button | `Add {product name} to cart` |
 
 Destructive actions: none in this phase.
@@ -208,6 +214,7 @@ Destructive actions: none in this phase.
 - Result list: `role="list"`, each row `role="listitem"`
 - Group headers: `role="heading"` `aria-level="3"`
 - Cart button: `aria-label="Add {name} to cart"` (computed per row)
+- Clear (x) button: `aria-label="Clear search"`
 - All interactive elements meet 44px touch target minimum (matches existing sub-nav pill pattern)
 - `prefers-reduced-motion`: disable translate animation, keep opacity-only fade
 
