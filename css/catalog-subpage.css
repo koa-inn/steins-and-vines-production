@@ -296,10 +296,6 @@
   border-left: none;
   border-right: none;
 }
-.product-card.subpage-card .qty-input-cell {
-  border-left: 2px solid var(--color-burgundy);
-  border-right: 2px solid var(--color-burgundy);
-}
 
 /* Active card — stronger accent */
 .product-card.subpage-card--active {
