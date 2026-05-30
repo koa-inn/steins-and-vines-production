@@ -280,6 +280,21 @@
   color: var(--subpage-accent, var(--color-green));
 }
 
+/* Qty controls — constrain to card width */
+.product-card.subpage-card .product-qty-controls {
+  max-width: 100%;
+}
+.product-card.subpage-card .qty-btn {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+}
+.product-card.subpage-card .qty-input {
+  min-width: 32px;
+  max-width: 60px;
+  height: 38px;
+}
+
 /* Active card — stronger accent */
 .product-card.subpage-card--active {
   border-left: 4px solid var(--subpage-accent, var(--color-green));
