@@ -232,6 +232,14 @@ body[data-page="hops"] .site-footer {
   margin-bottom: 1rem;
   box-shadow: none;
 }
+/* On narrow screens the global 300px search fills the toolbar edge-to-edge;
+   cap it a touch shorter so it has breathing room on the sides. */
+@media (max-width: 1023px) {
+  .hops-toolbar .catalog-search {
+    width: 100%;
+    max-width: 270px;
+  }
+}
 .hops-toolbar .catalog-filter-row {
   flex-wrap: wrap;
   width: auto;

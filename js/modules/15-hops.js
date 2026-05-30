@@ -622,7 +622,7 @@ function buildCompareColumn(group, variant, removable) {
           var cart = buildHopCartObject(cv);
           var key = cv.name + '|';
           var ren = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(cv))
-            ? renderWeightControl : renderReserveControl;
+            ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
           reserveWrap._reserveProduct = cart;
           reserveWrap._reserveKey = key;
           reserveWrap._reserveRenderer = ren;
@@ -646,7 +646,7 @@ function buildCompareColumn(group, variant, removable) {
   var hopForCart = buildHopCartObject(variant);
   var productKey = variant.name + '|';
   var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
-    ? renderWeightControl : renderReserveControl;
+    ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
   reserveWrap._reserveProduct = hopForCart;
   reserveWrap._reserveKey = productKey;
   reserveWrap._reserveRenderer = renderer;
@@ -849,7 +849,7 @@ function buildCompareCellContent(key, group, variant) {
             var cart = buildHopCartObject(cv);
             var pkey = cv.name + '|';
             var ren = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(cv))
-              ? renderWeightControl : renderReserveControl;
+              ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
             reserveWrap._reserveProduct = cart;
             reserveWrap._reserveKey = pkey;
             reserveWrap._reserveRenderer = ren;
@@ -872,7 +872,7 @@ function buildCompareCellContent(key, group, variant) {
     var hopForCart = buildHopCartObject(variant);
     var productKey = variant.name + '|';
     var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
-      ? renderWeightControl : renderReserveControl;
+      ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
     reserveWrap._reserveProduct = hopForCart;
     reserveWrap._reserveKey = productKey;
     reserveWrap._reserveRenderer = renderer;
@@ -1046,7 +1046,7 @@ function buildDetailPanel(group, variant) {
   var hopForCart = buildHopCartObject(variant);
   var productKey = variant.name + '|';
   var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
-    ? renderWeightControl : renderReserveControl;
+    ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
   reserveWrap._reserveProduct = hopForCart;
   reserveWrap._reserveKey = productKey;
   reserveWrap._reserveRenderer = renderer;
@@ -1073,7 +1073,7 @@ function buildDetailPanel(group, variant) {
           var newHopForCart = buildHopCartObject(clickedVariant);
           var newProductKey = clickedVariant.name + '|';
           var newRenderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(clickedVariant))
-            ? renderWeightControl : renderReserveControl;
+            ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
           reserveWrap._reserveProduct = newHopForCart;
           reserveWrap._reserveKey = newProductKey;
           reserveWrap._reserveRenderer = newRenderer;
@@ -1162,7 +1162,7 @@ function buildHopCard(group) {
   var hopForCart = buildHopCartObject(variant);
   var productKey = variant.name + '|';
   var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
-    ? renderWeightControl : renderReserveControl;
+    ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
   reserveWrap._reserveProduct = hopForCart;
   reserveWrap._reserveKey = productKey;
   reserveWrap._reserveRenderer = renderer;
@@ -1192,7 +1192,7 @@ function buildHopCard(group) {
           var newHopForCart = buildHopCartObject(clickedVariant);
           var newProductKey = clickedVariant.name + '|';
           var newRenderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(clickedVariant))
-            ? renderWeightControl : renderReserveControl;
+            ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
           reserveWrap._reserveProduct = newHopForCart;
           reserveWrap._reserveKey = newProductKey;
           reserveWrap._reserveRenderer = newRenderer;
