@@ -545,6 +545,7 @@ function toggleMobileAccordion(card, item) {
 function buildItemCard(item) {
   var card = document.createElement('div');
   card.className = 'product-card subpage-card';
+  if (item.sku) { card.setAttribute('data-sku', item.sku); }
 
   // Product name — T-21-01: use textContent, never innerHTML for product data
   var nameEl = document.createElement('h2');

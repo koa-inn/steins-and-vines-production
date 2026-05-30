@@ -1122,6 +1122,7 @@ function buildHopCard(group) {
 
   var selectedVariantIdx = 0;
   var variant = group.variants[selectedVariantIdx];
+  if (variant && variant.sku) { card.setAttribute('data-sku', variant.sku); }
 
   var heading = document.createElement('h2');
   heading.textContent = group.name;
