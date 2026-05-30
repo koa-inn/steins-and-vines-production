@@ -2927,14 +2927,14 @@ behold-widget {
 }
 
 .reservation-table .qty-input {
-  padding: 0 2px;
+  padding: 0 4px;
   border: none;
   background: none;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--color-text);
-  width: auto;
-  max-width: 45px;
+  width: 60px;
+  max-width: none;
   height: auto;
   min-width: 0;
 }
