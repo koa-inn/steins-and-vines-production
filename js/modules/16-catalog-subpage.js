@@ -433,13 +433,6 @@ function buildDetailPanel(item) {
     reserveWrap._reserveKey = productKey;
     reserveWrap._reserveRenderer = renderer;
     renderer(reserveWrap, cartObj, productKey);
-    reserveWrap.addEventListener('click', function () {
-      setTimeout(function () {
-        if (typeof openCartDrawer === 'function' && getReservedQty(productKey) > 0) {
-          openCartDrawer();
-        }
-      }, 100);
-    });
     cartArea.appendChild(reserveWrap);
     panel.appendChild(cartArea);
   }
@@ -580,25 +573,17 @@ function buildItemCard(item) {
   card.appendChild(badge);
 
   // Cart controls (only for in-stock items)
+  // Weight items show only renderReserveControl on cards; full slider in detail panel
   if (stockVal > 0) {
     var cartObj = buildCartObject(item);
     var productKey = item.name + '|';
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'product-reserve-wrap';
 
-    var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(item))
-      ? renderWeightControl : renderReserveControl;
     reserveWrap._reserveProduct = cartObj;
     reserveWrap._reserveKey = productKey;
-    reserveWrap._reserveRenderer = renderer;
-    renderer(reserveWrap, cartObj, productKey);
-    reserveWrap.addEventListener('click', function () {
-      setTimeout(function () {
-        if (typeof openCartDrawer === 'function' && getReservedQty(productKey) > 0) {
-          openCartDrawer();
-        }
-      }, 100);
-    });
+    reserveWrap._reserveRenderer = renderReserveControl;
+    renderReserveControl(reserveWrap, cartObj, productKey);
     card.appendChild(reserveWrap);
   }
 
@@ -694,13 +679,6 @@ function buildListTable(items) {
       cartWrap._reserveKey = productKey;
       cartWrap._reserveRenderer = ren;
       ren(cartWrap, cartObj, productKey);
-      cartWrap.addEventListener('click', function () {
-        setTimeout(function () {
-          if (typeof openCartDrawer === 'function' && getReservedQty(productKey) > 0) {
-            openCartDrawer();
-          }
-        }, 100);
-      });
       tdCart.appendChild(cartWrap);
     }
     tr.appendChild(tdCart);
@@ -965,6 +943,7 @@ if (typeof document !== 'undefined') { document.addEventListener('DOMContentLoad
   });
 }); } // end DOMContentLoaded + document guard
 
+var _prevSubpageCartCount = 0;
 function updateSubpageCartFab() {
   var fab = document.getElementById('subpage-cart-fab');
   var countEl = document.getElementById('subpage-cart-fab-count');
@@ -979,7 +958,13 @@ function updateSubpageCartFab() {
   } else {
     fab.classList.remove('hidden');
     if (countEl) countEl.textContent = count;
+    if (count !== _prevSubpageCartCount) {
+      fab.classList.remove('pulse');
+      void fab.offsetWidth;
+      fab.classList.add('pulse');
+    }
   }
+  _prevSubpageCartCount = count;
 }
 
 if (typeof window !== 'undefined') {

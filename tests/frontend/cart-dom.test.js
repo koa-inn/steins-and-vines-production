@@ -98,12 +98,12 @@ describe('renderReserveControl — item in cart (qty > 0)', function () {
     expect(wrap.querySelector('.product-reserve-btn')).toBeNull();
   });
 
-  test('shows current qty in span', function () {
+  test('shows current qty in input', function () {
     var wrap = makeWrap();
     renderReserveControl(wrap, makeKit(), 'Wine Kit|RJS');
-    var qtySpan = wrap.querySelector('.qty-value');
-    expect(qtySpan).not.toBeNull();
-    expect(qtySpan.textContent).toBe('2');
+    var qtyInput = wrap.querySelector('.qty-input');
+    expect(qtyInput).not.toBeNull();
+    expect(qtyInput.value).toBe('2');
   });
 
   test('minus and plus buttons present', function () {

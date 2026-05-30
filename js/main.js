@@ -4653,9 +4653,25 @@ function renderReserveControl(wrap, product, productKey) {
       renderReserveControl(wrap, product, productKey);
     });
 
-    var qtySpan = document.createElement('span');
-    qtySpan.className = 'qty-value';
-    qtySpan.textContent = qty;
+    var qtyInput = document.createElement('input');
+    qtyInput.type = 'number';
+    qtyInput.className = 'qty-input';
+    qtyInput.value = qty;
+    qtyInput.min = '0';
+    qtyInput.max = String(maxQty);
+    qtyInput.step = '1';
+    qtyInput.setAttribute('inputmode', 'numeric');
+    qtyInput.setAttribute('aria-label', 'Quantity');
+    qtyInput.addEventListener('change', function () {
+      var val = parseInt(qtyInput.value, 10);
+      if (isNaN(val) || val < 0) val = 0;
+      if (val > maxQty) val = maxQty;
+      qtyInput.value = val;
+      setReservationQty(product, val);
+      renderReserveControl(wrap, product, productKey);
+    });
+    qtyInput.addEventListener('click', function (e) { e.stopPropagation(); });
+    qtyInput.addEventListener('focus', function () { qtyInput.select(); });
 
     var plusBtn = document.createElement('button');
     plusBtn.type = 'button';
@@ -4672,7 +4688,7 @@ function renderReserveControl(wrap, product, productKey) {
     plusBtn.textContent = '+';
 
     controls.appendChild(minusBtn);
-    controls.appendChild(qtySpan);
+    controls.appendChild(qtyInput);
     controls.appendChild(plusBtn);
     wrap.appendChild(controls);
   }
