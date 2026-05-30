@@ -2924,33 +2924,28 @@ behold-widget {
   border: none;
   background: none;
   overflow: visible;
-  gap: 6px;
-  display: flex;
+  display: grid;
+  grid-template-columns: 28px 55px 18px 28px;
+  gap: 4px;
   align-items: center;
-  width: 155px;
 }
 
 .reservation-table .qty-input {
-  padding: 0 4px;
+  padding: 0 2px;
   border: none;
-  border-left: none;
-  border-right: none;
   background: none;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--color-text);
-  flex: 0 0 auto;
-  width: 55px;
+  width: 100%;
   max-width: none;
-  min-width: 55px;
+  min-width: 0;
   height: 28px;
+  text-align: right;
 }
 .reservation-table .qty-unit-label {
   font-size: 0.7rem;
   color: var(--color-muted, #5f5f5f);
-  flex-shrink: 0;
-  width: 1.2em;
-  text-align: left;
 }
 
 .reservation-table .product-qty-controls .qty-btn {
@@ -2958,7 +2953,6 @@ behold-widget {
   height: 28px;
   font-size: 0.875rem;
   border-radius: 4px;
-  flex-shrink: 0;
   font-size: 1.125rem;
   flex-shrink: 0;
 }
