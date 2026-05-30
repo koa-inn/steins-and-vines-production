@@ -653,7 +653,7 @@ body[data-page="equipment"]   .subnav-pill[data-subnav="equipment"] {
 
 /* Indent individual category links below "All Ingredients" */
 .nav-dropdown-menu .nav-dropdown-indent a {
-  padding-left: 1.25rem;
+  padding-left: 2rem;
   font-size: 0.9em;
 }
 

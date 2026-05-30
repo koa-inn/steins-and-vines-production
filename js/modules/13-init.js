@@ -343,8 +343,8 @@ document.addEventListener('DOMContentLoaded', function () {
     initPromoBanner();
   }
 
-  // Hops page — cart drawer for standalone catalog
-  if (page === 'hops') {
+  // Hops + ingredient subpages — cart drawer for standalone catalogs
+  if (['hops', 'grains', 'yeast', 'additives', 'packaging', 'equipment'].indexOf(page) !== -1) {
     initCartDrawer();
   }
 
