@@ -242,6 +242,17 @@ body[data-page="hops"] .site-footer {
   margin-bottom: 0;
   box-shadow: none;
 }
+/* Hops uses a centered filter layout, not the desktop left-gutter hang.
+   Neutralize the global label's negative-margin/right-align hack (which
+   relies on the row's padding-left we just removed) so the label sits on
+   its own centered line above the wrapped pills instead of clipping off
+   the left edge. */
+.hops-toolbar .catalog-filter-label {
+  width: auto;
+  margin-left: 0;
+  text-align: center;
+  flex-basis: 100%;
+}
 
 /* Hop card -- extends .product-card (do not redeclare .product-card rules) */
 .hop-card {
@@ -1003,38 +1014,44 @@ body[data-page="hops"] .site-footer {
   font-size: 0.8rem;
 }
 
-/* Cart drawer — override global display:none for hops page (no sidebar) */
-body[data-page="hops"] .cart-drawer-backdrop {
-  display: block;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.4);
-  z-index: 1100;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.3s, visibility 0.3s;
-}
-body[data-page="hops"] .cart-drawer-backdrop.open {
-  opacity: 1;
-  visibility: visible;
-}
-body[data-page="hops"] .cart-drawer {
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 380px;
-  max-width: 90vw;
-  background: var(--color-white, #fff);
-  box-shadow: -4px 0 20px rgba(0,0,0,0.15);
-  z-index: 1200;
-  transform: translateX(100%);
-  transition: transform 0.3s ease;
-}
-body[data-page="hops"] .cart-drawer.open {
-  transform: translateX(0);
+/* Cart drawer — desktop side-drawer for hops page (no sidebar).
+   Scoped to >=1024px so mobile falls back to the global bottom-sheet
+   (styles.css max-width:1023px). The hops selectors outrank the global
+   mobile rules on specificity, so without this gate the side-drawer
+   would leak on-screen at mobile widths. */
+@media (min-width: 1024px) {
+  body[data-page="hops"] .cart-drawer-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 1100;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+  }
+  body[data-page="hops"] .cart-drawer-backdrop.open {
+    opacity: 1;
+    visibility: visible;
+  }
+  body[data-page="hops"] .cart-drawer {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 380px;
+    max-width: 90vw;
+    background: var(--color-white, #fff);
+    box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+    z-index: 1200;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+  body[data-page="hops"] .cart-drawer.open {
+    transform: translateX(0);
+  }
 }
 body[data-page="hops"] .cart-drawer-header {
   display: flex;
