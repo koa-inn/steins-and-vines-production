@@ -135,8 +135,16 @@ Plans:
   1. Triggering the search icon in the sub-nav opens an overlay with a text input; typing at least 2 characters shows results grouped by category
   2. Clicking a search result navigates to that item's category subpage with the item's detail panel already expanded
 
-**Plans**: TBD
+**Plans**: 2 plans
 **UI hint**: yes
+Plans:
+**Wave 1**
+
+- [ ] 23-01-PLAN.md — Create search overlay module, CSS, and fix data-sku gap
+
+**Wave 2**
+
+- [ ] 23-02-PLAN.md — Wire overlay into 7 HTML pages, build pipeline, and unit tests
 
 ### Phase 24: SEO & Staging Deploy
 
@@ -149,7 +157,7 @@ Plans:
   2. sitemap.xml includes entries for all 5 new subpages
   3. All 5 subpages load correctly on staging.steinsandvines.ca with no console errors
 
-**Plans**: TBD
+**Plans**: 2 plans
 
 ## Progress
 
@@ -161,5 +169,5 @@ Plans:
 | 20. Zoho Data Foundation | v3.0 | 2/2 | Complete | 2026-05-28 |
 | 21. Shared Template & Build Infrastructure | v3.0 | 2/2 | Complete   | 2026-05-29 |
 | 22. Category Subpages & Navigation | v3.0 | 3/3 | Complete   | 2026-05-29 |
-| 23. Cross-Category Search | v3.0 | 0/? | Not started | - |
+| 23. Cross-Category Search | v3.0 | 0/2 | Not started | - |
 | 24. SEO & Staging Deploy | v3.0 | 0/? | Not started | - |
