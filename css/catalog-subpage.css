@@ -231,6 +231,11 @@
 
 /* ===== Product Grid ===== */
 
+/* Bottom spacing before footer */
+.subpage-catalog-section {
+  padding-bottom: 3rem;
+}
+
 /* Override base product-grid for subpage catalog section
    D-03: auto-fill, min 250px, max 4 columns naturally */
 .subpage-catalog-section .product-grid {
