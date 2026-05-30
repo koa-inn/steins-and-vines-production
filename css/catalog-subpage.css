@@ -91,7 +91,8 @@
   background: var(--color-cream);
   padding: 1.5rem 2rem;
   border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border-top: 3px solid var(--subpage-accent, var(--color-green));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   margin: 2rem 0 1.5rem;
   display: flex;
   flex-wrap: wrap;
@@ -237,25 +238,32 @@
   gap: 24px 16px;
 }
 
-/* Subpage card — do NOT redeclare .product-card base rules from styles.css */
-.subpage-card {
+/* Subpage card — override .product-card base border with accent color */
+.product-card.subpage-card {
   cursor: pointer;
   position: relative;
   transition: box-shadow 0.15s, border-color 0.15s;
+  border-top: 3px solid var(--subpage-accent, var(--color-green));
   border-left: 3px solid var(--subpage-accent, var(--color-green));
 }
 
-.subpage-card h2 {
+.product-card.subpage-card h2 {
   font-size: 1rem;
   line-height: 1.3;
+  color: var(--subpage-accent, var(--color-green));
 }
 
-.subpage-card:hover {
+.product-card.subpage-card .stock-badge--in {
+  color: var(--subpage-accent, var(--color-green));
+}
+
+.product-card.subpage-card:hover {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+  border-color: var(--subpage-accent, var(--color-green));
 }
 
 /* Expand cue — subtle chevron hint */
-.subpage-card::after {
+.product-card.subpage-card::after {
   content: '\25BE';
   position: absolute;
   top: 0.75rem;
@@ -273,8 +281,9 @@
 }
 
 /* Active card — stronger accent */
-.subpage-card--active {
+.product-card.subpage-card--active {
   border-left: 4px solid var(--subpage-accent, var(--color-green));
+  border-top-color: var(--subpage-accent, var(--color-green));
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
 }
 
@@ -622,7 +631,8 @@ body[data-page="yeast"]       .subnav-pill[data-subnav="yeast"],
 body[data-page="additives"]   .subnav-pill[data-subnav="additives"],
 body[data-page="packaging"]   .subnav-pill[data-subnav="packaging"],
 body[data-page="equipment"]   .subnav-pill[data-subnav="equipment"] {
-  background: var(--color-green);
+  background: var(--subpage-accent, var(--color-green));
+  border-color: var(--subpage-accent, var(--color-green));
   color: var(--color-cream);
 }
 

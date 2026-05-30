@@ -6100,15 +6100,15 @@ behold-widget {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* Meet 44×44px minimum touch target (WCAG 2.5.5) */
-  min-width: 44px;
-  min-height: 44px;
+  width: 36px;
+  height: 36px;
   padding: 0;
+  margin: 0.5rem auto 0;
   border: 1px solid var(--color-border, #d0c8b0);
   border-radius: 50%;
   background: transparent;
   color: var(--color-muted, #5f5f5f);
-  font-size: 1rem;
+  font-size: 0.85rem;
   line-height: 1;
   cursor: pointer;
   flex-shrink: 0;
