@@ -281,6 +281,9 @@
 }
 
 /* Qty controls — constrain to card width */
+.product-card.subpage-card {
+  padding-bottom: 1.5rem;
+}
 .product-card.subpage-card .product-qty-controls {
   max-width: 100%;
 }
