@@ -6788,76 +6788,61 @@ function renderReservationItems() {
       };
     })(itemCartKey);
 
-    if (!itemIsWeighted) {
-      var minusBtn = document.createElement('button');
-      minusBtn.type = 'button';
-      minusBtn.className = 'qty-btn';
-      minusBtn.setAttribute('aria-label', 'Decrease quantity of ' + item.name);
-      minusBtn.textContent = '\u2212';
-    }
+    var minusBtn = document.createElement('button');
+    minusBtn.type = 'button';
+    minusBtn.className = 'qty-btn';
+    minusBtn.setAttribute('aria-label', 'Decrease quantity of ' + item.name);
+    minusBtn.textContent = '\u2212';
 
     var qtyInput = document.createElement('input');
-    qtyInput.type = 'number';
-    qtyInput.className = 'qty-input' + (itemIsWeighted ? ' qty-input--weight' : '');
-    qtyInput.value = String(item.qty != null ? item.qty : 1);
+    qtyInput.type = 'text';
+    qtyInput.className = 'qty-input';
+    var decimalsA = itemIsWeighted ? 2 : 0;
+    qtyInput.value = itemIsWeighted ? parseFloat(item.qty || 1).toFixed(decimalsA) : String(item.qty != null ? item.qty : 1);
     qtyInput.setAttribute('aria-label', 'Quantity for ' + item.name);
-    if (itemIsWeighted) {
-      qtyInput.step = String(qtyStep);
-      qtyInput.setAttribute('inputmode', 'decimal');
-      qtyInput.min = String(qtyStep);
+    qtyInput.setAttribute('inputmode', itemIsWeighted ? 'decimal' : 'numeric');
+    qtyInput.setAttribute('pattern', itemIsWeighted ? '[0-9]*\\.?[0-9]*' : '[0-9]*');
+    qtyInput.setAttribute('autocomplete', 'off');
+
+    var currentQty = parseFloat(item.qty) || 1;
+    var plusBtn = document.createElement('button');
+    plusBtn.type = 'button';
+    plusBtn.textContent = '+';
+    plusBtn.setAttribute('aria-label', 'Increase quantity of ' + item.name);
+    if (itemMax !== Infinity && currentQty >= itemMax) {
+      plusBtn.className = 'qty-btn qty-btn--disabled';
+      plusBtn.disabled = true;
     } else {
-      qtyInput.step = '1';
-      qtyInput.setAttribute('inputmode', 'numeric');
-      qtyInput.min = '1';
+      plusBtn.className = 'qty-btn';
     }
-    if (itemMax !== Infinity) qtyInput.max = String(itemMax);
 
-    if (!itemIsWeighted) {
-      var plusBtn = document.createElement('button');
-      plusBtn.type = 'button';
-      plusBtn.textContent = '+';
-      plusBtn.setAttribute('aria-label', 'Increase quantity of ' + item.name);
-      var currentQty = parseFloat(item.qty) || 1;
-      if (itemMax !== Infinity && currentQty >= itemMax) {
-        plusBtn.className = 'qty-btn qty-btn--disabled';
-        plusBtn.disabled = true;
-      } else {
-        plusBtn.className = 'qty-btn';
-      }
-
-      minusBtn.addEventListener('click', function () {
-        var cur = parseFloat(qtyInput.value) || 0;
-        applyQtyChange(cur - qtyStep);
-      });
-
-      plusBtn.addEventListener('click', function () {
-        var cur = parseFloat(qtyInput.value) || 0;
-        applyQtyChange(cur + qtyStep);
-      });
-    }
+    minusBtn.addEventListener('click', function () {
+      var cur = parseFloat(qtyInput.value) || 0;
+      applyQtyChange(cur - qtyStep);
+    });
+    plusBtn.addEventListener('click', function () {
+      var cur = parseFloat(qtyInput.value) || 0;
+      applyQtyChange(cur + qtyStep);
+    });
 
     qtyInput.addEventListener('change', function () {
       var val = parseFloat(qtyInput.value);
       if (isNaN(val) || val <= 0) {
-        qtyInput.value = String(item.qty != null ? item.qty : 1);
+        qtyInput.value = itemIsWeighted ? parseFloat(item.qty || 1).toFixed(decimalsA) : String(item.qty != null ? item.qty : 1);
         return;
       }
       if (!itemIsWeighted) val = Math.round(val);
       applyQtyChange(val);
     });
+    qtyInput.addEventListener('focus', function () { qtyInput.select(); });
 
-    if (!itemIsWeighted) {
-      qtyControls.appendChild(minusBtn);
-    }
+    qtyControls.appendChild(minusBtn);
     qtyControls.appendChild(qtyInput);
+    qtyControls.appendChild(plusBtn);
     if (itemIsWeighted && item.unit) {
       var unitLabel = document.createElement('span');
       unitLabel.className = 'qty-unit-label';
       unitLabel.textContent = item.unit;
-      qtyControls.appendChild(unitLabel);
-    }
-    if (!itemIsWeighted) {
-      qtyControls.appendChild(plusBtn);
     }
     tdQty.appendChild(qtyControls);
     tr.appendChild(tdQty);
@@ -7313,50 +7298,40 @@ function renderCheckoutIngredientSection() {
     var qtyControlsIng = document.createElement('div');
     qtyControlsIng.className = 'product-qty-controls' + (isWeightedQty ? ' product-qty-controls--weight' : '');
 
-    if (!isWeightedQty) {
-      var minusBtnIng = document.createElement('button');
-      minusBtnIng.type = 'button';
-      minusBtnIng.className = 'qty-btn';
-      minusBtnIng.setAttribute('aria-label', 'Decrease quantity of ' + item.name);
-      minusBtnIng.textContent = '\u2212';
-    }
+    var minusBtnIng = document.createElement('button');
+    minusBtnIng.type = 'button';
+    minusBtnIng.className = 'qty-btn';
+    minusBtnIng.setAttribute('aria-label', 'Decrease quantity of ' + item.name);
+    minusBtnIng.textContent = '\u2212';
 
+    var decimalsIng = isWeightedQty ? (isKgIng ? 2 : 0) : 0;
     var qtyInputIng = document.createElement('input');
-    qtyInputIng.type = 'number';
-    qtyInputIng.className = 'qty-input' + (isWeightedQty ? ' qty-input--weight' : '');
-    qtyInputIng.value = String(qty);
+    qtyInputIng.type = 'text';
+    qtyInputIng.className = 'qty-input';
+    qtyInputIng.value = isWeightedQty ? parseFloat(qty).toFixed(decimalsIng) : String(Math.round(qty));
     qtyInputIng.setAttribute('aria-label', 'Quantity for ' + item.name);
-    if (isWeightedQty) {
-      qtyInputIng.step = String(qtyStepIng);
-      qtyInputIng.setAttribute('inputmode', isKgIng ? 'decimal' : 'numeric');
-      qtyInputIng.min = String(qtyStepIng);
+    qtyInputIng.setAttribute('inputmode', isWeightedQty ? 'decimal' : 'numeric');
+    qtyInputIng.setAttribute('pattern', isWeightedQty ? '[0-9]*\\.?[0-9]*' : '[0-9]*');
+    qtyInputIng.setAttribute('autocomplete', 'off');
+
+    var plusBtnIng = document.createElement('button');
+    plusBtnIng.type = 'button';
+    plusBtnIng.textContent = '+';
+    plusBtnIng.setAttribute('aria-label', 'Increase quantity of ' + item.name);
+    if (itemMaxIng !== Infinity && qty >= itemMaxIng) {
+      plusBtnIng.className = 'qty-btn qty-btn--disabled';
+      plusBtnIng.disabled = true;
     } else {
-      qtyInputIng.step = '1';
-      qtyInputIng.setAttribute('inputmode', 'numeric');
-      qtyInputIng.min = '1';
+      plusBtnIng.className = 'qty-btn';
     }
-    if (itemMaxIng !== Infinity) qtyInputIng.max = String(itemMaxIng);
 
-    if (!isWeightedQty) {
-      var plusBtnIng = document.createElement('button');
-      plusBtnIng.type = 'button';
-      plusBtnIng.textContent = '+';
-      plusBtnIng.setAttribute('aria-label', 'Increase quantity of ' + item.name);
-      if (itemMaxIng !== Infinity && qty >= itemMaxIng) {
-        plusBtnIng.className = 'qty-btn qty-btn--disabled';
-        plusBtnIng.disabled = true;
-      } else {
-        plusBtnIng.className = 'qty-btn';
-      }
+    minusBtnIng.addEventListener('click', (function (inp, step) {
+      return function () { applyIngQtyChange((parseFloat(inp.value) || 0) - step); };
+    })(qtyInputIng, qtyStepIng));
 
-      minusBtnIng.addEventListener('click', (function (inp, step) {
-        return function () { applyIngQtyChange((parseFloat(inp.value) || 0) - step); };
-      })(qtyInputIng, qtyStepIng));
-
-      plusBtnIng.addEventListener('click', (function (inp, step) {
-        return function () { applyIngQtyChange((parseFloat(inp.value) || 0) + step); };
-      })(qtyInputIng, qtyStepIng));
-    }
+    plusBtnIng.addEventListener('click', (function (inp, step) {
+      return function () { applyIngQtyChange((parseFloat(inp.value) || 0) + step); };
+    })(qtyInputIng, qtyStepIng));
 
     qtyInputIng.addEventListener('change', (function (inp) {
       return function () {
@@ -7365,20 +7340,11 @@ function renderCheckoutIngredientSection() {
         applyIngQtyChange(val);
       };
     })(qtyInputIng));
+    qtyInputIng.addEventListener('focus', function () { qtyInputIng.select(); });
 
-    if (!isWeightedQty) {
-      qtyControlsIng.appendChild(minusBtnIng);
-    }
+    qtyControlsIng.appendChild(minusBtnIng);
     qtyControlsIng.appendChild(qtyInputIng);
-    if (isWeightedQty && item.unit) {
-      var unitLabelIng = document.createElement('span');
-      unitLabelIng.className = 'qty-unit-label';
-      unitLabelIng.textContent = item.unit;
-      qtyControlsIng.appendChild(unitLabelIng);
-    }
-    if (!isWeightedQty) {
-      qtyControlsIng.appendChild(plusBtnIng);
-    }
+    qtyControlsIng.appendChild(plusBtnIng);
     tdQty.appendChild(qtyControlsIng);
 
     var tdSub = document.createElement('td');
