@@ -2927,6 +2927,7 @@ behold-widget {
   gap: 6px;
   display: flex;
   align-items: center;
+  width: 155px;
 }
 
 .reservation-table .qty-input {
