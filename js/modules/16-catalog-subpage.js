@@ -947,6 +947,15 @@ if (typeof document !== 'undefined') { document.addEventListener('DOMContentLoad
     });
   }
 
+  // Cart FAB — show count badge, open drawer on click
+  var fab = document.getElementById('subpage-cart-fab');
+  if (fab) {
+    fab.addEventListener('click', function () {
+      if (typeof openCartDrawer === 'function') openCartDrawer();
+    });
+  }
+  updateSubpageCartFab();
+
   // Load items and render
   loadSubpageItems(function () {
     renderCatalog();
@@ -955,6 +964,29 @@ if (typeof document !== 'undefined') { document.addEventListener('DOMContentLoad
     }
   });
 }); } // end DOMContentLoaded + document guard
+
+function updateSubpageCartFab() {
+  var fab = document.getElementById('subpage-cart-fab');
+  var countEl = document.getElementById('subpage-cart-fab-count');
+  if (!fab) return;
+  var items = (typeof getAllCartItems === 'function') ? getAllCartItems() : [];
+  var count = 0;
+  items.forEach(function (item) {
+    count += (typeof isWeightUnit === 'function' && isWeightUnit(item.unit)) ? 1 : (parseFloat(item.qty) || 1);
+  });
+  if (count === 0) {
+    fab.classList.add('hidden');
+  } else {
+    fab.classList.remove('hidden');
+    if (countEl) countEl.textContent = count;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('reservation-changed', function () {
+    if (typeof updateSubpageCartFab === 'function') updateSubpageCartFab();
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Module exports (for unit testing pure functions)

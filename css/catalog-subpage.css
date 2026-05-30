@@ -661,3 +661,149 @@ body[data-page="equipment"]   .subnav-pill[data-subnav="equipment"] {
 .nav-dropdown-menu {
   min-width: 200px;
 }
+
+/* ===== Cart FAB (floating action button) ===== */
+
+.subpage-cart-fab {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.25rem;
+  border: 2px solid rgba(255,255,255,0.5);
+  border-radius: 2rem;
+  background: var(--color-green, #4a6f4b);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.subpage-cart-fab:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+}
+.subpage-cart-fab:active {
+  transform: translateY(0) scale(0.98);
+}
+.subpage-cart-fab.hidden {
+  display: none;
+}
+.subpage-cart-fab svg {
+  flex-shrink: 0;
+}
+.subpage-cart-fab-count {
+  min-width: 1.4em;
+  height: 1.4em;
+  line-height: 1.4em;
+  text-align: center;
+  background: var(--subpage-accent, var(--color-brown, #3e2c1e));
+  border-radius: 50%;
+  font-size: 0.8rem;
+}
+
+/* ===== Cart Drawer overrides for subpages (desktop visibility) ===== */
+
+body.subpage-catalog .cart-drawer-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 1100;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s, visibility 0.3s;
+}
+body.subpage-catalog .cart-drawer-backdrop.open {
+  opacity: 1;
+  visibility: visible;
+}
+body.subpage-catalog .cart-drawer {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 380px;
+  max-width: 90vw;
+  background: var(--color-white, #fff);
+  box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+  z-index: 1200;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+}
+body.subpage-catalog .cart-drawer.open {
+  transform: translateX(0);
+}
+body.subpage-catalog .cart-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--color-green);
+  background: rgba(229,222,193,0.3);
+  flex-shrink: 0;
+}
+body.subpage-catalog .cart-drawer-header h3 {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-green);
+  margin: 0;
+}
+body.subpage-catalog .cart-drawer-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--color-green);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.subpage-catalog .cart-drawer-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 1rem;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+body.subpage-catalog .cart-drawer-footer {
+  padding: 0.75rem 1rem;
+  border-top: 2px solid var(--color-green);
+  background: rgba(229,222,193,0.2);
+  flex-shrink: 0;
+}
+body.subpage-catalog .cart-drawer-subtotal {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  margin-bottom: 0.75rem;
+}
+body.subpage-catalog .cart-drawer-checkout {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  padding: 0.6rem 1rem;
+}
+body.subpage-catalog .cart-drawer-clear {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.75rem;
+}
