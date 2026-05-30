@@ -6836,14 +6836,12 @@ function renderReservationItems() {
     });
     qtyInput.addEventListener('focus', function () { qtyInput.select(); });
 
+    var unitLabel = document.createElement('span');
+    unitLabel.className = 'qty-unit-label';
+    unitLabel.textContent = (itemIsWeighted && item.unit) ? item.unit : '';
     qtyControls.appendChild(minusBtn);
     qtyControls.appendChild(qtyInput);
-    if (itemIsWeighted && item.unit) {
-      var unitLabel = document.createElement('span');
-      unitLabel.className = 'qty-unit-label';
-      unitLabel.textContent = item.unit;
-      qtyControls.appendChild(unitLabel);
-    }
+    qtyControls.appendChild(unitLabel);
     qtyControls.appendChild(plusBtn);
     tdQty.appendChild(qtyControls);
     tr.appendChild(tdQty);
@@ -7343,14 +7341,12 @@ function renderCheckoutIngredientSection() {
     })(qtyInputIng));
     qtyInputIng.addEventListener('focus', function () { qtyInputIng.select(); });
 
+    var unitLabelIng = document.createElement('span');
+    unitLabelIng.className = 'qty-unit-label';
+    unitLabelIng.textContent = (isWeightedQty && item.unit) ? item.unit : '';
     qtyControlsIng.appendChild(minusBtnIng);
     qtyControlsIng.appendChild(qtyInputIng);
-    if (isWeightedQty && item.unit) {
-      var unitLabelIng = document.createElement('span');
-      unitLabelIng.className = 'qty-unit-label';
-      unitLabelIng.textContent = item.unit;
-      qtyControlsIng.appendChild(unitLabelIng);
-    }
+    qtyControlsIng.appendChild(unitLabelIng);
     qtyControlsIng.appendChild(plusBtnIng);
     tdQty.appendChild(qtyControlsIng);
 
