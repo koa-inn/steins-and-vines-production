@@ -53,7 +53,7 @@
 - [x] **Phase 20: Zoho Data Foundation** - Tag all ingredient items with subcategory; refresh snapshot pipeline
 - [x] **Phase 21: Shared Template & Build Infrastructure** - Shared JS module, CSS, and build pipeline for all subpages (completed 2026-05-29)
 - [x] **Phase 22: Category Subpages & Navigation** - All 5 subpages live with sub-nav and main nav dropdown (completed 2026-05-29)
-- [ ] **Phase 23: Cross-Category Search** - Search overlay with grouped results and deep-link navigation
+- [x] **Phase 23: Cross-Category Search** - Search overlay with grouped results and deep-link navigation (completed 2026-05-30)
 - [ ] **Phase 24: SEO & Staging Deploy** - Per-subpage SEO meta, QA pass, and staging deployment
 
 ## Phase Details
@@ -144,7 +144,7 @@ Plans:
 
 **Wave 2**
 
-- [ ] 23-02-PLAN.md — Wire overlay into 7 HTML pages, build pipeline, and unit tests
+- [x] 23-02-PLAN.md — Wire overlay into 7 HTML pages, build pipeline, and unit tests
 
 ### Phase 24: SEO & Staging Deploy
 
@@ -169,5 +169,5 @@ Plans:
 | 20. Zoho Data Foundation | v3.0 | 2/2 | Complete | 2026-05-28 |
 | 21. Shared Template & Build Infrastructure | v3.0 | 2/2 | Complete   | 2026-05-29 |
 | 22. Category Subpages & Navigation | v3.0 | 3/3 | Complete   | 2026-05-29 |
-| 23. Cross-Category Search | v3.0 | 1/2 | In Progress|  |
+| 23. Cross-Category Search | v3.0 | 2/2 | Complete   | 2026-05-30 |
 | 24. SEO & Staging Deploy | v3.0 | 0/? | Not started | - |
