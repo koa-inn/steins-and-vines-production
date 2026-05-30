@@ -651,6 +651,12 @@ body[data-page="equipment"]   .subnav-pill[data-subnav="equipment"] {
   pointer-events: none;
 }
 
+/* Indent individual category links below "All Ingredients" */
+.nav-dropdown-menu .nav-dropdown-indent a {
+  padding-left: 1.25rem;
+  font-size: 0.9em;
+}
+
 /* Widen dropdown to fit 7+ items without text wrapping */
 .nav-dropdown-menu {
   min-width: 200px;
