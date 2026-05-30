@@ -140,7 +140,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 23-01-PLAN.md — Create search overlay module, CSS, and fix data-sku gap
+- [x] 23-01-PLAN.md — Create search overlay module, CSS, and fix data-sku gap
 
 **Wave 2**
 
@@ -169,5 +169,5 @@ Plans:
 | 20. Zoho Data Foundation | v3.0 | 2/2 | Complete | 2026-05-28 |
 | 21. Shared Template & Build Infrastructure | v3.0 | 2/2 | Complete   | 2026-05-29 |
 | 22. Category Subpages & Navigation | v3.0 | 3/3 | Complete   | 2026-05-29 |
-| 23. Cross-Category Search | v3.0 | 0/2 | Not started | - |
+| 23. Cross-Category Search | v3.0 | 1/2 | In Progress|  |
 | 24. SEO & Staging Deploy | v3.0 | 0/? | Not started | - |
