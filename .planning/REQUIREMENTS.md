@@ -25,8 +25,8 @@
 - [ ] **NAV-03**: The sub-nav highlights the current category page
 
 ### Search
-- [ ] **SRCH-01**: A cross-category search overlay shows results grouped by category when triggered from the sub-nav search icon
-- [ ] **SRCH-02**: Clicking a search result navigates to the item on its category subpage with the item's detail panel expanded
+- [x] **SRCH-01**: A cross-category search overlay shows results grouped by category when triggered from the sub-nav search icon
+- [x] **SRCH-02**: Clicking a search result navigates to the item on its category subpage with the item's detail panel expanded
 
 ### Build & SEO
 - [ ] **BUILD-01**: All subpages are integrated into the build pipeline (minify CSS/JS, cache-bust stamps, sitemap entries)
