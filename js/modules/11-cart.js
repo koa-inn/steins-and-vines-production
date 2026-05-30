@@ -266,7 +266,18 @@ function renderReserveControl(wrap, product, productKey) {
     plusBtn.textContent = '+';
 
     controls.appendChild(minusBtn);
-    controls.appendChild(qtyInput);
+    if (isWeight) {
+      var qtyCell = document.createElement('div');
+      qtyCell.className = 'qty-input-cell';
+      qtyCell.appendChild(qtyInput);
+      var unitHint = document.createElement('span');
+      unitHint.className = 'qty-unit-hint';
+      unitHint.textContent = (product.unit || 'kg').toLowerCase();
+      qtyCell.appendChild(unitHint);
+      controls.appendChild(qtyCell);
+    } else {
+      controls.appendChild(qtyInput);
+    }
     controls.appendChild(plusBtn);
     wrap.appendChild(controls);
   }
