@@ -1487,7 +1487,10 @@ function buildHopTable(groups) {
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
-  return table;
+  var tableWrap = document.createElement('div');
+  tableWrap.className = 'hops-table-wrap';
+  tableWrap.appendChild(table);
+  return tableWrap;
 }
 
 // ---------------------------------------------------------------------------

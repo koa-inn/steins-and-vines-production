@@ -846,6 +846,16 @@ body[data-page="hops"] .site-footer {
 }
 
 /* ===== Hops Table / List View ===== */
+/* Cream panel matching the product cards so text stays legible over the foil */
+.hops-table-wrap {
+  position: relative;
+  background: var(--color-cream);
+  border-top: 3px solid var(--color-green);
+  border-radius: 4px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  padding: 0.4rem 1rem;
+  overflow-x: auto;
+}
 .hops-table {
   border-collapse: collapse;
   width: 100%;
@@ -858,9 +868,9 @@ body[data-page="hops"] .site-footer {
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.05em;
-  color: var(--color-cream);
+  color: var(--color-burgundy);
   padding: 0.5rem 0.6rem;
-  border-bottom: 2px solid rgba(229,222,193,0.3);
+  border-bottom: 2px solid rgba(55,14,19,0.25);
   white-space: nowrap;
 }
 .hops-table th[data-sort] {
@@ -884,9 +894,9 @@ body[data-page="hops"] .site-footer {
 }
 .hops-table td {
   padding: 0.5rem 0.6rem;
-  border-bottom: 1px solid rgba(229,222,193,0.12);
+  border-bottom: 1px solid rgba(55,14,19,0.1);
   vertical-align: middle;
-  color: var(--color-cream);
+  color: var(--color-text);
 }
 .hops-table td[data-label="Price"] {
   text-align: right;
@@ -894,7 +904,7 @@ body[data-page="hops"] .site-footer {
   white-space: nowrap;
 }
 .hops-table tr:hover td {
-  background: rgba(229,222,193,0.08);
+  background: rgba(55,14,19,0.05);
 }
 .hop-row--oos td {
   opacity: 0.5;
@@ -905,8 +915,8 @@ body[data-page="hops"] .site-footer {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--color-cream);
-  background: rgba(229,222,193,0.15);
+  color: var(--color-burgundy);
+  background: rgba(55,14,19,0.1);
   padding: 0.15em 0.5em;
   border-radius: 3px;
   margin-left: 0.5rem;

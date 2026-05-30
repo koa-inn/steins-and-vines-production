@@ -6839,9 +6839,12 @@ function renderReservationItems() {
     var unitLabel = document.createElement('span');
     unitLabel.className = 'qty-unit-label';
     unitLabel.textContent = (itemIsWeighted && item.unit) ? item.unit : '';
+    var valueGroup = document.createElement('span');
+    valueGroup.className = 'qty-value-group';
+    valueGroup.appendChild(qtyInput);
+    valueGroup.appendChild(unitLabel);
     qtyControls.appendChild(minusBtn);
-    qtyControls.appendChild(qtyInput);
-    qtyControls.appendChild(unitLabel);
+    qtyControls.appendChild(valueGroup);
     qtyControls.appendChild(plusBtn);
     tdQty.appendChild(qtyControls);
     tr.appendChild(tdQty);
@@ -7344,9 +7347,12 @@ function renderCheckoutIngredientSection() {
     var unitLabelIng = document.createElement('span');
     unitLabelIng.className = 'qty-unit-label';
     unitLabelIng.textContent = (isWeightedQty && item.unit) ? item.unit : '';
+    var valueGroupIng = document.createElement('span');
+    valueGroupIng.className = 'qty-value-group';
+    valueGroupIng.appendChild(qtyInputIng);
+    valueGroupIng.appendChild(unitLabelIng);
     qtyControlsIng.appendChild(minusBtnIng);
-    qtyControlsIng.appendChild(qtyInputIng);
-    qtyControlsIng.appendChild(unitLabelIng);
+    qtyControlsIng.appendChild(valueGroupIng);
     qtyControlsIng.appendChild(plusBtnIng);
     tdQty.appendChild(qtyControlsIng);
 

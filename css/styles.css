@@ -467,10 +467,21 @@ small, .text-small {
   border: 1px solid var(--color-green);
   border-radius: 4px;
   padding: 0.4rem 0;
-  min-width: 180px;
+  min-width: 200px;
   z-index: 210;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   margin-top: 4px;
+}
+
+.nav-dropdown-divider {
+  border-top: 1px solid rgba(74, 111, 75, 0.2);
+  margin: 4px 0;
+  pointer-events: none;
+}
+
+.nav-dropdown-menu .nav-dropdown-indent a {
+  padding-left: 2rem;
+  font-size: 0.9em;
 }
 
 .nav-dropdown:hover .nav-dropdown-menu,
@@ -2924,37 +2935,53 @@ behold-widget {
   border: none;
   background: none;
   overflow: visible;
-  display: grid;
-  grid-template-columns: 28px 55px 18px 28px;
-  gap: 4px;
+  display: flex;
   align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Fixed-width number+unit block keeps the +/- buttons aligned across every
+   row, whether or not a unit label is present, and stops the number from
+   clipping the unit. */
+.reservation-table .qty-value-group {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 3px;
+  width: 66px;
+  flex: 0 0 66px;
 }
 
 .reservation-table .qty-input {
-  padding: 0 2px;
+  padding: 0;
   border: none;
   background: none;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: var(--color-text);
-  width: 100%;
-  max-width: none;
+  width: auto;
+  max-width: 100%;
   min-width: 0;
+  flex: 0 1 auto;
   height: 28px;
   text-align: right;
 }
 .reservation-table .qty-unit-label {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   color: var(--color-muted, #5f5f5f);
+  white-space: nowrap;
+  flex: 0 0 auto;
+  margin: 0;
 }
 
 .reservation-table .product-qty-controls .qty-btn {
   width: 28px;
   height: 28px;
-  font-size: 0.875rem;
-  border-radius: 4px;
   font-size: 1.125rem;
-  flex-shrink: 0;
+  border-radius: 4px;
+  flex: 0 0 28px;
 }
 
 .qty-input {
@@ -6851,8 +6878,12 @@ footer {
     width: 40px;
     height: 40px;
     font-size: 1.1rem;
+    flex: 0 0 40px;
   }
   .qty-input {
+    height: 40px;
+  }
+  .reservation-table .qty-input {
     height: 40px;
   }
 

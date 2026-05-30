@@ -678,25 +678,6 @@ body[data-page="equipment"]   .subnav-pill[data-subnav="equipment"] {
   justify-content: center;
 }
 
-/* ===== Nav Dropdown Divider (Phase 22) ===== */
-
-.nav-dropdown-divider {
-  border-top: 1px solid rgba(74, 111, 75, 0.2);
-  margin: 4px 0;
-  pointer-events: none;
-}
-
-/* Indent individual category links below "All Ingredients" */
-.nav-dropdown-menu .nav-dropdown-indent a {
-  padding-left: 2rem;
-  font-size: 0.9em;
-}
-
-/* Widen dropdown to fit 7+ items without text wrapping */
-.nav-dropdown-menu {
-  min-width: 200px;
-}
-
 /* ===== Cart FAB (floating action button) ===== */
 
 .subpage-cart-fab {
