@@ -799,6 +799,77 @@ function updateReservationBar() {
 
 // ===== Shopping Cart Sidebar/Drawer (Unified) =====
 
+// Editable +/- stepper for weight-based cart items (kg to the hundredth, g whole).
+// Updates route through setReservationQty, which re-renders both cart views.
+function buildCartWeightStepper(item, itemCartKey) {
+  var unitLower = (item.unit || '').toLowerCase();
+  var isKgUnit = unitLower === 'kg' || unitLower.indexOf('kg') !== -1;
+  var step = isKgUnit ? 0.01 : 1;
+  var decimals = isKgUnit ? 2 : 0;
+  var max = getEffectiveMax(item);
+
+  var qtyControls = document.createElement('div');
+  qtyControls.className = 'product-qty-controls product-qty-controls--weight';
+
+  var apply = function (newQty) {
+    newQty = Math.round(newQty * 1000) / 1000;
+    setReservationQty(item, newQty);
+  };
+
+  var minusBtn = document.createElement('button');
+  minusBtn.type = 'button';
+  minusBtn.className = 'qty-btn';
+  minusBtn.setAttribute('aria-label', 'Decrease quantity of ' + item.name);
+  minusBtn.textContent = '−';
+  minusBtn.addEventListener('click', function () {
+    apply((parseFloat(item.qty) || 0) - step);
+  });
+
+  var valueGroup = document.createElement('span');
+  valueGroup.className = 'qty-value-group';
+
+  var qtyInput = document.createElement('input');
+  qtyInput.type = 'text';
+  qtyInput.className = 'qty-input';
+  qtyInput.value = parseFloat(item.qty || 0).toFixed(decimals);
+  qtyInput.setAttribute('aria-label', 'Quantity for ' + item.name);
+  qtyInput.setAttribute('inputmode', 'decimal');
+  qtyInput.setAttribute('pattern', '[0-9]*\\.?[0-9]*');
+  qtyInput.setAttribute('autocomplete', 'off');
+  qtyInput.addEventListener('change', function () {
+    var val = parseFloat(qtyInput.value);
+    if (isNaN(val) || val <= 0) { apply(0); return; }
+    apply(val);
+  });
+  qtyInput.addEventListener('focus', function () { qtyInput.select(); });
+
+  var unitLabel = document.createElement('span');
+  unitLabel.className = 'qty-unit-label';
+  unitLabel.textContent = item.unit || '';
+
+  valueGroup.appendChild(qtyInput);
+  valueGroup.appendChild(unitLabel);
+
+  var plusBtn = document.createElement('button');
+  plusBtn.type = 'button';
+  plusBtn.textContent = '+';
+  plusBtn.setAttribute('aria-label', 'Increase quantity of ' + item.name);
+  if (max !== Infinity && (parseFloat(item.qty) || 0) >= max) {
+    plusBtn.className = 'qty-btn qty-btn--disabled';
+    plusBtn.disabled = true;
+  } else {
+    plusBtn.className = 'qty-btn';
+    plusBtn.addEventListener('click', function () {
+      apply((parseFloat(item.qty) || 0) + step);
+    });
+  }
+
+  qtyControls.appendChild(minusBtn);
+  qtyControls.appendChild(valueGroup);
+  qtyControls.appendChild(plusBtn);
+  return qtyControls;
+}
+
 function renderCartSidebar() {
   var container = document.getElementById('cart-sidebar-items');
   var totalEl = document.getElementById('cart-sidebar-total');
@@ -878,10 +949,7 @@ function renderCartSidebar() {
 
     var itemIsWeighted = isWeightUnit(item.unit);
     if (itemIsWeighted) {
-      var weightDisplay = document.createElement('div');
-      weightDisplay.className = 'cart-sidebar-item-weight';
-      weightDisplay.textContent = (item.qty || 0) + ' ' + item.unit;
-      controls.appendChild(weightDisplay);
+      controls.appendChild(buildCartWeightStepper(item, itemCartKey));
     } else {
       var itemMax = getEffectiveMax(item);
       var qtyControls = document.createElement('div');
@@ -1068,10 +1136,7 @@ function renderCartDrawer() {
 
     var itemIsWeighted = isWeightUnit(item.unit);
     if (itemIsWeighted) {
-      var weightDisplay = document.createElement('div');
-      weightDisplay.className = 'cart-sidebar-item-weight';
-      weightDisplay.textContent = (item.qty || 0) + ' ' + item.unit;
-      controls.appendChild(weightDisplay);
+      controls.appendChild(buildCartWeightStepper(item, itemCartKey));
     } else {
       var itemMax = getEffectiveMax(item);
       var qtyControls = document.createElement('div');
