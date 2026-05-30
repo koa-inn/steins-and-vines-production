@@ -381,18 +381,6 @@ function findRowEnd(card, grid) {
   return last;
 }
 
-function getRowHeight(card, grid) {
-  var cards = grid.querySelectorAll('.subpage-card');
-  var top = card.offsetTop;
-  var maxH = 0;
-  for (var i = 0; i < cards.length; i++) {
-    if (cards[i].offsetTop === top && cards[i].offsetHeight > maxH) {
-      maxH = cards[i].offsetHeight;
-    }
-  }
-  return maxH;
-}
-
 function buildDetailPanel(item) {
   var panel = document.createElement('div');
   panel.className = 'subpage-detail-panel';
@@ -445,6 +433,13 @@ function buildDetailPanel(item) {
     reserveWrap._reserveKey = productKey;
     reserveWrap._reserveRenderer = renderer;
     renderer(reserveWrap, cartObj, productKey);
+    reserveWrap.addEventListener('click', function () {
+      setTimeout(function () {
+        if (typeof openCartDrawer === 'function' && getReservedQty(productKey) > 0) {
+          openCartDrawer();
+        }
+      }, 100);
+    });
     cartArea.appendChild(reserveWrap);
     panel.appendChild(cartArea);
   }
@@ -478,16 +473,11 @@ function buildCartObject(item) {
 }
 
 function openDetailPanel(card, item) {
-  // Close any existing panel first (synchronous, no animation)
   closeDetailPanel();
 
   var grid = card.parentNode;
   var rowEnd = findRowEnd(card, grid);
-  var rowHeight = getRowHeight(card, grid);
-  var gap = parseFloat(getComputedStyle(grid).rowGap) || 0;
   var panel = buildDetailPanel(item);
-  panel.style.marginTop = '-' + (rowHeight + gap) + 'px';
-  panel.style.minHeight = rowHeight + 'px';
   rowEnd.parentNode.insertBefore(panel, rowEnd.nextSibling);
 
   _subpageOpenPanel = panel;
@@ -496,7 +486,6 @@ function openDetailPanel(card, item) {
 
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-  // Move focus to close button for accessibility
   var closeBtn = panel.querySelector('.subpage-detail-close');
   if (closeBtn) closeBtn.focus();
 }
@@ -603,6 +592,13 @@ function buildItemCard(item) {
     reserveWrap._reserveKey = productKey;
     reserveWrap._reserveRenderer = renderer;
     renderer(reserveWrap, cartObj, productKey);
+    reserveWrap.addEventListener('click', function () {
+      setTimeout(function () {
+        if (typeof openCartDrawer === 'function' && getReservedQty(productKey) > 0) {
+          openCartDrawer();
+        }
+      }, 100);
+    });
     card.appendChild(reserveWrap);
   }
 
@@ -698,6 +694,13 @@ function buildListTable(items) {
       cartWrap._reserveKey = productKey;
       cartWrap._reserveRenderer = ren;
       ren(cartWrap, cartObj, productKey);
+      cartWrap.addEventListener('click', function () {
+        setTimeout(function () {
+          if (typeof openCartDrawer === 'function' && getReservedQty(productKey) > 0) {
+            openCartDrawer();
+          }
+        }, 100);
+      });
       tdCart.appendChild(cartWrap);
     }
     tr.appendChild(tdCart);
@@ -705,7 +708,8 @@ function buildListTable(items) {
     // Row click to show detail (not on cart control cell)
     tr.addEventListener('click', function (e) {
       if (e.target.closest('.product-reserve-wrap')) return;
-      var existing = tbody.querySelector('.table-detail-row[data-for="' + item.name.replace(/"/g, '') + '"]');
+      var detailId = 'detail-' + (item.sku || item.name).replace(/[^a-zA-Z0-9-]/g, '_');
+      var existing = document.getElementById(detailId);
       if (existing) {
         existing.classList.remove('open');
         tbody.removeChild(existing);
@@ -713,7 +717,7 @@ function buildListTable(items) {
       }
       var detailRow = document.createElement('tr');
       detailRow.className = 'table-detail-row open';
-      detailRow.setAttribute('data-for', item.name);
+      detailRow.id = detailId;
       var detailTd = document.createElement('td');
       detailTd.colSpan = 4;
 
