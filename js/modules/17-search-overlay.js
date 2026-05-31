@@ -311,7 +311,7 @@ function buildOverlayDOM() {
   closeBtn.type = 'button';
   closeBtn.className = 'search-overlay-close';
   closeBtn.setAttribute('aria-label', 'Close search');
-  closeBtn.textContent = '×'; // times symbol
+  closeBtn.textContent = 'Cancel';
   header.appendChild(closeBtn);
 
   panel.appendChild(header);
