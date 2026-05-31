@@ -657,9 +657,10 @@ function openSearchOverlay(triggerBtn) {
   _overlayElements.panel.classList.add('open');
   _overlayElements.panel.style.visibility = 'visible';
   _overlayElements.input.focus();
-  // Backup: focus again after paint in case the browser deferred layout
+  _overlayElements.input.select();
   requestAnimationFrame(function () {
     _overlayElements.input.focus();
+    _overlayElements.input.select();
   });
 
   // Prevent body scroll while overlay is open
