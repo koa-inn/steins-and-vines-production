@@ -409,37 +409,22 @@ function buildResultRow(item, pageSlug) {
   badgeWrap.appendChild(badge);
   row.appendChild(badgeWrap);
 
-  // Inline cart control — only for in-stock items (D-07: no cart on out-of-stock)
+  // Inline cart button — only for in-stock items (D-07: no cart on out-of-stock)
   if (!isOutOfStock) {
     var cartObj = buildCartObject(item);
-    var productKey = item.name + '|';
-    var reserveWrap = document.createElement('div');
-    reserveWrap.className = 'product-reserve-wrap search-result-cart-wrap';
-    // Required properties for refreshAllReserveControls() (Pattern 4)
-    reserveWrap._reserveProduct = cartObj;
-    reserveWrap._reserveKey = productKey;
-    reserveWrap._reserveRenderer = (typeof renderReserveControl !== 'undefined') ? renderReserveControl : null;
-
-    if (typeof renderReserveControl !== 'undefined') {
-      renderReserveControl(reserveWrap, cartObj, productKey);
-    } else {
-      // Fallback: simple + button if renderReserveControl is unavailable
-      var cartBtn = document.createElement('button');
-      cartBtn.type = 'button';
-      cartBtn.className = 'search-result-cart';
-      cartBtn.setAttribute('aria-label', 'Add ' + item.name + ' to cart');
-      cartBtn.textContent = '+';
-      cartBtn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        if (typeof setReservationQty === 'function') {
-          setReservationQty(cartObj, 1);
-          window.dispatchEvent(new CustomEvent('reservation-changed'));
-        }
-      });
-      reserveWrap.appendChild(cartBtn);
-    }
-
-    row.appendChild(reserveWrap);
+    var cartBtn = document.createElement('button');
+    cartBtn.type = 'button';
+    cartBtn.className = 'search-result-cart';
+    cartBtn.setAttribute('aria-label', 'Add ' + item.name + ' to cart');
+    cartBtn.textContent = '+';
+    cartBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (typeof setReservationQty === 'function') {
+        setReservationQty(cartObj, 1);
+        window.dispatchEvent(new CustomEvent('reservation-changed'));
+      }
+    });
+    row.appendChild(cartBtn);
   }
 
   return row;
@@ -651,18 +636,6 @@ if (typeof document !== 'undefined') { document.addEventListener('DOMContentLoad
     }
   });
 
-  // Re-render inline cart controls when reservation changes
-  if (typeof window !== 'undefined') {
-    window.addEventListener('reservation-changed', function () {
-      if (!_searchOverlayOpen || !_overlayElements) return;
-      // Re-render all product-reserve-wrap elements inside the overlay panel
-      var wraps = _overlayElements.panel.querySelectorAll('.product-reserve-wrap');
-      wraps.forEach(function (wrap) {
-        if (!wrap._reserveProduct || !wrap._reserveRenderer) return;
-        wrap._reserveRenderer(wrap, wrap._reserveProduct, wrap._reserveKey);
-      });
-    });
-  }
 
 }); } // end DOMContentLoaded + document guard
 
