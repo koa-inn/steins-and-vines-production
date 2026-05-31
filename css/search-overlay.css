@@ -165,6 +165,13 @@
   box-sizing: border-box;
 }
 
+/* Hide native browser clear button — we have our own */
+.search-overlay-input::-webkit-search-cancel-button,
+.search-overlay-input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .search-overlay-input:focus {
   outline: 2px solid var(--color-green);
   outline-offset: 0;
