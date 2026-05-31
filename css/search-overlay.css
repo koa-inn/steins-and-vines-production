@@ -303,24 +303,52 @@
    Result row — inline cart controls wrapper
    --------------------------------------------------------------------------- */
 
-.search-result-cart {
-  width: 36px;
-  height: 36px;
+.search-cart-control {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.search-cart-btn {
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: var(--color-green);
-  color: white;
-  border: none;
+  border: 1.5px solid var(--color-green);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
   flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
 }
 
-.search-result-cart:hover {
+.search-cart-plus {
+  background: var(--color-green);
+  color: white;
+}
+
+.search-cart-plus:hover {
   opacity: 0.85;
+}
+
+.search-cart-minus {
+  background: white;
+  color: var(--color-green);
+}
+
+.search-cart-minus:hover {
+  background: rgba(74, 111, 75, 0.1);
+}
+
+.search-cart-qty {
+  min-width: 24px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 /* ---------------------------------------------------------------------------

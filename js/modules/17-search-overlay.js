@@ -38,7 +38,8 @@ var CATEGORY_PAGE_MAP = {
   'Fermenter': 'equipment.html',
   'Equipment': 'equipment.html',
   'Hose':      'equipment.html',
-  'Tubing':    'equipment.html'
+  'Tubing':    'equipment.html',
+  'Hose/Tubing': 'equipment.html'
 };
 
 // Maps cf_subcategory values to grouped display labels for group headers
@@ -56,7 +57,8 @@ var CATEGORY_DISPLAY_NAMES = {
   'Fermenter': 'Equipment',
   'Equipment': 'Equipment',
   'Hose':      'Equipment',
-  'Tubing':    'Equipment'
+  'Tubing':    'Equipment',
+  'Hose/Tubing': 'Equipment'
 };
 
 // ---------------------------------------------------------------------------
@@ -75,7 +77,7 @@ function groupResultsByCategory(fuseResults) {
 
   fuseResults.forEach(function (r) {
     var item = r.item || r; // Fuse v6 vs v7 guard
-    var rawCat = item.cf_subcategory || 'Other';
+    var rawCat = item.cf_subcategory || item.subcategory || 'Other';
     var displayCat = CATEGORY_DISPLAY_NAMES[rawCat] || rawCat;
     var slug = CATEGORY_PAGE_MAP[rawCat] || 'ingredients-supplies.html';
 
@@ -409,22 +411,70 @@ function buildResultRow(item, pageSlug) {
   badgeWrap.appendChild(badge);
   row.appendChild(badgeWrap);
 
-  // Inline cart button — only for in-stock items (D-07: no cart on out-of-stock)
+  // Inline cart controls — only for in-stock items (D-07: no cart on out-of-stock)
   if (!isOutOfStock) {
     var cartObj = buildCartObject(item);
-    var cartBtn = document.createElement('button');
-    cartBtn.type = 'button';
-    cartBtn.className = 'search-result-cart';
-    cartBtn.setAttribute('aria-label', 'Add ' + item.name + ' to cart');
-    cartBtn.textContent = '+';
-    cartBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      if (typeof setReservationQty === 'function') {
-        setReservationQty(cartObj, 1);
-        window.dispatchEvent(new CustomEvent('reservation-changed'));
+    var productKey = item.name + '|';
+    var currentQty = (typeof getReservedQty === 'function') ? (getReservedQty(productKey) || 0) : 0;
+
+    var cartWrap = document.createElement('div');
+    cartWrap.className = 'search-cart-control';
+
+    var minusBtn = document.createElement('button');
+    minusBtn.type = 'button';
+    minusBtn.className = 'search-cart-btn search-cart-minus';
+    minusBtn.setAttribute('aria-label', 'Remove ' + item.name + ' from cart');
+    minusBtn.textContent = '−';
+    if (currentQty <= 0) minusBtn.style.display = 'none';
+
+    var qtySpan = document.createElement('span');
+    qtySpan.className = 'search-cart-qty';
+    qtySpan.textContent = currentQty > 0 ? String(currentQty) : '';
+    if (currentQty <= 0) qtySpan.style.display = 'none';
+
+    var plusBtn = document.createElement('button');
+    plusBtn.type = 'button';
+    plusBtn.className = 'search-cart-btn search-cart-plus';
+    plusBtn.setAttribute('aria-label', 'Add ' + item.name + ' to cart');
+    plusBtn.textContent = '+';
+
+    function updateQtyDisplay(wrap, qty) {
+      var m = wrap.querySelector('.search-cart-minus');
+      var q = wrap.querySelector('.search-cart-qty');
+      if (qty > 0) {
+        m.style.display = '';
+        q.style.display = '';
+        q.textContent = String(qty);
+      } else {
+        m.style.display = 'none';
+        q.style.display = 'none';
+        q.textContent = '';
       }
+    }
+
+    plusBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (typeof setReservationQty !== 'function') return;
+      var cur = (typeof getReservedQty === 'function') ? (getReservedQty(productKey) || 0) : 0;
+      setReservationQty(cartObj, cur + 1);
+      updateQtyDisplay(cartWrap, cur + 1);
+      window.dispatchEvent(new CustomEvent('reservation-changed'));
     });
-    row.appendChild(cartBtn);
+
+    minusBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (typeof setReservationQty !== 'function') return;
+      var cur = (typeof getReservedQty === 'function') ? (getReservedQty(productKey) || 0) : 0;
+      var newQty = Math.max(0, cur - 1);
+      setReservationQty(cartObj, newQty);
+      updateQtyDisplay(cartWrap, newQty);
+      window.dispatchEvent(new CustomEvent('reservation-changed'));
+    });
+
+    cartWrap.appendChild(minusBtn);
+    cartWrap.appendChild(qtySpan);
+    cartWrap.appendChild(plusBtn);
+    row.appendChild(cartWrap);
   }
 
   return row;
