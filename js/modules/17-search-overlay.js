@@ -416,65 +416,115 @@ function buildResultRow(item, pageSlug) {
     var cartObj = buildCartObject(item);
     var productKey = item.name + '|';
     var currentQty = (typeof getReservedQty === 'function') ? (getReservedQty(productKey) || 0) : 0;
+    var isWeight = (typeof hasWeightConfig === 'function') && hasWeightConfig(item);
 
-    var cartWrap = document.createElement('div');
-    cartWrap.className = 'search-cart-control';
+    if (isWeight) {
+      // Weight items: text input + unit label + add button
+      var weightWrap = document.createElement('div');
+      weightWrap.className = 'search-cart-weight';
 
-    var minusBtn = document.createElement('button');
-    minusBtn.type = 'button';
-    minusBtn.className = 'search-cart-btn search-cart-minus';
-    minusBtn.setAttribute('aria-label', 'Remove ' + item.name + ' from cart');
-    minusBtn.textContent = '−';
-    if (currentQty <= 0) minusBtn.style.display = 'none';
+      var unitLower = (item.unit || '').toLowerCase().trim();
+      var isKg = unitLower === 'kg' || unitLower.indexOf('kg') !== -1;
+      var stepVal = isKg ? 0.01 : 1;
 
-    var qtySpan = document.createElement('span');
-    qtySpan.className = 'search-cart-qty';
-    qtySpan.textContent = currentQty > 0 ? String(currentQty) : '';
-    if (currentQty <= 0) qtySpan.style.display = 'none';
+      var weightInput = document.createElement('input');
+      weightInput.type = 'number';
+      weightInput.className = 'search-cart-weight-input';
+      weightInput.setAttribute('min', isKg ? '0.01' : '1');
+      weightInput.setAttribute('step', String(stepVal));
+      weightInput.setAttribute('inputmode', isKg ? 'decimal' : 'numeric');
+      weightInput.setAttribute('aria-label', 'Amount of ' + item.name + ' in ' + (item.unit || 'units'));
+      weightInput.placeholder = currentQty > 0 ? '' : (isKg ? '0.00' : '0');
+      if (currentQty > 0) weightInput.value = isKg ? currentQty.toFixed(2) : String(currentQty);
 
-    var plusBtn = document.createElement('button');
-    plusBtn.type = 'button';
-    plusBtn.className = 'search-cart-btn search-cart-plus';
-    plusBtn.setAttribute('aria-label', 'Add ' + item.name + ' to cart');
-    plusBtn.textContent = '+';
+      // Prevent overlay keyboard handler from closing on input interaction
+      weightInput.addEventListener('keydown', function (e) { e.stopPropagation(); });
 
-    function updateQtyDisplay(wrap, qty) {
-      var m = wrap.querySelector('.search-cart-minus');
-      var q = wrap.querySelector('.search-cart-qty');
-      if (qty > 0) {
-        m.style.display = '';
-        q.style.display = '';
-        q.textContent = String(qty);
-      } else {
-        m.style.display = 'none';
-        q.style.display = 'none';
-        q.textContent = '';
+      var unitLabel = document.createElement('span');
+      unitLabel.className = 'search-cart-weight-unit';
+      unitLabel.textContent = item.unit || '';
+
+      var addWeightBtn = document.createElement('button');
+      addWeightBtn.type = 'button';
+      addWeightBtn.className = 'search-cart-btn search-cart-plus';
+      addWeightBtn.setAttribute('aria-label', 'Set ' + item.name + ' quantity');
+      addWeightBtn.textContent = currentQty > 0 ? '✓' : '+';
+
+      addWeightBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (typeof setReservationQty !== 'function') return;
+        var val = parseFloat(weightInput.value) || 0;
+        if (val <= 0) return;
+        setReservationQty(cartObj, val);
+        addWeightBtn.textContent = '✓';
+        window.dispatchEvent(new CustomEvent('reservation-changed'));
+      });
+
+      weightWrap.appendChild(weightInput);
+      weightWrap.appendChild(unitLabel);
+      weightWrap.appendChild(addWeightBtn);
+      row.appendChild(weightWrap);
+    } else {
+      // Integer items: −/qty/+ control
+      var cartWrap = document.createElement('div');
+      cartWrap.className = 'search-cart-control';
+
+      var minusBtn = document.createElement('button');
+      minusBtn.type = 'button';
+      minusBtn.className = 'search-cart-btn search-cart-minus';
+      minusBtn.setAttribute('aria-label', 'Remove ' + item.name + ' from cart');
+      minusBtn.textContent = '−';
+      if (currentQty <= 0) minusBtn.style.display = 'none';
+
+      var qtySpan = document.createElement('span');
+      qtySpan.className = 'search-cart-qty';
+      qtySpan.textContent = currentQty > 0 ? String(currentQty) : '';
+      if (currentQty <= 0) qtySpan.style.display = 'none';
+
+      var plusBtn = document.createElement('button');
+      plusBtn.type = 'button';
+      plusBtn.className = 'search-cart-btn search-cart-plus';
+      plusBtn.setAttribute('aria-label', 'Add ' + item.name + ' to cart');
+      plusBtn.textContent = '+';
+
+      function updateQtyDisplay(wrap, qty) {
+        var m = wrap.querySelector('.search-cart-minus');
+        var q = wrap.querySelector('.search-cart-qty');
+        if (qty > 0) {
+          m.style.display = '';
+          q.style.display = '';
+          q.textContent = String(qty);
+        } else {
+          m.style.display = 'none';
+          q.style.display = 'none';
+          q.textContent = '';
+        }
       }
+
+      plusBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (typeof setReservationQty !== 'function') return;
+        var cur = (typeof getReservedQty === 'function') ? (getReservedQty(productKey) || 0) : 0;
+        setReservationQty(cartObj, cur + 1);
+        updateQtyDisplay(cartWrap, cur + 1);
+        window.dispatchEvent(new CustomEvent('reservation-changed'));
+      });
+
+      minusBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (typeof setReservationQty !== 'function') return;
+        var cur = (typeof getReservedQty === 'function') ? (getReservedQty(productKey) || 0) : 0;
+        var newQty = Math.max(0, cur - 1);
+        setReservationQty(cartObj, newQty);
+        updateQtyDisplay(cartWrap, newQty);
+        window.dispatchEvent(new CustomEvent('reservation-changed'));
+      });
+
+      cartWrap.appendChild(minusBtn);
+      cartWrap.appendChild(qtySpan);
+      cartWrap.appendChild(plusBtn);
+      row.appendChild(cartWrap);
     }
-
-    plusBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      if (typeof setReservationQty !== 'function') return;
-      var cur = (typeof getReservedQty === 'function') ? (getReservedQty(productKey) || 0) : 0;
-      setReservationQty(cartObj, cur + 1);
-      updateQtyDisplay(cartWrap, cur + 1);
-      window.dispatchEvent(new CustomEvent('reservation-changed'));
-    });
-
-    minusBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      if (typeof setReservationQty !== 'function') return;
-      var cur = (typeof getReservedQty === 'function') ? (getReservedQty(productKey) || 0) : 0;
-      var newQty = Math.max(0, cur - 1);
-      setReservationQty(cartObj, newQty);
-      updateQtyDisplay(cartWrap, newQty);
-      window.dispatchEvent(new CustomEvent('reservation-changed'));
-    });
-
-    cartWrap.appendChild(minusBtn);
-    cartWrap.appendChild(qtySpan);
-    cartWrap.appendChild(plusBtn);
-    row.appendChild(cartWrap);
   }
 
   return row;
