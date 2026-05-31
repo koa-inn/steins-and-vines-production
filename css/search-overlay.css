@@ -1,34 +1,33 @@
 /* ===== Cross-Category Search Overlay (Phase 23) ===== */
-/* Standalone stylesheet — loaded on all 7 ingredient pages after catalog-subpage.min.css */
-/* Overrides the disabled .subnav-search-btn state from catalog-subpage.css */
+/* Standalone stylesheet — loaded on all public pages for site-wide product search */
 
 /* ---------------------------------------------------------------------------
-   Search Button — enable (overrides disabled state in catalog-subpage.css)
+   Header Search Button
    --------------------------------------------------------------------------- */
 
-.subnav-search-btn {
-  cursor: pointer;
-  opacity: 1;
-  transition: background 0.15s, color 0.15s;
-}
-
-.subnav-search-btn:hover,
-.subnav-search-btn[aria-expanded="true"] {
-  background: rgba(74, 111, 75, 0.1);
+.header-search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: none;
   color: var(--color-green);
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.15s;
 }
 
-.subnav-search-btn:focus-visible {
+.header-search-btn:hover {
+  background: rgba(74, 111, 75, 0.1);
+}
+
+.header-search-btn:focus-visible {
   outline: 2px solid var(--color-green);
   outline-offset: 2px;
-}
-
-/* ---------------------------------------------------------------------------
-   Positioning context — desktop dropdown anchors relative to subnav container
-   --------------------------------------------------------------------------- */
-
-.ingredient-subnav .container {
-  position: relative;
 }
 
 /* ---------------------------------------------------------------------------
@@ -57,12 +56,12 @@
    --------------------------------------------------------------------------- */
 
 .search-overlay-panel {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
+  position: fixed;
+  top: var(--header-height, 80px);
+  right: 16px;
   width: 480px;
   max-width: calc(100vw - 32px);
-  max-height: 60vh;
+  max-height: calc(100vh - var(--header-height, 80px) - 32px);
   overflow-y: auto;
   background: var(--color-cream);
   border-radius: 4px;
@@ -70,14 +69,16 @@
   z-index: 196;
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
   transform: translateY(-8px);
   transition: opacity 0.18s ease-out, visibility 0.18s, transform 0.18s ease-out;
-  outline: none; /* focus managed programmatically via role="dialog" */
+  outline: none;
 }
 
 .search-overlay-panel.open {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
   transform: translateY(0);
 }
 

@@ -10,10 +10,10 @@
 // Module-private state
 // ---------------------------------------------------------------------------
 
-var _searchAllItems = [];       // all ingredients (unfiltered, price > 0)
+var _searchAllItems = [];       // all products (ingredients + kits, price > 0)
 var _searchFuse = null;         // single Fuse instance across all categories
 var _searchOverlayOpen = false;
-var _searchOpenBtn = null;      // ref to .subnav-search-btn that opened overlay
+var _searchOpenBtn = null;      // ref to .header-search-btn that opened overlay
 var SEARCH_DESKTOP_BREAKPOINT = 768; // matches SUBPAGE_DESKTOP_BREAKPOINT
 
 // visualViewport resize handler reference — stored so we can remove it on close
@@ -42,7 +42,11 @@ var CATEGORY_PAGE_MAP = {
   'Equipment': 'equipment.html',
   'Hose':      'equipment.html',
   'Tubing':    'equipment.html',
-  'Hose/Tubing': 'equipment.html'
+  'Hose/Tubing': 'equipment.html',
+  'Wine':      'ferment-in-store.html',
+  'Beer':      'ferment-in-store.html',
+  'Cider':     'ferment-in-store.html',
+  'Seltzer':   'ferment-in-store.html'
 };
 
 // Maps cf_subcategory values to grouped display labels for group headers
@@ -61,7 +65,11 @@ var CATEGORY_DISPLAY_NAMES = {
   'Equipment': 'Equipment',
   'Hose':      'Equipment',
   'Tubing':    'Equipment',
-  'Hose/Tubing': 'Equipment'
+  'Hose/Tubing': 'Equipment',
+  'Wine':      'Wine Kits',
+  'Beer':      'Beer Kits',
+  'Cider':     'Cider Kits',
+  'Seltzer':   'Seltzer Kits'
 };
 
 // ---------------------------------------------------------------------------
@@ -80,7 +88,7 @@ function groupResultsByCategory(fuseResults) {
 
   fuseResults.forEach(function (r) {
     var item = r.item || r; // Fuse v6 vs v7 guard
-    var rawCat = item.cf_subcategory || item.subcategory || 'Other';
+    var rawCat = item._is_kit ? (item.cf_type || 'Other') : (item.cf_subcategory || item.subcategory || 'Other');
     var displayCat = CATEGORY_DISPLAY_NAMES[rawCat] || rawCat;
     var slug = CATEGORY_PAGE_MAP[rawCat] || 'ingredients-supplies.html';
 
@@ -176,6 +184,81 @@ function mapItem(z) {
 }
 
 /**
+ * Normalizes a raw Zoho API kit item object to a flat structure.
+ * Similar to mapItem but sets _item_type: 'kit' and _is_kit: true.
+ */
+function mapKitItem(z) {
+  var obj = {
+    name: z.name || '',
+    unit: z.unit || '',
+    price_per_unit: z.rate != null ? String(z.rate) : '',
+    stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
+    description: z.description || '',
+    sales_description: z.sales_description || '',
+    sku: z.sku || '',
+    category: z.category || z.category_name || '',
+    zoho_item_id: z.item_id || '',
+    low_amount: '',
+    high_amount: '',
+    step: '',
+    tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0,
+    tax_name: z.tax_name || '',
+    max_order_qty: z.max_order_qty || '',
+    cf_subcategory: z.cf_subcategory || '',
+    cf_type: z.cf_type || '',
+    millable: '',
+    _item_type: 'kit',
+    _is_kit: true
+  };
+
+  // Custom field flattening — guard against prototype pollution
+  if (z.custom_fields && z.custom_fields.length) {
+    z.custom_fields.forEach(function (cf) {
+      var key = (cf.label || '').toLowerCase().replace(/\s+/g, '_');
+      if (!key) return;
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') return;
+      if (cf.value !== undefined && cf.value !== null) {
+        obj[key] = String(cf.value);
+      }
+    });
+  }
+
+  return obj;
+}
+
+/**
+ * Fetches all products (ingredients + kits) from the middleware API.
+ * Returns ALL items with price > 0.
+ */
+function fetchAllProducts() {
+  var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
+    ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
+  var apiKey = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY)
+    ? SHEETS_CONFIG.MW_API_KEY : '';
+  var headers = { 'x-api-key': apiKey };
+
+  var ingredientsP = fetch(middlewareUrl + '/api/ingredients', { headers: headers })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+    .then(function (data) { return (data.items || []).map(mapItem); })
+    .catch(function () { return []; });
+
+  var productsP = fetch(middlewareUrl + '/api/products', { headers: headers })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+    .then(function (data) { return (data.items || []).map(mapKitItem); })
+    .catch(function () { return []; });
+
+  return Promise.all([ingredientsP, productsP]).then(function (results) {
+    var ingredients = results[0].filter(function (item) {
+      return (parseFloat(item.price_per_unit || '0') || 0) > 0;
+    });
+    var kits = results[1].filter(function (item) {
+      return (parseFloat(item.price_per_unit || '0') || 0) > 0;
+    });
+    return ingredients.concat(kits);
+  });
+}
+
+/**
  * Fetches all ingredients from the middleware API.
  * Returns ALL items with price > 0 — no category filtering (overlay needs all).
  */
@@ -220,7 +303,7 @@ function loadFromSnapshot() {
 }
 
 /**
- * Loads all ingredient items using stale-while-revalidate pattern.
+ * Loads all product items using stale-while-revalidate pattern.
  * On success: populates _searchAllItems and initializes _searchFuse.
  * @returns {Promise}
  */
@@ -235,12 +318,12 @@ function loadSearchItems() {
     // Stale-while-revalidate: return cached immediately, refresh in background if stale
     dataPromise = Promise.resolve(cached.data);
     if (!cached.fresh) {
-      fetchFromMiddleware()
+      fetchAllProducts()
         .then(function (items) { setCachedSearch(items); })
         .catch(function () {});
     }
   } else if (middlewareUrl) {
-    dataPromise = fetchFromMiddleware()
+    dataPromise = fetchAllProducts()
       .then(function (items) {
         setCachedSearch(items);
         return items;
@@ -255,10 +338,10 @@ function loadSearchItems() {
   return dataPromise.then(function (items) {
     _searchAllItems = items;
 
-    // Build Fuse search index over ALL ingredients
+    // Build Fuse search index over ALL products
     if (typeof Fuse !== 'undefined') {
       _searchFuse = new Fuse(_searchAllItems, {
-        keys: ['name', 'description', 'cf_subcategory'],
+        keys: ['name', 'description', 'cf_subcategory', 'cf_type'],
         threshold: 0.35,
         minMatchCharLength: 2,
         ignoreLocation: true
@@ -284,7 +367,7 @@ function buildOverlayDOM() {
   panel.className = 'search-overlay-panel';
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-modal', 'true');
-  panel.setAttribute('aria-label', 'Ingredient search');
+  panel.setAttribute('aria-label', 'Product search');
   panel.setAttribute('tabindex', '-1');
 
   var header = document.createElement('div');
@@ -293,10 +376,10 @@ function buildOverlayDOM() {
   var input = document.createElement('input');
   input.type = 'search';
   input.className = 'search-overlay-input';
-  input.placeholder = 'Search all ingredients...';
+  input.placeholder = 'Search all products...';
   input.setAttribute('autocomplete', 'off');
   input.setAttribute('spellcheck', 'false');
-  input.setAttribute('aria-label', 'Search all ingredients');
+  input.setAttribute('aria-label', 'Search all products');
   header.appendChild(input);
 
   var clearBtn = document.createElement('button');
@@ -321,15 +404,9 @@ function buildOverlayDOM() {
   results.setAttribute('role', 'list');
   panel.appendChild(results);
 
-  // Attach to .ingredient-subnav .container (desktop anchor) or document.body
-  var anchor = document.querySelector('.ingredient-subnav .container');
-  if (anchor) {
-    anchor.appendChild(backdrop);
-    anchor.appendChild(panel);
-  } else {
-    document.body.appendChild(backdrop);
-    document.body.appendChild(panel);
-  }
+  // Always attach to body for site-wide use
+  document.body.appendChild(backdrop);
+  document.body.appendChild(panel);
 
   return { backdrop: backdrop, panel: panel, input: input, clearBtn: clearBtn, closeBtn: closeBtn, results: results };
 }
@@ -355,7 +432,7 @@ function buildCartObject(item) {
     low_amount: item.low_amount || '',
     high_amount: item.high_amount || '',
     step: item.step || '',
-    _item_type: 'ingredient',
+    _item_type: item._item_type || 'ingredient',
     max_order_qty: item.max_order_qty || '',
     zoho_item_id: item.zoho_item_id || '',
     millable: item.millable || '',
@@ -384,7 +461,8 @@ function buildResultRow(item, pageSlug) {
   // Name — link to subpage with ?item=SKU deep-link (D-08)
   var nameLink = document.createElement('a');
   nameLink.className = 'search-result-name';
-  nameLink.href = '../products/' + pageSlug + (item.sku ? '?item=' + encodeURIComponent(item.sku) : '');
+  var basePath = window.location.pathname.indexOf('/products/') !== -1 ? '' : 'products/';
+  nameLink.href = basePath + pageSlug + (item.sku ? '?item=' + encodeURIComponent(item.sku) : '');
   nameLink.textContent = item.name; // T-23-03: textContent, never innerHTML for product data
   row.appendChild(nameLink);
 
@@ -576,9 +654,9 @@ function renderSearchResults(query) {
     var noResultsDiv = document.createElement('div');
     noResultsDiv.className = 'search-no-results';
     var noResultsMsg = document.createElement('p');
-    noResultsMsg.textContent = 'No ingredients match “' + query + '”'; // T-23-01
+    noResultsMsg.textContent = 'No products match “' + query + '”'; // T-23-01
     var noResultsHint = document.createElement('p');
-    noResultsHint.textContent = 'Try a different spelling or browse a category above.';
+    noResultsHint.textContent = 'Try a different spelling or browse our product categories.';
     noResultsDiv.appendChild(noResultsMsg);
     noResultsDiv.appendChild(noResultsHint);
     resultsEl.appendChild(noResultsDiv);
@@ -601,7 +679,7 @@ function renderSearchResults(query) {
     }).slice(0, TOP_COUNT);
     topItems.forEach(function (r) {
       var item = r.item || r;
-      var rawCat = item.cf_subcategory || item.subcategory || '';
+      var rawCat = item._is_kit ? (item.cf_type || '') : (item.cf_subcategory || item.subcategory || '');
       var slug = CATEGORY_PAGE_MAP[rawCat] || 'ingredients-supplies.html';
       var row = buildResultRow(item, slug);
       resultsEl.appendChild(row);
@@ -634,7 +712,8 @@ function renderSearchResults(query) {
     if (group.items.length > cap) {
       var viewAllLink = document.createElement('a');
       viewAllLink.className = 'search-view-all';
-      viewAllLink.href = '../products/' + group.slug;
+      var viewAllBase = window.location.pathname.indexOf('/products/') !== -1 ? '' : 'products/';
+      viewAllLink.href = viewAllBase + group.slug;
       viewAllLink.textContent = 'View all ' + group.items.length + ' in ' + group.category;
       resultsEl.appendChild(viewAllLink);
     }
@@ -704,7 +783,7 @@ function stopViewportTracking() {
 
 /**
  * Opens the search overlay: shows backdrop+panel, focuses input, loads items.
- * @param {HTMLElement} triggerBtn - the .subnav-search-btn that was clicked
+ * @param {HTMLElement} triggerBtn - the .header-search-btn that was clicked
  */
 function openSearchOverlay(triggerBtn) {
   if (!_overlayElements) return;
@@ -778,12 +857,8 @@ function closeSearchOverlay() {
 // ---------------------------------------------------------------------------
 
 if (typeof document !== 'undefined') { document.addEventListener('DOMContentLoaded', function () {
-  // Pitfall 3: MUST be first statement — routes cart items to ingredients cart
-  // (overlay is only loaded on ingredient pages, so this is always correct)
-  _activeCartTab = 'ingredients';
-
   // Find search button — abort silently if not present on this page
-  var btn = document.querySelector('.subnav-search-btn');
+  var btn = document.querySelector('.header-search-btn');
   if (!btn) return;
 
   // Build overlay DOM and wire up elements
