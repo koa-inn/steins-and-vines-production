@@ -650,6 +650,7 @@ function buildListTable(items) {
 
     var tr = document.createElement('tr');
     tr.setAttribute('data-item-name', item.name);
+    if (item.sku) { tr.setAttribute('data-sku', item.sku); }
 
     // Name
     var tdName = document.createElement('td');
