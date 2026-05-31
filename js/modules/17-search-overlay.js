@@ -582,6 +582,26 @@ function renderSearchResults(query) {
     return;
   }
 
+  // Top Results — show the strongest Fuse matches regardless of category
+  var TOP_COUNT = 5;
+  if (fuseResults.length > TOP_COUNT && groups.length > 1) {
+    var topHeader = document.createElement('div');
+    topHeader.className = 'search-group-header search-top-header';
+    topHeader.setAttribute('role', 'heading');
+    topHeader.setAttribute('aria-level', '3');
+    topHeader.textContent = 'TOP RESULTS';
+    resultsEl.appendChild(topHeader);
+
+    var topItems = fuseResults.slice(0, TOP_COUNT);
+    topItems.forEach(function (r) {
+      var item = r.item || r;
+      var rawCat = item.cf_subcategory || item.subcategory || '';
+      var slug = CATEGORY_PAGE_MAP[rawCat] || 'ingredients-supplies.html';
+      var row = buildResultRow(item, slug);
+      resultsEl.appendChild(row);
+    });
+  }
+
   groups.forEach(function (group) {
     // Group header
     var groupHeader = document.createElement('div');
