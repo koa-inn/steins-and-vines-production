@@ -306,6 +306,10 @@
 }
 
 /* Active card — stronger accent */
+.product-card.subpage-card.out-of-stock {
+  opacity: 0.45;
+}
+
 .product-card.subpage-card--active {
   border-left: 4px solid var(--subpage-accent, var(--color-green));
   border-top-color: var(--subpage-accent, var(--color-green));

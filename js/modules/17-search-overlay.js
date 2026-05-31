@@ -592,7 +592,10 @@ function renderSearchResults(query) {
     topHeader.textContent = 'TOP RESULTS';
     resultsEl.appendChild(topHeader);
 
-    var topItems = fuseResults.slice(0, TOP_COUNT);
+    var topItems = fuseResults.filter(function (r) {
+      var it = r.item || r;
+      return (parseInt(it.stock, 10) || 0) > 0;
+    }).slice(0, TOP_COUNT);
     topItems.forEach(function (r) {
       var item = r.item || r;
       var rawCat = item.cf_subcategory || item.subcategory || '';

@@ -546,6 +546,9 @@ function buildItemCard(item) {
   var card = document.createElement('div');
   card.className = 'product-card subpage-card';
   if (item.sku) { card.setAttribute('data-sku', item.sku); }
+  var _cardStockVal = parseInt(item.stock, 10) || 0;
+  var _cardIsWeight = typeof isWeightUnit === 'function' && isWeightUnit(item.unit);
+  if (_cardStockVal <= 0 && !_cardIsWeight) { card.classList.add('out-of-stock'); }
 
   // Product name — T-21-01: use textContent, never innerHTML for product data
   var nameEl = document.createElement('h2');
