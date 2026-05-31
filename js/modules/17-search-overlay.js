@@ -716,6 +716,8 @@ if (typeof document !== 'undefined') { document.addEventListener('DOMContentLoad
   // Build overlay DOM and wire up elements
   _overlayElements = buildOverlayDOM();
 
+  // Prevent the button from stealing focus after our click handler runs
+  btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
   // Wire search button click to open overlay
   btn.addEventListener('click', function () {
     openSearchOverlay(btn);
