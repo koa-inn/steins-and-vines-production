@@ -68,8 +68,8 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mpufgdww">
-  <link rel="stylesheet" href="css/search-overlay.min.css?v=mpufgdww">
+  <link rel="stylesheet" href="css/styles.min.css?v=mpufjjpy">
+  <link rel="stylesheet" href="css/search-overlay.min.css?v=mpufjjpy">
 </head>
 <body data-page="reservation">
   <!-- Google Tag Manager (noscript) -->
@@ -109,133 +109,15 @@
               <li class="nav-dropdown-indent"><a href="products/additives.html">Additives</a></li>
               <li class="nav-dropdown-indent"><a href="products/packaging.html">Packaging</a></li>
               <li class="nav-dropdown-indent"><a href="products/equipment.html">Equipment</a></li>
-            </ul>
+        </ul>
           </li>
           <li><a href="about.html">About</a></li>
           <li><a href="contact.html">Contact</a></li>
+          <li><button type="button" class="header-search-btn" aria-label="Search products"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button></li>
         </ul>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         </button>
       </nav>
-    <button type="button" class="header-search-btn" aria-label="Search products">
-    </div>
-  </header>
-
-  <main id="main">
-    <div id="form-error-announce" role="alert" aria-live="assertive" class="sr-only"></div>
-    <section class="page-header">
-      <div class="container">
-        <h1><!-- text set by JS (cart-type-specific title) -->
-          <img src="images/Icon_offwhite.svg" alt="" aria-hidden="true" class="title-icon">
-          <span data-content="page-title">Checkout</span>
-          <img src="images/Icon_offwhite.svg" alt="" aria-hidden="true" class="title-icon">
-        </h1>
-      </div>
-    </section>
-
-    <section class="content">
-      <div class="container">
-
-        <!-- Dual-cart banner: shown by JS when both carts have items -->
-        <div id="dual-cart-banner" class="dual-cart-banner hidden" role="status" aria-live="polite" aria-atomic="true"></div>
-
-        <!-- Checkout Stepper -->
-        <nav class="checkout-stepper" id="checkout-stepper" aria-label="Checkout progress">
-          <ol class="stepper-list">
-            <li class="stepper-step stepper-step--active" data-step="1" aria-current="step" tabindex="0">
-              <span class="stepper-number"><span class="stepper-check" aria-hidden="true"></span><span class="stepper-digit">1</span></span>
-              <span class="stepper-label">Review Items</span>
-            </li>
-            <li class="stepper-step" data-step="2" tabindex="0">
-              <span class="stepper-number"><span class="stepper-check" aria-hidden="true"></span><span class="stepper-digit">2</span></span>
-              <span class="stepper-label">Pick a Time</span>
-            </li>
-            <li class="stepper-step" data-step="3" tabindex="0">
-              <span class="stepper-number"><span class="stepper-check" aria-hidden="true"></span><span class="stepper-digit">3</span></span>
-              <span class="stepper-label">Your Details</span>
-            </li>
-            <li class="stepper-step" data-step="4" tabindex="0">
-              <span class="stepper-number"><span class="stepper-check" aria-hidden="true"></span><span class="stepper-digit">4</span></span>
-              <span class="stepper-label">Confirm</span>
-            </li>
-          </ol>
-        </nav>
-
-        <div class="reservation-intro-strip hidden" id="reservation-intro-strip">
-          <span>~<strong>29 bottles</strong> per batch (23&thinsp;L)</span>
-          <span class="res-strip-dot" aria-hidden="true">&bull;</span>
-          <span>Start your batch in <strong>~10 min</strong></span>
-          <span class="res-strip-dot" aria-hidden="true">&bull;</span>
-          <span>Bottle &amp; take home in <strong>~20&ndash;30 min</strong></span>
-        </div>
-        <p class="catalog-price-note catalog-guarantee-note hidden" id="reservation-guarantee-note">&#10003; <strong>100% satisfaction guarantee</strong> &mdash; if your batch isn&rsquo;t what you wanted, we&rsquo;ll replace it with another kit or recipe.</p>
-        <p class="reservation-dropin-note hidden" id="reservation-dropin-note">Walk-ins are always welcome &mdash; though we can&rsquo;t guarantee inventory availability or wait times without a reservation.</p>
-
-        <!-- Step 1: Review Items -->
-        <div id="reservation-list" class="checkout-section" data-checkout-step="1">
-          <h2 data-content="reserved-items-title">Your reserved items</h2>
-          <div class="reservation-items" id="reservation-items"></div>
-          <p class="reservation-empty hidden" id="reservation-empty"><span data-content="reserved-empty-text">No items reserved.</span> <a href="products.html" data-content="reserved-empty-link">Browse our catalog</a> to add products.</p>
-
-          <!-- Section B: Ingredient Order (dual-cart only — rendered by JS when _isDualCart) -->
-          <div id="ingredient-order-section" class="ingredient-order-section hidden">
-            <div class="dual-cart-divider" aria-hidden="true"></div>
-            <div class="dual-cart-section-header">
-              <h3>Ingredients &amp; Supplies</h3>
-              <p class="dual-cart-section-note">These items will be set aside for in-store pickup. No timeslot required.</p>
-            </div>
-            <div id="ingredient-order-items"></div>
-          </div>
-        </div>
-
-        <!-- Step 2: Timeslot Picker -->
-        <div id="timeslot-picker" class="checkout-section" data-checkout-step="2">
-          <h2 data-content="timeslot-title">Select a timeslot</h2>
-          <div id="timeslot-groups"></div>
-          <div id="completion-estimate" class="completion-estimate hidden">
-            <p id="completion-estimate-text"></p>
-          </div>
-        </div>
-
-        <!-- Step 3: Customer Details + Payment -->
-        <div id="reservation-form-section" class="checkout-section" data-checkout-step="3">
-          <h2 data-content="details-title">Your details</h2>
-          <form id="reservation-form" class="reservation-form">
-            <div class="form-group form-group--float">
-              <input type="text" id="res-name" name="name" required autocomplete="name" placeholder=" ">
-              <label for="res-name">Name</label>
-            </div>
-            <div class="form-group form-group--float">
-              <input type="email" id="res-email" name="email" required autocomplete="email" inputmode="email" placeholder=" ">
-              <label for="res-email">Email</label>
-            </div>
-            <div class="form-group form-group--float">
-              <input type="tel" id="res-phone" name="phone" required autocomplete="tel" inputmode="tel" placeholder=" " maxlength="20">
-              <label for="res-phone">Phone</label>
-            </div>
-            <div class="form-group" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;overflow:hidden;opacity:0;">
-              <label for="res-website">Website</label>
-              <input type="text" id="res-website" name="website" tabindex="-1" autocomplete="off">
-            </div>
-            <input type="hidden" id="res-loaded-at" value="">
-
-            <div id="kit-instore-reminder" class="kit-instore-reminder hidden">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>
-              Your batch must be started in person at the store &mdash; we&rsquo;ll have everything ready for you.
-            </div>
-
-            <div id="payment-section" class="payment-section hidden">
-              <h3 id="payment-heading"><svg class="payment-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg> Payment</h3>
-              <p class="payment-note" id="payment-note">Payment is required to complete your reservation. You&rsquo;ll be prompted to pay securely when you submit.</p>
-              <p class="payment-secure-note"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM9 8V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9z"/></svg> Secure payment via Helcim</p>
-              <div id="payment-error" class="form-error-msg"></div>
-              <div id="payment-verified-msg" class="payment-verified-msg hidden">&#10003; Payment approved &mdash; scroll down to complete your order.</div>
-            </div>
-
-            <div id="payment-offline-notice" class="payment-offline-notice">
-              <p>No online payment required &mdash; payment is collected when you visit the store. Submitting puts your items on hold and we&rsquo;ll confirm the details with you directly.</p>
-            </div>
-            <button type="submit" class="btn" data-content="submit-btn">Submit Payment</button>
             <p class="form-note" data-content="form-note">A confirmation email will be sent to the address provided above.</p>
           </form>
         </div>
@@ -307,9 +189,9 @@
   <script src="https://secure.helcim.app/helcim-pay/services/start.js"></script>
   <script src="https://www.google.com/recaptcha/api.js?render=6LerSH0sAAAAAGKtltFqN5fu2w8opPV5BStdzNDu" async></script>
   <script src="js/sheets-config.js" defer></script>
-  <script src="js/main.min.js?v=mpufgdww" defer></script>
+  <script src="js/main.min.js?v=mpufjjpy" defer></script>
   <script src="js/vendor/fuse.min.js" defer></script>
-  <script src="js/modules/17-search-overlay.min.js?v=mpufgdww" defer></script>
+  <script src="js/modules/17-search-overlay.min.js?v=mpufjjpy" defer></script>
 
 </body>
 </html>
