@@ -150,9 +150,9 @@ function mapItem(z) {
     tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0,
     tax_name: z.tax_name || '',
     max_order_qty: z.max_order_qty || '',
-    cf_subcategory: '',
-    cf_type: '',
-    millable: ''
+    cf_subcategory: z.cf_subcategory || '',
+    cf_type: z.cf_type || '',
+    millable: z.millable || ''
   };
 
   // Custom field flattening — T-21-02: guard against prototype pollution

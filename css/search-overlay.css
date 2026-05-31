@@ -305,6 +305,12 @@
 
 .search-result-cart-wrap {
   flex-shrink: 0;
+  max-width: 140px;
+}
+
+.search-result-cart-wrap .reserve-btn,
+.search-result-cart-wrap .product-reserve-wrap {
+  font-size: 13px;
 }
 
 /* Simple cart button for result rows (used when renderReserveControl is unavailable) */
