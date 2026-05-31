@@ -16,6 +16,9 @@ var _searchOverlayOpen = false;
 var _searchOpenBtn = null;      // ref to .subnav-search-btn that opened overlay
 var SEARCH_DESKTOP_BREAKPOINT = 768; // matches SUBPAGE_DESKTOP_BREAKPOINT
 
+// visualViewport resize handler reference — stored so we can remove it on close
+var _vpResizeHandler = null;
+
 var SEARCH_MW_CACHE_KEY = 'sv-search-all-mw';
 var SEARCH_MW_CACHE_TS  = 'sv-search-all-mw-ts';
 var SEARCH_MW_CACHE_TTL = 3600000; // 1 hour
@@ -639,6 +642,63 @@ function renderSearchResults(query) {
 }
 
 // ---------------------------------------------------------------------------
+// visualViewport keyboard-avoidance helpers (mobile only)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reads the current visualViewport height and adjusts the panel's bottom edge
+ * so it sits above the software keyboard when it is open.
+ *
+ * On desktop (>= SEARCH_DESKTOP_BREAKPOINT) this is a no-op — the panel is
+ * positioned as a dropdown and is not affected by the keyboard.
+ *
+ * Technique: the CSS custom property --search-panel-bottom on the panel element
+ * is set to `window.innerHeight - visualViewport.height` (the keyboard height).
+ * The mobile CSS rule uses `bottom: var(--search-panel-bottom, 0)`.
+ */
+function applyViewportOffset() {
+  if (!_overlayElements) return;
+  if (window.innerWidth >= SEARCH_DESKTOP_BREAKPOINT) return;
+
+  var keyboardHeight = 0;
+  if (window.visualViewport) {
+    // offsetTop accounts for any browser chrome above the viewport (e.g. address bar).
+    keyboardHeight = window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop;
+    if (keyboardHeight < 0) keyboardHeight = 0;
+  }
+
+  _overlayElements.panel.style.setProperty('--search-panel-bottom', keyboardHeight + 'px');
+}
+
+/**
+ * Starts listening to visualViewport resize/scroll events so the panel stays
+ * above the keyboard as it animates in or out.
+ * Safe to call even when visualViewport is unsupported.
+ */
+function startViewportTracking() {
+  if (!window.visualViewport) return;
+  _vpResizeHandler = function () { applyViewportOffset(); };
+  window.visualViewport.addEventListener('resize', _vpResizeHandler);
+  window.visualViewport.addEventListener('scroll', _vpResizeHandler);
+  // Apply immediately in case keyboard is already showing
+  applyViewportOffset();
+}
+
+/**
+ * Removes visualViewport listeners and resets the panel's bottom offset.
+ */
+function stopViewportTracking() {
+  if (window.visualViewport && _vpResizeHandler) {
+    window.visualViewport.removeEventListener('resize', _vpResizeHandler);
+    window.visualViewport.removeEventListener('scroll', _vpResizeHandler);
+  }
+  _vpResizeHandler = null;
+  if (_overlayElements) {
+    _overlayElements.panel.style.removeProperty('--search-panel-bottom');
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Overlay lifecycle
 // ---------------------------------------------------------------------------
 
@@ -669,6 +729,9 @@ function openSearchOverlay(triggerBtn) {
   // Prevent body scroll while overlay is open
   document.body.style.overflow = 'hidden';
 
+  // Track visualViewport so the panel shrinks above the software keyboard
+  startViewportTracking();
+
   // Lazy-load items if not yet loaded
   if (_searchAllItems.length === 0) {
     loadSearchItems().catch(function () {
@@ -694,6 +757,9 @@ function closeSearchOverlay() {
 
   // Restore body scroll
   document.body.style.overflow = '';
+
+  // Stop tracking visualViewport — clears --search-panel-bottom custom property
+  stopViewportTracking();
 
   // Clear input and results
   _overlayElements.input.value = '';
