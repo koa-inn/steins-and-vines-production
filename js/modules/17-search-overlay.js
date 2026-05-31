@@ -749,6 +749,7 @@ function closeSearchOverlay() {
 
   _overlayElements.backdrop.classList.remove('open');
   _overlayElements.panel.classList.remove('open');
+  _overlayElements.panel.style.visibility = '';
 
   // Remove aria-expanded from trigger button
   if (_searchOpenBtn) {
