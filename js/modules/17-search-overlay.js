@@ -655,10 +655,12 @@ function openSearchOverlay(triggerBtn) {
 
   _overlayElements.backdrop.classList.add('open');
   _overlayElements.panel.classList.add('open');
-  // Focus must be synchronous within the click handler — setTimeout
-  // breaks the user gesture chain on iOS and blocks keyboard activation.
   _overlayElements.panel.style.visibility = 'visible';
   _overlayElements.input.focus();
+  // Backup: focus again after paint in case the browser deferred layout
+  requestAnimationFrame(function () {
+    _overlayElements.input.focus();
+  });
 
   // Prevent body scroll while overlay is open
   document.body.style.overflow = 'hidden';
