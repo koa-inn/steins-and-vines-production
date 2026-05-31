@@ -655,7 +655,7 @@ function openSearchOverlay(triggerBtn) {
 
   _overlayElements.backdrop.classList.add('open');
   _overlayElements.panel.classList.add('open');
-  _overlayElements.input.focus();
+  setTimeout(function () { _overlayElements.input.focus(); }, 50);
 
   // Prevent body scroll while overlay is open
   document.body.style.overflow = 'hidden';
