@@ -91,6 +91,11 @@ function handleDeepLinkedItem() {
     }
   }
 
+  // Subpage card view: click the card to open its detail panel
+  if (el.classList.contains('subpage-card')) {
+    el.click();
+  }
+
   // Highlight ring then scroll into view
   el.classList.add('deep-link-highlight');
   setTimeout(function () {
