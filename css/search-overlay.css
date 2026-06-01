@@ -2,6 +2,18 @@
 /* Standalone stylesheet — loaded on all public pages for site-wide product search */
 
 /* ---------------------------------------------------------------------------
+   Header layout override — phone stays left, nav pushes right to make room
+   --------------------------------------------------------------------------- */
+
+.site-header .header-contact {
+  margin-left: 0;
+}
+
+.site-header .main-nav {
+  margin-left: auto;
+}
+
+/* ---------------------------------------------------------------------------
    Header Search Button
    --------------------------------------------------------------------------- */
 
