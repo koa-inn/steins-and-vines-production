@@ -2,25 +2,20 @@
 /* Standalone stylesheet — loaded on all public pages for site-wide product search */
 
 /* ---------------------------------------------------------------------------
-   Header layout override — search icon sits in the header-contact area
+   Header Search Button — last item in the nav list, inline after Contact
    --------------------------------------------------------------------------- */
 
-.site-header .header-contact {
+.nav-list .nav-search-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
 }
-
-/* ---------------------------------------------------------------------------
-   Header Search Button
-   --------------------------------------------------------------------------- */
 
 .header-search-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border: none;
   background: none;
   color: var(--color-green);
