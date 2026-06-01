@@ -47,21 +47,26 @@ test.describe('Checkout / reservation page', () => {
     await expect(page.locator('#res-phone')).toBeAttached();
   });
 
-  test('email validation — invalid email shows error', async ({ page }) => {
-    const emailInput = page.locator('#res-email');
-    await emailInput.fill('notanemail');
-    await emailInput.blur();
-    // Should show a validation error
-    await expect(page.locator('.form-error-msg.visible').first()).toBeVisible({ timeout: 3000 });
+  // The reservation page validates on submit via validateCheckoutForm(), which
+  // surfaces errors in the #form-error-announce aria-live region — not inline
+  // per-field. (Inline blur validation lives on the contact page, not here.)
+  test('email validation — invalid email is rejected', async ({ page }) => {
+    await page.fill('#res-name', 'Test User');
+    await page.fill('#res-email', 'notanemail');
+    await page.fill('#res-phone', '(604) 555-1234');
+    // Invoke the real validator directly so we don't trigger the payment flow.
+    const valid = await page.evaluate(() => validateCheckoutForm());
+    expect(valid).toBe(false);
+    await expect(page.locator('#form-error-announce')).toContainText(/email/i, { timeout: 3000 });
   });
 
-  test('email validation — valid email clears error', async ({ page }) => {
-    const emailInput = page.locator('#res-email');
-    await emailInput.fill('notanemail');
-    await emailInput.blur();
-    await emailInput.fill('valid@example.com');
-    await emailInput.blur();
-    await expect(page.locator('.field-valid')).toBeVisible({ timeout: 3000 });
+  test('email validation — valid email passes', async ({ page }) => {
+    await page.fill('#res-name', 'Test User');
+    await page.fill('#res-email', 'valid@example.com');
+    await page.fill('#res-phone', '(604) 555-1234');
+    const valid = await page.evaluate(() => validateCheckoutForm());
+    expect(valid).toBe(true);
+    await expect(page.locator('#form-error-announce')).not.toContainText(/email/i);
   });
 
   test('phone formats automatically on input', async ({ page }) => {
