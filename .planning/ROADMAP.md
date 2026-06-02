@@ -158,6 +158,14 @@ Plans:
   3. All 5 subpages load correctly on staging.steinsandvines.ca with no console errors
 
 **Plans**: 2 plans
+Plans:
+**Wave 1**
+
+- [ ] 24-01-PLAN.md — Add full SEO head (unique title, description, og:*, twitter:card, LocalBusiness JSON-LD) to all 5 category subpages
+
+**Wave 2**
+
+- [ ] 24-02-PLAN.md — Build, stamp, push to staging, and QA-verify all 5 subpages load clean on staging.steinsandvines.ca
 
 ## Progress
 
@@ -170,4 +178,4 @@ Plans:
 | 21. Shared Template & Build Infrastructure | v3.0 | 2/2 | Complete   | 2026-05-29 |
 | 22. Category Subpages & Navigation | v3.0 | 3/3 | Complete   | 2026-05-29 |
 | 23. Cross-Category Search | v3.0 | 2/2 | Complete    | 2026-05-30 |
-| 24. SEO & Staging Deploy | v3.0 | 0/? | Not started | - |
+| 24. SEO & Staging Deploy | v3.0 | 0/2 | Planned | - |
