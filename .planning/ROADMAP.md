@@ -54,7 +54,7 @@
 - [x] **Phase 21: Shared Template & Build Infrastructure** - Shared JS module, CSS, and build pipeline for all subpages (completed 2026-05-29)
 - [x] **Phase 22: Category Subpages & Navigation** - All 5 subpages live with sub-nav and main nav dropdown (completed 2026-05-29)
 - [x] **Phase 23: Cross-Category Search** - Search overlay with grouped results and deep-link navigation (completed 2026-05-30)
-- [ ] **Phase 24: SEO & Staging Deploy** - Per-subpage SEO meta, QA pass, and staging deployment
+- [x] **Phase 24: SEO & Staging Deploy** - Per-subpage SEO meta, QA pass, and staging deployment (completed 2026-06-03)
 
 ## Phase Details
 
@@ -165,7 +165,7 @@ Plans:
 
 **Wave 2**
 
-- [ ] 24-02-PLAN.md — Build, stamp, push to staging, and QA-verify all 5 subpages load clean on staging.steinsandvines.ca
+- [x] 24-02-PLAN.md — Build, stamp, push to staging, and QA-verify all 5 subpages load clean on staging.steinsandvines.ca
 
 ## Progress
 
@@ -178,4 +178,4 @@ Plans:
 | 21. Shared Template & Build Infrastructure | v3.0 | 2/2 | Complete   | 2026-05-29 |
 | 22. Category Subpages & Navigation | v3.0 | 3/3 | Complete   | 2026-05-29 |
 | 23. Cross-Category Search | v3.0 | 2/2 | Complete    | 2026-05-30 |
-| 24. SEO & Staging Deploy | v3.0 | 1/2 | In Progress|  |
+| 24. SEO & Staging Deploy | v3.0 | 2/2 | Complete   | 2026-06-03 |
