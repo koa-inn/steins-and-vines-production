@@ -2,6 +2,7 @@ require('dotenv').config();
 
 var validateEnv = require('./lib/validateEnv');
 var checkRedis = require('./lib/checkRedis');
+var checkMailer = require('./lib/checkMailer');
 validateEnv();
 
 var Sentry = require('@sentry/node');
@@ -406,6 +407,8 @@ if (process.env.SENTRY_DSN) {
 helcimLib.init();
 cache.init().then(function () {
   return checkRedis();
+}).then(function () {
+  return checkMailer();
 }).then(function () {
   return zohoAuth.init();
 }).then(function () {

@@ -81,6 +81,13 @@ function validateEnv() {
   if (missingOptional.length > 0) {
     log.warn('[startup] Optional env vars not set: ' + missingOptional.map(function (v) { return v.name; }).join(', '));
   }
+
+  // Email is "optional" infrastructure but its absence is silent and costly:
+  // without SMTP creds, no order confirmation or staff notification ever sends.
+  // Call it out specifically so a broken mail setup is obvious in the logs.
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    log.warn('[startup] SMTP_USER/SMTP_PASS not set — order confirmation and staff notification emails are DISABLED');
+  }
 }
 
 module.exports = validateEnv;

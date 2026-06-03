@@ -14,6 +14,36 @@ function createTransport() {
 }
 
 /**
+ * Whether SMTP credentials are present. Without both, every email in this
+ * module is a no-op failure (staff notifications AND customer confirmations).
+ * @returns {boolean}
+ */
+function isConfigured() {
+  return !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+/**
+ * Verify the SMTP transport can authenticate with the mail server.
+ * Used at startup so a missing/revoked Gmail app password surfaces on deploy
+ * instead of silently dropping a customer's order confirmation.
+ *
+ * Never rejects — resolves a structured result so callers can log without a
+ * try/catch and startup is never blocked by mail problems.
+ *
+ * @returns {Promise<{ok: boolean, configured: boolean, error?: string}>}
+ */
+function verifyTransport() {
+  if (!isConfigured()) {
+    return Promise.resolve({ ok: false, configured: false, error: 'SMTP_USER/SMTP_PASS not set' });
+  }
+  return createTransport().verify().then(function () {
+    return { ok: true, configured: true };
+  }).catch(function (err) {
+    return { ok: false, configured: true, error: err && err.message ? err.message : String(err) };
+  });
+}
+
+/**
  * Send a notification email when the checkout flow completes in offline mode
  * (Zoho is not authenticated). The store can then manually enter the reservation.
  *
@@ -192,6 +222,8 @@ function sendCustomerConfirmation(data) {
 }
 
 module.exports = {
+  isConfigured: isConfigured,
+  verifyTransport: verifyTransport,
   sendOfflineOrderNotification: sendOfflineOrderNotification,
   sendReservationNotification: sendReservationNotification,
   sendVoidFailureAlert: sendVoidFailureAlert,
