@@ -30,7 +30,7 @@
 
 ### Build & SEO
 - [ ] **BUILD-01**: All subpages are integrated into the build pipeline (minify CSS/JS, cache-bust stamps, sitemap entries)
-- [ ] **BUILD-02**: Each subpage has unique SEO meta (title, description, og tags, canonical URL, JSON-LD)
+- [x] **BUILD-02**: Each subpage has unique SEO meta (title, description, og tags, canonical URL, JSON-LD)
 
 ## Future Requirements
 
