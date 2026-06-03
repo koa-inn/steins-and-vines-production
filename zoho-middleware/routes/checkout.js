@@ -14,6 +14,7 @@ var withTimeout = helpers.withTimeout;
 var verifyRecaptcha = helpers.verifyRecaptcha;
 var notifyAdminPanel = helpers.notifyAdminPanel;
 var buildLineItems = helpers.buildLineItems;
+var buildContactPayload = helpers.buildContactPayload;
 var findMakersFeeItem = helpers.findMakersFeeItem;
 var findMaterialsFeeItem = helpers.findMaterialsFeeItem;
 
@@ -239,13 +240,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       cache.set(CONTACT_CACHE_KEY, contactId, CONTACT_CACHE_TTL).catch(function () {});
       return { contactId: contactId, freshlyCreated: false };
     }
-    // Not found — create a new contact
-    var contactPayload = {
-      contact_name: customerName,
-      contact_type: 'customer',
-      email: customerEmail
-    };
-    if (customerPhone) contactPayload.phone = customerPhone;
+    // Not found — create a new contact.
+    // Email/phone/name MUST be nested under contact_persons; Zoho Books drops
+    // them when sent at the top level (see buildContactPayload).
+    var contactPayload = buildContactPayload(customerName, customerEmail, customerPhone);
     try {
       var createData = await zohoPost('/contacts', contactPayload);
       var contact = createData.contact || {};

@@ -38,6 +38,7 @@ var https = require('https');
 var helpers = require('../lib/checkout-helpers');
 var verifyRecaptcha = helpers.verifyRecaptcha;
 var buildLineItems = helpers.buildLineItems;
+var buildContactPayload = helpers.buildContactPayload;
 var findMakersFeeItem = helpers.findMakersFeeItem;
 var findMaterialsFeeItem = helpers.findMaterialsFeeItem;
 var payments = require('../routes/payments');
@@ -260,6 +261,75 @@ describe('buildLineItems', () => {
     var items = [{ item_id: 'k', name: 'Kit', quantity: 1, rate: 80, discount: 25 }];
     var result = buildLineItems(items, catalogMap, true);
     expect(result.orderTotal).toBe(60);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildContactPayload
+//
+// Regression: INV-000078 (2026-06-01) created a Zoho contact with only the
+// display name — email, phone, and first/last name were all blank, so the
+// customer's order-confirmation email had no recipient on the contact and staff
+// had to re-key the name. Root cause: email/phone were sent at the top level of
+// the contact payload, which Zoho Books silently drops. They must be nested
+// under contact_persons.
+// ---------------------------------------------------------------------------
+describe('buildContactPayload', () => {
+  test('nests email under contact_persons (NOT top-level) — the INV-000078 bug', () => {
+    var payload = buildContactPayload('Anne MacDougall', 'anne@example.com', '');
+    expect(payload.contact_persons[0].email).toBe('anne@example.com');
+    // The old bug: top-level email, which Zoho ignores. Guard against regressing.
+    expect(payload.email).toBeUndefined();
+  });
+
+  test('splits full name into first_name / last_name on the primary contact person', () => {
+    var payload = buildContactPayload('Anne MacDougall', 'anne@example.com', '');
+    expect(payload.contact_persons[0].first_name).toBe('Anne');
+    expect(payload.contact_persons[0].last_name).toBe('MacDougall');
+    expect(payload.contact_persons[0].is_primary_contact).toBe(true);
+  });
+
+  test('keeps contact_name as the full display name', () => {
+    var payload = buildContactPayload('Anne MacDougall', 'anne@example.com', '');
+    expect(payload.contact_name).toBe('Anne MacDougall');
+    expect(payload.contact_type).toBe('customer');
+  });
+
+  test('nests phone under contact_persons when provided', () => {
+    var payload = buildContactPayload('Anne MacDougall', 'anne@example.com', '604-555-0100');
+    expect(payload.contact_persons[0].phone).toBe('604-555-0100');
+    expect(payload.phone).toBeUndefined();
+  });
+
+  test('omits phone from contact person when not provided', () => {
+    var payload = buildContactPayload('Anne MacDougall', 'anne@example.com', '');
+    expect(payload.contact_persons[0].phone).toBeUndefined();
+  });
+
+  test('multi-word last name preserved (e.g. "Mary Van Der Berg")', () => {
+    var payload = buildContactPayload('Mary Van Der Berg', 'mary@example.com', '');
+    expect(payload.contact_persons[0].first_name).toBe('Mary');
+    expect(payload.contact_persons[0].last_name).toBe('Van Der Berg');
+  });
+
+  test('single-word name → first_name set, last_name empty', () => {
+    var payload = buildContactPayload('Madonna', 'm@example.com', '');
+    expect(payload.contact_persons[0].first_name).toBe('Madonna');
+    expect(payload.contact_persons[0].last_name).toBe('');
+  });
+
+  test('email-as-name fallback (blank name at checkout) still carries email', () => {
+    // checkout.js defaults customerName to the email when no name is supplied
+    var payload = buildContactPayload('bob@example.com', 'bob@example.com', '');
+    expect(payload.contact_name).toBe('bob@example.com');
+    expect(payload.contact_persons[0].email).toBe('bob@example.com');
+  });
+
+  test('trims surrounding whitespace and collapses inner spacing', () => {
+    var payload = buildContactPayload('  Anne   MacDougall  ', 'anne@example.com', '');
+    expect(payload.contact_name).toBe('Anne   MacDougall'.trim());
+    expect(payload.contact_persons[0].first_name).toBe('Anne');
+    expect(payload.contact_persons[0].last_name).toBe('MacDougall');
   });
 });
 

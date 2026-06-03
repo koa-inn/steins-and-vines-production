@@ -190,6 +190,42 @@ function findMaterialsFeeItem(services, materialsFeeItemId) {
   return null;
 }
 
+/**
+ * Build the Zoho Books create-contact payload.
+ *
+ * Zoho Books does NOT persist a top-level `email`/`phone` on a contact — those
+ * live on the primary contact person. The old payload sent them at the top
+ * level, so Zoho silently dropped them: the contact came through with only the
+ * display name, no email, no phone, and blank name fields. With no email on the
+ * contact, order-confirmation delivery degrades and staff have to re-key the
+ * customer's details by hand. Nesting them under contact_persons makes them save.
+ *
+ * @param {string} customerName  - Full name as entered at checkout
+ * @param {string} customerEmail - Customer email (already validated non-empty)
+ * @param {string} customerPhone - Customer phone (may be empty)
+ * @returns {object} Zoho /contacts create payload
+ */
+function buildContactPayload(customerName, customerEmail, customerPhone) {
+  var name = (customerName || '').trim();
+  var parts = name ? name.split(/\s+/) : [];
+  var firstName = parts.length ? parts[0] : name;
+  var lastName = parts.length > 1 ? parts.slice(1).join(' ') : '';
+
+  var person = {
+    first_name: firstName,
+    last_name: lastName,
+    email: customerEmail,
+    is_primary_contact: true
+  };
+  if (customerPhone) person.phone = customerPhone;
+
+  return {
+    contact_name: name,
+    contact_type: 'customer',
+    contact_persons: [person]
+  };
+}
+
 function readIngredientsFileCache() {
   try {
     var data = JSON.parse(fs.readFileSync(
@@ -207,6 +243,7 @@ module.exports = {
   verifyRecaptcha: verifyRecaptcha,
   notifyAdminPanel: notifyAdminPanel,
   buildLineItems: buildLineItems,
+  buildContactPayload: buildContactPayload,
   findMakersFeeItem: findMakersFeeItem,
   findMaterialsFeeItem: findMaterialsFeeItem
 };
