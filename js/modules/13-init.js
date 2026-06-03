@@ -11,7 +11,9 @@ function initPromoBanner() {
   if (isKiosk) return;
 
   // Fetch content/home.json (may already be cached by content loader)
-  fetch('content/home.json')
+  // Root-absolute path: the promo banner is site-wide, so this must resolve from
+  // any directory depth (e.g. /products/* subpages), not just the site root.
+  fetch('/content/home.json')
     .then(function (r) { return r.ok ? r.json() : {}; })
     .then(function (data) {
       var config = data['promo-banner'];
@@ -197,12 +199,20 @@ document.addEventListener('DOMContentLoaded', function () {
   // Content loader — fetches shared.json + page-specific JSON, merges, and applies
   var page = document.body.getAttribute('data-page');
   if (page) {
-    var sharedFetch = fetch('content/shared.json')
+    // Pages that ship an editorial content/<page>.json. Catalog/product subpages
+    // (grains, yeast, hops, ...) and error/util pages have no page JSON — they use
+    // shared.json + the static fallback markup only. Fetching a non-existent file
+    // logs a console 404 regardless of graceful JS handling, so gate the request.
+    var PAGES_WITH_CONTENT = ['home', 'about', 'contact', 'products', 'ingredients', 'reservation', 'admin'];
+    // Root-absolute paths so they resolve from any directory depth (e.g. /products/*).
+    var sharedFetch = fetch('/content/shared.json')
       .then(function (res) { return res.ok ? res.json() : {}; })
       .catch(function () { return {}; });
-    var pageFetch = fetch('content/' + page + '.json')
-      .then(function (res) { return res.ok ? res.json() : {}; })
-      .catch(function () { return {}; });
+    var pageFetch = PAGES_WITH_CONTENT.indexOf(page) !== -1
+      ? fetch('/content/' + page + '.json')
+          .then(function (res) { return res.ok ? res.json() : {}; })
+          .catch(function () { return {}; })
+      : Promise.resolve({});
 
     Promise.all([sharedFetch, pageFetch])
       .then(function (results) {
