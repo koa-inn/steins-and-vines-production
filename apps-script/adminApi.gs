@@ -57,6 +57,10 @@ var VESSEL_HISTORY_SHEET_NAME = 'VesselHistory';
 var RECIPES_SHEET_NAME = 'Recipes';
 var RECIPE_INGREDIENTS_SHEET_NAME = 'RecipeIngredients';
 
+// Cal.com public booking page for the Bottling Appointment event type (Phase 25).
+// Customers self-book here; the brewpad "Send Bottling Invite" button emails this link.
+var CALCOM_BOTTLING_BOOKING_URL = 'https://cal.com/steins-and-vines-tw8csc/bottling-appointment';
+
 /**
  * Handle GET requests
  * Used for: auth check, reading data
@@ -299,6 +303,8 @@ function doPost(e) {
         _invalidateBatchCache(payload.batch_id);
         return _jsonResponse(r);
       }
+      case 'send_bottling_invite':
+        return _jsonResponse(sendBottlingInvite(payload, authResult.email));
       case 'update_batch_schedule': {
         var r = updateBatchSchedule(payload, authResult.email);
         _invalidateBatchCache(payload.batch_id);
@@ -1403,6 +1409,75 @@ function getBatchDetail(batchId) {
   history.sort(function (a, b) { return String(b.transferred_at || '').localeCompare(String(a.transferred_at || '')); });
 
   return { batch: batch, tasks: tasks, plato_readings: readings, vessel_history: history };
+}
+
+/**
+ * Email the customer a link to self-book their Cal.com Bottling Appointment.
+ * Sends via MailApp (Google infrastructure) — deliberately NOT the Railway
+ * middleware SMTP path, which Railway blocks. Triggered by the brewpad
+ * "Send Bottling Invite" button. Read-only on sheet data (no cache to invalidate).
+ * @param {Object} payload - { batch_id }
+ * @param {string} staffEmail - authenticated staff email (audit context)
+ * @returns {Object} { ok, message }
+ */
+function sendBottlingInvite(payload, staffEmail) {
+  var batchId = payload.batch_id || '';
+  if (!batchId) return { ok: false, error: 'batch_id required', message: 'batch_id is required' };
+
+  var result = findRowById(BATCHES_SHEET_NAME, batchId);
+  if (result.row === -1) return { ok: false, error: 'not_found', message: 'Batch not found: ' + batchId };
+
+  var batch = result.data;
+  var email = String(batch.customer_email || '').trim();
+  if (!email || email.indexOf('@') === -1) {
+    return { ok: false, error: 'no_email', message: 'This batch has no customer email on file.' };
+  }
+
+  var fullName = String(batch.customer_name ||
+    ((batch.customer_firstname || '') + ' ' + (batch.customer_lastname || ''))).trim();
+  var greeting = String(batch.customer_firstname || fullName || 'there').trim();
+  var product = String(batch.product_name || 'your batch').trim();
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Pre-fill the Cal.com booking page with the customer's name + email.
+  var url = CALCOM_BOTTLING_BOOKING_URL +
+    '?name=' + encodeURIComponent(fullName) +
+    '&email=' + encodeURIComponent(email);
+
+  var subject = 'Book your bottling appointment — Steins & Vines';
+  var htmlBody =
+    '<div style="font-family:Arial,sans-serif;font-size:15px;color:#2c2c2c;line-height:1.6;">' +
+    '<p>Hi ' + esc(greeting) + ',</p>' +
+    '<p>Your batch <strong>' + esc(product) + '</strong> (' + esc(batchId) + ') is ready for bottling. ' +
+    'Pick a time that works for you:</p>' +
+    '<p style="margin:24px 0;"><a href="' + url + '" ' +
+    'style="background:#4a6f4b;color:#ffffff;text-decoration:none;padding:12px 22px;' +
+    'border-radius:6px;font-weight:bold;display:inline-block;">Book your bottling appointment</a></p>' +
+    '<p style="font-size:13px;color:#5f5f5f;">Or paste this link into your browser:<br>' + esc(url) + '</p>' +
+    '<p>Cheers,<br>Steins &amp; Vines</p></div>';
+  var plainBody =
+    'Hi ' + greeting + ',\n\n' +
+    'Your batch ' + product + ' (' + batchId + ') is ready for bottling. ' +
+    'Pick a time that works for you:\n\n' + url + '\n\nCheers,\nSteins & Vines';
+
+  try {
+    MailApp.sendEmail({
+      to: email,
+      subject: subject,
+      htmlBody: htmlBody,
+      body: plainBody,
+      name: 'Steins & Vines',
+      replyTo: 'hello@steinsandvines.ca'
+    });
+  } catch (err) {
+    return { ok: false, error: 'send_failed', message: 'Email failed: ' + (err && err.message ? err.message : err) };
+  }
+
+  return { ok: true, message: 'Bottling invite sent to ' + email };
 }
 
 // --- GET: Public batch (token auth) ---

@@ -2235,6 +2235,9 @@ function buildLifecycleTimeline(batch, soDate) {
 
     // Footer actions
     html += '<div class="bp-detail-actions">';
+    if (b.customer_email) {
+      html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-bottling-invite-btn">Send Bottling Invite</button>';
+    }
     html += '<button type="button" class="btn-secondary bp-btn-sm bp-danger-btn" id="bp-delete-batch-btn">Delete Batch</button>';
     html += '</div>';
 
@@ -2525,6 +2528,27 @@ function buildLifecycleTimeline(batch, soDate) {
                 loadBatches();
               })
               .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+          }
+        );
+      });
+    }
+
+    // Send bottling invite — emails the customer a self-book Cal.com link (Apps Script MailApp).
+    var bottlingInviteBtn = document.getElementById('bp-bottling-invite-btn');
+    if (bottlingInviteBtn) {
+      bottlingInviteBtn.addEventListener('click', function () {
+        var inviteEmail = b.customer_email || '';
+        showConfirmSheet(
+          'Email a bottling booking invite to ' + inviteEmail + '?',
+          'Send Invite', '',
+          function () {
+            bottlingInviteBtn.disabled = true;
+            adminApiPost('send_bottling_invite', { batch_id: b.batch_id })
+              .then(function () {
+                showToast('Bottling invite sent to ' + inviteEmail, 'success');
+              })
+              .catch(function (err) { showToast('Failed: ' + err.message, 'error'); })
+              .then(function () { bottlingInviteBtn.disabled = false; });
           }
         );
       });
