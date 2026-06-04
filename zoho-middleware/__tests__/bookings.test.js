@@ -7,8 +7,6 @@ jest.mock('express', () => {
   return express;
 });
 jest.mock('../lib/zoho-api', () => ({
-  bookingsGet: jest.fn(),
-  bookingsPost: jest.fn(),
   zohoGet: jest.fn(),
   zohoPost: jest.fn(),
   normalizeTimeTo24h: jest.fn()

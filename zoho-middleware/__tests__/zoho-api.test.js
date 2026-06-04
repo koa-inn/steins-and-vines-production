@@ -20,9 +20,8 @@ jest.mock('axios', () => ({
 const {
   withRetry, zohoGet, zohoPost, zohoPut,
   inventoryGet, inventoryPost, inventoryPut,
-  bookingsGet, bookingsPost,
   normalizeTimeTo24h, fetchAllItems, fetchItemDetailsBulk,
-  ZOHO_API_BASE, ZOHO_INVENTORY_BASE, BOOKINGS_API_BASE
+  ZOHO_API_BASE, ZOHO_INVENTORY_BASE
 } = require('../lib/zoho-api');
 
 const zohoAuth = require('../lib/zohoAuth');
@@ -360,63 +359,6 @@ describe('Zoho Inventory API helpers', () => {
       })
     );
     expect(result).toEqual({ item: { status: 'active' } });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Zoho Bookings API helpers
-// ---------------------------------------------------------------------------
-
-describe('Zoho Bookings API helpers', () => {
-  test('bookingsGet fetches from BOOKINGS_API_BASE without org_id', async () => {
-    axios.get.mockResolvedValue({ data: { appointments: [] } });
-
-    var result = await bookingsGet('/appointments', { date: '2024-01-01' });
-
-    var callArgs = axios.get.mock.calls[0];
-    expect(callArgs[0]).toBe(BOOKINGS_API_BASE + '/appointments');
-    expect(callArgs[1].headers).toEqual({ Authorization: 'Zoho-oauthtoken mock-token' });
-    expect(callArgs[1].params).toEqual({ date: '2024-01-01' });
-    expect(callArgs[1].params).not.toHaveProperty('organization_id');
-    expect(result).toEqual({ appointments: [] });
-  });
-
-  test('bookingsGet uses empty object when no params passed', async () => {
-    axios.get.mockResolvedValue({ data: {} });
-    await bookingsGet('/services');
-    var callArgs = axios.get.mock.calls[0];
-    expect(callArgs[1].params).toEqual({});
-  });
-
-  test('bookingsGet calls getAccessToken', async () => {
-    axios.get.mockResolvedValue({ data: {} });
-    await bookingsGet('/appointments');
-    expect(zohoAuth.getAccessToken).toHaveBeenCalledTimes(1);
-  });
-
-  test('bookingsPost sends to BOOKINGS_API_BASE without org_id', async () => {
-    axios.post.mockResolvedValue({ data: { booking_id: 'bk-1' } });
-    var body = { service_id: 'svc-1', customer_name: 'Alice' };
-
-    var result = await bookingsPost('/appointments', body);
-
-    expect(axios.post).toHaveBeenCalledWith(
-      BOOKINGS_API_BASE + '/appointments',
-      body,
-      expect.objectContaining({
-        headers: { Authorization: 'Zoho-oauthtoken mock-token' },
-        timeout: 15000
-      })
-    );
-    var callArgs = axios.post.mock.calls[0];
-    expect(callArgs[2]).not.toHaveProperty('params');
-    expect(result).toEqual({ booking_id: 'bk-1' });
-  });
-
-  test('bookingsPost calls getAccessToken', async () => {
-    axios.post.mockResolvedValue({ data: {} });
-    await bookingsPost('/appointments', {});
-    expect(zohoAuth.getAccessToken).toHaveBeenCalledTimes(1);
   });
 });
 

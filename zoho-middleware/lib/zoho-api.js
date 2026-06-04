@@ -61,7 +61,6 @@ var API_URLS = {
 var apiDomain = process.env.ZOHO_DOMAIN || '.com';
 var ZOHO_API_BASE = (API_URLS[apiDomain] || ('https://www.zohoapis' + apiDomain)) + '/books/v3';
 var ZOHO_INVENTORY_BASE = (API_URLS[apiDomain] || ('https://www.zohoapis' + apiDomain)) + '/inventory/v1';
-var BOOKINGS_API_BASE = (API_URLS[apiDomain] || ('https://www.zohoapis' + apiDomain)) + '/bookings/v1/json';
 
 // ---------------------------------------------------------------------------
 // Zoho Books API helpers
@@ -175,45 +174,6 @@ function inventoryPut(path, body) {
 }
 
 // ---------------------------------------------------------------------------
-// Zoho Bookings API helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Proxy a GET request to the Zoho Bookings API.
- * Bookings API does not require organization_id.
- */
-function bookingsGet(path, params) {
-  return zohoAuth.getAccessToken().then(function (token) {
-    return withRetry(function () {
-      return axios.get(BOOKINGS_API_BASE + path, {
-        headers: { Authorization: 'Zoho-oauthtoken ' + token },
-        params: params || {},
-        timeout: 15000
-      }).then(function (response) {
-        return response.data;
-      });
-    });
-  });
-}
-
-/**
- * Proxy a POST request to the Zoho Bookings API.
- * Bookings API does not require organization_id.
- */
-function bookingsPost(path, body) {
-  return zohoAuth.getAccessToken().then(function (token) {
-    return withRetry(function () {
-      return axios.post(BOOKINGS_API_BASE + path, body, {
-        headers: { Authorization: 'Zoho-oauthtoken ' + token },
-        timeout: 15000
-      }).then(function (response) {
-        return response.data;
-      });
-    });
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Utility helpers
 // ---------------------------------------------------------------------------
 
@@ -302,7 +262,6 @@ module.exports = {
   apiDomain: apiDomain,
   ZOHO_API_BASE: ZOHO_API_BASE,
   ZOHO_INVENTORY_BASE: ZOHO_INVENTORY_BASE,
-  BOOKINGS_API_BASE: BOOKINGS_API_BASE,
   withRetry: withRetry,
   zohoGet: zohoGet,
   zohoPost: zohoPost,
@@ -310,8 +269,6 @@ module.exports = {
   inventoryGet: inventoryGet,
   inventoryPost: inventoryPost,
   inventoryPut: inventoryPut,
-  bookingsGet: bookingsGet,
-  bookingsPost: bookingsPost,
   normalizeTimeTo24h: normalizeTimeTo24h,
   fetchAllItems: fetchAllItems,
   fetchItemDetailsBulk: fetchItemDetailsBulk

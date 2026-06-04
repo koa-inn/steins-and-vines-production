@@ -48,8 +48,6 @@ var OPTIONAL = [
   { name: 'ZOHO_TAX_SERVICES_RULE',   desc: 'Zoho tax rule: services rate' },
   { name: 'ZOHO_TAX_ZERO_ID',         desc: 'Zoho tax ID: zero rate' },
   { name: 'ZOHO_TAX_ZERO_RULE',       desc: 'Zoho tax rule: zero rate' },
-  { name: 'ZOHO_BOOKINGS_SERVICE_ID',        desc: 'Zoho Bookings service ID' },
-  { name: 'ZOHO_BOOKINGS_STAFF_ID',          desc: 'Zoho Bookings staff ID' },
   { name: 'CALCOM_API_KEY',                  desc: 'Cal.com API v2 key (Bearer auth)' },
   { name: 'CALCOM_WEBHOOK_SECRET',           desc: 'Cal.com webhook HMAC signing secret' },
   { name: 'CALCOM_EVENT_TYPE_FERMENT_KIT',   desc: 'Cal.com numeric event-type id for ferment-in-store' },

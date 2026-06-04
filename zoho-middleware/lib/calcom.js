@@ -5,7 +5,7 @@ var zohoApi = require('./zoho-api');
 
 // ---------------------------------------------------------------------------
 // Cal.com API v2 adapter
-// Mirrors lib/zoho-api.js bookingsGet/bookingsPost style (ES5, module.exports).
+// Follows lib/zoho-api.js style (ES5, module.exports).
 // Auth: Authorization: Bearer <CALCOM_API_KEY> (server-side only, Railway env).
 // Security: CALCOM_API_KEY never sent to browser; only used server-side here.
 // ---------------------------------------------------------------------------
