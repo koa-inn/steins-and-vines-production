@@ -1,5 +1,6 @@
 var express = require('express');
 var helcimLib = require('../lib/helcim');
+var calcom = require('../lib/calcom');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var eventLog = require('../lib/eventLog');
@@ -191,6 +192,104 @@ function handleTerminalCancel(event) {
   }
 
   eventLog.logEvent('helcim.terminal_cancel', { invoiceNumber: invoiceNumber, deviceCode: deviceCode });
+}
+
+/**
+ * POST /api/webhooks/calcom
+ * Receive and process Cal.com webhook events.
+ *
+ * Cal.com fires events for: BOOKING_CREATED, BOOKING_CANCELLED, BOOKING_RESCHEDULED.
+ * Payload includes triggerEvent + payload (with booking start datetime).
+ *
+ * Signature verification uses HMAC-SHA256 with CALCOM_WEBHOOK_SECRET.
+ * Header: x-cal-signature-256 (single header, hex digest over raw body).
+ *
+ * Security: raw body is required for signature verification.
+ * Captured via express.json({ verify }) callback in server.js (req.rawBody).
+ *
+ * Guard exemptions (server.js):
+ *   - API key: req.path.indexOf('/webhooks/') === 0 -> exempt (line 239)
+ *   - Referer: !req.headers.referer -> skip (line 73); Cal.com sends no Referer
+ *
+ * T-25-07: forged webhook — mitigated by HMAC-SHA256 + 401 on mismatch
+ * T-25-08: guard bypass — mitigated by dual-path /webhooks/ exemption
+ * T-25-10: slow processing — mitigated by 200-before-async pattern
+ */
+router.post(['/api/webhooks/calcom', '/webhooks/calcom'], function (req, res) {
+  var signature = req.headers['x-cal-signature-256'] || '';
+  // rawBody captured by express.json verify callback in server.js
+  var rawBody = req.rawBody ? req.rawBody.toString() : '';
+
+  // Verify HMAC-SHA256 signature
+  if (!calcom.verifyWebhook(rawBody, signature)) {
+    log.warn('[webhook/calcom] Invalid signature — rejected (body_len=' + rawBody.length + ')');
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+
+  // Respond 200 immediately — process asynchronously to avoid webhook timeout
+  res.status(200).json({ received: true });
+
+  var body = req.body || {};
+  var triggerEvent = body.triggerEvent || '';
+
+  log.info('[webhook/calcom] Event received: triggerEvent=' + triggerEvent);
+  eventLog.logEvent('calcom.webhook_received', { triggerEvent: triggerEvent });
+
+  if (triggerEvent === 'BOOKING_CANCELLED') {
+    handleCalcomCancellation(body);
+  } else {
+    // BOOKING_CREATED, BOOKING_RESCHEDULED: log only — idempotent, no destructive effects
+    log.info('[webhook/calcom] Received ' + (triggerEvent || 'unknown') + ' — no side effects');
+  }
+});
+
+/**
+ * Handle BOOKING_CANCELLED webhook events.
+ * Invalidates the cached slots and availability for the affected date so freed
+ * slots reappear on the next client request.
+ *
+ * Field path fallbacks (RESEARCH Assumption A2 — confirmed empirically in Plan 04):
+ *   1. payload.startTime
+ *   2. payload.booking.start
+ *   3. payload.start
+ * If none yield a parseable ISO date, logs a warning and skips cache deletion.
+ *
+ * @param {Object} body - Parsed webhook body (req.body)
+ */
+function handleCalcomCancellation(body) {
+  var payload = body.payload || {};
+
+  // Derive the YYYY-MM-DD date string from the booking start — try three field paths
+  var rawDate = payload.startTime ||
+    (payload.booking && payload.booking.start) ||
+    payload.start ||
+    '';
+
+  var date = '';
+  if (rawDate) {
+    // Accepts ISO-8601 strings; slice to 10 chars gives YYYY-MM-DD
+    var parsed = new Date(rawDate);
+    if (!isNaN(parsed.getTime())) {
+      date = rawDate.toString().slice(0, 10);
+    }
+  }
+
+  if (!date) {
+    log.warn('[webhook/calcom] BOOKING_CANCELLED: could not derive date from payload — skipping cache invalidation');
+    return;
+  }
+
+  var yearMonth = date.substring(0, 7); // YYYY-MM
+
+  cache.del(C.CACHE_KEYS.SLOTS_PREFIX + date).catch(function (err) {
+    log.warn('[webhook/calcom] Failed to delete slots cache for ' + date + ': ' + err.message);
+  });
+  cache.del(C.CACHE_KEYS.AVAILABILITY_PREFIX + yearMonth).catch(function (err) {
+    log.warn('[webhook/calcom] Failed to delete availability cache for ' + yearMonth + ': ' + err.message);
+  });
+
+  log.info('[webhook/calcom] BOOKING_CANCELLED: invalidated cache for date=' + date + ' month=' + yearMonth);
+  eventLog.logEvent('calcom.booking_cancelled', { date: date, month: yearMonth });
 }
 
 module.exports = router;
