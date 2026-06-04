@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Catalog Subpages
-status: executing
-stopped_at: Completed 25-03-PLAN.md
-last_updated: "2026-06-04T14:13:14.727Z"
+status: verifying
+stopped_at: Completed 25-04-PLAN.md (Phase 25 complete)
+last_updated: "2026-06-04T16:36:01.820Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 15
-  completed_plans: 14
-  percent: 83
+  completed_plans: 15
+  percent: 100
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-05-27)
 
 Phase: 25 (calcom-booking-migration) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-04
 
-Progress: [█████████░] 93%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -47,6 +47,7 @@ Progress: [█████████░] 93%
 | Phase 25 P01 | 15min | 2 tasks | 3 files |
 | Phase 25 P02 | 242s | 2 tasks | 2 files |
 | Phase 25 P03 | 20min | 2 tasks | 2 files |
+| Phase 25 P04 | 15min | 1 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,7 @@ Progress: [█████████░] 93%
 - [Phase ?]: CALCOM_EVENT_TYPE_FERMENT_KIT used as primary booking event type (matches Railway env; not CALCOM_EVENT_TYPE_FERMENT as plan spec)
 - [Phase ?]: Dual-path /webhooks/calcom registration covers server.js:239 key-guard exemption without modifying server.js
 - [Phase ?]: BOOKING_CANCELLED date derived from payload.startTime -> payload.booking.start -> payload.start; unparseable = safe no-op
+- [Phase ?]: Zoho Bookings code removed; CALCOM_EVENT_TYPE_FERMENT_KIT + BOTTLING confirmed env names; offline fallback preserved
 
 ### Pending Todos
 
@@ -79,6 +81,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-04T14:13:14.722Z
-Stopped at: Completed 25-03-PLAN.md
+Last session: 2026-06-04T16:36:01.814Z
+Stopped at: Completed 25-04-PLAN.md (Phase 25 complete)
 Resume file: None
