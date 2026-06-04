@@ -281,6 +281,14 @@ router.post('/api/bookings', async function (req, res) {
   if (body.notes && String(body.notes).length > 1000) {
     return res.status(400).json({ error: 'Notes too long' });
   }
+  // Optional event-type selector: 'bottling' maps to CALCOM_EVENT_TYPE_BOTTLING;
+  // anything else or absent defaults to CALCOM_EVENT_TYPE_FERMENT_KIT.
+  // Validate defensively: must be a string of ≤32 chars if provided.
+  if (body.service !== undefined && body.service !== null) {
+    if (typeof body.service !== 'string' || body.service.length > 32) {
+      return res.status(400).json({ error: 'Invalid service selector' });
+    }
+  }
 
   // Offline fallback: Cal.com not reachable or credentials not yet configured —
   // return a placeholder booking_id so the checkout flow can continue;
@@ -290,12 +298,22 @@ router.post('/api/bookings', async function (req, res) {
     return res.status(201).json({ ok: true, booking_id: offlineBookingId, timeslot: body.date + ' ' + body.time });
   }
 
+  // Resolve the event-type id from the optional selector.
+  // Defaults to ferment-kit (backward compatible — current frontend sends no selector).
+  // Falls back to ferment-kit if bottling id is unset in env.
+  var resolvedEventTypeId;
+  if (body.service === 'bottling' && process.env.CALCOM_EVENT_TYPE_BOTTLING && String(process.env.CALCOM_EVENT_TYPE_BOTTLING).trim() !== '') {
+    resolvedEventTypeId = Number(process.env.CALCOM_EVENT_TYPE_BOTTLING);
+  } else {
+    resolvedEventTypeId = Number(process.env.CALCOM_EVENT_TYPE_FERMENT_KIT);
+  }
+
   var time24 = normalizeTimeTo24h(body.time);
   var startUtc = buildUtcStart(body.date, time24);
 
   var bookingPayload = {
     start: startUtc,
-    eventTypeId: Number(process.env.CALCOM_EVENT_TYPE_FERMENT_KIT),
+    eventTypeId: resolvedEventTypeId,
     attendee: {
       name: body.customer.name,
       email: body.customer.email,

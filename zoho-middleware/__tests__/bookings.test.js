@@ -407,3 +407,210 @@ describe('bookings routes — Cal.com legacy shapes', () => {
     expect(res.json.mock.calls[0][0]).toHaveProperty('error');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 1 (plan 25-04): event-type selector — services returns both types,
+// POST defaults to ferment-kit, POST with selector books bottling.
+// ---------------------------------------------------------------------------
+
+describe('bookings routes — event-type selector (25-04 Task 1)', () => {
+  var calcom, cache, zohoApi, router, getHandlers, postHandlers;
+
+  beforeEach(() => {
+    jest.resetModules();
+    calcom = require('../lib/calcom');
+    cache = require('../lib/cache');
+    zohoApi = require('../lib/zoho-api');
+    jest.clearAllMocks();
+    cache.get.mockResolvedValue(null);
+    cache.set.mockResolvedValue('OK');
+    cache.del.mockResolvedValue(1);
+
+    require('../routes/bookings');
+    router = require('express').Router();
+    getHandlers = {};
+    postHandlers = {};
+    router.get.mock.calls.forEach(function (call) {
+      getHandlers[call[0]] = call[call.length - 1];
+    });
+    router.post.mock.calls.forEach(function (call) {
+      postHandlers[call[0]] = call[call.length - 1];
+    });
+  });
+
+  function mockRes() {
+    var res = { json: jest.fn(), status: jest.fn() };
+    res.status.mockReturnValue(res);
+    return res;
+  }
+
+  // -------------------------------------------------------------------------
+  // services: returns both event types when both env ids are set
+  // -------------------------------------------------------------------------
+
+  test('GET /api/bookings/services — returns both event types when CALCOM_EVENT_TYPE_FERMENT_KIT and CALCOM_EVENT_TYPE_BOTTLING are set', async () => {
+    var fermentType = { status: 'success', data: { id: 101, title: 'Ferment in Store', slug: 'ferment-in-store', lengthInMinutes: 60, description: '', price: 0, currency: 'CAD', bookingUrl: '' } };
+    var bottlingType = { status: 'success', data: { id: 202, title: 'Bottling Day', slug: 'bottling-day', lengthInMinutes: 90, description: '', price: 0, currency: 'CAD', bookingUrl: '' } };
+
+    // listEventType is called once per id in order; mock returns both
+    calcom.listEventType
+      .mockResolvedValueOnce(fermentType)
+      .mockResolvedValueOnce(bottlingType);
+
+    var origFermentKit = process.env.CALCOM_EVENT_TYPE_FERMENT_KIT;
+    var origBottling = process.env.CALCOM_EVENT_TYPE_BOTTLING;
+    process.env.CALCOM_EVENT_TYPE_FERMENT_KIT = '101';
+    process.env.CALCOM_EVENT_TYPE_BOTTLING = '202';
+
+    var res = mockRes();
+    await getHandlers['/api/bookings/services']({}, res);
+
+    process.env.CALCOM_EVENT_TYPE_FERMENT_KIT = origFermentKit;
+    process.env.CALCOM_EVENT_TYPE_BOTTLING = origBottling;
+
+    expect(calcom.listEventType).toHaveBeenCalledTimes(2);
+    var payload = res.json.mock.calls[0][0];
+    expect(Array.isArray(payload.services)).toBe(true);
+    expect(payload.services.length).toBe(2);
+    expect(payload.services[0]).toMatchObject({ id: 101, title: 'Ferment in Store' });
+    expect(payload.services[1]).toMatchObject({ id: 202, title: 'Bottling Day' });
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/bookings — no selector defaults to ferment-kit event type
+  // -------------------------------------------------------------------------
+
+  test('POST /api/bookings — no service selector: createBooking called with ferment-kit eventTypeId', async () => {
+    zohoApi.normalizeTimeTo24h.mockReturnValue('10:00:00');
+    calcom.createBooking.mockResolvedValue({
+      status: 'success',
+      data: { id: 1, uid: 'uid_ferment_default', status: 'accepted', start: '2026-06-10T17:00:00Z', end: '2026-06-10T18:00:00Z' }
+    });
+
+    var origFermentKit = process.env.CALCOM_EVENT_TYPE_FERMENT_KIT;
+    var origBottling = process.env.CALCOM_EVENT_TYPE_BOTTLING;
+    process.env.CALCOM_EVENT_TYPE_FERMENT_KIT = '101';
+    process.env.CALCOM_EVENT_TYPE_BOTTLING = '202';
+
+    var res = mockRes();
+    var req = {
+      body: {
+        date: '2026-06-10',
+        time: '10:00 AM',
+        customer: { name: 'Test User', email: 'test@example.com' }
+        // no service field — backward-compatible default
+      },
+      zohoOffline: false
+    };
+    await postHandlers['/api/bookings'](req, res);
+
+    process.env.CALCOM_EVENT_TYPE_FERMENT_KIT = origFermentKit;
+    process.env.CALCOM_EVENT_TYPE_BOTTLING = origBottling;
+
+    expect(calcom.createBooking).toHaveBeenCalledTimes(1);
+    var calledWith = calcom.createBooking.mock.calls[0][0];
+    expect(calledWith.eventTypeId).toBe(101);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json.mock.calls[0][0].ok).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/bookings — selector 'bottling' books the bottling event type
+  // -------------------------------------------------------------------------
+
+  test("POST /api/bookings — service selector 'bottling': createBooking called with bottling eventTypeId", async () => {
+    zohoApi.normalizeTimeTo24h.mockReturnValue('14:00:00');
+    calcom.createBooking.mockResolvedValue({
+      status: 'success',
+      data: { id: 2, uid: 'uid_bottling_123', status: 'accepted', start: '2026-06-11T21:00:00Z', end: '2026-06-11T22:30:00Z' }
+    });
+
+    var origFermentKit = process.env.CALCOM_EVENT_TYPE_FERMENT_KIT;
+    var origBottling = process.env.CALCOM_EVENT_TYPE_BOTTLING;
+    process.env.CALCOM_EVENT_TYPE_FERMENT_KIT = '101';
+    process.env.CALCOM_EVENT_TYPE_BOTTLING = '202';
+
+    var res = mockRes();
+    var req = {
+      body: {
+        date: '2026-06-11',
+        time: '2:00 PM',
+        customer: { name: 'Test Bottler', email: 'bottler@example.com' },
+        service: 'bottling'
+      },
+      zohoOffline: false
+    };
+    await postHandlers['/api/bookings'](req, res);
+
+    process.env.CALCOM_EVENT_TYPE_FERMENT_KIT = origFermentKit;
+    process.env.CALCOM_EVENT_TYPE_BOTTLING = origBottling;
+
+    expect(calcom.createBooking).toHaveBeenCalledTimes(1);
+    var calledWith = calcom.createBooking.mock.calls[0][0];
+    expect(calledWith.eventTypeId).toBe(202);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json.mock.calls[0][0].ok).toBe(true);
+    expect(res.json.mock.calls[0][0].booking_id).toBe('uid_bottling_123');
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/bookings — selector 'bottling' falls back to ferment-kit when
+  // CALCOM_EVENT_TYPE_BOTTLING env id is unset
+  // -------------------------------------------------------------------------
+
+  test("POST /api/bookings — service selector 'bottling' with unset bottling env id: falls back to ferment-kit", async () => {
+    zohoApi.normalizeTimeTo24h.mockReturnValue('10:00:00');
+    calcom.createBooking.mockResolvedValue({
+      status: 'success',
+      data: { id: 3, uid: 'uid_fallback_ferment', status: 'accepted', start: '2026-06-12T17:00:00Z', end: '2026-06-12T18:00:00Z' }
+    });
+
+    var origFermentKit = process.env.CALCOM_EVENT_TYPE_FERMENT_KIT;
+    var origBottling = process.env.CALCOM_EVENT_TYPE_BOTTLING;
+    process.env.CALCOM_EVENT_TYPE_FERMENT_KIT = '101';
+    delete process.env.CALCOM_EVENT_TYPE_BOTTLING; // unset
+
+    var res = mockRes();
+    var req = {
+      body: {
+        date: '2026-06-12',
+        time: '10:00 AM',
+        customer: { name: 'Test User', email: 'test@example.com' },
+        service: 'bottling'
+      },
+      zohoOffline: false
+    };
+    await postHandlers['/api/bookings'](req, res);
+
+    process.env.CALCOM_EVENT_TYPE_FERMENT_KIT = origFermentKit;
+    if (origBottling !== undefined) { process.env.CALCOM_EVENT_TYPE_BOTTLING = origBottling; }
+
+    expect(calcom.createBooking).toHaveBeenCalledTimes(1);
+    var calledWith = calcom.createBooking.mock.calls[0][0];
+    // Should fall back to ferment-kit id (101)
+    expect(calledWith.eventTypeId).toBe(101);
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/bookings — invalid selector rejected with 400
+  // -------------------------------------------------------------------------
+
+  test('POST /api/bookings — invalid service selector (too long) rejected with 400', async () => {
+    var res = mockRes();
+    var req = {
+      body: {
+        date: '2026-06-10',
+        time: '10:00 AM',
+        customer: { name: 'Test User', email: 'test@example.com' },
+        service: 'a'.repeat(33)
+      },
+      zohoOffline: false
+    };
+    await postHandlers['/api/bookings'](req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0][0]).toHaveProperty('error');
+    expect(calcom.createBooking).not.toHaveBeenCalled();
+  });
+});
