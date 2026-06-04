@@ -190,7 +190,7 @@ Plans:
 **Plans**: 4 plans (3 waves)
 - [x] 25-01-PLAN.md — Free-tier risk gate + Cal.com adapter (lib/calcom.js) + env registration
 - [x] 25-02-PLAN.md — Rewrite /api/bookings* handlers onto Cal.com, preserving the contract
-- [ ] 25-03-PLAN.md — POST /api/webhooks/calcom (signature-verified, cache invalidation)
+- [x] 25-03-PLAN.md — POST /api/webhooks/calcom (signature-verified, cache invalidation)
 - [ ] 25-04-PLAN.md — Staging booking+email verification, additional event type, Zoho removal
 
 ## Progress
@@ -205,4 +205,4 @@ Plans:
 | 22. Category Subpages & Navigation | v3.0 | 3/3 | Complete   | 2026-05-29 |
 | 23. Cross-Category Search | v3.0 | 2/2 | Complete    | 2026-05-30 |
 | 24. SEO & Staging Deploy | v3.0 | 2/2 | Complete    | 2026-06-03 |
-| 25. Cal.com Booking Migration | v4.0 | 2/4 | In Progress|  |
+| 25. Cal.com Booking Migration | v4.0 | 3/4 | In Progress|  |
