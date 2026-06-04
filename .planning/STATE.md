@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Catalog Subpages
 status: executing
-stopped_at: Completed 25-01-PLAN.md
-last_updated: "2026-06-04T13:59:38.395Z"
+stopped_at: Completed 25-02-PLAN.md
+last_updated: "2026-06-04T14:07:56.565Z"
 last_activity: 2026-06-04
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 15
-  completed_plans: 12
-  percent: 80
+  completed_plans: 13
+  percent: 83
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-27)
 ## Current Position
 
 Phase: 25 (calcom-booking-migration) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-04
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 87%
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Progress: [████████░░] 80%
 | 20 | 01 | 177s | 2/2 | 2 |
 | 20 | 02 | manual | 2/2 | 2 |
 | Phase 25 P01 | 15min | 2 tasks | 3 files |
+| Phase 25 P02 | 242s | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -63,6 +64,7 @@ Progress: [████████░░] 80%
 - [Phase ?]: Cal.com free tier confirmed: API keys + webhooks both available on free plan (not paywalled)
 - [Phase ?]: bookings cal-api-version confirmed as 2026-02-25 (live docs, 2026-06-04)
 - [Phase ?]: Env var names: CALCOM_EVENT_TYPE_FERMENT_KIT + CALCOM_EVENT_TYPE_BOTTLING in validateEnv and routes
+- [Phase ?]: CALCOM_EVENT_TYPE_FERMENT_KIT used as primary booking event type (matches Railway env; not CALCOM_EVENT_TYPE_FERMENT as plan spec)
 
 ### Pending Todos
 
@@ -74,6 +76,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-04T13:59:38.389Z
-Stopped at: Completed 25-01-PLAN.md
+Last session: 2026-06-04T14:07:56.559Z
+Stopped at: Completed 25-02-PLAN.md
 Resume file: None
