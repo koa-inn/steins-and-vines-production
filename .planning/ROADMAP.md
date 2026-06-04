@@ -5,7 +5,8 @@
 - ✅ **v1.0 Kiosk Production Readiness** — Phases 1-4 (shipped 2026-04-28)
 - ✅ **v1.1 Brewpad Reliability & Integration** — Phases 5-11 (shipped 2026-05-06)
 - ✅ **v2.0 Recipe-Based Products** — Phases 12-19 (shipped 2026-05-27)
-- 🚧 **v3.0 Catalog Subpages** — Phases 20-24 (in progress)
+- ✅ **v3.0 Catalog Subpages** — Phases 20-24 (shipped 2026-06-03)
+- 🚧 **v4.0 Booking Migration (Cal.com)** — Phase 25 (in progress)
 
 ## Phases
 
@@ -46,7 +47,7 @@
 
 </details>
 
-### 🚧 v3.0 Catalog Subpages (In Progress)
+### ✅ v3.0 Catalog Subpages (Shipped 2026-06-03)
 
 **Milestone Goal:** Break the monolithic ingredients page into dedicated category subpages with shared template, cross-category navigation, and unified search.
 
@@ -55,6 +56,12 @@
 - [x] **Phase 22: Category Subpages & Navigation** - All 5 subpages live with sub-nav and main nav dropdown (completed 2026-05-29)
 - [x] **Phase 23: Cross-Category Search** - Search overlay with grouped results and deep-link navigation (completed 2026-05-30)
 - [x] **Phase 24: SEO & Staging Deploy** - Per-subpage SEO meta, QA pass, and staging deployment (completed 2026-06-03)
+
+### 🚧 v4.0 Booking Migration (Cal.com) (In Progress)
+
+**Milestone Goal:** Replace the Zoho Bookings backend with Cal.com Cloud (free tier) behind the existing `/api/bookings*` middleware contract — keeping the website checkout flow unchanged — with multiple appointment types and HTTPS-based confirmation emails (Railway blocks outbound SMTP).
+
+- [ ] **Phase 25: Cal.com Booking Migration** - Swap Zoho Bookings → Cal.com Cloud behind unchanged `/api/bookings*` endpoints; multiple event types; manual cutover of existing appointments
 
 ## Phase Details
 
@@ -167,6 +174,25 @@ Plans:
 
 - [x] 24-02-PLAN.md — Build, stamp, push to staging, and QA-verify all 5 subpages load clean on staging.steinsandvines.ca
 
+### Phase 25: Cal.com Booking Migration
+
+**Goal**: Appointment booking runs on Cal.com Cloud (free tier) behind the unchanged `/api/bookings*` middleware contract, supporting multiple appointment types, with customer/staff confirmation emails delivered by Cal.com over HTTPS
+**Depends on**: (new milestone v4.0 — no prior phase dependency)
+**Requirements**: BOOK-01, BOOK-02, BOOK-03, BOOK-04, BOOK-05
+**Success Criteria** (what must be TRUE):
+
+  1. `GET /api/bookings/services`, `GET /api/bookings/availability`, `GET /api/bookings/slots`, and `POST /api/bookings` return the same response shapes as today, now backed by Cal.com (frontend unchanged)
+  2. A completed ferment-in-store checkout creates a real Cal.com booking and the customer receives a Cal.com confirmation email (verified end-to-end on staging)
+  3. At least one additional appointment type beyond ferment-in-store is bookable through Cal.com
+  4. Zoho Bookings code paths (`bookingsGet`/`bookingsPost`, `ZOHO_BOOKINGS_*` env) are removed or disabled with no dead references; offline-fallback behavior preserved
+  5. Middleware test suite covers the new Cal.com adapter (request/response mapping, error + offline-fallback paths) and passes; lint clean
+
+**Plans**: 4 plans (3 waves)
+- [x] 25-01-PLAN.md — Free-tier risk gate + Cal.com adapter (lib/calcom.js) + env registration
+- [ ] 25-02-PLAN.md — Rewrite /api/bookings* handlers onto Cal.com, preserving the contract
+- [ ] 25-03-PLAN.md — POST /api/webhooks/calcom (signature-verified, cache invalidation)
+- [ ] 25-04-PLAN.md — Staging booking+email verification, additional event type, Zoho removal
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -179,3 +205,4 @@ Plans:
 | 22. Category Subpages & Navigation | v3.0 | 3/3 | Complete   | 2026-05-29 |
 | 23. Cross-Category Search | v3.0 | 2/2 | Complete    | 2026-05-30 |
 | 24. SEO & Staging Deploy | v3.0 | 2/2 | Complete    | 2026-06-03 |
+| 25. Cal.com Booking Migration | v4.0 | 1/4 | In Progress|  |

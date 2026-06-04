@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Catalog Subpages
-status: milestone_complete
-stopped_at: Milestone complete (Phase 24 was final phase)
-last_updated: 2026-06-03T05:41:56.466Z
-last_activity: 2026-06-02 -- Phase 24 execution started
+status: executing
+stopped_at: Completed 25-01-PLAN.md
+last_updated: "2026-06-04T13:59:38.395Z"
+last_activity: 2026-06-04
 progress:
-  total_phases: 5
-  completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
+  total_phases: 6
+  completed_phases: 5
+  total_plans: 15
+  completed_plans: 12
   percent: 80
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-27)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Milestone complete
+**Current focus:** Phase 25 — calcom-booking-migration
 
 ## Current Position
 
-Phase: 24
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-06-03
+Phase: 25 (calcom-booking-migration) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-06-04
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Progress: [██░░░░░░░░] 20%
 |-------|------|----------|-------|-------|
 | 20 | 01 | 177s | 2/2 | 2 |
 | 20 | 02 | manual | 2/2 | 2 |
+| Phase 25 P01 | 15min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -59,6 +60,9 @@ Progress: [██░░░░░░░░] 20%
 - [20-02]: Zoho item groups have different CF sets — only cf_type="Ingredient" has Subcategory CF; Equipment/Packaging/Cleaning use cf_type as fallback category
 - [20-02]: verify-subcategories.js reads cf_subcategory (Zoho's flat field name) with cf_type fallback
 - [20-02]: Standalone scripts need cache.init() + zohoAuth.init() to load Redis-stored refresh token
+- [Phase ?]: Cal.com free tier confirmed: API keys + webhooks both available on free plan (not paywalled)
+- [Phase ?]: bookings cal-api-version confirmed as 2026-02-25 (live docs, 2026-06-04)
+- [Phase ?]: Env var names: CALCOM_EVENT_TYPE_FERMENT_KIT + CALCOM_EVENT_TYPE_BOTTLING in validateEnv and routes
 
 ### Pending Todos
 
@@ -70,6 +74,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-30T15:51:19.943Z
-Stopped at: Phase 23 UI-SPEC approved
-Resume file: .planning/phases/23-cross-category-search/23-UI-SPEC.md
+Last session: 2026-06-04T13:59:38.389Z
+Stopped at: Completed 25-01-PLAN.md
+Resume file: None
