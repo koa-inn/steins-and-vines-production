@@ -137,8 +137,12 @@ describe('bookings routes — Cal.com legacy shapes', () => {
     };
     calcom.listEventType.mockResolvedValue(fermentEventType);
 
+    // Provide env vars so handler calls listEventType
+    var origFermentKit = process.env.CALCOM_EVENT_TYPE_FERMENT_KIT;
+    process.env.CALCOM_EVENT_TYPE_FERMENT_KIT = '101';
     var res = mockRes();
     await getHandlers['/api/bookings/services']({ env: {} }, res);
+    process.env.CALCOM_EVENT_TYPE_FERMENT_KIT = origFermentKit;
 
     expect(res.json).toHaveBeenCalled();
     var payload = res.json.mock.calls[0][0];
