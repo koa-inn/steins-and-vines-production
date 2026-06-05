@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-04T09:38:05.051Z",
+  "generated_at": "2026-06-05T08:59:17.291Z",
   "products": [
     {
       "name": "Acai Raspberry Rapture",
@@ -6414,7 +6414,7 @@
       "name": "750mL Bordeaux Bottle Brown",
       "unit": "pcs",
       "price_per_unit": "2.5",
-      "stock": "131",
+      "stock": "102",
       "description": "",
       "sales_description": "",
       "sku": "bor-brown",
@@ -7022,7 +7022,7 @@
       "name": "Calcium Sulfate-50g",
       "unit": "pcs",
       "price_per_unit": "3",
-      "stock": "0",
+      "stock": "-1",
       "description": "Also known as gypsum, used to increase calcium and sulfate in brewing water. Enhances hop bitterness, crispness, and a drier finish. Essential for hop-forward styles like IPAs and pale ales. Typical usage: 1\u20134 g per 5 gal (19L) batch depending on your source water; scale proportionally for 23L.",
       "sales_description": "",
       "sku": "CASUL-50G",
@@ -8526,7 +8526,7 @@
       "name": "Malto-Dextrin 8oz package",
       "unit": "pcs",
       "price_per_unit": "4",
-      "stock": "10",
+      "stock": "9",
       "description": "Non-fermentable dextrin powder that increases body, mouthfeel, and head retention in beer without affecting flavor or alcohol content. Particularly useful in light-bodied extract brews. Use 4\u20138 oz (115\u2013225 g) per 5 gal (19L) batch for added body, or scale to 5\u201310 oz (140\u2013280 g) per 23L. Add during the last 15 minutes of the boil.",
       "sales_description": "",
       "sku": "64101-08",
