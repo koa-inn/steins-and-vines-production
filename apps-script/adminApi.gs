@@ -1748,8 +1748,8 @@ function getBatchDashboardSummary() {
     return x === 'true' || x === '1' || x === 'yes';
   }
 
-  // Task analysis: due-date counters + earliest incomplete packaging task per batch.
-  var pkgByBatch = {}; // batch_id -> { due_date }
+  // Task analysis: due-date counters + per-batch packaging readiness.
+  var pkgByBatch = {}; // batch_id -> { hasIncPkg, allNonPkgDone, pkgDue }
   tasks.forEach(function (t) {
     var bid = String(t.batch_id);
     if (!activeBatchIds[bid]) return;
@@ -1765,29 +1765,32 @@ function getBatchDashboardSummary() {
       if (dueDate && dueDate >= today && dueDate <= weekEnd) summary.tasksDueThisWeek++;
     }
 
-    if (isPkg && !done) {
-      var existing = pkgByBatch[bid];
-      if (!existing) {
-        pkgByBatch[bid] = { due_date: dueDate };
-      } else if (dueDate && (!existing.due_date || dueDate < existing.due_date)) {
-        pkgByBatch[bid] = { due_date: dueDate };
+    if (!pkgByBatch[bid]) pkgByBatch[bid] = { hasIncPkg: false, allNonPkgDone: true, pkgDue: '' };
+    if (isPkg) {
+      if (!done) {
+        pkgByBatch[bid].hasIncPkg = true;
+        if (dueDate && (!pkgByBatch[bid].pkgDue || dueDate < pkgByBatch[bid].pkgDue)) {
+          pkgByBatch[bid].pkgDue = dueDate;
+        }
       }
+    } else if (!done) {
+      pkgByBatch[bid].allNonPkgDone = false;
     }
   });
 
-  // Ready to Bottle: active batch with an incomplete packaging task that is
-  // either due (due_date <= today / overdue) OR TBD-dated while in secondary.
-  // Deliberately does NOT require every other task to be complete — that gate
-  // was silently hiding batches that are practically ready.
+  // Ready to Bottle: active batch with an INCOMPLETE packaging task, AND either
+  // all its other (non-packaging) tasks are done (fermentation finished) OR the
+  // bottling date has arrived/passed. A TBD-dated packaging task on a batch whose
+  // other tasks aren't finished does NOT count — that was over-counting batches
+  // still mid-ferment. Boolean parsing hardened above (TRUE/true/1/yes).
   var readyToBottle = [];
   Object.keys(pkgByBatch).forEach(function (bid) {
+    var st = pkgByBatch[bid];
     var meta = batchMeta[bid];
-    if (!meta) return;
-    var due = pkgByBatch[bid].due_date;
-    var hasDate = !!due;
-    var dueReached = hasDate && due <= today;
-    var tbdSecondary = !hasDate && meta.status === 'secondary';
-    if (dueReached || tbdSecondary) {
+    if (!meta || !st.hasIncPkg) return;
+    var due = st.pkgDue;
+    var dueReached = !!due && due <= today;
+    if (st.allNonPkgDone || dueReached) {
       readyToBottle.push({
         batch_id: meta.batch_id,
         product_name: meta.product_name,
@@ -1796,7 +1799,7 @@ function getBatchDashboardSummary() {
         shelf_id: meta.shelf_id,
         status: meta.status,
         bottling_due: due || '',
-        overdue: hasDate && due < today,
+        overdue: !!due && due < today,
         has_email: !!meta.customer_email
       });
     }
