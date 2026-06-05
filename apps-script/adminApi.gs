@@ -1703,27 +1703,47 @@ function getBatchDashboardSummary() {
     readyForPackaging: 0
   };
 
-  // Active batch IDs for task filtering
+  // Active batch metadata (primary/secondary only) for the ready-to-bottle list.
   var activeBatchIds = {};
+  var batchMeta = {};
   batches.forEach(function (b) {
+    var bid = String(b.batch_id);
     var s = String(b.status || '').toLowerCase();
-    switch (s) {
-      case 'primary': summary.primaryCount++; activeBatchIds[String(b.batch_id)] = true; break;
-      case 'secondary': summary.secondaryCount++; activeBatchIds[String(b.batch_id)] = true; break;
-      case 'complete': summary.completeCount++; break;
-      case 'disabled': summary.disabledCount++; break;
+    if (s === 'primary' || s === 'secondary') {
+      if (s === 'primary') summary.primaryCount++; else summary.secondaryCount++;
+      activeBatchIds[bid] = true;
+      batchMeta[bid] = {
+        batch_id: bid,
+        status: s,
+        product_name: b.product_name || '',
+        customer_name: String(b.customer_name ||
+          ((b.customer_firstname || '') + ' ' + (b.customer_lastname || ''))).trim(),
+        vessel_id: b.vessel_id || '',
+        shelf_id: b.shelf_id || ''
+      };
+    } else if (s === 'complete') {
+      summary.completeCount++;
+    } else if (s === 'disabled') {
+      summary.disabledCount++;
     }
   });
 
-  // Task analysis for active batches
-  var batchTaskStatus = {}; // batch_id -> { allNonPackagingDone, hasPackaging }
+  // Robust truthiness for Google Sheets booleans ('TRUE'/'true'/true/1/'yes').
+  function _isTrue(v) {
+    var x = String(v).trim().toLowerCase();
+    return x === 'true' || x === '1' || x === 'yes';
+  }
+
+  // Task analysis: due-date counters + earliest incomplete packaging task per batch.
+  var pkgByBatch = {}; // batch_id -> { due_date }
   tasks.forEach(function (t) {
     var bid = String(t.batch_id);
     if (!activeBatchIds[bid]) return;
 
-    var done = String(t.completed).toUpperCase() === 'TRUE';
-    var isPkg = String(t.is_packaging).toUpperCase() === 'TRUE';
-    var dueDate = String(t.due_date || '');
+    var done = _isTrue(t.completed);
+    var isPkg = _isTrue(t.is_packaging);
+    var dueDate = String(t.due_date || '').trim();
+    if (dueDate.length > 10) dueDate = dueDate.substring(0, 10); // normalize datetime -> YYYY-MM-DD
 
     if (!done) {
       if (dueDate && dueDate < today) summary.overdueTasks++;
@@ -1731,19 +1751,52 @@ function getBatchDashboardSummary() {
       if (dueDate && dueDate >= today && dueDate <= weekEnd) summary.tasksDueThisWeek++;
     }
 
-    if (!batchTaskStatus[bid]) batchTaskStatus[bid] = { allNonPackagingDone: true, hasPackaging: false };
-    if (isPkg) {
-      batchTaskStatus[bid].hasPackaging = true;
-    } else if (!done) {
-      batchTaskStatus[bid].allNonPackagingDone = false;
+    if (isPkg && !done) {
+      var existing = pkgByBatch[bid];
+      if (!existing) {
+        pkgByBatch[bid] = { due_date: dueDate };
+      } else if (dueDate && (!existing.due_date || dueDate < existing.due_date)) {
+        pkgByBatch[bid] = { due_date: dueDate };
+      }
     }
   });
 
-  // Count batches ready for packaging
-  Object.keys(batchTaskStatus).forEach(function (bid) {
-    var s = batchTaskStatus[bid];
-    if (s.hasPackaging && s.allNonPackagingDone) summary.readyForPackaging++;
+  // Ready to Bottle: active batch with an incomplete packaging task that is
+  // either due (due_date <= today / overdue) OR TBD-dated while in secondary.
+  // Deliberately does NOT require every other task to be complete — that gate
+  // was silently hiding batches that are practically ready.
+  var readyToBottle = [];
+  Object.keys(pkgByBatch).forEach(function (bid) {
+    var meta = batchMeta[bid];
+    if (!meta) return;
+    var due = pkgByBatch[bid].due_date;
+    var hasDate = !!due;
+    var dueReached = hasDate && due <= today;
+    var tbdSecondary = !hasDate && meta.status === 'secondary';
+    if (dueReached || tbdSecondary) {
+      readyToBottle.push({
+        batch_id: meta.batch_id,
+        product_name: meta.product_name,
+        customer_name: meta.customer_name,
+        vessel_id: meta.vessel_id,
+        shelf_id: meta.shelf_id,
+        status: meta.status,
+        bottling_due: due || '',
+        overdue: hasDate && due < today
+      });
+    }
   });
+
+  // Overdue first, then soonest date, TBD last; tiebreak by batch_id.
+  readyToBottle.sort(function (a, b) {
+    var ad = a.bottling_due || '9999-12-31';
+    var bd = b.bottling_due || '9999-12-31';
+    if (ad !== bd) return ad < bd ? -1 : 1;
+    return String(a.batch_id).localeCompare(String(b.batch_id));
+  });
+
+  summary.readyForPackaging = readyToBottle.length;
+  summary.readyToBottle = readyToBottle;
 
   return summary;
 }

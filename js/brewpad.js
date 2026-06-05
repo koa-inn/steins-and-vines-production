@@ -206,6 +206,7 @@ function buildLifecycleTimeline(batch, soDate) {
   var _dashAutoRefreshTimer = null;
   var _notesAutoSaveTimer = null;
   var _dashExpandedDay = null;
+  var _dashRtbExpanded = false;
 
   // Product catalog
   var _kitCatalog = null;
@@ -997,10 +998,6 @@ function buildLifecycleTimeline(batch, soDate) {
       attention.push({ cls: 'bp-attention--warning',
         text: d.tasksDueToday + ' task' + (d.tasksDueToday !== 1 ? 's' : '') + ' due today' });
     }
-    if (d.readyForPackaging > 0) {
-      attention.push({ cls: 'bp-attention--success',
-        text: d.readyForPackaging + ' batch' + (d.readyForPackaging !== 1 ? 'es' : '') + ' ready for packaging' });
-    }
     html += '<div class="bp-section-header">Needs Attention</div>';
     if (attention.length > 0) {
       html += '<div class="bp-attention-list">';
@@ -1011,8 +1008,41 @@ function buildLifecycleTimeline(batch, soDate) {
         html += '</div>';
       });
       html += '</div>';
-    } else if (_dashSummary) {
+    } else if (_dashSummary && (!d.readyToBottle || !d.readyToBottle.length)) {
       html += '<p class="bp-empty">All batches on track.</p>';
+    }
+
+    // Ready to Bottle — collapsible list (active batch with an open, due bottling
+    // task; does NOT require sibling tasks to be ticked off, which was hiding batches).
+    var rtb = (d && d.readyToBottle) || [];
+    if (rtb.length > 0) {
+      var rtbOpen = _dashRtbExpanded;
+      html += '<div class="bp-detail-section-title bp-detail-section-toggle bp-rtb-toggle" role="button" tabindex="0" aria-expanded="' + (rtbOpen ? 'true' : 'false') + '">';
+      html += 'Ready to Bottle (' + rtb.length + ') ';
+      html += '<span class="bp-section-toggle-icon" style="' + (rtbOpen ? 'transform:rotate(90deg);' : '') + '">&#9656;</span>';
+      html += '</div>';
+      html += '<div class="bp-rtb-body" style="' + (rtbOpen ? '' : 'display:none;') + '">';
+      html += '<div class="bp-dash-task-list">';
+      rtb.forEach(function (it) {
+        html += '<div class="bp-task-row">';
+        html += '<div class="bp-task-body">';
+        html += '<button type="button" class="bp-batch-chip" data-batch-id="' + escapeHTML(it.batch_id || '') + '"' +
+          (it.overdue ? ' style="background:#ffebee;color:#c62828;border-color:#ef9a9a;"' : '') +
+          ' title="Open batch">' + escapeHTML(it.batch_id || '') + '</button>';
+        html += '<span class="bp-task-title">' + escapeHTML(it.product_name || '') + '</span>';
+        if (it.customer_name) html += '<span class="bp-task-customer">' + escapeHTML(it.customer_name) + '</span>';
+        var loc = [it.vessel_id, it.shelf_id].filter(Boolean).join(' · ');
+        if (loc) html += '<span class="bp-task-meta">' + escapeHTML(loc) + '</span>';
+        if (it.overdue) {
+          html += '<span style="font-size:0.75rem;color:#d32f2f;font-weight:600;margin-left:6px;">Overdue — ' + escapeHTML(it.bottling_due) + '</span>';
+        } else if (it.bottling_due) {
+          html += '<span style="font-size:0.75rem;color:#2e7d32;font-weight:600;margin-left:6px;">Due ' + escapeHTML(it.bottling_due) + '</span>';
+        } else {
+          html += '<span style="font-size:0.75rem;color:#5f5f5f;margin-left:6px;">Bottling date TBD</span>';
+        }
+        html += '</div></div>';
+      });
+      html += '</div></div>';
     }
 
     // Today's tasks checklist (including overdue)
@@ -4437,6 +4467,12 @@ function buildLifecycleTimeline(batch, soDate) {
         if (chip) {
           switchTab('batches');
           selectBatch(chip.getAttribute('data-batch-id'));
+          return;
+        }
+        var rtbToggle = e.target.closest('.bp-rtb-toggle');
+        if (rtbToggle) {
+          _dashRtbExpanded = !_dashRtbExpanded;
+          renderDashboard();
           return;
         }
         var day = e.target.closest('.bp-wl-day');
