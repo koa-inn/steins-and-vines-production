@@ -1700,12 +1700,14 @@ function getBatchDashboardSummary() {
     overdueTasks: 0,
     tasksDueToday: 0,
     tasksDueThisWeek: 0,
-    readyForPackaging: 0
+    readyForPackaging: 0,
+    pendingCount: 0
   };
 
-  // Active batch metadata (primary/secondary only) for the ready-to-bottle list.
+  // Active batch metadata (for ready-to-bottle) + pending (needs-scheduling) collection.
   var activeBatchIds = {};
   var batchMeta = {};
+  var needsScheduling = [];
   batches.forEach(function (b) {
     var bid = String(b.batch_id);
     var s = String(b.status || '').toLowerCase();
@@ -1725,6 +1727,17 @@ function getBatchDashboardSummary() {
       summary.completeCount++;
     } else if (s === 'disabled') {
       summary.disabledCount++;
+    } else if (s === 'pending') {
+      summary.pendingCount++;
+      needsScheduling.push({
+        batch_id: bid,
+        product_name: b.product_name || '',
+        customer_name: String(b.customer_name ||
+          ((b.customer_firstname || '') + ' ' + (b.customer_lastname || ''))).trim(),
+        source: b.source || '',
+        zoho_so_number: b.zoho_so_number || '',
+        created_at: b.created_at || ''
+      });
     }
   });
 
@@ -1797,6 +1810,12 @@ function getBatchDashboardSummary() {
 
   summary.readyForPackaging = readyToBottle.length;
   summary.readyToBottle = readyToBottle;
+
+  // Newest sale first so the most recently sold pending batch is on top.
+  needsScheduling.sort(function (a, b) {
+    return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+  });
+  summary.needsScheduling = needsScheduling;
 
   return summary;
 }

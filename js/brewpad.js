@@ -207,6 +207,7 @@ function buildLifecycleTimeline(batch, soDate) {
   var _notesAutoSaveTimer = null;
   var _dashExpandedDay = null;
   var _dashRtbExpanded = false;
+  var _dashNeedsSchedExpanded = false;
 
   // Product catalog
   var _kitCatalog = null;
@@ -1008,8 +1009,32 @@ function buildLifecycleTimeline(batch, soDate) {
         html += '</div>';
       });
       html += '</div>';
-    } else if (_dashSummary && (!d.readyToBottle || !d.readyToBottle.length)) {
+    } else if (_dashSummary && (!d.readyToBottle || !d.readyToBottle.length) && (!d.needsScheduling || !d.needsScheduling.length)) {
       html += '<p class="bp-empty">All batches on track.</p>';
+    }
+
+    // Needs Scheduling — pending batches auto-created from sales, awaiting a schedule/start.
+    var pend = (d && d.needsScheduling) || [];
+    if (pend.length > 0) {
+      var nsOpen = _dashNeedsSchedExpanded;
+      html += '<div class="bp-detail-section-title bp-detail-section-toggle bp-needsched-toggle" role="button" tabindex="0" aria-expanded="' + (nsOpen ? 'true' : 'false') + '">';
+      html += 'Needs Scheduling (' + pend.length + ') ';
+      html += '<span class="bp-section-toggle-icon" style="' + (nsOpen ? 'transform:rotate(90deg);' : '') + '">&#9656;</span>';
+      html += '</div>';
+      html += '<div class="bp-needsched-body" style="' + (nsOpen ? '' : 'display:none;') + '">';
+      html += '<div class="bp-dash-task-list">';
+      pend.forEach(function (it) {
+        html += '<div class="bp-task-row">';
+        html += '<div class="bp-task-body">';
+        html += '<button type="button" class="bp-batch-chip" data-batch-id="' + escapeHTML(it.batch_id || '') + '" title="Open batch">' + escapeHTML(it.batch_id || '') + '</button>';
+        html += '<span class="bp-task-title">' + escapeHTML(it.product_name || '') + '</span>';
+        if (it.customer_name) html += '<span class="bp-task-customer">' + escapeHTML(it.customer_name) + '</span>';
+        if (it.source) html += '<span class="bp-task-meta">' + escapeHTML(it.source) + '</span>';
+        var since = it.created_at ? String(it.created_at).slice(0, 10) : '';
+        html += '<span style="font-size:0.75rem;color:#e67e22;font-weight:600;margin-left:6px;">Awaiting schedule' + (since ? ' — sold ' + escapeHTML(since) : '') + '</span>';
+        html += '</div></div>';
+      });
+      html += '</div></div>';
     }
 
     // Ready to Bottle — collapsible list (active batch with an open, due bottling
@@ -1246,9 +1271,15 @@ function buildLifecycleTimeline(batch, soDate) {
         { val: 'secondary', label: 'Secondary' },
         { val: 'complete', label: 'Complete' }
       ];
+      var pendingCount = _allBatchesData.filter(function (b) {
+        return String(b.status || '').toLowerCase() === 'pending';
+      }).length;
       filterOpts.forEach(function (f) {
         var active = _batchStatusFilter === f.val ? ' bp-filter-btn--active' : '';
-        shellHtml += '<button type="button" class="bp-filter-btn' + active + '" data-status="' + f.val + '">' + f.label + '</button>';
+        var badge = (f.val === 'pending' && pendingCount > 0)
+          ? ' <span style="display:inline-block;min-width:16px;padding:0 5px;border-radius:8px;background:#e67e22;color:#fff;font-size:0.72rem;font-weight:700;line-height:16px;text-align:center;">' + pendingCount + '</span>'
+          : '';
+        shellHtml += '<button type="button" class="bp-filter-btn' + active + '" data-status="' + f.val + '">' + f.label + badge + '</button>';
       });
       shellHtml += '<select id="bp-batch-product-filter" class="bp-filter-select"><option value="">All Products</option></select>';
       shellHtml += '</div>';
@@ -4472,6 +4503,12 @@ function buildLifecycleTimeline(batch, soDate) {
         var rtbToggle = e.target.closest('.bp-rtb-toggle');
         if (rtbToggle) {
           _dashRtbExpanded = !_dashRtbExpanded;
+          renderDashboard();
+          return;
+        }
+        var nsToggle = e.target.closest('.bp-needsched-toggle');
+        if (nsToggle) {
+          _dashNeedsSchedExpanded = !_dashNeedsSchedExpanded;
           renderDashboard();
           return;
         }
