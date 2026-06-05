@@ -150,11 +150,11 @@ function queueForRetry(payload, reason) {
  * @param {string} contactId     - from body.contact_id
  * @param {Object} catalogMap    - product catalog lookup (may be used for SKU enrichment)
  */
-function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId, catalogMap, invoiceId) {
+function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId, catalogMap, invoiceId, source, customerEmail) {
   var kitItems = detectKitItems(lineItems);
   if (kitItems.length === 0) return;
 
-  log.info('[brewpad] Detected ' + kitItems.length + ' kit item(s) for batch creation, invoice=' + invoiceNumber);
+  log.info('[brewpad] Detected ' + kitItems.length + ' kit item(s) for batch creation, invoice=' + invoiceNumber + ' source=' + (source || 'kiosk'));
 
   kitItems.forEach(function (item) {
     var nameParts = splitCustomerName(customerName);
@@ -165,9 +165,12 @@ function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId
       customer_firstname: nameParts.first || (customerName ? '' : 'Walk-in'),
       customer_lastname: nameParts.last || (customerName ? '' : 'Customer'),
       customer_id: contactId || '',
-      source: 'kiosk',
+      source: source || 'kiosk',
       zoho_so_number: invoiceNumber || ''
     };
+    // Online orders carry the customer's order email — store it so staff can later
+    // send the Cal.com bottling invite. Kiosk callers omit it (privacy, D-09).
+    if (customerEmail) batchPayload.customer_email = customerEmail;
 
     callAppsScriptCreateBatch(batchPayload).then(function (result) {
       if (result && result.ok && invoiceId) {

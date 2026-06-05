@@ -7,6 +7,7 @@ var helcimLib = require('../lib/helcim');
 var ledger = require('../lib/inventory-ledger');
 var C = require('../lib/constants');
 var helpers = require('../lib/checkout-helpers');
+var brewpadIntegration = require('../lib/brewpad-integration');
 
 var readServicesSnapshot = helpers.readServicesSnapshot;
 var readIngredientsFileCache = helpers.readIngredientsFileCache;
@@ -587,6 +588,14 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
 
       // Fire-and-forget: write to admin panel Google Sheets
       notifyAdminPanel(soNumber, customerName, customerEmail, customerPhone, lineItems, body.timeslot || '', body.notes || '');
+
+      // Fire-and-forget: auto-create a ferment batch for online kit sales.
+      // Self-gates on Maker's Fee (detectKitItems) — no-op for ingredient-only orders.
+      try {
+        brewpadIntegration.createBatchesFromSale(lineItems, soNumber, customerName, customerId, null, soId, 'online', customerEmail);
+      } catch (batchErr) {
+        log.warn('[checkout] Batch auto-create dispatch failed (non-fatal): ' + batchErr.message);
+      }
 
       // NOTE: Confirmation email is intentionally NOT sent here.
       // It is sent by staff via the admin panel when the reservation

@@ -234,6 +234,18 @@ describe('brewpad-integration', function () {
       expect(callPayload.customer_email).toBeUndefined();
     });
 
+    it('sets source to online and stores customer_email for online sales', function () {
+      axios.post.mockResolvedValue({ data: { ok: true, batch_id: 'SV-B-000001' } });
+      var items = [
+        { name: 'Wine Kit', sku: 'WK-1', item_id: '1' },
+        { name: "Maker's Fee", sku: 'MAKERS-FEE', item_id: '99' }
+      ];
+      brewpadIntegration.createBatchesFromSale(items, 'INV-001', 'Jane', 'C-1', null, 'SO-ID-1', 'online', 'jane@example.com');
+      var callPayload = JSON.parse(axios.post.mock.calls[0][1]);
+      expect(callPayload.source).toBe('online');
+      expect(callPayload.customer_email).toBe('jane@example.com');
+    });
+
     it('sets source to kiosk and includes zoho_so_number in payload', function () {
       axios.post.mockResolvedValue({ data: { ok: true, batch_id: 'SV-B-000001' } });
       var items = [
