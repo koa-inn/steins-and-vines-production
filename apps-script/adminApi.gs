@@ -1720,6 +1720,7 @@ function getBatchDashboardSummary() {
         product_name: b.product_name || '',
         customer_name: String(b.customer_name ||
           ((b.customer_firstname || '') + ' ' + (b.customer_lastname || ''))).trim(),
+        customer_email: String(b.customer_email || '').trim(),
         vessel_id: b.vessel_id || '',
         shelf_id: b.shelf_id || ''
       };
@@ -1795,7 +1796,8 @@ function getBatchDashboardSummary() {
         shelf_id: meta.shelf_id,
         status: meta.status,
         bottling_due: due || '',
-        overdue: hasDate && due < today
+        overdue: hasDate && due < today,
+        has_email: !!meta.customer_email
       });
     }
   });
@@ -1816,6 +1818,28 @@ function getBatchDashboardSummary() {
     return String(b.created_at || '').localeCompare(String(a.created_at || ''));
   });
   summary.needsScheduling = needsScheduling;
+
+  // Batches started per month (last 6 months) for the dashboard bar chart.
+  var tz = Session.getScriptTimeZone();
+  var nowD = new Date();
+  var monthKeys = [];
+  var monthCounts = {};
+  for (var mi = 5; mi >= 0; mi--) {
+    var dt = new Date(nowD.getFullYear(), nowD.getMonth() - mi, 1);
+    var mk = Utilities.formatDate(dt, tz, 'yyyy-MM');
+    monthKeys.push({ month: mk, label: Utilities.formatDate(dt, tz, 'MMM') });
+    monthCounts[mk] = 0;
+  }
+  batches.forEach(function (b) {
+    var sd = String(b.start_date || '').trim();
+    if (sd.length >= 7) {
+      var k = sd.substring(0, 7);
+      if (monthCounts.hasOwnProperty(k)) monthCounts[k]++;
+    }
+  });
+  summary.batchesByMonth = monthKeys.map(function (m) {
+    return { month: m.month, label: m.label, count: monthCounts[m.month] };
+  });
 
   return summary;
 }

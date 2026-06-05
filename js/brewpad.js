@@ -988,6 +988,23 @@ function buildLifecycleTimeline(batch, soDate) {
       html += '</div>';
     }
 
+    // Batches by Month bar chart (started batches, last 6 months)
+    var byMonth = (d && d.batchesByMonth) || [];
+    if (byMonth.length > 0) {
+      var maxMonth = byMonth.reduce(function (mx, x) { return Math.max(mx, x.count || 0); }, 0) || 1;
+      html += '<div class="bp-section-header">Batches by Month</div>';
+      html += '<div style="display:flex;align-items:flex-end;gap:8px;height:120px;padding:6px 4px 0;">';
+      byMonth.forEach(function (m) {
+        var bh = Math.round((m.count / maxMonth) * 92) + 4;
+        html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;" title="' + escapeHTML(m.label) + ': ' + m.count + '">';
+        html += '<div style="font-size:0.7rem;color:#5f5f5f;margin-bottom:2px;">' + m.count + '</div>';
+        html += '<div style="width:70%;max-width:34px;height:' + bh + 'px;background:#4a6f4b;border-radius:4px 4px 0 0;"></div>';
+        html += '<div style="font-size:0.68rem;color:#5f5f5f;margin-top:4px;">' + escapeHTML(m.label) + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
     // Attention items — built client-side from scalar counts returned by the API
     // (overdueTasks, tasksDueToday, readyForPackaging)
     var attention = [];
@@ -1064,6 +1081,9 @@ function buildLifecycleTimeline(batch, soDate) {
           html += '<span style="font-size:0.75rem;color:#2e7d32;font-weight:600;margin-left:6px;">Due ' + escapeHTML(it.bottling_due) + '</span>';
         } else {
           html += '<span style="font-size:0.75rem;color:#5f5f5f;margin-left:6px;">Bottling date TBD</span>';
+        }
+        if (it.has_email) {
+          html += '<button type="button" class="bp-rtb-invite-btn" data-batch-id="' + escapeHTML(it.batch_id || '') + '" data-customer="' + escapeHTML(it.customer_name || 'this customer') + '" style="margin-left:8px;font-size:0.72rem;padding:2px 8px;border-radius:6px;border:1px solid #4a6f4b;background:#fff;color:#4a6f4b;cursor:pointer;">Send Invite</button>';
         }
         html += '</div></div>';
       });
@@ -4492,6 +4512,19 @@ function buildLifecycleTimeline(batch, soDate) {
         if (batchRow) {
           switchTab('batches');
           selectBatch(batchRow.getAttribute('data-batch-id'));
+          return;
+        }
+        var rtbInvite = e.target.closest('.bp-rtb-invite-btn[data-batch-id]');
+        if (rtbInvite) {
+          var ibid = rtbInvite.getAttribute('data-batch-id');
+          var iwho = rtbInvite.getAttribute('data-customer') || 'this customer';
+          showConfirmSheet('Send a bottling booking invite to ' + iwho + '?', 'Send Invite', '', function () {
+            rtbInvite.disabled = true;
+            adminApiPost('send_bottling_invite', { batch_id: ibid })
+              .then(function () { showToast('Bottling invite sent', 'success'); })
+              .catch(function (err) { showToast('Failed: ' + err.message, 'error'); })
+              .then(function () { rtbInvite.disabled = false; });
+          });
           return;
         }
         var chip = e.target.closest('.bp-batch-chip[data-batch-id]');
