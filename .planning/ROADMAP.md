@@ -206,8 +206,11 @@ Plans:
 | 23. Cross-Category Search | v3.0 | 2/2 | Complete    | 2026-05-30 |
 | 24. SEO & Staging Deploy | v3.0 | 2/2 | Complete    | 2026-06-03 |
 | 25. Cal.com Booking Migration | v4.0 | 4/4 | Complete   | 2026-06-04 |
+| 26. Cloudflare Edge Protection | v4.0 | live-exec | Complete | 2026-06-06 |
 
-### Phase 26: Cloudflare Edge Protection
+### Phase 26: Cloudflare Edge Protection ✅ COMPLETE (2026-06-06)
+
+**Outcome:** Cloudflare free tier is live in front of production (`steinsandvines.ca`) — proxied with SSL Full, Bot Fight Mode + a rate-limit rule active, email auth (SPF/DKIM/DMARC) hardened, staging kept grey-clouded. Executed live without a formal PLAN; see `26-SUMMARY.md` and `DNS-INVENTORY.md`. Follow-up (deferred): protect the Railway API via `api.steinsandvines.ca` if analytics show bots hitting it.
 
 **Goal:** Cloudflare's free tier sits in front of `steinsandvines.ca` (GitHub Pages) and the Railway middleware API, absorbing/filtering the increasing bot traffic — without breaking the existing GitHub Pages custom-domain setup, `enforce-cname.yml`, Helcim payments, or Cal.com/Zoho integrations.
 
