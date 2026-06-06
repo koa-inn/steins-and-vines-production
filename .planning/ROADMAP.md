@@ -6,7 +6,8 @@
 - ✅ **v1.1 Brewpad Reliability & Integration** — Phases 5-11 (shipped 2026-05-06)
 - ✅ **v2.0 Recipe-Based Products** — Phases 12-19 (shipped 2026-05-27)
 - ✅ **v3.0 Catalog Subpages** — Phases 20-24 (shipped 2026-06-03)
-- 🚧 **v4.0 Booking Migration (Cal.com)** — Phase 25 (in progress)
+- ✅ **v4.0 Booking Migration (Cal.com) + Edge Protection** — Phases 25-26 (completed 2026-06-06)
+- 🚧 **v4.1 BrewPad Batch Lifecycle & Zoho Sync** — Phases 27-29 (in progress)
 
 ## Phases
 
@@ -62,6 +63,14 @@
 **Milestone Goal:** Replace the Zoho Bookings backend with Cal.com Cloud (free tier) behind the existing `/api/bookings*` middleware contract — keeping the website checkout flow unchanged — with multiple appointment types and HTTPS-based confirmation emails (Railway blocks outbound SMTP).
 
 - [x] **Phase 25: Cal.com Booking Migration** - Swap Zoho Bookings → Cal.com Cloud behind unchanged `/api/bookings*` endpoints; multiple event types; manual cutover of existing appointments (completed 2026-06-04)
+
+### 🚧 v4.1 BrewPad Batch Lifecycle & Zoho Sync (In Progress)
+
+**Milestone Goal:** Staff can activate pending batches from the admin batch list and pull customer info back from Zoho onto BrewPad — closing the two open gaps in the batch workflow.
+
+- [ ] **Phase 27: Pending Batch Visibility & Activation** - Surface pending batches in the admin list/filter and add one-click + guided activation (BATCH-01..03)
+- [ ] **Phase 28: Zoho Customer Read-Back Path** - New middleware endpoint to fetch customer details by SO/invoice number, plus Apps Script write-back of refreshed fields (ZSYNC foundation)
+- [ ] **Phase 29: Refresh-from-Zoho Admin UI** - "Refresh from Zoho" button in the batch detail modal that updates customer name/email/contact, gated on `zoho_so_number` (ZSYNC-01..02)
 
 ## Phase Details
 
@@ -193,6 +202,50 @@ Plans:
 - [x] 25-03-PLAN.md — POST /api/webhooks/calcom (signature-verified, cache invalidation)
 - [x] 25-04-PLAN.md — Staging booking+email verification, additional event type, Zoho removal
 
+### Phase 27: Pending Batch Visibility & Activation
+
+**Goal**: Staff can see and act on pending batches directly from the admin batch list, promoting them to Primary either instantly or through a guided setup
+**Depends on**: Nothing new (builds on existing v1.1 batch tracking; backend `updateBatch` already supports the pending→primary transition and stamps `fermentation_started_at`)
+**Requirements**: BATCH-01, BATCH-02, BATCH-03
+**Success Criteria** (what must be TRUE):
+
+  1. Pending batches appear in the admin batch list (no longer hidden), and the status filter/dropdown includes a "Pending" option that shows only pending batches
+  2. A pending batch row/detail shows an "Activate" action that, in one click, flips the batch to Primary with the fermentation start date set to today
+  3. A "Schedule & activate" option lets staff pick a fermentation schedule template, start date, and vessel/location, then promotes the batch to Primary in a single confirmed step
+  4. After either activation path, the batch immediately reflects Primary status and the chosen start date in the list and detail views without a manual page reload
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 28: Zoho Customer Read-Back Path
+
+**Goal**: BrewPad can read customer details back from Zoho for a linked sales order/invoice and persist the refreshed fields onto the batch record — the net-new read path behind the refresh feature (today Zoho sync is write-only)
+**Depends on**: Nothing new (extends existing `zoho-middleware` Zoho integration and `adminApi.gs`)
+**Requirements**: (foundation for ZSYNC-01, ZSYNC-02 — no requirement closes here on its own)
+**Success Criteria** (what must be TRUE):
+
+  1. A new middleware endpoint, given a Zoho sales-order/invoice number, returns the linked customer's name, email, and contact details (and a clear not-found/no-link response when the SO cannot be resolved)
+  2. The endpoint is covered by middleware unit tests for the success, not-found, and Zoho-error paths and passes with lint clean
+  3. Apps Script (`adminApi.gs`) exposes an update path that writes refreshed customer name/email/contact back onto an existing batch record by batch ID, leaving other batch fields untouched
+  4. Calling the read endpoint and then the Apps Script update for a known linked batch results in the batch record showing the current Zoho customer details (verified on staging)
+
+**Plans**: TBD
+
+### Phase 29: Refresh-from-Zoho Admin UI
+
+**Goal**: Staff can refresh a batch's customer info from its linked Zoho sales order/invoice with one click in the batch detail modal, with the action clearly disabled when no link exists
+**Depends on**: Phase 28 (requires the middleware read-back endpoint and Apps Script write-back)
+**Requirements**: ZSYNC-01, ZSYNC-02
+**Success Criteria** (what must be TRUE):
+
+  1. The batch detail modal shows a "Refresh from Zoho" button for batches that carry a `zoho_so_number`
+  2. Clicking the button pulls the latest customer name, email, and contact from the linked Zoho SO/invoice and updates the batch's displayed customer info without a full page reload
+  3. For a batch with no `zoho_so_number`, the refresh action is clearly unavailable (hidden or disabled with an explanatory state) and never triggers an erroring request
+  4. The full feature is verified working on staging.steinsandvines.ca with no console errors on iPad Safari
+
+**Plans**: TBD
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -207,6 +260,9 @@ Plans:
 | 24. SEO & Staging Deploy | v3.0 | 2/2 | Complete    | 2026-06-03 |
 | 25. Cal.com Booking Migration | v4.0 | 4/4 | Complete   | 2026-06-04 |
 | 26. Cloudflare Edge Protection | v4.0 | live-exec | Complete | 2026-06-06 |
+| 27. Pending Batch Visibility & Activation | v4.1 | 0/0 | Not started | - |
+| 28. Zoho Customer Read-Back Path | v4.1 | 0/0 | Not started | - |
+| 29. Refresh-from-Zoho Admin UI | v4.1 | 0/0 | Not started | - |
 
 ### Phase 26: Cloudflare Edge Protection ✅ COMPLETE (2026-06-06)
 

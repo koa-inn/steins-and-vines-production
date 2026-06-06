@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-06-06T18:27:33.814Z"
 last_activity: 2026-06-06
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,19 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-27)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 25 — calcom-booking-migration
+**Current focus:** Phase 27 — pending-batch-visibility-activation (v4.1 roadmap drafted)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 27 — Pending Batch Visibility & Activation (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-06 — Milestone v4.1 started
+Status: Roadmap drafted — ready to plan Phase 27
+Last activity: 2026-06-06 — v4.1 roadmap created (Phases 27-29 appended)
+
+Milestone v4.1 phase map:
+- Phase 27: Pending Batch Visibility & Activation (BATCH-01..03)
+- Phase 28: Zoho Customer Read-Back Path (ZSYNC foundation — middleware endpoint + Apps Script write-back)
+- Phase 29: Refresh-from-Zoho Admin UI (ZSYNC-01..02; depends on Phase 28)
 
 ## Performance Metrics
 

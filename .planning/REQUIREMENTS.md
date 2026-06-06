@@ -28,4 +28,14 @@
 
 ## Traceability
 
-_(filled by roadmap)_
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| BATCH-01 | Phase 27 | Pending |
+| BATCH-02 | Phase 27 | Pending |
+| BATCH-03 | Phase 27 | Pending |
+| ZSYNC-01 | Phase 29 | Pending |
+| ZSYNC-02 | Phase 29 | Pending |
+
+_Phase 28 (Zoho Customer Read-Back Path) is an infrastructure prerequisite for ZSYNC-01/ZSYNC-02; it closes no requirement on its own but is required before Phase 29 can be built._
+
+**Coverage:** 5/5 v4.1 requirements mapped ✓
