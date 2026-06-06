@@ -92,7 +92,14 @@
    --------------------------------------------------------------------------- */
 
 @media (max-width: 767px) {
+  /* Full-screen search must sit ABOVE the sticky site header (z-index 200/210),
+     otherwise the input row at the top of the panel is hidden behind the header
+     and the input can't be seen or used. */
+  .search-overlay-backdrop {
+    z-index: 1290;
+  }
   .search-overlay-panel {
+    z-index: 1300;
     position: fixed;
     top: 0;
     left: 0;
