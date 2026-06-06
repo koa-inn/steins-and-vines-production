@@ -206,3 +206,30 @@ Plans:
 | 23. Cross-Category Search | v3.0 | 2/2 | Complete    | 2026-05-30 |
 | 24. SEO & Staging Deploy | v3.0 | 2/2 | Complete    | 2026-06-03 |
 | 25. Cal.com Booking Migration | v4.0 | 4/4 | Complete   | 2026-06-04 |
+
+### Phase 26: Cloudflare Edge Protection
+
+**Goal:** Cloudflare's free tier sits in front of `steinsandvines.ca` (GitHub Pages) and the Railway middleware API, absorbing/filtering the increasing bot traffic — without breaking the existing GitHub Pages custom-domain setup, `enforce-cname.yml`, Helcim payments, or Cal.com/Zoho integrations.
+
+**Motivation:** Increasing bot traffic hitting the site (and likely the middleware). Cloudflare free tier gives CDN caching, Bot Fight Mode, basic WAF, and rate limiting at no cost.
+
+**Depends on:** Phase 25 (sequential; no hard technical dependency)
+
+**Scope (to refine in discuss):**
+  - DNS migration: move `steinsandvines.ca` nameservers to Cloudflare; recreate existing records (Pages A records, staging CNAME, Railway/api, MX/email, any TXT/verification)
+  - Proxy (orange-cloud) the apex + www through Cloudflare with SSL mode set correctly for GitHub Pages custom domains (Full, not Flexible — avoid redirect loops)
+  - Confirm GitHub Pages custom domain + `enforce-cname.yml` still function behind the proxy
+  - Bot Fight Mode (or Super Bot Fight Mode if available on free), basic managed WAF, and a rate-limiting rule
+  - Decide whether the Railway `api.` subdomain is proxied too, or stays direct (CORS/Referer guard interactions)
+  - Caching rules that don't break dynamic middleware calls or cache-busted assets
+
+**Open questions for discuss-phase:**
+  - Who controls the domain registrar / current DNS host? (needed to change nameservers)
+  - Is the Railway API on a custom subdomain we can proxy, or the raw `*.up.railway.app`?
+  - Acceptable risk window for the DNS cutover (propagation), and staging-first strategy for an infra change that GitHub Pages serves directly?
+
+**Requirements**: TBD (derive in discuss-phase)
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-discuss-phase 26, then /gsd-plan-phase 26 to break down)

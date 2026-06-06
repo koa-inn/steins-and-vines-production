@@ -71,6 +71,24 @@ Progress: [██████████] 100%
 - [Phase ?]: BOOKING_CANCELLED date derived from payload.startTime -> payload.booking.start -> payload.start; unparseable = safe no-op
 - [Phase ?]: Zoho Bookings code removed; CALCOM_EVENT_TYPE_FERMENT_KIT + BOTTLING confirmed env names; offline fallback preserved
 
+### Roadmap Evolution
+
+- Phase 26 added (2026-06-06): Cloudflare Edge Protection — free-tier CDN/bot mitigation in front of GitHub Pages + Railway middleware. Added as a standalone phase; v3.0/v4.0 milestone archives intentionally deferred (see Deferred Items).
+
+### Deferred Items
+
+Acknowledged at the deferred v4.0 close on 2026-06-06 (chose to add Phase 26 instead of running complete-milestone):
+
+| Category | Item | Status |
+|----------|------|--------|
+| verification | 22-VERIFICATION.md | human_needed |
+| verification | 23-VERIFICATION.md | human_needed |
+| uat | 23-HUMAN-UAT.md | partial (6 scenarios) |
+| quick_task | 260506-b85-split-makers-fee-materials | missing |
+| quick_task | 260508-c4f-customer-name-split | missing |
+
+Also outstanding: v3.0 (Phases 20–24) and v4.0 (Phase 25) were marked shipped in ROADMAP but never formally archived to `.planning/milestones/`; STATE frontmatter still reads `milestone: v3.0`. Cleanup deferred.
+
 ### Pending Todos
 
 None.
