@@ -8,16 +8,16 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 
 **Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.**
 
-## Current Milestone: v3.0 Catalog Subpages
+## Current Milestone: v4.1 BrewPad Batch Lifecycle & Zoho Sync
 
-**Goal:** Break the monolithic ingredients page into dedicated category subpages with shared template structure, cross-category navigation, and unified search.
+**Goal:** Staff can activate pending batches and pull customer info back from Zoho onto BrewPad — closing the two gaps in the batch workflow.
 
 **Target features:**
-- Shared page template system (grid/list, filters, search, cart, sub-nav) reusable across all subpages
-- 5 new subpages: Grains, Yeast, Additives, Packaging, Equipment — simple, clean designs with unique hero/accent
-- Horizontal sub-nav bar on all ingredient pages for category switching
-- Cross-category search with inline overlay showing grouped results
-- Zoho subcategory tagging for all items + snapshot pipeline update
+- Pending batches visible in the admin batch list with a new "Pending" status filter (today they only surface as a dashboard count)
+- Batch activation: one-click "Activate" (quick flip to Primary, today's start date) as default, plus a "Schedule & activate" guided option (schedule template + start date + vessel)
+- "Refresh from Zoho" button in the batch detail modal that re-reads the linked Zoho sales order/invoice and updates the batch's customer name/email/contact on the BrewPad display
+- Read-back path from Zoho (middleware endpoint to fetch invoice/contact customer details by SO number) — today Zoho sync is write-only
+- Scoped to batches that already carry a `zoho_so_number` (kiosk/online sales); manual SO-linking for unlinked batches deferred
 
 ## Requirements
 
@@ -49,13 +49,19 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 - ✓ Custom labels page with canvas mockup tool — v2.0
 - ✓ Hop inventory catalog with radar charts and cart integration — v2.0
 
+- ✓ Catalog subpages — dedicated pages per ingredient category (Grains, Yeast, Additives, Packaging, Equipment) — v3.0
+- ✓ Sub-nav bar for category switching across ingredient pages — v3.0
+- ✓ Cross-category product search with inline overlay — v3.0
+- ✓ Appointment booking on Cal.com Cloud behind unchanged /api/bookings* contract — v4.0
+- ✓ Cloudflare edge protection in front of GitHub Pages + Railway middleware — Phase 26
+
 ### Active
 
-- [ ] Catalog subpages — dedicated pages per ingredient category (Grains, Yeast, Additives, Packaging, Equipment)
-- [ ] Sub-nav bar for category switching across ingredient pages
-- [ ] Cross-category product search with inline overlay
-- [ ] Pre-made recipes browsable on public site
-- [ ] Custom recipe request flow for customers
+- [ ] Pending batches visible and activatable from the admin batch list
+- [ ] Batch activation — quick flip to Primary plus guided schedule/start/vessel option
+- [ ] Refresh a batch's customer info from its linked Zoho sales order/invoice
+- [ ] Pre-made recipes browsable on public site (deferred)
+- [ ] Custom recipe request flow for customers (deferred)
 
 ### Out of Scope
 
@@ -119,4 +125,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-27 after v3.0 milestone initialization*
+*Last updated: 2026-06-06 after v4.1 milestone initialization*

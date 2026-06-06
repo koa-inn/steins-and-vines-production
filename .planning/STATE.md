@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Catalog Subpages
-status: verifying
-stopped_at: Completed 25-04-PLAN.md (Phase 25 complete)
-last_updated: "2026-06-04T16:36:01.820Z"
-last_activity: 2026-06-04
+milestone: v4.1
+milestone_name: BrewPad Batch Lifecycle & Zoho Sync
+status: planning
+last_updated: "2026-06-06T18:27:33.814Z"
+last_activity: 2026-06-06
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 15
-  completed_plans: 15
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,12 +24,10 @@ See: .planning/PROJECT.md (updated 2026-05-27)
 
 ## Current Position
 
-Phase: 25 (calcom-booking-migration) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-06-04
-
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-06-06 — Milestone v4.1 started
 
 ## Performance Metrics
 
