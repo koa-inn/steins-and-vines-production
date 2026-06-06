@@ -473,6 +473,17 @@ small, .text-small {
   margin-top: 4px;
 }
 
+/* Invisible hover bridge: spans the 4px gap between the trigger and the menu
+   so the dropdown stays open while the cursor crosses it (was collapsing). */
+.nav-dropdown-menu::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+
 .nav-dropdown-divider {
   border-top: 1px solid rgba(74, 111, 75, 0.2);
   margin: 4px 0;

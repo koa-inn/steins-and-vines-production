@@ -35,13 +35,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Remove hidden pages
-        run: |
-          # Hops page
-          rm -f hops.html css/hops.css css/hops.min.css js/modules/15-hops.js js/modules/15-hops.min.js
-          sed -i '/<li><a href="hops\.html">Hops<\/a><\/li>/d' *.html
-          sed -i '/<li><a href="\.\.\/hops\.html">Hops<\/a><\/li>/d' products/*.html
-          sed -i '/steinsandvines\.ca\/hops/,/<\/url>/d' sitemap.xml
+      # Hops is now LIVE on production (canonical page: products/hops.html).
+      # The former "Remove hidden pages" step stripped Hops files/nav/sitemap from
+      # prod and left products/hops.html half-broken (CSS/JS deleted). Removed so
+      # prod mirrors staging. Re-add a filter step here if a page must be hidden again.
 
       - uses: actions/configure-pages@v5
 
