@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T08:59:17.291Z",
+  "generated_at": "2026-06-06T08:19:39.604Z",
   "products": [
     {
       "name": "Acai Raspberry Rapture",
@@ -22,6 +22,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -49,6 +50,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -72,6 +74,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$75.00",
       "retail_instore": "$125.00"
     },
@@ -99,6 +102,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -126,6 +130,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -153,6 +158,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$170.00",
       "retail_instore": "$220.00"
     },
@@ -180,6 +186,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -207,6 +214,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -234,6 +242,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -261,6 +270,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -288,6 +298,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -315,6 +326,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -342,6 +354,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -368,6 +381,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$180.00",
       "retail_instore": "$230.00"
     },
@@ -392,8 +406,36 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
+    },
+    {
+      "name": "Blanc de Noir (January 2026)",
+      "sku": "G009834",
+      "item_id": "109900000000712085",
+      "brand": "Limited Edition",
+      "manufacturer": "Winexpert",
+      "stock": "0",
+      "description": "A distinctive white made from black Grenache grapes, leaning toward white peach and pink grapefruit with subtle spice. Herbaceous notes, soft echoes of red apple and strawberry, and crisp acidity finish out this showpiece.",
+      "discount": "0",
+      "_zoho_category": "",
+      "tax_percentage": 0,
+      "tax_name": "Zero Rated",
+      "tax_id": "109900000000014433",
+      "type": "Wine",
+      "subcategory": "White",
+      "tasting_notes": "A distinctive white made from black Grenache grapes, leaning toward white peach and pink grapefruit with subtle spice. Herbaceous notes, soft echoes of red apple and strawberry, and crisp acidity finish out this showpiece.",
+      "favorite": "false",
+      "body": "Medium",
+      "oak": "Unoaked",
+      "sweetness": "Dry",
+      "abv": "12.5",
+      "batch_size_(l)": "23",
+      "time": "8 weeks",
+      "origin": "France (Languedoc)",
+      "retail_kit": "$220.00",
+      "retail_instore": "$270.00"
     },
     {
       "name": "Blueberry Bliss",
@@ -417,6 +459,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -444,6 +487,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -453,7 +497,7 @@
       "item_id": "109900000000023944",
       "brand": "Heritage Estates",
       "manufacturer": "RJS Craft Winemaking",
-      "stock": "2",
+      "stock": "1",
       "description": "A balanced classic Cabernet Sauvignon with berry, toast and vanilla aromas and berry flavour with well integrated oak.",
       "discount": "0",
       "_zoho_category": "",
@@ -467,6 +511,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -494,6 +539,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -521,6 +567,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -548,6 +595,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -575,6 +623,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -602,6 +651,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -625,6 +675,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -652,6 +703,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$170.00",
       "retail_instore": "$220.00"
     },
@@ -679,6 +731,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -706,6 +759,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$170.00",
       "retail_instore": "$220.00"
     },
@@ -715,7 +769,7 @@
       "item_id": "109900000000024074",
       "brand": "Heritage Estates",
       "manufacturer": "RJS Craft Winemaking",
-      "stock": "3",
+      "stock": "2",
       "description": "A traditional style dry and lightly oaked Chardonnay with pear, apple, herbal and mineral notes and a crisp finish.",
       "discount": "0",
       "_zoho_category": "",
@@ -729,6 +783,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -756,6 +811,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -779,6 +835,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -806,6 +863,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$220.00",
       "retail_instore": "$270.00"
     },
@@ -833,6 +891,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -860,6 +919,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$170.00",
       "retail_instore": "$220.00"
     },
@@ -887,6 +947,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -914,6 +975,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -941,6 +1003,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -967,6 +1030,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -993,6 +1057,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1019,6 +1084,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1045,6 +1111,7 @@
       "abv": "12",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1071,6 +1138,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1097,6 +1165,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1124,6 +1193,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1150,6 +1220,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1176,6 +1247,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1202,6 +1274,7 @@
       "abv": "8.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1228,6 +1301,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1254,6 +1328,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1280,6 +1355,7 @@
       "abv": "12",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1306,6 +1382,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1332,6 +1409,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1358,6 +1436,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1384,6 +1463,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1410,6 +1490,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1436,6 +1517,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1462,6 +1544,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1488,6 +1571,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1514,6 +1598,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1540,6 +1625,7 @@
       "abv": "12",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1566,6 +1652,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1588,6 +1675,7 @@
       "abv": "5.2",
       "batch_size_(l)": "23",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$70.00",
       "retail_instore": "$120.00"
     },
@@ -1613,6 +1701,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -1636,6 +1725,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$75.00",
       "retail_instore": "$125.00"
     },
@@ -1662,6 +1752,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -1688,6 +1779,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -1714,6 +1806,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -1740,6 +1833,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -1766,6 +1860,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -1792,6 +1887,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -1818,6 +1914,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -1844,6 +1941,7 @@
       "abv": "12",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -1870,6 +1968,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -1896,6 +1995,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -1922,6 +2022,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -1948,6 +2049,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -1974,6 +2076,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -2000,6 +2103,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -2026,6 +2130,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -2052,6 +2157,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -2078,6 +2184,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -2104,6 +2211,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -2130,6 +2238,7 @@
       "abv": "12",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -2156,6 +2265,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -2177,6 +2287,7 @@
       "favorite": "false",
       "batch_size_(l)": "23",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$80.00",
       "retail_instore": "$130.00"
     },
@@ -2204,6 +2315,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -2213,7 +2325,7 @@
       "item_id": "109900000000021467",
       "brand": "Cru Select",
       "manufacturer": "RJS Craft Winemaking",
-      "stock": "2",
+      "stock": "1",
       "description": "Impressive aromas of farm fresh strawberries, violets, and vanilla framed with soft, silky tannins. Powerful notes of ripe raspberries, cherries, and dark fruit on the palate. A true French classic wine.",
       "discount": "0",
       "_zoho_category": "",
@@ -2231,6 +2343,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -2258,6 +2371,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -2285,6 +2399,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -2312,6 +2427,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -2339,6 +2455,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -2363,6 +2480,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2386,6 +2504,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$75.00",
       "retail_instore": "$125.00"
     },
@@ -2412,6 +2531,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2438,6 +2558,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2464,6 +2585,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2490,6 +2612,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2516,6 +2639,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2542,6 +2666,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2568,6 +2693,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2594,6 +2720,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2620,6 +2747,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2646,6 +2774,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2672,6 +2801,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2698,6 +2828,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2724,6 +2855,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2750,6 +2882,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2776,6 +2909,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2802,6 +2936,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -2829,6 +2964,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -2852,6 +2988,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -2861,7 +2998,7 @@
       "item_id": "109900000000021885",
       "brand": "Cru International",
       "manufacturer": "RJS Craft Winemaking",
-      "stock": "9",
+      "stock": "8",
       "description": "Luxurious flavours of dark plums and chocolate greet the nose, while hints of blackberries, toasted oak, and spices are found on the palate of this great Italian classic.",
       "discount": "0",
       "_zoho_category": "",
@@ -2879,6 +3016,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$170.00",
       "retail_instore": "$220.00"
     },
@@ -2906,6 +3044,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$220.00",
       "retail_instore": "$270.00"
     },
@@ -2933,6 +3072,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -2960,6 +3100,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -2987,6 +3128,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -3014,6 +3156,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -3041,6 +3184,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -3068,6 +3212,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -3095,6 +3240,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -3122,6 +3268,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -3149,6 +3296,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -3176,6 +3324,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -3203,6 +3352,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -3226,6 +3376,34 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
+      "retail_kit": "$230.00",
+      "retail_instore": "$280.00"
+    },
+    {
+      "name": "Malbec Cabernet (February 2026)",
+      "sku": "G009836",
+      "item_id": "109900000000712094",
+      "brand": "Limited Edition",
+      "manufacturer": "Winexpert",
+      "stock": "0",
+      "description": "Aromas of violet, dark fruit, and spice lead to a palate of plum, blackberry, and gentle peppercorn. Well-integrated tannins and acidity bring lift, leaving a smooth finish lingering with dark fruit and warmth.",
+      "discount": "0",
+      "_zoho_category": "",
+      "tax_percentage": 0,
+      "tax_name": "Zero Rated",
+      "tax_id": "109900000000014433",
+      "type": "Wine",
+      "subcategory": "Red",
+      "tasting_notes": "Aromas of violet, dark fruit, and spice lead to a palate of plum, blackberry, and gentle peppercorn. Well-integrated tannins and acidity bring lift, leaving a smooth finish lingering with dark fruit and warmth.",
+      "favorite": "false",
+      "body": "Full",
+      "oak": "Medium",
+      "sweetness": "Dry",
+      "abv": "14",
+      "batch_size_(l)": "23",
+      "time": "8 weeks",
+      "origin": "Argentina (Mendoza)",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -3250,6 +3428,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3273,6 +3452,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3296,6 +3476,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$75.00",
       "retail_instore": "$125.00"
     },
@@ -3323,6 +3504,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -3345,6 +3527,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$170.00",
       "retail_instore": "$220.00"
     },
@@ -3371,6 +3554,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3397,6 +3581,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3423,6 +3608,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3449,6 +3635,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3475,6 +3662,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3501,6 +3689,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3527,6 +3716,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3553,6 +3743,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3579,6 +3770,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3605,6 +3797,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3631,6 +3824,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3658,6 +3852,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -3685,6 +3880,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -3707,6 +3903,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$180.00",
       "retail_instore": "$230.00"
     },
@@ -3733,6 +3930,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3759,6 +3957,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3785,6 +3984,7 @@
       "abv": "12",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3811,6 +4011,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3837,6 +4038,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3863,6 +4065,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3889,6 +4092,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3915,6 +4119,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3941,6 +4146,7 @@
       "abv": "8.7",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3967,6 +4173,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -3993,6 +4200,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4019,6 +4227,7 @@
       "abv": "12",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4045,6 +4254,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4071,6 +4281,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4097,6 +4308,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4123,6 +4335,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4149,6 +4362,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4175,6 +4389,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4201,6 +4416,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4227,6 +4443,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4253,6 +4470,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4279,6 +4497,7 @@
       "abv": "12",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4305,8 +4524,36 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
+    },
+    {
+      "name": "Pacific Quartet Red (April 2026)",
+      "sku": "G009838",
+      "item_id": "109900000000712112",
+      "brand": "Limited Edition",
+      "manufacturer": "Winexpert",
+      "stock": "0",
+      "description": "A bold blend of four varietals from four countries. Aromas of blackberry, cherry, and spice lead to a rich palate layered with blackcurrant, plum, and dark chocolate. Firm tannins and toasty oak deliver a long, satisfying finish.",
+      "discount": "0",
+      "_zoho_category": "",
+      "tax_percentage": 0,
+      "tax_name": "Zero Rated",
+      "tax_id": "109900000000014433",
+      "type": "Wine",
+      "subcategory": "Red",
+      "tasting_notes": "A bold blend of four varietals from four countries. Aromas of blackberry, cherry, and spice lead to a rich palate layered with blackcurrant, plum, and dark chocolate. Firm tannins and toasty oak deliver a long, satisfying finish.",
+      "favorite": "false",
+      "body": "Full",
+      "oak": "Heavy",
+      "sweetness": "Dry",
+      "abv": "14",
+      "batch_size_(l)": "23",
+      "time": "8 weeks",
+      "origin": "Pacific Rim",
+      "retail_kit": "$230.00",
+      "retail_instore": "$280.00"
     },
     {
       "name": "Peach Passion Cider",
@@ -4328,6 +4575,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$75.00",
       "retail_instore": "$125.00"
     },
@@ -4352,6 +4600,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -4375,6 +4624,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$75.00",
       "retail_instore": "$125.00"
     },
@@ -4398,8 +4648,36 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
+    },
+    {
+      "name": "Pinot Gris Verdelho (March 2026)",
+      "sku": "G009840",
+      "item_id": "109900000000712103",
+      "brand": "Limited Edition",
+      "manufacturer": "Winexpert",
+      "stock": "0",
+      "description": "Citrus and tropical aromas carry through to a lively palate of melon, pear, pineapple, guava, and citrus, lifted by green apple and subtle spice. Silky texture, crisp acidity, and a light mineral note create a refreshing finish.",
+      "discount": "0",
+      "_zoho_category": "",
+      "tax_percentage": 0,
+      "tax_name": "Zero Rated",
+      "tax_id": "109900000000014433",
+      "type": "Wine",
+      "subcategory": "White",
+      "tasting_notes": "Citrus and tropical aromas carry through to a lively palate of melon, pear, pineapple, guava, and citrus, lifted by green apple and subtle spice. Silky texture, crisp acidity, and a light mineral note create a refreshing finish.",
+      "favorite": "false",
+      "body": "Medium",
+      "oak": "Unoaked",
+      "sweetness": "Dry",
+      "abv": "13",
+      "batch_size_(l)": "23",
+      "time": "8 weeks",
+      "origin": "Australia (Riverland)",
+      "retail_kit": "$220.00",
+      "retail_instore": "$270.00"
     },
     {
       "name": "Pinot Noir Style",
@@ -4421,8 +4699,36 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
+    },
+    {
+      "name": "Pinot Shiraz (December 2025)",
+      "sku": "G009842",
+      "item_id": "109900000000712076",
+      "brand": "Limited Edition",
+      "manufacturer": "Winexpert",
+      "stock": "0",
+      "description": "Aromas of mixed berries, florals, and soft spice lead to flavours of sour cherry, dark plum, red fruit, and blueberry. Light licorice and spice add depth, with a lingering finish of silky tannins.",
+      "discount": "0",
+      "_zoho_category": "",
+      "tax_percentage": 0,
+      "tax_name": "Zero Rated",
+      "tax_id": "109900000000014433",
+      "type": "Wine",
+      "subcategory": "Red",
+      "tasting_notes": "Aromas of mixed berries, florals, and soft spice lead to flavours of sour cherry, dark plum, red fruit, and blueberry. Light licorice and spice add depth, with a lingering finish of silky tannins.",
+      "favorite": "false",
+      "body": "Full",
+      "oak": "Medium",
+      "sweetness": "Dry",
+      "abv": "13.5",
+      "batch_size_(l)": "23",
+      "time": "8 weeks",
+      "origin": "Australia (Riverland)",
+      "retail_kit": "$230.00",
+      "retail_instore": "$280.00"
     },
     {
       "name": "Private Reserve Amarone Style Veneto Italy",
@@ -4447,6 +4753,7 @@
       "abv": "14",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -4473,12 +4780,13 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
     {
       "name": "Private Reserve Cabernet Sauvignon Lodi Ranch 11 California",
-      "sku": "G009757",
+      "sku": "G007591",
       "item_id": "109900000000536941",
       "brand": "Private Reserve",
       "manufacturer": "Winexpert",
@@ -4499,6 +4807,7 @@
       "abv": "14",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -4525,8 +4834,63 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$220.00",
       "retail_instore": "$270.00"
+    },
+    {
+      "name": "Private Reserve Infusion Lodi California",
+      "sku": "G009329",
+      "item_id": "109900000000712172",
+      "brand": "Private Reserve",
+      "manufacturer": "Winexpert",
+      "stock": "3",
+      "description": "Cabernet, Zinfandel and Syrah steeped with Niagara whisky oak chips. Bold flavours of blackcurrant, jammy wildberry and plum underlaid with mocha, spice, brown sugar, vanilla and smoky toasted notes.",
+      "discount": "0",
+      "_zoho_category": "",
+      "tax_percentage": 0,
+      "tax_name": "Zero Rated",
+      "tax_id": "109900000000014433",
+      "type": "Wine",
+      "subcategory": "Red",
+      "tasting_notes": "Cabernet, Zinfandel and Syrah steeped with Niagara whisky oak chips. Bold flavours of blackcurrant, jammy wildberry and plum underlaid with mocha, spice, brown sugar, vanilla and smoky toasted notes.",
+      "favorite": "false",
+      "body": "Full",
+      "oak": "Heavy",
+      "sweetness": "Dry",
+      "abv": "14",
+      "batch_size_(l)": "23",
+      "time": "8 weeks",
+      "origin": "USA (California)",
+      "retail_kit": "$230.00",
+      "retail_instore": "$280.00"
+    },
+    {
+      "name": "Private Reserve Meritus Lodi California",
+      "sku": "G009933",
+      "item_id": "109900000000712163",
+      "brand": "Private Reserve",
+      "manufacturer": "Winexpert",
+      "stock": "2",
+      "description": "A Bordeaux-style red blend of plum, black currant, red berries and spice with subtle cedar and chocolate.",
+      "discount": "0",
+      "_zoho_category": "",
+      "tax_percentage": 0,
+      "tax_name": "Zero Rated",
+      "tax_id": "109900000000014433",
+      "type": "Wine",
+      "subcategory": "Red",
+      "tasting_notes": "A Bordeaux-style red blend of plum, black currant, red berries and spice with subtle cedar and chocolate.",
+      "favorite": "false",
+      "body": "Full",
+      "oak": "Heavy",
+      "sweetness": "Dry",
+      "abv": "13.5",
+      "batch_size_(l)": "23",
+      "time": "8 weeks",
+      "origin": "USA (California)",
+      "retail_kit": "$230.00",
+      "retail_instore": "$280.00"
     },
     {
       "name": "Private Reserve Merlot Stag's Leap District California",
@@ -4551,8 +4915,36 @@
       "abv": "14",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
+    },
+    {
+      "name": "Private Reserve Pinot Gris Lodi California",
+      "sku": "G009757",
+      "item_id": "109900000000712154",
+      "brand": "Private Reserve",
+      "manufacturer": "Winexpert",
+      "stock": "0",
+      "description": "Bright citrus flavours and stone fruit character, with notes of apple and pear and crisp acidity.",
+      "discount": "0",
+      "_zoho_category": "",
+      "tax_percentage": 0,
+      "tax_name": "Zero Rated",
+      "tax_id": "109900000000014433",
+      "type": "Wine",
+      "subcategory": "White",
+      "tasting_notes": "Bright citrus flavours and stone fruit character, with notes of apple and pear and crisp acidity.",
+      "favorite": "false",
+      "body": "Medium",
+      "oak": "Unoaked",
+      "sweetness": "Dry",
+      "abv": "13",
+      "batch_size_(l)": "23",
+      "time": "8 weeks",
+      "origin": "USA (California)",
+      "retail_kit": "$220.00",
+      "retail_instore": "$270.00"
     },
     {
       "name": "Private Reserve Pinot Noir Solano County California",
@@ -4577,6 +4969,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -4603,6 +4996,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$220.00",
       "retail_instore": "$270.00"
     },
@@ -4629,6 +5023,7 @@
       "abv": "14",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -4655,6 +5050,7 @@
       "abv": "14",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -4681,6 +5077,7 @@
       "abv": "14",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -4704,6 +5101,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$75.00",
       "retail_instore": "$125.00"
     },
@@ -4725,6 +5123,7 @@
       "abv": "4.8",
       "batch_size_(l)": "23",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$75.00",
       "retail_instore": "$125.00"
     },
@@ -4751,6 +5150,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -4777,6 +5177,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -4803,6 +5204,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -4829,6 +5231,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -4855,6 +5258,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -4881,6 +5285,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -4907,6 +5312,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -4933,6 +5339,7 @@
       "abv": "11.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -4959,6 +5366,7 @@
       "abv": "12",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -4985,6 +5393,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -5011,6 +5420,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -5037,6 +5447,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -5063,6 +5474,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -5089,6 +5501,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -5115,6 +5528,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -5141,6 +5555,7 @@
       "abv": "12",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -5167,6 +5582,7 @@
       "abv": "12.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -5193,6 +5609,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -5219,6 +5636,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -5245,6 +5663,7 @@
       "abv": "12",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$190.00",
       "retail_instore": "$240.00"
     },
@@ -5271,6 +5690,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "6 weeks",
+      "internal_only": "false",
       "retail_kit": "$200.00",
       "retail_instore": "$250.00"
     },
@@ -5294,6 +5714,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -5317,6 +5738,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -5340,6 +5762,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$75.00",
       "retail_instore": "$125.00"
     },
@@ -5363,6 +5786,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -5388,6 +5812,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -5411,6 +5836,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -5437,6 +5863,7 @@
       "abv": "14",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -5463,6 +5890,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -5489,6 +5917,7 @@
       "abv": "14",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -5515,6 +5944,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$220.00",
       "retail_instore": "$270.00"
     },
@@ -5541,6 +5971,7 @@
       "abv": "14",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -5567,6 +5998,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$220.00",
       "retail_instore": "$270.00"
     },
@@ -5593,6 +6025,7 @@
       "abv": "13.5",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -5619,6 +6052,7 @@
       "abv": "13",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$220.00",
       "retail_instore": "$270.00"
     },
@@ -5645,6 +6079,7 @@
       "abv": "14",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -5671,6 +6106,7 @@
       "abv": "14",
       "batch_size_(l)": "23",
       "time": "8 weeks",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -5698,6 +6134,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -5725,6 +6162,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$220.00",
       "retail_instore": "$270.00"
     },
@@ -5752,6 +6190,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -5775,6 +6214,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$220.00",
       "retail_instore": "$270.00"
     },
@@ -5798,6 +6238,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -5821,6 +6262,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$75.00",
       "retail_instore": "$125.00"
     },
@@ -5845,6 +6287,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -5871,6 +6314,7 @@
       "batch_size_(l)": "23",
       "time": "6 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$180.00",
       "retail_instore": "$230.00"
     },
@@ -5895,6 +6339,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -5921,6 +6366,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -5947,6 +6393,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -5973,6 +6420,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -5999,6 +6447,7 @@
       "abv": "6",
       "batch_size_(l)": "23",
       "time": "4 weeks",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -6024,6 +6473,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -6047,6 +6497,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -6073,6 +6524,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$170.00",
       "retail_instore": "$220.00"
     },
@@ -6098,6 +6550,7 @@
       "batch_size_(l)": "23",
       "time": "5 week",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -6107,7 +6560,7 @@
       "item_id": "109900000000067316",
       "brand": "Vinifera Noble",
       "manufacturer": "",
-      "stock": "1",
+      "stock": "0",
       "description": "An important grape variety in several regions of the world including\nFrance, Italy and Oregon. A fine wine with an emphasis on exotic aromas;\nmango, apricot and tropical fruits.",
       "discount": "0",
       "_zoho_category": "",
@@ -6123,6 +6576,7 @@
       "batch_size_(l)": "23",
       "time": "5 week",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$160.00",
       "retail_instore": "$210.00"
     },
@@ -6150,6 +6604,7 @@
       "batch_size_(l)": "23",
       "time": "5 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$170.00",
       "retail_instore": "$220.00"
     },
@@ -6175,6 +6630,7 @@
       "batch_size_(l)": "23",
       "time": "4 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$140.00",
       "retail_instore": "$190.00"
     },
@@ -6202,6 +6658,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$230.00",
       "retail_instore": "$280.00"
     },
@@ -6229,6 +6686,7 @@
       "batch_size_(l)": "23",
       "time": "8 weeks",
       "millable": "false",
+      "internal_only": "false",
       "retail_kit": "$220.00",
       "retail_instore": "$270.00"
     }
@@ -6283,6 +6741,70 @@
       "tax_id": ""
     },
     {
+      "name": "2 Circle High Gloss Paper",
+      "unit": "pcs",
+      "price_per_unit": "0.1",
+      "stock": "0",
+      "description": "High Gloss Paper label Suitable for: 750mL Wine Bottle, 355mL Beer Bottle, 355mL Can, 473mL Can.",
+      "sales_description": "",
+      "sku": "LBL-HGP-2CIR",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "2 Circle Matte Poly",
+      "unit": "pcs",
+      "price_per_unit": "0.2",
+      "stock": "0",
+      "description": "Matte Poly label Suitable for: 750mL Wine Bottle, 355mL Beer Bottle, 355mL Can, 473mL Can.",
+      "sales_description": "",
+      "sku": "LBL-MPOLY-2CIR",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "2.5 Circle Satin BOPP",
+      "unit": "pcs",
+      "price_per_unit": "0.25",
+      "stock": "0",
+      "description": "Satin BOPP label Suitable for: 750mL Wine Bottle, 355mL Beer Bottle, 355mL Can, 473mL Can.",
+      "sales_description": "",
+      "sku": "LBL-SBOPP-2.5CIR",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "2.5x1.5 High Gloss Paper",
+      "unit": "pcs",
+      "price_per_unit": "0.1",
+      "stock": "0",
+      "description": "High Gloss Paper label Used for packaging.",
+      "sales_description": "",
+      "sku": "LBL-HGP-2.5X1.5",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
       "name": "23L Pail Primary Fermenter with Lid",
       "unit": "pcs",
       "price_per_unit": "20",
@@ -6306,6 +6828,22 @@
       "description": "Lightweight, BPA-free 23-litre PET carboy with a built-in spigot port for easy racking and sampling without disturbing sediment. Smooth interior for easy cleaning.",
       "sales_description": "",
       "sku": "20207-23P",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "3 Circle High Gloss Paper",
+      "unit": "pcs",
+      "price_per_unit": "0.2",
+      "stock": "0",
+      "description": "High Gloss Paper label Suitable for: 750mL Wine Bottle, 355mL Beer Bottle, 355mL Can, 473mL Can.",
+      "sales_description": "",
+      "sku": "LBL-HGP-3CIR",
       "category": "",
       "low_amount": "",
       "high_amount": "",
@@ -6347,6 +6885,86 @@
       "tax_id": ""
     },
     {
+      "name": "3x2 High Gloss Paper",
+      "unit": "pcs",
+      "price_per_unit": "0.15",
+      "stock": "0",
+      "description": "High Gloss Paper label Used for packaging.",
+      "sales_description": "",
+      "sku": "LBL-HGP-3X2",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "3x3 High Gloss Paper",
+      "unit": "pcs",
+      "price_per_unit": "0.2",
+      "stock": "0",
+      "description": "High Gloss Paper label Suitable for: 750mL Wine Bottle, 355mL Beer Bottle, 355mL Can, 473mL Can.",
+      "sales_description": "",
+      "sku": "LBL-HGP-3X3",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "3x5 High Gloss Paper",
+      "unit": "pcs",
+      "price_per_unit": "0.3",
+      "stock": "0",
+      "description": "High Gloss Paper label Suitable for: 750mL Wine Bottle, 355mL Beer Bottle, 355mL Can.",
+      "sales_description": "",
+      "sku": "LBL-HGP-3X5",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "3x5 Matte Poly",
+      "unit": "pcs",
+      "price_per_unit": "0.5",
+      "stock": "0",
+      "description": "Matte Poly label Suitable for: 750mL Wine Bottle, 473mL Can, 355mL Can.",
+      "sales_description": "",
+      "sku": "LBL-MPOLY-3X5",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "3x6 High Gloss Paper",
+      "unit": "pcs",
+      "price_per_unit": "0.4",
+      "stock": "0",
+      "description": "High Gloss Paper label Suitable for: 750mL Wine Bottle, 355mL Beer Bottle, 355mL Can, 473mL Can.",
+      "sales_description": "",
+      "sku": "LBL-HGP-3X6",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
       "name": "4L Beverage Bag with spigot",
       "unit": "pcs",
       "price_per_unit": "4",
@@ -6354,6 +6972,118 @@
       "description": "",
       "sales_description": "",
       "sku": "B008685",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "4x100 Continuous Satin BOPP",
+      "unit": "pcs",
+      "price_per_unit": "0.1",
+      "stock": "0",
+      "description": "Satin BOPP label price per inch, batch estimates assume 4x3.",
+      "sales_description": "",
+      "sku": "LBL-SBOPP-4X100C",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "4x2 High Gloss Paper",
+      "unit": "pcs",
+      "price_per_unit": "0.15",
+      "stock": "0",
+      "description": "High Gloss Paper label Suitable for: 750mL Wine Bottle, 355mL Beer Bottle, 355mL Can, 473mL Can.",
+      "sales_description": "",
+      "sku": "LBL-HGP-4X2",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "4x3 Matte Poly",
+      "unit": "pcs",
+      "price_per_unit": "0.3",
+      "stock": "0",
+      "description": "Matte Poly label Suitable for: 750mL Wine Bottle, 355mL Beer Bottle, 355mL Can, 473mL Can.",
+      "sales_description": "",
+      "sku": "LBL-MPOLY-4X3",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "4x3 Satin BOPP",
+      "unit": "pcs",
+      "price_per_unit": "0.3",
+      "stock": "0",
+      "description": "Satin BOPP label Suitable for: 355mL Beer Bottle, 750mL Wine Bottle, 355mL Can, 473mL Can.",
+      "sales_description": "",
+      "sku": "LBL-SBOPP-4X3",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "4x4 High Gloss Paper",
+      "unit": "pcs",
+      "price_per_unit": "0.3",
+      "stock": "0",
+      "description": "High Gloss Paper label Suitable for: 750mL Wine Bottle, 473mL Can.",
+      "sales_description": "",
+      "sku": "LBL-HGP-4X4",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "4x4 Matte BOPP",
+      "unit": "pcs",
+      "price_per_unit": "0.4",
+      "stock": "0",
+      "description": "Matte BOPP label Suitable for: 750mL Wine Bottle, 473mL Can.",
+      "sales_description": "",
+      "sku": "LBL-MBOPP-4X4",
+      "category": "",
+      "low_amount": "",
+      "high_amount": "",
+      "step": "",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "4x6 Matte BOPP",
+      "unit": "pcs",
+      "price_per_unit": "0.8",
+      "stock": "0",
+      "description": "Matte BOPP label Suitable for: 750mL Wine Bottle, 473mL Can.",
+      "sales_description": "",
+      "sku": "LBL-MBOPP-4X6",
       "category": "",
       "low_amount": "",
       "high_amount": "",
@@ -6526,7 +7256,7 @@
       "name": "Amarillo-100g",
       "unit": "g",
       "price_per_unit": "9",
-      "stock": "-1",
+      "stock": "0",
       "description": "Discovered by chance in a Liberty hop field at Virgil Gamache Farms in Washington State's Yakima Valley in the late 1990s, Amarillo was commercially introduced in 2003. It is prized for its rich citrus aroma of tangerine, orange, and lemon, backed by light stone fruit notes of apricot and peach and delicate wildflower character. With an alpha acid range of 8-11%, Amarillo is a dual-purpose hop that contributes bright, clean bitterness and intense citrus aroma. A favourite for American craft ales.",
       "sales_description": "",
       "sku": "AMA-100",
@@ -7022,7 +7752,7 @@
       "name": "Calcium Sulfate-50g",
       "unit": "pcs",
       "price_per_unit": "3",
-      "stock": "-1",
+      "stock": "0",
       "description": "Also known as gypsum, used to increase calcium and sulfate in brewing water. Enhances hop bitterness, crispness, and a drier finish. Essential for hop-forward styles like IPAs and pale ales. Typical usage: 1\u20134 g per 5 gal (19L) batch depending on your source water; scale proportionally for 23L.",
       "sales_description": "",
       "sku": "CASUL-50G",
@@ -8574,7 +9304,7 @@
       "name": "Mosaic-100g",
       "unit": "g",
       "price_per_unit": "10",
-      "stock": "-1",
+      "stock": "0",
       "description": "Released in 2012 by the Hop Breeding Company, Mosaic is the daughter of Simcoe and Nugget. True to its name, Mosaic delivers a complex tapestry of mango, tangerine, peach, passionfruit, blueberry, earthy pine, and herbal notes. Its layered complexity has made it one of the most sought-after craft brewing hops. With an alpha acid range of 11.5-13.5%, Mosaic is a triple-use hop that provides smooth bitterness, distinctive flavour, and intense aroma. Its strength lies in its ability to add depth and complexity whether used alone or in combination.",
       "sales_description": "",
       "sku": "MOS-100",
@@ -8718,7 +9448,7 @@
       "name": "Nugget-100g",
       "unit": "g",
       "price_per_unit": "6",
-      "stock": "-1",
+      "stock": "0",
       "description": "A high-alpha bittering hop developed in 1982 from a cross of Brewer's Gold and a high-alpha wild hop. Nugget is a workhorse variety valued for its clean, strong bitterness and mild herbal aroma. It carries subtle notes of pine, spice, and light floral character. With an alpha acid range of 11-14%, Nugget delivers firm, smooth bitterness that works well as a base layer in a wide range of styles. A reliable choice for any brew where clean bittering is the goal.",
       "sales_description": "",
       "sku": "NUG-100",
@@ -9646,7 +10376,7 @@
       "name": "UK Fuggle-100g",
       "unit": "g",
       "price_per_unit": "7.5",
-      "stock": "-2",
+      "stock": "0",
       "description": "A cornerstone of British brewing since 1875, Fuggles is prized for its mild, pleasant character. Expect earthy, woody, and gently floral notes with a soft herbal undertone. The aroma is rounded and inviting, with hints of damp countryside, fresh-cut grass, and a touch of fruit. With an alpha acid range of 3-5%, Fuggles is a classic finishing and aroma hop that contributes smooth bitterness without sharpness. Essential for traditional cask ales.",
       "sales_description": "",
       "sku": "UKF-100",
@@ -9890,6 +10620,18 @@
       "price": "45",
       "description": "",
       "sku": "BREW-FEE",
+      "stock": "0",
+      "discount": "0",
+      "tax_percentage": 0,
+      "tax_name": "",
+      "tax_id": ""
+    },
+    {
+      "name": "Custom Label Setup Fee",
+      "item_id": "109900000000693049",
+      "price": "10",
+      "description": "",
+      "sku": "C-LABEL-SETUP",
       "stock": "0",
       "discount": "0",
       "tax_percentage": 0,
