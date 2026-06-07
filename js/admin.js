@@ -5681,7 +5681,11 @@
       html += '<td>' + startDate + '</td>';
       html += '<td>' + location + '</td>';
       html += '<td><div class="batch-progress"><div class="batch-progress-bar" style="width:' + pct + '%"></div></div><span class="batch-progress-text">' + done + '/' + total + '</span></td>';
-      html += '<td><button type="button" class="btn-secondary admin-btn-sm batch-qr-btn" data-batch-id="' + b.batch_id + '">QR</button></td>';
+      var actionCell = '<button type="button" class="btn-secondary admin-btn-sm batch-qr-btn" data-batch-id="' + b.batch_id + '">QR</button>';
+      if (String(b.status).toLowerCase() === 'pending') {
+        actionCell += '<button type="button" class="btn admin-btn-sm batch-activate-btn" data-batch-id="' + b.batch_id + '" data-version="' + escapeHTML(String(b.last_updated || '')) + '">Activate</button>';
+      }
+      html += '<td>' + actionCell + '</td>';
       html += '</tr>';
     });
 
@@ -5691,6 +5695,7 @@
     tbody.querySelectorAll('tr').forEach(function (tr) {
       tr.addEventListener('click', function (e) {
         if (e.target.classList.contains('batch-qr-btn')) return;
+        if (e.target.classList.contains('batch-activate-btn')) return;
         openBatchDetail(tr.getAttribute('data-batch-id'));
       });
     });
@@ -5709,6 +5714,34 @@
           })
           .catch(function (err) { showToast('Failed: ' + err.message, 'error'); })
           .finally(function () { btn.disabled = false; btn.textContent = 'QR'; });
+      });
+    });
+
+    // Inline Activate buttons (pending rows only)
+    tbody.querySelectorAll('.batch-activate-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var bid = btn.getAttribute('data-batch-id');
+        var ver = btn.getAttribute('data-version');
+        showConfirm(
+          'Activate this batch now? It has no fermentation schedule, so no tasks will be created and the start date is set to today. Use "Schedule & activate" if you need a schedule.',
+          function () {
+            btn.disabled = true;
+            adminApiPost('update_batch', {
+              batch_id: bid,
+              expectedVersion: ver,
+              updates: { status: 'primary' }
+            }).then(function () {
+              showToast('Batch activated', 'success');
+              loadBatchesData();
+              refreshUpcomingCache();
+              loadBatchDashboardSummary();
+            }).catch(function (err) {
+              showToast('Failed: ' + err.message, 'error');
+              btn.disabled = false;
+            });
+          }
+        );
       });
     });
   }
@@ -5830,6 +5863,9 @@
 
     // Actions
     html += '<div class="batch-detail-actions">';
+    if (String(b.status).toLowerCase() === 'pending') {
+      html += '<button type="button" class="btn admin-btn-sm" id="batch-activate-detail">Activate</button>';
+    }
     html += '<select id="batch-status-change" class="admin-select"><option value="">Change Status...</option>';
     ['primary', 'secondary', 'complete', 'disabled'].forEach(function (s) {
       html += '<option value="' + s + '"' + (s === String(b.status).toLowerCase() ? ' selected disabled' : '') + '>' + (BATCH_STATUSES[s] || {}).label + '</option>';
@@ -5850,6 +5886,33 @@
     var batchId = b.batch_id;
     var batchVersion = b.last_updated;
     var batchToken = b.access_token;
+
+    // Activate button (pending batches only)
+    var activateDetailBtn = document.getElementById('batch-activate-detail');
+    if (activateDetailBtn) {
+      activateDetailBtn.addEventListener('click', function () {
+        showConfirm(
+          'Activate this batch now? It has no fermentation schedule, so no tasks will be created and the start date is set to today. Use "Schedule & activate" if you need a schedule.',
+          function () {
+            activateDetailBtn.disabled = true;
+            adminApiPost('update_batch', {
+              batch_id: batchId,
+              expectedVersion: batchVersion,
+              updates: { status: 'primary' }
+            }).then(function () {
+              showToast('Batch activated', 'success');
+              openBatchDetail(batchId);
+              loadBatchesData();
+              refreshUpcomingCache();
+              loadBatchDashboardSummary();
+            }).catch(function (err) {
+              showToast('Failed: ' + err.message, 'error');
+              activateDetailBtn.disabled = false;
+            });
+          }
+        );
+      });
+    }
 
     // Task checkboxes, save, add task
     bindTaskHandlers(batchId);
