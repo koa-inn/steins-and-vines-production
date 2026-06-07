@@ -68,7 +68,7 @@
 
 **Milestone Goal:** Staff can activate pending batches from the admin batch list and pull customer info back from Zoho onto BrewPad — closing the two open gaps in the batch workflow.
 
-- [ ] **Phase 27: Pending Batch Visibility & Activation** - Surface pending batches in the admin list/filter and add one-click + guided activation (BATCH-01..03) (all 3 plans executed 2026-06-07; verification found 2 gaps — 1 blocker — needs gap closure)
+- [ ] **Phase 27: Pending Batch Visibility & Activation** - Surface pending batches in the admin list/filter and add one-click + guided activation (BATCH-01..03) (3 plans executed 2026-06-07; gap-closure plan 27-04 created to close CR-01 blocker + WR-01 warning)
 - [ ] **Phase 28: Zoho Customer Read-Back Path** - New middleware endpoint to fetch customer details by SO/invoice number, plus Apps Script write-back of refreshed fields (ZSYNC foundation)
 - [ ] **Phase 29: Refresh-from-Zoho Admin UI** - "Refresh from Zoho" button in the batch detail modal that updates customer name/email/contact, gated on `zoho_so_number` (ZSYNC-01..02)
 
@@ -214,7 +214,7 @@ Plans:
   3. A "Schedule & activate" option lets staff pick a fermentation schedule template, start date, and vessel/location, then promotes the batch to Primary in a single confirmed step
   4. After either activation path, the batch immediately reflects Primary status and the chosen start date in the list and detail views without a manual page reload
 
-**Plans**: 3 plans
+**Plans**: 4 plans (3 executed + 1 gap closure)
 Plans:
 **Wave 1**
 
@@ -227,6 +227,10 @@ Plans:
 **Wave 3**
 
 - [x] 27-03-PLAN.md — Guided Schedule & Activate modal + backend chosen-start-date fix; single-step promote with generated tasks (BATCH-03)
+
+**Gap Closure**
+
+- [ ] 27-04-PLAN.md — Close WR-01 (one-click activate start_date=today) + CR-01 (guided step1Done partial-failure routing); rebuild min + tests (BATCH-02, BATCH-03)
 **UI hint**: yes
 
 ### Phase 28: Zoho Customer Read-Back Path
