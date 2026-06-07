@@ -2160,7 +2160,8 @@ function updateBatch(payload, userEmail) {
     'zoho_so_number', 'customer_id', 'customer_name', 'product_name',
     'customer_firstname', 'customer_lastname',
     'fermentation_started_at', 'completed_at',
-    'recipe_id'   // Phase 16: recipe_id safe through sanitizeInput
+    'recipe_id',   // Phase 16: recipe_id safe through sanitizeInput
+    'start_date'   // Phase 27: guided activation sets start_date before schedule generation
   ];
   allowedFields.forEach(function (field) {
     if (updates[field] !== undefined) {
@@ -2198,11 +2199,23 @@ function updateBatch(payload, userEmail) {
         setVesselStatus(vesselId, 'In-Use');
       }
     }
-    // Phase 7: write fermentation_started_at when pending batch transitions to active (D-09)
+    // Phase 7/27: write fermentation_started_at when pending batch transitions to active (D-09)
+    // Phase 27: honor the chosen start date from guided activation (not always now)
+    // Priority: updates.fermentation_started_at > updates.start_date > current.start_date > now
     if (oldStatus === 'pending') {
       var fermCol = headers.indexOf('fermentation_started_at');
       if (fermCol !== -1) {
-        sheet.getRange(row, fermCol + 1).setValue(now);
+        var fermStamp;
+        if (updates.fermentation_started_at) {
+          fermStamp = sanitizeInput(String(updates.fermentation_started_at));
+        } else if (updates.start_date) {
+          fermStamp = sanitizeInput(String(updates.start_date));
+        } else if (current.start_date) {
+          fermStamp = sanitizeInput(String(current.start_date));
+        } else {
+          fermStamp = now;
+        }
+        sheet.getRange(row, fermCol + 1).setValue(fermStamp);
       }
     }
   }
