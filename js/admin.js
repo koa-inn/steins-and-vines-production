@@ -5684,6 +5684,7 @@
       var actionCell = '<button type="button" class="btn-secondary admin-btn-sm batch-qr-btn" data-batch-id="' + b.batch_id + '">QR</button>';
       if (String(b.status).toLowerCase() === 'pending') {
         actionCell += '<button type="button" class="btn admin-btn-sm batch-activate-btn" data-batch-id="' + b.batch_id + '" data-version="' + escapeHTML(String(b.last_updated || '')) + '">Activate</button>';
+        actionCell += '<button type="button" class="btn-secondary admin-btn-sm batch-schedule-activate-btn" data-batch-id="' + b.batch_id + '">Schedule &amp; activate</button>';
       }
       html += '<td>' + actionCell + '</td>';
       html += '</tr>';
@@ -5696,6 +5697,7 @@
       tr.addEventListener('click', function (e) {
         if (e.target.classList.contains('batch-qr-btn')) return;
         if (e.target.classList.contains('batch-activate-btn')) return;
+        if (e.target.classList.contains('batch-schedule-activate-btn')) return;
         openBatchDetail(tr.getAttribute('data-batch-id'));
       });
     });
@@ -5742,6 +5744,27 @@
             });
           }
         );
+      });
+    });
+
+    // Inline Schedule & activate buttons (pending rows only)
+    tbody.querySelectorAll('.batch-schedule-activate-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var bid = btn.getAttribute('data-batch-id');
+        // Find the batch data from the current list, or fall back to an API fetch
+        var batchRow = batchesData.find(function (x) { return String(x.batch_id) === String(bid); });
+        if (batchRow) {
+          openScheduleActivateModal(batchRow, false);
+        } else {
+          btn.disabled = true;
+          adminApiGet('get_batch', { batch_id: bid })
+            .then(function (result) {
+              openScheduleActivateModal((result.data && result.data.batch) || { batch_id: bid }, false);
+            })
+            .catch(function (err) { showToast('Failed: ' + err.message, 'error'); })
+            .finally(function () { btn.disabled = false; });
+        }
       });
     });
   }
@@ -5865,6 +5888,7 @@
     html += '<div class="batch-detail-actions">';
     if (String(b.status).toLowerCase() === 'pending') {
       html += '<button type="button" class="btn admin-btn-sm" id="batch-activate-detail">Activate</button>';
+      html += '<button type="button" class="btn-secondary admin-btn-sm" id="batch-schedule-activate-detail">Schedule &amp; activate</button>';
     }
     html += '<select id="batch-status-change" class="admin-select"><option value="">Change Status...</option>';
     ['primary', 'secondary', 'complete', 'disabled'].forEach(function (s) {
@@ -5911,6 +5935,14 @@
             });
           }
         );
+      });
+    }
+
+    // Schedule & activate button (pending batches only)
+    var schedActivateDetailBtn = document.getElementById('batch-schedule-activate-detail');
+    if (schedActivateDetailBtn) {
+      schedActivateDetailBtn.addEventListener('click', function () {
+        openScheduleActivateModal(b, true);
       });
     }
 
@@ -7056,6 +7088,198 @@
       } else {
         doCreateBatch(customerId);
       }
+    });
+  }
+
+  // --- Schedule & Activate Modal (guided pending->primary promotion) ---
+
+  function openScheduleActivateModal(batch, fromDetailModal) {
+    // Ensure both schedules and vessels are loaded before rendering
+    function doOpen() {
+      _buildScheduleActivateModal(batch, fromDetailModal);
+    }
+    var needsScheds = fermSchedulesData.length === 0;
+    var needsVessels = !vesselsData;
+    if (needsScheds && needsVessels) {
+      loadScheduleTemplates(function () {
+        loadVesselsData(doOpen);
+      });
+    } else if (needsScheds) {
+      loadScheduleTemplates(doOpen);
+    } else if (needsVessels) {
+      loadVesselsData(doOpen);
+    } else {
+      doOpen();
+    }
+  }
+
+  function _buildScheduleActivateModal(batch, fromDetailModal) {
+    var batchId = batch.batch_id || '';
+    var productSummary = escapeHTML(batch.product_name || batch.product_sku || '—');
+    var customerSummary = escapeHTML(getCustomerDisplayName(batch) || batch.customer_name || '—');
+
+    var html = '<div class="batch-create-form">';
+
+    // Read-only batch summary
+    html += '<div class="form-group">';
+    html += '<div class="batch-sa-summary">';
+    html += '<span><strong>Product:</strong> ' + productSummary + '</span>';
+    html += ' &nbsp; <span><strong>Customer:</strong> ' + customerSummary + '</span>';
+    html += '</div>';
+    html += '</div>';
+
+    // Schedule template select
+    html += '<div class="form-group"><label>Fermentation Schedule <span style="color:var(--error,#c62828)">*</span></label>';
+    html += '<select id="sa-schedule-select" class="admin-select"><option value="">Select a template...</option>';
+    fermSchedulesData.forEach(function (s) {
+      html += '<option value="' + escapeHTML(s.schedule_id) + '">' + escapeHTML(s.name) + (s.category ? ' (' + escapeHTML(s.category) + ')' : '') + '</option>';
+    });
+    html += '</select></div>';
+    html += '<div id="sa-schedule-preview" class="batch-schedule-preview"></div>';
+
+    // Start date
+    html += '<div class="form-group"><label>Start Date <span style="color:var(--error,#c62828)">*</span></label>';
+    html += '<input type="date" id="sa-start-date" class="admin-input" value="' + todayPacific() + '"></div>';
+
+    // Vessel (optional)
+    html += '<div class="form-group form-group-row">';
+    html += '<div style="flex:2;"><label>Vessel <span class="form-optional">(optional)</span></label>';
+    html += '<div class="admin-kit-search-wrap" id="sa-vessel-search-wrap">';
+    html += '<input type="text" id="sa-vessel-search" class="admin-kit-search-input" placeholder="Search vessels..." autocomplete="off">';
+    html += '<div class="admin-kit-search-dropdown" id="sa-vessel-dropdown" style="display:none;"></div>';
+    html += '<input type="hidden" id="sa-vessel" value="">';
+    html += '<button type="button" class="btn-secondary admin-btn-sm" id="sa-vessel-clear" title="Clear vessel" style="margin-top:4px;">&times; Clear</button>';
+    html += '</div></div>';
+    html += '<div><label>Shelf <span class="form-optional">(opt)</span></label><input type="text" id="sa-shelf" class="admin-input" placeholder="A"></div>';
+    html += '<div><label>Bin <span class="form-optional">(opt)</span></label><input type="text" id="sa-bin" class="admin-input" placeholder="01"></div>';
+    html += '</div>';
+
+    html += '<button type="button" class="btn" id="sa-submit">Schedule &amp; Activate</button>';
+    html += '</div>';
+
+    openModal('Schedule & Activate ' + escapeHTML(batchId), html);
+
+    // Schedule preview handler (same pattern as buildCreateBatchFormInner)
+    document.getElementById('sa-schedule-select').addEventListener('change', function () {
+      var schedId = this.value;
+      var preview = document.getElementById('sa-schedule-preview');
+      var sched = fermSchedulesData.find(function (s) { return s.schedule_id === schedId; });
+      if (!sched) { preview.innerHTML = ''; return; }
+      var steps = sched.steps_parsed || [];
+      if (!steps.length && sched.steps) {
+        try { steps = JSON.parse(sched.steps); } catch (e) {}
+      }
+      var pHtml = '<div class="schedule-preview-steps">';
+      steps.forEach(function (s) {
+        var dayLabel = s.is_packaging ? 'TBD' : ('Day ' + s.day_offset);
+        var badges = '';
+        if (s.is_transfer) badges += ' <span class="batch-task-badge batch-task-badge--transfer">Transfer</span>';
+        if (s.is_packaging) badges += ' <span class="batch-task-badge batch-task-badge--pkg">Packaging</span>';
+        pHtml += '<div class="schedule-preview-step"><strong>' + dayLabel + ':</strong> ' + escapeHTML(s.title) + badges + (s.description ? ' — ' + escapeHTML(s.description) : '') + '</div>';
+      });
+      pHtml += '</div>';
+      preview.innerHTML = pHtml;
+    });
+
+    // Vessel search
+    var saVesselInput = document.getElementById('sa-vessel-search');
+    var saVesselDropdown = document.getElementById('sa-vessel-dropdown');
+    var saVesselHidden = document.getElementById('sa-vessel');
+    bindVesselSearch(saVesselInput, saVesselDropdown, saVesselHidden, '');
+
+    var saVesselClearBtn = document.getElementById('sa-vessel-clear');
+    if (saVesselClearBtn) {
+      saVesselClearBtn.addEventListener('click', function () {
+        saVesselHidden.value = '';
+        saVesselInput.value = '';
+        saVesselInput.focus();
+      });
+    }
+
+    bindShelfInput(document.getElementById('sa-shelf'));
+    bindBinInput(document.getElementById('sa-bin'));
+
+    // Close vessel dropdown on outside click
+    addModalDocListener('click', function (e) {
+      if (!saVesselDropdown.contains(e.target) && e.target !== saVesselInput) saVesselDropdown.style.display = 'none';
+    });
+
+    // Submit orchestration (D-10 single confirmed step)
+    document.getElementById('sa-submit').addEventListener('click', function () {
+      var schedId = document.getElementById('sa-schedule-select').value;
+      var startDate = document.getElementById('sa-start-date').value;
+      var vesselId = saVesselHidden.value;
+      var shelfId = document.getElementById('sa-shelf').value;
+      var binId = document.getElementById('sa-bin').value;
+
+      if (!schedId) { showToast('Select a fermentation schedule', 'error'); return; }
+      if (!startDate) { showToast('Enter a start date', 'error'); return; }
+
+      // Build schedule_snapshot from template steps
+      var sched = fermSchedulesData.find(function (s) { return s.schedule_id === schedId; });
+      if (!sched) { showToast('Selected schedule not found', 'error'); return; }
+      var schedSteps = sched.steps_parsed || [];
+      if (!schedSteps.length && sched.steps) {
+        try { schedSteps = JSON.parse(sched.steps); } catch (e) {}
+      }
+      if (!schedSteps.length) { showToast('Schedule has no steps', 'error'); return; }
+
+      var submitBtn = document.getElementById('sa-submit');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Activating...';
+
+      // Build update_batch payload — include vessel/shelf/bin only if provided
+      var batchUpdates = { status: 'primary', start_date: startDate };
+      if (vesselId) batchUpdates.vessel_id = vesselId;
+      if (shelfId) batchUpdates.shelf_id = shelfId;
+      if (binId) batchUpdates.bin_id = binId;
+
+      // Step 1: set start_date + status + optional location
+      adminApiPost('update_batch', {
+        batch_id: batchId,
+        expectedVersion: batch.last_updated,
+        updates: batchUpdates
+      }).then(function (step1Result) {
+        var newVersion = step1Result.newVersion || batch.last_updated;
+
+        // Step 2: generate tasks from the chosen start date
+        return adminApiPost('update_batch_schedule', {
+          batch_id: batchId,
+          expectedVersion: newVersion,
+          schedule_snapshot: schedSteps
+        }).then(function (step2Result) {
+          var taskCount = step2Result.tasks_created || 0;
+          showToast('Batch activated with ' + taskCount + ' task' + (taskCount !== 1 ? 's' : '') + ' scheduled', 'success');
+          closeModal();
+          vesselsData = null; // invalidate vessel cache
+          loadBatchesData();
+          refreshUpcomingCache();
+          loadBatchDashboardSummary();
+          if (fromDetailModal) openBatchDetail(batchId);
+        });
+      }).catch(function (err) {
+        // Distinguish partial failure (step1 ok, step2 failed) from full failure
+        // If we get here the error message from the API tells us what happened.
+        // A step1-only success would have already proceeded to step2; a step2
+        // failure lands here with the schedule error message.
+        var msg = err.message || 'Unknown error';
+        if (msg.indexOf('version_conflict') !== -1 || msg.indexOf('Batch was modified') !== -1) {
+          showToast('Version conflict — refresh and try again', 'error');
+        } else if (msg.indexOf('schedule') !== -1 || msg.indexOf('tasks') !== -1) {
+          showToast('Batch activated but schedule failed — assign schedule from the detail modal', 'warning');
+          closeModal();
+          loadBatchesData();
+          refreshUpcomingCache();
+          loadBatchDashboardSummary();
+          if (fromDetailModal) openBatchDetail(batchId);
+        } else {
+          showToast('Failed: ' + msg, 'error');
+        }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Schedule & Activate';
+        }
+      });
     });
   }
 
