@@ -1316,7 +1316,7 @@ function getBatches(limit, offset, status) {
     if (status === 'active') {
       batches = batches.filter(function (b) {
         var s = String(b.status || '').toLowerCase();
-        return s === 'primary' || s === 'secondary';
+        return s === 'primary' || s === 'secondary' || s === 'pending';
       });
     } else {
       batches = batches.filter(function (b) {
