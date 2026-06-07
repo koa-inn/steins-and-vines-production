@@ -214,7 +214,19 @@ Plans:
   3. A "Schedule & activate" option lets staff pick a fermentation schedule template, start date, and vessel/location, then promotes the batch to Primary in a single confirmed step
   4. After either activation path, the batch immediately reflects Primary status and the chosen start date in the list and detail views without a manual page reload
 
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+**Wave 1**
+
+- [ ] 27-01-PLAN.md — Surface pending batches: widen active filter, Pending dropdown option, distinct badge, pin-to-top (BATCH-01)
+
+**Wave 2**
+
+- [ ] 27-02-PLAN.md — One-click Activate (inline + detail modal) with no-schedule confirm, flip to Primary start=today, live refresh (BATCH-02)
+
+**Wave 3**
+
+- [ ] 27-03-PLAN.md — Guided Schedule & Activate modal + backend chosen-start-date fix; single-step promote with generated tasks (BATCH-03)
 **UI hint**: yes
 
 ### Phase 28: Zoho Customer Read-Back Path
