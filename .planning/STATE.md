@@ -4,8 +4,8 @@ milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
 stopped_at: Phase 27 context gathered
-last_updated: "2026-06-07T21:27:59.909Z"
-last_activity: 2026-06-07 -- Phase 27 planning complete
+last_updated: "2026-06-07T21:31:20.558Z"
+last_activity: 2026-06-07 -- Phase 27 execution started
 progress:
   total_phases: 10
   completed_phases: 6
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-27)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 27 — pending-batch-visibility-activation (v4.1 roadmap drafted)
+**Current focus:** Phase 27 — pending-batch-visibility-activation
 
 ## Current Position
 
-Phase: 27 — Pending Batch Visibility & Activation (not started)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-06-07 -- Phase 27 planning complete
+Phase: 27 (pending-batch-visibility-activation) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 27
+Last activity: 2026-06-07 -- Phase 27 execution started
 
 Milestone v4.1 phase map:
 

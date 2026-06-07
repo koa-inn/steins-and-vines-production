@@ -218,7 +218,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 27-01-PLAN.md — Surface pending batches: widen active filter, Pending dropdown option, distinct badge, pin-to-top (BATCH-01)
+- [x] 27-01-PLAN.md — Surface pending batches: widen active filter, Pending dropdown option, distinct badge, pin-to-top (BATCH-01)
 
 **Wave 2**
 
@@ -272,7 +272,7 @@ Plans:
 | 24. SEO & Staging Deploy | v3.0 | 2/2 | Complete    | 2026-06-03 |
 | 25. Cal.com Booking Migration | v4.0 | 4/4 | Complete   | 2026-06-04 |
 | 26. Cloudflare Edge Protection | v4.0 | live-exec | Complete | 2026-06-06 |
-| 27. Pending Batch Visibility & Activation | v4.1 | 0/0 | Not started | - |
+| 27. Pending Batch Visibility & Activation | v4.1 | 1/3 | In Progress|  |
 | 28. Zoho Customer Read-Back Path | v4.1 | 0/0 | Not started | - |
 | 29. Refresh-from-Zoho Admin UI | v4.1 | 0/0 | Not started | - |
 
