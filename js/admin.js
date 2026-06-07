@@ -5515,6 +5515,7 @@
   var _schedSteps = [];
 
   var BATCH_STATUSES = {
+    pending: { label: 'Pending', color: 'purple' },
     primary: { label: 'Primary', color: 'blue' },
     secondary: { label: 'Secondary', color: 'amber' },
     complete: { label: 'Complete', color: 'green' },
@@ -5637,6 +5638,11 @@
 
     // Sort
     filtered = filtered.slice().sort(function (a, b) {
+      // Pending rows always pin to top, regardless of sort column or direction (D-04)
+      var aPend = String(a.status || '').toLowerCase() === 'pending';
+      var bPend = String(b.status || '').toLowerCase() === 'pending';
+      if (aPend !== bPend) { return aPend ? -1 : 1; }
+
       var va, vb;
       if (batchSortKey === 'location') {
         va = [a.shelf_id, a.bin_id, a.vessel_id].filter(Boolean).join(' ').toLowerCase();
