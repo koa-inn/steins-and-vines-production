@@ -3,14 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: planning
-last_updated: "2026-06-06T18:27:33.814Z"
-last_activity: 2026-06-06
+stopped_at: Phase 27 context gathered
+last_updated: "2026-06-07T20:42:09.879Z"
+last_activity: 2026-06-06 — v4.1 roadmap created (Phases 27-29 appended)
 progress:
-  total_phases: 3
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 10
+  completed_phases: 6
+  total_plans: 15
+  completed_plans: 16
+  percent: 60
 ---
 
 # Project State
@@ -30,6 +31,7 @@ Status: Roadmap drafted — ready to plan Phase 27
 Last activity: 2026-06-06 — v4.1 roadmap created (Phases 27-29 appended)
 
 Milestone v4.1 phase map:
+
 - Phase 27: Pending Batch Visibility & Activation (BATCH-01..03)
 - Phase 28: Zoho Customer Read-Back Path (ZSYNC foundation — middleware endpoint + Apps Script write-back)
 - Phase 29: Refresh-from-Zoho Admin UI (ZSYNC-01..02; depends on Phase 28)
@@ -102,6 +104,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-04T16:36:01.814Z
-Stopped at: Completed 25-04-PLAN.md (Phase 25 complete)
-Resume file: None
+Last session: 2026-06-07T20:42:09.867Z
+Stopped at: Phase 27 context gathered
+Resume file: .planning/phases/27-pending-batch-visibility-activation/27-CONTEXT.md
