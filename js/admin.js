@@ -7235,11 +7235,13 @@
       if (binId) batchUpdates.bin_id = binId;
 
       // Step 1: set start_date + status + optional location
+      var step1Done = false;
       adminApiPost('update_batch', {
         batch_id: batchId,
         expectedVersion: batch.last_updated,
         updates: batchUpdates
       }).then(function (step1Result) {
+        step1Done = true;
         var newVersion = step1Result.newVersion || batch.last_updated;
 
         // Step 2: generate tasks from the chosen start date
@@ -7258,15 +7260,14 @@
           if (fromDetailModal) openBatchDetail(batchId);
         });
       }).catch(function (err) {
-        // Distinguish partial failure (step1 ok, step2 failed) from full failure
-        // If we get here the error message from the API tells us what happened.
-        // A step1-only success would have already proceeded to step2; a step2
-        // failure lands here with the schedule error message.
         var msg = err.message || 'Unknown error';
-        if (msg.indexOf('version_conflict') !== -1 || msg.indexOf('Batch was modified') !== -1) {
+        if (!step1Done && (msg.indexOf('version_conflict') !== -1 || msg.indexOf('Batch was modified') !== -1)) {
+          // Genuine step-1 conflict — batch has not been activated; operator can retry
           showToast('Version conflict — refresh and try again', 'error');
-        } else if (msg.indexOf('schedule') !== -1 || msg.indexOf('tasks') !== -1) {
-          showToast('Batch activated but schedule failed — assign schedule from the detail modal', 'warning');
+        } else if (step1Done) {
+          // Step 1 committed; batch is now primary. Any step-2 failure (incl. version conflict)
+          // is a partial success — refresh so UI reflects the active state
+          showToast('Batch activated, but the schedule didn\'t save — assign it from the batch detail', 'warning');
           closeModal();
           loadBatchesData();
           refreshUpcomingCache();
