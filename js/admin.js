@@ -5732,7 +5732,7 @@
             adminApiPost('update_batch', {
               batch_id: bid,
               expectedVersion: ver,
-              updates: { status: 'primary' }
+              updates: { status: 'primary', start_date: todayPacific() }
             }).then(function () {
               showToast('Batch activated', 'success');
               loadBatchesData();
@@ -5922,7 +5922,7 @@
             adminApiPost('update_batch', {
               batch_id: batchId,
               expectedVersion: batchVersion,
-              updates: { status: 'primary' }
+              updates: { status: 'primary', start_date: todayPacific() }
             }).then(function () {
               showToast('Batch activated', 'success');
               openBatchDetail(batchId);
