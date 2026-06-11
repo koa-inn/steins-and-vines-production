@@ -1049,7 +1049,12 @@ function buildLifecycleTimeline(batch, soDate) {
         if (it.source) html += '<span class="bp-task-meta">' + escapeHTML(it.source) + '</span>';
         var since = it.created_at ? String(it.created_at).slice(0, 10) : '';
         html += '<span style="font-size:0.75rem;color:#e67e22;font-weight:600;margin-left:6px;">Awaiting schedule' + (since ? ' — sold ' + escapeHTML(since) : '') + '</span>';
-        html += '</div></div>';
+        html += '</div>';
+        html += '<button type="button" class="btn-secondary bp-btn-sm bp-danger-btn bp-needsched-delete-btn"' +
+          ' data-batch-id="' + escapeHTML(it.batch_id || '') + '"' +
+          ' data-product="' + escapeHTML(it.product_name || '') + '"' +
+          ' data-customer="' + escapeHTML(it.customer_name || '') + '">Delete</button>';
+        html += '</div>';
       });
       html += '</div></div>';
     }
@@ -4525,6 +4530,33 @@ function buildLifecycleTimeline(batch, soDate) {
               .catch(function (err) { showToast('Failed: ' + err.message, 'error'); })
               .then(function () { rtbInvite.disabled = false; });
           });
+          return;
+        }
+        var nsDelBtn = e.target.closest('.bp-needsched-delete-btn');
+        if (nsDelBtn) {
+          var bid = nsDelBtn.getAttribute('data-batch-id');
+          var prod = nsDelBtn.getAttribute('data-product');
+          var cust = nsDelBtn.getAttribute('data-customer');
+          showConfirmSheet(
+            'Delete ' + bid + ' (' + prod + (cust ? ' — ' + cust : '') + ')? Any attached tasks will be removed. This cannot be undone.',
+            'Delete', 'bp-confirm-btn--danger',
+            function () {
+              nsDelBtn.disabled = true;
+              adminApiPost('delete_batch', { batch_id: bid })
+                .then(function () {
+                  showToast('Batch ' + bid + ' deleted', 'success');
+                  _batchesLoaded = false;
+                  _allBatchesData = [];
+                  _eagerLoadTime = 0;
+                  _dashLoadTime = 0;
+                  loadBatches();
+                })
+                .catch(function (err) {
+                  showToast('Failed: ' + err.message, 'error');
+                  nsDelBtn.disabled = false;
+                });
+            }
+          );
           return;
         }
         var chip = e.target.closest('.bp-batch-chip[data-batch-id]');
