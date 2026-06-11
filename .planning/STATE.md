@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-27)
 Phase: 27 (pending-batch-visibility-activation) — EXECUTING
 Plan: 1 of 4
 Status: Executing Phase 27
-Last activity: 2026-06-08 -- Phase 27 execution started
+Last activity: 2026-06-11 - Completed quick task 260611-94q: Fix POST /api/contacts dropping email/phone/name fields in Zoho (contact_persons payload)
 
 Milestone v4.1 phase map:
 
@@ -103,6 +103,12 @@ None.
 ### Blockers/Concerns
 
 - Federal brewing licence pending — BEER_SALES_ENABLED must remain false in Railway production
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260611-94q | Fix POST /api/contacts dropping email/phone/name fields in Zoho (contact_persons payload) | 2026-06-11 | 53d9ff5 | [260611-94q-fix-post-api-contacts-dropping-email-pho](./quick/260611-94q-fix-post-api-contacts-dropping-email-pho/) |
 
 ## Session Continuity
 
