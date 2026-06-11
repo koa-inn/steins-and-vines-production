@@ -103,6 +103,9 @@ None.
 
 ### Blockers/Concerns
 
+- **Prod deploy HELD until v4.1 BrewPad phases complete** (user decision 2026-06-11): phases 27, 27.1, 28, 29, 29.1 ship to production as one batch. Staging already has phase 27 (UAT passed) + quick fix 260611-94q. NOTE: the contacts-payload data-loss bug remains live in prod until this push — BrewPad/kiosk-created customers get no email/phone in Zoho. User accepted; interim prod push available on request.
+- apps-script/adminApi.gs deployed manually by user 2026-06-11 (phase 27 changes live in Apps Script).
+
 - Federal brewing licence pending — BEER_SALES_ENABLED must remain false in Railway production
 
 ### Quick Tasks Completed
