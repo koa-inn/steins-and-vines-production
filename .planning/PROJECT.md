@@ -28,6 +28,8 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 - ✓ Plato reading entry and chart visualization — v1.1
 - ✓ Task management with grouping and completion — v1.1
 - ✓ Multi-batch measurement entry — v1.1
+- ✓ Pending batches visible and activatable from the admin batch list — Phase 27
+- ✓ Batch activation — quick flip to Primary plus guided schedule/start/vessel option — Phase 27
 - ✓ Fermentation schedule templates — v1.1
 - ✓ Batch QR codes and PDF label generation — v1.1
 - ✓ Google OAuth staff authentication — v1.1
@@ -57,9 +59,9 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 
 ### Active
 
-- [ ] Pending batches visible and activatable from the admin batch list
-- [ ] Batch activation — quick flip to Primary plus guided schedule/start/vessel option
 - [ ] Refresh a batch's customer info from its linked Zoho sales order/invoice
+- [ ] Delete pending batches from the UI with confirmation (Phase 27.1 — emerged during Phase 27 UAT)
+- [ ] Reassign the customer on a batch and propagate to the linked Zoho invoice (Phase 29.1 — emerged during Phase 27 UAT)
 - [ ] Pre-made recipes browsable on public site (deferred)
 - [ ] Custom recipe request flow for customers (deferred)
 
@@ -125,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-06 after v4.1 milestone initialization*
+*Last updated: 2026-06-11 after Phase 27*

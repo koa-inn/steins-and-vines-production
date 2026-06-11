@@ -238,7 +238,7 @@ Plans:
 **Goal:** [Urgent work - to be planned]
 **Requirements**: TBD
 **Depends on:** Phase 27
-**Plans:** 0 plans
+**Plans:** 4/4 plans complete
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 27.1 to break down)
@@ -286,7 +286,7 @@ Plans:
 | 24. SEO & Staging Deploy | v3.0 | 2/2 | Complete    | 2026-06-03 |
 | 25. Cal.com Booking Migration | v4.0 | 4/4 | Complete   | 2026-06-04 |
 | 26. Cloudflare Edge Protection | v4.0 | live-exec | Complete | 2026-06-06 |
-| 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete   | 2026-06-08 |
+| 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete    | 2026-06-11 |
 | 28. Zoho Customer Read-Back Path | v4.1 | 0/0 | Not started | - |
 | 29. Refresh-from-Zoho Admin UI | v4.1 | 0/0 | Not started | - |
 

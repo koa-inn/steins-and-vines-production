@@ -1,7 +1,7 @@
 ---
 phase: 27-pending-batch-visibility-activation
 verified: 2026-06-08T05:30:00Z
-status: human_needed
+status: passed
 score: 4/4 must-haves verified
 overrides_applied: 0
 re_verification:
@@ -12,6 +12,7 @@ re_verification:
     - "CR-01: var step1Done flag declared, set inside .then(step1Result), catch branches on step1Done before substring matching (lines 7238, 7244, 7264, 7267)"
   gaps_remaining: []
   regressions: []
+human_verification_completed: 2026-06-11 via 27-HUMAN-UAT.md (3 passed, 1 skipped-with-reason: test 3 staged-race deferral)
 human_verification:
   - test: "Pending batches appear in default Active view"
     expected: "Pending batch visible without selecting any filter; purple Pending badge shows; row pinned above primary/secondary rows"

@@ -4,9 +4,9 @@
 
 ### Batch Activation
 
-- [ ] **BATCH-01**: Staff can see pending batches in the admin batch list, including a "Pending" option in the status filter
-- [ ] **BATCH-02**: Staff can activate a pending batch with one click — quick flip to Primary with start date set to today
-- [ ] **BATCH-03**: Staff can activate a pending batch via a guided flow that sets a fermentation schedule template, start date, and vessel/location before promoting to Primary
+- [x] **BATCH-01**: Staff can see pending batches in the admin batch list, including a "Pending" option in the status filter
+- [x] **BATCH-02**: Staff can activate a pending batch with one click — quick flip to Primary with start date set to today
+- [x] **BATCH-03**: Staff can activate a pending batch via a guided flow that sets a fermentation schedule template, start date, and vessel/location before promoting to Primary
 
 ### Zoho Sync
 
@@ -30,9 +30,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BATCH-01 | Phase 27 | Pending |
-| BATCH-02 | Phase 27 | Pending |
-| BATCH-03 | Phase 27 | Pending |
+| BATCH-01 | Phase 27 | Complete |
+| BATCH-02 | Phase 27 | Complete |
+| BATCH-03 | Phase 27 | Complete |
 | ZSYNC-01 | Phase 29 | Pending |
 | ZSYNC-02 | Phase 29 | Pending |
 
