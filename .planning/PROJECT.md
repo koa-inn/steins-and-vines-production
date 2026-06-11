@@ -127,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-11 after Phase 27*
+*Last updated: 2026-06-11 after Phase 27.1 (pending batch deletion — inline Delete on admin Batches list and BrewPad Needs Scheduling rows)*
