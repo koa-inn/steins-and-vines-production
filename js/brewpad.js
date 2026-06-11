@@ -4549,7 +4549,10 @@ function buildLifecycleTimeline(batch, soDate) {
                   _allBatchesData = [];
                   _eagerLoadTime = 0;
                   _dashLoadTime = 0;
-                  loadBatches();
+                  // Re-render the dashboard the button lives on (refetches
+                  // _dashSummary so the deleted Needs Scheduling row goes away);
+                  // cache flags above keep the batches tab fresh on next visit.
+                  loadDashboard();
                 })
                 .catch(function (err) {
                   showToast('Failed: ' + err.message, 'error');
