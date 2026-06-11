@@ -240,11 +240,11 @@ Plans:
 **Goal:** Staff can delete pending (duplicate) batches inline from the admin Batches list and the BrewPad "Needs Scheduling" dashboard rows, each behind a confirmation that names the batch (ID + product + customer), removing the row via the existing Apps Script `delete_batch` action instead of editing the Google Sheet by hand. Frontend-only (backend `deleteBatch()` unchanged); UI-gated to pending rows.
 **Requirements**: TBD
 **Depends on:** Phase 27
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 
-- [ ] 27.1-01-PLAN.md — Inline Delete on admin Batches pending rows (showConfirm + delete_batch + list/dashboard refresh)
+- [x] 27.1-01-PLAN.md — Inline Delete on admin Batches pending rows (showConfirm + delete_batch + list/dashboard refresh)
 - [ ] 27.1-02-PLAN.md — Inline Delete on BrewPad "Needs Scheduling" rows (showConfirmSheet danger + delete_batch + dashboard refresh; batch-list cards stay delete-free)
 
 **Cross-cutting constraints:**
