@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
-status: ready_to_plan
-stopped_at: Phase 27 complete (4/4) — ready to discuss Phase 27.1
-last_updated: 2026-06-11T14:19:06.576Z
-last_activity: "2026-06-11 - Completed quick task 260611-94q: Fix POST /api/contacts dropping email/phone/name fields in Zoho (contact_persons payload)"
+status: planning
+stopped_at: Phase 27.1 context gathered
+last_updated: "2026-06-11T14:36:58.503Z"
+last_activity: 2026-06-11
 progress:
   total_phases: 13
   completed_phases: 7
@@ -116,6 +116,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-11
-Stopped at: Phase 27 context gathered
-Resume file: .planning/phases/27-pending-batch-visibility-activation/27-CONTEXT.md
+Last session: 2026-06-11T14:36:58.495Z
+Stopped at: Phase 27.1 context gathered
+Resume file: .planning/phases/27.1-pending-batch-deletion-delete-pending-batches-from-brewpad-w/27.1-CONTEXT.md
