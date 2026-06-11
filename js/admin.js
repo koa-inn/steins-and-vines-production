@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-11T13:41:40.500Z';
+  var BUILD_TIMESTAMP = '2026-06-11T14:56:55.954Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -5685,6 +5685,7 @@
       if (String(b.status).toLowerCase() === 'pending') {
         actionCell += '<button type="button" class="btn admin-btn-sm batch-activate-btn" data-batch-id="' + b.batch_id + '" data-version="' + escapeHTML(String(b.last_updated || '')) + '">Activate</button>';
         actionCell += '<button type="button" class="btn-secondary admin-btn-sm batch-schedule-activate-btn" data-batch-id="' + b.batch_id + '">Schedule &amp; activate</button>';
+        actionCell += '<button type="button" class="btn-secondary admin-btn-sm admin-btn-danger batch-inline-delete-btn" data-batch-id="' + b.batch_id + '" data-product="' + escapeHTML(String(b.product_name || '')) + '" data-customer="' + escapeHTML(String(b.customer_name || '')) + '">Delete</button>';
       }
       html += '<td>' + actionCell + '</td>';
       html += '</tr>';
@@ -5698,6 +5699,7 @@
         if (e.target.classList.contains('batch-qr-btn')) return;
         if (e.target.classList.contains('batch-activate-btn')) return;
         if (e.target.classList.contains('batch-schedule-activate-btn')) return;
+        if (e.target.classList.contains('batch-inline-delete-btn')) return;
         openBatchDetail(tr.getAttribute('data-batch-id'));
       });
     });
@@ -5765,6 +5767,33 @@
             .catch(function (err) { showToast('Failed: ' + err.message, 'error'); })
             .finally(function () { btn.disabled = false; });
         }
+      });
+    });
+
+    // Inline Delete buttons (pending rows only)
+    tbody.querySelectorAll('.batch-inline-delete-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var bid = btn.getAttribute('data-batch-id');
+        var prod = btn.getAttribute('data-product');
+        var cust = btn.getAttribute('data-customer');
+        showConfirm(
+          'Delete ' + bid + ' (' + prod + (cust ? ' — ' + cust : '') + ')? Any attached tasks will be removed. This cannot be undone.',
+          function () {
+            btn.disabled = true;
+            adminApiPost('delete_batch', { batch_id: bid })
+              .then(function () {
+                showToast('Batch ' + bid + ' deleted', 'success');
+                vesselsData = null;
+                loadBatchesData();
+                loadBatchDashboardSummary();
+              })
+              .catch(function (err) {
+                showToast('Failed: ' + err.message, 'error');
+                btn.disabled = false;
+              });
+          }
+        );
       });
     });
   }
