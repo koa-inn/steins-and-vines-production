@@ -5692,7 +5692,7 @@
       if (String(b.status).toLowerCase() === 'pending') {
         actionCell += '<button type="button" class="btn admin-btn-sm batch-activate-btn" data-batch-id="' + b.batch_id + '" data-version="' + escapeHTML(String(b.last_updated || '')) + '">Activate</button>';
         actionCell += '<button type="button" class="btn-secondary admin-btn-sm batch-schedule-activate-btn" data-batch-id="' + b.batch_id + '">Schedule &amp; activate</button>';
-        actionCell += '<button type="button" class="btn-secondary admin-btn-sm admin-btn-danger batch-inline-delete-btn" data-batch-id="' + b.batch_id + '" data-product="' + escapeHTML(String(b.product_name || '')) + '" data-customer="' + escapeHTML(String(b.customer_name || '')) + '">Delete</button>';
+        actionCell += '<button type="button" class="btn-secondary admin-btn-sm admin-btn-danger batch-inline-delete-btn" data-batch-id="' + b.batch_id + '" data-product="' + escapeHTML(String(b.product_name || '')) + '" data-customer="' + escapeHTML(String(getCustomerDisplayName(b) || '')) + '">Delete</button>';
       }
       html += '<td>' + actionCell + '</td>';
       html += '</tr>';
