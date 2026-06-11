@@ -280,6 +280,16 @@ Plans:
 | 28. Zoho Customer Read-Back Path | v4.1 | 0/0 | Not started | - |
 | 29. Refresh-from-Zoho Admin UI | v4.1 | 0/0 | Not started | - |
 
+### Phase 29.1: Batch customer reassignment — change the customer tied to a batch (e.g. WALK-IN placeholder) and propagate the change to the linked Zoho sales order/invoice (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 29
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 29.1 to break down)
+
 ### Phase 26: Cloudflare Edge Protection ✅ COMPLETE (2026-06-06)
 
 **Outcome:** Cloudflare free tier is live in front of production (`steinsandvines.ca`) — proxied with SSL Full, Bot Fight Mode + a rate-limit rule active, email auth (SPF/DKIM/DMARC) hardened, staging kept grey-clouded. Executed live without a formal PLAN; see `26-SUMMARY.md` and `DNS-INVENTORY.md`. Follow-up (deferred): protect the Railway API via `api.steinsandvines.ca` if analytics show bots hitting it.

@@ -4,14 +4,14 @@ milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
 stopped_at: Phase 27 context gathered
-last_updated: "2026-06-08T03:54:42.306Z"
+last_updated: "2026-06-11T13:33:09.730Z"
 last_activity: 2026-06-08 -- Phase 27 execution started
 progress:
-  total_phases: 10
-  completed_phases: 6
+  total_phases: 12
+  completed_phases: 7
   total_plans: 19
-  completed_plans: 19
-  percent: 60
+  completed_plans: 20
+  percent: 58
 ---
 
 # Project State
@@ -80,6 +80,7 @@ Milestone v4.1 phase map:
 - Phase 26 added (2026-06-06): Cloudflare Edge Protection — free-tier CDN/bot mitigation in front of GitHub Pages + Railway middleware. Added as a standalone phase; v3.0/v4.0 milestone archives intentionally deferred (see Deferred Items).
 - Phase 26 COMPLETE (2026-06-06): Cloudflare live on production (proxy + SSL Full + Bot Fight Mode + rate limit); email auth hardened (SPF/DKIM/DMARC); staging grey-clouded. Executed live (no PLAN.md). See 26-SUMMARY.md. Deferred follow-up: protect Railway API via api.steinsandvines.ca if analytics show bot traffic there.
 - Phase 30 added (2026-06-11): Assessment quick wins — ~20 small high-impact fixes from the June 2026 full project assessment (PROJECT_ASSESSMENT.md at repo root, gitignored).
+- Phase 29.1 inserted after Phase 29: Batch customer reassignment (WALK-IN → real customer) with Zoho invoice propagation; requested during phase 27 UAT (URGENT)
 
 ### Deferred Items
 
