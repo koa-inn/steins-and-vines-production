@@ -42,3 +42,6 @@ cleanup.sh
 
 # Domain managed via GitHub Pages settings, not this file
 CNAME
+
+# Internal assessment — do not deploy (repo root is served publicly)
+PROJECT_ASSESSMENT.md

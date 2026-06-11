@@ -308,3 +308,13 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd-discuss-phase 26, then /gsd-plan-phase 26 to break down)
+
+### Phase 30: Assessment quick wins — small high-impact fixes from PROJECT_ASSESSMENT.md
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 29
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 30 to break down)

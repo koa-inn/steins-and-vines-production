@@ -79,6 +79,7 @@ Milestone v4.1 phase map:
 
 - Phase 26 added (2026-06-06): Cloudflare Edge Protection — free-tier CDN/bot mitigation in front of GitHub Pages + Railway middleware. Added as a standalone phase; v3.0/v4.0 milestone archives intentionally deferred (see Deferred Items).
 - Phase 26 COMPLETE (2026-06-06): Cloudflare live on production (proxy + SSL Full + Bot Fight Mode + rate limit); email auth hardened (SPF/DKIM/DMARC); staging grey-clouded. Executed live (no PLAN.md). See 26-SUMMARY.md. Deferred follow-up: protect Railway API via api.steinsandvines.ca if analytics show bot traffic there.
+- Phase 30 added (2026-06-11): Assessment quick wins — ~20 small high-impact fixes from the June 2026 full project assessment (PROJECT_ASSESSMENT.md at repo root, gitignored).
 
 ### Deferred Items
 
