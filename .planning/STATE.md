@@ -4,14 +4,14 @@ milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
 stopped_at: Phase 27 context gathered
-last_updated: "2026-06-11T13:33:09.730Z"
-last_activity: 2026-06-08 -- Phase 27 execution started
+last_updated: "2026-06-11T13:45:53.656Z"
+last_activity: "2026-06-11 - Completed quick task 260611-94q: Fix POST /api/contacts dropping email/phone/name fields in Zoho (contact_persons payload)"
 progress:
-  total_phases: 12
+  total_phases: 13
   completed_phases: 7
   total_plans: 19
   completed_plans: 20
-  percent: 58
+  percent: 54
 ---
 
 # Project State
@@ -81,6 +81,7 @@ Milestone v4.1 phase map:
 - Phase 26 COMPLETE (2026-06-06): Cloudflare live on production (proxy + SSL Full + Bot Fight Mode + rate limit); email auth hardened (SPF/DKIM/DMARC); staging grey-clouded. Executed live (no PLAN.md). See 26-SUMMARY.md. Deferred follow-up: protect Railway API via api.steinsandvines.ca if analytics show bot traffic there.
 - Phase 30 added (2026-06-11): Assessment quick wins — ~20 small high-impact fixes from the June 2026 full project assessment (PROJECT_ASSESSMENT.md at repo root, gitignored).
 - Phase 29.1 inserted after Phase 29: Batch customer reassignment (WALK-IN → real customer) with Zoho invoice propagation; requested during phase 27 UAT (URGENT)
+- Phase 27.1 inserted after Phase 27: Pending batch deletion with confirmation (today: manual Google Sheet row deletion when a pending batch duplicates an existing batch); requested during phase 27 UAT (URGENT)
 
 ### Deferred Items
 
