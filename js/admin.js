@@ -5287,11 +5287,18 @@
     return letter;
   }
 
-  // escapeHTML defined in js/lib/utils.js
+  // Quote-safe HTML escaper (mirrors js/lib/utils.js). Must escape `"` and `'`
+  // in addition to `&`, `<`, `>` so values are safe inside quoted HTML
+  // attributes (e.g. data-product / data-customer on batch row buttons).
+  // The old textContent/innerHTML trick did NOT escape quotes, allowing
+  // attribute-injection XSS from customer-controlled fields (CR-01).
   function escapeHTML(str) {
-    var div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+    return String(str === null || str === undefined ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   /**
