@@ -1,38 +1,29 @@
 {
   "version": "1.0",
-  "timestamp": "2026-05-30T15:15:06.814Z",
-  "phase": "22",
-  "phase_name": "category-subpages-navigation",
-  "phase_dir": ".planning/phases/22-category-subpages-navigation",
-  "plan": null,
-  "task": null,
-  "total_tasks": null,
+  "timestamp": "2026-06-11T05:28:13.174Z",
+  "phase": "27",
+  "phase_name": "pending-batch-visibility-activation",
+  "phase_dir": ".planning/phases/27-pending-batch-visibility-activation",
+  "plan": 4,
+  "task": 3,
+  "total_tasks": 3,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Milling fix deployed to Railway middleware (cherry-pick onto production/main)", "status": "done", "commit": "b862b96"},
-    {"id": 2, "name": "Phase 22 UI/UX + usability + mobile audit fixes (11 findings)", "status": "done", "commit": "2d50318"},
-    {"id": 3, "name": "Hops mobile cart drawer leak + filter label clip", "status": "done", "commit": "e5f59bc"},
-    {"id": 4, "name": "Hops weight cards -> compact control + shorten mobile search (tangential)", "status": "done", "commit": "63c2a0e"},
-    {"id": 5, "name": "Hops qty stepper sizing to match subpages (real odd-rectangle fix)", "status": "done", "commit": "7732b1f"}
+    {"id": 1, "name": "WR-01 — stamp start_date=todayPacific() in both one-click Activate payloads", "status": "done", "commit": "ba4bb9f"},
+    {"id": 2, "name": "CR-01 — add step1Done flag + reorder guided submit catch for truthful partial-success", "status": "done", "commit": "bcddd34"},
+    {"id": 3, "name": "Rebuild minified assets, lint, verify green test suite", "status": "done", "commit": "86a038a"}
   ],
-  "remaining_tasks": [
-    {"id": 6, "name": "Human visual sign-off of Phase 22 on staging.steinsandvines.ca (esp. mobile: hops qty stepper, cart drawer, nav scroll, weight cards)", "status": "not_started"},
-    {"id": 7, "name": "Production deploy of full Phase 22 batch via CNAME swap (swap CNAME->steinsandvines.ca, git push production main --force, restore staging CNAME, push origin)", "status": "not_started"},
-    {"id": 8, "name": "Phase 23 Cross-Category Search: /gsd:plan-phase 23 (user chose to wait for Phase 22 sign-off first)", "status": "not_started"},
-    {"id": 9, "name": "Update 22-VERIFICATION.md (was 11/12 human_needed) once staging signed off", "status": "not_started"}
-  ],
-  "blockers": [
-    {"description": "Phase 22 awaiting human visual sign-off on staging before production deploy", "type": "human_action", "workaround": "none — STAGING-FIRST rule is mandatory"}
-  ],
+  "remaining_tasks": [],
+  "blockers": [],
   "human_actions_pending": [
-    {"action": "Visually verify Phase 22 on staging.steinsandvines.ca, mobile especially (hops page qty stepper, cart drawer at rest, Products dropdown scroll, weight-item cards)", "context": "Mandatory staging-first sign-off before production deploy", "blocking": true}
+    {"action": "Test 4 BrewPad batch-activation items on staging (see 27-HUMAN-UAT.md), then reply 'approved'", "context": "Verifier returned human_needed: 4/4 must-haves verified by automation, but the activate handlers depend on live Apps Script behavior that can't be unit-tested. Phase is NOT yet marked complete (phase.complete + STATE advance pending approval).", "blocking": true},
+    {"action": "Resubmit sitemap.xml in Google Search Console (delete + re-add the entry)", "context": "Unrelated SEO aside from this session. The live sitemap is valid (verified via curl as Googlebot: clean application/xml, 13/13 balanced url tags). Search Console error is a STALE crawl of a truncated fetch — no code fix needed.", "blocking": false}
   ],
   "decisions": [
-    {"decision": "Kept staging accent colors (Yeast #7b5ea7 purple, Additives nudged to #c2622b terracotta)", "rationale": "User chose 'Keep staging colors'; recorded as-built in 22-UI-SPEC.md", "phase": "22"},
-    {"decision": "Mobile cart drawer side-drawer geometry scoped to >=1024px on both subpages and hops", "rationale": "Higher-specificity unscoped side-drawer rules beat the global mobile bottom-sheet; gate them so mobile uses bottom-sheet", "phase": "22"},
-    {"decision": "Hold Phase 23 (search) planning until Phase 22 signed off", "rationale": "User explicitly chose 'Wait for 22 sign-off'; search success criteria build on live subpages", "phase": "22"}
+    {"decision": "Treated 27-04 plan's Task-1 automated verify threshold (grep >= 3) as a copy/paste error; accepted the actual count of 2", "rationale": "Plan's own acceptance-criteria narrative said 'two newly-added one-click payloads', and the guided flow uses a different token (start_date: startDate). Both handlers correctly modified. Confirmed independently by the code reviewer and the verifier.", "phase": "27"},
+    {"decision": "Did NOT deploy (no git push); rebuilt assets committed to local main only", "rationale": "CLAUDE.md staging-first rule + the plan explicitly scoped deploy out. Awaiting human approval before any push.", "phase": "27"}
   ],
   "uncommitted_files": [],
-  "next_action": "Ask user whether Phase 22 passed staging sign-off. If yes: production deploy via CNAME swap, then /gsd:plan-phase 23. If issues remain: fix on staging first.",
-  "context_notes": "All work this session is committed and pushed to origin/main (staging). Last commit 7732b1f. The 'odd rectangle by +/- buttons' was the regular qty stepper (.qty-input flex:1 unconstrained on .hop-card), NOT the weight control — subpage fix lives in catalog-subpage.css scoped to .product-card.subpage-card which never reaches hops; mirrored it scoped to body[data-page=hops] in hops.css. The earlier weight-control->compact swap (commit 63c2a0e) was tangential/harmless, can be reverted if undesired. CLAUDE.md requires regression test FIRST on bug fixes — NOT done for these CSS/UI fixes (flagged). Build auto-stamps ?v= on 15 public pages; commits include that churn. CNAME currently staging.steinsandvines.ca."
+  "next_action": "If user replies 'approved': run `gsd-sdk query phase.complete 27`, commit tracking, then present next-phase routing (Phase 28: Zoho Customer Read-Back Path). If user reports issues: spin up a gap-closure plan via /gsd-plan-phase 27 --gaps.",
+  "context_notes": "Phase 27 execution is fully done and committed (4 atomic commits + merge, worktree isolation, merged to main; last commit 906696d). All gates passed: schema-drift none, regression green (432/432 frontend tests), lint 0 errors. Code review = issues_found but NO new criticals (both target gaps CLOSED; residual WR-02/WR-04 are PRE-EXISTING, IN-02 is harmless cosmetic dead code). Verifier = human_needed. The ONLY thing between here and phase completion is human UAT sign-off on staging. Working tree is clean. NOT deployed — nothing pushed to origin or production."
 }
