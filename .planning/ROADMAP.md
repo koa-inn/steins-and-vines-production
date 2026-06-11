@@ -197,6 +197,7 @@ Plans:
   5. Middleware test suite covers the new Cal.com adapter (request/response mapping, error + offline-fallback paths) and passes; lint clean
 
 **Plans**: 4 plans (3 waves)
+
 - [x] 25-01-PLAN.md — Free-tier risk gate + Cal.com adapter (lib/calcom.js) + env registration
 - [x] 25-02-PLAN.md — Rewrite /api/bookings* handlers onto Cal.com, preserving the contract
 - [x] 25-03-PLAN.md — POST /api/webhooks/calcom (signature-verified, cache invalidation)
@@ -231,17 +232,26 @@ Plans:
 **Gap Closure**
 
 - [x] 27-04-PLAN.md — Close WR-01 (one-click activate start_date=today) + CR-01 (guided step1Done partial-failure routing); rebuild min + tests (BATCH-02, BATCH-03)
+
 **UI hint**: yes
 
 ### Phase 27.1: Pending batch deletion — delete pending batches from BrewPad with a confirmation step, removing the row via Apps Script instead of manual Google Sheet edits (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
+**Goal:** Staff can delete pending (duplicate) batches inline from the admin Batches list and the BrewPad "Needs Scheduling" dashboard rows, each behind a confirmation that names the batch (ID + product + customer), removing the row via the existing Apps Script `delete_batch` action instead of editing the Google Sheet by hand. Frontend-only (backend `deleteBatch()` unchanged); UI-gated to pending rows.
 **Requirements**: TBD
 **Depends on:** Phase 27
-**Plans:** 4/4 plans complete
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 27.1 to break down)
+
+- [ ] 27.1-01-PLAN.md — Inline Delete on admin Batches pending rows (showConfirm + delete_batch + list/dashboard refresh)
+- [ ] 27.1-02-PLAN.md — Inline Delete on BrewPad "Needs Scheduling" rows (showConfirmSheet danger + delete_batch + dashboard refresh; batch-list cards stay delete-free)
+
+**Cross-cutting constraints:**
+
+- D-08: The confirm copy warns generically that any attached tasks/readings/history will be removed
+- D-10: The confirm copy frames deletion as irreversible (\"This cannot be undone.\") with no nightly-backup/recovery mention
+- D-06: Backend deleteBatch() stays unchanged — delete_batch is called with only { batch_id }, no status guard or force flag
 
 ### Phase 28: Zoho Customer Read-Back Path
 
@@ -298,6 +308,7 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD (run /gsd-plan-phase 29.1 to break down)
 
 ### Phase 26: Cloudflare Edge Protection ✅ COMPLETE (2026-06-06)
@@ -311,6 +322,7 @@ Plans:
 **Depends on:** Phase 25 (sequential; no hard technical dependency)
 
 **Scope (to refine in discuss):**
+
   - DNS migration: move `steinsandvines.ca` nameservers to Cloudflare; recreate existing records (Pages A records, staging CNAME, Railway/api, MX/email, any TXT/verification)
   - Proxy (orange-cloud) the apex + www through Cloudflare with SSL mode set correctly for GitHub Pages custom domains (Full, not Flexible — avoid redirect loops)
   - Confirm GitHub Pages custom domain + `enforce-cname.yml` still function behind the proxy
@@ -319,6 +331,7 @@ Plans:
   - Caching rules that don't break dynamic middleware calls or cache-busted assets
 
 **Open questions for discuss-phase:**
+
   - Who controls the domain registrar / current DNS host? (needed to change nameservers)
   - Is the Railway API on a custom subdomain we can proxy, or the raw `*.up.railway.app`?
   - Acceptable risk window for the DNS cutover (propagation), and staging-first strategy for an infra change that GitHub Pages serves directly?
@@ -327,6 +340,7 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD (run /gsd-discuss-phase 26, then /gsd-plan-phase 26 to break down)
 
 ### Phase 30: Assessment quick wins — small high-impact fixes from PROJECT_ASSESSMENT.md
@@ -337,4 +351,5 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD (run /gsd-plan-phase 30 to break down)
