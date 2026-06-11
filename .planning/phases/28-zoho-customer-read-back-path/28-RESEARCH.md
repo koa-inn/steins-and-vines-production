@@ -67,7 +67,7 @@ The codebase already has all the infrastructure needed: `zohoGet()` with `withRe
 
 The Zoho Books `/contacts/{id}` detail endpoint returns a `contact_persons` array with `email`, `phone`, and `mobile` per contact person. The list-level response for `/invoices?invoice_number=...` and `/salesorders?salesorder_number=...` returns summary objects that include `customer_id` and `customer_name`, which means the two-call pattern (document list for ID + customer_id, then `/contacts/{id}` for email/phone) is confirmed as the correct approach.
 
-**Primary recommendation:** Add `GET /api/batch/customer-by-number` to `pos.js`, chain two `zohoGet` calls (document filter then contact detail), shape the response per D-03/D-13–D-15, then add `'customer_email'` and `'customer_phone'` to the `allowedFields` array in `updateBatch()` at `adminApi.gs:2157`.
+**Primary recommendation:** Add `GET /api/batch/customer-by-number` to `pos.js`, chain two `zohoGet` calls (document filter then contact detail), shape the response per D-03/D-13–D-15, then add `'customer_email'` and `'customer_phone'` to the `allowedFields` array in `updateBatch()` at `adminApi.gs:2160`.
 
 ---
 
@@ -154,7 +154,7 @@ adminApi.gs updateBatch()
 Batches Google Sheet
   |
   +-- column 'customer_email' updated
-  +-- column 'customer_phone' updated (column already exists in sheet)
+  +-- column 'customer_phone' updated (IF the column exists — see Open Question 2 resolution)
   +-- last_updated bumped (optimistic locking version)
 ```
 
@@ -238,14 +238,14 @@ if (!INV_PATTERN.test(number) && !SO_PATTERN.test(number)) {
 }
 ```
 
-**Note on regex:** The CONTEXT.md explicitly flags this as planner discretion — verify against real `zoho_so_number` values in the Batches sheet before locking the pattern. The pattern above (`/^INV-\d+$/`) covers `INV-000123` style but would reject any with letters after the dash. The planner should check whether `SO-` numbers could include non-digit characters.
+**Note on regex (RESOLVED — see Open Question 1):** The `zoho_so_number` value is always a Zoho-generated number stamped from `invoice.invoice_number` (kiosk) or `salesorder_number` (checkout/SO). Both are server-generated in the canonical `INV-\d+` / `SO-\d+` shapes. `/^INV-\d+$/` and `/^SO-\d+$/` accept every format the code can produce.
 
 ### Pattern 5: allowedFields extension in updateBatch() (mirrors Phase 27 start_date)
 **What:** Add the new field names as strings to the `allowedFields` array. `sanitizeInput()` runs automatically on all fields in this array.
 **When to use:** When a new field needs to be writable via `update_batch` without vessel-status side effects or other special logic.
 **Example:**
 ```javascript
-// Source: adminApi.gs:2157-2165 (verified Phase 27 extension for start_date)
+// Source: adminApi.gs:2160-2173 (verified Phase 27 extension for start_date)
 var allowedFields = [
   'status', 'vessel_id', 'shelf_id', 'bin_id', 'notes',
   'zoho_so_number', 'customer_id', 'customer_name', 'product_name',
@@ -316,17 +316,26 @@ var allowedFields = [
 **How to avoid:** Check `(data.invoices || []).length === 0` as the not-found condition, and return your own `404 not_found` response. The test fixture for `not_found` should mock `zohoGet` returning `{ invoices: [] }`.
 **Warning signs:** Not-found test never triggers; always falls through to contact fetch on a mock returning empty array.
 
-### Pitfall 6: customer_phone column not populated at batch creation time
-**What goes wrong:** `customer_phone` exists as a column in the Batches sheet but `createBatch()` in `adminApi.gs` does not write it in the positional `appendRow()` call (line 1948). It only exists if written by header-lookup after row creation, or if the column was manually added to the sheet.
-**Why it happens:** The `createBatch()` `appendRow()` at line 1948 writes `customer_email` (col 7) but not `customer_phone`. The column exists (it was added when building the batch tracking system), but may be blank for all existing batches.
-**How to avoid:** The Phase 28 `allowedFields` extension writes `customer_phone` when it is non-null — this is how it gets populated. The planner should verify the column header name in the actual Batches sheet matches exactly `customer_phone` (case-sensitive header lookup). If the column is absent, adding it to `allowedFields` silently no-ops (Apps Script header lookup returns -1 and skips the write).
-**Warning signs:** `customer_phone` always stays blank after refresh even when Zoho has a phone number.
+### Pitfall 6: customer_phone column may not exist in the Batches sheet
+**What goes wrong:** `customer_phone` may not exist as a column header in the Batches sheet at all. `createBatch()` in `adminApi.gs` does NOT write `customer_phone` — neither in the positional `appendRow()` call (~line 1948) nor in any header-lookup write afterward (only `customer_firstname`/`customer_lastname`/`recipe_id`/`recipe_snapshot` get header-lookup writes). [VERIFIED: adminApi.gs createBatch, code inspection 2026-06-11] If the column header is absent, adding `customer_phone` to `allowedFields` silently no-ops (`headers.indexOf('customer_phone')` returns -1 and the write is skipped).
+**Why it happens:** The Batches sheet schema was built before phone capture; `customer_phone` was never wired into batch creation. The column may have been added manually to the sheet, or may not exist at all.
+**How to avoid:** The `allowedFields` extension is defensively safe regardless — the write loop no-ops on a missing column rather than erroring. But because code cannot confirm the column exists, the staging verification checkpoint (Plan 02 Task 3) MUST confirm `customer_phone` actually persists on a real batch. If it stays blank after a refresh that returned a phone number, the human adds a `customer_phone` column header to the Batches sheet (and the existing `allowedFields` write then populates it on the next refresh — no code change needed).
+**Warning signs:** `customer_phone` always stays blank after refresh even when Zoho has a phone number → the sheet column header is missing; add it.
 
 ---
 
 ## Code Examples
 
 ### GET handler skeleton (pos.js addition)
+
+> ⚠️ ILLUSTRATIVE ONLY — this skeleton shows the response-field shapes and branch handling.
+> It is NOT the authoritative implementation template. For the canonical express-mock/handler
+> structure and the `findHandler` capture used by the tests, the AUTHORITATIVE source is
+> `28-PATTERNS.md` (the `kiosk-salesorders.test.js` analog) plus the live `search-invoices` /
+> `kiosk/salesorder/:id` handlers in `pos.js`. Do not copy this snippet's surrounding structure
+> verbatim into either the handler or the test — follow PATTERNS.md for structure, use this only
+> as a checklist of which fields and branches each response must contain.
+
 ```javascript
 // Source: pattern derived from sync-zoho (pos.js:1305) and search-invoices (pos.js:1338)
 router.get('/api/batch/customer-by-number', function(req, res) {
@@ -357,7 +366,20 @@ router.get('/api/batch/customer-by-number', function(req, res) {
         return res.status(404).json({ error: 'not_found',
           message: 'No document found with number ' + number });
       }
-      var doc = docs[0];
+      // D-06 exact-match defensive check (RESOLVED — see Open Question 3):
+      // verify the returned document's number equals the requested number (case-insensitive)
+      // before using it, so exact-vs-prefix Zoho semantics are irrelevant to correctness.
+      var numberField = isInvoice ? 'invoice_number' : 'salesorder_number';
+      var doc = null;
+      for (var i = 0; i < docs.length; i++) {
+        var dn = String(docs[i][numberField] || '');
+        if (dn.toLowerCase() === number.toLowerCase()) { doc = docs[i]; break; }
+      }
+      if (!doc) {
+        // Filter matched fuzzily but no exact-number match — treat as not found
+        return res.status(404).json({ error: 'not_found',
+          message: 'No exact-number match for ' + number });
+      }
       var customerId   = doc.customer_id   || '';
       var customerName = doc.customer_name || '';
       var docStatus    = doc.status        || '';
@@ -421,6 +443,14 @@ router.get('/api/batch/customer-by-number', function(req, res) {
 ```
 
 ### Test file skeleton (batch-customer.test.js)
+
+> ⚠️ ILLUSTRATIVE ONLY — the `_handlers` dict pattern below is a SIMPLIFIED sketch and DIVERGES
+> from the project's actual test convention. The AUTHORITATIVE express-mock + route-capture
+> pattern is the `_routeRegistry` / `findHandler('get', path)` form documented in `28-PATTERNS.md`
+> (the `kiosk-salesorders.test.js` analog). Use PATTERNS.md `findHandler` verbatim. Do NOT copy
+> the `_handlers = {}` dict from this snippet — if you do, the RED-state verify grep
+> ("No GET handler registered") will not match and TDD discipline is silently bypassed.
+
 ```javascript
 // Source: pattern from batch-sync.test.js and kiosk-salesorders.test.js
 'use strict';
@@ -506,7 +536,7 @@ describe('GET /api/batch/customer-by-number', function() {
   test('success path returns customer_name, email, phone', function() {
     zohoApi.zohoGet
       .mockResolvedValueOnce({ invoices: [{
-        invoice_id: 'INV-ID-1', customer_id: 'CUST-1',
+        invoice_id: 'INV-ID-1', invoice_number: 'INV-000001', customer_id: 'CUST-1',
         customer_name: 'Anne MacDougall', status: 'sent'
       }]})
       .mockResolvedValueOnce({ contact: {
@@ -529,7 +559,7 @@ describe('GET /api/batch/customer-by-number', function() {
   test('partial 200 when contact fetch fails (D-15)', function() {
     zohoApi.zohoGet
       .mockResolvedValueOnce({ invoices: [{
-        invoice_id: 'INV-ID-2', customer_id: 'CUST-2',
+        invoice_id: 'INV-ID-2', invoice_number: 'INV-000002', customer_id: 'CUST-2',
         customer_name: 'Bob Smith', status: 'paid'
       }]})
       .mockRejectedValueOnce(new Error('Contact not found'));
@@ -575,29 +605,30 @@ describe('GET /api/batch/customer-by-number', function() {
 |---|-------|---------|---------------|
 | A1 | Zoho Books list endpoint for `/invoices?invoice_number=...` returns a summary object that includes `customer_id` and `customer_name` without needing a detail fetch | Standard Stack / Code Examples | If `customer_id` is absent from the list response, the two-call pattern fails and a three-call pattern (list + detail + contact) is required |
 | A2 | `/salesorders?salesorder_number=...` behaves the same as the invoice filter (returns non-empty list with `customer_id` when found) | Code Examples | If SO list filter behaves differently, the D-05 prefix-routing logic needs adjustment |
-| A3 | The `customer_phone` column header in the Batches Google Sheet is exactly `customer_phone` (case-sensitive) | Pitfalls | If the column is absent or named differently, `updateBatch()` header lookup returns -1 and silently skips the write — phone never persists |
+| A3 | RESOLVED (see Open Question 2): the `customer_phone` column may NOT exist in the Batches sheet — `createBatch()` never writes it. The `allowedFields` write is defensively safe (no-ops on missing column); staging checkpoint confirms persistence | Pitfalls | Low — write no-ops rather than erroring; mitigation is adding the column header on the sheet, no code change |
 | A4 | Zoho's `/contacts/{id}` detail endpoint returns `contact_persons` with both `phone` and `mobile` fields even when they are blank | Code Examples | If the fields are absent (not just blank), the `|| primary.mobile` fallback in D-04 is a no-op rather than a true fallback |
 
 **If this table is empty:** N/A — four assumptions flagged above.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Exact `zoho_so_number` format in production Batches sheet**
-   - What we know: Kiosk sales write `INV-NNNNNN` format; online checkout may write `SO-NNNNN` format
-   - What's unclear: Are there any `zoho_so_number` values in the sheet that don't match `/^(INV|SO)-\d+$/`? Legacy entries or partial values could cause D-16 to 400 on valid batches.
-   - Recommendation: Planner should do a quick `grep` or sheet scan of actual `zoho_so_number` column values before finalizing the regex pattern. If non-standard formats exist, broaden the regex or handle them explicitly.
+1. **Exact `zoho_so_number` format in production Batches sheet** — **(RESOLVED 2026-06-11, code inspection)**
+   - Resolution: `zoho_so_number` is never entered by hand. It is stamped from Zoho-generated values on every write path:
+     - Kiosk sale: `var invoiceNumber = invoice.invoice_number || ''` → passed to `createBatchesFromSale()` → written as `zoho_so_number` [VERIFIED: pos.js:487, brewpad-integration.js:153,169].
+     - Online checkout / SO sale: `salesorder_number` from the Zoho SO response [VERIFIED: checkout.js:551, pos.js:569,949].
+     - Recipe sale: same `invoiceNumber` plumbing [VERIFIED: brewpad-integration.js:380-391].
+   - Zoho generates these in the canonical `INV-\d+` and `SO-\d+` shapes (e.g. `INV-000078`, `SO-00123`). There is NO code path that writes a free-form or partial value into `zoho_so_number`.
+   - Conclusion: the D-16 regexes `/^INV-\d+$/` and `/^SO-\d+$/` accept every value the code can produce. A production sheet scan is NOT required — the format is fully code-derived. Residual risk (pre-system legacy rows with hand-typed numbers) is negligible and, if it surfaces, manifests only as a benign `400 invalid_number` on that one stale batch; it is covered by the staging verification checkpoint (Plan 02 Task 3).
 
-2. **`customer_phone` column existence in Batches sheet**
-   - What we know: CONTEXT.md states it exists; `createBatch()` source does not write it in the positional `appendRow()` call — it was likely added as a named column after initial schema creation.
-   - What's unclear: Whether the column header is literally `customer_phone` or a variation.
-   - Recommendation: Verify by checking the actual sheet headers (e.g., via `sheetToObjects()` debug output or a direct sheet view) before deploying the `allowedFields` extension.
+2. **`customer_phone` column existence in Batches sheet** — **(RESOLVED 2026-06-11, code inspection)**
+   - Resolution: Code inspection of `createBatch()` in `adminApi.gs` shows `customer_phone` is **never written** — not in the positional `appendRow()` (~line 1948, which writes `customer_email` at col 7 but has no phone slot) and not in any of the subsequent header-lookup writes (only `customer_firstname`, `customer_lastname`, `recipe_id`, `recipe_snapshot` get header-lookup writes). The earlier `sanitizeInput(payload.customer_phone || '')` at line 834 belongs to the **reservation** append function (note the `timeslot`/`pending`/`now` columns), NOT `createBatch` — it does not prove a Batches-sheet column.
+   - Conclusion: code CANNOT confirm a `customer_phone` column header exists in the Batches sheet. This is acceptable: the `updateBatch()` write loop does `headers.indexOf(field)` and silently skips when the column is absent (`-1`), so adding `customer_phone` to `allowedFields` is defensively safe — it errors nothing. The residual unknown (does the column exist?) is explicitly pushed to the staging verification checkpoint (Plan 02 Task 3), which asserts that a refresh returning a phone number actually persists it; if it stays blank, the human adds the `customer_phone` column header to the sheet and the existing `allowedFields` write populates it on the next refresh — no code change. `customer_email` (col 7) is confirmed present, so email persistence is guaranteed.
 
-3. **`invoice_number=` exact vs `invoice_number_contains` Zoho behavior**
-   - What we know: Official docs show `invoice_number_startswith` and `invoice_number_contains` as documented filter variants. The plain `invoice_number=` parameter is used in community examples.
-   - What's unclear: Whether `invoice_number=` is a documented exact-match filter or an undocumented alias.
-   - Recommendation: The CONTEXT.md decision D-06 locks "exact-number filter" — use `invoice_number=` and `salesorder_number=`. If Zoho returns multiple results for an exact number (it shouldn't), take `docs[0]`. Test on staging with a known INV number.
+3. **`invoice_number=` exact vs `invoice_number_contains` Zoho behavior** — **(RESOLVED 2026-06-11, defensive-contract resolution)**
+   - Resolution: D-06 is a locked decision to use the `invoice_number=` / `salesorder_number=` filter. Rather than depend on Zoho's documented-vs-undocumented exact-match semantics (MEDIUM confidence, not confirmed in official v3 docs), the handler defends against it: after the list call returns, the handler iterates the returned docs and selects the one whose `invoice_number` / `salesorder_number` field **equals the requested number exactly, case-insensitively**, before using it. If no doc exact-matches, it returns `404 not_found`.
+   - Consequence: whether Zoho's filter is exact-match or behaves like a `contains`/`startswith` prefix is now IRRELEVANT to correctness — a fuzzy/multi-result response can never yield a wrong document, because the defensive equality check rejects non-exact matches. This is reflected in the GET-handler skeleton above (the exact-match loop) and is a required acceptance criterion + test fixture in Plan 28-01 Task 2.
 
 ---
 
@@ -640,16 +671,20 @@ describe('GET /api/batch/customer-by-number', function() {
 
 ### Primary (HIGH confidence)
 - `/Users/koa/dev/steins-and-vines-website/zoho-middleware/routes/pos.js` lines 1304–1411 — existing batch endpoint patterns: sync-zoho, search-invoices, kiosk/salesorder/:id [VERIFIED: codebase]
+- `/Users/koa/dev/steins-and-vines-website/zoho-middleware/routes/pos.js` line 487 — kiosk `invoice_number` → `zoho_so_number` origin [VERIFIED: codebase]
+- `/Users/koa/dev/steins-and-vines-website/zoho-middleware/lib/brewpad-integration.js` lines 153–169, 380–391 — `invoiceNumber` plumbed into `zoho_so_number` [VERIFIED: codebase]
+- `/Users/koa/dev/steins-and-vines-website/zoho-middleware/routes/checkout.js` line 551 — `salesorder_number` origin [VERIFIED: codebase]
 - `/Users/koa/dev/steins-and-vines-website/zoho-middleware/lib/zoho-api.js` — `zohoGet()`, `withRetry()`, params-object API [VERIFIED: codebase]
-- `/Users/koa/dev/steins-and-vines-website/apps-script/adminApi.gs` lines 2072–2228 — `updateBatch()`, `allowedFields` at line 2157, `sanitizeInput()` at line 3126 [VERIFIED: codebase]
+- `/Users/koa/dev/steins-and-vines-website/apps-script/adminApi.gs` lines 1948–1982 — `createBatch()` row write: writes `customer_email`, does NOT write `customer_phone` [VERIFIED: codebase]
+- `/Users/koa/dev/steins-and-vines-website/apps-script/adminApi.gs` lines 2073–2228 — `updateBatch()`, `allowedFields` at line 2160, `sanitizeInput()` at line 3126 [VERIFIED: codebase]
 - `/Users/koa/dev/steins-and-vines-website/zoho-middleware/server.js` lines 128–373 — rate limiters, `requireAllowedReferer`, route registration order [VERIFIED: codebase]
 - `https://www.zoho.com/books/api/v3/contacts/` — `contact_persons` array fields confirmed: `email`, `phone`, `mobile`, `is_primary_contact` [CITED: official Zoho Books API docs]
 
 ### Secondary (MEDIUM confidence)
-- `https://www.zoho.com/books/api/v3/invoices/` — invoice list endpoint supports `invoice_number` filter; list response includes `customer_id` and `customer_name` [CITED: official docs — exact-match vs prefix behavior not explicitly specified]
+- `https://www.zoho.com/books/api/v3/invoices/` — invoice list endpoint supports `invoice_number` filter; list response includes `customer_id` and `customer_name` [CITED: official docs — exact-match vs prefix behavior not explicitly specified; neutralized by the defensive exact-match check, Open Question 3]
 
 ### Tertiary (LOW confidence)
-- Community examples and WebSearch results confirming `invoice_number=` as a filter parameter on the list endpoint [ASSUMED — not explicitly documented as "exact match" in official v3 docs; confirmed by D-06 locked decision in CONTEXT.md]
+- Community examples and WebSearch results confirming `invoice_number=` as a filter parameter on the list endpoint [ASSUMED — not explicitly documented as "exact match" in official v3 docs; the handler's defensive exact-match equality check makes this irrelevant to correctness per Open Question 3]
 
 ---
 
@@ -659,7 +694,7 @@ describe('GET /api/batch/customer-by-number', function() {
 - Standard Stack: HIGH — no new packages; all existing packages verified via package.json
 - Architecture: HIGH — derived directly from verified codebase patterns
 - Pitfalls: HIGH — INV-000078 is a documented production incident; other pitfalls verified via code inspection
-- Zoho API behavior (list filter exact-match): MEDIUM — cited from official docs but exact-match vs prefix semantics not explicitly documented
+- Zoho API behavior (list filter exact-match): MEDIUM (cited from official docs) but NEUTRALIZED — the defensive exact-match equality check (Open Question 3) removes dependence on Zoho's filter semantics
 
 **Research date:** 2026-06-11
 **Valid until:** 2026-07-11 (stable middleware; Zoho API v3 stable)
