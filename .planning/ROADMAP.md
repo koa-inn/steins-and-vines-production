@@ -265,7 +265,15 @@ Plans:
   3. Apps Script (`adminApi.gs`) exposes an update path that writes refreshed customer name/email/contact back onto an existing batch record by batch ID, leaving other batch fields untouched
   4. Calling the read endpoint and then the Apps Script update for a known linked batch results in the batch record showing the current Zoho customer details (verified on staging)
 
-**Plans**: TBD
+**Plans**: 2 plans (2 waves)
+Plans:
+**Wave 1**
+
+- [ ] 28-01-PLAN.md — Middleware GET /api/batch/customer-by-number (invoice/SO → customer name/email/phone) + Jest tests (success, not-found, Zoho-error, partial, validation, auth) + lint clean
+
+**Wave 2**
+
+- [ ] 28-02-PLAN.md — Extend adminApi.gs updateBatch allowedFields with customer_email/customer_phone; deploy Apps Script; manual staging read→write loop verification
 
 ### Phase 29: Refresh-from-Zoho Admin UI
 
@@ -297,7 +305,7 @@ Plans:
 | 25. Cal.com Booking Migration | v4.0 | 4/4 | Complete   | 2026-06-04 |
 | 26. Cloudflare Edge Protection | v4.0 | live-exec | Complete | 2026-06-06 |
 | 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete    | 2026-06-11 |
-| 28. Zoho Customer Read-Back Path | v4.1 | 0/0 | Not started | - |
+| 28. Zoho Customer Read-Back Path | v4.1 | 0/2 | Planned | - |
 | 29. Refresh-from-Zoho Admin UI | v4.1 | 0/0 | Not started | - |
 
 ### Phase 29.1: Batch customer reassignment — change the customer tied to a batch (e.g. WALK-IN placeholder) and propagate the change to the linked Zoho sales order/invoice (INSERTED)
