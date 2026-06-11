@@ -4,6 +4,8 @@ var calcom = require('../lib/calcom');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var C = require('../lib/constants');
+var checkoutHelpers = require('../lib/checkout-helpers');
+var buildContactPayload = checkoutHelpers.buildContactPayload;
 
 // zohoApi imports retained: normalizeTimeTo24h (used by POST /api/bookings),
 // zohoGet/zohoPost (used by POST /api/contacts — unchanged).
@@ -89,6 +91,31 @@ function buildUtcStart(date, time24) {
   var desiredUtcMs = new Date(wallClock + 'Z').getTime() + offsetMs;
   var result = new Date(desiredUtcMs);
   return result.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+/**
+ * Build a Zoho /contacts create payload for POST /api/contacts.
+ *
+ * Wraps buildContactPayload (which nests email/phone under contact_persons,
+ * not at the top level — the INV-000078 fix) and adds an explicit
+ * first_name/last_name override so that BrewPad's pre-split name fields are
+ * used verbatim instead of re-splitting the combined display name.
+ *
+ * @param {string} name        - Combined display name (always used for contact_name)
+ * @param {string} email       - Customer email
+ * @param {string} phone       - Customer phone (may be empty)
+ * @param {string} firstName   - Explicit first name; if non-empty, skips whitespace split
+ * @param {string} lastName    - Explicit last name; used when firstName is non-empty
+ * @returns {object}           - Zoho /contacts create payload
+ */
+function buildContactsRoutePayload(name, email, phone, firstName, lastName) {
+  var payload = buildContactPayload(name, email, phone);
+  var explicitFirst = (firstName || '').trim();
+  if (explicitFirst) {
+    payload.contact_persons[0].first_name = explicitFirst;
+    payload.contact_persons[0].last_name = (lastName || '').trim();
+  }
+  return payload;
 }
 
 // ---------------------------------------------------------------------------
@@ -390,13 +417,18 @@ router.post('/api/contacts', async function (req, res) {
       return res.json({ contact_id: contacts[0].contact_id, created: false });
     }
 
-    // Not found by email — create new contact
-    var contactPayload = {
-      contact_name: body.name || body.email,
-      contact_type: 'customer',
-      email: body.email,
-      phone: body.phone || ''
-    };
+    // Not found by email — create new contact.
+    // Use buildContactsRoutePayload so email/phone are nested under
+    // contact_persons (not top-level, which Zoho Books silently drops).
+    // When body.first_name is provided (e.g. from BrewPad's explicit fields),
+    // use those values verbatim instead of re-splitting the display name.
+    var contactPayload = buildContactsRoutePayload(
+      body.name || body.email,
+      body.email,
+      body.phone || '',
+      body.first_name || '',
+      body.last_name || ''
+    );
 
     try {
       var createData = await zohoPost('/contacts', contactPayload);
@@ -429,3 +461,4 @@ router.post('/api/contacts', async function (req, res) {
 });
 
 module.exports = router;
+module.exports.buildContactsRoutePayload = buildContactsRoutePayload;

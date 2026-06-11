@@ -3734,7 +3734,7 @@ function buildLifecycleTimeline(batch, soDate) {
         fetch(base + '/api/contacts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-api-key': (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) || '' },
-          body: JSON.stringify({ name: name, email: email, phone: phone })
+          body: JSON.stringify({ name: name, first_name: firstName, last_name: lastName, email: email, phone: phone })
         })
           .then(function (r) { return r.json(); })
           .then(function (data) {
