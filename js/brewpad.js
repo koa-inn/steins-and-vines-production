@@ -4535,6 +4535,7 @@ function buildLifecycleTimeline(batch, soDate) {
         var nsDelBtn = e.target.closest('.bp-needsched-delete-btn');
         if (nsDelBtn) {
           var bid = nsDelBtn.getAttribute('data-batch-id');
+          if (!bid) { showToast('Missing batch ID', 'error'); return; }
           var prod = nsDelBtn.getAttribute('data-product');
           var cust = nsDelBtn.getAttribute('data-customer');
           showConfirmSheet(

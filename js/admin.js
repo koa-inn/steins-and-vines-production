@@ -5782,6 +5782,7 @@
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         var bid = btn.getAttribute('data-batch-id');
+        if (!bid) { showToast('Missing batch ID', 'error'); return; }
         var prod = btn.getAttribute('data-product');
         var cust = btn.getAttribute('data-customer');
         showConfirm(
