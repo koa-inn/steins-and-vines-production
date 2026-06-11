@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
-status: executing
-stopped_at: Phase 27.1 context gathered
-last_updated: "2026-06-11T14:54:52.969Z"
+status: ready_to_plan
+stopped_at: Phase 27.1 complete (2/2) — ready to discuss Phase 29.1
+last_updated: 2026-06-11T22:07:29.881Z
 last_activity: 2026-06-11 -- Phase 27.1 execution started
 progress:
   total_phases: 13
   completed_phases: 7
   total_plans: 21
-  completed_plans: 20
+  completed_plans: 22
   percent: 54
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-11)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 27.1 — pending-batch-deletion-delete-pending-batches-from-brewpad-w
+**Current focus:** Phase 29.1 — batch customer reassignment change the customer tied to a ba
 
 ## Current Position
 
-Phase: 27.1 (pending-batch-deletion-delete-pending-batches-from-brewpad-w) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 27.1
-Last activity: 2026-06-11 -- Phase 27.1 execution started
+Phase: 29.1
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-11
 
 Milestone v4.1 phase map:
 
@@ -40,7 +40,7 @@ Milestone v4.1 phase map:
 
 **Velocity:**
 
-- Total plans completed: 10 (this milestone)
+- Total plans completed: 12 (this milestone)
 - Average duration: 3 min
 - Total execution time: 3 min
 
