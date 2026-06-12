@@ -287,7 +287,7 @@ Plans:
   3. For a batch with no `zoho_so_number`, the refresh action is clearly unavailable (hidden or disabled with an explanatory state) and never triggers an erroring request
   4. The full feature is verified working on staging.steinsandvines.ca with no console errors on iPad Safari
 
-**Plans**: 3 plans
+**Plans**: 6 plans (3 original + 3 gap-closure)
 
 Plans:
 **Wave 1**
@@ -298,6 +298,12 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 29-03-PLAN.md — Build, full test+lint gate, staging iPad Safari UAT, REQUIREMENTS traceability
+
+**Gap closure** *(verification found 2 Critical + 3 Warning defects — gaps_found)*
+
+- [ ] 29-04-PLAN.md — CR-01: align case contract (middleware case-normalization + frontend 400 handling + tests)
+- [ ] 29-05-PLAN.md — CR-02/WR-01/WR-03/WR-04: visible name refresh (firstname/lastname split), conflict detection, entity rendering, trim parity
+- [ ] 29-06-PLAN.md — Rebuild artifacts, full frontend+middleware+lint gate, staging iPad Safari re-verify
 
 **Cross-cutting constraints:**
 
