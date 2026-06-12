@@ -302,7 +302,7 @@ Plans:
 **Gap closure** *(verification found 2 Critical + 3 Warning defects — gaps_found)*
 
 - [x] 29-04-PLAN.md — CR-01: align case contract (middleware case-normalization + frontend 400 handling + tests)
-- [ ] 29-05-PLAN.md — CR-02/WR-01/WR-03/WR-04: visible name refresh (firstname/lastname split), conflict detection, entity rendering, trim parity
+- [x] 29-05-PLAN.md — CR-02/WR-01/WR-03/WR-04: visible name refresh (firstname/lastname split), conflict detection, entity rendering, trim parity
 - [ ] 29-06-PLAN.md — Rebuild artifacts, full frontend+middleware+lint gate, staging iPad Safari re-verify
 
 **Cross-cutting constraints:**
@@ -327,7 +327,7 @@ Plans:
 | 26. Cloudflare Edge Protection | v4.0 | live-exec | Complete | 2026-06-06 |
 | 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete    | 2026-06-11 |
 | 28. Zoho Customer Read-Back Path | v4.1 | 2/2 | Complete    | 2026-06-12 |
-| 29. Refresh-from-Zoho Admin UI | v4.1 | 4/6 | In Progress|  |
+| 29. Refresh-from-Zoho Admin UI | v4.1 | 5/6 | In Progress|  |
 
 ### Phase 29.2: BrewPad pending batch activation — one-click Activate and guided Schedule & Activate for pending batches in BrewPad (Needs Scheduling rows + batch detail pane), reusing Phase 27 admin backend; make detail status badge pending-aware so pending batches route through activation instead of silently cycling to Primary. Frontend-only: js/brewpad.js + tests. (INSERTED)
 
