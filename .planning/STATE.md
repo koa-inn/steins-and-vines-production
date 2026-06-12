@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-11)
 ## Current Position
 
 Phase: 29 (refresh-from-zoho-admin-ui) — EXECUTING
-Plan: 3 of 3 (Task 1 complete, Task 2 checkpoint in progress, Task 3 pending)
+Plan: 3 of 3 (Task 1 complete, Task 2 PAUSED — iPad UAT deferred, Task 3 pending)
 Status: Executing Phase 29
-Last activity: 2026-06-12 -- Phase 29 execution started
+Last activity: 2026-06-12 -- Phase 29 paused at 29-03 human-verify checkpoint (iPad UAT deferred; see phases/29-refresh-from-zoho-admin-ui/.continue-here.md)
 
 Milestone v4.1 phase map:
 
