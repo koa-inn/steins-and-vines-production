@@ -42,7 +42,10 @@ function getCustomerDisplayName(b) {
 
 // Gate for Refresh-from-Zoho button: returns true only when num matches the
 // exact shape the endpoint validates (/api/batch/customer-by-number).
-// Case-insensitive per D-08; a 400 invalid_number response can never fire from the UI.
+// Case-insensitive per D-08. The middleware normalizes to uppercase before its
+// regex check (CR-01, plan 29-04), so this gate and the middleware accept the
+// same set of refs — a coherent single contract. The fetch handler still
+// defends against a 400 invalid_number for robustness.
 function isValidZohoNumber(num) {
   if (typeof num !== 'string' || !num) return false;
   return /^(INV|SO)-\d+$/i.test(num);
@@ -2579,6 +2582,7 @@ function buildLifecycleTimeline(batch, soDate) {
           .then(function (r) {
             if (r.status === 404) return r.json().then(function (d) { throw { status: 404, error: d.error }; });
             if (r.status === 502) return r.json().then(function (d) { throw { status: 502, error: d.error }; });
+            if (r.status === 400) return r.json().then(function (d) { throw { status: 400, error: d.error }; });
             if (!r.ok) return r.json().then(function (d) { throw { status: r.status, error: d.error }; });
             return r.json();
           })
@@ -2670,7 +2674,9 @@ function buildLifecycleTimeline(batch, soDate) {
           .catch(function (err) {
             zohoRefreshBtn.disabled = false;
             zohoRefreshBtn.textContent = 'Refresh from Zoho';
-            if (err && err.status === 404) {
+            if (err && err.status === 400) {
+              showToast('This Zoho reference is not a valid INV/SO number', 'error');
+            } else if (err && err.status === 404) {
               showToast(escapeHTML(soNumber) + ' no longer exists in Zoho', 'error');
             } else if (err && err.status === 502) {
               showToast('Zoho unreachable — try again later', 'error');
