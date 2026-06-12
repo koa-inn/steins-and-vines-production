@@ -1366,6 +1366,119 @@ router.get('/api/batch/search-invoices', function (req, res) {
     });
 });
 
+// Phase 28: Resolve customer details from a Zoho invoice or SO number (D-01..D-16)
+router.get('/api/batch/customer-by-number', function (req, res) {
+  var apiKey = req.headers['x-api-key'] || req.query.api_key;
+  if (apiKey !== process.env.MW_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  var number = (req.query.number || '').trim();
+
+  // D-16: validate prefix before any Zoho call
+  var isInvoice = /^INV-\d+$/.test(number);
+  var isSO      = /^SO-\d+$/.test(number);
+  if (!isInvoice && !isSO) {
+    return res.status(400).json({ error: 'invalid_number',
+      message: 'number must match INV-NNNN or SO-NNNN format' });
+  }
+
+  // D-05: route by prefix
+  var path        = isInvoice ? '/invoices'         : '/salesorders';
+  var filterKey   = isInvoice ? 'invoice_number'    : 'salesorder_number';
+  var listKey     = isInvoice ? 'invoices'          : 'salesorders';
+  var numberField = isInvoice ? 'invoice_number'    : 'salesorder_number';
+
+  var filterParams = {};
+  filterParams[filterKey] = number;
+
+  // Zoho call 1: resolve document by number (D-06 params-object form — NOT string concat)
+  zohoGet(path, filterParams)
+    .then(function (data) {
+      var docs = data[listKey] || [];
+      if (docs.length === 0) {
+        return res.status(404).json({ error: 'not_found',
+          message: 'No document found with number ' + number });
+      }
+
+      // D-06 defensive exact-match: iterate docs and select the first whose number
+      // equals the requested number case-insensitively (Open Question 3 resolution)
+      var doc = null;
+      for (var i = 0; i < docs.length; i++) {
+        var dn = String(docs[i][numberField] || '');
+        if (dn.toLowerCase() === number.toLowerCase()) { doc = docs[i]; break; }
+      }
+      if (!doc) {
+        // Zoho filter matched fuzzily but no exact-number match — treat as not found
+        return res.status(404).json({ error: 'not_found',
+          message: 'No exact-number match for ' + number });
+      }
+
+      var customerId   = doc.customer_id   || '';
+      var customerName = doc.customer_name || '';
+      var docStatus    = doc.status        || '';
+
+      if (!customerId) {
+        // Document resolved but no customer linked — return partial with contact_unavailable
+        return res.json({
+          customer_name: customerName,
+          customer_id: '',
+          customer_email: null,
+          customer_phone: null,
+          document_number: number,
+          document_status: docStatus,
+          contact_unavailable: true
+        });
+      }
+
+      // Zoho call 2: contact detail for email/phone (D-07 + D-04)
+      return zohoGet('/contacts/' + customerId)
+        .then(function (contactData) {
+          var contact = contactData.contact || {};
+          var persons = contact.contact_persons || [];
+          var primary = null;
+          for (var j = 0; j < persons.length; j++) {
+            if (persons[j].is_primary_contact) { primary = persons[j]; break; }
+          }
+          if (!primary) { primary = persons[0] || {}; }
+
+          // D-07: top-level contact email, fallback to primary contact_person email
+          var email = contact.email || primary.email || null;
+          // D-04: phone, fallback to mobile
+          var phone = primary.phone || primary.mobile || null;
+
+          return res.json({
+            customer_name:   customerName,
+            customer_id:     customerId,
+            customer_email:  email  || null,
+            customer_phone:  phone  || null,
+            document_number: number,
+            document_status: docStatus
+          });
+        })
+        .catch(function (contactErr) {
+          // D-15: contact fetch failed — partial 200 (name/status preserved, email/phone null)
+          log.warn('[batch/customer-by-number] Contact fetch failed for ' + customerId
+            + ': ' + (contactErr.message || contactErr));
+          return res.json({
+            customer_name:   customerName,
+            customer_id:     customerId,
+            customer_email:  null,
+            customer_phone:  null,
+            document_number: number,
+            document_status: docStatus,
+            contact_unavailable: true
+          });
+        });
+    })
+    .catch(function (err) {
+      // D-13: Zoho down/quota/auth failure
+      log.error('[batch/customer-by-number] Zoho error: ' + (err.message || err));
+      res.status(502).json({ error: 'zoho_error',
+        message: 'Failed to retrieve document from Zoho' });
+    });
+});
+
 /**
  * GET /api/kiosk/salesorder/:id
  * Fetch a single Sales Order detail from Zoho, including line_items.
