@@ -51,6 +51,17 @@ function isValidZohoNumber(num) {
   return /^(INV|SO)-\d+$/i.test(num);
 }
 
+// Split a full customer name into {customer_firstname, customer_lastname}.
+// Single-token names yield lastname=''. Used by the Zoho refresh handler to
+// keep firstname/lastname columns coherent with the refreshed customer_name.
+function splitCustomerName(fullName) {
+  var trimmed = String(fullName || '').trim();
+  var parts = trimmed.split(/\s+/);
+  var first = parts.shift() || '';
+  var last = parts.join(' ');
+  return { customer_firstname: first, customer_lastname: last };
+}
+
 // Build the update_batch payload from fetched Zoho data (D-13 / Phase 28 D-02).
 // Includes ONLY keys whose trimmed fetched value is a non-empty string.
 // Never emits '', null, or undefined — preserves existing batch data for blank Zoho values.
@@ -2588,6 +2599,14 @@ function buildLifecycleTimeline(batch, soDate) {
           })
           .then(function (data) {
             var updates = buildRefreshUpdates(data);
+
+            // CR-02: derive firstname/lastname from refreshed name so
+            // getCustomerDisplayName shows the new name for all batches.
+            if (updates.customer_name) {
+              var nameParts = splitCustomerName(updates.customer_name);
+              updates.customer_firstname = nameParts.customer_firstname;
+              updates.customer_lastname = nameParts.customer_lastname;
+            }
 
             // D-12: skip update_batch if nothing changed
             if (compareRefreshFields(data, _currentBatchDetail || b)) {
@@ -5407,6 +5426,7 @@ if (typeof module !== 'undefined' && module.exports) {
     buildLifecycleTimeline: buildLifecycleTimeline,
     isValidZohoNumber: isValidZohoNumber,
     buildRefreshUpdates: buildRefreshUpdates,
-    compareRefreshFields: compareRefreshFields
+    compareRefreshFields: compareRefreshFields,
+    splitCustomerName: splitCustomerName
   };
 }

@@ -95,6 +95,37 @@ describe('isValidZohoNumber', function () {
 });
 
 // ---------------------------------------------------------------------------
+// splitCustomerName
+// ---------------------------------------------------------------------------
+describe('splitCustomerName', function () {
+
+  it('splits "Jane Smith" into first="Jane", last="Smith"', function () {
+    var result = bp.splitCustomerName('Jane Smith');
+    expect(result.customer_firstname).toBe('Jane');
+    expect(result.customer_lastname).toBe('Smith');
+  });
+
+  it('splits single-token "Cher" into first="Cher", last=""', function () {
+    var result = bp.splitCustomerName('Cher');
+    expect(result.customer_firstname).toBe('Cher');
+    expect(result.customer_lastname).toBe('');
+  });
+
+  it('handles extra whitespace: "  Mary  Jane  Watson " => first="Mary", last="Jane Watson"', function () {
+    var result = bp.splitCustomerName('  Mary  Jane  Watson ');
+    expect(result.customer_firstname).toBe('Mary');
+    expect(result.customer_lastname).toBe('Jane Watson');
+  });
+
+  it('handles empty string => first="", last=""', function () {
+    var result = bp.splitCustomerName('');
+    expect(result.customer_firstname).toBe('');
+    expect(result.customer_lastname).toBe('');
+  });
+
+});
+
+// ---------------------------------------------------------------------------
 // buildRefreshUpdates
 // ---------------------------------------------------------------------------
 describe('buildRefreshUpdates', function () {

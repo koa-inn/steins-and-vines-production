@@ -6083,6 +6083,15 @@
             }
 
             var updates = buildRefreshUpdates(data);
+
+            // CR-02: derive firstname/lastname from refreshed name so
+            // getCustomerDisplayName shows the new name for all batches.
+            if (updates.customer_name) {
+              var nameParts = splitCustomerName(updates.customer_name);
+              updates.customer_firstname = nameParts.customer_firstname;
+              updates.customer_lastname = nameParts.customer_lastname;
+            }
+
             return adminApiPost('update_batch', {
               batch_id: batchId,
               expectedVersion: batchVersion,
@@ -6094,6 +6103,8 @@
               if (updates.customer_name) b.customer_name = updates.customer_name;
               if (updates.customer_email) b.customer_email = updates.customer_email;
               if (updates.customer_phone) b.customer_phone = updates.customer_phone;
+              if (updates.customer_firstname !== undefined) b.customer_firstname = updates.customer_firstname;
+              if (updates.customer_lastname !== undefined) b.customer_lastname = updates.customer_lastname;
 
               var customerNode = document.getElementById('batch-detail-customer');
               if (customerNode) customerNode.textContent = getCustomerDisplayName(b) || '—';
@@ -9579,6 +9590,21 @@
   }
 
   /**
+   * Split a full customer name into {customer_firstname, customer_lastname}.
+   * Single-token names yield lastname=''. Used by the Zoho refresh handler to
+   * keep firstname/lastname columns coherent with the refreshed customer_name.
+   * @param {string} fullName
+   * @returns {{customer_firstname: string, customer_lastname: string}}
+   */
+  function splitCustomerName(fullName) {
+    var trimmed = String(fullName || '').trim();
+    var parts = trimmed.split(/\s+/);
+    var first = parts.shift() || '';
+    var last = parts.join(' ');
+    return { customer_firstname: first, customer_lastname: last };
+  }
+
+  /**
    * Builds the updates object for adminApiPost('update_batch') from a Phase 28 API
    * response.  Only includes customer_name / customer_email / customer_phone whose
    * trimmed value is non-empty — blank / null / undefined values are omitted so they
@@ -9632,7 +9658,8 @@
       autoMatchIngredients: autoMatchIngredients,
       isValidZohoNumber: isValidZohoNumber,
       buildRefreshUpdates: buildRefreshUpdates,
-      compareRefreshFields: compareRefreshFields
+      compareRefreshFields: compareRefreshFields,
+      splitCustomerName: splitCustomerName
     });
   }
 
