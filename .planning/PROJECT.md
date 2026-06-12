@@ -56,12 +56,13 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 - ✓ Cross-category product search with inline overlay — v3.0
 - ✓ Appointment booking on Cal.com Cloud behind unchanged /api/bookings* contract — v4.0
 - ✓ Cloudflare edge protection in front of GitHub Pages + Railway middleware — Phase 26
+- ✓ Delete pending batches from the UI with confirmation — Phase 27.1
+- ✓ Refresh a batch's customer info from its linked Zoho sales order/invoice (ZSYNC-01/02) — Phase 29
 
 ### Active
 
-- [ ] Refresh a batch's customer info from its linked Zoho sales order/invoice
-- [ ] Delete pending batches from the UI with confirmation (Phase 27.1 — emerged during Phase 27 UAT)
 - [ ] Reassign the customer on a batch and propagate to the linked Zoho invoice (Phase 29.1 — emerged during Phase 27 UAT)
+- [ ] Activate pending batches from BrewPad — one-click + guided schedule/start, pending-aware status badge (Phase 29.2 — emerged during Phase 29)
 - [ ] Pre-made recipes browsable on public site (deferred)
 - [ ] Custom recipe request flow for customers (deferred)
 
@@ -127,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-12 after Phase 28 (Zoho customer read-back path — middleware customer-by-number endpoint + Apps Script customer_email/customer_phone write-back, read→write loop verified live; foundation for Phase 29 ZSYNC-01/02)*
+*Last updated: 2026-06-12 after Phase 29 (Refresh-from-Zoho admin UI — ZSYNC-01/02 validated; gap fixes CR-01/CR-02/WR-01/03/04 shipped to staging, human-verified on iPad Safari; Phase 29.2 BrewPad pending-batch activation inserted)*
