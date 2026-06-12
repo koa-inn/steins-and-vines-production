@@ -2,17 +2,17 @@
 
 ## Milestones
 
-- ✅ **v1.0 Kiosk Production Readiness** — Phases 1-4 (shipped 2026-04-28)
-- ✅ **v1.1 Brewpad Reliability & Integration** — Phases 5-11 (shipped 2026-05-06)
-- ✅ **v2.0 Recipe-Based Products** — Phases 12-19 (shipped 2026-05-27)
-- ✅ **v3.0 Catalog Subpages** — Phases 20-24 (shipped 2026-06-03)
-- ✅ **v4.0 Booking Migration (Cal.com) + Edge Protection** — Phases 25-26 (completed 2026-06-06)
-- 🚧 **v4.1 BrewPad Batch Lifecycle & Zoho Sync** — Phases 27-29 (in progress)
+- â **v1.0 Kiosk Production Readiness** â Phases 1-4 (shipped 2026-04-28)
+- â **v1.1 Brewpad Reliability & Integration** â Phases 5-11 (shipped 2026-05-06)
+- â **v2.0 Recipe-Based Products** â Phases 12-19 (shipped 2026-05-27)
+- â **v3.0 Catalog Subpages** â Phases 20-24 (shipped 2026-06-03)
+- â **v4.0 Booking Migration (Cal.com) + Edge Protection** â Phases 25-26 (completed 2026-06-06)
+- ð§ **v4.1 BrewPad Batch Lifecycle & Zoho Sync** â Phases 27-29 (in progress)
 
 ## Phases
 
 <details>
-<summary>✅ v1.0 Kiosk Production Readiness (Phases 1-4) — SHIPPED 2026-04-28</summary>
+<summary>â v1.0 Kiosk Production Readiness (Phases 1-4) â SHIPPED 2026-04-28</summary>
 
 - [x] Phase 1: Catalog & Stock Display (3/3 plans)
 - [x] Phase 2: Sales Order Integrity (2/2 plans)
@@ -22,7 +22,7 @@
 </details>
 
 <details>
-<summary>✅ v1.1 Brewpad Reliability & Integration (Phases 5-11) — SHIPPED 2026-05-06</summary>
+<summary>â v1.1 Brewpad Reliability & Integration (Phases 5-11) â SHIPPED 2026-05-06</summary>
 
 - [x] Phase 5: Auth Reliability (2/2 plans)
 - [x] Phase 6: Kiosk-to-Brewpad Integration (3/3 plans)
@@ -35,20 +35,20 @@
 </details>
 
 <details>
-<summary>✅ v2.0 Recipe-Based Products (Phases 12-19) — SHIPPED 2026-05-27</summary>
+<summary>â v2.0 Recipe-Based Products (Phases 12-19) â SHIPPED 2026-05-27</summary>
 
-- [x] Phase 12: Recipe Data Foundation (2/2 plans) — completed 2026-05-16
-- [x] Phase 13: Middleware API + Admin Recipe Management (4/4 plans) — completed 2026-05-17
-- [x] Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation (5/5 plans) — completed 2026-05-17
-- [x] Phase 15: BeerXML Import (2/2 plans) — completed 2026-05-17
-- [x] Phase 16: Recipe Management — BrewPad, Kiosk & Batch Integration (3/3 plans) — completed 2026-05-18
-- [x] Phase 17: Custom Labels Page (3/3 plans) — completed 2026-05-18
-- [x] Phase 18: Custom Labels Iteration (3/3 plans) — completed 2026-05-19
-- [x] Phase 19: Hop Inventory Catalog (3/3 plans) — completed 2026-05-19
+- [x] Phase 12: Recipe Data Foundation (2/2 plans) â completed 2026-05-16
+- [x] Phase 13: Middleware API + Admin Recipe Management (4/4 plans) â completed 2026-05-17
+- [x] Phase 14: Kiosk Recipe Sales, Inventory, and Batch Creation (5/5 plans) â completed 2026-05-17
+- [x] Phase 15: BeerXML Import (2/2 plans) â completed 2026-05-17
+- [x] Phase 16: Recipe Management â BrewPad, Kiosk & Batch Integration (3/3 plans) â completed 2026-05-18
+- [x] Phase 17: Custom Labels Page (3/3 plans) â completed 2026-05-18
+- [x] Phase 18: Custom Labels Iteration (3/3 plans) â completed 2026-05-19
+- [x] Phase 19: Hop Inventory Catalog (3/3 plans) â completed 2026-05-19
 
 </details>
 
-### ✅ v3.0 Catalog Subpages (Shipped 2026-06-03)
+### â v3.0 Catalog Subpages (Shipped 2026-06-03)
 
 **Milestone Goal:** Break the monolithic ingredients page into dedicated category subpages with shared template, cross-category navigation, and unified search.
 
@@ -58,15 +58,15 @@
 - [x] **Phase 23: Cross-Category Search** - Search overlay with grouped results and deep-link navigation (completed 2026-05-30)
 - [x] **Phase 24: SEO & Staging Deploy** - Per-subpage SEO meta, QA pass, and staging deployment (completed 2026-06-03)
 
-### 🚧 v4.0 Booking Migration (Cal.com) (In Progress)
+### ð§ v4.0 Booking Migration (Cal.com) (In Progress)
 
-**Milestone Goal:** Replace the Zoho Bookings backend with Cal.com Cloud (free tier) behind the existing `/api/bookings*` middleware contract — keeping the website checkout flow unchanged — with multiple appointment types and HTTPS-based confirmation emails (Railway blocks outbound SMTP).
+**Milestone Goal:** Replace the Zoho Bookings backend with Cal.com Cloud (free tier) behind the existing `/api/bookings*` middleware contract â keeping the website checkout flow unchanged â with multiple appointment types and HTTPS-based confirmation emails (Railway blocks outbound SMTP).
 
-- [x] **Phase 25: Cal.com Booking Migration** - Swap Zoho Bookings → Cal.com Cloud behind unchanged `/api/bookings*` endpoints; multiple event types; manual cutover of existing appointments (completed 2026-06-04)
+- [x] **Phase 25: Cal.com Booking Migration** - Swap Zoho Bookings â Cal.com Cloud behind unchanged `/api/bookings*` endpoints; multiple event types; manual cutover of existing appointments (completed 2026-06-04)
 
-### 🚧 v4.1 BrewPad Batch Lifecycle & Zoho Sync (In Progress)
+### ð§ v4.1 BrewPad Batch Lifecycle & Zoho Sync (In Progress)
 
-**Milestone Goal:** Staff can activate pending batches from the admin batch list and pull customer info back from Zoho onto BrewPad — closing the two open gaps in the batch workflow.
+**Milestone Goal:** Staff can activate pending batches from the admin batch list and pull customer info back from Zoho onto BrewPad â closing the two open gaps in the batch workflow.
 
 - [x] **Phase 27: Pending Batch Visibility & Activation** - Surface pending batches in the admin list/filter and add one-click + guided activation (BATCH-01..03) (3 plans executed 2026-06-07; gap-closure plan 27-04 created to close CR-01 blocker + WR-01 warning) (completed 2026-06-08)
 - [x] **Phase 28: Zoho Customer Read-Back Path** - New middleware endpoint to fetch customer details by SO/invoice number, plus Apps Script write-back of refreshed fields (ZSYNC foundation) (completed 2026-06-12)
@@ -89,11 +89,11 @@
 Plans:
 **Wave 1**
 
-- [x] 20-01-PLAN.md — Create bulk tagging script and coverage verification script
+- [x] 20-01-PLAN.md â Create bulk tagging script and coverage verification script
 
 **Wave 2**
 
-- [x] 20-02-PLAN.md — Execute tagging workflow and verify 100% coverage
+- [x] 20-02-PLAN.md â Execute tagging workflow and verify 100% coverage
 
 ### Phase 21: Shared Template & Build Infrastructure
 
@@ -112,11 +112,11 @@ Plans:
 Plans:
 **Wave 1**
 
-- [x] 21-01-PLAN.md — Create 16-catalog-subpage.js standalone module and catalog-subpage.css stylesheet
+- [x] 21-01-PLAN.md â Create 16-catalog-subpage.js standalone module and catalog-subpage.css stylesheet
 
 **Wave 2**
 
-- [x] 21-02-PLAN.md — Test HTML page, unit tests, and build pipeline integration
+- [x] 21-02-PLAN.md â Test HTML page, unit tests, and build pipeline integration
 
 ### Phase 22: Category Subpages & Navigation
 
@@ -126,7 +126,7 @@ Plans:
 **Success Criteria** (what must be TRUE):
 
   1. Each of the 5 subpages (Grains, Yeast, Additives, Packaging, Equipment) loads and shows only its category's items with correct cart controls
-  2. A horizontal sub-nav bar appears on every ingredient page showing: All | Hops | Grains | Yeast | Additives | Packaging | Equipment — and the current page's tab is visually highlighted
+  2. A horizontal sub-nav bar appears on every ingredient page showing: All | Hops | Grains | Yeast | Additives | Packaging | Equipment â and the current page's tab is visually highlighted
   3. The main site Products dropdown includes direct links to each ingredient category subpage
   4. Weight-based products on the Grains page offer quantity entry in kg/g as appropriate
 
@@ -134,12 +134,12 @@ Plans:
 Plans:
 **Wave 1**
 
-- [x] 22-01-PLAN.md — Sub-nav CSS styles, dropdown divider style, and build pipeline stamp:pages update
+- [x] 22-01-PLAN.md â Sub-nav CSS styles, dropdown divider style, and build pipeline stamp:pages update
 
 **Wave 2** (parallel)
 
-- [x] 22-02-PLAN.md — Create 5 new category subpages, move hops.html, rebuild ingredients-supplies.html
-- [x] 22-03-PLAN.md — Update nav dropdown in 9 existing pages and verify navigation end-to-end
+- [x] 22-02-PLAN.md â Create 5 new category subpages, move hops.html, rebuild ingredients-supplies.html
+- [x] 22-03-PLAN.md â Update nav dropdown in 9 existing pages and verify navigation end-to-end
 
 ### Phase 23: Cross-Category Search
 
@@ -156,11 +156,11 @@ Plans:
 Plans:
 **Wave 1**
 
-- [x] 23-01-PLAN.md — Create search overlay module, CSS, and fix data-sku gap
+- [x] 23-01-PLAN.md â Create search overlay module, CSS, and fix data-sku gap
 
 **Wave 2**
 
-- [x] 23-02-PLAN.md — Wire overlay into 7 HTML pages, build pipeline, and unit tests
+- [x] 23-02-PLAN.md â Wire overlay into 7 HTML pages, build pipeline, and unit tests
 
 ### Phase 24: SEO & Staging Deploy
 
@@ -177,16 +177,16 @@ Plans:
 Plans:
 **Wave 1**
 
-- [x] 24-01-PLAN.md — Add full SEO head (unique title, description, og:*, twitter:card, LocalBusiness JSON-LD) to all 5 category subpages
+- [x] 24-01-PLAN.md â Add full SEO head (unique title, description, og:*, twitter:card, LocalBusiness JSON-LD) to all 5 category subpages
 
 **Wave 2**
 
-- [x] 24-02-PLAN.md — Build, stamp, push to staging, and QA-verify all 5 subpages load clean on staging.steinsandvines.ca
+- [x] 24-02-PLAN.md â Build, stamp, push to staging, and QA-verify all 5 subpages load clean on staging.steinsandvines.ca
 
 ### Phase 25: Cal.com Booking Migration
 
 **Goal**: Appointment booking runs on Cal.com Cloud (free tier) behind the unchanged `/api/bookings*` middleware contract, supporting multiple appointment types, with customer/staff confirmation emails delivered by Cal.com over HTTPS
-**Depends on**: (new milestone v4.0 — no prior phase dependency)
+**Depends on**: (new milestone v4.0 â no prior phase dependency)
 **Requirements**: BOOK-01, BOOK-02, BOOK-03, BOOK-04, BOOK-05
 **Success Criteria** (what must be TRUE):
 
@@ -198,15 +198,15 @@ Plans:
 
 **Plans**: 4 plans (3 waves)
 
-- [x] 25-01-PLAN.md — Free-tier risk gate + Cal.com adapter (lib/calcom.js) + env registration
-- [x] 25-02-PLAN.md — Rewrite /api/bookings* handlers onto Cal.com, preserving the contract
-- [x] 25-03-PLAN.md — POST /api/webhooks/calcom (signature-verified, cache invalidation)
-- [x] 25-04-PLAN.md — Staging booking+email verification, additional event type, Zoho removal
+- [x] 25-01-PLAN.md â Free-tier risk gate + Cal.com adapter (lib/calcom.js) + env registration
+- [x] 25-02-PLAN.md â Rewrite /api/bookings* handlers onto Cal.com, preserving the contract
+- [x] 25-03-PLAN.md â POST /api/webhooks/calcom (signature-verified, cache invalidation)
+- [x] 25-04-PLAN.md â Staging booking+email verification, additional event type, Zoho removal
 
 ### Phase 27: Pending Batch Visibility & Activation
 
 **Goal**: Staff can see and act on pending batches directly from the admin batch list, promoting them to Primary either instantly or through a guided setup
-**Depends on**: Nothing new (builds on existing v1.1 batch tracking; backend `updateBatch` already supports the pending→primary transition and stamps `fermentation_started_at`)
+**Depends on**: Nothing new (builds on existing v1.1 batch tracking; backend `updateBatch` already supports the pendingâprimary transition and stamps `fermentation_started_at`)
 **Requirements**: BATCH-01, BATCH-02, BATCH-03
 **Success Criteria** (what must be TRUE):
 
@@ -219,23 +219,23 @@ Plans:
 Plans:
 **Wave 1**
 
-- [x] 27-01-PLAN.md — Surface pending batches: widen active filter, Pending dropdown option, distinct badge, pin-to-top (BATCH-01)
+- [x] 27-01-PLAN.md â Surface pending batches: widen active filter, Pending dropdown option, distinct badge, pin-to-top (BATCH-01)
 
 **Wave 2**
 
-- [x] 27-02-PLAN.md — One-click Activate (inline + detail modal) with no-schedule confirm, flip to Primary start=today, live refresh (BATCH-02)
+- [x] 27-02-PLAN.md â One-click Activate (inline + detail modal) with no-schedule confirm, flip to Primary start=today, live refresh (BATCH-02)
 
 **Wave 3**
 
-- [x] 27-03-PLAN.md — Guided Schedule & Activate modal + backend chosen-start-date fix; single-step promote with generated tasks (BATCH-03)
+- [x] 27-03-PLAN.md â Guided Schedule & Activate modal + backend chosen-start-date fix; single-step promote with generated tasks (BATCH-03)
 
 **Gap Closure**
 
-- [x] 27-04-PLAN.md — Close WR-01 (one-click activate start_date=today) + CR-01 (guided step1Done partial-failure routing); rebuild min + tests (BATCH-02, BATCH-03)
+- [x] 27-04-PLAN.md â Close WR-01 (one-click activate start_date=today) + CR-01 (guided step1Done partial-failure routing); rebuild min + tests (BATCH-02, BATCH-03)
 
 **UI hint**: yes
 
-### Phase 27.1: Pending batch deletion — delete pending batches from BrewPad with a confirmation step, removing the row via Apps Script instead of manual Google Sheet edits (INSERTED)
+### Phase 27.1: Pending batch deletion â delete pending batches from BrewPad with a confirmation step, removing the row via Apps Script instead of manual Google Sheet edits (INSERTED)
 
 **Goal:** Staff can delete pending (duplicate) batches inline from the admin Batches list and the BrewPad "Needs Scheduling" dashboard rows, each behind a confirmation that names the batch (ID + product + customer), removing the row via the existing Apps Script `delete_batch` action instead of editing the Google Sheet by hand. Frontend-only (backend `deleteBatch()` unchanged); UI-gated to pending rows.
 **Requirements**: TBD
@@ -244,20 +244,20 @@ Plans:
 
 Plans:
 
-- [x] 27.1-01-PLAN.md — Inline Delete on admin Batches pending rows (showConfirm + delete_batch + list/dashboard refresh)
-- [x] 27.1-02-PLAN.md — Inline Delete on BrewPad "Needs Scheduling" rows (showConfirmSheet danger + delete_batch + dashboard refresh; batch-list cards stay delete-free)
+- [x] 27.1-01-PLAN.md â Inline Delete on admin Batches pending rows (showConfirm + delete_batch + list/dashboard refresh)
+- [x] 27.1-02-PLAN.md â Inline Delete on BrewPad "Needs Scheduling" rows (showConfirmSheet danger + delete_batch + dashboard refresh; batch-list cards stay delete-free)
 
 **Cross-cutting constraints:**
 
 - D-08: The confirm copy warns generically that any attached tasks/readings/history will be removed
 - D-10: The confirm copy frames deletion as irreversible (\"This cannot be undone.\") with no nightly-backup/recovery mention
-- D-06: Backend deleteBatch() stays unchanged — delete_batch is called with only { batch_id }, no status guard or force flag
+- D-06: Backend deleteBatch() stays unchanged â delete_batch is called with only { batch_id }, no status guard or force flag
 
 ### Phase 28: Zoho Customer Read-Back Path
 
-**Goal**: BrewPad can read customer details back from Zoho for a linked sales order/invoice and persist the refreshed fields onto the batch record — the net-new read path behind the refresh feature (today Zoho sync is write-only)
+**Goal**: BrewPad can read customer details back from Zoho for a linked sales order/invoice and persist the refreshed fields onto the batch record â the net-new read path behind the refresh feature (today Zoho sync is write-only)
 **Depends on**: Nothing new (extends existing `zoho-middleware` Zoho integration and `adminApi.gs`)
-**Requirements**: (foundation for ZSYNC-01, ZSYNC-02 — no requirement closes here on its own)
+**Requirements**: (foundation for ZSYNC-01, ZSYNC-02 â no requirement closes here on its own)
 **Success Criteria** (what must be TRUE):
 
   1. A new middleware endpoint, given a Zoho sales-order/invoice number, returns the linked customer's name, email, and contact details (and a clear not-found/no-link response when the SO cannot be resolved)
@@ -269,11 +269,11 @@ Plans:
 Plans:
 **Wave 1**
 
-- [x] 28-01-PLAN.md — Middleware GET /api/batch/customer-by-number (invoice/SO → customer name/email/phone) + Jest tests (success, not-found, Zoho-error, partial, validation, auth) + lint clean
+- [x] 28-01-PLAN.md â Middleware GET /api/batch/customer-by-number (invoice/SO â customer name/email/phone) + Jest tests (success, not-found, Zoho-error, partial, validation, auth) + lint clean
 
 **Wave 2**
 
-- [x] 28-02-PLAN.md — Extend adminApi.gs updateBatch allowedFields with customer_email/customer_phone; deploy Apps Script; manual staging read→write loop verification
+- [x] 28-02-PLAN.md â Extend adminApi.gs updateBatch allowedFields with customer_email/customer_phone; deploy Apps Script; manual staging readâwrite loop verification
 
 ### Phase 29: Refresh-from-Zoho Admin UI
 
@@ -287,7 +287,22 @@ Plans:
   3. For a batch with no `zoho_so_number`, the refresh action is clearly unavailable (hidden or disabled with an explanatory state) and never triggers an erroring request
   4. The full feature is verified working on staging.steinsandvines.ca with no console errors on iPad Safari
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 29-01-PLAN.md — BrewPad detail pane: Refresh-from-Zoho button, Email/Phone rows, refresh handler
+- [ ] 29-02-PLAN.md — Admin Batches modal: Zoho Ref row + Refresh button, Email/Phone rows, refresh handler
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 29-03-PLAN.md — Build, full test+lint gate, staging iPad Safari UAT, REQUIREMENTS traceability
+
+**Cross-cutting constraints:**
+
+- D-10, D-11: Refresh outcomes surface as distinct toasts per endpoint state (success / no-change / partial / not-found / zoho-error); voided or deleted documents warn but still apply
+
 **UI hint**: yes
 
 ## Progress
@@ -306,9 +321,9 @@ Plans:
 | 26. Cloudflare Edge Protection | v4.0 | live-exec | Complete | 2026-06-06 |
 | 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete    | 2026-06-11 |
 | 28. Zoho Customer Read-Back Path | v4.1 | 2/2 | Complete    | 2026-06-12 |
-| 29. Refresh-from-Zoho Admin UI | v4.1 | 0/0 | Not started | - |
+| 29. Refresh-from-Zoho Admin UI | v4.1 | 0/3 | Planned | - |
 
-### Phase 29.1: Batch customer reassignment — change the customer tied to a batch (e.g. WALK-IN placeholder) and propagate the change to the linked Zoho sales order/invoice (INSERTED)
+### Phase 29.1: Batch customer reassignment â change the customer tied to a batch (e.g. WALK-IN placeholder) and propagate the change to the linked Zoho sales order/invoice (INSERTED)
 
 **Goal:** [Urgent work - to be planned]
 **Requirements**: TBD
@@ -319,11 +334,11 @@ Plans:
 
 - [ ] TBD (run /gsd-plan-phase 29.1 to break down)
 
-### Phase 26: Cloudflare Edge Protection ✅ COMPLETE (2026-06-06)
+### Phase 26: Cloudflare Edge Protection â COMPLETE (2026-06-06)
 
-**Outcome:** Cloudflare free tier is live in front of production (`steinsandvines.ca`) — proxied with SSL Full, Bot Fight Mode + a rate-limit rule active, email auth (SPF/DKIM/DMARC) hardened, staging kept grey-clouded. Executed live without a formal PLAN; see `26-SUMMARY.md` and `DNS-INVENTORY.md`. Follow-up (deferred): protect the Railway API via `api.steinsandvines.ca` if analytics show bots hitting it.
+**Outcome:** Cloudflare free tier is live in front of production (`steinsandvines.ca`) â proxied with SSL Full, Bot Fight Mode + a rate-limit rule active, email auth (SPF/DKIM/DMARC) hardened, staging kept grey-clouded. Executed live without a formal PLAN; see `26-SUMMARY.md` and `DNS-INVENTORY.md`. Follow-up (deferred): protect the Railway API via `api.steinsandvines.ca` if analytics show bots hitting it.
 
-**Goal:** Cloudflare's free tier sits in front of `steinsandvines.ca` (GitHub Pages) and the Railway middleware API, absorbing/filtering the increasing bot traffic — without breaking the existing GitHub Pages custom-domain setup, `enforce-cname.yml`, Helcim payments, or Cal.com/Zoho integrations.
+**Goal:** Cloudflare's free tier sits in front of `steinsandvines.ca` (GitHub Pages) and the Railway middleware API, absorbing/filtering the increasing bot traffic â without breaking the existing GitHub Pages custom-domain setup, `enforce-cname.yml`, Helcim payments, or Cal.com/Zoho integrations.
 
 **Motivation:** Increasing bot traffic hitting the site (and likely the middleware). Cloudflare free tier gives CDN caching, Bot Fight Mode, basic WAF, and rate limiting at no cost.
 
@@ -332,7 +347,7 @@ Plans:
 **Scope (to refine in discuss):**
 
   - DNS migration: move `steinsandvines.ca` nameservers to Cloudflare; recreate existing records (Pages A records, staging CNAME, Railway/api, MX/email, any TXT/verification)
-  - Proxy (orange-cloud) the apex + www through Cloudflare with SSL mode set correctly for GitHub Pages custom domains (Full, not Flexible — avoid redirect loops)
+  - Proxy (orange-cloud) the apex + www through Cloudflare with SSL mode set correctly for GitHub Pages custom domains (Full, not Flexible â avoid redirect loops)
   - Confirm GitHub Pages custom domain + `enforce-cname.yml` still function behind the proxy
   - Bot Fight Mode (or Super Bot Fight Mode if available on free), basic managed WAF, and a rate-limiting rule
   - Decide whether the Railway `api.` subdomain is proxied too, or stays direct (CORS/Referer guard interactions)
@@ -351,7 +366,7 @@ Plans:
 
 - [ ] TBD (run /gsd-discuss-phase 26, then /gsd-plan-phase 26 to break down)
 
-### Phase 30: Assessment quick wins — small high-impact fixes from PROJECT_ASSESSMENT.md
+### Phase 30: Assessment quick wins â small high-impact fixes from PROJECT_ASSESSMENT.md
 
 **Goal:** [To be planned]
 **Requirements**: TBD
