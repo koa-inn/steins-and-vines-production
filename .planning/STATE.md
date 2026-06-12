@@ -4,13 +4,13 @@ milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
 stopped_at: Phase 28 context gathered
-last_updated: "2026-06-11T23:42:38.098Z"
-last_activity: 2026-06-11 -- Phase 28 planning complete
+last_updated: "2026-06-12T00:49:27.687Z"
+last_activity: 2026-06-12
 progress:
   total_phases: 13
   completed_phases: 8
   total_plans: 23
-  completed_plans: 22
+  completed_plans: 23
   percent: 62
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-11)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 29.1 — batch customer reassignment change the customer tied to a ba
+**Current focus:** Phase 28 — zoho-customer-read-back-path
 
 ## Current Position
 
-Phase: 29.1
-Plan: Not started
+Phase: 28 (zoho-customer-read-back-path) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-06-11 -- Phase 28 planning complete
+Last activity: 2026-06-12
 
 Milestone v4.1 phase map:
 
@@ -52,6 +52,7 @@ Milestone v4.1 phase map:
 | Phase 25 P02 | 242s | 2 tasks | 2 files |
 | Phase 25 P03 | 20min | 2 tasks | 2 files |
 | Phase 25 P04 | 15min | 1 tasks | 5 files |
+| Phase 28-zoho-customer-read-back-path P01 | 161 | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-11T22:39:20.557Z
+Last session: 2026-06-12T00:49:27.681Z
 Stopped at: Phase 28 context gathered
-Resume file: .planning/phases/28-zoho-customer-read-back-path/28-CONTEXT.md
+Resume file: None

@@ -269,7 +269,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 28-01-PLAN.md — Middleware GET /api/batch/customer-by-number (invoice/SO → customer name/email/phone) + Jest tests (success, not-found, Zoho-error, partial, validation, auth) + lint clean
+- [x] 28-01-PLAN.md — Middleware GET /api/batch/customer-by-number (invoice/SO → customer name/email/phone) + Jest tests (success, not-found, Zoho-error, partial, validation, auth) + lint clean
 
 **Wave 2**
 
@@ -305,7 +305,7 @@ Plans:
 | 25. Cal.com Booking Migration | v4.0 | 4/4 | Complete   | 2026-06-04 |
 | 26. Cloudflare Edge Protection | v4.0 | live-exec | Complete | 2026-06-06 |
 | 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete    | 2026-06-11 |
-| 28. Zoho Customer Read-Back Path | v4.1 | 0/2 | Planned | - |
+| 28. Zoho Customer Read-Back Path | v4.1 | 1/2 | In Progress|  |
 | 29. Refresh-from-Zoho Admin UI | v4.1 | 0/0 | Not started | - |
 
 ### Phase 29.1: Batch customer reassignment — change the customer tied to a batch (e.g. WALK-IN placeholder) and propagate the change to the linked Zoho sales order/invoice (INSERTED)
