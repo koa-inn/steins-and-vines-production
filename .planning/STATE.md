@@ -4,14 +4,14 @@ milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
 stopped_at: Phase 29 Plan 03 complete — ZSYNC-01/02 verified on iPad Safari staging UAT; v4.1 prod deploy still held
-last_updated: "2026-06-12T20:29:04.561Z"
-last_activity: 2026-06-12 -- Phase 29 planning complete
+last_updated: "2026-06-12T21:13:32.415Z"
+last_activity: 2026-06-12 -- Phase 29 execution started
 progress:
-  total_phases: 13
+  total_phases: 14
   completed_phases: 9
   total_plans: 29
-  completed_plans: 27
-  percent: 69
+  completed_plans: 28
+  percent: 64
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-11)
 ## Current Position
 
 Phase: 29 (refresh-from-zoho-admin-ui) — EXECUTING
-Plan: 3 of 3 (Task 1 complete, Task 2 PAUSED — iPad UAT deferred, Task 3 pending)
-Status: Ready to execute
-Last activity: 2026-06-12 -- Phase 29 planning complete
+Plan: 1 of 6
+Status: Executing Phase 29
+Last activity: 2026-06-12 -- Phase 29 execution started
 
 Milestone v4.1 phase map:
 
@@ -85,6 +85,7 @@ Milestone v4.1 phase map:
 - Phase 30 added (2026-06-11): Assessment quick wins — ~20 small high-impact fixes from the June 2026 full project assessment (PROJECT_ASSESSMENT.md at repo root, gitignored).
 - Phase 29.1 inserted after Phase 29: Batch customer reassignment (WALK-IN → real customer) with Zoho invoice propagation; requested during phase 27 UAT (URGENT)
 - Phase 27.1 inserted after Phase 27: Pending batch deletion with confirmation (today: manual Google Sheet row deletion when a pending batch duplicates an existing batch); requested during phase 27 UAT (URGENT)
+- Phase 29.2 inserted after Phase 29: BrewPad pending batch activation — port admin Activate / Schedule & Activate to BrewPad; pending-aware status badge (URGENT)
 
 ### Deferred Items
 
