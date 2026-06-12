@@ -10,8 +10,8 @@
 
 ### Zoho Sync
 
-- [ ] **ZSYNC-01**: Staff can refresh a batch's customer info (name, email, contact) from its linked Zoho sales order/invoice via a button in the batch detail modal
-- [ ] **ZSYNC-02**: When a batch has no Zoho link (`zoho_so_number`), the refresh action is clearly unavailable rather than erroring
+- [x] **ZSYNC-01**: Staff can refresh a batch's customer info (name, email, contact) from its linked Zoho sales order/invoice via a button in the batch detail modal
+- [x] **ZSYNC-02**: When a batch has no Zoho link (`zoho_so_number`), the refresh action is clearly unavailable rather than erroring
 
 ## Future Requirements
 
@@ -33,8 +33,8 @@
 | BATCH-01 | Phase 27 | Complete |
 | BATCH-02 | Phase 27 | Complete |
 | BATCH-03 | Phase 27 | Complete |
-| ZSYNC-01 | Phase 29 | Pending |
-| ZSYNC-02 | Phase 29 | Pending |
+| ZSYNC-01 | Phase 29 | Complete |
+| ZSYNC-02 | Phase 29 | Complete |
 
 _Phase 28 (Zoho Customer Read-Back Path) is an infrastructure prerequisite for ZSYNC-01/ZSYNC-02; it closes no requirement on its own but is required before Phase 29 can be built._
 
