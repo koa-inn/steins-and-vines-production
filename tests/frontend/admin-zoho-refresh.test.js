@@ -323,3 +323,40 @@ describe('compareRefreshFields', function () {
     expect(admin.compareRefreshFields(fetched, batch)).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// buildRefreshUpdates — trim parity (WR-04)
+// ---------------------------------------------------------------------------
+describe('buildRefreshUpdates — trim parity', function () {
+  test('trims padded customer_name before writing', function () {
+    var result = admin.buildRefreshUpdates({ customer_name: '  Alice  ', customer_email: '', customer_phone: '' });
+    expect(result.customer_name).toBe('Alice');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isVersionConflict
+// ---------------------------------------------------------------------------
+describe('isVersionConflict', function () {
+
+  test('returns true for the Apps Script "modified" conflict message', function () {
+    expect(admin.isVersionConflict('Batch was modified by another user. Refresh and try again.')).toBe(true);
+  });
+
+  test('returns true for a "version" mismatch message', function () {
+    expect(admin.isVersionConflict('version mismatch')).toBe(true);
+  });
+
+  test('returns false for a generic failure message', function () {
+    expect(admin.isVersionConflict('Refresh failed — try again')).toBe(false);
+  });
+
+  test('returns false for null', function () {
+    expect(admin.isVersionConflict(null)).toBe(false);
+  });
+
+  test('returns false for empty string', function () {
+    expect(admin.isVersionConflict('')).toBe(false);
+  });
+
+});

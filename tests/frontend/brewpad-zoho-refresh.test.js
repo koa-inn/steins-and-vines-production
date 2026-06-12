@@ -248,3 +248,30 @@ describe('compareRefreshFields', function () {
   });
 
 });
+
+// ---------------------------------------------------------------------------
+// isVersionConflict
+// ---------------------------------------------------------------------------
+describe('isVersionConflict', function () {
+
+  it('returns true for the Apps Script "modified" conflict message', function () {
+    expect(bp.isVersionConflict('Batch was modified by another user. Refresh and try again.')).toBe(true);
+  });
+
+  it('returns true for a "version" mismatch message', function () {
+    expect(bp.isVersionConflict('version mismatch')).toBe(true);
+  });
+
+  it('returns false for a generic failure message', function () {
+    expect(bp.isVersionConflict('Refresh failed — try again')).toBe(false);
+  });
+
+  it('returns false for null', function () {
+    expect(bp.isVersionConflict(null)).toBe(false);
+  });
+
+  it('returns false for empty string', function () {
+    expect(bp.isVersionConflict('')).toBe(false);
+  });
+
+});

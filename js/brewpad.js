@@ -51,6 +51,16 @@ function isValidZohoNumber(num) {
   return /^(INV|SO)-\d+$/i.test(num);
 }
 
+// Returns true when an error message from adminApiPost indicates an
+// optimistic-lock version conflict.  The Apps Script message contains
+// 'modified' (e.g. 'Batch was modified by another user…'), NOT 'version'.
+// Matching both ensures forward-compatibility if the message ever changes.
+function isVersionConflict(msg) {
+  if (!msg) return false;
+  var lower = String(msg).toLowerCase();
+  return lower.indexOf('version') !== -1 || lower.indexOf('modified') !== -1;
+}
+
 // Split a full customer name into {customer_firstname, customer_lastname}.
 // Single-token names yield lastname=''. Used by the Zoho refresh handler to
 // keep firstname/lastname columns coherent with the refreshed customer_name.
@@ -2636,18 +2646,20 @@ function buildLifecycleTimeline(batch, soDate) {
                 b[k] = updates[k];
               }
 
-              // Patch DOM nodes in place
+              // Patch DOM nodes in place.
+              // textContent never interprets markup, so no escapeHTML needed here
+              // — escaping on textContent only double-encodes entities (WR-03).
               var nameNode = document.getElementById('bp-detail-customer');
               if (nameNode) {
-                nameNode.textContent = escapeHTML(getCustomerDisplayName(_currentBatchDetail || b) || '—');
+                nameNode.textContent = getCustomerDisplayName(_currentBatchDetail || b) || '—';
               }
               var emailNode = document.getElementById('bp-detail-email');
               if (emailNode) {
-                emailNode.textContent = escapeHTML((_currentBatchDetail || b).customer_email || '—');
+                emailNode.textContent = (_currentBatchDetail || b).customer_email || '—';
               }
               var phoneNode = document.getElementById('bp-detail-phone');
               if (phoneNode) {
-                phoneNode.textContent = escapeHTML((_currentBatchDetail || b).customer_phone || '—');
+                phoneNode.textContent = (_currentBatchDetail || b).customer_phone || '—';
               }
 
               // D-06: patch in-memory list caches
@@ -2683,7 +2695,7 @@ function buildLifecycleTimeline(batch, soDate) {
               zohoRefreshBtn.disabled = false;
               zohoRefreshBtn.textContent = 'Refresh from Zoho';
               var msg = err && err.message ? err.message : (err && err.error ? err.error : '');
-              if (msg && msg.toLowerCase().indexOf('version') !== -1) {
+              if (isVersionConflict(msg)) {
                 showToast('Batch was updated elsewhere — please reload', 'error');
               } else {
                 showToast('Refresh failed — try again', 'error');
@@ -2701,7 +2713,7 @@ function buildLifecycleTimeline(batch, soDate) {
               showToast('Zoho unreachable — try again later', 'error');
             } else {
               var msg = err && err.message ? err.message : '';
-              if (msg.toLowerCase().indexOf('version') !== -1) {
+              if (isVersionConflict(msg)) {
                 showToast('Batch was updated elsewhere — please reload', 'error');
               } else {
                 showToast('Refresh failed — try again', 'error');
@@ -5427,6 +5439,7 @@ if (typeof module !== 'undefined' && module.exports) {
     isValidZohoNumber: isValidZohoNumber,
     buildRefreshUpdates: buildRefreshUpdates,
     compareRefreshFields: compareRefreshFields,
-    splitCustomerName: splitCustomerName
+    splitCustomerName: splitCustomerName,
+    isVersionConflict: isVersionConflict
   };
 }

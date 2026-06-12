@@ -6141,7 +6141,7 @@
               msg = soNumber + ' no longer exists in Zoho';
             } else if (err && err.status === 502) {
               msg = 'Zoho unreachable — try again later';
-            } else if (err && err.message && err.message.toLowerCase().indexOf('version') !== -1) {
+            } else if (err && isVersionConflict(err.message)) {
               msg = 'Batch was updated elsewhere — please reload';
             } else {
               msg = 'Refresh failed — try again';
@@ -9590,6 +9590,20 @@
   }
 
   /**
+   * Returns true when an error message from adminApiPost indicates an
+   * optimistic-lock version conflict.  The Apps Script message contains
+   * 'modified' (e.g. 'Batch was modified by another user…'), NOT 'version'.
+   * Matching both ensures forward-compatibility if the message ever changes.
+   * @param {string} msg
+   * @returns {boolean}
+   */
+  function isVersionConflict(msg) {
+    if (!msg) return false;
+    var lower = String(msg).toLowerCase();
+    return lower.indexOf('version') !== -1 || lower.indexOf('modified') !== -1;
+  }
+
+  /**
    * Split a full customer name into {customer_firstname, customer_lastname}.
    * Single-token names yield lastname=''. Used by the Zoho refresh handler to
    * keep firstname/lastname columns coherent with the refreshed customer_name.
@@ -9619,7 +9633,7 @@
       var k = keys[i];
       var v = fetched[k];
       if (v !== null && v !== undefined && String(v).trim() !== '') {
-        updates[k] = v;
+        updates[k] = String(v).trim();
       }
     }
     return updates;
@@ -9659,7 +9673,8 @@
       isValidZohoNumber: isValidZohoNumber,
       buildRefreshUpdates: buildRefreshUpdates,
       compareRefreshFields: compareRefreshFields,
-      splitCustomerName: splitCustomerName
+      splitCustomerName: splitCustomerName,
+      isVersionConflict: isVersionConflict
     });
   }
 
