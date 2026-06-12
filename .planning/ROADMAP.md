@@ -292,8 +292,8 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 29-01-PLAN.md — BrewPad detail pane: Refresh-from-Zoho button, Email/Phone rows, refresh handler
-- [ ] 29-02-PLAN.md — Admin Batches modal: Zoho Ref row + Refresh button, Email/Phone rows, refresh handler
+- [x] 29-01-PLAN.md — BrewPad detail pane: Refresh-from-Zoho button, Email/Phone rows, refresh handler
+- [x] 29-02-PLAN.md — Admin Batches modal: Zoho Ref row + Refresh button, Email/Phone rows, refresh handler
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -321,7 +321,7 @@ Plans:
 | 26. Cloudflare Edge Protection | v4.0 | live-exec | Complete | 2026-06-06 |
 | 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete    | 2026-06-11 |
 | 28. Zoho Customer Read-Back Path | v4.1 | 2/2 | Complete    | 2026-06-12 |
-| 29. Refresh-from-Zoho Admin UI | v4.1 | 0/3 | Planned | - |
+| 29. Refresh-from-Zoho Admin UI | v4.1 | 2/3 | In Progress|  |
 
 ### Phase 29.1: Batch customer reassignment â change the customer tied to a batch (e.g. WALK-IN placeholder) and propagate the change to the linked Zoho sales order/invoice (INSERTED)
 
