@@ -2266,7 +2266,9 @@ function buildLifecycleTimeline(batch, soDate) {
     // Info grid
     html += '<div class="bp-detail-info">';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Product</span><span>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</span></div>';
-    html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Customer</span><span>' + escapeHTML(getCustomerDisplayName(b) || '\u2014') + '</span></div>';
+    html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Customer</span><span id="bp-detail-customer">' + escapeHTML(getCustomerDisplayName(b) || '\u2014') + '</span></div>';
+    html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Email</span><span id="bp-detail-email">' + escapeHTML(b.customer_email || '\u2014') + '</span></div>';
+    html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Phone</span><span id="bp-detail-phone">' + escapeHTML(b.customer_phone || '\u2014') + '</span></div>';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Start</span><span>' + fmtDate(b.start_date) + '</span></div>';
     if (b.zoho_so_number) {
       html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Zoho Ref</span><span>' + escapeHTML(b.zoho_so_number) + '<span class="bp-sync-indicator" id="bp-sync-indicator" style="display:none;"></span></span></div>';
@@ -2281,6 +2283,9 @@ function buildLifecycleTimeline(batch, soDate) {
       html += '<div class="bp-so-linked-display" id="bp-so-linked-display">';
       html += '<span class="bp-so-linked-text">' + escapeHTML(b.zoho_so_number) + '</span>';
       html += '<button type="button" class="bp-so-change-btn" id="bp-so-change-link">Change Linked Order</button>';
+      if (isValidZohoNumber(b.zoho_so_number)) {
+        html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-zoho-refresh-btn">Refresh from Zoho</button>';
+      }
       html += '</div>';
     } else {
       html += '<div id="bp-so-linked-display" style="display:none;"></div>';
@@ -2555,6 +2560,129 @@ function buildLifecycleTimeline(batch, soDate) {
         if (dismissLink) dismissLink.textContent = 'Keep current link';
         var searchInput = document.getElementById('bp-so-search-input');
         if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+      });
+    }
+
+    // Refresh-from-Zoho handler (ZSYNC-01, Phase 29)
+    var zohoRefreshBtn = document.getElementById('bp-zoho-refresh-btn');
+    if (zohoRefreshBtn) {
+      zohoRefreshBtn.addEventListener('click', function () {
+        var soNumber = _currentBatchDetail ? _currentBatchDetail.zoho_so_number : b.zoho_so_number;
+        var batchId = _currentBatchDetail ? _currentBatchDetail.batch_id : b.batch_id;
+
+        zohoRefreshBtn.disabled = true;
+        zohoRefreshBtn.textContent = 'Refreshing…';
+
+        fetch(mwUrl() + '/api/batch/customer-by-number?number=' + encodeURIComponent(soNumber), {
+          headers: { 'x-api-key': mwApiKey() }
+        })
+          .then(function (r) {
+            if (r.status === 404) return r.json().then(function (d) { throw { status: 404, error: d.error }; });
+            if (r.status === 502) return r.json().then(function (d) { throw { status: 502, error: d.error }; });
+            if (!r.ok) return r.json().then(function (d) { throw { status: r.status, error: d.error }; });
+            return r.json();
+          })
+          .then(function (data) {
+            var updates = buildRefreshUpdates(data);
+
+            // D-12: skip update_batch if nothing changed
+            if (compareRefreshFields(data, _currentBatchDetail || b)) {
+              showToast('Already up to date', 'success');
+              zohoRefreshBtn.disabled = false;
+              zohoRefreshBtn.textContent = 'Refresh from Zoho';
+              return;
+            }
+
+            var batchVersion = _currentBatchDetail ? _currentBatchDetail.last_updated : b.last_updated;
+
+            adminApiPost('update_batch', {
+              batch_id: batchId,
+              expectedVersion: batchVersion,
+              updates: updates
+            }).then(function (result) {
+              // Update version for subsequent saves in same session
+              if (result && result.newVersion) {
+                if (_currentBatchDetail) _currentBatchDetail.last_updated = result.newVersion;
+              }
+
+              // D-05: in-place patch of _currentBatchDetail and DOM
+              var keys = Object.keys(updates);
+              for (var ki = 0; ki < keys.length; ki++) {
+                var k = keys[ki];
+                if (_currentBatchDetail) _currentBatchDetail[k] = updates[k];
+                b[k] = updates[k];
+              }
+
+              // Patch DOM nodes in place
+              var nameNode = document.getElementById('bp-detail-customer');
+              if (nameNode) {
+                nameNode.textContent = escapeHTML(getCustomerDisplayName(_currentBatchDetail || b) || '—');
+              }
+              var emailNode = document.getElementById('bp-detail-email');
+              if (emailNode) {
+                emailNode.textContent = escapeHTML((_currentBatchDetail || b).customer_email || '—');
+              }
+              var phoneNode = document.getElementById('bp-detail-phone');
+              if (phoneNode) {
+                phoneNode.textContent = escapeHTML((_currentBatchDetail || b).customer_phone || '—');
+              }
+
+              // D-06: patch in-memory list caches
+              var patchLists = [_batchesData, _allBatchesData];
+              for (var li = 0; li < patchLists.length; li++) {
+                if (!patchLists[li]) continue;
+                for (var pi = 0; pi < patchLists[li].length; pi++) {
+                  if (String(patchLists[li][pi].batch_id) === String(batchId)) {
+                    for (var pk = 0; pk < keys.length; pk++) {
+                      patchLists[li][pi][keys[pk]] = updates[keys[pk]];
+                    }
+                    break;
+                  }
+                }
+              }
+
+              // Bust sessionStorage snapshot
+              try { sessionStorage.removeItem('sv-bp-batch-' + batchId); } catch (e) {}
+
+              // Toast per endpoint state (D-10/D-11)
+              var docStatus = data.document_status ? String(data.document_status).toLowerCase() : '';
+              if (docStatus === 'void' || docStatus === 'deleted') {
+                showToast('Updated — note: ' + escapeHTML(soNumber) + ' is ' + escapeHTML(docStatus) + ' in Zoho', 'warn');
+              } else if (data.contact_unavailable) {
+                showToast('Name updated — email/phone not available in Zoho for ' + escapeHTML(soNumber), 'success');
+              } else {
+                showToast('Customer info updated from ' + escapeHTML(soNumber), 'success');
+              }
+
+              zohoRefreshBtn.disabled = false;
+              zohoRefreshBtn.textContent = 'Refresh from Zoho';
+            }).catch(function (err) {
+              zohoRefreshBtn.disabled = false;
+              zohoRefreshBtn.textContent = 'Refresh from Zoho';
+              var msg = err && err.message ? err.message : (err && err.error ? err.error : '');
+              if (msg && msg.toLowerCase().indexOf('version') !== -1) {
+                showToast('Batch was updated elsewhere — please reload', 'error');
+              } else {
+                showToast('Refresh failed — try again', 'error');
+              }
+            });
+          })
+          .catch(function (err) {
+            zohoRefreshBtn.disabled = false;
+            zohoRefreshBtn.textContent = 'Refresh from Zoho';
+            if (err && err.status === 404) {
+              showToast(escapeHTML(soNumber) + ' no longer exists in Zoho', 'error');
+            } else if (err && err.status === 502) {
+              showToast('Zoho unreachable — try again later', 'error');
+            } else {
+              var msg = err && err.message ? err.message : '';
+              if (msg.toLowerCase().indexOf('version') !== -1) {
+                showToast('Batch was updated elsewhere — please reload', 'error');
+              } else {
+                showToast('Refresh failed — try again', 'error');
+              }
+            }
+          });
       });
     }
 
