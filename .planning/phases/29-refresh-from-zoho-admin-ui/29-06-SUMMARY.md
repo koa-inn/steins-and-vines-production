@@ -53,16 +53,16 @@ completed: 2026-06-12
 
 **Full commit gate passed: 508 frontend + 598 middleware tests green, ESLint 0 errors, admin.min.js rebuilt with all CR-01/CR-02/WR-01/WR-03/WR-04 gap fixes confirmed via grep**
 
-## Status: PARTIAL — Awaiting Checkpoint Approval
+## Status: COMPLETE — Checkpoint Approved
 
-Task 1 is complete and committed. Task 2 is a `checkpoint:human-verify` gate requiring human approval before staging push. This SUMMARY documents Task 1 results; the final SUMMARY will be written after the checkpoint is resolved.
+Task 1 completed and committed. Task 2 (checkpoint:human-verify) resolved 2026-06-12: orchestrator pushed `main` to the staging remote (`d424ff8..74e2e92`), human verified on staging iPad Safari (lowercase-ref refresh succeeds, customer name visibly updates, no console errors) and approved.
 
 ## Performance
 
 - **Duration:** ~8 min (Task 1 only)
 - **Started:** 2026-06-12T21:50:00Z
 - **Completed (Task 1):** 2026-06-12T21:58:00Z
-- **Tasks:** 1/2 (Task 2 = checkpoint)
+- **Tasks:** 2/2 (Task 2 checkpoint approved 2026-06-12)
 - **Files modified:** 21
 
 ## Accomplishments
@@ -103,9 +103,9 @@ None — no new network endpoints, auth paths, or schema changes introduced by t
 
 ## Next Phase Readiness
 
-All Phase 29 gap fixes (CR-01, CR-02, WR-01, WR-03, WR-04) are committed and the full gate is green. The fixes are present in the minified bundles that staging/production clients actually execute. Awaiting human approval (Task 2 checkpoint) to push to staging.
+All Phase 29 gap fixes (CR-01, CR-02, WR-01, WR-03, WR-04) are committed, the full gate is green, and the fixes shipped to staging (push d424ff8..74e2e92).
 
-**Checkpoint pending:** After human approves on staging (iPad Safari spot-check confirming lowercase-ref refresh and name visibility), the orchestrator will push to `origin main`.
+**Checkpoint resolved:** Human verified on staging iPad Safari — lowercase-ref refresh succeeds (CR-01), customer name visibly updates after refresh (CR-02), no console errors. Approved 2026-06-12.
 
 ---
 
@@ -121,5 +121,5 @@ All Phase 29 gap fixes (CR-01, CR-02, WR-01, WR-03, WR-04) are committed and the
 
 ---
 *Phase: 29-refresh-from-zoho-admin-ui*
-*Plan 06 — partial (checkpoint pending)*
+*Plan 06 — complete (checkpoint approved, pushed to staging)*
 *Task 1 completed: 2026-06-12*
