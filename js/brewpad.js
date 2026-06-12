@@ -38,6 +38,50 @@ function getCustomerDisplayName(b) {
   return b.customer_name || '';
 }
 
+// --- Zoho refresh helpers (ZSYNC-01/02, Phase 29) ---
+
+// Gate for Refresh-from-Zoho button: returns true only when num matches the
+// exact shape the endpoint validates (/api/batch/customer-by-number).
+// Case-insensitive per D-08; a 400 invalid_number response can never fire from the UI.
+function isValidZohoNumber(num) {
+  if (typeof num !== 'string' || !num) return false;
+  return /^(INV|SO)-\d+$/i.test(num);
+}
+
+// Build the update_batch payload from fetched Zoho data (D-13 / Phase 28 D-02).
+// Includes ONLY keys whose trimmed fetched value is a non-empty string.
+// Never emits '', null, or undefined — preserves existing batch data for blank Zoho values.
+function buildRefreshUpdates(fetched) {
+  var result = {};
+  var keys = ['customer_name', 'customer_email', 'customer_phone'];
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var raw = fetched[k];
+    if (typeof raw === 'string' && raw.trim() !== '') {
+      result[k] = raw.trim();
+    }
+  }
+  return result;
+}
+
+// No-change comparison (D-12): returns true when every key present in
+// buildRefreshUpdates(fetched) already equals the batch's current value
+// (trimmed, case-insensitive). If buildRefreshUpdates returns {} (nothing to
+// apply) this is also treated as "no change" — return true so the caller
+// skips the update_batch call entirely.
+function compareRefreshFields(fetched, batch) {
+  var updates = buildRefreshUpdates(fetched);
+  var keys = Object.keys(updates);
+  if (keys.length === 0) return true; // nothing to apply = no change
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var fetchedVal = String(updates[k] || '').trim().toLowerCase();
+    var batchVal = String(batch[k] || '').trim().toLowerCase();
+    if (fetchedVal !== batchVal) return false;
+  }
+  return true;
+}
+
 function filterBatchesByStatus(batches, filter) {
   if (!filter || filter === 'all') return batches.slice();
   if (filter === 'active') {
@@ -5226,6 +5270,9 @@ if (typeof module !== 'undefined' && module.exports) {
     isSessionStale: isSessionStale,
     isSessionExpired: isSessionExpired,
     shouldShowKioskBadge: shouldShowKioskBadge,
-    buildLifecycleTimeline: buildLifecycleTimeline
+    buildLifecycleTimeline: buildLifecycleTimeline,
+    isValidZohoNumber: isValidZohoNumber,
+    buildRefreshUpdates: buildRefreshUpdates,
+    compareRefreshFields: compareRefreshFields
   };
 }
