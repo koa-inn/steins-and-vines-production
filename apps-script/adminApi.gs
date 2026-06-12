@@ -2161,7 +2161,8 @@ function updateBatch(payload, userEmail) {
     'customer_firstname', 'customer_lastname',
     'fermentation_started_at', 'completed_at',
     'recipe_id',   // Phase 16: recipe_id safe through sanitizeInput
-    'start_date'   // Phase 27: guided activation sets start_date before schedule generation
+    'start_date',  // Phase 27: guided activation sets start_date before schedule generation
+    'customer_email', 'customer_phone'  // Phase 28: refresh-from-Zoho write-back (D-09)
   ];
   allowedFields.forEach(function (field) {
     if (updates[field] !== undefined) {
