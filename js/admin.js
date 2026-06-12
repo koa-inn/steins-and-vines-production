@@ -6083,6 +6083,15 @@
             }
 
             var updates = buildRefreshUpdates(data);
+
+            // CR-02: derive firstname/lastname from refreshed name so
+            // getCustomerDisplayName shows the new name for all batches.
+            if (updates.customer_name) {
+              var nameParts = splitCustomerName(updates.customer_name);
+              updates.customer_firstname = nameParts.customer_firstname;
+              updates.customer_lastname = nameParts.customer_lastname;
+            }
+
             return adminApiPost('update_batch', {
               batch_id: batchId,
               expectedVersion: batchVersion,
@@ -6094,6 +6103,8 @@
               if (updates.customer_name) b.customer_name = updates.customer_name;
               if (updates.customer_email) b.customer_email = updates.customer_email;
               if (updates.customer_phone) b.customer_phone = updates.customer_phone;
+              if (updates.customer_firstname !== undefined) b.customer_firstname = updates.customer_firstname;
+              if (updates.customer_lastname !== undefined) b.customer_lastname = updates.customer_lastname;
 
               var customerNode = document.getElementById('batch-detail-customer');
               if (customerNode) customerNode.textContent = getCustomerDisplayName(b) || '—';
@@ -6130,7 +6141,7 @@
               msg = soNumber + ' no longer exists in Zoho';
             } else if (err && err.status === 502) {
               msg = 'Zoho unreachable — try again later';
-            } else if (err && err.message && err.message.toLowerCase().indexOf('version') !== -1) {
+            } else if (err && isVersionConflict(err.message)) {
               msg = 'Batch was updated elsewhere — please reload';
             } else {
               msg = 'Refresh failed — try again';
@@ -9579,6 +9590,35 @@
   }
 
   /**
+   * Returns true when an error message from adminApiPost indicates an
+   * optimistic-lock version conflict.  The Apps Script message contains
+   * 'modified' (e.g. 'Batch was modified by another user…'), NOT 'version'.
+   * Matching both ensures forward-compatibility if the message ever changes.
+   * @param {string} msg
+   * @returns {boolean}
+   */
+  function isVersionConflict(msg) {
+    if (!msg) return false;
+    var lower = String(msg).toLowerCase();
+    return lower.indexOf('version') !== -1 || lower.indexOf('modified') !== -1;
+  }
+
+  /**
+   * Split a full customer name into {customer_firstname, customer_lastname}.
+   * Single-token names yield lastname=''. Used by the Zoho refresh handler to
+   * keep firstname/lastname columns coherent with the refreshed customer_name.
+   * @param {string} fullName
+   * @returns {{customer_firstname: string, customer_lastname: string}}
+   */
+  function splitCustomerName(fullName) {
+    var trimmed = String(fullName || '').trim();
+    var parts = trimmed.split(/\s+/);
+    var first = parts.shift() || '';
+    var last = parts.join(' ');
+    return { customer_firstname: first, customer_lastname: last };
+  }
+
+  /**
    * Builds the updates object for adminApiPost('update_batch') from a Phase 28 API
    * response.  Only includes customer_name / customer_email / customer_phone whose
    * trimmed value is non-empty — blank / null / undefined values are omitted so they
@@ -9593,7 +9633,7 @@
       var k = keys[i];
       var v = fetched[k];
       if (v !== null && v !== undefined && String(v).trim() !== '') {
-        updates[k] = v;
+        updates[k] = String(v).trim();
       }
     }
     return updates;
@@ -9632,7 +9672,9 @@
       autoMatchIngredients: autoMatchIngredients,
       isValidZohoNumber: isValidZohoNumber,
       buildRefreshUpdates: buildRefreshUpdates,
-      compareRefreshFields: compareRefreshFields
+      compareRefreshFields: compareRefreshFields,
+      splitCustomerName: splitCustomerName,
+      isVersionConflict: isVersionConflict
     });
   }
 

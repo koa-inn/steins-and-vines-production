@@ -159,6 +159,37 @@ describe('isValidZohoNumber', function () {
 });
 
 // ---------------------------------------------------------------------------
+// splitCustomerName
+// ---------------------------------------------------------------------------
+describe('splitCustomerName', function () {
+
+  test('splits "Jane Smith" into first="Jane", last="Smith"', function () {
+    var result = admin.splitCustomerName('Jane Smith');
+    expect(result.customer_firstname).toBe('Jane');
+    expect(result.customer_lastname).toBe('Smith');
+  });
+
+  test('splits single-token "Cher" into first="Cher", last=""', function () {
+    var result = admin.splitCustomerName('Cher');
+    expect(result.customer_firstname).toBe('Cher');
+    expect(result.customer_lastname).toBe('');
+  });
+
+  test('handles extra whitespace: "  Mary  Jane  Watson " => first="Mary", last="Jane Watson"', function () {
+    var result = admin.splitCustomerName('  Mary  Jane  Watson ');
+    expect(result.customer_firstname).toBe('Mary');
+    expect(result.customer_lastname).toBe('Jane Watson');
+  });
+
+  test('handles empty string => first="", last=""', function () {
+    var result = admin.splitCustomerName('');
+    expect(result.customer_firstname).toBe('');
+    expect(result.customer_lastname).toBe('');
+  });
+
+});
+
+// ---------------------------------------------------------------------------
 // buildRefreshUpdates
 // ---------------------------------------------------------------------------
 describe('buildRefreshUpdates', function () {
@@ -291,4 +322,41 @@ describe('compareRefreshFields', function () {
     var batch = { customer_name: 'Alice', customer_email: '', customer_phone: '604-555-1234' };
     expect(admin.compareRefreshFields(fetched, batch)).toBe(false);
   });
+});
+
+// ---------------------------------------------------------------------------
+// buildRefreshUpdates — trim parity (WR-04)
+// ---------------------------------------------------------------------------
+describe('buildRefreshUpdates — trim parity', function () {
+  test('trims padded customer_name before writing', function () {
+    var result = admin.buildRefreshUpdates({ customer_name: '  Alice  ', customer_email: '', customer_phone: '' });
+    expect(result.customer_name).toBe('Alice');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isVersionConflict
+// ---------------------------------------------------------------------------
+describe('isVersionConflict', function () {
+
+  test('returns true for the Apps Script "modified" conflict message', function () {
+    expect(admin.isVersionConflict('Batch was modified by another user. Refresh and try again.')).toBe(true);
+  });
+
+  test('returns true for a "version" mismatch message', function () {
+    expect(admin.isVersionConflict('version mismatch')).toBe(true);
+  });
+
+  test('returns false for a generic failure message', function () {
+    expect(admin.isVersionConflict('Refresh failed — try again')).toBe(false);
+  });
+
+  test('returns false for null', function () {
+    expect(admin.isVersionConflict(null)).toBe(false);
+  });
+
+  test('returns false for empty string', function () {
+    expect(admin.isVersionConflict('')).toBe(false);
+  });
+
 });

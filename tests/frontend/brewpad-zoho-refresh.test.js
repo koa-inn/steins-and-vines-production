@@ -95,6 +95,37 @@ describe('isValidZohoNumber', function () {
 });
 
 // ---------------------------------------------------------------------------
+// splitCustomerName
+// ---------------------------------------------------------------------------
+describe('splitCustomerName', function () {
+
+  it('splits "Jane Smith" into first="Jane", last="Smith"', function () {
+    var result = bp.splitCustomerName('Jane Smith');
+    expect(result.customer_firstname).toBe('Jane');
+    expect(result.customer_lastname).toBe('Smith');
+  });
+
+  it('splits single-token "Cher" into first="Cher", last=""', function () {
+    var result = bp.splitCustomerName('Cher');
+    expect(result.customer_firstname).toBe('Cher');
+    expect(result.customer_lastname).toBe('');
+  });
+
+  it('handles extra whitespace: "  Mary  Jane  Watson " => first="Mary", last="Jane Watson"', function () {
+    var result = bp.splitCustomerName('  Mary  Jane  Watson ');
+    expect(result.customer_firstname).toBe('Mary');
+    expect(result.customer_lastname).toBe('Jane Watson');
+  });
+
+  it('handles empty string => first="", last=""', function () {
+    var result = bp.splitCustomerName('');
+    expect(result.customer_firstname).toBe('');
+    expect(result.customer_lastname).toBe('');
+  });
+
+});
+
+// ---------------------------------------------------------------------------
 // buildRefreshUpdates
 // ---------------------------------------------------------------------------
 describe('buildRefreshUpdates', function () {
@@ -214,6 +245,33 @@ describe('compareRefreshFields', function () {
     var fetched = { customer_name: 'Alice', customer_email: 'alice@example.com', customer_phone: '604-555-1234' };
     var batch = { customer_name: 'Alice', customer_email: 'alice@example.com', customer_phone: '' };
     expect(bp.compareRefreshFields(fetched, batch)).toBe(false);
+  });
+
+});
+
+// ---------------------------------------------------------------------------
+// isVersionConflict
+// ---------------------------------------------------------------------------
+describe('isVersionConflict', function () {
+
+  it('returns true for the Apps Script "modified" conflict message', function () {
+    expect(bp.isVersionConflict('Batch was modified by another user. Refresh and try again.')).toBe(true);
+  });
+
+  it('returns true for a "version" mismatch message', function () {
+    expect(bp.isVersionConflict('version mismatch')).toBe(true);
+  });
+
+  it('returns false for a generic failure message', function () {
+    expect(bp.isVersionConflict('Refresh failed — try again')).toBe(false);
+  });
+
+  it('returns false for null', function () {
+    expect(bp.isVersionConflict(null)).toBe(false);
+  });
+
+  it('returns false for empty string', function () {
+    expect(bp.isVersionConflict('')).toBe(false);
   });
 
 });
