@@ -82,6 +82,16 @@ describe('isValidZohoNumber', function () {
     expect(bp.isValidZohoNumber('INV-123abc')).toBe(false);
   });
 
+  // CR-01 contract: middleware normalizes to uppercase (plan 29-04 Task 1),
+  // so the case-insensitive frontend gate and middleware now accept the same refs.
+  it('returns true for inv-000123 — matches normalized middleware contract (CR-01)', function () {
+    expect(bp.isValidZohoNumber('inv-000123')).toBe(true);
+  });
+
+  it('returns true for so-42 — matches normalized middleware contract (CR-01)', function () {
+    expect(bp.isValidZohoNumber('so-42')).toBe(true);
+  });
+
 });
 
 // ---------------------------------------------------------------------------

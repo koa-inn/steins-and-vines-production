@@ -6069,6 +6069,7 @@
           .then(function (r) {
             if (r.status === 404) return r.json().then(function (d) { throw { status: 404, error: d.error }; });
             if (r.status === 502) return r.json().then(function (d) { throw { status: 502, error: d.error }; });
+            if (r.status === 400) return r.json().then(function (d) { throw { status: 400, error: d.error }; });
             if (!r.ok) return r.json().then(function (d) { throw { status: r.status, error: d.error || 'Unknown error' }; });
             return r.json();
           })
@@ -6123,7 +6124,9 @@
             zohoRefreshBtn.disabled = false;
             zohoRefreshBtn.textContent = 'Refresh from Zoho';
             var msg;
-            if (err && err.status === 404) {
+            if (err && err.status === 400) {
+              msg = 'This Zoho reference is not a valid INV/SO number';
+            } else if (err && err.status === 404) {
               msg = soNumber + ' no longer exists in Zoho';
             } else if (err && err.status === 502) {
               msg = 'Zoho unreachable — try again later';
@@ -9562,10 +9565,13 @@
   // ===== ZOHO REFRESH PURE HELPERS (Phase 29) =====
 
   /**
-   * Returns true when num matches the format the /api/batch/customer-by-number endpoint
-   * accepts — /^(INV|SO)-\d+$/i.  Any other value (including empty, null, "Not linked",
-   * bare numbers) returns false so the Refresh button is never rendered for invalid refs.
-   * D-08: gate on format, not just presence.
+   * Returns true when num matches the case-insensitive format /^(INV|SO)-\d+$/i.
+   * Any other value (including empty, null, "Not linked", bare numbers) returns false
+   * so the Refresh button is never rendered for invalid refs. D-08: gate on format,
+   * not just presence.
+   * CR-01 (plan 29-04): the middleware normalizes to uppercase before its regex check,
+   * so this gate and the middleware now accept the same set of refs — a coherent single
+   * contract. The fetch handler also defends against a 400 invalid_number for robustness.
    */
   function isValidZohoNumber(num) {
     if (num === null || num === undefined) return false;
