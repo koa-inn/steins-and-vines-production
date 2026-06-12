@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
-status: executing
-stopped_at: Phase 29 Plan 03 Task 1 complete — awaiting iPad Safari human-verify checkpoint
-last_updated: "2026-06-12T15:00:00Z"
-last_activity: 2026-06-12 -- Phase 29 Plan 03 Task 1 complete: build artifacts rebuilt, full gate green, pushed to staging (ca51b11)
+status: verifying
+stopped_at: Phase 29 Plan 03 complete — ZSYNC-01/02 verified on iPad Safari staging UAT; v4.1 prod deploy still held
+last_updated: "2026-06-12T19:53:05.179Z"
+last_activity: 2026-06-12
 progress:
   total_phases: 13
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 26
-  completed_plans: 24
-  percent: 69
+  completed_plans: 27
+  percent: 77
 ---
 
 # Project State
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-11)
 
 Phase: 29 (refresh-from-zoho-admin-ui) — EXECUTING
 Plan: 3 of 3 (Task 1 complete, Task 2 PAUSED — iPad UAT deferred, Task 3 pending)
-Status: Executing Phase 29
-Last activity: 2026-06-12 -- Phase 29 paused at 29-03 human-verify checkpoint (iPad UAT deferred; see phases/29-refresh-from-zoho-admin-ui/.continue-here.md)
+Status: Phase complete — ready for verification
+Last activity: 2026-06-12
 
 Milestone v4.1 phase map:
 
@@ -53,6 +53,7 @@ Milestone v4.1 phase map:
 | Phase 25 P03 | 20min | 2 tasks | 2 files |
 | Phase 25 P04 | 15min | 1 tasks | 5 files |
 | Phase 28-zoho-customer-read-back-path P01 | 161 | 3 tasks | 2 files |
+| Phase 29-refresh-from-zoho-admin-ui P03 | 60 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,7 @@ Milestone v4.1 phase map:
 - [Phase ?]: Dual-path /webhooks/calcom registration covers server.js:239 key-guard exemption without modifying server.js
 - [Phase ?]: BOOKING_CANCELLED date derived from payload.startTime -> payload.booking.start -> payload.start; unparseable = safe no-op
 - [Phase ?]: Zoho Bookings code removed; CALCOM_EVENT_TYPE_FERMENT_KIT + BOTTLING confirmed env names; offline fallback preserved
+- [Phase ?]: [Phase 29-03]: Railway-only CLI deploy pattern for live middleware — ships endpoint to Railway without touching production git repo or breaking v4.1 batch hold
 
 ### Roadmap Evolution
 
@@ -117,6 +119,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-12T15:00:00Z
-Stopped at: Phase 29 Plan 03 Task 2 checkpoint:human-verify (iPad Safari UAT)
-Resume file: .planning/phases/29-refresh-from-zoho-admin-ui/29-03-PLAN.md (Task 3)
+Last session: 2026-06-12T19:53:05.173Z
+Stopped at: Phase 29 Plan 03 complete — ZSYNC-01/02 verified on iPad Safari staging UAT; v4.1 prod deploy still held
+Resume file: None
