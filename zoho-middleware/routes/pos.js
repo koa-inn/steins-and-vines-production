@@ -1373,7 +1373,10 @@ router.get('/api/batch/customer-by-number', function (req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  var number = (req.query.number || '').trim();
+  // CR-01 (plan 29-04): normalize to uppercase so the case-sensitive regexes accept
+  // lowercase refs (inv-000123 / so-42) — aligns with the frontend's case-insensitive
+  // /^(INV|SO)-\d+$/i gate and the downstream case-insensitive exact-match at line 1409.
+  var number = (req.query.number || '').trim().toUpperCase();
 
   // D-16: validate prefix before any Zoho call
   var isInvoice = /^INV-\d+$/.test(number);

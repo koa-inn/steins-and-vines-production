@@ -136,6 +136,57 @@ describe('GET /api/batch/customer-by-number', function () {
     expect(zohoApi.zohoGet).not.toHaveBeenCalled();
   });
 
+  // ── case-normalization (CR-01 / plan 29-04) ─────────────────────────────
+  // Contract: middleware normalizes to uppercase before regex check, so lowercase
+  // refs (inv-000123, so-42) pass validation and reach the Zoho lookup path.
+  test('lowercase inv-000123 does NOT return 400 invalid_number (proceeds to Zoho lookup)', function () {
+    zohoApi.zohoGet.mockResolvedValueOnce({
+      invoices: [{
+        invoice_id: 'INV-ID-LC',
+        invoice_number: 'INV-000123',
+        customer_id: 'CUST-LC',
+        customer_name: 'Lowercase Test',
+        status: 'sent'
+      }]
+    }).mockResolvedValueOnce({ contact: {
+      email: 'lower@example.com',
+      contact_persons: []
+    } });
+    var req = makeReq(null, { number: 'inv-000123' }, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    customerByNumberHandler(req, res);
+    return flushPromises().then(function () {
+      // Must NOT be a 400 invalid_number
+      expect(res._json && res._json.error).not.toBe('invalid_number');
+      // Should have reached Zoho (200 with customer data)
+      expect(zohoApi.zohoGet).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  test('lowercase so-42 does NOT return 400 invalid_number (proceeds to Zoho lookup)', function () {
+    zohoApi.zohoGet.mockResolvedValueOnce({
+      salesorders: [{
+        salesorder_id: 'SO-ID-LC',
+        salesorder_number: 'SO-42',
+        customer_id: 'CUST-SO-LC',
+        customer_name: 'Lowercase SO Test',
+        status: 'open'
+      }]
+    }).mockResolvedValueOnce({ contact: {
+      email: 'lower-so@example.com',
+      contact_persons: []
+    } });
+    var req = makeReq(null, { number: 'so-42' }, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    customerByNumberHandler(req, res);
+    return flushPromises().then(function () {
+      // Must NOT be a 400 invalid_number
+      expect(res._json && res._json.error).not.toBe('invalid_number');
+      // Should have reached Zoho
+      expect(zohoApi.zohoGet).toHaveBeenCalledTimes(2);
+    });
+  });
+
   // ── 400-invalid-number ──────────────────────────────────────────────────
   test('400 when number param is missing', function () {
     var req = makeReq(null, {}, { 'x-api-key': 'test-api-key' });
