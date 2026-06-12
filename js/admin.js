@@ -5869,7 +5869,14 @@
     // Info grid
     html += '<div class="batch-detail-grid">';
     html += '<div class="batch-detail-col"><strong>Product:</strong> ' + escapeHTML(b.product_name || b.product_sku) + '</div>';
-    html += '<div class="batch-detail-col"><strong>Customer:</strong> ' + escapeHTML(getCustomerDisplayName(b) || '—') + '</div>';
+    html += '<div class="batch-detail-col"><strong>Customer:</strong> <span id="batch-detail-customer">' + escapeHTML(getCustomerDisplayName(b) || '—') + '</span></div>';
+    html += '<div class="batch-detail-col"><strong>Email:</strong> <span id="batch-detail-email">' + escapeHTML(b.customer_email || '—') + '</span></div>';
+    html += '<div class="batch-detail-col"><strong>Phone:</strong> <span id="batch-detail-phone">' + escapeHTML(b.customer_phone || '—') + '</span></div>';
+    if (isValidZohoNumber(b.zoho_so_number)) {
+      html += '<div class="batch-detail-col"><strong>Zoho Ref:</strong> <span id="batch-detail-zoho-ref">' + escapeHTML(b.zoho_so_number) + '</span> <button type="button" class="btn-secondary admin-btn-sm" id="batch-zoho-refresh-btn">Refresh from Zoho</button></div>';
+    } else {
+      html += '<div class="batch-detail-col"><strong>Zoho Ref:</strong> Not linked</div>';
+    }
     html += '<div class="batch-detail-col"><strong>Start Date:</strong> ' + (b.start_date ? String(b.start_date).substring(0, 10) : '—') + '</div>';
     html += '<div class="batch-detail-col"><strong>Shelf:</strong> ' + escapeHTML(b.shelf_id || '—') + ' &nbsp;<strong>Bin:</strong> ' + escapeHTML(b.bin_id || '—') + ' &nbsp;<strong>Vessel:</strong> ' + escapeHTML(b.vessel_id || '—') + '</div>';
     html += '</div>';
@@ -6046,6 +6053,89 @@
         showToast('Notes saved', 'success');
       }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
     });
+
+    // Refresh from Zoho handler (D-04, D-05, D-06, D-09..D-13)
+    var zohoRefreshBtn = document.getElementById('batch-zoho-refresh-btn');
+    if (zohoRefreshBtn) {
+      zohoRefreshBtn.addEventListener('click', function () {
+        var soNumber = b.zoho_so_number;
+        zohoRefreshBtn.disabled = true;
+        zohoRefreshBtn.textContent = 'Refreshing…';
+
+        var mwUrl = getMwUrl();
+        fetch(mwUrl + '/api/batch/customer-by-number?number=' + encodeURIComponent(soNumber), {
+          headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+        })
+          .then(function (r) {
+            if (r.status === 404) return r.json().then(function (d) { throw { status: 404, error: d.error }; });
+            if (r.status === 502) return r.json().then(function (d) { throw { status: 502, error: d.error }; });
+            if (!r.ok) return r.json().then(function (d) { throw { status: r.status, error: d.error || 'Unknown error' }; });
+            return r.json();
+          })
+          .then(function (data) {
+            // D-12: no-change short-circuit
+            if (compareRefreshFields(data, b)) {
+              showToast('Already up to date', 'success');
+              zohoRefreshBtn.disabled = false;
+              zohoRefreshBtn.textContent = 'Refresh from Zoho';
+              return;
+            }
+
+            var updates = buildRefreshUpdates(data);
+            return adminApiPost('update_batch', {
+              batch_id: batchId,
+              expectedVersion: batchVersion,
+              updates: updates
+            }).then(function (result) {
+              if (result && result.newVersion) batchVersion = result.newVersion;
+
+              // D-05: patch in-memory batch object and DOM nodes
+              if (updates.customer_name) b.customer_name = updates.customer_name;
+              if (updates.customer_email) b.customer_email = updates.customer_email;
+              if (updates.customer_phone) b.customer_phone = updates.customer_phone;
+
+              var customerNode = document.getElementById('batch-detail-customer');
+              if (customerNode) customerNode.textContent = getCustomerDisplayName(b) || '—';
+
+              var emailNode = document.getElementById('batch-detail-email');
+              if (emailNode) emailNode.textContent = b.customer_email || '—';
+
+              var phoneNode = document.getElementById('batch-detail-phone');
+              if (phoneNode) phoneNode.textContent = b.customer_phone || '—';
+
+              // D-06: refresh admin batch list cache
+              loadBatchesData();
+
+              // D-10/D-11: result toast (showToast uses textContent — no HTML escaping needed)
+              if (data.document_status === 'void' || data.document_status === 'deleted') {
+                showToast('Updated — note: ' + soNumber + ' is ' + data.document_status + ' in Zoho', 'warning');
+              } else if (data.contact_unavailable) {
+                showToast('Customer name updated from ' + soNumber + ' — email/phone unavailable in Zoho', 'success');
+              } else {
+                showToast('Customer info updated from ' + soNumber, 'success');
+              }
+
+              zohoRefreshBtn.disabled = false;
+              zohoRefreshBtn.textContent = 'Refresh from Zoho';
+            });
+          })
+          .catch(function (err) {
+            zohoRefreshBtn.disabled = false;
+            zohoRefreshBtn.textContent = 'Refresh from Zoho';
+            var msg;
+            if (err && err.status === 404) {
+              msg = soNumber + ' no longer exists in Zoho';
+            } else if (err && err.status === 502) {
+              msg = 'Zoho unreachable — try again later';
+            } else if (err && err.message && err.message.toLowerCase().indexOf('version') !== -1) {
+              msg = 'Batch was updated elsewhere — please reload';
+            } else {
+              msg = 'Refresh failed — try again';
+            }
+            showToast(msg, 'error');
+          });
+      });
+    }
 
     // Status change
     var statusSelect = document.getElementById('batch-status-change');
@@ -9469,6 +9559,63 @@
     showToast('Recipe imported from BeerXML. Set a price and activate when ready.', 'success');
   }
 
+  // ===== ZOHO REFRESH PURE HELPERS (Phase 29) =====
+
+  /**
+   * Returns true when num matches the format the /api/batch/customer-by-number endpoint
+   * accepts — /^(INV|SO)-\d+$/i.  Any other value (including empty, null, "Not linked",
+   * bare numbers) returns false so the Refresh button is never rendered for invalid refs.
+   * D-08: gate on format, not just presence.
+   */
+  function isValidZohoNumber(num) {
+    if (num === null || num === undefined) return false;
+    return /^(INV|SO)-\d+$/i.test(String(num));
+  }
+
+  /**
+   * Builds the updates object for adminApiPost('update_batch') from a Phase 28 API
+   * response.  Only includes customer_name / customer_email / customer_phone whose
+   * trimmed value is non-empty — blank / null / undefined values are omitted so they
+   * never overwrite existing batch data (D-13 / Phase 28 D-02).
+   * @param {object} fetched  API response: {customer_name, customer_email, customer_phone, …}
+   * @returns {object}        Subset with non-empty fields only.
+   */
+  function buildRefreshUpdates(fetched) {
+    var keys = ['customer_name', 'customer_email', 'customer_phone'];
+    var updates = {};
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      var v = fetched[k];
+      if (v !== null && v !== undefined && String(v).trim() !== '') {
+        updates[k] = v;
+      }
+    }
+    return updates;
+  }
+
+  /**
+   * Returns true (meaning "no change needed") when every non-empty field returned by
+   * buildRefreshUpdates(fetched) already equals the batch object's same-key value
+   * (trim + case-insensitive comparison), or when buildRefreshUpdates(fetched) is empty.
+   * Returns false when any field differs, meaning update_batch should be called.
+   * D-12: short-circuit to skip unnecessary write-back calls.
+   * @param {object} fetched  Phase 28 API response
+   * @param {object} batch    Current batch object from admin detail modal
+   * @returns {boolean}       true = already up to date; false = refresh needed
+   */
+  function compareRefreshFields(fetched, batch) {
+    var updates = buildRefreshUpdates(fetched);
+    var keys = Object.keys(updates);
+    if (keys.length === 0) return true;
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      var fetchedVal = String(updates[k]).trim().toLowerCase();
+      var batchVal = String(batch[k] === null || batch[k] === undefined ? '' : batch[k]).trim().toLowerCase();
+      if (fetchedVal !== batchVal) return false;
+    }
+    return true;
+  }
+
   // Module exports for testing
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = Object.assign(module.exports || {}, {
@@ -9476,7 +9623,10 @@
       filterIngredientCatalog: filterIngredientCatalog,
       _recipesState: _recipesState,
       parseBeerXML: parseBeerXML,
-      autoMatchIngredients: autoMatchIngredients
+      autoMatchIngredients: autoMatchIngredients,
+      isValidZohoNumber: isValidZohoNumber,
+      buildRefreshUpdates: buildRefreshUpdates,
+      compareRefreshFields: compareRefreshFields
     });
   }
 
