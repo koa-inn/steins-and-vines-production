@@ -127,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-11 after Phase 27.1 (pending batch deletion — inline Delete on admin Batches list and BrewPad Needs Scheduling rows)*
+*Last updated: 2026-06-12 after Phase 28 (Zoho customer read-back path — middleware customer-by-number endpoint + Apps Script customer_email/customer_phone write-back, read→write loop verified live; foundation for Phase 29 ZSYNC-01/02)*
