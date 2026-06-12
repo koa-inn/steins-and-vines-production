@@ -69,7 +69,7 @@
 **Milestone Goal:** Staff can activate pending batches from the admin batch list and pull customer info back from Zoho onto BrewPad — closing the two open gaps in the batch workflow.
 
 - [x] **Phase 27: Pending Batch Visibility & Activation** - Surface pending batches in the admin list/filter and add one-click + guided activation (BATCH-01..03) (3 plans executed 2026-06-07; gap-closure plan 27-04 created to close CR-01 blocker + WR-01 warning) (completed 2026-06-08)
-- [ ] **Phase 28: Zoho Customer Read-Back Path** - New middleware endpoint to fetch customer details by SO/invoice number, plus Apps Script write-back of refreshed fields (ZSYNC foundation)
+- [x] **Phase 28: Zoho Customer Read-Back Path** - New middleware endpoint to fetch customer details by SO/invoice number, plus Apps Script write-back of refreshed fields (ZSYNC foundation) (completed 2026-06-12)
 - [ ] **Phase 29: Refresh-from-Zoho Admin UI** - "Refresh from Zoho" button in the batch detail modal that updates customer name/email/contact, gated on `zoho_so_number` (ZSYNC-01..02)
 
 ## Phase Details
@@ -273,7 +273,7 @@ Plans:
 
 **Wave 2**
 
-- [ ] 28-02-PLAN.md — Extend adminApi.gs updateBatch allowedFields with customer_email/customer_phone; deploy Apps Script; manual staging read→write loop verification
+- [x] 28-02-PLAN.md — Extend adminApi.gs updateBatch allowedFields with customer_email/customer_phone; deploy Apps Script; manual staging read→write loop verification
 
 ### Phase 29: Refresh-from-Zoho Admin UI
 
@@ -305,7 +305,7 @@ Plans:
 | 25. Cal.com Booking Migration | v4.0 | 4/4 | Complete   | 2026-06-04 |
 | 26. Cloudflare Edge Protection | v4.0 | live-exec | Complete | 2026-06-06 |
 | 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete    | 2026-06-11 |
-| 28. Zoho Customer Read-Back Path | v4.1 | 1/2 | In Progress|  |
+| 28. Zoho Customer Read-Back Path | v4.1 | 2/2 | Complete   | 2026-06-12 |
 | 29. Refresh-from-Zoho Admin UI | v4.1 | 0/0 | Not started | - |
 
 ### Phase 29.1: Batch customer reassignment — change the customer tied to a batch (e.g. WALK-IN placeholder) and propagate the change to the linked Zoho sales order/invoice (INSERTED)
