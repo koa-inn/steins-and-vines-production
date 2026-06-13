@@ -1,39 +1,91 @@
-var nodemailer = require('nodemailer');
+var axios = require('axios');
 
-function createTransport() {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: false,
-    requireTLS: true,
-    // Bounded timeouts: without these, an unreachable SMTP route (e.g. the
-    // IPv6 path to smtp.gmail.com:587 on Railway) hangs on the OS default TCP
-    // timeout (~120s). verifyTransport() ran in the startup chain before
-    // app.listen, so that hang stalled the server and produced ~2 min of 502s
-    // on every deploy. Caps keep verify()/sendMail() failing fast instead.
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 20000,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
+// ---------------------------------------------------------------------------
+// Transactional email via the Resend HTTPS API.
+//
+// Why not SMTP: Railway blocks ALL outbound SMTP ports (25/465/587/2525) on
+// both IPv4 and IPv6 — verified via a net.connect probe from inside the
+// container. Gmail/nodemailer can therefore never connect. HTTPS (443) egress
+// works fine, so transactional mail goes through Resend's REST API instead.
+//
+// Required env: RESEND_API_KEY. Optional: MAIL_FROM (must be an address on a
+// Resend-verified domain; use 'onboarding@resend.dev' before steinsandvines.ca
+// is verified). CONTACT_TO controls staff/notification recipients.
+// ---------------------------------------------------------------------------
+
+var RESEND_API = 'https://api.resend.com';
+
+function fromAddress() {
+  return process.env.MAIL_FROM || 'Steins & Vines <hello@steinsandvines.ca>';
+}
+
+function staffTo() {
+  return process.env.CONTACT_TO || 'hello@steinsandvines.ca';
+}
+
+/**
+ * Whether the mail transport is configured. Without RESEND_API_KEY every email
+ * in this module is a no-op failure (staff notifications AND customer
+ * confirmations).
+ * @returns {boolean}
+ */
+function isConfigured() {
+  return !!process.env.RESEND_API_KEY;
+}
+
+function describeError(err) {
+  if (err && err.response && err.response.data) {
+    var d = err.response.data;
+    return d.message || d.error || JSON.stringify(d);
+  }
+  return err && err.message ? err.message : String(err);
+}
+
+/**
+ * POST one message through Resend. Resolves with the Resend response body
+ * ({ id }) on success; rejects with a descriptive Error otherwise.
+ *
+ * @param {Object} msg
+ * @param {string|string[]} msg.to
+ * @param {string} msg.subject
+ * @param {string} msg.text
+ * @param {string} [msg.replyTo]
+ * @param {string} [msg.from]
+ */
+function sendViaResend(msg) {
+  if (!isConfigured()) {
+    return Promise.reject(new Error('RESEND_API_KEY not set'));
+  }
+  if (!msg.to) {
+    return Promise.reject(new Error('No recipient provided'));
+  }
+
+  var payload = {
+    from: msg.from || fromAddress(),
+    to: Array.isArray(msg.to) ? msg.to : [msg.to],
+    subject: msg.subject,
+    text: msg.text
+  };
+  if (msg.replyTo) {
+    payload.reply_to = msg.replyTo;
+  }
+
+  return axios.post(RESEND_API + '/emails', payload, {
+    headers: {
+      Authorization: 'Bearer ' + process.env.RESEND_API_KEY,
+      'Content-Type': 'application/json'
+    },
+    timeout: 15000
+  }).then(function (res) {
+    return res.data;
+  }).catch(function (err) {
+    throw new Error('Resend send failed: ' + describeError(err));
   });
 }
 
 /**
- * Whether SMTP credentials are present. Without both, every email in this
- * module is a no-op failure (staff notifications AND customer confirmations).
- * @returns {boolean}
- */
-function isConfigured() {
-  return !!(process.env.SMTP_USER && process.env.SMTP_PASS);
-}
-
-/**
- * Verify the SMTP transport can authenticate with the mail server.
- * Used at startup so a missing/revoked Gmail app password surfaces on deploy
- * instead of silently dropping a customer's order confirmation.
+ * Verify the mail transport works. Used at startup so a missing/invalid Resend
+ * API key surfaces on deploy instead of on the next customer's order.
  *
  * Never rejects — resolves a structured result so callers can log without a
  * try/catch and startup is never blocked by mail problems.
@@ -42,12 +94,16 @@ function isConfigured() {
  */
 function verifyTransport() {
   if (!isConfigured()) {
-    return Promise.resolve({ ok: false, configured: false, error: 'SMTP_USER/SMTP_PASS not set' });
+    return Promise.resolve({ ok: false, configured: false, error: 'RESEND_API_KEY not set' });
   }
-  return createTransport().verify().then(function () {
+  // A lightweight authenticated GET confirms the key is valid without sending.
+  return axios.get(RESEND_API + '/domains', {
+    headers: { Authorization: 'Bearer ' + process.env.RESEND_API_KEY },
+    timeout: 10000
+  }).then(function () {
     return { ok: true, configured: true };
   }).catch(function (err) {
-    return { ok: false, configured: true, error: err && err.message ? err.message : String(err) };
+    return { ok: false, configured: true, error: describeError(err) };
   });
 }
 
@@ -63,7 +119,6 @@ function verifyTransport() {
  * @param {string} orderData.notes      - Order notes
  */
 function sendOfflineOrderNotification(orderData) {
-  var to = process.env.CONTACT_TO || 'hello@steinsandvines.ca';
   var customer = orderData.customer || {};
   var items = orderData.items || [];
   var ref = orderData.ref || '';
@@ -71,7 +126,7 @@ function sendOfflineOrderNotification(orderData) {
   var subject = '[ACTION REQUIRED] Offline reservation: ' + (customer.name || 'Unknown') + ' — ' + ref;
 
   var itemLines = items.map(function (it) {
-    return '  - ' + it.name + ' \u00d7 ' + (it.quantity || 1) +
+    return '  - ' + it.name + ' × ' + (it.quantity || 1) +
       (it.rate ? ' @ $' + Number(it.rate).toFixed(2) : '');
   }).join('\n');
 
@@ -91,10 +146,9 @@ function sendOfflineOrderNotification(orderData) {
     'Notes: ' + (orderData.notes || 'None')
   ].join('\n');
 
-  return createTransport().sendMail({
-    from: process.env.SMTP_USER,
-    to: to,
-    replyTo: customer.email || process.env.SMTP_USER,
+  return sendViaResend({
+    to: staffTo(),
+    replyTo: customer.email || staffTo(),
     subject: subject,
     text: body
   });
@@ -112,15 +166,14 @@ function sendOfflineOrderNotification(orderData) {
  * @param {string} orderData.notes        - Order notes
  */
 function sendReservationNotification(orderData) {
-  var to = process.env.CONTACT_TO || 'hello@steinsandvines.ca';
   var customer = orderData.customer || {};
   var items = orderData.items || [];
   var orderNumber = orderData.orderNumber || '';
 
-  var subject = 'New reservation: ' + (customer.name || 'Unknown') + ' \u2014 ' + orderNumber;
+  var subject = 'New reservation: ' + (customer.name || 'Unknown') + ' — ' + orderNumber;
 
   var itemLines = items.map(function (it) {
-    return '  - ' + (it.name || 'Unknown item') + ' \u00d7 ' + (it.quantity || 1) +
+    return '  - ' + (it.name || 'Unknown item') + ' × ' + (it.quantity || 1) +
       (it.rate ? ' @ $' + Number(it.rate).toFixed(2) : '');
   }).join('\n');
 
@@ -139,27 +192,25 @@ function sendReservationNotification(orderData) {
     'Notes: ' + (orderData.notes || 'None')
   ].join('\n');
 
-  return createTransport().sendMail({
-    from: process.env.SMTP_USER,
-    to: to,
-    replyTo: customer.email || process.env.SMTP_USER,
+  return sendViaResend({
+    to: staffTo(),
+    replyTo: customer.email || staffTo(),
     subject: subject,
     text: body
   });
 }
 
 /**
- * Send an admin alert when a GP void fails after a Zoho order failure.
- * Manual action is required to void the transaction in Global Payments.
+ * Send an admin alert when a payment void fails after a Zoho order failure.
+ * Manual action is required to void the transaction in the payment processor.
  *
  * @param {Object} data
- * @param {string} data.txnId     - Global Payments transaction ID
+ * @param {string} data.txnId     - Payment transaction ID
  * @param {number} data.amount    - Charged amount
  * @param {string} data.error     - Error message
  * @param {string} data.timestamp - ISO timestamp
  */
 function sendVoidFailureAlert(data) {
-  var to = process.env.CONTACT_TO || 'hello@steinsandvines.ca';
   var subject = '[ACTION REQUIRED] Helcim void failed — manual review needed';
   var body = [
     'A Helcim transaction void FAILED after a Zoho order failure.',
@@ -173,16 +224,15 @@ function sendVoidFailureAlert(data) {
     'Please void this transaction manually in the Helcim dashboard.'
   ].join('\n');
 
-  return createTransport().sendMail({
-    from: process.env.SMTP_USER,
-    to: to,
+  return sendViaResend({
+    to: staffTo(),
     subject: subject,
     text: body
   });
 }
 
 /**
- * Send a plain-text order confirmation email directly via SMTP.
+ * Send a plain-text order confirmation email to the customer.
  * Used as a fallback when the Zoho email API fails.
  *
  * @param {Object} data
@@ -192,8 +242,7 @@ function sendVoidFailureAlert(data) {
  * @param {string} data.timeslot     - Human-readable timeslot string
  */
 function sendCustomerConfirmation(data) {
-  var to = data.email;
-  if (!to) return Promise.reject(new Error('No customer email provided'));
+  if (!data.email) return Promise.reject(new Error('No customer email provided'));
 
   var orderNumber = data.orderNumber || '';
   var items = data.items || [];
@@ -220,12 +269,30 @@ function sendCustomerConfirmation(data) {
     '38021 Cleveland Ave, Squamish, BC'
   ].filter(function (line) { return line !== ''; }).join('\n');
 
-  return createTransport().sendMail({
-    from: process.env.SMTP_USER,
-    to: to,
-    replyTo: process.env.CONTACT_TO || 'hello@steinsandvines.ca',
+  return sendViaResend({
+    to: data.email,
+    replyTo: staffTo(),
     subject: subject,
     text: body
+  });
+}
+
+/**
+ * Send a contact-form submission to the store. Replaces the inline SMTP
+ * transport that previously lived in server.js (also blocked by Railway).
+ *
+ * @param {Object} data
+ * @param {string} data.name    - Sender name (already CRLF-stripped by caller)
+ * @param {string} data.email   - Sender email (used as reply-to)
+ * @param {string} data.message - Message body
+ */
+function sendContactMessage(data) {
+  var name = data.name || 'Unknown';
+  return sendViaResend({
+    to: staffTo(),
+    replyTo: data.email,
+    subject: 'New message from ' + name + ' via steinsandvines.ca',
+    text: 'Name: ' + name + '\nEmail: ' + (data.email || 'N/A') + '\n\nMessage:\n' + (data.message || '')
   });
 }
 
@@ -235,5 +302,6 @@ module.exports = {
   sendOfflineOrderNotification: sendOfflineOrderNotification,
   sendReservationNotification: sendReservationNotification,
   sendVoidFailureAlert: sendVoidFailureAlert,
-  sendCustomerConfirmation: sendCustomerConfirmation
+  sendCustomerConfirmation: sendCustomerConfirmation,
+  sendContactMessage: sendContactMessage
 };

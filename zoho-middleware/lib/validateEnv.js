@@ -18,11 +18,9 @@ var OPTIONAL = [
   { name: 'NODE_ENV',                  desc: 'Node environment' },
   { name: 'LOG_LEVEL',                 desc: 'Logger level (default: info)' },
   { name: 'SENTRY_DSN',                desc: 'Sentry DSN for error tracking' },
-  { name: 'SMTP_HOST',                 desc: 'SMTP server host' },
-  { name: 'SMTP_PORT',                 desc: 'SMTP server port' },
-  { name: 'SMTP_USER',                 desc: 'SMTP auth username' },
-  { name: 'SMTP_PASS',                 desc: 'SMTP auth password' },
-  { name: 'CONTACT_TO',               desc: 'Contact form destination email' },
+  { name: 'RESEND_API_KEY',            desc: 'Resend API key for transactional email (HTTPS; SMTP is blocked on Railway)' },
+  { name: 'MAIL_FROM',                 desc: 'From address on a Resend-verified domain (default: hello@steinsandvines.ca)' },
+  { name: 'CONTACT_TO',               desc: 'Contact form + staff notification destination email' },
   { name: 'GP_ENVIRONMENT',           desc: 'Global Payments environment (test/production)' },
   { name: 'GP_APP_ID',                desc: 'Global Payments app ID' },
   { name: 'GP_APP_KEY',               desc: 'Global Payments app key' },
@@ -85,10 +83,10 @@ function validateEnv() {
   }
 
   // Email is "optional" infrastructure but its absence is silent and costly:
-  // without SMTP creds, no order confirmation or staff notification ever sends.
-  // Call it out specifically so a broken mail setup is obvious in the logs.
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    log.warn('[startup] SMTP_USER/SMTP_PASS not set — order confirmation and staff notification emails are DISABLED');
+  // without a Resend API key, no order confirmation or staff notification ever
+  // sends. Call it out specifically so a broken mail setup is obvious in the logs.
+  if (!process.env.RESEND_API_KEY) {
+    log.warn('[startup] RESEND_API_KEY not set — order confirmation and staff notification emails are DISABLED');
   }
 }
 

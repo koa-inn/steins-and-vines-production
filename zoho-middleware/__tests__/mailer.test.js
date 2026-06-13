@@ -1,138 +1,176 @@
 'use strict';
 
 // ---------------------------------------------------------------------------
-// nodemailer mock — must be declared before require()
-// A shared transport object lets each test control verify()/sendMail() behavior.
+// axios mock — the mailer now sends via the Resend HTTPS API (Railway blocks
+// all outbound SMTP). Each test controls axios.post/get behavior.
 // ---------------------------------------------------------------------------
-var mockTransport = {
-  verify: jest.fn(),
-  sendMail: jest.fn()
-};
-jest.mock('nodemailer', () => ({
-  createTransport: jest.fn(function () { return mockTransport; })
+jest.mock('axios', () => ({
+  post: jest.fn(),
+  get: jest.fn()
 }));
 
+var axios = require('axios');
 var mailer = require('../lib/mailer');
 
-describe('mailer.isConfigured', () => {
-  var origUser = process.env.SMTP_USER;
-  var origPass = process.env.SMTP_PASS;
+var RESEND_EMAILS = 'https://api.resend.com/emails';
+var RESEND_DOMAINS = 'https://api.resend.com/domains';
 
+describe('mailer.isConfigured', () => {
+  var orig = process.env.RESEND_API_KEY;
   afterEach(() => {
-    process.env.SMTP_USER = origUser;
-    process.env.SMTP_PASS = origPass;
-    if (origUser === undefined) delete process.env.SMTP_USER;
-    if (origPass === undefined) delete process.env.SMTP_PASS;
+    process.env.RESEND_API_KEY = orig;
+    if (orig === undefined) delete process.env.RESEND_API_KEY;
   });
 
-  test('true when both SMTP_USER and SMTP_PASS are set', () => {
-    process.env.SMTP_USER = 'user@example.com';
-    process.env.SMTP_PASS = 'app-password';
+  test('true when RESEND_API_KEY is set', () => {
+    process.env.RESEND_API_KEY = 're_test_123';
     expect(mailer.isConfigured()).toBe(true);
   });
 
-  test('false when SMTP_USER missing', () => {
-    delete process.env.SMTP_USER;
-    process.env.SMTP_PASS = 'app-password';
-    expect(mailer.isConfigured()).toBe(false);
-  });
-
-  test('false when SMTP_PASS missing', () => {
-    process.env.SMTP_USER = 'user@example.com';
-    delete process.env.SMTP_PASS;
-    expect(mailer.isConfigured()).toBe(false);
-  });
-
-  test('false when both missing', () => {
-    delete process.env.SMTP_USER;
-    delete process.env.SMTP_PASS;
+  test('false when RESEND_API_KEY missing', () => {
+    delete process.env.RESEND_API_KEY;
     expect(mailer.isConfigured()).toBe(false);
   });
 });
 
 describe('mailer.verifyTransport', () => {
-  var origUser = process.env.SMTP_USER;
-  var origPass = process.env.SMTP_PASS;
+  var orig = process.env.RESEND_API_KEY;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.SMTP_USER = 'user@example.com';
-    process.env.SMTP_PASS = 'app-password';
+    process.env.RESEND_API_KEY = 're_test_123';
   });
-
   afterEach(() => {
-    process.env.SMTP_USER = origUser;
-    process.env.SMTP_PASS = origPass;
-    if (origUser === undefined) delete process.env.SMTP_USER;
-    if (origPass === undefined) delete process.env.SMTP_PASS;
+    process.env.RESEND_API_KEY = orig;
+    if (orig === undefined) delete process.env.RESEND_API_KEY;
   });
 
-  test('not configured → resolves {ok:false, configured:false} without hitting SMTP', async () => {
-    delete process.env.SMTP_USER;
-    delete process.env.SMTP_PASS;
+  test('not configured → {ok:false, configured:false} without hitting the API', async () => {
+    delete process.env.RESEND_API_KEY;
     var result = await mailer.verifyTransport();
-    expect(result).toEqual({ ok: false, configured: false, error: 'SMTP_USER/SMTP_PASS not set' });
-    expect(mockTransport.verify).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: false, configured: false, error: 'RESEND_API_KEY not set' });
+    expect(axios.get).not.toHaveBeenCalled();
   });
 
-  test('verify succeeds → {ok:true, configured:true}', async () => {
-    mockTransport.verify.mockResolvedValue(true);
+  test('authenticated GET succeeds → {ok:true, configured:true}', async () => {
+    axios.get.mockResolvedValue({ data: { data: [] } });
     var result = await mailer.verifyTransport();
     expect(result).toEqual({ ok: true, configured: true });
-    expect(mockTransport.verify).toHaveBeenCalled();
+    expect(axios.get).toHaveBeenCalledWith(
+      RESEND_DOMAINS,
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer re_test_123' })
+      })
+    );
   });
 
-  test('verify rejects (bad credentials) → {ok:false, configured:true, error}', async () => {
-    mockTransport.verify.mockRejectedValue(new Error('535-5.7.8 Username and Password not accepted'));
+  test('invalid key (401) → {ok:false, configured:true, error}', async () => {
+    axios.get.mockRejectedValue({ response: { data: { message: 'API key is invalid' } } });
     var result = await mailer.verifyTransport();
     expect(result.ok).toBe(false);
     expect(result.configured).toBe(true);
-    expect(result.error).toMatch(/Username and Password not accepted/);
+    expect(result.error).toMatch(/API key is invalid/);
   });
 
   test('never rejects — even on a non-Error throw', async () => {
-    mockTransport.verify.mockRejectedValue('connection refused');
+    axios.get.mockRejectedValue('network down');
     var result = await mailer.verifyTransport();
     expect(result.ok).toBe(false);
-    expect(result.error).toBe('connection refused');
+    expect(result.error).toBe('network down');
   });
 });
 
-// Regression: a Railway deploy stalled ~2 min at startup because the SMTP
-// socket had no timeout — the IPv6 connect to smtp.gmail.com:587 hung on the
-// OS default TCP timeout, blocking the server from listening (502s the whole
-// time). The transport MUST carry bounded connection/greeting/socket timeouts
-// so verify() and sendMail() can never hang for minutes.
-describe('mailer createTransport — bounded SMTP timeouts', () => {
-  var nodemailer = require('nodemailer');
-  var origUser = process.env.SMTP_USER;
-  var origPass = process.env.SMTP_PASS;
+describe('mailer send functions → Resend', () => {
+  var orig = process.env.RESEND_API_KEY;
+  var origContact = process.env.CONTACT_TO;
+  var origFrom = process.env.MAIL_FROM;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.SMTP_USER = 'user@example.com';
-    process.env.SMTP_PASS = 'app-password';
-    mockTransport.verify.mockResolvedValue(true);
+    process.env.RESEND_API_KEY = 're_test_123';
+    delete process.env.CONTACT_TO;
+    delete process.env.MAIL_FROM;
+    axios.post.mockResolvedValue({ data: { id: 'email_abc' } });
   });
-
   afterEach(() => {
-    process.env.SMTP_USER = origUser;
-    process.env.SMTP_PASS = origPass;
-    if (origUser === undefined) delete process.env.SMTP_USER;
-    if (origPass === undefined) delete process.env.SMTP_PASS;
+    process.env.RESEND_API_KEY = orig;
+    process.env.CONTACT_TO = origContact;
+    process.env.MAIL_FROM = origFrom;
+    if (orig === undefined) delete process.env.RESEND_API_KEY;
+    if (origContact === undefined) delete process.env.CONTACT_TO;
+    if (origFrom === undefined) delete process.env.MAIL_FROM;
   });
 
-  test('transport is created with bounded connection/greeting/socket timeouts', async () => {
-    await mailer.verifyTransport();
-    expect(nodemailer.createTransport).toHaveBeenCalled();
-    var opts = nodemailer.createTransport.mock.calls[0][0];
-    // Each timeout must be present and bounded well under the ~120s OS default
-    // that caused the startup stall.
-    expect(opts.connectionTimeout).toBeGreaterThan(0);
-    expect(opts.connectionTimeout).toBeLessThanOrEqual(15000);
-    expect(opts.greetingTimeout).toBeGreaterThan(0);
-    expect(opts.greetingTimeout).toBeLessThanOrEqual(15000);
-    expect(opts.socketTimeout).toBeGreaterThan(0);
-    expect(opts.socketTimeout).toBeLessThanOrEqual(30000);
+  test('sendCustomerConfirmation posts to Resend with bearer auth, array to, and reply_to', async () => {
+    await mailer.sendCustomerConfirmation({
+      email: 'customer@example.com',
+      orderNumber: 'SO-001234',
+      items: [{ name: 'Pinot Kit', quantity: 2 }],
+      timeslot: 'Sat 2pm'
+    });
+
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    var call = axios.post.mock.calls[0];
+    expect(call[0]).toBe(RESEND_EMAILS);
+    expect(call[1].to).toEqual(['customer@example.com']);
+    expect(call[1].from).toBe('Steins & Vines <hello@steinsandvines.ca>');
+    expect(call[1].subject).toContain('SO-001234');
+    expect(call[1].text).toContain('Pinot Kit');
+    expect(call[1].reply_to).toBe('hello@steinsandvines.ca');
+    expect(call[2].headers.Authorization).toBe('Bearer re_test_123');
+  });
+
+  test('sendCustomerConfirmation rejects when no email', async () => {
+    await expect(mailer.sendCustomerConfirmation({ orderNumber: 'SO-1' }))
+      .rejects.toThrow(/No customer email/);
+    expect(axios.post).not.toHaveBeenCalled();
+  });
+
+  test('staff notifications go to CONTACT_TO and carry customer reply_to', async () => {
+    process.env.CONTACT_TO = 'staff@steinsandvines.ca';
+    await mailer.sendReservationNotification({
+      orderNumber: 'SO-9',
+      customer: { name: 'Jo', email: 'jo@x.com', phone: '555' },
+      items: []
+    });
+    var body = axios.post.mock.calls[0][1];
+    expect(body.to).toEqual(['staff@steinsandvines.ca']);
+    expect(body.reply_to).toBe('jo@x.com');
+    expect(body.subject).toContain('SO-9');
+  });
+
+  test('sendVoidFailureAlert posts an action-required staff email', async () => {
+    await mailer.sendVoidFailureAlert({ txnId: 'TXN1', amount: 42.5, error: 'boom' });
+    var body = axios.post.mock.calls[0][1];
+    expect(body.subject).toMatch(/ACTION REQUIRED/);
+    expect(body.text).toContain('TXN1');
+    expect(body.text).toContain('42.50');
+  });
+
+  test('sendContactMessage uses sender email as reply_to', async () => {
+    await mailer.sendContactMessage({ name: 'Pat', email: 'pat@x.com', message: 'hi' });
+    var body = axios.post.mock.calls[0][1];
+    expect(body.reply_to).toBe('pat@x.com');
+    expect(body.subject).toContain('Pat');
+    expect(body.text).toContain('hi');
+  });
+
+  test('MAIL_FROM overrides the default sender (e.g. resend.dev sandbox before domain verify)', async () => {
+    process.env.MAIL_FROM = 'onboarding@resend.dev';
+    await mailer.sendVoidFailureAlert({ txnId: 'T', amount: 1, error: 'e' });
+    expect(axios.post.mock.calls[0][1].from).toBe('onboarding@resend.dev');
+  });
+
+  test('send rejects with a descriptive error when Resend returns an API error', async () => {
+    axios.post.mockRejectedValue({ response: { data: { message: 'domain not verified' } } });
+    await expect(mailer.sendCustomerConfirmation({ email: 'c@x.com', orderNumber: 'SO-1' }))
+      .rejects.toThrow(/Resend send failed: domain not verified/);
+  });
+
+  test('send rejects when RESEND_API_KEY is missing — never silently no-ops', async () => {
+    delete process.env.RESEND_API_KEY;
+    await expect(mailer.sendCustomerConfirmation({ email: 'c@x.com', orderNumber: 'SO-1' }))
+      .rejects.toThrow(/RESEND_API_KEY not set/);
+    expect(axios.post).not.toHaveBeenCalled();
   });
 });

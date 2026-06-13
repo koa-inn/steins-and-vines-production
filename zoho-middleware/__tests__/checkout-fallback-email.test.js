@@ -2,25 +2,22 @@
 
 // ---------------------------------------------------------------------------
 // Tests for: sendCustomerConfirmation in mailer.js
-// Tests for: fallback email + eventLog wiring in checkout.js
+// The mailer now sends via the Resend HTTPS API (Railway blocks outbound SMTP).
 // ---------------------------------------------------------------------------
 
-jest.mock('nodemailer', function () {
-  var sendMailMock = jest.fn().mockResolvedValue({ messageId: 'test-id' });
-  return {
-    createTransport: jest.fn().mockReturnValue({ sendMail: sendMailMock }),
-    _sendMailMock: sendMailMock
-  };
+jest.mock('axios', function () {
+  return { post: jest.fn(), get: jest.fn() };
 });
 
-var nodemailer = require('nodemailer');
+var axios = require('axios');
 var mailer = require('../lib/mailer');
 
 describe('sendCustomerConfirmation', function () {
   beforeEach(function () {
-    process.env.SMTP_USER = 'test@example.com';
+    process.env.RESEND_API_KEY = 're_test_123';
     process.env.CONTACT_TO = 'store@example.com';
-    nodemailer._sendMailMock.mockClear();
+    axios.post.mockReset();
+    axios.post.mockResolvedValue({ data: { id: 'test-id' } });
   });
 
   test('sends email with correct subject containing order number', function () {
@@ -30,8 +27,8 @@ describe('sendCustomerConfirmation', function () {
       items: [{ name: 'Wine Kit', quantity: 1 }],
       timeslot: '2026-05-10 10:00 AM'
     }).then(function () {
-      var callArgs = nodemailer._sendMailMock.mock.calls[0][0];
-      expect(callArgs.to).toBe('customer@example.com');
+      var callArgs = axios.post.mock.calls[0][1];
+      expect(callArgs.to).toEqual(['customer@example.com']);
       expect(callArgs.subject).toContain('SO-001234');
       expect(callArgs.subject).toContain('Steins & Vines');
     });
@@ -44,7 +41,7 @@ describe('sendCustomerConfirmation', function () {
       items: [{ name: 'Pinot Noir Kit', quantity: 2 }, { name: 'Cider Kit', quantity: 1 }],
       timeslot: ''
     }).then(function () {
-      var callArgs = nodemailer._sendMailMock.mock.calls[0][0];
+      var callArgs = axios.post.mock.calls[0][1];
       expect(callArgs.text).toContain('Pinot Noir Kit');
       expect(callArgs.text).toContain('Cider Kit');
     });
@@ -64,19 +61,19 @@ describe('sendCustomerConfirmation', function () {
       items: [],
       timeslot: '2026-05-15 2:00 PM'
     }).then(function () {
-      var callArgs = nodemailer._sendMailMock.mock.calls[0][0];
+      var callArgs = axios.post.mock.calls[0][1];
       expect(callArgs.text).toContain('2026-05-15 2:00 PM');
     });
   });
 
-  test('sets replyTo to CONTACT_TO env var', function () {
+  test('sets reply_to to CONTACT_TO env var', function () {
     return mailer.sendCustomerConfirmation({
       email: 'customer@example.com',
       orderNumber: 'SO-007',
       items: []
     }).then(function () {
-      var callArgs = nodemailer._sendMailMock.mock.calls[0][0];
-      expect(callArgs.replyTo).toBe('store@example.com');
+      var callArgs = axios.post.mock.calls[0][1];
+      expect(callArgs.reply_to).toBe('store@example.com');
     });
   });
 });
