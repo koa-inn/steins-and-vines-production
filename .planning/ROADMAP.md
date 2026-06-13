@@ -348,11 +348,11 @@ Plans:
 **Goal:** Staff can reassign the customer on a batch from the BrewPad detail pane (search existing Zoho customer or add one inline) and push that change to the linked Zoho SO/invoice; the batch is the source of truth and survives a Zoho rejection with a clear warning.
 **Requirements**: none mapped (inserted phase)
 **Depends on:** Phase 29
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 
-- [ ] 29.1-01-PLAN.md — Middleware: contact-search + batch-first reassign endpoint (Zoho push optional, no rollback on Zoho failure)
+- [x] 29.1-01-PLAN.md — Middleware: contact-search + batch-first reassign endpoint (Zoho push optional, no rollback on Zoho failure)
 - [ ] 29.1-02-PLAN.md — BrewPad UI: Change Customer control with search/add-new, confirm-gated Zoho push, in-place patch + warning toast
 
 ### Phase 26: Cloudflare Edge Protection â COMPLETE (2026-06-06)
