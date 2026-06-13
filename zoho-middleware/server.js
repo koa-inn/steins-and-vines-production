@@ -408,13 +408,16 @@ helcimLib.init();
 cache.init().then(function () {
   return checkRedis();
 }).then(function () {
-  return checkMailer();
-}).then(function () {
   return zohoAuth.init();
 }).then(function () {
   var server = app.listen(PORT, function () {
     log.info('Zoho middleware running on http://localhost:' + PORT);
     log.info('Health check: http://localhost:' + PORT + '/health');
+    // Verify SMTP in the background — never block listen on it. A hung SMTP
+    // connect (e.g. an unreachable IPv6 route on Railway) previously stalled
+    // startup before app.listen and produced ~2 min of 502s on every deploy.
+    // checkMailer never throws; it logs the result on its own.
+    checkMailer();
     if (!zohoAuth.isAuthenticated()) {
       log.info('Connect Zoho: http://localhost:' + PORT + '/auth/zoho');
     } else {
