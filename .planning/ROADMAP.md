@@ -343,16 +343,17 @@ Plans:
 - [x] 29.2-04-PLAN.md — Gap closure: fix detail-pane Activate re-render (CR-01 blocker, renderBatchDetail data wrapper)
 - [x] 29.2-05-PLAN.md — Gap closure: emit last_updated in needsScheduling summary to re-enable optimistic lock (CR-02) + Apps Script redeploy
 
-### Phase 29.1: Batch customer reassignment â change the customer tied to a batch (e.g. WALK-IN placeholder) and propagate the change to the linked Zoho sales order/invoice (INSERTED)
+### Phase 29.1: Batch customer reassignment — change the customer tied to a batch (e.g. WALK-IN placeholder) and propagate the change to the linked Zoho sales order/invoice (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Staff can reassign the customer on a batch from the BrewPad detail pane (search existing Zoho customer or add one inline) and push that change to the linked Zoho SO/invoice; the batch is the source of truth and survives a Zoho rejection with a clear warning.
+**Requirements**: none mapped (inserted phase)
 **Depends on:** Phase 29
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 29.1 to break down)
+- [ ] 29.1-01-PLAN.md — Middleware: contact-search + batch-first reassign endpoint (Zoho push optional, no rollback on Zoho failure)
+- [ ] 29.1-02-PLAN.md — BrewPad UI: Change Customer control with search/add-new, confirm-gated Zoho push, in-place patch + warning toast
 
 ### Phase 26: Cloudflare Edge Protection â COMPLETE (2026-06-06)
 
