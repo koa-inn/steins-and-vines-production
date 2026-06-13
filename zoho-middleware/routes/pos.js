@@ -1,4 +1,5 @@
 var express = require('express');
+var axios = require('axios');
 var helcimLib = require('../lib/helcim');
 var zohoApi = require('../lib/zoho-api');
 var cache = require('../lib/cache');
@@ -8,6 +9,7 @@ var mailer = require('../lib/mailer');
 var ledger = require('../lib/inventory-ledger');
 var C = require('../lib/constants');
 var brewpadIntegration = require('../lib/brewpad-integration');
+var buildContactPayload = require('../lib/checkout-helpers').buildContactPayload;
 
 var zohoGet = zohoApi.zohoGet;
 var zohoPost = zohoApi.zohoPost;
@@ -1479,6 +1481,303 @@ router.get('/api/batch/customer-by-number', function (req, res) {
       log.error('[batch/customer-by-number] Zoho error: ' + (err.message || err));
       res.status(502).json({ error: 'zoho_error',
         message: 'Failed to retrieve document from Zoho' });
+    });
+});
+
+// Phase 29.1: Search Zoho contacts by name/email/phone for customer type-ahead
+router.get('/api/contacts/search', function (req, res) {
+  var apiKey = req.headers['x-api-key'] || req.query.api_key;
+  if (apiKey !== process.env.MW_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  var term = (req.query.q || '').trim();
+  if (!term || term.length < 2) {
+    return res.status(400).json({ error: 'Query param q must be at least 2 characters' });
+  }
+
+  zohoGet('/contacts', { search_text: term })
+    .then(function (data) {
+      var raw = data.contacts || [];
+      var slim = raw.map(function (c) {
+        // Try primary contact_person for email/phone first; fall back to top-level fields
+        var persons = c.contact_persons || [];
+        var primary = null;
+        for (var i = 0; i < persons.length; i++) {
+          if (persons[i].is_primary_contact) { primary = persons[i]; break; }
+        }
+        if (!primary) { primary = persons[0] || {}; }
+
+        var email = c.email || primary.email || '';
+        var phone = c.phone || primary.phone || primary.mobile || '';
+
+        return {
+          contact_id: c.contact_id || '',
+          contact_name: c.contact_name || '',
+          email: email,
+          phone: phone
+        };
+      });
+      res.json({ contacts: slim });
+    })
+    .catch(function (err) {
+      var msg = err.message;
+      if (err.response && err.response.data) {
+        msg = err.response.data.message || err.response.data.error || msg;
+      }
+      // No PII in log (T-29.1-03)
+      log.error('[contacts/search] Zoho error: ' + msg);
+      res.status(502).json({ error: 'Contact search failed' });
+    });
+});
+
+// Phase 29.1: Reassign the customer on a batch and propagate to the linked Zoho SO/invoice (D-02/D-03/D-05)
+router.post('/api/batch/reassign-customer', function (req, res) {
+  var apiKey = req.headers['x-api-key'] || req.query.api_key;
+  if (apiKey !== process.env.MW_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  var body = req.body || {};
+  var batchId = body.batch_id;
+  var soNumber = body.zoho_so_number || null;   // may be absent (D-03)
+  var customer = body.customer || {};
+  var expectedVersion = body.expectedVersion;
+
+  if (!batchId) {
+    return res.status(400).json({ error: 'Missing batch_id' });
+  }
+  if (!customer.name && !customer.contact_id) {
+    return res.status(400).json({ error: 'Missing customer: provide name or contact_id' });
+  }
+
+  // Step 1: Resolve or create the Zoho contact
+  // If contact_id provided, use directly; otherwise lookup-or-create (D-02)
+  var resolveContact;
+  if (customer.contact_id) {
+    // Use provided contact_id directly — split name for batch field population
+    var name = (customer.name || '').trim();
+    var parts = name ? name.split(/\s+/) : [];
+    var firstName = parts.length ? parts[0] : name;
+    var lastName = parts.length > 1 ? parts.slice(1).join(' ') : '';
+    resolveContact = Promise.resolve({
+      contactId: customer.contact_id,
+      customerName: name,
+      firstName: firstName,
+      lastName: lastName,
+      email: customer.email || '',
+      phone: customer.phone || ''
+    });
+  } else {
+    var custName = (customer.name || '').trim();
+    var custEmail = (customer.email || '').trim();
+    var custPhone = (customer.phone || '').trim();
+    var cparts = custName ? custName.split(/\s+/) : [];
+    var cFirstName = cparts.length ? cparts[0] : custName;
+    var cLastName = cparts.length > 1 ? cparts.slice(1).join(' ') : '';
+
+    // Lookup-or-create: search by email first (mirrors checkout.js resolveCustomerId)
+    var contactLookup;
+    if (custEmail) {
+      contactLookup = zohoGet('/contacts', { email: custEmail })
+        .then(function (data) {
+          var contacts = data.contacts || [];
+          if (contacts.length > 0) {
+            return contacts[0].contact_id;
+          }
+          // Not found — create
+          var payload = buildContactPayload(custName, custEmail, custPhone);
+          return zohoPost('/contacts', payload)
+            .then(function (createData) {
+              return (createData.contact || {}).contact_id;
+            })
+            .catch(function (createErr) {
+              // Duplicate name — fall back to name search (mirrors checkout.js)
+              if (createErr.response && createErr.response.status === 400) {
+                return zohoGet('/contacts', { contact_name: custName })
+                  .then(function (nameData) {
+                    var nameContacts = nameData.contacts || [];
+                    if (nameContacts.length > 0) {
+                      return nameContacts[0].contact_id;
+                    }
+                    throw createErr;
+                  });
+              }
+              throw createErr;
+            });
+        });
+    } else {
+      // No email — search by name only
+      contactLookup = zohoGet('/contacts', { contact_name: custName })
+        .then(function (data) {
+          var contacts = data.contacts || [];
+          if (contacts.length > 0) {
+            return contacts[0].contact_id;
+          }
+          // Create without email
+          var payload = buildContactPayload(custName, custEmail, custPhone);
+          return zohoPost('/contacts', payload)
+            .then(function (createData) {
+              return (createData.contact || {}).contact_id;
+            });
+        });
+    }
+
+    resolveContact = contactLookup.then(function (contactId) {
+      return {
+        contactId: contactId,
+        customerName: custName,
+        firstName: cFirstName,
+        lastName: cLastName,
+        email: custEmail,
+        phone: custPhone
+      };
+    });
+  }
+
+  resolveContact
+    .then(function (resolved) {
+      var contactId = resolved.contactId;
+      var customerName = resolved.customerName;
+      var customerFirstName = resolved.firstName;
+      var customerLastName = resolved.lastName;
+      var customerEmail = resolved.email;
+      var customerPhone = resolved.phone;
+
+      // Step 2: Update batch via Apps Script update_batch with optimistic lock (T-29.1-02)
+      var appsScriptUrl = process.env.APPS_SCRIPT_URL;
+      var appsScriptToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
+
+      var updatePayload = {
+        action: 'update_batch',
+        server_token: appsScriptToken,
+        batch_id: batchId,
+        expectedVersion: expectedVersion,
+        updates: {
+          customer_id: contactId,
+          customer_name: customerName,
+          customer_firstname: customerFirstName,
+          customer_lastname: customerLastName,
+          customer_email: customerEmail,
+          customer_phone: customerPhone
+        }
+      };
+
+      return axios.post(appsScriptUrl, JSON.stringify(updatePayload), {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 12000,
+        maxRedirects: 5
+      }).then(function (resp) {
+        var result = resp.data || {};
+
+        // Version conflict — stop before any Zoho push (T-29.1-02)
+        if (!result.ok && result.error === 'version_conflict') {
+          return res.status(409).json({
+            error: 'version_conflict',
+            message: result.message || 'Batch was modified by another user. Refresh and try again.'
+          });
+        }
+
+        var newVersion = (result.data && result.data.last_updated) || null;
+
+        // Step 3: If zoho_so_number present, resolve the SO/INV internal ID and push customer_id (D-03/D-05)
+        if (!soNumber) {
+          // D-03: batch-only — no Zoho push
+          eventLog.logEvent('batch.customer_reassigned', {
+            batchId: batchId,
+            newCustomerId: contactId,
+            newCustomerName: customerName,
+            zohoUpdated: false
+          });
+          return res.json({ ok: true, batch_updated: true, new_version: newVersion });
+        }
+
+        // Resolve internal SO/INV id from number (mirrors customer-by-number lookup)
+        var soUpperCase = soNumber.toUpperCase();
+        var isInvoice = /^INV-\d+$/.test(soUpperCase);
+        var docPath = isInvoice ? '/invoices' : '/salesorders';
+        var filterKey = isInvoice ? 'invoice_number' : 'salesorder_number';
+        var listKey = isInvoice ? 'invoices' : 'salesorders';
+        var idField = isInvoice ? 'invoice_id' : 'salesorder_id';
+        var numberField = isInvoice ? 'invoice_number' : 'salesorder_number';
+
+        var filterParams = {};
+        filterParams[filterKey] = soUpperCase;
+
+        return zohoGet(docPath, filterParams)
+          .then(function (docData) {
+            var docs = docData[listKey] || [];
+            var doc = null;
+            for (var i = 0; i < docs.length; i++) {
+              var dn = String(docs[i][numberField] || '');
+              if (dn.toLowerCase() === soUpperCase.toLowerCase()) { doc = docs[i]; break; }
+            }
+
+            var docId = doc ? doc[idField] : null;
+            if (!docId) {
+              // Doc not found — batch already updated, warn
+              eventLog.logEvent('batch.customer_reassigned', {
+                batchId: batchId,
+                newCustomerId: contactId,
+                newCustomerName: customerName,
+                zohoUpdated: false,
+                zohoWarning: 'Zoho document ' + soNumber + ' not found'
+              });
+              return res.json({
+                ok: true,
+                batch_updated: true,
+                zoho_warning: 'Zoho document ' + soNumber + ' not found',
+                new_version: newVersion
+              });
+            }
+
+            // Attempt to update customer_id on the Zoho document
+            return zohoPut(docPath + '/' + docId, { customer_id: contactId })
+              .then(function () {
+                eventLog.logEvent('batch.customer_reassigned', {
+                  batchId: batchId,
+                  newCustomerId: contactId,
+                  newCustomerName: customerName,
+                  zohoUpdated: true
+                });
+                return res.json({
+                  ok: true,
+                  batch_updated: true,
+                  zoho_updated: true,
+                  new_version: newVersion
+                });
+              })
+              .catch(function (putErr) {
+                // D-05: Zoho rejection — batch change stands, surface as warning (T-29.1-05)
+                var putMsg = putErr.message;
+                if (putErr.response && putErr.response.data) {
+                  putMsg = putErr.response.data.message || putErr.response.data.error || putMsg;
+                }
+                log.error('[batch/reassign-customer] Zoho PUT failed (D-05): ' + putMsg);
+                eventLog.logEvent('batch.customer_reassigned', {
+                  batchId: batchId,
+                  newCustomerId: contactId,
+                  newCustomerName: customerName,
+                  zohoUpdated: false,
+                  zohoWarning: putMsg
+                });
+                return res.json({
+                  ok: true,
+                  batch_updated: true,
+                  zoho_warning: putMsg,
+                  new_version: newVersion
+                });
+              });
+          });
+      });
+    })
+    .catch(function (err) {
+      var msg = err.message;
+      if (err.response && err.response.data) {
+        msg = err.response.data.message || err.response.data.error || msg;
+      }
+      log.error('[batch/reassign-customer] Error: ' + msg);
+      res.status(500).json({ ok: false, error: 'Internal error: ' + msg });
     });
 });
 
