@@ -98,6 +98,24 @@ function splitCustomerName(fullName) {
 // Build the update_batch payload from fetched Zoho data (D-13 / Phase 28 D-02).
 // Includes ONLY keys whose trimmed fetched value is a non-empty string.
 // Never emits '', null, or undefined — preserves existing batch data for blank Zoho values.
+// Build the canonical updates object for batch customer reassignment (Phase 29.1).
+// Accepts a picked customer from the type-ahead search { contact_id, contact_name, email, phone }
+// or from the add-new form { name, email, phone } (no contact_id).
+// Always returns all six keys as strings — never undefined.
+function buildCustomerReassignUpdates(picked) {
+  var contactId = picked.contact_id || '';
+  var fullName = picked.contact_name || picked.name || '';
+  var nameParts = splitCustomerName(fullName);
+  return {
+    customer_id: String(contactId),
+    customer_name: fullName,
+    customer_firstname: nameParts.customer_firstname,
+    customer_lastname: nameParts.customer_lastname,
+    customer_email: String(picked.email || ''),
+    customer_phone: String(picked.phone || '')
+  };
+}
+
 function buildRefreshUpdates(fetched) {
   var result = {};
   var keys = ['customer_name', 'customer_email', 'customer_phone'];
@@ -265,6 +283,8 @@ function buildLifecycleTimeline(batch, soDate) {
   var _detailStartDate = null;
   var _detailBatchId = null;
   var _soSearchTimer = null;
+  var _reassignSearchTimer = null;
+  var _pendingReassign = null;
   var _currentBatchDetail = null;
 
   // Tasks
@@ -815,6 +835,193 @@ function buildLifecycleTimeline(batch, soDate) {
       .catch(function () {
         resultsEl.innerHTML = '<div class="bp-so-result-item" style="color:var(--ink-muted);">Search unavailable — check connection</div>';
       });
+  }
+
+  // Fetch customer contacts for the reassign type-ahead (Phase 29.1).
+  function fetchReassignSearch(term) {
+    var resultsEl = document.getElementById('bp-reassign-results');
+    if (!resultsEl) return;
+    resultsEl.innerHTML = '<div class="bp-so-result-item" style="color:var(--ink-muted);">Searching…</div>';
+
+    fetch(mwUrl() + '/api/contacts/search?q=' + encodeURIComponent(term), {
+      headers: { 'x-api-key': mwApiKey() }
+    }).then(function (r) { return r.json(); })
+      .then(function (data) {
+        var contacts = data.contacts || [];
+        if (contacts.length === 0) {
+          resultsEl.innerHTML = '<div class="bp-so-result-item" style="color:var(--ink-muted);">No matching customers found</div>';
+          return;
+        }
+        var html = '';
+        for (var i = 0; i < contacts.length; i++) {
+          var c = contacts[i];
+          html += '<div class="bp-so-result-item bp-reassign-result-item"'
+               + ' data-contact-id="' + escapeHTML(c.contact_id || '') + '"'
+               + ' data-name="' + escapeHTML(c.contact_name || '') + '"'
+               + ' data-email="' + escapeHTML(c.email || '') + '"'
+               + ' data-phone="' + escapeHTML(c.phone || '') + '">';
+          html += '<span class="bp-so-result-name">' + escapeHTML(c.contact_name || '') + '</span>';
+          if (c.email || c.phone) {
+            html += '<span class="bp-so-result-meta">' + escapeHTML(c.email || '') + (c.email && c.phone ? ' · ' : '') + escapeHTML(c.phone || '') + '</span>';
+          }
+          html += '</div>';
+        }
+        resultsEl.innerHTML = html;
+
+        var items = resultsEl.querySelectorAll('.bp-reassign-result-item[data-contact-id]');
+        for (var j = 0; j < items.length; j++) {
+          items[j].addEventListener('click', function () {
+            _pendingReassign = {
+              contact_id: this.getAttribute('data-contact-id'),
+              contact_name: this.getAttribute('data-name'),
+              email: this.getAttribute('data-email'),
+              phone: this.getAttribute('data-phone')
+            };
+            submitReassign();
+          });
+        }
+      })
+      .catch(function () {
+        resultsEl.innerHTML = '<div class="bp-so-result-item" style="color:var(--ink-muted);">Search unavailable — check connection</div>';
+      });
+  }
+
+  // Submit the pending reassignment to the middleware (Phase 29.1).
+  // Uses _pendingReassign (set by result click or add-new save) and _currentBatchDetail
+  // for the batch id, expected version, and linked SO number.
+  function submitReassign() {
+    if (!_pendingReassign) return;
+
+    var batchDetail = _currentBatchDetail;
+    if (!batchDetail) return;
+
+    var batchId = batchDetail.batch_id || _detailBatchId;
+    var soNumber = batchDetail.zoho_so_number || '';
+    var expectedVersion = batchDetail.last_updated || '';
+    var picked = _pendingReassign;
+
+    // Build display name for confirm message
+    var displayName = picked.contact_name || picked.name || '';
+
+    function doPost() {
+      var reassignBtn = document.getElementById('bp-reassign-btn');
+      if (reassignBtn) { reassignBtn.disabled = true; reassignBtn.textContent = 'Saving…'; }
+
+      // Build customer payload: use contact_id for existing, name/email/phone for add-new
+      var customer;
+      if (picked.contact_id) {
+        customer = { contact_id: picked.contact_id };
+      } else {
+        customer = { name: picked.name || '', email: picked.email || '', phone: picked.phone || '' };
+      }
+
+      var body = {
+        batch_id: batchId,
+        expectedVersion: expectedVersion,
+        customer: customer
+      };
+      if (soNumber) body.zoho_so_number = soNumber;
+
+      fetch(mwUrl() + '/api/batch/reassign-customer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': mwApiKey() },
+        body: JSON.stringify(body)
+      })
+        .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+        .then(function (resp) {
+          var data = resp.data;
+
+          if (resp.status === 409 || isVersionConflict(data.error || data.message || '')) {
+            showToast('Batch was updated elsewhere — please reload', 'error');
+            var reassignBtnReset = document.getElementById('bp-reassign-btn');
+            if (reassignBtnReset) { reassignBtnReset.disabled = false; reassignBtnReset.textContent = 'Change Customer'; }
+            return;
+          }
+
+          if (!data.ok) {
+            showToast('Reassign failed — try again', 'error');
+            var reassignBtnReset2 = document.getElementById('bp-reassign-btn');
+            if (reassignBtnReset2) { reassignBtnReset2.disabled = false; reassignBtnReset2.textContent = 'Change Customer'; }
+            return;
+          }
+
+          // Build updates object via pure helper
+          var updates = buildCustomerReassignUpdates(picked);
+
+          // Update version for subsequent saves
+          if (data.new_version && _currentBatchDetail) {
+            _currentBatchDetail.last_updated = data.new_version;
+          }
+
+          // In-place patch of _currentBatchDetail and local batch reference
+          var updateKeys = Object.keys(updates);
+          for (var ki = 0; ki < updateKeys.length; ki++) {
+            var k = updateKeys[ki];
+            if (_currentBatchDetail) _currentBatchDetail[k] = updates[k];
+          }
+
+          // Patch DOM nodes in place using textContent (avoids double-encoding)
+          var nameNode = document.getElementById('bp-detail-customer');
+          if (nameNode) nameNode.textContent = getCustomerDisplayName(_currentBatchDetail || {}) || '—';
+          var emailNode = document.getElementById('bp-detail-email');
+          if (emailNode) emailNode.textContent = (_currentBatchDetail ? (_currentBatchDetail.customer_email || '') : '') || '—';
+          var phoneNode = document.getElementById('bp-detail-phone');
+          if (phoneNode) phoneNode.textContent = (_currentBatchDetail ? (_currentBatchDetail.customer_phone || '') : '') || '—';
+
+          // Patch in-memory list caches
+          var patchLists = [_batchesData, _allBatchesData];
+          for (var li = 0; li < patchLists.length; li++) {
+            if (!patchLists[li]) continue;
+            for (var pi = 0; pi < patchLists[li].length; pi++) {
+              if (String(patchLists[li][pi].batch_id) === String(batchId)) {
+                for (var pk = 0; pk < updateKeys.length; pk++) {
+                  patchLists[li][pi][updateKeys[pk]] = updates[updateKeys[pk]];
+                }
+                break;
+              }
+            }
+          }
+
+          // Bust sessionStorage snapshot
+          try { sessionStorage.removeItem('sv-bp-batch-' + batchId); } catch (e) {}
+
+          // Toast: warn if Zoho not updated, success otherwise
+          if (data.zoho_warning) {
+            showToast('Customer saved — Zoho not updated: ' + escapeHTML(data.zoho_warning), 'warn');
+          } else {
+            showToast('Customer reassigned', 'success');
+          }
+
+          // Reset button and close panel
+          var reassignBtnDone = document.getElementById('bp-reassign-btn');
+          if (reassignBtnDone) { reassignBtnDone.disabled = false; reassignBtnDone.textContent = 'Change Customer'; }
+          var panel = document.getElementById('bp-reassign-panel');
+          if (panel) panel.style.display = 'none';
+          var addNewForm = document.getElementById('bp-reassign-addnew');
+          if (addNewForm) addNewForm.style.display = 'none';
+          _pendingReassign = null;
+        })
+        .catch(function (err) {
+          var msg = err && err.message ? err.message : '';
+          if (isVersionConflict(msg)) {
+            showToast('Batch was updated elsewhere — please reload', 'error');
+          } else {
+            showToast('Reassign failed — check connection', 'error');
+          }
+          var reassignBtnErr = document.getElementById('bp-reassign-btn');
+          if (reassignBtnErr) { reassignBtnErr.disabled = false; reassignBtnErr.textContent = 'Change Customer'; }
+        });
+    }
+
+    // D-02/D-03: confirm only when linked SO exists
+    if (soNumber) {
+      showConfirmSheet(
+        'Reassign batch ' + escapeHTML(batchId) + ' to ' + escapeHTML(displayName) + '? This will also update the linked Zoho order.',
+        'Confirm', '', doPost
+      );
+    } else {
+      doPost();
+    }
   }
 
   function handleSoSelect(el) {
@@ -2363,6 +2570,30 @@ function buildLifecycleTimeline(batch, soDate) {
     html += '</div>';
     html += '<div class="bp-so-results" id="bp-so-search-results"></div>';
     html += '</div>';
+
+    // Change Customer button — rendered unconditionally (D-03: no linked SO = direct save)
+    html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-reassign-btn">Change Customer</button>';
+
+    // Reassign search panel (hidden by default)
+    html += '<div id="bp-reassign-panel" class="bp-reassign-panel" style="display:none;">';
+    html += '<div class="bp-so-search-wrap bp-reassign-search-wrap">';
+    html += '<input type="text" id="bp-reassign-search-input" class="bp-inline-input" placeholder="Search by name, email or phone…" autocomplete="off">';
+    html += '<button type="button" class="bp-so-dismiss-link" id="bp-reassign-dismiss">Cancel</button>';
+    html += '</div>';
+    html += '<div class="bp-so-results bp-reassign-results" id="bp-reassign-results"></div>';
+
+    // "Add new customer" toggle link
+    html += '<button type="button" class="bp-reassign-addnew-toggle" id="bp-reassign-addnew-toggle">+ Add new customer</button>';
+
+    // Inline add-new form (hidden by default)
+    html += '<div id="bp-reassign-addnew" class="bp-reassign-addnew" style="display:none;">';
+    html += '<input type="text" id="bp-reassign-new-name" class="bp-inline-input" placeholder="Full name *" autocomplete="off">';
+    html += '<input type="email" id="bp-reassign-new-email" class="bp-inline-input" placeholder="Email" autocomplete="off">';
+    html += '<input type="tel" id="bp-reassign-new-phone" class="bp-inline-input" placeholder="Phone" autocomplete="off">';
+    html += '<button type="button" class="btn bp-btn-sm" id="bp-reassign-new-save">Save New Customer</button>';
+    html += '</div>';
+    html += '</div>';
+
     html += '</div>';
     html += '</div>';
 
@@ -2881,6 +3112,86 @@ function buildLifecycleTimeline(batch, soDate) {
               }
             }
           });
+      });
+    }
+
+    // Change Customer reassign controls (Phase 29.1)
+    var reassignBtn = document.getElementById('bp-reassign-btn');
+    if (reassignBtn) {
+      reassignBtn.addEventListener('click', function () {
+        var panel = document.getElementById('bp-reassign-panel');
+        if (!panel) return;
+        var isVisible = panel.style.display !== 'none';
+        panel.style.display = isVisible ? 'none' : '';
+        if (!isVisible) {
+          var searchInput = document.getElementById('bp-reassign-search-input');
+          if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+          var resultsEl = document.getElementById('bp-reassign-results');
+          if (resultsEl) resultsEl.innerHTML = '';
+          var addNewForm = document.getElementById('bp-reassign-addnew');
+          if (addNewForm) addNewForm.style.display = 'none';
+        }
+      });
+    }
+
+    var reassignSearchInput = document.getElementById('bp-reassign-search-input');
+    if (reassignSearchInput) {
+      reassignSearchInput.addEventListener('input', function () {
+        var term = reassignSearchInput.value.trim();
+        clearTimeout(_reassignSearchTimer);
+        if (!term || term.length < 2) {
+          var resultsEl = document.getElementById('bp-reassign-results');
+          if (resultsEl) resultsEl.innerHTML = '';
+          return;
+        }
+        _reassignSearchTimer = setTimeout(function () {
+          fetchReassignSearch(term);
+        }, 400);
+      });
+    }
+
+    var reassignDismiss = document.getElementById('bp-reassign-dismiss');
+    if (reassignDismiss) {
+      reassignDismiss.addEventListener('click', function () {
+        var panel = document.getElementById('bp-reassign-panel');
+        if (panel) panel.style.display = 'none';
+        _pendingReassign = null;
+      });
+    }
+
+    var reassignAddNewToggle = document.getElementById('bp-reassign-addnew-toggle');
+    if (reassignAddNewToggle) {
+      reassignAddNewToggle.addEventListener('click', function () {
+        var addNewForm = document.getElementById('bp-reassign-addnew');
+        if (!addNewForm) return;
+        var isVisible = addNewForm.style.display !== 'none';
+        addNewForm.style.display = isVisible ? 'none' : '';
+        if (!isVisible) {
+          var nameInput = document.getElementById('bp-reassign-new-name');
+          if (nameInput) { nameInput.value = ''; nameInput.focus(); }
+          var emailInput = document.getElementById('bp-reassign-new-email');
+          if (emailInput) emailInput.value = '';
+          var phoneInput = document.getElementById('bp-reassign-new-phone');
+          if (phoneInput) phoneInput.value = '';
+        }
+      });
+    }
+
+    var reassignNewSave = document.getElementById('bp-reassign-new-save');
+    if (reassignNewSave) {
+      reassignNewSave.addEventListener('click', function () {
+        var nameInput = document.getElementById('bp-reassign-new-name');
+        var emailInput = document.getElementById('bp-reassign-new-email');
+        var phoneInput = document.getElementById('bp-reassign-new-phone');
+        var name = nameInput ? nameInput.value.trim() : '';
+        var email = emailInput ? emailInput.value.trim() : '';
+        var phone = phoneInput ? phoneInput.value.trim() : '';
+        if (!name) {
+          showToast('Name is required to add a new customer', 'error');
+          return;
+        }
+        _pendingReassign = { name: name, email: email, phone: phone };
+        submitReassign();
       });
     }
 
@@ -5959,6 +6270,7 @@ if (typeof module !== 'undefined' && module.exports) {
     isVersionConflict: isVersionConflict,
     todayPacific: todayPacific,
     fmtShortDate: fmtShortDate,
-    isFutureStart: isFutureStart
+    isFutureStart: isFutureStart,
+    buildCustomerReassignUpdates: buildCustomerReassignUpdates
   };
 }

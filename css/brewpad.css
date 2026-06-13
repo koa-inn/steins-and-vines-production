@@ -1974,6 +1974,52 @@ img { max-width: 100%; height: auto; display: block; }
   margin-left: auto;
 }
 
+/* Phase 29.1: Customer Reassign Control */
+.bp-reassign-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.bp-reassign-search-wrap {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  position: relative;
+}
+.bp-reassign-results {
+  position: relative;
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-line);
+  border-radius: var(--r-md, 6px);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+}
+.bp-reassign-results:empty {
+  display: none;
+}
+.bp-reassign-addnew-toggle {
+  font-size: 0.78rem;
+  color: var(--cellar-green);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  text-align: left;
+}
+.bp-reassign-addnew {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-line);
+  border-radius: var(--r-md, 6px);
+}
+
 /* Phase 7: Sync Status Indicator */
 .bp-sync-indicator {
   display: inline-flex;
