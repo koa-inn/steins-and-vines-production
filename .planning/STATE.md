@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
-stopped_at: Phase 29 Plan 03 complete — ZSYNC-01/02 verified on iPad Safari staging UAT; v4.1 prod deploy still held
-last_updated: "2026-06-13T01:15:05.313Z"
-last_activity: 2026-06-13 -- Phase 29.2 planning complete
+stopped_at: Phase 29.2 Plan 05 — Task 1 committed (4f5104a), awaiting checkpoint:human-action (manual Apps Script redeploy)
+last_updated: "2026-06-13T02:00:00.000Z"
+last_activity: 2026-06-13 -- Phase 29.2 plan 05 task 1 complete, blocked at deploy checkpoint
 progress:
   total_phases: 14
   completed_phases: 10
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-11)
 ## Current Position
 
 Phase: 29.2 (brewpad-pending-batch-activation-one-click-activate-and-guid) — EXECUTING
-Plan: 1 of 3
-Status: Ready to execute
-Last activity: 2026-06-13 -- Phase 29.2 planning complete
+Plan: 5 of 5 (in-progress, awaiting human-action checkpoint)
+Status: Executing Phase 29.2 Plan 05 — blocked at Task 2 (manual Apps Script deploy)
+Last activity: 2026-06-13 -- Phase 29.2 plan 05 task 1 committed (4f5104a)
 
 Milestone v4.1 phase map:
 
