@@ -334,14 +334,14 @@ Plans:
 **Goal:** Staff can activate a pending batch from BrewPad — one-click Activate or guided Schedule & Activate — from the Needs Scheduling rows and the batch detail pane, and the detail status badge routes pending batches through activation instead of silently promoting them to Primary.
 **Requirements**: none mapped
 **Depends on:** Phase 29
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 29.2-01-PLAN.md — Test scaffold + todayPacific() helper + status badge pending guard (bug fix, regression test first)
 - [x] 29.2-02-PLAN.md — Needs Scheduling rows: Activate + Schedule & Activate buttons and one-click delegation
 - [x] 29.2-03-PLAN.md — Guided Schedule & Activate bottom sheet + detail pane pending action buttons
 - [x] 29.2-04-PLAN.md — Gap closure: fix detail-pane Activate re-render (CR-01 blocker, renderBatchDetail data wrapper)
-- [ ] 29.2-05-PLAN.md — Gap closure: emit last_updated in needsScheduling summary to re-enable optimistic lock (CR-02) + Apps Script redeploy
+- [x] 29.2-05-PLAN.md — Gap closure: emit last_updated in needsScheduling summary to re-enable optimistic lock (CR-02) + Apps Script redeploy
 
 ### Phase 29.1: Batch customer reassignment â change the customer tied to a batch (e.g. WALK-IN placeholder) and propagate the change to the linked Zoho sales order/invoice (INSERTED)
 

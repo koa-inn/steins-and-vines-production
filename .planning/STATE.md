@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-06-11)
 ## Current Position
 
 Phase: 29.2 (brewpad-pending-batch-activation-one-click-activate-and-guid) — EXECUTING
-Plan: 5 of 5 (in-progress, awaiting human-action checkpoint)
-Status: Phase complete — ready for verification
+Plan: 5 of 5 (complete)
+Status: Phase 29.2 complete — all 5 plans executed; ready for v4.1 production deploy batch
 Last activity: 2026-06-13
 
 Milestone v4.1 phase map:
@@ -120,6 +120,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-13T01:22:46.995Z
-Stopped at: Phase 29 Plan 03 complete — ZSYNC-01/02 verified on iPad Safari staging UAT; v4.1 prod deploy still held
+Last session: 2026-06-12T00:00:00Z
+Stopped at: Phase 29.2 Plan 05 complete — CR-02 optimistic lock restored; all 29.2 plans done; v4.1 prod deploy still held
 Resume file: None
