@@ -227,3 +227,41 @@ describe('add-schedule entry point for active batches', function () {
     expect(/batch\.start_date\s*\?/.test(src)).toBe(true);
   });
 });
+
+// ===== Change-schedule entry point for active batches with a schedule =====
+// A batch that already has a schedule/tasks needs a way to swap it. The detail
+// footer offers "Change Schedule" which opens the same guided sheet in 'change'
+// mode: it must not re-activate or reset status, must keep the start date, and
+// must pre-select the batch's current schedule.
+describe('change-schedule entry point for active batches', function () {
+  var src = require('fs').readFileSync(require('path').join(__dirname, '../../js/brewpad.js'), 'utf8');
+
+  test('detail footer renders a Change Schedule button id', function () {
+    expect(src.indexOf('bp-change-schedule-btn')).not.toBe(-1);
+  });
+
+  test('the Change Schedule button is only rendered for batches that already have tasks', function () {
+    var btnIdx = src.indexOf("id=\"bp-change-schedule-btn\"");
+    expect(btnIdx).not.toBe(-1);
+    var guardWindow = src.slice(Math.max(0, btnIdx - 800), btnIdx);
+    expect(guardWindow.indexOf('tasks.length > 0')).not.toBe(-1);
+  });
+
+  test('the Change Schedule button opens the guided sheet in change mode', function () {
+    var handlerIdx = src.indexOf("getElementById('bp-change-schedule-btn')");
+    expect(handlerIdx).not.toBe(-1);
+    var afterHandler = src.slice(handlerIdx, handlerIdx + 400);
+    expect(afterHandler.indexOf("openScheduleActivateSheet(b, 'change')")).not.toBe(-1);
+  });
+
+  test("change mode never sends a status change (no re-activation of secondary/packaging batches)", function () {
+    // The submit handler must only attach status:'primary' for the activation path,
+    // never for an already-active batch being rescheduled.
+    expect(/scheduleOnly\s*\?\s*\{\s*start_date/.test(src)).toBe(true);
+  });
+
+  test('change mode pre-selects the current schedule in the dropdown', function () {
+    // buildScheduleActivateSheetHtml must mark the option matching batch.schedule_id selected.
+    expect(src.indexOf('batch.schedule_id')).not.toBe(-1);
+  });
+});

@@ -2422,6 +2422,11 @@ function buildLifecycleTimeline(batch, soDate) {
       html += '<p class="bp-pending-activate-hint">This batch has no schedule, so it has no tasks. Add a schedule to generate them.</p>';
       html += '<button type="button" class="btn bp-btn-sm" id="bp-add-schedule-btn"' +
         ' title="Pick a schedule and start date to generate this batch&#39;s tasks">Add Schedule</button>';
+    } else if (statusKey !== 'complete' && tasks.length > 0) {
+      // Active batch that already has a schedule — let staff swap it. Re-applying recomputes
+      // upcoming tasks from the start date; completed tasks are preserved server-side.
+      html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-change-schedule-btn"' +
+        ' title="Swap this batch&#39;s schedule and recompute its tasks — completed tasks are kept">Change Schedule</button>';
     }
     if (b.customer_email) {
       html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-bottling-invite-btn">Send Bottling Invite</button>';
@@ -2643,6 +2648,14 @@ function buildLifecycleTimeline(batch, soDate) {
     if (addScheduleBtn) {
       addScheduleBtn.addEventListener('click', function () {
         openScheduleActivateSheet(b, 'schedule');
+      });
+    }
+
+    // Active batch with an existing schedule — open the guided sheet in "change" mode.
+    var changeScheduleBtn = document.getElementById('bp-change-schedule-btn');
+    if (changeScheduleBtn) {
+      changeScheduleBtn.addEventListener('click', function () {
+        openScheduleActivateSheet(b, 'change');
       });
     }
 
@@ -3615,16 +3628,26 @@ function buildLifecycleTimeline(batch, soDate) {
 
   // ===== Schedule & Activate Bottom Sheet =====
 
+  function scheduleActionLabel(mode) {
+    if (mode === 'change') return 'Update Schedule';
+    if (mode === 'schedule') return 'Add Schedule';
+    return 'Schedule & Activate';
+  }
+
+  // mode: 'activate' (pending → primary, default) | 'schedule' (active, no schedule yet) | 'change' (active, replace existing schedule)
   function buildScheduleActivateSheetHtml(batch, mode) {
-    var scheduleOnly = mode === 'schedule';
-    var titleText = scheduleOnly ? 'Add Schedule' : 'Schedule & Activate';
-    var submitLabel = scheduleOnly ? 'Add Schedule' : 'Schedule & Activate';
+    var isChange = mode === 'change';
+    var scheduleOnly = mode === 'schedule' || isChange; // active batch — do not change status
+    var titleText = isChange ? 'Change Schedule' : (scheduleOnly ? 'Add Schedule' : 'Schedule & Activate');
+    var submitLabel = scheduleActionLabel(mode);
     // Keep an already-active batch's real start date; only fall back to today for pending activation.
     var startDefault = scheduleOnly && batch.start_date ? String(batch.start_date).slice(0, 10) : todayPacific();
+    var currentSchedId = isChange ? String(batch.schedule_id || '') : '';
 
     var schedOptions = '<option value="">— Select a schedule —</option>';
     _fermSchedules.forEach(function (s) {
-      schedOptions += '<option value="' + escapeHTML(s.schedule_id) + '">' +
+      var sel = (currentSchedId && String(s.schedule_id) === currentSchedId) ? ' selected' : '';
+      schedOptions += '<option value="' + escapeHTML(s.schedule_id) + '"' + sel + '>' +
         escapeHTML(s.name || s.schedule_id) + '</option>';
     });
 
@@ -3635,11 +3658,17 @@ function buildLifecycleTimeline(batch, soDate) {
     html += '</div>';
 
     html += '<p style="margin:0 0 12px 0;font-size:0.85rem;color:var(--ink-secondary);">';
-    html += (scheduleOnly ? 'Scheduling ' : 'Activating ') + '<strong>' + escapeHTML(batch.batch_id || '') + '</strong>';
+    html += (isChange ? 'Changing schedule for ' : (scheduleOnly ? 'Scheduling ' : 'Activating ')) + '<strong>' + escapeHTML(batch.batch_id || '') + '</strong>';
     if (batch.product_name) {
       html += ' — ' + escapeHTML(batch.product_name || '');
     }
     html += '</p>';
+
+    if (isChange) {
+      html += '<p style="margin:0 0 12px 0;font-size:0.8rem;color:var(--batch-warning);background:var(--batch-warning-bg);padding:8px 10px;border-radius:var(--r-sm);">';
+      html += 'Changing the schedule recomputes upcoming tasks from the start date. Completed tasks are kept.';
+      html += '</p>';
+    }
 
     // Schedule select
     html += '<div class="bp-form-group"><label for="bp-sa-schedule-select">Schedule <span style="color:#c0392b;">*</span></label>';
@@ -3682,7 +3711,7 @@ function buildLifecycleTimeline(batch, soDate) {
   }
 
   function openScheduleActivateSheet(batch, mode) {
-    var scheduleOnly = mode === 'schedule';
+    var scheduleOnly = mode === 'schedule' || mode === 'change';
     function _buildAndShow(b) {
       var sheet = document.getElementById('bp-sa-sheet');
       if (!sheet) {
@@ -3729,37 +3758,42 @@ function buildLifecycleTimeline(batch, soDate) {
       // Schedule select -> preview
       var schedSelect = document.getElementById('bp-sa-schedule-select');
       var preview = document.getElementById('bp-sa-schedule-preview');
+      function renderSchedPreview(schedId) {
+        if (!preview) return;
+        var sched = null;
+        for (var si = 0; si < _fermSchedules.length; si++) {
+          if (_fermSchedules[si].schedule_id === schedId) { sched = _fermSchedules[si]; break; }
+        }
+        if (!sched) { preview.innerHTML = ''; return; }
+        var steps = sched.steps_parsed || [];
+        if (!steps.length && sched.steps) {
+          try { steps = JSON.parse(sched.steps); } catch (eparse) {}
+        }
+        var pHtml = '<div class="schedule-preview-steps" style="margin:0 0 12px 0;">';
+        steps.forEach(function (s) {
+          var dayLabel = s.is_packaging ? 'TBD' : ('Day ' + s.day_offset);
+          var badges = '';
+          if (s.is_transfer) {
+            badges += ' <span class="batch-task-badge batch-task-badge--transfer">Transfer</span>';
+          }
+          if (s.is_packaging) {
+            badges += ' <span class="batch-task-badge batch-task-badge--pkg">Packaging</span>';
+          }
+          pHtml += '<div class="schedule-preview-step" style="font-size:0.82rem;margin-bottom:4px;">' +
+            '<strong>' + escapeHTML(dayLabel) + ':</strong> ' +
+            escapeHTML(s.title || '') + badges +
+            (s.description ? ' — ' + escapeHTML(s.description) : '') +
+            '</div>';
+        });
+        pHtml += '</div>';
+        preview.innerHTML = pHtml;
+      }
       if (schedSelect && preview) {
         schedSelect.addEventListener('change', function () {
-          var schedId = schedSelect.value;
-          var sched = null;
-          for (var si = 0; si < _fermSchedules.length; si++) {
-            if (_fermSchedules[si].schedule_id === schedId) { sched = _fermSchedules[si]; break; }
-          }
-          if (!sched) { preview.innerHTML = ''; return; }
-          var steps = sched.steps_parsed || [];
-          if (!steps.length && sched.steps) {
-            try { steps = JSON.parse(sched.steps); } catch (eparse) {}
-          }
-          var pHtml = '<div class="schedule-preview-steps" style="margin:0 0 12px 0;">';
-          steps.forEach(function (s) {
-            var dayLabel = s.is_packaging ? 'TBD' : ('Day ' + s.day_offset);
-            var badges = '';
-            if (s.is_transfer) {
-              badges += ' <span class="batch-task-badge batch-task-badge--transfer">Transfer</span>';
-            }
-            if (s.is_packaging) {
-              badges += ' <span class="batch-task-badge batch-task-badge--pkg">Packaging</span>';
-            }
-            pHtml += '<div class="schedule-preview-step" style="font-size:0.82rem;margin-bottom:4px;">' +
-              '<strong>' + escapeHTML(dayLabel) + ':</strong> ' +
-              escapeHTML(s.title || '') + badges +
-              (s.description ? ' — ' + escapeHTML(s.description) : '') +
-              '</div>';
-          });
-          pHtml += '</div>';
-          preview.innerHTML = pHtml;
+          renderSchedPreview(schedSelect.value);
         });
+        // In change mode the current schedule is pre-selected — show its preview immediately.
+        if (schedSelect.value) renderSchedPreview(schedSelect.value);
       }
 
       // Vessel / shelf / bin bindings
@@ -3834,10 +3868,17 @@ function buildLifecycleTimeline(batch, soDate) {
               expectedVersion: newVersion,
               schedule_snapshot: schedSteps
             }).then(function (step2Result) {
-              var taskCount = step2Result.tasks_created || 0;
-              var okMsg = scheduleOnly
-                ? ('Schedule added — ' + taskCount + ' task' + (taskCount !== 1 ? 's' : '') + ' created')
-                : ('Batch activated with ' + taskCount + ' task' + (taskCount !== 1 ? 's' : '') + ' scheduled');
+              var okMsg;
+              if (mode === 'change') {
+                var changed = (step2Result.tasks_updated || 0) + (step2Result.tasks_created || 0);
+                okMsg = 'Schedule updated — ' + changed + ' task' + (changed !== 1 ? 's' : '') + ' adjusted';
+              } else if (scheduleOnly) {
+                var added = step2Result.tasks_created || 0;
+                okMsg = 'Schedule added — ' + added + ' task' + (added !== 1 ? 's' : '') + ' created';
+              } else {
+                var sched = step2Result.tasks_created || 0;
+                okMsg = 'Batch activated with ' + sched + ' task' + (sched !== 1 ? 's' : '') + ' scheduled';
+              }
               showToast(okMsg, 'success');
               closeScheduleActivateSheet();
               _batchesLoaded = false;
@@ -3862,7 +3903,7 @@ function buildLifecycleTimeline(batch, soDate) {
               showToast('Failed: ' + msg, 'error');
             }
             submitBtn.disabled = false;
-            submitBtn.textContent = scheduleOnly ? 'Add Schedule' : 'Schedule & Activate';
+            submitBtn.textContent = scheduleActionLabel(mode);
           });
         });
       }
