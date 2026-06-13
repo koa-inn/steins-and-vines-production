@@ -4788,6 +4788,51 @@ function buildLifecycleTimeline(batch, soDate) {
           });
           return;
         }
+        var nsActivateBtn = e.target.closest('.bp-needsched-activate-btn');
+        if (nsActivateBtn) {
+          var bid = nsActivateBtn.getAttribute('data-batch-id');
+          var ver = nsActivateBtn.getAttribute('data-version');
+          showConfirmSheet(
+            'Activate ' + bid + ' now? No schedule will be attached and the start date is set to today. Use "Schedule & Activate" if you need a schedule.',
+            'Activate', '',
+            function () {
+              nsActivateBtn.disabled = true;
+              adminApiPost('update_batch', {
+                batch_id: bid,
+                expectedVersion: ver,
+                updates: { status: 'primary', start_date: todayPacific() }
+              }).then(function () {
+                showToast('Batch activated', 'success');
+                _batchesLoaded = false;
+                _allBatchesData = [];
+                _eagerLoadTime = 0;
+                _dashLoadTime = 0;
+                loadDashboard();
+              }).catch(function (err) {
+                showToast('Failed: ' + err.message, 'error');
+                nsActivateBtn.disabled = false;
+              });
+            }
+          );
+          return;
+        }
+        var nsSaBtn = e.target.closest('.bp-needsched-sa-btn');
+        if (nsSaBtn) {
+          var bid2 = nsSaBtn.getAttribute('data-batch-id');
+          var batchRow = null;
+          for (var i = 0; i < _allBatchesData.length; i++) {
+            if (_allBatchesData[i].batch_id === bid2) { batchRow = _allBatchesData[i]; break; }
+          }
+          if (batchRow) {
+            openScheduleActivateSheet(batchRow);
+          } else {
+            nsSaBtn.disabled = true;
+            adminApiGet('get_batch', { batch_id: bid2 })
+              .then(function (r) { openScheduleActivateSheet((r.data && r.data.batch) || { batch_id: bid2 }); })
+              .catch(function (err) { showToast('Failed: ' + err.message, 'error'); nsSaBtn.disabled = false; });
+          }
+          return;
+        }
         var nsDelBtn = e.target.closest('.bp-needsched-delete-btn');
         if (nsDelBtn) {
           var bid = nsDelBtn.getAttribute('data-batch-id');
