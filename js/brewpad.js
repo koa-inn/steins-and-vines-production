@@ -897,7 +897,14 @@ function buildLifecycleTimeline(batch, soDate) {
 
     var batchId = batchDetail.batch_id || _detailBatchId;
     var soNumber = batchDetail.zoho_so_number || '';
+    // WR-06: last_updated is the sole optimistic-lock version. Never fall back to ''
+    // (an empty version silently weakens or skips the conflict check on the server).
+    // If the batch carries no concrete version, refuse to submit and tell the user to reload.
     var expectedVersion = batchDetail.last_updated || '';
+    if (!expectedVersion) {
+      showToast('Cannot reassign — batch version unknown, reload first', 'error');
+      return;
+    }
     var picked = _pendingReassign;
 
     // Build display name for confirm message
@@ -987,7 +994,7 @@ function buildLifecycleTimeline(batch, soDate) {
 
           // Toast: warn if Zoho not updated, success otherwise
           if (data.zoho_warning) {
-            showToast('Customer saved — Zoho not updated: ' + escapeHTML(data.zoho_warning), 'warn');
+            showToast('Customer saved — Zoho not updated: ' + data.zoho_warning, 'warn');
           } else {
             showToast('Customer reassigned', 'success');
           }
@@ -1016,7 +1023,7 @@ function buildLifecycleTimeline(batch, soDate) {
     // D-02/D-03: confirm only when linked SO exists
     if (soNumber) {
       showConfirmSheet(
-        'Reassign batch ' + escapeHTML(batchId) + ' to ' + escapeHTML(displayName) + '? This will also update the linked Zoho order.',
+        'Reassign batch ' + batchId + ' to ' + displayName + '? This will also update the linked Zoho order.',
         'Confirm', '', doPost
       );
     } else {
