@@ -2415,6 +2415,13 @@ function buildLifecycleTimeline(batch, soDate) {
         ' title="Activate now with today&#39;s date — no schedule attached">Activate now</button>';
       html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-sa-detail-btn"' +
         ' title="Pick a schedule and start date, then activate">Schedule &amp; Activate</button>';
+    } else if (statusKey !== 'complete' && tasks.length === 0) {
+      // Active batch with no schedule (e.g. activated via "Activate now") — let staff
+      // attach a schedule afterward to generate its tasks. Reuses the guided sheet,
+      // which drives the same update_batch_schedule action.
+      html += '<p class="bp-pending-activate-hint">This batch has no schedule, so it has no tasks. Add a schedule to generate them.</p>';
+      html += '<button type="button" class="btn bp-btn-sm" id="bp-add-schedule-btn"' +
+        ' title="Pick a schedule and start date to generate this batch&#39;s tasks">Add Schedule</button>';
     }
     if (b.customer_email) {
       html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-bottling-invite-btn">Send Bottling Invite</button>';
@@ -2628,6 +2635,14 @@ function buildLifecycleTimeline(batch, soDate) {
     if (saDetailBtn) {
       saDetailBtn.addEventListener('click', function () {
         openScheduleActivateSheet(b);
+      });
+    }
+
+    // Active batch with no schedule — open the same guided sheet in "schedule" mode.
+    var addScheduleBtn = document.getElementById('bp-add-schedule-btn');
+    if (addScheduleBtn) {
+      addScheduleBtn.addEventListener('click', function () {
+        openScheduleActivateSheet(b, 'schedule');
       });
     }
 
@@ -3600,7 +3615,13 @@ function buildLifecycleTimeline(batch, soDate) {
 
   // ===== Schedule & Activate Bottom Sheet =====
 
-  function buildScheduleActivateSheetHtml(batch) {
+  function buildScheduleActivateSheetHtml(batch, mode) {
+    var scheduleOnly = mode === 'schedule';
+    var titleText = scheduleOnly ? 'Add Schedule' : 'Schedule & Activate';
+    var submitLabel = scheduleOnly ? 'Add Schedule' : 'Schedule & Activate';
+    // Keep an already-active batch's real start date; only fall back to today for pending activation.
+    var startDefault = scheduleOnly && batch.start_date ? String(batch.start_date).slice(0, 10) : todayPacific();
+
     var schedOptions = '<option value="">— Select a schedule —</option>';
     _fermSchedules.forEach(function (s) {
       schedOptions += '<option value="' + escapeHTML(s.schedule_id) + '">' +
@@ -3609,12 +3630,12 @@ function buildLifecycleTimeline(batch, soDate) {
 
     var html = '<div class="bp-create-form">';
     html += '<div class="bp-create-form-header">';
-    html += '<span class="bp-create-form-title">Schedule &amp; Activate</span>';
+    html += '<span class="bp-create-form-title">' + escapeHTML(titleText) + '</span>';
     html += '<button type="button" class="bp-create-close" id="bp-sa-close">&times;</button>';
     html += '</div>';
 
     html += '<p style="margin:0 0 12px 0;font-size:0.85rem;color:var(--ink-secondary);">';
-    html += 'Activating <strong>' + escapeHTML(batch.batch_id || '') + '</strong>';
+    html += (scheduleOnly ? 'Scheduling ' : 'Activating ') + '<strong>' + escapeHTML(batch.batch_id || '') + '</strong>';
     if (batch.product_name) {
       html += ' — ' + escapeHTML(batch.product_name || '');
     }
@@ -3630,7 +3651,7 @@ function buildLifecycleTimeline(batch, soDate) {
 
     // Start date
     html += '<div class="bp-form-group"><label for="bp-sa-start-date">Start Date</label>';
-    html += '<input type="date" id="bp-sa-start-date" class="bp-inline-input" value="' + escapeHTML(todayPacific()) + '">';
+    html += '<input type="date" id="bp-sa-start-date" class="bp-inline-input" value="' + escapeHTML(startDefault) + '">';
     html += '</div>';
 
     // Vessel search
@@ -3653,14 +3674,15 @@ function buildLifecycleTimeline(batch, soDate) {
 
     // Submit
     html += '<div class="bp-form-actions">';
-    html += '<button type="button" id="bp-sa-submit" class="btn">Schedule &amp; Activate</button>';
+    html += '<button type="button" id="bp-sa-submit" class="btn">' + escapeHTML(submitLabel) + '</button>';
     html += '</div>';
 
     html += '</div>';
     return html;
   }
 
-  function openScheduleActivateSheet(batch) {
+  function openScheduleActivateSheet(batch, mode) {
+    var scheduleOnly = mode === 'schedule';
     function _buildAndShow(b) {
       var sheet = document.getElementById('bp-sa-sheet');
       if (!sheet) {
@@ -3678,7 +3700,7 @@ function buildLifecycleTimeline(batch, soDate) {
 
       var inner = document.getElementById('bp-sa-sheet-inner');
       if (!inner) return;
-      inner.innerHTML = buildScheduleActivateSheetHtml(b);
+      inner.innerHTML = buildScheduleActivateSheetHtml(b, mode);
 
       // Show with animation lifecycle (mirror openCreateSheet)
       sheet.style.display = '';
@@ -3780,7 +3802,9 @@ function buildLifecycleTimeline(batch, soDate) {
           var startDateEl = document.getElementById('bp-sa-start-date');
           var startDate = (startDateEl && startDateEl.value) ? startDateEl.value : todayPacific();
 
-          var batchUpdates = { status: 'primary', start_date: startDate };
+          // Activation promotes a pending batch to primary; schedule-only mode must NOT
+          // change the status of an already-active batch (could be secondary/packaging).
+          var batchUpdates = scheduleOnly ? { start_date: startDate } : { status: 'primary', start_date: startDate };
           var vesselHidden2 = document.getElementById('bp-sa-vessel');
           var saShelf2 = document.getElementById('bp-sa-shelf');
           var saBin2 = document.getElementById('bp-sa-bin');
@@ -3795,7 +3819,7 @@ function buildLifecycleTimeline(batch, soDate) {
           }
 
           submitBtn.disabled = true;
-          submitBtn.textContent = 'Activating…';
+          submitBtn.textContent = scheduleOnly ? 'Saving…' : 'Activating…';
 
           var step1Done = false;
           adminApiPost('update_batch', {
@@ -3811,7 +3835,10 @@ function buildLifecycleTimeline(batch, soDate) {
               schedule_snapshot: schedSteps
             }).then(function (step2Result) {
               var taskCount = step2Result.tasks_created || 0;
-              showToast('Batch activated with ' + taskCount + ' task' + (taskCount !== 1 ? 's' : '') + ' scheduled', 'success');
+              var okMsg = scheduleOnly
+                ? ('Schedule added — ' + taskCount + ' task' + (taskCount !== 1 ? 's' : '') + ' created')
+                : ('Batch activated with ' + taskCount + ' task' + (taskCount !== 1 ? 's' : '') + ' scheduled');
+              showToast(okMsg, 'success');
               closeScheduleActivateSheet();
               _batchesLoaded = false;
               _allBatchesData = [];
@@ -3824,7 +3851,7 @@ function buildLifecycleTimeline(batch, soDate) {
             if (!step1Done && (msg.indexOf('version_conflict') !== -1 || msg.indexOf('Batch was modified') !== -1)) {
               showToast('Version conflict — refresh and try again', 'error');
             } else if (step1Done) {
-              showToast('Batch activated, but the schedule didn\'t save — assign it from the batch detail', 'warning');
+              showToast('Batch saved, but the schedule didn\'t apply — try Add Schedule again from the batch detail', 'warning');
               closeScheduleActivateSheet();
               _batchesLoaded = false;
               _allBatchesData = [];
@@ -3835,7 +3862,7 @@ function buildLifecycleTimeline(batch, soDate) {
               showToast('Failed: ' + msg, 'error');
             }
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Schedule & Activate';
+            submitBtn.textContent = scheduleOnly ? 'Add Schedule' : 'Schedule & Activate';
           });
         });
       }

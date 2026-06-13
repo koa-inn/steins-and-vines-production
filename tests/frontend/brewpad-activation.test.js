@@ -189,3 +189,41 @@ describe('CR-01 detail-pane activate re-render argument shape', function () {
     expect(bareCallRegex.test(src)).toBe(false);
   });
 });
+
+// ===== Add-schedule entry point for active batches (gap closure) =====
+// A batch activated via "Activate now" becomes active with no schedule and no
+// tasks. Before this fix there was no way to attach a schedule afterward — the
+// guided sheet was only reachable from pending batches. These tests pin the new
+// detail-footer entry point and its wiring to the existing guided sheet, which
+// already drives the backend update_batch_schedule action.
+describe('add-schedule entry point for active batches', function () {
+  var src = require('fs').readFileSync(require('path').join(__dirname, '../../js/brewpad.js'), 'utf8');
+
+  test('detail footer renders an Add Schedule button id', function () {
+    expect(src.indexOf('bp-add-schedule-btn')).not.toBe(-1);
+  });
+
+  test('the Add Schedule button is only rendered for task-less batches', function () {
+    // The button render must be gated on an empty task list so it never appears on a
+    // batch that already has a schedule/tasks. The pending case is handled by a separate
+    // preceding branch (status === 'pending'), so this branch is structurally non-pending.
+    var btnIdx = src.indexOf("id=\"bp-add-schedule-btn\"");
+    expect(btnIdx).not.toBe(-1);
+    var guardWindow = src.slice(Math.max(0, btnIdx - 800), btnIdx);
+    expect(guardWindow.indexOf('tasks.length === 0')).not.toBe(-1);
+  });
+
+  test('the Add Schedule button opens the guided schedule sheet', function () {
+    var handlerIdx = src.indexOf("getElementById('bp-add-schedule-btn')");
+    expect(handlerIdx).not.toBe(-1);
+    // openScheduleActivateSheet must be invoked after the button lookup
+    var afterHandler = src.slice(handlerIdx, handlerIdx + 400);
+    expect(afterHandler.indexOf('openScheduleActivateSheet')).not.toBe(-1);
+  });
+
+  test('the guided sheet defaults the start date to the existing batch start_date when present', function () {
+    // Applying a schedule to an already-active batch must not silently reset its start date
+    // to today — the builder falls back to todayPacific() only when start_date is absent.
+    expect(/batch\.start_date\s*\?/.test(src)).toBe(true);
+  });
+});
