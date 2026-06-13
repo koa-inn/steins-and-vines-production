@@ -1126,9 +1126,11 @@ function buildLifecycleTimeline(batch, soDate) {
         html += '</div>';
         html += '<div class="bp-task-actions">';
         html += '<button type="button" class="btn bp-btn-sm bp-needsched-activate-btn"' +
+          ' title="Activate now with today&#39;s date — no schedule attached"' +
           ' data-batch-id="' + escapeHTML(it.batch_id || '') + '"' +
-          ' data-version="' + escapeHTML(it.last_updated || '') + '">Activate</button>';
+          ' data-version="' + escapeHTML(it.last_updated || '') + '">Activate now</button>';
         html += '<button type="button" class="btn-secondary bp-btn-sm bp-needsched-sa-btn"' +
+          ' title="Pick a schedule and start date, then activate"' +
           ' data-batch-id="' + escapeHTML(it.batch_id || '') + '">Schedule &amp; Activate</button>';
         html += '<button type="button" class="btn-secondary bp-btn-sm bp-danger-btn bp-needsched-delete-btn"' +
           ' data-batch-id="' + escapeHTML(it.batch_id || '') + '"' +
@@ -2408,8 +2410,11 @@ function buildLifecycleTimeline(batch, soDate) {
     // Footer actions
     html += '<div class="bp-detail-actions">';
     if (statusKey === 'pending') {
-      html += '<button type="button" class="btn bp-btn-sm" id="bp-activate-detail-btn">Activate</button>';
-      html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-sa-detail-btn">Schedule &amp; Activate</button>';
+      html += '<p class="bp-pending-activate-hint">This batch is pending. Activate it now with today&#39;s date, or schedule it first.</p>';
+      html += '<button type="button" class="btn bp-btn-sm" id="bp-activate-detail-btn"' +
+        ' title="Activate now with today&#39;s date — no schedule attached">Activate now</button>';
+      html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-sa-detail-btn"' +
+        ' title="Pick a schedule and start date, then activate">Schedule &amp; Activate</button>';
     }
     if (b.customer_email) {
       html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-bottling-invite-btn">Send Bottling Invite</button>';

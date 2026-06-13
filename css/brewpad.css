@@ -752,6 +752,14 @@ img { max-width: 100%; height: auto; display: block; }
   margin-top: 8px;
 }
 
+.bp-pending-activate-hint {
+  width: 100%;
+  margin: 0 0 10px 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--ink-secondary);
+}
+
 /* Location edit */
 .bp-location-edit {
   display: flex;
