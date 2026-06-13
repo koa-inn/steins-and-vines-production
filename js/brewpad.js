@@ -2407,6 +2407,10 @@ function buildLifecycleTimeline(batch, soDate) {
 
     // Footer actions
     html += '<div class="bp-detail-actions">';
+    if (statusKey === 'pending') {
+      html += '<button type="button" class="btn bp-btn-sm" id="bp-activate-detail-btn">Activate</button>';
+      html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-sa-detail-btn">Schedule &amp; Activate</button>';
+    }
     if (b.customer_email) {
       html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-bottling-invite-btn">Send Bottling Invite</button>';
     }
@@ -2575,6 +2579,50 @@ function buildLifecycleTimeline(batch, soDate) {
           .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
           }
         );
+      });
+    }
+
+    // Pending-only detail footer: Activate + Schedule & Activate
+    var activateDetailBtn = document.getElementById('bp-activate-detail-btn');
+    if (activateDetailBtn) {
+      activateDetailBtn.addEventListener('click', function () {
+        showConfirmSheet(
+          'Activate ' + escapeHTML(b.batch_id) + ' now? No schedule will be attached and the start date is set to today. Use "Schedule & Activate" if you need a schedule.',
+          'Activate', '',
+          function () {
+            activateDetailBtn.disabled = true;
+            adminApiPost('update_batch', {
+              batch_id: b.batch_id,
+              updates: { status: 'primary', start_date: todayPacific() },
+              expectedVersion: b.last_updated
+            }).then(function () {
+              b.status = 'primary';
+              showToast('Batch activated', 'success');
+              callSyncZoho(b.batch_id, b.zoho_so_number, 'active');
+              for (var bi = 0; bi < _batchesData.length; bi++) {
+                if (_batchesData[bi].batch_id === b.batch_id) { _batchesData[bi].status = 'primary'; break; }
+              }
+              for (var bi2 = 0; bi2 < _allBatchesData.length; bi2++) {
+                if (_allBatchesData[bi2].batch_id === b.batch_id) { _allBatchesData[bi2].status = 'primary'; break; }
+              }
+              _batchesLoaded = false;
+              _dashLoadTime = 0;
+              try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e2) {}
+              renderBatchDetail(b);
+              renderBatchList();
+            }).catch(function (err) {
+              showToast('Failed: ' + err.message, 'error');
+              activateDetailBtn.disabled = false;
+            });
+          }
+        );
+      });
+    }
+
+    var saDetailBtn = document.getElementById('bp-sa-detail-btn');
+    if (saDetailBtn) {
+      saDetailBtn.addEventListener('click', function () {
+        openScheduleActivateSheet(b);
       });
     }
 
@@ -3540,6 +3588,271 @@ function buildLifecycleTimeline(batch, soDate) {
 
   function closeCreateSheet() {
     var sheet = document.getElementById('bp-create-sheet');
+    if (!sheet) return;
+    sheet.classList.remove('bp-create-sheet--open');
+    setTimeout(function () { sheet.style.display = 'none'; }, 180);
+  }
+
+  // ===== Schedule & Activate Bottom Sheet =====
+
+  function buildScheduleActivateSheetHtml(batch) {
+    var schedOptions = '<option value="">— Select a schedule —</option>';
+    _fermSchedules.forEach(function (s) {
+      schedOptions += '<option value="' + escapeHTML(s.schedule_id) + '">' +
+        escapeHTML(s.name || s.schedule_id) + '</option>';
+    });
+
+    var html = '<div class="bp-create-form">';
+    html += '<div class="bp-create-form-header">';
+    html += '<span class="bp-create-form-title">Schedule &amp; Activate</span>';
+    html += '<button type="button" class="bp-create-close" id="bp-sa-close">&times;</button>';
+    html += '</div>';
+
+    html += '<p style="margin:0 0 12px 0;font-size:0.85rem;color:var(--ink-secondary);">';
+    html += 'Activating <strong>' + escapeHTML(batch.batch_id || '') + '</strong>';
+    if (batch.product_name) {
+      html += ' — ' + escapeHTML(batch.product_name || '');
+    }
+    html += '</p>';
+
+    // Schedule select
+    html += '<div class="bp-form-group"><label for="bp-sa-schedule-select">Schedule <span style="color:#c0392b;">*</span></label>';
+    html += '<select id="bp-sa-schedule-select" class="bp-select">' + schedOptions + '</select>';
+    html += '</div>';
+
+    // Schedule step preview
+    html += '<div id="bp-sa-schedule-preview"></div>';
+
+    // Start date
+    html += '<div class="bp-form-group"><label for="bp-sa-start-date">Start Date</label>';
+    html += '<input type="date" id="bp-sa-start-date" class="bp-inline-input" value="' + escapeHTML(todayPacific()) + '">';
+    html += '</div>';
+
+    // Vessel search
+    html += '<div class="bp-form-group"><label for="bp-sa-vessel-search">Vessel (optional)</label>';
+    html += '<div class="bp-vessel-wrap">';
+    html += '<input type="text" id="bp-sa-vessel-search" class="bp-inline-input" placeholder="Search vessels…" autocomplete="off">';
+    html += '<div class="bp-vessel-dropdown" id="bp-sa-vessel-dropdown" style="display:none;"></div>';
+    html += '<input type="hidden" id="bp-sa-vessel">';
+    html += '</div></div>';
+
+    // Shelf
+    html += '<div class="bp-form-group bp-form-row">';
+    html += '<div><label for="bp-sa-shelf">Shelf (optional)</label>';
+    html += '<input type="text" id="bp-sa-shelf" class="bp-inline-input" placeholder="e.g. A">';
+    html += '</div>';
+    // Bin
+    html += '<div><label for="bp-sa-bin">Bin (optional)</label>';
+    html += '<input type="text" id="bp-sa-bin" class="bp-inline-input" placeholder="e.g. 3">';
+    html += '</div></div>';
+
+    // Submit
+    html += '<div class="bp-form-actions">';
+    html += '<button type="button" id="bp-sa-submit" class="btn">Schedule &amp; Activate</button>';
+    html += '</div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  function openScheduleActivateSheet(batch) {
+    function _buildAndShow(b) {
+      var sheet = document.getElementById('bp-sa-sheet');
+      if (!sheet) {
+        sheet = document.createElement('div');
+        sheet.id = 'bp-sa-sheet';
+        sheet.className = 'bp-create-sheet';
+        sheet.setAttribute('role', 'dialog');
+        sheet.setAttribute('aria-modal', 'true');
+        var inner = document.createElement('div');
+        inner.id = 'bp-sa-sheet-inner';
+        inner.className = 'bp-create-sheet-panel';
+        sheet.appendChild(inner);
+        document.body.appendChild(sheet);
+      }
+
+      var inner = document.getElementById('bp-sa-sheet-inner');
+      if (!inner) return;
+      inner.innerHTML = buildScheduleActivateSheetHtml(b);
+
+      // Show with animation lifecycle (mirror openCreateSheet)
+      sheet.style.display = '';
+      setTimeout(function () { sheet.classList.add('bp-create-sheet--open'); }, 10);
+
+      // Backdrop tap to dismiss
+      sheet.addEventListener('click', function handleSaBackdrop(e) {
+        if (e.target === sheet) {
+          closeScheduleActivateSheet();
+          sheet.removeEventListener('click', handleSaBackdrop);
+        }
+      });
+
+      // Close button
+      var closeBtn = document.getElementById('bp-sa-close');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', closeScheduleActivateSheet);
+      }
+
+      // Focus first input after animation
+      setTimeout(function () {
+        var firstInput = inner.querySelector('input[type="text"], input[type="search"], select');
+        if (firstInput) firstInput.focus();
+      }, 260);
+
+      // Schedule select -> preview
+      var schedSelect = document.getElementById('bp-sa-schedule-select');
+      var preview = document.getElementById('bp-sa-schedule-preview');
+      if (schedSelect && preview) {
+        schedSelect.addEventListener('change', function () {
+          var schedId = schedSelect.value;
+          var sched = null;
+          for (var si = 0; si < _fermSchedules.length; si++) {
+            if (_fermSchedules[si].schedule_id === schedId) { sched = _fermSchedules[si]; break; }
+          }
+          if (!sched) { preview.innerHTML = ''; return; }
+          var steps = sched.steps_parsed || [];
+          if (!steps.length && sched.steps) {
+            try { steps = JSON.parse(sched.steps); } catch (eparse) {}
+          }
+          var pHtml = '<div class="schedule-preview-steps" style="margin:0 0 12px 0;">';
+          steps.forEach(function (s) {
+            var dayLabel = s.is_packaging ? 'TBD' : ('Day ' + s.day_offset);
+            var badges = '';
+            if (s.is_transfer) {
+              badges += ' <span class="batch-task-badge batch-task-badge--transfer">Transfer</span>';
+            }
+            if (s.is_packaging) {
+              badges += ' <span class="batch-task-badge batch-task-badge--pkg">Packaging</span>';
+            }
+            pHtml += '<div class="schedule-preview-step" style="font-size:0.82rem;margin-bottom:4px;">' +
+              '<strong>' + escapeHTML(dayLabel) + ':</strong> ' +
+              escapeHTML(s.title || '') + badges +
+              (s.description ? ' — ' + escapeHTML(s.description) : '') +
+              '</div>';
+          });
+          pHtml += '</div>';
+          preview.innerHTML = pHtml;
+        });
+      }
+
+      // Vessel / shelf / bin bindings
+      var vesselSearch = document.getElementById('bp-sa-vessel-search');
+      var vesselDropdown = document.getElementById('bp-sa-vessel-dropdown');
+      var vesselHidden = document.getElementById('bp-sa-vessel');
+      if (vesselSearch && vesselDropdown && vesselHidden) {
+        bindVesselSearch(vesselSearch, vesselDropdown, vesselHidden, '');
+      }
+      var saShelf = document.getElementById('bp-sa-shelf');
+      var saBin = document.getElementById('bp-sa-bin');
+      if (saShelf) bindShelfInput(saShelf);
+      if (saBin) bindBinInput(saBin);
+
+      // Submit handler — two-step step1Done orchestration
+      var submitBtn = document.getElementById('bp-sa-submit');
+      if (submitBtn) {
+        submitBtn.addEventListener('click', function () {
+          var schedSelect2 = document.getElementById('bp-sa-schedule-select');
+          var schedId2 = schedSelect2 ? schedSelect2.value : '';
+          if (!schedId2) {
+            showToast('Please select a schedule', 'error');
+            return;
+          }
+
+          var sched2 = null;
+          for (var si2 = 0; si2 < _fermSchedules.length; si2++) {
+            if (_fermSchedules[si2].schedule_id === schedId2) { sched2 = _fermSchedules[si2]; break; }
+          }
+          if (!sched2) {
+            showToast('Schedule not found — please refresh and try again', 'error');
+            return;
+          }
+
+          var schedSteps = sched2.steps_parsed || [];
+          if (!schedSteps.length && sched2.steps) {
+            try { schedSteps = JSON.parse(sched2.steps); } catch (eparse2) {}
+          }
+
+          var startDateEl = document.getElementById('bp-sa-start-date');
+          var startDate = (startDateEl && startDateEl.value) ? startDateEl.value : todayPacific();
+
+          var batchUpdates = { status: 'primary', start_date: startDate };
+          var vesselHidden2 = document.getElementById('bp-sa-vessel');
+          var saShelf2 = document.getElementById('bp-sa-shelf');
+          var saBin2 = document.getElementById('bp-sa-bin');
+          if (vesselHidden2 && vesselHidden2.value.trim()) {
+            batchUpdates.vessel_id = vesselHidden2.value.trim();
+          }
+          if (saShelf2 && saShelf2.value.trim()) {
+            batchUpdates.shelf_id = saShelf2.value.trim();
+          }
+          if (saBin2 && saBin2.value.trim()) {
+            batchUpdates.bin_id = saBin2.value.trim();
+          }
+
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Activating…';
+
+          var step1Done = false;
+          adminApiPost('update_batch', {
+            batch_id: b.batch_id,
+            expectedVersion: b.last_updated,
+            updates: batchUpdates
+          }).then(function (step1Result) {
+            step1Done = true;
+            var newVersion = step1Result.newVersion || b.last_updated;
+            return adminApiPost('update_batch_schedule', {
+              batch_id: b.batch_id,
+              expectedVersion: newVersion,
+              schedule_snapshot: schedSteps
+            }).then(function (step2Result) {
+              var taskCount = step2Result.tasks_created || 0;
+              showToast('Batch activated with ' + taskCount + ' task' + (taskCount !== 1 ? 's' : '') + ' scheduled', 'success');
+              closeScheduleActivateSheet();
+              _batchesLoaded = false;
+              _allBatchesData = [];
+              _eagerLoadTime = 0;
+              _dashLoadTime = 0;
+              loadDashboard();
+            });
+          }).catch(function (err) {
+            var msg = err.message || 'Unknown error';
+            if (!step1Done && (msg.indexOf('version_conflict') !== -1 || msg.indexOf('Batch was modified') !== -1)) {
+              showToast('Version conflict — refresh and try again', 'error');
+            } else if (step1Done) {
+              showToast('Batch activated, but the schedule didn\'t save — assign it from the batch detail', 'warning');
+              closeScheduleActivateSheet();
+              _batchesLoaded = false;
+              _allBatchesData = [];
+              _eagerLoadTime = 0;
+              _dashLoadTime = 0;
+              loadDashboard();
+            } else {
+              showToast('Failed: ' + msg, 'error');
+            }
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Schedule & Activate';
+          });
+        });
+      }
+    }
+
+    // _fermSchedules guard (Pitfall 4): load schedules first if empty
+    if (!_fermSchedules || _fermSchedules.length === 0) {
+      var reloadProm = reloadSchedules();
+      if (reloadProm && typeof reloadProm.then === 'function') {
+        reloadProm.then(function () { _buildAndShow(batch); })
+          .catch(function () { _buildAndShow(batch); });
+      } else {
+        // reloadSchedules may not return a promise; open after a short delay
+        setTimeout(function () { _buildAndShow(batch); }, 400);
+      }
+    } else {
+      _buildAndShow(batch);
+    }
+  }
+
+  function closeScheduleActivateSheet() {
+    var sheet = document.getElementById('bp-sa-sheet');
     if (!sheet) return;
     sheet.classList.remove('bp-create-sheet--open');
     setTimeout(function () { sheet.style.display = 'none'; }, 180);
