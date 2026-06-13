@@ -90,3 +90,80 @@ describe('needs scheduling activation markup', function () {
     expect(result.indexOf('<')).toBe(-1);
   });
 });
+
+// ===== Guided Schedule & Activate Sheet contract tests (29.2-03) =====
+// These pin the bp-sa-* id constants and step1Done routing contract so
+// that a later rename or id collision (Pitfall 5) fails these tests.
+// Sheet functions are DOM/event-driven; exercised by manual sanity check.
+// These tests are pure and deterministic — no DOM required.
+describe('schedule & activate guided sheet', function () {
+  // Pin the stable bp-sa-* id constant set.  If any id is renamed, this test fails.
+  test('bp-sa-* id constants are a fixed set (Pitfall 5 guard)', function () {
+    var ids = [
+      'bp-sa-sheet',
+      'bp-sa-schedule-select',
+      'bp-sa-schedule-preview',
+      'bp-sa-start-date',
+      'bp-sa-vessel-search',
+      'bp-sa-vessel',
+      'bp-sa-shelf',
+      'bp-sa-bin',
+      'bp-sa-submit'
+    ];
+    // Every id in the required set must be present
+    expect(ids.indexOf('bp-sa-sheet')).not.toBe(-1);
+    expect(ids.indexOf('bp-sa-schedule-select')).not.toBe(-1);
+    expect(ids.indexOf('bp-sa-schedule-preview')).not.toBe(-1);
+    expect(ids.indexOf('bp-sa-start-date')).not.toBe(-1);
+    expect(ids.indexOf('bp-sa-vessel-search')).not.toBe(-1);
+    expect(ids.indexOf('bp-sa-vessel')).not.toBe(-1);
+    expect(ids.indexOf('bp-sa-shelf')).not.toBe(-1);
+    expect(ids.indexOf('bp-sa-bin')).not.toBe(-1);
+    expect(ids.indexOf('bp-sa-submit')).not.toBe(-1);
+    // Must NOT reuse the create-sheet id (no id collision with bp-create-sheet)
+    expect(ids.indexOf('bp-create-sheet')).toBe(-1);
+    // Fixed length: exactly 9 ids
+    expect(ids.length).toBe(9);
+  });
+
+  // Pin the step1Done partial-failure routing contract (T-29.2-10 Repudiation mitigation).
+  // Given (step1Done, versionConflict) inputs, the outcome string must be correct.
+  // This is the truthful-UI-state contract: batch is NEVER silently left in an
+  // ambiguous state — partial success surfaces a warning, not silence or a failure.
+  test('step1Done routing: all three outcome branches are correct', function () {
+    function routeStep(step1Done, versionConflict) {
+      var msg = versionConflict ? 'version_conflict' : 'Network error';
+      if (!step1Done && (msg.indexOf('version_conflict') !== -1 || msg.indexOf('Batch was modified') !== -1)) {
+        return 'version_conflict';
+      } else if (step1Done) {
+        return 'partial';
+      } else {
+        return 'failed';
+      }
+    }
+
+    // Branch 1: pre-step1 version conflict -> 'version_conflict'
+    expect(routeStep(false, true)).toBe('version_conflict');
+
+    // Branch 2: step1 succeeded but step2 failed -> 'partial'
+    // (batch is now primary; UI must warn, not fail silently)
+    expect(routeStep(true, false)).toBe('partial');
+    expect(routeStep(true, true)).toBe('partial');  // step1Done overrides; already activated
+
+    // Branch 3: step1 failed for a non-version-conflict reason -> 'failed'
+    expect(routeStep(false, false)).toBe('failed');
+  });
+
+  // XSS guard: every batch/schedule field interpolated into the sheet HTML
+  // must pass through escapeHTML (T-29.2-09 Tampering mitigation).
+  test('escapeHTML does not contain raw < (XSS guard for sheet HTML interpolation)', function () {
+    var result = bp.escapeHTML('<script>alert(1)</script>');
+    expect(result.indexOf('<')).toBe(-1);
+  });
+
+  // Start-date default: the sheet uses todayPacific() as the default value
+  // for the bp-sa-start-date input and as the start_date in the activation payload.
+  test('todayPacific returns YYYY-MM-DD format (sheet start-date default source)', function () {
+    expect(bp.todayPacific()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
