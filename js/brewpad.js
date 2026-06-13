@@ -98,6 +98,24 @@ function splitCustomerName(fullName) {
 // Build the update_batch payload from fetched Zoho data (D-13 / Phase 28 D-02).
 // Includes ONLY keys whose trimmed fetched value is a non-empty string.
 // Never emits '', null, or undefined — preserves existing batch data for blank Zoho values.
+// Build the canonical updates object for batch customer reassignment (Phase 29.1).
+// Accepts a picked customer from the type-ahead search { contact_id, contact_name, email, phone }
+// or from the add-new form { name, email, phone } (no contact_id).
+// Always returns all six keys as strings — never undefined.
+function buildCustomerReassignUpdates(picked) {
+  var contactId = picked.contact_id || '';
+  var fullName = picked.contact_name || picked.name || '';
+  var nameParts = splitCustomerName(fullName);
+  return {
+    customer_id: String(contactId),
+    customer_name: fullName,
+    customer_firstname: nameParts.customer_firstname,
+    customer_lastname: nameParts.customer_lastname,
+    customer_email: String(picked.email || ''),
+    customer_phone: String(picked.phone || '')
+  };
+}
+
 function buildRefreshUpdates(fetched) {
   var result = {};
   var keys = ['customer_name', 'customer_email', 'customer_phone'];
@@ -5959,6 +5977,7 @@ if (typeof module !== 'undefined' && module.exports) {
     isVersionConflict: isVersionConflict,
     todayPacific: todayPacific,
     fmtShortDate: fmtShortDate,
-    isFutureStart: isFutureStart
+    isFutureStart: isFutureStart,
+    buildCustomerReassignUpdates: buildCustomerReassignUpdates
   };
 }
