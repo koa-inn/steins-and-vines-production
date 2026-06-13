@@ -2608,7 +2608,7 @@ function buildLifecycleTimeline(batch, soDate) {
               _batchesLoaded = false;
               _dashLoadTime = 0;
               try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e2) {}
-              renderBatchDetail(b);
+              renderBatchDetail(data);
               renderBatchList();
             }).catch(function (err) {
               showToast('Failed: ' + err.message, 'error');
