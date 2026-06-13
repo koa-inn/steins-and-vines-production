@@ -27,7 +27,7 @@ var helcimLib = require('./lib/helcim');
 var cron = require('node-cron');
 var brewpadIntegration = require('./lib/brewpad-integration');
 
-var nodemailer = require('nodemailer');
+var mailer = require('./lib/mailer');
 
 var app = express();
 app.set('trust proxy', 1); // Railway sits behind a load balancer
@@ -164,25 +164,9 @@ app.post('/api/contact', contactLimiter, async function(req, res) {
   if (!message) return res.status(400).json({ error: 'Message is required' });
 
   try {
-    var transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: false,
-      requireTLS: true,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
-
-    await transporter.sendMail({
-      from: process.env.SMTP_USER,
-      to: process.env.CONTACT_TO || 'hello@steinsandvines.ca',
-      replyTo: email,
-      subject: 'New message from ' + name + ' via steinsandvines.ca',
-      text: 'Name: ' + name + '\nEmail: ' + email + '\n\nMessage:\n' + message
-    });
-
+    // Sent via Resend (HTTPS) — Railway blocks outbound SMTP. name is already
+    // CRLF-stripped above; mailer uses email as reply-to.
+    await mailer.sendContactMessage({ name: name, email: email, message: message });
     res.json({ success: true });
   } catch (err) {
     console.error('[contact] Email send failed:', err.message);
