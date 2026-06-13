@@ -3722,7 +3722,7 @@ function buildLifecycleTimeline(batch, soDate) {
         sheet.setAttribute('aria-modal', 'true');
         var inner = document.createElement('div');
         inner.id = 'bp-sa-sheet-inner';
-        inner.className = 'bp-create-sheet-panel';
+        inner.className = 'bp-create-sheet-inner';
         sheet.appendChild(inner);
         document.body.appendChild(sheet);
       }

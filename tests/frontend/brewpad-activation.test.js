@@ -273,4 +273,15 @@ describe('change-schedule entry point for active batches', function () {
     var payloadWindow = src.slice(callIdx, callIdx + 300);
     expect(payloadWindow.indexOf('schedule_id: schedId2')).not.toBe(-1);
   });
+
+  test('the guided sheet panel uses the CSS-styled bp-create-sheet-inner class', function () {
+    // Regression: the sheet panel was created with bp-create-sheet-panel, which has NO CSS,
+    // so the form rendered transparently over the batch list. css/brewpad.css only styles
+    // .bp-create-sheet-inner (background, positioning, slide-in). The unstyled class must
+    // never reappear in the source.
+    expect(src.indexOf("id = 'bp-sa-sheet-inner';")).not.toBe(-1);
+    expect(src.indexOf('bp-create-sheet-panel')).toBe(-1);
+    var css = require('fs').readFileSync(require('path').join(__dirname, '../../css/brewpad.css'), 'utf8');
+    expect(css.indexOf('.bp-create-sheet-inner')).not.toBe(-1);
+  });
 });
