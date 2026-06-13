@@ -1737,7 +1737,8 @@ function getBatchDashboardSummary() {
           ((b.customer_firstname || '') + ' ' + (b.customer_lastname || ''))).trim(),
         source: b.source || '',
         zoho_so_number: b.zoho_so_number || '',
-        created_at: b.created_at || ''
+        created_at: b.created_at || '',
+        last_updated: b.last_updated || ''
       });
     }
   });
