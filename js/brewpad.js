@@ -3866,6 +3866,7 @@ function buildLifecycleTimeline(batch, soDate) {
             return adminApiPost('update_batch_schedule', {
               batch_id: b.batch_id,
               expectedVersion: newVersion,
+              schedule_id: schedId2,
               schedule_snapshot: schedSteps
             }).then(function (step2Result) {
               var okMsg;

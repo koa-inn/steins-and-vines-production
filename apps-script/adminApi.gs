@@ -2315,6 +2315,12 @@ function updateBatchSchedule(payload, userEmail) {
   // Update schedule_snapshot on batch
   var snapCol = headers.indexOf('schedule_snapshot');
   if (snapCol !== -1) sheet.getRange(row, snapCol + 1).setValue(JSON.stringify(newSteps));
+  // Persist schedule_id so the detail pane can pre-select the current schedule on a later
+  // change (batches scheduled via update_batch_schedule otherwise leave schedule_id blank).
+  if (payload.schedule_id) {
+    var schedIdCol = headers.indexOf('schedule_id');
+    if (schedIdCol !== -1) sheet.getRange(row, schedIdCol + 1).setValue(payload.schedule_id);
+  }
   var luCol = headers.indexOf('last_updated');
   if (luCol !== -1) sheet.getRange(row, luCol + 1).setValue(now);
 

@@ -264,4 +264,13 @@ describe('change-schedule entry point for active batches', function () {
     // buildScheduleActivateSheetHtml must mark the option matching batch.schedule_id selected.
     expect(src.indexOf('batch.schedule_id')).not.toBe(-1);
   });
+
+  test('update_batch_schedule payload carries schedule_id so it persists for later pre-select', function () {
+    // The selected schedule id must be sent to the backend; otherwise a batch scheduled via
+    // this flow leaves schedule_id blank and Change Schedule cannot pre-select it next time.
+    var callIdx = src.indexOf("adminApiPost('update_batch_schedule'");
+    expect(callIdx).not.toBe(-1);
+    var payloadWindow = src.slice(callIdx, callIdx + 300);
+    expect(payloadWindow.indexOf('schedule_id: schedId2')).not.toBe(-1);
+  });
 });
