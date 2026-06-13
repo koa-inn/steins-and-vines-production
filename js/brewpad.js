@@ -15,6 +15,12 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Return a YYYY-MM-DD string for today (or today +/- N days) in Pacific time
+function todayPacific(offsetDays) {
+  var d = offsetDays ? new Date(Date.now() + offsetDays * 86400000) : new Date();
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Vancouver' });
+}
+
 function fmtDate(dateStr) {
   if (!dateStr) return '—';
   return String(dateStr).substring(0, 10);
@@ -5440,6 +5446,7 @@ if (typeof module !== 'undefined' && module.exports) {
     buildRefreshUpdates: buildRefreshUpdates,
     compareRefreshFields: compareRefreshFields,
     splitCustomerName: splitCustomerName,
-    isVersionConflict: isVersionConflict
+    isVersionConflict: isVersionConflict,
+    todayPacific: todayPacific
   };
 }
