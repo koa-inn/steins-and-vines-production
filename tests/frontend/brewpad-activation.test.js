@@ -289,6 +289,32 @@ describe('change-schedule entry point for active batches', function () {
     expect(guardIdx).toBeLessThan(hideIdx);
   });
 
+  test('isFutureStart flags batches scheduled to begin later, not started or past ones', function () {
+    expect(bp.isFutureStart(bp.todayPacific(7))).toBe(true);   // a week out
+    expect(bp.isFutureStart(bp.todayPacific())).toBe(false);   // today is not "future"
+    expect(bp.isFutureStart(bp.todayPacific(-3))).toBe(false);  // already started
+    expect(bp.isFutureStart('')).toBe(false);                  // no start date
+    expect(bp.isFutureStart(null)).toBe(false);
+  });
+
+  test('isFutureStart tolerates ISO datetime strings (compares date portion only)', function () {
+    expect(bp.isFutureStart(bp.todayPacific(5) + 'T12:00:00Z')).toBe(true);
+  });
+
+  test('fmtShortDate renders a compact Mon D label without timezone drift', function () {
+    expect(bp.fmtShortDate('2026-06-20')).toBe('Jun 20');
+    expect(bp.fmtShortDate('2026-01-05')).toBe('Jan 5');
+    expect(bp.fmtShortDate('2026-12-31T23:59:00Z')).toBe('Dec 31');
+  });
+
+  test('the batch card renders a future-start indicator gated on isFutureStart', function () {
+    // The card and table row must show the scheduled-start pill only for future-start batches.
+    expect(src.indexOf('bp-batch-scheduled')).not.toBe(-1);
+    var cardIdx = src.indexOf("bp-batch-card-name");
+    var pillIdx = src.indexOf("isFutureStart(b.start_date)");
+    expect(pillIdx).not.toBe(-1);
+  });
+
   test('the guided sheet panel uses the CSS-styled bp-create-sheet-inner class', function () {
     // Regression: the sheet panel was created with bp-create-sheet-panel, which has NO CSS,
     // so the form rendered transparently over the batch list. css/brewpad.css only styles

@@ -662,6 +662,31 @@ img { max-width: 100%; height: auto; display: block; }
   margin-top: 4px;
 }
 
+/* Scheduled-start indicator: a batch whose start date is still in the future. */
+.bp-batch-scheduled {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--batch-info);
+  background: var(--batch-info-bg);
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.bp-batch-scheduled-icon {
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+/* In the table Days cell the pill sits inline with no bottom margin. */
+.bp-batch-scheduled--cell {
+  margin-bottom: 0;
+}
+
 .bp-task-progress {
   font-size: 0.75rem;
   color: var(--ink-tertiary);

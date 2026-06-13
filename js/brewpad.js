@@ -26,6 +26,23 @@ function fmtDate(dateStr) {
   return String(dateStr).substring(0, 10);
 }
 
+// Compact "Mon D" label from a YYYY-MM-DD string, parsed without timezone drift.
+function fmtShortDate(dateStr) {
+  var s = String(dateStr || '').slice(0, 10);
+  var p = s.split('-');
+  if (p.length !== 3) return s;
+  var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var mi = parseInt(p[1], 10) - 1;
+  if (mi < 0 || mi > 11) return s;
+  return months[mi] + ' ' + parseInt(p[2], 10);
+}
+
+// True when a batch's start date is in the future (scheduled to begin later) — Pacific.
+function isFutureStart(startDate) {
+  if (!startDate) return false;
+  return String(startDate).slice(0, 10) > todayPacific();
+}
+
 function isOverdue(dateStr) {
   if (!dateStr) return false;
   return String(dateStr).substring(0, 10) < todayStr();
@@ -1520,7 +1537,13 @@ function buildLifecycleTimeline(batch, soDate) {
           var due = ot.due_date ? String(ot.due_date).substring(0, 10) : '';
           if (due && due < today) overdueCount++;
         }
-        var days = b.start_date ? Math.floor((Date.now() - new Date(b.start_date)) / 86400000) : '\u2014';
+        var days;
+        if (isFutureStart(b.start_date)) {
+          // Not started yet \u2014 show the scheduled start instead of a negative day count.
+          days = '<span class="bp-batch-scheduled bp-batch-scheduled--cell"><span class="bp-batch-scheduled-icon" aria-hidden="true">\u25f7</span>' + escapeHTML(fmtShortDate(b.start_date)) + '</span>';
+        } else {
+          days = b.start_date ? Math.floor((Date.now() - new Date(b.start_date)) / 86400000) : '\u2014';
+        }
         var loc = [b.vessel_id, b.shelf_id && b.bin_id ? b.shelf_id + '-' + b.bin_id : (b.shelf_id || b.bin_id || '')].filter(Boolean).join(' ');
         var rowCls = (isSelected ? 'bp-batch-tr--selected' : '') + (overdueCount > 0 ? ' bp-batch-tr--urgent' : '');
         resultsHtml += '<tr class="' + rowCls + '" data-batch-id="' + escapeHTML(b.batch_id) + '">';
@@ -1572,6 +1595,9 @@ function buildLifecycleTimeline(batch, soDate) {
         resultsHtml += '</div>';
         resultsHtml += '<div class="bp-batch-card-name">' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</div>';
         if (getCustomerDisplayName(b)) resultsHtml += '<div class="bp-batch-card-customer">' + escapeHTML(getCustomerDisplayName(b)) + '</div>';
+        if (isFutureStart(b.start_date)) {
+          resultsHtml += '<div class="bp-batch-scheduled"><span class="bp-batch-scheduled-icon" aria-hidden="true">\u25f7</span>Starts ' + escapeHTML(fmtShortDate(b.start_date)) + '</div>';
+        }
         resultsHtml += '<div class="bp-batch-card-footer">';
         if (tasksTotal > 0) resultsHtml += '<span class="bp-task-progress">' + tasksDone + '/' + tasksTotal + ' tasks</span>';
         var loc = [b.shelf_id, b.bin_id, b.vessel_id].filter(Boolean).join(' \u00b7 ');
@@ -5924,6 +5950,8 @@ if (typeof module !== 'undefined' && module.exports) {
     compareRefreshFields: compareRefreshFields,
     splitCustomerName: splitCustomerName,
     isVersionConflict: isVersionConflict,
-    todayPacific: todayPacific
+    todayPacific: todayPacific,
+    fmtShortDate: fmtShortDate,
+    isFutureStart: isFutureStart
   };
 }
