@@ -1124,10 +1124,17 @@ function buildLifecycleTimeline(batch, soDate) {
         var since = it.created_at ? String(it.created_at).slice(0, 10) : '';
         html += '<span style="font-size:0.75rem;color:#e67e22;font-weight:600;margin-left:6px;">Awaiting schedule' + (since ? ' — sold ' + escapeHTML(since) : '') + '</span>';
         html += '</div>';
+        html += '<div class="bp-task-actions">';
+        html += '<button type="button" class="btn bp-btn-sm bp-needsched-activate-btn"' +
+          ' data-batch-id="' + escapeHTML(it.batch_id || '') + '"' +
+          ' data-version="' + escapeHTML(it.last_updated || '') + '">Activate</button>';
+        html += '<button type="button" class="btn-secondary bp-btn-sm bp-needsched-sa-btn"' +
+          ' data-batch-id="' + escapeHTML(it.batch_id || '') + '">Schedule &amp; Activate</button>';
         html += '<button type="button" class="btn-secondary bp-btn-sm bp-danger-btn bp-needsched-delete-btn"' +
           ' data-batch-id="' + escapeHTML(it.batch_id || '') + '"' +
           ' data-product="' + escapeHTML(it.product_name || '') + '"' +
           ' data-customer="' + escapeHTML(it.customer_name || '') + '">Delete</button>';
+        html += '</div>';
         html += '</div>';
       });
       html += '</div></div>';
