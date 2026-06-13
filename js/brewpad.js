@@ -3383,6 +3383,10 @@ function buildLifecycleTimeline(batch, soDate) {
     if (detailPane) {
       detailPane.classList.remove('bp-detail-slide-in');
       setTimeout(function () {
+        // If a new batch was selected during the close animation (e.g. a dashboard chip
+        // switched to the Batches tab and immediately opened a batch), don't hide it —
+        // the deferred hide would otherwise clobber the freshly-opened detail pane.
+        if (_selectedBatchId) return;
         detailPane.style.display = 'none';
         if (returnTab) switchTab(returnTab);
       }, 180);

@@ -274,6 +274,21 @@ describe('change-schedule entry point for active batches', function () {
     expect(payloadWindow.indexOf('schedule_id: schedId2')).not.toBe(-1);
   });
 
+  test('closeBatchDetail deferred hide bails out when a new batch was selected (dashboard chip race)', function () {
+    // Clicking a Needs Scheduling chip runs switchTab('batches') then selectBatch().
+    // switchTab calls closeBatchDetail(), whose 180ms deferred hide must not fire after
+    // selectBatch() re-opens the pane — otherwise the batch flickers open and closes.
+    var fnIdx = src.indexOf('function closeBatchDetail');
+    expect(fnIdx).not.toBe(-1);
+    var fnBody = src.slice(fnIdx, fnIdx + 1200);
+    // The deferred hide must guard on _selectedBatchId before setting display:none.
+    var guardIdx = fnBody.indexOf('if (_selectedBatchId) return;');
+    var hideIdx = fnBody.indexOf("detailPane.style.display = 'none'");
+    expect(guardIdx).not.toBe(-1);
+    expect(hideIdx).not.toBe(-1);
+    expect(guardIdx).toBeLessThan(hideIdx);
+  });
+
   test('the guided sheet panel uses the CSS-styled bp-create-sheet-inner class', function () {
     // Regression: the sheet panel was created with bp-create-sheet-panel, which has NO CSS,
     // so the form rendered transparently over the batch list. css/brewpad.css only styles
