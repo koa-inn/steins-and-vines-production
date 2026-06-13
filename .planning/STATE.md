@@ -4,13 +4,13 @@ milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
 stopped_at: Phase 29 Plan 03 complete — ZSYNC-01/02 verified on iPad Safari staging UAT; v4.1 prod deploy still held
-last_updated: "2026-06-13T00:33:18.263Z"
-last_activity: 2026-06-13 -- Phase 29.2 execution started
+last_updated: "2026-06-13T01:15:05.313Z"
+last_activity: 2026-06-13 -- Phase 29.2 planning complete
 progress:
   total_phases: 14
   completed_phases: 10
-  total_plans: 32
-  completed_plans: 30
+  total_plans: 34
+  completed_plans: 33
   percent: 71
 ---
 
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-11)
 
 Phase: 29.2 (brewpad-pending-batch-activation-one-click-activate-and-guid) — EXECUTING
 Plan: 1 of 3
-Status: Executing Phase 29.2
-Last activity: 2026-06-13 -- Phase 29.2 execution started
+Status: Ready to execute
+Last activity: 2026-06-13 -- Phase 29.2 planning complete
 
 Milestone v4.1 phase map:
 
