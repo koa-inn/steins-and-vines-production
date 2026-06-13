@@ -315,4 +315,86 @@ Products are cached in Redis with scheduled warm-ups at 05:00 and 13:00 UTC. If 
 
 ---
 
-*Last updated: March 2026. Maintained by the Steins & Vines IT team.*
+---
+
+## Phase 27 Security Audit — Pending Batch Visibility & Activation
+
+**Audit date:** 2026-06-11
+**Phase:** 27 (plans 27-01 through 27-04)
+**ASVS level:** 1
+**Auditor:** gsd-security-auditor (Claude claude-sonnet-4-6)
+
+### Threat Verification
+
+| Threat ID | Category | Disposition | Status | Evidence |
+|-----------|----------|-------------|--------|----------|
+| T-27-01 (plan 01) | Information Disclosure | accept | CLOSED | Accepted: pending rows were already accessible to authenticated admins via existing filters; widening default view exposes nothing beyond existing admin trust boundary. Logged as accepted risk. |
+| T-27-02 (plan 01) | Tampering | mitigate | CLOSED | adminApi.gs:1322-1324 — backend else-branch applies `String(b.status).toLowerCase() === status.toLowerCase()` exact-match. Frontend sends fixed literal `value="pending"` (admin.html option). |
+| T-27-03 (plan 02) | Elevation of Privilege | accept | CLOSED | Accepted: Activate reuses existing `update_batch` action already exposed to authenticated admins; no new endpoint or privilege introduced. |
+| T-27-04 (plan 02) | Tampering | mitigate | CLOSED | js/admin.js:5727,5734 (inline) and js/admin.js:5924 (modal) — both pass `expectedVersion: ver` / `expectedVersion: batchVersion`. Backend check at adminApi.gs:2090-2098 rejects stale writes with `version_conflict`; handler surfaces via `showToast` (js/admin.js:5742, 5933). |
+| T-27-05 (plan 02) | Tampering | mitigate | CLOSED | js/admin.js:5686 — `data-version="' + escapeHTML(String(b.last_updated || '')) + '"`. Backend re-validates `expectedVersion` against sheet (adminApi.gs:2090-2098); a tampered value yields only `version_conflict`, never an unguarded write. |
+| T-27-06 (plan 03) | Tampering | mitigate | CLOSED | adminApi.gs:2164 — `'start_date'` present in `allowedFields` array. Written through `allowedFields` loop at adminApi.gs:2170 via `sanitizeInput(String(updates[field]))`. `updateBatchSchedule` normalizes via `toDateOnly(current.start_date)` at adminApi.gs:2334. |
+| T-27-07 (plan 03) | Tampering | mitigate | CLOSED | Step-1 lock: adminApi.gs:2090-2098. Step-2 lock: adminApi.gs:2297-2304. Frontend passes chained version: js/admin.js:7241 (step 1 uses `batch.last_updated`), js/admin.js:7250 (step 2 uses `newVersion` captured from step-1 result). |
+| T-27-08 (plan 03) | DoS / data integrity | accept | CLOSED | Accepted: partial-failure state (active, no tasks) is identical to one-click activation, a supported state. Surfaced to operator via explicit toast at js/admin.js:7270. |
+| T-27-09 (plan 03) | Input validation | mitigate | CLOSED | `schedSteps` built from server-provided `fermSchedulesData` (js/admin.js:7221, `sched.steps_parsed`). Backend `updateBatchSchedule` applies `sanitizeInput` to each step's `title` and `description` on write at adminApi.gs:2352-2353. |
+| T-27-01 (plan 04) | Tampering | accept | CLOSED | Accepted: `start_date` field already in server-side `allowedFields` + `sanitizeInput` path; `todayPacific()` is a trusted server-timezone helper, not a new user-input surface. |
+| T-27-02 (plan 04) | EoP | accept | CLOSED | Accepted: catch-reorder is pure client-side error-routing; `expectedVersion` locking preserved unchanged on both steps. `step1Done` flag does not relax any concurrency check. |
+| T-27-03 (plan 04) | Repudiation / Info Disclosure | accept | CLOSED | Accepted: partial-success toast contains no PII; improves operator awareness of actual data state. |
+| T-27-SC (all plans) | Tampering (supply chain) | accept | CLOSED | No new packages installed across all four plans; existing build toolchain only. |
+
+### Accepted Risks — Phase 27
+
+| Risk ID | Description | Rationale |
+|---------|-------------|-----------|
+| T-27-01-P01 | Pending batch rows visible in default Active admin view | Already accessible to authenticated admins via existing filters; no new exposure beyond admin trust boundary |
+| T-27-03-P02 | Activate action reuses existing `update_batch` endpoint | Same privilege level as existing Change Status dropdown; no new endpoint or permission surface |
+| T-27-08-P03 | Step-2 schedule failure leaves batch active with no tasks | Operator-surfaced via explicit toast; state is identical to one-click activation (a supported state); no data corruption |
+| T-27-01-P04 | `start_date` added to one-click activate payload | Already in server-side allowlist + sanitizer; `todayPacific()` is an existing trusted helper; no new user-controlled input |
+| T-27-02-P04 | Guided submit catch reordered around `step1Done` flag | Pure client-side routing; optimistic locking via `expectedVersion` fully preserved; no auth or concurrency check weakened |
+| T-27-03-P04 | Partial-success toast exposed to operator | No PII; truthful state report improves operator awareness |
+
+### Unregistered Flags
+
+None — no new attack surface appeared during implementation beyond what the threat model covers.
+
+---
+
+---
+
+## Phase 29.1 Security Audit — Batch Customer Reassignment
+
+**Audit date:** 2026-06-13
+**Phase:** 29.1 (plans 29.1-01 and 29.1-02)
+**ASVS level:** n/a
+**Auditor:** gsd-security-auditor (Claude claude-sonnet-4-6)
+**Files audited:** `zoho-middleware/routes/pos.js`, `js/brewpad.js`
+
+### Threat Verification
+
+| Threat ID | Category | Disposition | Status | Evidence |
+|-----------|----------|-------------|--------|----------|
+| T-29.1-01 | Spoofing | mitigate | CLOSED | pos.js:1489-1492 (`GET /api/contacts/search`) and pos.js:1536-1539 (`POST /api/batch/reassign-customer`) — both apply `var apiKey = req.headers['x-api-key'] \|\| req.query.api_key; if (apiKey !== process.env.MW_API_KEY) return res.status(401).json({ error: 'Unauthorized' })` before any processing. |
+| T-29.1-02 | Tampering (optimistic lock) | mitigate | CLOSED | pos.js:1663 — `expectedVersion` forwarded to Apps Script `update_batch` payload. pos.js:1682-1687 — `version_conflict` response returns HTTP 409 and terminates the handler before any Zoho push is attempted. |
+| T-29.1-03 | Information Disclosure (logs) | mitigate | CLOSED | pos.js:1529 — log.error for contacts/search carries only the Zoho error message string (no email/phone variable). pos.js:1694-1699, 1712-1718, 1749-1755, 1767-1772, 1787-1793 — all `eventLog.logEvent('batch.customer_reassigned', ...)` payloads carry only `batchId`, `newCustomerId`, `newCustomerName`, `zohoUpdated`, and optionally `zohoWarning`; no `email` or `phone` field appears in any payload. |
+| T-29.1-04 | Tampering (input validation) | mitigate | CLOSED | pos.js:1494-1496 — `GET /api/contacts/search` rejects `q` missing or shorter than 2 chars with HTTP 400. pos.js:1547-1548 — missing `batch_id` returns HTTP 400. pos.js:1551-1554 — whitespace-only name and absent `contact_id` return HTTP 400 (WR-05 fix shipped in commit f58df6d). All validations fire before any Zoho call. |
+| T-29.1-05 | DoS (Zoho rejection on confirmed SO) | accept | CLOSED | pos.js:1780-1799 — Zoho PUT failure is caught, the error message extracted as `putMsg`, and the handler returns HTTP 200 `{ ok: true, batch_updated: true, zoho_warning: putMsg, new_version: newVersion }`. The request never crashes. Logged as accepted risk below. |
+| T-29.1-SC (plan 01) | Tampering (supply chain) | mitigate | CLOSED | No new entries in `package.json` or `zoho-middleware/package.json`; `buildContactPayload` and `zoho-api` are pre-existing deps (pos.js:12 imports `buildContactPayload` from existing `../lib/checkout-helpers`). |
+| T-29.1-06 | Tampering (XSS via search results) | mitigate | CLOSED | js/brewpad.js:859-865 — all four contact fields (`contact_id`, `contact_name`, `email`, `phone`) passed through `escapeHTML` in HTML attribute and display positions inside `fetchReassignSearch`. DOM patch (lines 972-976) uses `textContent` only — no innerHTML path for success-state updates. `showConfirmSheet` implementation (line 2023) assigns via `textContent = message` so the confirm-sheet message is XSS-safe without escaping (WR-04 double-encoding fixed in commit e782fc1; raw string now passed at line 1025-1027). |
+| T-29.1-07 | Tampering (concurrent edits) | mitigate | CLOSED | js/brewpad.js:903-907 — `expectedVersion` is read from `batchDetail.last_updated`; if empty, submission is blocked with an error toast (WR-06 fix in commit e782fc1). Line 927 — `expectedVersion` included in POST body. Lines 941-942 — HTTP 409 or `isVersionConflict` match surfaces as `showToast('Batch was updated elsewhere — please reload', 'error')`. |
+| T-29.1-08 | Information Disclosure (client-side logging) | mitigate | CLOSED | No `console.log` of email/phone in `fetchReassignSearch` or `submitReassign`. Server-side eventLog (T-29.1-03 above) carries no email/phone. |
+| T-29.1-09 | Spoofing (unauthenticated middleware call) | mitigate | CLOSED | js/brewpad.js:847 (`GET /api/contacts/search`) and js/brewpad.js:934 (`POST /api/batch/reassign-customer`) — both include `'x-api-key': mwApiKey()` in the fetch headers. Server enforcement verified under T-29.1-01. |
+| T-29.1-SC (plan 02) | Tampering (supply chain) | mitigate | CLOSED | No new packages; build uses existing terser/cleancss pipeline (confirmed: no additions to `package.json` diff). |
+
+### Accepted Risks — Phase 29.1
+
+| Risk ID | Description | Rationale |
+|---------|-------------|-----------|
+| T-29.1-05 | Zoho PUT rejection when customer reassigned on a confirmed/invoiced SO | By design (D-05): the batch is the source of truth. Zoho rejecting the customer update (e.g., locked invoice) does not roll back the batch change; the rejection is surfaced to staff as a `zoho_warning` toast so they can manually reconcile in Zoho. Acceptance is explicit in the plan threat register. |
+
+### Unregistered Flags
+
+The SUMMARY files did not introduce a `## Threat Flags` section. The code review (29.1-REVIEW.md) identified six warnings (WR-01 through WR-06); all six were remediated in commits `f58df6d` and `e782fc1` before this audit and are reflected in the verified implementation above. No unregistered attack surface remains.
+
+---
+
+*Last updated: June 2026 (Phase 29.1 audit). Maintained by the Steins & Vines IT team.*
