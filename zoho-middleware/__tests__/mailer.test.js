@@ -97,3 +97,42 @@ describe('mailer.verifyTransport', () => {
     expect(result.error).toBe('connection refused');
   });
 });
+
+// Regression: a Railway deploy stalled ~2 min at startup because the SMTP
+// socket had no timeout — the IPv6 connect to smtp.gmail.com:587 hung on the
+// OS default TCP timeout, blocking the server from listening (502s the whole
+// time). The transport MUST carry bounded connection/greeting/socket timeouts
+// so verify() and sendMail() can never hang for minutes.
+describe('mailer createTransport — bounded SMTP timeouts', () => {
+  var nodemailer = require('nodemailer');
+  var origUser = process.env.SMTP_USER;
+  var origPass = process.env.SMTP_PASS;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.SMTP_USER = 'user@example.com';
+    process.env.SMTP_PASS = 'app-password';
+    mockTransport.verify.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    process.env.SMTP_USER = origUser;
+    process.env.SMTP_PASS = origPass;
+    if (origUser === undefined) delete process.env.SMTP_USER;
+    if (origPass === undefined) delete process.env.SMTP_PASS;
+  });
+
+  test('transport is created with bounded connection/greeting/socket timeouts', async () => {
+    await mailer.verifyTransport();
+    expect(nodemailer.createTransport).toHaveBeenCalled();
+    var opts = nodemailer.createTransport.mock.calls[0][0];
+    // Each timeout must be present and bounded well under the ~120s OS default
+    // that caused the startup stall.
+    expect(opts.connectionTimeout).toBeGreaterThan(0);
+    expect(opts.connectionTimeout).toBeLessThanOrEqual(15000);
+    expect(opts.greetingTimeout).toBeGreaterThan(0);
+    expect(opts.greetingTimeout).toBeLessThanOrEqual(15000);
+    expect(opts.socketTimeout).toBeGreaterThan(0);
+    expect(opts.socketTimeout).toBeLessThanOrEqual(30000);
+  });
+});

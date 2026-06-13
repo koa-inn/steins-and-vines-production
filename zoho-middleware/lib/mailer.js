@@ -6,6 +6,14 @@ function createTransport() {
     port: parseInt(process.env.SMTP_PORT || '587', 10),
     secure: false,
     requireTLS: true,
+    // Bounded timeouts: without these, an unreachable SMTP route (e.g. the
+    // IPv6 path to smtp.gmail.com:587 on Railway) hangs on the OS default TCP
+    // timeout (~120s). verifyTransport() ran in the startup chain before
+    // app.listen, so that hang stalled the server and produced ~2 min of 502s
+    // on every deploy. Caps keep verify()/sendMail() failing fast instead.
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
