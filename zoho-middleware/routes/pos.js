@@ -1547,7 +1547,9 @@ router.post('/api/batch/reassign-customer', function (req, res) {
   if (!batchId) {
     return res.status(400).json({ error: 'Missing batch_id' });
   }
-  if (!customer.name && !customer.contact_id) {
+  // WR-05: whitespace-only name must not pass validation (trims to empty downstream)
+  var trimmedCustomerName = (customer.name || '').trim();
+  if (!trimmedCustomerName && !customer.contact_id) {
     return res.status(400).json({ error: 'Missing customer: provide name or contact_id' });
   }
 
@@ -1589,7 +1591,10 @@ router.post('/api/batch/reassign-customer', function (req, res) {
           var payload = buildContactPayload(custName, custEmail, custPhone);
           return zohoPost('/contacts', payload)
             .then(function (createData) {
-              return (createData.contact || {}).contact_id;
+              // WR-02: guard against 2xx response with no contact_id (no batch/Zoho write without a real id)
+              var newId = (createData.contact || {}).contact_id;
+              if (!newId) { throw new Error('Contact created but no contact_id returned'); }
+              return newId;
             })
             .catch(function (createErr) {
               // Duplicate name — fall back to name search (mirrors checkout.js)
@@ -1618,7 +1623,10 @@ router.post('/api/batch/reassign-customer', function (req, res) {
           var payload = buildContactPayload(custName, custEmail, custPhone);
           return zohoPost('/contacts', payload)
             .then(function (createData) {
-              return (createData.contact || {}).contact_id;
+              // WR-02: guard against 2xx response with no contact_id (no batch/Zoho write without a real id)
+              var newId = (createData.contact || {}).contact_id;
+              if (!newId) { throw new Error('Contact created but no contact_id returned'); }
+              return newId;
             });
         });
     }
@@ -1694,6 +1702,28 @@ router.post('/api/batch/reassign-customer', function (req, res) {
 
         // Resolve internal SO/INV id from number (mirrors customer-by-number lookup)
         var soUpperCase = soNumber.toUpperCase();
+
+        // WR-01: validate order ref format BEFORE any Zoho call (mirrors the
+        // customer-by-number endpoint's /^(INV|SO)-\d+$/ gate). A malformed value
+        // would otherwise waste a Zoho query and fall through to a misleading
+        // "document not found" warning. Surface the invalid input as a warning
+        // (batch is already updated at this point — D-05 contract).
+        if (!/^INV-\d+$/.test(soUpperCase) && !/^SO-\d+$/.test(soUpperCase)) {
+          eventLog.logEvent('batch.customer_reassigned', {
+            batchId: batchId,
+            newCustomerId: contactId,
+            newCustomerName: customerName,
+            zohoUpdated: false,
+            zohoWarning: 'Invalid order reference: ' + soNumber
+          });
+          return res.json({
+            ok: true,
+            batch_updated: true,
+            zoho_warning: 'Invalid order reference: ' + soNumber,
+            new_version: newVersion
+          });
+        }
+
         var isInvoice = /^INV-\d+$/.test(soUpperCase);
         var docPath = isInvoice ? '/invoices' : '/salesorders';
         var filterKey = isInvoice ? 'invoice_number' : 'salesorder_number';
