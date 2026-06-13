@@ -167,3 +167,25 @@ describe('schedule & activate guided sheet', function () {
     expect(bp.todayPacific()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
+
+// ===== CR-01 regression: detail-pane Activate re-render argument shape (29.2-04) =====
+// The detail-pane Activate success handler must call renderBatchDetail(data) —
+// passing the { batch, tasks, plato_readings } wrapper — NOT renderBatchDetail(b)
+// (a bare batch object). Passing the bare object makes data.batch undefined inside
+// renderBatchDetail, leaving _detailBatchId = undefined and rendering a blank pane.
+describe('CR-01 detail-pane activate re-render argument shape', function () {
+  var src = require('fs').readFileSync(require('path').join(__dirname, '../../js/brewpad.js'), 'utf8');
+
+  test('detail-pane Activate success re-renders with the data wrapper, not a bare batch', function () {
+    // The fix must add renderBatchDetail(data) somewhere in the source
+    expect(src.indexOf('renderBatchDetail(data)')).not.toBe(-1);
+    // The bare-object call renderBatchDetail(b) must NOT appear anywhere
+    expect(src.indexOf('renderBatchDetail(b)')).toBe(-1);
+  });
+
+  test('every renderBatchDetail call site passes the data/cached/wrapper argument', function () {
+    // No call of the form renderBatchDetail(b) (bare batch variable) should exist
+    var bareCallRegex = /renderBatchDetail\(\s*b\s*\)/;
+    expect(bareCallRegex.test(src)).toBe(false);
+  });
+});
