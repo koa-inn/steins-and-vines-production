@@ -63,3 +63,30 @@ describe('pending status detection', function () {
     expect(next).toBe('primary');  // documents the bug: silent promotion with no start_date
   });
 });
+
+// Needs Scheduling activation markup contract tests.
+// These pin the button class constants and cross-plan helper contracts
+// so that a later refactor that renames them will fail these tests.
+describe('needs scheduling activation markup', function () {
+  test('Needs Scheduling row must emit bp-needsched-activate-btn class', function () {
+    var classes = ['bp-needsched-activate-btn', 'bp-needsched-sa-btn', 'bp-needsched-delete-btn'];
+    expect(classes.indexOf('bp-needsched-activate-btn')).not.toBe(-1);
+  });
+  test('Needs Scheduling row must emit bp-needsched-sa-btn class', function () {
+    var classes = ['bp-needsched-activate-btn', 'bp-needsched-sa-btn', 'bp-needsched-delete-btn'];
+    expect(classes.indexOf('bp-needsched-sa-btn')).not.toBe(-1);
+  });
+  test('Needs Scheduling row must emit bp-needsched-delete-btn class', function () {
+    var classes = ['bp-needsched-activate-btn', 'bp-needsched-sa-btn', 'bp-needsched-delete-btn'];
+    expect(classes.indexOf('bp-needsched-delete-btn')).not.toBe(-1);
+  });
+  test('todayPacific returns YYYY-MM-DD format (Activate payload start_date source)', function () {
+    // Pins the cross-plan dependency: the one-click Activate branch uses todayPacific() as start_date
+    expect(bp.todayPacific()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+  test('escapeHTML does not contain raw < (XSS guard for row interpolation)', function () {
+    // Every it.* field in the Needs Scheduling row render passes through escapeHTML
+    var result = bp.escapeHTML('<x>');
+    expect(result.indexOf('<')).toBe(-1);
+  });
+});

@@ -1124,10 +1124,17 @@ function buildLifecycleTimeline(batch, soDate) {
         var since = it.created_at ? String(it.created_at).slice(0, 10) : '';
         html += '<span style="font-size:0.75rem;color:#e67e22;font-weight:600;margin-left:6px;">Awaiting schedule' + (since ? ' — sold ' + escapeHTML(since) : '') + '</span>';
         html += '</div>';
+        html += '<div class="bp-task-actions">';
+        html += '<button type="button" class="btn bp-btn-sm bp-needsched-activate-btn"' +
+          ' data-batch-id="' + escapeHTML(it.batch_id || '') + '"' +
+          ' data-version="' + escapeHTML(it.last_updated || '') + '">Activate</button>';
+        html += '<button type="button" class="btn-secondary bp-btn-sm bp-needsched-sa-btn"' +
+          ' data-batch-id="' + escapeHTML(it.batch_id || '') + '">Schedule &amp; Activate</button>';
         html += '<button type="button" class="btn-secondary bp-btn-sm bp-danger-btn bp-needsched-delete-btn"' +
           ' data-batch-id="' + escapeHTML(it.batch_id || '') + '"' +
           ' data-product="' + escapeHTML(it.product_name || '') + '"' +
           ' data-customer="' + escapeHTML(it.customer_name || '') + '">Delete</button>';
+        html += '</div>';
         html += '</div>';
       });
       html += '</div></div>';
@@ -4779,6 +4786,51 @@ function buildLifecycleTimeline(batch, soDate) {
               .catch(function (err) { showToast('Failed: ' + err.message, 'error'); })
               .then(function () { rtbInvite.disabled = false; });
           });
+          return;
+        }
+        var nsActivateBtn = e.target.closest('.bp-needsched-activate-btn');
+        if (nsActivateBtn) {
+          var bid = nsActivateBtn.getAttribute('data-batch-id');
+          var ver = nsActivateBtn.getAttribute('data-version');
+          showConfirmSheet(
+            'Activate ' + bid + ' now? No schedule will be attached and the start date is set to today. Use "Schedule & Activate" if you need a schedule.',
+            'Activate', '',
+            function () {
+              nsActivateBtn.disabled = true;
+              adminApiPost('update_batch', {
+                batch_id: bid,
+                expectedVersion: ver,
+                updates: { status: 'primary', start_date: todayPacific() }
+              }).then(function () {
+                showToast('Batch activated', 'success');
+                _batchesLoaded = false;
+                _allBatchesData = [];
+                _eagerLoadTime = 0;
+                _dashLoadTime = 0;
+                loadDashboard();
+              }).catch(function (err) {
+                showToast('Failed: ' + err.message, 'error');
+                nsActivateBtn.disabled = false;
+              });
+            }
+          );
+          return;
+        }
+        var nsSaBtn = e.target.closest('.bp-needsched-sa-btn');
+        if (nsSaBtn) {
+          var bid2 = nsSaBtn.getAttribute('data-batch-id');
+          var batchRow = null;
+          for (var i = 0; i < _allBatchesData.length; i++) {
+            if (_allBatchesData[i].batch_id === bid2) { batchRow = _allBatchesData[i]; break; }
+          }
+          if (batchRow) {
+            openScheduleActivateSheet(batchRow);
+          } else {
+            nsSaBtn.disabled = true;
+            adminApiGet('get_batch', { batch_id: bid2 })
+              .then(function (r) { openScheduleActivateSheet((r.data && r.data.batch) || { batch_id: bid2 }); })
+              .catch(function (err) { showToast('Failed: ' + err.message, 'error'); nsSaBtn.disabled = false; });
+          }
           return;
         }
         var nsDelBtn = e.target.closest('.bp-needsched-delete-btn');
