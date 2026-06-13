@@ -2567,11 +2567,11 @@ function buildLifecycleTimeline(batch, soDate) {
                 batch_id: b.batch_id,
                 updates: { status: 'primary', start_date: todayPacific() },
                 expectedVersion: b.last_updated
-              }).then(function () {
+              }).then(function (res) {
                 b.status = 'primary';
-                statusBadge.textContent = STATUS_LABELS['primary'] || 'primary';
-                statusBadge.className = 'bp-status-badge bp-status-badge--' + (STATUS_COLORS['primary'] || 'info') + ' bp-status-clickable';
-                statusBadge.setAttribute('aria-label', 'Batch status: ' + (STATUS_LABELS['primary'] || 'primary') + '. Click to change.');
+                // WR-03: refresh the optimistic-lock version so an immediate follow-up
+                // (e.g. Add Schedule) doesn't fail with a spurious version conflict.
+                if (res && res.newVersion) b.last_updated = res.newVersion;
                 showToast('Batch activated', 'success');
                 callSyncZoho(b.batch_id, b.zoho_so_number, 'active');
                 for (var bi = 0; bi < _batchesData.length; bi++) {
@@ -2582,8 +2582,12 @@ function buildLifecycleTimeline(batch, soDate) {
                 }
                 _batchesLoaded = false;
                 _dashLoadTime = 0;
-                renderBatchList();
                 try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e2) {}
+                // WR-03: full re-render so the pending-only footer (Activate / Schedule &
+                // Activate) is replaced with the active-state actions instead of leaving
+                // stale buttons that carry an outdated version.
+                renderBatchDetail(data);
+                renderBatchList();
               }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
             }
           );
@@ -2638,8 +2642,11 @@ function buildLifecycleTimeline(batch, soDate) {
               batch_id: b.batch_id,
               updates: { status: 'primary', start_date: todayPacific() },
               expectedVersion: b.last_updated
-            }).then(function () {
+            }).then(function (res) {
               b.status = 'primary';
+              // WR-03: refresh the optimistic-lock version so a follow-up Add Schedule
+              // on the freshly-activated batch doesn't fail with a spurious conflict.
+              if (res && res.newVersion) b.last_updated = res.newVersion;
               showToast('Batch activated', 'success');
               callSyncZoho(b.batch_id, b.zoho_so_number, 'active');
               for (var bi = 0; bi < _batchesData.length; bi++) {

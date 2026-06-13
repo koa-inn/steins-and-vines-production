@@ -315,6 +315,18 @@ describe('change-schedule entry point for active batches', function () {
     expect(pillIdx).not.toBe(-1);
   });
 
+  test('WR-03: status-badge pending activation re-renders the detail pane and refreshes the version', function () {
+    // Clicking the status badge on a pending batch activates it. Before the fix it patched
+    // the badge in place but left the pending-only footer buttons (with a now-stale version),
+    // so the next click hit a version conflict. The handler must re-render via the data
+    // wrapper and refresh b.last_updated from the response.
+    var anchor = src.indexOf("Activate ' + b.batch_id + ' now? No schedule will be attached and the start date is set to today.'");
+    expect(anchor).not.toBe(-1);
+    var handler = src.slice(anchor, anchor + 2200);
+    expect(handler.indexOf('b.last_updated = res.newVersion')).not.toBe(-1);
+    expect(handler.indexOf('renderBatchDetail(data)')).not.toBe(-1);
+  });
+
   test('the guided sheet panel uses the CSS-styled bp-create-sheet-inner class', function () {
     // Regression: the sheet panel was created with bp-create-sheet-panel, which has NO CSS,
     // so the form rendered transparently over the batch list. css/brewpad.css only styles
