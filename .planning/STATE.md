@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
-status: ready_to_plan
-stopped_at: Phase 29.2 complete (5/5) — ready to discuss Phase 30
-last_updated: 2026-06-13T13:36:18.300Z
+status: planning
+stopped_at: Phase 29.1 context gathered
+last_updated: "2026-06-13T14:02:22.435Z"
 last_activity: 2026-06-13
 progress:
   total_phases: 14
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 34
   completed_plans: 35
-  percent: 71
+  percent: 79
 ---
 
 # Project State
@@ -120,6 +120,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-12T00:00:00Z
-Stopped at: Phase 29.2 Plan 05 complete — CR-02 optimistic lock restored; all 29.2 plans done; v4.1 prod deploy still held
-Resume file: None
+Last session: 2026-06-13T14:02:22.429Z
+Stopped at: Phase 29.1 context gathered
+Resume file: .planning/phases/29.1-batch-customer-reassignment-change-the-customer-tied-to-a-ba/29.1-CONTEXT.md
