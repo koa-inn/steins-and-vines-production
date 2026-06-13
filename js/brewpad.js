@@ -2407,6 +2407,10 @@ function buildLifecycleTimeline(batch, soDate) {
 
     // Footer actions
     html += '<div class="bp-detail-actions">';
+    if (statusKey === 'pending') {
+      html += '<button type="button" class="btn bp-btn-sm" id="bp-activate-detail-btn">Activate</button>';
+      html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-sa-detail-btn">Schedule &amp; Activate</button>';
+    }
     if (b.customer_email) {
       html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-bottling-invite-btn">Send Bottling Invite</button>';
     }
@@ -2575,6 +2579,50 @@ function buildLifecycleTimeline(batch, soDate) {
           .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
           }
         );
+      });
+    }
+
+    // Pending-only detail footer: Activate + Schedule & Activate
+    var activateDetailBtn = document.getElementById('bp-activate-detail-btn');
+    if (activateDetailBtn) {
+      activateDetailBtn.addEventListener('click', function () {
+        showConfirmSheet(
+          'Activate ' + escapeHTML(b.batch_id) + ' now? No schedule will be attached and the start date is set to today. Use "Schedule & Activate" if you need a schedule.',
+          'Activate', '',
+          function () {
+            activateDetailBtn.disabled = true;
+            adminApiPost('update_batch', {
+              batch_id: b.batch_id,
+              updates: { status: 'primary', start_date: todayPacific() },
+              expectedVersion: b.last_updated
+            }).then(function () {
+              b.status = 'primary';
+              showToast('Batch activated', 'success');
+              callSyncZoho(b.batch_id, b.zoho_so_number, 'active');
+              for (var bi = 0; bi < _batchesData.length; bi++) {
+                if (_batchesData[bi].batch_id === b.batch_id) { _batchesData[bi].status = 'primary'; break; }
+              }
+              for (var bi2 = 0; bi2 < _allBatchesData.length; bi2++) {
+                if (_allBatchesData[bi2].batch_id === b.batch_id) { _allBatchesData[bi2].status = 'primary'; break; }
+              }
+              _batchesLoaded = false;
+              _dashLoadTime = 0;
+              try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e2) {}
+              renderBatchDetail(b);
+              renderBatchList();
+            }).catch(function (err) {
+              showToast('Failed: ' + err.message, 'error');
+              activateDetailBtn.disabled = false;
+            });
+          }
+        );
+      });
+    }
+
+    var saDetailBtn = document.getElementById('bp-sa-detail-btn');
+    if (saDetailBtn) {
+      saDetailBtn.addEventListener('click', function () {
+        openScheduleActivateSheet(b);
       });
     }
 
