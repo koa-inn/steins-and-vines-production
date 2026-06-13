@@ -15,6 +15,12 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Return a YYYY-MM-DD string for today (or today +/- N days) in Pacific time
+function todayPacific(offsetDays) {
+  var d = offsetDays ? new Date(Date.now() + offsetDays * 86400000) : new Date();
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Vancouver' });
+}
+
 function fmtDate(dateStr) {
   if (!dateStr) return '—';
   return String(dateStr).substring(0, 10);
@@ -2495,8 +2501,42 @@ function buildLifecycleTimeline(batch, soDate) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); statusBadge.click(); }
       });
       statusBadge.addEventListener('click', function () {
-        var order = ['primary', 'secondary', 'complete'];
         var cur = String(b.status || '').toLowerCase();
+
+        // Pending batches must go through the activation flow, not the cycle
+        if (cur === 'pending') {
+          showConfirmSheet(
+            'Activate ' + b.batch_id + ' now? No schedule will be attached and the start date is set to today.',
+            'Activate', '',
+            function () {
+              adminApiPost('update_batch', {
+                batch_id: b.batch_id,
+                updates: { status: 'primary', start_date: todayPacific() },
+                expectedVersion: b.last_updated
+              }).then(function () {
+                b.status = 'primary';
+                statusBadge.textContent = STATUS_LABELS['primary'] || 'primary';
+                statusBadge.className = 'bp-status-badge bp-status-badge--' + (STATUS_COLORS['primary'] || 'info') + ' bp-status-clickable';
+                statusBadge.setAttribute('aria-label', 'Batch status: ' + (STATUS_LABELS['primary'] || 'primary') + '. Click to change.');
+                showToast('Batch activated', 'success');
+                callSyncZoho(b.batch_id, b.zoho_so_number, 'active');
+                for (var bi = 0; bi < _batchesData.length; bi++) {
+                  if (_batchesData[bi].batch_id === b.batch_id) { _batchesData[bi].status = 'primary'; break; }
+                }
+                for (var bi2 = 0; bi2 < _allBatchesData.length; bi2++) {
+                  if (_allBatchesData[bi2].batch_id === b.batch_id) { _allBatchesData[bi2].status = 'primary'; break; }
+                }
+                _batchesLoaded = false;
+                _dashLoadTime = 0;
+                renderBatchList();
+                try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e2) {}
+              }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+            }
+          );
+          return;  // CRITICAL: bail before existing cycle logic
+        }
+
+        var order = ['primary', 'secondary', 'complete'];
         var idx = order.indexOf(cur);
         var next = order[(idx + 1) % order.length];
         showConfirmSheet(
@@ -5440,6 +5480,7 @@ if (typeof module !== 'undefined' && module.exports) {
     buildRefreshUpdates: buildRefreshUpdates,
     compareRefreshFields: compareRefreshFields,
     splitCustomerName: splitCustomerName,
-    isVersionConflict: isVersionConflict
+    isVersionConflict: isVersionConflict,
+    todayPacific: todayPacific
   };
 }
