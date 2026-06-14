@@ -1569,7 +1569,6 @@ router.get('/api/batch/scan-invoices', function (req, res) {
 
     // Step 3: Page through Zoho invoices up to MAX_PAGES (hard cap, D-01)
     var allInvoices = [];
-    var page = 1;
 
     function fetchPage(pg) {
       if (pg > MAX_PAGES) return Promise.resolve();
