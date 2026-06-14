@@ -1902,20 +1902,45 @@ function createBatch(payload, userEmail) {
     return { ok: false, error: 'missing_fields', message: 'product_sku (or recipe_id) and customer name are required' };
   }
 
-  // REGRESSION NOTE (D-10.2): createBatch previously had no dedup by zoho_so_number.
-  // A concurrent or replayed create for the same invoice could land twice in the BATCHES sheet.
-  // Fix: scan existing rows before lock acquisition / sheet append and reject duplicates.
-  // Expected: second create with same zoho_so_number returns { ok:false, error:'duplicate_so_number' }.
+  // CR-01 fix (gap-closure 29.3): Dedup guard now matches on BOTH zoho_so_number AND product_sku.
+  // Original guard (D-10.2) matched on zoho_so_number alone, which incorrectly blocked the second
+  // kit item of a multi-kit invoice (kiosk path and bulk-create both call createBatch once per SKU
+  // with the same zoho_so_number). A batch is a true duplicate only when BOTH invoice AND SKU match.
   // Batches with no zoho_so_number are unaffected (guard only fires when field is present).
-  if (payload.zoho_so_number) {
+  //
+  // CONTRACT (grep-checkable):
+  //   createBatch({zoho_so_number:'INV-001', product_sku:'SKU-A'}) — first call: creates batch
+  //   createBatch({zoho_so_number:'INV-001', product_sku:'SKU-A'}) — second call: duplicate_so_number
+  //   createBatch({zoho_so_number:'INV-001', product_sku:'SKU-B'}) — different SKU: allowed (multi-kit)
+  //
+  // NOTE: This file has no Jest harness. Redeploy to Google Apps Script is required for this fix
+  // to take effect in production. See 29.3-HUMAN-UAT.md for the mandatory redeploy step.
+  if (payload.zoho_so_number && payload.product_sku) {
     var existingBatches = sheetToObjects(BATCHES_SHEET_NAME);
     for (var di = 0; di < existingBatches.length; di++) {
-      if (String(existingBatches[di].zoho_so_number || '').trim() ===
+      var sameInvoice = String(existingBatches[di].zoho_so_number || '').trim() ===
+                        String(payload.zoho_so_number).trim();
+      var sameSku     = String(existingBatches[di].product_sku || '').trim() ===
+                        String(payload.product_sku).trim();
+      if (sameInvoice && sameSku) {
+        return {
+          ok: false,
+          error: 'duplicate_so_number',
+          message: 'A batch for SO/invoice ' + payload.zoho_so_number +
+                   ' + SKU ' + payload.product_sku + ' already exists: ' + existingBatches[di].batch_id
+        };
+      }
+    }
+  } else if (payload.zoho_so_number && !payload.product_sku) {
+    // Fallback: invoice-level dedup when no SKU provided (should not happen from 29.3 paths).
+    var existingBatches2 = sheetToObjects(BATCHES_SHEET_NAME);
+    for (var dj = 0; dj < existingBatches2.length; dj++) {
+      if (String(existingBatches2[dj].zoho_so_number || '').trim() ===
           String(payload.zoho_so_number).trim()) {
         return {
           ok: false,
           error: 'duplicate_so_number',
-          message: 'A batch for SO/invoice ' + payload.zoho_so_number + ' already exists: ' + existingBatches[di].batch_id
+          message: 'A batch for SO/invoice ' + payload.zoho_so_number + ' already exists: ' + existingBatches2[dj].batch_id
         };
       }
     }
