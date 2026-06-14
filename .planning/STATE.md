@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
-status: ready_to_plan
-stopped_at: Phase 29.1 complete (2/2) — ready to discuss Phase 29.2
-last_updated: 2026-06-13T18:19:32.150Z
-last_activity: 2026-06-13 -- Phase 29.1 execution started
+status: planning
+stopped_at: Phase 29.3 context gathered
+last_updated: "2026-06-14T00:06:35.012Z"
+last_activity: 2026-06-13
 progress:
-  total_phases: 14
-  completed_phases: 11
+  total_phases: 15
+  completed_phases: 12
   total_plans: 36
   completed_plans: 37
-  percent: 79
+  percent: 80
 ---
 
 # Project State
@@ -86,6 +86,7 @@ Milestone v4.1 phase map:
 - Phase 29.1 inserted after Phase 29: Batch customer reassignment (WALK-IN → real customer) with Zoho invoice propagation; requested during phase 27 UAT (URGENT)
 - Phase 27.1 inserted after Phase 27: Pending batch deletion with confirmation (today: manual Google Sheet row deletion when a pending batch duplicates an existing batch); requested during phase 27 UAT (URGENT)
 - Phase 29.2 inserted after Phase 29: BrewPad pending batch activation — port admin Activate / Schedule & Activate to BrewPad; pending-aware status badge (URGENT)
+- Phase 29.3 inserted after Phase 29: Pull non-kiosk batch sales into BrewPad (bulk Zoho invoice scan) (URGENT)
 
 ### Deferred Items
 
@@ -120,6 +121,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-13T14:02:22.429Z
-Stopped at: Phase 29.1 context gathered
-Resume file: .planning/phases/29.1-batch-customer-reassignment-change-the-customer-tied-to-a-ba/29.1-CONTEXT.md
+Last session: 2026-06-14T00:06:35.002Z
+Stopped at: Phase 29.3 context gathered
+Resume file: .planning/phases/29.3-pull-non-kiosk-batch-sales-into-brewpad-bulk-scan-recent-zoh/29.3-CONTEXT.md
