@@ -1484,6 +1484,265 @@ router.get('/api/batch/customer-by-number', function (req, res) {
     });
 });
 
+// Phase 29.3: Bulk-scan recent Zoho invoices for ferment-in-store sales (Maker's Fee present)
+// with no batch yet, and surface them as candidates for batch creation.
+// GET /api/batch/scan-invoices
+// Optional: ?number=INV-XXXXX => single-invoice mode (D-09)
+router.get('/api/batch/scan-invoices', function (req, res) {
+  var apiKey = req.headers['x-api-key'] || req.query.api_key;
+  if (apiKey !== process.env.MW_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  var CF_BATCH_STATUS = process.env.ZOHO_CF_BATCH_STATUS || 'cf_batch_status';
+  var MAX_PAGES = 4; // Hard server-side cap (~200 invoices). NEVER read from request (D-01/T-29.3-03).
+  var CANDIDATE_STATUSES = { paid: true, sent: true, draft: true }; // void excluded (D-04)
+
+  // --- Single-invoice mode (D-09) ---
+  if (req.query.number) {
+    var rawNumber = (req.query.number || '').trim().toUpperCase();
+    if (!/^(INV|SO)-\d+$/i.test(rawNumber)) {
+      return res.status(400).json({ error: 'bad_request', message: 'number must match INV-NNNN or SO-NNNN format' });
+    }
+
+    return zohoGet('/invoices/' + rawNumber)
+      .then(function (data) {
+        var inv = data.invoice || {};
+        var lineItems = inv.line_items || [];
+        var kitItems = brewpadIntegration.detectKitItems(lineItems);
+        if (kitItems.length === 0) {
+          return res.json({ candidates: [] });
+        }
+        return res.json({
+          candidates: [{
+            invoice_id: inv.invoice_id || rawNumber,
+            invoice_number: inv.invoice_number || rawNumber,
+            customer_name: inv.customer_name || '',
+            customer_id: inv.customer_id || '',
+            status: inv.status || '',
+            kit_items: kitItems.map(function (k) { return { sku: k.sku || '', name: k.name || '' }; })
+          }]
+        });
+      })
+      .catch(function (err) {
+        log.warn('[batch/scan-invoices] single-invoice fetch failed for ' + rawNumber + ': ' + err.message);
+        return res.status(502).json({ error: 'zoho_error', message: 'Failed to scan invoices from Zoho' });
+      });
+  }
+
+  // --- Date-window mode ---
+  // Step 1: Dedup pre-check (D-10.1) — fetch existing batches from Apps Script
+  // CRITICAL: use server_token (not token) — adminApi.gs reads e.parameter.server_token (~line 95)
+  // e.parameter.token (~line 402) is Google OAuth-validated and WILL fail for server tokens.
+  var existingSoNumbers = {};
+  var appsScriptUrl = process.env.APPS_SCRIPT_URL;
+  var serverToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
+
+  var dedupPromise;
+  if (appsScriptUrl && serverToken) {
+    dedupPromise = axios.get(appsScriptUrl, {
+      params: { action: 'get_batches', server_token: serverToken, status: 'all' },
+      timeout: 12000
+    }).then(function (resp) {
+      var respData = resp.data || {};
+      if (!respData.ok) {
+        log.warn('[batch/scan-invoices] get_batches dedup returned ok:false — treating dedup set as empty (D-10.2 is backstop)');
+        return;
+      }
+      var batches = (respData.data && respData.data.batches) || [];
+      batches.forEach(function (b) {
+        if (b.zoho_so_number) existingSoNumbers[b.zoho_so_number] = true;
+      });
+    }).catch(function (err) {
+      log.warn('[batch/scan-invoices] get_batches dedup failed (non-fatal): ' + err.message + ' — treating dedup set as empty (D-10.2 is backstop)');
+    });
+  } else {
+    dedupPromise = Promise.resolve();
+  }
+
+  dedupPromise.then(function () {
+    // Step 2: Compute date window (last 30 days)
+    var today = new Date();
+    var fromDate = new Date(today);
+    fromDate.setDate(fromDate.getDate() - 30);
+    var dateStr = fromDate.toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // Step 3: Page through Zoho invoices up to MAX_PAGES (hard cap, D-01)
+    var allInvoices = [];
+    var page = 1;
+
+    function fetchPage(pg) {
+      if (pg > MAX_PAGES) return Promise.resolve();
+      return zohoGet('/invoices', {
+        sort_column: 'created_time',
+        sort_order: 'D',
+        date_after: dateStr,
+        per_page: 50,
+        page: pg
+      }).then(function (data) {
+        var invoices = data.invoices || [];
+        // Filter: candidate statuses only (D-04)
+        invoices.forEach(function (inv) {
+          if (!CANDIDATE_STATUSES[inv.status]) return; // void excluded
+          // cf_batch_status skip (D-02): skip before detail fetch
+          var alreadyHasBatch = (inv.custom_fields || []).some(function (cf) {
+            return cf.api_name === CF_BATCH_STATUS && cf.value;
+          });
+          if (alreadyHasBatch) return;
+          // Dedup: skip if zoho_so_number already in get_batches result (D-10.1)
+          if (existingSoNumbers[inv.invoice_number]) return;
+          allInvoices.push(inv);
+        });
+
+        var hasMore = data.page_context && data.page_context.has_more_page;
+        if (hasMore && pg < MAX_PAGES) {
+          return fetchPage(pg + 1);
+        }
+      });
+    }
+
+    return fetchPage(1).then(function () {
+      // Step 4: Sequential detail-fetch chain (respect Zoho rate limits — NOT Promise.all)
+      var results = [];
+      var chain = Promise.resolve();
+      allInvoices.forEach(function (inv) {
+        chain = chain.then(function () {
+          return zohoGet('/invoices/' + inv.invoice_id)
+            .then(function (data) {
+              var detail = data.invoice || {};
+              var lineItems = detail.line_items || [];
+              var kitItems = brewpadIntegration.detectKitItems(lineItems);
+              if (kitItems.length === 0) return; // No Maker's Fee — not a candidate
+              results.push({
+                invoice_id: inv.invoice_id,
+                invoice_number: inv.invoice_number,
+                customer_name: inv.customer_name || '',
+                customer_id: inv.customer_id || '',
+                status: inv.status,
+                kit_items: kitItems.map(function (k) { return { sku: k.sku || '', name: k.name || '' }; })
+              });
+            })
+            .catch(function (err) {
+              log.warn('[batch/scan-invoices] detail fetch skipped for ' + inv.invoice_id + ': ' + err.message);
+              // Skip candidate — do not abort scan
+            });
+        });
+      });
+
+      return chain.then(function () {
+        eventLog.logEvent('batch.scan_invoices', { candidateCount: results.length });
+        return res.json({ candidates: results });
+      });
+    });
+  }).catch(function (err) {
+    log.error('[batch/scan-invoices] Zoho scan error: ' + err.message);
+    return res.status(502).json({ error: 'zoho_error', message: 'Failed to scan invoices from Zoho' });
+  });
+});
+
+// Phase 29.3: Server-authoritative bulk-create pending batches for confirmed scan candidates.
+// POST /api/batch/bulk-create
+// Body: { invoice_ids: ['INV-ID-001', ...] } — client supplies ONLY invoice ids (D-06)
+router.post('/api/batch/bulk-create', function (req, res) {
+  var apiKey = req.headers['x-api-key'] || req.query.api_key;
+  if (apiKey !== process.env.MW_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  var body = req.body || {};
+  var invoiceIds = body.invoice_ids;
+  if (!Array.isArray(invoiceIds) || invoiceIds.length === 0) {
+    return res.status(400).json({ error: 'bad_request', message: 'invoice_ids must be a non-empty array' });
+  }
+
+  // Server-authoritative: re-resolve each invoice from Zoho, never trust client batch data (D-06)
+  var results = [];
+  var chain = Promise.resolve();
+
+  invoiceIds.forEach(function (invoiceId) {
+    chain = chain.then(function () {
+      return zohoGet('/invoices/' + invoiceId)
+        .then(function (data) {
+          var inv = data.invoice || {};
+          var lineItems = inv.line_items || [];
+          var kitItems = brewpadIntegration.detectKitItems(lineItems);
+
+          if (kitItems.length === 0) {
+            // No Maker's Fee — cannot create batch
+            results.push({ invoice_id: invoiceId, invoice_number: inv.invoice_number || invoiceId, ok: false, error: 'no_kit_items' });
+            return;
+          }
+
+          var customerName = inv.customer_name || 'Walk-in Customer';
+          var customerId = inv.customer_id || '';
+          var invoiceNumber = inv.invoice_number || '';
+
+          // Per-kit-item creates (D-07) — sequential within this invoice
+          var kitChain = Promise.resolve();
+          var invoiceResults = [];
+
+          kitItems.forEach(function (item) {
+            kitChain = kitChain.then(function () {
+              var nameParts = brewpadIntegration.splitCustomerName(customerName);
+              var batchPayload = {
+                product_sku:        item.sku || item.item_id || '',
+                product_name:       item.name || '',
+                customer_name:      customerName,
+                customer_firstname: nameParts.first || '',
+                customer_lastname:  nameParts.last  || '',
+                customer_id:        customerId,
+                source:             'zoho_scan',
+                zoho_so_number:     invoiceNumber
+                // customer_email omitted — no PII per D-06/T-29.3-06
+              };
+
+              return brewpadIntegration.callAppsScriptCreateBatch(batchPayload)
+                .then(function (result) {
+                  if (result && result.ok && inv.invoice_id) {
+                    // Fire-and-forget sync to Zoho custom field
+                    brewpadIntegration.syncBatchToZoho(inv.invoice_id, result.batch_id || '', 'pending')
+                      .catch(function () {}); // noop — errors queued in brewpad-integration
+                  }
+                  invoiceResults.push({
+                    sku: item.sku || '',
+                    ok: !!(result && result.ok),
+                    batch_id: (result && result.batch_id) || undefined,
+                    error: (result && !result.ok && result.error) || undefined
+                  });
+                });
+            });
+          });
+
+          return kitChain.then(function () {
+            // Summarise per-invoice: ok if all kit items succeeded
+            var allOk = invoiceResults.every(function (r) { return r.ok; });
+            var firstError = !allOk && invoiceResults.find(function (r) { return !r.ok; });
+            results.push({
+              invoice_id: invoiceId,
+              invoice_number: invoiceNumber,
+              ok: allOk,
+              batch_id: allOk && invoiceResults[0] ? invoiceResults[0].batch_id : undefined,
+              error: firstError ? firstError.error : undefined,
+              kit_results: invoiceResults.length > 1 ? invoiceResults : undefined
+            });
+          });
+        })
+        .catch(function (err) {
+          log.warn('[batch/bulk-create] detail fetch failed for ' + invoiceId + ': ' + err.message);
+          results.push({ invoice_id: invoiceId, ok: false, error: 'detail_fetch_failed' });
+        });
+    });
+  });
+
+  chain.then(function () {
+    eventLog.logEvent('batch.bulk_create', { total: invoiceIds.length, ok: results.filter(function (r) { return r.ok; }).length });
+    return res.json({ results: results });
+  }).catch(function (err) {
+    log.error('[batch/bulk-create] error: ' + err.message);
+    return res.status(502).json({ error: 'zoho_error', message: 'Failed to bulk-create batches' });
+  });
+});
+
 // Phase 29.1: Search Zoho contacts by name/email/phone for customer type-ahead
 router.get('/api/contacts/search', function (req, res) {
   var apiKey = req.headers['x-api-key'] || req.query.api_key;
