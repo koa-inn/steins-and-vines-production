@@ -1499,30 +1499,57 @@ router.get('/api/batch/scan-invoices', function (req, res) {
   var CANDIDATE_STATUSES = { paid: true, sent: true, draft: true }; // void excluded (D-04)
 
   // --- Single-invoice mode (D-09) ---
+  // CR-02 fix: Zoho detail endpoint needs numeric internal ID, not the human-readable number.
+  // Use search-then-detail pattern (mirrors /api/batch/customer-by-number at line 1372):
+  // 1. Search by invoice_number / salesorder_number to resolve the numeric ID and correct entity type.
+  // 2. Detail-fetch using the resolved numeric ID.
   if (req.query.number) {
     var rawNumber = (req.query.number || '').trim().toUpperCase();
     if (!/^(INV|SO)-\d+$/i.test(rawNumber)) {
       return res.status(400).json({ error: 'bad_request', message: 'number must match INV-NNNN or SO-NNNN format' });
     }
 
-    return zohoGet('/invoices/' + rawNumber)
-      .then(function (data) {
-        var inv = data.invoice || {};
-        var lineItems = inv.line_items || [];
-        var kitItems = brewpadIntegration.detectKitItems(lineItems);
-        if (kitItems.length === 0) {
+    var isInv      = /^INV-/.test(rawNumber);
+    var listPath   = isInv ? '/invoices'          : '/salesorders';
+    var filterKey  = isInv ? 'invoice_number'     : 'salesorder_number';
+    var entityKey  = isInv ? 'invoices'           : 'salesorders';
+    var idField    = isInv ? 'invoice_id'         : 'salesorder_id';
+    var detailKey  = isInv ? 'invoice'            : 'salesorder';
+    var detailPath = isInv ? '/invoices/'         : '/salesorders/';
+
+    var filterParams = {};
+    filterParams[filterKey] = rawNumber;
+
+    return zohoGet(listPath, filterParams)
+      .then(function (listData) {
+        var docs = listData[entityKey] || [];
+        var doc = null;
+        for (var si = 0; si < docs.length; si++) {
+          if (String(docs[si][filterKey] || '').toUpperCase() === rawNumber) { doc = docs[si]; break; }
+        }
+        if (!doc) {
           return res.json({ candidates: [] });
         }
-        return res.json({
-          candidates: [{
-            invoice_id: inv.invoice_id || rawNumber,
-            invoice_number: inv.invoice_number || rawNumber,
-            customer_name: inv.customer_name || '',
-            customer_id: inv.customer_id || '',
-            status: inv.status || '',
-            kit_items: kitItems.map(function (k) { return { sku: k.sku || '', name: k.name || '' }; })
-          }]
-        });
+
+        return zohoGet(detailPath + doc[idField])
+          .then(function (detailData) {
+            var inv = detailData[detailKey] || {};
+            var lineItems = inv.line_items || [];
+            var kitItems = brewpadIntegration.detectKitItems(lineItems);
+            if (kitItems.length === 0) {
+              return res.json({ candidates: [] });
+            }
+            return res.json({
+              candidates: [{
+                invoice_id: doc[idField],
+                invoice_number: rawNumber,
+                customer_name: inv.customer_name || '',
+                customer_id: inv.customer_id || '',
+                status: inv.status || '',
+                kit_items: kitItems.map(function (k) { return { sku: k.sku || '', name: k.name || '' }; })
+              }]
+            });
+          });
       })
       .catch(function (err) {
         log.warn('[batch/scan-invoices] single-invoice fetch failed for ' + rawNumber + ': ' + err.message);
@@ -1652,6 +1679,20 @@ router.post('/api/batch/bulk-create', function (req, res) {
   var invoiceIds = body.invoice_ids;
   if (!Array.isArray(invoiceIds) || invoiceIds.length === 0) {
     return res.status(400).json({ error: 'bad_request', message: 'invoice_ids must be a non-empty array' });
+  }
+
+  // WR-01 fix: validate each element is a Zoho numeric internal ID (15-20 digits).
+  // Rejects path-traversal strings (e.g. '../contacts') and human-readable numbers (INV-000123).
+  // Cap at 200 entries to match the scan page-cap (D-01) and prevent quota amplification.
+  if (invoiceIds.length > 200) {
+    return res.status(400).json({ error: 'bad_request', message: 'invoice_ids must contain 200 or fewer items' });
+  }
+  var VALID_INVOICE_ID = /^\d{15,20}$/;
+  for (var vi = 0; vi < invoiceIds.length; vi++) {
+    if (typeof invoiceIds[vi] !== 'string' || !VALID_INVOICE_ID.test(invoiceIds[vi])) {
+      return res.status(400).json({ error: 'bad_request',
+        message: 'Each invoice_id must be a Zoho numeric ID (15-20 digits)' });
+    }
   }
 
   // Server-authoritative: re-resolve each invoice from Zoho, never trust client batch data (D-06)
