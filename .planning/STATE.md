@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
-stopped_at: Phase 29.3 context gathered
-last_updated: "2026-06-14T01:38:45.735Z"
+stopped_at: Phase 29.3 Plan 02 complete — zoho_so_number idempotency guard added to adminApi.gs
+last_updated: "2026-06-14T01:41:51.115Z"
 last_activity: 2026-06-14
 progress:
   total_phases: 15
   completed_phases: 12
   total_plans: 39
-  completed_plans: 38
+  completed_plans: 39
   percent: 80
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-11)
 ## Current Position
 
 Phase: 29.3 (pull-non-kiosk-batch-sales-into-brewpad) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-14
 
@@ -55,6 +55,7 @@ Milestone v4.1 phase map:
 | Phase 28-zoho-customer-read-back-path P01 | 161 | 3 tasks | 2 files |
 | Phase 29-refresh-from-zoho-admin-ui P03 | 60 | 3 tasks | 4 files |
 | Phase 29.3 P01 | 442 | 3 tasks | 2 files |
+| Phase 29.3 P02 | 120 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,7 @@ Milestone v4.1 phase map:
 - [29.3-01]: MAX_PAGES=4 hard cap for Zoho invoice scan (D-01) — never read from request, protects Zoho quota (prior quota-exhaustion incident)
 - [29.3-01]: get_batches dedup uses server_token param (not token) for Apps Script GET — e.parameter.token is Google OAuth-validated and rejects server tokens (regression guard test added)
 - [29.3-01]: source='zoho_scan' distinguishes scan-created batches from kiosk path; customer_email omitted (no PII, T-29.3-06)
+- [Phase ?]: [29.3-02]: zoho_so_number idempotency guard placed after missing_fields check and before lock acquisition — duplicates rejected without any sheet I/O
 
 ### Roadmap Evolution
 
@@ -125,6 +127,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-14T01:38:45.729Z
-Stopped at: Phase 29.3 context gathered
+Last session: 2026-06-14T01:41:51.109Z
+Stopped at: Phase 29.3 Plan 02 complete — zoho_so_number idempotency guard added to adminApi.gs
 Resume file: None

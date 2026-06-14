@@ -327,7 +327,7 @@ Plans:
 | 26. Cloudflare Edge Protection | v4.0 | live-exec | Complete | 2026-06-06 |
 | 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete    | 2026-06-11 |
 | 28. Zoho Customer Read-Back Path | v4.1 | 2/2 | Complete    | 2026-06-12 |
-| 29. Refresh-from-Zoho Admin UI | v4.1 | 6/6 | Complete    | 2026-06-12 |
+| 29. Refresh-from-Zoho Admin UI | v4.1 | 6/6 | Complete   | 2026-06-14 |
 
 ### Phase 29.3: Pull non-kiosk batch sales into BrewPad — bulk-scan recent Zoho invoices for ferment-in-store sales (Makers Fee present) that have no batch yet and create pending batches; dedupe by zoho_so_number, skip already-batched invoices via cf_batch_status, bounded scan window to respect Zoho rate limits. Touches zoho-middleware scan endpoint + per-invoice detail fetch, apps-script adminApi.gs create_batch dedup, js/brewpad.js Pull-from-Zoho control + confirm + list refresh. (INSERTED)
 
