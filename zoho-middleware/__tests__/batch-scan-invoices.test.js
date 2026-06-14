@@ -395,12 +395,82 @@ describe('GET /api/batch/scan-invoices', function () {
   });
 
   // ── single-invoice mode (D-09) ────────────────────────────────────────────
+
+  // CR-02 regression: single-invoice mode must perform search-then-detail (not raw number as path ID).
+  // Before the fix, code called zohoGet('/invoices/INV-000123') which Zoho rejects (needs numeric ID).
+  // After fix: zohoGet('/invoices', { invoice_number: ... }) first, then zohoGet('/invoices/<numeric_id>').
+  test('CR-02 regression: single-invoice mode performs search step — does NOT call zohoGet with raw INV-/SO- number as path', function () {
+    // mockReset clears default impl set by prior tests; then use Once so nothing leaks forward.
+    zohoApi.zohoGet.mockReset();
+    zohoApi.zohoGet
+      .mockResolvedValueOnce({ invoices: [{ invoice_id: '109900000000000123', invoice_number: 'INV-000123' }] })
+      .mockResolvedValueOnce({ invoice: makeDetailInvoice({ invoice_id: '109900000000000123', invoice_number: 'INV-000123' }) });
+
+    brewpadIntegration.detectKitItems.mockReturnValue([
+      { sku: 'WINE-KIT-CAB', name: 'Cabernet Sauvignon Kit' }
+    ]);
+
+    var req = makeReq(null, { number: 'INV-000123' }, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    scanInvoicesHandler(req, res);
+
+    return flushPromises().then(function () {
+      // Must NOT call zohoGet with raw 'INV-...' string as a path segment (the CR-02 bug)
+      var rawNumberCalls = zohoApi.zohoGet.mock.calls.filter(function (c) {
+        return typeof c[0] === 'string' && /\/invoices\/INV-/.test(c[0]);
+      });
+      expect(rawNumberCalls.length).toBe(0);
+
+      // Step 1 must be a list/search call (path '/invoices' with filter param)
+      var searchCalls = zohoApi.zohoGet.mock.calls.filter(function (c) {
+        return c[0] === '/invoices' && c[1] && c[1].invoice_number === 'INV-000123';
+      });
+      expect(searchCalls.length).toBe(1);
+    });
+  });
+
+  // CR-02 regression: SO- prefix resolves via /salesorders endpoint (not /invoices)
+  test('CR-02 regression: single-invoice mode with SO- prefix searches salesorders endpoint', function () {
+    zohoApi.zohoGet.mockReset();
+    zohoApi.zohoGet
+      .mockResolvedValueOnce({ salesorders: [{ salesorder_id: '109900000000000456', salesorder_number: 'SO-000456' }] })
+      .mockResolvedValueOnce({ salesorder: {
+        salesorder_id: '109900000000000456', salesorder_number: 'SO-000456',
+        customer_name: 'Bob Builder', customer_id: 'CUST-456', status: 'confirmed',
+        line_items: [{ item_id: 'KIT-001', sku: 'WINE-KIT-CAB', name: 'Cab Sav Kit' }]
+      } });
+
+    brewpadIntegration.detectKitItems.mockReturnValue([
+      { sku: 'WINE-KIT-CAB', name: 'Cab Sav Kit' }
+    ]);
+
+    var req = makeReq(null, { number: 'SO-000456' }, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    scanInvoicesHandler(req, res);
+
+    return flushPromises().then(function () {
+      // Search must use /salesorders (not /invoices) for SO- prefix
+      var soSearchCalls = zohoApi.zohoGet.mock.calls.filter(function (c) {
+        return c[0] === '/salesorders' && c[1] && c[1].salesorder_number === 'SO-000456';
+      });
+      expect(soSearchCalls.length).toBe(1);
+
+      // Must NOT call /invoices for an SO- prefix (the CR-02 bug)
+      var wrongEndpoint = zohoApi.zohoGet.mock.calls.filter(function (c) {
+        return typeof c[0] === 'string' && /^\/invoices/.test(c[0]);
+      });
+      expect(wrongEndpoint.length).toBe(0);
+    });
+  });
+
   test('single-invoice mode: ?number=INV-000123 bypasses date window and returns single-element candidates array', function () {
-    // Single invoice mode: no list call (or a targeted single call), just detail fetch
-    zohoApi.zohoGet.mockResolvedValue({ invoice: makeDetailInvoice({
-      invoice_id: 'INV-ID-123',
-      invoice_number: 'INV-000123'
-    }) });
+    // Two-step: search then detail fetch (CR-02 fix)
+    zohoApi.zohoGet
+      .mockResolvedValueOnce({ invoices: [{ invoice_id: 'INV-ID-123', invoice_number: 'INV-000123' }] })
+      .mockResolvedValueOnce({ invoice: makeDetailInvoice({
+        invoice_id: 'INV-ID-123',
+        invoice_number: 'INV-000123'
+      }) });
 
     brewpadIntegration.detectKitItems.mockReturnValue([
       { sku: 'WINE-KIT-CAB', name: 'Cabernet Sauvignon Kit' }
@@ -418,17 +488,34 @@ describe('GET /api/batch/scan-invoices', function () {
   });
 
   test('single-invoice mode: no Maker\'s Fee => empty candidates array', function () {
-    zohoApi.zohoGet.mockResolvedValue({ invoice: makeDetailInvoice({
-      invoice_id: 'INV-ID-123',
-      invoice_number: 'INV-000123',
-      line_items: [
-        { item_id: 'ITEM-001', sku: 'SOME-PRODUCT', name: 'Some Product' }
-      ]
-    }) });
+    zohoApi.zohoGet
+      .mockResolvedValueOnce({ invoices: [{ invoice_id: 'INV-ID-123', invoice_number: 'INV-000123' }] })
+      .mockResolvedValueOnce({ invoice: makeDetailInvoice({
+        invoice_id: 'INV-ID-123',
+        invoice_number: 'INV-000123',
+        line_items: [
+          { item_id: 'ITEM-001', sku: 'SOME-PRODUCT', name: 'Some Product' }
+        ]
+      }) });
 
     brewpadIntegration.detectKitItems.mockReturnValue([]); // No Maker's Fee
 
     var req = makeReq(null, { number: 'INV-000123' }, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    scanInvoicesHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(res._json.candidates).toBeDefined();
+      expect(res._json.candidates.length).toBe(0);
+    });
+  });
+
+  // CR-02: single-invoice mode returns empty candidates when Zoho search finds nothing
+  test('single-invoice mode: number not found in Zoho search => empty candidates', function () {
+    zohoApi.zohoGet.mockReset();
+    zohoApi.zohoGet.mockResolvedValueOnce({ invoices: [] });
+
+    var req = makeReq(null, { number: 'INV-000999' }, { 'x-api-key': 'test-api-key' });
     var res = makeRes();
     scanInvoicesHandler(req, res);
 
@@ -482,7 +569,8 @@ describe('POST /api/batch/bulk-create', function () {
 
   // ── 401 ───────────────────────────────────────────────────────────────────
   test('401 when x-api-key header is absent', function () {
-    var req = makeReq({ invoice_ids: ['INV-ID-001'] }, {}, {});
+    // Auth check fires before format validation, so any invoice_ids value works here
+    var req = makeReq({ invoice_ids: ['109900000000000001'] }, {}, {});
     var res = makeRes();
     bulkCreateHandler(req, res);
     expect(res.status).toHaveBeenCalledWith(401);
@@ -517,9 +605,10 @@ describe('POST /api/batch/bulk-create', function () {
     brewpadIntegration.callAppsScriptCreateBatch.mockResolvedValue({ ok: true, batch_id: 'SV-B-000001' });
 
     // Client supplies only invoice_ids — no product/customer data (D-06)
+    // WR-01 fix: invoice_ids must be Zoho numeric IDs (15-20 digits), not human-readable strings
     var req = makeReq(
       {
-        invoice_ids: ['INV-ID-001'],
+        invoice_ids: ['109900000000000001'],
         // These client-supplied fields must NOT be used:
         product_name: 'FAKE PRODUCT',
         customer_name: 'FAKE CUSTOMER'
@@ -532,7 +621,7 @@ describe('POST /api/batch/bulk-create', function () {
 
     return flushPromises().then(function () {
       // Must have re-fetched from Zoho (not used client data)
-      expect(zohoApi.zohoGet).toHaveBeenCalledWith('/invoices/INV-ID-001');
+      expect(zohoApi.zohoGet).toHaveBeenCalledWith('/invoices/109900000000000001');
 
       // callAppsScriptCreateBatch must be called with server-built payload
       expect(brewpadIntegration.callAppsScriptCreateBatch).toHaveBeenCalled();
@@ -569,7 +658,8 @@ describe('POST /api/batch/bulk-create', function () {
 
     brewpadIntegration.callAppsScriptCreateBatch.mockResolvedValue({ ok: true, batch_id: 'SV-B-000002' });
 
-    var req = makeReq({ invoice_ids: ['INV-ID-001'] }, {}, { 'x-api-key': 'test-api-key' });
+    // WR-01 fix: use valid Zoho numeric ID format
+    var req = makeReq({ invoice_ids: ['109900000000000001'] }, {}, { 'x-api-key': 'test-api-key' });
     var res = makeRes();
     bulkCreateHandler(req, res);
 
@@ -584,8 +674,9 @@ describe('POST /api/batch/bulk-create', function () {
 
   // ── partial failure: one callAppsScriptCreateBatch fails, response still 200 ──
   test('partial failure: one Apps Script create fails — response 200 with per-row results marking failure', function () {
-    var inv1 = 'INV-ID-001';
-    var inv2 = 'INV-ID-002';
+    // WR-01 fix: use valid Zoho numeric ID format (15-20 digits)
+    var inv1 = '109900000000000001';
+    var inv2 = '109900000000000002';
 
     var detail1 = makeDetailInvoice({ invoice_id: inv1, invoice_number: 'INV-000001' });
     var detail2 = makeDetailInvoice({ invoice_id: inv2, invoice_number: 'INV-000002', customer_name: 'Bob Smith' });
@@ -633,7 +724,8 @@ describe('POST /api/batch/bulk-create', function () {
       message: 'A batch for SO/invoice INV-000001 already exists: SV-B-000001'
     });
 
-    var req = makeReq({ invoice_ids: ['INV-ID-001'] }, {}, { 'x-api-key': 'test-api-key' });
+    // WR-01 fix: use valid Zoho numeric ID format (15-20 digits)
+    var req = makeReq({ invoice_ids: ['109900000000000001'] }, {}, { 'x-api-key': 'test-api-key' });
     var res = makeRes();
     bulkCreateHandler(req, res);
 
@@ -643,6 +735,66 @@ describe('POST /api/batch/bulk-create', function () {
       expect(results[0].ok).toBe(false);
       // error field should be surfaced so client can handle duplicate gracefully
       expect(results[0].error).toBeTruthy();
+    });
+  });
+
+  // ── WR-01 regression: invoice_ids format validation and size cap ──────────
+  test('WR-01 regression: 400 when invoice_ids contains a non-numeric-ID string (path traversal guard)', function () {
+    var req = makeReq({ invoice_ids: ['../contacts'] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    bulkCreateHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res._json.error).toBe('bad_request');
+      // Must not have called zohoGet (guard fires before Zoho call)
+      expect(zohoApi.zohoGet).not.toHaveBeenCalled();
+    });
+  });
+
+  test('WR-01 regression: 400 when invoice_ids contains an INV-prefixed human number (not numeric ID)', function () {
+    var req = makeReq({ invoice_ids: ['INV-000123'] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    bulkCreateHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res._json.error).toBe('bad_request');
+      expect(zohoApi.zohoGet).not.toHaveBeenCalled();
+    });
+  });
+
+  test('WR-01 regression: 400 when invoice_ids array length exceeds 200', function () {
+    var ids = [];
+    for (var i = 0; i < 201; i++) {
+      // Pad to 18 digits so format check passes but size check fires
+      ids.push('109900000000' + String(i).padStart(6, '0'));
+    }
+    var req = makeReq({ invoice_ids: ids }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    bulkCreateHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res._json.error).toBe('bad_request');
+      expect(zohoApi.zohoGet).not.toHaveBeenCalled();
+    });
+  });
+
+  test('WR-01 regression: valid 18-digit numeric invoice_ids pass format guard', function () {
+    zohoApi.zohoGet.mockResolvedValue({ invoice: makeDetailInvoice() });
+    brewpadIntegration.detectKitItems.mockReturnValue([
+      { sku: 'WINE-KIT-CAB', name: 'Cabernet Sauvignon Kit' }
+    ]);
+    brewpadIntegration.callAppsScriptCreateBatch.mockResolvedValue({ ok: true, batch_id: 'SV-B-000099' });
+
+    var req = makeReq({ invoice_ids: ['109900000000000001'] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    bulkCreateHandler(req, res);
+
+    return flushPromises().then(function () {
+      // Should not be rejected by format guard — zohoGet must have been called
+      expect(zohoApi.zohoGet).toHaveBeenCalledWith('/invoices/109900000000000001');
     });
   });
 });
