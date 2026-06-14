@@ -355,6 +355,54 @@ describe('filterBatchesByStatus — pending filter contract', function () {
 });
 
 // ---------------------------------------------------------------------------
+// eagerLoad partial-failure resilience — structural verification
+// ---------------------------------------------------------------------------
+// eagerLoad() is inside the IIFE and cannot be required from the outside.
+// The fix wraps each adminApiGet call with a settle() helper so Promise.all
+// never rejects on a partial failure. We verify the key structural elements:
+//   1. A settle() wrapper function is present inside eagerLoad.
+//   2. Each adminApiGet call is wrapped in settle().
+//   3. The .catch() on Promise.all itself is gone (no longer needed).
+//   4. Each result is guarded (if (rN)) before assignment.
+describe('eagerLoad partial-failure resilience (structural)', function () {
+  var fs = require('fs');
+  var path = require('path');
+  var src;
+  beforeAll(function () {
+    src = fs.readFileSync(path.join(__dirname, '../../js/brewpad.js'), 'utf8');
+  });
+
+  it('eagerLoad defines a settle() wrapper to absorb individual call rejections', function () {
+    // settle wraps each promise to return null on rejection
+    expect(src).toMatch(/function settle\(p\)/);
+    expect(src).toMatch(/\.catch\(function\s*\(\)\s*\{\s*return null;\s*\}\)/);
+  });
+
+  it('all five adminApiGet calls in eagerLoad are wrapped in settle()', function () {
+    // Extract the eagerLoad function body (from its declaration to the closing brace)
+    var eagerMatch = src.match(/function eagerLoad\(\)[\s\S]*?^\s{2}\}/m);
+    var body = eagerMatch ? eagerMatch[0] : '';
+    // Expect settle() to wrap each of the 5 calls
+    var settleWraps = (body.match(/settle\(adminApiGet\(/g) || []).length;
+    expect(settleWraps).toBe(5);
+  });
+
+  it('each result slot is guarded with if(rN) before assignment', function () {
+    // The fix uses r0..r4 with null-guards so partial results still apply
+    expect(src).toMatch(/if\s*\(r0\)/);
+    expect(src).toMatch(/if\s*\(r1\)/);
+    expect(src).toMatch(/if\s*\(r2\)/);
+    expect(src).toMatch(/if\s*\(r3\)/);
+    expect(src).toMatch(/if\s*\(r4\)/);
+  });
+
+  it('falls back to loadDashboard() when core results (r0 and r1) both fail', function () {
+    // The fallback path is guarded by: if (r0 || r1) { ... } else { loadDashboard(); ... }
+    expect(src).toMatch(/if\s*\(r0\s*\|\|\s*r1\)/);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // WR-02: openPullFromZohoSheet backdrop handler — structural verification
 // ---------------------------------------------------------------------------
 // WR-02 fix is a one-liner in openPullFromZohoSheet (brewpad.js ~line 2283):

@@ -1240,42 +1240,63 @@ function isValidImportNumber(num) {
     var dashInner = document.getElementById('bp-dashboard-inner');
     if (dashInner) dashInner.innerHTML = '<div class="bp-skeleton-block"></div><div class="bp-skeleton-block" style="height:120px;margin-top:12px;"></div>';
 
+    // Wrap each call so a single failure doesn't reject the whole Promise.all —
+    // a partial result is better than a blank dashboard.
+    function settle(p) {
+      return p.then(function (r) { return r; }).catch(function () { return null; });
+    }
+
     Promise.all([
-      adminApiGet('get_batch_dashboard_summary'),
-      adminApiGet('get_batches', { status: 'all' }),   // fetch ALL statuses at once
-      adminApiGet('get_vessels'),
-      adminApiGet('get_ferm_schedules'),
-      adminApiGet('get_tasks_upcoming', { limit: 200 })
+      settle(adminApiGet('get_batch_dashboard_summary')),
+      settle(adminApiGet('get_batches', { status: 'all' })),   // fetch ALL statuses at once
+      settle(adminApiGet('get_vessels')),
+      settle(adminApiGet('get_ferm_schedules')),
+      settle(adminApiGet('get_tasks_upcoming', { limit: 200 }))
     ]).then(function (results) {
-      _dashSummary    = results[0].data || null;
-      _dashLoadTime   = Date.now();
+      var r0 = results[0], r1 = results[1], r2 = results[2], r3 = results[3], r4 = results[4];
 
-      _allBatchesData = (results[1].data && results[1].data.batches) || [];
-      _batchesLoaded  = true;
-      _batchesLoadTime = Date.now();
+      if (r0) {
+        _dashSummary  = r0.data || null;
+        _dashLoadTime = Date.now();
+      }
 
-      _vesselsData    = (results[2].data && results[2].data.vessels) || [];
-      _vesselsCacheTime = Date.now();
-      _vesselsMap     = {};
-      _vesselsData.forEach(function (v) { _vesselsMap[String(v.vessel_id)] = v; });
+      if (r1) {
+        _allBatchesData  = (r1.data && r1.data.batches) || [];
+        _batchesLoaded   = true;
+        _batchesLoadTime = Date.now();
+      }
 
-      _fermSchedules  = (results[3].data && results[3].data.schedules) || [];
-      _fermSchedulesCacheTime = Date.now();
+      if (r2) {
+        _vesselsData      = (r2.data && r2.data.vessels) || [];
+        _vesselsCacheTime = Date.now();
+        _vesselsMap       = {};
+        _vesselsData.forEach(function (v) { _vesselsMap[String(v.vessel_id)] = v; });
+      }
 
-      _upcomingTasks  = (results[4].data && results[4].data.tasks) || [];
-      _upcomingLoaded = true;
-      _upcomingLoadTime = Date.now();
+      if (r3) {
+        _fermSchedules          = (r3.data && r3.data.schedules) || [];
+        _fermSchedulesCacheTime = Date.now();
+      }
 
-      _eagerLoadDone  = true;
-      _eagerLoadTime  = Date.now();
+      if (r4) {
+        _upcomingTasks    = (r4.data && r4.data.tasks) || [];
+        _upcomingLoaded   = true;
+        _upcomingLoadTime = Date.now();
+      }
 
-      renderDashboard();
-      startDashAutoRefresh();
-    }).catch(function (err) {
-      // Graceful fallback: load dashboard + batches separately
-      _eagerLoadDone = false;
-      loadDashboard();
-      startDashAutoRefresh();
+      // Mark eager-load done if at least the core (summary + batches) succeeded.
+      // If everything failed, fall back to the separate-load path.
+      if (r0 || r1) {
+        _eagerLoadDone = true;
+        _eagerLoadTime = Date.now();
+        renderDashboard();
+        startDashAutoRefresh();
+      } else {
+        // All calls failed — graceful fallback: load dashboard + batches separately
+        _eagerLoadDone = false;
+        loadDashboard();
+        startDashAutoRefresh();
+      }
     });
   }
 
