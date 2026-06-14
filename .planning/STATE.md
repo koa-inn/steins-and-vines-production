@@ -4,13 +4,13 @@ milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
 stopped_at: Phase 29.3 context gathered
-last_updated: "2026-06-14T00:59:35.718Z"
-last_activity: 2026-06-14 -- Phase 29.3 planning complete
+last_updated: "2026-06-14T01:38:45.735Z"
+last_activity: 2026-06-14
 progress:
   total_phases: 15
   completed_phases: 12
   total_plans: 39
-  completed_plans: 37
+  completed_plans: 38
   percent: 80
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-11)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 29.2 — brewpad pending batch activation one click activate and guid
+**Current focus:** Phase 29.3 — pull-non-kiosk-batch-sales-into-brewpad
 
 ## Current Position
 
-Phase: 29.2
-Plan: Not started
+Phase: 29.3 (pull-non-kiosk-batch-sales-into-brewpad) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-14 -- Phase 29.3 planning complete
+Last activity: 2026-06-14
 
 Milestone v4.1 phase map:
 
@@ -54,6 +54,7 @@ Milestone v4.1 phase map:
 | Phase 25 P04 | 15min | 1 tasks | 5 files |
 | Phase 28-zoho-customer-read-back-path P01 | 161 | 3 tasks | 2 files |
 | Phase 29-refresh-from-zoho-admin-ui P03 | 60 | 3 tasks | 4 files |
+| Phase 29.3 P01 | 442 | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,9 @@ Milestone v4.1 phase map:
 - [Phase ?]: BOOKING_CANCELLED date derived from payload.startTime -> payload.booking.start -> payload.start; unparseable = safe no-op
 - [Phase ?]: Zoho Bookings code removed; CALCOM_EVENT_TYPE_FERMENT_KIT + BOTTLING confirmed env names; offline fallback preserved
 - [Phase ?]: [Phase 29-03]: Railway-only CLI deploy pattern for live middleware — ships endpoint to Railway without touching production git repo or breaking v4.1 batch hold
+- [29.3-01]: MAX_PAGES=4 hard cap for Zoho invoice scan (D-01) — never read from request, protects Zoho quota (prior quota-exhaustion incident)
+- [29.3-01]: get_batches dedup uses server_token param (not token) for Apps Script GET — e.parameter.token is Google OAuth-validated and rejects server tokens (regression guard test added)
+- [29.3-01]: source='zoho_scan' distinguishes scan-created batches from kiosk path; customer_email omitted (no PII, T-29.3-06)
 
 ### Roadmap Evolution
 
@@ -121,6 +125,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-14T00:06:35.002Z
+Last session: 2026-06-14T01:38:45.729Z
 Stopped at: Phase 29.3 context gathered
-Resume file: .planning/phases/29.3-pull-non-kiosk-batch-sales-into-brewpad-bulk-scan-recent-zoh/29.3-CONTEXT.md
+Resume file: None
