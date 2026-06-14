@@ -303,6 +303,58 @@ describe('isValidImportNumber', function () {
 });
 
 // ---------------------------------------------------------------------------
+// filterBatchesByStatus — contract tests (guards Fix A: pending filter after Pull-from-Zoho)
+// ---------------------------------------------------------------------------
+describe('filterBatchesByStatus — pending filter contract', function () {
+  var fn = bp.filterBatchesByStatus;
+
+  var sampleBatches = [
+    { batch_id: 'SV-B-000001', status: 'pending' },
+    { batch_id: 'SV-B-000002', status: 'Primary' },
+    { batch_id: 'SV-B-000003', status: 'secondary' },
+    { batch_id: 'SV-B-000004', status: 'PENDING' },
+    { batch_id: 'SV-B-000005', status: 'complete' }
+  ];
+
+  it('returns only pending batches (case-insensitive) when filter is "pending"', function () {
+    var result = fn(sampleBatches, 'pending');
+    expect(result.length).toBe(2);
+    expect(result.map(function (b) { return b.batch_id; })).toEqual(['SV-B-000001', 'SV-B-000004']);
+  });
+
+  it('does not include active or complete batches in a "pending" filter', function () {
+    var result = fn(sampleBatches, 'pending');
+    var ids = result.map(function (b) { return b.batch_id; });
+    expect(ids).not.toContain('SV-B-000002'); // Primary
+    expect(ids).not.toContain('SV-B-000003'); // secondary
+    expect(ids).not.toContain('SV-B-000005'); // complete
+  });
+
+  it('returns empty array when no batches match "pending"', function () {
+    var activeBatches = [
+      { batch_id: 'SV-B-000010', status: 'primary' },
+      { batch_id: 'SV-B-000011', status: 'secondary' }
+    ];
+    var result = fn(activeBatches, 'pending');
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty array when input is empty', function () {
+    var result = fn([], 'pending');
+    expect(result).toEqual([]);
+  });
+
+  it('active filter includes primary and secondary but NOT pending', function () {
+    var result = fn(sampleBatches, 'active');
+    var ids = result.map(function (b) { return b.batch_id; });
+    expect(ids).toContain('SV-B-000002'); // Primary
+    expect(ids).toContain('SV-B-000003'); // secondary
+    expect(ids).not.toContain('SV-B-000001'); // pending excluded
+    expect(ids).not.toContain('SV-B-000004'); // PENDING excluded
+  });
+});
+
+// ---------------------------------------------------------------------------
 // WR-02: openPullFromZohoSheet backdrop handler — structural verification
 // ---------------------------------------------------------------------------
 // WR-02 fix is a one-liner in openPullFromZohoSheet (brewpad.js ~line 2283):

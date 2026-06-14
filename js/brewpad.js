@@ -2250,8 +2250,10 @@ function isValidImportNumber(num) {
             } else {
               showToast(summary.message, 'error');
             }
-            // Bust cache and reload batch list after any successful creates
+            // Bust cache and reload batch list after any successful creates.
+            // Force the filter to 'pending' so freshly created batches are immediately visible.
             if (summary.okCount > 0) {
+              _batchStatusFilter = 'pending';
               _batchesLoaded = false;
               _allBatchesData = [];
               _batchesLoadTime = 0;
