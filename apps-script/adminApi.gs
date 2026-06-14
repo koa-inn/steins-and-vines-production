@@ -1902,6 +1902,25 @@ function createBatch(payload, userEmail) {
     return { ok: false, error: 'missing_fields', message: 'product_sku (or recipe_id) and customer name are required' };
   }
 
+  // REGRESSION NOTE (D-10.2): createBatch previously had no dedup by zoho_so_number.
+  // A concurrent or replayed create for the same invoice could land twice in the BATCHES sheet.
+  // Fix: scan existing rows before lock acquisition / sheet append and reject duplicates.
+  // Expected: second create with same zoho_so_number returns { ok:false, error:'duplicate_so_number' }.
+  // Batches with no zoho_so_number are unaffected (guard only fires when field is present).
+  if (payload.zoho_so_number) {
+    var existingBatches = sheetToObjects(BATCHES_SHEET_NAME);
+    for (var di = 0; di < existingBatches.length; di++) {
+      if (String(existingBatches[di].zoho_so_number || '').trim() ===
+          String(payload.zoho_so_number).trim()) {
+        return {
+          ok: false,
+          error: 'duplicate_so_number',
+          message: 'A batch for SO/invoice ' + payload.zoho_so_number + ' already exists: ' + existingBatches[di].batch_id
+        };
+      }
+    }
+  }
+
   // Auto-compose customer_name from first/last if not provided (backward compat)
   if (!payload.customer_name && payload.customer_firstname) {
     payload.customer_name = (payload.customer_firstname + ' ' + (payload.customer_lastname || '')).trim();
