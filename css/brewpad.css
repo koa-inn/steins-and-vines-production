@@ -2154,3 +2154,11 @@ img { max-width: 100%; height: auto; display: block; }
   display: flex;
   gap: 8px;
 }
+
+/* Phase 29.3: Pull from Zoho — candidate rows */
+.bp-pull-candidate-row {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.bp-pull-candidate-row:last-child {
+  border-bottom: none;
+}

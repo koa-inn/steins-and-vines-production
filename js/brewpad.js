@@ -234,6 +234,74 @@ function buildLifecycleTimeline(batch, soDate) {
   return html;
 }
 
+// --- Pull from Zoho pure helpers (Phase 29.3, D-05/06/09) ---
+
+// Build an HTML row string for a candidate invoice in the pull-confirm sheet.
+// Escapes all dynamic values to prevent XSS (T-29.3-10).
+// Shows a DRAFT badge when candidate.status === 'draft' (D-05).
+function buildPullCandidateRowHtml(candidate) {
+  var invNum = escapeHTML(candidate.invoice_number || '');
+  var custName = escapeHTML(candidate.customer_name || '');
+  var draftBadge = (candidate.status === 'draft')
+    ? ' <span style="display:inline-block;padding:0 6px;border-radius:4px;background:#e67e22;color:#fff;font-size:0.72rem;font-weight:700;vertical-align:middle;">DRAFT</span>'
+    : '';
+  var kitItemsHtml = '';
+  var items = candidate.kit_items || [];
+  for (var i = 0; i < items.length; i++) {
+    kitItemsHtml += '<li>' + escapeHTML(items[i].name || '') + '</li>';
+  }
+  var kitSection = kitItemsHtml ? '<ul style="margin:4px 0 0 16px;padding:0;font-size:0.85rem;">' + kitItemsHtml + '</ul>' : '';
+  return '<div class="bp-pull-candidate-row" data-invoice-id="' + escapeHTML(candidate.invoice_id || '') + '">' +
+    '<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 0;">' +
+    '<input type="checkbox" class="bp-pull-candidate-chk" checked style="margin-top:3px;flex-shrink:0;">' +
+    '<span>' +
+    '<strong>' + invNum + '</strong>' + draftBadge + ' &mdash; ' + custName +
+    kitSection +
+    '</span>' +
+    '</label>' +
+    '</div>';
+}
+
+// Build the POST body for /api/batch/bulk-create from selected candidates.
+// Sends invoice_ids ONLY — server resolves all batch data (D-06, T-29.3-09).
+function buildBulkCreatePayload(selectedCandidates) {
+  var ids = [];
+  for (var i = 0; i < selectedCandidates.length; i++) {
+    ids.push(selectedCandidates[i].invoice_id);
+  }
+  return { invoice_ids: ids };
+}
+
+// Summarize the bulk-create results array into { okCount, failCount, message }.
+// Used to pick the right toast level after a create attempt.
+function summarizeBulkResults(results) {
+  var okCount = 0;
+  var failCount = 0;
+  for (var i = 0; i < results.length; i++) {
+    if (results[i].ok) {
+      okCount++;
+    } else {
+      failCount++;
+    }
+  }
+  var message;
+  if (failCount === 0) {
+    message = 'Created ' + okCount + ' batch(es)';
+  } else if (okCount === 0) {
+    message = 'All ' + failCount + ' failed — check batches list';
+  } else {
+    message = 'Created ' + okCount + ' batch(es); ' + failCount + ' failed — check batches list';
+  }
+  return { okCount: okCount, failCount: failCount, message: message };
+}
+
+// Validate a user-typed invoice/SO number for single-import mode (D-09).
+// Accepts INV-XXXXXX or SO-XXXXXX (case-insensitive). T-29.3-13.
+function isValidImportNumber(num) {
+  if (!num || typeof num !== 'string') return false;
+  return /^(INV|SO)-\d+$/i.test(num);
+}
+
 (function () {
   'use strict';
 
@@ -1621,6 +1689,7 @@ function buildLifecycleTimeline(batch, soDate) {
         shellHtml += '<button type="button" class="bp-filter-btn' + active + '" data-status="' + f.val + '">' + f.label + badge + '</button>';
       });
       shellHtml += '<select id="bp-batch-product-filter" class="bp-filter-select"><option value="">All Products</option></select>';
+      shellHtml += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-pull-from-zoho">Pull from Zoho</button>';
       shellHtml += '</div>';
 
       // Search + new batch + view toggle
@@ -1665,6 +1734,10 @@ function buildLifecycleTimeline(batch, soDate) {
       // New batch button — attached ONCE
       var newBatchBtn = document.getElementById('bp-list-new-batch');
       if (newBatchBtn) newBatchBtn.addEventListener('click', openCreateSheet);
+
+      // Pull from Zoho button — attached ONCE
+      var pullFromZohoBtn = document.getElementById('bp-pull-from-zoho');
+      if (pullFromZohoBtn) pullFromZohoBtn.addEventListener('click', openPullFromZohoSheet);
 
       // Filter button + view toggle + batch card/row clicks handled by delegation
       // on #bp-batch-list-pane (see initDelegation)
@@ -2038,6 +2111,266 @@ function buildLifecycleTimeline(batch, soDate) {
     document.getElementById('bp-confirm-sheet-cancel').addEventListener('click', hide);
     sheet.addEventListener('click', handleBackdrop);
     sheet.classList.add('bp-confirm-sheet--visible');
+  }
+
+  // ===== Pull from Zoho (Phase 29.3) =====
+
+  // Hide and destroy the pull sheet (allows re-creation on next open).
+  function hidePullSheet() {
+    var sheet = document.getElementById('bp-pull-sheet');
+    if (sheet) {
+      sheet.classList.remove('bp-confirm-sheet--visible');
+      sheet.removeEventListener('click', _pullSheetBackdropHandler);
+    }
+  }
+
+  // Backdrop click handler stored so it can be removed on hide.
+  function _pullSheetBackdropHandler(e) {
+    if (e.target === document.getElementById('bp-pull-sheet')) {
+      hidePullSheet();
+    }
+  }
+
+  // Render (or re-render) the candidate list inside the pull sheet inner div.
+  function renderPullCandidates(candidates) {
+    var inner = document.getElementById('bp-pull-sheet-inner');
+    if (!inner) return;
+
+    var heading = '<p style="font-size:1.05rem;font-weight:600;margin:0 0 12px;">' +
+      'Found ' + candidates.length + ' invoice' + (candidates.length !== 1 ? 's' : '') +
+      ' to import:</p>';
+
+    var rows = '';
+    for (var i = 0; i < candidates.length; i++) {
+      rows += buildPullCandidateRowHtml(candidates[i]);
+    }
+
+    inner.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+      '<strong style="font-size:1.1rem;">Pull from Zoho</strong>' +
+      '<button type="button" id="bp-pull-sheet-close" class="btn-secondary bp-btn-sm" aria-label="Close">&#x2715;</button>' +
+      '</div>' +
+      '<div class="bp-pull-single-import" style="display:flex;gap:8px;align-items:center;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border-subtle);">' +
+      '<input type="text" id="bp-pull-import-number" placeholder="INV-000000 or SO-000000" class="bp-search-input" style="flex:1;min-width:0;" autocomplete="off" autocapitalize="characters" inputmode="text">' +
+      '<button type="button" id="bp-pull-import-btn" class="btn bp-btn-sm">Import</button>' +
+      '</div>' +
+      '<div id="bp-pull-candidates">' +
+      heading + rows +
+      '</div>' +
+      '<div class="bp-confirm-sheet-actions" style="margin-top:16px;">' +
+      '<button type="button" id="bp-pull-create-btn" class="btn bp-confirm-btn--primary">Create Batches</button>' +
+      '<button type="button" id="bp-pull-cancel-btn" class="btn-secondary">Cancel</button>' +
+      '</div>';
+
+    // Wire close/cancel buttons
+    var closeBtn = document.getElementById('bp-pull-sheet-close');
+    if (closeBtn) closeBtn.addEventListener('click', hidePullSheet);
+    var cancelBtn = document.getElementById('bp-pull-cancel-btn');
+    if (cancelBtn) cancelBtn.addEventListener('click', hidePullSheet);
+
+    // Wire single-import button
+    var importBtn = document.getElementById('bp-pull-import-btn');
+    if (importBtn) {
+      importBtn.addEventListener('click', function () {
+        var numInput = document.getElementById('bp-pull-import-number');
+        var num = numInput ? numInput.value.trim() : '';
+        if (!isValidImportNumber(num)) {
+          showToast('Enter a valid INV-XXXXXX or SO-XXXXXX number', 'warn');
+          return;
+        }
+        importBtn.disabled = true;
+        importBtn.textContent = 'Scanning…';
+        fetch(mwUrl() + '/api/batch/scan-invoices?number=' + encodeURIComponent(num), {
+          method: 'GET',
+          headers: { 'x-api-key': mwApiKey() }
+        })
+          .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+          .then(function (resp) {
+            importBtn.disabled = false;
+            importBtn.textContent = 'Import';
+            if (resp.status !== 200) {
+              showToast('Scan failed: ' + escapeHTML((resp.data && resp.data.message) || 'server error'), 'error');
+              return;
+            }
+            var found = (resp.data && resp.data.candidates) || [];
+            if (found.length === 0) {
+              showToast('No importable invoice found for ' + escapeHTML(num), 'info');
+              return;
+            }
+            renderPullCandidates(found);
+          })
+          .catch(function () {
+            importBtn.disabled = false;
+            importBtn.textContent = 'Import';
+            showToast('Scan failed — check connection', 'error');
+          });
+      });
+    }
+
+    // Wire Create Batches button
+    var createBtn = document.getElementById('bp-pull-create-btn');
+    if (createBtn) {
+      createBtn.addEventListener('click', function () {
+        // Collect checked candidates
+        var selected = [];
+        var checkboxes = document.querySelectorAll('#bp-pull-candidates .bp-pull-candidate-row');
+        for (var ci = 0; ci < candidates.length; ci++) {
+          var row = checkboxes[ci];
+          var chk = row ? row.querySelector('.bp-pull-candidate-chk') : null;
+          if (chk && chk.checked) selected.push(candidates[ci]);
+        }
+        if (selected.length === 0) {
+          showToast('Select at least one invoice to import', 'warn');
+          return;
+        }
+        createBtn.disabled = true;
+        createBtn.textContent = 'Creating…';
+        var payload = buildBulkCreatePayload(selected);
+        fetch(mwUrl() + '/api/batch/bulk-create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': mwApiKey() },
+          body: JSON.stringify(payload)
+        })
+          .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+          .then(function (resp) {
+            createBtn.disabled = false;
+            createBtn.textContent = 'Create Batches';
+            if (resp.status !== 200) {
+              showToast('Bulk create failed: ' + escapeHTML((resp.data && resp.data.message) || 'server error'), 'error');
+              return;
+            }
+            var results = (resp.data && resp.data.results) || [];
+            var summary = summarizeBulkResults(results);
+            if (summary.failCount === 0) {
+              showToast(summary.message, 'success');
+              hidePullSheet();
+            } else if (summary.okCount > 0) {
+              showToast(summary.message, 'warn');
+              hidePullSheet();
+            } else {
+              showToast(summary.message, 'error');
+            }
+            // Bust cache and reload batch list after any successful creates
+            if (summary.okCount > 0) {
+              _batchesLoaded = false;
+              _allBatchesData = [];
+              _batchesLoadTime = 0;
+              loadBatches();
+            }
+          })
+          .catch(function () {
+            createBtn.disabled = false;
+            createBtn.textContent = 'Create Batches';
+            showToast('Failed to create batches — check connection', 'error');
+          });
+      });
+    }
+  }
+
+  // Open the Pull from Zoho sheet with Scan + single-import controls.
+  // Shows an initial loading state, fetches /api/batch/scan-invoices, then renders candidates.
+  function openPullFromZohoSheet() {
+    var sheet = document.getElementById('bp-pull-sheet');
+    if (!sheet) {
+      sheet = document.createElement('div');
+      sheet.id = 'bp-pull-sheet';
+      sheet.className = 'bp-confirm-sheet';
+      sheet.setAttribute('role', 'dialog');
+      sheet.setAttribute('aria-modal', 'true');
+      sheet.innerHTML = '<div class="bp-confirm-sheet-inner" id="bp-pull-sheet-inner"></div>';
+      document.body.appendChild(sheet);
+    }
+    sheet.addEventListener('click', _pullSheetBackdropHandler);
+    sheet.classList.add('bp-confirm-sheet--visible');
+
+    var inner = document.getElementById('bp-pull-sheet-inner');
+    if (inner) {
+      inner.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+        '<strong style="font-size:1.1rem;">Pull from Zoho</strong>' +
+        '<button type="button" id="bp-pull-sheet-close" class="btn-secondary bp-btn-sm" aria-label="Close">&#x2715;</button>' +
+        '</div>' +
+        '<div class="bp-pull-single-import" style="display:flex;gap:8px;align-items:center;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border-subtle);">' +
+        '<input type="text" id="bp-pull-import-number" placeholder="INV-000000 or SO-000000" class="bp-search-input" style="flex:1;min-width:0;" autocomplete="off" autocapitalize="characters" inputmode="text">' +
+        '<button type="button" id="bp-pull-import-btn" class="btn bp-btn-sm">Import</button>' +
+        '</div>' +
+        '<p id="bp-pull-scan-status" style="color:var(--ink-muted);font-size:0.95rem;">Scanning recent Zoho invoices…</p>' +
+        '<div class="bp-confirm-sheet-actions" style="margin-top:16px;">' +
+        '<button type="button" id="bp-pull-cancel-btn" class="btn-secondary">Cancel</button>' +
+        '</div>';
+
+      var closeBtn = document.getElementById('bp-pull-sheet-close');
+      if (closeBtn) closeBtn.addEventListener('click', hidePullSheet);
+      var cancelBtn = document.getElementById('bp-pull-cancel-btn');
+      if (cancelBtn) cancelBtn.addEventListener('click', hidePullSheet);
+
+      // Wire single-import button in initial state (before scan result)
+      var importBtn = document.getElementById('bp-pull-import-btn');
+      if (importBtn) {
+        importBtn.addEventListener('click', function () {
+          var numInput = document.getElementById('bp-pull-import-number');
+          var num = numInput ? numInput.value.trim() : '';
+          if (!isValidImportNumber(num)) {
+            showToast('Enter a valid INV-XXXXXX or SO-XXXXXX number', 'warn');
+            return;
+          }
+          importBtn.disabled = true;
+          importBtn.textContent = 'Scanning…';
+          fetch(mwUrl() + '/api/batch/scan-invoices?number=' + encodeURIComponent(num), {
+            method: 'GET',
+            headers: { 'x-api-key': mwApiKey() }
+          })
+            .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+            .then(function (resp) {
+              importBtn.disabled = false;
+              importBtn.textContent = 'Import';
+              if (resp.status !== 200) {
+                showToast('Scan failed: ' + escapeHTML((resp.data && resp.data.message) || 'server error'), 'error');
+                return;
+              }
+              var found = (resp.data && resp.data.candidates) || [];
+              if (found.length === 0) {
+                showToast('No importable invoice found for ' + escapeHTML(num), 'info');
+                return;
+              }
+              renderPullCandidates(found);
+            })
+            .catch(function () {
+              importBtn.disabled = false;
+              importBtn.textContent = 'Import';
+              showToast('Scan failed — check connection', 'error');
+            });
+        });
+      }
+    }
+
+    // Kick off the background scan
+    fetch(mwUrl() + '/api/batch/scan-invoices', {
+      method: 'GET',
+      headers: { 'x-api-key': mwApiKey() }
+    })
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+      .then(function (resp) {
+        if (resp.status !== 200) {
+          var statusEl = document.getElementById('bp-pull-scan-status');
+          if (statusEl) statusEl.textContent = 'Scan failed: ' + ((resp.data && resp.data.message) || 'server error');
+          showToast('Scan failed: ' + escapeHTML((resp.data && resp.data.message) || 'server error'), 'error');
+          return;
+        }
+        var candidates = (resp.data && resp.data.candidates) || [];
+        if (candidates.length === 0) {
+          var statusEl2 = document.getElementById('bp-pull-scan-status');
+          if (statusEl2) statusEl2.textContent = 'No new invoices found to import.';
+          showToast('No new invoices found to import', 'info');
+          return;
+        }
+        renderPullCandidates(candidates);
+      })
+      .catch(function () {
+        var statusEl3 = document.getElementById('bp-pull-scan-status');
+        if (statusEl3) statusEl3.textContent = 'Scan failed — check connection.';
+        showToast('Scan failed — check connection', 'error');
+      });
   }
 
   function showTransferLocationSheet(task) {
@@ -6278,6 +6611,10 @@ if (typeof module !== 'undefined' && module.exports) {
     todayPacific: todayPacific,
     fmtShortDate: fmtShortDate,
     isFutureStart: isFutureStart,
-    buildCustomerReassignUpdates: buildCustomerReassignUpdates
+    buildCustomerReassignUpdates: buildCustomerReassignUpdates,
+    buildPullCandidateRowHtml: buildPullCandidateRowHtml,
+    buildBulkCreatePayload: buildBulkCreatePayload,
+    summarizeBulkResults: summarizeBulkResults,
+    isValidImportNumber: isValidImportNumber
   };
 }
