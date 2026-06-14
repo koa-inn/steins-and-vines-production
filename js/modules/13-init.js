@@ -573,7 +573,7 @@ function loadOpenHours() {
   var remoteUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL)
     ? SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL
     : null;
-  var localUrl = 'content/timeslots.csv';
+  var localUrl = '/content/timeslots.csv';
 
   function parseAndRender(csv) {
     var lines = csv.trim().split('\n');
@@ -670,7 +670,7 @@ function loadTestimonials() {
   var container = document.getElementById('testimonials-grid');
   if (!container) return;
 
-  fetch('content/reviews.json')
+  fetch('/content/reviews.json')
     .then(function (res) { return res.ok ? res.json() : {}; })
     .then(function (data) {
       var reviews = data.reviews;
@@ -700,7 +700,7 @@ function loadFAQ() {
   var container = document.getElementById('faq-list');
   if (!container) return;
 
-  fetch('content/about.json')
+  fetch('/content/about.json')
     .then(function (res) { return res.ok ? res.json() : {}; })
     .then(function (data) {
       var faqs = data.faqs;
@@ -787,7 +787,7 @@ function loadFooterHours() {
   var remoteUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL)
     ? SHEETS_CONFIG.PUBLISHED_SCHEDULE_CSV_URL
     : null;
-  var localUrl = 'content/timeslots.csv';
+  var localUrl = '/content/timeslots.csv';
 
   function parseAndRender(csv) {
     var lines = csv.trim().split('\n');
