@@ -334,7 +334,7 @@ Plans:
 **Goal:** Staff can pull ferment-in-store sales invoiced directly in Zoho Books into BrewPad as pending batches — a confirm-gated "Pull from Zoho" control bulk-scans a bounded window of recent invoices (Maker's Fee present, no batch yet), plus a single-invoice import path, deduped by zoho_so_number in both the middleware pre-check and an Apps Script idempotency guard.
 **Requirements**: none mapped (decisions D-01..D-10 in 29.3-CONTEXT.md)
 **Depends on:** Phase 29
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 29.3-01-PLAN.md — Middleware scan + bulk-create endpoints (GET /api/batch/scan-invoices, POST /api/batch/bulk-create) with Jest tests [wave 1]
