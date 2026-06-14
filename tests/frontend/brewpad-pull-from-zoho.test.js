@@ -301,3 +301,25 @@ describe('isValidImportNumber', function () {
     expect(fn('INV-abc')).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// WR-02: openPullFromZohoSheet backdrop handler — structural verification
+// ---------------------------------------------------------------------------
+// WR-02 fix is a one-liner in openPullFromZohoSheet (brewpad.js ~line 2283):
+//   sheet.removeEventListener('click', _pullSheetBackdropHandler); // added
+//   sheet.addEventListener('click', _pullSheetBackdropHandler);
+//
+// openPullFromZohoSheet is inside the IIFE at line 305-6596 and cannot be required
+// from the outside — DOM behaviour tests are infeasible without restructuring the IIFE.
+// The fix is verified by code review and grep-checkable in source.
+// See 29.3-REVIEW.md WR-02 and 29.3-HUMAN-UAT.md for manual verification steps.
+describe('WR-02: _pullSheetBackdropHandler guard (structural)', function () {
+  it('brewpad.js source contains removeEventListener guard before backdrop addEventListener', function () {
+    var fs = require('fs');
+    var path = require('path');
+    var src = fs.readFileSync(path.join(__dirname, '../../js/brewpad.js'), 'utf8');
+    // The fix must appear as removeEventListener(...) immediately before addEventListener(...)
+    // for _pullSheetBackdropHandler within openPullFromZohoSheet.
+    expect(src).toMatch(/removeEventListener\('click',\s*_pullSheetBackdropHandler\)[\s\S]{0,120}addEventListener\('click',\s*_pullSheetBackdropHandler\)/);
+  });
+});

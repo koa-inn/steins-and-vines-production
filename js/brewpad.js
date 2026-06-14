@@ -2280,6 +2280,9 @@ function isValidImportNumber(num) {
       sheet.innerHTML = '<div class="bp-confirm-sheet-inner" id="bp-pull-sheet-inner"></div>';
       document.body.appendChild(sheet);
     }
+    // WR-02 fix: remove any prior registration before re-adding to prevent accumulation
+    // on rapid re-opens (sheet element is reused; hidePullSheet only removes one registration).
+    sheet.removeEventListener('click', _pullSheetBackdropHandler);
     sheet.addEventListener('click', _pullSheetBackdropHandler);
     sheet.classList.add('bp-confirm-sheet--visible');
 
