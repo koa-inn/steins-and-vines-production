@@ -2237,7 +2237,7 @@
       if (resultsEl) resultsEl.innerHTML = '';
       if (selectedEl) {
         selectedEl.style.display = '';
-        selectedEl.innerHTML = '<span>' + (c.name || '') + (c.email ? ' &mdash; ' + c.email : '') + '</span>' +
+        selectedEl.innerHTML = '<span>' + escapeHTML(c.name || '') + (c.email ? ' &mdash; ' + escapeHTML(c.email) : '') + '</span>' +
           '<button type="button" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 0.25rem;" id="kiosk-clear-customer">&times;</button>';
         var clearBtn = document.getElementById('kiosk-clear-customer');
         if (clearBtn) {
@@ -2338,9 +2338,9 @@
             }
             var html = '';
             contacts.forEach(function (c) {
-              html += '<div class="kiosk-customer-result-row" data-id="' + (c.contact_id || '') + '">' +
-                '<strong>' + (c.contact_name || c.name || '') + '</strong>' +
-                (c.email ? ' <span style="color:#666;">' + c.email + '</span>' : '') +
+              html += '<div class="kiosk-customer-result-row" data-id="' + escapeHTML(c.contact_id || '') + '">' +
+                '<strong>' + escapeHTML(c.contact_name || c.name || '') + '</strong>' +
+                (c.email ? ' <span style="color:#666;">' + escapeHTML(c.email) + '</span>' : '') +
                 '</div>';
             });
             resultsEl.innerHTML = html;

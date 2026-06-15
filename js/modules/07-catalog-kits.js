@@ -4,6 +4,28 @@ if (typeof KIT_CATEGORIES === 'undefined' && typeof require !== 'undefined') {
   var KIT_CATEGORIES = require('../lib/constants').KIT_CATEGORIES;
 }
 
+/**
+ * Flatten Zoho custom_fields array onto a target object.
+ * Guards against prototype-pollution attacks (T-30-05-PP):
+ * labels that normalise to __proto__, constructor, or prototype are skipped.
+ * Same guard pattern used in js/modules/17-search-overlay.js:176.
+ *
+ * @param {Object} obj - Target object to flatten onto (mutated in place).
+ * @param {Array}  customFields - Array of { label, value } objects from Zoho.
+ */
+function flattenCustomFields(obj, customFields) {
+  if (!customFields || !customFields.length) return;
+  customFields.forEach(function (cf) {
+    var key = (cf.label || '').toLowerCase().replace(/\s+/g, '_');
+    if (!key) return;
+    // Prototype-pollution guard — skip dangerous keys (T-30-05-PP)
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') return;
+    if (cf.value !== undefined && cf.value !== null) {
+      obj[key] = String(cf.value);
+    }
+  });
+}
+
 function loadProducts() {
   var allProducts = [];
   var _kitsFuse = null;
@@ -82,14 +104,7 @@ function loadProducts() {
             manufacturer: z.manufacturer || ''
           };
           // Flatten custom fields if present (raw Zoho response — overrides top-level fields)
-          if (z.custom_fields && z.custom_fields.length) {
-            z.custom_fields.forEach(function (cf) {
-              var key = (cf.label || '').toLowerCase().replace(/\s+/g, '_');
-              if (key && cf.value !== undefined && cf.value !== null) {
-                obj[key] = String(cf.value);
-              }
-            });
-          }
+          flattenCustomFields(obj, z.custom_fields);
           // Derive prices from rate only if not already set
           if (z.rate != null) {
             var rateNum = parseFloat(z.rate);
@@ -1505,4 +1520,8 @@ function renderKitBuyControl(wrap, product) {
     controls.appendChild(plusBtn);
     wrap.appendChild(controls);
   }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { flattenCustomFields: flattenCustomFields };
 }
