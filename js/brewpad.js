@@ -4,11 +4,13 @@
 // Pure / near-pure helpers lifted out of the IIFE so they can be unit-tested.
 
 function escapeHTML(str) {
-  return String(str == null ? '' : str)
+  if (!str) return '';
+  return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function todayStr() {

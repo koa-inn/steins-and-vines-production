@@ -48,6 +48,25 @@ if (typeof module !== 'undefined' && module.exports) {
     KIT_CATEGORIES: KIT_CATEGORIES
   };
 }
+// ===== Steins & Vines — Shared Utility Functions =====
+// Canonical implementations. Load this script before any page-specific JS.
+// Note: showToast is NOT here — each page has a custom implementation
+// (different container IDs, undo support, and CSS classes).
+
+function escapeHTML(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function formatCurrency(val) {
+  var num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[^0-9.\-]/g, ''));
+  if (isNaN(num)) return '';
+  return '$' + num.toFixed(2);
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { escapeHTML: escapeHTML, formatCurrency: formatCurrency };
+}
 // ===== Middleware API Key =====
 
 // Loaded from js/sheets-config.js (SHEETS_CONFIG.MW_API_KEY = Railway API_SECRET_KEY).
@@ -60,6 +79,11 @@ window.RECAPTCHA_SITE_KEY = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONF
 // ===== Payment flag =====
 var PAYMENT_DISABLED = false;
 // ===== Deep-link (?item=SKU) =====
+// Note: escapeHTML is defined in js/lib/utils.js (loaded first in the concat pipeline).
+// In Node test environments, fall back to requiring the canonical implementation.
+if (typeof escapeHTML === 'undefined' && typeof require !== 'undefined') {
+  var escapeHTML = require('../lib/utils').escapeHTML;
+}
 
 var _deepLinkHandled = false;
 
@@ -152,12 +176,6 @@ function showToast(message, type) {
     toast.classList.remove('show');
     setTimeout(function () { toast.remove(); }, 300);
   }, 3500);
-}
-
-// Escape HTML entities for safe interpolation
-function escapeHTML(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // ===== Responsive Product Image Helper =====
@@ -1537,6 +1555,28 @@ if (typeof KIT_CATEGORIES === 'undefined' && typeof require !== 'undefined') {
   var KIT_CATEGORIES = require('../lib/constants').KIT_CATEGORIES;
 }
 
+/**
+ * Flatten Zoho custom_fields array onto a target object.
+ * Guards against prototype-pollution attacks (T-30-05-PP):
+ * labels that normalise to __proto__, constructor, or prototype are skipped.
+ * Same guard pattern used in js/modules/17-search-overlay.js:176.
+ *
+ * @param {Object} obj - Target object to flatten onto (mutated in place).
+ * @param {Array}  customFields - Array of { label, value } objects from Zoho.
+ */
+function flattenCustomFields(obj, customFields) {
+  if (!customFields || !customFields.length) return;
+  customFields.forEach(function (cf) {
+    var key = (cf.label || '').toLowerCase().replace(/\s+/g, '_');
+    if (!key) return;
+    // Prototype-pollution guard — skip dangerous keys (T-30-05-PP)
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') return;
+    if (cf.value !== undefined && cf.value !== null) {
+      obj[key] = String(cf.value);
+    }
+  });
+}
+
 function loadProducts() {
   var allProducts = [];
   var _kitsFuse = null;
@@ -1615,14 +1655,7 @@ function loadProducts() {
             manufacturer: z.manufacturer || ''
           };
           // Flatten custom fields if present (raw Zoho response — overrides top-level fields)
-          if (z.custom_fields && z.custom_fields.length) {
-            z.custom_fields.forEach(function (cf) {
-              var key = (cf.label || '').toLowerCase().replace(/\s+/g, '_');
-              if (key && cf.value !== undefined && cf.value !== null) {
-                obj[key] = String(cf.value);
-              }
-            });
-          }
+          flattenCustomFields(obj, z.custom_fields);
           // Derive prices from rate only if not already set
           if (z.rate != null) {
             var rateNum = parseFloat(z.rate);
@@ -3038,6 +3071,10 @@ function renderKitBuyControl(wrap, product) {
     controls.appendChild(plusBtn);
     wrap.appendChild(controls);
   }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { flattenCustomFields: flattenCustomFields };
 }
 var _allIngredients = [];
 var _ingredientsFuse = null;

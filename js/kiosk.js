@@ -522,8 +522,10 @@
 
   // ===== Shared Utilities =====
 
-  // escapeHTML defined in js/lib/utils.js
+  // escapeHTML — canonical apostrophe-escaping implementation (mirrors js/lib/utils.js).
+  // kiosk.js is a standalone bundle (not part of concat:js) so carries its own copy.
   function escapeHTML(str) {
+    if (!str) return '';
     return String(str)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')

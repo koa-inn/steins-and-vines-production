@@ -1,4 +1,9 @@
 // ===== Deep-link (?item=SKU) =====
+// Note: escapeHTML is defined in js/lib/utils.js (loaded first in the concat pipeline).
+// In Node test environments, fall back to requiring the canonical implementation.
+if (typeof escapeHTML === 'undefined' && typeof require !== 'undefined') {
+  var escapeHTML = require('../lib/utils').escapeHTML;
+}
 
 var _deepLinkHandled = false;
 
@@ -91,12 +96,6 @@ function showToast(message, type) {
     toast.classList.remove('show');
     setTimeout(function () { toast.remove(); }, 300);
   }, 3500);
-}
-
-// Escape HTML entities for safe interpolation
-function escapeHTML(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // ===== Responsive Product Image Helper =====
