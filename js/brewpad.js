@@ -257,6 +257,170 @@ function bucketBatchesByMonthType(batches, scheduleCategoryById, monthsBack, now
   return buckets;
 }
 
+// Build a lookup map { sku -> product } from the catalog products array.
+// Structural analog: buildScheduleCategoryById. Skips entries with falsy sku.
+// Later duplicate sku wins (last-write).
+function buildSkuLookup(products) {
+  var map = {};
+  if (!products || !products.length) return map;
+  for (var i = 0; i < products.length; i++) {
+    var p = products[i];
+    if (p && p.sku) {
+      map[String(p.sku)] = p;
+    }
+  }
+  return map;
+}
+
+// Normalize a wine kit time string (e.g. '5 week' -> '5 weeks') and extract
+// the week count for sorting. Returns { label: <normalized string>, week: <integer> }.
+// Singular/plural merge: both '5 week' and '5 weeks' map to label '5 weeks', week 5.
+// Non-numeric or empty strings return the trimmed input with week = 9999 (sorts last).
+function normalizeWineTime(timeStr) {
+  var s = String(timeStr == null ? '' : timeStr).trim();
+  var m = s.match(/^(\d+)\s*weeks?/i);
+  if (m) {
+    var n = parseInt(m[1], 10);
+    return { label: n + ' weeks', week: n };
+  }
+  return { label: s, week: 9999 };
+}
+
+// Bucket wine batches by a catalog dimension (subcategory, brand, manufacturer, time)
+// over the last `monthsBack` (default 6) months, returning [{label, count}] sorted by:
+//   - dimension='time': week number ascending (D-12)
+//   - all other dimensions: count descending (D-02)
+// 'Unknown' bucket (no catalog match OR empty dimension value) always appended last (D-10).
+// Wine membership gate: resolveBatchType(batch, scheduleCategoryById) === 'wine' (D-11).
+// Accepts optional `now` param (ISO string or Date) for deterministic testing (D-03).
+function bucketWineDimension(batches, scheduleCategoryById, skuLookup, dimension, monthsBack, now) {
+  var numMonths = monthsBack || 6;
+  var refDate = now ? new Date(now) : new Date();
+  var refYear = refDate.getFullYear();
+  var refMonth = refDate.getMonth(); // 0-based
+
+  // Build the set of in-window 'YYYY-MM' month keys (last N months)
+  var windowKeys = {};
+  for (var i = numMonths - 1; i >= 0; i--) {
+    var mo = refMonth - i;
+    var yr = refYear;
+    while (mo < 0) { mo += 12; yr--; }
+    var key = yr + '-' + (mo < 9 ? '0' : '') + (mo + 1);
+    windowKeys[key] = true;
+  }
+
+  // Tally: { label: count } and a separate map for time dimension week values
+  var tally = {};
+  var weekForLabel = {}; // only used for dimension === 'time'
+  var unknownCount = 0;
+
+  if (batches && batches.length) {
+    for (var j = 0; j < batches.length; j++) {
+      var b = batches[j];
+
+      // Wine membership gate (D-11)
+      if (resolveBatchType(b, scheduleCategoryById) !== 'wine') continue;
+
+      // 6-month window gate (D-03): use start_date || created_at, slice to 'YYYY-MM'
+      var dateStr = b.start_date || b.created_at;
+      if (!dateStr) continue;
+      var batchKey = String(dateStr).slice(0, 7);
+      if (!windowKeys[batchKey]) continue;
+
+      // SKU join to derive dimension value
+      var product = skuLookup ? skuLookup[String(b.product_sku)] : null;
+      var dimValue = product ? product[dimension] : null;
+
+      // Empty or missing dimension value -> 'Unknown' (D-10)
+      if (!product || dimValue == null || String(dimValue).trim() === '') {
+        unknownCount++;
+        continue;
+      }
+
+      // For 'time' dimension: normalize and track week for sort (D-12)
+      var label;
+      if (dimension === 'time') {
+        var norm = normalizeWineTime(String(dimValue));
+        label = norm.label;
+        weekForLabel[label] = norm.week;
+      } else {
+        label = String(dimValue).trim();
+        if (label === '') { unknownCount++; continue; }
+      }
+
+      tally[label] = (tally[label] || 0) + 1;
+    }
+  }
+
+  // Convert tally to array
+  var result = [];
+  for (var lbl in tally) {
+    if (Object.prototype.hasOwnProperty.call(tally, lbl)) {
+      result.push({ label: lbl, count: tally[lbl] });
+    }
+  }
+
+  // Sort: time dimension by week ascending; others by count descending (D-02, D-12)
+  if (dimension === 'time') {
+    result.sort(function (a, b) {
+      var wa = weekForLabel[a.label] != null ? weekForLabel[a.label] : 9999;
+      var wb = weekForLabel[b.label] != null ? weekForLabel[b.label] : 9999;
+      return wa - wb;
+    });
+  } else {
+    result.sort(function (a, b) { return b.count - a.count; });
+  }
+
+  // Always append 'Unknown' last (D-10)
+  if (unknownCount > 0) {
+    result.push({ label: 'Unknown', count: unknownCount });
+  }
+
+  return result;
+}
+
+// Collapse a dimension bucket list to top N + 'Other', keeping 'Unknown' last (D-07..D-10).
+// Pure -- does not mutate the input array.
+// If distinct non-Unknown values <= n, returns them + Unknown (if present) in original order.
+// If > n, keeps n highest-count, folds remainder into { label:'Other', count:sum },
+// appends 'Other' after the top-n, then appends 'Unknown' last (D-09).
+function applyTopN(buckets, n) {
+  if (!buckets || !buckets.length) return [];
+
+  // Pull out 'Unknown' bucket
+  var unknownBucket = null;
+  var normal = [];
+  for (var i = 0; i < buckets.length; i++) {
+    if (buckets[i].label === 'Unknown') {
+      unknownBucket = buckets[i];
+    } else {
+      normal.push({ label: buckets[i].label, count: buckets[i].count });
+    }
+  }
+
+  var result;
+  if (normal.length <= n) {
+    // No collapsing needed -- preserve existing order
+    result = normal.slice();
+  } else {
+    // Sort by count descending, take top n, fold rest into 'Other'
+    var sorted = normal.slice().sort(function (a, b) { return b.count - a.count; });
+    var top = sorted.slice(0, n);
+    var tail = sorted.slice(n);
+    var otherSum = 0;
+    for (var j = 0; j < tail.length; j++) { otherSum += tail[j].count; }
+    result = top;
+    result.push({ label: 'Other', count: otherSum }); // 'Other' after top-N (D-09)
+  }
+
+  // 'Unknown' always appended last (D-10)
+  if (unknownBucket) {
+    result.push(unknownBucket);
+  }
+
+  return result;
+}
+
 // Session staleness check — returns true if token is older than thresholdMs
 function isSessionStale(lastTokenTime, thresholdMs) {
   if (!lastTokenTime || !thresholdMs) return true;
@@ -6868,6 +7032,10 @@ if (typeof module !== 'undefined' && module.exports) {
     isValidImportNumber: isValidImportNumber,
     resolveBatchType: resolveBatchType,
     buildScheduleCategoryById: buildScheduleCategoryById,
-    bucketBatchesByMonthType: bucketBatchesByMonthType
+    bucketBatchesByMonthType: bucketBatchesByMonthType,
+    buildSkuLookup: buildSkuLookup,
+    normalizeWineTime: normalizeWineTime,
+    bucketWineDimension: bucketWineDimension,
+    applyTopN: applyTopN
   };
 }
