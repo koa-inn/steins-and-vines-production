@@ -7819,10 +7819,25 @@ function clearPaymentCooldown() {
 function setupBeerWaitlistForm() {
   var f = document.getElementById('beer-waitlist-form'); if (!f) return;
   f.addEventListener('submit', function (e) {
-    e.preventDefault(); var em = document.getElementById('beer-waitlist-email').value.trim(); if (!em) return;
-    var hf = document.createElement('form'); hf.method = 'POST'; hf.action = 'https://docs.google.com/forms/d/e/YOUR_BEER_WAITLIST_FORM_ID/formResponse'; hf.target = 'beer-waitlist-iframe'; hf.style.display = 'none';
-    hf.innerHTML = '<input name="entry.YOUR_EMAIL_ENTRY_ID" value="' + em + '">'; document.body.appendChild(hf); hf.submit(); document.body.removeChild(hf);
-    f.classList.add('hidden'); document.getElementById('beer-waitlist-confirm').classList.remove('hidden');
+    e.preventDefault();
+    var em = document.getElementById('beer-waitlist-email').value.trim(); if (!em) return;
+    var btn = f.querySelector('[type="submit"]'); if (btn) { btn.disabled = true; btn.textContent = 'Joining...'; }
+    var mw = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
+    fetch(mw + '/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Beer Waitlist Signup', email: em, message: 'Beer waitlist signup' })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d.success) {
+        f.classList.add('hidden');
+        document.getElementById('beer-waitlist-confirm').classList.remove('hidden');
+      } else {
+        throw new Error(d.error || 'Could not join waitlist. Please try again.');
+      }
+    }).catch(function (err) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Join Waitlist'; }
+      showToast(err.message || 'Could not join waitlist. Please try again.', 'error');
+    });
   });
 }
 
@@ -8345,7 +8360,9 @@ if (typeof module !== 'undefined' && module.exports) {
     _getPaymentStateForTest: function () { return { chargeInFlight: _paymentChargeInFlight, checkoutToken: _helcimCheckoutToken, secretToken: _helcimSecretToken, transactionId: _helcimTransactionId, idempotencyKey: _checkoutIdempotencyKey }; },
     _extractHelcimTransactionId: extractHelcimTransactionId,
     generateIdempotencyKey: generateIdempotencyKey,
-    clearPaymentCooldown: clearPaymentCooldown
+    clearPaymentCooldown: clearPaymentCooldown,
+    // Test-only: call setupBeerWaitlistForm() against whatever DOM is present
+    setupBeerWaitlistFormForTest: setupBeerWaitlistForm
   };
 }
 // ===== Promo Banner =====
@@ -8815,6 +8832,21 @@ function createKioskBottomNav() {
   window.addEventListener('reservation-changed', updateKioskBadge);
 }
 
+// Clears all cart and milled-item state for the current kiosk customer.
+// Called on idle reset (attract screen) to prevent cart leaks between customers.
+// Exported for unit testing via module.exports below.
+function _clearKioskSession() {
+  try {
+    // Dual carts (sv-cart-ferment, sv-cart-ingredients)
+    localStorage.removeItem('sv-cart-ferment');
+    localStorage.removeItem('sv-cart-ingredients');
+    // Legacy reservation key — cleared for backward compatibility
+    localStorage.removeItem(typeof RESERVATION_KEY !== 'undefined' ? RESERVATION_KEY : 'sv-reservation');
+    // Milled-item state (persisted in sessionStorage by 12-checkout.js)
+    sessionStorage.removeItem('sv-milled-keys');
+  } catch (e) {}
+}
+
 function initKioskAttractScreen() {
   // Create attract screen overlay
   var attract = document.createElement('div');
@@ -8834,8 +8866,8 @@ function initKioskAttractScreen() {
   }
 
   function showAttractScreen() {
-    // Clear reservation on idle
-    localStorage.removeItem(RESERVATION_KEY);
+    // Clear all cart/session state on idle so the next customer starts fresh
+    _clearKioskSession();
     attract.classList.add('active');
   }
 
@@ -9296,3 +9328,10 @@ function loadSocialLinks() {
 // ===== Homepage Promo Section =====
 
 // ===== Responsive Product Image Helper =====
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    // Test-only: invoke the kiosk idle-reset cart clearing logic directly
+    _resetKioskSessionForTest: _clearKioskSession
+  };
+}
