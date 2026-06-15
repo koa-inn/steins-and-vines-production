@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
-stopped_at: Phase 30, Plan 01 checkpoint:human-verify (staging deploy pending)
-last_updated: "2026-06-15T23:15:00.000Z"
-last_activity: 2026-06-15 -- Phase 30 Plan 01 executed (2 tasks committed; checkpoint:human-verify reached)
+stopped_at: Phase 30, Plan 02 checkpoint:human-verify (staging deploy pending)
+last_updated: "2026-06-15T23:45:00.000Z"
+last_activity: 2026-06-15 -- Phase 30 Plan 02 executed (2 tasks committed; checkpoint:human-verify reached)
 progress:
   total_phases: 16
   completed_phases: 14
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-11)
 ## Current Position
 
 Phase: 30 (assessment-quick-wins-small-high-impact-fixes-from-project-a) — EXECUTING
-Plan: 1 of 6 — CHECKPOINT (staging verification required)
+Plan: 2 of 6 — CHECKPOINT (staging verification required)
 Status: 2 auto tasks committed; paused at checkpoint:human-verify
-Last activity: 2026-06-15 -- Phase 30 Plan 01 executed (2 tasks committed; checkpoint:human-verify reached)
+Last activity: 2026-06-15 -- Phase 30 Plan 02 executed (2 tasks committed; checkpoint:human-verify reached)
 
 Milestone v4.1 phase map:
 
@@ -62,6 +62,8 @@ Milestone v4.1 phase map:
 
 ### Decisions
 
+- [30-02]: Build-time rm -rf .planning in deploy-production.yml is the authoritative prod mechanism (Jekyll exclude bypassed by auto-injected .nojekyll)
+- [30-02]: CNAME-swap deploy dance retired — prod deploy is plain git push production main --force; enforce-cname.yml auto-pins domain
 - [30-01]: stamp:sw removed — sw.js was the only dead service worker; offline fallback kept intact in 404.html
 - [30-01]: 9 content/ files confirmed dead via zero-reference grep before deletion
 - [30-01]: !lib/gp.js jest exclusion removed; !lib/mailer.js retained (still-needed exclusion for Plan 06)
