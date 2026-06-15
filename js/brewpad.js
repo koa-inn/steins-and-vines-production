@@ -649,6 +649,10 @@ function isValidImportNumber(num) {
   var _dashRtbExpanded = false;
   var _dashNeedsSchedExpanded = false;
   var _dashChartHiddenTypes = {}; // map of type -> true when toggled off in the Batches-by-Month chart
+  var _dashWineDimension = 'subcategory'; // active dimension: 'subcategory'|'brand'|'manufacturer'|'time'
+  var _dashWineSkuLookup = null;          // cached sku -> product map; null = not yet loaded
+  var _dashWineSkuError = false;          // true if snapshot fetch failed
+  var _dashWineSkuLoading = false;        // in-flight guard — prevents re-entrant fetch loop
 
   // Product catalog
   var _kitCatalog = null;
@@ -1593,6 +1597,29 @@ function isValidImportNumber(num) {
     });
   }
 
+  // Lazy-load the Zoho catalog snapshot once; on success caches sku->product map and
+  // re-renders the dashboard (Wine Breakdown card). On failure sets error flag + re-renders.
+  // Guard: _dashWineSkuLoading prevents a second in-flight fetch from being issued.
+  function loadWineSnapshot() {
+    if (_dashWineSkuLookup !== null || _dashWineSkuError || _dashWineSkuLoading) return;
+    _dashWineSkuLoading = true;
+    fetch('/content/zoho-snapshot.json')
+      .then(function (r) {
+        if (!r.ok) throw new Error('Snapshot fetch failed: ' + r.status);
+        return r.json();
+      })
+      .then(function (snap) {
+        _dashWineSkuLookup = buildSkuLookup(snap.products || []);
+        _dashWineSkuLoading = false;
+        renderDashboard();
+      })
+      .catch(function () {
+        _dashWineSkuError = true;
+        _dashWineSkuLoading = false;
+        renderDashboard();
+      });
+  }
+
   function renderDashboard() {
     var inner = document.getElementById('bp-dashboard-inner');
     if (!inner) return;
@@ -1755,6 +1782,80 @@ function isValidImportNumber(num) {
           html += '</div>';
         });
         html += '</div>';
+      }
+    }
+
+    // Wine Breakdown card — horizontal-bar breakdown of wine batches by a user-selectable
+    // dimension (subcategory / brand / manufacturer / time). Snapshot lazy-loaded once.
+    html += '<div class="bp-section-header">Wine Breakdown</div>';
+
+    if (_dashWineSkuError) {
+      // Snapshot load failed — show muted note; rest of dashboard unaffected
+      html += '<p class="bp-empty" style="color:#9aa0a6;font-style:italic;">Unable to load catalog data — wine breakdown unavailable.</p>';
+    } else if (_dashWineSkuLookup === null) {
+      // Not yet loaded — kick off the fetch and show placeholder
+      loadWineSnapshot();
+      html += '<p class="bp-empty" style="color:#9aa0a6;font-style:italic;">Loading…</p>';
+    } else {
+      // Dimension selector chips
+      var WINE_DIM_LABELS = { subcategory: 'Subcategory', brand: 'Brand', manufacturer: 'Manufacturer', time: 'Time' };
+      var WINE_DIM_ORDER = ['subcategory', 'brand', 'manufacturer', 'time'];
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 4px 10px;">';
+      for (var wdi = 0; wdi < WINE_DIM_ORDER.length; wdi++) {
+        var wd = WINE_DIM_ORDER[wdi];
+        var wdActive = wd === _dashWineDimension;
+        var wdBg = wdActive ? '#7b2d3b' : '#fff';
+        var wdColor = wdActive ? '#fff' : '#333';
+        var wdBorder = wdActive ? '1px solid #7b2d3b' : '1px solid #ddd';
+        html += '<span role="button" tabindex="0" aria-pressed="' + (wdActive ? 'true' : 'false') + '" data-bp-wine-dim="' + wd + '" style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:12px;border:' + wdBorder + ';font-size:0.72rem;cursor:pointer;background:' + wdBg + ';color:' + wdColor + ';font-weight:' + (wdActive ? '600' : 'normal') + ';">';
+        html += escapeHTML(WINE_DIM_LABELS[wd]);
+        html += '</span>';
+      }
+      html += '</div>';
+
+      // Compute bucketed data using Plan 01 helpers
+      var wSchedCatMap = buildScheduleCategoryById(_fermSchedules);
+      var wRawBuckets = bucketWineDimension(_allBatchesData, wSchedCatMap, _dashWineSkuLookup, _dashWineDimension, 6);
+      var wBuckets = applyTopN(wRawBuckets, 8);
+
+      if (wBuckets.length === 0) {
+        html += '<p class="bp-empty">No wine batches started in the last 6 months.</p>';
+      } else {
+        // Color palette for wine dimension bars (deterministic by index)
+        var WINE_DIM_PALETTE = ['#7b2d3b', '#a34a2b', '#c8852a', '#d4a72c', '#4a6f4b', '#3a9aa6', '#5b6dc8', '#9c5bb5'];
+        var wMax = 0;
+        for (var wmi = 0; wmi < wBuckets.length; wmi++) {
+          if (wBuckets[wmi].count > wMax) wMax = wBuckets[wmi].count;
+        }
+        if (wMax < 1) wMax = 1;
+
+        // Total wine batches in window
+        var wTotal = 0;
+        for (var wti = 0; wti < wBuckets.length; wti++) { wTotal += wBuckets[wti].count; }
+
+        html += '<div style="margin:0 4px 8px;">';
+        for (var wbi = 0; wbi < wBuckets.length; wbi++) {
+          var wb = wBuckets[wbi];
+          var wBarColor;
+          if (wb.label === 'Other') {
+            wBarColor = '#9aa0a6';
+          } else if (wb.label === 'Unknown') {
+            wBarColor = '#c0b8b0';
+          } else {
+            wBarColor = WINE_DIM_PALETTE[wbi % WINE_DIM_PALETTE.length];
+          }
+          var wBarPct = Math.round((wb.count / wMax) * 100);
+          if (wBarPct < 2) wBarPct = 2; // minimum visible width
+          html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;" title="' + escapeHTML(wb.label) + ': ' + wb.count + '">';
+          html += '<div style="flex:0 0 90px;font-size:0.72rem;color:#444;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHTML(wb.label) + '">' + escapeHTML(wb.label) + '</div>';
+          html += '<div style="flex:1;background:#f0f0f0;border-radius:3px;height:16px;position:relative;">';
+          html += '<div style="position:absolute;left:0;top:0;height:100%;width:' + wBarPct + '%;background:' + wBarColor + ';border-radius:3px;"></div>';
+          html += '</div>';
+          html += '<div style="flex:0 0 28px;font-size:0.72rem;color:#555;text-align:right;">' + wb.count + '</div>';
+          html += '</div>';
+        }
+        html += '</div>';
+        html += '<div style="font-size:0.7rem;color:#888;text-align:right;margin:0 4px 4px;">Total: ' + wTotal + ' wine batch' + (wTotal !== 1 ? 'es' : '') + '</div>';
       }
     }
 
@@ -6355,6 +6456,15 @@ function isValidImportNumber(num) {
           }
           return;
         }
+        var wineDimChip = e.target.closest('[data-bp-wine-dim]');
+        if (wineDimChip) {
+          var wdim = wineDimChip.getAttribute('data-bp-wine-dim');
+          if (wdim && wdim !== _dashWineDimension) {
+            _dashWineDimension = wdim;
+            renderDashboard();
+          }
+          return;
+        }
         var day = e.target.closest('.bp-wl-day');
         if (day) {
           var date = day.getAttribute('data-date');
@@ -6375,6 +6485,15 @@ function isValidImportNumber(num) {
             } else {
               _dashChartHiddenTypes[ktype] = true;
             }
+            renderDashboard();
+          }
+        }
+        var kWineDim = e.target.closest('[data-bp-wine-dim]');
+        if (kWineDim) {
+          e.preventDefault();
+          var kwdim = kWineDim.getAttribute('data-bp-wine-dim');
+          if (kwdim && kwdim !== _dashWineDimension) {
+            _dashWineDimension = kwdim;
             renderDashboard();
           }
         }
