@@ -740,7 +740,6 @@ small, .text-small {
   margin-bottom: 1.5rem;
   margin-left: auto;
   margin-right: auto;
-  opacity: 0.9;
 }
 
 .hero .btn:hover {
@@ -1432,7 +1431,7 @@ behold-widget {
 }
 
 .beer-waitlist-form input[type="email"]::placeholder {
-  color: rgba(229, 222, 193, 0.6);
+  color: rgba(229, 222, 193, 0.85);
 }
 
 .beer-waitlist-form input[type="email"]:focus-visible {
@@ -2875,7 +2874,7 @@ behold-widget {
 .reservation-bar .reservation-bar-clear {
   background: none;
   border: none;
-  color: rgba(229, 222, 193, 0.6);
+  color: rgba(229, 222, 193, 0.85);
   font-family: var(--font-body);
   font-size: 0.75rem;
   font-weight: 400;

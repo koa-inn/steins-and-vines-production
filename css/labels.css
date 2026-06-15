@@ -138,7 +138,7 @@
   text-align: center;
   margin-top: 1.5rem;
   font-size: 0.9rem;
-  color: #777;
+  color: var(--color-muted);
 }
 
 /* Mockup Tool */
@@ -154,7 +154,7 @@
 
 .labels-mockup > .container > p {
   margin-bottom: 2rem;
-  color: #777;
+  color: var(--color-muted);
 }
 
 .labels-mockup-controls {
@@ -222,7 +222,7 @@
 
 .labels-mockup-hint {
   font-size: 0.85rem;
-  color: #777;
+  color: var(--color-muted);
 }
 
 /* 3-preview layout -- D-01 */
