@@ -40,6 +40,14 @@ jobs:
       # prod and left products/hops.html half-broken (CSS/JS deleted). Removed so
       # prod mirrors staging. Re-add a filter step here if a page must be hidden again.
 
+      # Strip internal planning files from the published artifact (D-01).
+      # .planning/ stays tracked in git but must not be publicly served.
+      # NOTE: actions/upload-pages-artifact auto-injects .nojekyll which bypasses
+      # Jekyll on prod, so _config.yml exclude: has no effect here — this rm step
+      # is the authoritative prod mechanism.
+      - name: Strip .planning from published artifact
+        run: rm -rf .planning
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3

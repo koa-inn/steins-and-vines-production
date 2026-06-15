@@ -1,0 +1,11 @@
+# Jekyll config for GitHub Pages (staging classic-Jekyll path only).
+# Defense-in-depth: exclude .planning/ from the staging Jekyll build output.
+# NOTE: On production, actions/upload-pages-artifact auto-injects .nojekyll
+# which bypasses Jekyll entirely — the build-time `rm -rf .planning` step in
+# deploy-production.yml is the authoritative prod mechanism (D-01).
+exclude:
+  - .planning/
+  - PROJECT_ASSESSMENT.md
+  - "*.sh"
+  - node_modules/
+  - zoho-middleware/
