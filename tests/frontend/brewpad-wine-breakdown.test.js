@@ -151,8 +151,10 @@ describe('normalizeWineTime', function () {
 // bucketWineDimension
 // ---------------------------------------------------------------------------
 describe('bucketWineDimension', function () {
-  // Fixed reference date: 2026-03-15 (March 2026)
-  // Last 6 months: Oct 2025, Nov 2025, Dec 2025, Jan 2026, Feb 2026, Mar 2026
+  // Fixed reference date: 2026-03-15 (string, parsed as UTC midnight by Date()).
+  // Cutoffs use UTC arithmetic (getTime() - N*86400000 + getUTC* extraction) for timezone stability:
+  //   30-day cutoff: 2026-02-13  |  90-day cutoff: 2025-12-15
+  //   180-day cutoff: 2025-09-16  |  365-day cutoff: 2025-03-15
   var REF_DATE = '2026-03-15';
 
   // Helper: build a wine batch with the given sku and date
@@ -178,7 +180,7 @@ describe('bucketWineDimension', function () {
       wineBatch('SKU-RED', '2026-02-01'),
       beerBatch('SKU-WHITE', '2026-02-01')   // should be excluded
     ];
-    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 6, REF_DATE);
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 180, REF_DATE);
     var labels = result.map(function (b) { return b.label; });
     expect(labels).not.toContain('White');
     expect(result.find(function (b) { return b.label === 'Red'; }).count).toBe(1);
@@ -186,10 +188,10 @@ describe('bucketWineDimension', function () {
 
   it('excludes out-of-window batches (D-03)', function () {
     var batches = [
-      wineBatch('SKU-RED', '2025-04-01'),    // outside 6-month window ending 2026-03
+      wineBatch('SKU-RED', '2025-04-01'),    // outside 180-day window from 2026-03-15
       wineBatch('SKU-WHITE', '2026-01-15')   // inside window
     ];
-    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 6, REF_DATE);
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 180, REF_DATE);
     var labels = result.map(function (b) { return b.label; });
     expect(labels).not.toContain('Red');
     expect(labels).toContain('White');
@@ -202,7 +204,7 @@ describe('bucketWineDimension', function () {
       wineBatch('SKU-RED',   '2026-01-03'),
       wineBatch('SKU-FRUIT', '2026-01-04')
     ];
-    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 6, REF_DATE);
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 180, REF_DATE);
     // Red (2) should come before White (1) and Fruit (1)
     expect(result[0].label).toBe('Red');
     expect(result[0].count).toBe(2);
@@ -214,7 +216,7 @@ describe('bucketWineDimension', function () {
       wineBatch('SKU-MISS',  '2026-02-01'),  // not in skuLookup
       wineBatch('SKU-WHITE', '2026-02-01')
     ];
-    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 6, REF_DATE);
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 180, REF_DATE);
     var lastBucket = result[result.length - 1];
     expect(lastBucket.label).toBe('Unknown');
     expect(lastBucket.count).toBe(1);
@@ -229,7 +231,7 @@ describe('bucketWineDimension', function () {
       wineBatch('SKU-EMPTY', '2026-02-01')   // empty subcategory -> Unknown
     ];
     var combinedLookup = Object.assign({}, skuLookup, customLookup);
-    var result = bp.bucketWineDimension(batches, {}, combinedLookup, 'subcategory', 6, REF_DATE);
+    var result = bp.bucketWineDimension(batches, {}, combinedLookup, 'subcategory', 180, REF_DATE);
     var lastBucket = result[result.length - 1];
     expect(lastBucket.label).toBe('Unknown');
   });
@@ -241,7 +243,7 @@ describe('bucketWineDimension', function () {
       wineBatch('SKU-WHITE', '2026-01-03'),  // 6 weeks
       wineBatch('SKU-FRUIT', '2026-01-04')   // 5 weeks
     ];
-    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'time', 6, REF_DATE);
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'time', 180, REF_DATE);
     var weeks = result.map(function (b) { return b.label; });
     expect(weeks[0]).toBe('4 weeks');
     expect(weeks[1]).toBe('5 weeks');
@@ -254,7 +256,7 @@ describe('bucketWineDimension', function () {
       wineBatch('SKU-FRUIT', '2026-01-01'),  // time: '5 weeks'
       wineBatch('SKU-SING',  '2026-01-02')   // time: '5 week' (singular)
     ];
-    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'time', 6, REF_DATE);
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'time', 180, REF_DATE);
     // Both should merge into a single '5 weeks' bucket with count 2
     var fiveWeeks = result.filter(function (b) { return b.label === '5 weeks'; });
     expect(fiveWeeks.length).toBe(1);
@@ -266,7 +268,7 @@ describe('bucketWineDimension', function () {
     var batches = [
       { schedule_id: 'FS-0001', product_sku: 'SKU-RED', start_date: '2026-02-01' }
     ];
-    var result = bp.bucketWineDimension(batches, schedCat, skuLookup, 'subcategory', 6, REF_DATE);
+    var result = bp.bucketWineDimension(batches, schedCat, skuLookup, 'subcategory', 180, REF_DATE);
     var red = result.find(function (b) { return b.label === 'Red'; });
     expect(red).toBeDefined();
     expect(red.count).toBe(1);
@@ -276,14 +278,14 @@ describe('bucketWineDimension', function () {
     var batches = [
       { category: 'wine', product_sku: 'SKU-RED', created_at: '2026-01-10' }
     ];
-    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 6, REF_DATE);
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 180, REF_DATE);
     var red = result.find(function (b) { return b.label === 'Red'; });
     expect(red).toBeDefined();
     expect(red.count).toBe(1);
   });
 
   it('returns empty array for empty batches', function () {
-    var result = bp.bucketWineDimension([], {}, skuLookup, 'subcategory', 6, REF_DATE);
+    var result = bp.bucketWineDimension([], {}, skuLookup, 'subcategory', 180, REF_DATE);
     expect(result).toEqual([]);
   });
 
@@ -296,8 +298,120 @@ describe('bucketWineDimension', function () {
       manyLookup[sku] = { sku: sku, subcategory: 'Cat' + i };
       batches.push({ category: 'wine', product_sku: sku, start_date: '2026-01-01' });
     }
-    var result = bp.bucketWineDimension(batches, {}, manyLookup, 'subcategory', 6, REF_DATE);
+    var result = bp.bucketWineDimension(batches, {}, manyLookup, 'subcategory', 180, REF_DATE);
     expect(result.length).toBe(10);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Day-based windowing — new period selector tests
+  // ---------------------------------------------------------------------------
+
+  it('30-day window: includes batch on the cutoff boundary date', function () {
+    // REF_DATE '2026-03-15' parsed as UTC midnight; 30-day UTC cutoff = 2026-02-13.
+    // Batch on 2026-02-13 is exactly on the cutoff day — should be INCLUDED (>=).
+    var batches = [
+      wineBatch('SKU-RED', '2026-02-13')
+    ];
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 30, REF_DATE);
+    var red = result.find(function (b) { return b.label === 'Red'; });
+    expect(red).toBeDefined();
+    expect(red.count).toBe(1);
+  });
+
+  it('30-day window: excludes batch one day before the cutoff boundary', function () {
+    // 30-day cutoff from REF_DATE = 2026-02-13; batch on 2026-02-12 is one day earlier — EXCLUDED.
+    var batches = [
+      wineBatch('SKU-RED', '2026-02-12')
+    ];
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 30, REF_DATE);
+    expect(result.length).toBe(0);
+  });
+
+  it('90-day window: includes batch on the cutoff boundary date', function () {
+    // 90-day UTC cutoff from '2026-03-15' = 2025-12-15.
+    // Batch on 2025-12-15 is exactly on the cutoff day — should be INCLUDED.
+    var batches = [
+      wineBatch('SKU-WHITE', '2025-12-15')
+    ];
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 90, REF_DATE);
+    var white = result.find(function (b) { return b.label === 'White'; });
+    expect(white).toBeDefined();
+    expect(white.count).toBe(1);
+  });
+
+  it('90-day window: excludes batch one day before the cutoff boundary', function () {
+    // 90-day cutoff = 2025-12-15; batch on 2025-12-14 is one day earlier — EXCLUDED.
+    var batches = [
+      wineBatch('SKU-WHITE', '2025-12-14')
+    ];
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 90, REF_DATE);
+    expect(result.length).toBe(0);
+  });
+
+  it('180-day window (6 months default) matches prior expectations', function () {
+    // Verifies the default 6-month window still produces correct results.
+    // REF_DATE '2026-03-15' UTC; 180-day cutoff = 2025-09-16.
+    // Batches in Jan 2026 and Feb 2026 are within the 180-day window.
+    var batches = [
+      wineBatch('SKU-RED',   '2026-02-01'),
+      wineBatch('SKU-WHITE', '2026-01-15')
+    ];
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 180, REF_DATE);
+    var labels = result.map(function (b) { return b.label; });
+    expect(labels).toContain('Red');
+    expect(labels).toContain('White');
+    expect(result.length).toBe(2);
+  });
+
+  it('365-day window (12 months): includes batch from ~11 months ago, excludes batch from ~13 months ago', function () {
+    // REF_DATE '2026-03-15' UTC; 365-day UTC cutoff = 2025-03-15.
+    // Batch on 2025-04-10 (after cutoff) is inside — INCLUDED.
+    // Batch on 2025-02-01 (before cutoff) is outside — EXCLUDED.
+    var batches = [
+      wineBatch('SKU-RED',   '2025-04-10'),  // inside
+      wineBatch('SKU-WHITE', '2025-02-01')   // outside
+    ];
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 365, REF_DATE);
+    var labels = result.map(function (b) { return b.label; });
+    expect(labels).toContain('Red');
+    expect(labels).not.toContain('White');
+  });
+
+  it('All Time (windowDays=null): includes batches of any age', function () {
+    // null windowDays = no cutoff; all wine batches should appear
+    var batches = [
+      wineBatch('SKU-RED',   '2020-01-01'),  // very old batch
+      wineBatch('SKU-WHITE', '2015-06-15'),  // extremely old batch
+      wineBatch('SKU-FRUIT', '2026-03-01')   // recent batch
+    ];
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', null, REF_DATE);
+    var labels = result.map(function (b) { return b.label; });
+    expect(labels).toContain('Red');
+    expect(labels).toContain('White');
+    expect(labels).toContain('Fruit');
+  });
+
+  it('All Time (windowDays=0): includes batches of any age (0 treated as all-time)', function () {
+    var batches = [
+      wineBatch('SKU-RED', '2018-05-20')
+    ];
+    var result = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 0, REF_DATE);
+    var red = result.find(function (b) { return b.label === 'Red'; });
+    expect(red).toBeDefined();
+    expect(red.count).toBe(1);
+  });
+
+  it('30-day window: excludes batches that would be inside the 90-day window but not 30-day', function () {
+    // REF_DATE '2026-03-15' UTC. 30-day cutoff: 2026-02-13. 90-day cutoff: 2025-12-15.
+    // Batch on 2025-12-20 is after the 90-day cutoff (inside 90d) but before the 30-day
+    // cutoff (outside 30d).
+    var batches = [
+      wineBatch('SKU-RED', '2025-12-20')
+    ];
+    var result30 = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 30, REF_DATE);
+    var result90 = bp.bucketWineDimension(batches, {}, skuLookup, 'subcategory', 90, REF_DATE);
+    expect(result30.length).toBe(0);  // outside 30-day window
+    expect(result90.length).toBe(1);  // inside 90-day window
   });
 });
 
