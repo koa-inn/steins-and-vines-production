@@ -6456,6 +6456,15 @@ function isValidImportNumber(num) {
           }
           return;
         }
+        var wineDimChip = e.target.closest('[data-bp-wine-dim]');
+        if (wineDimChip) {
+          var wdim = wineDimChip.getAttribute('data-bp-wine-dim');
+          if (wdim && wdim !== _dashWineDimension) {
+            _dashWineDimension = wdim;
+            renderDashboard();
+          }
+          return;
+        }
         var day = e.target.closest('.bp-wl-day');
         if (day) {
           var date = day.getAttribute('data-date');
@@ -6476,6 +6485,15 @@ function isValidImportNumber(num) {
             } else {
               _dashChartHiddenTypes[ktype] = true;
             }
+            renderDashboard();
+          }
+        }
+        var kWineDim = e.target.closest('[data-bp-wine-dim]');
+        if (kWineDim) {
+          e.preventDefault();
+          var kwdim = kWineDim.getAttribute('data-bp-wine-dim');
+          if (kwdim && kwdim !== _dashWineDimension) {
+            _dashWineDimension = kwdim;
             renderDashboard();
           }
         }
