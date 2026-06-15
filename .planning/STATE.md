@@ -4,14 +4,14 @@ milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: Phase 29.3 executed — pending human UAT + adminApi.gs redeploy
 stopped_at: Phase 29.3 Plan 03 complete — BrewPad Pull from Zoho UI
-last_updated: "2026-06-14T14:26:32.246Z"
+last_updated: "2026-06-15T04:34:58.990Z"
 last_activity: 2026-06-14
 progress:
-  total_phases: 15
+  total_phases: 16
   completed_phases: 13
   total_plans: 39
   completed_plans: 40
-  percent: 87
+  percent: 81
 ---
 
 # Project State
@@ -95,6 +95,7 @@ Milestone v4.1 phase map:
 - Phase 27.1 inserted after Phase 27: Pending batch deletion with confirmation (today: manual Google Sheet row deletion when a pending batch duplicates an existing batch); requested during phase 27 UAT (URGENT)
 - Phase 29.2 inserted after Phase 29: BrewPad pending batch activation — port admin Activate / Schedule & Activate to BrewPad; pending-aware status badge (URGENT)
 - Phase 29.3 inserted after Phase 29: Pull non-kiosk batch sales into BrewPad (bulk Zoho invoice scan) (URGENT)
+- Phase 29.4 inserted after Phase 29: Wine drill-down analytics on BrewPad dashboard (split wine batches by subcategory/brand/manufacturer/time via catalog SKU join)
 
 ### Deferred Items
 
