@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
-status: Phase 29.3 executed — pending human UAT + adminApi.gs redeploy
+status: executing
 stopped_at: Phase 29.4 context gathered
-last_updated: "2026-06-15T05:50:24.406Z"
-last_activity: 2026-06-14
+last_updated: "2026-06-15T19:00:47.698Z"
+last_activity: 2026-06-15 -- Phase 29.4 planning complete
 progress:
   total_phases: 16
   completed_phases: 13
-  total_plans: 39
+  total_plans: 41
   completed_plans: 40
   percent: 81
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-11)
 
 Phase: 29.3 (pull-non-kiosk-batch-sales-into-brewpad) — EXECUTING
 Plan: 3 of 3
-Status: Phase 29.3 executed — pending human UAT + adminApi.gs redeploy
-Last activity: 2026-06-14
+Status: Ready to execute
+Last activity: 2026-06-15 -- Phase 29.4 planning complete
 
 Milestone v4.1 phase map:
 

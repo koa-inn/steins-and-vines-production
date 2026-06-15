@@ -238,7 +238,7 @@ Plans:
 ### Phase 27.1: Pending batch deletion â delete pending batches from BrewPad with a confirmation step, removing the row via Apps Script instead of manual Google Sheet edits (INSERTED)
 
 **Goal:** Staff can delete pending (duplicate) batches inline from the admin Batches list and the BrewPad "Needs Scheduling" dashboard rows, each behind a confirmation that names the batch (ID + product + customer), removing the row via the existing Apps Script `delete_batch` action instead of editing the Google Sheet by hand. Frontend-only (backend `deleteBatch()` unchanged); UI-gated to pending rows.
-**Requirements**: TBD
+**Requirements**: none (driven by CONTEXT decisions D-01..D-12)
 **Depends on:** Phase 27
 **Plans:** 2/2 plans complete
 
@@ -331,13 +331,14 @@ Plans:
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Staff can split wine batches on the BrewPad dashboard by a selectable dimension (subcategory, brand, manufacturer, or kit time) via a new "Wine Breakdown" card that joins batches to the catalog snapshot.
+**Requirements**: none (driven by CONTEXT decisions D-01..D-12)
 **Depends on:** Phase 29
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 29.4 to break down)
+- [ ] 29.4-01-PLAN.md — Pure helper/data layer: buildSkuLookup, normalizeWineTime, bucketWineDimension, applyTopN + Jest suite
+- [ ] 29.4-02-PLAN.md — Render/interaction layer: Wine Breakdown card, segmented selector, snapshot lazy-fetch, handlers, build
 
 ### Phase 29.3: Pull non-kiosk batch sales into BrewPad — bulk-scan recent Zoho invoices for ferment-in-store sales (Makers Fee present) that have no batch yet and create pending batches; dedupe by zoho_so_number, skip already-batched invoices via cf_batch_status, bounded scan window to respect Zoho rate limits. Touches zoho-middleware scan endpoint + per-invoice detail fetch, apps-script adminApi.gs create_batch dedup, js/brewpad.js Pull-from-Zoho control + confirm + list refresh. (INSERTED)
 
