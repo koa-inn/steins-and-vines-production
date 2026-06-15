@@ -1,8 +1,8 @@
 'use strict';
 
 // ---------------------------------------------------------------------------
-// Tests for: sendCustomerConfirmation in mailer.js
-// The mailer now sends via the Resend HTTPS API (Railway blocks outbound SMTP).
+// Tests for: mailer.js — sendCustomerConfirmation (customer order-confirmation
+// email sent after checkout via the Resend HTTPS API; Railway blocks outbound SMTP).
 // ---------------------------------------------------------------------------
 
 jest.mock('axios', function () {

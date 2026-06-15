@@ -3,8 +3,7 @@ module.exports = {
   testMatch: ['**/__tests__/**/*.test.js'],
   collectCoverage: true,
   collectCoverageFrom: [
-    'lib/**/*.js',
-    '!lib/mailer.js'   // Nodemailer wrapper — Campaign 2+
+    'lib/**/*.js'
   ],
   // Per-file thresholds for Campaign 1 targets; global is achievable with 5 tested files
   coverageThreshold: {

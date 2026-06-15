@@ -1,5 +1,6 @@
 [build]
 buildCommand = "cd zoho-middleware && npm install --production"
+watchPatterns = ["zoho-middleware/**"]
 
 [deploy]
 startCommand = "cd zoho-middleware && node server.js"
