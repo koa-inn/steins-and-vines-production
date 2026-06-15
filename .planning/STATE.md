@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
-stopped_at: Phase 30, Plan 04 checkpoint:human-verify (staging deploy pending; deferred to phase-level staging gate)
-last_updated: "2026-06-15T23:20:00Z"
-last_activity: 2026-06-15 -- Phase 30 Plan 04 executed (2 auto tasks committed; 1 staging checkpoint pending)
+stopped_at: Phase 30, Plan 05 complete (2 auto tasks; checkpoint:human-verify staging gate pending for 30-04 + 30-05)
+last_updated: "2026-06-15T23:45:00Z"
+last_activity: 2026-06-15 -- Phase 30 Plan 05 executed (XSS escaping, canonical escapeHTML, proto guard)
 progress:
   total_phases: 16
   completed_phases: 14
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-11)
 ## Current Position
 
 Phase: 30 (assessment-quick-wins-small-high-impact-fixes-from-project-a) — EXECUTING
-Plan: 4 complete, 6 complete (out of 6); staging checkpoint pending for 30-04 and 30-06
-Status: 30-04 auto tasks committed (67b7dda waitlist fix, 4bf63a6 kiosk fix, 96fa2ae rebuild); staging checkpoint pending
-Last activity: 2026-06-15 -- Phase 30 Plan 04 executed (waitlist /api/contact routing + kiosk cart reset)
+Plan: 5 complete (out of 6); staging checkpoint pending for 30-04, 30-05, 30-06
+Status: 30-05 auto tasks committed (a7def41 XSS+proto fix, 5f4fdec canonical escapeHTML rebuild); staging checkpoint pending
+Last activity: 2026-06-15 -- Phase 30 Plan 05 executed (XSS escaping, canonical escapeHTML, proto guard)
 
 Milestone v4.1 phase map:
 
@@ -75,6 +75,10 @@ Milestone v4.1 phase map:
 - [30-01]: stamp:sw removed — sw.js was the only dead service worker; offline fallback kept intact in 404.html
 - [30-01]: 9 content/ files confirmed dead via zero-reference grep before deletion
 - [30-01]: !lib/gp.js jest exclusion removed; !lib/mailer.js retained (still-needed exclusion for Plan 06)
+- [30-05]: flattenCustomFields extracted as top-level helper with module.exports for test isolation; replaces inline forEach in 07-catalog-kits.js fetchFromMiddleware()
+- [30-05]: js/lib/utils.js added to concat:js BEFORE 02-utils.js; 02-utils.js weak escapeHTML removed (canonical resolves via global); Node test fallback require('../lib/utils').escapeHTML added to 02-utils.js top
+- [30-05]: kiosk.js keeps its own standalone escapeHTML (not in concat); null guard added; apostrophe was already present
+- [30-05]: brewpad.js local escapeHTML upgraded in-place (apostrophe + null guard); still standalone
 - [v3.0 Roadmap]: One shared module `16-catalog-subpage.js` parameterized via `SUBPAGE_CONFIG` per page — not 5 separate modules
 - [v3.0 Roadmap]: Static sub-nav HTML duplicated across pages (no SSI on GitHub Pages), CSS-only active state via `body[data-page]` selector
 - [v3.0 Roadmap]: Fuse.js v7.1.0 already vendored — no new libraries needed
