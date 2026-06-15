@@ -465,6 +465,21 @@ function createKioskBottomNav() {
   window.addEventListener('reservation-changed', updateKioskBadge);
 }
 
+// Clears all cart and milled-item state for the current kiosk customer.
+// Called on idle reset (attract screen) to prevent cart leaks between customers.
+// Exported for unit testing via module.exports below.
+function _clearKioskSession() {
+  try {
+    // Dual carts (sv-cart-ferment, sv-cart-ingredients)
+    localStorage.removeItem('sv-cart-ferment');
+    localStorage.removeItem('sv-cart-ingredients');
+    // Legacy reservation key — cleared for backward compatibility
+    localStorage.removeItem(typeof RESERVATION_KEY !== 'undefined' ? RESERVATION_KEY : 'sv-reservation');
+    // Milled-item state (persisted in sessionStorage by 12-checkout.js)
+    sessionStorage.removeItem('sv-milled-keys');
+  } catch (e) {}
+}
+
 function initKioskAttractScreen() {
   // Create attract screen overlay
   var attract = document.createElement('div');
@@ -484,8 +499,8 @@ function initKioskAttractScreen() {
   }
 
   function showAttractScreen() {
-    // Clear reservation on idle
-    localStorage.removeItem(RESERVATION_KEY);
+    // Clear all cart/session state on idle so the next customer starts fresh
+    _clearKioskSession();
     attract.classList.add('active');
   }
 
@@ -946,3 +961,10 @@ function loadSocialLinks() {
 // ===== Homepage Promo Section =====
 
 // ===== Responsive Product Image Helper =====
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    // Test-only: invoke the kiosk idle-reset cart clearing logic directly
+    _resetKioskSessionForTest: _clearKioskSession
+  };
+}
