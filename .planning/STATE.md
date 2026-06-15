@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
-stopped_at: Phase 30, Plan 03 checkpoint:human-verify (staging deploy pending; deferred to phase-level staging gate)
-last_updated: "2026-06-15T23:15:00Z"
-last_activity: 2026-06-15 -- Phase 30 Plan 06 executed (2 auto tasks committed; 3 human checkpoints pending)
+stopped_at: Phase 30, Plan 04 checkpoint:human-verify (staging deploy pending; deferred to phase-level staging gate)
+last_updated: "2026-06-15T23:20:00Z"
+last_activity: 2026-06-15 -- Phase 30 Plan 04 executed (2 auto tasks committed; 1 staging checkpoint pending)
 progress:
   total_phases: 16
   completed_phases: 14
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-11)
 ## Current Position
 
 Phase: 30 (assessment-quick-wins-small-high-impact-fixes-from-project-a) — EXECUTING
-Plan: 6 of 6 — CHECKPOINT (3 human items pending: node-cron legitimacy, Railway env vars, staging deploy)
-Status: 2 auto tasks committed (002ac35, c9c6049); 3 human checkpoints pending
-Last activity: 2026-06-15 -- Phase 30 Plan 06 executed (2 auto tasks committed; 3 human checkpoints pending)
+Plan: 4 complete, 6 complete (out of 6); staging checkpoint pending for 30-04 and 30-06
+Status: 30-04 auto tasks committed (67b7dda waitlist fix, 4bf63a6 kiosk fix, 96fa2ae rebuild); staging checkpoint pending
+Last activity: 2026-06-15 -- Phase 30 Plan 04 executed (waitlist /api/contact routing + kiosk cart reset)
 
 Milestone v4.1 phase map:
 
@@ -68,6 +68,8 @@ Milestone v4.1 phase map:
 - [30-03]: story-text empty key and its <p data-content="story-text"> both removed — story-text-2 is the real content
 - [30-03]: 404.html root-absolute paths + minified bundles (/css/styles.min.css, /js/main.min.js); all images and icons also root-absolute
 - [30-03]: rgba(229,222,193,0.85) for dark-background placeholders (beer-waitlist, reservation-bar-clear), matching .beer-banner p 0.9 pattern
+- [30-04]: beer waitlist routes through /api/contact with JSON body {name: 'Beer Waitlist Signup', email, message} — reuses existing reCAPTCHA/validation/mailer, no new infra
+- [30-04]: kiosk idle-reset extracts _clearKioskSession() at module level clearing sv-cart-ferment, sv-cart-ingredients, sv-reservation, and sessionStorage sv-milled-keys
 - [30-06]: node-cron v4 CJS require().schedule(expr, fn) API is backward-compatible — server.js cron call unchanged
 - [30-06]: package-lock.json is gitignored at repo root — only package.json committed for node-cron upgrade
 - [30-01]: stamp:sw removed — sw.js was the only dead service worker; offline fallback kept intact in 404.html
@@ -141,6 +143,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-15T23:02:24Z
-Stopped at: Phase 30 Plan 06 checkpoint:human-verify (node-cron legitimacy + Railway env vars + staging/prod deploy pending)
-Resume file: .planning/phases/30-assessment-quick-wins-small-high-impact-fixes-from-project-a/30-06-SUMMARY.md
+Last session: 2026-06-15T23:20:00Z
+Stopped at: Phase 30 Plan 04 checkpoint:human-verify (staging deploy pending — consolidate with 30-06 staging gate)
+Resume file: .planning/phases/30-assessment-quick-wins-small-high-impact-fixes-from-project-a/30-04-SUMMARY.md
