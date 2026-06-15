@@ -287,26 +287,31 @@ function normalizeWineTime(timeStr) {
 }
 
 // Bucket wine batches by a catalog dimension (subcategory, brand, manufacturer, time)
-// over the last `monthsBack` (default 6) months, returning [{label, count}] sorted by:
+// over a time window, returning [{label, count}] sorted by:
 //   - dimension='time': week number ascending (D-12)
 //   - all other dimensions: count descending (D-02)
 // 'Unknown' bucket (no catalog match OR empty dimension value) always appended last (D-10).
 // Wine membership gate: resolveBatchType(batch, scheduleCategoryById) === 'wine' (D-11).
 // Accepts optional `now` param (ISO string or Date) for deterministic testing (D-03).
-function bucketWineDimension(batches, scheduleCategoryById, skuLookup, dimension, monthsBack, now) {
-  var numMonths = monthsBack || 6;
+//
+// windowDays: number of days to look back (e.g. 30, 90, 180, 365), or null/0 for All Time.
+// Default: 180 days (~6 months). Cutoff is day-precise: batch date >= (now - windowDays days).
+function bucketWineDimension(batches, scheduleCategoryById, skuLookup, dimension, windowDays, now) {
   var refDate = now ? new Date(now) : new Date();
-  var refYear = refDate.getFullYear();
-  var refMonth = refDate.getMonth(); // 0-based
 
-  // Build the set of in-window 'YYYY-MM' month keys (last N months)
-  var windowKeys = {};
-  for (var i = numMonths - 1; i >= 0; i--) {
-    var mo = refMonth - i;
-    var yr = refYear;
-    while (mo < 0) { mo += 12; yr--; }
-    var key = yr + '-' + (mo < 9 ? '0' : '') + (mo + 1);
-    windowKeys[key] = true;
+  // Compute cutoff date string ('YYYY-MM-DD'). null/0 windowDays = no cutoff (All Time).
+  // Use UTC date methods throughout to avoid timezone-dependent off-by-one errors when the
+  // `now` param is a 'YYYY-MM-DD' date string (parsed as UTC midnight by Date()).
+  var numDays = (windowDays == null || windowDays === 0) ? null : windowDays;
+  var cutoffDateStr = null;
+  if (numDays) {
+    // Work in UTC milliseconds: subtract (numDays * ms/day) from refDate's UTC timestamp.
+    var cutoffMs = refDate.getTime() - (numDays * 86400000);
+    var cutoff = new Date(cutoffMs);
+    var cy = cutoff.getUTCFullYear();
+    var cm = cutoff.getUTCMonth() + 1;
+    var cd = cutoff.getUTCDate();
+    cutoffDateStr = cy + '-' + (cm < 10 ? '0' : '') + cm + '-' + (cd < 10 ? '0' : '') + cd;
   }
 
   // Tally: { label: count } and a separate map for time dimension week values
@@ -321,11 +326,12 @@ function bucketWineDimension(batches, scheduleCategoryById, skuLookup, dimension
       // Wine membership gate (D-11)
       if (resolveBatchType(b, scheduleCategoryById) !== 'wine') continue;
 
-      // 6-month window gate (D-03): use start_date || created_at, slice to 'YYYY-MM'
+      // Window gate (D-03): use start_date || created_at, compare as 'YYYY-MM-DD' string.
+      // ISO date string comparison is lexicographically correct.
       var dateStr = b.start_date || b.created_at;
       if (!dateStr) continue;
-      var batchKey = String(dateStr).slice(0, 7);
-      if (!windowKeys[batchKey]) continue;
+      var batchDateStr = String(dateStr).slice(0, 10); // 'YYYY-MM-DD'
+      if (cutoffDateStr && batchDateStr < cutoffDateStr) continue;
 
       // SKU join to derive dimension value
       var product = skuLookup ? skuLookup[String(b.product_sku)] : null;
@@ -650,6 +656,7 @@ function isValidImportNumber(num) {
   var _dashNeedsSchedExpanded = false;
   var _dashChartHiddenTypes = {}; // map of type -> true when toggled off in the Batches-by-Month chart
   var _dashWineDimension = 'subcategory'; // active dimension: 'subcategory'|'brand'|'manufacturer'|'time'
+  var _dashWinePeriod = '6mo';            // active sample period: '30d'|'90d'|'6mo'|'12mo'|'all'
   var _dashWineSkuLookup = null;          // cached sku -> product map; null = not yet loaded
   var _dashWineSkuError = false;          // true if snapshot fetch failed
   var _dashWineSkuLoading = false;        // in-flight guard — prevents re-entrant fetch loop
@@ -1786,7 +1793,7 @@ function isValidImportNumber(num) {
     }
 
     // Wine Breakdown card — horizontal-bar breakdown of wine batches by a user-selectable
-    // dimension (subcategory / brand / manufacturer / time). Snapshot lazy-loaded once.
+    // dimension (subcategory / brand / manufacturer / time) and sample period. Snapshot lazy-loaded.
     html += '<div class="bp-section-header">Wine Breakdown</div>';
 
     if (_dashWineSkuError) {
@@ -1800,7 +1807,7 @@ function isValidImportNumber(num) {
       // Dimension selector chips
       var WINE_DIM_LABELS = { subcategory: 'Subcategory', brand: 'Brand', manufacturer: 'Manufacturer', time: 'Time' };
       var WINE_DIM_ORDER = ['subcategory', 'brand', 'manufacturer', 'time'];
-      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 4px 10px;">';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 4px 6px;">';
       for (var wdi = 0; wdi < WINE_DIM_ORDER.length; wdi++) {
         var wd = WINE_DIM_ORDER[wdi];
         var wdActive = wd === _dashWineDimension;
@@ -1813,13 +1820,58 @@ function isValidImportNumber(num) {
       }
       html += '</div>';
 
+      // Sample period selector chips — independent of dimension selector
+      var WINE_PERIOD_DEFS = [
+        { key: '30d',  label: '30 Days',   days: 30 },
+        { key: '90d',  label: '90 Days',   days: 90 },
+        { key: '6mo',  label: '6 Months',  days: 180 },
+        { key: '12mo', label: '12 Months', days: 365 },
+        { key: 'all',  label: 'All Time',  days: null }
+      ];
+      html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin:0 4px 10px;align-items:center;">';
+      html += '<span style="font-size:0.68rem;color:#888;margin-right:2px;">Period:</span>';
+      for (var wpi = 0; wpi < WINE_PERIOD_DEFS.length; wpi++) {
+        var wp = WINE_PERIOD_DEFS[wpi];
+        var wpActive = wp.key === _dashWinePeriod;
+        var wpBg = wpActive ? '#5b4a7b' : '#fff';
+        var wpColor = wpActive ? '#fff' : '#333';
+        var wpBorder = wpActive ? '1px solid #5b4a7b' : '1px solid #ddd';
+        html += '<span role="button" tabindex="0" aria-pressed="' + (wpActive ? 'true' : 'false') + '" data-bp-wine-period="' + wp.key + '" style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:12px;border:' + wpBorder + ';font-size:0.68rem;cursor:pointer;background:' + wpBg + ';color:' + wpColor + ';font-weight:' + (wpActive ? '600' : 'normal') + ';">';
+        html += escapeHTML(wp.label);
+        html += '</span>';
+      }
+      html += '</div>';
+
+      // Resolve the active period's windowDays value (null = All Time)
+      var wActivePeriodDays = 180; // default: 6 months
+      for (var wpri = 0; wpri < WINE_PERIOD_DEFS.length; wpri++) {
+        if (WINE_PERIOD_DEFS[wpri].key === _dashWinePeriod) {
+          wActivePeriodDays = WINE_PERIOD_DEFS[wpri].days;
+          break;
+        }
+      }
+
       // Compute bucketed data using Plan 01 helpers
       var wSchedCatMap = buildScheduleCategoryById(_fermSchedules);
-      var wRawBuckets = bucketWineDimension(_allBatchesData, wSchedCatMap, _dashWineSkuLookup, _dashWineDimension, 6);
+      var wRawBuckets = bucketWineDimension(_allBatchesData, wSchedCatMap, _dashWineSkuLookup, _dashWineDimension, wActivePeriodDays);
       var wBuckets = applyTopN(wRawBuckets, 8);
 
+      // Build empty-state copy reflecting the active period
+      var wEmptyMsg;
+      if (_dashWinePeriod === 'all') {
+        wEmptyMsg = 'No wine batches found.';
+      } else if (_dashWinePeriod === '30d') {
+        wEmptyMsg = 'No wine batches started in the last 30 days.';
+      } else if (_dashWinePeriod === '90d') {
+        wEmptyMsg = 'No wine batches started in the last 90 days.';
+      } else if (_dashWinePeriod === '12mo') {
+        wEmptyMsg = 'No wine batches started in the last 12 months.';
+      } else {
+        wEmptyMsg = 'No wine batches started in the last 6 months.';
+      }
+
       if (wBuckets.length === 0) {
-        html += '<p class="bp-empty">No wine batches started in the last 6 months.</p>';
+        html += '<p class="bp-empty">' + wEmptyMsg + '</p>';
       } else {
         // Color palette for wine dimension bars (deterministic by index)
         var WINE_DIM_PALETTE = ['#7b2d3b', '#a34a2b', '#c8852a', '#d4a72c', '#4a6f4b', '#3a9aa6', '#5b6dc8', '#9c5bb5'];
@@ -6465,6 +6517,15 @@ function isValidImportNumber(num) {
           }
           return;
         }
+        var winePeriodChip = e.target.closest('[data-bp-wine-period]');
+        if (winePeriodChip) {
+          var wperiod = winePeriodChip.getAttribute('data-bp-wine-period');
+          if (wperiod && wperiod !== _dashWinePeriod) {
+            _dashWinePeriod = wperiod;
+            renderDashboard();
+          }
+          return;
+        }
         var day = e.target.closest('.bp-wl-day');
         if (day) {
           var date = day.getAttribute('data-date');
@@ -6494,6 +6555,15 @@ function isValidImportNumber(num) {
           var kwdim = kWineDim.getAttribute('data-bp-wine-dim');
           if (kwdim && kwdim !== _dashWineDimension) {
             _dashWineDimension = kwdim;
+            renderDashboard();
+          }
+        }
+        var kWinePeriod = e.target.closest('[data-bp-wine-period]');
+        if (kWinePeriod) {
+          e.preventDefault();
+          var kwperiod = kWinePeriod.getAttribute('data-bp-wine-period');
+          if (kwperiod && kwperiod !== _dashWinePeriod) {
+            _dashWinePeriod = kwperiod;
             renderDashboard();
           }
         }
