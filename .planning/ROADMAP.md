@@ -348,9 +348,9 @@ Plans:
 **Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 29.3-01-PLAN.md — Middleware scan + bulk-create endpoints (GET /api/batch/scan-invoices, POST /api/batch/bulk-create) with Jest tests [wave 1]
-- [ ] 29.3-02-PLAN.md — Apps Script createBatch zoho_so_number idempotency guard (D-10) [wave 1]
-- [ ] 29.3-03-PLAN.md — BrewPad "Pull from Zoho" control + confirm sheet + single-import + list refresh [wave 2]
+- [x] 29.3-01-PLAN.md — Middleware scan + bulk-create endpoints (GET /api/batch/scan-invoices, POST /api/batch/bulk-create) with Jest tests [wave 1]
+- [x] 29.3-02-PLAN.md — Apps Script createBatch zoho_so_number idempotency guard (D-10) [wave 1]
+- [x] 29.3-03-PLAN.md — BrewPad "Pull from Zoho" control + confirm sheet + single-import + list refresh [wave 2]
 
 ### Phase 29.2: BrewPad pending batch activation — one-click Activate and guided Schedule & Activate for pending batches in BrewPad (Needs Scheduling rows + batch detail pane), reusing Phase 27 admin backend; make detail status badge pending-aware so pending batches route through activation instead of silently cycling to Primary. Frontend-only: js/brewpad.js + tests. (INSERTED)
 
