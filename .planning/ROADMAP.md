@@ -415,7 +415,7 @@ Plans:
 **Goal:** Ship the curated 21 small high-impact fixes from PROJECT_ASSESSMENT.md (user-facing live bugs, security hardening, dead-weight removal, repo hygiene, config/infra, test cleanup) in risk-batched staging-first deploys, with `.planning/` excluded from the public site (kept in git) and CNAME untracked.
 **Requirements**: none mapped (driven by QUICK-WINS items #1-21 + CONTEXT decisions D-01..D-04)
 **Depends on:** Phase 29
-**Plans:** 3/6 plans executed
+**Plans:** 4/6 plans executed
 
 Plans:
 **Wave 1**
@@ -432,4 +432,4 @@ Plans:
 - [ ] 30-05-PLAN.md — Security batch (payment-adjacent): escape contact XSS sinks (#7), canonical escapeHTML (#8), proto-pollution guard (#9) + staging-kiosk verify
 
 **Wave 5**
-- [ ] 30-06-PLAN.md — Config/infra + test cleanup: railway.toml watchPatterns (#19), node-cron 4.2.1 (#20), jest cleanup (#21) + human actions env vars/uptime (#17,#18)
+- [x] 30-06-PLAN.md — Config/infra + test cleanup: railway.toml watchPatterns (#19), node-cron 4.2.1 (#20), jest cleanup (#21) + human actions env vars/uptime (#17,#18)
