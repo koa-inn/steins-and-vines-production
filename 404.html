@@ -93,7 +93,6 @@
   <script src="js/sheets-config.js"></script>
   <script src="js/main.js"></script>
   <script>
-  if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js')})}
   if(!navigator.onLine){var h=document.querySelector('.page-header h1 span');var h2=document.querySelector('.content h2');var p=document.querySelector('.content p');if(h)h.textContent="You're Offline";if(h2)h2.textContent="No internet connection";if(p)p.textContent="Please check your connection and try again.";}
   </script>
 </body>
