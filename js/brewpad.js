@@ -160,6 +160,103 @@ function filterBatchesByStatus(batches, filter) {
   });
 }
 
+// Known beverage type buckets for the dashboard Batches-by-Month chart.
+var KNOWN_BATCH_TYPES = { wine: true, beer: true, cider: true, seltzer: true };
+
+// Build a lookup map { schedule_id -> category } from a _fermSchedules-shaped array.
+function buildScheduleCategoryById(schedules) {
+  var map = {};
+  if (!schedules || !schedules.length) return map;
+  for (var i = 0; i < schedules.length; i++) {
+    var s = schedules[i];
+    if (s && s.schedule_id && s.category) {
+      map[s.schedule_id] = String(s.category).toLowerCase();
+    }
+  }
+  return map;
+}
+
+// Resolve the beverage type bucket for a single batch.
+// Resolution order:
+//   1. batch.category (non-empty known type)
+//   2. scheduleCategoryById[batch.schedule_id]
+//   3. JSON-parsed batch.schedule_snapshot.category
+//   4. 'other'
+function resolveBatchType(batch, scheduleCategoryById) {
+  var known = KNOWN_BATCH_TYPES;
+
+  // 1. Direct batch.category
+  if (batch.category) {
+    var c = String(batch.category).toLowerCase();
+    if (known[c]) return c;
+  }
+
+  // 2. Via schedule_id lookup
+  if (batch.schedule_id && scheduleCategoryById) {
+    var sc = scheduleCategoryById[batch.schedule_id];
+    if (sc) {
+      var s2 = String(sc).toLowerCase();
+      if (known[s2]) return s2;
+    }
+  }
+
+  // 3. Via schedule_snapshot
+  if (batch.schedule_snapshot) {
+    try {
+      var snap = typeof batch.schedule_snapshot === 'string'
+        ? JSON.parse(batch.schedule_snapshot)
+        : batch.schedule_snapshot;
+      if (snap && snap.category) {
+        var s3 = String(snap.category).toLowerCase();
+        if (known[s3]) return s3;
+      }
+    } catch (e) { /* ignore malformed JSON */ }
+  }
+
+  return 'other';
+}
+
+// Bucket batches by month and beverage type for the Batches-by-Month chart.
+// Returns an ordered array (oldest → newest) of:
+//   { label: 'Jan', total: N, counts: { wine:N, beer:N, cider:N, seltzer:N, other:N } }
+// Accepts an optional `now` param (ISO string or Date) for deterministic testing.
+function bucketBatchesByMonthType(batches, scheduleCategoryById, monthsBack, now) {
+  var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var numMonths = monthsBack || 6;
+  var refDate = now ? new Date(now) : new Date();
+  var refYear = refDate.getFullYear();
+  var refMonth = refDate.getMonth(); // 0-based
+
+  // Build ordered bucket list (oldest first)
+  var buckets = [];
+  var keyToIndex = {};
+  for (var i = numMonths - 1; i >= 0; i--) {
+    var mo = refMonth - i;
+    var yr = refYear;
+    while (mo < 0) { mo += 12; yr--; }
+    var key = yr + '-' + (mo < 9 ? '0' : '') + (mo + 1);
+    var label = months[mo];
+    buckets.push({ label: label, key: key, total: 0, counts: { wine: 0, beer: 0, cider: 0, seltzer: 0, other: 0 } });
+    keyToIndex[key] = buckets.length - 1;
+  }
+
+  if (!batches || !batches.length) return buckets;
+
+  for (var j = 0; j < batches.length; j++) {
+    var b = batches[j];
+    var dateStr = b.start_date || b.created_at;
+    if (!dateStr) continue;
+    var batchKey = String(dateStr).slice(0, 7); // 'YYYY-MM'
+    if (!(batchKey in keyToIndex)) continue;
+    var type = resolveBatchType(b, scheduleCategoryById);
+    var idx = keyToIndex[batchKey];
+    buckets[idx].counts[type] = (buckets[idx].counts[type] || 0) + 1;
+    buckets[idx].total++;
+  }
+
+  return buckets;
+}
+
 // Session staleness check — returns true if token is older than thresholdMs
 function isSessionStale(lastTokenTime, thresholdMs) {
   if (!lastTokenTime || !thresholdMs) return true;
@@ -387,6 +484,7 @@ function isValidImportNumber(num) {
   var _dashExpandedDay = null;
   var _dashRtbExpanded = false;
   var _dashNeedsSchedExpanded = false;
+  var _dashChartHiddenTypes = {}; // map of type -> true when toggled off in the Batches-by-Month chart
 
   // Product catalog
   var _kitCatalog = null;
@@ -1383,20 +1481,117 @@ function isValidImportNumber(num) {
     }
 
     // Batches by Month bar chart (started batches, last 6 months)
+    // When client has full batch data, render stacked bars by beverage type with a legend.
+    // Falls back to the server-computed solid-green bars if _allBatchesData is empty.
+    var TYPE_COLORS = { wine: '#7b2d3b', beer: '#c8852a', cider: '#d4a72c', seltzer: '#3a9aa6', other: '#9aa0a6' };
+    var TYPE_LABELS = { wine: 'Wine', beer: 'Beer', cider: 'Cider', seltzer: 'Seltzer', other: 'Other' };
+    var TYPE_ORDER = ['wine', 'beer', 'cider', 'seltzer', 'other'];
+
     var byMonth = (d && d.batchesByMonth) || [];
-    if (byMonth.length > 0) {
-      var maxMonth = byMonth.reduce(function (mx, x) { return Math.max(mx, x.count || 0); }, 0) || 1;
+    if (byMonth.length > 0 || _allBatchesData.length > 0) {
       html += '<div class="bp-section-header">Batches by Month</div>';
-      html += '<div style="display:flex;align-items:flex-end;gap:8px;height:120px;padding:6px 4px 0;">';
-      byMonth.forEach(function (m) {
-        var bh = Math.round((m.count / maxMonth) * 92) + 4;
-        html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;" title="' + escapeHTML(m.label) + ': ' + m.count + '">';
-        html += '<div style="font-size:0.7rem;color:#5f5f5f;margin-bottom:2px;">' + m.count + '</div>';
-        html += '<div style="width:70%;max-width:34px;height:' + bh + 'px;background:#4a6f4b;border-radius:4px 4px 0 0;"></div>';
-        html += '<div style="font-size:0.68rem;color:#5f5f5f;margin-top:4px;">' + escapeHTML(m.label) + '</div>';
+
+      if (_allBatchesData.length > 0) {
+        // Stacked bar chart from client data
+        var schedCatMap = buildScheduleCategoryById(_fermSchedules);
+        var typedMonths = bucketBatchesByMonthType(_allBatchesData, schedCatMap, 6);
+
+        // Determine which types have any data at all (for legend)
+        var typeHasData = {};
+        for (var tm = 0; tm < typedMonths.length; tm++) {
+          var mc = typedMonths[tm].counts;
+          for (var tk = 0; tk < TYPE_ORDER.length; tk++) {
+            if (mc[TYPE_ORDER[tk]] > 0) typeHasData[TYPE_ORDER[tk]] = true;
+          }
+        }
+
+        // Build legend (one chip per type that has data, or 'other' always shown)
+        html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 4px 8px;">';
+        for (var li = 0; li < TYPE_ORDER.length; li++) {
+          var lt = TYPE_ORDER[li];
+          if (!typeHasData[lt] && lt !== 'other') continue;
+          var lHidden = !!_dashChartHiddenTypes[lt];
+          var lPressed = lHidden ? 'true' : 'false';
+          var lOpacity = lHidden ? '0.4' : '1';
+          // Count across all months for this type
+          var lTotal = 0;
+          for (var lm = 0; lm < typedMonths.length; lm++) {
+            lTotal += typedMonths[lm].counts[lt] || 0;
+          }
+          html += '<span role="button" tabindex="0" aria-pressed="' + lPressed + '" data-bp-chart-type="' + lt + '" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;border:1px solid #ddd;font-size:0.72rem;cursor:pointer;opacity:' + lOpacity + ';background:#fff;">';
+          html += '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + TYPE_COLORS[lt] + ';flex-shrink:0;"></span>';
+          html += escapeHTML(TYPE_LABELS[lt]) + ' (' + lTotal + ')';
+          html += '</span>';
+        }
         html += '</div>';
-      });
-      html += '</div>';
+
+        // Compute max visible total for bar scaling
+        var maxVisible = 0;
+        for (var vi = 0; vi < typedMonths.length; vi++) {
+          var visTotal = 0;
+          for (var vt = 0; vt < TYPE_ORDER.length; vt++) {
+            if (!_dashChartHiddenTypes[TYPE_ORDER[vt]]) {
+              visTotal += typedMonths[vi].counts[TYPE_ORDER[vt]] || 0;
+            }
+          }
+          if (visTotal > maxVisible) maxVisible = visTotal;
+        }
+        if (maxVisible < 1) maxVisible = 1;
+
+        html += '<div style="display:flex;align-items:flex-end;gap:8px;height:120px;padding:0 4px 0;">';
+        for (var bi = 0; bi < typedMonths.length; bi++) {
+          var bm = typedMonths[bi];
+          // Build tooltip per type
+          var tipParts = [];
+          for (var bt = 0; bt < TYPE_ORDER.length; bt++) {
+            var btype = TYPE_ORDER[bt];
+            var bcnt = bm.counts[btype] || 0;
+            if (bcnt > 0) tipParts.push(TYPE_LABELS[btype] + ': ' + bcnt);
+          }
+          var tipTitle = escapeHTML(bm.label) + ' (' + bm.total + ')' + (tipParts.length ? ' — ' + tipParts.join(', ') : '');
+
+          // Visible total for this bar
+          var barVisTotal = 0;
+          for (var bvt = 0; bvt < TYPE_ORDER.length; bvt++) {
+            if (!_dashChartHiddenTypes[TYPE_ORDER[bvt]]) {
+              barVisTotal += bm.counts[TYPE_ORDER[bvt]] || 0;
+            }
+          }
+          var barH = Math.round((barVisTotal / maxVisible) * 92) + 4;
+
+          html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;" title="' + tipTitle + '">';
+          html += '<div style="font-size:0.7rem;color:#5f5f5f;margin-bottom:2px;">' + barVisTotal + '</div>';
+          // Stacked bar column — innermost type on bottom
+          html += '<div style="width:70%;max-width:34px;height:' + barH + 'px;display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden;">';
+          for (var bs = 0; bs < TYPE_ORDER.length; bs++) {
+            var bsType = TYPE_ORDER[bs];
+            if (_dashChartHiddenTypes[bsType]) continue;
+            var bsCnt = bm.counts[bsType] || 0;
+            if (!bsCnt) continue;
+            var segH = Math.round((bsCnt / barVisTotal) * barH);
+            if (segH < 1) segH = 1;
+            html += '<div style="width:100%;height:' + segH + 'px;background:' + TYPE_COLORS[bsType] + ';flex-shrink:0;" title="' + escapeHTML(TYPE_LABELS[bsType]) + ': ' + bsCnt + '"></div>';
+          }
+          html += '</div>';
+          html += '<div style="font-size:0.68rem;color:#5f5f5f;margin-top:4px;">' + escapeHTML(bm.label) + '</div>';
+          html += '</div>';
+        }
+        html += '</div>';
+
+      } else {
+        // Fallback: solid-green bars from server-computed batchesByMonth
+        var maxMonth = byMonth.reduce(function (mx, x) { return Math.max(mx, x.count || 0); }, 0) || 1;
+        html += '<div style="display:flex;align-items:flex-end;gap:8px;height:120px;padding:6px 4px 0;">';
+        byMonth.forEach(function (m) {
+          var bh = Math.round((m.count / maxMonth) * 92) + 4;
+          html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;" title="' + escapeHTML(m.label) + ': ' + m.count + '">';
+          html += '<div style="font-size:0.7rem;color:#5f5f5f;margin-bottom:2px;">' + m.count + '</div>';
+          html += '<div style="width:70%;max-width:34px;height:' + bh + 'px;background:#4a6f4b;border-radius:4px 4px 0 0;"></div>';
+          html += '<div style="font-size:0.68rem;color:#5f5f5f;margin-top:4px;">' + escapeHTML(m.label) + '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
     }
 
     // Attention items — built client-side from scalar counts returned by the API
@@ -5983,12 +6178,41 @@ function isValidImportNumber(num) {
           renderDashboard();
           return;
         }
+        var chartTypeChip = e.target.closest('[data-bp-chart-type]');
+        if (chartTypeChip) {
+          var ctype = chartTypeChip.getAttribute('data-bp-chart-type');
+          if (ctype) {
+            if (_dashChartHiddenTypes[ctype]) {
+              delete _dashChartHiddenTypes[ctype];
+            } else {
+              _dashChartHiddenTypes[ctype] = true;
+            }
+            renderDashboard();
+          }
+          return;
+        }
         var day = e.target.closest('.bp-wl-day');
         if (day) {
           var date = day.getAttribute('data-date');
           _dashExpandedDay = (_dashExpandedDay === date) ? null : date;
           renderDashboard();
           return;
+        }
+      });
+      dashInner.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        var kChip = e.target.closest('[data-bp-chart-type]');
+        if (kChip) {
+          e.preventDefault();
+          var ktype = kChip.getAttribute('data-bp-chart-type');
+          if (ktype) {
+            if (_dashChartHiddenTypes[ktype]) {
+              delete _dashChartHiddenTypes[ktype];
+            } else {
+              _dashChartHiddenTypes[ktype] = true;
+            }
+            renderDashboard();
+          }
         }
       });
       dashInner.addEventListener('change', function (e) {
@@ -6641,6 +6865,9 @@ if (typeof module !== 'undefined' && module.exports) {
     buildPullCandidateRowHtml: buildPullCandidateRowHtml,
     buildBulkCreatePayload: buildBulkCreatePayload,
     summarizeBulkResults: summarizeBulkResults,
-    isValidImportNumber: isValidImportNumber
+    isValidImportNumber: isValidImportNumber,
+    resolveBatchType: resolveBatchType,
+    buildScheduleCategoryById: buildScheduleCategoryById,
+    bucketBatchesByMonthType: bucketBatchesByMonthType
   };
 }
