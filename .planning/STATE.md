@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
-stopped_at: Phase 30 context gathered
-last_updated: "2026-06-15T22:46:20.262Z"
-last_activity: 2026-06-15 -- Phase 30 planning complete
+stopped_at: Phase 30, Plan 01 checkpoint:human-verify (staging deploy pending)
+last_updated: "2026-06-15T23:15:00.000Z"
+last_activity: 2026-06-15 -- Phase 30 Plan 01 executed (2 tasks committed; checkpoint:human-verify reached)
 progress:
   total_phases: 16
   completed_phases: 14
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-11)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 29.4 — wine-drill-down-analytics-on-brewpad-dashboard-wine-specific
+**Current focus:** Phase 30 — assessment-quick-wins-small-high-impact-fixes-from-project-a
 
 ## Current Position
 
-Phase: 29.4 — COMPLETE
-Plan: 1 of 2
-Status: Ready to execute
-Last activity: 2026-06-15 -- Phase 30 planning complete
+Phase: 30 (assessment-quick-wins-small-high-impact-fixes-from-project-a) — EXECUTING
+Plan: 1 of 6 — CHECKPOINT (staging verification required)
+Status: 2 auto tasks committed; paused at checkpoint:human-verify
+Last activity: 2026-06-15 -- Phase 30 Plan 01 executed (2 tasks committed; checkpoint:human-verify reached)
 
 Milestone v4.1 phase map:
 
@@ -62,6 +62,9 @@ Milestone v4.1 phase map:
 
 ### Decisions
 
+- [30-01]: stamp:sw removed — sw.js was the only dead service worker; offline fallback kept intact in 404.html
+- [30-01]: 9 content/ files confirmed dead via zero-reference grep before deletion
+- [30-01]: !lib/gp.js jest exclusion removed; !lib/mailer.js retained (still-needed exclusion for Plan 06)
 - [v3.0 Roadmap]: One shared module `16-catalog-subpage.js` parameterized via `SUBPAGE_CONFIG` per page — not 5 separate modules
 - [v3.0 Roadmap]: Static sub-nav HTML duplicated across pages (no SSI on GitHub Pages), CSS-only active state via `body[data-page]` selector
 - [v3.0 Roadmap]: Fuse.js v7.1.0 already vendored — no new libraries needed
