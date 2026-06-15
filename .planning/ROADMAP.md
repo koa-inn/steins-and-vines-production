@@ -415,7 +415,7 @@ Plans:
 **Goal:** Ship the curated 21 small high-impact fixes from PROJECT_ASSESSMENT.md (user-facing live bugs, security hardening, dead-weight removal, repo hygiene, config/infra, test cleanup) in risk-batched staging-first deploys, with `.planning/` excluded from the public site (kept in git) and CNAME untracked.
 **Requirements**: none mapped (driven by QUICK-WINS items #1-21 + CONTEXT decisions D-01..D-04)
 **Depends on:** Phase 29
-**Plans:** 2/6 plans executed
+**Plans:** 3/6 plans executed
 
 Plans:
 **Wave 1**
@@ -423,7 +423,7 @@ Plans:
 - [x] 30-02-PLAN.md — Repo hygiene: deploy-layer `.planning/` exclusion kept-in-git (D-01/#15) + untrack CNAME (#16)
 
 **Wave 2**
-- [ ] 30-03-PLAN.md — User-facing content/CSS/404 fixes: hero subtitle, nested-URL 404, contrast, empty story paragraph (#1,#3,#5,#6)
+- [x] 30-03-PLAN.md — User-facing content/CSS/404 fixes: hero subtitle, nested-URL 404, contrast, empty story paragraph (#1,#3,#5,#6)
 
 **Wave 3**
 - [ ] 30-04-PLAN.md — User-facing JS fixes (build): beer waitlist via /api/contact (D-02/#2) + kiosk idle-reset cart leak (#4)

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
 status: executing
-stopped_at: Phase 30, Plan 02 checkpoint:human-verify (staging deploy pending)
-last_updated: "2026-06-15T23:45:00.000Z"
-last_activity: 2026-06-15 -- Phase 30 Plan 02 executed (2 tasks committed; checkpoint:human-verify reached)
+stopped_at: Phase 30, Plan 03 checkpoint:human-verify (staging deploy pending; deferred to phase-level staging gate)
+last_updated: "2026-06-15T23:02:24Z"
+last_activity: 2026-06-15 -- Phase 30 Plan 03 executed (2 tasks committed; checkpoint:human-verify deferred)
 progress:
   total_phases: 16
   completed_phases: 14
   total_plans: 47
-  completed_plans: 42
-  percent: 88
+  completed_plans: 43
+  percent: 89
 ---
 
 # Project State
@@ -64,6 +64,10 @@ Milestone v4.1 phase map:
 
 - [30-02]: Build-time rm -rf .planning in deploy-production.yml is the authoritative prod mechanism (Jekyll exclude bypassed by auto-injected .nojekyll)
 - [30-02]: CNAME-swap deploy dance retired — prod deploy is plain git push production main --force; enforce-cname.yml auto-pins domain
+- [30-03]: hero-subtitle key removed from home.json rather than replaced — 13-init.js undefined check leaves inline HTML fallback intact
+- [30-03]: story-text empty key and its <p data-content="story-text"> both removed — story-text-2 is the real content
+- [30-03]: 404.html root-absolute paths + minified bundles (/css/styles.min.css, /js/main.min.js); all images and icons also root-absolute
+- [30-03]: rgba(229,222,193,0.85) for dark-background placeholders (beer-waitlist, reservation-bar-clear), matching .beer-banner p 0.9 pattern
 - [30-01]: stamp:sw removed — sw.js was the only dead service worker; offline fallback kept intact in 404.html
 - [30-01]: 9 content/ files confirmed dead via zero-reference grep before deletion
 - [30-01]: !lib/gp.js jest exclusion removed; !lib/mailer.js retained (still-needed exclusion for Plan 06)
@@ -135,6 +139,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-15T22:18:24.586Z
-Stopped at: Phase 30 context gathered
-Resume file: .planning/phases/30-assessment-quick-wins-small-high-impact-fixes-from-project-a/30-CONTEXT.md
+Last session: 2026-06-15T23:02:24Z
+Stopped at: Phase 30 Plan 03 checkpoint:human-verify (staging deploy pending)
+Resume file: .planning/phases/30-assessment-quick-wins-small-high-impact-fixes-from-project-a/30-03-SUMMARY.md
