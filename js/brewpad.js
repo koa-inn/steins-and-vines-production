@@ -1104,6 +1104,22 @@ function isValidImportNumber(num) {
     return (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) || '';
   }
 
+  // Send a bottling-appointment invite via the middleware (Resend). Resolves on
+  // {success:true}, rejects with an Error otherwise — mirrors the old
+  // adminApiPost('send_bottling_invite') contract so callers stay simple.
+  function postBottlingInvite(data) {
+    return fetch(mwUrl() + '/api/batch/bottling-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': mwApiKey() },
+      body: JSON.stringify(data)
+    }).then(function (r) {
+      return r.json().then(function (d) {
+        if (r.ok && d && d.success) return d;
+        throw new Error((d && d.error) || ('HTTP ' + r.status));
+      });
+    });
+  }
+
   function showSyncIndicator(state) {
     var el = document.getElementById('bp-sync-indicator');
     if (!el) return;
@@ -2005,7 +2021,7 @@ function isValidImportNumber(num) {
           html += '<span style="font-size:0.75rem;color:#5f5f5f;margin-left:6px;">Bottling date TBD</span>';
         }
         if (it.has_email) {
-          html += '<button type="button" class="bp-rtb-invite-btn" data-batch-id="' + escapeHTML(it.batch_id || '') + '" data-customer="' + escapeHTML(it.customer_name || 'this customer') + '" style="margin-left:8px;font-size:0.72rem;padding:2px 8px;border-radius:6px;border:1px solid #4a6f4b;background:#fff;color:#4a6f4b;cursor:pointer;">Send Invite</button>';
+          html += '<button type="button" class="bp-rtb-invite-btn" data-batch-id="' + escapeHTML(it.batch_id || '') + '" data-customer="' + escapeHTML(it.customer_name || 'this customer') + '" data-email="' + escapeHTML(it.customer_email || '') + '" data-product="' + escapeHTML(it.product_name || '') + '" style="margin-left:8px;font-size:0.72rem;padding:2px 8px;border-radius:6px;border:1px solid #4a6f4b;background:#fff;color:#4a6f4b;cursor:pointer;">Send Invite</button>';
         }
         html += '</div></div>';
       });
@@ -4180,7 +4196,8 @@ function isValidImportNumber(num) {
       });
     }
 
-    // Send bottling invite — emails the customer a self-book Cal.com link (Apps Script MailApp).
+    // Send bottling invite — emails the customer a self-book Cal.com link via the
+    // middleware/Resend (POST /api/batch/bottling-invite).
     var bottlingInviteBtn = document.getElementById('bp-bottling-invite-btn');
     if (bottlingInviteBtn) {
       bottlingInviteBtn.addEventListener('click', function () {
@@ -4190,7 +4207,12 @@ function isValidImportNumber(num) {
           'Send Invite', '',
           function () {
             bottlingInviteBtn.disabled = true;
-            adminApiPost('send_bottling_invite', { batch_id: b.batch_id })
+            postBottlingInvite({
+              name: b.customer_name || '',
+              email: inviteEmail,
+              batchId: b.batch_id,
+              productName: b.product_name || ''
+            })
               .then(function () {
                 showToast('Bottling invite sent to ' + inviteEmail, 'success');
               })
@@ -6394,9 +6416,16 @@ function isValidImportNumber(num) {
         if (rtbInvite) {
           var ibid = rtbInvite.getAttribute('data-batch-id');
           var iwho = rtbInvite.getAttribute('data-customer') || 'this customer';
+          var iname = rtbInvite.getAttribute('data-customer') || '';
+          if (iname === 'this customer') iname = '';
           showConfirmSheet('Send a bottling booking invite to ' + iwho + '?', 'Send Invite', '', function () {
             rtbInvite.disabled = true;
-            adminApiPost('send_bottling_invite', { batch_id: ibid })
+            postBottlingInvite({
+              name: iname,
+              email: rtbInvite.getAttribute('data-email') || '',
+              batchId: ibid,
+              productName: rtbInvite.getAttribute('data-product') || ''
+            })
               .then(function () { showToast('Bottling invite sent', 'success'); })
               .catch(function (err) { showToast('Failed: ' + err.message, 'error'); })
               .then(function () { rtbInvite.disabled = false; });
