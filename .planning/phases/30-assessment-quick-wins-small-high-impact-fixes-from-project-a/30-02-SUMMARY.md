@@ -19,6 +19,7 @@ decisions:
   - "[30-02]: Build-time rm -rf .planning is the authoritative prod mechanism — Jekyll exclude is bypassed by auto-injected .nojekyll on prod artifact"
   - "[30-02]: CNAME-swap deploy dance retired — prod deploy is now plain git push production main --force; enforce-cname.yml auto-pins domain"
   - "[30-02]: CNAME was already in .gitignore (line 44) — no .gitignore edit required for Task 2"
+  - "[30-02][REVERTED 2026-06-16]: Item #16 (untrack CNAME) DEFERRED. Untracking broke staging.steinsandvines.ca → 404: enforce-cname.yml CANNOT self-heal because its default GITHUB_TOKEN gets 403 (Resource not accessible by integration) on the Pages API PUT. Domain restored via authenticated `gh api ... pages -X PUT -f cname=` (which auto-recommitted CNAME as `Create CNAME`). CNAME is tracked again (file-based pin). #16 stays open until enforce-cname.yml is given a PAT with Pages:write."
 metrics:
   duration: ~5min
   completed_date: "2026-06-15"
