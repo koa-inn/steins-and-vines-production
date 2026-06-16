@@ -1412,6 +1412,11 @@ function getBatchDetail(batchId) {
 }
 
 /**
+ * SUPERSEDED 2026-06-16 by the middleware Resend path (POST /api/batch/bottling-invite).
+ * BrewPad now sends bottling invites through the middleware (Resend over HTTPS, on the
+ * verified steinsandvines.ca domain). This MailApp version is retained as a fallback only
+ * — the original "Railway blocks SMTP" rationale no longer applies now that Resend is wired.
+ *
  * Email the customer a link to self-book their Cal.com Bottling Appointment.
  * Sends via MailApp (Google infrastructure) — deliberately NOT the Railway
  * middleware SMTP path, which Railway blocks. Triggered by the brewpad
