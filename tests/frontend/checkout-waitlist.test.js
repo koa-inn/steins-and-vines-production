@@ -1,13 +1,13 @@
 'use strict';
 
 // =============================================================================
-// Regression tests: beer waitlist must route through /api/contact (#2, D-02)
+// Regression tests: beer waitlist must route through /api/waitlist (MailerLite)
 //
-// Bug: setupBeerWaitlistForm() POSTs to a placeholder Google Form URL and
-// ALWAYS shows #beer-waitlist-confirm (fake success), discarding the signup.
-//
-// Fix: rewrite to POST JSON to ${MIDDLEWARE_URL}/api/contact, show confirm
-// ONLY on {success:true}, surface error on failure, do nothing on empty email.
+// The waitlist is list-building, so signups go into a MailerLite group via the
+// middleware /api/waitlist endpoint (NOT /api/contact, which is transactional
+// staff email via Resend). The form POSTs JSON { email } and shows
+// #beer-waitlist-confirm ONLY on {success:true}, surfaces error on failure,
+// and does nothing on empty email.
 // =============================================================================
 
 // ---------------------------------------------------------------------------
@@ -101,9 +101,9 @@ afterEach(function () {
 // ---------------------------------------------------------------------------
 // Test 1 (RED): valid email POSTs to /api/contact; confirm shown on success
 // ---------------------------------------------------------------------------
-describe('beer waitlist — /api/contact routing (D-02)', function () {
+describe('beer waitlist — /api/waitlist routing (MailerLite)', function () {
 
-  test('T1: submitting a valid email POSTs to /api/contact and shows confirm on success', function () {
+  test('T1: submitting a valid email POSTs to /api/waitlist and shows confirm on success', function () {
     var capturedUrl = null;
     var capturedBody = null;
 
@@ -119,8 +119,9 @@ describe('beer waitlist — /api/contact routing (D-02)', function () {
     getForm().dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
     return new Promise(function (resolve) { setTimeout(resolve, 50); }).then(function () {
-      // Must POST to /api/contact (not docs.google.com)
-      expect(capturedUrl).toMatch(/\/api\/contact$/);
+      // Must POST to /api/waitlist (not /api/contact, not docs.google.com)
+      expect(capturedUrl).toMatch(/\/api\/waitlist$/);
+      expect(capturedUrl).not.toMatch(/\/api\/contact$/);
       expect(capturedUrl).not.toMatch(/docs\.google\.com/);
       expect(capturedUrl).not.toMatch(/YOUR_BEER_WAITLIST_FORM_ID/);
 
