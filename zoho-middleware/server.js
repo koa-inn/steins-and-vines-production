@@ -28,6 +28,7 @@ var cron = require('node-cron');
 var brewpadIntegration = require('./lib/brewpad-integration');
 
 var mailer = require('./lib/mailer');
+var mailerlite = require('./lib/mailerlite');
 
 var app = express();
 app.set('trust proxy', 1); // Railway sits behind a load balancer
@@ -171,6 +172,39 @@ app.post('/api/contact', contactLimiter, async function(req, res) {
   } catch (err) {
     console.error('[contact] Email send failed:', err.message);
     res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+// Beer waitlist signup → adds the email to a MailerLite group (list-building,
+// not transactional). Public like /api/contact (registered before the API-key
+// gate) and rate-limited. Contact form + order emails still go via Resend.
+var waitlistLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: makeRedisStore(60 * 1000, 'waitlist'),
+  skip: redisUnavailableSkip,
+  message: { error: 'Too many requests, please try again later' }
+});
+
+app.post('/api/waitlist', waitlistLimiter, async function (req, res) {
+  var email = (req.body.email || '').trim();
+  var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) return res.status(400).json({ error: 'Valid email is required' });
+
+  if (!mailerlite.isConfigured()) {
+    console.error('[waitlist] MAILERLITE_API_KEY not set — cannot add subscriber');
+    return res.status(503).json({ error: 'Waitlist is temporarily unavailable' });
+  }
+
+  try {
+    var groupId = (process.env.MAILERLITE_WAITLIST_GROUP_ID || '').trim();
+    await mailerlite.addSubscriber(email, groupId ? [groupId] : []);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[waitlist] MailerLite subscribe failed:', err.message);
+    res.status(500).json({ error: 'Could not join waitlist. Please try again.' });
   }
 });
 
