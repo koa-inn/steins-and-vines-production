@@ -7860,10 +7860,10 @@ function setupBeerWaitlistForm() {
     var em = document.getElementById('beer-waitlist-email').value.trim(); if (!em) return;
     var btn = f.querySelector('[type="submit"]'); if (btn) { btn.disabled = true; btn.textContent = 'Joining...'; }
     var mw = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
-    fetch(mw + '/api/contact', {
+    fetch(mw + '/api/waitlist', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Beer Waitlist Signup', email: em, message: 'Beer waitlist signup' })
+      body: JSON.stringify({ email: em })
     }).then(function (r) { return r.json(); }).then(function (d) {
       if (d.success) {
         f.classList.add('hidden');
