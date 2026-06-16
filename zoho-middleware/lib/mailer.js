@@ -66,6 +66,9 @@ function sendViaResend(msg) {
     subject: msg.subject,
     text: msg.text
   };
+  if (msg.html) {
+    payload.html = msg.html;
+  }
   if (msg.replyTo) {
     payload.reply_to = msg.replyTo;
   }
@@ -296,6 +299,79 @@ function sendContactMessage(data) {
   });
 }
 
+/**
+ * HTML-escape a string for safe insertion into HTML.
+ * Escapes &, <, >, ", and '.
+ * @param {string} s
+ * @returns {string}
+ */
+function htmlEscape(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Send a bottling-appointment invite email to a customer with a pre-filled
+ * Cal.com booking link. Supersedes the Apps Script MailApp path (POST
+ * /api/batch/bottling-invite) — routed through Resend so Railway's blocked
+ * SMTP ports are not a factor.
+ *
+ * @param {Object} data
+ * @param {string} data.name        - Customer full name
+ * @param {string} data.email       - Customer email address (required; validated)
+ * @param {string} data.batchId     - Batch ID (e.g. SV-B-000001)
+ * @param {string} data.productName - Product name (e.g. "Pinot Noir")
+ */
+function sendBottlingInvite(data) {
+  var email = (data.email || '').trim();
+  var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!email || !emailRegex.test(email)) {
+    return Promise.reject(new Error('Invalid or missing customer email'));
+  }
+
+  var fullName = (data.name || '').trim();
+  // Greeting: first word of name, or 'there' if name is empty
+  var greeting = fullName ? fullName.split(/\s+/)[0] : 'there';
+  var product = (data.productName || 'your batch').trim();
+  var batchId = (data.batchId || '').trim();
+
+  var baseUrl = process.env.CALCOM_BOTTLING_BOOKING_URL ||
+    'https://cal.com/steins-and-vines-tw8csc/bottling-appointment';
+  var bookingUrl = baseUrl +
+    '?name=' + encodeURIComponent(fullName) +
+    '&email=' + encodeURIComponent(email);
+
+  var subject = 'Book your bottling appointment — Steins & Vines';
+
+  var htmlBody =
+    '<div style="font-family:Arial,sans-serif;font-size:15px;color:#2c2c2c;line-height:1.6;">' +
+    '<p>Hi ' + htmlEscape(greeting) + ',</p>' +
+    '<p>Your batch <strong>' + htmlEscape(product) + '</strong> (' + htmlEscape(batchId) + ') is ready for bottling. ' +
+    'Pick a time that works for you:</p>' +
+    '<p style="margin:24px 0;"><a href="' + bookingUrl + '" ' +
+    'style="background:#4a6f4b;color:#ffffff;text-decoration:none;padding:12px 22px;' +
+    'border-radius:6px;font-weight:bold;display:inline-block;">Book your bottling appointment</a></p>' +
+    '<p style="font-size:13px;color:#5f5f5f;">Or paste this link into your browser:<br>' + htmlEscape(bookingUrl) + '</p>' +
+    '<p>Cheers,<br>Steins &amp; Vines</p></div>';
+
+  var plainBody =
+    'Hi ' + greeting + ',\n\n' +
+    'Your batch ' + product + ' (' + batchId + ') is ready for bottling. ' +
+    'Pick a time that works for you:\n\n' + bookingUrl + '\n\nCheers,\nSteins & Vines';
+
+  return sendViaResend({
+    to: email,
+    replyTo: 'hello@steinsandvines.ca',
+    subject: subject,
+    html: htmlBody,
+    text: plainBody
+  });
+}
+
 module.exports = {
   isConfigured: isConfigured,
   verifyTransport: verifyTransport,
@@ -303,5 +379,6 @@ module.exports = {
   sendReservationNotification: sendReservationNotification,
   sendVoidFailureAlert: sendVoidFailureAlert,
   sendCustomerConfirmation: sendCustomerConfirmation,
-  sendContactMessage: sendContactMessage
+  sendContactMessage: sendContactMessage,
+  sendBottlingInvite: sendBottlingInvite
 };

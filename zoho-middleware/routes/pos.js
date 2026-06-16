@@ -2110,6 +2110,44 @@ router.post('/api/batch/reassign-customer', function (req, res) {
     });
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/batch/bottling-invite
+// Send a bottling-appointment invite email to the customer with a pre-filled
+// Cal.com booking link. Routes through Resend (not Apps Script MailApp) so it
+// works from Railway where outbound SMTP is blocked.
+// Auth: x-api-key header (same as all /api/batch/* siblings).
+// ---------------------------------------------------------------------------
+router.post('/api/batch/bottling-invite', function (req, res) {
+  var apiKey = req.headers['x-api-key'] || req.query.api_key;
+  if (apiKey !== process.env.MW_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  var body = req.body || {};
+  var name = (body.name || '').trim();
+  var email = (body.email || '').trim();
+  var batchId = (body.batchId || '').trim();
+  var productName = (body.productName || '').trim();
+
+  var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!email || !emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid or missing email' });
+  }
+  if (!batchId) {
+    return res.status(400).json({ error: 'Missing batchId' });
+  }
+
+  mailer.sendBottlingInvite({ name: name, email: email, batchId: batchId, productName: productName })
+    .then(function () {
+      eventLog.logEvent('batch.bottling_invite_sent', { batchId: batchId });
+      res.json({ success: true });
+    })
+    .catch(function (err) {
+      log.error('[batch/bottling-invite] Send failed: ' + err.message);
+      res.status(500).json({ error: 'Failed to send bottling invite' });
+    });
+});
+
 /**
  * GET /api/kiosk/salesorder/:id
  * Fetch a single Sales Order detail from Zoho, including line_items.

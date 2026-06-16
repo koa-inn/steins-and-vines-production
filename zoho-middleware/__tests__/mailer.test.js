@@ -174,3 +174,129 @@ describe('mailer send functions → Resend', () => {
     expect(axios.post).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// sendBottlingInvite
+// ---------------------------------------------------------------------------
+
+describe('mailer.sendBottlingInvite', () => {
+  var orig = process.env.RESEND_API_KEY;
+  var origCalcom = process.env.CALCOM_BOTTLING_BOOKING_URL;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.RESEND_API_KEY = 're_test_123';
+    delete process.env.CALCOM_BOTTLING_BOOKING_URL;
+    axios.post.mockResolvedValue({ data: { id: 'email_xyz' } });
+  });
+  afterEach(() => {
+    process.env.RESEND_API_KEY = orig;
+    process.env.CALCOM_BOTTLING_BOOKING_URL = origCalcom;
+    if (orig === undefined) delete process.env.RESEND_API_KEY;
+    if (origCalcom === undefined) delete process.env.CALCOM_BOTTLING_BOOKING_URL;
+  });
+
+  test('sends to customer email with correct subject', async () => {
+    await mailer.sendBottlingInvite({
+      name: 'Jane Doe',
+      email: 'jane@example.com',
+      batchId: 'SV-B-000001',
+      productName: 'Pinot Noir'
+    });
+    var call = axios.post.mock.calls[0];
+    expect(call[0]).toBe(RESEND_EMAILS);
+    expect(call[1].to).toEqual(['jane@example.com']);
+    expect(call[1].subject).toBe('Book your bottling appointment — Steins & Vines');
+    expect(call[1].reply_to).toBe('hello@steinsandvines.ca');
+    expect(call[2].headers.Authorization).toBe('Bearer re_test_123');
+  });
+
+  test('builds Cal.com URL with encoded name and email params', async () => {
+    await mailer.sendBottlingInvite({
+      name: 'Anne MacDougall',
+      email: 'anne@example.com',
+      batchId: 'SV-B-000042',
+      productName: 'Cabernet'
+    });
+    var call = axios.post.mock.calls[0];
+    var expectedUrl = 'https://cal.com/steins-and-vines-tw8csc/bottling-appointment' +
+      '?name=' + encodeURIComponent('Anne MacDougall') +
+      '&email=' + encodeURIComponent('anne@example.com');
+    expect(call[1].text).toContain(expectedUrl);
+    expect(call[1].html).toContain(expectedUrl);
+  });
+
+  test('uses CALCOM_BOTTLING_BOOKING_URL env override when set', async () => {
+    process.env.CALCOM_BOTTLING_BOOKING_URL = 'https://cal.com/custom/bottling';
+    await mailer.sendBottlingInvite({
+      name: 'Bob',
+      email: 'bob@example.com',
+      batchId: 'SV-B-000099',
+      productName: 'Cider'
+    });
+    var call = axios.post.mock.calls[0];
+    expect(call[1].text).toContain('https://cal.com/custom/bottling');
+  });
+
+  test('includes batchId and productName in email body', async () => {
+    await mailer.sendBottlingInvite({
+      name: 'Carol',
+      email: 'carol@example.com',
+      batchId: 'SV-B-000007',
+      productName: 'Sauvignon Blanc'
+    });
+    var call = axios.post.mock.calls[0];
+    expect(call[1].text).toContain('SV-B-000007');
+    expect(call[1].text).toContain('Sauvignon Blanc');
+    expect(call[1].html).toContain('SV-B-000007');
+    expect(call[1].html).toContain('Sauvignon Blanc');
+  });
+
+  test('greets by first name (first word of full name)', async () => {
+    await mailer.sendBottlingInvite({
+      name: 'Margaret Smith',
+      email: 'm@example.com',
+      batchId: 'SV-B-000003',
+      productName: 'Beer Kit'
+    });
+    var call = axios.post.mock.calls[0];
+    expect(call[1].text).toContain('Hi Margaret');
+    expect(call[1].html).toContain('Hi Margaret');
+  });
+
+  test('falls back to "there" when name is empty', async () => {
+    await mailer.sendBottlingInvite({
+      name: '',
+      email: 'anon@example.com',
+      batchId: 'SV-B-000010',
+      productName: 'Mead'
+    });
+    var call = axios.post.mock.calls[0];
+    expect(call[1].text).toContain('Hi there');
+  });
+
+  test('rejects when email is missing', async () => {
+    await expect(mailer.sendBottlingInvite({ name: 'Jo', email: '', batchId: 'SV-B-000001', productName: 'Cider' }))
+      .rejects.toThrow(/email/i);
+    expect(axios.post).not.toHaveBeenCalled();
+  });
+
+  test('rejects when email is invalid (no @)', async () => {
+    await expect(mailer.sendBottlingInvite({ name: 'Jo', email: 'notanemail', batchId: 'SV-B-000001', productName: 'Cider' }))
+      .rejects.toThrow(/email/i);
+    expect(axios.post).not.toHaveBeenCalled();
+  });
+
+  test('HTML-escapes productName in HTML body', async () => {
+    await mailer.sendBottlingInvite({
+      name: 'Tom',
+      email: 'tom@example.com',
+      batchId: 'SV-B-000001',
+      productName: 'Merlot & Cabernet <special>'
+    });
+    var call = axios.post.mock.calls[0];
+    expect(call[1].html).toContain('Merlot &amp; Cabernet &lt;special&gt;');
+    // Raw unescaped HTML tag must NOT appear verbatim in HTML body
+    expect(call[1].html).not.toContain('<special>');
+  });
+});
