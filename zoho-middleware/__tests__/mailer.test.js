@@ -155,6 +155,14 @@ describe('mailer send functions → Resend', () => {
     expect(body.text).toContain('hi');
   });
 
+  test('sendWaitlistNotification goes to staff with the customer email as reply_to', async () => {
+    await mailer.sendWaitlistNotification({ email: 'lead@x.com' });
+    var body = axios.post.mock.calls[0][1];
+    expect(body.reply_to).toBe('lead@x.com');
+    expect(body.subject).toContain('beer waitlist');
+    expect(body.text).toContain('lead@x.com');
+  });
+
   test('MAIL_FROM overrides the default sender (e.g. resend.dev sandbox before domain verify)', async () => {
     process.env.MAIL_FROM = 'onboarding@resend.dev';
     await mailer.sendVoidFailureAlert({ txnId: 'T', amount: 1, error: 'e' });

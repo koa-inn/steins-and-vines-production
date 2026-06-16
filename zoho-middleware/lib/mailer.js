@@ -300,6 +300,23 @@ function sendContactMessage(data) {
 }
 
 /**
+ * Notify staff that someone joined the beer waitlist. The subscriber is also
+ * added to MailerLite; this is just the heads-up so signups aren't missed.
+ * @param {Object} data
+ * @param {string} data.email - the customer's email (also reply-to)
+ */
+function sendWaitlistNotification(data) {
+  var email = (data.email || '').trim();
+  return sendViaResend({
+    to: staffTo(),
+    replyTo: email || staffTo(),
+    subject: 'New beer waitlist signup',
+    text: 'A new customer joined the beer waitlist:\n\nEmail: ' + (email || 'N/A') +
+      '\n\nThey have also been added to the MailerLite beer-waitlist group.'
+  });
+}
+
+/**
  * HTML-escape a string for safe insertion into HTML.
  * Escapes &, <, >, ", and '.
  * @param {string} s
@@ -380,5 +397,6 @@ module.exports = {
   sendVoidFailureAlert: sendVoidFailureAlert,
   sendCustomerConfirmation: sendCustomerConfirmation,
   sendContactMessage: sendContactMessage,
-  sendBottlingInvite: sendBottlingInvite
+  sendBottlingInvite: sendBottlingInvite,
+  sendWaitlistNotification: sendWaitlistNotification
 };

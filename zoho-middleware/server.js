@@ -201,6 +201,9 @@ app.post('/api/waitlist', waitlistLimiter, async function (req, res) {
   try {
     var groupId = (process.env.MAILERLITE_WAITLIST_GROUP_ID || '').trim();
     await mailerlite.addSubscriber(email, groupId ? [groupId] : []);
+    // Fire-and-forget staff heads-up — must not block or fail the signup.
+    mailer.sendWaitlistNotification({ email: email })
+      .catch(function (err) { console.error('[waitlist] staff notify failed:', err.message); });
     res.json({ success: true });
   } catch (err) {
     console.error('[waitlist] MailerLite subscribe failed:', err.message);
