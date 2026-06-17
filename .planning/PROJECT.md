@@ -8,7 +8,14 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 
 **Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.**
 
-## Current Milestone: v4.1 BrewPad Batch Lifecycle & Zoho Sync
+## Current State: v4.1 BrewPad Batch Lifecycle & Zoho Sync — SHIPPED 2026-06-17
+
+v4.1 is complete and live in production (Phases 27–30 + sub-phases). Delivered: full pending-batch lifecycle in BrewPad (visibility, one-click + guided activation, deletion), bidirectional Zoho customer sync (read-back endpoint + refresh-from-Zoho button + reassignment with invoice propagation), bulk pull of non-kiosk batch sales, wine drill-down analytics, and a batch of assessment quick-wins (dead-code cleanup, repo hygiene, presentation/contrast/404 fixes, kiosk cart-leak fix, XSS hardening). Also shipped this milestone: transactional email moved to Resend (working), beer waitlist migrated to MailerLite (replacing Mailchimp), bottling invites via Resend, and `REDIS_ENCRYPTION_KEY` hardening (#106 closed).
+
+**Next milestone:** TBD — candidates from `PROJECT_ASSESSMENT.md` (remaining non-quick-win items) and open product issues (e.g. About-page placeholder copy). Run `/gsd-new-milestone` to scope.
+
+<details>
+<summary>v4.1 original goal (for reference)</summary>
 
 **Goal:** Staff can activate pending batches and pull customer info back from Zoho onto BrewPad — closing the two gaps in the batch workflow.
 
@@ -18,6 +25,8 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 - "Refresh from Zoho" button in the batch detail modal that re-reads the linked Zoho sales order/invoice and updates the batch's customer name/email/contact on the BrewPad display
 - Read-back path from Zoho (middleware endpoint to fetch invoice/contact customer details by SO number) — today Zoho sync is write-only
 - Scoped to batches that already carry a `zoho_so_number` (kiosk/online sales); manual SO-linking for unlinked batches deferred
+
+</details>
 
 ## Requirements
 
@@ -128,4 +137,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-12 after Phase 29 (Refresh-from-Zoho admin UI — ZSYNC-01/02 validated; gap fixes CR-01/CR-02/WR-01/03/04 shipped to staging, human-verified on iPad Safari; Phase 29.2 BrewPad pending-batch activation inserted)*
+*Last updated: 2026-06-17 — v4.1 BrewPad Batch Lifecycle & Zoho Sync milestone shipped to production and archived (Phases 27–30 + sub-phases; email→Resend, waitlist→MailerLite, #106 closed).*

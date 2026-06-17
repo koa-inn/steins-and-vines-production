@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.1
 milestone_name: BrewPad Batch Lifecycle & Zoho Sync
-status: executing
-stopped_at: Phase 30, Plan 05 complete (2 auto tasks; checkpoint:human-verify staging gate pending for 30-04 + 30-05)
-last_updated: "2026-06-15T23:45:00Z"
-last_activity: 2026-06-15 -- Phase 30 Plan 05 executed (XSS escaping, canonical escapeHTML, proto guard)
+status: Awaiting next milestone
+stopped_at: "Phase 30 Plan 04 checkpoint:human-verify (staging deploy pending — consolidate with 30-06 staging gate)"
+last_updated: "2026-06-17T01:54:11.703Z"
+last_activity: 2026-06-17 — Milestone v4.1 completed and archived
 progress:
   total_phases: 16
-  completed_phases: 14
+  completed_phases: 15
   total_plans: 47
-  completed_plans: 43
-  percent: 89
+  completed_plans: 48
+  percent: 94
 ---
 
 # Project State
@@ -21,20 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-11)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 30 — assessment-quick-wins-small-high-impact-fixes-from-project-a
+**Current focus:** Planning next milestone (v4.1 shipped + archived 2026-06-17)
 
 ## Current Position
 
-Phase: 30 (assessment-quick-wins-small-high-impact-fixes-from-project-a) — EXECUTING
-Plan: 5 complete (out of 6); staging checkpoint pending for 30-04, 30-05, 30-06
-Status: 30-05 auto tasks committed (a7def41 XSS+proto fix, 5f4fdec canonical escapeHTML rebuild); staging checkpoint pending
-Last activity: 2026-06-15 -- Phase 30 Plan 05 executed (XSS escaping, canonical escapeHTML, proto guard)
-
-Milestone v4.1 phase map:
-
-- Phase 27: Pending Batch Visibility & Activation (BATCH-01..03)
-- Phase 28: Zoho Customer Read-Back Path (ZSYNC foundation — middleware endpoint + Apps Script write-back)
-- Phase 29: Refresh-from-Zoho Admin UI (ZSYNC-01..02; depends on Phase 28)
+Phase: Milestone v4.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-17 — Milestone v4.1 completed and archived
 
 ## Performance Metrics
 
@@ -116,17 +110,30 @@ Milestone v4.1 phase map:
 
 ### Deferred Items
 
-Acknowledged at the deferred v4.0 close on 2026-06-06 (chose to add Phase 26 instead of running complete-milestone):
+Acknowledged at the v4.1 milestone close (2026-06-17). All are GSD human-signoff/UAT bookkeeping on features that shipped to production and are working — none represent broken code:
 
 | Category | Item | Status |
 |----------|------|--------|
 | verification | 22-VERIFICATION.md | human_needed |
 | verification | 23-VERIFICATION.md | human_needed |
+| verification | 27.1-VERIFICATION.md | human_needed |
+| verification | 28-VERIFICATION.md | human_needed |
+| verification | 29.1-VERIFICATION.md | human_needed |
+| verification | 29.2-VERIFICATION.md | human_needed |
+| verification | 29.3-VERIFICATION.md | human_needed |
+| verification | 29.4-VERIFICATION.md | human_needed |
+| verification | 30-VERIFICATION.md | human_needed |
 | uat | 23-HUMAN-UAT.md | partial (6 scenarios) |
-| quick_task | 260506-b85-split-makers-fee-materials | missing |
-| quick_task | 260508-c4f-customer-name-split | missing |
+| uat | 27.1-HUMAN-UAT.md | partial (7 scenarios) |
+| uat | 28-HUMAN-UAT.md | partial (1 scenario) |
+| uat | 29.1-HUMAN-UAT.md | partial (2 scenarios) |
+| uat | 29.2-HUMAN-UAT.md | partial (8 scenarios) |
+| uat | 29.3-HUMAN-UAT.md | passed-core (2 edge cases deferred) |
+| quick_task | 260506-b85-split-makers-fee-materials | unclosed tracking entry |
+| quick_task | 260508-c4f-customer-name-split | unclosed tracking entry |
+| quick_task | 260611-94q-fix-post-api-contacts-dropping-email-pho | shipped (53d9ff5); tracking entry unclosed |
 
-Also outstanding: v3.0 (Phases 20–24) and v4.0 (Phase 25) were marked shipped in ROADMAP but never formally archived to `.planning/milestones/`; STATE frontmatter still reads `milestone: v3.0`. Cleanup deferred.
+Highest-value to revisit someday: Phase 29.2 activation flow (8 open UAT scenarios). Also outstanding: v3.0 (Phases 20–24) and v4.0 (Phases 25–26) were marked shipped in ROADMAP but never formally archived to `.planning/milestones/`. Cleanup deferred.
 
 ### Pending Todos
 
@@ -134,7 +141,7 @@ None.
 
 ### Blockers/Concerns
 
-- **Prod deploy HELD until v4.1 BrewPad phases complete** (user decision 2026-06-11): phases 27, 27.1, 28, 29, 29.1 ship to production as one batch. Staging already has phase 27 (UAT passed) + quick fix 260611-94q. NOTE: the contacts-payload data-loss bug remains live in prod until this push — BrewPad/kiosk-created customers get no email/phone in Zoho. User accepted; interim prod push available on request.
+- ✅ RESOLVED 2026-06-16: Prod deploy hold lifted — entire v4.1 batch (Phases 27–30 + email/MailerLite/bottling-invite work) promoted to production via `git push production main --force` (CNAME-swap dance) + Railway middleware redeploy. Live site healthy, middleware durable, Zoho auto-reconnecting (REDIS_ENCRYPTION_KEY set, #106 closed).
 - apps-script/adminApi.gs deployed manually by user 2026-06-11 (phase 27 changes live in Apps Script).
 
 - Federal brewing licence pending — BEER_SALES_ENABLED must remain false in Railway production
@@ -150,3 +157,7 @@ None.
 Last session: 2026-06-15T23:20:00Z
 Stopped at: Phase 30 Plan 04 checkpoint:human-verify (staging deploy pending — consolidate with 30-06 staging gate)
 Resume file: .planning/phases/30-assessment-quick-wins-small-high-impact-fixes-from-project-a/30-04-SUMMARY.md
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
