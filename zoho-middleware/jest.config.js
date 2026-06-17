@@ -3,7 +3,8 @@ module.exports = {
   testMatch: ['**/__tests__/**/*.test.js'],
   collectCoverage: true,
   collectCoverageFrom: [
-    'lib/**/*.js'
+    'lib/**/*.js',
+    'routes/**/*.js' // D-05: include route files — was silently excluded before; D-08: no stale !-prefix exclusions found in config
   ],
   // Per-file thresholds for Campaign 1 targets; global is achievable with 5 tested files
   coverageThreshold: {
