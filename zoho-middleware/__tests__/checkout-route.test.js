@@ -77,10 +77,15 @@ jest.mock('axios', function () {
 // Set env vars before requiring app (ensures boot path is deterministic)
 // ---------------------------------------------------------------------------
 process.env.API_SECRET_KEY = 'test-key';
-delete process.env.RECAPTCHA_SECRET_KEY; // reCAPTCHA fails open — route proceeds
 
 var request = require('supertest');
 var app = require('../server');
+
+// server.js calls dotenv.config() on require, which repopulates
+// RECAPTCHA_SECRET_KEY from a local (gitignored) .env. Neutralize it AFTER the
+// require — verifyRecaptcha reads process.env at call time, so an empty secret
+// makes reCAPTCHA fail open and the route proceeds past verification.
+process.env.RECAPTCHA_SECRET_KEY = '';
 
 var helcimLib = require('../lib/helcim');
 var zohoApi = require('../lib/zoho-api');
@@ -109,6 +114,14 @@ function defaultCacheGet(key) {
   if (key === 'zoho:ingredients') return Promise.resolve([{ item_id: '12345', name: 'Wine Kit', rate: 49.99 }]);
   return Promise.resolve(null);
 }
+
+// Reset the reCAPTCHA secret before EVERY test. checkout.test.js runs in the
+// same Jest worker and sets process.env.RECAPTCHA_SECRET_KEY = 'secret123',
+// which leaks across files. A non-empty secret makes verifyRecaptcha attempt a
+// real HTTPS call; an empty secret fails open so the route proceeds.
+beforeEach(function () {
+  process.env.RECAPTCHA_SECRET_KEY = '';
+});
 
 // ---------------------------------------------------------------------------
 // PATH-1: Success — Zoho sales order created, salesorder_number in response
