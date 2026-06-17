@@ -424,93 +424,99 @@ if (process.env.SENTRY_DSN) {
 // Start
 // ---------------------------------------------------------------------------
 
-// Initialize Helcim, connect Redis, restore Zoho auth, then start listening
-helcimLib.init();
-cache.init().then(function () {
-  return checkRedis();
-}).then(function () {
-  return zohoAuth.init();
-}).then(function () {
-  var server = app.listen(PORT, function () {
-    log.info('Zoho middleware running on http://localhost:' + PORT);
-    log.info('Health check: http://localhost:' + PORT + '/health');
-    // Verify SMTP in the background — never block listen on it. A hung SMTP
-    // connect (e.g. an unreachable IPv6 route on Railway) previously stalled
-    // startup before app.listen and produced ~2 min of 502s on every deploy.
-    // checkMailer never throws; it logs the result on its own.
-    checkMailer();
-    if (!zohoAuth.isAuthenticated()) {
-      log.info('Connect Zoho: http://localhost:' + PORT + '/auth/zoho');
-    } else {
-      log.info('Zoho: Connected');
-      // Pre-warm product and ingredients caches on startup
-      log.info('Pre-warming product cache...');
-      catalogRouter.refreshProducts().then(function () {
-        log.info('Product cache pre-warmed');
-        // Pre-warm ingredients after products (sequential to avoid rate-limiting)
-        log.info('Pre-warming ingredients cache...');
-        return catalogRouter.refreshIngredients();
-      }).then(function () {
-        log.info('Ingredients cache pre-warmed');
-      }).catch(function (err) {
-        log.error('Pre-warm failed: ' + err.message);
-      });
-
-      // Scheduled cache warm-up: 5 AM and 1 PM UTC daily
-      // Keeps Redis caches hot during business hours so user requests never
-      // trigger a cold Zoho fetch. Products first, ingredients staggered 60s later
-      // to stay within Zoho's per-minute rate limit.
-      cron.schedule('0 5,13 * * *', function () {
-        if (!zohoAuth.isAuthenticated()) {
-          log.warn('[cron] Skipping warm-up — Zoho not authenticated');
-          return;
-        }
-        log.info('[cron] Scheduled cache warm-up starting');
+// Initialize Helcim, connect Redis, restore Zoho auth, then start listening.
+// Guard with require.main === module so that importing server.js in tests
+// (e.g. via supertest) does NOT bind a port or start cron jobs.
+if (require.main === module) {
+  helcimLib.init();
+  cache.init().then(function () {
+    return checkRedis();
+  }).then(function () {
+    return zohoAuth.init();
+  }).then(function () {
+    var server = app.listen(PORT, function () {
+      log.info('Zoho middleware running on http://localhost:' + PORT);
+      log.info('Health check: http://localhost:' + PORT + '/health');
+      // Verify SMTP in the background — never block listen on it. A hung SMTP
+      // connect (e.g. an unreachable IPv6 route on Railway) previously stalled
+      // startup before app.listen and produced ~2 min of 502s on every deploy.
+      // checkMailer never throws; it logs the result on its own.
+      checkMailer();
+      if (!zohoAuth.isAuthenticated()) {
+        log.info('Connect Zoho: http://localhost:' + PORT + '/auth/zoho');
+      } else {
+        log.info('Zoho: Connected');
+        // Pre-warm product and ingredients caches on startup
+        log.info('Pre-warming product cache...');
         catalogRouter.refreshProducts().then(function () {
-          log.info('[cron] Products cache refreshed');
+          log.info('Product cache pre-warmed');
+          // Pre-warm ingredients after products (sequential to avoid rate-limiting)
+          log.info('Pre-warming ingredients cache...');
+          return catalogRouter.refreshIngredients();
+        }).then(function () {
+          log.info('Ingredients cache pre-warmed');
         }).catch(function (err) {
-          log.error('[cron] Products warm-up failed: ' + err.message);
+          log.error('Pre-warm failed: ' + err.message);
         });
-        setTimeout(function () {
-          if (!zohoAuth.isAuthenticated()) return;
-          catalogRouter.refreshIngredients().then(function () {
-            log.info('[cron] Ingredients cache refreshed');
+
+        // Scheduled cache warm-up: 5 AM and 1 PM UTC daily
+        // Keeps Redis caches hot during business hours so user requests never
+        // trigger a cold Zoho fetch. Products first, ingredients staggered 60s later
+        // to stay within Zoho's per-minute rate limit.
+        cron.schedule('0 5,13 * * *', function () {
+          if (!zohoAuth.isAuthenticated()) {
+            log.warn('[cron] Skipping warm-up — Zoho not authenticated');
+            return;
+          }
+          log.info('[cron] Scheduled cache warm-up starting');
+          catalogRouter.refreshProducts().then(function () {
+            log.info('[cron] Products cache refreshed');
           }).catch(function (err) {
-            log.error('[cron] Ingredients warm-up failed: ' + err.message);
+            log.error('[cron] Products warm-up failed: ' + err.message);
           });
-        }, 60000); // 60s after products to avoid rate-limit burst
-      });
-      log.info('[cron] Scheduled warm-up registered: 05:00 and 13:00 UTC daily');
-    }
+          setTimeout(function () {
+            if (!zohoAuth.isAuthenticated()) return;
+            catalogRouter.refreshIngredients().then(function () {
+              log.info('[cron] Ingredients cache refreshed');
+            }).catch(function (err) {
+              log.error('[cron] Ingredients warm-up failed: ' + err.message);
+            });
+          }, 60000); // 60s after products to avoid rate-limit burst
+        });
+        log.info('[cron] Scheduled warm-up registered: 05:00 and 13:00 UTC daily');
+      }
 
-    // Retry pending batch creations + Zoho sync retries every 5 minutes (D-04, D-10)
-    // Runs regardless of Zoho auth state since Apps Script calls don't need Zoho auth.
-    // retrySyncQueue skips gracefully if Zoho is not authenticated.
-    setInterval(function () {
-      brewpadIntegration.retryPendingBatches().catch(function (err) {
-        log.error('[brewpad] Retry sweep failed: ' + err.message);
-      });
-      // Phase 7: also sweep Zoho sync retries (D-10)
-      brewpadIntegration.retrySyncQueue().catch(function (err) {
-        log.error('[brewpad] Zoho sync retry sweep failed: ' + err.message);
-      });
-    }, 5 * 60 * 1000);
-    log.info('[brewpad] Batch + Zoho sync retry sweeps registered: every 5 minutes');
-  });
-
-  process.on('SIGTERM', function () {
-    log.info('[server] SIGTERM received — shutting down gracefully');
-    server.close(function () {
-      log.info('[server] HTTP server closed');
-      cache.quit().then(function () {
-        process.exit(0);
-      }).catch(function () {
-        process.exit(0);
-      });
+      // Retry pending batch creations + Zoho sync retries every 5 minutes (D-04, D-10)
+      // Runs regardless of Zoho auth state since Apps Script calls don't need Zoho auth.
+      // retrySyncQueue skips gracefully if Zoho is not authenticated.
+      setInterval(function () {
+        brewpadIntegration.retryPendingBatches().catch(function (err) {
+          log.error('[brewpad] Retry sweep failed: ' + err.message);
+        });
+        // Phase 7: also sweep Zoho sync retries (D-10)
+        brewpadIntegration.retrySyncQueue().catch(function (err) {
+          log.error('[brewpad] Zoho sync retry sweep failed: ' + err.message);
+        });
+      }, 5 * 60 * 1000);
+      log.info('[brewpad] Batch + Zoho sync retry sweeps registered: every 5 minutes');
     });
-    setTimeout(function () {
-      log.error('[server] Forced shutdown after timeout');
-      process.exit(1);
-    }, 10000);
+
+    process.on('SIGTERM', function () {
+      log.info('[server] SIGTERM received — shutting down gracefully');
+      server.close(function () {
+        log.info('[server] HTTP server closed');
+        cache.quit().then(function () {
+          process.exit(0);
+        }).catch(function () {
+          process.exit(0);
+        });
+      });
+      setTimeout(function () {
+        log.error('[server] Forced shutdown after timeout');
+        process.exit(1);
+      }, 10000);
+    });
   });
-});
+}
+
+module.exports = app;
