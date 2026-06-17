@@ -80,6 +80,7 @@ v4.1 is complete and live in production (Phases 27–30 + sub-phases). Delivered
 - ✓ Cloudflare edge protection in front of GitHub Pages + Railway middleware — Phase 26
 - ✓ Delete pending batches from the UI with confirmation — Phase 27.1
 - ✓ Refresh a batch's customer info from its linked Zoho sales order/invoice (ZSYNC-01/02) — Phase 29
+- ✓ Honest, executable test coverage of the money path: route-level checkout tests via supertest, Helcim HMAC webhook tests, honest coverage thresholds with per-file money-path floors (TEST-01/02/03) — Phase 31 (v4.2). Note: production `payment_token`/chargeAndProceed path documented as a `test.todo` gap deferred to Phase 32.
 
 ### Active
 
@@ -150,4 +151,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-17 — v4.1 BrewPad Batch Lifecycle & Zoho Sync milestone shipped to production and archived (Phases 27–30 + sub-phases; email→Resend, waitlist→MailerLite, #106 closed).*
+*Last updated: 2026-06-17 — v4.1 BrewPad Batch Lifecycle & Zoho Sync milestone shipped to production and archived (Phases 27–30 + sub-phases; email→Resend, waitlist→MailerLite, #106 closed). Phase 31 (Money-Path Test Coverage, v4.2) complete: TEST-01/02/03 validated; payment_token coverage gap deferred to Phase 32.*
