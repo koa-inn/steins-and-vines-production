@@ -328,7 +328,20 @@ Plans:
   3. Running `cd zoho-middleware && npm run test:coverage` reports coverage numbers that include `routes/**` files (no route file silently excluded from the report)
   4. Stale exclusions in `jest.config.js` (e.g. `!lib/mailer.js` where mailer is no longer untested) are removed so the coverage number is honest
 
-**Plans**: TBD
+**Plans**: 4 plans (3 waves)
+Plans:
+**Wave 1**
+
+- [ ] 31-01-PLAN.md — server.js export refactor (importable app, guarded listen) + supertest dev dep + jest.config routes coverage glob (TEST-03 foundation)
+
+**Wave 2** (parallel)
+
+- [ ] 31-02-PLAN.md — supertest route tests for POST /api/checkout: success→Zoho order, void recovery, void-failure alert, dual-cart reversal + HARDEN-01/03 test.todo (TEST-01)
+- [ ] 31-03-PLAN.md — Helcim HMAC tests: verifyWebhookSignature unit (valid/tampered/missing-secret/base64) + POST /api/webhooks/terminal route tests + HARDEN-02 test.todo (TEST-02)
+
+**Wave 3**
+
+- [ ] 31-04-PLAN.md — Measure honest coverage; set global threshold below actual + per-file money-path floors (checkout/payments/webhooks/helcim) (TEST-03)
 
 ### Phase 32: Fail-Closed Hardening & Access Control
 
