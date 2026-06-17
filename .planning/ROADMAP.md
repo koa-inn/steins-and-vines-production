@@ -336,8 +336,8 @@ Plans:
 
 **Wave 2** (parallel)
 
-- [ ] 31-02-PLAN.md — supertest route tests for POST /api/checkout: success→Zoho order, void recovery, void-failure alert, dual-cart reversal + HARDEN-01/03 test.todo (TEST-01)
-- [ ] 31-03-PLAN.md — Helcim HMAC tests: verifyWebhookSignature unit (valid/tampered/missing-secret/base64) + POST /api/webhooks/terminal route tests + HARDEN-02 test.todo (TEST-02)
+- [x] 31-02-PLAN.md — supertest route tests for POST /api/checkout: success→Zoho order, void recovery, void-failure alert, dual-cart reversal + HARDEN-01/03 test.todo (TEST-01)
+- [x] 31-03-PLAN.md — Helcim HMAC tests: verifyWebhookSignature unit (valid/tampered/missing-secret/base64) + POST /api/webhooks/terminal route tests + HARDEN-02 test.todo (TEST-02)
 
 **Wave 3**
 
@@ -390,7 +390,7 @@ Plans:
 | 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete    | 2026-06-11 |
 | 28. Zoho Customer Read-Back Path | v4.1 | 2/2 | Complete    | 2026-06-12 |
 | 29. Refresh-from-Zoho Admin UI | v4.1 | 6/6 | Complete   | 2026-06-14 |
-| 31. Money-Path Test Coverage | v4.2 | 1/4 | In Progress|  |
+| 31. Money-Path Test Coverage | v4.2 | 3/4 | In Progress|  |
 | 32. Fail-Closed Hardening & Access Control | v4.2 | 0/? | Not started | - |
 | 33. Deploy Safety & Monitoring | v4.2 | 0/? | Not started | - |
 
