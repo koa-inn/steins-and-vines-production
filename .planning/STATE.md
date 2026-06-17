@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v4.2
 milestone_name: Payment Path Hardening & Deploy Safety
-status: planning
-last_updated: "2026-06-17T05:16:03.061Z"
-last_activity: 2026-06-17
+status: roadmap_defined
+last_updated: "2026-06-16T00:00:00.000Z"
+last_activity: 2026-06-16
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,23 +17,23 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-11)
+See: .planning/PROJECT.md (updated 2026-06-17)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Planning next milestone (v4.1 shipped + archived 2026-06-17)
+**Current focus:** v4.2 Payment Path Hardening & Deploy Safety — roadmap defined, ready to plan Phase 31
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (roadmap defined)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-17 — Milestone v4.2 started
+Status: Roadmap defined — next: /gsd-plan-phase 31
+Last activity: 2026-06-16 — v4.2 roadmap created (Phases 31–33)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 27 (this milestone)
+- Total plans completed: 27 (prior milestone v4.1)
 - Average duration: 3 min
 - Total execution time: 3 min
 
@@ -95,6 +95,9 @@ Last activity: 2026-06-17 — Milestone v4.2 started
 - [29.3-01]: source='zoho_scan' distinguishes scan-created batches from kiosk path; customer_email omitted (no PII, T-29.3-06)
 - [Phase ?]: [29.3-02]: zoho_so_number idempotency guard placed after missing_fields check and before lock acquisition — duplicates rejected without any sheet I/O
 - [Phase ?]: [29.3-03]: Four pure helpers placed before IIFE for module.exports testability; bp-pull-sheet reuses .bp-confirm-sheet CSS; background scan fires immediately on sheet open
+- [v4.2 Roadmap]: No separate staging middleware — middleware changes deploy to the prod Railway instance via the production git repo; staging site calls prod middleware
+- [v4.2 Roadmap]: Tests land in Phase 31 before hardening in Phase 32 — the safety net must exist before the behavior changes it protects
+- [v4.2 Roadmap]: MONITOR-01 (uptime monitor) and DEPLOY-02 (runbook) are human/ops tasks — they will be flagged as human-action checkpoints in plans
 
 ### Roadmap Evolution
 
@@ -106,6 +109,7 @@ Last activity: 2026-06-17 — Milestone v4.2 started
 - Phase 29.2 inserted after Phase 29: BrewPad pending batch activation — port admin Activate / Schedule & Activate to BrewPad; pending-aware status badge (URGENT)
 - Phase 29.3 inserted after Phase 29: Pull non-kiosk batch sales into BrewPad (bulk Zoho invoice scan) (URGENT)
 - Phase 29.4 inserted after Phase 29: Wine drill-down analytics on BrewPad dashboard (split wine batches by subcategory/brand/manufacturer/time via catalog SKU join)
+- Phases 31–33 added (2026-06-16): v4.2 Payment Path Hardening & Deploy Safety roadmap created
 
 ### Deferred Items
 
@@ -140,9 +144,6 @@ None.
 
 ### Blockers/Concerns
 
-- ✅ RESOLVED 2026-06-16: Prod deploy hold lifted — entire v4.1 batch (Phases 27–30 + email/MailerLite/bottling-invite work) promoted to production via `git push production main --force` (CNAME-swap dance) + Railway middleware redeploy. Live site healthy, middleware durable, Zoho auto-reconnecting (REDIS_ENCRYPTION_KEY set, #106 closed).
-- apps-script/adminApi.gs deployed manually by user 2026-06-11 (phase 27 changes live in Apps Script).
-
 - Federal brewing licence pending — BEER_SALES_ENABLED must remain false in Railway production
 
 ### Quick Tasks Completed
@@ -153,10 +154,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-15T23:20:00Z
-Stopped at: Phase 30 Plan 04 checkpoint:human-verify (staging deploy pending — consolidate with 30-06 staging gate)
-Resume file: .planning/phases/30-assessment-quick-wins-small-high-impact-fixes-from-project-a/30-04-SUMMARY.md
+Last session: 2026-06-16T00:00:00Z
+Stopped at: v4.2 roadmap created — Phases 31, 32, 33 defined
+Resume file: .planning/ROADMAP.md (Phase 31 ready to plan)
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Run `/gsd-plan-phase 31` to plan the Money-Path Test Coverage phase

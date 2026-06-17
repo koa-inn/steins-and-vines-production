@@ -62,17 +62,17 @@
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| DEPLOY-01 | — | Pending |
-| DEPLOY-02 | — | Pending |
-| DEPLOY-03 | — | Pending |
-| MONITOR-01 | — | Pending |
-| MONITOR-02 | — | Pending |
-| TEST-01 | — | Pending |
-| TEST-02 | — | Pending |
-| TEST-03 | — | Pending |
-| HARDEN-01 | — | Pending |
-| HARDEN-02 | — | Pending |
-| HARDEN-03 | — | Pending |
-| HARDEN-04 | — | Pending |
-| PII-01 | — | Pending |
-| PII-02 | — | Pending |
+| DEPLOY-01 | Phase 33 | Pending |
+| DEPLOY-02 | Phase 33 | Pending |
+| DEPLOY-03 | Phase 33 | Pending |
+| MONITOR-01 | Phase 33 | Pending |
+| MONITOR-02 | Phase 33 | Pending |
+| TEST-01 | Phase 31 | Pending |
+| TEST-02 | Phase 31 | Pending |
+| TEST-03 | Phase 31 | Pending |
+| HARDEN-01 | Phase 32 | Pending |
+| HARDEN-02 | Phase 32 | Pending |
+| HARDEN-03 | Phase 32 | Pending |
+| HARDEN-04 | Phase 32 | Pending |
+| PII-01 | Phase 32 | Pending |
+| PII-02 | Phase 32 | Pending |
