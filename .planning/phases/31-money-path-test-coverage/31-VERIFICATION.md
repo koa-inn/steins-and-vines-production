@@ -1,20 +1,21 @@
 ---
 phase: 31-money-path-test-coverage
 verified: 2026-06-17T21:00:00Z
-status: human_needed
-score: 5/6 must-haves verified
-overrides_applied: 0
+status: passed
+score: 6/6 must-haves verified (truth #6 resolved by human decision)
+overrides_applied: 1
 human_verification:
   - test: "Confirm the `payment_token` pre-charge void path (chargeAndProceed lines 843-943) is an acceptable gap for this phase"
     expected: "Developer acknowledges lines 843-943 are uncovered (zero test coverage for the live HelcimPay iframe payment flow's pre-validation void calls) and accepts this as a Phase 32 follow-on OR requests a test be added before proceeding"
     why_human: "WR-01 in the code review: every test uses `transaction_id` not `payment_token`. The SC-1 wording ('successful charge→Zoho-order path, void recovery when Zoho fails after charge') is ambiguous about whether the pre-charge validation void block (lines 843-943) must be exercised. The void recovery after Zoho failure IS covered via transaction_id. The pre-charge validation void logic (catalog unavailable, unknown item_id, missing Maker's Fee) is not covered. The reviewer considers this a WARNING not a blocker; the verifier surfaces it for human decision."
+    resolution: "ACCEPTED AS DEFERRED TO PHASE 32 (human decision, 2026-06-17). The four locked paths (D-10) are tested via the transaction_id branch; the payment_token/chargeAndProceed gap is now documented in-suite as a test.todo marker in checkout-route.test.js per D-10's stance on known gaps. Phase 32 modifies routes/checkout.js:843-943 and will add characterization coverage for it then."
 ---
 
 # Phase 31: Money-Path Test Coverage Verification Report
 
 **Phase Goal:** The online checkout and Helcim integration are covered by honest, executable tests — so behavior-changing hardening in Phase 32 lands on a safety net, not on faith
 **Verified:** 2026-06-17T21:00:00Z
-**Status:** human_needed
+**Status:** passed (truth #6 resolved by human decision — payment_token gap accepted as deferred to Phase 32 and documented in-suite via test.todo)
 **Re-verification:** No — initial verification
 
 ## Goal Achievement
@@ -28,9 +29,9 @@ human_verification:
 | 3 | `npm run test:coverage` reports coverage rows for routes/** files including checkout, payments, webhooks | VERIFIED | Full coverage run exits 0; routes/checkout.js (52.86% lines), routes/payments.js (37.20%), routes/webhooks.js (62.96%), lib/helcim.js (26.53%) all present in coverage table |
 | 4 | Stale exclusions in jest.config.js are removed — coverage number is honest | VERIFIED | jest.config.js collectCoverageFrom: ['lib/**/*.js', 'routes/**/*.js'] — no !-prefix exclusions; D-08 explicitly verified and documented in a code comment |
 | 5 | The suite uses supertest against the real exported app (not express mock, not direct handler) | VERIFIED | checkout-route.test.js line 82: `var app = require('../server')` + line 81: `var request = require('supertest')`. helcim-webhook.test.js line 212: `var app = require('../server')`. Neither file contains `jest.mock('express')` |
-| 6 | The `payment_token` (chargeAndProceed) pre-charge validation block is covered by at least one test | UNCERTAIN | coverage table shows lines 843-943 as uncovered (explicitly in uncovered range for checkout.js). All four PATH tests use `transaction_id`, bypassing `chargeAndProceed()` validation logic. This is the HelcimPay iframe path used in production. See WR-01 in 31-REVIEW.md. The plan's D-10 characterization stance documents Phase 32 gaps via test.todo but did not call out this specific gap. |
+| 6 | The `payment_token` (chargeAndProceed) pre-charge validation block is covered by at least one test | RESOLVED (deferred) | coverage table shows lines 843-943 as uncovered. All four PATH tests use `transaction_id`, bypassing `chargeAndProceed()` validation. Human decision (2026-06-17): accept as deferred to Phase 32 — gap now documented in-suite as a `test.todo` in checkout-route.test.js per D-10's stance on known gaps. Phase 32 modifies this block and will add coverage. |
 
-**Score:** 5/6 truths verified (truth #6 is UNCERTAIN — human decision required)
+**Score:** 6/6 truths verified (truth #6 resolved by explicit human decision — gap accepted as deferred and documented in-suite)
 
 ### Required Artifacts
 

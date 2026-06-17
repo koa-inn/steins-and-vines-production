@@ -326,3 +326,9 @@ describe('POST /api/checkout — PATH-4 dual-cart shared-charge reversal', funct
 // ---------------------------------------------------------------------------
 test.todo('HARDEN-01: unauthenticated checkout (no x-api-key) currently passes — Phase 32 closes');
 test.todo('HARDEN-03: duplicate charge_key not rejected 409 when Redis down — Phase 32 fixes');
+// Coverage gap accepted as deferred to Phase 32 (human decision, Phase 31 verification):
+// the four locked paths above exercise the void/recovery logic via transaction_id, but the
+// live frontend enters through payment_token -> chargeAndProceed() (routes/checkout.js:843-943),
+// whose pre-charge validation + 5 void-before-reject calls remain uncovered. Phase 32 modifies
+// this path and should add characterization coverage for it then.
+test.todo('TEST-01 follow-up: payment_token/chargeAndProceed() pre-charge validation + void-before-reject path (routes/checkout.js:843-943) is uncovered — add coverage in Phase 32');
