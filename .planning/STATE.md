@@ -4,8 +4,8 @@ milestone: v4.2
 milestone_name: Payment Path Hardening & Deploy Safety
 status: executing
 stopped_at: Phase 31 context gathered
-last_updated: "2026-06-17T06:06:10.298Z"
-last_activity: 2026-06-17 -- Phase 31 planning complete
+last_updated: "2026-06-17T12:12:55.710Z"
+last_activity: 2026-06-17 -- Phase 31 execution started
 progress:
   total_phases: 19
   completed_phases: 15
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-17)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** v4.2 Payment Path Hardening & Deploy Safety — roadmap defined, ready to plan Phase 31
+**Current focus:** Phase 31 — money-path-test-coverage
 
 ## Current Position
 
-Phase: Not started (roadmap defined)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-06-17 -- Phase 31 planning complete
+Phase: 31 (money-path-test-coverage) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 31
+Last activity: 2026-06-17 -- Phase 31 execution started
 
 ## Performance Metrics
 

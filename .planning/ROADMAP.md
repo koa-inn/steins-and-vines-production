@@ -332,7 +332,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 31-01-PLAN.md — server.js export refactor (importable app, guarded listen) + supertest dev dep + jest.config routes coverage glob (TEST-03 foundation)
+- [x] 31-01-PLAN.md — server.js export refactor (importable app, guarded listen) + supertest dev dep + jest.config routes coverage glob (TEST-03 foundation)
 
 **Wave 2** (parallel)
 
@@ -390,7 +390,7 @@ Plans:
 | 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete    | 2026-06-11 |
 | 28. Zoho Customer Read-Back Path | v4.1 | 2/2 | Complete    | 2026-06-12 |
 | 29. Refresh-from-Zoho Admin UI | v4.1 | 6/6 | Complete   | 2026-06-14 |
-| 31. Money-Path Test Coverage | v4.2 | 0/? | Not started | - |
+| 31. Money-Path Test Coverage | v4.2 | 1/4 | In Progress|  |
 | 32. Fail-Closed Hardening & Access Control | v4.2 | 0/? | Not started | - |
 | 33. Deploy Safety & Monitoring | v4.2 | 0/? | Not started | - |
 
