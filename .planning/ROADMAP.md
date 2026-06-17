@@ -71,7 +71,7 @@
 
 **Milestone Goal:** Make the money path trustworthy — test the online checkout, close the fail-open security gaps, and stop unsafe/untested code from reaching production.
 
-- [ ] **Phase 31: Money-Path Test Coverage** - Route-level checkout tests, Helcim HMAC tests, honest coverage config (TEST-01..03)
+- [x] **Phase 31: Money-Path Test Coverage** - Route-level checkout tests, Helcim HMAC tests, honest coverage config (TEST-01..03) (completed 2026-06-17)
 - [ ] **Phase 32: Fail-Closed Hardening & Access Control** - reCAPTCHA/webhook fail-closed, replay-guard 409, validateEnv update, PII route API-key enforcement, body-shape validation (HARDEN-01..04, PII-01..02)
 - [ ] **Phase 33: Deploy Safety & Monitoring** - Test-gated CI deploys, prod deploy tagging + rollback runbook, snapshot fix, uptime monitoring, secrets verification (DEPLOY-01..03, MONITOR-01..02)
 
@@ -341,7 +341,7 @@ Plans:
 
 **Wave 3**
 
-- [ ] 31-04-PLAN.md — Measure honest coverage; set global threshold below actual + per-file money-path floors (checkout/payments/webhooks/helcim) (TEST-03)
+- [x] 31-04-PLAN.md — Measure honest coverage; set global threshold below actual + per-file money-path floors (checkout/payments/webhooks/helcim) (TEST-03)
 
 ### Phase 32: Fail-Closed Hardening & Access Control
 
@@ -390,7 +390,7 @@ Plans:
 | 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete    | 2026-06-11 |
 | 28. Zoho Customer Read-Back Path | v4.1 | 2/2 | Complete    | 2026-06-12 |
 | 29. Refresh-from-Zoho Admin UI | v4.1 | 6/6 | Complete   | 2026-06-14 |
-| 31. Money-Path Test Coverage | v4.2 | 3/4 | In Progress|  |
+| 31. Money-Path Test Coverage | v4.2 | 4/4 | Complete   | 2026-06-17 |
 | 32. Fail-Closed Hardening & Access Control | v4.2 | 0/? | Not started | - |
 | 33. Deploy Safety & Monitoring | v4.2 | 0/? | Not started | - |
 
