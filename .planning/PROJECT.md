@@ -8,6 +8,19 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 
 **Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.**
 
+## Current Milestone: v4.2 Payment Path Hardening & Deploy Safety
+
+**Goal:** Make the money path trustworthy — test the online checkout, close the fail-open security gaps, and stop unsafe/untested code from reaching production.
+
+**Target features:**
+- Test-gated production deploys, prod deploy tags + rollback runbook, and a snapshot that actually reaches the live site
+- Uptime monitoring on `/health` + verified Railway secrets (fail closed when absent in prod)
+- Route-level tests for `POST /api/checkout` + Helcim client/webhook HMAC tests + `routes/**` coverage
+- Fail-closed hardening: reCAPTCHA, webhook secrets, Redis replay guard (409), `validateEnv.js` Helcim fix
+- Explicit API-key checks on PII GET routes + body-shape validation on item/tax mutations
+
+Source: `PROJECT_ASSESSMENT.md` (Week 1 + Weeks 2–4). Continues phase numbering from Phase 31.
+
 ## Current State: v4.1 BrewPad Batch Lifecycle & Zoho Sync — SHIPPED 2026-06-17
 
 v4.1 is complete and live in production (Phases 27–30 + sub-phases). Delivered: full pending-batch lifecycle in BrewPad (visibility, one-click + guided activation, deletion), bidirectional Zoho customer sync (read-back endpoint + refresh-from-Zoho button + reassignment with invoice propagation), bulk pull of non-kiosk batch sales, wine drill-down analytics, and a batch of assessment quick-wins (dead-code cleanup, repo hygiene, presentation/contrast/404 fixes, kiosk cart-leak fix, XSS hardening). Also shipped this milestone: transactional email moved to Resend (working), beer waitlist migrated to MailerLite (replacing Mailchimp), bottling invites via Resend, and `REDIS_ENCRYPTION_KEY` hardening (#106 closed).

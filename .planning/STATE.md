@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.1
-milestone_name: BrewPad Batch Lifecycle & Zoho Sync
-status: Awaiting next milestone
-stopped_at: "Phase 30 Plan 04 checkpoint:human-verify (staging deploy pending — consolidate with 30-06 staging gate)"
-last_updated: "2026-06-17T01:54:11.703Z"
-last_activity: 2026-06-17 — Milestone v4.1 completed and archived
+milestone: v4.2
+milestone_name: Payment Path Hardening & Deploy Safety
+status: planning
+last_updated: "2026-06-17T05:16:03.061Z"
+last_activity: 2026-06-17
 progress:
-  total_phases: 16
-  completed_phases: 15
-  total_plans: 47
-  completed_plans: 48
-  percent: 94
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-11)
 
 ## Current Position
 
-Phase: Milestone v4.1 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-17 — Milestone v4.1 completed and archived
+Status: Defining requirements
+Last activity: 2026-06-17 — Milestone v4.2 started
 
 ## Performance Metrics
 
