@@ -6,12 +6,22 @@ module.exports = {
     'lib/**/*.js',
     'routes/**/*.js' // D-05: include route files — was silently excluded before; D-08: no stale !-prefix exclusions found in config
   ],
-  // No coverage thresholds here — per-file money-path thresholds are set in Plan 04.
-  // Global and per-file thresholds (validate.js 98%, logger.js 98%) removed because they
-  // caused single-file test runs (e.g. npm test -- checkout-route.test.js) to exit non-zero:
-  // coverage thresholds run even for filtered test invocations when collectCoverage is true.
-  // Plan 04 will add proper money-path thresholds (routes/checkout.js etc.) after all
-  // route tests exist and the baseline honest number can be measured.
-  coverageThreshold: {},
+  // Honest thresholds measured 2026-06-17 after all Phase 31 route tests exist.
+  // Global: measured 63.04% lines — floor set at 62 (D-06: just below actual, 1pt headroom).
+  // Per-file money-path floors (D-07): set just below each file's measured % Lines so
+  //   the money path cannot silently regress even while the global stays low.
+  //   Measured: checkout 53.08%, payments 37.20%, webhooks 62.96%, helcim 26.53%.
+  // No !-prefix exclusions in collectCoverageFrom (D-08: honest number, no inflation).
+  coverageThreshold: {
+    global: { lines: 62 },
+    // Money-path per-file floors (D-07):
+    './routes/checkout.js':  { lines: 52 },
+    './routes/payments.js':  { lines: 36 },
+    './routes/webhooks.js':  { lines: 62 },
+    './lib/helcim.js':       { lines: 25 },
+    // Existing utility floors (restored — both measured at 100%):
+    './lib/validate.js': { lines: 98 },
+    './lib/logger.js':   { lines: 98 }
+  },
   coverageReporters: ['text', 'lcov']
 };
