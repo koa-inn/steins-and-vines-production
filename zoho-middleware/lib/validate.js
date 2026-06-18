@@ -72,7 +72,72 @@ function classifyZohoError(err, fallbackMessage) {
   return { status: status, message: message };
 }
 
+/**
+ * Validate and whitelist a request body against a schema.
+ *
+ * Schema shape:
+ *   {
+ *     allowed:  string[]            — fields permitted in the output; others are stripped
+ *     required: string[]            — fields that must be present and non-empty
+ *     types:    { [field]: string } — 'string' | 'number' | 'boolean' type check
+ *   }
+ *
+ * Returns { error: string|null, clean: object }
+ *   error === null means valid; caller should use clean (unknown fields stripped).
+ *   error is a human-readable rejection reason (returns 400 to the client).
+ *
+ * Does NOT modify validateLineItems or classifyZohoError.
+ *
+ * @param {*}      body    — raw req.body (may be any type)
+ * @param {object} schema
+ * @returns {{ error: string|null, clean: object }}
+ */
+function validateBody(body, schema) {
+  schema = schema || {};
+  var allowed  = schema.allowed  || [];
+  var required = schema.required || [];
+  var types    = schema.types    || {};
+
+  // Must be a plain object (not null, array, string, etc.)
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'Request body must be a JSON object', clean: {} };
+  }
+
+  // Check required fields are present and non-empty
+  for (var r = 0; r < required.length; r++) {
+    var reqField = required[r];
+    var reqVal = body[reqField];
+    if (reqVal === undefined || reqVal === null || reqVal === '') {
+      return { error: 'Missing required field: ' + reqField, clean: {} };
+    }
+  }
+
+  // Build clean object from allowed fields only (strips unknown keys — D-08 no field smuggling)
+  var clean = {};
+  for (var a = 0; a < allowed.length; a++) {
+    var field = allowed[a];
+    if (body[field] !== undefined) {
+      clean[field] = body[field];
+    }
+  }
+
+  // Type-check fields that are present in clean
+  var typeFields = Object.keys(types);
+  for (var t = 0; t < typeFields.length; t++) {
+    var tf = typeFields[t];
+    if (clean[tf] !== undefined) {
+      var expectedType = types[tf];
+      if (typeof clean[tf] !== expectedType) {
+        return { error: 'Invalid type for field: ' + tf + ' (expected ' + expectedType + ')', clean: {} };
+      }
+    }
+  }
+
+  return { error: null, clean: clean };
+}
+
 module.exports = {
   validateLineItems: validateLineItems,
-  classifyZohoError: classifyZohoError
+  classifyZohoError: classifyZohoError,
+  validateBody: validateBody
 };
