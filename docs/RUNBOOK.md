@@ -198,3 +198,4 @@ The CNAME file is **tracked in git** (not untracked — see Research note below)
 > **`enforce-cname.yml` is BROKEN (403):** The workflow uses `gh api ... -X PUT` to set the Pages domain. This fails with 403 because `GITHUB_TOKEN` lacks the `pages:write` scope for the PUT endpoint on repos using Actions-based deploy. Do NOT rely on `enforce-cname.yml` for CNAME management — the gated-deploy workflow manages it manually.
 
 > **Research note:** CLAUDE.md states "CNAME is in `.gitignore`." This is technically inaccurate — CNAME is listed in `.gitignore` but was committed before that entry and remains tracked. `git ls-files CNAME` returns `CNAME`. Once a file is tracked, `.gitignore` has no effect until `git rm --cached`.
+| 2026-06-18 14:11 UTC | `04c09d98` | `0461dc19-d188-48e9-858e-c33d6a996d17` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/27765441259) | testing deploy workflow |
