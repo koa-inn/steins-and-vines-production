@@ -322,13 +322,116 @@ describe('POST /api/checkout — PATH-4 dual-cart shared-charge reversal', funct
 });
 
 // ---------------------------------------------------------------------------
-// Phase 32 gap markers — suite stays green; these document future hardening
+// HARDEN-01: reCAPTCHA fail-closed in production (Phase 32, Plan 01, Task 1)
 // ---------------------------------------------------------------------------
-test.todo('HARDEN-01: unauthenticated checkout (no x-api-key) currently passes — Phase 32 closes');
-test.todo('HARDEN-03: duplicate charge_key not rejected 409 when Redis down — Phase 32 fixes');
-// Coverage gap accepted as deferred to Phase 32 (human decision, Phase 31 verification):
-// the four locked paths above exercise the void/recovery logic via transaction_id, but the
-// live frontend enters through payment_token -> chargeAndProceed() (routes/checkout.js:843-943),
-// whose pre-charge validation + 5 void-before-reject calls remain uncovered. Phase 32 modifies
-// this path and should add characterization coverage for it then.
-test.todo('TEST-01 follow-up: payment_token/chargeAndProceed() pre-charge validation + void-before-reject path (routes/checkout.js:843-943) is uncovered — add coverage in Phase 32');
+describe('POST /api/checkout — HARDEN-01 reCAPTCHA prod fail-closed', function () {
+  beforeEach(function () {
+    jest.clearAllMocks();
+    cacheLib.get.mockImplementation(defaultCacheGet);
+    cacheLib.acquireLock.mockResolvedValue(true);
+    zohoApi.zohoGet.mockResolvedValue({ contacts: [{ contact_id: 'cid-001' }] });
+    zohoApi.zohoPost.mockResolvedValue({
+      salesorder: { salesorder_id: 'so-1', salesorder_number: 'SO-001', total: 49.99 }
+    });
+  });
+
+  afterEach(function () {
+    delete process.env.NODE_ENV;
+  });
+
+  test('prod + unset RECAPTCHA_SECRET_KEY: POST /api/checkout returns 400 before charge', function () {
+    process.env.NODE_ENV = 'production';
+    process.env.RECAPTCHA_SECRET_KEY = '';
+    return request(app)
+      .post('/api/checkout')
+      .send(makeCheckoutBody())
+      .expect(400)
+      .then(function (res) {
+        expect(res.body.error).toBeDefined();
+        expect(zohoApi.zohoPost).not.toHaveBeenCalled();
+      });
+  });
+
+  test('dev + unset RECAPTCHA_SECRET_KEY: POST /api/checkout proceeds (fail-open preserved)', function () {
+    delete process.env.NODE_ENV;
+    process.env.RECAPTCHA_SECRET_KEY = '';
+    return request(app)
+      .post('/api/checkout')
+      .send(makeCheckoutBody())
+      .expect(201)
+      .then(function (res) {
+        expect(res.body.ok).toBe(true);
+      });
+  });
+
+  test('prod + invalid reCAPTCHA token: POST /api/checkout returns 400 before charge', function () {
+    // verifyRecaptcha with real secret + invalid token returns success:false
+    // We simulate this by providing a non-empty secret and an empty token
+    process.env.NODE_ENV = 'production';
+    process.env.RECAPTCHA_SECRET_KEY = 'test-secret-key';
+    // With an empty token, verifyRecaptcha returns {success:false, score:0} regardless
+    return request(app)
+      .post('/api/checkout')
+      .send(makeCheckoutBody({ recaptcha_token: '' }))
+      .expect(400)
+      .then(function (res) {
+        expect(res.body.error).toBeDefined();
+        expect(zohoApi.zohoPost).not.toHaveBeenCalled();
+      });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HARDEN-03: Redis-down guards return 409 (Phase 32, Plan 01, Task 2)
+// ---------------------------------------------------------------------------
+describe('POST /api/checkout — HARDEN-03 Redis-down 409', function () {
+  beforeEach(function () {
+    jest.clearAllMocks();
+    // Simulate Redis unavailable
+    cacheLib.get.mockRejectedValue(new Error('Redis ECONNREFUSED'));
+    cacheLib.acquireLock.mockRejectedValue(new Error('Redis ECONNREFUSED'));
+    cacheLib.set.mockRejectedValue(new Error('Redis ECONNREFUSED'));
+    cacheLib.isConnected.mockReturnValue(false);
+    cacheLib.getClient.mockReturnValue(null);
+    process.env.RECAPTCHA_SECRET_KEY = '';
+  });
+
+  afterEach(function () {
+    delete process.env.NODE_ENV;
+  });
+
+  test('transactionId present + Redis down: POST /api/checkout returns 409', function () {
+    return request(app)
+      .post('/api/checkout')
+      .send(makeCheckoutBody({ transaction_id: 'txn-redis-down-001' }))
+      .expect(409)
+      .then(function (res) {
+        expect(res.body.error).toBeDefined();
+        expect(zohoApi.zohoPost).not.toHaveBeenCalled();
+      });
+  });
+
+  test('prod + idempotency_key + Redis down: POST /api/checkout returns 409', function () {
+    process.env.NODE_ENV = 'production';
+    return request(app)
+      .post('/api/checkout')
+      .send(makeCheckoutBody({ idempotency_key: 'idem-key-redis-down-001' }))
+      .expect(409)
+      .then(function (res) {
+        expect(res.body.error).toBeDefined();
+        expect(zohoApi.zohoPost).not.toHaveBeenCalled();
+      });
+  });
+
+  test('dev + idempotency_key + Redis down: does NOT return 409 (fail-open preserved)', function () {
+    delete process.env.NODE_ENV;
+    // In dev, the idempotency-key Redis-down catch calls processCheckout() again
+    // (not 409). The downstream Zoho call may still fail (502), but it's NOT a 409.
+    return request(app)
+      .post('/api/checkout')
+      .send(makeCheckoutBody({ idempotency_key: 'idem-key-dev-001' }))
+      .then(function (res) {
+        expect(res.status).not.toBe(409);
+      });
+  });
+});
