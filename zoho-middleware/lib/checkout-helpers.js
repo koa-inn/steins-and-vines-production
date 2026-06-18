@@ -41,11 +41,17 @@ function withTimeout(promise, ms) {
 /**
  * Verify a reCAPTCHA v3 token with Google.
  * Resolves with the verification result object.
- * If RECAPTCHA_SECRET_KEY is not set, skips verification (graceful dev fallback).
+ * In production (NODE_ENV=production), fails CLOSED when key is unset or on
+ * timeout/network error. In dev/CI (NODE_ENV unset), fails OPEN for convenience.
  */
 function verifyRecaptcha(token) {
+  var isProd = process.env.NODE_ENV === 'production';
   var secret = process.env.RECAPTCHA_SECRET_KEY || '';
-  if (!secret) return Promise.resolve({ success: true, score: 1.0 }); // unconfigured → allow
+  if (!secret) {
+    if (isProd) return Promise.resolve({ success: false, score: 0 }); // prod: fail closed
+    log.warn('[checkout] RECAPTCHA_SECRET_KEY not set — skipping verification (dev)');
+    return Promise.resolve({ success: true, score: 1.0 }); // dev: fail open
+  }
   if (!token) return Promise.resolve({ success: false, score: 0 });
 
   var verifyPromise = new Promise(function (resolve, reject) {
@@ -72,8 +78,12 @@ function verifyRecaptcha(token) {
     req.end();
   });
   return withTimeout(verifyPromise, 5000).catch(function(timeoutErr) {
-    log.warn('[checkout] reCAPTCHA verification timed out — allowing through: ' + timeoutErr.message);
-    return { success: true, score: 1.0 };
+    if (isProd) {
+      log.warn('[checkout] reCAPTCHA verification timed out — rejecting in prod: ' + timeoutErr.message);
+      return { success: false, score: 0 }; // prod: fail closed on network error/timeout
+    }
+    log.warn('[checkout] reCAPTCHA verification timed out — allowing through (dev): ' + timeoutErr.message);
+    return { success: true, score: 1.0 }; // dev: fail open
   });
 }
 
