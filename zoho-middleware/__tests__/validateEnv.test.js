@@ -17,12 +17,14 @@ describe('validateEnv', () => {
   // Env keys to restore on teardown
   var SAVED_ENV = {};
 
-  // The four prod secrets (D-06)
+  // The full SC#5 prod secrets (D-06 + MONITOR-02 / phase 33)
   var PROD_SECRETS = [
     'RECAPTCHA_SECRET_KEY',
     'HELCIM_WEBHOOK_SECRET',
     'CALCOM_WEBHOOK_SECRET',
     'REDIS_ENCRYPTION_KEY',
+    'SENTRY_DSN',
+    'HELCIM_API_TOKEN',
   ];
 
   // Minimum required vars so the REQUIRED check passes
@@ -117,12 +119,14 @@ describe('validateEnv', () => {
   describe('D-06: REQUIRED_IN_PROD boot gate (NODE_ENV=production)', () => {
     beforeEach(() => {
       process.env.NODE_ENV = 'production';
-      // Set all prod secrets
+      // Set all prod secrets (full SC#5 set: MONITOR-02 / phase 33)
       setEnv({
         RECAPTCHA_SECRET_KEY: 'rcaptcha-secret',
         HELCIM_WEBHOOK_SECRET: 'helcim-secret',
         CALCOM_WEBHOOK_SECRET: 'calcom-secret',
         REDIS_ENCRYPTION_KEY: 'redis-key',
+        SENTRY_DSN: 'https://sentry.io/test-dsn',
+        HELCIM_API_TOKEN: 'helcim-api-token',
       });
     });
 
@@ -159,6 +163,48 @@ describe('validateEnv', () => {
       validateEnv();
       expect(process.exit).toHaveBeenCalledWith(1);
     });
+
+    // ── MONITOR-02 / ROADMAP SC#5 — new entries (phase 33) ─────────────────
+    test('calls process.exit(1) when SENTRY_DSN is missing in production', () => {
+      delete process.env.SENTRY_DSN;
+      validateEnv = require('../lib/validateEnv');
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    test('calls process.exit(1) when HELCIM_API_TOKEN is missing in production', () => {
+      delete process.env.HELCIM_API_TOKEN;
+      validateEnv = require('../lib/validateEnv');
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    test('does NOT exit when NODE_ENV=production and the full SC#5 set is present', () => {
+      // All 6 SC#5 secrets set by this describe's beforeEach — no deletions
+      validateEnv = require('../lib/validateEnv');
+      validateEnv();
+      expect(process.exit).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── 2b. Non-prod gate — SENTRY_DSN + HELCIM_API_TOKEN not enforced outside prod ──
+
+  describe('MONITOR-02: prod-only gate for SENTRY_DSN and HELCIM_API_TOKEN', () => {
+    test('does NOT exit on SENTRY_DSN absence when NODE_ENV is not production', () => {
+      // NODE_ENV unset (cleared in outer beforeEach), SENTRY_DSN unset
+      // RAILWAY_ENVIRONMENT also unset — pure dev/CI scenario
+      validateEnv = require('../lib/validateEnv');
+      validateEnv();
+      expect(process.exit).not.toHaveBeenCalled();
+    });
+
+    test('does NOT exit on HELCIM_API_TOKEN absence when NODE_ENV is not production', () => {
+      process.env.NODE_ENV = 'test';
+      // HELCIM_API_TOKEN not set (cleared in outer beforeEach via PROD_SECRETS clearance)
+      validateEnv = require('../lib/validateEnv');
+      validateEnv();
+      expect(process.exit).not.toHaveBeenCalled();
+    });
   });
 
   // ─── 3. D-02: RAILWAY_ENVIRONMENT boot assertion ───────────────────────────
@@ -183,12 +229,14 @@ describe('validateEnv', () => {
     test('does NOT exit when RAILWAY_ENVIRONMENT is set and NODE_ENV=production (with all prod secrets)', () => {
       process.env.RAILWAY_ENVIRONMENT = 'production';
       process.env.NODE_ENV = 'production';
-      // Provide all prod secrets so REQUIRED_IN_PROD check also passes
+      // Provide all prod secrets (full SC#5 set) so REQUIRED_IN_PROD check also passes
       setEnv({
         RECAPTCHA_SECRET_KEY: 'rcaptcha-secret',
         HELCIM_WEBHOOK_SECRET: 'helcim-secret',
         CALCOM_WEBHOOK_SECRET: 'calcom-secret',
         REDIS_ENCRYPTION_KEY: 'redis-key',
+        SENTRY_DSN: 'https://sentry.io/test-dsn',
+        HELCIM_API_TOKEN: 'helcim-api-token',
       });
       validateEnv = require('../lib/validateEnv');
       validateEnv();
