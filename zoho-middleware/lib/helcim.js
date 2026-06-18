@@ -309,6 +309,8 @@ function pollTerminalResult(invoiceNumber) {
 function verifyWebhookSignature(webhookId, timestamp, rawBody, signature) {
   var secret = process.env.HELCIM_WEBHOOK_SECRET || '';
   if (!secret) {
+    var isProd = process.env.NODE_ENV === 'production';
+    if (isProd) return false; // D-04: fail closed in prod — unsigned event rejected
     log.warn('[helcim] HELCIM_WEBHOOK_SECRET not set — skipping webhook signature verification');
     return true;
   }

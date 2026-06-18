@@ -100,10 +100,10 @@ describe('POST /api/webhooks/calcom — Cal.com webhook handler', function () {
   });
 
   // -------------------------------------------------------------------------
-  // Signature verification — bad sig -> 401, no processing
+  // Signature verification — bad sig -> 403, no processing (ROADMAP criterion 2)
   // -------------------------------------------------------------------------
 
-  test('invalid signature -> 401 and does NOT log event', function () {
+  test('invalid signature -> 403 and does NOT log event', function () {
     calcom.verifyWebhook.mockReturnValue(false);
 
     var req = makeReq({ headers: { 'x-cal-signature-256': 'bad-sig' } });
@@ -111,7 +111,7 @@ describe('POST /api/webhooks/calcom — Cal.com webhook handler', function () {
 
     handler(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json.mock.calls[0][0]).toEqual({ error: 'Invalid signature' });
     expect(eventLog.logEvent).not.toHaveBeenCalled();
   });
@@ -146,7 +146,26 @@ describe('POST /api/webhooks/calcom — Cal.com webhook handler', function () {
       expect.any(String),
       ''
     );
-    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  // -------------------------------------------------------------------------
+  // HARDEN-02: route-level prod-gate — verifier false -> 403, not processed
+  // -------------------------------------------------------------------------
+
+  test('HARDEN-02: verifyWebhook returns false -> route returns 403 (event NOT processed)', function () {
+    // In prod, verifyWebhook returns false when CALCOM_WEBHOOK_SECRET is unset.
+    // This test exercises the route rejection: verifier false -> 403.
+    calcom.verifyWebhook.mockReturnValue(false);
+
+    var req = makeReq({ headers: { 'x-cal-signature-256': '' } });
+    var res = mockRes();
+
+    handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json.mock.calls[0][0]).toEqual({ error: 'Invalid signature' });
+    expect(eventLog.logEvent).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------

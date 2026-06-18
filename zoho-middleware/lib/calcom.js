@@ -139,6 +139,8 @@ function createBooking(body) {
 function verifyWebhook(rawBody, signature) {
   var secret = process.env.CALCOM_WEBHOOK_SECRET || '';
   if (!secret) {
+    var isProd = process.env.NODE_ENV === 'production';
+    if (isProd) return false; // D-04: fail closed in prod — unsigned event rejected
     log.warn('[calcom] CALCOM_WEBHOOK_SECRET not set — skipping webhook signature verification');
     return true; // fail-open dev pattern
   }

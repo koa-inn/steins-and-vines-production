@@ -47,6 +47,7 @@ describe('verifyWebhookSignature (unit)', function () {
 
   afterEach(function () {
     delete process.env.HELCIM_WEBHOOK_SECRET;
+    delete process.env.NODE_ENV;
   });
 
   // -------------------------------------------------------------------------
@@ -98,7 +99,37 @@ describe('verifyWebhookSignature (unit)', function () {
     expect(result).toBe(true);
   });
 
-  test.todo('HARDEN-02: missing HELCIM_WEBHOOK_SECRET should fail closed (return false) — Phase 32 converts this to a real assertion');
+  // -------------------------------------------------------------------------
+  // Case 3b: HARDEN-02 — prod gate: missing secret must fail CLOSED in prod
+  // -------------------------------------------------------------------------
+
+  test('HARDEN-02: missing HELCIM_WEBHOOK_SECRET + NODE_ENV=production -> returns false (fail closed)', function () {
+    jest.resetModules();
+    jest.unmock('../lib/helcim');
+    jest.unmock('../lib/logger');
+    delete process.env.HELCIM_WEBHOOK_SECRET;
+    process.env.NODE_ENV = 'production';
+    helcim = require('../lib/helcim');
+
+    var result = helcim.verifyWebhookSignature('wh-1', '123', 'body', 'any-sig');
+
+    // Prod fail-closed: returns false so the route rejects with 403
+    expect(result).toBe(false);
+  });
+
+  test('HARDEN-02: missing HELCIM_WEBHOOK_SECRET + NODE_ENV unset -> returns true (dev fail-open preserved)', function () {
+    jest.resetModules();
+    jest.unmock('../lib/helcim');
+    jest.unmock('../lib/logger');
+    delete process.env.HELCIM_WEBHOOK_SECRET;
+    delete process.env.NODE_ENV;
+    helcim = require('../lib/helcim');
+
+    var result = helcim.verifyWebhookSignature('wh-1', '123', 'body', 'any-sig');
+
+    // Dev: still fails open (skip-verification warning path preserved)
+    expect(result).toBe(true);
+  });
 
   // -------------------------------------------------------------------------
   // Case 4: base64 key decoding — proves the base64 branch is exercised
@@ -235,10 +266,10 @@ describe('POST /api/webhooks/terminal (route)', function () {
   });
 
   // -------------------------------------------------------------------------
-  // Tampered body -> 401 { error: 'Invalid signature' }
+  // Tampered body -> 403 { error: 'Invalid signature' } (ROADMAP criterion 2)
   // -------------------------------------------------------------------------
 
-  test('tampered body -> 401 { error: \'Invalid signature\' }', function () {
+  test('tampered body -> 403 { error: \'Invalid signature\' }', function () {
     helcimLib.verifyWebhookSignature.mockReturnValue(false);
 
     return request(app)
@@ -247,15 +278,30 @@ describe('POST /api/webhooks/terminal (route)', function () {
       .set('webhook-timestamp', '1750000001')
       .set('webhook-signature', 'v1,bad-sig')
       .send({ type: 'cardTransaction', id: 'evt-tampered' })
-      .expect(401)
+      .expect(403)
       .then(function (res) {
         expect(res.body).toEqual({ error: 'Invalid signature' });
       });
   });
 
   // -------------------------------------------------------------------------
-  // Phase 32 gap marker
+  // HARDEN-02: route-level prod-gate — secret unset in prod -> 403 (criterion 2)
   // -------------------------------------------------------------------------
 
-  test.todo('HARDEN-02: missing HELCIM_WEBHOOK_SECRET currently accepts all webhooks — Phase 32 closes');
+  test('HARDEN-02: verifyWebhookSignature returns false -> route returns 403 (not processed)', function () {
+    // In prod, the verifier returns false when secret is unset (Task 1 fix).
+    // This test exercises the route rejection path: verifier false -> 403.
+    helcimLib.verifyWebhookSignature.mockReturnValue(false);
+
+    return request(app)
+      .post('/api/webhooks/terminal')
+      .set('webhook-id', 'wh-harden')
+      .set('webhook-timestamp', '1750000002')
+      .set('webhook-signature', '')
+      .send({ type: 'cardTransaction', id: 'evt-unsigned' })
+      .expect(403)
+      .then(function (res) {
+        expect(res.body).toEqual({ error: 'Invalid signature' });
+      });
+  });
 });

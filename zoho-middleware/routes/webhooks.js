@@ -37,7 +37,7 @@ router.post(['/api/webhooks/terminal', '/webhooks/terminal'], function (req, res
   // Verify HMAC-SHA256 signature
   if (!helcimLib.verifyWebhookSignature(webhookId, timestamp, rawBody, signature)) {
     log.warn('[webhook/helcim] Invalid signature — rejected (body_len=' + rawBody.length + ')');
-    return res.status(401).json({ error: 'Invalid signature' });
+    return res.status(403).json({ error: 'Invalid signature' });
   }
 
   // Body already parsed by express.json()
@@ -223,7 +223,7 @@ router.post(['/api/webhooks/calcom', '/webhooks/calcom'], function (req, res) {
   // Verify HMAC-SHA256 signature
   if (!calcom.verifyWebhook(rawBody, signature)) {
     log.warn('[webhook/calcom] Invalid signature — rejected (body_len=' + rawBody.length + ')');
-    return res.status(401).json({ error: 'Invalid signature' });
+    return res.status(403).json({ error: 'Invalid signature' });
   }
 
   // Respond 200 immediately — process asynchronously to avoid webhook timeout
