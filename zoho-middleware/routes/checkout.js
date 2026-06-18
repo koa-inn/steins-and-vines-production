@@ -136,6 +136,14 @@ router.post('/api/checkout', async function (req, res) {
         }
         processCheckout(body, idempotencyKey, res, zohoOffline);
       } catch (e) {
+        // Redis unavailable — fail closed in prod (no duplicate Zoho order for same charge)
+        // Dev stays fail-open for local development convenience
+        var isProdIdem = process.env.NODE_ENV === 'production';
+        if (isProdIdem) {
+          log.warn('[checkout] Redis unavailable for idempotency-key lock — rejecting in prod (fail closed): ' + e.message);
+          return res.status(409).json({ error: 'Checkout already in progress' });
+        }
+        log.warn('[checkout] Redis unavailable for idempotency-key lock — allowing through (dev): ' + e.message);
         processCheckout(body, idempotencyKey, res, zohoOffline);
       }
       return;
@@ -165,8 +173,14 @@ router.post('/api/checkout', async function (req, res) {
     }
     return proceed();
   } catch (err) {
-    // Google unreachable — log and allow through rather than blocking real customers
-    log.warn('[checkout] reCAPTCHA verification failed (network error) — allowing through: ' + (err && err.message));
+    // Google unreachable — defense in depth: reject in prod, allow in dev
+    var isProdRcRoute = process.env.NODE_ENV === 'production';
+    log.warn('[checkout] reCAPTCHA verification failed (network error)' +
+      (isProdRcRoute ? ' — rejecting in prod: ' : ' — allowing through (dev): ') +
+      (err && err.message));
+    if (isProdRcRoute) {
+      return res.status(400).json({ error: 'Request could not be verified. Please try again.' });
+    }
     return proceed();
   }
 });
@@ -216,8 +230,9 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       }
       return runCheckout();
     } catch (e) {
-      // Redis unavailable — allow through (fail open)
-      return runCheckout();
+      // Redis unavailable — fail closed: a charged transactionId must never create a duplicate Zoho order
+      log.warn('[checkout] Redis unavailable for transactionId replay check — rejecting (fail closed): ' + e.message);
+      return res.status(409).json({ error: 'Payment already processed' });
     }
   }
 
