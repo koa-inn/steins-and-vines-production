@@ -8,6 +8,15 @@ var REQUIRED = [
   { name: 'API_SECRET_KEY',     desc: 'Shared secret for authenticated /api/* endpoints (or MW_API_KEY as alias)' },
 ];
 
+// Required in production only (D-06) — missing any causes process.exit(1) when NODE_ENV=production.
+// These are the live money-path / security secrets; their absence in prod is a hard misconfiguration.
+var REQUIRED_IN_PROD = [
+  { name: 'RECAPTCHA_SECRET_KEY', desc: 'Google reCAPTCHA secret — required in prod (fail-closed, HARDEN-01)' },
+  { name: 'HELCIM_WEBHOOK_SECRET', desc: 'Helcim webhook HMAC secret — required in prod (fail-closed, HARDEN-02)' },
+  { name: 'CALCOM_WEBHOOK_SECRET', desc: 'Cal.com webhook HMAC secret — required in prod (fail-closed, HARDEN-02)' },
+  { name: 'REDIS_ENCRYPTION_KEY', desc: 'Redis Zoho refresh-token encryption key — required in prod (#106)' },
+];
+
 // Optional vars — missing any logs a warning but startup continues.
 var OPTIONAL = [
   { name: 'ZOHO_REFRESH_TOKEN',        desc: 'Zoho refresh token (can be set via /auth/zoho)' },
@@ -21,13 +30,11 @@ var OPTIONAL = [
   { name: 'RESEND_API_KEY',            desc: 'Resend API key for transactional email (HTTPS; SMTP is blocked on Railway)' },
   { name: 'MAIL_FROM',                 desc: 'From address on a Resend-verified domain (default: hello@steinsandvines.ca)' },
   { name: 'CONTACT_TO',               desc: 'Contact form + staff notification destination email' },
-  { name: 'GP_ENVIRONMENT',           desc: 'Global Payments environment (test/production)' },
-  { name: 'GP_APP_ID',                desc: 'Global Payments app ID' },
-  { name: 'GP_APP_KEY',               desc: 'Global Payments app key' },
-  { name: 'GP_MERCHANT_ID',           desc: 'Global Payments merchant ID' },
-  { name: 'GP_TERMINAL_ENABLED',      desc: 'Enable GP POS terminal (true/false)' },
-  { name: 'GP_DEPOSIT_AMOUNT',        desc: 'GP POS deposit amount' },
-  { name: 'RECAPTCHA_SECRET_KEY',     desc: 'Google reCAPTCHA secret (fail-open if missing)' },
+  { name: 'RECAPTCHA_SECRET_KEY',     desc: 'Google reCAPTCHA secret (fail-open if missing in dev; hard-fail in prod)' },
+  { name: 'HELCIM_API_TOKEN',         desc: 'Helcim API token for payment processing' },
+  { name: 'HELCIM_DEVICE_CODE',       desc: 'Helcim POS terminal device code (leave blank to disable)' },
+  { name: 'HELCIM_WEBHOOK_SECRET',    desc: 'Helcim webhook HMAC signing secret (hard-fail in prod)' },
+  { name: 'REDIS_ENCRYPTION_KEY',     desc: 'AES encryption key for Zoho refresh token in Redis (hard-fail in prod)' },
   { name: 'INVENTORY_LEDGER_ENABLED', desc: 'Enable Redis inventory ledger (true/false)' },
   { name: 'MAKERS_FEE_ITEM_ID',       desc: 'Zoho item ID for the Maker\'s Fee line item' },
   { name: 'MATERIALS_FEE_ITEM_ID',    desc: 'Zoho item ID for the Materials Fee line item' },
@@ -47,7 +54,7 @@ var OPTIONAL = [
   { name: 'ZOHO_TAX_ZERO_ID',         desc: 'Zoho tax ID: zero rate' },
   { name: 'ZOHO_TAX_ZERO_RULE',       desc: 'Zoho tax rule: zero rate' },
   { name: 'CALCOM_API_KEY',                  desc: 'Cal.com API v2 key (Bearer auth)' },
-  { name: 'CALCOM_WEBHOOK_SECRET',           desc: 'Cal.com webhook HMAC signing secret' },
+  { name: 'CALCOM_WEBHOOK_SECRET',           desc: 'Cal.com webhook HMAC signing secret (hard-fail in prod)' },
   { name: 'CALCOM_EVENT_TYPE_FERMENT_KIT',   desc: 'Cal.com numeric event-type id for ferment-in-store' },
   { name: 'CALCOM_EVENT_TYPE_BOTTLING',      desc: 'Cal.com numeric event-type id for bottling' },
   { name: 'APPS_SCRIPT_URL',          desc: 'Google Apps Script Web App URL' },
@@ -61,6 +68,19 @@ var OPTIONAL = [
 ];
 
 function validateEnv() {
+  // ── D-02: Boot assertion — "looks like prod but NODE_ENV !== production" ──
+  // RAILWAY_ENVIRONMENT is injected by Railway into every service. If it is set,
+  // this process is running on Railway. Refusing to boot when NODE_ENV is not
+  // 'production' prevents a silent misconfiguration from re-opening every
+  // fail-closed gate added in Plans 01-02. This check MUST NOT be gated on
+  // isProd (that would be circular).
+  if (process.env.RAILWAY_ENVIRONMENT && process.env.NODE_ENV !== 'production') {
+    log.error('[startup] RAILWAY_ENVIRONMENT set but NODE_ENV !== production — refusing to boot fail-open (D-02)');
+    log.error('[startup] Set NODE_ENV=production explicitly on the Railway middleware service.');
+    process.exit(1);
+  }
+
+  // ── Existing REQUIRED check (unchanged) ───────────────────────────────────
   var missing = REQUIRED.filter(function (v) {
     // API_SECRET_KEY accepts MW_API_KEY as a legacy alias
     if (v.name === 'API_SECRET_KEY') {
@@ -75,6 +95,25 @@ function validateEnv() {
     });
     log.error('[startup] ' + missing.length + ' required env var(s) missing. Exiting.');
     process.exit(1);
+  }
+
+  // ── D-06: REQUIRED_IN_PROD — hard-fail boot on missing prod secrets ───────
+  // In production, every money-path / security secret must be set BEFORE
+  // deploy. A missing secret breaks the deploy loudly (boot fails) rather than
+  // silently rejecting every customer at runtime. The runtime fail-closed gates
+  // (D-03/D-04/D-05) remain as defense-in-depth.
+  var isProd = process.env.NODE_ENV === 'production';
+  if (isProd) {
+    var missingProd = REQUIRED_IN_PROD.filter(function (v) {
+      return !process.env[v.name];
+    });
+    if (missingProd.length > 0) {
+      missingProd.forEach(function (v) {
+        log.error('[startup] Missing required prod secret: ' + v.name + ' — ' + v.desc);
+      });
+      log.error('[startup] ' + missingProd.length + ' required prod secret(s) missing. Exiting. (D-06)');
+      process.exit(1);
+    }
   }
 
   var missingOptional = OPTIONAL.filter(function (v) { return !process.env[v.name]; });
