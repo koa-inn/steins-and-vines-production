@@ -71,7 +71,7 @@
 
 **Milestone Goal:** Make the money path trustworthy — test the online checkout, close the fail-open security gaps, and stop unsafe/untested code from reaching production.
 
-- [ ] **Phase 31: Money-Path Test Coverage** - Route-level checkout tests, Helcim HMAC tests, honest coverage config (TEST-01..03)
+- [x] **Phase 31: Money-Path Test Coverage** - Route-level checkout tests, Helcim HMAC tests, honest coverage config (TEST-01..03) (completed 2026-06-17)
 - [ ] **Phase 32: Fail-Closed Hardening & Access Control** - reCAPTCHA/webhook fail-closed, replay-guard 409, validateEnv update, PII route API-key enforcement, body-shape validation (HARDEN-01..04, PII-01..02)
 - [ ] **Phase 33: Deploy Safety & Monitoring** - Test-gated CI deploys, prod deploy tagging + rollback runbook, snapshot fix, uptime monitoring, secrets verification (DEPLOY-01..03, MONITOR-01..02)
 
@@ -328,7 +328,20 @@ Plans:
   3. Running `cd zoho-middleware && npm run test:coverage` reports coverage numbers that include `routes/**` files (no route file silently excluded from the report)
   4. Stale exclusions in `jest.config.js` (e.g. `!lib/mailer.js` where mailer is no longer untested) are removed so the coverage number is honest
 
-**Plans**: TBD
+**Plans**: 4 plans (3 waves)
+Plans:
+**Wave 1**
+
+- [x] 31-01-PLAN.md — server.js export refactor (importable app, guarded listen) + supertest dev dep + jest.config routes coverage glob (TEST-03 foundation)
+
+**Wave 2** (parallel)
+
+- [x] 31-02-PLAN.md — supertest route tests for POST /api/checkout: success→Zoho order, void recovery, void-failure alert, dual-cart reversal + HARDEN-01/03 test.todo (TEST-01)
+- [x] 31-03-PLAN.md — Helcim HMAC tests: verifyWebhookSignature unit (valid/tampered/missing-secret/base64) + POST /api/webhooks/terminal route tests + HARDEN-02 test.todo (TEST-02)
+
+**Wave 3**
+
+- [x] 31-04-PLAN.md — Measure honest coverage; set global threshold below actual + per-file money-path floors (checkout/payments/webhooks/helcim) (TEST-03)
 
 ### Phase 32: Fail-Closed Hardening & Access Control
 
@@ -343,7 +356,14 @@ Plans:
   4. `GET /api/contacts`, `GET /api/invoices`, `GET /api/items/inspect`, and `GET /api/snapshot` require the `MW_API_KEY` header — a request without it returns 401/403 regardless of Referer
   5. `POST /api/items`, `PUT /api/items`, `POST /api/taxes/apply`, and `POST /api/upload-catalog` reject requests with missing or malformed required body fields before forwarding anything to Zoho
 
-**Plans**: TBD
+**Plans**: 4 plans (1 wave — all parallel, disjoint files)
+Plans:
+**Wave 1** (parallel)
+
+- [ ] 32-01-PLAN.md — reCAPTCHA fail-closed + transactionId replay-guard 409 (HARDEN-01, HARDEN-03)
+- [ ] 32-02-PLAN.md — Helcim + Cal.com webhook verifiers fail closed in prod (HARDEN-02)
+- [ ] 32-03-PLAN.md — validateEnv prod-secret boot check + NODE_ENV/RAILWAY assertion + drop GP_* (HARDEN-04)
+- [ ] 32-04-PLAN.md — Targeted PII GET-route API-key guard + body-shape whitelist on mutating item/tax routes (PII-01, PII-02)
 
 ### Phase 33: Deploy Safety & Monitoring
 
@@ -377,7 +397,7 @@ Plans:
 | 27. Pending Batch Visibility & Activation | v4.1 | 4/4 | Complete    | 2026-06-11 |
 | 28. Zoho Customer Read-Back Path | v4.1 | 2/2 | Complete    | 2026-06-12 |
 | 29. Refresh-from-Zoho Admin UI | v4.1 | 6/6 | Complete   | 2026-06-14 |
-| 31. Money-Path Test Coverage | v4.2 | 0/? | Not started | - |
+| 31. Money-Path Test Coverage | v4.2 | 4/4 | Complete    | 2026-06-17 |
 | 32. Fail-Closed Hardening & Access Control | v4.2 | 0/? | Not started | - |
 | 33. Deploy Safety & Monitoring | v4.2 | 0/? | Not started | - |
 

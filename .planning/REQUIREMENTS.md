@@ -21,9 +21,9 @@
 
 ### Test the Money
 
-- [ ] **TEST-01**: Route-level tests cover `POST /api/checkout` — charge→order→void recovery, void-failure alert, and dual-cart shared-charge reversal.
-- [ ] **TEST-02**: The Helcim client and terminal/webhook HMAC verification are covered by tests (valid signature, tampered body, missing-secret behavior, base64 key).
-- [ ] **TEST-03**: Coverage collection includes `routes/**` (honest number reported) and stale exclusions (e.g. `!lib/mailer.js`) are removed.
+- [x] **TEST-01**: Route-level tests cover `POST /api/checkout` — charge→order→void recovery, void-failure alert, and dual-cart shared-charge reversal.
+- [x] **TEST-02**: The Helcim client and terminal/webhook HMAC verification are covered by tests (valid signature, tampered body, missing-secret behavior, base64 key).
+- [x] **TEST-03**: Coverage collection includes `routes/**` (honest number reported) and stale exclusions (e.g. `!lib/mailer.js`) are removed.
 
 ### Fail-Closed Hardening
 
@@ -67,9 +67,9 @@
 | DEPLOY-03 | Phase 33 | Pending |
 | MONITOR-01 | Phase 33 | Pending |
 | MONITOR-02 | Phase 33 | Pending |
-| TEST-01 | Phase 31 | Pending |
-| TEST-02 | Phase 31 | Pending |
-| TEST-03 | Phase 31 | Pending |
+| TEST-01 | Phase 31 | Complete |
+| TEST-02 | Phase 31 | Complete |
+| TEST-03 | Phase 31 | Complete |
 | HARDEN-01 | Phase 32 | Pending |
 | HARDEN-02 | Phase 32 | Pending |
 | HARDEN-03 | Phase 32 | Pending |
