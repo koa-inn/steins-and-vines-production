@@ -60,11 +60,14 @@ jobs:
       contents: write
 
     steps:
-      # a. Checkout with full history and all tags
+      # a. Checkout with full history and all tags.
+      # Use the default GITHUB_TOKEN (contents:write via the job `permissions:` block)
+      # so pushes back to THIS repo (staging) — tag, runbook, CNAME restore — succeed.
+      # PROD_DEPLOY_TOKEN is scoped to the production repo only and would 403 on staging;
+      # it is used solely for the explicit production-repo URLs below (keeps T-33-09 scope tight).
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PROD_DEPLOY_TOKEN }}
           fetch-depth: 0
 
       # b. CNAME pre-flight guard (Pitfall 3 / T-33-07)
