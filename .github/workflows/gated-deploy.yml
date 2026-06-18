@@ -61,14 +61,26 @@ jobs:
 
     steps:
       # a. Checkout with full history and all tags.
-      # Use the default GITHUB_TOKEN (contents:write via the job `permissions:` block)
-      # so pushes back to THIS repo (staging) — tag, runbook, CNAME restore — succeed.
-      # PROD_DEPLOY_TOKEN is scoped to the production repo only and would 403 on staging;
-      # it is used solely for the explicit production-repo URLs below (keeps T-33-09 scope tight).
+      # persist-credentials: false is CRITICAL. By default actions/checkout writes an
+      # http.https://github.com/.extraheader credential that applies to EVERY github.com
+      # URL and OVERRIDES the token embedded in an explicit push URL. That makes it
+      # impossible to push to two different repos (staging + production) with two
+      # different tokens. With persistence off, each push below authenticates via its
+      # own embedded x-access-token, so staging uses GITHUB_TOKEN and production uses
+      # the prod-scoped PROD_DEPLOY_TOKEN (keeps T-33-09 scope tight).
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
+
+      # a2. Point origin at a GITHUB_TOKEN-authenticated URL so staging pushes
+      # (prod tag, RUNBOOK row, CNAME restore) succeed. GITHUB_TOKEN has contents:write
+      # on this repo via the job `permissions:` block. Production pushes use their own
+      # explicit PROD_DEPLOY_TOKEN URLs and never rely on origin.
+      - name: Configure origin auth for staging pushes
+        run: |
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
 
       # b. CNAME pre-flight guard (Pitfall 3 / T-33-07)
       # If CNAME is already steinsandvines.ca, a previous deploy got stuck
