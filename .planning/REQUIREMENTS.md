@@ -27,15 +27,15 @@
 
 ### Fail-Closed Hardening
 
-- [ ] **HARDEN-01**: reCAPTCHA verification fails **closed** for unauthenticated callers on `POST /api/checkout` in production (unset key or network error → reject, not proceed).
-- [ ] **HARDEN-02**: Helcim and Cal.com webhooks reject events when their signing secret is unset in production (no fail-open acceptance of unsigned events).
-- [ ] **HARDEN-03**: The replay/idempotency guard returns 409 (fails closed) when Redis is unavailable, preventing duplicate Zoho orders for a single charge.
-- [ ] **HARDEN-04**: `validateEnv.js` validates the live Helcim/Cal.com/`REDIS_ENCRYPTION_KEY` variables and no longer checks dead Global Payments vars.
+- [x] **HARDEN-01**: reCAPTCHA verification fails **closed** for unauthenticated callers on `POST /api/checkout` in production (unset key or network error → reject, not proceed).
+- [x] **HARDEN-02**: Helcim and Cal.com webhooks reject events when their signing secret is unset in production (no fail-open acceptance of unsigned events).
+- [x] **HARDEN-03**: The replay/idempotency guard returns 409 (fails closed) when Redis is unavailable, preventing duplicate Zoho orders for a single charge.
+- [x] **HARDEN-04**: `validateEnv.js` validates the live Helcim/Cal.com/`REDIS_ENCRYPTION_KEY` variables and no longer checks dead Global Payments vars.
 
 ### Access Control
 
-- [ ] **PII-01**: PII-exposing GET routes (`/api/contacts`, `/api/invoices`, `/api/items/inspect`, `/api/snapshot`) require the API key (no Referer-skip bypass).
-- [ ] **PII-02**: Mutating item/tax routes (`/api/items` POST/PUT, `/api/taxes/apply`, `upload-catalog`) validate request body shape instead of forwarding raw `req.body` to Zoho.
+- [x] **PII-01**: PII-exposing GET routes (`/api/contacts`, `/api/invoices`, `/api/items/inspect`, `/api/snapshot`) require the API key (no Referer-skip bypass).
+- [x] **PII-02**: Mutating item/tax routes (`/api/items` POST/PUT, `/api/taxes/apply`, `upload-catalog`) validate request body shape instead of forwarding raw `req.body` to Zoho.
 
 ---
 
@@ -70,9 +70,9 @@
 | TEST-01 | Phase 31 | Complete |
 | TEST-02 | Phase 31 | Complete |
 | TEST-03 | Phase 31 | Complete |
-| HARDEN-01 | Phase 32 | Pending |
-| HARDEN-02 | Phase 32 | Pending |
-| HARDEN-03 | Phase 32 | Pending |
-| HARDEN-04 | Phase 32 | Pending |
-| PII-01 | Phase 32 | Pending |
-| PII-02 | Phase 32 | Pending |
+| HARDEN-01 | Phase 32 | Complete |
+| HARDEN-02 | Phase 32 | Complete |
+| HARDEN-03 | Phase 32 | Complete |
+| HARDEN-04 | Phase 32 | Complete |
+| PII-01 | Phase 32 | Complete |
+| PII-02 | Phase 32 | Complete |
