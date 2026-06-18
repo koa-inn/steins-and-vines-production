@@ -200,15 +200,34 @@ jobs:
       # (DEPLOY-02). Runs only on success() -- i.e. only after the force-push succeeded.
       - name: Append deploy history to RUNBOOK.md
         if: success()
+        env:
+          # Pass the user-supplied reason via env (never interpolate ${{ }} straight
+          # into the shell) to avoid command injection, then strip newlines and pipes
+          # so it cannot break out of or corrupt the Markdown table row.
+          REASON_RAW: ${{ github.event.inputs.reason }}
         run: |
           UTC_DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
           SHORT_SHA="${{ steps.meta.outputs.short_sha }}"
           DEPLOY_ID="${{ steps.railway.outputs.deploy_id }}"
-          REASON="${{ github.event.inputs.reason }}"
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          REASON=$(printf '%s' "$REASON_RAW" | tr -d '\r\n' | tr '|' '/')
+          REASON="${REASON:-manual deploy via gated-deploy.yml}"
 
-          ROW="| ${UTC_DATE} | \`${SHORT_SHA}\` | \`${DEPLOY_ID}\` | [Run](${RUN_URL}) | ${REASON:-manual deploy via gated-deploy.yml} |"
-          echo "${ROW}" >> docs/RUNBOOK.md
+          ROW="| ${UTC_DATE} | \`${SHORT_SHA}\` | \`${DEPLOY_ID}\` | [Run](${RUN_URL}) | ${REASON} |"
+          # Insert the row INTO the Deploy History table (newest first), right after that
+          # table's header separator -- not at EOF (which lands outside the table). Anchor
+          # on the "## Deploy History" heading so we never match the Overview table above.
+          awk -v row="$ROW" '
+            /^## Deploy History/ { in_dh = 1 }
+            in_dh && !done && /^\|-+\|/ { print; print row; done = 1; next }
+            { print }
+          ' docs/RUNBOOK.md > docs/RUNBOOK.md.tmp
+          mv docs/RUNBOOK.md.tmp docs/RUNBOOK.md
+          # Safety net: if the table anchor ever goes missing, don't lose the record.
+          if ! grep -qF "${SHORT_SHA}" docs/RUNBOOK.md; then
+            echo "WARNING: deploy row not inserted into the table (anchor missing?) — appending at EOF"
+            echo "${ROW}" >> docs/RUNBOOK.md
+          fi
 
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

@@ -13,10 +13,11 @@ Use the blessed path unless something is actively broken and you need to ship a 
 
 ## Deploy History
 
-<!-- The gated-deploy.yml workflow appends one row per deploy below this line. -->
+<!-- gated-deploy.yml inserts each new deploy row directly under the table separator below (newest first). -->
 
 | Date | Git SHA | Railway Deploy ID | Deploy URL | Notes |
 |------|---------|-------------------|------------|-------|
+| 2026-06-18 14:11 UTC | `04c09d98` | `0461dc19-d188-48e9-858e-c33d6a996d17` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/27765441259) | testing deploy workflow |
 
 ---
 
@@ -173,6 +174,7 @@ Verify these are set in the Railway `svmiddleware-production` service before the
 - [ ] `CALCOM_WEBHOOK_SECRET` — Cal.com webhook HMAC secret (required in prod, fail-closed)
 - [ ] `REDIS_ENCRYPTION_KEY` — Zoho refresh-token encryption key (required in prod, #106)
 - [ ] `SENTRY_DSN` — Sentry error tracking DSN (required in prod as of Phase 33, MONITOR-02)
+- [ ] `HELCIM_API_TOKEN` — Helcim payment API token (required in prod as of Phase 33 — middleware will NOT boot without it)
 
 A healthy post-deploy `/health` response (HTTP 200, `redis:true`) confirms the app booted successfully through `validateEnv.js`, which means all `REQUIRED_IN_PROD` vars are present.
 
@@ -182,20 +184,18 @@ A healthy post-deploy `/health` response (HTTP 200, `redis:true`) confirms the a
 
 The CNAME file is **tracked in git** (not untracked — see Research note below).
 
-| State | CNAME value | When |
-|-------|-------------|------|
-| Staging (normal) | `staging.steinsandvines.ca` | At rest on staging repo |
-| Production deploy | `steinsandvines.ca` | Set by gated-deploy before force-push |
-| After restore | `staging.steinsandvines.ca` | Restored by gated-deploy after force-push |
+| Repo | CNAME value | When |
+|------|-------------|------|
+| Staging (`origin`) | `staging.steinsandvines.ca` | Always — staging's CNAME is never changed |
+| Production | `steinsandvines.ca` | Set by gated-deploy as part of the force-pushed commit |
 
-**The gated-deploy workflow handles the CNAME swap automatically:**
-1. Validates CNAME is `staging.steinsandvines.ca` before starting (aborts if it is already the production value)
-2. Commits `steinsandvines.ca` before the force-push
-3. Restores `staging.steinsandvines.ca` in an `if: always()` step (runs even if smoke-check fails)
+**The gated-deploy workflow handles the CNAME swap without ever touching staging:**
+1. Validates CNAME is `staging.steinsandvines.ca` before starting (aborts if it is already the production value — backstop against an externally-introduced stuck state)
+2. Commits `steinsandvines.ca` on top of the deploy SHA and force-pushes that commit to the **production** repo only
+3. Immediately runs `git reset --hard` back to the deploy SHA, so the prod-CNAME commit is never pushed to `origin`/staging. There is no separate "restore" step — staging's CNAME is never modified, eliminating the old mid-swap window.
 
 **Never push `steinsandvines.ca` to the staging repo (`origin`) or `staging.steinsandvines.ca` to the production repo.**
 
 > **`enforce-cname.yml` is BROKEN (403):** The workflow uses `gh api ... -X PUT` to set the Pages domain. This fails with 403 because `GITHUB_TOKEN` lacks the `pages:write` scope for the PUT endpoint on repos using Actions-based deploy. Do NOT rely on `enforce-cname.yml` for CNAME management — the gated-deploy workflow manages it manually.
 
 > **Research note:** CLAUDE.md states "CNAME is in `.gitignore`." This is technically inaccurate — CNAME is listed in `.gitignore` but was committed before that entry and remains tracked. `git ls-files CNAME` returns `CNAME`. Once a file is tracked, `.gitignore` has no effect until `git rm --cached`.
-| 2026-06-18 14:11 UTC | `04c09d98` | `0461dc19-d188-48e9-858e-c33d6a996d17` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/27765441259) | testing deploy workflow |

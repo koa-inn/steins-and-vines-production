@@ -23,10 +23,21 @@ jobs:
       contents: write       # Allow pushing the updated snapshot file
 
     steps:
+      # persist-credentials: false is REQUIRED for the dual-repo push below. By default
+      # actions/checkout writes an http.extraheader credential that applies to every
+      # github.com URL and OVERRIDES the token embedded in the explicit production push
+      # URL -- so the production cross-push would silently 403 as github-actions[bot]
+      # every night. With persistence off, the staging push uses GITHUB_TOKEN (via the
+      # origin URL set below) and the production push uses its own embedded
+      # PROD_DEPLOY_TOKEN. (Same fix applied to gated-deploy.yml.)
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
+
+      - name: Configure origin auth for staging push
+        run: |
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
 
       - name: Fetch snapshot from middleware
         id: fetch

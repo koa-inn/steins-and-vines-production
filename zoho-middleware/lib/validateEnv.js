@@ -33,10 +33,11 @@ var OPTIONAL = [
   { name: 'RESEND_API_KEY',            desc: 'Resend API key for transactional email (HTTPS; SMTP is blocked on Railway)' },
   { name: 'MAIL_FROM',                 desc: 'From address on a Resend-verified domain (default: hello@steinsandvines.ca)' },
   { name: 'CONTACT_TO',               desc: 'Contact form + staff notification destination email' },
-  { name: 'RECAPTCHA_SECRET_KEY',     desc: 'Google reCAPTCHA secret (fail-open if missing in dev; hard-fail in prod)' },
+  // NOTE: RECAPTCHA_SECRET_KEY, HELCIM_WEBHOOK_SECRET, CALCOM_WEBHOOK_SECRET, and
+  // REDIS_ENCRYPTION_KEY are intentionally NOT listed here — they live in
+  // REQUIRED_IN_PROD. Listing them as OPTIONAL too produced a misleading
+  // "optional env vars not set" warning in dev/CI where they are legitimately absent.
   { name: 'HELCIM_DEVICE_CODE',       desc: 'Helcim POS terminal device code (leave blank to disable)' },
-  { name: 'HELCIM_WEBHOOK_SECRET',    desc: 'Helcim webhook HMAC signing secret (hard-fail in prod)' },
-  { name: 'REDIS_ENCRYPTION_KEY',     desc: 'AES encryption key for Zoho refresh token in Redis (hard-fail in prod)' },
   { name: 'INVENTORY_LEDGER_ENABLED', desc: 'Enable Redis inventory ledger (true/false)' },
   { name: 'MAKERS_FEE_ITEM_ID',       desc: 'Zoho item ID for the Maker\'s Fee line item' },
   { name: 'MATERIALS_FEE_ITEM_ID',    desc: 'Zoho item ID for the Materials Fee line item' },
@@ -56,7 +57,6 @@ var OPTIONAL = [
   { name: 'ZOHO_TAX_ZERO_ID',         desc: 'Zoho tax ID: zero rate' },
   { name: 'ZOHO_TAX_ZERO_RULE',       desc: 'Zoho tax rule: zero rate' },
   { name: 'CALCOM_API_KEY',                  desc: 'Cal.com API v2 key (Bearer auth)' },
-  { name: 'CALCOM_WEBHOOK_SECRET',           desc: 'Cal.com webhook HMAC signing secret (hard-fail in prod)' },
   { name: 'CALCOM_EVENT_TYPE_FERMENT_KIT',   desc: 'Cal.com numeric event-type id for ferment-in-store' },
   { name: 'CALCOM_EVENT_TYPE_BOTTLING',      desc: 'Cal.com numeric event-type id for bottling' },
   { name: 'APPS_SCRIPT_URL',          desc: 'Google Apps Script Web App URL' },
