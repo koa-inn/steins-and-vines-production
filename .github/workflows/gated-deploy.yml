@@ -1,0 +1,275 @@
+name: Gated Production Deploy
+
+# BLESSED deploy path (D-01/D-02): manual trigger only.
+# Break-glass bypass: `git push production main --force` still exists for emergencies
+# but bypasses tests, CNAME guard, tagging, and runbook entry.
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for this production deploy (appears in RUNBOOK.md)'
+        required: false
+        default: ''
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Job 1: Middleware tests (mirrors tests.yml exactly -- no E2E)
+  # -------------------------------------------------------------------------
+  test-middleware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+        working-directory: zoho-middleware
+      - run: npm test
+        working-directory: zoho-middleware
+      - name: Lint middleware
+        run: npm run lint
+        working-directory: zoho-middleware
+      - name: Audit middleware dependencies
+        run: npm audit --audit-level=high
+        working-directory: zoho-middleware
+
+  # -------------------------------------------------------------------------
+  # Job 2: Frontend tests (mirrors tests.yml exactly -- no E2E)
+  # -------------------------------------------------------------------------
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm test
+      - name: Lint frontend
+        run: npm run lint
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=high
+
+  # -------------------------------------------------------------------------
+  # Job 3: Deploy -- only runs when BOTH test jobs pass (D-03)
+  # -------------------------------------------------------------------------
+  deploy:
+    needs: [test-middleware, test-frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # a. Checkout with full history and all tags
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PROD_DEPLOY_TOKEN }}
+          fetch-depth: 0
+
+      # b. CNAME pre-flight guard (Pitfall 3 / T-33-07)
+      # If CNAME is already steinsandvines.ca, a previous deploy got stuck
+      # mid-swap. Abort immediately to prevent pushing the wrong domain.
+      - name: CNAME pre-flight guard
+        run: |
+          CURRENT_CNAME=$(cat CNAME)
+          echo "Current CNAME value: ${CURRENT_CNAME}"
+          if [ "$CURRENT_CNAME" = "steinsandvines.ca" ]; then
+            echo "ERROR: CNAME is already 'steinsandvines.ca'."
+            echo "A previous deploy may have gotten stuck mid-swap."
+            echo "Fix: manually restore CNAME to 'staging.steinsandvines.ca', commit [skip ci], and push."
+            exit 1
+          fi
+          echo "CNAME pre-flight passed: ${CURRENT_CNAME} (not production value)"
+
+      # c. Set CNAME to production value and commit
+      - name: Set CNAME to steinsandvines.ca for production deploy
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "steinsandvines.ca" > CNAME
+          git add CNAME
+          git commit -m "chore: set CNAME to steinsandvines.ca for production deploy [skip ci]"
+          echo "CNAME commit created"
+
+      # d. Force-push to production
+      # Triggers deploy-production.yml on koa-inn/steins-and-vines-production.
+      - name: Force-push to production repo
+        run: |
+          git push https://x-access-token:${{ secrets.PROD_DEPLOY_TOKEN }}@github.com/koa-inn/steins-and-vines-production.git HEAD:main --force
+          echo "Force-push to production complete"
+
+      # e. Railway middleware deploy note
+      # Approach A (primary): Railway auto-deploys via watchPatterns = ["zoho-middleware/**"]
+      # in railway.toml. Enable "Wait for CI" in Railway Service Settings so Railway
+      # holds the auto-triggered deploy in WAITING state until this workflow's checks pass.
+      # If tests fail, Railway marks the deploy SKIPPED -- middleware never redeploys.
+      #
+      # Approach B (fallback if A is flaky due to extra check suites):
+      #   1. Dashboard -> Service Settings -> disable GitHub autodeploy
+      #   2. Add: railway up --service sv_middleware --ci
+      #      with env: RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      # See docs/RUNBOOK.md Human Prerequisites for Railway "Wait for CI" toggle setup.
+      - name: Railway deploy note (Approach A -- Wait for CI)
+        run: |
+          echo "Railway middleware auto-deploys via watchPatterns on the force-push above."
+          echo "Ensure 'Wait for CI' is enabled in Railway Service Settings for sv_middleware."
+          echo "See docs/RUNBOOK.md Human Prerequisites if Railway skips or never deploys."
+
+      # -----------------------------------------------------------------------
+      # CRITICAL ORDERING (DEPLOY-02):
+      # The force-push in step (d) already updated production. Steps f, g, h
+      # (metadata capture, tag, runbook append) are all marked if: success() || failure()
+      # so they run even if a later step (the smoke-check) exits 1. This ensures
+      # that EVERY deploy that reached production is recorded, including one whose
+      # smoke-check later fails.
+      # -----------------------------------------------------------------------
+
+      # f. Capture metadata (SHA + Railway deploy ID)
+      - name: Capture deploy metadata
+        id: meta
+        if: success() || failure()
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Deploy SHA: ${SHORT_SHA}"
+
+          DEPLOY_ID="unknown"
+          if [ -n "${RAILWAY_TOKEN}" ]; then
+            if command -v railway &>/dev/null; then
+              DEPLOY_ID=$(railway deployment list --service sv_middleware --json --limit 1 2>/dev/null | jq -r '.[0].id // "unknown"' 2>/dev/null || echo "unknown")
+            else
+              echo "WARNING: railway CLI not found -- installing..."
+              npm install -g @railway/cli 2>/dev/null || true
+              DEPLOY_ID=$(railway deployment list --service sv_middleware --json --limit 1 2>/dev/null | jq -r '.[0].id // "unknown"' 2>/dev/null || echo "unknown")
+            fi
+          else
+            echo "WARNING: RAILWAY_TOKEN secret is not set. Set it in repo secrets to capture deploy IDs."
+          fi
+          echo "deploy_id=${DEPLOY_ID}" >> "$GITHUB_OUTPUT"
+          echo "Railway Deploy ID: ${DEPLOY_ID}"
+
+      # g. Tag: prod-YYYYMMDD-N
+      - name: Create prod tag
+        if: success() || failure()
+        run: |
+          TODAY=$(date -u +%Y%m%d)
+          EXISTING=$(git tag -l "prod-${TODAY}-*" | wc -l | tr -d ' ')
+          N=$((EXISTING + 1))
+          TAG_NAME="prod-${TODAY}-${N}"
+          SHORT_SHA="${{ steps.meta.outputs.short_sha }}"
+
+          echo "Creating annotated tag: ${TAG_NAME} -> ${SHORT_SHA}"
+          git tag -a "${TAG_NAME}" "${SHORT_SHA}" -m "Production deploy ${TAG_NAME}: ${SHORT_SHA}"
+
+          git push origin "${TAG_NAME}"
+          git push https://x-access-token:${{ secrets.PROD_DEPLOY_TOKEN }}@github.com/koa-inn/steins-and-vines-production.git "${TAG_NAME}"
+
+          echo "Tag ${TAG_NAME} pushed to both remotes"
+          echo "TAG_NAME=${TAG_NAME}" >> "$GITHUB_ENV"
+
+      # h. Runbook append: write deploy history row BEFORE smoke-check
+      # This step runs even if a later smoke-check fails (success() || failure()),
+      # so every deploy that reached production is recorded (DEPLOY-02).
+      - name: Append deploy history to RUNBOOK.md
+        if: success() || failure()
+        run: |
+          UTC_DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
+          SHORT_SHA="${{ steps.meta.outputs.short_sha }}"
+          DEPLOY_ID="${{ steps.meta.outputs.deploy_id }}"
+          REASON="${{ github.event.inputs.reason }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          ROW="| ${UTC_DATE} | \`${SHORT_SHA}\` | \`${DEPLOY_ID}\` | [Run](${RUN_URL}) | ${REASON:-manual deploy via gated-deploy.yml} |"
+          echo "${ROW}" >> docs/RUNBOOK.md
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/RUNBOOK.md
+          git commit -m "chore: append deploy runbook entry [skip ci]"
+          git push origin main
+          echo "RUNBOOK.md updated and pushed to staging"
+
+      # i. Smoke-check /health (runs AFTER tag + runbook are committed)
+      # Hard-fail: non-200 HTTP OR redis:false
+      # Soft-warn: authenticated:false (expected on Railway restart -- log only)
+      # Grace window: 5 retries x 20s = max 100s for Railway cold-start
+      - name: Smoke-check /health
+        run: |
+          HEALTH_URL="https://svmiddleware-production.up.railway.app/health"
+          echo "Smoke-checking: ${HEALTH_URL}"
+          echo "Grace window: 5 retries x 20s = up to 100s for Railway cold-start"
+
+          PASSED=false
+          for i in 1 2 3 4 5; do
+            echo "Attempt ${i}/5: waiting 20s for Railway cold-start..."
+            sleep 20
+
+            HTTP_CODE=$(curl -s -o /tmp/health_body.json -w "%{http_code}" --max-time 15 "${HEALTH_URL}" 2>/dev/null || echo "000")
+            echo "HTTP status: ${HTTP_CODE}"
+
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "Attempt ${i}/5: HTTP ${HTTP_CODE} -- not ready yet"
+              continue
+            fi
+
+            REDIS=$(jq -r '.redis' /tmp/health_body.json 2>/dev/null || echo "null")
+            AUTH=$(jq -r '.authenticated' /tmp/health_body.json 2>/dev/null || echo "null")
+            UPTIME=$(jq -r '.uptime' /tmp/health_body.json 2>/dev/null || echo "null")
+            echo "redis=${REDIS}, authenticated=${AUTH}, uptime=${UPTIME}"
+
+            if [ "$REDIS" = "true" ]; then
+              echo "SMOKE CHECK PASSED on attempt ${i}: HTTP 200, redis=true"
+              PASSED=true
+              break
+            else
+              echo "Attempt ${i}/5: redis=${REDIS} -- Redis not connected yet"
+            fi
+          done
+
+          if [ "$PASSED" != "true" ]; then
+            echo ""
+            echo "SMOKE CHECK FAILED after 5 attempts."
+            echo "Health response body:"
+            cat /tmp/health_body.json 2>/dev/null || echo "(no body)"
+            echo ""
+            echo "Possible causes:"
+            echo "  - Railway middleware did not redeploy (check Wait for CI toggle)"
+            echo "  - Redis connection failed (check Railway Redis service)"
+            echo "  - HTTP != 200 after all retries (check Railway logs)"
+            echo ""
+            echo "RUNBOOK entry and git tag were already written (DEPLOY-02 -- record persists)."
+            echo "The deploy reached production but the health gate failed."
+            echo "See docs/RUNBOOK.md for rollback procedures."
+            exit 1
+          fi
+
+          AUTH=$(jq -r '.authenticated' /tmp/health_body.json 2>/dev/null || echo "null")
+          if [ "$AUTH" = "false" ]; then
+            echo ""
+            echo "SMOKE CHECK WARNING: authenticated=false"
+            echo "Zoho OAuth drops on every Railway restart -- this is expected."
+            echo "Action required: re-authenticate Zoho at https://svmiddleware-production.up.railway.app/auth/zoho"
+          fi
+
+          echo "Smoke check complete. Production is healthy."
+
+      # j. Restore CNAME to staging value (MUST be if: always())
+      # Runs even if the smoke-check fails, to prevent staging from holding
+      # the production CNAME (Pitfall 3 / T-33-07).
+      - name: Restore CNAME to staging.steinsandvines.ca
+        if: always()
+        run: |
+          echo "staging.steinsandvines.ca" > CNAME
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CNAME
+          if git diff --staged --quiet; then
+            echo "CNAME already restored to staging value -- nothing to commit"
+          else
+            git commit -m "chore: restore CNAME to staging.steinsandvines.ca after prod promote [skip ci]"
+            git push origin main
+            echo "CNAME restored to staging.steinsandvines.ca and pushed to origin"
+          fi
