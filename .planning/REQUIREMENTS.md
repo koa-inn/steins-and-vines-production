@@ -10,14 +10,14 @@
 
 ### Deploy Safety
 
-- [ ] **DEPLOY-01**: Production deploys are gated on the test suite — failing tests block the deploy (frontend + middleware).
-- [ ] **DEPLOY-02**: Every production deploy is tagged (`prod-YYYYMMDD-N` or similar) and a written rollback runbook pairs the git SHA with the Railway deploy.
-- [ ] **DEPLOY-03**: The nightly Zoho snapshot reaches the live production site (resolve the `[skip ci]` + force-push interaction that leaves the static fallback stale).
+- [x] **DEPLOY-01**: Production deploys are gated on the test suite — failing tests block the deploy (frontend + middleware).
+- [x] **DEPLOY-02**: Every production deploy is tagged (`prod-YYYYMMDD-N` or similar) and a written rollback runbook pairs the git SHA with the Railway deploy.
+- [x] **DEPLOY-03**: The nightly Zoho snapshot reaches the live production site (resolve the `[skip ci]` + force-push interaction that leaves the static fallback stale).
 
 ### Monitoring
 
-- [ ] **MONITOR-01**: An external uptime monitor polls the middleware `/health` endpoint and alerts on downtime, `authenticated:false`, or `redis:false`.
-- [ ] **MONITOR-02**: Required production secrets (`HELCIM_WEBHOOK_SECRET`, `RECAPTCHA_SECRET_KEY`, `SENTRY_DSN`) are verified present in Railway, and their absence fails closed (not silently) in production.
+- [x] **MONITOR-01**: An external uptime monitor polls the middleware `/health` endpoint and alerts on downtime, `authenticated:false`, or `redis:false`.
+- [x] **MONITOR-02**: Required production secrets (`HELCIM_WEBHOOK_SECRET`, `RECAPTCHA_SECRET_KEY`, `SENTRY_DSN`) are verified present in Railway, and their absence fails closed (not silently) in production.
 
 ### Test the Money
 
@@ -62,11 +62,11 @@
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| DEPLOY-01 | Phase 33 | Pending |
-| DEPLOY-02 | Phase 33 | Pending |
-| DEPLOY-03 | Phase 33 | Pending |
-| MONITOR-01 | Phase 33 | Pending |
-| MONITOR-02 | Phase 33 | Pending |
+| DEPLOY-01 | Phase 33 | Complete |
+| DEPLOY-02 | Phase 33 | Complete |
+| DEPLOY-03 | Phase 33 | Complete |
+| MONITOR-01 | Phase 33 | Complete |
+| MONITOR-02 | Phase 33 | Complete |
 | TEST-01 | Phase 31 | Complete |
 | TEST-02 | Phase 31 | Complete |
 | TEST-03 | Phase 31 | Complete |
