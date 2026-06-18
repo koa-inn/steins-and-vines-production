@@ -10,11 +10,15 @@ var REQUIRED = [
 
 // Required in production only (D-06) — missing any causes process.exit(1) when NODE_ENV=production.
 // These are the live money-path / security secrets; their absence in prod is a hard misconfiguration.
+// Full set = ROADMAP SC#5 (MONITOR-02, phase 33): RECAPTCHA, HELCIM webhook, Cal.com webhook,
+// REDIS encryption, Sentry DSN, and live Helcim API token.
 var REQUIRED_IN_PROD = [
-  { name: 'RECAPTCHA_SECRET_KEY', desc: 'Google reCAPTCHA secret — required in prod (fail-closed, HARDEN-01)' },
+  { name: 'RECAPTCHA_SECRET_KEY',  desc: 'Google reCAPTCHA secret — required in prod (fail-closed, HARDEN-01)' },
   { name: 'HELCIM_WEBHOOK_SECRET', desc: 'Helcim webhook HMAC secret — required in prod (fail-closed, HARDEN-02)' },
   { name: 'CALCOM_WEBHOOK_SECRET', desc: 'Cal.com webhook HMAC secret — required in prod (fail-closed, HARDEN-02)' },
-  { name: 'REDIS_ENCRYPTION_KEY', desc: 'Redis Zoho refresh-token encryption key — required in prod (#106)' },
+  { name: 'REDIS_ENCRYPTION_KEY',  desc: 'Redis Zoho refresh-token encryption key — required in prod (#106)' },
+  { name: 'SENTRY_DSN',            desc: 'Sentry DSN for error tracking — required in prod (MONITOR-02, ROADMAP SC#5, phase 33)' },
+  { name: 'HELCIM_API_TOKEN',      desc: 'Helcim API token for payment processing — required in prod (live Helcim, ROADMAP SC#5, phase 33)' },
 ];
 
 // Optional vars — missing any logs a warning but startup continues.
@@ -26,12 +30,10 @@ var OPTIONAL = [
   { name: 'PORT',                      desc: 'HTTP server port (default: 3001)' },
   { name: 'NODE_ENV',                  desc: 'Node environment' },
   { name: 'LOG_LEVEL',                 desc: 'Logger level (default: info)' },
-  { name: 'SENTRY_DSN',                desc: 'Sentry DSN for error tracking' },
   { name: 'RESEND_API_KEY',            desc: 'Resend API key for transactional email (HTTPS; SMTP is blocked on Railway)' },
   { name: 'MAIL_FROM',                 desc: 'From address on a Resend-verified domain (default: hello@steinsandvines.ca)' },
   { name: 'CONTACT_TO',               desc: 'Contact form + staff notification destination email' },
   { name: 'RECAPTCHA_SECRET_KEY',     desc: 'Google reCAPTCHA secret (fail-open if missing in dev; hard-fail in prod)' },
-  { name: 'HELCIM_API_TOKEN',         desc: 'Helcim API token for payment processing' },
   { name: 'HELCIM_DEVICE_CODE',       desc: 'Helcim POS terminal device code (leave blank to disable)' },
   { name: 'HELCIM_WEBHOOK_SECRET',    desc: 'Helcim webhook HMAC signing secret (hard-fail in prod)' },
   { name: 'REDIS_ENCRYPTION_KEY',     desc: 'AES encryption key for Zoho refresh token in Redis (hard-fail in prod)' },
