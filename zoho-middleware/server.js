@@ -250,6 +250,18 @@ if (!API_SECRET_KEY) {
   log.warn('');
 }
 
+// Constant-time API key comparison. A plain `===` on the secret is a timing
+// oracle that leaks the key byte-by-byte via response-time measurement; this
+// matters most for the PII GET guard below. Length is checked first (lengths
+// are not secret) so timingSafeEqual always gets equal-length buffers.
+function apiKeyMatches(sent) {
+  if (!API_SECRET_KEY || typeof sent !== 'string') return false;
+  var a = Buffer.from(sent);
+  var b = Buffer.from(API_SECRET_KEY);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 app.use('/api', function (req, res, next) {
   if (req.method === 'GET') return next();
   // /api/checkout is public — protected by reCAPTCHA + rate limit instead of API key
@@ -261,7 +273,7 @@ app.use('/api', function (req, res, next) {
   if (!API_SECRET_KEY) {
     return res.status(503).json({ error: 'Server not configured: API_SECRET_KEY is not set. Contact your administrator.' });
   }
-  if (req.headers['x-api-key'] === API_SECRET_KEY) return next();
+  if (apiKeyMatches(req.headers['x-api-key'])) return next();
   var sent = req.headers['x-api-key'];
   log.warn('[api-key] Forbidden: method=' + req.method + ' path=' + req.path +
     ' header-present=' + (sent !== undefined) +
@@ -410,7 +422,7 @@ app.use('/api/kiosk/salesorder-pay', paymentLimiter);
 var PII_GET_ROUTES = ['/api/contacts', '/api/invoices', '/api/items/inspect', '/api/snapshot'];
 
 function requirePiiApiKey(req, res, next) {
-  if (API_SECRET_KEY && req.headers['x-api-key'] === API_SECRET_KEY) return next();
+  if (apiKeyMatches(req.headers['x-api-key'])) return next();
   return res.status(403).json({ error: 'Forbidden' });
 }
 
