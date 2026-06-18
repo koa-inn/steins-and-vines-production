@@ -266,10 +266,10 @@ describe('POST /api/webhooks/terminal (route)', function () {
   });
 
   // -------------------------------------------------------------------------
-  // Tampered body -> 401 { error: 'Invalid signature' }
+  // Tampered body -> 403 { error: 'Invalid signature' } (ROADMAP criterion 2)
   // -------------------------------------------------------------------------
 
-  test('tampered body -> 401 { error: \'Invalid signature\' }', function () {
+  test('tampered body -> 403 { error: \'Invalid signature\' }', function () {
     helcimLib.verifyWebhookSignature.mockReturnValue(false);
 
     return request(app)
@@ -278,15 +278,30 @@ describe('POST /api/webhooks/terminal (route)', function () {
       .set('webhook-timestamp', '1750000001')
       .set('webhook-signature', 'v1,bad-sig')
       .send({ type: 'cardTransaction', id: 'evt-tampered' })
-      .expect(401)
+      .expect(403)
       .then(function (res) {
         expect(res.body).toEqual({ error: 'Invalid signature' });
       });
   });
 
   // -------------------------------------------------------------------------
-  // Phase 32 gap marker
+  // HARDEN-02: route-level prod-gate — secret unset in prod -> 403 (criterion 2)
   // -------------------------------------------------------------------------
 
-  test.todo('HARDEN-02: missing HELCIM_WEBHOOK_SECRET currently accepts all webhooks — Phase 32 closes');
+  test('HARDEN-02: verifyWebhookSignature returns false -> route returns 403 (not processed)', function () {
+    // In prod, the verifier returns false when secret is unset (Task 1 fix).
+    // This test exercises the route rejection path: verifier false -> 403.
+    helcimLib.verifyWebhookSignature.mockReturnValue(false);
+
+    return request(app)
+      .post('/api/webhooks/terminal')
+      .set('webhook-id', 'wh-harden')
+      .set('webhook-timestamp', '1750000002')
+      .set('webhook-signature', '')
+      .send({ type: 'cardTransaction', id: 'evt-unsigned' })
+      .expect(403)
+      .then(function (res) {
+        expect(res.body).toEqual({ error: 'Invalid signature' });
+      });
+  });
 });
