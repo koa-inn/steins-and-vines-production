@@ -4,6 +4,7 @@ var zohoApi = require('../lib/zoho-api');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var C = require('../lib/constants');
+var validate = require('../lib/validate');
 
 var zohoGet = zohoApi.zohoGet;
 var zohoPost = zohoApi.zohoPost;
@@ -312,7 +313,14 @@ router.post('/api/taxes/setup', function (req, res) {
  * Returns a dry-run preview unless body contains { apply: true }.
  */
 router.post('/api/taxes/apply', function (req, res) {
-  var dryRun = !(req.body && req.body.apply === true);
+  // PII-02 / D-08: reject non-object bodies before reading any fields.
+  // taxes/apply does NOT forward req.body to Zoho — it only reads body.apply (boolean).
+  // Coerce apply strictly: any truthy non-boolean value is treated as false (dry run).
+  var bodyCheck = validate.validateBody(req.body, { allowed: ['apply'], required: [], types: { apply: 'boolean' } });
+  if (bodyCheck.error) {
+    return res.status(400).json({ error: bodyCheck.error });
+  }
+  var dryRun = !(bodyCheck.clean.apply === true);
 
   // Keyword sets for each tax category (matched case-insensitively)
   // Tax rule/tax IDs are configurable via env vars (defaults = current Zoho org values)

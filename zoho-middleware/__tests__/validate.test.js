@@ -1,6 +1,6 @@
 'use strict';
 
-const { validateLineItems, classifyZohoError } = require('../lib/validate');
+const { validateLineItems, classifyZohoError, validateBody } = require('../lib/validate');
 
 describe('validateLineItems', () => {
   test('rejects empty array', () => {
@@ -195,5 +195,158 @@ describe('classifyZohoError', () => {
     var result = classifyZohoError(err);
     expect(result.status).toBe(502);
     expect(result.message).toBe('An unexpected error occurred');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateBody — appended tests (PII-02 / D-08)
+// Existing validateLineItems and classifyZohoError tests above are UNCHANGED.
+// ---------------------------------------------------------------------------
+
+describe('validateBody', function () {
+  var SCHEMA = {
+    allowed: ['name', 'sku', 'rate', 'status'],
+    required: ['name'],
+    types: { rate: 'number' }
+  };
+
+  describe('body object check', function () {
+    test('rejects null body', function () {
+      var result = validateBody(null, SCHEMA);
+      expect(result.error).toMatch(/must be a JSON object/);
+      expect(result.clean).toEqual({});
+    });
+
+    test('rejects string body', function () {
+      var result = validateBody('just-a-string', SCHEMA);
+      expect(result.error).toMatch(/must be a JSON object/);
+      expect(result.clean).toEqual({});
+    });
+
+    test('rejects array body', function () {
+      var result = validateBody([{ name: 'foo' }], SCHEMA);
+      expect(result.error).toMatch(/must be a JSON object/);
+      expect(result.clean).toEqual({});
+    });
+
+    test('rejects undefined body', function () {
+      var result = validateBody(undefined, SCHEMA);
+      expect(result.error).toMatch(/must be a JSON object/);
+      expect(result.clean).toEqual({});
+    });
+
+    test('accepts a plain object', function () {
+      var result = validateBody({ name: 'Widget' }, SCHEMA);
+      expect(result.error).toBeNull();
+    });
+  });
+
+  describe('required field check', function () {
+    test('returns error when required field is missing', function () {
+      var result = validateBody({ sku: 'SKU-1' }, SCHEMA);
+      expect(result.error).toMatch(/name/);
+      expect(result.clean).toEqual({});
+    });
+
+    test('returns error when required field is empty string', function () {
+      var result = validateBody({ name: '' }, SCHEMA);
+      expect(result.error).toMatch(/name/);
+      expect(result.clean).toEqual({});
+    });
+
+    test('returns error when required field is null', function () {
+      var result = validateBody({ name: null }, SCHEMA);
+      expect(result.error).toMatch(/name/);
+      expect(result.clean).toEqual({});
+    });
+
+    test('passes when all required fields are present', function () {
+      var result = validateBody({ name: 'Widget' }, SCHEMA);
+      expect(result.error).toBeNull();
+    });
+  });
+
+  describe('type checking', function () {
+    test('rejects rate as object', function () {
+      var result = validateBody({ name: 'Widget', rate: { nested: 'obj' } }, SCHEMA);
+      expect(result.error).toMatch(/rate/);
+      expect(result.clean).toEqual({});
+    });
+
+    test('rejects rate as string', function () {
+      var result = validateBody({ name: 'Widget', rate: 'not-a-number' }, SCHEMA);
+      expect(result.error).toMatch(/rate/);
+    });
+
+    test('accepts rate as number', function () {
+      var result = validateBody({ name: 'Widget', rate: 29.99 }, SCHEMA);
+      expect(result.error).toBeNull();
+      expect(result.clean.rate).toBe(29.99);
+    });
+
+    test('accepts rate as zero', function () {
+      var result = validateBody({ name: 'Widget', rate: 0 }, SCHEMA);
+      expect(result.error).toBeNull();
+      expect(result.clean.rate).toBe(0);
+    });
+  });
+
+  describe('field stripping (no field smuggling)', function () {
+    test('strips unknown fields from output', function () {
+      var result = validateBody({
+        name: 'Widget',
+        unknown_key: 'evil-value',
+        __proto__: 'attack'
+      }, SCHEMA);
+      expect(result.error).toBeNull();
+      expect(result.clean.name).toBe('Widget');
+      expect(result.clean.unknown_key).toBeUndefined();
+    });
+
+    test('includes all known allowed fields present in input', function () {
+      var result = validateBody({ name: 'Widget', sku: 'W-1', rate: 10, status: 'active' }, SCHEMA);
+      expect(result.error).toBeNull();
+      expect(result.clean).toEqual({ name: 'Widget', sku: 'W-1', rate: 10, status: 'active' });
+    });
+
+    test('omits allowed fields that are not present in input', function () {
+      var result = validateBody({ name: 'Widget' }, SCHEMA);
+      expect(result.error).toBeNull();
+      expect(result.clean).toEqual({ name: 'Widget' });
+      expect(result.clean.sku).toBeUndefined();
+    });
+  });
+
+  describe('schema with no required fields (partial update pattern)', function () {
+    var PARTIAL_SCHEMA = {
+      allowed: ['rate', 'status'],
+      required: [],
+      types: { rate: 'number' }
+    };
+
+    test('accepts empty body for partial update', function () {
+      var result = validateBody({}, PARTIAL_SCHEMA);
+      expect(result.error).toBeNull();
+      expect(result.clean).toEqual({});
+    });
+
+    test('still strips unknown fields', function () {
+      var result = validateBody({ rate: 20, evil: 'payload' }, PARTIAL_SCHEMA);
+      expect(result.error).toBeNull();
+      expect(result.clean).toEqual({ rate: 20 });
+    });
+  });
+
+  describe('backward-compat: original exports still work', function () {
+    test('validateLineItems still exported and works', function () {
+      expect(typeof validateLineItems).toBe('function');
+      expect(validateLineItems([])).toMatch(/non-empty/);
+    });
+
+    test('classifyZohoError still exported and works', function () {
+      expect(typeof classifyZohoError).toBe('function');
+      var r = classifyZohoError({});
+      expect(r.status).toBe(502);
+    });
   });
 });

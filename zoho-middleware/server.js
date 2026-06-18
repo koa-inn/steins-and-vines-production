@@ -394,6 +394,29 @@ app.use('/api/pos/collect', paymentLimiter);
 app.use('/api/kiosk/salesorder-pay', paymentLimiter);
 
 // ---------------------------------------------------------------------------
+// PII-01: Targeted API-key guard on exactly the 4 PII-exposing GET routes.
+// These routes return customer/contact/invoice data — they must require the
+// API key regardless of Referer (Referer can be spoofed by the public site).
+//
+// Rationale: The global guard above exempts ALL GET (line 254 — required for
+// ~12+ legitimately-public storefront routes like /api/products, /api/ingredients).
+// We cannot invert that default without breaking the public storefront.
+// Solution: narrow targeted guard on exactly these 4 paths (D-07).
+//
+// Exact-match path list — /api/contacts/search (pos.js) is a different path
+// and is intentionally NOT in this list.
+// ---------------------------------------------------------------------------
+
+var PII_GET_ROUTES = ['/api/contacts', '/api/invoices', '/api/items/inspect', '/api/snapshot'];
+
+function requirePiiApiKey(req, res, next) {
+  if (API_SECRET_KEY && req.headers['x-api-key'] === API_SECRET_KEY) return next();
+  return res.status(403).json({ error: 'Forbidden' });
+}
+
+PII_GET_ROUTES.forEach(function (p) { app.get(p, requirePiiApiKey); });
+
+// ---------------------------------------------------------------------------
 // Route modules
 // ---------------------------------------------------------------------------
 

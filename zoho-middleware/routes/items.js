@@ -3,12 +3,45 @@ var axios = require('axios');
 var zohoApi = require('../lib/zoho-api');
 var zohoAuth = require('../lib/zohoAuth');
 var log = require('../lib/logger');
+var validate = require('../lib/validate');
 
 var zohoGet = zohoApi.zohoGet;
 var zohoPost = zohoApi.zohoPost;
 var inventoryGet = zohoApi.inventoryGet;
 var inventoryPut = zohoApi.inventoryPut;
 var ZOHO_INVENTORY_BASE = zohoApi.ZOHO_INVENTORY_BASE;
+var validateBody = validate.validateBody;
+
+// Standard Zoho Books item fields allowed in create/update payloads (D-08 whitelist).
+// Unknown fields are stripped silently before forwarding to Zoho (no field smuggling).
+var ITEM_ALLOWED_FIELDS = [
+  'name', 'sku', 'rate', 'purchase_rate', 'description', 'unit',
+  'product_type', 'item_type', 'category_name', 'category_id',
+  'sales_tax_rule_id', 'tax_id', 'status',
+  // Custom fields used by this org
+  'cf_type', 'cf_subcategory', 'cf_subcategory_1', 'cf_vendor',
+  'cf_brand', 'cf_manufacturer', 'cf_origin', 'cf_vintage',
+  'cf_region', 'cf_country', 'cf_grapes', 'cf_weight', 'cf_unit',
+  'cf_color', 'cf_style', 'cf_abv', 'cf_ibu', 'cf_srm', 'cf_og',
+  'cf_fg', 'cf_milling_fee', 'cf_tag', 'cf_notes'
+];
+
+var ITEM_FIELD_TYPES = {
+  rate: 'number',
+  purchase_rate: 'number'
+};
+
+var ITEM_CREATE_SCHEMA = {
+  allowed: ITEM_ALLOWED_FIELDS,
+  required: ['name'],
+  types: ITEM_FIELD_TYPES
+};
+
+var ITEM_UPDATE_SCHEMA = {
+  allowed: ITEM_ALLOWED_FIELDS,
+  required: [],
+  types: ITEM_FIELD_TYPES
+};
 
 var router = express.Router();
 
@@ -28,9 +61,14 @@ router.get('/api/items', function (req, res) {
 /**
  * POST /api/items
  * Create a new item in Zoho Books/Inventory.
+ * Body-shape validated before forwarding to Zoho (PII-02 / D-08).
  */
 router.post('/api/items', function (req, res) {
-  zohoPost('/items', req.body)
+  var result = validateBody(req.body, ITEM_CREATE_SCHEMA);
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+  zohoPost('/items', result.clean)
     .then(function (data) { res.status(201).json(data); })
     .catch(function (err) {
       var msg = err.message;
@@ -88,9 +126,15 @@ router.get('/api/inventory/items/:id', function (req, res) {
 /**
  * PUT /api/inventory/items/:id
  * Update a single item in Zoho Inventory.
+ * Body-shape validated before forwarding to Zoho (PII-02 / D-08).
+ * Partial update — name is not required in body (id is in path).
  */
 router.put('/api/inventory/items/:id', function (req, res) {
-  inventoryPut('/items/' + req.params.id, req.body)
+  var result = validateBody(req.body, ITEM_UPDATE_SCHEMA);
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+  inventoryPut('/items/' + req.params.id, result.clean)
     .then(function (data) { res.json(data); })
     .catch(function (err) {
       log.error('[api/inventory/items PUT] ' + err.message);
