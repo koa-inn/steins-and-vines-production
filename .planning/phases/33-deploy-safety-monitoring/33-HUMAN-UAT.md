@@ -8,7 +8,7 @@ updated: 2026-06-18T05:40:00Z
 
 ## Current Test
 
-Task 2 — Create the UptimeRobot /health keyword monitor (MONITOR-01)
+Task 3 — Run the first gated deploy and verify the full chain + MONITOR-02 secrets
 
 ## Tests
 
@@ -18,7 +18,7 @@ result: passed — 2026-06-18. PROD_DEPLOY_TOKEN added as Actions secret on the 
 
 ### 2. UptimeRobot /health keyword monitor live (MONITOR-01)
 expected: A UptimeRobot Keyword monitor polls https://svmiddleware-production.up.railway.app/health every 5 minutes, keyword `"redis":true` (exists check — alerts when ABSENT or HTTP != 200), email alert configured. Exact keyword string matches the live /health serialization (confirmed by curl: `{"status":"ok","authenticated":true,"redis":true,...}`). A test check reports UP.
-result: [pending]
+result: passed — 2026-06-18. UptimeRobot Keyword monitor created on https://svmiddleware-production.up.railway.app/health, keyword `"redis":true` (alert when not exists), 5-min interval, email alert. Test check reports UP.
 
 ### 3. First gated deploy ran green end-to-end + MONITOR-02 secrets posture closed (DEPLOY-01/02/03, MONITOR-02)
 expected: gated-deploy.yml triggered via workflow_dispatch; deploy job ran only because both test jobs passed (DEPLOY-01); steinsandvines.ca loads and /health returns 200 + redis:true; a `prod-YYYYMMDD-N` tag exists on both repos; docs/RUNBOOK.md has a new deploy-history row pairing git SHA + Railway deploy ID (DEPLOY-02); CNAME restored to staging.steinsandvines.ca on staging and steinsandvines.ca does not 404; steinsandvines.ca/content/zoho-snapshot.json generated_at within 25h (DEPLOY-03); Railway confirmed NODE_ENV=production + all REQUIRED_IN_PROD secrets (incl. SENTRY_DSN, HELCIM_API_TOKEN) present (healthy boot proves the gate — MONITOR-02 / D-09); pending 32-HUMAN-UAT.md items closed.
@@ -27,9 +27,9 @@ result: [pending]
 ## Summary
 
 total: 3
-passed: 1
+passed: 2
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
