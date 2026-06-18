@@ -356,7 +356,14 @@ Plans:
   4. `GET /api/contacts`, `GET /api/invoices`, `GET /api/items/inspect`, and `GET /api/snapshot` require the `MW_API_KEY` header — a request without it returns 401/403 regardless of Referer
   5. `POST /api/items`, `PUT /api/items`, `POST /api/taxes/apply`, and `POST /api/upload-catalog` reject requests with missing or malformed required body fields before forwarding anything to Zoho
 
-**Plans**: TBD
+**Plans**: 4 plans (1 wave — all parallel, disjoint files)
+Plans:
+**Wave 1** (parallel)
+
+- [ ] 32-01-PLAN.md — reCAPTCHA fail-closed + transactionId replay-guard 409 (HARDEN-01, HARDEN-03)
+- [ ] 32-02-PLAN.md — Helcim + Cal.com webhook verifiers fail closed in prod (HARDEN-02)
+- [ ] 32-03-PLAN.md — validateEnv prod-secret boot check + NODE_ENV/RAILWAY assertion + drop GP_* (HARDEN-04)
+- [ ] 32-04-PLAN.md — Targeted PII GET-route API-key guard + body-shape whitelist on mutating item/tax routes (PII-01, PII-02)
 
 ### Phase 33: Deploy Safety & Monitoring
 
