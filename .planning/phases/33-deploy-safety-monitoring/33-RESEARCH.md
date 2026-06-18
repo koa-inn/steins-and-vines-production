@@ -727,22 +727,25 @@ zoho-middleware/lib/
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should HELCIM_API_TOKEN be added to REQUIRED_IN_PROD?**
    - What we know: it is currently OPTIONAL; payments hard-fail at runtime without it
    - What's unclear: the MONITOR-02 requirement only lists 3 secrets; was HELCIM_API_TOKEN intentionally left out?
    - Recommendation: Add it to REQUIRED_IN_PROD alongside SENTRY_DSN. If it causes issues, it means the token wasn't set in Railway — which is the correct alarm.
+   - **RESOLVED:** Yes — promote HELCIM_API_TOKEN to REQUIRED_IN_PROD. Grounded in ROADMAP **Success Criterion #5** (verbatim: "`validateEnv.js` startup check covers the live Helcim/Cal.com/`REDIS_ENCRYPTION_KEY` variables while dead Global Payments vars are removed"), so covering live Helcim vars is ROADMAP-LOCKED, not scope creep. Confirmed present in Railway production (payments are live), so the fail-closed boot gate will not strand a currently-working deploy. See Plan 33-01 Task 2.
 
 2. **Should the gated-deploy workflow use Approach A (Wait for CI) or Approach B (disable auto-deploy + railway up)?**
    - What we know: both work; A is simpler, B gives more control
    - What's unclear: whether Railway's "Wait for CI" will cause issues with this project's check suite setup
    - Recommendation: Start with Approach A. Document fallback to B in RUNBOOK.md.
+   - **RESOLVED:** Approach A ("Wait for CI") is the primary implementation; Approach B (disable auto-deploy + `railway up --service sv_middleware --ci`) is documented as the fallback in docs/RUNBOOK.md (Plan 33-02). See Plan 33-02 Task 1 step (e) and Task 2 human-prerequisites.
 
 3. **UptimeRobot `"authenticated":true` alert — should it be set up?**
    - What we know: `authenticated:false` is expected after every deploy; alerting on it creates noise
    - What's unclear: whether the operator wants post-deploy re-auth reminders
    - Recommendation: Set up only the `"redis":true` keyword monitor initially. Document the `authenticated` monitor as an optional addition.
+   - **RESOLVED:** The `"redis":true` keyword monitor is the hard alert (MONITOR-01). The `authenticated` monitor is optional/informational only (fires after every restart by design) and is documented as an optional second monitor in Plan 33-03 Task 2.
 
 ---
 
