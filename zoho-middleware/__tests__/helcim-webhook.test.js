@@ -80,9 +80,9 @@ describe('verifyWebhookSignature (unit)', function () {
   });
 
   // -------------------------------------------------------------------------
-  // Case 3: missing HELCIM_WEBHOOK_SECRET — current fail-OPEN behavior
-  // This is the honest characterization per D-09/D-10.
-  // Phase 32 (HARDEN-02) will flip this to fail-closed (return false).
+  // Case 3: missing HELCIM_WEBHOOK_SECRET in NON-production — fail-OPEN (dev/CI)
+  // Phase 32 (HARDEN-02) shipped: prod now fails CLOSED (see Case 3b below);
+  // dev/CI keeps the fail-open skip path so local testing isn't blocked.
   // -------------------------------------------------------------------------
 
   test('missing HELCIM_WEBHOOK_SECRET -> returns true (current fail-open behavior)', function () {
@@ -214,7 +214,15 @@ jest.mock('../lib/validateEnv', function () { return jest.fn(); });
 jest.mock('../lib/checkRedis', function () { return jest.fn().mockResolvedValue(); });
 jest.mock('../lib/checkMailer', function () { return jest.fn(); });
 jest.mock('../lib/brewpad-integration', function () {
-  return { syncBatch: jest.fn(), init: jest.fn() };
+  // Mirror every method server.js calls (syncBatch + init at request time, and
+  // retryPendingBatches/retrySyncQueue from the startup setInterval) so the mock
+  // stays complete if the `require.main === module` startup guard is ever lifted.
+  return {
+    syncBatch: jest.fn(),
+    init: jest.fn(),
+    retryPendingBatches: jest.fn().mockResolvedValue(),
+    retrySyncQueue: jest.fn().mockResolvedValue()
+  };
 });
 jest.mock('node-cron', function () { return { schedule: jest.fn() }; });
 jest.mock('@sentry/node', function () {

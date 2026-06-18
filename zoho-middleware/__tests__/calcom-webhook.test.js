@@ -314,3 +314,44 @@ describe('POST /api/webhooks/calcom — Cal.com webhook handler', function () {
     expect(res.status).toHaveBeenCalledWith(200);
   });
 });
+
+// ---------------------------------------------------------------------------
+// HARDEN-02 unit tests for the REAL lib/calcom#verifyWebhook missing-secret gate.
+// The route suite above mocks lib/calcom, so the verifier's own prod fail-closed
+// branch (calcom.js:142-145) was previously untested. Mirrors helcim-webhook
+// Case 3/3b. (WR-01)
+// ---------------------------------------------------------------------------
+
+describe('lib/calcom verifyWebhook — missing-secret prod gate (HARDEN-02)', function () {
+  var ORIGINAL_NODE_ENV = process.env.NODE_ENV;
+  var ORIGINAL_SECRET = process.env.CALCOM_WEBHOOK_SECRET;
+
+  afterEach(function () {
+    if (ORIGINAL_NODE_ENV === undefined) { delete process.env.NODE_ENV; } else { process.env.NODE_ENV = ORIGINAL_NODE_ENV; }
+    if (ORIGINAL_SECRET === undefined) { delete process.env.CALCOM_WEBHOOK_SECRET; } else { process.env.CALCOM_WEBHOOK_SECRET = ORIGINAL_SECRET; }
+  });
+
+  test('missing CALCOM_WEBHOOK_SECRET + NODE_ENV=production -> returns false (fail closed)', function () {
+    jest.resetModules();
+    jest.unmock('../lib/calcom');
+    delete process.env.CALCOM_WEBHOOK_SECRET;
+    process.env.NODE_ENV = 'production';
+    var realCalcom = require('../lib/calcom');
+
+    var result = realCalcom.verifyWebhook('{"triggerEvent":"BOOKING_CANCELLED"}', 'any-sig');
+
+    expect(result).toBe(false);
+  });
+
+  test('missing CALCOM_WEBHOOK_SECRET in non-production -> returns true (fail open, dev/CI)', function () {
+    jest.resetModules();
+    jest.unmock('../lib/calcom');
+    delete process.env.CALCOM_WEBHOOK_SECRET;
+    process.env.NODE_ENV = 'test';
+    var realCalcom = require('../lib/calcom');
+
+    var result = realCalcom.verifyWebhook('{"triggerEvent":"BOOKING_CANCELLED"}', 'any-sig');
+
+    expect(result).toBe(true);
+  });
+});
