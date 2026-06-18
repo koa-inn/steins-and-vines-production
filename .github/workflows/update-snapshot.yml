@@ -18,6 +18,7 @@ on:
 jobs:
   update-snapshot:
     runs-on: ubuntu-latest
+    if: github.repository == 'koa-inn/steins-and-vines-staging'
     permissions:
       contents: write       # Allow pushing the updated snapshot file
 
@@ -74,7 +75,7 @@ jobs:
           python3 -c "import json; d=json.load(open('snapshot_raw.json')); open('content/zoho-snapshot.json','w').write(json.dumps(d, indent=2))"
           rm snapshot_raw.json
 
-      - name: Commit and push if changed
+      - name: Commit and push to both repos
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -83,6 +84,7 @@ jobs:
             echo "Snapshot unchanged — nothing to commit"
           else
             git commit -m "chore: update Zoho snapshot [skip ci]"
-            git push
-            echo "Snapshot updated and pushed"
+            git push origin main
+            git push https://x-access-token:${{ secrets.PROD_DEPLOY_TOKEN }}@github.com/koa-inn/steins-and-vines-production.git HEAD:main
+            echo "Snapshot pushed to both staging and production repos"
           fi
