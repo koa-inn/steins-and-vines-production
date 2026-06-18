@@ -378,7 +378,16 @@ Plans:
   4. An external uptime check polls `GET /health` at least every 5 minutes and sends an alert if the endpoint returns non-200, `authenticated:false`, or `redis:false`
   5. `HELCIM_WEBHOOK_SECRET`, `RECAPTCHA_SECRET_KEY`, and `SENTRY_DSN` are confirmed present in Railway production, and `validateEnv.js` startup check covers the live Helcim/Cal.com/`REDIS_ENCRYPTION_KEY` variables while dead Global Payments vars are removed
 
-**Plans**: TBD
+**Plans**: 3 plans (2 waves)
+Plans:
+**Wave 1** (parallel — disjoint files)
+
+- [ ] 33-01-PLAN.md — DEPLOY-03 snapshot fix (update-snapshot.yml repo guard + cross-repo push) + MONITOR-02 code (SENTRY_DSN/HELCIM_API_TOKEN -> REQUIRED_IN_PROD + regression test)
+- [ ] 33-02-PLAN.md — DEPLOY-01/02 gated-deploy.yml (workflow_dispatch test gate, CNAME swap, force-push, /health smoke-check, prod-YYYYMMDD-N tag, runbook append) + docs/RUNBOOK.md
+
+**Wave 2** (human action — depends on 33-01, 33-02)
+
+- [ ] 33-03-PLAN.md — MONITOR-01 UptimeRobot /health keyword monitor + deploy secrets (PROD_DEPLOY_TOKEN, RAILWAY_TOKEN) + Railway "Wait for CI" + first gated deploy verification + close Phase 32 secrets UAT (MONITOR-02)
 
 ## Progress
 
