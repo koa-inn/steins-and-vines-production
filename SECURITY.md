@@ -397,4 +397,60 @@ The SUMMARY files did not introduce a `## Threat Flags` section. The code review
 
 ---
 
-*Last updated: June 2026 (Phase 29.1 audit). Maintained by the Steins & Vines IT team.*
+---
+
+## Phase 32 Security Audit — Fail-Closed Hardening & Access Control
+
+**Audit date:** 2026-06-17
+**Phase:** 32 (plans 32-01 through 32-04)
+**ASVS level:** 1
+**Auditor:** gsd-security-auditor (Claude claude-sonnet-4-6)
+**Files audited:** `zoho-middleware/lib/checkout-helpers.js`, `zoho-middleware/routes/checkout.js`, `zoho-middleware/lib/helcim.js`, `zoho-middleware/lib/calcom.js`, `zoho-middleware/routes/webhooks.js`, `zoho-middleware/lib/validateEnv.js`, `zoho-middleware/lib/validate.js`, `zoho-middleware/server.js`, `zoho-middleware/routes/items.js`, `zoho-middleware/routes/taxes.js`
+
+### Threat Verification
+
+| Threat ID | Category | Disposition | Status | Evidence |
+|-----------|----------|-------------|--------|----------|
+| T-32-01 | Spoofing (reCAPTCHA gate, unset key) | mitigate | CLOSED | `lib/checkout-helpers.js:48,51` — `var isProd = process.env.NODE_ENV === 'production';` in `verifyRecaptcha()`; `if (!secret) { if (isProd) return Promise.resolve({ success: false, score: 0 }); }` — fail-closed on unset key in prod. |
+| T-32-02 | Elevation/Repudiation (bot checkout, defense in depth) | mitigate | CLOSED | `lib/checkout-helpers.js:80-87` — timeout `.catch` returns `{ success: false, score: 0 }` when `isProd`; `routes/checkout.js:177-184` — route-level catch returns `res.status(400)` when `isProdRcRoute` (defense-in-depth layer). Dev fail-open preserved on both paths. |
+| T-32-03 | Tampering (transactionId replay, Redis-down) | mitigate | CLOSED | `routes/checkout.js:232-236` — `checkTransactionIdAndProceed()` catch returns `res.status(409).json({ error: 'Payment already processed' })` unconditionally (no `runCheckout()` in catch). No `isProd` gate — charged card can never duplicate a Zoho order in any env. |
+| T-32-04 | DoS (false positive on Redis flap) | accept | CLOSED | Accepted: 409 on transactionId Redis-down is intentional correctness over rare retry. Documented in accepted risks table below. |
+| T-32-3b | Tampering (idempotency-key catch, Redis-down) | mitigate | CLOSED | `routes/checkout.js:141-145` — `var isProdIdem = process.env.NODE_ENV === 'production';` gate in the proceed() outer catch; `if (isProdIdem) return res.status(409).json({ error: 'Checkout already in progress' });` — no second `processCheckout()` in prod. Dev fail-open preserved at line 147. |
+| T-32-05 | Spoofing (Helcim webhook, unset secret) | mitigate | CLOSED | `lib/helcim.js:310-315` — `if (!secret) { var isProd = process.env.NODE_ENV === 'production'; if (isProd) return false; }` before log.warn+return true dev path. `routes/webhooks.js:38-41` — `if (!helcimLib.verifyWebhookSignature(...)) return res.status(403)`. CR-02 fix (commit 791d287) confirmed: `apiKeyMatches()` uses `crypto.timingSafeEqual` at `server.js:257-263`. |
+| T-32-06 | Spoofing (Cal.com webhook, unset secret) | mitigate | CLOSED | `lib/calcom.js:142-145` — `if (!secret) { var isProd = ...; if (isProd) return false; }` before dev warn+return true path. `routes/webhooks.js:224-227` — `if (!calcom.verifyWebhook(...)) return res.status(403)`. |
+| T-32-07 | Tampering (forged/replayed webhook with valid HMAC) | accept | CLOSED | Accepted: `crypto.timingSafeEqual` HMAC path unchanged in both verifiers; replay-nonce explicitly out of scope. Documented in accepted risks table below. |
+| T-32-08 | DoS (prod fail-closed when secret legitimately unset) | accept | CLOSED | Accepted: mitigated by the boot gate (T-32-10 / D-06) which hard-fails deploy on unset secret before any runtime reject reaches a customer. Documented in accepted risks table below. |
+| T-32-09 | Tampering/EoP (NODE_ENV silently unset in prod) | mitigate | CLOSED | `lib/validateEnv.js:77-81` — `if (process.env.RAILWAY_ENVIRONMENT && process.env.NODE_ENV !== 'production') { log.error(...); process.exit(1); }` placed before isProd gate (D-02 boot assertion cannot be gated on isProd — circular). |
+| T-32-10 | Info disclosure/spoofing (prod running with money-path secret missing) | mitigate | CLOSED | `lib/validateEnv.js:13-18,105-117` — `REQUIRED_IN_PROD` array contains RECAPTCHA_SECRET_KEY, HELCIM_WEBHOOK_SECRET, CALCOM_WEBHOOK_SECRET, REDIS_ENCRYPTION_KEY; filter+`process.exit(1)` fires when `isProd` and any is missing (D-06). |
+| T-32-11 | Repudiation (dead GP_* vars masking config state) | mitigate | CLOSED | `lib/validateEnv.js` — grep for `GP_` returns zero matches; all six dead Global Payments vars (GP_ENVIRONMENT, GP_APP_ID, GP_APP_KEY, GP_MERCHANT_ID, GP_TERMINAL_ENABLED, GP_DEPOSIT_AMOUNT) are absent. Live Helcim vars (HELCIM_API_TOKEN, HELCIM_DEVICE_CODE, HELCIM_WEBHOOK_SECRET, REDIS_ENCRYPTION_KEY) present in OPTIONAL at lines 34-37. |
+| T-32-12 | Info disclosure (4 PII GET routes reachable via GET-bypass) | mitigate | CLOSED | `server.js:422-429` — `PII_GET_ROUTES` exact-match list (`/api/contacts`, `/api/invoices`, `/api/items/inspect`, `/api/snapshot`) mounted via `app.get(p, requirePiiApiKey)` AFTER `requireAllowedReferer` (line 396) and BEFORE route modules (line 437+). `requirePiiApiKey` at line 424-427 calls `apiKeyMatches()` which uses `crypto.timingSafeEqual` at line 262 (CR-02 fix confirmed). Global GET-bypass at line 266 unchanged. |
+| T-32-13 | DoS (over-broad guard blocking public GETs) | mitigate | CLOSED | `server.js:422` — `PII_GET_ROUTES` is a 4-path exact-match list; `/api/products`, `/api/ingredients`, `/api/bookings/*`, etc. are not in the list and remain public. `/api/contacts/search` (different path) explicitly not caught per code comment at line 419. |
+| T-32-14 | Tampering (field smuggling, POST/PUT items raw body -> Zoho) | mitigate | CLOSED | `routes/items.js:67-71` (POST /api/items) — `validateBody(req.body, ITEM_CREATE_SCHEMA)` before `zohoPost('/items', result.clean)` forwards only the clean object. `routes/items.js:133-137` (PUT /api/inventory/items/:id) — same pattern with `ITEM_UPDATE_SCHEMA` before `inventoryPut`. Schema defined at lines 17-44 with 35 allowed fields. |
+| T-32-15 | Tampering (malformed body on /api/taxes/apply) | mitigate | CLOSED | `routes/taxes.js:319-323` — `validate.validateBody(req.body, { allowed: ['apply'], required: [], types: { apply: 'boolean' } })` returns error on non-object body; `if (bodyCheck.error) return res.status(400)` fires before any field read. |
+| T-32-16 | Tampering (clobbering existing validate.js exports) | accept | CLOSED | Accepted: `lib/validate.js:139-143` — `module.exports` contains `validateLineItems`, `classifyZohoError`, AND `validateBody`; original exports untouched (append-only implementation). Documented in accepted risks below. |
+| T-32-SC | Tampering (supply chain) | n/a | CLOSED | No new npm packages introduced across all four plans; ES5/vanilla helpers only. |
+
+### Post-Audit Note: CR-02 Timing-Oracle Fix
+
+The code review (32-REVIEW.md) identified a timing oracle on the `requirePiiApiKey` API-key comparison (CR-02). This was fixed in commit 791d287 before this audit. Verification confirmed: `requirePiiApiKey` at `server.js:425` calls `apiKeyMatches()`, which uses `crypto.timingSafeEqual` at `server.js:262`. Both the global guard (`server.js:276`) and the PII guard (`server.js:425`) route through the same constant-time comparator. This strengthens T-32-12 beyond the plan's original mitigation.
+
+### Accepted Risks — Phase 32
+
+| Risk ID | Description | Rationale |
+|---------|-------------|-----------|
+| T-32-04 | 409 returned to a legitimate customer on Redis flap during transactionId replay check | Correctness (no duplicate Zoho order for a charged card) outweighs the rare retry friction. Customer can retry checkout. |
+| T-32-07 | No replay-nonce on webhook HMAC | Forging requires the signing secret; replay with valid HMAC is an accepted operational risk. Out of scope for this phase. |
+| T-32-08 | Runtime 403 on webhook when secret legitimately unset in prod | Defense-in-depth only; the boot gate (T-32-10) hard-fails the deploy before this runtime path is reached. |
+| T-32-16 | validateBody appended to existing validate.js exports | Append-only pattern; existing `validateLineItems` and `classifyZohoError` exports verified unchanged at module.exports lines 139-143. |
+
+### Unregistered Flags
+
+The SUMMARY files (`## Threat Flags` sections) reported only mitigated threats mapped to existing register entries (T-32-05, T-32-06). No unregistered attack surface appeared during implementation. No unregistered_flags to record.
+
+### Human-Action Gate (T-32-09 / T-32-10)
+
+The boot assertions in `lib/validateEnv.js` (D-02 RAILWAY_ENVIRONMENT check and D-06 REQUIRED_IN_PROD check) have teeth only when the Railway middleware service is configured with `NODE_ENV=production` and all four prod secrets set. This is a pending human-action gate documented in Plan 32-03 Task 3. Until the Railway dashboard is updated, the code is correct but the boot gate is unarmed on the live service.
+
+---
+
+*Last updated: June 2026 (Phase 32 audit). Maintained by the Steins & Vines IT team.*
