@@ -392,4 +392,26 @@ describe('PII-02: body-shape validation on mutating routes', function () {
         });
     });
   });
+
+  describe('POST /api/admin/upload-catalog (regression: already validates shape)', function () {
+    test('returns 400 when payload has non-array fields', function () {
+      return request(app)
+        .post('/api/admin/upload-catalog')
+        .set('x-api-key', VALID_KEY)
+        .send({ products: 'not-an-array', ingredients: [], services: [] })
+        .then(function (res) {
+          expect(res.status).toBe(400);
+        });
+    });
+
+    test('returns 400 when all arrays are empty', function () {
+      return request(app)
+        .post('/api/admin/upload-catalog')
+        .set('x-api-key', VALID_KEY)
+        .send({ products: [], ingredients: [], services: [] })
+        .then(function (res) {
+          expect(res.status).toBe(400);
+        });
+    });
+  });
 });
