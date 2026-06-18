@@ -72,7 +72,7 @@
 **Milestone Goal:** Make the money path trustworthy — test the online checkout, close the fail-open security gaps, and stop unsafe/untested code from reaching production.
 
 - [x] **Phase 31: Money-Path Test Coverage** - Route-level checkout tests, Helcim HMAC tests, honest coverage config (TEST-01..03) (completed 2026-06-17)
-- [ ] **Phase 32: Fail-Closed Hardening & Access Control** - reCAPTCHA/webhook fail-closed, replay-guard 409, validateEnv update, PII route API-key enforcement, body-shape validation (HARDEN-01..04, PII-01..02)
+- [x] **Phase 32: Fail-Closed Hardening & Access Control** - reCAPTCHA/webhook fail-closed, replay-guard 409, validateEnv update, PII route API-key enforcement, body-shape validation (HARDEN-01..04, PII-01..02) (completed 2026-06-18)
 - [ ] **Phase 33: Deploy Safety & Monitoring** - Test-gated CI deploys, prod deploy tagging + rollback runbook, snapshot fix, uptime monitoring, secrets verification (DEPLOY-01..03, MONITOR-01..02)
 
 ## Phase Details
@@ -360,10 +360,10 @@ Plans:
 Plans:
 **Wave 1** (parallel)
 
-- [ ] 32-01-PLAN.md — reCAPTCHA fail-closed + transactionId replay-guard 409 (HARDEN-01, HARDEN-03)
-- [ ] 32-02-PLAN.md — Helcim + Cal.com webhook verifiers fail closed in prod (HARDEN-02)
-- [ ] 32-03-PLAN.md — validateEnv prod-secret boot check + NODE_ENV/RAILWAY assertion + drop GP_* (HARDEN-04)
-- [ ] 32-04-PLAN.md — Targeted PII GET-route API-key guard + body-shape whitelist on mutating item/tax routes (PII-01, PII-02)
+- [x] 32-01-PLAN.md — reCAPTCHA fail-closed + transactionId replay-guard 409 (HARDEN-01, HARDEN-03)
+- [x] 32-02-PLAN.md — Helcim + Cal.com webhook verifiers fail closed in prod (HARDEN-02)
+- [x] 32-03-PLAN.md — validateEnv prod-secret boot check + NODE_ENV/RAILWAY assertion + drop GP_* (HARDEN-04)
+- [x] 32-04-PLAN.md — Targeted PII GET-route API-key guard + body-shape whitelist on mutating item/tax routes (PII-01, PII-02)
 
 ### Phase 33: Deploy Safety & Monitoring
 
@@ -398,7 +398,7 @@ Plans:
 | 28. Zoho Customer Read-Back Path | v4.1 | 2/2 | Complete    | 2026-06-12 |
 | 29. Refresh-from-Zoho Admin UI | v4.1 | 6/6 | Complete   | 2026-06-14 |
 | 31. Money-Path Test Coverage | v4.2 | 4/4 | Complete    | 2026-06-17 |
-| 32. Fail-Closed Hardening & Access Control | v4.2 | 0/? | Not started | - |
+| 32. Fail-Closed Hardening & Access Control | v4.2 | 4/4 | Complete   | 2026-06-18 |
 | 33. Deploy Safety & Monitoring | v4.2 | 0/? | Not started | - |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
