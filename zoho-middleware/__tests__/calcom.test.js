@@ -35,6 +35,7 @@ describe('calcom adapter', () => {
   afterEach(() => {
     delete process.env.CALCOM_API_KEY;
     delete process.env.CALCOM_WEBHOOK_SECRET;
+    delete process.env.NODE_ENV;
     jest.clearAllMocks();
   });
 
@@ -201,6 +202,46 @@ describe('calcom adapter', () => {
       var result = calcom.verifyWebhook('{"trigger":"BOOKING_CREATED"}', 'anysig');
       expect(result).toBe(true);
       expect(log2.warn).toHaveBeenCalledWith(expect.stringContaining('CALCOM_WEBHOOK_SECRET'));
+    });
+
+    // -------------------------------------------------------------------------
+    // HARDEN-02: prod gate — unset secret must fail CLOSED in production
+    // -------------------------------------------------------------------------
+
+    test('HARDEN-02: CALCOM_WEBHOOK_SECRET unset + NODE_ENV=production -> returns false (fail closed)', () => {
+      jest.resetModules();
+      jest.mock('../lib/logger', () => ({
+        info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn()
+      }));
+      jest.mock('../lib/zoho-api', () => ({
+        withRetry: jest.fn(function (fn) { return fn(); })
+      }));
+      delete process.env.CALCOM_WEBHOOK_SECRET;
+      process.env.NODE_ENV = 'production';
+      var calcom2 = require('../lib/calcom');
+
+      var result = calcom2.verifyWebhook('{"trigger":"BOOKING_CREATED"}', 'anysig');
+
+      // Prod fail-closed: returns false so route rejects with 403
+      expect(result).toBe(false);
+    });
+
+    test('HARDEN-02: CALCOM_WEBHOOK_SECRET unset + NODE_ENV unset -> returns true (dev fail-open preserved)', () => {
+      jest.resetModules();
+      jest.mock('../lib/logger', () => ({
+        info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn()
+      }));
+      jest.mock('../lib/zoho-api', () => ({
+        withRetry: jest.fn(function (fn) { return fn(); })
+      }));
+      delete process.env.CALCOM_WEBHOOK_SECRET;
+      delete process.env.NODE_ENV;
+      var calcom2 = require('../lib/calcom');
+
+      var result = calcom2.verifyWebhook('{"trigger":"BOOKING_CREATED"}', 'anysig');
+
+      // Dev: still fails open (skip-verification warning path preserved)
+      expect(result).toBe(true);
     });
 
     test('returns false on length mismatch (no throw)', () => {

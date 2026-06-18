@@ -47,6 +47,7 @@ describe('verifyWebhookSignature (unit)', function () {
 
   afterEach(function () {
     delete process.env.HELCIM_WEBHOOK_SECRET;
+    delete process.env.NODE_ENV;
   });
 
   // -------------------------------------------------------------------------
@@ -98,7 +99,37 @@ describe('verifyWebhookSignature (unit)', function () {
     expect(result).toBe(true);
   });
 
-  test.todo('HARDEN-02: missing HELCIM_WEBHOOK_SECRET should fail closed (return false) — Phase 32 converts this to a real assertion');
+  // -------------------------------------------------------------------------
+  // Case 3b: HARDEN-02 — prod gate: missing secret must fail CLOSED in prod
+  // -------------------------------------------------------------------------
+
+  test('HARDEN-02: missing HELCIM_WEBHOOK_SECRET + NODE_ENV=production -> returns false (fail closed)', function () {
+    jest.resetModules();
+    jest.unmock('../lib/helcim');
+    jest.unmock('../lib/logger');
+    delete process.env.HELCIM_WEBHOOK_SECRET;
+    process.env.NODE_ENV = 'production';
+    helcim = require('../lib/helcim');
+
+    var result = helcim.verifyWebhookSignature('wh-1', '123', 'body', 'any-sig');
+
+    // Prod fail-closed: returns false so the route rejects with 403
+    expect(result).toBe(false);
+  });
+
+  test('HARDEN-02: missing HELCIM_WEBHOOK_SECRET + NODE_ENV unset -> returns true (dev fail-open preserved)', function () {
+    jest.resetModules();
+    jest.unmock('../lib/helcim');
+    jest.unmock('../lib/logger');
+    delete process.env.HELCIM_WEBHOOK_SECRET;
+    delete process.env.NODE_ENV;
+    helcim = require('../lib/helcim');
+
+    var result = helcim.verifyWebhookSignature('wh-1', '123', 'body', 'any-sig');
+
+    // Dev: still fails open (skip-verification warning path preserved)
+    expect(result).toBe(true);
+  });
 
   // -------------------------------------------------------------------------
   // Case 4: base64 key decoding — proves the base64 branch is exercised
