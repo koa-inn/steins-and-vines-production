@@ -382,8 +382,8 @@ Plans:
 Plans:
 **Wave 1** (parallel — disjoint files)
 
-- [ ] 33-01-PLAN.md — DEPLOY-03 snapshot fix (update-snapshot.yml repo guard + cross-repo push) + MONITOR-02 code (SENTRY_DSN/HELCIM_API_TOKEN -> REQUIRED_IN_PROD + regression test)
-- [ ] 33-02-PLAN.md — DEPLOY-01/02 gated-deploy.yml (workflow_dispatch test gate, CNAME swap, force-push, /health smoke-check, prod-YYYYMMDD-N tag, runbook append) + docs/RUNBOOK.md
+- [x] 33-01-PLAN.md — DEPLOY-03 snapshot fix (update-snapshot.yml repo guard + cross-repo push) + MONITOR-02 code (SENTRY_DSN/HELCIM_API_TOKEN -> REQUIRED_IN_PROD + regression test)
+- [x] 33-02-PLAN.md — DEPLOY-01/02 gated-deploy.yml (workflow_dispatch test gate, CNAME swap, force-push, /health smoke-check, prod-YYYYMMDD-N tag, runbook append) + docs/RUNBOOK.md
 
 **Wave 2** (human action — depends on 33-01, 33-02)
 
@@ -408,7 +408,7 @@ Plans:
 | 29. Refresh-from-Zoho Admin UI | v4.1 | 6/6 | Complete   | 2026-06-14 |
 | 31. Money-Path Test Coverage | v4.2 | 4/4 | Complete    | 2026-06-17 |
 | 32. Fail-Closed Hardening & Access Control | v4.2 | 4/4 | Complete    | 2026-06-18 |
-| 33. Deploy Safety & Monitoring | v4.2 | 0/? | Not started | - |
+| 33. Deploy Safety & Monitoring | v4.2 | 2/3 | In Progress|  |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
 
