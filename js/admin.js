@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-16T18:09:18.806Z';
+  var BUILD_TIMESTAMP = '2026-06-18T22:21:45.700Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8496,7 +8496,14 @@
   function loadIngredientCatalogForRecipes() {
     var mwUrl = getRecipesMwUrl();
     if (!mwUrl) return;
-    fetch(mwUrl + '/api/ingredients', { headers: getRecipesMwHeaders(false) })
+    // include_internal=1 returns items flagged "Internal Only" in Zoho (hidden
+    // from the public catalog but valid recipe ingredients). The middleware gates
+    // this on a valid API key, so send it explicitly for this GET.
+    var headers = getRecipesMwHeaders(false);
+    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
+      headers['X-API-Key'] = SHEETS_CONFIG.MW_API_KEY;
+    }
+    fetch(mwUrl + '/api/ingredients?include_internal=1', { headers: headers })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
       .then(function (data) {
         _recipesState.catalog = data.items || data.ingredients || data || [];

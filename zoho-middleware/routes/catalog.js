@@ -75,6 +75,11 @@ var REFRESH_LOCK_TTL = 120; // 2-min auto-expire if process crashes mid-refresh
 // __dirname is routes/ subdirectory, so go up one level to middleware root
 var PRODUCTS_FILE_CACHE = path.join(__dirname, '..', 'products-cache.json');
 var INGREDIENTS_FILE_CACHE = path.join(__dirname, '..', 'ingredients-cache.json');
+// Full ingredient list INCLUDING Internal Only items — admin-only (recipe builder).
+// Kept separate from the public list so checkout/POS validation (which read
+// INGREDIENTS_CACHE_KEY) never treat an internal-only item as purchasable.
+var INGREDIENTS_ALL_CACHE_KEY = C.CACHE_KEYS.INGREDIENTS_ALL;
+var INGREDIENTS_ALL_FILE_CACHE = path.join(__dirname, '..', 'ingredients-all-cache.json');
 
 var SERVICES_CACHE_KEY = C.CACHE_KEYS.SERVICES;
 var SERVICES_CACHE_TTL = 1800; // 30 minutes
@@ -579,6 +584,18 @@ function doRefreshIngredients() {
           });
 
           _ingredientsRefreshPromise = null;
+          // Cache the FULL enriched list (incl. Internal Only) under the admin-only
+          // key so the recipe builder can read it without polluting the public
+          // cache that checkout/POS trust. `items` is the superset; `enriched` is
+          // the public subset with Internal Only stripped.
+          if (items.length > 0) {
+            cache.set(INGREDIENTS_ALL_CACHE_KEY, items, INGREDIENTS_CACHE_TTL);
+            fs.writeFile(INGREDIENTS_ALL_FILE_CACHE, JSON.stringify(items), function (fileErr) {
+              if (fileErr) {
+                log.error('[api/ingredients] Full-list file fallback write failed: ' + fileErr.message);
+              }
+            });
+          }
           if (enriched.length > 0) {
             cache.set(INGREDIENTS_CACHE_KEY, enriched, INGREDIENTS_CACHE_TTL);
             cache.set(INGREDIENTS_CACHE_TS_KEY, Date.now(), INGREDIENTS_CACHE_TTL);
@@ -608,13 +625,72 @@ function doRefreshIngredients() {
   return _ingredientsRefreshPromise;
 }
 
+// Admin gate for the include_internal=1 mode. Internal-only items are not PII,
+// but exposing them is staff-only — match the API key the recipe builder already
+// sends (x-api-key header). Mirrors the env-var pair used by server.js / pos.js.
+function hasValidApiKey(req) {
+  var sent = (req && req.headers && req.headers['x-api-key']) ||
+             (req && req.query && req.query.api_key) || '';
+  var key = process.env.API_SECRET_KEY || process.env.MW_API_KEY || '';
+  return !!key && sent === key;
+}
+
+// Serve the full ingredient list INCLUDING Internal Only items (admin recipe
+// builder). Reads the dedicated admin cache/file; on a cold cache it triggers a
+// refresh (which populates both the public and admin keys) then reads the admin
+// key. Never falls back to the public list, so a caller asking for internal
+// items always gets them once the cache is warm.
+function serveFullIngredients(res) {
+  cache.get(INGREDIENTS_ALL_CACHE_KEY)
+    .then(function (cached) {
+      if (cached && cached.length > 0) {
+        log.info('[api/ingredients] include_internal cache hit (' + cached.length + ' items)');
+        return ledger.overlayStock(cached)
+          .then(function (overlaid) { res.json({ source: 'cache', items: overlaid }); })
+          .catch(function () { res.json({ source: 'cache', items: cached }); });
+      }
+
+      var fileData = null;
+      try { fileData = JSON.parse(fs.readFileSync(INGREDIENTS_ALL_FILE_CACHE, 'utf8')); } catch (e) {}
+      if (fileData && fileData.length > 0) {
+        log.info('[api/ingredients] include_internal file fallback (' + fileData.length + ' items)');
+        cache.set(INGREDIENTS_ALL_CACHE_KEY, fileData, INGREDIENTS_CACHE_TTL);
+        return ledger.overlayStock(fileData)
+          .then(function (overlaid) { res.json({ source: 'file-cache', items: overlaid }); })
+          .catch(function () { res.json({ source: 'file-cache', items: fileData }); });
+      }
+
+      log.info('[api/ingredients] include_internal cold — refreshing from Zoho');
+      return doRefreshIngredients()
+        .then(function () {
+          return cache.get(INGREDIENTS_ALL_CACHE_KEY).then(function (full) {
+            var items = (full && full.length > 0) ? full : [];
+            return ledger.overlayStock(items)
+              .then(function (overlaid) { res.json({ source: 'zoho', items: overlaid }); })
+              .catch(function () { res.json({ source: 'zoho', items: items }); });
+          });
+        });
+    })
+    .catch(function (err) {
+      log.error('[api/ingredients] include_internal failed: ' + err.message);
+      res.status(502).json({ error: 'Could not load full ingredient catalog' });
+    });
+}
+
 /**
  * GET /api/ingredients
  * Returns active goods items that are NOT kits (no Type custom field)
  * and NOT services. These are ingredients, supplies, and equipment.
  * Uses the products cache to identify kit item IDs to exclude.
+ *
+ * ?include_internal=1 (with a valid x-api-key) returns the FULL list including
+ * items flagged "Internal Only" in Zoho — for the admin recipe builder. The
+ * default (public) response always strips Internal Only items.
  */
 router.get('/api/ingredients', function (req, res) {
+  if (req.query && req.query.include_internal === '1' && hasValidApiKey(req)) {
+    return serveFullIngredients(res);
+  }
   cache.get(INGREDIENTS_CACHE_KEY)
     .then(function (cached) {
       if (cached && cached.length > 0) {

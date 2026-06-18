@@ -19,6 +19,7 @@ var CACHE_KEYS = {
   SERVICES:            'zoho:services:v2',
   INGREDIENTS:         'zoho:ingredients',
   INGREDIENTS_TS:      'zoho:ingredients:ts',
+  INGREDIENTS_ALL:     'zoho:ingredients:all',   // full list incl. Internal Only (admin-only)
   KIOSK_PRODUCTS:      'zoho:kiosk-products',
   RECENT_ORDERS:       'zoho:recent-orders',
 

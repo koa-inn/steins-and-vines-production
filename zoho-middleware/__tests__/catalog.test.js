@@ -435,6 +435,120 @@ describe('GET /api/ingredients — bulk detail enrichment', function () {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/ingredients — Internal Only handling (public vs admin recipe builder)
+// ---------------------------------------------------------------------------
+
+describe('GET /api/ingredients — Internal Only items', function () {
+  var mocks;
+  var ENV_KEY;
+
+  // Two ingredients: one public, one flagged "Internal Only" in Zoho.
+  function internalFixtures() {
+    var items = [
+      makeItem({ item_id: 'pub1', name: 'Public Yeast', rate: 5, cf_type: 'ingredient' }),
+      makeItem({ item_id: 'int1', name: 'Internal Grain', rate: 7, cf_type: 'ingredient' })
+    ];
+    var detailMap = {
+      'pub1': { item_id: 'pub1', custom_fields: [], brand: '', tax_id: '', tax_name: '', tax_percentage: 0, sales_tax_rule_id: '' },
+      'int1': { item_id: 'int1', custom_fields: [{ label: 'Internal Only', value: 'true' }], brand: '', tax_id: '', tax_name: '', tax_percentage: 0, sales_tax_rule_id: '' }
+    };
+    return { items: items, detailMap: detailMap };
+  }
+
+  beforeEach(function () {
+    mocks = resetAndLoadCatalog();
+    setupDefaultMocks(mocks);
+    ENV_KEY = process.env.API_SECRET_KEY;
+    process.env.API_SECRET_KEY = 'test-secret';
+  });
+
+  afterEach(function () {
+    if (ENV_KEY === undefined) { delete process.env.API_SECRET_KEY; }
+    else { process.env.API_SECRET_KEY = ENV_KEY; }
+  });
+
+  test('public request hides Internal Only items from the response (cache miss)', function () {
+    var fx = internalFixtures();
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(fx.items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue(fx.detailMap);
+
+    return callHandler('/api/ingredients', { query: {}, headers: {} }).then(function (res) {
+      var ids = res._body.items.map(function (i) { return i.item_id; });
+      expect(ids).toContain('pub1');
+      expect(ids).not.toContain('int1');
+    });
+  });
+
+  test('public cache (zoho:ingredients) never contains Internal Only items', function () {
+    var fx = internalFixtures();
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(fx.items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue(fx.detailMap);
+
+    return callHandler('/api/ingredients', { query: {}, headers: {} }).then(function () {
+      var publicCached = mocks.cache.set.mock.calls
+        .filter(function (c) { return c[0] === 'zoho:ingredients'; })
+        .map(function (c) { return c[1]; })[0];
+      expect(publicCached).toBeDefined();
+      var ids = publicCached.map(function (i) { return i.item_id; });
+      expect(ids).toEqual(['pub1']);
+    });
+  });
+
+  test('refresh caches the FULL list (incl. Internal Only) under zoho:ingredients:all', function () {
+    var fx = internalFixtures();
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(fx.items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue(fx.detailMap);
+
+    return callHandler('/api/ingredients', { query: {}, headers: {} }).then(function () {
+      var fullCached = mocks.cache.set.mock.calls
+        .filter(function (c) { return c[0] === 'zoho:ingredients:all'; })
+        .map(function (c) { return c[1]; })[0];
+      expect(fullCached).toBeDefined();
+      var ids = fullCached.map(function (i) { return i.item_id; });
+      expect(ids).toContain('pub1');
+      expect(ids).toContain('int1');
+    });
+  });
+
+  test('include_internal=1 with valid API key returns Internal Only items from admin cache', function () {
+    var fullList = [
+      makeItem({ item_id: 'pub1', name: 'Public Yeast', rate: 5 }),
+      makeItem({ item_id: 'int1', name: 'Internal Grain', rate: 7 })
+    ];
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') return Promise.resolve(fullList);
+      return Promise.resolve(null);
+    });
+
+    return callHandler('/api/ingredients', {
+      query: { include_internal: '1' },
+      headers: { 'x-api-key': 'test-secret' }
+    }).then(function (res) {
+      var ids = res._body.items.map(function (i) { return i.item_id; });
+      expect(ids).toContain('pub1');
+      expect(ids).toContain('int1');
+      // Must not have touched Zoho — served straight from admin cache
+      expect(mocks.zohoApi.fetchAllItems).not.toHaveBeenCalled();
+    });
+  });
+
+  test('include_internal=1 WITHOUT a valid API key falls through to the public (filtered) list', function () {
+    var fx = internalFixtures();
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(fx.items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue(fx.detailMap);
+
+    return callHandler('/api/ingredients', {
+      query: { include_internal: '1' },
+      headers: {} // no x-api-key
+    }).then(function (res) {
+      var ids = res._body.items.map(function (i) { return i.item_id; });
+      expect(ids).toContain('pub1');
+      expect(ids).not.toContain('int1');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/services — bulk detail enrichment
 // ---------------------------------------------------------------------------
 
