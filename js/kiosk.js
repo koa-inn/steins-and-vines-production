@@ -1205,16 +1205,33 @@
       summaryHtml += '<div id="kiosk-recipe-ingredients" style="margin:0.75rem 0;font-size:0.85rem;color:var(--ink-secondary);">Loading ingredients...</div>';
       summaryEl.innerHTML = summaryHtml;
 
+      // Grouped recipe-ingredient render (RDISP-03, D-09..D-11), shared by both the
+      // cached (_fetchedDetail) and freshly-fetched paths. Keeps the kiosk <ul>/<li>
+      // idiom (D-10); empty-label group (cold cache, D-07) renders today's flat list.
+      function kioskRenderRecipeIngredients(ingredients, el) {
+        if (!el || !ingredients) return;
+        var groups = (typeof groupRecipeIngredients === 'function')
+          ? groupRecipeIngredients(ingredients)
+          : [{ label: '', count: ingredients.length, items: ingredients }];
+        var html = '';
+        groups.forEach(function (group) {
+          html += group.label
+            ? '<strong>' + escapeHTML(group.label) + ' (' + group.count + ')</strong>'
+            : '<strong>Ingredients:</strong>';
+          html += '<ul style="margin:0.25rem 0;padding-left:1.25rem;">';
+          group.items.forEach(function (ing) {
+            html += '<li>' + escapeHTML(ing.item_name) + ' — ' + ing.quantity + ' ' + escapeHTML(ing.unit || '') + '</li>';
+          });
+          html += '</ul>';
+        });
+        el.innerHTML = html;
+      }
+
       // Fetch ingredients for display; cache on recipe object for reuse in kioskAddRecipeToCart
       if (recipe._fetchedDetail) {
         var ingEl = document.getElementById('kiosk-recipe-ingredients');
         if (ingEl && recipe._fetchedDetail.ingredients) {
-          var ingHtml = '<strong>Ingredients:</strong><ul style="margin:0.25rem 0;padding-left:1.25rem;">';
-          recipe._fetchedDetail.ingredients.forEach(function (ing) {
-            ingHtml += '<li>' + escapeHTML(ing.item_name) + ' — ' + ing.quantity + ' ' + escapeHTML(ing.unit || '') + '</li>';
-          });
-          ingHtml += '</ul>';
-          ingEl.innerHTML = ingHtml;
+          kioskRenderRecipeIngredients(recipe._fetchedDetail.ingredients, ingEl);
         }
         // Update computed_price on recipe in case card fetch already populated it
         if (recipe._fetchedDetail.recipe && recipe._fetchedDetail.recipe.computed_price != null) {
@@ -1231,12 +1248,7 @@
           .then(function (data) {
             var ingEl2 = document.getElementById('kiosk-recipe-ingredients');
             if (ingEl2 && data.ingredients) {
-              var ingHtml2 = '<strong>Ingredients:</strong><ul style="margin:0.25rem 0;padding-left:1.25rem;">';
-              data.ingredients.forEach(function (ing) {
-                ingHtml2 += '<li>' + escapeHTML(ing.item_name) + ' — ' + ing.quantity + ' ' + escapeHTML(ing.unit || '') + '</li>';
-              });
-              ingHtml2 += '</ul>';
-              ingEl2.innerHTML = ingHtml2;
+              kioskRenderRecipeIngredients(data.ingredients, ingEl2);
             }
             recipe._fetchedDetail = data;
             if (data.recipe) {
