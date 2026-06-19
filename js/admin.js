@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-19T04:21:04.775Z';
+  var BUILD_TIMESTAMP = '2026-06-19T15:48:15.201Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8764,31 +8764,43 @@
     var html = '';
     var totalCost = 0;
     var totalRetail = 0;
-    ingredients.forEach(function (ing, idx) {
-      var avail = availMap[String(ing.item_id)] || {};
-      var dotClass = 'ing-status-dot ing-status-dot--' + (avail.status || 'unknown');
-      var stockText = avail.stock_on_hand != null ? avail.stock_on_hand + ' ' + (ing.unit || '') + ' available' : '';
-      var dotTitle = avail.status === 'unknown' ? 'Stock data loading -- try again shortly' : (avail.batches_possible != null ? avail.batches_possible + ' batch(es) possible' : '');
-      var qty = parseFloat(ing.quantity) || 0;
-      var costEach = parseFloat(ing.purchase_rate) || 0;
-      var retailEach = parseFloat(ing.rate) || 0;
-      var lineCost = qty * costEach;
-      var lineRetail = qty * retailEach;
-      totalCost += lineCost;
-      totalRetail += lineRetail;
+    // Grouped recipe-ingredient sections (RDISP-01, D-09..D-11). The shared helper
+    // reorders ingredients by brewing-process section, so data-ing-idx must map back
+    // to the ORIGINAL array position (via indexOf) to keep edit read-back correct.
+    var groups = (typeof groupRecipeIngredients === 'function')
+      ? groupRecipeIngredients(ingredients)
+      : [{ label: '', count: ingredients.length, items: ingredients }];
+    groups.forEach(function (group) {
+      if (group.label) {
+        html += '<tr class="recipes-ing-group"><td colspan="8">' + escapeHTML(group.label) + ' (' + group.count + ')</td></tr>';
+      }
+      group.items.forEach(function (ing) {
+        var idx = ingredients.indexOf(ing);
+        var avail = availMap[String(ing.item_id)] || {};
+        var dotClass = 'ing-status-dot ing-status-dot--' + (avail.status || 'unknown');
+        var stockText = avail.stock_on_hand != null ? avail.stock_on_hand + ' ' + (ing.unit || '') + ' available' : '';
+        var dotTitle = avail.status === 'unknown' ? 'Stock data loading -- try again shortly' : (avail.batches_possible != null ? avail.batches_possible + ' batch(es) possible' : '');
+        var qty = parseFloat(ing.quantity) || 0;
+        var costEach = parseFloat(ing.purchase_rate) || 0;
+        var retailEach = parseFloat(ing.rate) || 0;
+        var lineCost = qty * costEach;
+        var lineRetail = qty * retailEach;
+        totalCost += lineCost;
+        totalRetail += lineRetail;
 
-      html += '<tr class="recipes-ing-row" data-ing-idx="' + idx + '" data-item-id="' + escapeHTML(String(ing.item_id || '')) + '">';
-      html += '<td class="ing-autocomplete-wrap">';
-      html += '<input type="text" class="admin-input ing-search" value="' + escapeHTML(ing.item_name || '') + '" placeholder="Search ingredient..." />';
-      html += '</td>';
-      html += '<td><input type="number" class="admin-input ing-qty" value="' + (ing.quantity || '') + '" step="0.01" min="0" inputmode="decimal" /></td>';
-      html += '<td class="ing-unit">' + escapeHTML(ing.unit || '') + '</td>';
-      html += '<td class="ing-cost">' + (costEach > 0 ? '$' + lineCost.toFixed(2) : '—') + '</td>';
-      html += '<td class="ing-retail">' + (retailEach > 0 ? '$' + lineRetail.toFixed(2) : '—') + '</td>';
-      html += '<td><span class="ing-stock-hint">' + escapeHTML(stockText) + '</span></td>';
-      html += '<td><span class="' + dotClass + '" title="' + escapeHTML(dotTitle) + '"></span></td>';
-      html += '<td><button type="button" class="btn-secondary ing-remove" aria-label="Remove ' + escapeHTML(ing.item_name || 'ingredient') + '">&#10005;</button></td>';
-      html += '</tr>';
+        html += '<tr class="recipes-ing-row" data-ing-idx="' + idx + '" data-item-id="' + escapeHTML(String(ing.item_id || '')) + '">';
+        html += '<td class="ing-autocomplete-wrap">';
+        html += '<input type="text" class="admin-input ing-search" value="' + escapeHTML(ing.item_name || '') + '" placeholder="Search ingredient..." />';
+        html += '</td>';
+        html += '<td><input type="number" class="admin-input ing-qty" value="' + (ing.quantity || '') + '" step="0.01" min="0" inputmode="decimal" /></td>';
+        html += '<td class="ing-unit">' + escapeHTML(ing.unit || '') + '</td>';
+        html += '<td class="ing-cost">' + (costEach > 0 ? '$' + lineCost.toFixed(2) : '—') + '</td>';
+        html += '<td class="ing-retail">' + (retailEach > 0 ? '$' + lineRetail.toFixed(2) : '—') + '</td>';
+        html += '<td><span class="ing-stock-hint">' + escapeHTML(stockText) + '</span></td>';
+        html += '<td><span class="' + dotClass + '" title="' + escapeHTML(dotTitle) + '"></span></td>';
+        html += '<td><button type="button" class="btn-secondary ing-remove" aria-label="Remove ' + escapeHTML(ing.item_name || 'ingredient') + '">&#10005;</button></td>';
+        html += '</tr>';
+      });
     });
     tbody.innerHTML = html;
 

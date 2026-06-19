@@ -3027,16 +3027,27 @@ function isValidImportNumber(num) {
     html += '<th scope="col">Ingredient</th>';
     html += '<th scope="col" style="text-align:right;">Qty</th>';
     html += '<th scope="col">Unit</th></tr></thead><tbody>';
-    ingredients.forEach(function (ing, i) {
-      html += '<tr>';
-      html += '<td>' + escapeHTML(ing.item_name || '') + '</td>';
-      if (editable) {
-        html += '<td style="text-align:right;"><input type="number" class="bp-inline-input bp-recipe-qty" data-idx="' + i + '" value="' + escapeHTML(String(ing.quantity || '')) + '" style="width:70px;text-align:right;" step="0.01" min="0"></td>';
-      } else {
-        html += '<td style="text-align:right;">' + escapeHTML(String(ing.quantity || '')) + '</td>';
+    // Grouped sections (RDISP-03, D-09..D-11). Helper reorders by section, so data-idx
+    // must map to the ORIGINAL array position (via indexOf) for readIngredientTableEdits.
+    var groups = (typeof groupRecipeIngredients === 'function')
+      ? groupRecipeIngredients(ingredients)
+      : [{ label: '', count: ingredients.length, items: ingredients }];
+    groups.forEach(function (group) {
+      if (group.label) {
+        html += '<tr class="bp-recipe-ing-group"><td colspan="3"><strong>' + escapeHTML(group.label) + ' (' + group.count + ')</strong></td></tr>';
       }
-      html += '<td>' + escapeHTML(ing.unit || '') + '</td>';
-      html += '</tr>';
+      group.items.forEach(function (ing) {
+        var i = ingredients.indexOf(ing);
+        html += '<tr>';
+        html += '<td>' + escapeHTML(ing.item_name || '') + '</td>';
+        if (editable) {
+          html += '<td style="text-align:right;"><input type="number" class="bp-inline-input bp-recipe-qty" data-idx="' + i + '" value="' + escapeHTML(String(ing.quantity || '')) + '" style="width:70px;text-align:right;" step="0.01" min="0"></td>';
+        } else {
+          html += '<td style="text-align:right;">' + escapeHTML(String(ing.quantity || '')) + '</td>';
+        }
+        html += '<td>' + escapeHTML(ing.unit || '') + '</td>';
+        html += '</tr>';
+      });
     });
     html += '</tbody></table>';
     return html;
