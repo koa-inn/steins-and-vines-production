@@ -1,29 +1,37 @@
 {
   "version": "1.0",
-  "timestamp": "2026-06-11T05:28:13.174Z",
-  "phase": "27",
-  "phase_name": "pending-batch-visibility-activation",
-  "phase_dir": ".planning/phases/27-pending-batch-visibility-activation",
-  "plan": 4,
-  "task": 3,
-  "total_tasks": 3,
+  "timestamp": "2026-06-19T04:26:48.648Z",
+  "phase": null,
+  "phase_name": "Ad-hoc recipe-builder maintenance (non-GSD-phase)",
+  "phase_dir": null,
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
   "status": "paused",
+  "context_note": "This session was ad-hoc bug-fixing + a small feature on the admin recipe builder, NOT a GSD phase. v4.2 phases 31-33 are complete. All work below is committed, pushed to origin (local == origin/main), and deployed to staging AND production. Clean stopping point — nothing in progress.",
   "completed_tasks": [
-    {"id": 1, "name": "WR-01 — stamp start_date=todayPacific() in both one-click Activate payloads", "status": "done", "commit": "ba4bb9f"},
-    {"id": 2, "name": "CR-01 — add step1Done flag + reorder guided submit catch for truthful partial-success", "status": "done", "commit": "bcddd34"},
-    {"id": 3, "name": "Rebuild minified assets, lint, verify green test suite", "status": "done", "commit": "86a038a"}
+    {"id": 1, "name": "Internal Only items appear in recipe ingredient picker (API-key-gated ?include_internal=1, separate zoho:ingredients:all cache)", "status": "done", "commit": "2c49dec"},
+    {"id": 2, "name": "Patched 2 high-severity dep CVEs (nodemailer 8->9.0.1 [vestigial/unused], form-data 4.0.6) blocking the prod deploy audit gate", "status": "done", "commit": "9bd98bd"},
+    {"id": 3, "name": "Fixed gated-deploy.yml: removed [skip ci] from prod CNAME commit that was silently preventing GitHub Pages from publishing the frontend", "status": "done", "commit": "fd49f2b"},
+    {"id": 4, "name": "Recipe editor: re-render open recipe when catalog finishes loading (fixes blank/shifting ingredient cost/retail)", "status": "done", "commit": "c9eff32"},
+    {"id": 5, "name": "Apps Script: persist pricing_mode (self-migrating column) — was always reverting to locked", "status": "done", "commit": "7926ffc", "note": "Required MANUAL Apps Script redeploy — user completed it. pricing_mode column self-migrates to END of Recipes sheet."},
+    {"id": 6, "name": "Recipe list shows ingredient-based computed_price (~$) for dynamic recipes + cold-cache file fallback in enrichListPrices", "status": "done", "commit": "6ce1620"},
+    {"id": 7, "name": "Added 'Refresh from Zoho' button to recipe builder (POST /api/admin/cache-clear + reload catalog then list)", "status": "done", "commit": "5d6aa93"}
   ],
-  "remaining_tasks": [],
+  "remaining_tasks": [
+    {"id": 8, "name": "OPTIONAL/deferred: Dangerous Bunny (SV-R-000001) row has scrambled bookkeeping cells (notes holds a timestamp, created_at='middleware', created_by holds a timestamp). Cosmetic only — pricing/app unaffected. User deferred; fix by hand in the sheet if desired.", "status": "not_started"}
+  ],
   "blockers": [],
-  "human_actions_pending": [
-    {"action": "Test 4 BrewPad batch-activation items on staging (see 27-HUMAN-UAT.md), then reply 'approved'", "context": "Verifier returned human_needed: 4/4 must-haves verified by automation, but the activate handlers depend on live Apps Script behavior that can't be unit-tested. Phase is NOT yet marked complete (phase.complete + STATE advance pending approval).", "blocking": true},
-    {"action": "Resubmit sitemap.xml in Google Search Console (delete + re-add the entry)", "context": "Unrelated SEO aside from this session. The live sitemap is valid (verified via curl as Googlebot: clean application/xml, 13/13 balanced url tags). Search Console error is a STALE crawl of a truncated fetch — no code fix needed.", "blocking": false}
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "Treated 27-04 plan's Task-1 automated verify threshold (grep >= 3) as a copy/paste error; accepted the actual count of 2", "rationale": "Plan's own acceptance-criteria narrative said 'two newly-added one-click payloads', and the guided flow uses a different token (start_date: startDate). Both handlers correctly modified. Confirmed independently by the code reviewer and the verifier.", "phase": "27"},
-    {"decision": "Did NOT deploy (no git push); rebuilt assets committed to local main only", "rationale": "CLAUDE.md staging-first rule + the plan explicitly scoped deploy out. Awaiting human approval before any push.", "phase": "27"}
+    {"decision": "Expose Internal Only items only via API-key-gated ?include_internal=1 with a separate zoho:ingredients:all cache", "rationale": "The public zoho:ingredients cache is read by checkout.js + pos-recipe.js money-path validation; must not leak internal items into it"},
+    {"decision": "pricing_mode column self-migrates to the END of the Recipes sheet", "rationale": "createRecipe writes base fields positionally; a column inserted mid-sheet misaligns it. Helper ensureRecipesPricingModeColumn appends at end + writes by header lookup"},
+    {"decision": "Dynamic recipes display computed_price with a ~$ prefix; locked show plain $", "rationale": "Signals the price is computed from current ingredient costs and will move"},
+    {"decision": "Use the gated-deploy.yml blessed pipeline for prod, not git push production --force", "rationale": "Test-gated + CNAME-safe; now also auto-publishes Pages after the [skip ci] fix"}
   ],
-  "uncommitted_files": [],
-  "next_action": "If user replies 'approved': run `gsd-sdk query phase.complete 27`, commit tracking, then present next-phase routing (Phase 28: Zoho Customer Read-Back Path). If user reports issues: spin up a gap-closure plan via /gsd-plan-phase 27 --gaps.",
-  "context_notes": "Phase 27 execution is fully done and committed (4 atomic commits + merge, worktree isolation, merged to main; last commit 906696d). All gates passed: schema-drift none, regression green (432/432 frontend tests), lint 0 errors. Code review = issues_found but NO new criticals (both target gaps CLOSED; residual WR-02/WR-04 are PRE-EXISTING, IN-02 is harmless cosmetic dead code). Verifier = human_needed. The ONLY thing between here and phase completion is human UAT sign-off on staging. Working tree is clean. NOT deployed — nothing pushed to origin or production."
+  "uncommitted_files": [
+    "Build byproducts only (intentionally NOT committed): re-stamped ?v= on *.html and products/*.html, zoho-middleware/ingredients-cache.json (runtime), zoho-middleware/dump.rdb (untracked Redis dump). None are part of the work."
+  ],
+  "next_action": "Nothing pending. The recipe-builder thread is complete and user-confirmed. If anything, the only open item is the optional cosmetic Dangerous Bunny bookkeeping-cell cleanup (task 8).",
+  "context_notes": "Deploy topology gotchas that cost the most time this session: (1) [skip ci] in the gated CNAME commit blocked Pages publish — every frontend fix looked broken until traced; now fixed. (2) Cloudflare Bot Fight Mode 403s plain curl — verify prod via browser User-Agent or `gh api repos/koa-inn/steins-and-vines-production/contents/<path>`. (3) Apps Script is deployed MANUALLY (paste + redeploy), not via git. (4) Staging frontend calls the PROD middleware (no staging middleware instance) — middleware changes reach prod via railway up or the gated deploy's Railway watchPatterns. (5) gated-deploy audit gate fails on newly-published CVEs because package-lock.json is gitignored (npm install resolves latest). (6) Zoho data changes propagate to the site within ~10 min (cache soft TTL) or instantly via the new Refresh-from-Zoho button / POST /api/admin/cache-clear."
 }
