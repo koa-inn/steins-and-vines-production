@@ -340,3 +340,168 @@ describe('DELETE /api/recipes/:id', function () {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Ingredient group enrichment (RDISP-02, D-07, D-08)
+// ---------------------------------------------------------------------------
+
+describe('GET /api/recipes/:id ingredient group enrichment', function () {
+  var mocks;
+
+  // Catalog entry with cf_type top-level and cf_subcategory in custom_fields[]
+  var warmCatalog = [
+    {
+      item_id: 'ING-001',
+      rate: 2.5,
+      cf_type: 'Grain',
+      custom_fields: [
+        { api_name: 'cf_subcategory', value_formatted: 'Base Malt', value: 'base_malt' }
+      ]
+    }
+  ];
+
+  beforeEach(function () {
+    mocks = resetAndLoadRecipes();
+    mocks.cache.set.mockResolvedValue(true);
+    mocks.cache.del.mockResolvedValue(true);
+    process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-token';
+  });
+
+  test('warm catalog: each ingredient gains cf_type, cf_subcategory, display_group on cache hit', function () {
+    var cached = {
+      recipe: { recipe_id: 'SV-R-000001', pricing_mode: 'locked', locked_price: 50 },
+      ingredients: [
+        { item_id: 'ING-001', item_name: 'Pale Malt', quantity: 4.5 }
+      ]
+    };
+    // First call: recipe cache hit; second call: ingredients catalog
+    mocks.cache.get
+      .mockResolvedValueOnce(cached)          // recipe cache
+      .mockResolvedValueOnce(warmCatalog);    // ingredients cache
+
+    return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-000001' } }).then(function (res) {
+      var ing = res._body.ingredients[0];
+      expect(ing.cf_type).toBe('Grain');
+      expect(ing.cf_subcategory).toBe('Base Malt');
+      expect(typeof ing.display_group).toBe('string');
+    });
+  });
+
+  test('warm catalog: cf_subcategory is read from entry.custom_fields[] not top-level', function () {
+    // Entry has NO top-level cf_subcategory — it must come from custom_fields
+    var catalogEntry = {
+      item_id: 'ING-002',
+      rate: 1.0,
+      cf_type: 'Hops',
+      cf_subcategory: undefined, // NOT top-level
+      custom_fields: [
+        { api_name: 'cf_subcategory', value_formatted: 'Pellet Hops', value: 'pellet_hops' }
+      ]
+    };
+    var cached = {
+      recipe: { recipe_id: 'SV-R-000002', pricing_mode: 'locked', locked_price: 30 },
+      ingredients: [{ item_id: 'ING-002', item_name: 'Cascade', quantity: 50 }]
+    };
+    mocks.cache.get
+      .mockResolvedValueOnce(cached)
+      .mockResolvedValueOnce([catalogEntry]);
+
+    return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-000002' } }).then(function (res) {
+      var ing = res._body.ingredients[0];
+      expect(ing.cf_subcategory).toBe('Pellet Hops');
+    });
+  });
+
+  test('additive-only: ingredient array length and pre-existing fields are unchanged (D-08)', function () {
+    var cached = {
+      recipe: { recipe_id: 'SV-R-000001', pricing_mode: 'locked', locked_price: 50 },
+      ingredients: [
+        { item_id: 'ING-001', item_name: 'Pale Malt', quantity: 4.5, rate: 1.5, tax_id: 'TAX-001' }
+      ]
+    };
+    mocks.cache.get
+      .mockResolvedValueOnce(cached)
+      .mockResolvedValueOnce(warmCatalog);
+
+    return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-000001' } }).then(function (res) {
+      expect(res._body.ingredients).toHaveLength(1);
+      var ing = res._body.ingredients[0];
+      expect(ing.item_id).toBe('ING-001');
+      expect(ing.quantity).toBe(4.5);
+      // Additive fields added
+      expect(ing.cf_type).toBe('Grain');
+      expect(ing.cf_subcategory).toBe('Base Malt');
+    });
+  });
+
+  test('cold cache: ingredients returned unchanged with no error (D-07)', function () {
+    var cached = {
+      recipe: { recipe_id: 'SV-R-000001', pricing_mode: 'locked', locked_price: 50 },
+      ingredients: [
+        { item_id: 'ING-001', item_name: 'Pale Malt', quantity: 4.5 }
+      ]
+    };
+    // Simulate cold cache: recipe cache hit but ingredients cache cold
+    // Mock fs.readFileSync to throw (no file fallback)
+    jest.mock('fs', function () {
+      return { readFileSync: jest.fn(function () { throw new Error('ENOENT'); }) };
+    });
+    mocks.cache.get
+      .mockResolvedValueOnce(cached)  // recipe cache hit
+      .mockResolvedValueOnce(null);   // ingredients cache cold
+
+    return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-000001' } }).then(function (res) {
+      // Must still return ingredients array — no error
+      expect(res._status).toBe(200);
+      expect(res._body.ingredients).toHaveLength(1);
+      expect(res._body.ingredients[0].item_id).toBe('ING-001');
+      // Additive fields absent/empty when cold
+      var ing = res._body.ingredients[0];
+      expect(ing.cf_type == null || ing.cf_type === '').toBe(true);
+    });
+  });
+
+  test('locked-price recipe still receives cf_type/cf_subcategory (not gated behind dynamic)', function () {
+    var cached = {
+      recipe: { recipe_id: 'SV-R-000003', pricing_mode: 'locked', locked_price: 45 },
+      ingredients: [
+        { item_id: 'ING-001', item_name: 'Pale Malt', quantity: 4.5 }
+      ]
+    };
+    mocks.cache.get
+      .mockResolvedValueOnce(cached)
+      .mockResolvedValueOnce(warmCatalog);
+
+    return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-000003' } }).then(function (res) {
+      // pricing_mode is 'locked' so enrichWithComputedPrice early-returns,
+      // but enrichIngredientGroups must still run
+      var ing = res._body.ingredients[0];
+      expect(ing.cf_type).toBe('Grain');
+      expect(ing.cf_subcategory).toBe('Base Malt');
+    });
+  });
+
+  test('warm catalog (fresh fetch): each ingredient gains cf_type/cf_subcategory on cache miss', function () {
+    // No cache hit — Apps Script fetch
+    mocks.cache.get
+      .mockResolvedValueOnce(null)         // recipe cache miss
+      .mockResolvedValueOnce(warmCatalog); // ingredients catalog warm
+
+    mocks.axios.post.mockResolvedValue({
+      data: {
+        ok: true,
+        data: {
+          recipe: { recipe_id: 'SV-R-000001', pricing_mode: 'locked', locked_price: 50 },
+          ingredients: [{ item_id: 'ING-001', item_name: 'Pale Malt', quantity: 4.5 }]
+        }
+      }
+    });
+
+    return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-000001' } }).then(function (res) {
+      var ing = res._body.ingredients[0];
+      expect(ing.cf_type).toBe('Grain');
+      expect(ing.cf_subcategory).toBe('Base Malt');
+    });
+  });
+});
