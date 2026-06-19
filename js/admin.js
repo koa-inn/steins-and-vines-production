@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-19T04:07:58.279Z';
+  var BUILD_TIMESTAMP = '2026-06-19T04:21:04.775Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8495,7 +8495,7 @@
   // Ingredient catalog pre-load (D-03)
   function loadIngredientCatalogForRecipes() {
     var mwUrl = getRecipesMwUrl();
-    if (!mwUrl) return;
+    if (!mwUrl) return Promise.resolve();
     // include_internal=1 returns items flagged "Internal Only" in Zoho (hidden
     // from the public catalog but valid recipe ingredients). The middleware gates
     // this on a valid API key, so send it explicitly for this GET.
@@ -8503,7 +8503,7 @@
     if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
       headers['X-API-Key'] = SHEETS_CONFIG.MW_API_KEY;
     }
-    fetch(mwUrl + '/api/ingredients?include_internal=1', { headers: headers })
+    return fetch(mwUrl + '/api/ingredients?include_internal=1', { headers: headers })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
       .then(function (data) {
         _recipesState.catalog = data.items || data.ingredients || data || [];
@@ -9115,6 +9115,38 @@
     var newBtn = document.getElementById('recipes-new-btn');
     if (newBtn) {
       newBtn.addEventListener('click', function () { openRecipeDetail(null); });
+    }
+
+    var refreshZohoBtn = document.getElementById('recipes-refresh-zoho-btn');
+    if (refreshZohoBtn) {
+      refreshZohoBtn.addEventListener('click', function () {
+        var mwUrl = getRecipesMwUrl();
+        if (!mwUrl) { showToast('Middleware not configured', 'error'); return; }
+        var origText = refreshZohoBtn.textContent;
+        refreshZohoBtn.disabled = true;
+        refreshZohoBtn.textContent = 'Refreshing…';
+        fetch(mwUrl + '/api/admin/cache-clear', { method: 'POST', headers: getRecipesMwHeaders(true) })
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+          .then(function () {
+            // The catalog is rebuilding server-side (ingredients refresh is async
+            // and the file cache was cleared). Reload the catalog first — that GET
+            // awaits the fresh Zoho fetch — then the recipe list so dynamic prices
+            // recompute against the new data.
+            _recipesState.catalogLoaded = false;
+            return loadIngredientCatalogForRecipes();
+          })
+          .then(function () {
+            loadRecipeList();
+            showToast('Refreshed products & ingredients from Zoho.', 'success');
+          })
+          .catch(function () {
+            showToast('Could not refresh from Zoho. Please try again.', 'error');
+          })
+          .then(function () {
+            refreshZohoBtn.disabled = false;
+            refreshZohoBtn.textContent = origText;
+          });
+      });
     }
 
     var backBtn = document.getElementById('recipes-back-btn');
