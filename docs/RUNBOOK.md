@@ -17,6 +17,7 @@ Use the blessed path unless something is actively broken and you need to ship a 
 
 | Date | Git SHA | Railway Deploy ID | Deploy URL | Notes |
 |------|---------|-------------------|------------|-------|
+| 2026-06-19 04:22 UTC | `5d6aa93d` | `5081cbbf-5c09-41eb-aba6-649416509705` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/27805206730) | Recipe builder: Refresh from Zoho button (5d6aa93) |
 | 2026-06-19 04:11 UTC | `6ce1620f` | `014207ee-c805-4aee-9c9f-b50a79faa7aa` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/27804840892) | Recipe list: dynamic/ingredient-based price display + computed_price cold-cache fallback (6ce1620) |
 | 2026-06-19 00:51 UTC | `c9eff325` | `1d3a061c-4386-4ef3-b67c-ad50a22335e9` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/27798555795) | Recipe editor: fix catalog-load race (shifting cost/retail numbers), commit c9eff32 |
 | 2026-06-18 23:11 UTC | `9bd98bdc` | `54bc4013-2fd6-48df-b6e7-9b8250a824aa` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/27794924337) | Recipe builder Internal Only items (2c49dec) + high-CVE dep patch (9bd98bd) |
