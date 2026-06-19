@@ -8,6 +8,23 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 
 **Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.**
 
+## Current Milestone: v4.3 Recipe Builder Refinement
+
+**Goal:** Make recipes scalable and adjustable at the point of selection across admin, kiosk, and BrewPad — and make the recipe builder/manager available in BrewPad — without weakening the server-authoritative money path hardened in v4.2.
+
+**Target features:**
+- Group/sort recipe ingredients by `cf_type` (Grain/Hops/Yeast/Additive/…) in the recipe view, with server-side enrichment so all surfaces group consistently
+- Batch-size scaling by **target volume (litres)**: linearly scale weight-based ingredients, round **up** discrete (pcs) items; price scaled quantities server-authoritatively
+- Batch size selectable wherever a recipe is selected — admin, kiosk, BrewPad — with a consistent control
+- Add/remove/substitute ingredients at selection time for a one-off modified sale/batch (saved recipe untouched), with an optional "save as new recipe"
+- Surface the recipe builder/manager in BrewPad (browse/view/create/edit, reusing existing CRUD + activation guardrails)
+
+**Key design decisions (from kickoff):**
+- Locked-price recipes scale the **ingredient-cost portion proportionally** while **service/materials fees stay fixed**; dynamic recipes price from scaled ingredient costs
+- Batch size is entered as a **target volume in litres**; scale factor = target ÷ recipe `batch_size_l`
+- Scaling + substitution must flow through `pos-recipe.js` / `lib/pricing.js` server-authoritatively and be captured in the frozen `recipe_snapshot` + Zoho invoice line items
+- Grouping dimension is `cf_type`; ingredient data enriched in the middleware
+
 ## Current State: v4.2 Payment Path Hardening & Deploy Safety — SHIPPED 2026-06-19
 
 v4.2 is complete and live in production (Phases 31–33). Delivered: honest, executable test coverage of the money path (route-level `POST /api/checkout` supertests, Helcim client + webhook HMAC tests, `routes/**` coverage with per-file floors); fail-closed hardening (reCAPTCHA rejects unauthenticated checkout before charge, webhooks reject unsigned events, Redis-down replay/idempotency guard returns 409, `validateEnv.js` fixed to live Helcim/Cal.com vars); access control (API-key enforcement on PII GET routes incl. `/api/snapshot`, body-shape validation on item/tax mutations); and deploy safety (test-gated production deploys, `prod-YYYYMMDD-N` tags + rollback runbook, uptime monitoring on `/health`, fail-closed prod secrets). Final audit: 14/14 requirements, 18/18 integration seams, 4/4 flows — the one cross-phase blocker (Phase 32's `/api/snapshot` API-key vs Phase 33's nightly snapshot job) was fixed and verified live on 2026-06-19 (authenticated fetch + CNAME-safe prod cross-push).
