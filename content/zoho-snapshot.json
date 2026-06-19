@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-19T04:40:40.769Z",
+  "generated_at": "2026-06-19T04:47:38.120Z",
   "products": [
     {
       "name": "Acai Raspberry Rapture",
@@ -11313,9 +11313,9 @@
       "sku": "BREW-FEE",
       "stock": "0",
       "discount": "0",
-      "tax_percentage": 0,
-      "tax_name": "",
-      "tax_id": ""
+      "tax_percentage": 5,
+      "tax_name": "GST",
+      "tax_id": "109900000000014425"
     },
     {
       "name": "Custom Label Setup Fee",
@@ -11325,9 +11325,9 @@
       "sku": "C-LABEL-SETUP",
       "stock": "0",
       "discount": "0",
-      "tax_percentage": 0,
-      "tax_name": "",
-      "tax_id": ""
+      "tax_percentage": 5,
+      "tax_name": "GST",
+      "tax_id": "109900000000014425"
     },
     {
       "name": "Makers Fee",
@@ -11337,9 +11337,9 @@
       "sku": "MAKERS-FEE",
       "stock": "0",
       "discount": "0",
-      "tax_percentage": 0,
-      "tax_name": "",
-      "tax_id": ""
+      "tax_percentage": 5,
+      "tax_name": "GST",
+      "tax_id": "109900000000014425"
     },
     {
       "name": "Materials Fee",
@@ -11349,9 +11349,9 @@
       "sku": "MAT-FEE",
       "stock": "0",
       "discount": "0",
-      "tax_percentage": 0,
-      "tax_name": "",
-      "tax_id": ""
+      "tax_percentage": 12,
+      "tax_name": "BC PST + GST",
+      "tax_id": "109900000000029101"
     },
     {
       "name": "Milling Fee",
@@ -11361,9 +11361,9 @@
       "sku": "MILLED",
       "stock": "0",
       "discount": "0",
-      "tax_percentage": 0,
-      "tax_name": "",
-      "tax_id": ""
+      "tax_percentage": 5,
+      "tax_name": "GST",
+      "tax_id": "109900000000014425"
     },
     {
       "name": "Misc Fees",
