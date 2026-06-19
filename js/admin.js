@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-18T22:21:45.700Z';
+  var BUILD_TIMESTAMP = '2026-06-19T00:49:42.191Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8508,6 +8508,14 @@
       .then(function (data) {
         _recipesState.catalog = data.items || data.ingredients || data || [];
         _recipesState.catalogLoaded = true;
+        // If a recipe was opened before the catalog finished loading, its cost/
+        // retail columns rendered blank. Re-match and re-render now so the numbers
+        // fill in without the user having to reopen the recipe.
+        if (_recipesState.currentRecipeId && _recipesState.currentIngredients &&
+            _recipesState.currentIngredients.length) {
+          applyCatalogRatesToCurrentIngredients();
+          renderIngredientRows(_recipesState.currentIngredients, _recipesState.availability);
+        }
       })
       .catch(function () {
         showToast('Could not load ingredient catalog. Refresh the page and try again.', 'error');
@@ -8601,6 +8609,25 @@
     _recipesState.availability = null;
   }
 
+  // Match each open-recipe ingredient to the loaded catalog (by item_id) and
+  // copy its cost (purchase_rate) and retail (rate). No-op until the catalog is
+  // loaded; re-run when the catalog arrives so async load order can't leave the
+  // cost/retail columns blank or stale.
+  function applyCatalogRatesToCurrentIngredients() {
+    if (!_recipesState.catalogLoaded || !_recipesState.currentIngredients) return;
+    _recipesState.currentIngredients.forEach(function (ing) {
+      if (!ing || !ing.item_id) return;
+      var match = _recipesState.catalog.find(function (c) {
+        return String(c.item_id) === String(ing.item_id);
+      });
+      if (match) {
+        ing.purchase_rate = parseFloat(match.purchase_rate) || 0;
+        ing.rate = parseFloat(match.rate || match.price_per_unit) || 0;
+        if (!ing.unit && match.unit) ing.unit = match.unit;
+      }
+    });
+  }
+
   function showRecipesDetailView() {
     document.getElementById('recipes-list-view').style.display = 'none';
     document.getElementById('recipes-detail-view').style.display = '';
@@ -8647,18 +8674,11 @@
       var detail = results[0];
       var avail = results[1];
       _recipesState.currentRecipe = detail.recipe || detail;
-      _recipesState.currentIngredients = (detail.ingredients || []).map(function (ing) {
-        if (_recipesState.catalogLoaded && ing.item_id) {
-          var match = _recipesState.catalog.find(function (c) {
-            return String(c.item_id) === String(ing.item_id);
-          });
-          if (match) {
-            ing.purchase_rate = parseFloat(match.purchase_rate) || 0;
-            ing.rate = parseFloat(match.rate || match.price_per_unit) || 0;
-          }
-        }
-        return ing;
-      });
+      _recipesState.currentIngredients = (detail.ingredients || []).slice();
+      // Fill each ingredient's cost/retail from the catalog (matched by item_id).
+      // If the catalog is still loading, this is a no-op now and gets re-applied
+      // when loadIngredientCatalogForRecipes finishes (see catalog re-render hook).
+      applyCatalogRatesToCurrentIngredients();
       _recipesState.availability = avail;
 
       if (titleEl) titleEl.textContent = escapeHTML(_recipesState.currentRecipe.name || 'Recipe');
