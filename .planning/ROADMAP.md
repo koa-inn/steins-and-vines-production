@@ -417,8 +417,8 @@ Plans:
 Plans:
 **Wave 1** (parallel — disjoint files)
 
-- [ ] 34-01-PLAN.md — Promote CATEGORY_DISPLAY_NAMES to js/lib/constants.js + create shared js/lib/recipe-grouping.js helper (D-01..D-07, D-11) + Jest (RDISP-02)
-- [ ] 34-02-PLAN.md — Server additive enrichment in recipes.js (cf_type/cf_subcategory/display_group, locked+dynamic, cold-cache) + middleware tests (RDISP-02)
+- [x] 34-01-PLAN.md — Promote CATEGORY_DISPLAY_NAMES to js/lib/constants.js + create shared js/lib/recipe-grouping.js helper (D-01..D-07, D-11) + Jest (RDISP-02)
+- [x] 34-02-PLAN.md — Server additive enrichment in recipes.js (cf_type/cf_subcategory/display_group, locked+dynamic, cold-cache) + middleware tests (RDISP-02)
 
 **Wave 2**
 
@@ -492,7 +492,7 @@ Plans:
 | 31. Money-Path Test Coverage | v4.2 | 4/4 | Complete    | 2026-06-17 |
 | 32. Fail-Closed Hardening & Access Control | v4.2 | 4/4 | Complete    | 2026-06-18 |
 | 33. Deploy Safety & Monitoring | v4.2 | 3/3 | Complete    | 2026-06-18 |
-| 34. Ingredient Display & Server Enrichment | v4.3 | 0/TBD | Not started | - |
+| 34. Ingredient Display & Server Enrichment | v4.3 | 2/3 | In Progress|  |
 | 35. Batch Scaling Engine | v4.3 | 0/TBD | Not started | - |
 | 36. Cross-Surface Selection & Recipe Modification | v4.3 | 0/TBD | Not started | - |
 | 37. BrewPad Recipe Manager | v4.3 | 0/TBD | Not started | - |
