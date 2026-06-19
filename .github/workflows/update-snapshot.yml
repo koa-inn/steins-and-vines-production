@@ -107,9 +107,32 @@ jobs:
           git add content/zoho-snapshot.json
           if git diff --staged --quiet; then
             echo "Snapshot unchanged — nothing to commit"
+            exit 0
+          fi
+
+          # --- Staging ---
+          git commit -m "chore: update Zoho snapshot [skip ci]"
+          git push origin main
+          echo "Snapshot pushed to staging."
+
+          # --- Production (CNAME-safe) ---
+          # Do NOT push staging's tree to production: gated-deploy.yml force-pushes
+          # production main to its own history (CNAME = steinsandvines.ca), so a plain
+          # cross-push of staging HEAD can't fast-forward, and a --force cross-push
+          # would overwrite production's CNAME with staging's → 404. Instead, build a
+          # snapshot-only commit on top of production's ACTUAL main so it fast-forwards
+          # cleanly and never touches CNAME or deploy history.
+          PROD_URL="https://x-access-token:${{ secrets.PROD_DEPLOY_TOKEN }}@github.com/koa-inn/steins-and-vines-production.git"
+          cp content/zoho-snapshot.json /tmp/zoho-snapshot.json
+          git fetch "$PROD_URL" main
+          git checkout -B prod-snapshot FETCH_HEAD
+          cp /tmp/zoho-snapshot.json content/zoho-snapshot.json
+          git add content/zoho-snapshot.json
+          if git diff --staged --quiet; then
+            echo "Production snapshot already current — nothing to push to production."
           else
             git commit -m "chore: update Zoho snapshot [skip ci]"
-            git push origin main
-            git push https://x-access-token:${{ secrets.PROD_DEPLOY_TOKEN }}@github.com/koa-inn/steins-and-vines-production.git HEAD:main
-            echo "Snapshot pushed to both staging and production repos"
+            git push "$PROD_URL" prod-snapshot:main
+            echo "Snapshot pushed to production (snapshot-only commit on prod main)."
           fi
+          git checkout main

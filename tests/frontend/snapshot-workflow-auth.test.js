@@ -38,4 +38,31 @@ describe('update-snapshot.yml authenticates the /api/snapshot fetch', function (
     expect(fetchStep).toMatch(/x-api-key/);
     expect(fetchStep).toContain('/api/snapshot');
   });
+
+  describe('production cross-push is CNAME-safe', function () {
+    // gated-deploy.yml force-pushes production main (CNAME = steinsandvines.ca).
+    // The snapshot job must build a snapshot-only commit on top of production's own
+    // main, never push staging's tree, and never --force — otherwise it overwrites
+    // production's CNAME and 404s the live site.
+    var pushStep = yml.split(/- name:\s/).find(function (block) {
+      return /Commit and push to both repos/.test(block);
+    });
+
+    test('the push step exists', function () {
+      expect(pushStep).toBeDefined();
+    });
+
+    test('never force-pushes to the production repo', function () {
+      // Any --force aimed at production would clobber its CNAME/deploy history.
+      expect(pushStep).not.toMatch(/production\.git[^\n]*--force/);
+      expect(pushStep).not.toMatch(/--force[^\n]*production\.git/);
+    });
+
+    test('fetches production main and builds on it (no staging-tree cross-push)', function () {
+      // Must fetch prod main and push a branch built from it, not push staging HEAD.
+      expect(pushStep).toMatch(/git fetch .*main/);
+      expect(pushStep).toMatch(/prod-snapshot:main/);
+      expect(pushStep).not.toMatch(/production\.git\s+HEAD:main/);
+    });
+  });
 });
