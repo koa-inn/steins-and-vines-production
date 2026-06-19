@@ -114,7 +114,14 @@ jobs:
       # no restore step (and no fragile mid-swap window) is needed. If the force-push
       # fails, `set -e` aborts here and every downstream step is skipped (if: success()),
       # so a failed deploy writes nothing to staging.
-      # Triggers deploy-production.yml on koa-inn/steins-and-vines-production.
+      #
+      # CRITICAL: the commit message MUST NOT contain [skip ci] / [ci skip].
+      # The production repo publishes GitHub Pages via deploy-production.yml, which
+      # triggers on `push: branches:[main]`. GitHub honors a skip-ci token anywhere in
+      # the HEAD commit message and would skip that workflow — so the new frontend would
+      # land in the repo but never publish to the live site (silent stale-frontend bug).
+      # The redundant production-side Tests/Enforce-CNAME runs this push also triggers
+      # are expected and harmless.
       - name: Force-push to production repo
         run: |
           git config user.name  "github-actions[bot]"
@@ -122,7 +129,7 @@ jobs:
           STAGING_SHA=$(git rev-parse HEAD)
           echo "steinsandvines.ca" > CNAME
           git add CNAME
-          git commit -m "chore: set CNAME to steinsandvines.ca for production deploy [skip ci]"
+          git commit -m "chore: set CNAME to steinsandvines.ca for production deploy"
           git push https://x-access-token:${{ secrets.PROD_DEPLOY_TOKEN }}@github.com/koa-inn/steins-and-vines-production.git HEAD:main --force
           echo "Force-push to production complete"
           git reset --hard "${STAGING_SHA}"
