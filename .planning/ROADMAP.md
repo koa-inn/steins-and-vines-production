@@ -413,7 +413,17 @@ Plans:
   3. The kiosk recipe ingredient list and the BrewPad recipe ingredient view both show ingredients grouped by `cf_type`, matching the admin grouping (same section labels, same sort order)
   4. Middleware unit tests cover the `cf_type` enrichment logic (field present, fallback for unknown type, order of groups) and the full test suite passes with lint clean
 
-**Plans**: TBD
+**Plans**: 3 plans (2 waves)
+Plans:
+**Wave 1** (parallel — disjoint files)
+
+- [ ] 34-01-PLAN.md — Promote CATEGORY_DISPLAY_NAMES to js/lib/constants.js + create shared js/lib/recipe-grouping.js helper (D-01..D-07, D-11) + Jest (RDISP-02)
+- [ ] 34-02-PLAN.md — Server additive enrichment in recipes.js (cf_type/cf_subcategory/display_group, locked+dynamic, cold-cache) + middleware tests (RDISP-02)
+
+**Wave 2**
+
+- [ ] 34-03-PLAN.md — Wire grouped rendering into admin/BrewPad/kiosk via shared helper + build + human verify (RDISP-01, RDISP-03)
+
 **UI hint**: yes
 
 ### Phase 35: Batch Scaling Engine
