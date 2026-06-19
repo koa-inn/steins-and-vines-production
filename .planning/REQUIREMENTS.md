@@ -64,22 +64,20 @@
 
 ## Traceability
 
-_(Filled by the roadmapper — every REQ-ID maps to exactly one phase.)_
-
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| RDISP-01 | TBD | Pending |
-| RDISP-02 | TBD | Pending |
-| RDISP-03 | TBD | Pending |
-| SCALE-01 | TBD | Pending |
-| SCALE-02 | TBD | Pending |
-| SCALE-03 | TBD | Pending |
-| SCALE-04 | TBD | Pending |
-| SCALE-05 | TBD | Pending |
-| SEL-01 | TBD | Pending |
-| SEL-02 | TBD | Pending |
-| MOD-01 | TBD | Pending |
-| MOD-02 | TBD | Pending |
-| MOD-03 | TBD | Pending |
-| BPR-01 | TBD | Pending |
-| BPR-02 | TBD | Pending |
+| RDISP-01 | Phase 34 | Pending |
+| RDISP-02 | Phase 34 | Pending |
+| RDISP-03 | Phase 34 | Pending |
+| SCALE-01 | Phase 35 | Pending |
+| SCALE-02 | Phase 35 | Pending |
+| SCALE-03 | Phase 35 | Pending |
+| SCALE-04 | Phase 35 | Pending |
+| SCALE-05 | Phase 35 | Pending |
+| SEL-01 | Phase 36 | Pending |
+| SEL-02 | Phase 36 | Pending |
+| MOD-01 | Phase 36 | Pending |
+| MOD-02 | Phase 36 | Pending |
+| MOD-03 | Phase 36 | Pending |
+| BPR-01 | Phase 37 | Pending |
+| BPR-02 | Phase 37 | Pending |

@@ -9,6 +9,7 @@
 - ✅ **v4.0 Booking Migration (Cal.com) + Edge Protection** — Phases 25-26 (completed 2026-06-06)
 - ✅ **v4.1 BrewPad Batch Lifecycle & Zoho Sync** — Phases 27-30 (shipped 2026-06-17)
 - ✅ **v4.2 Payment Path Hardening & Deploy Safety** — Phases 31-33 (shipped 2026-06-19)
+- 🚧 **v4.3 Recipe Builder Refinement** — Phases 34-37 (in progress)
 
 ## Phases
 
@@ -74,6 +75,15 @@
 - [x] **Phase 31: Money-Path Test Coverage** - Route-level checkout tests, Helcim HMAC tests, honest coverage config (TEST-01..03) (completed 2026-06-17)
 - [x] **Phase 32: Fail-Closed Hardening & Access Control** - reCAPTCHA/webhook fail-closed, replay-guard 409, validateEnv update, PII route API-key enforcement, body-shape validation (HARDEN-01..04, PII-01..02) (completed 2026-06-18)
 - [x] **Phase 33: Deploy Safety & Monitoring** - Test-gated CI deploys, prod deploy tagging + rollback runbook, snapshot fix, uptime monitoring, secrets verification (DEPLOY-01..03, MONITOR-01..02) (completed 2026-06-18)
+
+### 🚧 v4.3 Recipe Builder Refinement (In Progress)
+
+**Milestone Goal:** Make recipes scalable and adjustable at the point of selection across admin, kiosk, and BrewPad — and make the recipe builder/manager available in BrewPad — without weakening the server-authoritative money path hardened in v4.2.
+
+- [ ] **Phase 34: Ingredient Display & Server Enrichment** - Enrich recipe ingredient data server-side with `cf_type`; group ingredients by type in admin, kiosk, and BrewPad views (RDISP-01, RDISP-02, RDISP-03)
+- [ ] **Phase 35: Batch Scaling Engine** - Staff can enter a target batch volume; the system scales ingredient quantities (linear for weight, round-up for pcs), prices scaled recipes server-authoritatively, and captures scaled quantities in the Zoho invoice and frozen `recipe_snapshot` (SCALE-01, SCALE-02, SCALE-03, SCALE-04, SCALE-05)
+- [ ] **Phase 36: Cross-Surface Selection & Recipe Modification** - Batch size control available on all recipe-selection surfaces; staff can add/remove/substitute ingredients for a one-off sale without touching the saved recipe, with optional save-as-new (SEL-01, SEL-02, MOD-01, MOD-02, MOD-03)
+- [ ] **Phase 37: BrewPad Recipe Manager** - Staff can browse, view, create, and edit recipes from within BrewPad, reusing existing recipe CRUD endpoints and activation guardrails (BPR-01, BPR-02)
 
 ## Phase Details
 
@@ -389,6 +399,69 @@ Plans:
 
 - [x] 33-03-PLAN.md — MONITOR-01 UptimeRobot /health keyword monitor + deploy secrets (PROD_DEPLOY_TOKEN, RAILWAY_TOKEN) + Railway "Wait for CI" + first gated deploy verification + close Phase 32 secrets UAT (MONITOR-02)
 
+## Phase Details (v4.3)
+
+### Phase 34: Ingredient Display & Server Enrichment
+
+**Goal**: Recipe ingredient data is enriched with `cf_type` in the middleware so every surface (admin, kiosk, BrewPad) receives a consistent type label and can group ingredients identically without per-surface workarounds
+**Depends on**: Nothing (first phase of v4.3; reads existing Zoho ingredient data via the catalog cache)
+**Requirements**: RDISP-01, RDISP-02, RDISP-03
+**Success Criteria** (what must be TRUE):
+
+  1. The middleware endpoint(s) that return recipe ingredients include a `cf_type` field (e.g. Grain, Hops, Yeast, Additive, Packaging) on every ingredient line, derived from the Zoho item data at request time
+  2. In the admin recipe detail view, ingredients are displayed in labelled sections by `cf_type` (e.g. a "Grain" section, a "Hops" section) with items within each section in a consistent order
+  3. The kiosk recipe ingredient list and the BrewPad recipe ingredient view both show ingredients grouped by `cf_type`, matching the admin grouping (same section labels, same sort order)
+  4. Middleware unit tests cover the `cf_type` enrichment logic (field present, fallback for unknown type, order of groups) and the full test suite passes with lint clean
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 35: Batch Scaling Engine
+
+**Goal**: Staff can enter a target batch volume in litres at recipe selection time; the system computes the scale factor, adjusts all ingredient quantities (linear for weight, round-up for pcs), prices the scaled recipe server-authoritatively, and captures the scaled quantities and target volume in the Zoho invoice and the frozen `recipe_snapshot`
+**Depends on**: Phase 34 (ingredient `cf_type` enrichment is available; unit types needed to distinguish weight vs. pcs for rounding logic)
+**Requirements**: SCALE-01, SCALE-02, SCALE-03, SCALE-04, SCALE-05
+**Success Criteria** (what must be TRUE):
+
+  1. On a recipe-selection surface (admin), a "Target volume (L)" input is visible after a recipe is chosen; entering a value displays the computed scale factor (e.g. "1.5× base 20 L") before committing
+  2. After scaling, a weight-based ingredient (kg/g) shows a linearly scaled quantity (e.g. 5 kg → 7.5 kg at 1.5×) and a pcs ingredient shows a quantity rounded up to the nearest whole unit (e.g. 2.3 pcs → 3 pcs)
+  3. `POST /api/kiosk/recipe-sale` (or equivalent) receives the target volume and returns scaled ingredient costs: locked-price recipes scale only the ingredient-cost portion with service/materials fees fixed; dynamic recipes price from scaled ingredient costs — verified by middleware unit tests
+  4. The Zoho invoice line items reflect the scaled quantities (not the base recipe quantities), and the `recipe_snapshot` frozen at sale time includes both the `target_volume_l` and the scaled ingredient quantities
+  5. Before sale confirmation, a stock-check using the scaled quantities surfaces any ingredient that would be oversold (quantity requested exceeds available stock), and the sale cannot proceed until the conflict is resolved
+
+**Plans**: TBD
+
+### Phase 36: Cross-Surface Selection & Recipe Modification
+
+**Goal**: The batch-size control is available on every recipe-selection surface and persists through the sale/batch flow; staff can also add, remove, or substitute ingredients for a one-off modified sale without altering the saved recipe, with the option to save the modification as a new recipe
+**Depends on**: Phase 35 (scaling engine must exist; server pricing for modified ingredient lists extends the same server path)
+**Requirements**: SEL-01, SEL-02, MOD-01, MOD-02, MOD-03
+**Success Criteria** (what must be TRUE):
+
+  1. The batch-size (target volume) control appears in the admin recipe-sale flow, the kiosk recipe-sale flow, and the BrewPad recipe-attach flow — using the same visual control and validation rules on all three surfaces
+  2. A batch size chosen at recipe-selection time is carried through the entire flow — into the cart line items, the Zoho invoice, the `recipe_snapshot`, and the created batch record — without requiring the staff member to re-enter it at any later step
+  3. At recipe-selection time, staff can modify the ingredient list (add an item from the ingredient catalog, remove an existing line, or swap one ingredient for another); the saved recipe template is not altered by this action
+  4. The modified ingredient list is priced server-authoritatively (same `pos-recipe.js` / `lib/pricing.js` path as a standard sale) and the Zoho invoice and frozen `recipe_snapshot` reflect the actual ingredients sold, not the original template
+  5. A staff member can optionally tap "Save as new recipe" after a one-off modification; this creates a new recipe via the existing recipe-create endpoint (`SV-R-…` ID, activation guardrails enforced), leaving the original recipe untouched
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 37: BrewPad Recipe Manager
+
+**Goal**: Staff can browse, view, create, and edit recipes from within BrewPad — the recipe builder is no longer admin-only — using the existing recipe CRUD endpoints and activation guardrails
+**Depends on**: Phase 34 (ingredient grouping is available for consistent display in the BrewPad recipe view; Phases 35/36 not required — BPR is independent of scaling)
+**Requirements**: BPR-01, BPR-02
+**Success Criteria** (what must be TRUE):
+
+  1. BrewPad has a "Recipes" section (tab or panel) where staff can browse the full recipe catalogue with status indicators (draft / active) and search/filter by name
+  2. Selecting a recipe in BrewPad opens a detail view showing all recipe metadata and ingredients grouped by `cf_type` — the same information visible in the admin recipe detail view
+  3. Staff can create a new recipe from BrewPad using the same form fields as the admin recipe builder; the recipe is created via the existing `POST /api/recipes` endpoint and appears in the catalogue immediately
+  4. Staff can edit an existing recipe from BrewPad; activation guardrails (`locked_price > 0` and at least one ingredient) are enforced before any recipe can be marked active — identical to the admin path
+
+**Plans**: TBD
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -409,6 +482,10 @@ Plans:
 | 31. Money-Path Test Coverage | v4.2 | 4/4 | Complete    | 2026-06-17 |
 | 32. Fail-Closed Hardening & Access Control | v4.2 | 4/4 | Complete    | 2026-06-18 |
 | 33. Deploy Safety & Monitoring | v4.2 | 3/3 | Complete    | 2026-06-18 |
+| 34. Ingredient Display & Server Enrichment | v4.3 | 0/TBD | Not started | - |
+| 35. Batch Scaling Engine | v4.3 | 0/TBD | Not started | - |
+| 36. Cross-Surface Selection & Recipe Modification | v4.3 | 0/TBD | Not started | - |
+| 37. BrewPad Recipe Manager | v4.3 | 0/TBD | Not started | - |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
 
