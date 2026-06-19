@@ -3315,6 +3315,29 @@ function getRecipeDetail(recipeId) {
  * @param {Object} payload - Recipe fields + optional ingredients array
  * @param {string} userEmail - Authenticated staff email
  */
+/**
+ * Self-migrating helper: the Recipes sheet originally shipped without a
+ * pricing_mode column, so the value was dropped on save and recipes always
+ * reverted to 'locked'. Add the column (at the end) the first time we write,
+ * so pricing_mode persists and round-trips via sheetToObjects' header mapping.
+ * Existing rows read as '' which the frontend treats as 'locked'
+ * (backward-compatible). Returns the zero-based column index.
+ */
+function ensureRecipesPricingModeColumn(sheet) {
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var idx = headers.indexOf('pricing_mode');
+  if (idx === -1) {
+    sheet.getRange(1, lastCol + 1).setValue('pricing_mode').setFontWeight('bold');
+    return lastCol; // zero-based index of the newly added column
+  }
+  return idx;
+}
+
+function normalizePricingMode(value) {
+  return value === 'dynamic' ? 'dynamic' : 'locked';
+}
+
 function createRecipe(payload, userEmail) {
   if (!payload.name) {
     return { ok: false, error: 'missing_fields', message: 'name is required' };
@@ -3360,6 +3383,11 @@ function createRecipe(payload, userEmail) {
       userEmail,
       now
     ]);
+
+    // Persist pricing_mode by header lookup (column is self-migrated if missing)
+    var pmCol = ensureRecipesPricingModeColumn(recipesSheet);
+    recipesSheet.getRange(recipesSheet.getLastRow(), pmCol + 1)
+      .setValue(normalizePricingMode(payload.pricing_mode));
 
     var ingredientErrors = [];
     var ingredientsCreated = 0;
@@ -3440,6 +3468,12 @@ function updateRecipe(payload, userEmail) {
         if (col !== -1) sheet.getRange(row, col + 1).setValue(Number(payload[field]));
       }
     });
+
+    // Update pricing_mode (enum: locked | dynamic) via the self-migrated column
+    if (payload.pricing_mode !== undefined) {
+      var pmCol = ensureRecipesPricingModeColumn(sheet);
+      sheet.getRange(row, pmCol + 1).setValue(normalizePricingMode(payload.pricing_mode));
+    }
 
     // Always update updated_at
     var luCol = headers.indexOf('updated_at');
@@ -3588,11 +3622,12 @@ function setupRecipeTabs() {
       'recipe_id', 'name', 'style', 'description', 'status',
       'locked_price', 'service_fee', 'materials_fee',
       'batch_size_l', 'abv', 'ibu', 'colour_srm',
-      'notes', 'created_at', 'created_by', 'updated_at'
+      'notes', 'created_at', 'created_by', 'updated_at',
+      'pricing_mode'
     ]);
-    recipesSheet.getRange(1, 1, 1, 16).setFontWeight('bold');
+    recipesSheet.getRange(1, 1, 1, 17).setFontWeight('bold');
     recipesSheet.setFrozenRows(1);
-    Logger.log('Created Recipes tab with 16 columns');
+    Logger.log('Created Recipes tab with 17 columns');
   } else {
     Logger.log('Recipes tab already exists — skipped');
   }
