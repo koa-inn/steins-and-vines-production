@@ -1,3 +1,5 @@
+var constants = require('../../js/lib/constants.js');
+global.CATEGORY_DISPLAY_NAMES = constants.CATEGORY_DISPLAY_NAMES;
 var mod = require('../../js/modules/17-search-overlay.js');
 
 // ---------------------------------------------------------------------------

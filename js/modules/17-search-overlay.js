@@ -49,28 +49,8 @@ var CATEGORY_PAGE_MAP = {
   'Seltzer':   'ferment-in-store.html'
 };
 
-// Maps cf_subcategory values to grouped display labels for group headers
-// Collapses Bottle+Bag -> "Packaging", Fermenter+Hose+Tubing -> "Equipment", etc.
-var CATEGORY_DISPLAY_NAMES = {
-  'Hops':      'Hops',
-  'Grain':     'Grains',
-  'Grains':    'Grains',
-  'Yeast':     'Yeast',
-  'Additive':  'Additives',
-  'Additives': 'Additives',
-  'Bottle':    'Packaging',
-  'Bag':       'Packaging',
-  'Packaging': 'Packaging',
-  'Fermenter': 'Equipment',
-  'Equipment': 'Equipment',
-  'Hose':      'Equipment',
-  'Tubing':    'Equipment',
-  'Hose/Tubing': 'Equipment',
-  'Wine':      'Wine Kits',
-  'Beer':      'Beer Kits',
-  'Cider':     'Cider Kits',
-  'Seltzer':   'Seltzer Kits'
-};
+// CATEGORY_DISPLAY_NAMES is declared in js/lib/constants.js (loaded before this module).
+// In-browser: global var. In Jest: populated via require('../../js/lib/constants.js').
 
 // ---------------------------------------------------------------------------
 // Pure functions (exported for tests)

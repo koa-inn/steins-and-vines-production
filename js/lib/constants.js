@@ -40,11 +40,40 @@ var PRODUCT_TABS = {
 // ---------------------------------------------------------------------------
 var KIT_CATEGORIES = ['wine', 'beer', 'cider', 'seltzer'];
 
+// ---------------------------------------------------------------------------
+// Category display name map (promoted from js/modules/17-search-overlay.js)
+// Maps raw cf_subcategory / cf_type values to friendly grouped display labels.
+// Consumed by search-overlay (groupResultsByCategory) and recipe-grouping helper.
+// ---------------------------------------------------------------------------
+var CATEGORY_DISPLAY_NAMES = {
+  'Hops':      'Hops',
+  'Grain':     'Grains',
+  'Grains':    'Grains',
+  'Yeast':     'Yeast',
+  'Additive':  'Additives',
+  'Additives': 'Additives',
+  'Bottle':    'Packaging',
+  'Bag':       'Packaging',
+  'Packaging': 'Packaging',
+  'Fermenter': 'Equipment',
+  'Equipment': 'Equipment',
+  'Hose':      'Equipment',
+  'Tubing':    'Equipment',
+  'Hose/Tubing': 'Equipment',
+  'Wine':      'Wine Kits',
+  'Beer':      'Beer Kits',
+  'Cider':     'Cider Kits',
+  'Seltzer':   'Seltzer Kits',
+  'Ingredient': 'Ingredient',
+  'Cleaning/Sanitization': 'Cleaning/Sanitization'
+};
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     CART_KEYS:     CART_KEYS,
     ITEM_TYPES:    ITEM_TYPES,
     PRODUCT_TABS:  PRODUCT_TABS,
-    KIT_CATEGORIES: KIT_CATEGORIES
+    KIT_CATEGORIES: KIT_CATEGORIES,
+    CATEGORY_DISPLAY_NAMES: CATEGORY_DISPLAY_NAMES
   };
 }
