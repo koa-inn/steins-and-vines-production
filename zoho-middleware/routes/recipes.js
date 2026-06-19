@@ -72,6 +72,52 @@ function bustRecipeCache(recipeId) {
   return Promise.all(keys.map(function (k) { return cache.del(k); }));
 }
 
+// ---------------------------------------------------------------------------
+// Helper — Custom-field accessor (mirrors catalog.js L551-556 Millable idiom)
+// ---------------------------------------------------------------------------
+
+function readCF(entry, apiName) {
+  var cfs = (entry && entry.custom_fields) || [];
+  for (var i = 0; i < cfs.length; i++) {
+    if (cfs[i] && cfs[i].api_name === apiName) return cfs[i].value_formatted || cfs[i].value || '';
+  }
+  return '';
+}
+
+// ---------------------------------------------------------------------------
+// Helper — Always-run additive group enrichment (RDISP-02, D-07, D-08)
+// Sets cf_type / cf_subcategory / display_group on each ingredient.
+// NOT gated behind pricing_mode — runs for locked AND dynamic recipes.
+// ---------------------------------------------------------------------------
+
+function enrichIngredientGroups(ingredients) {
+  return cache.get(C.CACHE_KEYS.INGREDIENTS).then(function (catalog) {
+    if (!catalog || !Array.isArray(catalog)) {
+      // Redis cold — mirror the enrichListPrices file-cache fallback (L122-131)
+      try {
+        catalog = JSON.parse(fs.readFileSync(INGREDIENTS_FILE_CACHE, 'utf8'));
+      } catch (e) {
+        catalog = null;
+      }
+      if (!catalog || !Array.isArray(catalog)) return; // D-07: degrade gracefully
+    }
+    var map = {};
+    catalog.forEach(function (item) { if (item && item.item_id) map[item.item_id] = item; });
+
+    (ingredients || []).forEach(function (ing) {
+      var entry = map[ing.item_id];
+      if (!entry) return; // no match — leave additive fields unset
+      // cf_type is top-level on cache entries (catalog.js L851)
+      ing.cf_type = entry.cf_type || readCF(entry, 'cf_type') || '';
+      // cf_subcategory lives in custom_fields[] (PATTERNS critical finding)
+      ing.cf_subcategory = readCF(entry, 'cf_subcategory') || '';
+      // display_group — let the client (Plan 01) do label collapse;
+      // set to the raw subcategory key or type key as a stable raw signal.
+      ing.display_group = ing.cf_subcategory || ing.cf_type || '';
+    });
+  }).catch(function () {}); // D-07: never throw on enrichment failure
+}
+
 function enrichWithComputedPrice(recipe, ingredients) {
   if (!recipe || recipe.pricing_mode !== 'dynamic') return Promise.resolve();
   return cache.get(C.CACHE_KEYS.INGREDIENTS).then(function (catalog) {
@@ -224,6 +270,8 @@ router.get('/api/recipes/:id', function (req, res) {
     if (cached) {
       log.info('[api/recipes/' + recipeId + '] Cache hit');
       return enrichWithComputedPrice(cached.recipe, cached.ingredients).then(function () {
+        return enrichIngredientGroups(cached.ingredients);
+      }).then(function () {
         cache.set(cacheKey, cached, RECIPES_CACHE_TTL);
         res.json(cached);
       });
@@ -236,6 +284,8 @@ router.get('/api/recipes/:id', function (req, res) {
         var detail = data.data || {};
         var result = { recipe: detail.recipe || detail, ingredients: detail.ingredients || [] };
         return enrichWithComputedPrice(result.recipe, result.ingredients).then(function () {
+          return enrichIngredientGroups(result.ingredients);
+        }).then(function () {
           cache.set(cacheKey, result, RECIPES_CACHE_TTL);
           res.json(result);
         });
