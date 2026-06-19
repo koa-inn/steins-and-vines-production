@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-19T00:49:42.191Z';
+  var BUILD_TIMESTAMP = '2026-06-19T04:07:58.279Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8576,7 +8576,14 @@
     var html = '';
     _recipesState.list.forEach(function (recipe) {
       var badgeClass = 'recipes-badge-' + (recipe.status || 'draft');
-      var price = recipe.locked_price ? '$' + parseFloat(recipe.locked_price).toFixed(2) : '—';
+      // Dynamic recipes price off the ingredient catalog (computed_price, set by
+      // the middleware); locked recipes use locked_price. The list previously
+      // always showed locked_price, so switching to Ingredient-Based looked inert.
+      var isDynamic = recipe.pricing_mode === 'dynamic';
+      var priceVal = isDynamic ? Number(recipe.computed_price) : Number(recipe.locked_price);
+      var price = priceVal > 0
+        ? (isDynamic ? '~$' : '$') + priceVal.toFixed(2)
+        : '—';
       var updated = recipe.updated_at ? new Date(recipe.updated_at).toLocaleDateString() : '—';
       html += '<tr class="recipes-row" data-recipe-id="' + escapeHTML(recipe.recipe_id || '') + '">';
       html += '<td>' + escapeHTML(recipe.name || '') + '</td>';

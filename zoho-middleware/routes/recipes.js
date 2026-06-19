@@ -1,12 +1,18 @@
 'use strict';
 
 var express = require('express');
+var fs = require('fs');
+var path = require('path');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var C = require('../lib/constants');
 var axios = require('axios');
 
 var router = express.Router();
+
+// Same file the catalog route writes on every ingredients refresh — used as a
+// fallback so dynamic recipe pricing still computes when Redis is cold.
+var INGREDIENTS_FILE_CACHE = path.join(__dirname, '..', 'ingredients-cache.json');
 
 var RECIPES_CACHE_TTL = 600; // 10 minutes (D-09)
 
@@ -113,7 +119,17 @@ function enrichListPrices(recipes) {
   ]).then(function (caches) {
     var catalog = caches[0];
     var kioskItems = caches[1];
-    if (!catalog || !Array.isArray(catalog)) return;
+    if (!catalog || !Array.isArray(catalog)) {
+      // Redis cold — fall back to the ingredients file cache so dynamic prices
+      // still compute (mirrors GET /api/ingredients' resilience). Without this,
+      // computed_price stays unset and the list shows no price for dynamic recipes.
+      try {
+        catalog = JSON.parse(fs.readFileSync(INGREDIENTS_FILE_CACHE, 'utf8'));
+      } catch (e) {
+        catalog = null;
+      }
+      if (!catalog || !Array.isArray(catalog)) return;
+    }
     var map = {};
     catalog.forEach(function (item) { if (item && item.item_id) map[item.item_id] = item; });
 
