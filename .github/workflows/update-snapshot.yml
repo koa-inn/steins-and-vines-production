@@ -43,14 +43,28 @@ jobs:
         id: fetch
         run: |
           echo "Fetching snapshot from production middleware..."
+          # /api/snapshot is behind requirePiiApiKey (server.js) since Phase 32 —
+          # it reads the x-api-key header. Without it the middleware returns 403 and
+          # the production snapshot silently goes stale. MW_API_KEY must equal the
+          # Railway API_SECRET_KEY; set it as a repo Actions secret.
+          if [ -z "${{ secrets.MW_API_KEY }}" ]; then
+            echo "ERROR: MW_API_KEY secret is not set — /api/snapshot will 403."
+            echo "Add it under Settings → Secrets and variables → Actions (= Railway API_SECRET_KEY)."
+            exit 1
+          fi
+
           HTTP_CODE=$(curl -s -o snapshot_raw.json -w "%{http_code}" \
             --max-time 60 \
+            -H "x-api-key: ${{ secrets.MW_API_KEY }}" \
             "https://svmiddleware-production.up.railway.app/api/snapshot")
 
           echo "HTTP status: $HTTP_CODE"
 
           if [ "$HTTP_CODE" != "200" ]; then
             echo "ERROR: Middleware returned HTTP $HTTP_CODE"
+            if [ "$HTTP_CODE" = "403" ]; then
+              echo "HINT: 403 means the x-api-key header was rejected — confirm MW_API_KEY matches Railway API_SECRET_KEY."
+            fi
             cat snapshot_raw.json
             exit 1
           fi
