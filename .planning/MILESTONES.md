@@ -1,5 +1,26 @@
 # Milestones
 
+## v4.2 Payment Path Hardening & Deploy Safety (Shipped: 2026-06-19)
+
+**Phases completed:** 3 phases (31 Money-Path Test Coverage, 32 Fail-Closed Hardening & Access Control, 33 Deploy Safety & Monitoring), 11 plans
+
+**Milestone goal:** Make the money path trustworthy — test the online checkout, close the fail-open security gaps, and stop unsafe/untested code from reaching production.
+
+**Key accomplishments:**
+
+- **Money-path test coverage (Phase 31):** route-level supertest coverage of `POST /api/checkout` (charge→order→void recovery, void-failure alert, dual-cart shared-charge reversal), Helcim client + terminal/webhook HMAC tests, and honest `routes/**` coverage with per-file money-path floors so the payment path can't silently regress (TEST-01/02/03)
+- **Fail-closed hardening (Phase 32):** production checkout rejects unauthenticated callers (reCAPTCHA unset/timeout → 400 before charge), webhooks reject unsigned events when their secret is unset, the replay/idempotency guard returns 409 when Redis is down (no duplicate Zoho orders), and `validateEnv.js` validates live Helcim/Cal.com/`REDIS_ENCRYPTION_KEY` vars with the dead Global Payments vars removed (HARDEN-01/02/03/04)
+- **Access control (Phase 32):** explicit API-key enforcement on PII GET routes (`/api/contacts`, `/api/invoices`, `/api/items/inspect`, `/api/snapshot`) with the Referer-skip bypass closed, plus body-shape validation on item/tax mutations instead of forwarding raw `req.body` to Zoho (PII-01/02)
+- **Deploy safety (Phase 33):** production deploys are gated on the full frontend + middleware test suite (failing tests block the deploy), every prod deploy is tagged `prod-YYYYMMDD-N`, and a written rollback runbook pairs the git SHA with the Railway deploy (DEPLOY-01/02)
+- **Monitoring (Phase 33):** external uptime monitor polls `/health` and alerts on downtime / `authenticated:false` / `redis:false`, and required production secrets fail closed (process exits) when absent rather than degrading silently (MONITOR-01/02)
+- **DEPLOY-03 cross-phase blocker closed (2026-06-19):** the milestone audit caught that Phase 32's API-key enforcement on `/api/snapshot` broke Phase 33's nightly snapshot job (403 → stale prod fallback). Fixed by authenticating the snapshot fetch (`x-api-key`) and rewriting the production cross-push as a CNAME-safe snapshot-only commit on production's own `main`; verified live (both repos green, prod snapshot fresh, CNAME intact)
+
+**Final audit:** 14/14 requirements satisfied, 18/18 integration seams, 4/4 flows (see `milestones/v4.2-MILESTONE-AUDIT.md`). Accepted non-blocking tech debt: `chargeAndProceed()` live `payment_token` path untested (deferred by human decision), `isProdIdem` Redis-down 409 branch not directly route-testable, and two minor doc-drift items in `validateEnv.js`/`RUNBOOK.md`.
+
+**Known deferred items at close:** 21 cross-milestone GSD bookkeeping items (3 unclosed quick-task trackers, 8 partial HUMAN-UAT signoffs, 10 verification-gap signoffs — see STATE.md Deferred Items). All are human-signoff bookkeeping on shipped, in-production features; no broken code. Phase 32/33 UAT both passed (32-VERIFICATION frontmatter is stale-but-resolved).
+
+---
+
 ## v4.1 BrewPad Batch Lifecycle & Zoho Sync (Shipped: 2026-06-17)
 
 **Phases completed:** 9 phases (27, 27.1, 28, 29, 29.1-29.4, 30), 32 plans

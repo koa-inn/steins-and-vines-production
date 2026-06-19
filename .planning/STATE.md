@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.2
 milestone_name: Payment Path Hardening & Deploy Safety
-status: milestone_complete
-stopped_at: Milestone complete (Phase 33 was final phase)
-last_updated: 2026-06-18T16:00:28.725Z
-last_activity: 2026-06-18 -- Phase 33 execution started
+status: Awaiting next milestone
+stopped_at: Phase 33 context gathered
+last_updated: "2026-06-19T04:55:49.929Z"
+last_activity: 2026-06-19 — Milestone v4.2 completed and archived
 progress:
   total_phases: 19
-  completed_phases: 17
+  completed_phases: 18
   total_plans: 58
   completed_plans: 59
-  percent: 89
+  percent: 95
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 
 ## Current Position
 
-Phase: 33
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-06-18
+Phase: Milestone v4.2 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-19 — Milestone v4.2 completed and archived
 
 ## Performance Metrics
 
@@ -114,10 +114,13 @@ Last activity: 2026-06-18
 
 ### Deferred Items
 
-Acknowledged at the v4.1 milestone close (2026-06-17). All are GSD human-signoff/UAT bookkeeping on features that shipped to production and are working — none represent broken code:
+Re-acknowledged at the v4.2 milestone close (2026-06-19); originally acknowledged at v4.1 close (2026-06-17). All are GSD human-signoff/UAT bookkeeping on features that shipped to production and are working — none represent broken code:
 
 | Category | Item | Status |
 |----------|------|--------|
+| verification | 32-VERIFICATION.md | human_needed (stale — Railway-dashboard items resolved; 32-HUMAN-UAT.md = passed) |
+| uat | 32-HUMAN-UAT.md | passed (closed by Phase 33 gated deploy; scanner flags scenario rows) |
+| uat | 33-HUMAN-UAT.md | passed (scanner flags scenario rows) |
 | verification | 22-VERIFICATION.md | human_needed |
 | verification | 23-VERIFICATION.md | human_needed |
 | verification | 27.1-VERIFICATION.md | human_needed |
@@ -161,4 +164,4 @@ Resume file: .planning/phases/33-deploy-safety-monitoring/33-CONTEXT.md
 
 ## Operator Next Steps
 
-- Run `/gsd-plan-phase 31` to plan the Money-Path Test Coverage phase
+- Start the next milestone with /gsd-new-milestone

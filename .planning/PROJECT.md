@@ -8,36 +8,25 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 
 **Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.**
 
-## Current Milestone: v4.2 Payment Path Hardening & Deploy Safety
+## Current State: v4.2 Payment Path Hardening & Deploy Safety — SHIPPED 2026-06-19
+
+v4.2 is complete and live in production (Phases 31–33). Delivered: honest, executable test coverage of the money path (route-level `POST /api/checkout` supertests, Helcim client + webhook HMAC tests, `routes/**` coverage with per-file floors); fail-closed hardening (reCAPTCHA rejects unauthenticated checkout before charge, webhooks reject unsigned events, Redis-down replay/idempotency guard returns 409, `validateEnv.js` fixed to live Helcim/Cal.com vars); access control (API-key enforcement on PII GET routes incl. `/api/snapshot`, body-shape validation on item/tax mutations); and deploy safety (test-gated production deploys, `prod-YYYYMMDD-N` tags + rollback runbook, uptime monitoring on `/health`, fail-closed prod secrets). Final audit: 14/14 requirements, 18/18 integration seams, 4/4 flows — the one cross-phase blocker (Phase 32's `/api/snapshot` API-key vs Phase 33's nightly snapshot job) was fixed and verified live on 2026-06-19 (authenticated fetch + CNAME-safe prod cross-push).
+
+**Next milestone:** TBD — candidates from `PROJECT_ASSESSMENT.md` "Future Requirements" (decompose `processCheckout()`, de-fork kiosk POS into `kiosk-core.js`, `window.SV` namespace, static product rendering + JSON-LD, image pipeline, accessible dialogs, docs refresh) and open product issues (About-page placeholder copy, hero value-prop, WCAG contrast). Run `/gsd-new-milestone` to scope.
+
+<details>
+<summary>v4.2 milestone goal (for reference)</summary>
 
 **Goal:** Make the money path trustworthy — test the online checkout, close the fail-open security gaps, and stop unsafe/untested code from reaching production.
 
-**Target features:**
-- Test-gated production deploys, prod deploy tags + rollback runbook, and a snapshot that actually reaches the live site
-- Uptime monitoring on `/health` + verified Railway secrets (fail closed when absent in prod)
-- Route-level tests for `POST /api/checkout` + Helcim client/webhook HMAC tests + `routes/**` coverage
-- Fail-closed hardening: reCAPTCHA, webhook secrets, Redis replay guard (409), `validateEnv.js` Helcim fix
-- Explicit API-key checks on PII GET routes + body-shape validation on item/tax mutations
+Source: `PROJECT_ASSESSMENT.md` (Week 1 + Weeks 2–4). Continued phase numbering from Phase 31.
 
-Source: `PROJECT_ASSESSMENT.md` (Week 1 + Weeks 2–4). Continues phase numbering from Phase 31.
-
-## Current State: v4.1 BrewPad Batch Lifecycle & Zoho Sync — SHIPPED 2026-06-17
-
-v4.1 is complete and live in production (Phases 27–30 + sub-phases). Delivered: full pending-batch lifecycle in BrewPad (visibility, one-click + guided activation, deletion), bidirectional Zoho customer sync (read-back endpoint + refresh-from-Zoho button + reassignment with invoice propagation), bulk pull of non-kiosk batch sales, wine drill-down analytics, and a batch of assessment quick-wins (dead-code cleanup, repo hygiene, presentation/contrast/404 fixes, kiosk cart-leak fix, XSS hardening). Also shipped this milestone: transactional email moved to Resend (working), beer waitlist migrated to MailerLite (replacing Mailchimp), bottling invites via Resend, and `REDIS_ENCRYPTION_KEY` hardening (#106 closed).
-
-**Next milestone:** TBD — candidates from `PROJECT_ASSESSMENT.md` (remaining non-quick-win items) and open product issues (e.g. About-page placeholder copy). Run `/gsd-new-milestone` to scope.
+</details>
 
 <details>
-<summary>v4.1 original goal (for reference)</summary>
+<summary>v4.1 BrewPad Batch Lifecycle & Zoho Sync — SHIPPED 2026-06-17</summary>
 
-**Goal:** Staff can activate pending batches and pull customer info back from Zoho onto BrewPad — closing the two gaps in the batch workflow.
-
-**Target features:**
-- Pending batches visible in the admin batch list with a new "Pending" status filter (today they only surface as a dashboard count)
-- Batch activation: one-click "Activate" (quick flip to Primary, today's start date) as default, plus a "Schedule & activate" guided option (schedule template + start date + vessel)
-- "Refresh from Zoho" button in the batch detail modal that re-reads the linked Zoho sales order/invoice and updates the batch's customer name/email/contact on the BrewPad display
-- Read-back path from Zoho (middleware endpoint to fetch invoice/contact customer details by SO number) — today Zoho sync is write-only
-- Scoped to batches that already carry a `zoho_so_number` (kiosk/online sales); manual SO-linking for unlinked batches deferred
+v4.1 (Phases 27–30 + sub-phases): full pending-batch lifecycle in BrewPad (visibility, one-click + guided activation, deletion), bidirectional Zoho customer sync (read-back endpoint + refresh-from-Zoho button + reassignment with invoice propagation), bulk pull of non-kiosk batch sales, wine drill-down analytics, and assessment quick-wins (dead-code cleanup, repo hygiene, presentation/contrast/404 fixes, kiosk cart-leak fix, XSS hardening). Also: transactional email moved to Resend, beer waitlist migrated to MailerLite, bottling invites via Resend, and `REDIS_ENCRYPTION_KEY` hardening (#106 closed).
 
 </details>
 
@@ -80,12 +69,16 @@ v4.1 is complete and live in production (Phases 27–30 + sub-phases). Delivered
 - ✓ Cloudflare edge protection in front of GitHub Pages + Railway middleware — Phase 26
 - ✓ Delete pending batches from the UI with confirmation — Phase 27.1
 - ✓ Refresh a batch's customer info from its linked Zoho sales order/invoice (ZSYNC-01/02) — Phase 29
-- ✓ Honest, executable test coverage of the money path: route-level checkout tests via supertest, Helcim HMAC webhook tests, honest coverage thresholds with per-file money-path floors (TEST-01/02/03) — Phase 31 (v4.2). Note: production `payment_token`/chargeAndProceed path documented as a `test.todo` gap deferred to Phase 32.
+- ✓ Reassign the customer on a batch and propagate to the linked Zoho sales order/invoice — Phase 29.1 (v4.1)
+- ✓ Activate pending batches from BrewPad — one-click + guided schedule/start, pending-aware status badge — Phase 29.2 (v4.1)
+- ✓ Honest, executable test coverage of the money path: route-level checkout supertests, Helcim HMAC webhook tests, honest coverage thresholds with per-file money-path floors (TEST-01/02/03) — Phase 31 (v4.2)
+- ✓ Fail-closed hardening: reCAPTCHA rejects unauthenticated checkout before charge, webhooks reject unsigned events, Redis-down replay/idempotency guard returns 409, `validateEnv.js` validates live Helcim/Cal.com vars (HARDEN-01/02/03/04) — Phase 32 (v4.2)
+- ✓ Access control: API-key enforcement on PII GET routes (incl. `/api/snapshot`) + body-shape validation on item/tax mutations (PII-01/02) — Phase 32 (v4.2)
+- ✓ Deploy safety: test-gated production deploys, `prod-YYYYMMDD-N` tags + rollback runbook, CNAME-safe nightly snapshot to prod (DEPLOY-01/02/03) — Phase 33 (v4.2)
+- ✓ Monitoring: uptime monitor on `/health` + required prod secrets fail closed when absent (MONITOR-01/02) — Phase 33 (v4.2)
 
 ### Active
 
-- [ ] Reassign the customer on a batch and propagate to the linked Zoho invoice (Phase 29.1 — emerged during Phase 27 UAT)
-- [ ] Activate pending batches from BrewPad — one-click + guided schedule/start, pending-aware status badge (Phase 29.2 — emerged during Phase 29)
 - [ ] Pre-made recipes browsable on public site (deferred)
 - [ ] Custom recipe request flow for customers (deferred)
 
@@ -132,6 +125,9 @@ v4.1 is complete and live in production (Phases 27–30 + sub-phases). Delivered
 | locked_price set by staff, not computed from live rates | Avoids pricing drift from ingredient cost changes | ✓ Good |
 | recipe_snapshot frozen at sale time | Immune to future recipe edits; batch always reflects what was sold | ✓ Good |
 | Standalone JS modules for subpages (14-labels, 15-hops) | Not in concat:js; loaded independently per page | ✓ Good |
+| Fail closed in production (reCAPTCHA, webhook secrets, Redis replay guard, validateEnv) | Money path must reject on missing config/infra, not silently proceed | ✓ Good (v4.2) |
+| Test-gated production deploys via `gated-deploy.yml` | Failing frontend/middleware tests block the deploy; CNAME-safe + tagged | ✓ Good (v4.2) |
+| Nightly snapshot pushes a snapshot-only commit on production's own `main` | gated-deploy force-pushes prod history; a plain cross-push can't FF and `--force` would clobber CNAME → 404 | ✓ Good (v4.2) |
 
 ## Evolution
 
@@ -151,4 +147,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-17 — v4.1 BrewPad Batch Lifecycle & Zoho Sync milestone shipped to production and archived (Phases 27–30 + sub-phases; email→Resend, waitlist→MailerLite, #106 closed). Phase 31 (Money-Path Test Coverage, v4.2) complete: TEST-01/02/03 validated; payment_token coverage gap deferred to Phase 32.*
+*Last updated: 2026-06-19 — v4.2 Payment Path Hardening & Deploy Safety milestone shipped to production and archived (Phases 31–33). Audit 14/14 requirements; the DEPLOY-03/PII-01 cross-phase blocker was fixed and verified live (authenticated snapshot fetch + CNAME-safe prod cross-push). Next milestone TBD — run /gsd-new-milestone.*
