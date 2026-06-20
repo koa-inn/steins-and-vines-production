@@ -180,6 +180,27 @@ function recipeRowPrice(recipe) {
   return (isDynamic ? '~$' : '$') + priceVal.toFixed(2);
 }
 
+// Copy cost (purchase_rate) and retail (rate) from the ingredient catalog onto each
+// recipe ingredient, matched by item_id. The recipe endpoint returns ingredients WITHOUT
+// prices — they live in the ingredient catalog — so without this enrichment the editor's
+// Cost/Retail columns and the totals footer render blank ("—"). Mirrors admin.js
+// applyCatalogRatesToCurrentIngredients. Mutates and returns `ingredients`.
+function enrichIngredientsWithCatalogRates(ingredients, catalog) {
+  if (!Array.isArray(ingredients) || !Array.isArray(catalog)) return ingredients || [];
+  ingredients.forEach(function (ing) {
+    if (!ing || ing.item_id == null || ing.item_id === '') return;
+    var match = catalog.find(function (c) {
+      return c && String(c.item_id) === String(ing.item_id);
+    });
+    if (match) {
+      ing.purchase_rate = parseFloat(match.purchase_rate) || 0;
+      ing.rate = parseFloat(match.rate || match.price_per_unit) || 0;
+      if (!ing.unit && match.unit) ing.unit = match.unit;
+    }
+  });
+  return ingredients;
+}
+
 // Known beverage type buckets for the dashboard Batches-by-Month chart.
 var KNOWN_BATCH_TYPES = { wine: true, beer: true, cider: true, seltzer: true };
 
@@ -1629,10 +1650,25 @@ function recipeDeleteConfirmMessage(name) {
       .then(function (data) {
         _recipesState.catalog = data.items || data.ingredients || data || [];
         _recipesState.catalogLoaded = true;
+        // Re-render hook: if a recipe detail was opened before the catalog finished
+        // loading, its ingredient rows rendered without cost/retail. Re-apply rates now
+        // and re-render so async load order can't leave the columns blank or stale.
+        if (_recipesState.currentRecipeId && _recipesState.currentIngredients &&
+            _recipesState.currentIngredients.length) {
+          applyCatalogRatesToCurrentIngredients();
+          renderIngredientRows(_recipesState.currentIngredients, _recipesState.availability);
+        }
       })
       .catch(function () {
         // Non-fatal — catalog is used for detail/editor autocomplete (Plan 02); list still shows
       });
+  }
+
+  // Mutates _recipesState.currentIngredients in place, copying catalog cost/retail
+  // onto each ingredient by item_id. No-op until the catalog has loaded.
+  function applyCatalogRatesToCurrentIngredients() {
+    if (!_recipesState.catalogLoaded || !_recipesState.currentIngredients) return;
+    enrichIngredientsWithCatalogRates(_recipesState.currentIngredients, _recipesState.catalog);
   }
 
   function loadRecipeList(statusFilter) {
@@ -1750,6 +1786,10 @@ function recipeDeleteConfirmMessage(name) {
       _recipesState.currentRecipe = detail.recipe || detail;
       _recipesState.currentIngredients = (detail.ingredients || []).slice();
       _recipesState.availability = avail;
+      // Fill each ingredient's cost/retail from the catalog (matched by item_id). If the
+      // catalog is still loading this is a no-op now and gets re-applied when
+      // loadIngredientCatalogForRecipes finishes (see the catalog re-render hook).
+      applyCatalogRatesToCurrentIngredients();
 
       if (titleEl) titleEl.textContent = escapeHTML(_recipesState.currentRecipe.name || 'Recipe');
       populateRecipeForm(_recipesState.currentRecipe);
@@ -7966,6 +8006,7 @@ if (typeof module !== 'undefined' && module.exports) {
     applyTopN: applyTopN,
     filterRecipesByName: filterRecipesByName,
     recipeRowPrice: recipeRowPrice,
+    enrichIngredientsWithCatalogRates: enrichIngredientsWithCatalogRates,
     canActivateRecipe: canActivateRecipe,
     buildRecipePayload: buildRecipePayload,
     recipeDeleteConfirmMessage: recipeDeleteConfirmMessage

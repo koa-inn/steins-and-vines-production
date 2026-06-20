@@ -164,6 +164,73 @@ describe('recipeRowPrice', function () {
 });
 
 // ---------------------------------------------------------------------------
+// enrichIngredientsWithCatalogRates
+// Regression: recipe endpoint returns ingredients WITHOUT prices (they live in the
+// ingredient catalog). Without catalog enrichment, the editor's Cost/Retail columns
+// and totals footer render blank ("—") for every existing ingredient.
+// ---------------------------------------------------------------------------
+describe('enrichIngredientsWithCatalogRates', function () {
+  var enrichIngredientsWithCatalogRates = bp.enrichIngredientsWithCatalogRates;
+
+  var catalog = [
+    { item_id: '100', name: 'Gambrinus Pale Malt', purchase_rate: 2.75, rate: 3.50, unit: 'kg' },
+    { item_id: '200', name: 'Fermentis S-04', purchase_rate: 4.00, price_per_unit: 6.25 },
+    { item_id: 300, name: 'Numeric ID malt', purchase_rate: 1.00, rate: 1.50 }
+  ];
+
+  test('copies purchase_rate and rate from catalog onto ingredients matched by item_id', function () {
+    var ings = [{ item_id: '100', quantity: 9.3 }];
+    enrichIngredientsWithCatalogRates(ings, catalog);
+    expect(ings[0].purchase_rate).toBe(2.75);
+    expect(ings[0].rate).toBe(3.50);
+  });
+
+  test('falls back to price_per_unit when rate is absent', function () {
+    var ings = [{ item_id: '200', quantity: 2 }];
+    enrichIngredientsWithCatalogRates(ings, catalog);
+    expect(ings[0].rate).toBe(6.25);
+  });
+
+  test('matches across numeric vs string item_id types', function () {
+    var ings = [{ item_id: '300', quantity: 1 }];
+    enrichIngredientsWithCatalogRates(ings, catalog);
+    expect(ings[0].rate).toBe(1.50);
+  });
+
+  test('fills unit from catalog only when ingredient lacks one', function () {
+    var ings = [{ item_id: '100', quantity: 1 }, { item_id: '100', quantity: 1, unit: 'lb' }];
+    enrichIngredientsWithCatalogRates(ings, catalog);
+    expect(ings[0].unit).toBe('kg');
+    expect(ings[1].unit).toBe('lb');
+  });
+
+  test('leaves rates at 0 for ingredients with no catalog match', function () {
+    var ings = [{ item_id: '999', quantity: 5 }];
+    enrichIngredientsWithCatalogRates(ings, catalog);
+    expect(ings[0].purchase_rate).toBeUndefined();
+  });
+
+  test('regression: line cost reflects catalog rate after enrichment (was $0 → blank)', function () {
+    var ings = [{ item_id: '100', quantity: 9.3 }];
+    enrichIngredientsWithCatalogRates(ings, catalog);
+    var lineCost = (parseFloat(ings[0].quantity) || 0) * (parseFloat(ings[0].purchase_rate) || 0);
+    expect(lineCost).toBeCloseTo(25.575, 3);
+  });
+
+  test('tolerates non-array inputs without throwing', function () {
+    expect(enrichIngredientsWithCatalogRates(null, catalog)).toEqual([]);
+    expect(enrichIngredientsWithCatalogRates([{ item_id: '100' }], null)).toEqual([{ item_id: '100' }]);
+  });
+
+  test('skips ingredients with empty or missing item_id', function () {
+    var ings = [{ item_id: '', quantity: 1 }, { quantity: 1 }];
+    enrichIngredientsWithCatalogRates(ings, catalog);
+    expect(ings[0].purchase_rate).toBeUndefined();
+    expect(ings[1].purchase_rate).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // canActivateRecipe (D-06 inline activation guardrail)
 // ---------------------------------------------------------------------------
 describe('canActivateRecipe', function () {
