@@ -1053,3 +1053,239 @@ describe('SCALE-05 regression — internal-only ingredient reads INGREDIENTS_ALL
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// GET /api/kiosk/recipe-quote — dry-run quote (SCALE-01, 35-06)
+// ---------------------------------------------------------------------------
+// This endpoint must:
+//   - Run the identical scale+price+stock compute as POST recipe-sale
+//   - Return 200 with scaled totals + scaled ingredients + stock status
+//   - NOT call helcim.terminalPurchase or cache.acquireLock (read-only)
+//   - Mirror the BEER_SALES_ENABLED feature gate and same validation errors
+
+describe('GET /api/kiosk/recipe-quote (dry-run, SCALE-01, 35-06)', function () {
+  var mocks;
+
+  beforeEach(function () {
+    mocks = resetAndLoadPosRecipe();
+    process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-token';
+    process.env.BEER_SALES_ENABLED = 'true';
+    process.env.MAKERS_FEE_ITEM_ID = 'fee-makers-1';
+    process.env.MATERIALS_FEE_ITEM_ID = 'fee-materials-1';
+    process.env.KIOSK_CONTACT_ID = 'contact-default';
+    delete process.env.MILLING_FEE_ITEM_ID;
+    mocks.helcim.isTerminalEnabled.mockReturnValue(true);
+    mocks.helcim.terminalPurchase.mockResolvedValue({});
+    mocks.cache.acquireLock.mockResolvedValue(true);
+    mocks.cache.releaseLock.mockResolvedValue();
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') return Promise.resolve(MOCK_INGREDIENTS_CATALOG);
+      if (key === 'zoho:ingredients') return Promise.resolve(MOCK_INGREDIENTS_CATALOG);
+      return Promise.resolve(null);
+    });
+    mocks.axios.post.mockResolvedValue(MOCK_RECIPE_RESPONSE);
+  });
+
+  afterEach(function () {
+    delete process.env.APPS_SCRIPT_URL;
+    delete process.env.APPS_SCRIPT_SERVER_TOKEN;
+    delete process.env.BEER_SALES_ENABLED;
+    delete process.env.MAKERS_FEE_ITEM_ID;
+    delete process.env.MATERIALS_FEE_ITEM_ID;
+    delete process.env.KIOSK_CONTACT_ID;
+    delete process.env.MILLING_FEE_ITEM_ID;
+  });
+
+  test('Q1. returns 200 with ok:true, scale_factor, and total for valid in-store request at 1x', function () {
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-001', target_volume_l: '20', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(200);
+      expect(res._body.ok).toBe(true);
+      expect(res._body.recipe_id).toBe('RCP-001');
+      expect(res._body.base_volume_l).toBe(20);
+      expect(res._body.target_volume_l).toBe(20);
+      expect(res._body.scale_factor).toBe(1.0);
+      // locked: 195 * 1.0 + 45 + 5 = 245.00
+      expect(res._body.total).toBe(245.00);
+      expect(res._body.pricing_mode).toBe('locked');
+      expect(Array.isArray(res._body.ingredients)).toBe(true);
+      expect(res._body.stock).toBeDefined();
+      expect(typeof res._body.stock.ok).toBe('boolean');
+    });
+  });
+
+  test('Q2. quote.total === recipe-sale grandTotal for the same inputs (locked 1.5x, in-store)', function () {
+    // Both handlers must agree: locked: 195 * 1.5 + 45 + 5 = 342.50
+    var quoteTotal;
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-001', target_volume_l: '30', sale_type: 'in-store' }
+    }).then(function (quoteRes) {
+      expect(quoteRes._status).toBe(200);
+      quoteTotal = quoteRes._body.total;
+      return callHandler('POST', '/api/kiosk/recipe-sale', {
+        body: { recipe_id: 'RCP-001', sale_type: 'in-store', target_volume_l: 30 }
+      });
+    }).then(function (saleRes) {
+      expect(saleRes._status).toBe(202);
+      expect(quoteTotal).toBe(saleRes._body.total);
+      expect(quoteTotal).toBe(342.50);
+    });
+  });
+
+  test('Q3. quote does NOT call helcim.terminalPurchase and does NOT call cache.acquireLock', function () {
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-001', target_volume_l: '20', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(200);
+      expect(mocks.helcim.terminalPurchase).not.toHaveBeenCalled();
+      expect(mocks.cache.acquireLock).not.toHaveBeenCalled();
+    });
+  });
+
+  test('Q4. returns scaled ingredient list with item_id, item_name, unit, base_quantity, quantity, rate, line_total', function () {
+    // 1.5x: malt 5.5*1.5=8.25; hops 0.1*1.5=0.15; yeast ceil(1*1.5)=2
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-001', target_volume_l: '30', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(200);
+      expect(res._body.ingredients.length).toBe(3);
+      var malt = res._body.ingredients.find(function (i) { return i.item_id === 'ing-malt-1'; });
+      expect(malt).toBeTruthy();
+      expect(malt.base_quantity).toBe(5.5);
+      expect(malt.quantity).toBeCloseTo(8.25, 4);
+      expect(malt.rate).toBe(3.50);
+      expect(malt.line_total).toBeCloseTo(8.25 * 3.50, 2);
+      var hops = res._body.ingredients.find(function (i) { return i.item_id === 'ing-hops-1'; });
+      expect(hops.quantity).toBeCloseTo(0.15, 4);
+      var yeast = res._body.ingredients.find(function (i) { return i.item_id === 'ing-yeast-1'; });
+      expect(yeast.quantity).toBe(2); // discrete ceil
+    });
+  });
+
+  test('Q5. returns stock.ok=false with conflicts when scaled qty oversells', function () {
+    var conflictResponse = {
+      data: {
+        ok: true,
+        data: {
+          recipe: {
+            recipe_id: 'RCP-CONFLICT',
+            name: 'Stock Conflict Recipe',
+            batch_size_l: 20,
+            locked_price: 195.00,
+            service_fee: 45.00,
+            materials_fee: 5.00,
+            status: 'active'
+          },
+          ingredients: [
+            { ingredient_id: 'ING-002', item_id: 'ing-hops-1', item_name: 'Cascade Hops', quantity: 2, unit: 'kg' }
+          ]
+        }
+      }
+    };
+    mocks.axios.post.mockResolvedValue(conflictResponse);
+    // 2 * 1.5 = 3 needed, stock_on_hand = 2 => conflict
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-CONFLICT', target_volume_l: '30', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(200);
+      expect(res._body.ok).toBe(true); // 200 (quote always returns, stock status is informational)
+      expect(res._body.stock.ok).toBe(false);
+      expect(Array.isArray(res._body.stock.conflicts)).toBe(true);
+      expect(res._body.stock.conflicts.length).toBeGreaterThan(0);
+      expect(res._body.stock.conflicts[0].item_id).toBe('ing-hops-1');
+    });
+  });
+
+  test('Q6. returns 400 when target_volume_l is <= 0', function () {
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-001', target_volume_l: '0', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(400);
+      expect(res._body.error).toMatch(/target_volume_l/);
+    });
+  });
+
+  test('Q7. returns 400 when target_volume_l exceeds 10x base (fat-finger guard, D-11)', function () {
+    // batch_size_l=20, target=201 (> 20*10=200)
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-001', target_volume_l: '201', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(400);
+      expect(res._body.error).toMatch(/maximum/i);
+    });
+  });
+
+  test('Q8. returns 400 when recipe has no batch_size_l (cannot scale, D-11)', function () {
+    var noBaseResponse = {
+      data: {
+        ok: true,
+        data: {
+          recipe: {
+            recipe_id: 'RCP-NOBASE',
+            name: 'No Base Recipe',
+            batch_size_l: 0,
+            locked_price: 195.00,
+            service_fee: 45.00,
+            materials_fee: 5.00,
+            status: 'active'
+          },
+          ingredients: [
+            { ingredient_id: 'ING-001', item_id: 'ing-malt-1', item_name: 'Pale Malt 2-Row', quantity: 5.5, unit: 'kg' }
+          ]
+        }
+      }
+    };
+    mocks.axios.post.mockResolvedValue(noBaseResponse);
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-NOBASE', target_volume_l: '20', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(400);
+      expect(res._body.error).toMatch(/batch size/i);
+    });
+  });
+
+  test('Q9. returns 404 when recipe not found from Apps Script', function () {
+    mocks.axios.post.mockResolvedValue({
+      data: { ok: false, data: null }
+    });
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-MISSING', target_volume_l: '20', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(404);
+      expect(res._body.error).toMatch(/not found/i);
+    });
+  });
+
+  test('Q10. returns 503 when INGREDIENTS_ALL catalog is cold (cache miss)', function () {
+    mocks.cache.get.mockResolvedValue(null);
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-001', target_volume_l: '20', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(503);
+      expect(res._body.error).toMatch(/catalog/i);
+    });
+  });
+
+  test('Q11. returns 403 when BEER_SALES_ENABLED is false (mirrors feature gate)', function () {
+    process.env.BEER_SALES_ENABLED = 'false';
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-001', target_volume_l: '20', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(403);
+      expect(res._body.error).toMatch(/not enabled/i);
+    });
+  });
+
+  test('Q12. defaults target_volume_l to base volume (scale_factor 1.0) when omitted', function () {
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-001', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(200);
+      expect(res._body.scale_factor).toBe(1.0);
+      expect(res._body.target_volume_l).toBe(20);
+      expect(res._body.total).toBe(245.00);
+    });
+  });
+});
