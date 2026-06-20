@@ -83,7 +83,7 @@
 - [x] **Phase 34: Ingredient Display & Server Enrichment** - Enrich recipe ingredient data server-side with `cf_type`; group ingredients by type in admin, kiosk, and BrewPad views (RDISP-01, RDISP-02, RDISP-03) (completed 2026-06-20)
 - [ ] **Phase 35: Batch Scaling Engine** - Staff can enter a target batch volume; the system scales ingredient quantities (linear for weight, round-up for pcs), prices scaled recipes server-authoritatively, and captures scaled quantities in the Zoho invoice and frozen `recipe_snapshot` (SCALE-01, SCALE-02, SCALE-03, SCALE-04, SCALE-05)
 - [ ] **Phase 36: Cross-Surface Selection & Recipe Modification** - Batch size control available on all recipe-selection surfaces; staff can add/remove/substitute ingredients for a one-off sale without touching the saved recipe, with optional save-as-new (SEL-01, SEL-02, MOD-01, MOD-02, MOD-03)
-- [ ] **Phase 37: BrewPad Recipe Manager** - Staff can browse, view, create, and edit recipes from within BrewPad, reusing existing recipe CRUD endpoints and activation guardrails (BPR-01, BPR-02)
+- [x] **Phase 37: BrewPad Recipe Manager** - Staff can browse, view, create, and edit recipes from within BrewPad, reusing existing recipe CRUD endpoints and activation guardrails (BPR-01, BPR-02) (completed 2026-06-20)
 
 ## Phase Details
 
@@ -481,7 +481,7 @@ Plans:
 
 **Wave 3**
 
-- [ ] 37-03-PLAN.md — Confirm-gated delete + build bundle + full test/lint gate + iPad Safari UAT (BPR-02)
+- [x] 37-03-PLAN.md — Confirm-gated delete + build bundle + full test/lint gate + iPad Safari UAT (BPR-02)
 
 **UI hint**: yes
 
@@ -508,7 +508,7 @@ Plans:
 | 34. Ingredient Display & Server Enrichment | v4.3 | 3/3 | Complete   | 2026-06-20 |
 | 35. Batch Scaling Engine | v4.3 | 0/TBD | Not started | - |
 | 36. Cross-Surface Selection & Recipe Modification | v4.3 | 0/TBD | Not started | - |
-| 37. BrewPad Recipe Manager | v4.3 | 2/3 | In Progress|  |
+| 37. BrewPad Recipe Manager | v4.3 | 3/3 | Complete   | 2026-06-20 |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
 
