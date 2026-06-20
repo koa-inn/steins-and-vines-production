@@ -66,7 +66,8 @@ jest.mock('../lib/constants', function () {
       KIOSK_PRODUCTS: 'test:kiosk-products',
       RECIPES: 'sv:recipes',
       RECIPES_TS: 'sv:recipes:ts',
-      INGREDIENTS: 'zoho:ingredients'
+      INGREDIENTS: 'zoho:ingredients',
+      INGREDIENTS_ALL: 'zoho:ingredients:all'
     },
     LOCK_KEYS: { RECIPE_SALE: 'recipe-sale' }
   };
@@ -930,6 +931,118 @@ describe('POST /api/kiosk/recipe-sale/confirm — scaling (SCALE-04, SCALE-05)',
     }).then(function (res) {
       expect(res._status).toBe(400);
       expect(res._body.error).toMatch(/batch size/i);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression: SCALE-05 — internal-only ingredient stock visibility
+// ---------------------------------------------------------------------------
+// Internal-only ingredients (e.g. Gypsum Bulk, item_id 109900000000028635) are
+// absent from the purchasable-only INGREDIENTS catalog but present in INGREDIENTS_ALL
+// with real stock_on_hand. The handlers must read INGREDIENTS_ALL so the stock gate
+// and pricing see the correct catalog entry.
+
+describe('SCALE-05 regression — internal-only ingredient reads INGREDIENTS_ALL', function () {
+  var mocks;
+  var INTERNAL_ITEM_ID = '109900000000028635'; // Gypsum (Calcium Sulfate) (Bulk)
+
+  // Catalog that simulates INGREDIENTS_ALL — includes the internal item
+  var INGREDIENTS_ALL_CATALOG = [
+    { item_id: 'ing-malt-1', name: 'Pale Malt 2-Row', rate: 3.50, tax_id: 'tax-gst', stock_on_hand: 50 },
+    { item_id: INTERNAL_ITEM_ID, name: 'Gypsum (Calcium Sulfate) (Bulk)', rate: 0.50, tax_id: 'tax-gst', stock_on_hand: 20.83 }
+  ];
+
+  // Recipe with only the internal-only ingredient (dynamic pricing so rate matters)
+  var INTERNAL_ONLY_RECIPE_RESPONSE = {
+    data: {
+      ok: true,
+      data: {
+        recipe: {
+          recipe_id: 'RCP-INTERNAL',
+          name: 'Internal Ingredient Recipe',
+          style: 'Test',
+          abv: 5.0,
+          batch_size_l: 20,
+          locked_price: 0,
+          service_fee: 45.00,
+          materials_fee: 5.00,
+          status: 'active',
+          pricing_mode: 'dynamic'
+        },
+        ingredients: [
+          { ingredient_id: 'ING-GYP', recipe_id: 'RCP-INTERNAL', item_id: INTERNAL_ITEM_ID, item_name: 'Gypsum (Calcium Sulfate) (Bulk)', quantity: 2, unit: 'kg' }
+        ]
+      }
+    }
+  };
+
+  beforeEach(function () {
+    mocks = resetAndLoadPosRecipe();
+    process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-token';
+    process.env.BEER_SALES_ENABLED = 'true';
+    process.env.MAKERS_FEE_ITEM_ID = 'fee-makers-1';
+    process.env.MATERIALS_FEE_ITEM_ID = 'fee-materials-1';
+    process.env.KIOSK_CONTACT_ID = 'contact-default';
+    delete process.env.MILLING_FEE_ITEM_ID;
+    mocks.helcim.isTerminalEnabled.mockReturnValue(true);
+    mocks.helcim.terminalPurchase.mockResolvedValue({});
+    mocks.helcim.voidTransaction.mockResolvedValue({});
+    mocks.cache.acquireLock.mockResolvedValue(true);
+    mocks.cache.releaseLock.mockResolvedValue();
+    mocks.cache.del.mockResolvedValue(1);
+    // INGREDIENTS_ALL has the internal item; INGREDIENTS (purchasable-only) does NOT
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') return Promise.resolve(INGREDIENTS_ALL_CATALOG);
+      if (key === 'zoho:ingredients') return Promise.resolve([{ item_id: 'ing-malt-1', name: 'Pale Malt 2-Row', rate: 3.50, tax_id: 'tax-gst', stock_on_hand: 50 }]);
+      return Promise.resolve(null);
+    });
+    mocks.axios.post.mockResolvedValue(INTERNAL_ONLY_RECIPE_RESPONSE);
+    mocks.zohoApi.zohoPost.mockResolvedValue({ invoice: { invoice_id: 'inv-int', invoice_number: 'INV-INT' } });
+  });
+
+  afterEach(function () {
+    delete process.env.APPS_SCRIPT_URL;
+    delete process.env.APPS_SCRIPT_SERVER_TOKEN;
+    delete process.env.BEER_SALES_ENABLED;
+    delete process.env.MAKERS_FEE_ITEM_ID;
+    delete process.env.MATERIALS_FEE_ITEM_ID;
+    delete process.env.KIOSK_CONTACT_ID;
+    delete process.env.MILLING_FEE_ITEM_ID;
+  });
+
+  test('SCALE-05a (quote): internal-only ingredient with sufficient stock returns 202 with correct rate-inclusive total', function () {
+    // dynamic: 2 kg Gypsum @ rate 0.50 = 1.00 + service_fee 45 + materials_fee 5 = 51.00
+    // Against unfixed source (reads INGREDIENTS, item absent) → rate=0 → total = 0 + 50 = 50.00
+    return callHandler('POST', '/api/kiosk/recipe-sale', {
+      body: { recipe_id: 'RCP-INTERNAL', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(202);
+      // Total must include the ingredient rate from INGREDIENTS_ALL (rate=0.50 * qty=2 = 1.00)
+      expect(res._body.total).toBe(51.00);
+    });
+  });
+
+  test('SCALE-05b (confirm): internal-only ingredient with sufficient stock returns 201 and invoice includes ingredient line', function () {
+    var capturedInvoicePayload;
+    mocks.zohoApi.zohoPost.mockImplementation(function (path, payload) {
+      if (path === '/invoices') capturedInvoicePayload = payload;
+      return Promise.resolve({ invoice: { invoice_id: 'inv-int', invoice_number: 'INV-INT' } });
+    });
+    return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+      body: {
+        recipe_id: 'RCP-INTERNAL',
+        transaction_id: 'txn-internal',
+        reference: 'RECIPE-INT',
+        sale_type: 'in-store'
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(201);
+      // Invoice must include the internal ingredient line with correct rate
+      var gypsumLine = capturedInvoicePayload.line_items.find(function (li) { return li.item_id === INTERNAL_ITEM_ID; });
+      expect(gypsumLine).toBeTruthy();
+      expect(gypsumLine.rate).toBe(0.50);
     });
   });
 });

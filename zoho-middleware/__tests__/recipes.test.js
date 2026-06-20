@@ -35,7 +35,8 @@ jest.mock('../lib/constants', function () {
     CACHE_KEYS: {
       RECIPES: 'sv:recipes',
       RECIPES_TS: 'sv:recipes:ts',
-      INGREDIENTS: 'zoho:ingredients'
+      INGREDIENTS: 'zoho:ingredients',
+      INGREDIENTS_ALL: 'zoho:ingredients:all'
     }
   };
 });
@@ -229,6 +230,47 @@ describe('GET /api/recipes/:id/availability', function () {
       expect(res._body.ingredients[0].status).toBe('unknown');
       expect(res._body.ingredients[0].stock_on_hand).toBeNull();
       expect(res._body.ingredients[0].batches_possible).toBeNull();
+    });
+  });
+
+  // Regression: SCALE-05 — internal-only ingredient (absent from purchasable INGREDIENTS
+  // catalog, present only in INGREDIENTS_ALL) must report real stock so availability
+  // is not falsely degraded to cannot_brew.
+  test('SCALE-05 regression: internal-only ingredient (only in INGREDIENTS_ALL) reports real stock and all_ok', function () {
+    var INTERNAL_ITEM_ID = '109900000000028635'; // Gypsum (Bulk) — internal-only
+    mocks.axios.post.mockResolvedValue({
+      data: {
+        ok: true,
+        data: {
+          recipe: { recipe_id: 'SV-R-GYPSUM' },
+          ingredients: [
+            { item_id: INTERNAL_ITEM_ID, item_name: 'Gypsum (Calcium Sulfate) (Bulk)', unit: 'kg', quantity: 1 }
+          ]
+        }
+      }
+    });
+    // INGREDIENTS (purchasable only) does NOT include the internal item — stock gate reads 0
+    // INGREDIENTS_ALL (full catalog) DOES include it with real stock
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') {
+        return Promise.resolve([
+          { item_id: INTERNAL_ITEM_ID, stock_on_hand: 20.83 }
+        ]);
+      }
+      // 'zoho:ingredients' returns list WITHOUT the internal item
+      if (key === 'zoho:ingredients') {
+        return Promise.resolve([]);
+      }
+      return Promise.resolve(null);
+    });
+
+    return callHandler('GET', '/api/recipes/:id/availability', { params: { id: 'SV-R-GYPSUM' } }).then(function (res) {
+      expect(res._body.summary).toBe('all_ok');
+      var gypsumResult = res._body.ingredients[0];
+      // Real stock must be visible (not 0)
+      expect(gypsumResult.stock_on_hand).toBeGreaterThan(0);
+      // 20.83 / 1 = 20 batches → status 'ok'
+      expect(gypsumResult.status).toBe('ok');
     });
   });
 });
