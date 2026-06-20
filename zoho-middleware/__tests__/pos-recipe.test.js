@@ -448,6 +448,9 @@ describe('POST /api/kiosk/recipe-sale/confirm', function () {
       var delCalls = mocks.cache.del.mock.calls.map(function (c) { return c[0]; });
       expect(delCalls).toContain('test:kiosk-products');
       expect(delCalls).toContain('zoho:ingredients');
+      // Stock checks now read the full INGREDIENTS_ALL catalog (35-05); the
+      // post-sale stock decrement must invalidate it too or availability goes stale.
+      expect(delCalls).toContain('zoho:ingredients:all');
     });
   });
 
