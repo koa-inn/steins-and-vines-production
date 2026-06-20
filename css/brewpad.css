@@ -2162,3 +2162,478 @@ img { max-width: 100%; height: auto; display: block; }
 .bp-pull-candidate-row:last-child {
   border-bottom: none;
 }
+
+/* ============================================================
+   ===== Recipes (Phase 37) =====
+   Recipes tab: list subview + detail/editor subview, ingredient
+   table, autocomplete, availability banner, create sheet.
+   Mirrors the "cellar ledger" aesthetic — tokenized, left-aligned,
+   iPad-primary, 44px touch targets, 16px inputs (no iOS zoom).
+   ============================================================ */
+
+/* ----- Panel header (shared by Recipes list + detail) ----- */
+.bp-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 16px 0;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.bp-panel-header h2 {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin: 0;
+}
+.bp-panel-header h3 {
+  margin: 0;
+}
+.bp-panel-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ----- Generic form controls (used across the recipe editor) ----- */
+.bp-input,
+.bp-select {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--ctrl-border);
+  border-radius: var(--r-md);
+  background: var(--ctrl-bg);
+  color: var(--ink-primary);
+  font-family: var(--font-body);
+  font-size: 16px; /* ≥16px prevents iOS Safari zoom-on-focus */
+  line-height: 1.4;
+  transition: border-color 0.15s var(--ease-out), box-shadow 0.15s var(--ease-out);
+  -webkit-appearance: none;
+  appearance: none;
+}
+textarea.bp-input {
+  min-height: 64px;
+  resize: vertical;
+}
+.bp-select {
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-tertiary) 50%),
+                    linear-gradient(135deg, var(--ink-tertiary) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+  cursor: pointer;
+}
+.bp-input:focus,
+.bp-select:focus {
+  outline: none;
+  border-color: var(--ledger-focus);
+  box-shadow: 0 0 0 2px rgba(55, 14, 19, 0.15);
+}
+.bp-input::placeholder { color: var(--ink-tertiary); }
+.bp-input:disabled,
+.bp-select:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ----- Recipes list: toolbar / search ----- */
+.bp-recipes-toolbar {
+  margin: 0 0 12px;
+}
+.bp-recipes-search {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--ctrl-border);
+  border-radius: var(--r-md);
+  background: var(--ctrl-bg);
+  color: var(--ink-primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  transition: border-color 0.15s var(--ease-out), box-shadow 0.15s var(--ease-out);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.bp-recipes-search:focus {
+  outline: none;
+  border-color: var(--ledger-focus);
+  box-shadow: 0 0 0 2px rgba(55, 14, 19, 0.15);
+}
+.bp-recipes-search::placeholder { color: var(--ink-tertiary); }
+
+/* ----- Recipes list: rows rendered as tappable cards (table layout) ----- */
+.bp-recipes-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+}
+.bp-recipes-row {
+  cursor: pointer;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+  -webkit-user-select: none;
+  user-select: none;
+  transition: box-shadow 0.15s var(--ease-out);
+}
+.bp-recipes-row > td {
+  background: var(--cellar-raised);
+  border-top: 1px solid var(--ledger-line);
+  border-bottom: 1px solid var(--ledger-line);
+  padding: 14px 14px;
+  vertical-align: middle;
+}
+.bp-recipes-row > td:first-child {
+  border-left: 1px solid var(--ledger-line);
+  border-top-left-radius: var(--r-md);
+  border-bottom-left-radius: var(--r-md);
+}
+.bp-recipes-row > td:last-child {
+  border-right: 1px solid var(--ledger-line);
+  border-top-right-radius: var(--r-md);
+  border-bottom-right-radius: var(--r-md);
+}
+.bp-recipes-row:hover > td { border-color: var(--barrel); }
+.bp-recipes-row:active > td { background: var(--cellar-canvas); }
+
+.bp-recipes-name {
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--ink-primary);
+  text-align: left;
+}
+.bp-recipes-status {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+.bp-recipes-price {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+  font-weight: 700;
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Status pills (mirror .bp-status-badge): draft→neutral, active→success, inactive→warning */
+.bp-recipes-badge-draft,
+.bp-recipes-badge-active,
+.bp-recipes-badge-inactive {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.bp-recipes-badge-draft {
+  background: rgba(154, 134, 114, 0.10);
+  color: var(--ink-secondary);
+}
+.bp-recipes-badge-active {
+  background: var(--batch-success-bg);
+  color: var(--batch-success);
+}
+.bp-recipes-badge-inactive {
+  background: var(--batch-warning-bg);
+  color: var(--batch-warning);
+}
+
+/* ----- Detail / editor inner ----- */
+.bp-recipes-editor-inner {
+  text-align: left;
+}
+.bp-recipes-section-heading {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-tertiary);
+  margin: 20px 0 8px;
+}
+
+/* ----- Metadata form grid ----- */
+.bp-recipes-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+  margin-bottom: 4px;
+}
+.bp-recipes-form-grid--narrow {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.bp-recipes-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.bp-recipes-form-field--full {
+  grid-column: 1 / -1;
+}
+.bp-recipes-form-field label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-tertiary);
+}
+
+/* ----- Inline error / status error ----- */
+.bp-recipes-inline-error,
+.bp-recipe-status-error {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--batch-danger);
+}
+.bp-recipes-inline-error:empty,
+.bp-recipe-status-error:empty { display: none; }
+
+/* ----- Availability banner ----- */
+.bp-recipes-availability-banner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+.bp-recipes-availability-banner:empty { display: none; }
+.bp-avail-banner {
+  display: block;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+.bp-avail-loading {
+  background: var(--batch-info-bg);
+  color: var(--batch-info);
+  border-color: rgba(74, 111, 138, 0.2);
+}
+.bp-avail-ok {
+  background: var(--batch-success-bg);
+  color: var(--batch-success);
+  border-color: rgba(61, 122, 64, 0.2);
+}
+.bp-avail-low {
+  background: var(--batch-warning-bg);
+  color: var(--batch-warning);
+  border-color: rgba(184, 122, 26, 0.2);
+}
+.bp-avail-error {
+  background: var(--batch-danger-bg);
+  color: var(--batch-danger);
+  border-color: rgba(168, 50, 50, 0.2);
+}
+.bp-avail-unknown {
+  background: rgba(154, 134, 114, 0.10);
+  color: var(--ink-secondary);
+  border-color: var(--ledger-line);
+}
+
+/* ----- Ingredient editor table ----- */
+#bp-recipes-ingredients-editor {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 8px;
+}
+.bp-recipes-ing-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+}
+.bp-recipes-ing-table th {
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-tertiary);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--ledger-line);
+  white-space: nowrap;
+}
+.bp-recipes-ing-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--ledger-soft);
+  vertical-align: middle;
+  font-size: 0.85rem;
+  color: var(--ink-primary);
+}
+.bp-recipes-ing-row { min-height: 44px; }
+
+/* Group sub-headers ("Grains (4)") — quiet section labels */
+.bp-recipes-ing-group td,
+.bp-recipe-ing-group td {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-tertiary);
+  background: var(--ledger-soft);
+  padding: 6px 8px;
+}
+
+/* Ingredient cells: search wide, qty/number compact */
+.bp-ing-autocomplete-wrap {
+  position: relative;
+  min-width: 180px;
+}
+.bp-ing-search { min-width: 160px; }
+.bp-ing-qty {
+  width: 84px;
+  min-width: 72px;
+  text-align: right;
+}
+.bp-ing-unit {
+  color: var(--ink-secondary);
+  white-space: nowrap;
+}
+.bp-ing-cost,
+.bp-ing-retail {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-secondary);
+}
+.bp-ing-stock-hint {
+  font-size: 0.76rem;
+  color: var(--ink-tertiary);
+  white-space: nowrap;
+}
+
+/* Ingredient table inputs sit compactly inside cells */
+.bp-recipes-ing-table .bp-input {
+  min-height: 38px;
+  padding: 7px 10px;
+}
+
+/* Status dots */
+.bp-ing-status-dot {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--ink-tertiary);
+  vertical-align: middle;
+}
+.bp-ing-status-dot--ok,
+.bp-ing-status-dot--in_stock,
+.bp-ing-status-dot--available { background: var(--batch-success); }
+.bp-ing-status-dot--low { background: var(--batch-warning); }
+.bp-ing-status-dot--out,
+.bp-ing-status-dot--out_of_stock,
+.bp-ing-status-dot--cannot { background: var(--batch-danger); }
+.bp-ing-status-dot--unknown { background: var(--ink-tertiary); }
+
+/* Remove button — small danger control */
+.bp-ing-remove {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 6px 10px;
+  border-color: var(--batch-danger);
+  color: var(--batch-danger);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.bp-ing-remove:hover {
+  background: var(--batch-danger);
+  border-color: var(--batch-danger);
+  color: #fff;
+}
+
+/* Totals footer */
+.bp-recipes-ing-totals td {
+  border-top: 2px solid var(--ledger-line);
+  border-bottom: none;
+  padding-top: 10px;
+  color: var(--ink-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- Ingredient autocomplete dropdown ----- */
+.bp-ing-autocomplete-drop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  min-width: 220px;
+  max-height: 240px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-line);
+  border-radius: var(--r-md);
+  box-shadow: 0 6px 18px rgba(55, 14, 19, 0.14);
+  z-index: 700;
+  margin-top: 2px;
+}
+.bp-ing-autocomplete-drop [role="option"] {
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: var(--ink-primary);
+  cursor: pointer;
+  border-bottom: 1px solid var(--ledger-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bp-ing-autocomplete-drop [role="option"]:last-child { border-bottom: none; }
+.bp-ing-autocomplete-drop [role="option"]:hover { background: var(--cellar-canvas); }
+
+/* ----- Detail action buttons ----- */
+.bp-recipes-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ledger-line);
+  margin-top: 20px;
+}
+
+/* ----- Danger button variant (JS emits .bp-btn--danger) ----- */
+.bp-btn--danger {
+  border-color: var(--batch-danger);
+  color: var(--batch-danger);
+}
+.bp-btn--danger:hover {
+  background: var(--batch-danger);
+  border-color: var(--batch-danger);
+  color: #fff;
+}
+
+/* ----- Empty states (mirror .bp-empty) ----- */
+.bp-empty-state,
+.bp-recipe-ing-empty {
+  color: var(--ink-tertiary);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1.25rem 0;
+}
+
+/* ----- Recipe attach panel (batch sheet) — uses .bp-required tag ----- */
+.bp-required { color: var(--batch-danger); font-weight: 700; }
+
+/* ----- Responsive: 4-col narrow grid on wide, single column on phones ----- */
+@media (min-width: 720px) {
+  .bp-recipes-form-grid--narrow {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .bp-recipes-form-grid,
+  .bp-recipes-form-grid--narrow {
+    grid-template-columns: 1fr;
+  }
+  .bp-recipes-detail-actions .btn,
+  .bp-recipes-detail-actions .btn-secondary {
+    flex: 1 1 100%;
+  }
+}
