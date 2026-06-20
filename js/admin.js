@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-20T15:11:19.416Z';
+  var BUILD_TIMESTAMP = '2026-06-20T23:34:44.302Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -9783,6 +9783,8 @@
   var _kioskTargetVolumeL = null;   // number: target volume in litres, or null = use base
   var _kioskScaleFactor   = 1.0;    // display preview only; server recomputes authoritative value
   var _kioskStockOverride = false;  // true when manager override button was clicked
+  var _kioskQuote = null;           // last successful /api/kiosk/recipe-quote response (35-06)
+  var _kioskQuoteTimer = null;      // debounce timer for quote fetch (35-06)
 
   // ---- Helpers ----
 
@@ -10061,6 +10063,8 @@
     _kioskMillGrain = false;
     _kioskRecipeAvailability = null;
     _kioskRecipeContext = null;
+    _kioskQuote = null;  // 35-06: clear stale quote
+    if (_kioskQuoteTimer) { clearTimeout(_kioskQuoteTimer); _kioskQuoteTimer = null; }
     kioskRenderCart();
     kioskRenderProducts();
   }
@@ -10742,6 +10746,8 @@
       if (grid) grid.style.display = 'grid';
       _kioskSelectedRecipe = null;
       _kioskSaleType = null;
+      _kioskQuote = null;  // 35-06: clear stale quote on back
+      if (_kioskQuoteTimer) { clearTimeout(_kioskQuoteTimer); _kioskQuoteTimer = null; }
     });
 
     // Sale-type buttons
@@ -10925,6 +10931,47 @@
           .catch(function () {});
       }(r));
     });
+  }
+
+  // ---- Recipe browser: server quote fetch (35-06) ----
+
+  // Fetch a dry-run quote from GET /api/kiosk/recipe-quote.
+  // On success: store _kioskQuote and update Add-to-Cart button price.
+  // On error: clear _kioskQuote (display falls back to base price).
+  // Call debounced via kioskScheduleRecipeQuote (350 ms).
+  function kioskFetchRecipeQuote() {
+    if (!_kioskSelectedRecipe || !_kioskSaleType) return;
+    var mw = kioskMwUrl();
+    var headers = {};
+    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
+      headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
+    }
+    var recipeId = _kioskSelectedRecipe.recipe_id;
+    var targetVol = _kioskTargetVolumeL || (Number(_kioskSelectedRecipe.batch_size_l) || null);
+    var url = mw + '/api/kiosk/recipe-quote?recipe_id=' + encodeURIComponent(recipeId) +
+              '&sale_type=' + encodeURIComponent(_kioskSaleType);
+    if (targetVol) url += '&target_volume_l=' + encodeURIComponent(targetVol);
+    fetch(url, { headers: headers })
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+      .then(function (result) {
+        if (result.status === 200 && result.data && result.data.ok &&
+            result.data.recipe_id === recipeId) {
+          _kioskQuote = result.data;
+          kioskUpdateAddToCartButton();
+        } else {
+          _kioskQuote = null;
+          kioskUpdateAddToCartButton();
+        }
+      })
+      .catch(function () {
+        _kioskQuote = null;
+        kioskUpdateAddToCartButton();
+      });
+  }
+
+  function kioskScheduleRecipeQuote() {
+    if (_kioskQuoteTimer) clearTimeout(_kioskQuoteTimer);
+    _kioskQuoteTimer = setTimeout(kioskFetchRecipeQuote, 350);
   }
 
   // ---- Recipe browser: sale-type prompt ----
@@ -11111,8 +11158,13 @@
         // Reset stock conflict state on volume change
         _kioskStockOverride = false;
         if (conflictEl) conflictEl.style.display = 'none';
+        // Re-fetch quote for new target volume (debounced, 35-06)
+        kioskScheduleRecipeQuote();
       };
     }
+
+    // Initial quote fetch for the base volume (35-06)
+    kioskScheduleRecipeQuote();
 
     // Check availability
     kioskCheckRecipeAvailability(recipe.recipe_id);
@@ -11201,8 +11253,9 @@
     // Show milling toggle only for take-out (D-03)
     if (millingToggle) millingToggle.style.display = saleType === 'take-out' ? '' : 'none';
 
-    // Update summary price and add-to-cart button
+    // Update summary price and add-to-cart button; re-quote for new sale type (35-06)
     kioskUpdateSummaryPrice();
+    kioskScheduleRecipeQuote();
     kioskUpdateAddToCartButton();
   }
 
@@ -11220,10 +11273,17 @@
       return;
     }
 
-    var price = kioskRecipePriceForContext(_kioskSelectedRecipe, _kioskSaleType);
-    var millingRate = Number(_kioskSelectedRecipe.milling_fee_rate) || 0;
-    if (_kioskMillGrain && _kioskSaleType === 'take-out' && millingRate > 0) {
-      price += millingRate;
+    // Use server quote total when available (scaled + authoritative, 35-06)
+    var price;
+    if (_kioskQuote && _kioskQuote.recipe_id === _kioskSelectedRecipe.recipe_id &&
+        typeof _kioskQuote.total === 'number' && _kioskQuote.total > 0) {
+      price = _kioskQuote.total;
+    } else {
+      price = kioskRecipePriceForContext(_kioskSelectedRecipe, _kioskSaleType);
+      var millingRate = Number(_kioskSelectedRecipe.milling_fee_rate) || 0;
+      if (_kioskMillGrain && _kioskSaleType === 'take-out' && millingRate > 0) {
+        price += millingRate;
+      }
     }
     var btnLabel = price > 0 ? 'Add to Cart — ' + kioskFmt(price) : 'Add to Cart';
     addBtn.textContent = btnLabel;
@@ -11312,15 +11372,30 @@
         target_volume_l: _kioskTargetVolumeL
       };
 
+      // Use server quote (scaled) when available; fall back to base ingredient data (35-06)
+      var quoteForCart = (_kioskQuote &&
+                          _kioskQuote.recipe_id === recipe.recipe_id &&
+                          Array.isArray(_kioskQuote.ingredients))
+                         ? _kioskQuote : null;
+
       if (pricingMode === 'dynamic') {
         // Add each ingredient as a priced line item
-        ingredients.forEach(function (ing) {
+        // Prefer scaled quantities/rates from server quote when present
+        var ingSource = quoteForCart ? quoteForCart.ingredients : ingredients;
+        ingSource.forEach(function (ing) {
           var key = 'recipe-ing-' + (ing.item_id || ing.ingredient_id);
-          var ingRate = (Number(ing.rate) || 0) * (Number(ing.quantity) || 0);
+          var ingQty = Number(ing.quantity) || 0;
+          var ingRate;
+          if (quoteForCart) {
+            // quote ingredient: rate is per-unit, line_total = ingQty * rate
+            ingRate = Number(ing.line_total) || (Number(ing.rate) * ingQty);
+          } else {
+            ingRate = (Number(ing.rate) || 0) * ingQty;
+          }
           _kioskCart[key] = {
             item: {
               item_id: ing.item_id,
-              name: escapeHTML(ing.item_name) + ' (' + ing.quantity + ' ' + escapeHTML(ing.unit || '') + ')',
+              name: escapeHTML(ing.item_name) + ' (' + ingQty + ' ' + escapeHTML(ing.unit || '') + ')',
               rate: ingRate,
               tax_percentage: Number(ing.tax_percentage) || 0,
               product_type: 'recipe_ingredient'
@@ -11353,12 +11428,14 @@
         }
       } else {
         // Locked mode: ingredient lines as info-only (rate=0), plus single total line
-        ingredients.forEach(function (ing) {
+        // Show SCALED quantities from quote when available, otherwise base quantities
+        var lockedIngSource = quoteForCart ? quoteForCart.ingredients : ingredients;
+        lockedIngSource.forEach(function (ing) {
           var key = 'recipe-ing-' + (ing.item_id || ing.ingredient_id);
           _kioskCart[key] = {
             item: {
               item_id: ing.item_id,
-              name: escapeHTML(ing.item_name) + ' (' + ing.quantity + ' ' + escapeHTML(ing.unit || '') + ')',
+              name: escapeHTML(ing.item_name) + ' (' + (Number(ing.quantity) || 0) + ' ' + escapeHTML(ing.unit || '') + ')',
               rate: 0,
               tax_percentage: 0,
               product_type: 'recipe_ingredient'
@@ -11366,12 +11443,13 @@
             qty: 1
           };
         });
-        // Single total line at locked_price
+        // Single total line — use quote total when available, else locked_price
+        var packagePrice = quoteForCart ? Number(quoteForCart.total) : (parseFloat(recipe.locked_price) || 0);
         _kioskCart['recipe-total'] = {
           item: {
             item_id: recipe.recipe_id,
             name: escapeHTML(recipe.name || recipe.recipe_id) + ' — Package Price',
-            rate: parseFloat(recipe.locked_price) || 0,
+            rate: packagePrice,
             tax_percentage: 0,
             product_type: 'recipe'
           },
@@ -11430,5 +11508,24 @@
   document.addEventListener('DOMContentLoaded', function () {
     initKioskSaleTab();
   });
+
+  // Kiosk module exports for testing (35-06)
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Object.assign(module.exports || {}, {
+      _kioskGetQuote: function () { return _kioskQuote; },
+      _kioskSetQuote: function (q) { _kioskQuote = q; },
+      _kioskGetSelectedRecipe: function () { return _kioskSelectedRecipe; },
+      _kioskSetSelectedRecipe: function (r) { _kioskSelectedRecipe = r; },
+      _kioskGetSaleType: function () { return _kioskSaleType; },
+      _kioskSetSaleType: function (s) { _kioskSaleType = s; },
+      _kioskGetTargetVolumeL: function () { return _kioskTargetVolumeL; },
+      _kioskSetTargetVolumeL: function (v) { _kioskTargetVolumeL = v; },
+      _kioskGetCart: function () { return _kioskCart; },
+      _kioskClearCart: function () { _kioskCart = {}; },
+      _kioskSetRecipeAvailability: function (a) { _kioskRecipeAvailability = a; },
+      kioskFetchRecipeQuote: kioskFetchRecipeQuote,
+      kioskUpdateAddToCartButton: kioskUpdateAddToCartButton
+    });
+  }
 
 })();
