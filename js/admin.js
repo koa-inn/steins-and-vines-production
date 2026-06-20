@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-20T00:34:04.972Z';
+  var BUILD_TIMESTAMP = '2026-06-20T01:49:12.708Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -8777,7 +8777,7 @@
       group.items.forEach(function (ing) {
         var idx = ingredients.indexOf(ing);
         var avail = availMap[String(ing.item_id)] || {};
-        var dotClass = 'ing-status-dot ing-status-dot--' + (avail.status || 'unknown');
+        var dotClass = 'ing-status-dot ing-status-dot--' + escapeHTML(avail.status || 'unknown');
         var stockText = avail.stock_on_hand != null ? avail.stock_on_hand + ' ' + (ing.unit || '') + ' available' : '';
         var dotTitle = avail.status === 'unknown' ? 'Stock data loading -- try again shortly' : (avail.batches_possible != null ? avail.batches_possible + ' batch(es) possible' : '');
         var qty = parseFloat(ing.quantity) || 0;
@@ -8792,7 +8792,7 @@
         html += '<td class="ing-autocomplete-wrap">';
         html += '<input type="text" class="admin-input ing-search" value="' + escapeHTML(ing.item_name || '') + '" placeholder="Search ingredient..." />';
         html += '</td>';
-        html += '<td><input type="number" class="admin-input ing-qty" value="' + (ing.quantity || '') + '" step="0.01" min="0" inputmode="decimal" /></td>';
+        html += '<td><input type="number" class="admin-input ing-qty" value="' + escapeHTML(String(ing.quantity || '')) + '" step="0.01" min="0" inputmode="decimal" /></td>';
         html += '<td class="ing-unit">' + escapeHTML(ing.unit || '') + '</td>';
         html += '<td class="ing-cost">' + (costEach > 0 ? '$' + lineCost.toFixed(2) : '—') + '</td>';
         html += '<td class="ing-retail">' + (retailEach > 0 ? '$' + lineRetail.toFixed(2) : '—') + '</td>';
@@ -8830,6 +8830,7 @@
       btn.addEventListener('click', function () {
         var row = btn.closest('.recipes-ing-row');
         var idx = parseInt(row.getAttribute('data-ing-idx'), 10);
+        if (isNaN(idx) || idx < 0) return;
         _recipesState.currentIngredients.splice(idx, 1);
         renderIngredientRows(_recipesState.currentIngredients, _recipesState.availability);
       });

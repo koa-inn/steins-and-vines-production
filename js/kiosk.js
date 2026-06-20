@@ -1220,7 +1220,7 @@
             : '<strong>Ingredients:</strong>';
           html += '<ul style="margin:0.25rem 0;padding-left:1.25rem;">';
           group.items.forEach(function (ing) {
-            html += '<li>' + escapeHTML(ing.item_name) + ' — ' + ing.quantity + ' ' + escapeHTML(ing.unit || '') + '</li>';
+            html += '<li>' + escapeHTML(ing.item_name) + ' — ' + escapeHTML(String(ing.quantity || '')) + ' ' + escapeHTML(ing.unit || '') + '</li>';
           });
           html += '</ul>';
         });
