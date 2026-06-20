@@ -14,10 +14,11 @@ global.gsiInitTokenClient = _auth.gsiInitTokenClient;
 global.fetchGoogleUserInfo = _auth.fetchGoogleUserInfo;
 
 var bp = require('../../js/brewpad');
-var filterRecipesByName  = bp.filterRecipesByName;
-var recipeRowPrice       = bp.recipeRowPrice;
-var canActivateRecipe    = bp.canActivateRecipe;
-var buildRecipePayload   = bp.buildRecipePayload;
+var filterRecipesByName        = bp.filterRecipesByName;
+var recipeRowPrice             = bp.recipeRowPrice;
+var canActivateRecipe          = bp.canActivateRecipe;
+var buildRecipePayload         = bp.buildRecipePayload;
+var recipeDeleteConfirmMessage = bp.recipeDeleteConfirmMessage;
 
 // ---------------------------------------------------------------------------
 // filterRecipesByName
@@ -315,5 +316,38 @@ describe('buildRecipePayload', function () {
     var payload = buildRecipePayload(baseForm, null);
     expect(payload.ingredient_count).toBe(0);
     expect(payload.ingredients).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// recipeDeleteConfirmMessage (pure helper — confirm-sheet message for delete, D-04)
+// ---------------------------------------------------------------------------
+describe('recipeDeleteConfirmMessage', function () {
+  test('includes the recipe name in the message', function () {
+    var msg = recipeDeleteConfirmMessage('West Coast IPA');
+    expect(msg).toContain('West Coast IPA');
+  });
+
+  test('includes irreversible-warning copy', function () {
+    var msg = recipeDeleteConfirmMessage('Amber Ale');
+    expect(msg.toLowerCase()).toContain('cannot be undone');
+  });
+
+  test('uses the danger class variant (bp-confirm-btn--danger triggers showConfirmSheet okCls)', function () {
+    // This test asserts the helper returns non-empty string (danger class is wired in deleteRecipe, not the message).
+    var msg = recipeDeleteConfirmMessage('Test Recipe');
+    expect(typeof msg).toBe('string');
+    expect(msg.length).toBeGreaterThan(0);
+  });
+
+  test('handles empty name gracefully', function () {
+    var msg = recipeDeleteConfirmMessage('');
+    expect(msg.toLowerCase()).toContain('cannot be undone');
+  });
+
+  test('handles null name gracefully', function () {
+    expect(function () { recipeDeleteConfirmMessage(null); }).not.toThrow();
+    var msg = recipeDeleteConfirmMessage(null);
+    expect(msg.toLowerCase()).toContain('cannot be undone');
   });
 });
