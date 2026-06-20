@@ -227,7 +227,30 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
         return res.status(400).json({ error: 'Recipe is not active' });
       }
 
-      // Re-compute total server-side from cached ingredient catalog (D-08)
+      // Validate batch_size_l and target_volume_l (D-11) — same contract as quote handler
+      var baseVolC = Number(recipe.batch_size_l) || 0;
+      if (baseVolC <= 0) {
+        return res.status(400).json({ error: 'Recipe has no base batch size set. Cannot scale.' });
+      }
+
+      // Default target_volume_l to batch_size_l if absent/blank (=> scale_factor 1.0, D-05 backward compat)
+      var rawTargetVolC = body.target_volume_l;
+      var targetVolumeLConfirm = (rawTargetVolC === undefined || rawTargetVolC === null || rawTargetVolC === '')
+        ? baseVolC
+        : Number(rawTargetVolC);
+
+      if (isNaN(targetVolumeLConfirm) || targetVolumeLConfirm <= 0) {
+        return res.status(400).json({ error: 'target_volume_l must be > 0' });
+      }
+      if (targetVolumeLConfirm > baseVolC * 10) {
+        return res.status(400).json({ error: 'target_volume_l exceeds maximum (10x base)' });
+      }
+
+      var scaleFactorConfirm = targetVolumeLConfirm / baseVolC;
+      recipe._scale_factor = scaleFactorConfirm;
+      log.info('[pos-recipe/confirm] target_volume_l=' + targetVolumeLConfirm + ' base_vol=' + baseVolC + ' scale_factor=' + scaleFactorConfirm);
+
+      // Re-compute total server-side from cached ingredient catalog
       cache.get(C.CACHE_KEYS.INGREDIENTS).then(function (ingredientCatalog) {
         if (!ingredientCatalog || !Array.isArray(ingredientCatalog)) {
           return res.status(503).json({ error: 'Ingredient catalog not available — try again shortly' });
@@ -239,15 +262,25 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
           if (item && item.item_id) catalogMap[item.item_id] = item;
         });
 
-        // Build invoice line items — always per-ingredient for Zoho inventory deduction (D-06, D-07, INV-01)
-        var dynamicTotal = 0;
+        // Re-scale server-side (never trust client quantities — Pitfall 1/D-09)
+        var scaledIngredients = scaling.scaleIngredients(ingredients, scaleFactorConfirm);
+
+        // Belt-and-suspenders stock re-check at confirm time (D-09)
+        var stockCheckConfirm = scaling.checkScaledStock(scaledIngredients, catalogMap);
+        if (!stockCheckConfirm.ok && !body.override) {
+          return res.status(409).json({
+            error: 'Insufficient stock for scaled batch',
+            conflicts: stockCheckConfirm.conflicts
+          });
+        }
+
+        // Build invoice line items — use SCALED quantities for Zoho inventory deduction (SCALE-04, INV-01)
         var lineItems = [];
-        for (var i = 0; i < ingredients.length; i++) {
-          var ing = ingredients[i];
+        for (var i = 0; i < scaledIngredients.length; i++) {
+          var ing = scaledIngredients[i];
           var catalogEntry = catalogMap[ing.item_id];
           var ingredientRate = catalogEntry ? (Number(catalogEntry.rate) || 0) : 0;
           var ingredientQty = Number(ing.quantity) || 0;
-          dynamicTotal += ingredientQty * ingredientRate;
           var li = {
             item_id: ing.item_id,
             name: ing.item_name,
@@ -264,8 +297,6 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
         if (body.sale_type === 'in-store') {
           var serviceFee = Number(recipe.service_fee) || 0;
           var materialsFee = Number(recipe.materials_fee) || 0;
-          dynamicTotal += serviceFee;
-          dynamicTotal += materialsFee;
           if (process.env.MAKERS_FEE_ITEM_ID) {
             lineItems.push({
               item_id: process.env.MAKERS_FEE_ITEM_ID,
@@ -288,7 +319,6 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
           }
           var millingEntry = catalogMap[process.env.MILLING_FEE_ITEM_ID];
           var millingRate = millingEntry ? (Number(millingEntry.rate) || 0) : 0;
-          dynamicTotal += millingRate;
           lineItems.push({
             item_id: process.env.MILLING_FEE_ITEM_ID,
             name: 'Milling Fee',
@@ -297,23 +327,18 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
           });
         }
 
-        // Determine authoritative grand total based on pricing_mode
-        // Invoice line items always use per-ingredient rates for inventory deduction
-        var hasLockedPrice = Number(recipe.locked_price) > 0;
-        var pricingMode = recipe.pricing_mode || (hasLockedPrice ? 'locked' : 'dynamic');
-        var grandTotal;
-        if (pricingMode === 'locked' && hasLockedPrice) {
-          grandTotal = Number(recipe.locked_price);
-          // For take-out with milling, add milling fee on top of locked price
-          if (body.sale_type === 'take-out' && millGrain) {
-            var millingLineItem = lineItems.find(function (li) { return li.item_id === process.env.MILLING_FEE_ITEM_ID; });
-            if (millingLineItem) grandTotal += millingLineItem.rate || 0;
-          }
-        } else {
-          grandTotal = dynamicTotal;
-        }
+        // Determine authoritative grand total via helper (same formula as quote, SCALE-03)
+        // Invoice line items use scaled quantities; grandTotal uses the same helper as the quote path
+        var grandTotal = scaling.computeScaledRecipeTotal(recipe, scaledIngredients, catalogMap, body.sale_type);
 
-        grandTotal = Math.round(grandTotal * 100) / 100;
+        // Take-out milling fee — added on top (helper does not know about milling)
+        if (body.sale_type === 'take-out' && millGrain) {
+          var millingLineItem = lineItems.find(function (li) { return li.item_id === process.env.MILLING_FEE_ITEM_ID; });
+          if (millingLineItem) {
+            grandTotal += millingLineItem.rate || 0;
+            grandTotal = Math.round(grandTotal * 100) / 100;
+          }
+        }
 
         var today = new Date().toISOString().slice(0, 10);
 
@@ -368,7 +393,9 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
                 locked_price: recipe.locked_price,
                 service_fee: recipe.service_fee,
                 materials_fee: recipe.materials_fee,
-                ingredients: ingredients
+                target_volume_l: targetVolumeLConfirm,
+                scale_factor: scaleFactorConfirm,
+                ingredients: scaledIngredients
               };
               brewpadIntegration.detectRecipeSale(
                 body.recipe_id,
