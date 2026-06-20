@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-19T10:06:59.920Z",
+  "generated_at": "2026-06-20T08:36:48.603Z",
   "products": [
     {
       "name": "Acai Raspberry Rapture",
@@ -8268,22 +8268,6 @@
       "description": "Fermentable glucose sugar used for priming, carbonation, and boosting alcohol content in beer and cider. Ferments cleaner than table sugar with no residual flavor. Sold by the gram.",
       "sales_description": "",
       "sku": "64132",
-      "category": "",
-      "low_amount": "",
-      "high_amount": "",
-      "step": "",
-      "tax_percentage": 0,
-      "tax_name": "",
-      "tax_id": ""
-    },
-    {
-      "name": "Dextrose 500 g package",
-      "unit": "pcs",
-      "price_per_unit": "5",
-      "stock": "0",
-      "description": "Fermentable glucose sugar commonly used for priming bottled beer. Yeast readily ferments it into CO2 for natural carbonation with a clean, neutral flavor profile. 500 g package. Priming: approx. 115\u2013140 g per 5 gal (19L) batch or 140\u2013170 g per 23L; for gravity boosting, add to taste.",
-      "sales_description": "",
-      "sku": "64131",
       "category": "",
       "low_amount": "",
       "high_amount": "",
