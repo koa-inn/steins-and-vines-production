@@ -13,6 +13,9 @@ var router = express.Router();
 // Same file the catalog route writes on every ingredients refresh — used as a
 // fallback so dynamic recipe pricing still computes when Redis is cold.
 var INGREDIENTS_FILE_CACHE = path.join(__dirname, '..', 'ingredients-cache.json');
+// Full ingredient list INCLUDING Internal Only items — same file catalog.js writes on refresh.
+// Used as cold-cache fallback for enrichment functions that must see internal-only items.
+var INGREDIENTS_ALL_FILE_CACHE = path.join(__dirname, '..', 'ingredients-all-cache.json');
 
 var RECIPES_CACHE_TTL = 600; // 10 minutes (D-09)
 
@@ -91,11 +94,12 @@ function readCF(entry, apiName) {
 // ---------------------------------------------------------------------------
 
 function enrichIngredientGroups(ingredients) {
-  return cache.get(C.CACHE_KEYS.INGREDIENTS).then(function (catalog) {
+  return cache.get(C.CACHE_KEYS.INGREDIENTS_ALL).then(function (catalog) {
     if (!catalog || !Array.isArray(catalog)) {
-      // Redis cold — mirror the enrichListPrices file-cache fallback (L122-131)
+      // Redis cold — fall back to the full-catalog file so internal-only ingredients
+      // (e.g. Gypsum Bulk) still receive grouping fields when Redis is unavailable.
       try {
-        catalog = JSON.parse(fs.readFileSync(INGREDIENTS_FILE_CACHE, 'utf8'));
+        catalog = JSON.parse(fs.readFileSync(INGREDIENTS_ALL_FILE_CACHE, 'utf8'));
       } catch (e) {
         catalog = null;
       }
@@ -120,7 +124,7 @@ function enrichIngredientGroups(ingredients) {
 
 function enrichWithComputedPrice(recipe, ingredients) {
   if (!recipe || recipe.pricing_mode !== 'dynamic') return Promise.resolve();
-  return cache.get(C.CACHE_KEYS.INGREDIENTS).then(function (catalog) {
+  return cache.get(C.CACHE_KEYS.INGREDIENTS_ALL).then(function (catalog) {
     if (!catalog || !Array.isArray(catalog)) return;
     var map = {};
     catalog.forEach(function (item) { if (item && item.item_id) map[item.item_id] = item; });
@@ -160,17 +164,18 @@ function enrichListPrices(recipes) {
   if (dynamicRecipes.length === 0) return Promise.resolve();
 
   return Promise.all([
-    cache.get(C.CACHE_KEYS.INGREDIENTS),
+    cache.get(C.CACHE_KEYS.INGREDIENTS_ALL),
     cache.get(C.CACHE_KEYS.KIOSK_PRODUCTS)
   ]).then(function (caches) {
     var catalog = caches[0];
     var kioskItems = caches[1];
     if (!catalog || !Array.isArray(catalog)) {
-      // Redis cold — fall back to the ingredients file cache so dynamic prices
-      // still compute (mirrors GET /api/ingredients' resilience). Without this,
-      // computed_price stays unset and the list shows no price for dynamic recipes.
+      // Redis cold — fall back to the full-catalog file so dynamic prices
+      // still compute for internal-only ingredients (mirrors GET /api/ingredients'
+      // resilience). Without this, computed_price stays unset and the list shows
+      // no price for dynamic recipes containing internal items.
       try {
-        catalog = JSON.parse(fs.readFileSync(INGREDIENTS_FILE_CACHE, 'utf8'));
+        catalog = JSON.parse(fs.readFileSync(INGREDIENTS_ALL_FILE_CACHE, 'utf8'));
       } catch (e) {
         catalog = null;
       }
