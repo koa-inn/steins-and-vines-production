@@ -41,8 +41,8 @@
 
 ### BrewPad Recipe Manager (BPR)
 
-- [ ] **BPR-01**: Staff can browse and view the recipe catalogue from within BrewPad (not only attach a recipe to a batch).
-- [ ] **BPR-02**: Staff can create and edit recipes from within BrewPad, reusing the existing recipe CRUD endpoints and activation guardrails (`locked_price > 0` and ≥1 ingredient before activation).
+- [x] **BPR-01**: Staff can browse and view the recipe catalogue from within BrewPad (not only attach a recipe to a batch).
+- [x] **BPR-02**: Staff can create and edit recipes from within BrewPad, reusing the existing recipe CRUD endpoints and activation guardrails (`locked_price > 0` and ≥1 ingredient before activation).
 
 ---
 
@@ -79,5 +79,5 @@
 | MOD-01 | Phase 36 | Pending |
 | MOD-02 | Phase 36 | Pending |
 | MOD-03 | Phase 36 | Pending |
-| BPR-01 | Phase 37 | Pending |
-| BPR-02 | Phase 37 | Pending |
+| BPR-01 | Phase 37 | Complete |
+| BPR-02 | Phase 37 | Complete |
