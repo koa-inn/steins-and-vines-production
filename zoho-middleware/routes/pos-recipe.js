@@ -376,9 +376,12 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
               log.error('[pos-recipe/confirm] Payment recording failed: ' + payErr.message);
             });
 
-            // Bust caches (Pitfall 4 — must bust BOTH product and ingredient caches)
+            // Bust caches (Pitfall 4 — must bust BOTH product and ingredient caches).
+            // INGREDIENTS_ALL is busted too because the stock/availability checks
+            // read the full catalog (35-05); otherwise post-sale stock goes stale.
             cache.del(C.CACHE_KEYS.KIOSK_PRODUCTS);
             cache.del(C.CACHE_KEYS.INGREDIENTS);
+            cache.del(C.CACHE_KEYS.INGREDIENTS_ALL);
             cache.del(C.CACHE_KEYS.RECIPES_TS);
 
             // Release mutex
