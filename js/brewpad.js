@@ -629,6 +629,12 @@ function buildRecipePayload(formData, ingredients) {
   };
 }
 
+// Pure helper — returns the confirm-sheet message for recipe delete.
+// Lifted to module scope so Jest can import + test it directly.
+function recipeDeleteConfirmMessage(name) {
+  return 'Delete recipe "' + (name || '') + '"? This cannot be undone.';
+}
+
 (function () {
   'use strict';
 
@@ -1716,6 +1722,10 @@ function buildRecipePayload(formData, ingredients) {
     var saveBtn = document.getElementById('bp-recipes-save-btn');
     if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Recipe'; }
 
+    // Hide Delete button when creating a new recipe (D-04: no accidental delete).
+    var deleteBtn = document.getElementById('bp-recipe-delete');
+    if (deleteBtn) { deleteBtn.style.display = recipeId ? '' : 'none'; }
+
     if (!recipeId) {
       // New recipe mode
       if (titleEl) titleEl.textContent = 'New Recipe';
@@ -2094,6 +2104,34 @@ function buildRecipePayload(formData, ingredients) {
       .finally(function () {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Recipe'; }
       });
+  }
+
+  // Confirm-gated delete (D-03, D-04).
+  // Calls showConfirmSheet with the danger variant — no one-tap delete on the shared iPad.
+  function deleteRecipe(recipeId, name) {
+    var url = mwUrl();
+    if (!url) { showToast('Middleware not configured', 'error'); return; }
+    showConfirmSheet(
+      recipeDeleteConfirmMessage(name),
+      'Delete',
+      'bp-confirm-btn--danger',
+      function () {
+        fetch(url + '/api/recipes/' + encodeURIComponent(recipeId), {
+          method: 'DELETE',
+          headers: getRecipesMwHeaders(true)
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!data.ok && data.error) throw new Error(data.error);
+            showToast('Recipe deleted.', 'success');
+            loadRecipeList('all');
+            showRecipesListView();
+          })
+          .catch(function () {
+            showToast('Could not delete recipe. Please try again.', 'error');
+          });
+      }
+    );
   }
 
   function readRecipeFormData() {
@@ -7626,6 +7664,13 @@ function buildRecipePayload(formData, ingredients) {
           saveRecipe();
           return;
         }
+        // Delete Recipe button (only shown for existing recipes)
+        if (e.target && e.target.id === 'bp-recipe-delete') {
+          var rid = _recipesState.currentRecipeId;
+          var rname = _recipesState.currentRecipe && _recipesState.currentRecipe.name;
+          if (rid) deleteRecipe(rid, rname);
+          return;
+        }
         // Add Ingredient button
         if (e.target && e.target.id === 'bp-recipes-add-ingredient-btn') {
           addIngredientRow();
@@ -7922,6 +7967,7 @@ if (typeof module !== 'undefined' && module.exports) {
     filterRecipesByName: filterRecipesByName,
     recipeRowPrice: recipeRowPrice,
     canActivateRecipe: canActivateRecipe,
-    buildRecipePayload: buildRecipePayload
+    buildRecipePayload: buildRecipePayload,
+    recipeDeleteConfirmMessage: recipeDeleteConfirmMessage
   };
 }
