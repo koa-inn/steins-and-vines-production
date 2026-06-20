@@ -553,3 +553,150 @@ describe('GET /api/recipes/:id ingredient group enrichment', function () {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// SCALE-05 extension: enrichment functions must read INGREDIENTS_ALL so that
+// internal-only recipe ingredients (not in purchasable INGREDIENTS catalog)
+// receive correct grouping fields and contribute to computed pricing.
+// RED: these tests FAIL before the enrichment source is changed.
+// ---------------------------------------------------------------------------
+
+describe('SCALE-05 ext — enrichment reads INGREDIENTS_ALL for internal-only ingredients', function () {
+  var mocks;
+
+  // Shared internal-only ingredient fixture (not in purchasable INGREDIENTS)
+  var INTERNAL_ID = 'ING-INTERNAL-001';
+  var internalCatalogEntry = {
+    item_id: INTERNAL_ID,
+    rate: 1.50,
+    cf_type: 'Additive',
+    custom_fields: [
+      { api_name: 'cf_subcategory', value_formatted: 'Water Chemistry', value: 'water_chemistry' }
+    ]
+  };
+
+  // Key-based cache mock: INGREDIENTS returns empty (purchasable only, excludes internal);
+  // INGREDIENTS_ALL returns the full catalog with the internal item.
+  function keyedCacheMock(recipeOrListCachedValue, kioskValue) {
+    mocks.cache.get.mockImplementation(function (key) {
+      // Recipe cache hit (keyed by recipe id)
+      if (recipeOrListCachedValue !== undefined && key === 'sv:recipes:SV-R-INTERNAL') {
+        return Promise.resolve(recipeOrListCachedValue);
+      }
+      // Purchasable-only catalog — does NOT include INTERNAL_ID
+      if (key === 'zoho:ingredients') {
+        return Promise.resolve([]);
+      }
+      // Full catalog INCLUDING internal items
+      if (key === 'zoho:ingredients:all') {
+        return Promise.resolve([internalCatalogEntry]);
+      }
+      // Kiosk products (for milling fee lookup inside enrichWithComputedPrice)
+      if (key === 'zoho:kiosk-products') {
+        return Promise.resolve(kioskValue || []);
+      }
+      return Promise.resolve(null);
+    });
+  }
+
+  beforeEach(function () {
+    mocks = resetAndLoadRecipes();
+    mocks.cache.set.mockResolvedValue(true);
+    mocks.cache.del.mockResolvedValue(true);
+    process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-token';
+  });
+
+  // --- Test 1: enrichIngredientGroups reads INGREDIENTS_ALL ---
+  test('enrichIngredientGroups: internal-only ingredient gets cf_type/cf_subcategory/display_group from INGREDIENTS_ALL', function () {
+    var cachedDetail = {
+      recipe: { recipe_id: 'SV-R-INTERNAL', pricing_mode: 'locked', locked_price: 25 },
+      ingredients: [
+        { item_id: INTERNAL_ID, item_name: 'Calcium Sulfate (Bulk)', quantity: 0.005 }
+      ]
+    };
+    // Recipe cache hit; catalog reads are key-dispatched
+    keyedCacheMock(cachedDetail, []);
+
+    return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-INTERNAL' } }).then(function (res) {
+      expect(res._status).toBe(200);
+      var ing = res._body.ingredients[0];
+      // Enrichment must have resolved cf_type from INGREDIENTS_ALL
+      expect(ing.cf_type).toBe('Additive');
+      expect(ing.cf_subcategory).toBe('Water Chemistry');
+      expect(ing.display_group).toBeTruthy();
+    });
+  });
+
+  // --- Test 2: enrichWithComputedPrice reads INGREDIENTS_ALL ---
+  test('enrichWithComputedPrice: internal-only ingredient rate contributes to computed_price for dynamic recipe', function () {
+    // Dynamic recipe — ingredient is internal-only (rate 1.50/unit)
+    var cachedDetail = {
+      recipe: { recipe_id: 'SV-R-INTERNAL', pricing_mode: 'dynamic', service_fee: 10 },
+      ingredients: [
+        { item_id: INTERNAL_ID, item_name: 'Calcium Sulfate (Bulk)', quantity: 2 }
+      ]
+    };
+    keyedCacheMock(cachedDetail, []);
+
+    return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-INTERNAL' } }).then(function (res) {
+      expect(res._status).toBe(200);
+      // computed_price = (2 * 1.50) + service_fee 10 = 13.00
+      // Before fix: INGREDIENTS is empty → rate=0 → computed_price = 10.00 → test fails
+      expect(res._body.recipe.computed_price).toBe(13.00);
+    });
+  });
+
+  // --- Test 3: enrichListPrices reads INGREDIENTS_ALL ---
+  test('enrichListPrices: dynamic recipe list price includes internal-only ingredient rate from INGREDIENTS_ALL', function () {
+    // Recipe list cache miss — fetches from Apps Script
+    var recipeInList = {
+      recipe_id: 'SV-R-INTERNAL',
+      pricing_mode: 'dynamic',
+      service_fee: 5,
+      materials_fee: 0
+    };
+    // Apps Script returns the recipe list then detail on second call
+    mocks.axios.post.mockImplementation(function (url, body) {
+      var parsed = typeof body === 'string' ? JSON.parse(body) : body;
+      if (parsed.action === 'get_recipes') {
+        return Promise.resolve({ data: { ok: true, data: { recipes: [recipeInList], total: 1 } } });
+      }
+      // get_recipe detail call from enrichListPrices (recipe detail cache miss)
+      if (parsed.action === 'get_recipe') {
+        return Promise.resolve({
+          data: {
+            ok: true,
+            data: {
+              recipe: recipeInList,
+              ingredients: [{ item_id: INTERNAL_ID, item_name: 'Calcium Sulfate (Bulk)', quantity: 4 }]
+            }
+          }
+        });
+      }
+      return Promise.resolve({ data: { ok: false, message: 'unexpected' } });
+    });
+
+    // List cache miss, recipe detail cache also miss; catalog key-dispatched
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients') {
+        return Promise.resolve([]);
+      }
+      if (key === 'zoho:ingredients:all') {
+        return Promise.resolve([internalCatalogEntry]); // rate: 1.50
+      }
+      if (key === 'zoho:kiosk-products') {
+        return Promise.resolve([]);
+      }
+      return Promise.resolve(null); // list and detail cache both cold
+    });
+
+    return callHandler('GET', '/api/recipes', { query: { status: 'active' } }).then(function (res) {
+      expect(res._status).toBe(200);
+      var recipe = res._body.recipes[0];
+      // computed_price = (4 * 1.50) + service_fee 5 = 11.00
+      // Before fix: INGREDIENTS is empty → rate=0 → computed_price = 5.00 → test fails
+      expect(recipe.computed_price).toBe(11.00);
+    });
+  });
+});
