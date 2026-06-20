@@ -10,6 +10,7 @@ var eventLog = require('../lib/eventLog');
 var mailer = require('../lib/mailer');
 var C = require('../lib/constants');
 var brewpadIntegration = require('../lib/brewpad-integration');
+var scaling = require('../lib/recipe-scaling');
 
 var zohoPost = zohoApi.zohoPost;
 
@@ -75,7 +76,30 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
         return res.status(400).json({ error: 'Recipe is not active' });
       }
 
-      // Compute server-authoritative total from cached ingredient catalog (D-08)
+      // Validate batch_size_l and target_volume_l (D-11)
+      var baseVol = Number(recipe.batch_size_l) || 0;
+      if (baseVol <= 0) {
+        return res.status(400).json({ error: 'Recipe has no base batch size set. Cannot scale.' });
+      }
+
+      // Default target_volume_l to batch_size_l if absent/blank (=> scale_factor 1.0, backward compat D-05)
+      var rawTargetVol = body.target_volume_l;
+      var targetVolumeL = (rawTargetVol === undefined || rawTargetVol === null || rawTargetVol === '')
+        ? baseVol
+        : Number(rawTargetVol);
+
+      if (isNaN(targetVolumeL) || targetVolumeL <= 0) {
+        return res.status(400).json({ error: 'target_volume_l must be > 0' });
+      }
+      if (targetVolumeL > baseVol * 10) {
+        return res.status(400).json({ error: 'target_volume_l exceeds maximum (10x base)' });
+      }
+
+      var scaleFactor = targetVolumeL / baseVol;
+      recipe._scale_factor = scaleFactor;
+      log.info('[recipe-sale] target_volume_l=' + targetVolumeL + ' base_vol=' + baseVol + ' scale_factor=' + scaleFactor);
+
+      // Compute server-authoritative total from cached ingredient catalog
       cache.get(C.CACHE_KEYS.INGREDIENTS).then(function (ingredientCatalog) {
         if (!ingredientCatalog || !Array.isArray(ingredientCatalog)) {
           return res.status(503).json({ error: 'Ingredient catalog not available — try again shortly' });
@@ -87,47 +111,36 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
           if (item && item.item_id) catalogMap[item.item_id] = item;
         });
 
-        // Compute grand total based on pricing_mode
+        // Scale ingredient quantities server-side (D-01/D-02/D-03)
+        var scaledIngredients = scaling.scaleIngredients(ingredients, scaleFactor);
+
+        // Stock gate: scaled quantities vs stock_on_hand (D-08)
+        var stockCheck = scaling.checkScaledStock(scaledIngredients, catalogMap);
+        if (!stockCheck.ok && !body.override) {
+          return res.status(409).json({
+            error: 'Insufficient stock for scaled batch',
+            conflicts: stockCheck.conflicts
+          });
+        }
+
+        // Re-price via tested helper (SCALE-03, D-04/D-05/D-07)
         var hasLockedPrice = Number(recipe.locked_price) > 0;
         var pricingMode = recipe.pricing_mode || (hasLockedPrice ? 'locked' : 'dynamic');
         log.info('[recipe-sale] pricing_mode=' + pricingMode + ' (raw=' + recipe.pricing_mode + ') locked_price=' + recipe.locked_price + ' hasLockedPrice=' + hasLockedPrice);
-        var grandTotal = 0;
+        var grandTotal = scaling.computeScaledRecipeTotal(recipe, scaledIngredients, catalogMap, body.sale_type);
 
-        if (pricingMode === 'locked' && hasLockedPrice) {
-          grandTotal = Number(recipe.locked_price);
-          if (body.sale_type === 'take-out' && millGrain) {
-            if (!process.env.MILLING_FEE_ITEM_ID) {
-              return res.status(400).json({ error: 'Milling fee not configured. Contact admin.' });
-            }
-            var millingEntry = catalogMap[process.env.MILLING_FEE_ITEM_ID];
-            if (millingEntry) {
-              grandTotal += Number(millingEntry.rate) || 0;
-            }
+        // Take-out milling fee — added on top of helper result (helper does not know about milling)
+        if (body.sale_type === 'take-out' && millGrain) {
+          if (!process.env.MILLING_FEE_ITEM_ID) {
+            return res.status(400).json({ error: 'Milling fee not configured. Contact admin.' });
           }
-        } else {
-          // Dynamic: sum ingredient catalog rates + applicable fees
-          for (var i = 0; i < ingredients.length; i++) {
-            var ing = ingredients[i];
-            var catalogEntry = catalogMap[ing.item_id];
-            if (catalogEntry) {
-              grandTotal += (Number(ing.quantity) || 0) * (Number(catalogEntry.rate) || 0);
-            }
-          }
-          if (body.sale_type === 'in-store') {
-            grandTotal += Number(recipe.service_fee) || 0;
-            grandTotal += Number(recipe.materials_fee) || 0;
-          } else if (body.sale_type === 'take-out' && millGrain) {
-            if (!process.env.MILLING_FEE_ITEM_ID) {
-              return res.status(400).json({ error: 'Milling fee not configured. Contact admin.' });
-            }
-            var millingEntry = catalogMap[process.env.MILLING_FEE_ITEM_ID];
-            if (millingEntry) {
-              grandTotal += Number(millingEntry.rate) || 0;
-            }
+          var millingEntry = catalogMap[process.env.MILLING_FEE_ITEM_ID];
+          if (millingEntry) {
+            grandTotal += Number(millingEntry.rate) || 0;
+            grandTotal = Math.round(grandTotal * 100) / 100;
           }
         }
 
-        grandTotal = Math.round(grandTotal * 100) / 100;
         log.info('[recipe-sale] grandTotal=' + grandTotal + ' pricingMode=' + pricingMode);
 
         // Acquire Redis mutex before terminal push (D-04, INV-02)
@@ -147,7 +160,9 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
                 recipe_id: body.recipe_id,
                 sale_type: body.sale_type,
                 mill_grain: millGrain,
-                total: grandTotal
+                total: grandTotal,
+                scale_factor: scaleFactor,
+                target_volume_l: targetVolumeL
               });
             })
             .catch(function (termErr) {
