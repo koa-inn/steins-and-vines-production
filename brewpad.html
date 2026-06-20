@@ -108,9 +108,134 @@
 
       <!-- Recipes panel -->
       <div id="bp-panel-recipes" class="bp-panel" style="display:none;">
-        <div class="bp-panel-inner" id="bp-recipes-inner" aria-live="polite" aria-atomic="false">
-          <div class="bp-skeleton-block"></div>
+
+        <!-- List subview -->
+        <div id="bp-recipes-list-view">
+          <div class="bp-panel-header">
+            <h2>Recipes</h2>
+            <div class="bp-panel-actions">
+              <button type="button" class="btn" id="bp-recipes-new-btn">+ New Recipe</button>
+            </div>
+          </div>
+          <div class="bp-panel-inner" id="bp-recipes-inner" aria-live="polite" aria-atomic="false">
+            <div class="bp-skeleton-block"></div>
+          </div>
         </div>
+
+        <!-- Detail/editor subview (hidden by default) -->
+        <div id="bp-recipes-detail-view" style="display:none;">
+          <div class="bp-panel-header">
+            <button type="button" class="btn-secondary" id="bp-recipes-back-btn">&larr; Back</button>
+            <h2 id="bp-recipe-detail-title">Recipe</h2>
+          </div>
+          <div id="bp-recipes-availability-banner" class="bp-recipes-availability-banner" aria-live="polite"></div>
+          <div class="bp-panel-inner bp-recipes-editor-inner">
+
+            <!-- Metadata grid -->
+            <div class="bp-recipes-form-grid">
+              <div class="bp-recipes-form-field">
+                <label for="bp-recipe-name">Name</label>
+                <input type="text" id="bp-recipe-name" class="bp-input" placeholder="e.g. Pale Ale" />
+              </div>
+              <div class="bp-recipes-form-field">
+                <label for="bp-recipe-style">Style</label>
+                <input type="text" id="bp-recipe-style" class="bp-input" placeholder="e.g. American Pale Ale" />
+              </div>
+              <div class="bp-recipes-form-field bp-recipes-form-field--full">
+                <label for="bp-recipe-description">Description</label>
+                <textarea id="bp-recipe-description" class="bp-input" rows="2" placeholder="Optional notes"></textarea>
+              </div>
+            </div>
+            <div class="bp-recipes-form-grid bp-recipes-form-grid--narrow">
+              <div class="bp-recipes-form-field">
+                <label for="bp-recipe-batch-size">Batch Size (L)</label>
+                <input type="number" id="bp-recipe-batch-size" class="bp-input" step="0.1" min="0" inputmode="decimal" />
+              </div>
+              <div class="bp-recipes-form-field">
+                <label for="bp-recipe-abv">ABV (%)</label>
+                <input type="number" id="bp-recipe-abv" class="bp-input" step="0.1" min="0" inputmode="decimal" />
+              </div>
+              <div class="bp-recipes-form-field">
+                <label for="bp-recipe-ibu">IBU</label>
+                <input type="number" id="bp-recipe-ibu" class="bp-input" step="1" min="0" inputmode="numeric" />
+              </div>
+              <div class="bp-recipes-form-field">
+                <label for="bp-recipe-colour-srm">Colour (SRM)</label>
+                <input type="number" id="bp-recipe-colour-srm" class="bp-input" step="1" min="0" inputmode="numeric" />
+              </div>
+            </div>
+
+            <!-- Pricing -->
+            <h3 class="bp-recipes-section-heading">Pricing</h3>
+            <div class="bp-recipes-form-grid bp-recipes-form-grid--narrow">
+              <div class="bp-recipes-form-field">
+                <label for="bp-recipe-pricing-mode">Pricing Mode</label>
+                <select id="bp-recipe-pricing-mode" class="bp-select">
+                  <option value="locked">Locked Price</option>
+                  <option value="dynamic">Ingredient-Based</option>
+                </select>
+              </div>
+              <div class="bp-recipes-form-field">
+                <label for="bp-recipe-locked-price">Locked Price ($)</label>
+                <input type="number" id="bp-recipe-locked-price" class="bp-input" step="0.01" min="0" inputmode="decimal" />
+              </div>
+              <div class="bp-recipes-form-field">
+                <label for="bp-recipe-service-fee">Service Fee ($)</label>
+                <input type="number" id="bp-recipe-service-fee" class="bp-input" step="0.01" min="0" value="45" inputmode="decimal" />
+              </div>
+              <div class="bp-recipes-form-field">
+                <label for="bp-recipe-materials-fee">Materials Fee ($)</label>
+                <input type="number" id="bp-recipe-materials-fee" class="bp-input" step="0.01" min="0" value="5" inputmode="decimal" />
+              </div>
+            </div>
+
+            <!-- Status -->
+            <div class="bp-recipes-form-grid bp-recipes-form-grid--narrow">
+              <div class="bp-recipes-form-field">
+                <label for="bp-recipe-status">Status</label>
+                <select id="bp-recipe-status" class="bp-select">
+                  <option value="draft">Draft</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                <span id="bp-recipe-status-error" class="bp-recipes-inline-error" role="alert"></span>
+              </div>
+            </div>
+
+            <!-- Ingredients -->
+            <div class="bp-panel-header" style="margin-top:var(--sp-4,16px);">
+              <h3 class="bp-recipes-section-heading">Ingredients</h3>
+              <button type="button" class="btn-secondary" id="bp-recipes-add-ingredient-btn">+ Add Ingredient</button>
+            </div>
+            <div id="bp-recipes-ingredients-editor">
+              <table class="bp-recipes-table bp-recipes-ing-table">
+                <thead>
+                  <tr>
+                    <th>Ingredient</th>
+                    <th>Qty</th>
+                    <th>Unit</th>
+                    <th>Cost</th>
+                    <th>Retail</th>
+                    <th>Stock</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="bp-recipe-ing-tbody"></tbody>
+                <tfoot id="bp-recipe-ing-tfoot"></tfoot>
+              </table>
+              <p class="bp-empty-state" id="bp-recipe-ing-empty">No ingredients added yet.</p>
+            </div>
+
+            <!-- Actions -->
+            <div class="bp-recipes-detail-actions">
+              <button type="button" class="btn" id="bp-recipes-save-btn">Save Recipe</button>
+              <button type="button" id="bp-recipe-activate" class="btn" disabled title="">Activate</button>
+            </div>
+
+          </div><!-- /.bp-recipes-editor-inner -->
+        </div><!-- /#bp-recipes-detail-view -->
+
       </div>
 
     </div><!-- /.bp-panels -->

@@ -589,6 +589,46 @@ function isValidImportNumber(num) {
   return /^(INV|SO)-\d+$/i.test(num);
 }
 
+// ===== Recipe Editor Helpers (module-scope for testability) =====
+
+// Inline activation guardrail (D-06). Client-side UX only — server re-validates on PUT.
+// Returns { ok: true } or { ok: false, reason: string }.
+function canActivateRecipe(formData, ingredients) {
+  var lockedPrice = parseFloat(formData && formData.locked_price);
+  if (!lockedPrice || isNaN(lockedPrice) || lockedPrice <= 0) {
+    return { ok: false, reason: 'Set a valid locked price before activating this recipe.' };
+  }
+  if (!ingredients || ingredients.length === 0) {
+    return { ok: false, reason: 'Add at least one ingredient before activating this recipe.' };
+  }
+  return { ok: true };
+}
+
+// Build the full formData payload for POST/PUT.
+// Filters ingredients to those with item_id AND quantity > 0.
+// Sets ingredient_count so the server guardrail can see it (recipes.js L399-412).
+function buildRecipePayload(formData, ingredients) {
+  var validIngredients = (ingredients || []).filter(function (ing) {
+    return ing.item_id && ing.quantity > 0;
+  });
+  return {
+    name: formData.name || '',
+    style: formData.style || '',
+    description: formData.description || '',
+    batch_size_l: formData.batch_size_l || 0,
+    abv: formData.abv || 0,
+    ibu: formData.ibu || 0,
+    colour_srm: formData.colour_srm || 0,
+    pricing_mode: formData.pricing_mode || 'locked',
+    locked_price: formData.locked_price || 0,
+    service_fee: formData.service_fee != null ? formData.service_fee : 45,
+    materials_fee: formData.materials_fee != null ? formData.materials_fee : 5,
+    status: formData.status || 'draft',
+    ingredients: validIngredients,
+    ingredient_count: validIngredients.length
+  };
+}
+
 (function () {
   'use strict';
 
@@ -1644,6 +1684,434 @@ function isValidImportNumber(num) {
     html += '</tbody></table>';
 
     inner.innerHTML = html;
+  }
+
+  // ===== Recipe Detail / Editor =====
+
+  function showRecipesListView() {
+    var listView = document.getElementById('bp-recipes-list-view');
+    var detailView = document.getElementById('bp-recipes-detail-view');
+    if (listView) listView.style.display = '';
+    if (detailView) detailView.style.display = 'none';
+    _recipesState.currentRecipeId = null;
+    _recipesState.currentRecipe = null;
+    _recipesState.currentIngredients = [];
+    _recipesState.availability = null;
+  }
+
+  function showRecipesDetailView() {
+    var listView = document.getElementById('bp-recipes-list-view');
+    var detailView = document.getElementById('bp-recipes-detail-view');
+    if (listView) listView.style.display = 'none';
+    if (detailView) detailView.style.display = '';
+  }
+
+  function openRecipeDetail(recipeId) {
+    var url = mwUrl();
+    if (!url) { showToast('Middleware not configured', 'error'); return; }
+    _recipesState.currentRecipeId = recipeId;
+    showRecipesDetailView();
+
+    var titleEl = document.getElementById('bp-recipe-detail-title');
+    var saveBtn = document.getElementById('bp-recipes-save-btn');
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Recipe'; }
+
+    if (!recipeId) {
+      // New recipe mode
+      if (titleEl) titleEl.textContent = 'New Recipe';
+      populateRecipeForm(null);
+      renderAvailabilityBannerBp(null);
+      renderIngredientRows([], null);
+      return;
+    }
+
+    if (titleEl) titleEl.textContent = 'Loading…';
+    renderAvailabilityBannerBp({ summary: 'loading' });
+
+    Promise.all([
+      fetch(url + '/api/recipes/' + encodeURIComponent(recipeId), { headers: getRecipesMwHeaders(false) })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); }),
+      fetch(url + '/api/recipes/' + encodeURIComponent(recipeId) + '/availability', { headers: getRecipesMwHeaders(false) })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .catch(function () { return null; })
+    ]).then(function (results) {
+      var detail = results[0];
+      var avail = results[1];
+      _recipesState.currentRecipe = detail.recipe || detail;
+      _recipesState.currentIngredients = (detail.ingredients || []).slice();
+      _recipesState.availability = avail;
+
+      if (titleEl) titleEl.textContent = escapeHTML(_recipesState.currentRecipe.name || 'Recipe');
+      populateRecipeForm(_recipesState.currentRecipe);
+      renderAvailabilityBannerBp(avail);
+      renderIngredientRows(_recipesState.currentIngredients, avail);
+      updateActivateGuardrail();
+    }).catch(function () {
+      showToast('Could not load recipe details. Please try again.', 'error');
+      showRecipesListView();
+    });
+  }
+
+  function populateRecipeForm(recipe) {
+    var r = recipe || {};
+    var get = function (id) { return document.getElementById(id); };
+    if (get('bp-recipe-name')) get('bp-recipe-name').value = r.name || '';
+    if (get('bp-recipe-style')) get('bp-recipe-style').value = r.style || '';
+    if (get('bp-recipe-description')) get('bp-recipe-description').value = r.description || '';
+    if (get('bp-recipe-batch-size')) get('bp-recipe-batch-size').value = r.batch_size_l || '';
+    if (get('bp-recipe-abv')) get('bp-recipe-abv').value = r.abv || '';
+    if (get('bp-recipe-ibu')) get('bp-recipe-ibu').value = r.ibu || '';
+    if (get('bp-recipe-colour-srm')) get('bp-recipe-colour-srm').value = r.colour_srm || '';
+    if (get('bp-recipe-locked-price')) get('bp-recipe-locked-price').value = r.locked_price || '';
+    if (get('bp-recipe-service-fee')) get('bp-recipe-service-fee').value = r.service_fee != null ? r.service_fee : 45;
+    if (get('bp-recipe-materials-fee')) get('bp-recipe-materials-fee').value = r.materials_fee != null ? r.materials_fee : 5;
+    if (get('bp-recipe-status')) get('bp-recipe-status').value = r.status || 'draft';
+    if (get('bp-recipe-pricing-mode')) get('bp-recipe-pricing-mode').value = r.pricing_mode || 'locked';
+    _recipesState.previousStatus = r.status || 'draft';
+    if (get('bp-recipe-status-error')) get('bp-recipe-status-error').textContent = '';
+  }
+
+  function renderAvailabilityBannerBp(availability) {
+    var banner = document.getElementById('bp-recipes-availability-banner');
+    if (!banner) return;
+    if (!availability) { banner.innerHTML = ''; return; }
+    var summary = availability.summary || 'unknown';
+    var msgs = {
+      'loading': 'Checking ingredient availability…',
+      'all_ok': 'All ingredients in stock.',
+      'some_low': 'Some ingredients are running low.',
+      'cannot_brew': 'One or more ingredients are out of stock.',
+      'unknown': 'Availability data unavailable.'
+    };
+    var cls = {
+      'loading': 'bp-avail-loading',
+      'all_ok': 'bp-avail-ok',
+      'some_low': 'bp-avail-low',
+      'cannot_brew': 'bp-avail-error',
+      'unknown': 'bp-avail-unknown'
+    };
+    banner.innerHTML = '<span class="bp-avail-banner ' + (cls[summary] || 'bp-avail-unknown') + '">' +
+      escapeHTML(msgs[summary] || 'Unknown availability.') + '</span>';
+  }
+
+  function renderIngredientRows(ingredients, availability) {
+    var tbody = document.getElementById('bp-recipe-ing-tbody');
+    var emptyEl = document.getElementById('bp-recipe-ing-empty');
+    if (!tbody) return;
+
+    if (!ingredients || ingredients.length === 0) {
+      tbody.innerHTML = '';
+      if (emptyEl) emptyEl.style.display = '';
+      updateIngredientTotalsBp();
+      return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+
+    var availMap = {};
+    if (availability && availability.ingredients) {
+      availability.ingredients.forEach(function (a) {
+        availMap[String(a.item_id)] = a;
+      });
+    }
+
+    var html = '';
+    var totalCost = 0;
+    var totalRetail = 0;
+
+    // Grouped render (data-ing-idx MUST be ingredients.indexOf(ing), not loop idx)
+    var groups = (typeof groupRecipeIngredients === 'function')
+      ? groupRecipeIngredients(ingredients)
+      : [{ label: '', count: ingredients.length, items: ingredients.slice() }];
+
+    groups.forEach(function (group) {
+      if (group.label) {
+        html += '<tr class="bp-recipes-ing-group"><td colspan="8">' + escapeHTML(group.label) + ' (' + group.count + ')</td></tr>';
+      }
+      group.items.forEach(function (ing) {
+        var idx = ingredients.indexOf(ing); // CRITICAL: original array index
+        var avail = availMap[String(ing.item_id)] || {};
+        var dotClass = 'bp-ing-status-dot bp-ing-status-dot--' + escapeHTML(avail.status || 'unknown');
+        var stockText = avail.stock_on_hand != null ? avail.stock_on_hand + ' ' + escapeHTML(ing.unit || '') + ' available' : '';
+        var dotTitle = avail.status === 'unknown' ? 'Stock data loading — try again shortly'
+          : (avail.batches_possible != null ? avail.batches_possible + ' batch(es) possible' : '');
+        var qty = parseFloat(ing.quantity) || 0;
+        var costEach = parseFloat(ing.purchase_rate) || 0;
+        var retailEach = parseFloat(ing.rate) || 0;
+        var lineCost = qty * costEach;
+        var lineRetail = qty * retailEach;
+        totalCost += lineCost;
+        totalRetail += lineRetail;
+
+        html += '<tr class="bp-recipes-ing-row" data-ing-idx="' + idx + '" data-item-id="' + escapeHTML(String(ing.item_id || '')) + '">';
+        html += '<td class="bp-ing-autocomplete-wrap">';
+        html += '<input type="text" class="bp-input bp-ing-search" value="' + escapeHTML(ing.item_name || '') + '" placeholder="Search ingredient…" />';
+        html += '</td>';
+        html += '<td><input type="number" class="bp-input bp-ing-qty" value="' + escapeHTML(String(ing.quantity || '')) + '" step="0.01" min="0" inputmode="decimal" /></td>';
+        html += '<td class="bp-ing-unit">' + escapeHTML(ing.unit || '') + '</td>';
+        html += '<td class="bp-ing-cost">' + (costEach > 0 ? '$' + lineCost.toFixed(2) : '—') + '</td>';
+        html += '<td class="bp-ing-retail">' + (retailEach > 0 ? '$' + lineRetail.toFixed(2) : '—') + '</td>';
+        html += '<td><span class="bp-ing-stock-hint">' + escapeHTML(stockText) + '</span></td>';
+        html += '<td><span class="' + dotClass + '" title="' + escapeHTML(dotTitle) + '"></span></td>';
+        html += '<td><button type="button" class="btn-secondary bp-ing-remove" aria-label="Remove ' + escapeHTML(ing.item_name || 'ingredient') + '">&#10005;</button></td>';
+        html += '</tr>';
+      });
+    });
+    tbody.innerHTML = html;
+
+    updateIngredientTotalsBp(totalCost, totalRetail, ingredients.length);
+    attachIngredientRowListeners();
+    updateActivateGuardrail();
+  }
+
+  function updateIngredientTotalsBp(totalCost, totalRetail, ingCount) {
+    var tfoot = document.getElementById('bp-recipe-ing-tfoot');
+    if (!tfoot) return;
+    var cost = totalCost || 0;
+    var retail = totalRetail || 0;
+    var count = ingCount || 0;
+    if (count > 0 && (cost > 0 || retail > 0)) {
+      tfoot.innerHTML = '<tr class="bp-recipes-ing-totals">' +
+        '<td colspan="3"><strong>Totals</strong></td>' +
+        '<td class="bp-ing-cost"><strong>' + (cost > 0 ? '$' + cost.toFixed(2) : '—') + '</strong></td>' +
+        '<td class="bp-ing-retail"><strong>' + (retail > 0 ? '$' + retail.toFixed(2) : '—') + '</strong></td>' +
+        '<td colspan="3"></td></tr>';
+    } else {
+      tfoot.innerHTML = '';
+    }
+  }
+
+  function attachIngredientRowListeners() {
+    var tbody = document.getElementById('bp-recipe-ing-tbody');
+    if (!tbody) return;
+
+    // Remove buttons
+    tbody.querySelectorAll('.bp-ing-remove').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var row = btn.closest('.bp-recipes-ing-row');
+        var idx = parseInt(row && row.getAttribute('data-ing-idx'), 10);
+        if (isNaN(idx) || idx < 0) return;
+        _recipesState.currentIngredients.splice(idx, 1);
+        renderIngredientRows(_recipesState.currentIngredients, _recipesState.availability);
+      });
+    });
+
+    // Quantity change
+    tbody.querySelectorAll('.bp-ing-qty').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var row = input.closest('.bp-recipes-ing-row');
+        var idx = parseInt(row && row.getAttribute('data-ing-idx'), 10);
+        if (!isNaN(idx) && _recipesState.currentIngredients[idx]) {
+          _recipesState.currentIngredients[idx].quantity = parseFloat(input.value) || 0;
+        }
+        // Re-render totals inline (without full re-render)
+        var totalCost = 0;
+        var totalRetail = 0;
+        _recipesState.currentIngredients.forEach(function (ing) {
+          totalCost += (parseFloat(ing.quantity) || 0) * (parseFloat(ing.purchase_rate) || 0);
+          totalRetail += (parseFloat(ing.quantity) || 0) * (parseFloat(ing.rate) || 0);
+        });
+        updateIngredientTotalsBp(totalCost, totalRetail, _recipesState.currentIngredients.length);
+        updateActivateGuardrail();
+      });
+    });
+
+    // Autocomplete search inputs
+    tbody.querySelectorAll('.bp-ing-search').forEach(function (input) {
+      input.addEventListener('input', function () {
+        showIngredientAutocompleteBp(input);
+      });
+      input.addEventListener('focus', function () {
+        if (!input.value) showIngredientAutocompleteBp(input);
+      });
+      input.addEventListener('blur', function () {
+        setTimeout(function () { hideIngredientAutocompleteBp(input); }, 200);
+      });
+    });
+  }
+
+  // Autocomplete helpers
+
+  function filterIngredientCatalog(query) {
+    var q = (query || '').toLowerCase().trim();
+    if (!q) return _recipesState.catalog.slice(0, 6);
+    return _recipesState.catalog.filter(function (item) {
+      return (item.name || '').toLowerCase().indexOf(q) !== -1 ||
+             (item.sku || '').toLowerCase().indexOf(q) !== -1;
+    }).slice(0, 6);
+  }
+
+  function showIngredientAutocompleteBp(input) {
+    hideIngredientAutocompleteBp(input);
+    if (!_recipesState.catalogLoaded) return;
+    var matches = filterIngredientCatalog(input.value);
+    if (matches.length === 0) return;
+
+    var drop = document.createElement('div');
+    drop.className = 'bp-ing-autocomplete-drop';
+    drop.setAttribute('role', 'listbox');
+    matches.forEach(function (item) {
+      var opt = document.createElement('div');
+      opt.setAttribute('role', 'option');
+      var stockLabel = item.stock_on_hand != null ? item.stock_on_hand : '?';
+      var unitLabel = item.unit || '';
+      opt.innerHTML = escapeHTML(item.name || '') + ' &mdash; ' + escapeHTML(item.sku || '') +
+        ' <span class="bp-ing-stock-hint">(' + stockLabel + (unitLabel ? ' ' + escapeHTML(unitLabel) : '') + ' available)</span>';
+      opt.addEventListener('mousedown', function (e) {
+        e.preventDefault(); // Prevent blur before selection
+        selectIngredientFromAutocompleteBp(input, item);
+      });
+      drop.appendChild(opt);
+    });
+    input.parentNode.appendChild(drop);
+  }
+
+  function hideIngredientAutocompleteBp(input) {
+    var existing = input.parentNode && input.parentNode.querySelector('.bp-ing-autocomplete-drop');
+    if (existing) existing.remove();
+  }
+
+  function selectIngredientFromAutocompleteBp(input, item) {
+    var row = input.closest('.bp-recipes-ing-row');
+    var idx = parseInt(row && row.getAttribute('data-ing-idx'), 10);
+    input.value = item.name || '';
+    hideIngredientAutocompleteBp(input);
+
+    if (!isNaN(idx) && _recipesState.currentIngredients[idx]) {
+      _recipesState.currentIngredients[idx].item_id = item.item_id;
+      _recipesState.currentIngredients[idx].item_name = item.name || '';
+      _recipesState.currentIngredients[idx].sku = item.sku || '';
+      _recipesState.currentIngredients[idx].unit = item.unit || '';
+      _recipesState.currentIngredients[idx].purchase_rate = parseFloat(item.purchase_rate) || 0;
+      _recipesState.currentIngredients[idx].rate = parseFloat(item.rate || item.price_per_unit) || 0;
+    }
+
+    // Update unit display and stock hint inline
+    var unitTd = row && row.querySelector('.bp-ing-unit');
+    if (unitTd) unitTd.textContent = item.unit || '';
+    var hintSpan = row && row.querySelector('.bp-ing-stock-hint');
+    if (hintSpan) {
+      var stockVal = item.stock_on_hand != null ? item.stock_on_hand : '?';
+      hintSpan.textContent = stockVal + ' ' + (item.unit || '') + ' available';
+    }
+    if (row) row.setAttribute('data-item-id', item.item_id || '');
+
+    // Recalc totals
+    var totalCost = 0;
+    var totalRetail = 0;
+    _recipesState.currentIngredients.forEach(function (ing) {
+      totalCost += (parseFloat(ing.quantity) || 0) * (parseFloat(ing.purchase_rate) || 0);
+      totalRetail += (parseFloat(ing.quantity) || 0) * (parseFloat(ing.rate) || 0);
+    });
+    updateIngredientTotalsBp(totalCost, totalRetail, _recipesState.currentIngredients.length);
+    updateActivateGuardrail();
+  }
+
+  function addIngredientRow() {
+    _recipesState.currentIngredients.push({
+      item_id: '',
+      item_name: '',
+      sku: '',
+      quantity: 0,
+      unit: ''
+    });
+    renderIngredientRows(_recipesState.currentIngredients, _recipesState.availability);
+    // Focus the new search input
+    var tbody = document.getElementById('bp-recipe-ing-tbody');
+    if (tbody) {
+      var lastSearch = tbody.querySelector('.bp-recipes-ing-row:last-child .bp-ing-search');
+      if (lastSearch) lastSearch.focus();
+    }
+  }
+
+  // Activate guardrail (D-06): evaluate and reflect on the Activate button
+  function updateActivateGuardrail() {
+    var btn = document.getElementById('bp-recipe-activate');
+    if (!btn) return;
+    var lockedPriceEl = document.getElementById('bp-recipe-locked-price');
+    var formData = { locked_price: lockedPriceEl ? lockedPriceEl.value : '' };
+    var validIngredients = _recipesState.currentIngredients.filter(function (ing) {
+      return ing.item_id && ing.quantity > 0;
+    });
+    var check = canActivateRecipe(formData, validIngredients);
+    btn.disabled = !check.ok;
+    btn.title = check.ok ? '' : (check.reason || '');
+  }
+
+  // Save recipe (POST create / PUT update)
+  function saveRecipe() {
+    var url = mwUrl();
+    if (!url) { showToast('Middleware not configured', 'error'); return; }
+
+    var formData = buildRecipePayload(readRecipeFormData(), _recipesState.currentIngredients);
+
+    if (!formData.name) {
+      showToast('Recipe name is required.', 'warning');
+      return;
+    }
+
+    // D-06 activation guardrail (frontend) — also checked server-side
+    if (formData.status === 'active') {
+      var guard = canActivateRecipe(formData, formData.ingredients);
+      if (!guard.ok) {
+        var statusErrEl = document.getElementById('bp-recipe-status-error');
+        if (statusErrEl) statusErrEl.textContent = guard.reason;
+        var statusEl = document.getElementById('bp-recipe-status');
+        if (statusEl) statusEl.value = _recipesState.previousStatus;
+        return;
+      }
+    }
+
+    var recipeId = _recipesState.currentRecipeId;
+    var method = recipeId ? 'PUT' : 'POST';
+    var endpoint = recipeId
+      ? url + '/api/recipes/' + encodeURIComponent(recipeId)
+      : url + '/api/recipes';
+
+    var saveBtn = document.getElementById('bp-recipes-save-btn');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+
+    fetch(endpoint, {
+      method: method,
+      headers: getRecipesMwHeaders(true),
+      body: JSON.stringify(formData)
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok && data.error) throw new Error(data.error);
+        showToast(recipeId ? 'Recipe saved.' : 'Recipe created.', 'success');
+        if (!recipeId && data.recipe_id) {
+          _recipesState.currentRecipeId = data.recipe_id;
+          openRecipeDetail(data.recipe_id);
+        } else {
+          openRecipeDetail(recipeId);
+        }
+        loadRecipeList('all');
+      })
+      .catch(function (err) {
+        var msg = (err && err.message) ? err.message : 'Please check your connection and try again.';
+        showToast('Could not save recipe. ' + msg, 'error');
+      })
+      .finally(function () {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Recipe'; }
+      });
+  }
+
+  function readRecipeFormData() {
+    var get = function (id) { return document.getElementById(id); };
+    return {
+      name: get('bp-recipe-name') ? get('bp-recipe-name').value.trim() : '',
+      style: get('bp-recipe-style') ? get('bp-recipe-style').value.trim() : '',
+      description: get('bp-recipe-description') ? get('bp-recipe-description').value.trim() : '',
+      batch_size_l: parseFloat(get('bp-recipe-batch-size') ? get('bp-recipe-batch-size').value : 0) || 0,
+      abv: parseFloat(get('bp-recipe-abv') ? get('bp-recipe-abv').value : 0) || 0,
+      ibu: parseInt(get('bp-recipe-ibu') ? get('bp-recipe-ibu').value : 0, 10) || 0,
+      colour_srm: parseInt(get('bp-recipe-colour-srm') ? get('bp-recipe-colour-srm').value : 0, 10) || 0,
+      pricing_mode: get('bp-recipe-pricing-mode') ? get('bp-recipe-pricing-mode').value : 'locked',
+      locked_price: parseFloat(get('bp-recipe-locked-price') ? get('bp-recipe-locked-price').value : 0) || 0,
+      service_fee: parseFloat(get('bp-recipe-service-fee') ? get('bp-recipe-service-fee').value : 45) || 45,
+      materials_fee: parseFloat(get('bp-recipe-materials-fee') ? get('bp-recipe-materials-fee').value : 5) || 5,
+      status: get('bp-recipe-status') ? get('bp-recipe-status').value : 'draft'
+    };
   }
 
   // ===== Dashboard =====
@@ -7131,6 +7599,47 @@ function isValidImportNumber(num) {
         }
       });
     }
+
+    // Recipes panel: full panel delegation for editor controls
+    var recipesPanel = document.getElementById('bp-panel-recipes');
+    if (recipesPanel) {
+      recipesPanel.addEventListener('click', function (e) {
+        // New Recipe button
+        if (e.target && e.target.id === 'bp-recipes-new-btn') {
+          openRecipeDetail(null);
+          return;
+        }
+        // Back to list button
+        if (e.target && e.target.id === 'bp-recipes-back-btn') {
+          showRecipesListView();
+          return;
+        }
+        // Save Recipe button
+        if (e.target && e.target.id === 'bp-recipes-save-btn') {
+          saveRecipe();
+          return;
+        }
+        // Activate button — sets status to active and saves
+        if (e.target && e.target.id === 'bp-recipe-activate') {
+          var statusEl = document.getElementById('bp-recipe-status');
+          if (statusEl) statusEl.value = 'active';
+          saveRecipe();
+          return;
+        }
+        // Add Ingredient button
+        if (e.target && e.target.id === 'bp-recipes-add-ingredient-btn') {
+          addIngredientRow();
+          return;
+        }
+      });
+
+      // Re-evaluate guardrail when locked price changes
+      recipesPanel.addEventListener('input', function (e) {
+        if (e.target && e.target.id === 'bp-recipe-locked-price') {
+          updateActivateGuardrail();
+        }
+      });
+    }
   }
 
   // ===== Form Saver Registry =====
@@ -7411,6 +7920,8 @@ if (typeof module !== 'undefined' && module.exports) {
     bucketWineDimension: bucketWineDimension,
     applyTopN: applyTopN,
     filterRecipesByName: filterRecipesByName,
-    recipeRowPrice: recipeRowPrice
+    recipeRowPrice: recipeRowPrice,
+    canActivateRecipe: canActivateRecipe,
+    buildRecipePayload: buildRecipePayload
   };
 }
