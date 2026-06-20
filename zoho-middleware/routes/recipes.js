@@ -314,9 +314,9 @@ router.get('/api/recipes/:id/availability', function (req, res) {
       return res.json({ recipe_id: recipeId, summary: 'all_ok', ingredients: [] });
     }
 
-    // Step 2: Get ingredient stock from the cached ingredients catalog
-    return cache.get(C.CACHE_KEYS.INGREDIENTS).then(function (catalog) {
-      // If ingredients cache is cold, return unknown status (Pitfall 5)
+    // Step 2: Get ingredient stock from the full cached ingredients catalog (includes internal-only items)
+    return cache.get(C.CACHE_KEYS.INGREDIENTS_ALL).then(function (catalog) {
+      // If full ingredients cache is cold, return unknown status (Pitfall 5)
       if (!catalog) {
         var unknownResult = ingredients.map(function (ing) {
           return {

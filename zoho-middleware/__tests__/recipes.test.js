@@ -186,8 +186,14 @@ describe('GET /api/recipes/:id/availability', function () {
         }
       }
     });
-    // Ingredients cache has stock data
+    // Ingredients cache has stock data (source reads INGREDIENTS_ALL for full catalog)
     mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') {
+        return Promise.resolve([
+          { item_id: '100', stock_on_hand: 45 },
+          { item_id: '200', stock_on_hand: 100 }
+        ]);
+      }
       if (key === 'zoho:ingredients') {
         return Promise.resolve([
           { item_id: '100', stock_on_hand: 45 },

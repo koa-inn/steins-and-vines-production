@@ -99,8 +99,8 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
       recipe._scale_factor = scaleFactor;
       log.info('[recipe-sale] target_volume_l=' + targetVolumeL + ' base_vol=' + baseVol + ' scale_factor=' + scaleFactor);
 
-      // Compute server-authoritative total from cached ingredient catalog
-      cache.get(C.CACHE_KEYS.INGREDIENTS).then(function (ingredientCatalog) {
+      // Compute server-authoritative total from full ingredient catalog (includes internal-only items)
+      cache.get(C.CACHE_KEYS.INGREDIENTS_ALL).then(function (ingredientCatalog) {
         if (!ingredientCatalog || !Array.isArray(ingredientCatalog)) {
           return res.status(503).json({ error: 'Ingredient catalog not available — try again shortly' });
         }
@@ -250,8 +250,8 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
       recipe._scale_factor = scaleFactorConfirm;
       log.info('[pos-recipe/confirm] target_volume_l=' + targetVolumeLConfirm + ' base_vol=' + baseVolC + ' scale_factor=' + scaleFactorConfirm);
 
-      // Re-compute total server-side from cached ingredient catalog
-      cache.get(C.CACHE_KEYS.INGREDIENTS).then(function (ingredientCatalog) {
+      // Re-compute total server-side from full ingredient catalog (includes internal-only items)
+      cache.get(C.CACHE_KEYS.INGREDIENTS_ALL).then(function (ingredientCatalog) {
         if (!ingredientCatalog || !Array.isArray(ingredientCatalog)) {
           return res.status(503).json({ error: 'Ingredient catalog not available — try again shortly' });
         }

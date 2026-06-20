@@ -169,6 +169,7 @@ describe('POST /api/kiosk/recipe-sale (initiate)', function () {
     mocks.cache.acquireLock.mockResolvedValue(true);
     mocks.cache.releaseLock.mockResolvedValue();
     mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') return Promise.resolve(MOCK_INGREDIENTS_CATALOG);
       if (key === 'zoho:ingredients') return Promise.resolve(MOCK_INGREDIENTS_CATALOG);
       return Promise.resolve(null);
     });
@@ -312,6 +313,7 @@ describe('POST /api/kiosk/recipe-sale/confirm', function () {
     mocks.cache.releaseLock.mockResolvedValue();
     mocks.cache.del.mockResolvedValue(1);
     mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') return Promise.resolve(MOCK_INGREDIENTS_CATALOG);
       if (key === 'zoho:ingredients') return Promise.resolve(MOCK_INGREDIENTS_CATALOG);
       return Promise.resolve(null);
     });
@@ -541,6 +543,7 @@ describe('POST /api/kiosk/recipe-sale — scaling (SCALE-01, SCALE-03, SCALE-05)
     mocks.cache.acquireLock.mockResolvedValue(true);
     mocks.cache.releaseLock.mockResolvedValue();
     mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') return Promise.resolve(MOCK_INGREDIENTS_CATALOG);
       if (key === 'zoho:ingredients') return Promise.resolve(MOCK_INGREDIENTS_CATALOG);
       return Promise.resolve(null);
     });
@@ -761,6 +764,7 @@ describe('POST /api/kiosk/recipe-sale/confirm — scaling (SCALE-04, SCALE-05)',
     mocks.cache.releaseLock.mockResolvedValue();
     mocks.cache.del.mockResolvedValue(1);
     mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') return Promise.resolve(MOCK_INGREDIENTS_CATALOG);
       if (key === 'zoho:ingredients') return Promise.resolve(MOCK_INGREDIENTS_CATALOG);
       return Promise.resolve(null);
     });
