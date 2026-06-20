@@ -19,31 +19,44 @@ key_files:
     - zoho-middleware/__tests__/recipes.test.js
 decisions:
   - "Recipe stock/pricing reads INGREDIENTS_ALL (zoho:ingredients:all) — full catalog including internal-only items — at all three stock-check sites in pos-recipe.js and recipes.js"
+  - "Recipe enrichment (grouping + dynamic pricing) reads INGREDIENTS_ALL at all three enrichment sites in recipes.js — internal-only ingredients (e.g. Gypsum Bulk) are consumed and charged, so all enrichment must use the full catalog consistent with the availability/sale path"
 metrics:
-  duration: 358s
+  duration: 358s (first pass) + extension
   completed: 2026-06-20
-  tasks_completed: 2
+  tasks_completed: 4
   files_modified: 4
 ---
 
 # Phase 35 Plan 05: SCALE-05 Internal-Only Ingredient Stock Visibility — Summary
 
-**One-liner:** Switch recipe stock checks from purchasable-only INGREDIENTS catalog to full INGREDIENTS_ALL catalog so internal-only ingredients (e.g. Gypsum Bulk) report real stock instead of 0.
+**One-liner:** Switch ALL recipe catalog reads (stock checks, grouping, dynamic pricing) from purchasable-only INGREDIENTS to full INGREDIENTS_ALL so internal-only ingredients (e.g. Gypsum Bulk) report real stock, get correct display groups, and are priced correctly in dynamic recipes.
 
 ## What Was Built
 
-### The Bug
+### The Bug (First Pass — Stock Checks)
 
-Recipe stock checks and pricing in `pos-recipe.js` and `recipes.js` read `CACHE_KEYS.INGREDIENTS` (Redis key `zoho:ingredients`), which is the purchasable-only ingredient catalog that deliberately excludes internal-only items. Recipe ingredients that are internal-only — confirmed live example: "Gypsum (Calcium Sulfate) (Bulk)", item_id 109900000000028635, real stock_on_hand 20.83 kg — are absent from that catalog.
+Recipe stock checks and sale pricing in `pos-recipe.js` and `recipes.js` read `CACHE_KEYS.INGREDIENTS` (Redis key `zoho:ingredients`), which is the purchasable-only ingredient catalog that deliberately excludes internal-only items. Recipe ingredients that are internal-only — confirmed live example: "Gypsum (Calcium Sulfate) (Bulk)", item_id 109900000000028635, real stock_on_hand 20.83 kg — are absent from that catalog.
 
-Consequences:
+Consequences (original):
 - `GET /api/recipes/:id/availability`: stock map returns 0 for internal items → `batches_possible=0` → status `'out'` → `summary: 'cannot_brew'` (false negative)
 - `POST /api/kiosk/recipe-sale` (quote handler): internal item absent from catalogMap → `computeScaledRecipeTotal` uses rate=0 → undercharges the customer
 - `POST /api/kiosk/recipe-sale/confirm` (confirm handler): same — invoice line item rate=0, stock re-check skips item (no 409 but pricing is wrong)
 
+### The Extension Bug (Three Enrichment Sites)
+
+The same root cause applied to three enrichment functions in `recipes.js` — all three read `CACHE_KEYS.INGREDIENTS` (purchasable-only):
+
+| Function | Consequence |
+|----------|-------------|
+| `enrichIngredientGroups` | Internal-only ingredients get no `cf_type`, `cf_subcategory`, or `display_group` — display grouping is broken for internal items |
+| `enrichWithComputedPrice` | Dynamic recipe `computed_price` excludes internal ingredient rates — price shown to staff is wrong |
+| `enrichListPrices` | Recipe list `computed_price` excludes internal ingredient rates — list prices wrong for dynamic recipes with internal items |
+
+**Confirmed business rule:** Internal-only recipe ingredients ARE consumed and ARE charged. Both stock AND dynamic pricing AND display grouping must use the FULL catalog (`CACHE_KEYS.INGREDIENTS_ALL`), consistent with the already-fixed availability and sale paths.
+
 ### The Fix
 
-Three source-level cache key changes — `CACHE_KEYS.INGREDIENTS` → `CACHE_KEYS.INGREDIENTS_ALL` (`zoho:ingredients:all`):
+**First pass (original 35-05):** Three source-level cache key changes — `CACHE_KEYS.INGREDIENTS` → `CACHE_KEYS.INGREDIENTS_ALL` at stock-check sites:
 
 | File | Line | Handler |
 |------|------|---------|
@@ -51,38 +64,66 @@ Three source-level cache key changes — `CACHE_KEYS.INGREDIENTS` → `CACHE_KEY
 | `zoho-middleware/routes/pos-recipe.js` | ~254 | recipe-sale confirm: belt-and-suspenders stock re-check + invoice line item rates |
 | `zoho-middleware/routes/recipes.js` | ~318 | availability pre-check: stockMap for per-ingredient status + batches_possible |
 
-The full catalog (`INGREDIENTS_ALL`) is the correct source for recipe operations because recipe ingredients legitimately include internal/bulk items that are never sold directly to customers.
+**Extension (35-05 gap-closure):** Three additional source-level cache key changes + file-cache constant in `recipes.js`:
+
+| Function | Change |
+|----------|--------|
+| `enrichIngredientGroups` | `INGREDIENTS` → `INGREDIENTS_ALL`; cold-cache file fallback: `INGREDIENTS_FILE_CACHE` → `INGREDIENTS_ALL_FILE_CACHE` |
+| `enrichWithComputedPrice` | `INGREDIENTS` → `INGREDIENTS_ALL` (no file fallback in this function) |
+| `enrichListPrices` | `INGREDIENTS` → `INGREDIENTS_ALL`; cold-cache file fallback: `INGREDIENTS_FILE_CACHE` → `INGREDIENTS_ALL_FILE_CACHE` |
+
+Added `INGREDIENTS_ALL_FILE_CACHE = path.join(__dirname, '..', 'ingredients-all-cache.json')` constant in `recipes.js` (mirrors `catalog.js`).
 
 ## TDD Execution
 
-### RED Commit: `35b43cd`
+### First Pass
 
-Added 3 failing regression tests proving the bug exists:
+#### RED Commit: `35b43cd`
 
-- `recipes.test.js` — "SCALE-05 regression: internal-only ingredient (only in INGREDIENTS_ALL) reports real stock and all_ok": mock `'zoho:ingredients'` returns empty array (item absent), mock `'zoho:ingredients:all'` returns Gypsum with stock 20.83. Current source reads `'zoho:ingredients'` → stock=0 → `'cannot_brew'`. Test asserts `'all_ok'` → FAILED.
-- `pos-recipe.test.js` — "SCALE-05a (quote)": internal-only ingredient (rate=0.50) absent from INGREDIENTS → total = fees-only (50.00). Test asserts 51.00 → FAILED.
-- `pos-recipe.test.js` — "SCALE-05b (confirm)": gypsum invoice line has rate=0 (item absent from INGREDIENTS catalogMap). Test asserts rate=0.50 → FAILED.
+Added 3 failing regression tests proving stock-check bug:
+- `recipes.test.js` — SCALE-05 regression: availability returns `'cannot_brew'` for internal-only ingredient
+- `pos-recipe.test.js` — SCALE-05a (quote): computed total excludes internal ingredient rate
+- `pos-recipe.test.js` — SCALE-05b (confirm): invoice line item rate is 0 for internal ingredient
 
-All 53 existing tests passed in the RED commit (only new 3 failed).
+All 53 existing tests passed; only 3 new tests failed.
 
-### GREEN Commit: `40443cc`
+#### GREEN Commit: `40443cc`
 
-Applied the three source changes + updated mock CACHE_KEYS in both test files to add `INGREDIENTS_ALL: 'zoho:ingredients:all'` + updated all four `beforeEach` blocks in `pos-recipe.test.js` and the availability test in `recipes.test.js` to respond to `'zoho:ingredients:all'`. All 56 tests in the two files pass; full suite: 852 tests, 0 failures.
+Applied stock-check source changes + updated mock CACHE_KEYS in both test files. All 56 tests pass; full suite: 852 tests, 0 failures.
+
+### Extension Pass (Enrichment Sites)
+
+#### RED Commit: `71a1b53`
+
+Added 3 failing regression tests proving enrichment bug (key-based cache mocking: INGREDIENTS → empty, INGREDIENTS_ALL → internal item):
+- `enrichIngredientGroups`: `cf_type` is `undefined` (expected `'Additive'`)
+- `enrichWithComputedPrice`: `computed_price` is `10.00` (expected `13.00` — internal ingredient rate missing)
+- `enrichListPrices`: `computed_price` is `5.00` (expected `11.00` — internal ingredient rate missing)
+
+All 21 existing tests passed; only 3 new tests failed.
+
+#### GREEN Commit: `2923783`
+
+Applied three enrichment source changes + `INGREDIENTS_ALL_FILE_CACHE` constant. All 24 tests in recipes suite pass; full suite: 855 tests, 0 failures. npm run lint: 0 errors.
 
 ## Commits
 
 | Commit | Type | Description |
 |--------|------|-------------|
-| `35b43cd` | test | RED — 3 failing regression tests for SCALE-05 |
+| `35b43cd` | test | RED — 3 failing regression tests for SCALE-05 (stock checks) |
 | `40443cc` | fix | GREEN — INGREDIENTS_ALL at three stock-check sites + mock plumbing |
+| `71a1b53` | test | RED — 3 failing tests for enrichment reading INGREDIENTS_ALL |
+| `2923783` | fix | GREEN — enrichment reads INGREDIENTS_ALL at all three sites + file fallbacks |
 
 ## Deviations from Plan
 
-None — plan executed exactly as written. The test mock-infrastructure update (adding `INGREDIENTS_ALL` key to both test files' mock CACHE_KEYS and updating `cache.get` implementations) was explicitly requested in the plan as a waived CLAUDE.md exception.
+**Extension pass:** The original plan only covered 3 stock-check sites (pos-recipe.js x2 + recipes.js availability). The objective prompt identified 3 additional same-root-cause sites in `recipes.js` (the three enrichment functions). Fixed atomically in a second RED→GREEN cycle per the same TDD contract.
+
+**Business rule confirmed:** Internal-only recipe ingredients are consumed and charged. Enrichment (grouping + dynamic pricing display) must use `INGREDIENTS_ALL` for consistency with the sale/availability paths.
 
 ## Deployment Note
 
-This is a middleware-only change. The fix requires a Railway middleware deploy (`railway up` from `zoho-middleware/`) before the Phase 35 staging UAT for SCALE-05 (false `cannot_brew` on Gypsum Bulk) can be verified. No frontend build is needed. The human owns the Railway deploy.
+This is a middleware-only change. The fix requires a Railway middleware deploy (`railway up` from `zoho-middleware/`) before the Phase 35 staging UAT for SCALE-05 can be fully verified. No frontend build is needed. The human owns the Railway deploy.
 
 ## Known Stubs
 
@@ -94,9 +135,11 @@ None — no new network endpoints, auth paths, file access patterns, or schema c
 
 ## Self-Check: PASSED
 
-- 35-05-SUMMARY.md: FOUND
-- RED commit 35b43cd: FOUND
-- GREEN commit 40443cc: FOUND
-- INGREDIENTS_ALL in pos-recipe.js: FOUND
-- INGREDIENTS_ALL in recipes.js: FOUND
-- Full test suite: 852 passed, 0 failed
+- 35-05-SUMMARY.md: updated
+- RED commit 71a1b53: FOUND
+- GREEN commit 2923783: FOUND
+- INGREDIENTS_ALL_FILE_CACHE in recipes.js: FOUND
+- enrichIngredientGroups reads INGREDIENTS_ALL: FOUND
+- enrichWithComputedPrice reads INGREDIENTS_ALL: FOUND
+- enrichListPrices reads INGREDIENTS_ALL: FOUND
+- Full test suite: 855 passed, 0 failed
