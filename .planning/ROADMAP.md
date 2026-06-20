@@ -447,7 +447,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 35-02-PLAN.md — New pure lib/recipe-scaling.js (unit classification, linear/ceil scaling, locked/dynamic repricing, scaled stock check) + recipe-scaling.test.js (SCALE-02, SCALE-03, SCALE-05)
+- [x] 35-02-PLAN.md — New pure lib/recipe-scaling.js (unit classification, linear/ceil scaling, locked/dynamic repricing, scaled stock check) + recipe-scaling.test.js (SCALE-02, SCALE-03, SCALE-05)
 
 **Wave 2**
 
@@ -522,7 +522,7 @@ Plans:
 | 32. Fail-Closed Hardening & Access Control | v4.2 | 4/4 | Complete    | 2026-06-18 |
 | 33. Deploy Safety & Monitoring | v4.2 | 3/3 | Complete    | 2026-06-18 |
 | 34. Ingredient Display & Server Enrichment | v4.3 | 3/3 | Complete   | 2026-06-20 |
-| 35. Batch Scaling Engine | v4.3 | 1/4 | In Progress|  |
+| 35. Batch Scaling Engine | v4.3 | 2/4 | In Progress|  |
 | 36. Cross-Surface Selection & Recipe Modification | v4.3 | 0/TBD | Not started | - |
 | 37. BrewPad Recipe Manager | v4.3 | 3/3 | Complete    | 2026-06-20 |
 
