@@ -626,6 +626,22 @@
                     <button type="button" class="btn-secondary" id="kiosk-recipe-back">&#8592; Back</button>
                     <div class="kiosk-recipe-selected-name" id="kiosk-recipe-selected-name"></div>
                     <div id="kiosk-recipe-summary"></div>
+                    <!-- SCALE-01: Target volume input — Phase 35 -->
+                    <div id="kiosk-recipe-volume-wrap" style="display:none;">
+                      <label class="kiosk-volume-label">
+                        Target volume (L):
+                        <input type="number" id="kiosk-target-volume" class="kiosk-volume-input"
+                               min="0.5" step="0.5" inputmode="decimal" />
+                      </label>
+                      <div id="kiosk-scale-factor-readout" class="kiosk-scale-readout"></div>
+                    </div>
+                    <!-- SCALE-05: Stock conflict block — Phase 35 -->
+                    <div id="kiosk-stock-conflict" style="display:none;">
+                      <div class="kiosk-stock-conflict-msg"></div>
+                      <button type="button" class="btn-secondary" id="kiosk-stock-override-btn">
+                        Manager Override — Proceed Anyway
+                      </button>
+                    </div>
                     <div id="kiosk-avail-banner"></div>
                     <div class="kiosk-sale-type-btns">
                       <button type="button" class="kiosk-sale-type-btn btn-secondary" id="kiosk-btn-in-store">Ferment in Store</button>
