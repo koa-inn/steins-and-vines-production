@@ -14,8 +14,10 @@ global.gsiInitTokenClient = _auth.gsiInitTokenClient;
 global.fetchGoogleUserInfo = _auth.fetchGoogleUserInfo;
 
 var bp = require('../../js/brewpad');
-var filterRecipesByName = bp.filterRecipesByName;
-var recipeRowPrice      = bp.recipeRowPrice;
+var filterRecipesByName  = bp.filterRecipesByName;
+var recipeRowPrice       = bp.recipeRowPrice;
+var canActivateRecipe    = bp.canActivateRecipe;
+var buildRecipePayload   = bp.buildRecipePayload;
 
 // ---------------------------------------------------------------------------
 // filterRecipesByName
@@ -157,5 +159,161 @@ describe('recipeRowPrice', function () {
   test('locked pricing does not use computed_price', function () {
     var r = { pricing_mode: 'locked', computed_price: 99, locked_price: 0 };
     expect(recipeRowPrice(r)).toBe('—');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// canActivateRecipe (D-06 inline activation guardrail)
+// ---------------------------------------------------------------------------
+describe('canActivateRecipe', function () {
+  var validIngredients = [{ item_id: 'I1', item_name: 'Hops', quantity: 1 }];
+
+  test('returns ok:false when locked_price is missing', function () {
+    var result = canActivateRecipe({}, validIngredients);
+    expect(result.ok).toBe(false);
+    expect(typeof result.reason).toBe('string');
+    expect(result.reason.length).toBeGreaterThan(0);
+  });
+
+  test('returns ok:false when locked_price is zero', function () {
+    var result = canActivateRecipe({ locked_price: 0 }, validIngredients);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBeTruthy();
+  });
+
+  test('returns ok:false when locked_price is negative', function () {
+    var result = canActivateRecipe({ locked_price: -5 }, validIngredients);
+    expect(result.ok).toBe(false);
+  });
+
+  test('returns ok:false when locked_price is NaN string', function () {
+    var result = canActivateRecipe({ locked_price: 'abc' }, validIngredients);
+    expect(result.ok).toBe(false);
+  });
+
+  test('returns ok:false when ingredients array is empty', function () {
+    var result = canActivateRecipe({ locked_price: 25 }, []);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBeTruthy();
+  });
+
+  test('returns ok:false when ingredients is null', function () {
+    var result = canActivateRecipe({ locked_price: 25 }, null);
+    expect(result.ok).toBe(false);
+  });
+
+  test('returns ok:true when locked_price > 0 and ingredients not empty', function () {
+    var result = canActivateRecipe({ locked_price: 29.99 }, validIngredients);
+    expect(result.ok).toBe(true);
+  });
+
+  test('returns ok:true with multiple ingredients', function () {
+    var ings = [
+      { item_id: 'I1', quantity: 1 },
+      { item_id: 'I2', quantity: 2 }
+    ];
+    var result = canActivateRecipe({ locked_price: 49 }, ings);
+    expect(result.ok).toBe(true);
+  });
+
+  test('reason field absent (or falsy) when ok:true', function () {
+    var result = canActivateRecipe({ locked_price: 10 }, validIngredients);
+    expect(result.ok).toBe(true);
+    // reason may be undefined or empty — must not block activation
+    expect(result.reason).toBeFalsy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildRecipePayload (ingredient filter + ingredient_count)
+// ---------------------------------------------------------------------------
+describe('buildRecipePayload', function () {
+  var baseForm = {
+    name: 'Pale Ale',
+    style: 'APA',
+    description: 'A refreshing ale',
+    batch_size_l: 23,
+    abv: 5.2,
+    ibu: 35,
+    colour_srm: 8,
+    pricing_mode: 'locked',
+    locked_price: 29.99,
+    service_fee: 45,
+    materials_fee: 5,
+    status: 'draft'
+  };
+
+  test('includes all formData fields in payload', function () {
+    var payload = buildRecipePayload(baseForm, []);
+    expect(payload.name).toBe('Pale Ale');
+    expect(payload.style).toBe('APA');
+    expect(payload.batch_size_l).toBe(23);
+    expect(payload.abv).toBe(5.2);
+    expect(payload.ibu).toBe(35);
+    expect(payload.locked_price).toBe(29.99);
+    expect(payload.service_fee).toBe(45);
+    expect(payload.materials_fee).toBe(5);
+    expect(payload.status).toBe('draft');
+    expect(payload.pricing_mode).toBe('locked');
+  });
+
+  test('filters out ingredients with no item_id', function () {
+    var ings = [
+      { item_id: '', item_name: 'Unknown', quantity: 1 },
+      { item_id: 'I1', item_name: 'Malt', quantity: 2 }
+    ];
+    var payload = buildRecipePayload(baseForm, ings);
+    expect(payload.ingredients.length).toBe(1);
+    expect(payload.ingredients[0].item_id).toBe('I1');
+  });
+
+  test('filters out ingredients with quantity <= 0', function () {
+    var ings = [
+      { item_id: 'I1', item_name: 'Hops', quantity: 0 },
+      { item_id: 'I2', item_name: 'Malt', quantity: 1 }
+    ];
+    var payload = buildRecipePayload(baseForm, ings);
+    expect(payload.ingredients.length).toBe(1);
+    expect(payload.ingredients[0].item_id).toBe('I2');
+  });
+
+  test('sets ingredient_count to the filtered count', function () {
+    var ings = [
+      { item_id: 'I1', quantity: 1 },
+      { item_id: '', quantity: 1 },     // filtered out — no item_id
+      { item_id: 'I3', quantity: 0 }    // filtered out — zero qty
+    ];
+    var payload = buildRecipePayload(baseForm, ings);
+    expect(payload.ingredient_count).toBe(1);
+  });
+
+  test('ingredient_count matches ingredients array length in payload', function () {
+    var ings = [
+      { item_id: 'I1', quantity: 2 },
+      { item_id: 'I2', quantity: 0.5 }
+    ];
+    var payload = buildRecipePayload(baseForm, ings);
+    expect(payload.ingredient_count).toBe(payload.ingredients.length);
+  });
+
+  test('ingredient_count is 0 for empty ingredients', function () {
+    var payload = buildRecipePayload(baseForm, []);
+    expect(payload.ingredient_count).toBe(0);
+    expect(payload.ingredients).toEqual([]);
+  });
+
+  test('ingredient_count is 0 when all ingredients are invalid', function () {
+    var ings = [
+      { item_id: '', quantity: 5 },
+      { item_id: 'I1', quantity: 0 }
+    ];
+    var payload = buildRecipePayload(baseForm, ings);
+    expect(payload.ingredient_count).toBe(0);
+  });
+
+  test('handles null ingredients gracefully', function () {
+    var payload = buildRecipePayload(baseForm, null);
+    expect(payload.ingredient_count).toBe(0);
+    expect(payload.ingredients).toEqual([]);
   });
 });
