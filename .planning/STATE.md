@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Recipe Builder Refinement
 status: executing
-stopped_at: Completed 35-03-PLAN.md
-last_updated: "2026-06-20T22:32:37.521Z"
+stopped_at: Completed 35-06 Task 1 (middleware only); Task 2 (frontend) pending
+last_updated: "2026-06-20T23:15:00.000Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 23
@@ -65,6 +65,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-20T22:32:37.514Z
-Stopped at: Completed 35-03-PLAN.md
+Last session: 2026-06-20T23:15:00.000Z
+Stopped at: 35-06 Task 1 complete (GET /api/kiosk/recipe-quote + shared helper + RED/GREEN tests). Task 2 (frontend js/admin.js wiring) is NOT yet started.
 Resume file: None
