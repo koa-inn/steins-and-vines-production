@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-20T13:20:31.228Z';
+  var BUILD_TIMESTAMP = '2026-06-20T15:11:19.416Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -9779,7 +9779,10 @@
   var _kioskSaleType = null;          // 'in-store' | 'take-out' | null
   var _kioskMillGrain = false;
   var _kioskRecipeAvailability = null; // availability response from API
-  var _kioskRecipeContext = null; // { recipe_id, recipe_name, sale_type, mill_grain, locked_price, ingredients }
+  var _kioskRecipeContext = null; // { recipe_id, recipe_name, sale_type, mill_grain, locked_price, ingredients, target_volume_l }
+  var _kioskTargetVolumeL = null;   // number: target volume in litres, or null = use base
+  var _kioskScaleFactor   = 1.0;    // display preview only; server recomputes authoritative value
+  var _kioskStockOverride = false;  // true when manager override button was clicked
 
   // ---- Helpers ----
 
@@ -10395,7 +10398,9 @@
       customer_name: (_kioskCustomer && _kioskCustomer.name) || '',
       contact_id: (_kioskCustomer && _kioskCustomer.contact_id) || '',
       reference_number: refNumber,
-      idempotency_key: idempotencyKey
+      idempotency_key: idempotencyKey,
+      target_volume_l: _kioskTargetVolumeL || (Number(_kioskSelectedRecipe && _kioskSelectedRecipe.batch_size_l) || null),
+      override: _kioskStockOverride || false
     } : null;
     var saleBody = isRecipeSale ? recipeSaleBody : existingSaleBody;
 
@@ -10409,6 +10414,31 @@
     .then(function (result) {
       if (cancelled) return;
 
+      // SCALE-05: Recipe sale 409 stock conflict — surface short ingredients + override (Phase 35)
+      if (isRecipeSale && result.status === 409 && result.data && result.data.conflicts) {
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        var conflictEl2 = document.getElementById('kiosk-stock-conflict');
+        var conflictMsg = document.querySelector('#kiosk-stock-conflict .kiosk-stock-conflict-msg');
+        if (conflictMsg) {
+          var lines = ['Insufficient stock for scaled batch:'];
+          result.data.conflicts.forEach(function (c) {
+            lines.push('• ' + (c.item_name || c.item_id) + ': need ' + c.needed + ' ' + (c.unit || '') + ', have ' + c.stock);
+          });
+          conflictMsg.textContent = lines.join('\n');
+        }
+        if (conflictEl2) conflictEl2.style.display = '';
+        var overrideBtn = document.getElementById('kiosk-stock-override-btn');
+        if (overrideBtn) {
+          overrideBtn.onclick = function () {
+            _kioskStockOverride = true;
+            if (conflictEl2) conflictEl2.style.display = 'none';
+            // Re-trigger the sale with override=true
+            kioskProcessSale();
+          };
+        }
+        return;
+      }
+
       // Recipe sale: 202 pending → call confirm endpoint to finalize invoice
       if (isRecipeSale && result.status === 202 && result.data && result.data.pending) {
         var confirmUrl = mwUrl + '/api/kiosk/recipe-sale/confirm';
@@ -10419,7 +10449,9 @@
           customer_name: saleBody.customer_name || '',
           contact_id: saleBody.contact_id || '',
           reference: result.data.reference,
-          transaction_id: result.data.transaction_id || ''
+          transaction_id: result.data.transaction_id || '',
+          target_volume_l: saleBody.target_volume_l,
+          override: saleBody.override || false
         };
         fetch(confirmUrl, {
           method: 'POST',
@@ -11045,6 +11077,43 @@
     var bannerEl = document.getElementById('kiosk-avail-banner');
     if (bannerEl) bannerEl.innerHTML = '';
 
+    // SCALE-01: Wire target-volume input and live factor readout (Phase 35)
+    var volWrap     = document.getElementById('kiosk-recipe-volume-wrap');
+    var volInput    = document.getElementById('kiosk-target-volume');
+    var factorRdout = document.getElementById('kiosk-scale-factor-readout');
+    var conflictEl  = document.getElementById('kiosk-stock-conflict');
+    var baseVol     = Number(recipe.batch_size_l) || 0;
+
+    _kioskTargetVolumeL = baseVol > 0 ? baseVol : null;
+    _kioskScaleFactor   = 1.0;
+    _kioskStockOverride = false;
+    if (conflictEl) conflictEl.style.display = 'none';
+
+    if (volWrap) volWrap.style.display = '';
+    if (baseVol > 0) {
+      if (volInput) { volInput.value = baseVol; volInput.max = baseVol * 10; volInput.disabled = false; }
+      if (factorRdout) factorRdout.textContent = '1.0\xd7 base ' + baseVol.toFixed(1) + ' L';
+    } else {
+      // D-11: no batch_size_l — disable scaling with prompt (do NOT assume factor 1)
+      if (volInput) volInput.disabled = true;
+      if (factorRdout) factorRdout.textContent = 'Scaling disabled — set base batch size in recipe editor first.';
+    }
+
+    if (volInput) {
+      volInput.oninput = function () {
+        var val = parseFloat(volInput.value) || 0;
+        _kioskTargetVolumeL = val > 0 ? val : null;
+        var factor = (val > 0 && baseVol > 0) ? val / baseVol : 1;
+        _kioskScaleFactor = factor;
+        if (factorRdout) {
+          factorRdout.textContent = factor.toFixed(2) + '\xd7 base ' + baseVol.toFixed(1) + ' L';
+        }
+        // Reset stock conflict state on volume change
+        _kioskStockOverride = false;
+        if (conflictEl) conflictEl.style.display = 'none';
+      };
+    }
+
     // Check availability
     kioskCheckRecipeAvailability(recipe.recipe_id);
   }
@@ -11239,7 +11308,8 @@
         mill_grain: _kioskMillGrain,
         locked_price: recipe.locked_price,
         pricing_mode: pricingMode,
-        ingredients: ingredients
+        ingredients: ingredients,
+        target_volume_l: _kioskTargetVolumeL
       };
 
       if (pricingMode === 'dynamic') {
