@@ -469,7 +469,20 @@ Plans:
   3. Staff can create a new recipe from BrewPad using the same form fields as the admin recipe builder; the recipe is created via the existing `POST /api/recipes` endpoint and appears in the catalogue immediately
   4. Staff can edit an existing recipe from BrewPad; activation guardrails (`locked_price > 0` and at least one ingredient) are enforced before any recipe can be marked active — identical to the admin path
 
-**Plans**: TBD
+**Plans**: 3 plans (3 waves — all touch js/brewpad.js, so sequential)
+Plans:
+**Wave 1**
+
+- [ ] 37-01-PLAN.md — Recipes tab scaffold + tab wiring + recipe-list browse with status badges + name search (BPR-01)
+
+**Wave 2**
+
+- [ ] 37-02-PLAN.md — Recipe detail (grouped ingredients) + editor (field parity, autocomplete, inline activation guardrail, create/edit save) (BPR-01, BPR-02)
+
+**Wave 3**
+
+- [ ] 37-03-PLAN.md — Confirm-gated delete + build bundle + full test/lint gate + iPad Safari UAT (BPR-02)
+
 **UI hint**: yes
 
 ## Progress
