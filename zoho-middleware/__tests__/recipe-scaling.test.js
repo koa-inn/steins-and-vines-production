@@ -132,8 +132,8 @@ describe('scaleIngredients', function () {
     ];
     var results = scaleIngredients(ings, 1.5);
     expect(results).toHaveLength(2);
-    expect(results[0].quantity).toBe(7.5);
-    expect(results[1].quantity).toBe(1); // floor-of-1 for pcs at 0.5x would be 1, but 1.5x gives ceil(1.5)=2
+    expect(results[0].quantity).toBe(7.5);           // kg × 1.5 = 7.5 (linear)
+    expect(results[1].quantity).toBe(2);              // pcs: 1 × 1.5 = 1.5 → Math.ceil(1.5) = 2
   });
 
   test('ceil rounding: 1 pcs × 1.5 = 1.5 → 2', function () {
