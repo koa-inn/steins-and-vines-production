@@ -439,7 +439,23 @@ Plans:
   4. The Zoho invoice line items reflect the scaled quantities (not the base recipe quantities), and the `recipe_snapshot` frozen at sale time includes both the `target_volume_l` and the scaled ingredient quantities
   5. Before sale confirmation, a stock-check using the scaled quantities surfaces any ingredient that would be oversold (quantity requested exceeds available stock), and the sale cannot proceed until the conflict is resolved
 
-**Plans**: TBD
+**Plans**: 4 plans (4 waves)
+Plans:
+**Wave 0**
+
+- [ ] 35-01-PLAN.md — BLOCKING: verify batch_size_l is in the Apps Script get_recipe response (remediate + redeploy if absent) (SCALE-01)
+
+**Wave 1**
+
+- [ ] 35-02-PLAN.md — New pure lib/recipe-scaling.js (unit classification, linear/ceil scaling, locked/dynamic repricing, scaled stock check) + recipe-scaling.test.js (SCALE-02, SCALE-03, SCALE-05)
+
+**Wave 2**
+
+- [ ] 35-03-PLAN.md — Wire scaling into pos-recipe.js BOTH paths (validation, factor, scaled qty, repricing, stock 409+override, enriched snapshot) + pos-recipe.test.js (SCALE-01, SCALE-03, SCALE-04, SCALE-05)
+
+**Wave 3**
+
+- [ ] 35-04-PLAN.md — Admin Kiosk Sale UI: target-volume input + live factor readout + override block (admin.html + admin.js), build, staging UAT flagging the D-06 locked-price increase (SCALE-01, SCALE-05)
 
 ### Phase 36: Cross-Surface Selection & Recipe Modification
 
@@ -506,7 +522,7 @@ Plans:
 | 32. Fail-Closed Hardening & Access Control | v4.2 | 4/4 | Complete    | 2026-06-18 |
 | 33. Deploy Safety & Monitoring | v4.2 | 3/3 | Complete    | 2026-06-18 |
 | 34. Ingredient Display & Server Enrichment | v4.3 | 3/3 | Complete   | 2026-06-20 |
-| 35. Batch Scaling Engine | v4.3 | 0/TBD | Not started | - |
+| 35. Batch Scaling Engine | v4.3 | 0/4 | Not started | - |
 | 36. Cross-Surface Selection & Recipe Modification | v4.3 | 0/TBD | Not started | - |
 | 37. BrewPad Recipe Manager | v4.3 | 3/3 | Complete    | 2026-06-20 |
 
