@@ -22,10 +22,10 @@
 
 ### Batch Scaling (SCALE)
 
-- [ ] **SCALE-01**: After a recipe is selected, staff can set a target batch volume in litres; the system derives and displays the scale factor relative to the recipe's base `batch_size_l`.
+- [x] **SCALE-01**: After a recipe is selected, staff can set a target batch volume in litres; the system derives and displays the scale factor relative to the recipe's base `batch_size_l`.
 - [x] **SCALE-02**: Scaling linearly adjusts weight-based ingredient quantities (kg/g) and rounds **up** discrete (pcs/unit) ingredient quantities to whole units.
 - [x] **SCALE-03**: Scaled quantities are priced server-authoritatively — dynamic recipes price from scaled ingredient costs (+ fixed fees); locked recipes scale the ingredient-cost portion proportionally while service/materials fees stay fixed.
-- [ ] **SCALE-04**: The Zoho invoice line items and the frozen `recipe_snapshot` reflect the scaled ingredient quantities and the chosen target volume.
+- [x] **SCALE-04**: The Zoho invoice line items and the frozen `recipe_snapshot` reflect the scaled ingredient quantities and the chosen target volume.
 - [x] **SCALE-05**: Ingredient availability/stock checks reflect the scaled quantities (a scaled batch that exceeds stock is surfaced before sale).
 
 ### Cross-Surface Selection (SEL)
@@ -69,10 +69,10 @@
 | RDISP-01 | Phase 34 | Pending |
 | RDISP-02 | Phase 34 | Pending |
 | RDISP-03 | Phase 34 | Pending |
-| SCALE-01 | Phase 35 | Pending |
+| SCALE-01 | Phase 35 | Complete |
 | SCALE-02 | Phase 35 | Complete |
 | SCALE-03 | Phase 35 | Complete |
-| SCALE-04 | Phase 35 | Pending |
+| SCALE-04 | Phase 35 | Complete |
 | SCALE-05 | Phase 35 | Complete |
 | SEL-01 | Phase 36 | Pending |
 | SEL-02 | Phase 36 | Pending |

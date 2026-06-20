@@ -451,7 +451,7 @@ Plans:
 
 **Wave 2**
 
-- [ ] 35-03-PLAN.md — Wire scaling into pos-recipe.js BOTH paths (validation, factor, scaled qty, repricing, stock 409+override, enriched snapshot) + pos-recipe.test.js (SCALE-01, SCALE-03, SCALE-04, SCALE-05)
+- [x] 35-03-PLAN.md — Wire scaling into pos-recipe.js BOTH paths (validation, factor, scaled qty, repricing, stock 409+override, enriched snapshot) + pos-recipe.test.js (SCALE-01, SCALE-03, SCALE-04, SCALE-05)
 
 **Wave 3**
 
@@ -522,7 +522,7 @@ Plans:
 | 32. Fail-Closed Hardening & Access Control | v4.2 | 4/4 | Complete    | 2026-06-18 |
 | 33. Deploy Safety & Monitoring | v4.2 | 3/3 | Complete    | 2026-06-18 |
 | 34. Ingredient Display & Server Enrichment | v4.3 | 3/3 | Complete   | 2026-06-20 |
-| 35. Batch Scaling Engine | v4.3 | 2/4 | In Progress|  |
+| 35. Batch Scaling Engine | v4.3 | 3/4 | In Progress|  |
 | 36. Cross-Surface Selection & Recipe Modification | v4.3 | 0/TBD | Not started | - |
 | 37. BrewPad Recipe Manager | v4.3 | 3/3 | Complete    | 2026-06-20 |
 

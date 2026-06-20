@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Recipe Builder Refinement
 status: executing
-stopped_at: Phase 35 context gathered
-last_updated: "2026-06-20T14:56:10.134Z"
+stopped_at: Completed 35-03-PLAN.md
+last_updated: "2026-06-20T15:05:48.214Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 23
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
   percent: 9
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 35 (batch-scaling-engine) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-20
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -51,6 +51,8 @@ Progress: [████████░░] 80%
 - [v4.3 Roadmap]: Locked-price recipes scale ingredient-cost portion proportionally; service/materials fees stay fixed; dynamic recipes price from scaled ingredient costs
 - [v4.3 Roadmap]: Apps Script schema changes (if any in Phase 35/37) require manual redeploy — flag as human-action checkpoint in plans
 - [v4.2 Roadmap]: No separate staging middleware — middleware changes deploy to the prod Railway instance; staging site calls prod middleware
+- [Phase ?]: D-06 global fee-inclusive: locked recipes now charge locked_price * scale_factor + service_fee + materials_fee at ALL scale factors (even 1x)
+- [Phase ?]: SCALE-04: recipe_snapshot now contains scaledIngredients + target_volume_l + scale_factor, enabling batch creation from scaled sale data
 
 ### Pending Todos
 
@@ -63,6 +65,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-20T14:56:10.128Z
-Stopped at: Phase 35 context gathered
+Last session: 2026-06-20T15:05:48.209Z
+Stopped at: Completed 35-03-PLAN.md
 Resume file: None
