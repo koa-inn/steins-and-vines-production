@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Recipe Builder Refinement
-status: executing
-stopped_at: Completed 35-06 Task 1 (middleware only); Task 2 (frontend) pending
-last_updated: "2026-06-20T23:15:00.000Z"
+status: verifying
+stopped_at: 35-06 COMPLETE — all tasks done. Phase 35 complete — awaiting deploy (railway up + git push origin main) and UAT.
+last_updated: "2026-06-20T23:55:00.000Z"
 last_activity: 2026-06-20
 progress:
   total_phases: 23
   completed_phases: 2
-  total_plans: 11
-  completed_plans: 10
+  total_plans: 12
+  completed_plans: 11
   percent: 9
 ---
 
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 Phase: 35 (batch-scaling-engine) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-20
 
-Progress: [█████████░] 91%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [█████████░] 91%
 - [v4.2 Roadmap]: No separate staging middleware — middleware changes deploy to the prod Railway instance; staging site calls prod middleware
 - [Phase ?]: D-06 global fee-inclusive: locked recipes now charge locked_price * scale_factor + service_fee + materials_fee at ALL scale factors (even 1x)
 - [Phase ?]: SCALE-04: recipe_snapshot now contains scaledIngredients + target_volume_l + scale_factor, enabling batch creation from scaled sale data
+- [35-06]: Server-quote approach chosen — client fetches /api/kiosk/recipe-quote (dry-run) to guarantee displayed price === charged price with no client-side drift
 
 ### Pending Todos
 
@@ -65,6 +66,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-20T23:15:00.000Z
-Stopped at: 35-06 Task 1 complete (GET /api/kiosk/recipe-quote + shared helper + RED/GREEN tests). Task 2 (frontend js/admin.js wiring) is NOT yet started.
+Last session: 2026-06-20T23:46:55.445Z
+Stopped at: 35-06 COMPLETE — server quote endpoint + frontend wiring + 17-test suite + rebuild all done. Phase 35 awaiting deploy + UAT.
 Resume file: None
