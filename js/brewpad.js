@@ -162,6 +162,24 @@ function filterBatchesByStatus(batches, filter) {
   });
 }
 
+// Recipes: pure helpers lifted out of the IIFE for unit-testing.
+
+function filterRecipesByName(list, query) {
+  var q = (query || '').toLowerCase().trim();
+  if (!q) return list ? list.slice() : [];
+  return (list || []).filter(function (r) {
+    return (r.name || '').toLowerCase().indexOf(q) !== -1;
+  });
+}
+
+function recipeRowPrice(recipe) {
+  if (!recipe) return '—';
+  var isDynamic = recipe.pricing_mode === 'dynamic';
+  var priceVal = isDynamic ? Number(recipe.computed_price) : Number(recipe.locked_price);
+  if (!priceVal || isNaN(priceVal) || priceVal <= 0) return '—';
+  return (isDynamic ? '~$' : '$') + priceVal.toFixed(2);
+}
+
 // Known beverage type buckets for the dashboard Batches-by-Month chart.
 var KNOWN_BATCH_TYPES = { wine: true, beer: true, cider: true, seltzer: true };
 
@@ -1498,7 +1516,7 @@ function isValidImportNumber(num) {
       btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
 
-    var panels = ['dashboard', 'batches', 'tasks', 'measurements'];
+    var panels = ['dashboard', 'batches', 'tasks', 'measurements', 'recipes'];
     panels.forEach(function (p) {
       var el = document.getElementById('bp-panel-' + p);
       if (el) el.style.display = (p === tab) ? '' : 'none';
@@ -1521,7 +1539,111 @@ function isValidImportNumber(num) {
       loadTasks();
     } else if (tab === 'measurements') {
       loadMeasurementBatches();
+    } else if (tab === 'recipes') {
+      initRecipesTab();
     }
+  }
+
+  // ===== Recipes =====
+
+  var _recipesState = {
+    catalog: [],
+    catalogLoaded: false,
+    list: [],
+    total: 0,
+    currentRecipeId: null,
+    currentRecipe: null,
+    currentIngredients: [],
+    availability: null,
+    previousStatus: 'draft'
+  };
+  var _recipesDataLoaded = false;
+  var _recipesDataLoading = false;
+
+  function getRecipesMwHeaders(mutating) {
+    var h = { 'Content-Type': 'application/json' };
+    if (mutating && mwApiKey()) h['x-api-key'] = mwApiKey();
+    return h;
+  }
+
+  function initRecipesTab() {
+    if (_recipesDataLoaded || _recipesDataLoading) return;
+    _recipesDataLoading = true;
+    _recipesDataLoaded = true;
+    loadIngredientCatalogForRecipes();
+    loadRecipeList('all');
+  }
+
+  function loadIngredientCatalogForRecipes() {
+    var url = mwUrl();
+    if (!url) return Promise.resolve();
+    var headers = getRecipesMwHeaders(true);
+    return fetch(url + '/api/ingredients?include_internal=1', { headers: headers })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+      .then(function (data) {
+        _recipesState.catalog = data.items || data.ingredients || data || [];
+        _recipesState.catalogLoaded = true;
+      })
+      .catch(function () {
+        // Non-fatal — catalog is used for detail/editor autocomplete (Plan 02); list still shows
+      });
+  }
+
+  function loadRecipeList(statusFilter) {
+    var url = mwUrl();
+    if (!url) { showToast('Middleware not configured', 'error'); return; }
+    var status = statusFilter || 'all';
+    var inner = document.getElementById('bp-recipes-inner');
+    if (inner) inner.innerHTML = '<div class="bp-skeleton-block"></div>';
+
+    fetch(url + '/api/recipes?status=' + encodeURIComponent(status), {
+      headers: getRecipesMwHeaders(false)
+    })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+      .then(function (data) {
+        _recipesState.list = data.recipes || [];
+        _recipesState.total = data.total || 0;
+        renderRecipeList();
+      })
+      .catch(function () {
+        showToast('Could not load recipes. Please try again.', 'error');
+        var inner2 = document.getElementById('bp-recipes-inner');
+        if (inner2) inner2.innerHTML = '<p class="bp-empty-state">Could not load recipes. Please try again.</p>';
+      });
+  }
+
+  function renderRecipeList() {
+    var inner = document.getElementById('bp-recipes-inner');
+    if (!inner) return;
+
+    var currentQuery = '';
+    var searchEl = document.getElementById('bp-recipes-search');
+    if (searchEl) currentQuery = searchEl.value || '';
+
+    var filtered = filterRecipesByName(_recipesState.list, currentQuery);
+
+    var html = '<div class="bp-recipes-toolbar">';
+    html += '<input type="search" id="bp-recipes-search" class="bp-recipes-search" placeholder="Search recipes…" value="' + escapeHTML(currentQuery) + '" aria-label="Filter recipes by name">';
+    html += '</div>';
+
+    if (filtered.length === 0) {
+      html += '<p class="bp-empty-state">' + (currentQuery ? 'No recipes match your search.' : 'No recipes yet.') + '</p>';
+      inner.innerHTML = html;
+      return;
+    }
+
+    html += '<table class="bp-recipes-table"><tbody>';
+    filtered.forEach(function (recipe) {
+      var badgeClass = 'bp-recipes-badge-' + escapeHTML(recipe.status || 'draft');
+      html += '<tr class="bp-recipes-row" data-recipe-id="' + escapeHTML(recipe.recipe_id || '') + '">';
+      html += '<td class="bp-recipes-name">' + escapeHTML(recipe.name || '') + '</td>';
+      html += '<td class="bp-recipes-status"><span class="' + badgeClass + '">' + escapeHTML(recipe.status || 'draft') + '</span></td>';
+      html += '<td class="bp-recipes-price">' + recipeRowPrice(recipe) + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+
+    inner.innerHTML = html;
   }
 
   // ===== Dashboard =====
@@ -6989,6 +7111,26 @@ function isValidImportNumber(num) {
         }
       });
     }
+
+    // Recipes panel: row click → detail, search input → re-render
+    var recipesInner = document.getElementById('bp-recipes-inner');
+    if (recipesInner) {
+      recipesInner.addEventListener('click', function (e) {
+        var row = e.target.closest('.bp-recipes-row[data-recipe-id]');
+        if (row) {
+          var recipeId = row.getAttribute('data-recipe-id');
+          if (recipeId && typeof openRecipeDetail === 'function') {
+            openRecipeDetail(recipeId);
+          }
+          return;
+        }
+      });
+      recipesInner.addEventListener('input', function (e) {
+        if (e.target && e.target.id === 'bp-recipes-search') {
+          renderRecipeList();
+        }
+      });
+    }
   }
 
   // ===== Form Saver Registry =====
@@ -7267,6 +7409,8 @@ if (typeof module !== 'undefined' && module.exports) {
     buildSkuLookup: buildSkuLookup,
     normalizeWineTime: normalizeWineTime,
     bucketWineDimension: bucketWineDimension,
-    applyTopN: applyTopN
+    applyTopN: applyTopN,
+    filterRecipesByName: filterRecipesByName,
+    recipeRowPrice: recipeRowPrice
   };
 }
