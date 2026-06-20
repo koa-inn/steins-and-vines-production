@@ -80,7 +80,7 @@
 
 **Milestone Goal:** Make recipes scalable and adjustable at the point of selection across admin, kiosk, and BrewPad — and make the recipe builder/manager available in BrewPad — without weakening the server-authoritative money path hardened in v4.2.
 
-- [ ] **Phase 34: Ingredient Display & Server Enrichment** - Enrich recipe ingredient data server-side with `cf_type`; group ingredients by type in admin, kiosk, and BrewPad views (RDISP-01, RDISP-02, RDISP-03)
+- [x] **Phase 34: Ingredient Display & Server Enrichment** - Enrich recipe ingredient data server-side with `cf_type`; group ingredients by type in admin, kiosk, and BrewPad views (RDISP-01, RDISP-02, RDISP-03) (completed 2026-06-20)
 - [ ] **Phase 35: Batch Scaling Engine** - Staff can enter a target batch volume; the system scales ingredient quantities (linear for weight, round-up for pcs), prices scaled recipes server-authoritatively, and captures scaled quantities in the Zoho invoice and frozen `recipe_snapshot` (SCALE-01, SCALE-02, SCALE-03, SCALE-04, SCALE-05)
 - [ ] **Phase 36: Cross-Surface Selection & Recipe Modification** - Batch size control available on all recipe-selection surfaces; staff can add/remove/substitute ingredients for a one-off sale without touching the saved recipe, with optional save-as-new (SEL-01, SEL-02, MOD-01, MOD-02, MOD-03)
 - [ ] **Phase 37: BrewPad Recipe Manager** - Staff can browse, view, create, and edit recipes from within BrewPad, reusing existing recipe CRUD endpoints and activation guardrails (BPR-01, BPR-02)
@@ -422,7 +422,7 @@ Plans:
 
 **Wave 2**
 
-- [ ] 34-03-PLAN.md — Wire grouped rendering into admin/BrewPad/kiosk via shared helper + build + human verify (RDISP-01, RDISP-03)
+- [x] 34-03-PLAN.md — Wire grouped rendering into admin/BrewPad/kiosk via shared helper + build + human verify (RDISP-01, RDISP-03)
 
 **UI hint**: yes
 
@@ -492,7 +492,7 @@ Plans:
 | 31. Money-Path Test Coverage | v4.2 | 4/4 | Complete    | 2026-06-17 |
 | 32. Fail-Closed Hardening & Access Control | v4.2 | 4/4 | Complete    | 2026-06-18 |
 | 33. Deploy Safety & Monitoring | v4.2 | 3/3 | Complete    | 2026-06-18 |
-| 34. Ingredient Display & Server Enrichment | v4.3 | 2/3 | In Progress|  |
+| 34. Ingredient Display & Server Enrichment | v4.3 | 3/3 | Complete   | 2026-06-20 |
 | 35. Batch Scaling Engine | v4.3 | 0/TBD | Not started | - |
 | 36. Cross-Surface Selection & Recipe Modification | v4.3 | 0/TBD | Not started | - |
 | 37. BrewPad Recipe Manager | v4.3 | 0/TBD | Not started | - |
