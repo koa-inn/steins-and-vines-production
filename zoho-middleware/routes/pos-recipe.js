@@ -37,6 +37,108 @@ function callAppsScriptPost(action, payload) {
 }
 
 // ---------------------------------------------------------------------------
+// computeRecipeQuote — shared helper (35-06)
+// Fetches recipe, validates target_volume_l, reads INGREDIENTS_ALL catalog,
+// scales ingredients, checks stock, and computes the authoritative grand total.
+// Returns a Promise that resolves to the computed quote object, or rejects with
+// an object { status, body } that the caller can forward as an HTTP response.
+//
+// Params:
+//   recipeId      {string}  — recipe ID to fetch from Apps Script
+//   rawTarget     {*}       — target_volume_l from request (body or query); undefined/null/'' => default to base
+//   saleType      {string}  — 'in-store' | 'take-out'
+//   millGrain     {boolean} — whether to add milling fee (take-out only)
+// ---------------------------------------------------------------------------
+
+function computeRecipeQuote(recipeId, rawTarget, saleType, millGrain) {
+  return callAppsScriptPost('get_recipe', { recipe_id: recipeId })
+    .then(function (data) {
+      if (!data || !data.ok || !data.data || !data.data.recipe) {
+        return Promise.reject({ status: 404, body: { error: 'Recipe not found' } });
+      }
+      var recipe = data.data.recipe;
+      var ingredients = data.data.ingredients || [];
+
+      if (recipe.status !== 'active') {
+        return Promise.reject({ status: 400, body: { error: 'Recipe is not active' } });
+      }
+
+      // Validate batch_size_l and target_volume_l (D-11)
+      var baseVol = Number(recipe.batch_size_l) || 0;
+      if (baseVol <= 0) {
+        return Promise.reject({ status: 400, body: { error: 'Recipe has no base batch size set. Cannot scale.' } });
+      }
+
+      // Default target_volume_l to batch_size_l if absent/blank (=> scale_factor 1.0, backward compat D-05)
+      var targetVolumeL = (rawTarget === undefined || rawTarget === null || rawTarget === '')
+        ? baseVol
+        : Number(rawTarget);
+
+      if (isNaN(targetVolumeL) || targetVolumeL <= 0) {
+        return Promise.reject({ status: 400, body: { error: 'target_volume_l must be > 0' } });
+      }
+      if (targetVolumeL > baseVol * 10) {
+        return Promise.reject({ status: 400, body: { error: 'target_volume_l exceeds maximum (10x base)' } });
+      }
+
+      var scaleFactor = targetVolumeL / baseVol;
+      recipe._scale_factor = scaleFactor;
+
+      // Determine pricing mode for logging/response
+      var hasLockedPrice = Number(recipe.locked_price) > 0;
+      var pricingMode = recipe.pricing_mode || (hasLockedPrice ? 'locked' : 'dynamic');
+
+      return cache.get(C.CACHE_KEYS.INGREDIENTS_ALL).then(function (ingredientCatalog) {
+        if (!ingredientCatalog || !Array.isArray(ingredientCatalog)) {
+          return Promise.reject({ status: 503, body: { error: 'Ingredient catalog not available — try again shortly' } });
+        }
+
+        // Build item_id -> catalog entry lookup
+        var catalogMap = {};
+        ingredientCatalog.forEach(function (item) {
+          if (item && item.item_id) catalogMap[item.item_id] = item;
+        });
+
+        // Scale ingredient quantities server-side (D-01/D-02/D-03)
+        var scaledIngredients = scaling.scaleIngredients(ingredients, scaleFactor);
+
+        // Stock check (D-08) — always run; callers decide whether to gate or report
+        var stockCheck = scaling.checkScaledStock(scaledIngredients, catalogMap);
+
+        // Re-price via tested helper (SCALE-03, D-04/D-05/D-07)
+        var grandTotal = scaling.computeScaledRecipeTotal(recipe, scaledIngredients, catalogMap, saleType);
+
+        // Take-out milling fee — added on top of helper result (helper does not know about milling)
+        var millingFeeAdded = 0;
+        if (saleType === 'take-out' && millGrain) {
+          if (!process.env.MILLING_FEE_ITEM_ID) {
+            return Promise.reject({ status: 400, body: { error: 'Milling fee not configured. Contact admin.' } });
+          }
+          var millingEntry = catalogMap[process.env.MILLING_FEE_ITEM_ID];
+          if (millingEntry) {
+            millingFeeAdded = Number(millingEntry.rate) || 0;
+            grandTotal += millingFeeAdded;
+            grandTotal = Math.round(grandTotal * 100) / 100;
+          }
+        }
+
+        return {
+          recipe: recipe,
+          ingredients: ingredients,
+          baseVol: baseVol,
+          targetVolumeL: targetVolumeL,
+          scaleFactor: scaleFactor,
+          pricingMode: pricingMode,
+          catalogMap: catalogMap,
+          scaledIngredients: scaledIngredients,
+          stockCheck: stockCheck,
+          grandTotal: grandTotal
+        };
+      });
+    });
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/kiosk/recipe-sale
 // Initiate a recipe sale: validate, compute total, acquire mutex, push to terminal.
 // ---------------------------------------------------------------------------
@@ -63,125 +165,138 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
   }
   var millGrain = body.mill_grain === true;
 
-  // Fetch recipe from Apps Script
-  callAppsScriptPost('get_recipe', { recipe_id: body.recipe_id })
-    .then(function (data) {
-      if (!data || !data.ok || !data.data || !data.data.recipe) {
-        return res.status(404).json({ error: 'Recipe not found' });
-      }
-      var recipe = data.data.recipe;
-      var ingredients = data.data.ingredients || [];
+  computeRecipeQuote(body.recipe_id, body.target_volume_l, body.sale_type, millGrain)
+    .then(function (quote) {
+      var grandTotal = quote.grandTotal;
+      var scaleFactor = quote.scaleFactor;
+      var targetVolumeL = quote.targetVolumeL;
+      var pricingMode = quote.pricingMode;
 
-      if (recipe.status !== 'active') {
-        return res.status(400).json({ error: 'Recipe is not active' });
-      }
-
-      // Validate batch_size_l and target_volume_l (D-11)
-      var baseVol = Number(recipe.batch_size_l) || 0;
-      if (baseVol <= 0) {
-        return res.status(400).json({ error: 'Recipe has no base batch size set. Cannot scale.' });
-      }
-
-      // Default target_volume_l to batch_size_l if absent/blank (=> scale_factor 1.0, backward compat D-05)
-      var rawTargetVol = body.target_volume_l;
-      var targetVolumeL = (rawTargetVol === undefined || rawTargetVol === null || rawTargetVol === '')
-        ? baseVol
-        : Number(rawTargetVol);
-
-      if (isNaN(targetVolumeL) || targetVolumeL <= 0) {
-        return res.status(400).json({ error: 'target_volume_l must be > 0' });
-      }
-      if (targetVolumeL > baseVol * 10) {
-        return res.status(400).json({ error: 'target_volume_l exceeds maximum (10x base)' });
-      }
-
-      var scaleFactor = targetVolumeL / baseVol;
-      recipe._scale_factor = scaleFactor;
-      log.info('[recipe-sale] target_volume_l=' + targetVolumeL + ' base_vol=' + baseVol + ' scale_factor=' + scaleFactor);
-
-      // Compute server-authoritative total from full ingredient catalog (includes internal-only items)
-      cache.get(C.CACHE_KEYS.INGREDIENTS_ALL).then(function (ingredientCatalog) {
-        if (!ingredientCatalog || !Array.isArray(ingredientCatalog)) {
-          return res.status(503).json({ error: 'Ingredient catalog not available — try again shortly' });
-        }
-
-        // Build item_id -> catalog entry lookup
-        var catalogMap = {};
-        ingredientCatalog.forEach(function (item) {
-          if (item && item.item_id) catalogMap[item.item_id] = item;
+      // Stock gate: scaled quantities vs stock_on_hand (D-08)
+      if (!quote.stockCheck.ok && !body.override) {
+        return res.status(409).json({
+          error: 'Insufficient stock for scaled batch',
+          conflicts: quote.stockCheck.conflicts
         });
+      }
 
-        // Scale ingredient quantities server-side (D-01/D-02/D-03)
-        var scaledIngredients = scaling.scaleIngredients(ingredients, scaleFactor);
+      log.info('[recipe-sale] target_volume_l=' + targetVolumeL + ' base_vol=' + quote.baseVol + ' scale_factor=' + scaleFactor);
+      log.info('[recipe-sale] pricing_mode=' + pricingMode + ' (raw=' + quote.recipe.pricing_mode + ') locked_price=' + quote.recipe.locked_price);
+      log.info('[recipe-sale] grandTotal=' + grandTotal + ' pricingMode=' + pricingMode);
 
-        // Stock gate: scaled quantities vs stock_on_hand (D-08)
-        var stockCheck = scaling.checkScaledStock(scaledIngredients, catalogMap);
-        if (!stockCheck.ok && !body.override) {
-          return res.status(409).json({
-            error: 'Insufficient stock for scaled batch',
-            conflicts: stockCheck.conflicts
-          });
+      // Acquire Redis mutex before terminal push (D-04, INV-02)
+      cache.acquireLock(C.LOCK_KEYS.RECIPE_SALE, 30).then(function (acquired) {
+        if (!acquired) {
+          return res.status(503).json({ error: 'Another recipe sale in progress — try again in a moment.' });
         }
 
-        // Re-price via tested helper (SCALE-03, D-04/D-05/D-07)
-        var hasLockedPrice = Number(recipe.locked_price) > 0;
-        var pricingMode = recipe.pricing_mode || (hasLockedPrice ? 'locked' : 'dynamic');
-        log.info('[recipe-sale] pricing_mode=' + pricingMode + ' (raw=' + recipe.pricing_mode + ') locked_price=' + recipe.locked_price + ' hasLockedPrice=' + hasLockedPrice);
-        var grandTotal = scaling.computeScaledRecipeTotal(recipe, scaledIngredients, catalogMap, body.sale_type);
+        var refNumber = 'RECIPE-' + Date.now();
 
-        // Take-out milling fee — added on top of helper result (helper does not know about milling)
-        if (body.sale_type === 'take-out' && millGrain) {
-          if (!process.env.MILLING_FEE_ITEM_ID) {
-            return res.status(400).json({ error: 'Milling fee not configured. Contact admin.' });
-          }
-          var millingEntry = catalogMap[process.env.MILLING_FEE_ITEM_ID];
-          if (millingEntry) {
-            grandTotal += Number(millingEntry.rate) || 0;
-            grandTotal = Math.round(grandTotal * 100) / 100;
-          }
-        }
-
-        log.info('[recipe-sale] grandTotal=' + grandTotal + ' pricingMode=' + pricingMode);
-
-        // Acquire Redis mutex before terminal push (D-04, INV-02)
-        cache.acquireLock(C.LOCK_KEYS.RECIPE_SALE, 30).then(function (acquired) {
-          if (!acquired) {
-            return res.status(503).json({ error: 'Another recipe sale in progress — try again in a moment.' });
-          }
-
-          var refNumber = 'RECIPE-' + Date.now();
-
-          // Push to terminal
-          helcimLib.terminalPurchase(grandTotal, refNumber)
-            .then(function () {
-              res.status(202).json({
-                pending: true,
-                reference: refNumber,
-                recipe_id: body.recipe_id,
-                sale_type: body.sale_type,
-                mill_grain: millGrain,
-                total: grandTotal,
-                scale_factor: scaleFactor,
-                target_volume_l: targetVolumeL
-              });
-            })
-            .catch(function (termErr) {
-              log.error('[pos-recipe/recipe-sale] Terminal push failed: ' + termErr.message);
-              // Release lock on terminal failure (Pitfall 1)
-              cache.releaseLock(C.LOCK_KEYS.RECIPE_SALE).catch(function () {});
-              res.status(502).json({ error: 'Terminal error — please try again' });
+        // Push to terminal
+        helcimLib.terminalPurchase(grandTotal, refNumber)
+          .then(function () {
+            res.status(202).json({
+              pending: true,
+              reference: refNumber,
+              recipe_id: body.recipe_id,
+              sale_type: body.sale_type,
+              mill_grain: millGrain,
+              total: grandTotal,
+              scale_factor: scaleFactor,
+              target_volume_l: targetVolumeL
             });
-        }).catch(function (lockErr) {
-          log.error('[pos-recipe/recipe-sale] Lock acquisition error: ' + lockErr.message);
-          res.status(503).json({ error: 'Service temporarily unavailable — try again in a moment.' });
-        });
-      }).catch(function (cacheErr) {
-        log.error('[pos-recipe/recipe-sale] Cache error: ' + cacheErr.message);
-        res.status(503).json({ error: 'Ingredient catalog not available — try again shortly' });
+          })
+          .catch(function (termErr) {
+            log.error('[pos-recipe/recipe-sale] Terminal push failed: ' + termErr.message);
+            // Release lock on terminal failure (Pitfall 1)
+            cache.releaseLock(C.LOCK_KEYS.RECIPE_SALE).catch(function () {});
+            res.status(502).json({ error: 'Terminal error — please try again' });
+          });
+      }).catch(function (lockErr) {
+        log.error('[pos-recipe/recipe-sale] Lock acquisition error: ' + lockErr.message);
+        res.status(503).json({ error: 'Service temporarily unavailable — try again in a moment.' });
       });
     })
-    .catch(function (appsErr) {
-      log.error('[pos-recipe/recipe-sale] Apps Script error: ' + appsErr.message);
+    .catch(function (err) {
+      if (err && err.status) {
+        return res.status(err.status).json(err.body);
+      }
+      log.error('[pos-recipe/recipe-sale] Error: ' + (err && err.message));
+      res.status(502).json({ error: 'Failed to fetch recipe. Please try again.' });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/kiosk/recipe-quote
+// Dry-run quote: compute scale+price+stock with NO terminal charge, lock, or invoice.
+// Query params: recipe_id, target_volume_l (optional, defaults to base), sale_type
+// ---------------------------------------------------------------------------
+
+router.get('/api/kiosk/recipe-quote', function (req, res) {
+  // Feature gate (D-13, KSK-04): mirrors recipe-sale gate
+  if ((process.env.BEER_SALES_ENABLED || 'false').toLowerCase() !== 'true') {
+    return res.status(403).json({ error: 'Recipe sales are not enabled' });
+  }
+
+  var query = req.query || {};
+  var recipeId = query.recipe_id;
+  var saleType = query.sale_type || 'in-store';
+
+  if (!recipeId || typeof recipeId !== 'string' || !recipeId.trim()) {
+    return res.status(400).json({ error: 'Missing recipe_id' });
+  }
+
+  computeRecipeQuote(recipeId, query.target_volume_l, saleType, false)
+    .then(function (quote) {
+      var catalogMap = quote.catalogMap;
+
+      // Build enriched ingredient list for the response
+      var ingredientList = quote.scaledIngredients.map(function (scaled) {
+        // Find original (unscaled) quantity from the raw ingredients array
+        var original = null;
+        for (var i = 0; i < quote.ingredients.length; i++) {
+          if (quote.ingredients[i].item_id === scaled.item_id) {
+            original = quote.ingredients[i];
+            break;
+          }
+        }
+        var baseQty = original ? (Number(original.quantity) || 0) : 0;
+        var catalogEntry = catalogMap[scaled.item_id];
+        var rate = catalogEntry ? (Number(catalogEntry.rate) || 0) : 0;
+        var scaledQty = Number(scaled.quantity) || 0;
+        return {
+          item_id: scaled.item_id,
+          item_name: scaled.item_name,
+          unit: scaled.unit,
+          base_quantity: baseQty,
+          quantity: scaledQty,
+          rate: rate,
+          line_total: Math.round(scaledQty * rate * 100) / 100
+        };
+      });
+
+      log.info('[recipe-quote] recipe_id=' + recipeId + ' target_volume_l=' + quote.targetVolumeL + ' scale_factor=' + quote.scaleFactor + ' total=' + quote.grandTotal);
+
+      res.status(200).json({
+        ok: true,
+        recipe_id: recipeId,
+        base_volume_l: quote.baseVol,
+        target_volume_l: quote.targetVolumeL,
+        scale_factor: quote.scaleFactor,
+        pricing_mode: quote.pricingMode,
+        total: quote.grandTotal,
+        ingredients: ingredientList,
+        stock: {
+          ok: quote.stockCheck.ok,
+          conflicts: quote.stockCheck.conflicts
+        }
+      });
+    })
+    .catch(function (err) {
+      if (err && err.status) {
+        return res.status(err.status).json(err.body);
+      }
+      log.error('[pos-recipe/recipe-quote] Error: ' + (err && err.message));
       res.status(502).json({ error: 'Failed to fetch recipe. Please try again.' });
     });
 });
