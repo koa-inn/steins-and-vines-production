@@ -3125,7 +3125,7 @@ function isValidImportNumber(num) {
                 name: snap.name, style: snap.style, abv: snap.abv,
                 ibu: snap.ibu, batch_size_l: snap.batch_size_l, notes: snap.notes || '',
                 ingredients: (data.ingredients || []).map(function (i) {
-                  return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit };
+                  return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit, cf_type: i.cf_type || '', cf_subcategory: i.cf_subcategory || '', display_group: i.display_group || '' };
                 })
               };
               return adminApiPost('update_batch', {
@@ -5515,7 +5515,7 @@ function isValidImportNumber(num) {
                 name: snap.name, style: snap.style, abv: snap.abv,
                 ibu: snap.ibu, batch_size_l: snap.batch_size_l,
                 ingredients: (data.ingredients || []).map(function (i) {
-                  return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit };
+                  return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit, cf_type: i.cf_type || '', cf_subcategory: i.cf_subcategory || '', display_group: i.display_group || '' };
                 })
               };
               if (snapshotHidden) snapshotHidden.value = JSON.stringify(minimal);
