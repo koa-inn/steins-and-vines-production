@@ -13,7 +13,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="favicon.ico">
   <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
-  <link rel="stylesheet" href="css/brewpad.min.css?v=mqnb9e12">
+  <link rel="stylesheet" href="css/brewpad.min.css?v=mqnblq81">
   <script src="js/lib/constants.js"></script>
   <script src="js/lib/utils.js"></script>
   <script src="js/lib/auth.js"></script>
@@ -23,7 +23,7 @@
   <script src="js/vendor/qrcode.min.js"></script>
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="js/brewpad.min.js?v=mqnb9e12"></script>
+  <script src="js/brewpad.min.js?v=mqnblq81"></script>
 </head>
 <body>
 
@@ -89,6 +89,40 @@
         <!-- Schedule editor bottom sheet -->
         <div class="bp-sched-sheet" id="bp-sched-sheet" role="dialog" aria-modal="true" aria-label="Schedule Editor" style="display:none;">
           <div class="bp-sched-sheet-inner" id="bp-sched-sheet-inner"></div>
+        </div>
+        <!-- Recipe attach expanded panel (Phase 36) — shown after recipe resolves in attach flow -->
+        <div id="bp-recipe-attach-expanded" style="display:none;">
+          <!-- Target volume control (ported Phase 35 / D-01) -->
+          <div id="bp-recipe-volume-wrap" style="display:none;">
+            <label class="bp-volume-label">
+              Target volume (L):
+              <input type="number" id="bp-target-volume" class="bp-input" min="0.5" step="0.5" inputmode="decimal" />
+            </label>
+            <div id="bp-scale-factor-readout" class="bp-scale-readout"></div>
+          </div>
+          <!-- Ingredient modification panel (MOD-01 / D-03) -->
+          <div id="bp-recipe-modify-wrap" style="display:none;">
+            <button type="button" class="btn-secondary bp-btn-sm" id="bp-modify-toggle">Modify Ingredients</button>
+            <div id="bp-modify-panel" style="display:none;">
+              <table class="bp-recipe-modify-table">
+                <tbody id="bp-modify-tbody"></tbody>
+              </table>
+              <button type="button" class="btn-secondary bp-btn-sm" id="bp-modify-add-row">+ Add Ingredient</button>
+            </div>
+          </div>
+          <!-- Soft stock advisory (D-11) — non-blocking; Attach button never disabled by stock -->
+          <div id="bp-recipe-stock-advisory" class="bp-toast--warning" style="display:none;"></div>
+          <!-- Attach Recipe button -->
+          <button type="button" class="btn bp-btn-sm" id="bp-recipe-attach-confirm-btn" style="display:none;">Attach Recipe</button>
+          <!-- Save-as-new affordance (MOD-03 / D-14) — visible only when modifications exist -->
+          <div id="bp-save-as-new-wrap" style="display:none;">
+            <button type="button" class="btn-secondary bp-btn-sm" id="bp-save-as-new-btn">Save as new recipe</button>
+            <div id="bp-save-as-new-prompt" style="display:none;">
+              <input type="text" id="bp-new-recipe-name" class="bp-input" placeholder="e.g. My Custom Pale Ale" />
+              <button type="button" class="btn bp-btn-sm" id="bp-save-draft-btn">Save Draft</button>
+              <button type="button" class="btn-secondary bp-btn-sm" id="bp-save-cancel-btn">Cancel</button>
+            </div>
+          </div>
         </div>
       </div>
 
