@@ -365,7 +365,7 @@ describe('kioskSaveAsNewRecipe — POST payload', function () {
 // T6: XSS — ingredient names are escaped in rendered rows (T-36-12)
 // ---------------------------------------------------------------------------
 describe('XSS — ingredient names escaped in modify rows', function () {
-  test('T6: renderKioskModifyRows escapes malicious ingredient name', function () {
+  test('T6: renderKioskModifyRows does not create actual img DOM elements from malicious name', function () {
     var maliciousIngredient = [
       { item_id: 'ING-XSS', item_name: '<img src=x onerror=alert(1)>', unit: 'kg', quantity: 1 }
     ];
@@ -375,9 +375,14 @@ describe('XSS — ingredient names escaped in modify rows', function () {
 
     admin.renderKioskModifyRows();
 
-    // The raw HTML tag must not be present in innerHTML unescaped
-    expect(tbody.innerHTML).not.toContain('<img src=x onerror=alert(1)>');
-    // The escaped form should appear
-    expect(tbody.innerHTML).toContain('&lt;img');
+    // The malicious name must NOT result in an actual <img> DOM element being created
+    expect(tbody.querySelectorAll('img').length).toBe(0);
+
+    // The input value must store the raw text (browser text node), not inject HTML
+    var searchInput = tbody.querySelector('.ing-search');
+    expect(searchInput).not.toBeNull();
+    // The value property is the decoded text string — verify the dangerous chars are there as text
+    expect(searchInput.value).toBe('<img src=x onerror=alert(1)>');
+    // But no onerror handler fires — confirmed by no img tag in DOM
   });
 });
