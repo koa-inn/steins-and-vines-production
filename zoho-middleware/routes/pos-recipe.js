@@ -361,6 +361,8 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
 
   var txnId = body.transaction_id;
   var millGrain = body.mill_grain === true;
+  // MOD-02 (36-03): parse modified_ingredients from request body (array or null)
+  var modifiedConfirm = Array.isArray(body.modified_ingredients) ? body.modified_ingredients : null;
 
   // Re-fetch recipe server-side (never trust client data)
   callAppsScriptPost('get_recipe', { recipe_id: body.recipe_id })
@@ -410,10 +412,15 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
           if (item && item.item_id) catalogMap[item.item_id] = item;
         });
 
+        // MOD-02 (36-03): determine which ingredient list to scale for invoice + stock check
+        // When modifiedConfirm is present, scale from the modified base list (same as quote path)
+        var baseIngredientsConfirm = modifiedConfirm || ingredients;
+
         // Re-scale server-side (never trust client quantities — Pitfall 1/D-09)
-        var scaledIngredients = scaling.scaleIngredients(ingredients, scaleFactorConfirm);
+        var scaledIngredients = scaling.scaleIngredients(baseIngredientsConfirm, scaleFactorConfirm);
 
         // Belt-and-suspenders stock re-check at confirm time (D-09)
+        // Uses scaled MODIFIED quantities (T-36-08 mitigated)
         var stockCheckConfirm = scaling.checkScaledStock(scaledIngredients, catalogMap);
         if (!stockCheckConfirm.ok && !body.override) {
           return res.status(409).json({
@@ -476,8 +483,14 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
         }
 
         // Determine authoritative grand total via helper (same formula as quote, SCALE-03)
-        // Invoice line items use scaled quantities; grandTotal uses the same helper as the quote path
-        var grandTotal = scaling.computeScaledRecipeTotal(recipe, scaledIngredients, catalogMap, body.sale_type);
+        // MOD-02 (36-03): when modified list present, use computeModifiedRecipeTotal (server-authoritative)
+        // This ensures displayed price (from quote) == charged price (from confirm) for identical inputs
+        var grandTotal;
+        if (modifiedConfirm) {
+          grandTotal = scaling.computeModifiedRecipeTotal(recipe, ingredients, modifiedConfirm, catalogMap, scaleFactorConfirm, body.sale_type);
+        } else {
+          grandTotal = scaling.computeScaledRecipeTotal(recipe, scaledIngredients, catalogMap, body.sale_type);
+        }
 
         // Take-out milling fee — added on top (helper does not know about milling)
         if (body.sale_type === 'take-out' && millGrain) {
@@ -546,7 +559,10 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
                 materials_fee: recipe.materials_fee,
                 target_volume_l: targetVolumeLConfirm,
                 scale_factor: scaleFactorConfirm,
-                ingredients: scaledIngredients
+                ingredients: scaledIngredients,
+                // MOD-02 (36-03): freeze modified list + flag into snapshot
+                modified_base_ingredients: modifiedConfirm,
+                is_modified: !!(modifiedConfirm && modifiedConfirm.length)
               };
               brewpadIntegration.detectRecipeSale(
                 body.recipe_id,
