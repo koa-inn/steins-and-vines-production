@@ -26,6 +26,8 @@ created: 2026-06-20
 
 **Source:** brewpad.css `:root` line 14–15, admin.css `:root` lines 44–63. No shadcn gate applies — this is a vanilla ES5 project with no framework.
 
+**Visual hierarchy (focal point):** The volume control (`#kiosk-recipe-volume-wrap` / `#bp-recipe-volume-wrap`) is the primary visual focal point on first view of the recipe prompt. The "Modify Ingredients" toggle is collapsed by default and is a secondary affordance — it recedes visually until a staff member actively expands it.
+
 ---
 
 ## Spacing Scale
@@ -44,7 +46,7 @@ Existing project tokens (from admin.css `:root`, lines 44–49). Phase 36 reuses
 
 Exceptions:
 - Touch targets on kiosk and BrewPad: minimum 44px height on all interactive controls (buttons, inputs). Source: brewpad.css `.btn { min-height: 44px }` line 98. The ingredient-row Remove button must meet 44px × 44px minimum on these surfaces.
-- Autocomplete dropdown item row: 12px vertical padding (--sp-3) per row so touch targets are at least 44px effective height at 13px font size.
+- Autocomplete dropdown item row: `14px 12px` padding per row (touch-target-derived exception, not a spacing token) so touch targets are at least 44px effective height at 13px font size. This is the single authoritative value — matches the kiosk touch-target section; do not substitute `--sp-3` here.
 
 ---
 
@@ -55,11 +57,11 @@ All sizes from existing admin.css and brewpad.css. Phase 36 does not introduce n
 | Role | Size | Weight | Line Height | Source |
 |------|------|--------|-------------|--------|
 | Body / ingredient row text | 13px | 400 | 1.4 | admin.css `.admin-input` line 400, `.admin-table` line 424 |
-| Label / section heading | 11px uppercase | 700 | 1.2 | admin.css `thead th` line 434 — used for cf_type group headers |
 | Control label | 13px | 400 | 1.4 | admin.css `.kiosk-volume-label` pattern (inline label + input) |
-| Price / readout text | 13px | 600 | 1.4 | admin.css `.ing-retail` pattern; factor readout bold |
+| Label / section heading | 11px uppercase | 700 | 1.2 | admin.css `thead th` line 434 — used for cf_type group headers |
+| Price / readout text | 13px | 700 | 1.4 | admin.css `.ing-retail` pattern; factor readout bold |
 
-Two weights only: 400 (regular) for body/inputs, 600–700 (semibold/bold) for labels, group headers, price totals, and the factor readout.
+Two weights only: 400 (regular) for body text and control labels; 700 (bold) for labels, group headers, price totals, and the factor readout.
 
 **iOS zoom guard:** All text inputs on kiosk.html and brewpad.html must have `font-size: 1rem` (16px minimum) to prevent iOS Safari auto-zoom. Source: brewpad.css `.bp-input { font-size: 1rem }` line 152. The `ing-search` autocomplete input on kiosk/BrewPad must also use `font-size: 1rem`.
 
@@ -92,7 +94,7 @@ Locked-price asymmetry notice (D-07/D-08): displayed as --ink-tertiary text (mut
 
 **Existing from Phase 35 (LOCKED — do not redesign):**
 - `#kiosk-recipe-volume-wrap`: label "Target volume (L)" + `#kiosk-target-volume` number input (min 0.5, step 0.5, inputmode decimal, pre-fill `batch_size_l`)
-- `#kiosk-scale-factor-readout`: renders `"1.5× base 20 L"` string; weight 600, color --ink-secondary
+- `#kiosk-scale-factor-readout`: renders `"1.5× base 20 L"` string; weight 700, color --ink-secondary
 - `#kiosk-stock-conflict`: hard-block panel with short ingredients list + "Manager Override — Proceed Anyway" btn-secondary
 - No-base-size disabled state: input disabled + readout = "Set batch size (L) on the recipe to enable scaling"
 
@@ -128,6 +130,7 @@ Placement: insert `#kiosk-recipe-modify-wrap` immediately after `#kiosk-recipe-v
   - qty column: `<input type="number" class="admin-input ing-qty" step="0.01" min="0" inputmode="decimal" />`
   - unit column: `.ing-unit` text span (auto-populated from catalog selection)
   - remove column: `<button type="button" class="btn-secondary ing-remove">&#10005;</button>` (min 44px × 44px)
+- **Empty ingredient table state:** When all ingredients have been removed before any new ones are added, the table body renders a single placeholder row: `<tr><td colspan="4" class="kiosk-modify-empty">No ingredients — use '+ Add Ingredient' to build a custom list</td></tr>`. The "+ Add Ingredient" button remains visible below.
 - "Add Ingredient" affordance: `<button type="button" class="btn-secondary" id="kiosk-modify-add-row">+ Add Ingredient</button>` below the table, left-aligned
 - Substitution: implemented as remove + add (D-05 data-level). No separate "swap" affordance exposed.
 - Autocomplete dropdown: reuses existing `.ing-autocomplete-drop` class (position absolute, max-height 200px, overflow-y auto, z-index above table rows)
@@ -223,6 +226,7 @@ After the existing recipe search resolves and before the "Attach Recipe" button:
 - Remove button: `.btn-secondary.bp-btn-sm` with &#10005; — min 44px × 44px on iPad
 - Autocomplete input: `class="bp-input ing-search"` — font-size 1rem (iOS zoom guard already in brewpad.css)
 - "Add Ingredient" button: `.btn-secondary.bp-btn-sm` — min 44px height
+- **Empty ingredient table state (BrewPad):** identical copy and markup as the admin/kiosk surface — single placeholder row `<td colspan="4">No ingredients — use '+ Add Ingredient' to build a custom list</td>` when all rows have been removed.
 
 **No price preview on BrewPad (D-10):**
 - The BrewPad attach path does NOT call `/api/kiosk/recipe-quote`. No price is displayed. No price preview panel exists on this surface.
@@ -274,6 +278,7 @@ Price format: `formatCurrency` from `js/lib/utils.js` (existing) — always `$XX
 | Modify toggle label (expanded) | "Modify Ingredients ▲" |
 | Add-row affordance | "+ Add Ingredient" |
 | Remove-row button aria-label | "Remove [ingredient name]" |
+| Empty ingredient table state | "No ingredients — use '+ Add Ingredient' to build a custom list" (rendered as `<td colspan="4">` placeholder row) |
 | Volume control label | "Target volume (L):" |
 | Factor readout format | "1.5× base 20 L" (identical to Phase 35) |
 | No-base disabled state | "Set batch size (L) on this recipe to enable scaling" |
