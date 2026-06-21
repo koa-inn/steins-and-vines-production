@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Recipe Builder Refinement
-status: ready_to_plan
-stopped_at: Phase 35 complete (6/6) — ready to discuss Phase 37
-last_updated: 2026-06-21T00:31:03.185Z
-last_activity: 2026-06-20
+status: planning
+stopped_at: Phase 36 context gathered
+last_updated: "2026-06-21T00:47:51.942Z"
+last_activity: 2026-06-21
 progress:
   total_phases: 23
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 12
   completed_plans: 12
-  percent: 9
+  percent: 13
 ---
 
 # Project State
@@ -66,6 +66,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-20T23:46:55.445Z
-Stopped at: 35-06 COMPLETE — server quote endpoint + frontend wiring + 17-test suite + rebuild all done. Phase 35 awaiting deploy + UAT.
-Resume file: None
+Last session: 2026-06-21T00:47:51.931Z
+Stopped at: Phase 36 context gathered
+Resume file: .planning/phases/36-cross-surface-selection-recipe-modification/36-CONTEXT.md
