@@ -390,7 +390,9 @@ function detectRecipeSale(recipeId, recipeSnapshot, invoiceNumber, customerName,
     source:             'kiosk_recipe',
     zoho_so_number:     invoiceNumber || '',
     recipe_id:          recipeId,
-    recipe_snapshot:    JSON.stringify(recipeSnapshot || {})
+    recipe_snapshot:    JSON.stringify(recipeSnapshot || {}),
+    target_volume_l:    (recipeSnapshot && recipeSnapshot.target_volume_l) || null,
+    scale_factor:       (recipeSnapshot && recipeSnapshot.scale_factor) || null
   };
   callAppsScriptCreateBatch(batchPayload).catch(function () {});
 }
