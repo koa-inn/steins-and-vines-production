@@ -2044,6 +2044,25 @@ function createBatch(payload, userEmail) {
       }
     }
 
+    // Write target_volume_l / scale_factor by header lookup (SEL-02 carry-through, Phase 36).
+    // The recipe_snapshot already carries these (Phase 35); persisting them as first-class
+    // batch columns lets the batch record show the chosen volume without re-entry.
+    // NOTE: add 'target_volume_l' and 'scale_factor' column headers to the Batches sheet;
+    // this block no-ops on the columns it cannot find, so it is safe to deploy before/after
+    // the headers are added.
+    if (payload.target_volume_l != null || payload.scale_factor != null) {
+      var vHeaders = batchesSheet.getRange(1, 1, 1, batchesSheet.getLastColumn()).getValues()[0];
+      var volRow = batchesSheet.getLastRow();
+      var tvCol = vHeaders.indexOf('target_volume_l');
+      var sfCol = vHeaders.indexOf('scale_factor');
+      if (tvCol !== -1 && payload.target_volume_l != null) {
+        batchesSheet.getRange(volRow, tvCol + 1).setValue(payload.target_volume_l);
+      }
+      if (sfCol !== -1 && payload.scale_factor != null) {
+        batchesSheet.getRange(volRow, sfCol + 1).setValue(payload.scale_factor);
+      }
+    }
+
     var tasksCreated = 0;
     var taskErrors = [];
 
