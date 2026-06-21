@@ -112,7 +112,7 @@ No external specs/ADRs — requirements fully captured in ROADMAP/REQUIREMENTS +
 <specifics>
 ## Specific Ideas
 
-- **Locked-add worked example** (test fixture): recipe `locked_price 45, service 45, materials 5`, add 1 extra hop at catalog `$4/ea`, scaled qty 1 at 1.0× → charge = `45 + 50 + 4 = $99`. At 1.5× → `67.50 + 50 + (4 × 1) = $121.50` (locked portion scales, fees flat, added line = scaled qty × rate).
+- **Locked-add worked example** (test fixture): recipe `locked_price 45, service 45, materials 5`, add 1 extra hop at catalog `$4/ea`, scaled qty 1 at 1.0× → charge = `45 + 50 + 4 = $99`. At 1.5× → `67.50 + 50 + (4 × 2) = $125.50` (locked portion scales, fees flat, added line = **scaled** qty × rate — the added discrete ingredient scales with the rest of the modified list per D-04: `Math.max(1, Math.ceil(1 × 1.5)) = 2` pcs → `2 × $4 = $8`). ⚠ Owner decision 2026-06-21: added ingredients scale identically to base ingredients (not a flat add-on).
 - **Locked-remove**: removing an ingredient from the same recipe at any factor leaves the charge at `locked_price×factor + fees` — no credit (D-08).
 - **Save-as-new at base**: a modification made at 1.5× is saved at the recipe's base volume with the *base* (pre-scale) quantities, dynamic mode, draft — re-scales cleanly next time.
 - **Consistent control copy** across surfaces: same `"1.5× base 20 L"` factor readout string everywhere (Phase 35 styling).
