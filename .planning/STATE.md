@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Recipe Builder Refinement
 status: executing
-stopped_at: 36-03 complete
-last_updated: "2026-06-21T04:55:00.461Z"
+stopped_at: 36-05 complete
+last_updated: "2026-06-21T05:04:53.351Z"
 last_activity: 2026-06-21
 progress:
   total_phases: 23
   completed_phases: 3
   total_plans: 19
-  completed_plans: 16
+  completed_plans: 17
   percent: 13
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 36 (cross-surface-selection-recipe-modification) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-06-21
 
-Progress: [████████░░] 84%
+Progress: [█████████░] 89%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [████████░░] 84%
 - [Phase ?]: 36-01 complete
 - [36-02]: detectRecipeSale now forwards target_volume_l + scale_factor onto batch payload from server-built snapshot (T-36-04 mitigated)
 - [36-03]: computeRecipeQuote extended with modifiedIngredients 5th param; all three money-path entry points (quote/sale/confirm) price via computeModifiedRecipeTotal; confirm snapshot freezes modified_base_ingredients + is_modified (MOD-02)
+- [Phase ?]: No save-as-new affordance on kiosk surface — UI-SPEC §2 confirmed (36-05)
 
 ### Pending Todos
 
@@ -70,6 +71,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-21T04:55:00.456Z
-Stopped at: 36-03 complete
+Last session: 2026-06-21T05:04:53.345Z
+Stopped at: 36-05 complete
 Resume file: None

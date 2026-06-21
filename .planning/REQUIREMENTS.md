@@ -31,7 +31,7 @@
 ### Cross-Surface Selection (SEL)
 
 - [x] **SEL-01**: Batch size (target volume) can be chosen wherever a recipe is selected — admin recipe sale, kiosk recipe sale, and BrewPad recipe attach — using a consistent control.
-- [ ] **SEL-02**: The chosen batch size persists through the selected surface's flow into the sale/batch (cart line items, snapshot, and batch record) without the user re-entering it.
+- [x] **SEL-02**: The chosen batch size persists through the selected surface's flow into the sale/batch (cart line items, snapshot, and batch record) without the user re-entering it.
 
 ### Recipe Modification (MOD)
 
@@ -75,7 +75,7 @@
 | SCALE-04 | Phase 35 | Complete |
 | SCALE-05 | Phase 35 | Complete |
 | SEL-01 | Phase 36 | Complete |
-| SEL-02 | Phase 36 | Pending |
+| SEL-02 | Phase 36 | Complete |
 | MOD-01 | Phase 36 | Complete |
 | MOD-02 | Phase 36 | Complete |
 | MOD-03 | Phase 36 | Complete |
