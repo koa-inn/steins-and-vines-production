@@ -1565,3 +1565,209 @@ describe('POST /api/kiosk/recipe-sale — modified_ingredients (MOD-02, 36-03)',
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// MOD-02: POST /api/kiosk/recipe-sale/confirm — modified_ingredients + snapshot (Task 2, 36-03)
+// ---------------------------------------------------------------------------
+// Tests for confirm handler pricing the modified list via computeModifiedRecipeTotal
+// and freezing modified_base_ingredients + is_modified into the recipe_snapshot.
+
+describe('POST /api/kiosk/recipe-sale/confirm — modified_ingredients + snapshot (MOD-02, 36-03)', function () {
+  var mocks;
+
+  var LOCKED_ADD_MODIFIED = [
+    { item_id: 'ing-malt-1', item_name: 'Pale Malt 2-Row', quantity: 5.5, unit: 'kg' },
+    { item_id: 'ing-dry-hop-1', item_name: 'Centennial Hops (Dry Hop)', quantity: 0.5, unit: 'kg' },
+    { item_id: 'ing-yeast-1', item_name: 'US-05 Yeast', quantity: 1, unit: 'pcs' }
+  ];
+
+  beforeEach(function () {
+    mocks = resetAndLoadPosRecipe();
+    process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-token';
+    process.env.BEER_SALES_ENABLED = 'true';
+    process.env.MAKERS_FEE_ITEM_ID = 'fee-makers-1';
+    process.env.MATERIALS_FEE_ITEM_ID = 'fee-materials-1';
+    process.env.KIOSK_CONTACT_ID = 'contact-default';
+    delete process.env.MILLING_FEE_ITEM_ID;
+    mocks.helcim.isTerminalEnabled.mockReturnValue(true);
+    mocks.helcim.voidTransaction.mockResolvedValue({});
+    mocks.cache.acquireLock.mockResolvedValue(true);
+    mocks.cache.releaseLock.mockResolvedValue();
+    mocks.cache.del.mockResolvedValue(1);
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') return Promise.resolve(MOCK_INGREDIENTS_CATALOG);
+      if (key === 'zoho:ingredients') return Promise.resolve(MOCK_INGREDIENTS_CATALOG);
+      return Promise.resolve(null);
+    });
+    mocks.axios.post.mockResolvedValue(MOCK_RECIPE_RESPONSE);
+    mocks.zohoApi.zohoPost.mockResolvedValue({ invoice: { invoice_id: 'inv-1', invoice_number: 'INV-001' } });
+  });
+
+  afterEach(function () {
+    delete process.env.APPS_SCRIPT_URL;
+    delete process.env.APPS_SCRIPT_SERVER_TOKEN;
+    delete process.env.BEER_SALES_ENABLED;
+    delete process.env.MAKERS_FEE_ITEM_ID;
+    delete process.env.MATERIALS_FEE_ITEM_ID;
+    delete process.env.KIOSK_CONTACT_ID;
+    delete process.env.MILLING_FEE_ITEM_ID;
+  });
+
+  test('M-C1. confirm with locked-add modified list charges LOCKED_ADD total (displayed==charged)', function () {
+    // locked-add at 1x: 195*1 + 45 + 5 = 245; + Centennial 0.5*10 = 5 => 250
+    return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+      body: {
+        recipe_id: 'RCP-001',
+        transaction_id: 'txn-mod-add',
+        reference: 'RECIPE-MOD-ADD',
+        sale_type: 'in-store',
+        modified_ingredients: LOCKED_ADD_MODIFIED
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(201);
+      expect(res._body.total).toBe(250.00);
+    });
+  });
+
+  test('M-C2. confirm total matches quote total for same modified inputs (displayed==charged)', function () {
+    // Must be identical to M-Q1 total (250.00) — core MOD-02 guarantee
+    var quoteTotal;
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: {
+        recipe_id: 'RCP-001',
+        target_volume_l: '20',
+        sale_type: 'in-store',
+        modified_ingredients: JSON.stringify(LOCKED_ADD_MODIFIED)
+      }
+    }).then(function (quoteRes) {
+      expect(quoteRes._status).toBe(200);
+      quoteTotal = quoteRes._body.total;
+      return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+        body: {
+          recipe_id: 'RCP-001',
+          transaction_id: 'txn-parity',
+          reference: 'RECIPE-PARITY',
+          sale_type: 'in-store',
+          target_volume_l: 20,
+          modified_ingredients: LOCKED_ADD_MODIFIED
+        }
+      });
+    }).then(function (confirmRes) {
+      expect(confirmRes._status).toBe(201);
+      expect(confirmRes._body.total).toBe(quoteTotal);
+      expect(quoteTotal).toBe(250.00);
+    });
+  });
+
+  test('M-C3. snapshot.modified_base_ingredients equals pre-scale submitted list; is_modified=true', function () {
+    return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+      body: {
+        recipe_id: 'RCP-001',
+        transaction_id: 'txn-snapshot-mod',
+        reference: 'RECIPE-SNAP-MOD',
+        sale_type: 'in-store',
+        customer_name: 'Test User',
+        contact_id: 'C-001',
+        modified_ingredients: LOCKED_ADD_MODIFIED
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(201);
+      var snapshotArg = mocks.brewpad.detectRecipeSale.mock.calls[0][1];
+      expect(snapshotArg.is_modified).toBe(true);
+      expect(snapshotArg.modified_base_ingredients).toEqual(LOCKED_ADD_MODIFIED);
+    });
+  });
+
+  test('M-C4. snapshot.ingredients reflects the SCALED MODIFIED list (not original recipe)', function () {
+    // modified list has dry-hop, not hops; snapshot.ingredients must show scaled modified
+    return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+      body: {
+        recipe_id: 'RCP-001',
+        transaction_id: 'txn-snap-scaled',
+        reference: 'RECIPE-SNAP-SCALED',
+        sale_type: 'in-store',
+        customer_name: 'Test User',
+        contact_id: 'C-001',
+        target_volume_l: 20,
+        modified_ingredients: LOCKED_ADD_MODIFIED
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(201);
+      var snapshotArg = mocks.brewpad.detectRecipeSale.mock.calls[0][1];
+      var dryHop = snapshotArg.ingredients.find(function (i) { return i.item_id === 'ing-dry-hop-1'; });
+      var origHops = snapshotArg.ingredients.find(function (i) { return i.item_id === 'ing-hops-1'; });
+      expect(dryHop).toBeTruthy();
+      expect(origHops).toBeUndefined();
+      // 0.5kg dry-hop scaled at 1x (factor=1): 0.5 * 1.0 = 0.5 (continuous)
+      expect(dryHop.quantity).toBeCloseTo(0.5, 4);
+    });
+  });
+
+  test('M-C5. invoice line items use scaled MODIFIED list (Zoho inventory deduction uses modified)', function () {
+    var capturedInvoicePayload;
+    mocks.zohoApi.zohoPost.mockImplementation(function (path, payload) {
+      if (path === '/invoices') capturedInvoicePayload = payload;
+      return Promise.resolve({ invoice: { invoice_id: 'inv-1', invoice_number: 'INV-001' } });
+    });
+    return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+      body: {
+        recipe_id: 'RCP-001',
+        transaction_id: 'txn-inv-mod',
+        reference: 'RECIPE-INV-MOD',
+        sale_type: 'in-store',
+        target_volume_l: 20,
+        modified_ingredients: LOCKED_ADD_MODIFIED
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(201);
+      var dryHopLine = capturedInvoicePayload.line_items.find(function (li) { return li.item_id === 'ing-dry-hop-1'; });
+      var origHopsLine = capturedInvoicePayload.line_items.find(function (li) { return li.item_id === 'ing-hops-1'; });
+      expect(dryHopLine).toBeTruthy();
+      expect(origHopsLine).toBeUndefined();
+    });
+  });
+
+  test('M-C6. confirm without modified_ingredients: snapshot.is_modified=false, modified_base_ingredients=null (regression)', function () {
+    return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+      body: {
+        recipe_id: 'RCP-001',
+        transaction_id: 'txn-no-mod',
+        reference: 'RECIPE-NO-MOD',
+        sale_type: 'in-store',
+        customer_name: 'Test User',
+        contact_id: 'C-001'
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(201);
+      // Regression: Phase 35 total unchanged
+      expect(res._body.total).toBe(245.00);
+      var snapshotArg = mocks.brewpad.detectRecipeSale.mock.calls[0][1];
+      expect(snapshotArg.is_modified).toBe(false);
+      expect(snapshotArg.modified_base_ingredients).toBeNull();
+    });
+  });
+
+  test('M-C7. modified list that oversells stock returns 409 (scaled-stock gate uses modified quantities)', function () {
+    // Modified list: add Centennial at 10kg (large qty). stock_on_hand=5 => 10*1=10 needed > 5 stock => conflict
+    var largeQtyModified = [
+      { item_id: 'ing-malt-1', item_name: 'Pale Malt 2-Row', quantity: 5.5, unit: 'kg' },
+      { item_id: 'ing-dry-hop-1', item_name: 'Centennial Hops (Dry Hop)', quantity: 10, unit: 'kg' },
+      { item_id: 'ing-yeast-1', item_name: 'US-05 Yeast', quantity: 1, unit: 'pcs' }
+    ];
+    return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+      body: {
+        recipe_id: 'RCP-001',
+        transaction_id: 'txn-stock-mod',
+        reference: 'RECIPE-STOCK-MOD',
+        sale_type: 'in-store',
+        modified_ingredients: largeQtyModified
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(409);
+      expect(Array.isArray(res._body.conflicts)).toBe(true);
+      var conflict = res._body.conflicts.find(function (c) { return c.item_id === 'ing-dry-hop-1'; });
+      expect(conflict).toBeTruthy();
+    });
+  });
+});
