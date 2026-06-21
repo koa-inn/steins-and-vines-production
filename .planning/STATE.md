@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Recipe Builder Refinement
-status: planning
-stopped_at: Phase 36 context gathered
-last_updated: "2026-06-21T00:47:51.942Z"
-last_activity: 2026-06-21
+status: executing
+stopped_at: Phase 36 UI-SPEC approved
+last_updated: "2026-06-21T04:12:15.791Z"
+last_activity: 2026-06-21 -- Phase 36 execution started
 progress:
   total_phases: 23
   completed_phases: 3
-  total_plans: 12
+  total_plans: 19
   completed_plans: 12
   percent: 13
 ---
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 37 — brewpad recipe manager
+**Current focus:** Phase 36 — cross-surface-selection-recipe-modification
 
 ## Current Position
 
-Phase: 37
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-06-21
+Phase: 36 (cross-surface-selection-recipe-modification) — EXECUTING
+Plan: 1 of 7
+Status: Executing Phase 36
+Last activity: 2026-06-21 -- Phase 36 execution started
 
 Progress: [█████████░] 92%
 
@@ -66,6 +66,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-21T00:47:51.931Z
-Stopped at: Phase 36 context gathered
-Resume file: .planning/phases/36-cross-surface-selection-recipe-modification/36-CONTEXT.md
+Last session: 2026-06-21T01:10:33.871Z
+Stopped at: Phase 36 UI-SPEC approved
+Resume file: .planning/phases/36-cross-surface-selection-recipe-modification/36-UI-SPEC.md
