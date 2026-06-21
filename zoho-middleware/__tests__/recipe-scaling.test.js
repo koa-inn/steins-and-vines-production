@@ -1,10 +1,11 @@
 'use strict';
 
 var scaling = require('../lib/recipe-scaling');
-var scaleIngredient          = scaling.scaleIngredient;
-var scaleIngredients         = scaling.scaleIngredients;
-var computeScaledRecipeTotal = scaling.computeScaledRecipeTotal;
-var checkScaledStock         = scaling.checkScaledStock;
+var scaleIngredient             = scaling.scaleIngredient;
+var scaleIngredients            = scaling.scaleIngredients;
+var computeScaledRecipeTotal    = scaling.computeScaledRecipeTotal;
+var computeModifiedRecipeTotal  = scaling.computeModifiedRecipeTotal;
+var checkScaledStock            = scaling.checkScaledStock;
 
 // ---------------------------------------------------------------------------
 // scaleIngredient — continuous units (kg, g, l, ml)
@@ -371,6 +372,224 @@ describe('checkScaledStock', function () {
     expect(result.ok).toBe(true);
     expect(result.conflicts).toHaveLength(0);
   });
+});
+
+// ---------------------------------------------------------------------------
+// computeModifiedRecipeTotal (D-07/D-08/D-09, MOD-02)
+// ---------------------------------------------------------------------------
+describe('computeModifiedRecipeTotal', function () {
+
+  // Shared base recipe fixture: locked_price 45, service_fee 45, materials_fee 5
+  // Locked base at 1.0×:  45×1 + 45 + 5 = $95.00 (unmodified locked total, for reference)
+  // Locked base at 1.5×: 45×1.5 + 45 + 5 = 67.50 + 50 = $117.50 (unmodified locked total, for reference)
+
+  // ---------------------------------------------------------------------------
+  // LOCKED_ADD — D-07: locked recipe + added ingredient
+  // ---------------------------------------------------------------------------
+
+  // LOCKED_ADD_1X:
+  //   recipe { locked_price:45, service_fee:45, materials_fee:5 }
+  //   original ingredients: [] (empty — no base ingredients)
+  //   modified base list: [hop H1, quantity:1, unit:'pcs']
+  //   catalog: H1 rate $4/ea
+  //   scaleFactor: 1.0
+  //   Charge = locked_price×1 + service_fee + materials_fee + (1pcs × $4)
+  //          = 45 + 45 + 5 + 4 = $99.00
+  test('LOCKED_ADD_1X: locked recipe + added hop 1pcs at 1.0× = $99', function () {
+    var recipe = { locked_price: 45, service_fee: 45, materials_fee: 5, pricing_mode: 'locked', batch_size_l: 20 };
+    var originalIngredients = [];
+    var modifiedBaseIngredients = [{ item_id: 'H1', item_name: 'Cascade Hops', quantity: 1, unit: 'pcs' }];
+    var catalogMap = { H1: { rate: 4, item_name: 'Cascade Hops', unit: 'pcs' } };
+    var result = computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.0, 'in-store');
+    expect(result).toBe(99);
+  });
+
+  // LOCKED_ADD_1_5X:
+  //   Same recipe, same original [], same hop H1 added at base qty 1pcs
+  //   scaleFactor: 1.5
+  //   Locked portion scales: 45×1.5 = 67.50
+  //   Fees flat: 45 + 5 = 50
+  //   Added hop scales identically to base ingredients (D-04):
+  //     pcs is discrete → Math.max(1, Math.ceil(1 × 1.5)) = Math.max(1, Math.ceil(1.5)) = 2 pcs
+  //     cost = 2 × $4 = $8
+  //   Charge = 67.50 + 50 + 8 = $125.50
+  // ⚠ OWNER DECISION 2026-06-21: Added ingredients scale with the rest of the modified list.
+  // The value $125.50 is the owner-approved figure from CONTEXT §Specifics.
+  // This literal MUST be hard-coded here — do NOT compute from scaleIngredient at assert time.
+  test('LOCKED_ADD_1_5X: locked recipe + added hop 1pcs at 1.5× = $125.50 (literal, D-07)', function () {
+    var recipe = { locked_price: 45, service_fee: 45, materials_fee: 5, pricing_mode: 'locked', batch_size_l: 20 };
+    var originalIngredients = [];
+    var modifiedBaseIngredients = [{ item_id: 'H1', item_name: 'Cascade Hops', quantity: 1, unit: 'pcs' }];
+    var catalogMap = { H1: { rate: 4, item_name: 'Cascade Hops', unit: 'pcs' } };
+    var result = computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.5, 'in-store');
+    expect(result).toBe(125.50);
+  });
+
+  // ---------------------------------------------------------------------------
+  // LOCKED_REMOVE — D-08: locked recipe + removed ingredient — NO CREDIT
+  // ---------------------------------------------------------------------------
+
+  // Recipe has 2 original ingredients; modified list drops one.
+  // Charge is always locked_price × factor + fees — removing a line gives no discount.
+
+  test('LOCKED_REMOVE 1.0×: removed ingredient gives no credit — total = locked×1 + fees ($95)', function () {
+    var recipe = { locked_price: 45, service_fee: 45, materials_fee: 5, pricing_mode: 'locked', batch_size_l: 20 };
+    // Two base ingredients
+    var originalIngredients = [
+      { item_id: 'G1', item_name: 'Pale Malt', quantity: 5, unit: 'kg' },
+      { item_id: 'H1', item_name: 'Cascade Hops', quantity: 1, unit: 'pcs' }
+    ];
+    // Modified: removed G1 (only H1 remains — still an original item, not an addition)
+    var modifiedBaseIngredients = [
+      { item_id: 'H1', item_name: 'Cascade Hops', quantity: 1, unit: 'pcs' }
+    ];
+    var catalogMap = {
+      G1: { rate: 2, item_name: 'Pale Malt', unit: 'kg' },
+      H1: { rate: 4, item_name: 'Cascade Hops', unit: 'pcs' }
+    };
+    var result = computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.0, 'in-store');
+    // = 45×1 + 45 + 5 = $95 — no credit for removed ingredient (D-08)
+    expect(result).toBe(95);
+  });
+
+  test('LOCKED_REMOVE 1.5×: removed ingredient gives no credit at 1.5× — total = locked×1.5 + fees ($117.50)', function () {
+    var recipe = { locked_price: 45, service_fee: 45, materials_fee: 5, pricing_mode: 'locked', batch_size_l: 20 };
+    var originalIngredients = [
+      { item_id: 'G1', item_name: 'Pale Malt', quantity: 5, unit: 'kg' },
+      { item_id: 'H1', item_name: 'Cascade Hops', quantity: 1, unit: 'pcs' }
+    ];
+    var modifiedBaseIngredients = [
+      { item_id: 'H1', item_name: 'Cascade Hops', quantity: 1, unit: 'pcs' }
+    ];
+    var catalogMap = {
+      G1: { rate: 2, item_name: 'Pale Malt', unit: 'kg' },
+      H1: { rate: 4, item_name: 'Cascade Hops', unit: 'pcs' }
+    };
+    var result = computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.5, 'in-store');
+    // = 45×1.5 + 45 + 5 = 67.50 + 50 = $117.50 — identical to unmodified locked total (D-08)
+    expect(result).toBe(117.50);
+  });
+
+  // ---------------------------------------------------------------------------
+  // DYNAMIC_MODIFY — D-09: dynamic recipe + any modification
+  // ---------------------------------------------------------------------------
+
+  test('DYNAMIC_MODIFY 1.0×: dynamic recipe sums modified list at base scale', function () {
+    var recipe = { locked_price: 0, pricing_mode: 'dynamic', service_fee: 10, materials_fee: 5, batch_size_l: 20 };
+    var originalIngredients = [
+      { item_id: 'G1', item_name: 'Pale Malt', quantity: 5, unit: 'kg' }
+    ];
+    // Modified: kept G1, added hop H1
+    var modifiedBaseIngredients = [
+      { item_id: 'G1', item_name: 'Pale Malt', quantity: 5, unit: 'kg' },
+      { item_id: 'H1', item_name: 'Cascade Hops', quantity: 1, unit: 'pcs' }
+    ];
+    var catalogMap = {
+      G1: { rate: 2, item_name: 'Pale Malt', unit: 'kg' },
+      H1: { rate: 4, item_name: 'Cascade Hops', unit: 'pcs' }
+    };
+    var result = computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.0, 'in-store');
+    // = (5kg × $2) + (1pcs × $4) + service_fee + materials_fee
+    // = 10 + 4 + 10 + 5 = $29
+    expect(result).toBe(29);
+  });
+
+  test('DYNAMIC_MODIFY 1.5×: dynamic recipe sums scaled modified list', function () {
+    var recipe = { locked_price: 0, pricing_mode: 'dynamic', service_fee: 10, materials_fee: 5, batch_size_l: 20 };
+    var originalIngredients = [
+      { item_id: 'G1', item_name: 'Pale Malt', quantity: 5, unit: 'kg' }
+    ];
+    var modifiedBaseIngredients = [
+      { item_id: 'G1', item_name: 'Pale Malt', quantity: 5, unit: 'kg' },
+      { item_id: 'H1', item_name: 'Cascade Hops', quantity: 1, unit: 'pcs' }
+    ];
+    var catalogMap = {
+      G1: { rate: 2, item_name: 'Pale Malt', unit: 'kg' },
+      H1: { rate: 4, item_name: 'Cascade Hops', unit: 'pcs' }
+    };
+    var result = computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.5, 'in-store');
+    // G1: 5kg × 1.5 = 7.5kg × $2 = $15 (linear)
+    // H1: 1pcs × 1.5 = Math.max(1, ceil(1.5)) = 2pcs × $4 = $8 (discrete)
+    // + service_fee 10 + materials_fee 5 = $38
+    expect(result).toBe(38);
+  });
+
+  test('DYNAMIC_MODIFY remove: dynamic recipe with removed line prices only the remaining list', function () {
+    var recipe = { locked_price: 0, pricing_mode: 'dynamic', service_fee: 10, materials_fee: 5, batch_size_l: 20 };
+    var originalIngredients = [
+      { item_id: 'G1', item_name: 'Pale Malt', quantity: 5, unit: 'kg' },
+      { item_id: 'H1', item_name: 'Cascade Hops', quantity: 1, unit: 'pcs' }
+    ];
+    // Modified: removed H1
+    var modifiedBaseIngredients = [
+      { item_id: 'G1', item_name: 'Pale Malt', quantity: 5, unit: 'kg' }
+    ];
+    var catalogMap = {
+      G1: { rate: 2, item_name: 'Pale Malt', unit: 'kg' },
+      H1: { rate: 4, item_name: 'Cascade Hops', unit: 'pcs' }
+    };
+    var result = computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.0, 'in-store');
+    // = (5kg × $2) + 10 + 5 = $25 (H1 credit is natural since dynamic sums the list — D-09)
+    expect(result).toBe(25);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Immutability & determinism
+  // ---------------------------------------------------------------------------
+
+  test('immutability: original and modified arrays are unchanged after call', function () {
+    var recipe = { locked_price: 45, service_fee: 45, materials_fee: 5, pricing_mode: 'locked', batch_size_l: 20 };
+    var originalIngredients = [
+      { item_id: 'G1', item_name: 'Pale Malt', quantity: 5, unit: 'kg' }
+    ];
+    var modifiedBaseIngredients = [
+      { item_id: 'G1', item_name: 'Pale Malt', quantity: 5, unit: 'kg' },
+      { item_id: 'H1', item_name: 'Cascade Hops', quantity: 1, unit: 'pcs' }
+    ];
+    var catalogMap = { H1: { rate: 4, item_name: 'Cascade Hops', unit: 'pcs' } };
+
+    // Deep copy before call to compare after
+    var origBefore = JSON.parse(JSON.stringify(originalIngredients));
+    var modBefore  = JSON.parse(JSON.stringify(modifiedBaseIngredients));
+
+    computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.5, 'in-store');
+
+    // Arrays unchanged
+    expect(originalIngredients).toHaveLength(origBefore.length);
+    expect(modifiedBaseIngredients).toHaveLength(modBefore.length);
+    // Ingredient objects unchanged
+    expect(originalIngredients[0].quantity).toBe(origBefore[0].quantity);
+    expect(modifiedBaseIngredients[0].quantity).toBe(modBefore[0].quantity);
+    expect(modifiedBaseIngredients[1].quantity).toBe(modBefore[1].quantity);
+  });
+
+  test('determinism: same inputs return same number twice', function () {
+    var recipe = { locked_price: 45, service_fee: 45, materials_fee: 5, pricing_mode: 'locked', batch_size_l: 20 };
+    var originalIngredients = [];
+    var modifiedBaseIngredients = [{ item_id: 'H1', item_name: 'Cascade Hops', quantity: 1, unit: 'pcs' }];
+    var catalogMap = { H1: { rate: 4, item_name: 'Cascade Hops', unit: 'pcs' } };
+    var r1 = computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.5, 'in-store');
+    var r2 = computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.5, 'in-store');
+    expect(r1).toBe(r2);
+    expect(r1).toBe(125.50);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Security: T-36-01 — client-supplied rate field MUST be ignored (catalog rate used)
+  // ---------------------------------------------------------------------------
+
+  test('T-36-01: client-supplied rate on added ingredient is ignored; catalog rate is used', function () {
+    var recipe = { locked_price: 45, service_fee: 45, materials_fee: 5, pricing_mode: 'locked', batch_size_l: 20 };
+    var originalIngredients = [];
+    // Client sends a "rate" field on the ingredient — this MUST be ignored
+    var modifiedBaseIngredients = [{ item_id: 'H1', item_name: 'Cascade Hops', quantity: 1, unit: 'pcs', rate: 999 }];
+    var catalogMap = { H1: { rate: 4, item_name: 'Cascade Hops', unit: 'pcs' } };
+    var result = computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.0, 'in-store');
+    // Must use catalog rate $4, not client-sent $999
+    // = 45 + 45 + 5 + (1 × 4) = $99
+    expect(result).toBe(99);
+  });
+
 });
 
 // ---------------------------------------------------------------------------
