@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-20T23:34:44.302Z';
+  var BUILD_TIMESTAMP = '2026-06-21T00:18:44.805Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -385,6 +385,29 @@
 
     document.getElementById('admin-signout').addEventListener('click', signOut);
     document.getElementById('admin-signout-denied').addEventListener('click', signOut);
+
+    // Clear-cache + hard-reload button (mirrors BrewPad's ↻ control) — eases testing
+    // after a deploy so a stale cached bundle can't mask new changes.
+    var clearCacheBtn = document.getElementById('admin-clear-cache');
+    if (clearCacheBtn) {
+      clearCacheBtn.addEventListener('click', function () {
+        showConfirm('Clear app cache and reload?', function () {
+          var done = function () { location.reload(true); };
+          if (window.caches) {
+            caches.keys().then(function (keys) {
+              return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+            }).then(function () {
+              if (navigator.serviceWorker) {
+                navigator.serviceWorker.getRegistrations().then(function (regs) {
+                  regs.forEach(function (r) { r.unregister(); });
+                  done();
+                }).catch(done);
+              } else { done(); }
+            }).catch(done);
+          } else { done(); }
+        });
+      });
+    }
 
     // Try restoring a saved session via silent token refresh
     var saved = loadSession();
