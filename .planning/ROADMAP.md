@@ -470,7 +470,7 @@ Plans:
   4. The modified ingredient list is priced server-authoritatively (same `pos-recipe.js` / `lib/pricing.js` path as a standard sale) and the Zoho invoice and frozen `recipe_snapshot` reflect the actual ingredients sold, not the original template
   5. A staff member can optionally tap "Save as new recipe" after a one-off modification; this creates a new recipe via the existing recipe-create endpoint (`SV-R-…` ID, activation guardrails enforced), leaving the original recipe untouched
 
-**Plans**: 7 plans (4 waves)
+**Plans**: 12 plans (9 waves) — 7 original + 5 gap-closure (36-08..36-12)
 **UI hint**: yes
 Plans:
 **Wave 1** (parallel — disjoint middleware files)
@@ -491,6 +491,28 @@ Plans:
 **Wave 4** (depends on all surfaces)
 
 - [ ] 36-07-PLAN.md — Staging deploy + cross-surface human UAT (locked-remove asymmetry, carry-through, save-as-new) + REQUIREMENTS traceability (SEL-01, SEL-02, MOD-01, MOD-02, MOD-03)
+
+**Gap closure (from 36-HUMAN-UAT.md GAP-1/2/3)**
+
+**Wave 5** (UI-SPEC contract first)
+
+- [ ] 36-08-PLAN.md — Extend 36-UI-SPEC.md with the synced ×factor control contract (GAP-3) + polished/reordered modify-panel layout (GAP-2) (SEL-01, MOD-01)
+
+**Wave 6**
+
+- [ ] 36-09-PLAN.md — Admin: GAP-1 catalog-load regression test + hook, GAP-3 synced ×factor input, GAP-2 layout polish + edit-at-base pre-population (SEL-01, MOD-01)
+
+**Wave 7**
+
+- [ ] 36-10-PLAN.md — Kiosk: port synced ×factor (iOS-zoom-safe) + GAP-2 layout polish, no save-as-new (SEL-01, MOD-01)
+
+**Wave 8**
+
+- [ ] 36-11-PLAN.md — BrewPad attach: port synced ×factor (no quote/charge, D-10) + GAP-2 layout polish (SEL-01, MOD-01)
+
+**Wave 9** (re-UAT)
+
+- [ ] 36-12-PLAN.md — Staging re-deploy + second human UAT pass confirming GAP-1/2/3 closed across all three surfaces (autonomous: false) (SEL-01, MOD-01)
 
 ### Phase 37: BrewPad Recipe Manager
 
