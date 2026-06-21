@@ -37,20 +37,22 @@ function callAppsScriptPost(action, payload) {
 }
 
 // ---------------------------------------------------------------------------
-// computeRecipeQuote — shared helper (35-06)
+// computeRecipeQuote — shared helper (35-06, extended 36-03)
 // Fetches recipe, validates target_volume_l, reads INGREDIENTS_ALL catalog,
 // scales ingredients, checks stock, and computes the authoritative grand total.
 // Returns a Promise that resolves to the computed quote object, or rejects with
 // an object { status, body } that the caller can forward as an HTTP response.
 //
 // Params:
-//   recipeId      {string}  — recipe ID to fetch from Apps Script
-//   rawTarget     {*}       — target_volume_l from request (body or query); undefined/null/'' => default to base
-//   saleType      {string}  — 'in-store' | 'take-out'
-//   millGrain     {boolean} — whether to add milling fee (take-out only)
+//   recipeId           {string}         — recipe ID to fetch from Apps Script
+//   rawTarget          {*}              — target_volume_l from request (body or query); undefined/null/'' => default to base
+//   saleType           {string}         — 'in-store' | 'take-out'
+//   millGrain          {boolean}        — whether to add milling fee (take-out only)
+//   modifiedIngredients {Array|undefined} — optional pre-scale modified base list (MOD-02, 36-03);
+//                                         when present, prices via computeModifiedRecipeTotal
 // ---------------------------------------------------------------------------
 
-function computeRecipeQuote(recipeId, rawTarget, saleType, millGrain) {
+function computeRecipeQuote(recipeId, rawTarget, saleType, millGrain, modifiedIngredients) {
   return callAppsScriptPost('get_recipe', { recipe_id: recipeId })
     .then(function (data) {
       if (!data || !data.ok || !data.data || !data.data.recipe) {
@@ -88,6 +90,12 @@ function computeRecipeQuote(recipeId, rawTarget, saleType, millGrain) {
       var hasLockedPrice = Number(recipe.locked_price) > 0;
       var pricingMode = recipe.pricing_mode || (hasLockedPrice ? 'locked' : 'dynamic');
 
+      // MOD-02 (36-03): determine which ingredient list to scale for stock check + response
+      // When modifiedIngredients is provided, the response ingredient list reflects the modified list;
+      // the server fetched originalIngredients (ingredients) are still used for locked-add detection.
+      var isModified = Array.isArray(modifiedIngredients);
+      var baseIngredients = isModified ? modifiedIngredients : ingredients;
+
       return cache.get(C.CACHE_KEYS.INGREDIENTS_ALL).then(function (ingredientCatalog) {
         if (!ingredientCatalog || !Array.isArray(ingredientCatalog)) {
           return Promise.reject({ status: 503, body: { error: 'Ingredient catalog not available — try again shortly' } });
@@ -99,14 +107,20 @@ function computeRecipeQuote(recipeId, rawTarget, saleType, millGrain) {
           if (item && item.item_id) catalogMap[item.item_id] = item;
         });
 
-        // Scale ingredient quantities server-side (D-01/D-02/D-03)
-        var scaledIngredients = scaling.scaleIngredients(ingredients, scaleFactor);
+        // Scale the base ingredient list (modified or original) for stock check + response
+        var scaledIngredients = scaling.scaleIngredients(baseIngredients, scaleFactor);
 
-        // Stock check (D-08) — always run; callers decide whether to gate or report
+        // Stock check (D-08) — always run on the scaled (potentially modified) list
         var stockCheck = scaling.checkScaledStock(scaledIngredients, catalogMap);
 
         // Re-price via tested helper (SCALE-03, D-04/D-05/D-07)
-        var grandTotal = scaling.computeScaledRecipeTotal(recipe, scaledIngredients, catalogMap, saleType);
+        // MOD-02 (36-03): when modified list present, use computeModifiedRecipeTotal (server-authoritative)
+        var grandTotal;
+        if (isModified) {
+          grandTotal = scaling.computeModifiedRecipeTotal(recipe, ingredients, modifiedIngredients, catalogMap, scaleFactor, saleType);
+        } else {
+          grandTotal = scaling.computeScaledRecipeTotal(recipe, scaledIngredients, catalogMap, saleType);
+        }
 
         // Take-out milling fee — added on top of helper result (helper does not know about milling)
         var millingFeeAdded = 0;
@@ -132,7 +146,8 @@ function computeRecipeQuote(recipeId, rawTarget, saleType, millGrain) {
           catalogMap: catalogMap,
           scaledIngredients: scaledIngredients,
           stockCheck: stockCheck,
-          grandTotal: grandTotal
+          grandTotal: grandTotal,
+          isModified: isModified
         };
       });
     });
@@ -164,8 +179,10 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
     return res.status(400).json({ error: 'sale_type must be in-store or take-out' });
   }
   var millGrain = body.mill_grain === true;
+  // MOD-02 (36-03): pass modified_ingredients to pricing helper if provided (array from JSON body)
+  var modifiedIngredients = Array.isArray(body.modified_ingredients) ? body.modified_ingredients : undefined;
 
-  computeRecipeQuote(body.recipe_id, body.target_volume_l, body.sale_type, millGrain)
+  computeRecipeQuote(body.recipe_id, body.target_volume_l, body.sale_type, millGrain, modifiedIngredients)
     .then(function (quote) {
       var grandTotal = quote.grandTotal;
       var scaleFactor = quote.scaleFactor;
@@ -246,21 +263,36 @@ router.get('/api/kiosk/recipe-quote', function (req, res) {
     return res.status(400).json({ error: 'Missing recipe_id' });
   }
 
-  computeRecipeQuote(recipeId, query.target_volume_l, saleType, false)
+  // MOD-02 (36-03): parse optional modified_ingredients JSON-encoded array from query string
+  // Malformed JSON is silently treated as null (unmodified quote) — no 500 (T-36-09 safe)
+  var modifiedIngredients = null;
+  if (query.modified_ingredients) {
+    try {
+      modifiedIngredients = JSON.parse(query.modified_ingredients);
+      if (!Array.isArray(modifiedIngredients)) modifiedIngredients = null;
+    } catch (e) {
+      modifiedIngredients = null;
+    }
+  }
+
+  computeRecipeQuote(recipeId, query.target_volume_l, saleType, false, modifiedIngredients)
     .then(function (quote) {
       var catalogMap = quote.catalogMap;
 
-      // Build enriched ingredient list for the response
+      // Build enriched ingredient list for the response.
+      // MOD-02 (36-03): when modified, scaledIngredients reflects the SCALED MODIFIED list.
+      // base_quantity is looked up from the modified list (pre-scale), not the original recipe.
+      var baseList = modifiedIngredients || quote.ingredients;
       var ingredientList = quote.scaledIngredients.map(function (scaled) {
-        // Find original (unscaled) quantity from the raw ingredients array
-        var original = null;
-        for (var i = 0; i < quote.ingredients.length; i++) {
-          if (quote.ingredients[i].item_id === scaled.item_id) {
-            original = quote.ingredients[i];
+        // Find the pre-scale quantity from the base list (modified or original)
+        var baseEntry = null;
+        for (var i = 0; i < baseList.length; i++) {
+          if (baseList[i].item_id === scaled.item_id) {
+            baseEntry = baseList[i];
             break;
           }
         }
-        var baseQty = original ? (Number(original.quantity) || 0) : 0;
+        var baseQty = baseEntry ? (Number(baseEntry.quantity) || 0) : 0;
         var catalogEntry = catalogMap[scaled.item_id];
         var rate = catalogEntry ? (Number(catalogEntry.rate) || 0) : 0;
         var scaledQty = Number(scaled.quantity) || 0;
@@ -275,7 +307,7 @@ router.get('/api/kiosk/recipe-quote', function (req, res) {
         };
       });
 
-      log.info('[recipe-quote] recipe_id=' + recipeId + ' target_volume_l=' + quote.targetVolumeL + ' scale_factor=' + quote.scaleFactor + ' total=' + quote.grandTotal);
+      log.info('[recipe-quote] recipe_id=' + recipeId + ' target_volume_l=' + quote.targetVolumeL + ' scale_factor=' + quote.scaleFactor + ' total=' + quote.grandTotal + ' is_modified=' + quote.isModified);
 
       res.status(200).json({
         ok: true,
@@ -285,6 +317,7 @@ router.get('/api/kiosk/recipe-quote', function (req, res) {
         scale_factor: quote.scaleFactor,
         pricing_mode: quote.pricingMode,
         total: quote.grandTotal,
+        is_modified: quote.isModified,
         ingredients: ingredientList,
         stock: {
           ok: quote.stockCheck.ok,
