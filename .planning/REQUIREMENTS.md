@@ -74,10 +74,10 @@
 | SCALE-03 | Phase 35 | Complete |
 | SCALE-04 | Phase 35 | Complete |
 | SCALE-05 | Phase 35 | Complete |
-| SEL-01 | Phase 36 | Complete |
-| SEL-02 | Phase 36 | Complete |
-| MOD-01 | Phase 36 | Complete |
-| MOD-02 | Phase 36 | Complete |
-| MOD-03 | Phase 36 | Complete |
+| SEL-01 | Phase 36 | Awaiting UAT |
+| SEL-02 | Phase 36 | Awaiting UAT |
+| MOD-01 | Phase 36 | Awaiting UAT |
+| MOD-02 | Phase 36 | Awaiting UAT |
+| MOD-03 | Phase 36 | Awaiting UAT |
 | BPR-01 | Phase 37 | Complete |
 | BPR-02 | Phase 37 | Complete |
