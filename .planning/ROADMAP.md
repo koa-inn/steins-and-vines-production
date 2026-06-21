@@ -470,8 +470,27 @@ Plans:
   4. The modified ingredient list is priced server-authoritatively (same `pos-recipe.js` / `lib/pricing.js` path as a standard sale) and the Zoho invoice and frozen `recipe_snapshot` reflect the actual ingredients sold, not the original template
   5. A staff member can optionally tap "Save as new recipe" after a one-off modification; this creates a new recipe via the existing recipe-create endpoint (`SV-R-…` ID, activation guardrails enforced), leaving the original recipe untouched
 
-**Plans**: TBD
+**Plans**: 7 plans (4 waves)
 **UI hint**: yes
+Plans:
+**Wave 1** (parallel — disjoint middleware files)
+
+- [ ] 36-01-PLAN.md — Pure computeModifiedRecipeTotal helper (locked-add/remove asymmetry D-07/D-08, dynamic D-09) + worked-example tests (MOD-02)
+- [ ] 36-02-PLAN.md — SEL-02 carry-through: detectRecipeSale forwards target_volume_l/scale_factor onto the batch payload + Apps Script create_batch redeploy (human-action) (SEL-02)
+
+**Wave 2**
+
+- [ ] 36-03-PLAN.md — Wire modified_ingredients into computeRecipeQuote + recipe-quote/recipe-sale/confirm + freeze modified_base_ingredients/is_modified into snapshot (MOD-02)
+
+**Wave 3** (parallel — disjoint surface files)
+
+- [ ] 36-04-PLAN.md — Admin: modify panel + server-quote modified price + (Modified) label + save-as-new (MOD-01, MOD-02, MOD-03, SEL-01)
+- [ ] 36-05-PLAN.md — Kiosk: port Phase 35 control + modify panel (iOS-zoom-safe), no save-as-new (SEL-01, SEL-02, MOD-01, MOD-02)
+- [ ] 36-06-PLAN.md — BrewPad attach: port control + modify panel + soft stock advisory + scaled+modified snapshot (no charge) + save-as-new (SEL-01, SEL-02, MOD-01, MOD-03)
+
+**Wave 4** (depends on all surfaces)
+
+- [ ] 36-07-PLAN.md — Staging deploy + cross-surface human UAT (locked-remove asymmetry, carry-through, save-as-new) + REQUIREMENTS traceability (SEL-01, SEL-02, MOD-01, MOD-02, MOD-03)
 
 ### Phase 37: BrewPad Recipe Manager
 
@@ -523,7 +542,7 @@ Plans:
 | 33. Deploy Safety & Monitoring | v4.2 | 3/3 | Complete    | 2026-06-18 |
 | 34. Ingredient Display & Server Enrichment | v4.3 | 3/3 | Complete   | 2026-06-20 |
 | 35. Batch Scaling Engine | v4.3 | 6/6 | Complete    | 2026-06-21 |
-| 36. Cross-Surface Selection & Recipe Modification | v4.3 | 0/TBD | Not started | - |
+| 36. Cross-Surface Selection & Recipe Modification | v4.3 | 0/7 | Planned | - |
 | 37. BrewPad Recipe Manager | v4.3 | 3/3 | Complete    | 2026-06-20 |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
