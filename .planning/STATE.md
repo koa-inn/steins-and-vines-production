@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Recipe Builder Refinement
-status: verifying
-stopped_at: 35-06 COMPLETE — all tasks done. Phase 35 complete — awaiting deploy (railway up + git push origin main) and UAT.
-last_updated: "2026-06-20T23:55:00.000Z"
+status: ready_to_plan
+stopped_at: Phase 35 complete (6/6) — ready to discuss Phase 37
+last_updated: 2026-06-21T00:31:03.185Z
 last_activity: 2026-06-20
 progress:
   total_phases: 23
   completed_phases: 2
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
   percent: 9
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 35 — batch-scaling-engine
+**Current focus:** Phase 37 — brewpad recipe manager
 
 ## Current Position
 
-Phase: 35 (batch-scaling-engine) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-06-20
+Phase: 37
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-21
 
 Progress: [█████████░] 92%
 
@@ -36,7 +36,7 @@ Progress: [█████████░] 92%
 
 **Velocity:**
 
-- Total plans completed: 41 (prior milestone v4.1) + 11 (v4.2)
+- Total plans completed: 47 (prior milestone v4.1) + 11 (v4.2)
 - Average duration: 3 min
 - Total execution time: ~3 hrs
 
