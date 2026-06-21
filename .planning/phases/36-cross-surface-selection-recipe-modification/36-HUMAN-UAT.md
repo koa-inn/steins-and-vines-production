@@ -28,8 +28,8 @@ result: [pending]
 expected: A sale at a non-1× volume flows the chosen volume through cart → Zoho invoice → frozen recipe_snapshot → created batch record with NO re-entry. The batch row shows target_volume_l + scale_factor. (Depends on test #5.)
 result: [pending]
 
-### 5. Apps Script create_batch redeploy (SEL-02 — BLOCKED human-action)
-expected: adminApi.gs create_batch handler reads payload.target_volume_l + scale_factor and writes them to the Batches sheet row (columns added if missing); existing Web App deployment redeployed (same URL). Verified by a staging sale at 30 L / 1.5× showing those values on the batch row without re-typing.
+### 5. Apps Script create_batch redeploy (SEL-02 — human-action; CODE NOW IN REPO)
+expected: The code is committed in `apps-script/adminApi.gs` (createBatch now writes target_volume_l + scale_factor by header lookup, commit f5037c2). Two LIVE steps remain: (a) add `target_volume_l` and `scale_factor` column headers to the Batches sheet; (b) copy apps-script/adminApi.gs into the Apps Script editor (or clasp push) and redeploy the existing Web App (same URL). Verified by a staging sale at 30 L / 1.5× showing those values on the batch row without re-typing.
 result: [pending]
 
 ### 6. BrewPad attach is record-keeping only (D-10/D-11)
