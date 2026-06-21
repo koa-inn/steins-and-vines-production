@@ -36,7 +36,7 @@
 ### Recipe Modification (MOD)
 
 - [ ] **MOD-01**: At recipe-selection time, staff can add, remove, or substitute ingredients for a one-off modified sale/batch without altering the saved recipe template.
-- [ ] **MOD-02**: Modified ingredient lists are priced server-authoritatively and captured in the Zoho invoice line items and the frozen `recipe_snapshot`.
+- [x] **MOD-02**: Modified ingredient lists are priced server-authoritatively and captured in the Zoho invoice line items and the frozen `recipe_snapshot`.
 - [ ] **MOD-03**: A one-off modified selection can optionally be saved as a new recipe (`SV-R-…`) via the existing recipe-create path, respecting activation guardrails.
 
 ### BrewPad Recipe Manager (BPR)
@@ -77,7 +77,7 @@
 | SEL-01 | Phase 36 | Pending |
 | SEL-02 | Phase 36 | Pending |
 | MOD-01 | Phase 36 | Pending |
-| MOD-02 | Phase 36 | Pending |
+| MOD-02 | Phase 36 | Complete |
 | MOD-03 | Phase 36 | Pending |
 | BPR-01 | Phase 37 | Complete |
 | BPR-02 | Phase 37 | Complete |

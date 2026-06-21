@@ -4,13 +4,13 @@ milestone: v4.3
 milestone_name: Recipe Builder Refinement
 status: executing
 stopped_at: Phase 36 UI-SPEC approved
-last_updated: "2026-06-21T04:12:15.791Z"
-last_activity: 2026-06-21 -- Phase 36 execution started
+last_updated: "2026-06-21T04:16:21.002Z"
+last_activity: 2026-06-21
 progress:
   total_phases: 23
   completed_phases: 3
   total_plans: 19
-  completed_plans: 12
+  completed_plans: 13
   percent: 13
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 36 (cross-surface-selection-recipe-modification) — EXECUTING
-Plan: 1 of 7
-Status: Executing Phase 36
-Last activity: 2026-06-21 -- Phase 36 execution started
+Plan: 2 of 7
+Status: Ready to execute
+Last activity: 2026-06-21
 
-Progress: [█████████░] 92%
+Progress: [███████░░░] 68%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [█████████░] 92%
 - [Phase ?]: D-06 global fee-inclusive: locked recipes now charge locked_price * scale_factor + service_fee + materials_fee at ALL scale factors (even 1x)
 - [Phase ?]: SCALE-04: recipe_snapshot now contains scaledIngredients + target_volume_l + scale_factor, enabling batch creation from scaled sale data
 - [35-06]: Server-quote approach chosen — client fetches /api/kiosk/recipe-quote (dry-run) to guarantee displayed price === charged price with no client-side drift
+- [Phase ?]: 36-01 complete
 
 ### Pending Todos
 
@@ -66,6 +67,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-21T01:10:33.871Z
+Last session: 2026-06-21T04:16:20.996Z
 Stopped at: Phase 36 UI-SPEC approved
-Resume file: .planning/phases/36-cross-surface-selection-recipe-modification/36-UI-SPEC.md
+Resume file: None
