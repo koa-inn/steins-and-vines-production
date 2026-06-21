@@ -656,6 +656,50 @@ function recipeDeleteConfirmMessage(name) {
   return 'Delete recipe "' + (name || '') + '"? This cannot be undone.';
 }
 
+// =============================================================================
+// Phase 36: bpScaleIngredients — pure scaling helper.
+// Lifted to module scope for unit-testing parity with lib/recipe-scaling.js.
+//
+// Unit classification mirrors zoho-middleware/lib/recipe-scaling.js EXACTLY:
+//   CONTINUOUS: kg, g, l, ml → linear (4dp float-safe round)
+//   DISCRETE:   pcs, each, unit, pkg, ft → Math.max(1, Math.ceil(rawQty))
+//   Non-blank, unknown → discrete (conservative default)
+//   Blank / null → continuous (D-03: unknown blank → linear)
+//
+// Returns new array of shallow-cloned ingredients; never mutates input.
+// =============================================================================
+var BP_CONTINUOUS_UNITS = ['kg', 'g', 'l', 'ml'];
+var BP_DISCRETE_UNITS   = ['pcs', 'each', 'unit', 'pkg', 'ft'];
+
+function bpScaleIngredient(ing, factor) {
+  var rawQty    = (Number(ing.quantity) || 0) * factor;
+  var unitLower = (ing.unit || '').toLowerCase().trim();
+
+  var isContinuous = BP_CONTINUOUS_UNITS.indexOf(unitLower) !== -1;
+  var isDiscrete   = BP_DISCRETE_UNITS.indexOf(unitLower)   !== -1;
+
+  // D-03: blank unit → continuous (linear)
+  if (!unitLower) {
+    isContinuous = true;
+    isDiscrete   = false;
+  } else if (!isContinuous && !isDiscrete) {
+    // Non-blank unknown token → discrete (conservative default)
+    isDiscrete = true;
+  }
+
+  var scaledQty = isDiscrete
+    ? Math.max(1, Math.ceil(rawQty))
+    : Math.round(rawQty * 10000) / 10000; // 4dp prevents float drift
+
+  return Object.assign({}, ing, { quantity: scaledQty });
+}
+
+function bpScaleIngredients(list, factor) {
+  return (list || []).map(function (ing) {
+    return bpScaleIngredient(ing, factor);
+  });
+}
+
 (function () {
   'use strict';
 
@@ -1187,6 +1231,244 @@ function recipeDeleteConfirmMessage(name) {
 
   function mwApiKey() {
     return (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) || '';
+  }
+
+  // ===== Phase 36: Recipe-Attach Flow — Scale + Modify + Advisory =====
+  //
+  // D-10: Attach has NO money path — no recipe-quote, no recipe-sale, no Helcim.
+  // D-11: Stock advisory is soft (non-blocking) — Attach button never disabled by stock.
+  // D-12/D-13/D-14: Save-as-new creates a draft dynamic recipe from the pre-scale base list.
+
+  // Attach-flow state (closure-scoped to the IIFE)
+  var _bpTargetVolumeL       = null;   // number | null: selected target volume in litres
+  var _bpScaleFactor         = 1.0;    // computed scale factor for display + snapshot
+  var _bpModifiedIngredients = null;   // array | null: deep-copied + edited base ingredients
+  var _bpResolvedRecipe      = null;   // { recipe, ingredients } from /api/recipes/:id
+  var _bpAttachCatalog       = [];     // ingredient catalog for stock advisory (from _recipesState)
+
+  // bpScaleIngredient / bpScaleIngredients are top-level pure functions (above IIFE).
+  // They reference BP_CONTINUOUS_UNITS / BP_DISCRETE_UNITS from module scope.
+
+  // ---------------------------------------------------------------------------
+  // buildBpAttachSnapshot — builds the recipe_snapshot for the Attach write.
+  //
+  // Snapshot includes:
+  //   name, style, abv, ibu, batch_size_l, notes  — from resolved recipe
+  //   target_volume_l                              — from _bpTargetVolumeL
+  //   scale_factor                                 — from _bpScaleFactor
+  //   ingredients                                  — base ingredient list (for compatibility)
+  //   scaledIngredients                            — scaled(_bpModifiedIngredients || base, factor)
+  //   modified_base_ingredients                    — _bpModifiedIngredients | null
+  //   is_modified                                  — !!_bpModifiedIngredients
+  // ---------------------------------------------------------------------------
+  function buildBpAttachSnapshot() {
+    if (!_bpResolvedRecipe) return null;
+    var snap = _bpResolvedRecipe.recipe || {};
+    var baseIngredients = _bpResolvedRecipe.ingredients || [];
+    var listToScale = _bpModifiedIngredients || baseIngredients;
+    var factor = _bpScaleFactor || 1.0;
+    var targetVol = _bpTargetVolumeL != null ? _bpTargetVolumeL : (Number(snap.batch_size_l) || null);
+
+    var mappedBase = baseIngredients.map(function (i) {
+      return {
+        item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit,
+        cf_type: i.cf_type || '', cf_subcategory: i.cf_subcategory || '', display_group: i.display_group || ''
+      };
+    });
+
+    return {
+      name:                    snap.name || '',
+      style:                   snap.style || '',
+      abv:                     snap.abv   || 0,
+      ibu:                     snap.ibu   || 0,
+      batch_size_l:            snap.batch_size_l || null,
+      notes:                   snap.notes || '',
+      target_volume_l:         targetVol,
+      scale_factor:            factor,
+      ingredients:             mappedBase,
+      scaledIngredients:       bpScaleIngredients(listToScale, factor),
+      modified_base_ingredients: _bpModifiedIngredients || null,
+      is_modified:             !!_bpModifiedIngredients
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // refreshBpStockAdvisory — checks scaled quantities vs catalog stock.
+  // Renders soft advisory into #bp-recipe-stock-advisory (never disables Attach).
+  // ---------------------------------------------------------------------------
+  function refreshBpStockAdvisory() {
+    var advisoryEl = document.getElementById('bp-recipe-stock-advisory');
+    if (!advisoryEl) return;
+
+    if (!_bpResolvedRecipe) {
+      advisoryEl.style.display = 'none';
+      return;
+    }
+
+    var listToScale = _bpModifiedIngredients || (_bpResolvedRecipe.ingredients || []);
+    var factor = _bpScaleFactor || 1.0;
+    var scaled = bpScaleIngredients(listToScale, factor);
+
+    // Build catalog lookup from _bpAttachCatalog (populated on attach panel open)
+    var catalogMap = {};
+    (_bpAttachCatalog || []).forEach(function (item) {
+      catalogMap[item.item_id] = item;
+    });
+
+    var conflicts = [];
+    scaled.forEach(function (ing) {
+      var entry = catalogMap[ing.item_id];
+      if (!entry) return;
+      var stock  = Number(entry.stock_on_hand) || 0;
+      var needed = Number(ing.quantity) || 0;
+      if (needed > stock) {
+        conflicts.push({ item_name: ing.item_name, needed: needed, stock: stock, unit: ing.unit });
+      }
+    });
+
+    if (conflicts.length === 0) {
+      advisoryEl.style.display = 'none';
+      advisoryEl.innerHTML = '';
+    } else {
+      var html = 'Some ingredients may need restocking before brewing: ';
+      var items = conflicts.map(function (c) {
+        return escapeHTML(c.item_name) + ' (' + escapeHTML(String(c.needed)) + ' ' + escapeHTML(c.unit || '') + ' needed, ' + escapeHTML(String(c.stock)) + ' available)';
+      });
+      advisoryEl.innerHTML = html + items.join(', ');
+      advisoryEl.style.display = '';
+      // D-11: NEVER disable the Attach button based on stock
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // renderBpModifyRows — renders editable ingredient rows in #bp-modify-tbody.
+  // Reuses existing bp autocomplete pattern and groupRecipeIngredients grouping.
+  // ---------------------------------------------------------------------------
+  function renderBpModifyRows() {
+    var tbody = document.getElementById('bp-modify-tbody');
+    if (!tbody) return;
+
+    var ingredients = _bpModifiedIngredients || [];
+
+    if (!ingredients.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="bp-modify-empty">No ingredients — use ‘+ Add Ingredient’ to build a custom list</td></tr>';
+      return;
+    }
+
+    var groups = (typeof groupRecipeIngredients === 'function')
+      ? groupRecipeIngredients(ingredients)
+      : [{ label: '', count: ingredients.length, items: ingredients }];
+
+    var html = '';
+    groups.forEach(function (group) {
+      if (group.label) {
+        html += '<tr class="bp-recipe-ing-group"><td colspan="4"><strong>' + escapeHTML(group.label) + ' (' + group.count + ')</strong></td></tr>';
+      }
+      group.items.forEach(function (ing) {
+        var idx = ingredients.indexOf(ing); // CRITICAL: original array index (PATTERNS #7)
+        html += '<tr class="bp-recipe-ing-row" data-ing-idx="' + idx + '">';
+        html += '<td><div class="bp-ing-autocomplete-wrap"><input type="text" class="bp-input bp-ing-search" value="' + escapeHTML(ing.item_name || '') + '" autocomplete="off" /></div></td>';
+        html += '<td><input type="number" class="bp-input bp-ing-qty" value="' + escapeHTML(String(ing.quantity || 0)) + '" step="0.01" min="0" inputmode="decimal" style="width:70px;" /></td>';
+        html += '<td class="bp-ing-unit">' + escapeHTML(ing.unit || '') + '</td>';
+        html += '<td><button type="button" class="btn-secondary bp-btn-sm bp-ing-remove" aria-label="Remove ' + escapeHTML(ing.item_name || '') + '">&#10005;</button></td>';
+        html += '</tr>';
+      });
+    });
+
+    tbody.innerHTML = html;
+    attachBpModifyRowListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // attachBpModifyRowListeners — wires remove / qty / autocomplete on #bp-modify-tbody.
+  // ---------------------------------------------------------------------------
+  function attachBpModifyRowListeners() {
+    var tbody = document.getElementById('bp-modify-tbody');
+    if (!tbody) return;
+
+    // Remove buttons
+    tbody.querySelectorAll('.bp-ing-remove').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var row = btn.closest('.bp-recipe-ing-row');
+        var idx = parseInt(row && row.getAttribute('data-ing-idx'), 10);
+        if (isNaN(idx) || idx < 0 || !_bpModifiedIngredients) return;
+        _bpModifiedIngredients.splice(idx, 1);
+        renderBpModifyRows();
+        refreshBpStockAdvisory();
+      });
+    });
+
+    // Quantity change
+    tbody.querySelectorAll('.bp-ing-qty').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var row = input.closest('.bp-recipe-ing-row');
+        var idx = parseInt(row && row.getAttribute('data-ing-idx'), 10);
+        if (!isNaN(idx) && _bpModifiedIngredients && _bpModifiedIngredients[idx]) {
+          _bpModifiedIngredients[idx].quantity = parseFloat(input.value) || 0;
+        }
+        refreshBpStockAdvisory();
+      });
+    });
+
+    // Autocomplete on search inputs
+    tbody.querySelectorAll('.bp-ing-search').forEach(function (input) {
+      input.addEventListener('input', function () {
+        showIngredientAutocompleteBp(input);
+      });
+      input.addEventListener('focus', function () {
+        if (!input.value) showIngredientAutocompleteBp(input);
+      });
+      input.addEventListener('blur', function () {
+        setTimeout(function () { hideIngredientAutocompleteBp(input); }, 200);
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // bpAttachRecipe — writes the scaled+modified snapshot via update_batch.
+  // NO quote/charge/sale call — D-10.
+  // ---------------------------------------------------------------------------
+  function bpAttachRecipe(batchId) {
+    if (!_bpResolvedRecipe) return Promise.reject(new Error('No recipe resolved'));
+    var rid = _bpResolvedRecipe.recipe && _bpResolvedRecipe.recipe.recipe_id;
+    var snapshot = buildBpAttachSnapshot();
+    return adminApiPost('update_batch', {
+      batch_id: batchId,
+      updates: { recipe_id: rid, recipe_snapshot: JSON.stringify(snapshot) }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // bpSaveAsNewRecipe — POSTs a draft dynamic recipe with the pre-scale base list.
+  // D-12: modified BASE list (pre-scale). D-13: pricing_mode='dynamic'. D-14: status='draft'.
+  // Original recipe is never PUTted.
+  // ---------------------------------------------------------------------------
+  function bpSaveAsNewRecipe(name, modifiedBaseIngredients) {
+    if (!_bpResolvedRecipe) return Promise.reject(new Error('No recipe resolved'));
+    var snap = _bpResolvedRecipe.recipe || {};
+    var payload = {
+      name: name,
+      style: snap.style || '',
+      batch_size_l: snap.batch_size_l || null,
+      pricing_mode: 'dynamic',
+      status: 'draft',
+      ingredients: modifiedBaseIngredients
+    };
+    return fetch(mwUrl() + '/api/recipes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': mwApiKey() },
+      body: JSON.stringify(payload)
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || 'Create failed');
+        showToast('Recipe saved as draft — activate in Recipes tab to use', 'success');
+        return data;
+      })
+      .catch(function (err) {
+        showToast('Could not save recipe — try again', 'error');
+        throw err;
+      });
   }
 
   // Send a bottling-appointment invite via the middleware (Resend). Resolves on
@@ -3736,20 +4018,213 @@ function recipeDeleteConfirmMessage(name) {
     return result;
   }
 
+  // ---------------------------------------------------------------------------
+  // wireAttachExpandedPanel — wires the Phase 36 controls inside
+  // #bp-recipe-attach-expanded after a recipe has been resolved.
+  // Called by openRecipeAttachPanel when a recipe option is selected.
+  // ---------------------------------------------------------------------------
+  function wireAttachExpandedPanel(b, sectionBodyEl) {
+    // Reset attach-flow state
+    _bpModifiedIngredients = null;
+    _bpScaleFactor         = 1.0;
+
+    // Populate _bpAttachCatalog from _recipesState.catalog (may need lazy load)
+    if (_recipesState.catalogLoaded) {
+      _bpAttachCatalog = _recipesState.catalog.slice();
+    } else {
+      // Non-blocking: load catalog async; advisory will refresh when done
+      loadIngredientCatalogForRecipes().then(function () {
+        _bpAttachCatalog = _recipesState.catalog.slice();
+        refreshBpStockAdvisory();
+        // Update save-as-new visibility if it changed
+        var sanWrap = document.getElementById('bp-save-as-new-wrap');
+        if (sanWrap) sanWrap.style.display = _bpModifiedIngredients ? '' : 'none';
+      }).catch(function () {});
+    }
+
+    // ---- Volume control wiring (ported from admin.js lines 11150-11190) ----
+    var volWrap     = document.getElementById('bp-recipe-volume-wrap');
+    var volInput    = document.getElementById('bp-target-volume');
+    var factorRdout = document.getElementById('bp-scale-factor-readout');
+    var snap        = _bpResolvedRecipe ? (_bpResolvedRecipe.recipe || {}) : {};
+    var baseVol     = Number(snap.batch_size_l) || 0;
+
+    _bpTargetVolumeL = baseVol > 0 ? baseVol : null;
+    _bpScaleFactor   = 1.0;
+
+    if (volWrap) volWrap.style.display = '';
+    if (baseVol > 0) {
+      if (volInput) {
+        volInput.value    = baseVol;
+        volInput.max      = baseVol * 10;
+        volInput.disabled = false;
+      }
+      if (factorRdout) factorRdout.textContent = '1.0\xd7 base ' + baseVol.toFixed(1) + ' L';
+    } else {
+      // D-01 no-base disable
+      if (volInput) volInput.disabled = true;
+      if (factorRdout) factorRdout.textContent = 'Set batch size (L) on this recipe to enable scaling';
+    }
+
+    if (volInput) {
+      volInput.oninput = function () {
+        var val = parseFloat(volInput.value) || 0;
+        _bpTargetVolumeL = val > 0 ? val : null;
+        var factor = (val > 0 && baseVol > 0) ? val / baseVol : 1;
+        _bpScaleFactor = factor;
+        if (factorRdout) {
+          factorRdout.textContent = factor.toFixed(2) + '\xd7 base ' + baseVol.toFixed(1) + ' L';
+        }
+        refreshBpStockAdvisory();
+      };
+    }
+
+    // ---- Modify ingredients toggle ----
+    var modifyWrap   = document.getElementById('bp-recipe-modify-wrap');
+    var modifyToggle = document.getElementById('bp-modify-toggle');
+    var modifyPanel  = document.getElementById('bp-modify-panel');
+    var sanWrap      = document.getElementById('bp-save-as-new-wrap');
+
+    if (modifyWrap) modifyWrap.style.display = '';
+
+    if (modifyToggle && modifyPanel) {
+      modifyToggle.onclick = function () {
+        var isOpen = modifyPanel.style.display !== 'none';
+        if (!isOpen) {
+          // Expand: deep-copy base ingredients into _bpModifiedIngredients on first open
+          if (!_bpModifiedIngredients && _bpResolvedRecipe) {
+            _bpModifiedIngredients = (_bpResolvedRecipe.ingredients || []).map(function (ing) {
+              return Object.assign({}, ing);
+            });
+          }
+          renderBpModifyRows();
+          modifyPanel.style.display = '';
+          modifyToggle.textContent = 'Modify Ingredients ▲';
+          if (sanWrap) sanWrap.style.display = '';
+        } else {
+          modifyPanel.style.display = 'none';
+          modifyToggle.textContent = 'Modify Ingredients';
+        }
+      };
+    }
+
+    // ---- Add Ingredient button ----
+    var addRowBtn = document.getElementById('bp-modify-add-row');
+    if (addRowBtn) {
+      addRowBtn.onclick = function () {
+        if (!_bpModifiedIngredients && _bpResolvedRecipe) {
+          _bpModifiedIngredients = (_bpResolvedRecipe.ingredients || []).map(function (ing) {
+            return Object.assign({}, ing);
+          });
+        }
+        if (!_bpModifiedIngredients) _bpModifiedIngredients = [];
+        _bpModifiedIngredients.push({ item_id: '', item_name: '', quantity: 0, unit: '', cf_type: '', cf_subcategory: '', display_group: '' });
+        renderBpModifyRows();
+        refreshBpStockAdvisory();
+        if (sanWrap) sanWrap.style.display = '';
+        // Focus last search input
+        var tbody = document.getElementById('bp-modify-tbody');
+        if (tbody) {
+          var lastSearch = tbody.querySelector('.bp-recipe-ing-row:last-child .bp-ing-search');
+          if (lastSearch) lastSearch.focus();
+        }
+      };
+    }
+
+    // ---- Advisory initial render ----
+    refreshBpStockAdvisory();
+
+    // ---- Attach confirm button ----
+    var confirmBtn = document.getElementById('bp-recipe-attach-confirm-btn');
+    if (confirmBtn) {
+      confirmBtn.style.display = '';
+      confirmBtn.onclick = null;
+      confirmBtn.onclick = function () {
+        confirmBtn.disabled = true;
+        bpAttachRecipe(b.batch_id).then(function () {
+          var snap2 = buildBpAttachSnapshot();
+          b.recipe_id = _bpResolvedRecipe && _bpResolvedRecipe.recipe && _bpResolvedRecipe.recipe.recipe_id;
+          b.recipe_snapshot = JSON.stringify(snap2);
+          try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e3) {}
+          showToast('Recipe attached', 'success');
+          // Hide expanded panel before re-rendering
+          var expPanel = document.getElementById('bp-recipe-attach-expanded');
+          if (expPanel) expPanel.style.display = 'none';
+          renderRecipeSectionBody(sectionBodyEl, b, snap2);
+        }).catch(function (err) {
+          confirmBtn.disabled = false;
+          showToast('Failed: ' + (err.message || 'Unknown error'), 'error');
+        });
+      };
+    }
+
+    // ---- Save-as-new wiring ----
+    var sanBtn       = document.getElementById('bp-save-as-new-btn');
+    var sanPrompt    = document.getElementById('bp-save-as-new-prompt');
+    var sanNameInput = document.getElementById('bp-new-recipe-name');
+    var sanSaveBtn   = document.getElementById('bp-save-draft-btn');
+    var sanCancelBtn = document.getElementById('bp-save-cancel-btn');
+
+    // Hidden until modifications exist (set visible when modify expanded)
+    if (sanWrap) sanWrap.style.display = 'none';
+
+    if (sanBtn && sanPrompt) {
+      sanBtn.onclick = function () {
+        sanPrompt.style.display = '';
+        if (sanNameInput) sanNameInput.value = '';
+        if (sanNameInput) sanNameInput.focus();
+      };
+    }
+    if (sanCancelBtn && sanPrompt) {
+      sanCancelBtn.onclick = function () {
+        sanPrompt.style.display = 'none';
+      };
+    }
+    if (sanSaveBtn) {
+      sanSaveBtn.onclick = function () {
+        var name = sanNameInput ? sanNameInput.value.trim() : '';
+        if (!name) {
+          if (sanNameInput) sanNameInput.focus();
+          return;
+        }
+        sanSaveBtn.disabled = true;
+        var baseList = _bpModifiedIngredients || (_bpResolvedRecipe ? (_bpResolvedRecipe.ingredients || []) : []);
+        bpSaveAsNewRecipe(name, baseList).then(function () {
+          if (sanPrompt) sanPrompt.style.display = 'none';
+        }).catch(function () {
+          sanSaveBtn.disabled = false;
+        });
+      };
+    }
+  }
+
   function openRecipeAttachPanel(b, sectionBodyEl) {
     if (!sectionBodyEl) return;
     var emptyDiv = sectionBodyEl.querySelector('.bp-recipe-empty');
     if (!emptyDiv) return;
+
+    // Reset attach-flow state on panel open
+    _bpResolvedRecipe      = null;
+    _bpModifiedIngredients = null;
+    _bpTargetVolumeL       = null;
+    _bpScaleFactor         = 1.0;
+
+    // Hide the expanded panel until a recipe resolves
+    var expandedPanel = document.getElementById('bp-recipe-attach-expanded');
+    if (expandedPanel) expandedPanel.style.display = 'none';
+
     emptyDiv.innerHTML =
       '<div class="bp-vessel-wrap" id="bp-recipe-attach-wrap">' +
       '<input type="text" id="bp-recipe-attach-input" class="bp-inline-input" placeholder="Search recipes…" autocomplete="off">' +
       '<div class="bp-vessel-dropdown" id="bp-recipe-attach-dropdown" style="display:none;"></div>' +
       '</div>' +
+      '<div id="bp-attach-resolved-info" style="display:none;margin:6px 0;color:var(--ink-secondary);font-size:0.85rem;"></div>' +
       '<button type="button" class="btn-secondary bp-btn-sm" id="bp-recipe-attach-cancel" style="margin-top:6px;">Cancel</button>';
 
     var input = document.getElementById('bp-recipe-attach-input');
     var dropdown = document.getElementById('bp-recipe-attach-dropdown');
     var cancelBtn = document.getElementById('bp-recipe-attach-cancel');
+    var resolvedInfo = document.getElementById('bp-attach-resolved-info');
     var _catalog = null;
 
     function showAttachOptions(term) {
@@ -3785,35 +4260,46 @@ function recipeDeleteConfirmMessage(name) {
           var rid = opt.getAttribute('data-rid');
           input.value = opt.getAttribute('data-rname') || '';
           dropdown.style.display = 'none';
+
+          // Phase 36: RESOLVE only — do NOT write the batch
           fetch(mwUrl() + '/api/recipes/' + encodeURIComponent(rid), { headers: { 'x-api-key': mwApiKey() } })
             .then(function (r) { return r.json(); })
             .then(function (data) {
               var snap = data.recipe || {};
-              var minimal = {
-                name: snap.name, style: snap.style, abv: snap.abv,
-                ibu: snap.ibu, batch_size_l: snap.batch_size_l, notes: snap.notes || '',
-                ingredients: (data.ingredients || []).map(function (i) {
-                  return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit, cf_type: i.cf_type || '', cf_subcategory: i.cf_subcategory || '', display_group: i.display_group || '' };
-                })
-              };
-              return adminApiPost('update_batch', {
-                batch_id: b.batch_id,
-                updates: { recipe_id: rid, recipe_snapshot: JSON.stringify(minimal) }
-              }).then(function () {
-                b.recipe_id = rid;
-                b.recipe_snapshot = JSON.stringify(minimal);
-                try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e2) {}
-                showToast('Recipe attached', 'success');
-                renderRecipeSectionBody(sectionBodyEl, b, minimal);
+              var ingredients = (data.ingredients || []).map(function (i) {
+                return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit,
+                         cf_type: i.cf_type || '', cf_subcategory: i.cf_subcategory || '', display_group: i.display_group || '',
+                         stock_on_hand: i.stock_on_hand != null ? i.stock_on_hand : null };
               });
+
+              // Store resolved recipe — no update_batch call here (D-10)
+              _bpResolvedRecipe = { recipe: snap, ingredients: ingredients };
+
+              // Show resolved info label
+              if (resolvedInfo) {
+                resolvedInfo.textContent = escapeHTML(snap.name || rid);
+                resolvedInfo.style.display = '';
+              }
+
+              // Show the expanded panel with controls
+              if (expandedPanel) expandedPanel.style.display = '';
+
+              // Wire all controls
+              wireAttachExpandedPanel(b, sectionBodyEl);
             })
-            .catch(function (err) { showToast('Failed: ' + err.message, 'error'); });
+            .catch(function (err) { showToast('Failed to load recipe: ' + err.message, 'error'); });
         });
       });
     }
 
     if (cancelBtn) {
       cancelBtn.addEventListener('click', function () {
+        // Reset state
+        _bpResolvedRecipe      = null;
+        _bpModifiedIngredients = null;
+        _bpTargetVolumeL       = null;
+        _bpScaleFactor         = 1.0;
+        if (expandedPanel) expandedPanel.style.display = 'none';
         emptyDiv.innerHTML =
           '<p style="color:var(--ink-secondary);font-size:0.82rem;margin:0 0 8px 0;">No recipe attached to this batch.</p>' +
           '<div class="bp-recipe-btn-row">' +
@@ -7971,10 +8457,32 @@ function recipeDeleteConfirmMessage(name) {
     waitForGoogleIdentity(initGoogleAuth);
   });
 
+  // Phase 36: export state-dependent attach-flow helpers for testing.
+  // Uses Object.assign into module.exports so these closures can access IIFE-scoped state.
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Object.assign(module.exports || {}, {
+      buildBpAttachSnapshot: buildBpAttachSnapshot,
+      refreshBpStockAdvisory: refreshBpStockAdvisory,
+      bpSaveAsNewRecipe: bpSaveAsNewRecipe,
+      bpAttachRecipe: bpAttachRecipe,
+      // State accessors for testing
+      _bpGetTargetVolumeL:       function () { return _bpTargetVolumeL; },
+      _bpSetTargetVolumeL:       function (v) { _bpTargetVolumeL = v; },
+      _bpGetScaleFactor:         function () { return _bpScaleFactor; },
+      _bpSetScaleFactor:         function (v) { _bpScaleFactor = v; },
+      _bpGetModifiedIngredients: function () { return _bpModifiedIngredients; },
+      _bpSetModifiedIngredients: function (v) { _bpModifiedIngredients = v; },
+      _bpGetResolvedRecipe:      function () { return _bpResolvedRecipe; },
+      _bpSetResolvedRecipe:      function (v) { _bpResolvedRecipe = v; },
+      _bpSetCatalogForTest:      function (v) { _bpAttachCatalog = v || []; }
+    });
+  }
+
 })();
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
+  // Object.assign preserves Phase 36 state-dependent exports set by the IIFE's inner block
+  module.exports = Object.assign(module.exports || {}, {
     escapeHTML: escapeHTML, fmtDate: fmtDate, todayStr: todayStr,
     isOverdue: isOverdue, isToday: isToday,
     filterBatchesByStatus: filterBatchesByStatus,
@@ -8009,6 +8517,9 @@ if (typeof module !== 'undefined' && module.exports) {
     enrichIngredientsWithCatalogRates: enrichIngredientsWithCatalogRates,
     canActivateRecipe: canActivateRecipe,
     buildRecipePayload: buildRecipePayload,
-    recipeDeleteConfirmMessage: recipeDeleteConfirmMessage
-  };
+    recipeDeleteConfirmMessage: recipeDeleteConfirmMessage,
+    // Phase 36: pure top-level scaling helper (mirrors lib/recipe-scaling.js)
+    bpScaleIngredients: bpScaleIngredients
+    // State-dependent attach-flow exports are merged by Object.assign inside the IIFE above
+  });
 }

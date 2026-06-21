@@ -84,7 +84,8 @@ global.SHEETS_CONFIG = {
   GOOGLE_CLIENT_ID: 'test-client-id',
   STAFF_EMAILS: 'test@example.com',
   API_BASE: 'https://script.google.com/test',
-  SERVER_TOKEN: 'test-token'
+  SERVER_TOKEN: 'test-token',
+  ADMIN_API_URL: 'https://script.google.com/test/admin'
 };
 
 // groupRecipeIngredients is loaded via <script> in browser; stub it for tests
