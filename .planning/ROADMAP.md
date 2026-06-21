@@ -486,7 +486,7 @@ Plans:
 
 - [x] 36-04-PLAN.md — Admin: modify panel + server-quote modified price + (Modified) label + save-as-new (MOD-01, MOD-02, MOD-03, SEL-01)
 - [x] 36-05-PLAN.md — Kiosk: port Phase 35 control + modify panel (iOS-zoom-safe), no save-as-new (SEL-01, SEL-02, MOD-01, MOD-02)
-- [ ] 36-06-PLAN.md — BrewPad attach: port control + modify panel + soft stock advisory + scaled+modified snapshot (no charge) + save-as-new (SEL-01, SEL-02, MOD-01, MOD-03)
+- [x] 36-06-PLAN.md — BrewPad attach: port control + modify panel + soft stock advisory + scaled+modified snapshot (no charge) + save-as-new (SEL-01, SEL-02, MOD-01, MOD-03)
 
 **Wave 4** (depends on all surfaces)
 
@@ -542,7 +542,7 @@ Plans:
 | 33. Deploy Safety & Monitoring | v4.2 | 3/3 | Complete    | 2026-06-18 |
 | 34. Ingredient Display & Server Enrichment | v4.3 | 3/3 | Complete   | 2026-06-20 |
 | 35. Batch Scaling Engine | v4.3 | 6/6 | Complete    | 2026-06-21 |
-| 36. Cross-Surface Selection & Recipe Modification | v4.3 | 5/7 | In Progress|  |
+| 36. Cross-Surface Selection & Recipe Modification | v4.3 | 6/7 | In Progress|  |
 | 37. BrewPad Recipe Manager | v4.3 | 3/3 | Complete    | 2026-06-20 |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
