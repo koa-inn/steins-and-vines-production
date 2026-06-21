@@ -1,9 +1,13 @@
 ---
 phase: 36-cross-surface-selection-recipe-modification
 verified: 2026-06-20T12:00:00Z
-status: human_needed
+status: gaps_found
 score: 11/13 must-haves verified
 overrides_applied: 0
+uat_gaps:
+  - "GAP-1 (BLOCKER, MOD-01): modify-panel ingredient autocomplete loads no catalog in sale/attach flow (catalog only loaded in Recipes tab); all 3 surfaces. See 36-HUMAN-UAT.md."
+  - "GAP-2 (enhancement): modify-panel + control UI polish/reorder across all 3 surfaces."
+  - "GAP-3 (enhancement, SEL-01): synced ×factor input next to Target volume (L), two-way synced; all 3 surfaces."
 human_verification:
   - test: "SEL-01 / D-01 — Open admin.html?tab=kiosk, kiosk.html, and a BrewPad batch detail attach panel. Select a recipe on each."
     expected: "The SAME 'Target volume (L)' control appears with the identical '1.5x base N L' readout and the same no-base disabled message on all three surfaces."

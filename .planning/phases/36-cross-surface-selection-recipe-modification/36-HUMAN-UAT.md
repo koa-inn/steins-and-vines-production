@@ -48,9 +48,25 @@ result: [pending]
 
 total: 8
 passed: 0
-issues: 0
-pending: 8
+issues: 3
+pending: 5
 skipped: 0
 blocked: 0
 
 ## Gaps
+
+### GAP-1 (BLOCKER, MOD-01) — Modify-panel ingredient autocomplete loads nothing in the sale/attach flow
+surfaces: admin (js/admin.js), kiosk (js/kiosk.js), BrewPad (js/brewpad.js)
+symptom: Clicking "Modify Ingredients" / "+ Add Ingredient" shows an empty search row, but typing/focusing the ingredient field never lists any catalog items — so staff cannot add or substitute an ingredient at all.
+root_cause: The modify panel reuses `showIngredientAutocomplete()`, which early-returns when `_recipesState.catalogLoaded` is false (js/admin.js:8900). `_recipesState.catalog` is only populated by `loadIngredientCatalogForRecipes()`, which runs in the Recipes management tab — NOT in the recipe-sale/attach flow. In the sale flow the catalog is empty, so the dropdown silently no-ops. Same pattern on kiosk and BrewPad (each has its own catalog loader that isn't triggered on the sale/attach surface).
+fix: When the modify panel first expands (or when the recipe-sale/attach prompt loads), ensure the ingredient catalog is loaded once (guarded) before wiring the autocomplete, on all three surfaces. Add a regression test asserting the dropdown lists items after the panel opens without first visiting the Recipes tab.
+
+### GAP-2 (enhancement) — Modify-panel + control UI polish & reordering
+surfaces: admin, kiosk, BrewPad
+symptom: The modify rows + volume control area is cramped and visually rough (greyed empty inputs, awkward order of: target volume → readout → Modify toggle → rows → Add Ingredient → sale buttons). The empty modify row renders before any ingredient is chosen, looking broken.
+fix: Polish + reorder the recipe-modification region for a cleaner, touch-friendly layout consistent across all three surfaces (see UI-SPEC update). Edit-at-base rows should read clearly; empty-state and add-row affordances should look intentional. Keep ES5/escapeHTML rules.
+
+### GAP-3 (enhancement, SEL-01) — Synced ×factor input alongside Target volume (L)
+surfaces: admin, kiosk, BrewPad
+decision (owner, 2026-06-21): Add a "× factor" number input next to the existing Target volume (L) box. The two are two-way synced: editing the factor updates litres (factor × base_batch_size_l) and editing litres updates the factor (litres ÷ base). The "1.5× base 20 L" readout stays. Same bounds as today (>0, ≤~10× base; no-base ⇒ both disabled). Identical control on all three surfaces (D-01).
+fix: Extend the ported Phase 35 control with the synced factor field + sync logic; reflect in UI-SPEC; add tests for both directions of the sync and bounds.
