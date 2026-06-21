@@ -344,6 +344,64 @@ describe('brewpad-integration', function () {
 
   });
 
+  describe('detectRecipeSale', function () {
+
+    it('forwards target_volume_l and scale_factor from snapshot onto the batch payload', function () {
+      axios.post.mockResolvedValue({ data: { ok: true, batch_id: 'SV-B-000099' } });
+      var snapshot = {
+        name: 'Pinot Noir',
+        style: 'Red Wine',
+        abv: 13.5,
+        locked_price: 120,
+        service_fee: 25,
+        materials_fee: 10,
+        target_volume_l: 30,
+        scale_factor: 1.5,
+        ingredients: []
+      };
+      brewpadIntegration.detectRecipeSale('RCP-0001', snapshot, 'INV-100', 'Jane Doe', 'C-42');
+      // Fire-and-forget — flush microtasks so axios.post is invoked
+      return Promise.resolve().then(function () {
+        expect(axios.post).toHaveBeenCalledTimes(1);
+        var callPayload = JSON.parse(axios.post.mock.calls[0][1]);
+        expect(callPayload.target_volume_l).toBe(30);
+        expect(callPayload.scale_factor).toBe(1.5);
+        expect(callPayload.recipe_id).toBe('RCP-0001');
+        expect(callPayload.source).toBe('kiosk_recipe');
+        expect(callPayload.zoho_so_number).toBe('INV-100');
+      });
+    });
+
+    it('sets target_volume_l to null when snapshot omits it (legacy/unscaled sale)', function () {
+      axios.post.mockResolvedValue({ data: { ok: true, batch_id: 'SV-B-000100' } });
+      var snapshot = {
+        name: 'Standard Kit',
+        style: 'Red Wine',
+        abv: 12,
+        locked_price: 100,
+        service_fee: 20,
+        materials_fee: 5,
+        ingredients: []
+        // target_volume_l and scale_factor intentionally absent
+      };
+      brewpadIntegration.detectRecipeSale('RCP-0002', snapshot, 'INV-101', 'Walk-in', '');
+      return Promise.resolve().then(function () {
+        expect(axios.post).toHaveBeenCalledTimes(1);
+        var callPayload = JSON.parse(axios.post.mock.calls[0][1]);
+        expect(callPayload.target_volume_l).toBeNull();
+        expect(callPayload.scale_factor).toBeNull();
+      });
+    });
+
+    it('does nothing when recipeId is falsy', function () {
+      brewpadIntegration.detectRecipeSale('', {}, 'INV-102', 'Jane', 'C-1');
+      return Promise.resolve().then(function () {
+        expect(axios.post).not.toHaveBeenCalled();
+      });
+    });
+
+  });
+
   describe('retryPendingBatches', function () {
 
     it('does nothing when Redis is not connected', function () {
