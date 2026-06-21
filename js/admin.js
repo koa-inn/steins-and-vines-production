@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-21T04:53:06.414Z';
+  var BUILD_TIMESTAMP = '2026-06-21T13:03:21.608Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -11402,6 +11402,17 @@
           // Show price preview
           if (pricePreview) pricePreview.style.display = '';
           kioskScheduleRecipeQuote();
+          // GAP-1 fix (36): the modify-panel autocomplete reuses showIngredientAutocomplete,
+          // which needs _recipesState.catalog. In the recipe-sale flow that catalog is only
+          // loaded by the Recipes tab — never here — so the dropdown silently listed nothing.
+          // Load it once on first expand and re-render rows on completion so the first focus
+          // lists items without the staff member having to visit the Recipes tab.
+          if (typeof _recipesState !== 'undefined' && !_recipesState.catalogLoaded &&
+              typeof loadIngredientCatalogForRecipes === 'function') {
+            loadIngredientCatalogForRecipes().then(function () {
+              if (_kioskModifyPanelOpen) renderKioskModifyRows();
+            });
+          }
         } else {
           if (modifyPanel) modifyPanel.style.display = 'none';
           modifyToggle.textContent = 'Modify Ingredients';
