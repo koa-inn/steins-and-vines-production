@@ -109,6 +109,36 @@
             <button type="button" class="btn-secondary" id="kiosk-recipe-back">&#8592; Back</button>
             <div class="kiosk-recipe-selected-name" id="kiosk-recipe-selected-name"></div>
             <div id="kiosk-recipe-summary"></div>
+            <!-- PORT from admin.html: Phase 35 volume control (SEL-01/D-01) -->
+            <div id="kiosk-recipe-volume-wrap" style="display:none;">
+              <label class="kiosk-volume-label">
+                Target volume (L):
+                <input type="number" id="kiosk-target-volume" class="kiosk-volume-input"
+                       min="0.5" step="0.5" inputmode="decimal" style="font-size:1rem;" />
+              </label>
+              <div id="kiosk-scale-factor-readout" class="kiosk-scale-readout"></div>
+            </div>
+            <!-- Phase 36: Ingredient modification panel (MOD-01) -->
+            <div id="kiosk-recipe-modify-wrap" style="display:none;">
+              <button type="button" class="btn-secondary" id="kiosk-modify-toggle">Modify Ingredients</button>
+              <div id="kiosk-modify-panel" style="display:none;">
+                <table class="kiosk-recipe-modify-table">
+                  <tbody id="kiosk-modify-tbody"></tbody>
+                </table>
+                <button type="button" class="btn-secondary" id="kiosk-modify-add-row">+ Add Ingredient</button>
+              </div>
+              <div id="kiosk-recipe-price-preview" style="display:none;"></div>
+              <div id="kiosk-locked-price-notice" style="display:none;font-size:11px;color:var(--ink-tertiary);margin-top:4px;">
+                Adding ingredients increases the price. Removing ingredients does not reduce it.
+              </div>
+            </div>
+            <!-- PORT from admin.html: Phase 35 stock conflict block -->
+            <div id="kiosk-stock-conflict" style="display:none;">
+              <div class="kiosk-stock-conflict-msg"></div>
+              <button type="button" class="btn-secondary" id="kiosk-stock-override-btn">
+                Manager Override &#8212; Proceed Anyway
+              </button>
+            </div>
             <div id="kiosk-avail-banner"></div>
             <div class="kiosk-sale-type-btns">
               <button type="button" class="kiosk-sale-type-btn btn-secondary" id="kiosk-btn-in-store">Ferment in Store</button>
@@ -116,7 +146,7 @@
             </div>
             <div id="kiosk-milling-toggle" class="kiosk-milling-toggle" style="display:none;">
               <label>
-                <input type="checkbox" id="kiosk-mill-grain" /> Mill grain?
+                <input type="checkbox" id="kiosk-mill-grain" style="font-size:1rem;" /> Mill grain?
               </label>
             </div>
             <button type="button" class="btn kiosk-add-recipe-btn" id="kiosk-add-recipe-to-cart" style="display:none;">
