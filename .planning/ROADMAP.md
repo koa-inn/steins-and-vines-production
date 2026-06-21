@@ -476,11 +476,11 @@ Plans:
 **Wave 1** (parallel — disjoint middleware files)
 
 - [x] 36-01-PLAN.md — Pure computeModifiedRecipeTotal helper (locked-add/remove asymmetry D-07/D-08, dynamic D-09) + worked-example tests (MOD-02)
-- [ ] 36-02-PLAN.md — SEL-02 carry-through: detectRecipeSale forwards target_volume_l/scale_factor onto the batch payload + Apps Script create_batch redeploy (human-action) (SEL-02)
+- [x] 36-02-PLAN.md — SEL-02 carry-through: detectRecipeSale forwards target_volume_l/scale_factor onto the batch payload + Apps Script create_batch redeploy (human-action) (SEL-02)
 
 **Wave 2**
 
-- [ ] 36-03-PLAN.md — Wire modified_ingredients into computeRecipeQuote + recipe-quote/recipe-sale/confirm + freeze modified_base_ingredients/is_modified into snapshot (MOD-02)
+- [x] 36-03-PLAN.md — Wire modified_ingredients into computeRecipeQuote + recipe-quote/recipe-sale/confirm + freeze modified_base_ingredients/is_modified into snapshot (MOD-02)
 
 **Wave 3** (parallel — disjoint surface files)
 
@@ -542,7 +542,7 @@ Plans:
 | 33. Deploy Safety & Monitoring | v4.2 | 3/3 | Complete    | 2026-06-18 |
 | 34. Ingredient Display & Server Enrichment | v4.3 | 3/3 | Complete   | 2026-06-20 |
 | 35. Batch Scaling Engine | v4.3 | 6/6 | Complete    | 2026-06-21 |
-| 36. Cross-Surface Selection & Recipe Modification | v4.3 | 1/7 | In Progress|  |
+| 36. Cross-Surface Selection & Recipe Modification | v4.3 | 3/7 | In Progress|  |
 | 37. BrewPad Recipe Manager | v4.3 | 3/3 | Complete    | 2026-06-20 |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)

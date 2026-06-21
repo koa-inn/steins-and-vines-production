@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Recipe Builder Refinement
 status: executing
-stopped_at: "36-02 checkpoint:human-action — Apps Script redeploy required for target_volume_l persistence"
-last_updated: "2026-06-20T00:00:00Z"
-last_activity: 2026-06-20
+stopped_at: "36-02 checkpoint:human-action — Apps Script create_batch redeploy awaited"
+last_updated: "2026-06-21T04:44:43.042Z"
+last_activity: 2026-06-21
 progress:
   total_phases: 23
   completed_phases: 3
   total_plans: 19
-  completed_plans: 13
+  completed_plans: 15
   percent: 13
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 36 (cross-surface-selection-recipe-modification) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-06-21
 
-Progress: [███████░░░] 68%
+Progress: [████████░░] 79%
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Progress: [███████░░░] 68%
 - [35-06]: Server-quote approach chosen — client fetches /api/kiosk/recipe-quote (dry-run) to guarantee displayed price === charged price with no client-side drift
 - [Phase ?]: 36-01 complete
 - [36-02]: detectRecipeSale now forwards target_volume_l + scale_factor onto batch payload from server-built snapshot (T-36-04 mitigated)
+- [36-03]: computeRecipeQuote extended with modifiedIngredients 5th param; all three money-path entry points (quote/sale/confirm) price via computeModifiedRecipeTotal; confirm snapshot freezes modified_base_ingredients + is_modified (MOD-02)
 
 ### Pending Todos
 
@@ -69,6 +70,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-20T00:00:00Z
-Stopped at: 36-02 checkpoint:human-action — Apps Script create_batch redeploy awaited
-Resume file: .planning/phases/36-cross-surface-selection-recipe-modification/36-02-SUMMARY.md
+Last session: 2026-06-21T04:44:43.036Z
+Stopped at: 36-03 complete
+Resume file: .planning/phases/36-cross-surface-selection-recipe-modification/36-03-SUMMARY.md
