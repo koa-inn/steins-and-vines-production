@@ -56,7 +56,9 @@ blocked: 0
 ## Gaps
 
 ### GAP-1 (BLOCKER, MOD-01) — Modify-panel ingredient autocomplete loads nothing in the sale/attach flow
-surfaces: admin (js/admin.js), kiosk (js/kiosk.js), BrewPad (js/brewpad.js)
+status: HOTFIXED on staging 2026-06-21 (commit 2c422d1) — admin now loads the catalog on panel open; kiosk/BrewPad already did. Regression test still owed by the gap-closure cycle (panel toggle handler isn't exported).
+scope_correction: Only the ADMIN surface was actually affected — kiosk (kiosk.js:1614) and BrewPad (brewpad.js:4036) already lazy-load the catalog on panel open.
+surfaces: admin (js/admin.js — FIXED), kiosk (js/kiosk.js — already OK), BrewPad (js/brewpad.js — already OK)
 symptom: Clicking "Modify Ingredients" / "+ Add Ingredient" shows an empty search row, but typing/focusing the ingredient field never lists any catalog items — so staff cannot add or substitute an ingredient at all.
 root_cause: The modify panel reuses `showIngredientAutocomplete()`, which early-returns when `_recipesState.catalogLoaded` is false (js/admin.js:8900). `_recipesState.catalog` is only populated by `loadIngredientCatalogForRecipes()`, which runs in the Recipes management tab — NOT in the recipe-sale/attach flow. In the sale flow the catalog is empty, so the dropdown silently no-ops. Same pattern on kiosk and BrewPad (each has its own catalog loader that isn't triggered on the sale/attach surface).
 fix: When the modify panel first expands (or when the recipe-sale/attach prompt loads), ensure the ingredient catalog is loaded once (guarded) before wiring the autocomplete, on all three surfaces. Add a regression test asserting the dropdown lists items after the panel opens without first visiting the Recipes tab.
