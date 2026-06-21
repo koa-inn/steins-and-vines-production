@@ -636,6 +636,20 @@
                       </label>
                       <div id="kiosk-scale-factor-readout" class="kiosk-scale-readout"></div>
                     </div>
+                    <!-- Phase 36: Ingredient modification panel (MOD-01) -->
+                    <div id="kiosk-recipe-modify-wrap" style="display:none;">
+                      <button type="button" class="btn-secondary" id="kiosk-modify-toggle">Modify Ingredients</button>
+                      <div id="kiosk-modify-panel" style="display:none;">
+                        <table class="kiosk-recipe-modify-table">
+                          <tbody id="kiosk-modify-tbody"></tbody>
+                        </table>
+                        <button type="button" class="btn-secondary" id="kiosk-modify-add-row">+ Add Ingredient</button>
+                      </div>
+                      <div id="kiosk-recipe-price-preview" style="display:none;"></div>
+                      <div id="kiosk-locked-price-notice" style="display:none;font-size:11px;color:var(--ink-tertiary);margin-top:4px;">
+                        Adding ingredients increases the price. Removing ingredients does not reduce it.
+                      </div>
+                    </div>
                     <!-- SCALE-05: Stock conflict block — Phase 35 -->
                     <div id="kiosk-stock-conflict" style="display:none;">
                       <div class="kiosk-stock-conflict-msg"></div>
@@ -644,6 +658,16 @@
                       </button>
                     </div>
                     <div id="kiosk-avail-banner"></div>
+                    <!-- Phase 36: Save-as-new recipe affordance (MOD-03) -->
+                    <div id="kiosk-save-as-new-wrap" style="display:none;">
+                      <button type="button" class="admin-btn-sm" id="kiosk-save-as-new-btn">Save as new recipe</button>
+                      <div id="kiosk-save-as-new-prompt" style="display:none;">
+                        <input type="text" id="kiosk-new-recipe-name" class="admin-input" placeholder="e.g. My Custom Pale Ale" />
+                        <button type="button" class="btn" id="kiosk-save-draft-btn">Save Draft</button>
+                        <button type="button" class="btn-secondary" id="kiosk-save-cancel-btn">Cancel</button>
+                      </div>
+                      <div id="kiosk-save-as-new-feedback"></div>
+                    </div>
                     <div class="kiosk-sale-type-btns">
                       <button type="button" class="kiosk-sale-type-btn btn-secondary" id="kiosk-btn-in-store">Ferment in Store</button>
                       <button type="button" class="kiosk-sale-type-btn btn-secondary" id="kiosk-btn-take-out">Take Out</button>
