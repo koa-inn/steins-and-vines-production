@@ -2952,6 +2952,61 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   }
 }
 
+/* === Kiosk Recipe Prompt — Volume + ×factor row (GAP-3, 36-09) === */
+
+/* Volume wrap: contains the flex row of inputs + the readout beneath */
+#kiosk-recipe-volume-wrap {
+  margin-bottom: var(--sp-4);
+}
+
+/* One-row flex container: litres input + factor input side by side */
+.kiosk-volume-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+/* Label+input pair inside the row */
+.kiosk-volume-label {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  color: var(--ink-secondary);
+  gap: var(--sp-1);
+}
+
+/* Both volume inputs share the same sizing */
+.kiosk-volume-input {
+  width: 96px;
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-3);
+  font-size: 13px;
+  border: 1px solid var(--ledger-emphasis);
+  border-radius: var(--r-sm);
+  background: var(--cellar-raised);
+  color: var(--ink-primary);
+  box-sizing: border-box;
+}
+
+.kiosk-volume-input:focus {
+  outline: 2px solid var(--ledger-focus);
+  border-color: var(--ledger-focus);
+}
+
+.kiosk-volume-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Readout beneath the row: "1.5× base 20 L" */
+.kiosk-scale-readout {
+  margin-top: var(--sp-2);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-secondary);
+}
+
 /* === Recipes Tab === */
 
 .recipes-form-grid {

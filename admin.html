@@ -627,13 +627,20 @@
                     <button type="button" class="btn-secondary" id="kiosk-recipe-back">&#8592; Back</button>
                     <div class="kiosk-recipe-selected-name" id="kiosk-recipe-selected-name"></div>
                     <div id="kiosk-recipe-summary"></div>
-                    <!-- SCALE-01: Target volume input — Phase 35 -->
+                    <!-- SCALE-01: Target volume input + ×factor (Phase 35 + GAP-3 36-09) -->
                     <div id="kiosk-recipe-volume-wrap" style="display:none;">
-                      <label class="kiosk-volume-label">
-                        Target volume (L):
-                        <input type="number" id="kiosk-target-volume" class="kiosk-volume-input"
-                               min="0.5" step="0.5" inputmode="decimal" />
-                      </label>
+                      <div class="kiosk-volume-row">
+                        <label class="kiosk-volume-label">
+                          Target volume (L):
+                          <input type="number" id="kiosk-target-volume" class="kiosk-volume-input"
+                                 min="0.5" step="0.5" inputmode="decimal" />
+                        </label>
+                        <label class="kiosk-volume-label">
+                          &times; factor
+                          <input type="number" id="kiosk-target-factor" class="kiosk-volume-input"
+                                 min="0.1" step="0.1" inputmode="decimal" />
+                        </label>
+                      </div>
                       <div id="kiosk-scale-factor-readout" class="kiosk-scale-readout"></div>
                     </div>
                     <!-- Phase 36: Ingredient modification panel (MOD-01) -->
