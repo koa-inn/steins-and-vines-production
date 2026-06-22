@@ -84,3 +84,29 @@ fix: Polish + reorder the recipe-modification region for a cleaner, touch-friend
 surfaces: admin, kiosk, BrewPad
 decision (owner, 2026-06-21): Add a "× factor" number input next to the existing Target volume (L) box. The two are two-way synced: editing the factor updates litres (factor × base_batch_size_l) and editing litres updates the factor (litres ÷ base). The "1.5× base 20 L" readout stays. Same bounds as today (>0, ≤~10× base; no-base ⇒ both disabled). Identical control on all three surfaces (D-01).
 fix: Extend the ported Phase 35 control with the synced factor field + sync logic; reflect in UI-SPEC; add tests for both directions of the sync and bounds.
+status: shipped 36-08..36-11 (control renders + synced). SECOND-PASS UAT (2026-06-22) found follow-on issues — see GAP-4..GAP-7.
+
+---
+
+## Second-pass UAT gaps (2026-06-22, after 36-08..36-12 deploy)
+
+### GAP-4 (BLOCKER) — Live price does NOT update when volume / ×factor / ingredients change
+surfaces: admin, kiosk (the SALE surfaces with a money path)
+symptom: Changing the target volume, ×factor, or ingredient list gives NO visible price change. The displayed price stays at the unchanged base amount; the correct (scaled/modified) total only materializes when the item is actually added to the cart. Staff get no confidence the price will be right before committing.
+root_cause: The live server quote (`kioskFetchRecipeQuote`, kiosk.js:783-841 / admin equivalent) only writes its result into `#kiosk-recipe-price-preview`, and EVERY write to that element is gated on `_kioskModifyPanelOpen` (lines 801/813/826/836). So the live "Estimated total" is only shown when the Modify Ingredients panel is open. Meanwhile the prominent `#kiosk-recipe-summary-price` (kiosk.js:1683) shows the base `computed_price` and is never re-rendered from the quote on volume/factor/ingredient change.
+fix: Surface the server quote total as the PROMINENT recipe price and update it on EVERY change (volume, ×factor, and ingredient edits) — not only when the modify panel is open. The summary price should reflect the live quote (server-authoritative; displayed == charged). Mirror on admin. Add tests asserting the visible price updates on volume/factor/ingredient change with the modify panel CLOSED.
+
+### GAP-5 (BLOCKER) — Cannot scroll to see the full ingredient list or reach the accept / Add-to-Cart button
+surfaces: kiosk (kiosk.html) confirmed; check admin + BrewPad
+symptom: With a long ingredient list (and/or the modify panel expanded), the recipe sale/modify panel overflows the viewport and the user cannot scroll to see the whole list or reach the "Ferment in Store / Take Out" (accept) buttons. Effectively blocks completing a sale on longer recipes / smaller screens.
+fix: Make the recipe prompt/modify container scrollable (overflow handling) so the full list AND the action buttons are always reachable on iPad/kiosk viewports. Verify the sticky action buttons or a scroll region keeps accept reachable.
+
+### GAP-6 (needs investigation) — Modify/×factor feature not visible on admin's Kiosk view, though it works on kiosk.html
+surfaces: admin (admin.html?tab=kiosk)
+symptom: The ×factor control / modify feature "didn't show up" in the Kiosk view inside admin, but works on kiosk.html directly.
+hypotheses: (a) stale cached admin.html / admin.min.js or a service-worker cache (the ?v= cache-bust may not have been picked up — try a hard refresh / clear cache FIRST); (b) the admin kiosk-sale render path differs from the standalone kiosk and didn't get the same wiring; (c) a JS error on the admin page aborts the render. Investigate: confirm the deployed admin.min.js contains the factor wiring, check for console errors on admin.html?tab=kiosk, and confirm the render path.
+fix: TBD after root-cause (cache guidance vs real wiring fix).
+
+### GAP-7 (enhancement) — UI/UX expert review + polish of the recipe modify/sale region
+surfaces: all 3
+request (owner): GAP-2 polish is "looking better" but bring in a UI/UX agent to review the modify/sale region and apply professional polish (hierarchy, spacing, affordances, touch ergonomics). Feeds concrete polish items into the gap plan.
