@@ -470,7 +470,7 @@ Plans:
   4. The modified ingredient list is priced server-authoritatively (same `pos-recipe.js` / `lib/pricing.js` path as a standard sale) and the Zoho invoice and frozen `recipe_snapshot` reflect the actual ingredients sold, not the original template
   5. A staff member can optionally tap "Save as new recipe" after a one-off modification; this creates a new recipe via the existing recipe-create endpoint (`SV-R-…` ID, activation guardrails enforced), leaving the original recipe untouched
 
-**Plans**: 12 plans (9 waves) — 7 original + 5 gap-closure (36-08..36-12)
+**Plans**: 17 plans (14 waves) — 7 original + 5 first-pass gap-closure (36-08..36-12) + 5 second-pass gap-closure (36-13..36-17)
 **UI hint**: yes
 Plans:
 **Wave 1** (parallel — disjoint middleware files)
@@ -513,6 +513,28 @@ Plans:
 **Wave 9** (re-UAT)
 
 - [ ] 36-12-PLAN.md — Staging re-deploy + second human UAT pass confirming GAP-1/2/3 closed across all three surfaces (autonomous: false) (SEL-01, MOD-01)
+
+**Second-pass gap closure (from 36-HUMAN-UAT.md GAP-4/5/6/7 + 36-UI-REVIEW.md)**
+
+**Wave 10** (UI-SPEC contract first)
+
+- [ ] 36-13-PLAN.md — Extend 36-UI-SPEC.md: live-price visibility contract (GAP-4, server-authoritative, no _kioskModifyPanelOpen gate), scroll model (GAP-5), and audit polish (GAP-7) (SEL-01, MOD-01, MOD-02)
+
+**Wave 11**
+
+- [ ] 36-14-PLAN.md — Admin: GAP-4 ungate quote + prominent server-quote price on every change, GAP-5 scrollable prompt, GAP-6 admin font-size:1rem + bundle/cache verify, GAP-7 polish (SEL-01, MOD-01, MOD-02)
+
+**Wave 12**
+
+- [ ] 36-15-PLAN.md — Kiosk: GAP-4 ungate + prominent server-quote price, GAP-5 scrollable prompt, GAP-7 polish + cellar-palette autocomplete + --sp-* tokens, no save-as-new (SEL-01, MOD-01, MOD-02)
+
+**Wave 13**
+
+- [ ] 36-16-PLAN.md — BrewPad attach: GAP-5 inject expanded panel into the scrollable detail pane (no quote/charge, D-10), GAP-7 polish (44px Remove, × factor label) (SEL-01, MOD-01)
+
+**Wave 14** (re-UAT)
+
+- [ ] 36-17-PLAN.md — Staging re-deploy + third human UAT pass confirming GAP-4/5/6/7 closed + re-confirming still-pending original items #1-#8 (autonomous: false) (SEL-01, SEL-02, MOD-01, MOD-02, MOD-03)
 
 ### Phase 37: BrewPad Recipe Manager
 
