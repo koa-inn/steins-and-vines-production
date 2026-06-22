@@ -44,12 +44,24 @@ result: [pending]
 expected: On the in-store iPad (kiosk + BrewPad), number/text inputs do not trigger iOS auto-zoom (font-size ≥16px), and the modify panel + autocomplete are touch-friendly.
 result: [pending]
 
+### 9. [Gap-closure re-test] GAP-1 — modify autocomplete now lists ingredients (admin)
+expected: On admin.html?tab=kiosk, pick a recipe → Modify Ingredients → typing/focusing the ingredient field now LISTS catalog items (the original bug). Kiosk + BrewPad too.
+result: [pending]
+
+### 10. [Gap-closure re-test] GAP-3 — synced ×factor input (all 3 surfaces)
+expected: Next to Target volume (L) there is a "× factor" input. Editing the factor updates litres (factor × base); editing litres updates the factor (litres ÷ base). Readout "1.5× base 20 L" stays. No base ⇒ both disabled. On BrewPad the factor change must NOT trigger any charge/quote (attach is record-keeping).
+result: [pending]
+
+### 11. [Gap-closure re-test] GAP-2 — modify-panel polish/reorder + edit-at-base
+expected: The control/modify region looks clean and consistent across admin/kiosk/BrewPad (no phantom empty rows, sensible ordering). Opening Modify Ingredients on a recipe WITH base ingredients pre-populates them as editable rows (edit-at-base), not an empty list.
+result: [pending]
+
 ## Summary
 
-total: 8
+total: 11
 passed: 0
-issues: 3
-pending: 5
+issues: 0
+pending: 11
 skipped: 0
 blocked: 0
 
