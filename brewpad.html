@@ -13,7 +13,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="favicon.ico">
   <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
-  <link rel="stylesheet" href="css/brewpad.min.css?v=mqpoijct">
+  <link rel="stylesheet" href="css/brewpad.min.css?v=mqposyb7">
   <script src="js/lib/constants.js"></script>
   <script src="js/lib/utils.js"></script>
   <script src="js/lib/auth.js"></script>
@@ -23,7 +23,7 @@
   <script src="js/vendor/qrcode.min.js"></script>
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="js/brewpad.min.js?v=mqpoijct"></script>
+  <script src="js/brewpad.min.js?v=mqposyb7"></script>
 </head>
 <body>
 
@@ -92,12 +92,18 @@
         </div>
         <!-- Recipe attach expanded panel (Phase 36) — shown after recipe resolves in attach flow -->
         <div id="bp-recipe-attach-expanded" style="display:none;">
-          <!-- Target volume control (ported Phase 35 / D-01) -->
+          <!-- Target volume control (ported Phase 35 / D-01) + ×factor (GAP-3, 36-11) -->
           <div id="bp-recipe-volume-wrap" style="display:none;">
-            <label class="bp-volume-label">
-              Target volume (L):
-              <input type="number" id="bp-target-volume" class="bp-input" min="0.5" step="0.5" inputmode="decimal" />
-            </label>
+            <div class="bp-volume-row">
+              <label class="bp-volume-label">
+                Target volume (L):
+                <input type="number" id="bp-target-volume" class="bp-input bp-volume-input" min="0.5" step="0.5" inputmode="decimal" />
+              </label>
+              <label class="bp-volume-label">
+                &times; factor:
+                <input type="number" id="bp-target-factor" class="bp-input bp-volume-input" min="0.1" step="0.1" inputmode="decimal" />
+              </label>
+            </div>
             <div id="bp-scale-factor-readout" class="bp-scale-readout"></div>
           </div>
           <!-- Ingredient modification panel (MOD-01 / D-03) -->

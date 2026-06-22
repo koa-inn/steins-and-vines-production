@@ -4030,7 +4030,7 @@ function bpScaleIngredients(list, factor) {
 
     // Populate _bpAttachCatalog from _recipesState.catalog (may need lazy load)
     if (_recipesState.catalogLoaded) {
-      _bpAttachCatalog = _recipesState.catalog.slice();
+      _bpAttachCatalog = Array.isArray(_recipesState.catalog) ? _recipesState.catalog.slice() : [];
     } else {
       // Non-blocking: load catalog async; advisory will refresh when done
       loadIngredientCatalogForRecipes().then(function () {
@@ -4043,8 +4043,10 @@ function bpScaleIngredients(list, factor) {
     }
 
     // ---- Volume control wiring (ported from admin.js lines 11150-11190) ----
+    // display/record only — BrewPad attach never charges (D-10); factor only changes the recorded target_volume_l
     var volWrap     = document.getElementById('bp-recipe-volume-wrap');
     var volInput    = document.getElementById('bp-target-volume');
+    var factorInput = document.getElementById('bp-target-factor');
     var factorRdout = document.getElementById('bp-scale-factor-readout');
     var snap        = _bpResolvedRecipe ? (_bpResolvedRecipe.recipe || {}) : {};
     var baseVol     = Number(snap.batch_size_l) || 0;
@@ -4059,11 +4061,37 @@ function bpScaleIngredients(list, factor) {
         volInput.max      = baseVol * 10;
         volInput.disabled = false;
       }
+      if (factorInput) {
+        factorInput.value    = '1.00';
+        factorInput.max      = '10';
+        factorInput.disabled = false;
+      }
       if (factorRdout) factorRdout.textContent = '1.0\xd7 base ' + baseVol.toFixed(1) + ' L';
     } else {
-      // D-01 no-base disable
-      if (volInput) volInput.disabled = true;
+      // D-01 no-base disable — both inputs greyed when recipe has no batch_size_l
+      if (volInput)    volInput.disabled    = true;
+      if (factorInput) factorInput.disabled = true;
       if (factorRdout) factorRdout.textContent = 'Set batch size (L) on this recipe to enable scaling';
+    }
+
+    // factor oninput: clamp to (0, 10], compute litres (nearest 0.5), update state + readout.
+    // display/record only — NO fetch, NO quote, NO charge (D-10 / BFAC-5).
+    if (factorInput) {
+      factorInput.oninput = function () {
+        var rawFactor = parseFloat(factorInput.value);
+        if (!(rawFactor > 0)) return;  // reject ≤0 (BFAC-3)
+        if (rawFactor > 10) rawFactor = 10;
+        factorInput.value = rawFactor.toString();
+        var roundedLitres = Math.round(rawFactor * baseVol * 2) / 2;
+        if (volInput) volInput.value = roundedLitres;
+        _bpTargetVolumeL = roundedLitres;
+        _bpScaleFactor   = rawFactor;
+        if (factorRdout) {
+          factorRdout.textContent = rawFactor.toFixed(2) + '\xd7 base ' + baseVol.toFixed(1) + ' L';
+        }
+        refreshBpStockAdvisory();
+        // No kioskScheduleRecipeQuote / recipe-quote / recipe-sale / Helcim call — D-10.
+      };
     }
 
     if (volInput) {
@@ -4072,6 +4100,8 @@ function bpScaleIngredients(list, factor) {
         _bpTargetVolumeL = val > 0 ? val : null;
         var factor = (val > 0 && baseVol > 0) ? val / baseVol : 1;
         _bpScaleFactor = factor;
+        // BFAC-2: sync factor input display (two-way sync)
+        if (factorInput) factorInput.value = factor.toFixed(2);
         if (factorRdout) {
           factorRdout.textContent = factor.toFixed(2) + '\xd7 base ' + baseVol.toFixed(1) + ' L';
         }
@@ -8474,7 +8504,11 @@ function bpScaleIngredients(list, factor) {
       _bpSetModifiedIngredients: function (v) { _bpModifiedIngredients = v; },
       _bpGetResolvedRecipe:      function () { return _bpResolvedRecipe; },
       _bpSetResolvedRecipe:      function (v) { _bpResolvedRecipe = v; },
-      _bpSetCatalogForTest:      function (v) { _bpAttachCatalog = v || []; }
+      _bpSetCatalogForTest:      function (v) { _bpAttachCatalog = v || []; },
+      // Phase 36-11: test hook to drive wireAttachExpandedPanel for BFAC factor tests
+      _bpWireAttachExpandedPanel: function (b, sectionBodyEl) {
+        return wireAttachExpandedPanel(b || {}, sectionBodyEl || document.body);
+      }
     });
   }
 
