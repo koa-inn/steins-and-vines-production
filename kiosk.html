@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="favicon.ico">
-  <link rel="stylesheet" href="css/kiosk.min.css?v=mqpo6uk6">
+  <link rel="stylesheet" href="css/kiosk.min.css?v=mqpoij9p">
   <script src="js/lib/constants.js"></script>
   <script src="js/lib/utils.js"></script>
   <script src="js/lib/auth.js"></script>
@@ -20,7 +20,7 @@
   <script src="js/admin-config.js"></script>
   <script src="js/vendor/qrcode.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="js/kiosk.min.js?v=mqpo6uk6"></script>
+  <script src="js/kiosk.min.js?v=mqpoij9p"></script>
 </head>
 <body>
 
@@ -109,13 +109,20 @@
             <button type="button" class="btn-secondary" id="kiosk-recipe-back">&#8592; Back</button>
             <div class="kiosk-recipe-selected-name" id="kiosk-recipe-selected-name"></div>
             <div id="kiosk-recipe-summary"></div>
-            <!-- PORT from admin.html: Phase 35 volume control (SEL-01/D-01) -->
+            <!-- PORT from admin.html: Phase 35 volume control + GAP-3 ×factor (SEL-01/D-01/36-10) -->
             <div id="kiosk-recipe-volume-wrap" style="display:none;">
-              <label class="kiosk-volume-label">
-                Target volume (L):
-                <input type="number" id="kiosk-target-volume" class="kiosk-volume-input"
-                       min="0.5" step="0.5" inputmode="decimal" style="font-size:1rem;" />
-              </label>
+              <div class="kiosk-volume-row">
+                <label class="kiosk-volume-label">
+                  Target volume (L):
+                  <input type="number" id="kiosk-target-volume" class="kiosk-volume-input"
+                         min="0.5" step="0.5" inputmode="decimal" style="font-size:1rem;" />
+                </label>
+                <label class="kiosk-volume-label">
+                  &times; factor
+                  <input type="number" id="kiosk-target-factor" class="kiosk-volume-input"
+                         min="0.1" step="0.1" inputmode="decimal" style="font-size:1rem;" />
+                </label>
+              </div>
               <div id="kiosk-scale-factor-readout" class="kiosk-scale-readout"></div>
             </div>
             <!-- Phase 36: Ingredient modification panel (MOD-01) -->

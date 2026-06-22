@@ -2754,3 +2754,53 @@ img {
   min-height: 44px;
 }
 .kiosk-avail-dot--unknown { background: var(--ink-muted); }
+
+/* === GAP-3/GAP-2: Volume + ×factor flex row (36-10) === */
+
+/* One-row flex container for litres + factor inputs (GAP-2 layout polish) */
+.kiosk-volume-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-4, 16px);
+  flex-wrap: wrap;
+}
+
+/* Label+input pair inside the row: label text above, input below */
+.kiosk-volume-label {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  color: var(--ink-secondary);
+  gap: var(--sp-1, 4px);
+}
+
+/* Both volume inputs share the same sizing; font-size:1rem set inline (iOS zoom guard) */
+.kiosk-volume-input {
+  width: 96px;
+  min-height: 44px;
+  padding: var(--sp-2, 8px) var(--sp-3, 12px);
+  font-size: 1rem;
+  border: 1px solid var(--ledger-emphasis, #bbb);
+  border-radius: var(--r-sm, 4px);
+  background: var(--cellar-raised, #faf8f2);
+  color: var(--ink-primary, #2c2218);
+  box-sizing: border-box;
+}
+
+.kiosk-volume-input:focus {
+  outline: 2px solid var(--ledger-focus, #4a7c59);
+  border-color: var(--ledger-focus, #4a7c59);
+}
+
+.kiosk-volume-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Readout beneath the row: "1.50× base 20.0 L" */
+.kiosk-scale-readout {
+  margin-top: var(--sp-2, 8px);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-secondary);
+}

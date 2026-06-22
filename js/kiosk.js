@@ -1527,9 +1527,10 @@
     var bannerEl = document.getElementById('kiosk-avail-banner');
     if (bannerEl) bannerEl.innerHTML = '';
 
-    // Phase 35: Wire target-volume input and live factor readout (36-05)
+    // Phase 35 + GAP-3: Wire target-volume input, ×factor input, and live factor readout (36-05/36-10)
     var volWrap     = document.getElementById('kiosk-recipe-volume-wrap');
     var volInput    = document.getElementById('kiosk-target-volume');
+    var factorInput = document.getElementById('kiosk-target-factor');  // GAP-3
     var factorRdout = document.getElementById('kiosk-scale-factor-readout');
     var conflictEl  = document.getElementById('kiosk-stock-conflict');
     var baseVol     = Number(recipe.batch_size_l) || 0;
@@ -1542,10 +1543,13 @@
     if (volWrap) volWrap.style.display = '';
     if (baseVol > 0) {
       if (volInput) { volInput.value = baseVol; volInput.max = baseVol * 10; volInput.disabled = false; }
-      if (factorRdout) factorRdout.textContent = '1.0\xd7 base ' + baseVol.toFixed(1) + ' L';
+      // GAP-3: factor input pre-filled to 1.00 when a base volume exists
+      if (factorInput) { factorInput.value = '1.00'; factorInput.max = '10'; factorInput.disabled = false; }
+      if (factorRdout) factorRdout.textContent = '1.00\xd7 base ' + baseVol.toFixed(1) + ' L';
     } else {
-      // D-11: no batch_size_l — disable scaling (do NOT silently assume factor 1)
+      // D-11: no batch_size_l — disable BOTH inputs (do NOT assume factor 1)
       if (volInput) volInput.disabled = true;
+      if (factorInput) factorInput.disabled = true;  // FAC-4: no-base disables both
       if (factorRdout) factorRdout.textContent = 'Set batch size (L) on this recipe to enable scaling';
     }
 
@@ -1555,12 +1559,48 @@
         _kioskTargetVolumeL = val > 0 ? val : null;
         var factor = (val > 0 && baseVol > 0) ? val / baseVol : 1;
         _kioskScaleFactor = factor;
+        // FAC-2: litres → factor sync (display only — server quote is authoritative for price, D-06)
+        if (factorInput) factorInput.value = factor.toFixed(2);
         if (factorRdout) {
           factorRdout.textContent = factor.toFixed(2) + '\xd7 base ' + baseVol.toFixed(1) + ' L';
         }
+        // Reset stock conflict state on volume change
         _kioskStockOverride = false;
         if (conflictEl) conflictEl.style.display = 'none';
-        kioskScheduleRecipeQuote();  // re-quote on volume change
+        // Re-fetch quote for new target volume (debounced, 35-06)
+        kioskScheduleRecipeQuote();
+      };
+    }
+
+    // GAP-3: ×factor input — factor → litres sync (client-side display only, D-06)
+    // The factor is DISPLAY-ONLY; the charged price still comes from kioskScheduleRecipeQuote.
+    if (factorInput) {
+      factorInput.oninput = function () {
+        var rawFactor = parseFloat(factorInput.value) || 0;
+        // Clamp factor to (0, 10] — bounds matching litres max of base×10
+        var clampedFactor = rawFactor <= 0 ? 0.1 : (rawFactor > 10 ? 10 : rawFactor);
+        if (clampedFactor !== rawFactor && rawFactor > 0) {
+          factorInput.value = clampedFactor.toFixed(2);
+        }
+        if (clampedFactor <= 0) return;  // invalid — do nothing
+
+        // FAC-1: factor → litres = factor × base, rounded to nearest 0.5 L
+        var rawLitres = clampedFactor * baseVol;
+        var roundedLitres = Math.round(rawLitres * 2) / 2;  // nearest 0.5
+        roundedLitres = Math.max(0.5, Math.min(roundedLitres, baseVol * 10));
+
+        _kioskTargetVolumeL = roundedLitres;
+        _kioskScaleFactor   = clampedFactor;
+
+        if (volInput) volInput.value = roundedLitres;
+        if (factorRdout) {
+          factorRdout.textContent = clampedFactor.toFixed(2) + '\xd7 base ' + baseVol.toFixed(1) + ' L';
+        }
+        // Reset stock conflict state on factor change
+        _kioskStockOverride = false;
+        if (conflictEl) conflictEl.style.display = 'none';
+        // FAC-5: re-quote after factor change (client-side display only — server quote is authoritative)
+        kioskScheduleRecipeQuote();
       };
     }
 
@@ -4734,6 +4774,8 @@
       kioskFetchRecipeQuote: kioskFetchRecipeQuote,
       kioskUpdateAddToCartButton: kioskUpdateAddToCartButton,
       kioskShowRecipePrompt: kioskShowRecipePrompt,
+      // GAP-3: _kioskShowRecipePrompt alias for test-hook consistency with admin-recipe-volume-factor.test.js
+      _kioskShowRecipePrompt: function (r) { return kioskShowRecipePrompt(r); },
       // Phase 36 state accessors
       _kioskGetModifiedIngredients: function () { return _kioskModifiedIngredients; },
       _kioskSetModifiedIngredients: function (v) { _kioskModifiedIngredients = v; },
