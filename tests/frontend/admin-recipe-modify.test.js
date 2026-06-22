@@ -386,3 +386,98 @@ describe('XSS — ingredient names escaped in modify rows', function () {
     // But no onerror handler fires — confirmed by no img tag in DOM
   });
 });
+
+// ---------------------------------------------------------------------------
+// GAP-1: admin modify panel loads catalog without Recipes tab (36-09)
+//
+// Regression guard: the modify-panel autocomplete reuses showIngredientAutocomplete
+// which requires _recipesState.catalog. In the recipe-sale flow the catalog is only
+// loaded when the Recipes tab is visited — not here. GAP-1 fix (commit 2c422d1/36-09)
+// loads it once on first panel expand via kioskOpenModifyPanel (the extracted function).
+//
+// Test GAP-1a: with catalogLoaded=false, calling kioskOpenModifyPanel triggers
+//              a fetch to /api/ingredients.
+// Test GAP-1b: after the catalog resolves, catalogLoaded becomes true and
+//              modify rows are re-rendered (renderKioskModifyRows fires again).
+// ---------------------------------------------------------------------------
+describe('GAP-1: admin modify panel loads catalog without Recipes tab', function () {
+  var CATALOG_RECIPE = {
+    recipe_id: 'RCP-GAP1',
+    name: 'GAP-1 Test Recipe',
+    batch_size_l: 20,
+    pricing_mode: 'dynamic',
+    locked_price: 0,
+    ingredients: [
+      { item_id: 'I-A', item_name: 'Base Malt', unit: 'kg', quantity: 5 }
+    ]
+  };
+
+  var CATALOG_PAYLOAD = {
+    items: [
+      { item_id: 'I1', item_name: 'Cascade Hops', unit: 'g' },
+      { item_id: 'I2', item_name: 'Pale Malt', unit: 'kg' }
+    ]
+  };
+
+  beforeEach(function () {
+    // Reset catalog state: simulate Recipes tab has NOT been visited
+    admin._recipesState.catalog = [];
+    admin._recipesState.catalogLoaded = false;
+
+    // Reset modification state
+    admin._kioskSetModifiedIngredients(null);
+    admin._kioskSetSelectedRecipe(null);
+
+    // Inject DOM nodes that kioskOpenModifyPanel reads
+    injectEl('kiosk-modify-panel', 'div');
+    injectEl('kiosk-modify-toggle', 'button');
+    injectEl('kiosk-modify-tbody', 'tbody');
+    injectEl('kiosk-recipe-price-preview', 'div');
+    injectEl('kiosk-locked-price-notice', 'div');
+
+    // Stub fetch: first call is the ingredients catalog load
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: function () { return Promise.resolve(CATALOG_PAYLOAD); }
+    });
+  });
+
+  test('GAP-1a: calling kioskOpenModifyPanel fetches /api/ingredients when catalog not loaded', function () {
+    global.fetch.mockClear();
+
+    // kioskScheduleRecipeQuote also calls fetch (for the quote); we want to assert
+    // that AT LEAST ONE call targets /api/ingredients.
+    admin._kioskOpenModifyPanel(CATALOG_RECIPE);
+
+    // fetch should have been called — at least the /api/ingredients call
+    expect(global.fetch).toHaveBeenCalled();
+    var ingredientCalls = global.fetch.mock.calls.filter(function (args) {
+      return typeof args[0] === 'string' && args[0].indexOf('/api/ingredients') !== -1;
+    });
+    expect(ingredientCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('GAP-1b: after catalog resolves, catalogLoaded is true and rows re-render', function () {
+    global.fetch.mockClear();
+    admin._kioskSetModifiedIngredients(null);
+
+    // Call the open function; the GAP-1 block fires loadIngredientCatalogForRecipes()
+    admin._kioskOpenModifyPanel(CATALOG_RECIPE);
+
+    // loadIngredientCatalogForRecipes is async — flush the promise queue
+    return Promise.resolve().then(function () {
+      return Promise.resolve();
+    }).then(function () {
+      // After resolution, the catalog must be loaded
+      expect(admin._recipesState.catalogLoaded).toBe(true);
+      // The catalog items should be populated
+      expect(admin._recipesState.catalog.length).toBeGreaterThan(0);
+      // The modify tbody should have at least one row (base ingredient was deep-copied)
+      var tbody = document.getElementById('kiosk-modify-tbody');
+      expect(tbody).not.toBeNull();
+      // rows rendered: either the base ingredient row or the empty placeholder row
+      expect(tbody.children.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+});

@@ -11170,6 +11170,50 @@
 
   // ---- Recipe browser: sale-type prompt ----
 
+  // kioskOpenModifyPanel — the expand body extracted for testability (GAP-1, 36-09).
+  // Called by modifyToggle.onclick when _kioskModifyPanelOpen transitions to true.
+  // Reads DOM elements by ID so it can be driven directly in tests without a full prompt setup.
+  function kioskOpenModifyPanel(recipe) {
+    _kioskModifyPanelOpen = true;
+    var modifyPanel  = document.getElementById('kiosk-modify-panel');
+    var modifyToggle = document.getElementById('kiosk-modify-toggle');
+    var pricePreview = document.getElementById('kiosk-recipe-price-preview');
+    var lockedNotice = document.getElementById('kiosk-locked-price-notice');
+
+    // Lazy clone: deep-copy base ingredients on first expand (D-04)
+    if (!Array.isArray(_kioskModifiedIngredients)) {
+      var baseIngs = (recipe && recipe.ingredients && recipe.ingredients.length)
+        ? recipe.ingredients : [];
+      _kioskModifiedIngredients = baseIngs.map(function (ing) {
+        return Object.assign({}, ing);
+      });
+    }
+
+    if (modifyPanel)  modifyPanel.style.display  = '';
+    if (modifyToggle) modifyToggle.textContent    = 'Modify Ingredients ▲';
+    renderKioskModifyRows();
+
+    // Show locked-price notice for locked recipes
+    if (lockedNotice && recipe && recipe.pricing_mode === 'locked') {
+      lockedNotice.style.display = '';
+    }
+    // Show price preview
+    if (pricePreview) pricePreview.style.display = '';
+    kioskScheduleRecipeQuote();
+
+    // GAP-1 fix (36-09): the modify-panel autocomplete reuses showIngredientAutocomplete,
+    // which needs _recipesState.catalog. In the recipe-sale flow that catalog is only
+    // loaded by the Recipes tab — never here — so the dropdown silently listed nothing.
+    // Load it once on first expand and re-render rows on completion so the first focus
+    // lists items without the staff member having to visit the Recipes tab.
+    if (typeof _recipesState !== 'undefined' && !_recipesState.catalogLoaded &&
+        typeof loadIngredientCatalogForRecipes === 'function') {
+      loadIngredientCatalogForRecipes().then(function () {
+        if (_kioskModifyPanelOpen) renderKioskModifyRows();
+      });
+    }
+  }
+
   function kioskShowRecipePrompt(recipe) {
     _kioskSelectedRecipe = recipe;
     _kioskSaleType = null;
@@ -11383,36 +11427,7 @@
       modifyToggle.onclick = function () {
         _kioskModifyPanelOpen = !_kioskModifyPanelOpen;
         if (_kioskModifyPanelOpen) {
-          // Lazy clone: deep-copy base ingredients on first expand (D-04)
-          if (!Array.isArray(_kioskModifiedIngredients)) {
-            var baseIngs = (recipe.ingredients && recipe.ingredients.length)
-              ? recipe.ingredients
-              : [];
-            _kioskModifiedIngredients = baseIngs.map(function (ing) {
-              return Object.assign({}, ing);
-            });
-          }
-          if (modifyPanel) modifyPanel.style.display = '';
-          modifyToggle.textContent = 'Modify Ingredients ▲';
-          renderKioskModifyRows();
-          // Show locked-price notice for locked recipes
-          if (lockedNotice && recipe.pricing_mode === 'locked') {
-            lockedNotice.style.display = '';
-          }
-          // Show price preview
-          if (pricePreview) pricePreview.style.display = '';
-          kioskScheduleRecipeQuote();
-          // GAP-1 fix (36): the modify-panel autocomplete reuses showIngredientAutocomplete,
-          // which needs _recipesState.catalog. In the recipe-sale flow that catalog is only
-          // loaded by the Recipes tab — never here — so the dropdown silently listed nothing.
-          // Load it once on first expand and re-render rows on completion so the first focus
-          // lists items without the staff member having to visit the Recipes tab.
-          if (typeof _recipesState !== 'undefined' && !_recipesState.catalogLoaded &&
-              typeof loadIngredientCatalogForRecipes === 'function') {
-            loadIngredientCatalogForRecipes().then(function () {
-              if (_kioskModifyPanelOpen) renderKioskModifyRows();
-            });
-          }
+          kioskOpenModifyPanel(recipe);
         } else {
           if (modifyPanel) modifyPanel.style.display = 'none';
           modifyToggle.textContent = 'Modify Ingredients';
@@ -11847,7 +11862,10 @@
       _kioskGetModifiedIngredients: function () { return _kioskModifiedIngredients; },
       _kioskSetModifiedIngredients: function (v) { _kioskModifiedIngredients = v; },
       renderKioskModifyRows: renderKioskModifyRows,
-      kioskSaveAsNewRecipe: kioskSaveAsNewRecipe
+      kioskSaveAsNewRecipe: kioskSaveAsNewRecipe,
+      // Phase 36 GAP-1 test hook (36-09): allows tests to invoke the expand body
+      // without wiring up the full kioskShowRecipePrompt DOM context.
+      _kioskOpenModifyPanel: function (r) { return kioskOpenModifyPanel(r); }
     });
   }
 
