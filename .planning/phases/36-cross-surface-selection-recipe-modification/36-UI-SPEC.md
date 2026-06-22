@@ -268,6 +268,147 @@ Price format: `formatCurrency` from `js/lib/utils.js` (existing) — always `$XX
 
 ---
 
+## Synced ×factor Control (GAP-3, SEL-01, D-01)
+
+### Purpose
+
+The existing "Target volume (L)" input and "1.5× base 20 L" readout were designed for Phase 35. GAP-3 adds a second editable field — the ×factor — placed beside the litres input so staff can set scale either by entering a target volume **or** by entering a multiplier directly. The two fields are two-way synced (display only); the server remains authoritative for pricing.
+
+### Element IDs and Placement
+
+| Surface | Factor input ID | Litres input ID (existing) | Container ID (existing) |
+|---------|----------------|---------------------------|------------------------|
+| Admin (`admin.html`) | `#kiosk-target-factor` | `#kiosk-target-volume` | `#kiosk-recipe-volume-wrap` |
+| Kiosk (`kiosk.html`) | `#kiosk-target-factor` | `#kiosk-target-volume` | `#kiosk-recipe-volume-wrap` |
+| BrewPad (`brewpad.html`) | `#bp-target-factor` | `#bp-target-volume` | `#bp-recipe-volume-wrap` |
+
+The `#kiosk-target-factor` / `#bp-target-factor` input is placed **immediately to the RIGHT** of the existing Target volume (L) input, inside the same volume-wrap container. An inline label "× factor" precedes the input within the same flex row. The "1.5× base 20 L" readout (`#kiosk-scale-factor-readout` / `#bp-scale-factor-readout`) remains and sits directly beneath the row of both inputs — NOT interleaved between them.
+
+### Input Attributes
+
+| Attribute | Value | Notes |
+|-----------|-------|-------|
+| `type` | `number` | |
+| `min` | `0.01` | just-above-zero; browser `min` cannot be `0` because 0× is invalid |
+| `step` | `0.1` | allows 1.5, 2.0, etc. without requiring a decimal for whole numbers |
+| `inputmode` | `decimal` | opens numeric keyboard on mobile |
+| `font-size` | `1rem` (16px minimum) | **kiosk and BrewPad only** — iOS zoom guard (matches existing `.bp-input` rule; apply as inline style or class override on `.admin-input` on kiosk) |
+
+On admin (`admin.html`) the factor input uses class `.admin-input`. On kiosk it also uses `.admin-input` (with a font-size override to 1rem for iOS safety). On BrewPad it uses `.bp-input` — the only structural difference across surfaces (D-01). The visual output is equivalent.
+
+### Two-Way Sync Contract (Display Only)
+
+Both sync directions operate on the **client side only** — they only change what the inputs display. The server quote and charged price always come from the authoritative server endpoint.
+
+**When staff edits the ×factor field:**
+```
+new_litres = factor × base_batch_size_l
+```
+Round `new_litres` to the nearest 0.5 L granularity (the existing step for `#kiosk-target-volume` / `#bp-target-volume`). Update `#kiosk-target-volume` / `#bp-target-volume` with the rounded value. Update the readout string.
+
+**When staff edits the Target volume (L) field:**
+```
+new_factor = litres ÷ base_batch_size_l
+```
+Display `new_factor` to 2 decimal places in `#kiosk-target-factor` / `#bp-target-factor`. Update the readout string.
+
+**Readout string:** The "1.5× base 20 L" readout reflects whichever field was last edited (the state is always consistent between the two fields). Format is unchanged from Phase 35: `"{factor}× base {base} L"` where `factor` is shown to 2 decimal places (e.g. "1.50× base 20 L") but trailing zeros in the first decimal position may be stripped to match the existing "1.5×" style (implementation discretion).
+
+### Bounds
+
+Bounds are identical to the existing litres bounds — the factor is just a derived view of the same constraint:
+
+| Field | Minimum | Maximum |
+|-------|---------|---------|
+| Target volume (L) | > 0 (0.5 L minimum in practice via step) | ≤ `base_batch_size_l × 10` |
+| ×factor | > 0 | ≤ 10 |
+
+If a staff member enters a factor that would produce a litres value outside the valid range, clamp to the nearest valid bound. If litres go out of range, clamp the factor correspondingly. The existing litres validation logic is the source of truth; the factor is always derived from litres after clamping.
+
+### No-Base-Recipe Disabled State
+
+When the selected recipe has no `base_batch_size_l` set (null, zero, or undefined):
+
+- **Both** `#kiosk-target-volume` and `#kiosk-target-factor` (or their `#bp-` equivalents) are **disabled** (`disabled` attribute set).
+- The readout shows the existing copy: "Set batch size (L) on this recipe to enable scaling."
+- No sync math runs while disabled.
+
+This is the only greyed/disabled state. When a base exists, both inputs are enabled and pre-filled (litres with `batch_size_l`, factor with `1.00`).
+
+### Server-Authoritative Pricing Rule (MUST be preserved in all implementations)
+
+> "The ×factor↔litres sync is client-side display only. The charged price always comes from GET /api/kiosk/recipe-quote (sale surfaces) or is absent (BrewPad attach, D-10). The factor input never becomes the source of the charge; it only changes the displayed target_volume_l that the quote endpoint already receives."
+
+The factor input is a UX convenience only. The value that flows to the server is always `target_volume_l` (the litres field). The server independently computes `scale_factor = target_volume_l ÷ recipe.batch_size_l` — it does not accept a client-supplied factor as the pricing parameter.
+
+### Cross-Surface Consistency (D-01)
+
+This control is **identical on all three surfaces** — same IDs (with surface-appropriate prefix), same sync math, same bounds, same disabled behavior, same readout format. The only permitted difference is the CSS class on the input (`.admin-input` on admin/kiosk, `.bp-input` on BrewPad) and the iOS font-size override on kiosk/BrewPad. No surface may implement a different sync formula, different bounds, or a different no-base behavior.
+
+---
+
+## Modify-Panel Polish & Ordering (GAP-2)
+
+### Problem Being Corrected
+
+GAP-2 was identified in UAT: the existing modify-panel + volume-control area is visually cramped and confusing. Specific issues:
+
+1. The element order inside the recipe prompt is awkward: target volume → readout → Modify toggle → ingredient rows → Add Ingredient → sale buttons — the volume/factor control and modify panel feel disconnected from each other.
+2. The empty modify panel renders a greyed phantom row before any ingredient is added or chosen, looking broken.
+3. The "Modify Ingredients" collapsed panel may not be visually distinct enough as a secondary-action affordance.
+
+### Corrected Layout (Applied Identically to All Three Surfaces)
+
+**Volume + factor row layout:**
+
+The Target volume (L) input and the ×factor input sit on **one flex row** (gap: `--sp-4`) inside `#…-recipe-volume-wrap`. The "1.5× base 20 L" readout sits **directly beneath** that row, not interleaved between the two inputs. This keeps the two entry points visually paired and the readout clearly subordinate to both.
+
+When a base exists, both inputs are **pre-filled and enabled** on recipe selection — staff never see empty/greyed inputs for a recipe that has scaling data. Greyed/disabled is reserved for the no-base state only, and in that state the disable copy explains why.
+
+**Corrected element order inside the recipe prompt (all surfaces):**
+
+1. Back button + recipe name
+2. `#kiosk-recipe-summary` / equivalent — grouped ingredient summary display (read-only)
+3. `#kiosk-recipe-volume-wrap` (or `#bp-recipe-volume-wrap`) — volume + factor row + readout
+4. `#kiosk-recipe-modify-wrap` (or `#bp-recipe-modify-wrap`) — "Modify Ingredients" collapsible toggle; **collapsed by default**
+5. When expanded: the editable ingredient rows table, then the "+ Add Ingredient" button below the table
+6. Price preview (sale surfaces only: `#kiosk-recipe-price-preview`) + locked-price asymmetry notice — **absent on BrewPad (D-10)**
+7. Stock conflict / soft advisory (`#kiosk-stock-conflict` / `#bp-recipe-stock-advisory`)
+8. Sale/attach action buttons (Add to Cart / Attach Recipe) + Save-as-new affordance where applicable
+
+Steps 6 is explicitly omitted on BrewPad (D-10: no charge on attach, no price preview).
+
+**Empty-state polish:**
+
+The bare empty `<tbody>` with greyed unfilled inputs is the bug being removed. The correct empty state is the single placeholder row:
+
+```
+<tr><td colspan="4" class="kiosk-modify-empty">No ingredients — use '+ Add Ingredient' to build a custom list</td></tr>
+```
+
+This placeholder row renders **only** when the modify panel has been expanded AND all ingredients have been removed (or no ingredients existed). It is **not rendered** while the panel is collapsed. A freshly-added blank row (after tapping "+ Add Ingredient") is acceptable — it provides autocomplete + qty inputs for the staff member to fill. But the panel must not display phantom empty inputs before any "+ Add Ingredient" action.
+
+Implementation rule: **Never render `<tr>` rows inside `#kiosk-recipe-modify-wrap`'s table (or its BrewPad equivalent) while the panel is in the collapsed state.** Ingredient row DOM is built (or revealed) only on first expand, and the placeholder row is shown only when the built list is empty.
+
+**Touch-friendliness:**
+
+All inputs and buttons retain the 44px minimum height on kiosk and BrewPad (existing Spacing rule). The reordering must not shrink any touch target. Specifically:
+
+- The "Modify Ingredients" toggle button: min-height 44px (btn-secondary standard)
+- The ×factor input: min-height 44px on kiosk/BrewPad (matches litres input height)
+- All ingredient row inputs and buttons: min-height 44px (unchanged from existing spec)
+- The "+ Add Ingredient" button: min-height 44px (unchanged)
+
+**BrewPad omission:**
+
+The price preview (step 6 in the ordered list) is absent on BrewPad — no `#bp-recipe-price-preview` element exists, and no quote call is made on attach (D-10). All other steps in the ordering are present on BrewPad.
+
+### Cross-Surface Consistency (D-01)
+
+This layout is **identical across admin / kiosk / BrewPad** except for the BrewPad price-preview omission. No surface may use a different element ordering, a different collapsed-by-default behavior for the modify toggle, or a different empty-state treatment. The goal is that a staff member who knows the admin layout is not surprised by kiosk or BrewPad.
+
+---
+
 ## Copywriting Contract
 
 | Element | Copy |
@@ -280,6 +421,7 @@ Price format: `formatCurrency` from `js/lib/utils.js` (existing) — always `$XX
 | Remove-row button aria-label | "Remove [ingredient name]" |
 | Empty ingredient table state | "No ingredients — use '+ Add Ingredient' to build a custom list" (rendered as `<td colspan="4">` placeholder row) |
 | Volume control label | "Target volume (L):" |
+| × factor label | "× factor" |
 | Factor readout format | "1.5× base 20 L" (identical to Phase 35) |
 | No-base disabled state | "Set batch size (L) on this recipe to enable scaling" |
 | Price preview loading | "Calculating…" |
@@ -351,4 +493,4 @@ When an ingredient is removed, its row is deleted immediately. The group header 
 - [ ] Dimension 5 Spacing: PASS
 - [ ] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** pending — gap-closure extension added (plan 36-08): ×factor control contract (GAP-3) + modify-panel polish & ordering (GAP-2) appended 2026-06-22. Dimension checkboxes above are for the ui-checker to complete.
