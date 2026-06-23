@@ -60,6 +60,14 @@
 
   /* Transition */
   --ease-out: cubic-bezier(0.25, 0, 0.25, 1);
+
+  /* GAP-7 36-15 (M2): Spacing tokens — match project standard (admin.css :root) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-6: 24px;
+  --sp-8: 32px;
 }
 
 /* ===== Base Body (kiosk.html only — scoped to avoid breaking admin.html) ===== */
@@ -2803,4 +2811,88 @@ img {
   font-size: 13px;
   font-weight: 700;
   color: var(--ink-secondary);
+}
+
+/* ============================================================
+   GAP-5 36-15: Kiosk recipe prompt — bounded scrollable view
+   Toggled on #kiosk-recipe-prompt when a recipe is selected;
+   parent .kiosk-product-pane has overflow:hidden (correct for grid).
+   ============================================================ */
+.kiosk-recipe-prompt-view {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+}
+
+/* GAP-7 36-15 (H2): Price-preview card styling.
+   Applied to #kiosk-recipe-price-preview which has class .kiosk-price-preview. */
+.kiosk-price-preview {
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-line, var(--cellar-border, #d5cdb5));
+  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4);
+  font-size: 13px;
+  margin: var(--sp-2) 0;
+}
+
+/* GAP-7 36-15 (H3): 44px touch targets on modify-table inputs */
+#kiosk-recipe-modify-table .admin-input,
+.kiosk-recipe-modify-table .admin-input {
+  min-height: 44px;
+}
+
+/* GAP-7 36-15 (H6/M3): Modify-wrap spacing */
+#kiosk-recipe-volume-wrap {
+  margin-bottom: var(--sp-6);
+}
+#kiosk-recipe-modify-wrap {
+  margin-top: var(--sp-4);
+}
+
+/* GAP-7 36-15 (H5/L1): Autocomplete dropdown — cellar palette (no hardcoded #fff/#ccc).
+   Mirrors admin.css .ing-autocomplete-drop with kiosk 44px touch target row padding. */
+.ing-autocomplete-wrap {
+  position: relative;
+}
+
+.ing-autocomplete-drop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 300;
+  background: var(--cellar-raised);
+  border: 1px solid var(--cellar-border, #d5cdb5);
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+
+.ing-autocomplete-drop [role="option"] {
+  padding: 14px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.ing-autocomplete-drop [role="option"]:hover {
+  background: var(--cellar-surface);
+}
+
+/* GAP-7 36-15 (L3): Group-header class — extracted from inline JS styles */
+.kiosk-modify-group-header td {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+  padding: 6px 8px;
+  background: var(--ledger-soft, var(--cellar-surface, #ede8d5));
+}
+
+/* GAP-5 36-15 (sticky Add-to-Cart): remains reachable without scrolling to end on iPad */
+#kiosk-add-recipe-to-cart.kiosk-add-recipe-btn {
+  position: sticky;
+  bottom: 0;
 }
