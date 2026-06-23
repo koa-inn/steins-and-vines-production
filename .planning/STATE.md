@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Recipe Builder Refinement
 status: executing
-stopped_at: Completed 36-10-PLAN.md
-last_updated: "2026-06-23T00:34:32.068Z"
-last_activity: 2026-06-23
+stopped_at: Completed 36-18-PLAN.md
+last_updated: "2026-06-22T01:30:00.000Z"
+last_activity: 2026-06-22
 progress:
   total_phases: 23
   completed_phases: 3
@@ -62,6 +62,7 @@ Progress: [█████████░] 90%
 - [Phase ?]: GAP-5: .kiosk-recipe-prompt-view toggled on admin #kiosk-recipe-prompt for bounded scroll; Add-to-Cart sticky bottom:0
 - [Phase ?]: GAP-6: #tab-kiosk .admin-input + .kiosk-volume-input font-size:1rem prevents iOS auto-zoom; admin bundle rebuilt via npm run build
 - [Phase ?]: GAP-7: #kiosk-recipe-price-preview standalone card outside modify-wrap; save-as-new below Add-to-Cart; .btn-secondary 44px targets; .kiosk-modify-group-header td CSS class
+- [36-18]: GAP-8: kioskFetchRecipeQuote drops sale-type gate; uses in-store preview default; re-renders #kiosk-recipe-ingredients from scaled quote.ingredients on both admin + kiosk surfaces
 
 ### Pending Todos
 
