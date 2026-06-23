@@ -11026,9 +11026,9 @@
     if (Array.isArray(_kioskModifiedIngredients)) {
       url += '&modified_ingredients=' + encodeURIComponent(JSON.stringify(_kioskModifiedIngredients));
     }
-    // Show "Calculating..." while waiting (36-04)
+    // Show "Calculating..." while waiting (36-04 / GAP-4 36-14: ungated — always show)
     var previewEl = document.getElementById('kiosk-recipe-price-preview');
-    if (previewEl && _kioskModifyPanelOpen) {
+    if (previewEl) {
       previewEl.style.display = '';
       previewEl.innerHTML = '<span style="color:var(--ink-tertiary);">Calculating…</span>';
     }
@@ -11038,9 +11038,9 @@
         if (result.status === 200 && result.data && result.data.ok &&
             result.data.recipe_id === recipeId) {
           _kioskQuote = result.data;
-          // Update price preview (36-04)
+          // Update price preview — ungated (GAP-4 36-14: write regardless of panel state)
           var el = document.getElementById('kiosk-recipe-price-preview');
-          if (el && _kioskModifyPanelOpen) {
+          if (el) {
             el.style.display = '';
             var total = typeof result.data.total === 'number' ? result.data.total : null;
             if (total !== null) {
@@ -11049,11 +11049,22 @@
               el.innerHTML = '<span style="color:var(--batch-danger);">Price unavailable — check connection</span>';
             }
           }
+          // GAP-4 36-14: update prominent #kiosk-recipe-summary-price from server total (D-06)
+          // The displayed price is ALWAYS the server quote — never client-side math.
+          var summaryPriceEl = document.getElementById('kiosk-recipe-summary-price');
+          if (summaryPriceEl) {
+            if (total !== null) {
+              summaryPriceEl.textContent = kioskFmt(total) + ' per batch';
+            } else {
+              summaryPriceEl.textContent = 'Price calculated at checkout';
+            }
+          }
           kioskUpdateAddToCartButton();
         } else {
           _kioskQuote = null;
+          // Error path — ungated (GAP-4 36-14)
           var errEl = document.getElementById('kiosk-recipe-price-preview');
-          if (errEl && _kioskModifyPanelOpen) {
+          if (errEl) {
             errEl.style.display = '';
             errEl.innerHTML = '<span style="color:var(--batch-danger);">Price unavailable — check connection</span>';
           }
@@ -11062,8 +11073,9 @@
       })
       .catch(function () {
         _kioskQuote = null;
+        // Catch path — ungated (GAP-4 36-14)
         var errEl = document.getElementById('kiosk-recipe-price-preview');
-        if (errEl && _kioskModifyPanelOpen) {
+        if (errEl) {
           errEl.style.display = '';
           errEl.innerHTML = '<span style="color:var(--batch-danger);">Price unavailable — check connection</span>';
         }
