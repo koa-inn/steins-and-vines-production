@@ -2306,6 +2306,13 @@ textarea.bp-input {
   color: var(--ink-primary);
   text-align: left;
 }
+.bp-recipes-style {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--ink-tertiary);
+  margin-top: 2px;
+}
 .bp-recipes-status {
   width: 1%;
   white-space: nowrap;

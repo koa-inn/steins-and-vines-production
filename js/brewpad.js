@@ -1976,6 +1976,24 @@ function bpScaleIngredients(list, factor) {
       });
   }
 
+  // Pure helper: builds the rows HTML for a filtered recipe list.
+  // Exported for unit tests.
+  function renderRecipeListHtml(recipes) {
+    if (!recipes || recipes.length === 0) return '';
+    var html = '<table class="bp-recipes-table"><tbody>';
+    recipes.forEach(function (recipe) {
+      var badgeClass = 'bp-recipes-badge-' + escapeHTML(recipe.status || 'draft');
+      var styleLine = recipe.style ? '<div class="bp-recipes-style">' + escapeHTML(recipe.style) + '</div>' : '';
+      html += '<tr class="bp-recipes-row" data-recipe-id="' + escapeHTML(recipe.recipe_id || '') + '">';
+      html += '<td class="bp-recipes-name">' + escapeHTML(recipe.name || '') + styleLine + '</td>';
+      html += '<td class="bp-recipes-status"><span class="' + badgeClass + '">' + escapeHTML(recipe.status || 'draft') + '</span></td>';
+      html += '<td class="bp-recipes-price">' + recipeRowPrice(recipe) + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  }
+
   function renderRecipeList() {
     var inner = document.getElementById('bp-recipes-inner');
     if (!inner) return;
@@ -1996,18 +2014,7 @@ function bpScaleIngredients(list, factor) {
       return;
     }
 
-    html += '<table class="bp-recipes-table"><tbody>';
-    filtered.forEach(function (recipe) {
-      var badgeClass = 'bp-recipes-badge-' + escapeHTML(recipe.status || 'draft');
-      html += '<tr class="bp-recipes-row" data-recipe-id="' + escapeHTML(recipe.recipe_id || '') + '">';
-      html += '<td class="bp-recipes-name">' + escapeHTML(recipe.name || '') + '</td>';
-      html += '<td class="bp-recipes-status"><span class="' + badgeClass + '">' + escapeHTML(recipe.status || 'draft') + '</span></td>';
-      html += '<td class="bp-recipes-price">' + recipeRowPrice(recipe) + '</td>';
-      html += '</tr>';
-    });
-    html += '</tbody></table>';
-
-    inner.innerHTML = html;
+    inner.innerHTML = html + renderRecipeListHtml(filtered);
   }
 
   // ===== Recipe Detail / Editor =====
@@ -2040,9 +2047,11 @@ function bpScaleIngredients(list, factor) {
     var saveBtn = document.getElementById('bp-recipes-save-btn');
     if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Recipe'; }
 
-    // Hide Delete button when creating a new recipe (D-04: no accidental delete).
+    // Hide Delete and Clone buttons when creating a new recipe (D-04: no accidental delete).
     var deleteBtn = document.getElementById('bp-recipe-delete');
     if (deleteBtn) { deleteBtn.style.display = recipeId ? '' : 'none'; }
+    var cloneBtn = document.getElementById('bp-recipe-clone');
+    if (cloneBtn) { cloneBtn.style.display = recipeId ? '' : 'none'; }
 
     if (!recipeId) {
       // New recipe mode
@@ -2353,6 +2362,76 @@ function bpScaleIngredients(list, factor) {
       var lastSearch = tbody.querySelector('.bp-recipes-ing-row:last-child .bp-ing-search');
       if (lastSearch) lastSearch.focus();
     }
+  }
+
+  // Pure helper: builds a clone draft payload from a source recipe + ingredients.
+  // Returns { recipe, ingredients } — both are deep copies; source is NOT mutated.
+  // Exported for unit tests.
+  function bpCloneRecipePayload(sourceRecipe, sourceIngredients) {
+    var r = sourceRecipe || {};
+    var clonedRecipe = {
+      recipe_id: null,
+      name: 'Copy of ' + (r.name || ''),
+      style: r.style || '',
+      description: r.description || '',
+      batch_size_l: r.batch_size_l || 0,
+      abv: r.abv || 0,
+      ibu: r.ibu || 0,
+      colour_srm: r.colour_srm || 0,
+      pricing_mode: r.pricing_mode || 'locked',
+      locked_price: r.locked_price || 0,
+      service_fee: r.service_fee != null ? r.service_fee : 45,
+      materials_fee: r.materials_fee != null ? r.materials_fee : 5,
+      status: 'draft'
+    };
+    var ings = Array.isArray(sourceIngredients) ? sourceIngredients : [];
+    var clonedIngredients = ings.map(function (ing) {
+      return {
+        item_id: ing.item_id || '',
+        item_name: ing.item_name || '',
+        sku: ing.sku || '',
+        quantity: ing.quantity || 0,
+        unit: ing.unit || '',
+        purchase_rate: ing.purchase_rate || 0,
+        rate: ing.rate || 0
+      };
+    });
+    return { recipe: clonedRecipe, ingredients: clonedIngredients };
+  }
+
+  // State-dependent: opens the editor in new-recipe mode pre-filled from the current recipe.
+  // Relies on _recipesState.currentRecipe + currentIngredients being set.
+  function bpCloneRecipe() {
+    if (!_recipesState.currentRecipe) {
+      showToast('No recipe open to clone.', 'warning');
+      return;
+    }
+    var payload = bpCloneRecipePayload(_recipesState.currentRecipe, _recipesState.currentIngredients);
+
+    // Enter new-recipe editor mode (recipeId = null)
+    _recipesState.currentRecipeId = null;
+    _recipesState.currentRecipe = payload.recipe;
+    _recipesState.currentIngredients = payload.ingredients;
+    _recipesState.availability = null;
+
+    showRecipesDetailView();
+
+    var titleEl = document.getElementById('bp-recipe-detail-title');
+    if (titleEl) titleEl.textContent = 'New Recipe';
+
+    var saveBtn = document.getElementById('bp-recipes-save-btn');
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Recipe'; }
+
+    // Hide Delete and Clone buttons in new-recipe mode
+    var deleteBtn = document.getElementById('bp-recipe-delete');
+    if (deleteBtn) deleteBtn.style.display = 'none';
+    var cloneBtn = document.getElementById('bp-recipe-clone');
+    if (cloneBtn) cloneBtn.style.display = 'none';
+
+    populateRecipeForm(payload.recipe);
+    renderAvailabilityBannerBp(null);
+    renderIngredientRows(payload.ingredients, null);
+    updateActivateGuardrail();
   }
 
   // Activate guardrail (D-06): evaluate and reflect on the Activate button
@@ -8257,6 +8336,11 @@ function bpScaleIngredients(list, factor) {
           if (rid) deleteRecipe(rid, rname);
           return;
         }
+        // Clone Recipe button (only shown for existing recipes — opens editable draft)
+        if (e.target && e.target.id === 'bp-recipe-clone') {
+          bpCloneRecipe();
+          return;
+        }
         // Add Ingredient button
         if (e.target && e.target.id === 'bp-recipes-add-ingredient-btn') {
           addIngredientRow();
@@ -8525,6 +8609,9 @@ function bpScaleIngredients(list, factor) {
       refreshBpStockAdvisory: refreshBpStockAdvisory,
       bpSaveAsNewRecipe: bpSaveAsNewRecipe,
       bpAttachRecipe: bpAttachRecipe,
+      // Plan 36-19: pure helpers for recipe list style + clone
+      renderRecipeListHtml: renderRecipeListHtml,
+      bpCloneRecipePayload: bpCloneRecipePayload,
       // State accessors for testing
       _bpGetTargetVolumeL:       function () { return _bpTargetVolumeL; },
       _bpSetTargetVolumeL:       function (v) { _bpTargetVolumeL = v; },
@@ -8584,6 +8671,7 @@ if (typeof module !== 'undefined' && module.exports) {
     recipeDeleteConfirmMessage: recipeDeleteConfirmMessage,
     // Phase 36: pure top-level scaling helper (mirrors lib/recipe-scaling.js)
     bpScaleIngredients: bpScaleIngredients
+    // Plan 36-19: renderRecipeListHtml + bpCloneRecipePayload exported by the IIFE inner block above
     // State-dependent attach-flow exports are merged by Object.assign inside the IIFE above
   });
 }
