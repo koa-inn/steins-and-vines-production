@@ -233,11 +233,21 @@ describe('kioskFetchRecipeQuote — HTTP request', function () {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  test('T1d: does not call fetch when no sale type is set', function () {
+  // GAP-8 (36-18): T1d updated — fetch NOW fires with in-store preview default when
+  // no sale type is selected (previous assertion was testing the OLD broken behavior).
+  test('T1d: calls fetch with in-store preview default when no sale type is set', function () {
     admin._kioskSetSelectedRecipe(BASE_RECIPE);
     admin._kioskSetSaleType(null);
+
+    global.fetch.mockResolvedValueOnce({
+      status: 200,
+      json: function () { return Promise.resolve({ ok: true, recipe_id: 'RCP-001', total: 109.20, ingredients: [] }); }
+    });
+
     admin.kioskFetchRecipeQuote();
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalled();
+    var url = global.fetch.mock.calls[0][0];
+    expect(url).toContain('sale_type=in-store');
   });
 
   test('T1e: sends sale_type=take-out when take-out is selected', function () {

@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-23T00:31:56.440Z';
+  var BUILD_TIMESTAMP = '2026-06-23T01:05:55.771Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -11013,12 +11013,30 @@
 
   // ---- Recipe browser: server quote fetch (35-06) ----
 
+  // GAP-8 (36-18): Module-scope flat ingredient renderer.
+  // Extracted from the inline HTML in kioskShowRecipePrompt so kioskFetchRecipeQuote
+  // can also call it to update the display with SCALED quantities from the quote.
+  // Matches the admin flat idiom exactly: "<strong>Ingredients:</strong><ul>...".
+  function kioskRenderRecipeIngredients(ingredients, el) {
+    if (!el || !ingredients) return;
+    var ingHtml = '<strong>Ingredients:</strong><ul style="margin:0.25rem 0;padding-left:1.25rem;">';
+    ingredients.forEach(function (ing) {
+      ingHtml += '<li>' + escapeHTML(ing.item_name || '') + ' — ' + escapeHTML(String(ing.quantity || '')) + ' ' + escapeHTML(ing.unit || '') + '</li>';
+    });
+    ingHtml += '</ul>';
+    el.innerHTML = ingHtml;
+  }
+
   // Fetch a dry-run quote from GET /api/kiosk/recipe-quote.
   // On success: store _kioskQuote and update Add-to-Cart button price.
   // On error: clear _kioskQuote (display falls back to base price).
   // Call debounced via kioskScheduleRecipeQuote (350 ms).
   function kioskFetchRecipeQuote() {
-    if (!_kioskSelectedRecipe || !_kioskSaleType) return;
+    // GAP-8 (36-18): Drop _kioskSaleType from the early-return guard.
+    // When no sale type is chosen yet, use 'in-store' as a preview default so
+    // the live price and ingredient list update as the user adjusts volume/factor.
+    // The charged amount is still the server total at the REAL sale type (chosen later).
+    if (!_kioskSelectedRecipe) return;
     var mw = kioskMwUrl();
     var headers = {};
     if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
@@ -11026,8 +11044,11 @@
     }
     var recipeId = _kioskSelectedRecipe.recipe_id;
     var targetVol = _kioskTargetVolumeL || (Number(_kioskSelectedRecipe.batch_size_l) || null);
+    // GAP-8 (36-18): Use real sale type when chosen; 'in-store' preview default otherwise.
+    // DISPLAY ONLY — the Add-to-Cart gate and charged amount still require a real _kioskSaleType.
+    var saleType = _kioskSaleType || 'in-store';
     var url = mw + '/api/kiosk/recipe-quote?recipe_id=' + encodeURIComponent(recipeId) +
-              '&sale_type=' + encodeURIComponent(_kioskSaleType);
+              '&sale_type=' + encodeURIComponent(saleType);
     if (targetVol) url += '&target_volume_l=' + encodeURIComponent(targetVol);
     // Phase 36: pass modified_ingredients when the user has edited the ingredient list (MOD-02)
     if (Array.isArray(_kioskModifiedIngredients)) {
@@ -11064,6 +11085,16 @@
               summaryPriceEl.textContent = kioskFmt(total) + ' per batch';
             } else {
               summaryPriceEl.textContent = 'Price calculated at checkout';
+            }
+          }
+          // GAP-8 (36-18): Re-render ingredient list from scaled quote.ingredients.
+          // This shows scaled quantities to the user before they choose a sale type.
+          // Only re-render when the quote returned a non-empty ingredients array —
+          // an empty array means the recipe has no ingredients yet (leave base list).
+          if (Array.isArray(result.data.ingredients) && result.data.ingredients.length > 0) {
+            var ingListEl = document.getElementById('kiosk-recipe-ingredients');
+            if (ingListEl) {
+              kioskRenderRecipeIngredients(result.data.ingredients, ingListEl);
             }
           }
           kioskUpdateAddToCartButton();
@@ -11275,15 +11306,11 @@
       summaryEl.innerHTML = summaryHtml;
 
       // Fetch ingredients for display; cache on recipe object for reuse in kioskAddRecipeToCart
+      // (GAP-8 36-18: inline renders replaced with kioskRenderRecipeIngredients helper)
       if (recipe._fetchedDetail) {
         var ingEl = document.getElementById('kiosk-recipe-ingredients');
         if (ingEl && recipe._fetchedDetail.ingredients) {
-          var ingHtml = '<strong>Ingredients:</strong><ul style="margin:0.25rem 0;padding-left:1.25rem;">';
-          recipe._fetchedDetail.ingredients.forEach(function (ing) {
-            ingHtml += '<li>' + (ing.item_name || '') + ' — ' + ing.quantity + ' ' + (ing.unit || '') + '</li>';
-          });
-          ingHtml += '</ul>';
-          ingEl.innerHTML = ingHtml;
+          kioskRenderRecipeIngredients(recipe._fetchedDetail.ingredients, ingEl);
         }
         // Update computed_price on recipe in case card fetch already populated it
         if (recipe._fetchedDetail.recipe && recipe._fetchedDetail.recipe.computed_price != null) {
@@ -11302,12 +11329,7 @@
           .then(function (data) {
             var ingEl2 = document.getElementById('kiosk-recipe-ingredients');
             if (ingEl2 && data.ingredients) {
-              var ingHtml2 = '<strong>Ingredients:</strong><ul style="margin:0.25rem 0;padding-left:1.25rem;">';
-              data.ingredients.forEach(function (ing) {
-                ingHtml2 += '<li>' + (ing.item_name || '') + ' — ' + ing.quantity + ' ' + (ing.unit || '') + '</li>';
-              });
-              ingHtml2 += '</ul>';
-              ingEl2.innerHTML = ingHtml2;
+              kioskRenderRecipeIngredients(data.ingredients, ingEl2);
             }
             recipe._fetchedDetail = data;
             if (data.recipe) {
