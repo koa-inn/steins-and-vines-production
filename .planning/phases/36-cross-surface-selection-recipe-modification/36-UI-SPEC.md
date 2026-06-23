@@ -626,6 +626,112 @@ This is a one-time DOM restructure. After it, the full ingredient list AND the A
 
 ---
 
+## Audit Polish (GAP-7 — from 36-UI-REVIEW.md)
+
+> Added 2026-06-22 (plan 36-13) — second-pass gap-closure. These are **binding fixes** that the surface plans (36-14 admin, 36-15 kiosk, 36-16 BrewPad) MUST satisfy. Items marked "must" are Critical or High findings from the UI review; "should" items are Medium or Low.
+
+### Touch Targets (44px minimum — Critical / High)
+
+| Element | Requirement | Finding | Surface(s) |
+|---------|-------------|---------|------------|
+| `.bp-ing-remove` | `min-height: 44px; min-width: 44px` | Currently 36px × 36px (brewpad.css:2537-2539) — 8px below spec. Must add `padding: 10px 12px;` | BrewPad (C5) |
+| `#kiosk-save-as-new-btn` | Must meet 44px — use `.btn-secondary` instead of `.admin-btn-sm` (which has `min-height:unset`) | `admin-btn-sm` renders ~24px. Prefer `.btn-secondary` over `admin-btn-sm` on the save-as-new button; if `admin-btn-sm` is retained anywhere else, add `min-height: 44px` to it | Admin (H4) |
+| `.admin-input.ing-search`, `.admin-input.ing-qty` in modify rows | `min-height: 44px` via `.kiosk-recipe-modify-table .admin-input { min-height: 44px; }` in both admin.css and kiosk.css | Modify-row inputs use `.admin-input` which has no `min-height` — renders ~30px | Admin + Kiosk (H3) |
+
+### iOS Zoom Guard (font-size — Critical)
+
+| Element | Requirement | Fix |
+|---------|-------------|-----|
+| Modify-row inputs on admin kiosk surface (`ing-search`, `ing-qty`) | `font-size: 1rem` (≥16px) — MUST NOT be 13px | Add `#tab-kiosk .admin-input { font-size: 1rem; }` to admin.css **or** add `style="font-size:1rem;"` to each input in `renderKioskModifyRows` in admin.js (C4) |
+| Admin kiosk volume inputs (`#kiosk-recipe-volume-wrap .kiosk-volume-input`) | `font-size: 1rem` on admin surface | Add `#tab-kiosk .kiosk-volume-input { font-size: 1rem; }` to admin.css (M4) |
+
+### Price-Preview Card Styling (High)
+
+`#kiosk-recipe-price-preview` MUST have a CSS class (e.g. `.kiosk-price-preview`) that enforces the card treatment. **Raw inline text with no container is not acceptable.**
+
+Required styles (apply via class to both admin.css and kiosk.css):
+
+```css
+.kiosk-price-preview {
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-line);
+  border-radius: var(--r-md);
+  padding: 12px 16px;       /* --sp-3 --sp-4 */
+  font-size: 13px;
+  margin: 8px 0;            /* --sp-2 top/bottom */
+}
+```
+
+The class is applied to the `#kiosk-recipe-price-preview` element in HTML. The loading / error states continue to use inline `color:` tokens on child spans (H2).
+
+### Element Order: Save-as-New Below Add-to-Cart (High)
+
+`#kiosk-save-as-new-wrap` MUST appear **BELOW** `#kiosk-add-recipe-to-cart` in `admin.html`. Currently in `admin.html` the save-as-new wrap is at line 669, before `#kiosk-sale-type-btns` (678) and `#kiosk-add-recipe-to-cart` (687) — a secondary action appears before staff can select a sale type. Fix: move `#kiosk-save-as-new-wrap` in `admin.html` to after `#kiosk-add-recipe-to-cart` (H1).
+
+This is the canonical 11-item order (also specified in the Scroll Model section above):
+
+```
+9.  Sale-type buttons + milling toggle
+10. #kiosk-add-recipe-to-cart
+11. #kiosk-save-as-new-wrap     ← MUST be last
+```
+
+### Empty State: No Phantom Rows (GAP-2 + GAP-7)
+
+**NEVER render `<tr>` rows in the modify table while the panel is collapsed.** This restates the GAP-2 rule and ties it to GAP-7: the no-phantom-row empty state is a binding fix, not a discretionary polish item. When the modify panel is collapsed, the table body MUST be empty — no greyed unfilled inputs, no placeholder row, no stale rows from a prior recipe selection.
+
+The single placeholder row is shown only when the panel is **expanded AND** the ingredient list is empty:
+
+```html
+<tr><td colspan="4" class="kiosk-modify-empty">No ingredients — use '+ Add Ingredient' to build a custom list</td></tr>
+```
+
+### Color: Off-Palette Kiosk Autocomplete Fix (High)
+
+The kiosk autocomplete dropdown (`kioskShowIngredientAutocomplete`, kiosk.js:963) MUST use the `.ing-autocomplete-drop` CSS class with palette tokens, not hardcoded `background:#fff; border:1px solid #ccc`. Required fix:
+
+1. Apply `.ing-autocomplete-drop` class to the dropdown container (admin.css:3119-3131 already defines this class with `--cellar-raised` background and `--cellar-border`).
+2. Add a matching `.ing-autocomplete-drop` rule to `kiosk.css` mirroring the admin rule, with option padding `14px 12px` for 44px effective tap height.
+3. Remove the inline `cssText` override from `kiosk.js:963` (H5 / L1).
+
+### Spacing Tokens in kiosk.css (Medium)
+
+`kiosk.css` `:root` block MUST define the project-standard `--sp-*` spacing tokens. Currently `kiosk.css` uses `var(--sp-4, 16px)` etc. with fallback literals, making the token system incomplete and fragile. Add to `kiosk.css `:root`:
+
+```css
+--sp-1: 4px;
+--sp-2: 8px;
+--sp-3: 12px;
+--sp-4: 16px;
+--sp-6: 24px;
+--sp-8: 32px;
+```
+
+And correct the `#kiosk-recipe-volume-wrap` margin-bottom from `--sp-4` (16px) to `--sp-6` (24px) per spec, on both admin.css and kiosk.css. Add `margin-top: var(--sp-4)` to `#kiosk-recipe-modify-wrap` for visual separation (M2 / H6 / M3).
+
+### Copy: Remove Trailing Colon from BrewPad × Factor Label (Medium)
+
+The BrewPad `<label>&times; factor:</label>` (brewpad.html:103) has a spurious trailing colon. The spec (Copywriting Contract) specifies `"× factor"` (no colon). Admin and kiosk surfaces correctly omit the colon. Fix: remove the `:` from `brewpad.html:103` (M1).
+
+### Group-Header Styling Extracted to CSS Class (Low — "should")
+
+Group header styling on admin/kiosk is currently inline (`style="font-size:11px..."` in JS) while BrewPad uses a proper CSS class (`.bp-recipe-ing-group td`). Executors **should** extract to a CSS class `.kiosk-modify-group-header td` in admin.css and kiosk.css:
+
+```css
+.kiosk-modify-group-header td {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+  padding: 6px 8px;
+  background: var(--ledger-soft);
+}
+```
+
+This is discretionary (L3) — note as "should" in surface plans, not blocking.
+
+---
+
 ## Checker Sign-Off
 
 - [ ] Dimension 1 Copywriting: PASS
@@ -635,4 +741,4 @@ This is a one-time DOM restructure. After it, the full ingredient list AND the A
 - [ ] Dimension 5 Spacing: PASS
 - [ ] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending — gap-closure extension added (plan 36-08): ×factor control contract (GAP-3) + modify-panel polish & ordering (GAP-2) appended 2026-06-22. Dimension checkboxes above are for the ui-checker to complete.
+**Approval:** pending — gap-closure extension added (plan 36-08): ×factor control contract (GAP-3) + modify-panel polish & ordering (GAP-2) appended 2026-06-22. Second-pass gap-closure extension (GAP-4/5/7 — live-price visibility, scroll model, audit polish) appended 2026-06-22 (plan 36-13). Dimension checkboxes above are for the ui-checker to complete.
