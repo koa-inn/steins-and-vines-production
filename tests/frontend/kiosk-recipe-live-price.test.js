@@ -643,3 +643,237 @@ describe('KLP-5: kiosk server-authoritative pricing — no fabricated values', f
     });
   });
 });
+
+// =============================================================================
+// GAP-8 regression tests — Live price + ingredient list update BEFORE sale type
+//
+// GAP8-A (admin): price + ingredient list updates with NO sale type selected
+// GAP8-K (kiosk): price + ingredient list updates with NO sale type selected
+//
+// Root cause: kioskFetchRecipeQuote() early-returned when _kioskSaleType===null.
+// Fix: use 'in-store' as preview default; re-render #kiosk-recipe-ingredients
+//      from _kioskQuote.ingredients on success.
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// Admin GAP-8 tests
+// ---------------------------------------------------------------------------
+
+describe('GAP8-A1: admin — kioskFetchRecipeQuote runs with no sale type, price updates', function () {
+  test('GAP8-A1: quote fires and updates #kiosk-recipe-summary-price with no sale type selected', function () {
+    var summaryPriceEl = injectEl('kiosk-recipe-summary-price');
+    var previewEl = injectEl('kiosk-recipe-price-preview');
+    injectEl('kiosk-add-recipe-to-cart', 'button');
+
+    // No sale type — this is the GAP-8 scenario
+    admin._kioskSetSelectedRecipe(BASE_RECIPE);
+    admin._kioskSetSaleType(null);
+    admin._kioskSetTargetVolumeL(30);
+
+    var noSaleTypeQuote = Object.assign({}, MOCK_QUOTE_SUCCESS, { total: 132.00 });
+    global.fetch.mockResolvedValueOnce({
+      status: 200,
+      json: function () { return Promise.resolve(noSaleTypeQuote); }
+    });
+
+    return admin.kioskFetchRecipeQuote().then(function () {
+      // Must have called fetch (not early-returned)
+      expect(global.fetch).toHaveBeenCalled();
+      // Prominent price must reflect server quote total
+      var priceText = summaryPriceEl.textContent;
+      expect(priceText).toContain('132');
+    });
+  });
+});
+
+describe('GAP8-A2: admin — fetch URL uses in-store preview default when no sale type', function () {
+  test('GAP8-A2: quote URL contains sale_type=in-store when _kioskSaleType is null', function () {
+    injectEl('kiosk-recipe-summary-price');
+    injectEl('kiosk-recipe-price-preview');
+    injectEl('kiosk-add-recipe-to-cart', 'button');
+
+    admin._kioskSetSelectedRecipe(BASE_RECIPE);
+    admin._kioskSetSaleType(null);
+
+    global.fetch.mockResolvedValueOnce({
+      status: 200,
+      json: function () { return Promise.resolve(MOCK_QUOTE_SUCCESS); }
+    });
+
+    return admin.kioskFetchRecipeQuote().then(function () {
+      expect(global.fetch).toHaveBeenCalled();
+      var calledUrl = global.fetch.mock.calls[0][0];
+      expect(calledUrl).toContain('sale_type=in-store');
+    });
+  });
+});
+
+describe('GAP8-A3: admin — ingredient list re-renders scaled from quote.ingredients', function () {
+  test('GAP8-A3: #kiosk-recipe-ingredients shows scaled quantities from quote after volume change', function () {
+    var ingEl = injectEl('kiosk-recipe-ingredients');
+    ingEl.innerHTML = 'Loading ingredients...';
+    injectEl('kiosk-recipe-summary-price');
+    injectEl('kiosk-recipe-price-preview');
+    injectEl('kiosk-add-recipe-to-cart', 'button');
+
+    admin._kioskSetSelectedRecipe(BASE_RECIPE);
+    admin._kioskSetSaleType(null);  // no sale type selected yet
+    admin._kioskSetTargetVolumeL(46);
+
+    var scaledQuote = Object.assign({}, MOCK_QUOTE_SUCCESS, {
+      total: 218.40,
+      scale_factor: 2.0,
+      ingredients: [
+        { item_id: 'ING-001', item_name: 'Pale Malt', unit: 'kg', quantity: 8.0, base_quantity: 4.0 },
+        { item_id: 'ING-002', item_name: 'Hops', unit: 'g', quantity: 60, base_quantity: 30 }
+      ]
+    });
+
+    global.fetch.mockResolvedValueOnce({
+      status: 200,
+      json: function () { return Promise.resolve(scaledQuote); }
+    });
+
+    return admin.kioskFetchRecipeQuote().then(function () {
+      var html = ingEl.innerHTML;
+      // Must contain scaled quantities from the quote (not base)
+      expect(html).toContain('Pale Malt');
+      expect(html).toContain('8');   // scaled qty, not base 4
+      expect(html).toContain('Hops');
+      expect(html).toContain('60');  // scaled qty, not base 30
+    });
+  });
+});
+
+describe('GAP8-A4: admin — Add-to-Cart still gated on real sale type after preview', function () {
+  test('GAP8-A4: Add-to-Cart button remains hidden when only preview quote ran (no real sale type)', function () {
+    var addBtn = injectEl('kiosk-add-recipe-to-cart', 'button');
+    addBtn.style.display = 'none';
+    injectEl('kiosk-recipe-summary-price');
+    injectEl('kiosk-recipe-price-preview');
+
+    admin._kioskSetSelectedRecipe(BASE_RECIPE);
+    admin._kioskSetSaleType(null);  // no sale type
+    admin._kioskSetRecipeAvailability({ summary: 'all_ok' });
+
+    global.fetch.mockResolvedValueOnce({
+      status: 200,
+      json: function () { return Promise.resolve(MOCK_QUOTE_SUCCESS); }
+    });
+
+    return admin.kioskFetchRecipeQuote().then(function () {
+      // Add-to-Cart must remain hidden — real sale type not chosen
+      expect(addBtn.style.display).toBe('none');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Kiosk GAP-8 tests
+// ---------------------------------------------------------------------------
+
+describe('GAP8-K1: kiosk — kioskFetchRecipeQuote runs with no sale type, price updates', function () {
+  test('GAP8-K1: quote fires and updates #kiosk-recipe-summary-price with no sale type selected', function () {
+    var summaryPriceEl = injectEl('kiosk-recipe-summary-price');
+    var previewEl = injectEl('kiosk-recipe-price-preview');
+    injectEl('kiosk-add-recipe-to-cart', 'button');
+
+    kiosk._kioskSetSelectedRecipe(KIOSK_BASE_RECIPE);
+    kiosk._kioskSetSaleType(null);  // no sale type — GAP-8 scenario
+    kiosk._kioskSetTargetVolumeL(30);
+
+    var noSaleTypeQuote = Object.assign({}, KIOSK_MOCK_QUOTE_SUCCESS, { total: 132.00 });
+    global.fetch.mockResolvedValueOnce({
+      status: 200,
+      json: function () { return Promise.resolve(noSaleTypeQuote); }
+    });
+
+    return kiosk.kioskFetchRecipeQuote().then(function () {
+      expect(global.fetch).toHaveBeenCalled();
+      var priceText = summaryPriceEl.textContent;
+      expect(priceText).toContain('132');
+    });
+  });
+});
+
+describe('GAP8-K2: kiosk — fetch URL uses in-store preview default when no sale type', function () {
+  test('GAP8-K2: quote URL contains sale_type=in-store when _kioskSaleType is null', function () {
+    injectEl('kiosk-recipe-summary-price');
+    injectEl('kiosk-recipe-price-preview');
+    injectEl('kiosk-add-recipe-to-cart', 'button');
+
+    kiosk._kioskSetSelectedRecipe(KIOSK_BASE_RECIPE);
+    kiosk._kioskSetSaleType(null);
+
+    global.fetch.mockResolvedValueOnce({
+      status: 200,
+      json: function () { return Promise.resolve(KIOSK_MOCK_QUOTE_SUCCESS); }
+    });
+
+    return kiosk.kioskFetchRecipeQuote().then(function () {
+      expect(global.fetch).toHaveBeenCalled();
+      var calledUrl = global.fetch.mock.calls[0][0];
+      expect(calledUrl).toContain('sale_type=in-store');
+    });
+  });
+});
+
+describe('GAP8-K3: kiosk — ingredient list re-renders scaled from quote.ingredients', function () {
+  test('GAP8-K3: #kiosk-recipe-ingredients shows scaled quantities from quote after volume change', function () {
+    var ingEl = injectEl('kiosk-recipe-ingredients');
+    ingEl.innerHTML = 'Loading ingredients...';
+    injectEl('kiosk-recipe-summary-price');
+    injectEl('kiosk-recipe-price-preview');
+    injectEl('kiosk-add-recipe-to-cart', 'button');
+
+    kiosk._kioskSetSelectedRecipe(KIOSK_BASE_RECIPE);
+    kiosk._kioskSetSaleType(null);  // no sale type
+    kiosk._kioskSetTargetVolumeL(46);
+
+    var scaledQuote = Object.assign({}, KIOSK_MOCK_QUOTE_SUCCESS, {
+      total: 218.40,
+      scale_factor: 2.0,
+      ingredients: [
+        { item_id: 'ING-001', item_name: 'Pale Malt', unit: 'kg', quantity: 8.0, base_quantity: 4.0 },
+        { item_id: 'ING-002', item_name: 'Hops', unit: 'g', quantity: 60, base_quantity: 30 }
+      ]
+    });
+
+    global.fetch.mockResolvedValueOnce({
+      status: 200,
+      json: function () { return Promise.resolve(scaledQuote); }
+    });
+
+    return kiosk.kioskFetchRecipeQuote().then(function () {
+      var html = ingEl.innerHTML;
+      // Must contain scaled quantities from the quote (not base)
+      expect(html).toContain('Pale Malt');
+      expect(html).toContain('8');   // scaled 8kg, not base 4
+      expect(html).toContain('Hops');
+      expect(html).toContain('60');  // scaled 60g, not base 30
+    });
+  });
+});
+
+describe('GAP8-K4: kiosk — Add-to-Cart still gated on real sale type after preview', function () {
+  test('GAP8-K4: Add-to-Cart button remains hidden when only preview quote ran (no real sale type)', function () {
+    var addBtn = injectEl('kiosk-add-recipe-to-cart', 'button');
+    addBtn.style.display = 'none';
+    injectEl('kiosk-recipe-summary-price');
+    injectEl('kiosk-recipe-price-preview');
+
+    kiosk._kioskSetSelectedRecipe(KIOSK_BASE_RECIPE);
+    kiosk._kioskSetSaleType(null);  // no sale type
+    kiosk._kioskSetRecipeAvailability({ summary: 'all_ok' });
+
+    global.fetch.mockResolvedValueOnce({
+      status: 200,
+      json: function () { return Promise.resolve(KIOSK_MOCK_QUOTE_SUCCESS); }
+    });
+
+    return kiosk.kioskFetchRecipeQuote().then(function () {
+      // Add-to-Cart must remain hidden — real sale type not chosen
+      expect(addBtn.style.display).toBe('none');
+    });
+  });
+});
