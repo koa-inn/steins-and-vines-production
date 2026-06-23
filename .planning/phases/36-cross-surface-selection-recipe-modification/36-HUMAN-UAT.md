@@ -3,7 +3,7 @@ status: partial
 phase: 36-cross-surface-selection-recipe-modification
 source: [36-VERIFICATION.md]
 started: 2026-06-21T05:40:00Z
-updated: 2026-06-21T05:40:00Z
+updated: 2026-06-22T21:30:00Z
 ---
 
 ## Current Test
@@ -110,3 +110,62 @@ fix: TBD after root-cause (cache guidance vs real wiring fix).
 ### GAP-7 (enhancement) — UI/UX expert review + polish of the recipe modify/sale region
 surfaces: all 3
 request (owner): GAP-2 polish is "looking better" but bring in a UI/UX agent to review the modify/sale region and apply professional polish (hierarchy, spacing, affordances, touch ergonomics). Feeds concrete polish items into the gap plan.
+
+---
+
+## Third-pass UAT (2026-06-22, after 36-13..36-16 deploy to staging)
+
+> Deployed to staging: commits `7082e06..8e2f593` pushed to `origin/main` 2026-06-22 (PUSH_CONFIRMED, remote head == local HEAD). Test on **staging.steinsandvines.ca** — use the in-store iPad for kiosk + BrewPad. **HARD REFRESH / clear cache FIRST** (GAP-6 cache guidance), and on the BrewPad PWA use the in-app ↻ Clear-cache button before testing.
+>
+> This pass **supersedes the round-1 re-UAT plan (36-12)** — it re-tests the new GAP-4/5/6/7 fixes AND re-confirms the still-pending original items (#1–#8) in one sign-off. Record each result inline (replace `[pending]`), or log a new gap with surface + symptom for a further cycle.
+
+### TP-1. GAP-4 — Live PROMINENT price updates on every change, modify panel CLOSED (admin + kiosk)
+expected: Select a recipe with a base size. Changing target volume → prominent price updates immediately. Changing ×factor → updates. Open Modify, add/remove an ingredient + change a qty → prominent price updates each time. Add to cart → displayed price == charged. No stale/base price on a long-list recipe. (Code: all 4 `&& _kioskModifyPanelOpen` quote gates removed in admin.js + kiosk.js; verified grep=0.)
+result: [pending]
+
+### TP-2. GAP-5 — Full list + accept/Add-to-Cart/Attach reachable on long recipes (admin + kiosk + BrewPad)
+expected: On a many-ingredient recipe with Modify expanded, scroll the panel and reach the WHOLE list AND the sale-type + Add-to-Cart buttons (sticky bottom). On BrewPad, expand the attach modify panel on a long recipe → the Attach Recipe button is reachable, not clipped.
+result: [pending]
+
+### TP-3. GAP-6 — ×factor / Modify present + no iOS zoom on admin.html?tab=kiosk (after hard refresh)
+expected: After a hard refresh, the ×factor input + Modify feature ARE visible and behave the same as kiosk.html; focusing an input does NOT auto-zoom the iPad (font-size:1rem). (Rebuilt admin.min.js carries the factor wiring.)
+result: [pending]
+
+### TP-4. GAP-7 — UI polish across all three surfaces
+expected: Price-preview reads as a card; touch targets comfortable (incl. BrewPad Remove ×, ≥44px); volume+factor row and Modify panel look clean/consistent; save-as-new (admin/BrewPad) sits below the primary action; cellar-palette autocomplete; "× factor" label consistent (no stray colon on BrewPad).
+result: [pending]
+
+### TP-5. BrewPad no-charge (D-10)
+expected: Attach a recipe at a scaled volume via the factor → NO price/charge appears anywhere in the attach flow; it only records the chosen volume.
+result: [pending]
+
+### TP-6. (orig #1) Cross-surface control parity
+expected: The identical target-volume + ×factor control behaves the same on admin / kiosk / BrewPad.
+result: [pending]
+
+### TP-7. (orig #2/#3) Displayed==charged + locked add/remove asymmetry
+expected: At 1.5× on a locked-price recipe, ADDING a discrete ingredient increases the charge by the scaled added line (the $125.50 worked example); REMOVING leaves the locked charge unchanged (owner acknowledges the intentional asymmetry).
+result: [pending]
+
+### TP-8. (orig #4/#5) SEL-02 carry-through to batch row
+expected: A sale at a non-1× volume flows the volume through cart → invoice → snapshot → batch row (target_volume_l + scale_factor) with no re-entry. REQUIRES the LIVE Apps Script create_batch redeploy + the Batches sheet columns (item #5) to be done — confirm those steps are complete.
+result: [pending]
+
+### TP-9. (orig #7) Save-as-new
+expected: admin + BrewPad save-as-new creates a NEW draft recipe; kiosk has none; original untouched.
+result: [pending]
+
+### TP-10. (orig #8) iPad touch/zoom
+expected: No iOS auto-zoom on any input; modify panel + autocomplete touch-friendly.
+result: [pending]
+
+## Third-pass summary
+
+total: 10
+passed: 0
+issues: 0
+pending: 10
+skipped: 0
+blocked: 0
+
+**Sign-off:** Type **"approved"** if GAP-4/5/6/7 are resolved across all surfaces, the still-pending original items pass, and the money path (displayed==charged, BrewPad no-charge) is unchanged — then I'll mark 36-17 (and the superseded 36-12) complete and route to phase verification. Otherwise describe the remaining issues (surface + symptom) for a further gap-closure cycle.
