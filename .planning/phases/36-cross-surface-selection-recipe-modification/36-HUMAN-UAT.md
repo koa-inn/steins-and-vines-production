@@ -121,7 +121,7 @@ request (owner): GAP-2 polish is "looking better" but bring in a UI/UX agent to 
 
 ### TP-1. GAP-4 — Live PROMINENT price updates on every change, modify panel CLOSED (admin + kiosk)
 expected: Select a recipe with a base size. Changing target volume → prominent price updates immediately. Changing ×factor → updates. Open Modify, add/remove an ingredient + change a qty → prominent price updates each time. Add to cart → displayed price == charged. No stale/base price on a long-list recipe. (Code: all 4 `&& _kioskModifyPanelOpen` quote gates removed in admin.js + kiosk.js; verified grep=0.)
-result: FAIL (2026-06-22, owner) — price does NOT update on volume/×factor change; only recomputes after a sale-type button (Ferment in Store / Take Out) is clicked. Also the displayed ingredient list does not scale. See GAP-8. → fix in progress (36-18).
+result: PASS — owner approved 2026-06-22 after 36-18 GAP-8 fix (live price + scaled list update on volume/factor change with no sale type selected)
 
 ### TP-2. GAP-5 — Full list + accept/Add-to-Cart/Attach reachable on long recipes (admin + kiosk + BrewPad)
 expected: On a many-ingredient recipe with Modify expanded, scroll the panel and reach the WHOLE list AND the sale-type + Add-to-Cart buttons (sticky bottom). On BrewPad, expand the attach modify panel on a long recipe → the Attach Recipe button is reachable, not clipped.
@@ -180,6 +180,6 @@ symptom: After selecting a recipe, changing the Target volume (L) or × factor d
 root_cause: (1) `kioskFetchRecipeQuote()` early-returns on `if (!_kioskSelectedRecipe || !_kioskSaleType) return;` (admin.js:11021, kiosk.js:784) — volume/×factor `oninput` handlers DO call `kioskScheduleRecipeQuote()`, but the fetch no-ops because no sale type is selected yet, so the live quote only starts on sale-type selection. The round-2 GAP-4 fix ungated the *write* of the quote to the price header but not the quote *trigger*. (2) The grouped ingredient list (`#kiosk-recipe-ingredients`) is rendered once in `kioskShowRecipePrompt` from base quantities and never re-rendered from the scaled `_kioskQuote.ingredients`.
 owner_decision (2026-06-22): pre-sale-type preview uses the **in-store** basis (matches the "(based on ingredients)" label already shown).
 fix (36-18): quote runs with a preview default sale type (`_kioskSaleType || 'in-store'`, display only) so price + list update live on volume/×factor change; on quote success re-render the ingredient list from the scaled `_kioskQuote.ingredients`; the charged amount + Add-to-Cart stay gated on the real selected sale type. Apply to admin + kiosk (D-01). Tests-first; rebuild bundles. (BrewPad excluded — D-10 no price; its list scaling tracked separately.)
-status: FIXED on staging 2026-06-22 (36-18, commit 669f221) — awaiting owner re-verify on volume/factor/ingredient change with NO sale type selected
+status: RESOLVED — owner approved on staging 2026-06-22 ("that works great now! approved"); 36-18 (commit 669f221) live price + scaled ingredient list now update on volume/factor/ingredient change pre-sale-type
 
 note: GAP-5/6/7 and the editing/modify panel UX were confirmed good on kiosk by the owner in the same pass ("the ingredient editing and all that part looks really good on kiosk").
