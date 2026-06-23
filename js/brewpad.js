@@ -4024,6 +4024,37 @@ function bpScaleIngredients(list, factor) {
   // Called by openRecipeAttachPanel when a recipe option is selected.
   // ---------------------------------------------------------------------------
   function wireAttachExpandedPanel(b, sectionBodyEl) {
+    // GAP-5: inject the expanded panel content INTO sectionBodyEl (which lives inside the
+    // scrollable .bp-batch-detail-pane) so it is never clipped by
+    // .bp-batches-panel { overflow:hidden }.
+    // Approach (a): clone the <template id="bp-recipe-attach-expanded-tpl"> content and
+    // append it into sectionBodyEl. Remove any prior injected panel first.
+    var _bpAttachExpandedEl = sectionBodyEl ? sectionBodyEl.querySelector('#bp-recipe-attach-expanded-injected') : null;
+    if (_bpAttachExpandedEl) _bpAttachExpandedEl.parentNode.removeChild(_bpAttachExpandedEl);
+
+    var tpl = document.getElementById('bp-recipe-attach-expanded-tpl');
+    if (tpl && sectionBodyEl) {
+      var frag;
+      if (tpl.content) {
+        // Real <template> element (browser + jsdom ≥ 16)
+        frag = tpl.content.cloneNode(true);
+      } else {
+        // Fallback: tpl is a regular element (jsdom < 16 or test env without template support)
+        var wrapper = document.createElement('div');
+        wrapper.id = 'bp-recipe-attach-expanded-injected';
+        wrapper.innerHTML = tpl.innerHTML;
+        frag = wrapper;
+      }
+      // Wrap in a container so we can find/remove it later
+      if (frag.nodeType === 11 /* DOCUMENT_FRAGMENT_NODE */) {
+        var container = document.createElement('div');
+        container.id = 'bp-recipe-attach-expanded-injected';
+        container.appendChild(frag);
+        frag = container;
+      }
+      sectionBodyEl.appendChild(frag);
+    }
+
     // Reset attach-flow state
     _bpModifiedIngredients = null;
     _bpScaleFactor         = 1.0;
@@ -4177,9 +4208,8 @@ function bpScaleIngredients(list, factor) {
           b.recipe_snapshot = JSON.stringify(snap2);
           try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e3) {}
           showToast('Recipe attached', 'success');
-          // Hide expanded panel before re-rendering
-          var expPanel = document.getElementById('bp-recipe-attach-expanded');
-          if (expPanel) expPanel.style.display = 'none';
+          // GAP-5: the injected expanded panel lives inside sectionBodyEl;
+          // renderRecipeSectionBody replaces sectionBodyEl.innerHTML, removing it automatically.
           renderRecipeSectionBody(sectionBodyEl, b, snap2);
         }).catch(function (err) {
           confirmBtn.disabled = false;
@@ -4239,9 +4269,9 @@ function bpScaleIngredients(list, factor) {
     _bpTargetVolumeL       = null;
     _bpScaleFactor         = 1.0;
 
-    // Hide the expanded panel until a recipe resolves
-    var expandedPanel = document.getElementById('bp-recipe-attach-expanded');
-    if (expandedPanel) expandedPanel.style.display = 'none';
+    // GAP-5: remove any previously-injected expanded panel from sectionBodyEl on panel open
+    var _prevInjected = sectionBodyEl.querySelector('#bp-recipe-attach-expanded-injected');
+    if (_prevInjected) _prevInjected.parentNode.removeChild(_prevInjected);
 
     emptyDiv.innerHTML =
       '<div class="bp-vessel-wrap" id="bp-recipe-attach-wrap">' +
@@ -4311,10 +4341,8 @@ function bpScaleIngredients(list, factor) {
                 resolvedInfo.style.display = '';
               }
 
-              // Show the expanded panel with controls
-              if (expandedPanel) expandedPanel.style.display = '';
-
-              // Wire all controls
+              // GAP-5: wireAttachExpandedPanel injects the expanded panel INTO sectionBodyEl
+              // (the scrollable detail pane), so no explicit show/hide of a static sibling needed.
               wireAttachExpandedPanel(b, sectionBodyEl);
             })
             .catch(function (err) { showToast('Failed to load recipe: ' + err.message, 'error'); });
@@ -4329,7 +4357,9 @@ function bpScaleIngredients(list, factor) {
         _bpModifiedIngredients = null;
         _bpTargetVolumeL       = null;
         _bpScaleFactor         = 1.0;
-        if (expandedPanel) expandedPanel.style.display = 'none';
+        // GAP-5: remove injected panel on cancel (it lives inside sectionBodyEl)
+        var injected = sectionBodyEl ? sectionBodyEl.querySelector('#bp-recipe-attach-expanded-injected') : null;
+        if (injected) injected.parentNode.removeChild(injected);
         emptyDiv.innerHTML =
           '<p style="color:var(--ink-secondary);font-size:0.82rem;margin:0 0 8px 0;">No recipe attached to this batch.</p>' +
           '<div class="bp-recipe-btn-row">' +

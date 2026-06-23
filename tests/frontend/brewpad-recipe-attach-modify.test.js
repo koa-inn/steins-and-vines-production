@@ -634,3 +634,149 @@ describe('state accessor exports', function () {
     expect(bp._bpGetModifiedIngredients()).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// BSC-1..BSC-4: GAP-5 — expanded panel inside scrollable detail pane (36-16)
+// ---------------------------------------------------------------------------
+describe('GAP-5/GAP-7 — expanded panel inside scrollable pane (BSC tests)', function () {
+  // Helper: build a minimal detail-pane DOM fixture
+  // sectionBodyEl lives inside .bp-batch-detail-pane (the scrollable pane).
+  // Includes a <template id="bp-recipe-attach-expanded-tpl"> mirroring brewpad.html
+  // so that wireAttachExpandedPanel can clone its content into sectionBodyEl (GAP-5).
+  function buildDetailPaneFixture() {
+    // Outer structure mirrors brewpad.html: bp-batch-detail-pane contains sectionBodyEl
+    var detailPane = document.createElement('div');
+    detailPane.className = 'bp-batch-detail-pane';
+    detailPane.id = 'bp-batch-detail-pane-bsc';
+
+    var sectionBodyEl = document.createElement('div');
+    sectionBodyEl.className = 'bp-detail-section-body';
+    sectionBodyEl.id = 'bp-detail-section-body-bsc';
+
+    // The bp-recipe-empty div is required by openRecipeAttachPanel (entry point)
+    var emptyDiv = document.createElement('div');
+    emptyDiv.className = 'bp-recipe-empty';
+    sectionBodyEl.appendChild(emptyDiv);
+
+    detailPane.appendChild(sectionBodyEl);
+    document.body.appendChild(detailPane);
+
+    // GAP-5: inject a <template> matching brewpad.html so wireAttachExpandedPanel can
+    // clone its content into sectionBodyEl.
+    var tpl = document.createElement('template');
+    tpl.id = 'bp-recipe-attach-expanded-tpl';
+    tpl.innerHTML =
+      '<div id="bp-recipe-volume-wrap" style="display:none;">' +
+        '<label><input type="number" id="bp-target-volume" /></label>' +
+        '<label>&times; factor<input type="number" id="bp-target-factor" /></label>' +
+        '<div id="bp-scale-factor-readout"></div>' +
+      '</div>' +
+      '<div id="bp-recipe-modify-wrap" style="display:none;">' +
+        '<button type="button" id="bp-modify-toggle">Modify Ingredients</button>' +
+        '<div id="bp-modify-panel" style="display:none;">' +
+          '<table><tbody id="bp-modify-tbody"></tbody></table>' +
+          '<button type="button" id="bp-modify-add-row">+ Add Ingredient</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="bp-recipe-stock-advisory" style="display:none;"></div>' +
+      '<button type="button" id="bp-recipe-attach-confirm-btn" style="display:none;">Attach Recipe</button>' +
+      '<div id="bp-save-as-new-wrap" style="display:none;">' +
+        '<button type="button" id="bp-save-as-new-btn">Save as new recipe</button>' +
+        '<div id="bp-save-as-new-prompt" style="display:none;">' +
+          '<input type="text" id="bp-new-recipe-name" />' +
+          '<button type="button" id="bp-save-draft-btn">Save Draft</button>' +
+          '<button type="button" id="bp-save-cancel-btn">Cancel</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(tpl);
+
+    return { detailPane: detailPane, sectionBodyEl: sectionBodyEl };
+  }
+
+  beforeEach(function () {
+    bp._bpSetResolvedRecipe({ recipe: BASE_RECIPE, ingredients: BASE_INGREDIENTS });
+    bp._bpSetTargetVolumeL(null);
+    bp._bpSetModifiedIngredients(null);
+    bp._bpSetScaleFactor(1.0);
+    global.fetch.mockClear();
+  });
+
+  // BSC-1: expanded panel content is inside the scrollable detail pane, NOT in the clipped sibling
+  test('BSC-1: after wireAttachExpandedPanel, the expanded panel content is inside sectionBodyEl (scrollable pane)', function () {
+    var fixture = buildDetailPaneFixture();
+    var sectionBodyEl = fixture.sectionBodyEl;
+    var detailPane = fixture.detailPane;
+
+    bp._bpWireAttachExpandedPanel(BASE_RECIPE, sectionBodyEl);
+
+    // The expanded panel content (attach-confirm-btn) must be a descendant of sectionBodyEl
+    // i.e., inside the scrollable detail pane, not outside it
+    var confirmBtn = sectionBodyEl.querySelector('#bp-recipe-attach-confirm-btn');
+    expect(confirmBtn).not.toBeNull();
+
+    // Verify that detailPane contains sectionBodyEl (containment chain)
+    expect(detailPane.contains(sectionBodyEl)).toBe(true);
+  });
+
+  // BSC-2: Attach Recipe button is reachable inside the scrollable container
+  test('BSC-2: #bp-recipe-attach-confirm-btn is present inside the injected scrollable container', function () {
+    var fixture = buildDetailPaneFixture();
+    var sectionBodyEl = fixture.sectionBodyEl;
+
+    bp._bpWireAttachExpandedPanel(BASE_RECIPE, sectionBodyEl);
+
+    // After wiring, the confirm button must be findable inside sectionBodyEl
+    var btn = sectionBodyEl.querySelector('#bp-recipe-attach-confirm-btn');
+    expect(btn).not.toBeNull();
+    expect(btn.tagName.toLowerCase()).toBe('button');
+  });
+
+  // BSC-3: no quote/sale/Helcim URL hit on expand/attach (D-10 regression guard)
+  test('BSC-3: expanding/attaching makes NO call to recipe-quote, recipe-sale, or Helcim (D-10)', function () {
+    var fixture = buildDetailPaneFixture();
+    var sectionBodyEl = fixture.sectionBodyEl;
+
+    global.fetch.mockClear();
+
+    // Wire the panel (simulates expand)
+    bp._bpWireAttachExpandedPanel(BASE_RECIPE, sectionBodyEl);
+
+    // All fetch calls made during wiring/expand must NOT touch quote/sale/Helcim
+    global.fetch.mock.calls.forEach(function (call) {
+      var url = (call[0] || '').toString();
+      expect(url).not.toContain('recipe-quote');
+      expect(url).not.toContain('recipe-sale');
+      expect(url).not.toContain('helcim');
+      expect(url).not.toContain('payment');
+    });
+  });
+
+  // BSC-4: factor still records volume after the DOM restructure — no quote called
+  test('BSC-4: editing #bp-target-factor updates _bpTargetVolumeL and makes NO quote call (D-10)', function () {
+    var fixture = buildDetailPaneFixture();
+    var sectionBodyEl = fixture.sectionBodyEl;
+
+    bp._bpWireAttachExpandedPanel(BASE_RECIPE, sectionBodyEl);
+    global.fetch.mockClear();
+
+    // Simulate user editing the factor input
+    var factorInput = document.getElementById('bp-target-factor');
+    expect(factorInput).not.toBeNull();
+
+    factorInput.value = '1.5';
+    if (factorInput.oninput) factorInput.oninput();
+
+    // _bpTargetVolumeL must have been updated (1.5 * 23 = 34.5, rounded to nearest 0.5)
+    var newVol = bp._bpGetTargetVolumeL();
+    expect(newVol).not.toBeNull();
+    expect(newVol).toBeGreaterThan(0);
+
+    // No quote/sale/Helcim fetch must have been triggered
+    global.fetch.mock.calls.forEach(function (call) {
+      var url = (call[0] || '').toString();
+      expect(url).not.toContain('recipe-quote');
+      expect(url).not.toContain('recipe-sale');
+      expect(url).not.toContain('helcim');
+    });
+  });
+});

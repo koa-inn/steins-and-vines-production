@@ -2533,11 +2533,11 @@ textarea.bp-input {
 .bp-ing-status-dot--cannot { background: var(--batch-danger); }
 .bp-ing-status-dot--unknown { background: var(--ink-tertiary); }
 
-/* Remove button — small danger control */
+/* Remove button — small danger control (GAP-7 C5: bumped to 44px touch target) */
 .bp-ing-remove {
-  min-height: 36px;
-  min-width: 36px;
-  padding: 6px 10px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 12px;
   border-color: var(--batch-danger);
   color: var(--batch-danger);
   font-size: 0.9rem;
