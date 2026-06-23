@@ -484,6 +484,148 @@ When an ingredient is removed, its row is deleted immediately. The group header 
 
 ---
 
+## Live Price Visibility (GAP-4, MOD-02, D-06)
+
+> Added 2026-06-22 (plan 36-13) — second-pass gap-closure. All three surface plans (36-14 admin, 36-15 kiosk, 36-16 BrewPad) implement against this section.
+
+### 1. The Prominent Live Price (`#kiosk-recipe-summary-price`)
+
+The visible/prominent recipe price element (`#kiosk-recipe-summary-price`) on the **admin and kiosk sale surfaces** MUST reflect the **live SERVER quote total** and update on **EVERY change** that affects the price:
+
+- Target-volume (L) field edit
+- × factor field edit
+- Ingredient added to the modify panel
+- Ingredient removed from the modify panel
+- Ingredient quantity changed in the modify panel
+
+This update MUST happen **regardless of whether the Modify Ingredients panel is open or closed**. The price is always visible (post-sale-type-selection) and always current.
+
+### 2. Remove the `_kioskModifyPanelOpen` Gate — Required Line Anchors
+
+The `_kioskModifyPanelOpen` flag MUST NOT appear on **any write path** inside `kioskFetchRecipeQuote`. The following gates are present in the round-2 shipped code and MUST be removed:
+
+| File | Lines to de-gate | Current gate | Required outcome |
+|------|-----------------|--------------|-----------------|
+| `js/admin.js` | 11031, 11043, 11056, 11066 | `if (previewEl && _kioskModifyPanelOpen)` / `if (el && _kioskModifyPanelOpen)` / error variants | Remove all `_kioskModifyPanelOpen` conditions; write unconditionally |
+| `js/kiosk.js` | 801, 813, 826, 836 | `if (previewEl && _kioskModifyPanelOpen)` / `if (el && _kioskModifyPanelOpen)` / error variants | Remove all `_kioskModifyPanelOpen` conditions; write unconditionally |
+
+After removing these gates, `kioskFetchRecipeQuote` writes its result (loading / success / error) to both the price-preview element AND the prominent summary-price element, always.
+
+### 3. Price-Preview Element Placement (Standalone Card)
+
+`#kiosk-recipe-price-preview` MUST be a **standalone element** — it MUST be moved OUT of `#kiosk-recipe-modify-wrap` in the HTML and placed **between** `#kiosk-recipe-modify-wrap` and `#kiosk-stock-conflict`. It is shown as soon as a sale-type is selected (not only when the modify panel is open).
+
+The corrected element order in `#kiosk-recipe-prompt` (sale surfaces) is:
+
+```
+1.  Back button + recipe name
+2.  #kiosk-recipe-summary
+3.  #kiosk-recipe-volume-wrap
+4.  #kiosk-recipe-modify-wrap         ← collapsible; price NOT inside here
+5.  #kiosk-recipe-price-preview        ← STANDALONE card between modify-wrap and stock-conflict
+6.  #kiosk-locked-price-notice
+7.  #kiosk-stock-conflict
+8.  #kiosk-avail-banner
+9.  Sale-type buttons + milling toggle
+10. #kiosk-add-recipe-to-cart
+11. #kiosk-save-as-new-wrap            ← BELOW add-to-cart
+```
+
+### 4. Server-Authoritative Pricing Rule (Emphasis)
+
+> **The prominent price is the SERVER quote total (`GET /api/kiosk/recipe-quote`), never client-side math. The client renders what the server returns.**
+
+- Loading state: `"Calculating…"` rendered in `--ink-tertiary`; replaces any previous price value while a quote is in-flight.
+- Error state: `"Price unavailable — check connection"` rendered in `--batch-danger`.
+- The displayed price MUST NEVER silently retain a stale/base value once a quote is in-flight. When a new quote request fires, the price-preview element immediately switches to the loading state ("Calculating…") before the server responds.
+- The `_kioskQuote` value stored in JS (line 810 in kiosk.js: `_kioskQuote = result.data`) MAY still be used for the Add-to-Cart button label. The standalone price-preview card supersedes the modify-wrap-gated element and is the primary visible price.
+
+### 5. BrewPad: No Price Preview (D-10)
+
+**BrewPad (36-16) MUST NOT add any price preview, prominent live price, or quote call.** BrewPad attach is record-keeping only; no charge occurs (D-10). Plan 36-16 MUST NOT introduce:
+
+- A `#bp-recipe-price-preview` element
+- A call to `GET /api/kiosk/recipe-quote` on any BrewPad event (factor change, volume change, ingredient change, attach)
+- Any price display in the `#bp-recipe-attach-expanded` panel or elsewhere in the attach flow
+
+This restates D-10 explicitly so the surface plan cannot inadvertently add a price element to a non-money surface.
+
+---
+
+## Scroll Model (GAP-5)
+
+> Added 2026-06-22 (plan 36-13) — second-pass gap-closure. All three surface plans (36-14 admin, 36-15 kiosk, 36-16 BrewPad) implement against this section.
+
+### 1. Sale Surfaces (Admin + Kiosk): Bounded Scrollable Flex Column
+
+`#kiosk-recipe-prompt` on BOTH admin (`admin.html#tab-kiosk`) and kiosk (`kiosk.html`) MUST be a **bounded scrollable flex column** when it replaces the product/recipe grid. Apply via a dedicated CSS class, e.g. `.kiosk-recipe-prompt-view`, toggled by `kioskShowRecipePrompt` / `kioskShowRecipeGrid`:
+
+```css
+.kiosk-recipe-prompt-view {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+}
+```
+
+The parent `.kiosk-product-pane` currently has `overflow:hidden` — this is correct for the grid view. The fix is to give `#kiosk-recipe-prompt` itself the scroll context when it is active, so the grid's scroll behavior is not affected.
+
+**Flex-shrink rules within the scroll container:**
+
+| Item | `flex-shrink` | Rationale |
+|------|--------------|-----------|
+| Back button + recipe name | `0` | Always visible — must not compress |
+| `#kiosk-recipe-summary` | `0` | Always visible |
+| `#kiosk-recipe-volume-wrap` | `0` | Primary control — must not compress |
+| `#kiosk-recipe-modify-wrap` and below | `0` (scrolls within container) | Scrolled via container |
+
+The Add-to-Cart button (`#kiosk-add-recipe-to-cart`) MAY be styled as `position: sticky; bottom: 0` within the scroll container so it remains reachable without scrolling to the end. This is optional but recommended for iPad ergonomics.
+
+**Recommended full element order + scroll structure (from 36-UI-REVIEW.md lines 29–54):**
+
+```
+#kiosk-recipe-prompt (.kiosk-recipe-prompt-view)
+  — MUST be a flex column with overflow-y:auto and a bounded height
+  — On kiosk: height:100% within a flex parent that itself has flex:1 + min-height:0
+
+  1. Back button + recipe name           [flex-shrink:0 — always visible]
+  2. #kiosk-recipe-summary              [flex-shrink:0]
+  3. #kiosk-recipe-volume-wrap          [flex-shrink:0]
+     Volume (L) input | × factor input  [flex row]
+     "1.50× base 20.0 L" readout
+  4. #kiosk-recipe-modify-wrap          [flex-shrink:0]
+     "Modify Ingredients" toggle
+     (expanded) ingredient table
+     (expanded) "+ Add Ingredient"
+  5. #kiosk-recipe-price-preview        [styled card, flex-shrink:0, NOT inside modify-wrap]
+     "Estimated total: $XX.XX" — ALWAYS VISIBLE once sale-type is selected,
+     updated on every volume/factor/ingredient change regardless of panel state
+  6. #kiosk-locked-price-notice         [flex-shrink:0]
+  7. #kiosk-stock-conflict              [flex-shrink:0]
+  8. #kiosk-avail-banner                [flex-shrink:0]
+  9. Sale-type buttons + milling toggle  [flex-shrink:0]
+  10. #kiosk-add-recipe-to-cart         [sticky or flex-shrink:0]
+  11. #kiosk-save-as-new-wrap           [flex-shrink:0, BELOW add-to-cart]
+```
+
+Scroll strategy: items 1–3 are `flex-shrink:0` so they stay accessible. Items 4–11 scroll within the bounded container. The Add-to-Cart button may optionally be `position:sticky; bottom:0` within the scroll container so it remains reachable without scrolling all the way down.
+
+### 2. BrewPad: Inject Into the Scrollable Detail Pane
+
+`#bp-recipe-attach-expanded` MUST be rendered **INSIDE** the scrollable `.bp-batch-detail-pane` (via the `sectionBodyEl` passed to `wireAttachExpandedPanel`), NOT as a sibling of `.bp-batches-layout` where `.bp-batches-panel { overflow:hidden }` (brewpad.css:515) clips it.
+
+**Required DOM restructure:**
+
+- The static `#bp-recipe-attach-expanded` element in `brewpad.html` (currently a sibling of `.bp-batches-layout`) must become a **template fragment** that is injected into `sectionBodyEl` at runtime, OR the element must be moved inside the scrollable `.bp-batch-detail-pane` in the static HTML.
+- When `wireAttachExpandedPanel(batch, sectionBodyEl)` is called, the expanded panel's content MUST be appended into (or exist inside) `sectionBodyEl`, which lives inside `.bp-batch-detail-pane` — the element that already has `overflow-y:auto`.
+- The `.bp-batches-panel { overflow:hidden }` clipping is intentional for the layout; the fix is the injection point, not removing the `overflow:hidden`.
+
+This is a one-time DOM restructure. After it, the full ingredient list AND the Attach Recipe button are reachable by scrolling the detail pane on any iPad viewport.
+
+---
+
 ## Checker Sign-Off
 
 - [ ] Dimension 1 Copywriting: PASS
