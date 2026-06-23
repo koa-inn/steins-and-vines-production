@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-22T20:47:46.521Z';
+  var BUILD_TIMESTAMP = '2026-06-23T00:15:07.410Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -10769,7 +10769,11 @@
     if (recipeBackBtn) recipeBackBtn.addEventListener('click', function () {
       var prompt = document.getElementById('kiosk-recipe-prompt');
       var grid = document.getElementById('kiosk-recipe-grid');
-      if (prompt) prompt.style.display = 'none';
+      if (prompt) {
+        prompt.style.display = 'none';
+        // GAP-5 36-14: remove scroll class when returning to grid
+        prompt.classList.remove('kiosk-recipe-prompt-view');
+      }
       if (grid) grid.style.display = 'grid';
       _kioskSelectedRecipe = null;
       _kioskSaleType = null;
@@ -10853,7 +10857,10 @@
     // Toggle visibility
     if (prodGrid) prodGrid.style.display = mode === 'products' ? '' : 'none';
     if (recipeGrid) recipeGrid.style.display = mode === 'recipes' ? 'grid' : 'none';
-    if (recipePrompt) recipePrompt.style.display = 'none'; // always hide prompt on mode switch
+    if (recipePrompt) {
+      recipePrompt.style.display = 'none'; // always hide prompt on mode switch
+      recipePrompt.classList.remove('kiosk-recipe-prompt-view'); // GAP-5 36-14
+    }
     if (searchBar) searchBar.style.display = mode === 'products' ? '' : 'none';
 
     // Toggle active state on mode buttons
@@ -11235,7 +11242,11 @@
     var grid = document.getElementById('kiosk-recipe-grid');
     var prompt = document.getElementById('kiosk-recipe-prompt');
     if (grid) grid.style.display = 'none';
-    if (prompt) prompt.style.display = '';
+    if (prompt) {
+      prompt.style.display = '';
+      // GAP-5 36-14: bounded scroll context so action buttons are reachable on iPad
+      prompt.classList.add('kiosk-recipe-prompt-view');
+    }
 
     // Set recipe name
     var nameEl = document.getElementById('kiosk-recipe-selected-name');
@@ -11628,6 +11639,11 @@
 
     // Show milling toggle only for take-out (D-03)
     if (millingToggle) millingToggle.style.display = saleType === 'take-out' ? '' : 'none';
+
+    // GAP-4 36-14: show price-preview as soon as a sale-type is selected (not just when modify panel opens)
+    // The quote fetch triggered below will immediately set "Calculating…" then the real price.
+    var pricePreviewEl = document.getElementById('kiosk-recipe-price-preview');
+    if (pricePreviewEl) pricePreviewEl.style.display = '';
 
     // Update summary price and add-to-cart button; re-quote for new sale type (35-06)
     kioskUpdateSummaryPrice();

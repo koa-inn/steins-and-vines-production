@@ -2955,8 +2955,9 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
 /* === Kiosk Recipe Prompt — Volume + ×factor row (GAP-3, 36-09) === */
 
 /* Volume wrap: contains the flex row of inputs + the readout beneath */
+/* GAP-7 36-14 (H6/M3): margin-bottom --sp-6 per UI-SPEC spacing (was --sp-4) */
 #kiosk-recipe-volume-wrap {
-  margin-bottom: var(--sp-4);
+  margin-bottom: var(--sp-6);
 }
 
 /* One-row flex container: litres input + factor input side by side */
@@ -3330,4 +3331,65 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
 .beerxml-matched-info {
   font-size: 11px;
   color: var(--ink-tertiary);
+}
+
+/* ============================================================
+   GAP-5 36-14: Kiosk recipe prompt — bounded scrollable view
+   Toggled on #kiosk-recipe-prompt when the recipe is selected;
+   parent .kiosk-product-pane has overflow:hidden (correct for grid).
+   ============================================================ */
+.kiosk-recipe-prompt-view {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+}
+
+/* GAP-6 36-14 (C4): Admin kiosk-tab modify-row inputs — font-size 1rem
+   prevents iOS Safari auto-zoom on focus (admin-input base is 13px). */
+#tab-kiosk .admin-input {
+  font-size: 1rem;
+}
+
+/* GAP-6 36-14 (M4): Admin kiosk-tab volume inputs — font-size 1rem */
+#tab-kiosk .kiosk-volume-input {
+  font-size: 1rem;
+}
+
+/* GAP-7 36-14 (H2): Price-preview card styling
+   Applied to #kiosk-recipe-price-preview which has class .kiosk-price-preview. */
+.kiosk-price-preview {
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-line, var(--cellar-border, #d5cdb5));
+  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4);
+  font-size: 13px;
+  margin: var(--sp-2) 0;
+}
+
+/* GAP-7 36-14 (H3): 44px touch targets on modify-table inputs */
+.kiosk-recipe-modify-table .admin-input {
+  min-height: 44px;
+}
+
+/* GAP-7 36-14 (H6/M3): Modify-wrap spacing — gap after volume-wrap */
+#kiosk-recipe-modify-wrap {
+  margin-top: var(--sp-4);
+}
+
+/* GAP-7 36-14 (L3): Group-header class — extracted from inline JS styles */
+.kiosk-modify-group-header td {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+  padding: 6px 8px;
+  background: var(--ledger-soft, var(--cellar-surface, #ede8d5));
+}
+
+/* GAP-7 36-14 (sticky Add-to-Cart): remains reachable without scrolling to end */
+#kiosk-add-recipe-to-cart.kiosk-add-recipe-btn {
+  position: sticky;
+  bottom: 0;
 }
