@@ -796,9 +796,9 @@
     if (Array.isArray(_kioskModifiedIngredients)) {
       url += '&modified_ingredients=' + encodeURIComponent(JSON.stringify(_kioskModifiedIngredients));
     }
-    // Show "Calculating..." while waiting
+    // Show "Calculating..." while waiting (GAP-4 36-15: ungated — always show)
     var previewEl = document.getElementById('kiosk-recipe-price-preview');
-    if (previewEl && _kioskModifyPanelOpen) {
+    if (previewEl) {
       previewEl.style.display = '';
       previewEl.innerHTML = '<span style="color:var(--ink-tertiary);">Calculating…</span>';
     }
@@ -808,9 +808,9 @@
         if (result.status === 200 && result.data && result.data.ok &&
             result.data.recipe_id === recipeId) {
           _kioskQuote = result.data;
-          // Update price preview
+          // Update price preview — ungated (GAP-4 36-15: write regardless of panel state)
           var el = document.getElementById('kiosk-recipe-price-preview');
-          if (el && _kioskModifyPanelOpen) {
+          if (el) {
             el.style.display = '';
             var total = typeof result.data.total === 'number' ? result.data.total : null;
             if (total !== null) {
@@ -819,11 +819,22 @@
               el.innerHTML = '<span style="color:var(--batch-danger);">Price unavailable — check connection</span>';
             }
           }
+          // GAP-4 36-15: update prominent #kiosk-recipe-summary-price from server total (D-06)
+          // The displayed price is ALWAYS the server quote — never client-side math.
+          var summaryPriceEl = document.getElementById('kiosk-recipe-summary-price');
+          if (summaryPriceEl) {
+            if (total !== null) {
+              summaryPriceEl.textContent = kioskFmt(total) + ' per batch';
+            } else {
+              summaryPriceEl.textContent = 'Price calculated at checkout';
+            }
+          }
           kioskUpdateAddToCartButton();
         } else {
           _kioskQuote = null;
+          // Error path — ungated (GAP-4 36-15)
           var errEl = document.getElementById('kiosk-recipe-price-preview');
-          if (errEl && _kioskModifyPanelOpen) {
+          if (errEl) {
             errEl.style.display = '';
             errEl.innerHTML = '<span style="color:var(--batch-danger);">Price unavailable — check connection</span>';
           }
@@ -832,8 +843,9 @@
       })
       .catch(function () {
         _kioskQuote = null;
+        // Catch path — ungated (GAP-4 36-15)
         var errEl2 = document.getElementById('kiosk-recipe-price-preview');
-        if (errEl2 && _kioskModifyPanelOpen) {
+        if (errEl2) {
           errEl2.style.display = '';
           errEl2.innerHTML = '<span style="color:var(--batch-danger);">Price unavailable — check connection</span>';
         }
@@ -959,11 +971,12 @@
     }).slice(0, 8);
     if (!matches.length) return;
     var drop = document.createElement('div');
+    // GAP-7 H5/L1 36-15: use .ing-autocomplete-drop CSS class (cellar palette) — no hardcoded #fff/#ccc
     drop.className = 'ing-autocomplete-drop';
-    drop.style.cssText = 'position:absolute;z-index:200;background:#fff;border:1px solid #ccc;max-height:200px;overflow-y:auto;';
     matches.forEach(function (item) {
       var opt = document.createElement('div');
-      opt.style.cssText = 'padding:14px 12px;cursor:pointer;font-size:0.85rem;';
+      opt.setAttribute('role', 'option');
+      opt.style.cssText = 'cursor:pointer;';
       opt.textContent = item.item_name || item.name || '';
       opt.addEventListener('mousedown', function (e) {
         e.preventDefault();
@@ -1184,7 +1197,10 @@
 
     if (prodGrid) prodGrid.style.display = mode === 'products' ? '' : 'none';
     if (recipeGrid) recipeGrid.style.display = mode === 'recipes' ? 'grid' : 'none';
-    if (recipePrompt) recipePrompt.style.display = 'none';
+    if (recipePrompt) {
+      recipePrompt.style.display = 'none';
+      recipePrompt.classList.remove('kiosk-recipe-prompt-view'); // GAP-5 36-15
+    }
     if (searchBar) searchBar.style.display = mode === 'products' ? '' : 'none';
     if (filterBar) filterBar.style.display = mode === 'products' ? '' : 'none';
     if (resultCount) resultCount.style.display = mode === 'products' ? '' : 'none';
@@ -1419,7 +1435,11 @@
     var grid = document.getElementById('kiosk-recipe-grid');
     var prompt = document.getElementById('kiosk-recipe-prompt');
     if (grid) grid.style.display = 'none';
-    if (prompt) prompt.style.display = '';
+    if (prompt) {
+      prompt.style.display = '';
+      // GAP-5 36-15: bounded scroll context so action buttons are reachable on iPad
+      prompt.classList.add('kiosk-recipe-prompt-view');
+    }
 
     var nameEl = document.getElementById('kiosk-recipe-selected-name');
     if (nameEl) nameEl.textContent = recipe.name || '';
@@ -1716,6 +1736,11 @@
     }
 
     if (millingToggle) millingToggle.style.display = saleType === 'take-out' ? '' : 'none';
+
+    // GAP-4 36-15: show price-preview as soon as a sale-type is selected (not just when modify panel opens)
+    // The quote fetch triggered below will immediately set "Calculating…" then the real price.
+    var pricePreviewEl = document.getElementById('kiosk-recipe-price-preview');
+    if (pricePreviewEl) pricePreviewEl.style.display = '';
 
     kioskUpdateSummaryPrice();
     kioskScheduleRecipeQuote();  // Phase 35+36: re-quote on sale-type change (36-05)
@@ -4719,7 +4744,10 @@
     if (recipeBackBtn) recipeBackBtn.addEventListener('click', function () {
       var prompt = document.getElementById('kiosk-recipe-prompt');
       var recipeGrid = document.getElementById('kiosk-recipe-grid');
-      if (prompt) prompt.style.display = 'none';
+      if (prompt) {
+        prompt.style.display = 'none';
+        prompt.classList.remove('kiosk-recipe-prompt-view'); // GAP-5 36-15
+      }
       if (recipeGrid) recipeGrid.style.display = 'grid';
       _kioskSelectedRecipe = null;
       _kioskSaleType = null;

@@ -134,10 +134,11 @@
                 </table>
                 <button type="button" class="btn-secondary" id="kiosk-modify-add-row">+ Add Ingredient</button>
               </div>
-              <div id="kiosk-recipe-price-preview" style="display:none;"></div>
-              <div id="kiosk-locked-price-notice" style="display:none;font-size:11px;color:var(--ink-tertiary);margin-top:4px;">
-                Adding ingredients increases the price. Removing ingredients does not reduce it.
-              </div>
+            </div>
+            <!-- GAP-4 36-15: Price preview is STANDALONE — outside modify-wrap, shown on sale-type select -->
+            <div id="kiosk-recipe-price-preview" class="kiosk-price-preview" style="display:none;"></div>
+            <div id="kiosk-locked-price-notice" style="display:none;font-size:11px;color:var(--ink-tertiary);margin-top:4px;">
+              Adding ingredients increases the price. Removing ingredients does not reduce it.
             </div>
             <!-- PORT from admin.html: Phase 35 stock conflict block -->
             <div id="kiosk-stock-conflict" style="display:none;">
