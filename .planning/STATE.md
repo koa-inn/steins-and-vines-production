@@ -4,13 +4,13 @@ milestone: v4.3
 milestone_name: Recipe Builder Refinement
 status: executing
 stopped_at: Completed 36-10-PLAN.md
-last_updated: "2026-06-23T00:09:15.856Z"
+last_updated: "2026-06-23T00:18:10.782Z"
 last_activity: 2026-06-23
 progress:
   total_phases: 23
   completed_phases: 3
   total_plans: 29
-  completed_plans: 23
+  completed_plans: 24
   percent: 13
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 36 (cross-surface-selection-recipe-modification) — EXECUTING
-Plan: 2 of 17
+Plan: 3 of 17
 Status: Ready to execute
 Last activity: 2026-06-23
 
-Progress: [████████░░] 79%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
@@ -58,6 +58,10 @@ Progress: [████████░░] 79%
 - [36-02]: detectRecipeSale now forwards target_volume_l + scale_factor onto batch payload from server-built snapshot (T-36-04 mitigated)
 - [36-03]: computeRecipeQuote extended with modifiedIngredients 5th param; all three money-path entry points (quote/sale/confirm) price via computeModifiedRecipeTotal; confirm snapshot freezes modified_base_ingredients + is_modified (MOD-02)
 - [Phase ?]: No save-as-new affordance on kiosk surface — UI-SPEC §2 confirmed (36-05)
+- [Phase ?]: GAP-4: kioskFetchRecipeQuote write paths ungated; server total written to #kiosk-recipe-summary-price (D-06)
+- [Phase ?]: GAP-5: .kiosk-recipe-prompt-view toggled on admin #kiosk-recipe-prompt for bounded scroll; Add-to-Cart sticky bottom:0
+- [Phase ?]: GAP-6: #tab-kiosk .admin-input + .kiosk-volume-input font-size:1rem prevents iOS auto-zoom; admin bundle rebuilt via npm run build
+- [Phase ?]: GAP-7: #kiosk-recipe-price-preview standalone card outside modify-wrap; save-as-new below Add-to-Cart; .btn-secondary 44px targets; .kiosk-modify-group-header td CSS class
 
 ### Pending Todos
 
@@ -71,6 +75,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-23T00:09:15.850Z
+Last session: 2026-06-23T00:17:54.333Z
 Stopped at: Completed 36-10-PLAN.md
 Resume file: None
