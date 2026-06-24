@@ -65,34 +65,92 @@ router.post(['/api/webhooks/terminal', '/webhooks/terminal'], function (req, res
  * Handle cardTransaction webhook events.
  * These fire for purchases, refunds, and voids on both online and terminal transactions.
  *
- * For terminal purchases: cache the result so kiosk polling picks it up immediately.
+ * Helcim sends a MINIMAL payload: { id, type:'cardTransaction' }. The event.data
+ * fields (status, invoiceNumber, etc.) are NOT included. We resolve the full
+ * transaction via the API as the primary path, falling back to the device-pending
+ * Redis key if the API is unavailable (e.g. token missing read scope).
+ *
+ * For terminal purchases: cache helcim:terminal:result:{invoiceNumber} so kiosk
+ * polling resolves and the frontend confirmSale fires with the real transactionId.
+ *
+ * The collect-payment flow (POST /api/pos/collect) is a separate flow that also
+ * uses this handler to record a Zoho customerpayment. That recording logic is
+ * preserved unchanged — it runs after invoice+status are resolved.
+ *
+ * IMPORTANT: this handler must NOT record a Zoho payment for the kiosk/sale flow.
+ * Kiosk Zoho invoice creation happens in POST /api/kiosk/sale/confirm — triggered
+ * by the frontend after the poll resolves. Double-recording must be avoided.
  */
 function handleCardTransaction(event) {
-  var data = event.data || {};
-  var transactionId = data.transactionId || event.id || '';
-  var status = (data.status || '').toUpperCase();
-  var invoiceNumber = data.invoiceNumber || '';
-  var cardType = data.cardType || '';
-  var transactionType = (data.type || '').toLowerCase(); // 'purchase', 'refund', 'void'
+  var transactionId = event.id || '';
 
-  log.info('[webhook/helcim] cardTransaction: type=' + transactionType +
-    ' status=' + status + ' txn=' + transactionId + ' invoice=' + invoiceNumber);
+  log.info('[webhook/helcim] cardTransaction: resolving txn=' + transactionId);
 
+  // PRIMARY: fetch full transaction details from the Helcim API
+  helcimLib.getCardTransactionById(transactionId).then(function (txnData) {
+    var status = (txnData.status || '').toUpperCase();
+    var invoiceNumber = txnData.invoiceNumber || '';
+    var cardType = txnData.cardType || '';
+
+    log.info('[webhook/helcim] cardTransaction: status=' + status +
+      ' txn=' + transactionId + ' invoice=' + invoiceNumber);
+
+    processCardTransactionResult(transactionId, status, invoiceNumber, cardType);
+  }).catch(function (apiErr) {
+    // FALLBACK: API unavailable — attempt to correlate via device-pending invoice
+    var statusCode = apiErr.response ? apiErr.response.status : null;
+    log.warn('[webhook/helcim] cardTransaction: API lookup failed (' +
+      (statusCode || apiErr.message) + ') for txn=' + transactionId + ' — trying device-pending fallback');
+
+    helcimLib.getPendingInvoiceForDevice().then(function (pendingInvoice) {
+      if (!pendingInvoice) {
+        log.warn('[webhook/helcim] cardTransaction: API unavailable and no device-pending invoice — cannot correlate txn=' + transactionId + ', dropping event');
+        return;
+      }
+      log.warn('[webhook/helcim] cardTransaction: API unavailable, using device-pending fallback (status unconfirmed) for invoice=' + pendingInvoice);
+      // Helcim creates a card-transaction record only on an approved auth;
+      // treat the event as APPROVED when we have a pending invoice to correlate.
+      processCardTransactionResult(transactionId, 'APPROVED', pendingInvoice, '');
+    }).catch(function (fbErr) {
+      log.warn('[webhook/helcim] cardTransaction: device-pending fallback failed: ' + fbErr.message);
+    });
+  });
+}
+
+/**
+ * Process a resolved card transaction result: cache the terminal result and
+ * handle the collect-pending flow if applicable.
+ *
+ * @param {string} transactionId  - Helcim transaction ID
+ * @param {string} status         - Uppercase status ('APPROVED', 'DECLINED', etc.)
+ * @param {string} invoiceNumber  - Invoice/reference number
+ * @param {string} cardType       - Card type string (e.g. 'Visa', 'Debit')
+ */
+function processCardTransactionResult(transactionId, status, invoiceNumber, cardType) {
   // Cache the terminal result so pos.js polling fallback resolves immediately
-  if (invoiceNumber && (transactionType === 'purchase' || !transactionType)) {
+  if (invoiceNumber) {
     var cacheKey = 'helcim:terminal:result:' + invoiceNumber;
-    cache.set(cacheKey, JSON.stringify({
+    cache.set(cacheKey, {
       status: status,
       transactionId: transactionId,
       approved: status === 'APPROVED',
       cardType: cardType
-    }), TERMINAL_RESULT_TTL).catch(function (err) {
+    }, TERMINAL_RESULT_TTL).catch(function (err) {
       log.warn('[webhook/helcim] Failed to cache terminal result: ' + err.message);
     });
+
+    // Clear the device-pending key now that we've consumed it
+    helcimLib.getPendingInvoiceForDevice().then(function (pendingInvoice) {
+      if (pendingInvoice && pendingInvoice === invoiceNumber) {
+        var deviceCode = helcimLib.getDeviceCode();
+        if (deviceCode) {
+          cache.del('helcim:terminal:pending:' + deviceCode).catch(function () {});
+        }
+      }
+    }).catch(function () {});
   }
 
   eventLog.logEvent('helcim.card_transaction', {
-    transactionType: transactionType,
     status: status,
     txnId: transactionId,
     invoiceNumber: invoiceNumber

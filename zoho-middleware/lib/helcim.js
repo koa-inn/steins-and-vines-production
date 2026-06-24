@@ -263,7 +263,12 @@ function pollTerminalResult(invoiceNumber) {
       headers: helcimHeaders(),
       timeout: 8000
     }).catch(function (pollErr) {
-      log.info('[helcim] pollTerminalResult: API poll failed (' + (pollErr.response ? pollErr.response.status : pollErr.message) + '), waiting for webhook');
+      var statusCode = pollErr.response ? pollErr.response.status : null;
+      if (statusCode === 401 || statusCode === 403) {
+        log.warn('[helcim] card-transactions API forbidden (' + statusCode + ') — token likely missing read scope');
+      } else {
+        log.info('[helcim] pollTerminalResult: API poll failed (' + (statusCode || pollErr.message) + '), waiting for webhook');
+      }
       return { data: null };
     }).then(function (resp) {
       var data = resp.data;
@@ -283,6 +288,62 @@ function pollTerminalResult(invoiceNumber) {
         cardType: txn.cardType || ''
       };
     });
+  });
+}
+
+/**
+ * Fetch a single card transaction by its Helcim transaction ID.
+ * Used by the webhook handler as the primary (authoritative) way to resolve
+ * invoice + status from a minimal { id, type:'cardTransaction' } webhook event.
+ *
+ * GET https://api.helcim.com/v2/card-transactions/{id}
+ *
+ * @param {string} id - Helcim transaction ID (event.id from webhook payload)
+ * @returns {Promise<{ status: string, transactionId: string, invoiceNumber: string, cardType: string, amount: number }>}
+ */
+function getCardTransactionById(id) {
+  if (!HELCIM_API_TOKEN) {
+    return Promise.reject(new Error('Helcim not configured'));
+  }
+  return axios.get(HELCIM_BASE_URL + '/card-transactions/' + encodeURIComponent(id), {
+    headers: helcimHeaders(),
+    timeout: 8000
+  }).then(function (resp) {
+    var txn = resp.data || {};
+    var status = (txn.status || '').toUpperCase();
+    return {
+      status: status,
+      transactionId: txn.transactionId || id,
+      invoiceNumber: txn.invoiceNumber || '',
+      cardType: txn.cardType || '',
+      amount: txn.amount || 0
+    };
+  }).catch(function (err) {
+    // Re-reject so callers can distinguish failure from a successful API response
+    return Promise.reject(err);
+  });
+}
+
+/**
+ * Resolve the pending invoice number for the configured terminal device.
+ * Returns the invoiceNumber stored in Redis during terminalPurchase(), or null.
+ * Used by the webhook handler as a fallback when getCardTransactionById fails.
+ *
+ * @returns {Promise<string|null>}
+ */
+function getPendingInvoiceForDevice() {
+  if (!HELCIM_DEVICE_CODE) {
+    return Promise.resolve(null);
+  }
+  var cache;
+  try { cache = require('./cache'); } catch (e) { cache = null; }
+  if (!cache) return Promise.resolve(null);
+  return cache.get('helcim:terminal:pending:' + HELCIM_DEVICE_CODE).then(function (val) {
+    // cache.get already JSON-parses; if it's a plain string the value is the invoice
+    if (val && typeof val === 'string') return val;
+    return null;
+  }).catch(function () {
+    return null;
   });
 }
 
@@ -361,6 +422,8 @@ module.exports = {
   refundTransaction: refundTransaction,
   terminalPurchase: terminalPurchase,
   pollTerminalResult: pollTerminalResult,
+  getCardTransactionById: getCardTransactionById,
+  getPendingInvoiceForDevice: getPendingInvoiceForDevice,
   verifyWebhookSignature: verifyWebhookSignature,
   generateIdempotencyKey: generateIdempotencyKey
 };
