@@ -179,11 +179,14 @@ describe('handleCardTransaction — terminal success recognition (regression)', 
       return new Promise(function (resolve) { setImmediate(resolve); });
     }).then(function () {
       expect(helcimLib.getCardTransactionById).toHaveBeenCalledWith('txn-001');
-      expect(cache.set).toHaveBeenCalledWith(
-        'helcim:terminal:result:INV-0001',
-        expect.objectContaining({ approved: true, status: 'APPROVED', transactionId: 'txn-001' }),
-        expect.any(Number)
-      );
+      // The cached value MUST be a JSON STRING (not a raw object): cache.set
+      // stringifies, cache.get parses, and pollTerminalResult parses AGAIN — so a
+      // raw object would make the poll's parse throw and silently miss the cache.
+      var call = cache.set.mock.calls.find(function (c) { return c[0] === 'helcim:terminal:result:INV-0001'; });
+      expect(call).toBeDefined();
+      expect(typeof call[1]).toBe('string');
+      expect(JSON.parse(call[1])).toMatchObject({ approved: true, status: 'APPROVED', transactionId: 'txn-001' });
+      expect(call[2]).toEqual(expect.any(Number));
     });
   });
 
@@ -205,12 +208,11 @@ describe('handleCardTransaction — terminal success recognition (regression)', 
     }).then(function () {
       expect(helcimLib.getCardTransactionById).toHaveBeenCalledWith('txn-fallback');
       expect(helcimLib.getPendingInvoiceForDevice).toHaveBeenCalled();
-      // Fallback must cache with approved:true
-      expect(cache.set).toHaveBeenCalledWith(
-        'helcim:terminal:result:INV-FALLBACK',
-        expect.objectContaining({ approved: true }),
-        expect.any(Number)
-      );
+      // Fallback must cache with approved:true (as a JSON string — see test (a))
+      var fbCall = cache.set.mock.calls.find(function (c) { return c[0] === 'helcim:terminal:result:INV-FALLBACK'; });
+      expect(fbCall).toBeDefined();
+      expect(typeof fbCall[1]).toBe('string');
+      expect(JSON.parse(fbCall[1])).toMatchObject({ approved: true });
       // Must log the unconfirmed-fallback warning
       expect(log.warn).toHaveBeenCalledWith(
         expect.stringContaining('device-pending fallback')
@@ -265,11 +267,10 @@ describe('handleCardTransaction — terminal success recognition (regression)', 
     return new Promise(function (resolve) { setImmediate(resolve); }).then(function () {
       return new Promise(function (resolve) { setImmediate(resolve); });
     }).then(function () {
-      expect(cache.set).toHaveBeenCalledWith(
-        'helcim:terminal:result:INV-DECLINED',
-        expect.objectContaining({ approved: false, status: 'DECLINED' }),
-        expect.any(Number)
-      );
+      var dCall = cache.set.mock.calls.find(function (c) { return c[0] === 'helcim:terminal:result:INV-DECLINED'; });
+      expect(dCall).toBeDefined();
+      expect(typeof dCall[1]).toBe('string');
+      expect(JSON.parse(dCall[1])).toMatchObject({ approved: false, status: 'DECLINED' });
     });
   });
 

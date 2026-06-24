@@ -127,15 +127,20 @@ function handleCardTransaction(event) {
  * @param {string} cardType       - Card type string (e.g. 'Visa', 'Debit')
  */
 function processCardTransactionResult(transactionId, status, invoiceNumber, cardType) {
-  // Cache the terminal result so pos.js polling fallback resolves immediately
+  // Cache the terminal result so pos.js polling fallback resolves immediately.
+  // NOTE: store a JSON STRING (not a raw object) — cache.set JSON.stringifies and
+  // cache.get JSON.parses, and pollTerminalResult JSON.parses the get result a
+  // SECOND time. The working terminalCancel path uses this same double-stringify
+  // convention; passing a raw object here makes pollTerminalResult's parse throw
+  // and silently miss the cache.
   if (invoiceNumber) {
     var cacheKey = 'helcim:terminal:result:' + invoiceNumber;
-    cache.set(cacheKey, {
+    cache.set(cacheKey, JSON.stringify({
       status: status,
       transactionId: transactionId,
       approved: status === 'APPROVED',
       cardType: cardType
-    }, TERMINAL_RESULT_TTL).catch(function (err) {
+    }), TERMINAL_RESULT_TTL).catch(function (err) {
       log.warn('[webhook/helcim] Failed to cache terminal result: ' + err.message);
     });
 
