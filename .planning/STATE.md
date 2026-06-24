@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.3
 milestone_name: Recipe Builder Refinement
 status: executing
-stopped_at: Completed 36-10-PLAN.md
-last_updated: "2026-06-23T16:45:54.085Z"
-last_activity: 2026-06-23
+stopped_at: Completed 36-20-PLAN.md
+last_updated: "2026-06-24T18:35:04.117Z"
+last_activity: 2026-06-24
 progress:
   total_phases: 23
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 29
-  completed_plans: 26
-  percent: 13
+  completed_plans: 31
+  percent: 17
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 36 (cross-surface-selection-recipe-modification) — EXECUTING
-Plan: 5 of 17
+Plan: 6 of 17
 Status: Ready to execute
-Last activity: 2026-06-23
+Last activity: 2026-06-24
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Progress: [█████████░] 90%
 - [Phase ?]: GAP-6: #tab-kiosk .admin-input + .kiosk-volume-input font-size:1rem prevents iOS auto-zoom; admin bundle rebuilt via npm run build
 - [Phase ?]: GAP-7: #kiosk-recipe-price-preview standalone card outside modify-wrap; save-as-new below Add-to-Cart; .btn-secondary 44px targets; .kiosk-modify-group-header td CSS class
 - [36-18]: GAP-8: kioskFetchRecipeQuote drops sale-type gate; uses in-store preview default; re-renders #kiosk-recipe-ingredients from scaled quote.ingredients on both admin + kiosk surfaces
+- [36-20]: handleCardTransaction must resolve invoice+status via getCardTransactionById API primary path — Helcim minimal webhook payload never includes event.data fields; device-pending fallback caches APPROVED only when Redis has a pending invoice (no false positives)
 
 ### Pending Todos
 
@@ -76,6 +77,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-23T00:34:32.063Z
+Last session: 2026-06-24T18:35:04.110Z
 Stopped at: Completed 36-10-PLAN.md
 Resume file: None
