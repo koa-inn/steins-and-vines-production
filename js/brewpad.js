@@ -886,7 +886,10 @@ function bpScaleIngredients(list, factor) {
     if (signoutBtn) signoutBtn.addEventListener('click', bpSignOut);
 
     var saved = loadSession();
-    if (saved) {
+
+    // Factor the silent-refresh-on-load path so both the expired-token branch and
+    // the stored-token graceful-fallback can call it without duplicating logic.
+    function doSilentRefreshOnLoad() {
       // Show a loading indicator while the silent token refresh is in flight.
       var signinCard = document.querySelector('.bp-signin-card');
       if (signinCard) {
@@ -919,8 +922,31 @@ function bpScaleIngredients(list, factor) {
         }
       }
       attemptSilentRefresh();
+    }
+
+    if (saved && saved.tokenValid && saved.token) {
+      // Fast path: stored token is still valid — use it directly.
+      // No round-trip to Google; verify with the backend instead.
+      // If backend rejects with an auth/network error (not a clean authorized:false),
+      // fall back to the silent-refresh path so a stale-but-present token re-auths
+      // transparently rather than dead-ending.
+      accessToken = saved.token;
+      userEmail = saved.email;
+      checkAuthorization(function () {
+        // checkAuthorization failed (network error or 401) — fall back to silent refresh.
+        accessToken = null;
+        userEmail = null;
+        doSilentRefreshOnLoad();
+      });
       return;
     }
+
+    if (saved) {
+      // Session exists but token is missing/expired — use the existing silent-refresh path.
+      doSilentRefreshOnLoad();
+      return;
+    }
+
     showSignInButton();
   }
 
@@ -1013,12 +1039,18 @@ function bpScaleIngredients(list, factor) {
       .catch(function () { showDenied(); });
   }
 
-  function checkAuthorization() {
+  function checkAuthorization(onError) {
     adminApiGet('check_auth')
       .then(function (result) {
         if (result.authorized) { showApp(); } else { showDenied(); }
       })
-      .catch(function () { showDenied(); });
+      .catch(function (err) {
+        if (typeof onError === 'function') {
+          onError(err);
+        } else {
+          showDenied();
+        }
+      });
   }
 
   function showApp() {
@@ -8600,6 +8632,26 @@ function bpScaleIngredients(list, factor) {
     // waitForGoogleIdentity defined in js/lib/auth.js
     waitForGoogleIdentity(initGoogleAuth);
   });
+
+  // Plan 36-21: export auth helpers for testing initGoogleAuth session-persistence fix.
+  // Uses Object.assign so closures can access IIFE-scoped state (accessToken, userEmail).
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Object.assign(module.exports || {}, {
+      _initGoogleAuth: initGoogleAuth,
+      _getAccessToken: function () { return accessToken; },
+      _getUserEmail:   function () { return userEmail; },
+      // Allow tests to reset IIFE-scoped auth state between runs.
+      _resetAuthStateForTest: function () {
+        accessToken = null;
+        userEmail = null;
+        tokenClient = null;
+        _silentRefreshTimer = null;
+        _refreshInFlight = false;
+        _handlingUnauthorized = false;
+        _lastTokenTime = 0;
+      }
+    });
+  }
 
   // Phase 36: export state-dependent attach-flow helpers for testing.
   // Uses Object.assign into module.exports so these closures can access IIFE-scoped state.
