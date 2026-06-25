@@ -1863,6 +1863,52 @@ function bpScaleIngredients(list, factor) {
     }
   }
 
+  // ===== Cache-busting helpers =====
+
+  // afterBatchWrite — call after any successful write that mutates a single batch.
+  // opts.listAffecting (default true)  — reset the list/dashboard state flags.
+  // opts.refreshOpenDetail (default false) — if the batch's detail pane is open,
+  //   re-fetch from the server and re-render it so the user sees the new state now.
+  //
+  // Pattern from the reference template handleSoSelect (~L1809):
+  //   (A) bust sv-bp-batch-{id}  (B) reset list/dash flags  (C) optional re-render
+  function afterBatchWrite(batchId, opts) {
+    opts = opts || {};
+
+    // (A) Remove the per-batch sessionStorage detail snapshot so the next selectBatch
+    //     call reads fresh data from the server rather than the stale 2-minute cache.
+    try { sessionStorage.removeItem('sv-bp-batch-' + batchId); } catch (e) {}
+
+    // Also cancel any in-flight preload for this batch — it was started before the
+    // write and would re-seed a stale snapshot if allowed to complete.
+    if (_preloadBatchId === batchId) {
+      _preloadBatchId = null;
+      _preloadPromise = null;
+    }
+
+    // (B) Reset list / dashboard state so the next tab entry fetches fresh data.
+    //     Pass opts.listAffecting === false for writes that only affect readings/tasks
+    //     (those don't change list cards or dashboard stats).
+    if (opts.listAffecting !== false) {
+      _batchesLoaded = false;
+      _allBatchesData = [];
+      _eagerLoadTime = 0;
+      _dashLoadTime = 0;
+    }
+
+    // (C) If this batch's detail pane is currently open, re-fetch from the server
+    //     and re-render immediately so the user sees the saved changes right now.
+    if (opts.refreshOpenDetail && _selectedBatchId === batchId) {
+      adminApiGet('get_batch', { batch_id: batchId })
+        .then(function (r) {
+          var data = r.data || {};
+          try { sessionStorage.setItem('sv-bp-batch-' + batchId, JSON.stringify({ ts: Date.now(), data: data })); } catch (e) {}
+          if (_selectedBatchId === batchId) renderBatchDetail(data);
+        })
+        .catch(function () {});
+    }
+  }
+
   // ===== Utilities =====
 
   function getBatchMeta(batchId) {
@@ -4069,7 +4115,7 @@ function bpScaleIngredients(list, factor) {
           if (batch) { batch.vessel_id = vessel; batch.shelf_id = shelf; batch.bin_id = bin; }
           hide();
           showToast('Location updated', 'success');
-          try { sessionStorage.removeItem('sv-bp-batch-' + batchId); } catch (e) {}
+          afterBatchWrite(batchId, { listAffecting: true }); // bust snapshot + list cards (#3)
         })
         .catch(function (err) {
           okBtn.disabled = false;
@@ -4317,8 +4363,9 @@ function bpScaleIngredients(list, factor) {
           var snap2 = buildBpAttachSnapshot();
           b.recipe_id = _bpResolvedRecipe && _bpResolvedRecipe.recipe && _bpResolvedRecipe.recipe.recipe_id;
           b.recipe_snapshot = JSON.stringify(snap2);
-          try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e3) {}
+          afterBatchWrite(b.batch_id, { listAffecting: false }); // bust stale snapshot (#27)
           showToast('Recipe attached', 'success');
+          loadRecipeList('all'); // refresh recipe list to reflect any recipe status changes
           // GAP-5: the injected expanded panel lives inside sectionBodyEl;
           // renderRecipeSectionBody replaces sectionBodyEl.innerHTML, removing it automatically.
           renderRecipeSectionBody(sectionBodyEl, b, snap2);
@@ -4362,6 +4409,7 @@ function bpScaleIngredients(list, factor) {
         var baseList = _bpModifiedIngredients || (_bpResolvedRecipe ? (_bpResolvedRecipe.ingredients || []) : []);
         bpSaveAsNewRecipe(name, baseList).then(function () {
           if (sanPrompt) sanPrompt.style.display = 'none';
+          loadRecipeList('all'); // refresh recipe list so new draft appears (#28)
         }).catch(function () {
           sanSaveBtn.disabled = false;
         });
@@ -4595,9 +4643,10 @@ function bpScaleIngredients(list, factor) {
             }).then(function () {
               b.recipe_id = newId;
               b.recipe_snapshot = JSON.stringify(snap);
-              try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e2) {}
+              afterBatchWrite(b.batch_id, { listAffecting: false }); // bust stale snapshot (#4)
               showToast('Recipe created and linked', 'success');
               closeRcSheet();
+              loadRecipeList('all'); // refresh recipe list so new recipe appears (#recipes-CRUD)
               if (sectionBodyEl) renderRecipeSectionBody(sectionBodyEl, b, snap);
             });
           })
@@ -4700,7 +4749,7 @@ function bpScaleIngredients(list, factor) {
           .then(function () {
             snap = editedSnap;
             b.recipe_snapshot = JSON.stringify(editedSnap);
-            try { sessionStorage.removeItem('sv-bp-batch-' + b.batch_id); } catch (e) {}
+            afterBatchWrite(b.batch_id, { listAffecting: false }); // bust stale snapshot (#5)
             showToast('Recipe snapshot saved', 'success');
             renderRecipeSectionBody(sectionBodyEl, b, snap);
           })
@@ -5935,6 +5984,7 @@ function bpScaleIngredients(list, factor) {
             });
             _detailPlatoStaging = [];
             _chartCache = {};   // new reading → invalidate memoized chart
+            afterBatchWrite(batchId, { listAffecting: false }); // bust stale detail snapshot (#13)
             var readingsEl = document.getElementById('bp-detail-readings');
             if (readingsEl) {
               readingsEl.innerHTML = renderDetailReadings(_detailPlatoReadings, _detailStartDate);
@@ -6468,10 +6518,8 @@ function bpScaleIngredients(list, factor) {
               }
               showToast(okMsg, 'success');
               closeScheduleActivateSheet();
-              _batchesLoaded = false;
-              _allBatchesData = [];
-              _eagerLoadTime = 0;
-              _dashLoadTime = 0;
+              // Bust snapshot + list/dash + re-render open detail (#14 — worst offender)
+              afterBatchWrite(b.batch_id, { listAffecting: true, refreshOpenDetail: true });
               loadDashboard();
             });
           }).catch(function (err) {
@@ -6481,10 +6529,9 @@ function bpScaleIngredients(list, factor) {
             } else if (step1Done) {
               showToast('Batch saved, but the schedule didn\'t apply — try Add Schedule again from the batch detail', 'warning');
               closeScheduleActivateSheet();
-              _batchesLoaded = false;
-              _allBatchesData = [];
-              _eagerLoadTime = 0;
-              _dashLoadTime = 0;
+              // step1 succeeded (batch updated) so bust the snapshot, but no re-render since
+              // schedule tasks weren't created — user will see partial state on re-open.
+              afterBatchWrite(b.batch_id, { listAffecting: true });
               loadDashboard();
             } else {
               showToast('Failed: ' + msg, 'error');
@@ -7411,13 +7458,14 @@ function bpScaleIngredients(list, factor) {
           }
         });
 
-        // Clear cells only for batches that succeeded
+        // Clear cells only for batches that succeeded and bust their detail snapshots (#16)
         succeeded.forEach(function (entry) {
           var row = document.querySelector('.bp-meas-multi-row[data-batch-id="' + entry.batchId + '"]');
           if (row) {
             Array.prototype.forEach.call(row.querySelectorAll('.bp-meas-cell'), function (inp) { inp.value = ''; });
             row.classList.remove('bp-meas-row--error');
           }
+          afterBatchWrite(entry.batchId, { listAffecting: false }); // bust stale detail snapshot per measured batch (#16)
         });
 
         // Highlight rows that failed
@@ -7787,10 +7835,8 @@ function bpScaleIngredients(list, factor) {
                 updates: { status: 'primary', start_date: todayPacific() }
               }).then(function () {
                 showToast('Batch activated', 'success');
-                _batchesLoaded = false;
-                _allBatchesData = [];
-                _eagerLoadTime = 0;
-                _dashLoadTime = 0;
+                // Bust snapshot so re-opening the batch shows the new 'primary' status (#18)
+                afterBatchWrite(bid, { listAffecting: true });
                 loadDashboard();
               }).catch(function (err) {
                 showToast('Failed: ' + err.message, 'error');
@@ -7967,6 +8013,9 @@ function bpScaleIngredients(list, factor) {
                 row.setAttribute('data-save-state', 'saved');
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
+              // Bust the task's batch detail snapshot using task.batch_id (not _selectedBatchId)
+              // so that re-opening the batch shows the updated task state (#20).
+              if (task && task.batch_id) afterBatchWrite(task.batch_id, { listAffecting: false });
               var titleLower = task ? (task.title || '').toLowerCase() : '';
               var isVesselChange = checked && task && (
                 String(task.is_transfer).toUpperCase() === 'TRUE' ||
@@ -8133,6 +8182,9 @@ function bpScaleIngredients(list, factor) {
                 row.setAttribute('data-save-state', 'saved');
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
+              // Bust the task's batch detail snapshot using task.batch_id (not _selectedBatchId)
+              // so that re-opening the batch shows the updated task state (#21).
+              if (task && task.batch_id) afterBatchWrite(task.batch_id, { listAffecting: false });
               var titleLower2 = task ? (task.title || '').toLowerCase() : '';
               var isVesselChange2 = checked && task && (
                 String(task.is_transfer).toUpperCase() === 'TRUE' ||
@@ -8263,6 +8315,7 @@ function bpScaleIngredients(list, factor) {
               .then(function () {
                 _detailPlatoReadings.splice(idx, 1);
                 _chartCache = {};
+                afterBatchWrite(_detailBatchId, { listAffecting: false }); // bust stale detail snapshot (#23)
                 var el = document.getElementById('bp-detail-readings');
                 if (el) el.innerHTML = renderDetailReadings(_detailPlatoReadings, _detailStartDate);
                 bindDetailReadingHandlers(_detailBatchId);
@@ -8300,6 +8353,7 @@ function bpScaleIngredients(list, factor) {
             .then(function () {
               for (var k in updates) { if (Object.prototype.hasOwnProperty.call(updates, k)) r[k] = updates[k]; }
               _chartCache = {};
+              afterBatchWrite(_detailBatchId, { listAffecting: false }); // bust stale detail snapshot (#24)
               var el = document.getElementById('bp-detail-readings');
               if (el) el.innerHTML = renderDetailReadings(_detailPlatoReadings, _detailStartDate);
               bindDetailReadingHandlers(_detailBatchId);
@@ -8681,6 +8735,27 @@ function bpScaleIngredients(list, factor) {
       // Phase 36-11: test hook to drive wireAttachExpandedPanel for BFAC factor tests
       _bpWireAttachExpandedPanel: function (b, sectionBodyEl) {
         return wireAttachExpandedPanel(b || {}, sectionBodyEl || document.body);
+      },
+      // Plan 36-22: cache-busting helper — exported from IIFE so it can access state vars
+      afterBatchWrite: afterBatchWrite,
+      // Plan 36-22: test-only state accessors for the cache-bust state vars
+      getStateForTest: function () {
+        return {
+          _batchesLoaded: _batchesLoaded,
+          _allBatchesData: _allBatchesData,
+          _eagerLoadTime: _eagerLoadTime,
+          _dashLoadTime: _dashLoadTime,
+          _preloadBatchId: _preloadBatchId,
+          _preloadPromise: _preloadPromise
+        };
+      },
+      _setStateForTest: function (patch) {
+        if ('_batchesLoaded'  in patch) _batchesLoaded  = patch._batchesLoaded;
+        if ('_allBatchesData' in patch) _allBatchesData = patch._allBatchesData;
+        if ('_eagerLoadTime'  in patch) _eagerLoadTime  = patch._eagerLoadTime;
+        if ('_dashLoadTime'   in patch) _dashLoadTime   = patch._dashLoadTime;
+        if ('_preloadBatchId' in patch) _preloadBatchId = patch._preloadBatchId;
+        if ('_preloadPromise' in patch) _preloadPromise = patch._preloadPromise;
       }
     });
   }
@@ -8728,6 +8803,7 @@ if (typeof module !== 'undefined' && module.exports) {
     // Phase 36: pure top-level scaling helper (mirrors lib/recipe-scaling.js)
     bpScaleIngredients: bpScaleIngredients
     // Plan 36-19: renderRecipeListHtml + bpCloneRecipePayload exported by the IIFE inner block above
+    // Plan 36-22: afterBatchWrite + getStateForTest exported by the IIFE inner block above
     // State-dependent attach-flow exports are merged by Object.assign inside the IIFE above
   });
 }
