@@ -6907,7 +6907,11 @@ function bpScaleIngredients(list, factor) {
       timer = setTimeout(function () {
         if (_custSearchAbort) { try { _custSearchAbort.abort(); } catch (e) {} }
         _custSearchAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-        var fetchOpts = _custSearchAbort ? { signal: _custSearchAbort.signal } : {};
+        // The /api gate returns 403 Forbidden without the API key, so the search
+        // silently returned no contacts. Send x-api-key like the sibling reassign
+        // search (fetchReassignSearch) and the new-customer POST below.
+        var fetchOpts = { headers: { 'x-api-key': mwApiKey() } };
+        if (_custSearchAbort) fetchOpts.signal = _custSearchAbort.signal;
         fetch(base + '/api/contacts?search=' + encodeURIComponent(q), fetchOpts)
           .then(function (r) { return r.json(); })
           .then(function (data) {
