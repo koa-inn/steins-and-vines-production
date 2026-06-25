@@ -4,13 +4,13 @@ milestone: v4.3
 milestone_name: Recipe Builder Refinement
 status: executing
 stopped_at: Completed 36-21-PLAN.md
-last_updated: "2026-06-24T20:09:46.174Z"
-last_activity: 2026-06-24
+last_updated: "2026-06-25T21:18:15.871Z"
+last_activity: 2026-06-25
 progress:
   total_phases: 23
   completed_phases: 4
   total_plans: 29
-  completed_plans: 32
+  completed_plans: 33
   percent: 17
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 36 (cross-surface-selection-recipe-modification) — EXECUTING
-Plan: 7 of 17
+Plan: 8 of 17
 Status: Ready to execute
-Last activity: 2026-06-24
+Last activity: 2026-06-25
 
 Progress: [██████████] 100%
 
@@ -65,6 +65,7 @@ Progress: [██████████] 100%
 - [36-18]: GAP-8: kioskFetchRecipeQuote drops sale-type gate; uses in-store preview default; re-renders #kiosk-recipe-ingredients from scaled quote.ingredients on both admin + kiosk surfaces
 - [36-20]: handleCardTransaction must resolve invoice+status via getCardTransactionById API primary path — Helcim minimal webhook payload never includes event.data fields; device-pending fallback caches APPROVED only when Redis has a pending invoice (no false positives)
 - [Phase ?]: 36-21: BrewPad session fast path — valid stored token bypasses Google silent-refresh; checkAuthorization fallback on error not authorized:false
+- [36-22]: afterBatchWrite opts.listAffecting=false for plato/task writes (no list card impact); refreshOpenDetail async-safe via _selectedBatchId guard; task toggles use task.batch_id not _selectedBatchId
 
 ### Pending Todos
 
@@ -78,6 +79,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-24T20:09:46.161Z
-Stopped at: Completed 36-21-PLAN.md
+Last session: 2026-06-25T21:18:15.863Z
+Stopped at: Completed 36-22-PLAN.md
 Resume file: None
