@@ -1,83 +1,74 @@
-# Requirements: v4.3 Recipe Builder Refinement
+# Requirements: Steins & Vines — v4.4 Audit Remediation
 
-**Milestone goal:** Make recipes scalable and adjustable at the point of selection across admin, kiosk, and BrewPad — and make the recipe builder/manager available in BrewPad — without weakening the server-authoritative money path hardened in v4.2.
+**Defined:** 2026-06-26
+**Core Value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
+**Source:** Remaining open/partial HIGH-priority items from `PROJECT_ASSESSMENT.md` (2026-06-10). Excludes #17 (hero subtitle — owner handling separately).
 
-**Source:** User feature request (2026-06-19) + recipe-architecture map (admin.js / kiosk.js / brewpad.js / routes/recipes.js / routes/pos-recipe.js / lib/pricing.js / apps-script adminApi.gs).
+## v1 Requirements
 
-**Kickoff design decisions:**
-- **Locked-price scaling:** scale the ingredient-cost portion proportionally; service/materials fees stay fixed. Dynamic recipes price from scaled ingredient costs.
-- **Batch size input:** target volume in litres; scale factor = target ÷ recipe `batch_size_l`.
-- **Substitution output:** one-off modified sale/batch (saved recipe untouched) **plus** optional "save as new recipe".
-- **Grouping dimension:** `cf_type` (Grain/Hops/Yeast/Additive/Packaging/…), enriched server-side.
+Requirements for this milestone. Each maps to exactly one roadmap phase.
 
----
+### Kiosk POS Integrity
 
-## v4.3 Requirements
+- [ ] **KIOSK-01** (audit #14): The kiosk POS logic exists in a single shared implementation (`js/kiosk-core.js`) consumed by both the standalone kiosk (`kiosk.js`) and the admin-embedded kiosk (`admin.js`), so the cart and payment/checkout paths can no longer diverge. The de-fork is behaviour-preserving: existing kiosk money-path behaviour (terminal charge, Zoho invoice/payment, void-on-failure, dual-cart) is unchanged and verified by the existing kiosk tests plus an admin-vs-kiosk parity check; the kiosk product-type discount feature is available identically on both surfaces.
 
-### Ingredient Display (RDISP)
+### Cart Correctness
 
-- [ ] **RDISP-01**: In the admin recipe viewing page, ingredients are grouped into labelled sections by `cf_type` (e.g. Grain, Hops, Yeast, Additive, Packaging) and ordered consistently within each group.
-- [ ] **RDISP-02**: Recipe ingredient data is enriched server-side with each ingredient's `cf_type` (and `cf_subcategory` where present) so admin, kiosk, and BrewPad can group ingredients identically from one source of truth.
-- [ ] **RDISP-03**: The kiosk and BrewPad recipe ingredient views present ingredients grouped by `cf_type`, matching the admin grouping.
+- [ ] **CART-01** (audit #15): Adding the same product from the catalog page and from the cross-category search overlay produces one merged cart line keyed by SKU — no duplicate lines and the displayed quantity is correct — across both the ferment and ingredients carts.
 
-### Batch Scaling (SCALE)
+### Repo Hygiene
 
-- [x] **SCALE-01**: After a recipe is selected, staff can set a target batch volume in litres; the system derives and displays the scale factor relative to the recipe's base `batch_size_l`.
-- [x] **SCALE-02**: Scaling linearly adjusts weight-based ingredient quantities (kg/g) and rounds **up** discrete (pcs/unit) ingredient quantities to whole units.
-- [x] **SCALE-03**: Scaled quantities are priced server-authoritatively — dynamic recipes price from scaled ingredient costs (+ fixed fees); locked recipes scale the ingredient-cost portion proportionally while service/materials fees stay fixed.
-- [x] **SCALE-04**: The Zoho invoice line items and the frozen `recipe_snapshot` reflect the scaled ingredient quantities and the chosen target volume.
-- [x] **SCALE-05**: Ingredient availability/stock checks reflect the scaled quantities (a scaled batch that exceeds stock is surfaced before sale).
+- [ ] **HYGIENE-01** (audit #6): `.planning/` is listed in `.gitignore`, and the internal planning directory is confirmed absent from the published GitHub Pages artifact on **both** the staging and production deploys (not publicly served).
 
-### Cross-Surface Selection (SEL)
+### Deploy Safety
 
-- [x] **SEL-01**: Batch size (target volume) can be chosen wherever a recipe is selected — admin recipe sale, kiosk recipe sale, and BrewPad recipe attach — using a consistent control.
-- [x] **SEL-02**: The chosen batch size persists through the selected surface's flow into the sale/batch (cart line items, snapshot, and batch record) without the user re-entering it.
+- [ ] **DEPLOY-04** (audit #10): The nightly Zoho snapshot is actually published to the live production static fallback — the snapshot commit no longer carries `[skip ci]` that suppresses the Pages publish, and a subsequent production force-push does not erase it (pull/rebase or `workflow_dispatch` trigger in place). Verified by the prod static `zoho-snapshot.json` being fresh after a nightly run.
 
-### Recipe Modification (MOD)
+### Asset Performance
 
-- [x] **MOD-01**: At recipe-selection time, staff can add, remove, or substitute ingredients for a one-off modified sale/batch without altering the saved recipe template.
-- [x] **MOD-02**: Modified ingredient lists are priced server-authoritatively and captured in the Zoho invoice line items and the frozen `recipe_snapshot`.
-- [x] **MOD-03**: A one-off modified selection can optionally be saved as a new recipe (`SV-R-…`) via the existing recipe-create path, respecting activation guardrails.
+- [ ] **ASSET-01** (audit #18): Facility/about imagery is served as `webp` with `srcset` and intrinsic `width`/`height`, removing the multi-MB JPEG payload from the homepage (no single facility image over ~500 KB on the homepage path; the existing product image pipeline is extended rather than duplicated).
 
-### BrewPad Recipe Manager (BPR)
+## v2 Requirements
 
-- [x] **BPR-01**: Staff can browse and view the recipe catalogue from within BrewPad (not only attach a recipe to a batch).
-- [x] **BPR-02**: Staff can create and edit recipes from within BrewPad, reusing the existing recipe CRUD endpoints and activation guardrails (`locked_price > 0` and ≥1 ingredient before activation).
+Deferred audit items, tracked but not in this milestone's roadmap.
 
----
+### Code Structure
 
-## Future Requirements (deferred to a later milestone)
+- **STRUCT-01** (audit §2): Decompose the 774-line `processCheckout()` into testable `lib/checkout-helpers.js` stages.
+- **STRUCT-02** (audit §1): Introduce a `window.SV` namespace and break the `11-cart.js ↔ 12-checkout.js` circular dependency.
+- **STRUCT-03** (audit §2): Finish the async/await conversion of `pos.js`/`catalog.js` and extract the 3×-duplicated invoice→submit→payment and tax-rule-enrichment blocks.
 
-- Per-ingredient scaling overrides (non-linear adjustments for ingredients that don't scale linearly, e.g. yeast pitch rates).
-- Customer-facing recipe scaling / self-serve recipe configuration (staff-only for now).
-- Unit conversion between volume and weight (kg ↔ L) for ingredients defined in mismatched units.
-- Recipe versioning / history of edits to saved recipes.
+### Accessibility
 
-## Out of Scope (this milestone)
+- **A11Y-01** (audit §3): Make the cart drawer and min-qty overlay accessible dialogs (role, focus trap/return, Escape).
 
-- Changes to the wine-kit (single-SKU) purchase path — this milestone is recipe-based products only.
-- Online (non-kiosk) checkout for recipe products — recipe sales remain kiosk/in-store + BrewPad.
-- Reworking the locked-vs-dynamic pricing model itself — v4.3 extends it with scaling, it does not replace it.
-- New payment-path infrastructure — v4.3 must reuse the server-authoritative pricing/charge path hardened in v4.2, not add a parallel one.
+## Out of Scope
 
----
+| Item | Reason |
+|------|--------|
+| #17 Hero subtitle (`content/home.json`) | Owner is handling the homepage copy separately |
+| Decompose `processCheckout()` / `window.SV` namespace / async conversion | Larger refactors; deferred to a code-structure milestone (v2 above) |
+| Accessible cart dialog, MEDIUM/LOW a11y items | Deferred to an accessibility-focused milestone (v2 above) |
+| Dead-content cleanup (`content/*.csv`, stale CLAUDE.md) | Low-risk housekeeping; bundle into a future hygiene pass |
+| Enable Redis AOF (#96) | Railway dashboard toggle, not a code change |
 
 ## Traceability
 
-| REQ-ID | Phase | Status |
-|--------|-------|--------|
-| RDISP-01 | Phase 34 | Pending |
-| RDISP-02 | Phase 34 | Pending |
-| RDISP-03 | Phase 34 | Pending |
-| SCALE-01 | Phase 35 | Complete |
-| SCALE-02 | Phase 35 | Complete |
-| SCALE-03 | Phase 35 | Complete |
-| SCALE-04 | Phase 35 | Complete |
-| SCALE-05 | Phase 35 | Complete |
-| SEL-01 | Phase 36 | Awaiting UAT |
-| SEL-02 | Phase 36 | Awaiting UAT |
-| MOD-01 | Phase 36 | Awaiting UAT |
-| MOD-02 | Phase 36 | Awaiting UAT |
-| MOD-03 | Phase 36 | Awaiting UAT |
-| BPR-01 | Phase 37 | Complete |
-| BPR-02 | Phase 37 | Complete |
+Provisional — confirmed by the roadmapper.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| HYGIENE-01 | TBD | Pending |
+| DEPLOY-04 | TBD | Pending |
+| ASSET-01 | TBD | Pending |
+| CART-01 | TBD | Pending |
+| KIOSK-01 | TBD | Pending |
+
+**Coverage:**
+- v1 requirements: 5 total
+- Mapped to phases: 5 (assignment finalized by roadmapper)
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-06-26*
+*Last updated: 2026-06-26 after initial definition*
