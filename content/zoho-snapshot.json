@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-25T08:43:17.724Z",
+  "generated_at": "2026-06-26T08:44:41.716Z",
   "products": [
     {
       "name": "Acai Raspberry Rapture",
@@ -7304,7 +7304,7 @@
       "name": "Backcountry Candle 4oz",
       "unit": "pcs",
       "price_per_unit": "19.99",
-      "stock": "0",
+      "stock": "-1",
       "description": "FIR, FRANKINCENSE & WHITE GRAPEFRUIT\nA piece of Canada\u2019s geographical realm bounded by remote wilderness \u2013 distanced from civilization. The backcountry evokes an endless sense of calm, peace and tranquility.",
       "sales_description": "",
       "sku": "BACKCOUNTRY-4",
@@ -9032,7 +9032,7 @@
       "name": "Hydrometer Brix/SG/%",
       "unit": "pcs",
       "price_per_unit": "10",
-      "stock": "1",
+      "stock": "0",
       "description": "Triple-scale hydrometer that measures specific gravity (SG), Brix, and potential alcohol percentage to monitor fermentation progress and determine alcohol content in beer, wine, cider, and mead.",
       "sales_description": "",
       "sku": "35402",
