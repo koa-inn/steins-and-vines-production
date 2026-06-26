@@ -1,0 +1,6 @@
+# Security contact for steinsandvines.ca
+# https://securitytxt.org / RFC 9116
+Contact: mailto:hello@steinsandvines.ca
+Expires: 2027-06-25T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://steinsandvines.ca/.well-known/security.txt
