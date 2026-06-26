@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-26T03:36:01.653Z';
+  var BUILD_TIMESTAMP = '2026-06-26T21:35:51.087Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -7084,7 +7084,7 @@
           return;
         }
 
-        fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(term))
+        fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(term), { headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' } })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             var contacts = data.contacts || [];
@@ -10284,7 +10284,7 @@
         if (!q) { if (resultsEl) resultsEl.innerHTML = ''; return; }
         searchTimer = setTimeout(function () {
           var mwUrl = kioskMwUrl();
-          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q))
+          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q), { headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' } })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             if (!resultsEl) return;

@@ -2887,7 +2887,7 @@
         if (!q) { if (resultsEl) resultsEl.innerHTML = ''; return; }
         searchTimer = setTimeout(function () {
           var mwUrl = kioskMwUrl();
-          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q))
+          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q), { headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' } })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             if (!resultsEl) return;
@@ -4052,7 +4052,7 @@
         if (!q) { if (custDropdown) custDropdown.style.display = 'none'; return; }
         custTimer = setTimeout(function () {
           var mwUrl = kioskMwUrl();
-          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q))
+          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q), { headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' } })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             if (!custDropdown) return;
@@ -4867,7 +4867,7 @@
         if (!q) { if (custResults) custResults.innerHTML = ''; return; }
         custSearchTimer = setTimeout(function () {
           var mwUrl = kioskMwUrl();
-          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q))
+          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q), { headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' } })
             .then(function (r) { return r.json(); })
             .then(function (data) {
               if (!custResults) return;
