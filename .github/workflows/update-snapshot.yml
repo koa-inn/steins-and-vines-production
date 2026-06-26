@@ -111,6 +111,9 @@ jobs:
           fi
 
           # --- Staging ---
+          # Staging publishes via GitHub Pages "deploy from branch" (legacy), which
+          # serves the committed file directly — no Actions run is needed to make the
+          # new snapshot live, so [skip ci] here just avoids a wasteful nightly CI run.
           git commit -m "chore: update Zoho snapshot [skip ci]"
           git push origin main
           echo "Snapshot pushed to staging."
@@ -131,7 +134,13 @@ jobs:
           if git diff --staged --quiet; then
             echo "Production snapshot already current — nothing to push to production."
           else
-            git commit -m "chore: update Zoho snapshot [skip ci]"
+            # DEPLOY-04 (audit #10): NO [skip ci] here. Production publishes GitHub
+            # Pages via the workflow build (deploy-production.yml, build_type:workflow),
+            # so [skip ci] would land the snapshot in prod main but never republish it
+            # to the live site — leaving the static fallback permanently stale. Letting
+            # the deploy workflow fire republishes prod (it strips .planning and keeps
+            # CNAME, since this commit is built on prod's own main via FETCH_HEAD).
+            git commit -m "chore: update Zoho snapshot"
             git push "$PROD_URL" prod-snapshot:main
             echo "Snapshot pushed to production (snapshot-only commit on prod main)."
           fi
