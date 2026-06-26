@@ -2268,6 +2268,9 @@ img {
 .kiosk-discount-mgmt-row { display: flex; align-items: center; padding: 0.6rem 0; border-bottom: 1px solid var(--ledger-soft); gap: 0.5rem; }
 .kiosk-discount-mgmt-name { flex: 1; font-weight: 500; font-size: 0.9rem; }
 .kiosk-discount-mgmt-info { font-size: 0.8rem; color: var(--ink-secondary); }
+.kiosk-discount-mgmt-row--inactive { opacity: 0.55; }
+.kiosk-discount-mgmt-toggle { background: var(--ledger-soft); border: 1px solid var(--ledger-emphasis); border-radius: 999px; color: var(--ink-tertiary); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; cursor: pointer; min-height: 36px; padding: 0 0.75rem; }
+.kiosk-discount-mgmt-toggle.is-active { background: var(--cellar-green, #2e6e4e); border-color: var(--cellar-green, #2e6e4e); color: #fff; }
 .kiosk-discount-mgmt-edit { background: none; border: 1px solid var(--ledger-emphasis); border-radius: 6px; color: var(--ink-secondary); font-size: 0.8rem; cursor: pointer; min-height: 36px; padding: 0 0.75rem; }
 .kiosk-discount-mgmt-edit:active { background: var(--stain); color: #fff; border-color: var(--stain); }
 .kiosk-discount-mgmt-delete { background: none; border: none; color: var(--ink-tertiary); font-size: 1rem; cursor: pointer; min-width: 44px; min-height: 44px; }

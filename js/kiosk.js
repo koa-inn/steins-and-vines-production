@@ -4696,14 +4696,39 @@
         presets.forEach(function (p) {
           var detail = p.type === 'percentage' ? (p.value + '%') : ('$' + parseFloat(p.value).toFixed(2));
           detail += ' \u00b7 ' + kioskDiscountScopeLabel(p);
-          html += '<div class="kiosk-discount-mgmt-row" data-id="' + escapeHTML(p.id) + '">';
+          var isActive = p.active !== false;
+          html += '<div class="kiosk-discount-mgmt-row' + (isActive ? '' : ' kiosk-discount-mgmt-row--inactive') + '" data-id="' + escapeHTML(p.id) + '">';
           html += '<span class="kiosk-discount-mgmt-name">' + escapeHTML(p.name) + '</span>';
           html += '<span class="kiosk-discount-mgmt-info">' + detail + '</span>';
+          html += '<button type="button" class="kiosk-discount-mgmt-toggle' + (isActive ? ' is-active' : '') + '" data-id="' + escapeHTML(p.id) + '" data-active="' + isActive + '">' + (isActive ? 'Active' : 'Paused') + '</button>';
           html += '<button type="button" class="kiosk-discount-mgmt-edit" data-id="' + escapeHTML(p.id) + '">Edit</button>';
           html += '<button type="button" class="kiosk-discount-mgmt-delete" data-id="' + escapeHTML(p.id) + '">&times;</button>';
           html += '</div>';
         });
         list.innerHTML = html;
+
+        list.querySelectorAll('.kiosk-discount-mgmt-toggle').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.getAttribute('data-id');
+            var nowActive = btn.getAttribute('data-active') === 'true';
+            fetch(mwUrl + '/api/kiosk/discounts/' + encodeURIComponent(id), {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+              body: JSON.stringify({ active: !nowActive })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data.ok) {
+                showToast(!nowActive ? 'Preset activated' : 'Preset paused', 'success');
+                kioskLoadDiscountPresets();
+                kioskRenderDiscountMgmtList();
+              } else {
+                showToast(data.error || 'Failed to update', 'error');
+              }
+            })
+            .catch(function () { showToast('Network error', 'error'); });
+          });
+        });
 
         list.querySelectorAll('.kiosk-discount-mgmt-edit').forEach(function (btn) {
           btn.addEventListener('click', function () {
