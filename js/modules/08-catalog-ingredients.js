@@ -506,7 +506,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
         };
         var ingReserveWrap = document.createElement('div');
         ingReserveWrap.className = 'product-reserve-wrap';
-        var ingProductKey = item.name + '|';
+        var ingProductKey = getProductKey(item);
         var ingRenderer = hasWeightConfig(item) ? renderWeightControlCompact : renderReserveControl;
         
         // Standard properties for sync
@@ -701,7 +701,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
         };
         var reserveWrap = document.createElement('div');
         reserveWrap.className = 'product-reserve-wrap';
-        var productKey = item.name + '|';
+        var productKey = getProductKey(item);
         var renderer = hasWeightConfig(item) ? renderWeightControl : renderReserveControl;
         
         // Standard properties for sync

@@ -558,9 +558,9 @@ function loadProducts() {
         case 'time-desc':
           return parseTimeValue(b.time) - parseTimeValue(a.time);
         case 'reserved-desc':
-          return getReservedQty(b.name + '|' + (b.brand || '')) - getReservedQty(a.name + '|' + (a.brand || ''));
+          return getReservedQty(getProductKey(b)) - getReservedQty(getProductKey(a));
         case 'reserved-asc':
-          return getReservedQty(a.name + '|' + (a.brand || '')) - getReservedQty(b.name + '|' + (b.brand || ''));
+          return getReservedQty(getProductKey(a)) - getReservedQty(getProductKey(b));
         default:
           return 0;
       }
@@ -779,7 +779,7 @@ function loadProducts() {
 
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'reserve-link product-reserve-wrap';
-    var productKey = product.name + '|' + (product.brand || '');
+    var productKey = getProductKey(product);
     reserveWrap._reserveProduct = product;
     reserveWrap._reserveKey = productKey;
     reserveWrap._reserveRenderer = renderReserveControl;
@@ -885,7 +885,7 @@ function loadProducts() {
 
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'reserve-link product-reserve-wrap';
-    var productKey = product.name + '|' + (product.brand || '');
+    var productKey = getProductKey(product);
     reserveWrap._reserveProduct = product;
     reserveWrap._reserveKey = productKey;
     reserveWrap._reserveRenderer = renderReserveControl;
@@ -1047,7 +1047,7 @@ function loadProducts() {
 
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'product-reserve-wrap';
-    var productKey = product.name + '|' + (product.brand || '');
+    var productKey = getProductKey(product);
     // Standard properties for refreshAllReserveControls sync
     reserveWrap._reserveProduct = product;
     reserveWrap._reserveKey = productKey;
@@ -1262,7 +1262,7 @@ function loadProducts() {
           // Add to Cart (Reserve — ferment in store)
           var tdReserve = document.createElement('td');
           tdReserve.setAttribute('data-label', '');
-          var productKey = product.name + '|' + (product.brand || '');
+          var productKey = getProductKey(product);
           renderReserveControl(tdReserve, product, productKey);
           tr.appendChild(tdReserve);
 
@@ -1457,7 +1457,7 @@ function loadProducts() {
 function renderKitBuyControl(wrap, product) {
   // Register for refreshAllReserveControls() so cart clears/removes update this button
   wrap._reserveProduct = product;
-  wrap._reserveKey = product.name + '|' + (product.brand || '');
+  wrap._reserveKey = getProductKey(product);
   wrap._reserveRenderer = renderKitBuyControl;
 
   wrap.innerHTML = '';
@@ -1473,7 +1473,7 @@ function renderKitBuyControl(wrap, product) {
   kitProduct.price = product.retail_kit || product.retail_instore || product.price || '';
 
   // Scope qty lookup to ingredient cart to avoid cross-contamination with Reserve (ferment) qty
-  var productKey = product.name + '|' + (product.brand || '');
+  var productKey = getProductKey(product);
   var existingQty = getReservedQty(productKey, INGREDIENT_CART_KEY);
 
   if (existingQty === 0) {

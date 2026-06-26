@@ -426,7 +426,7 @@ function buildDetailPanel(item) {
     cartArea.className = 'subpage-detail-cart';
 
     var cartObj = buildCartObject(item);
-    var productKey = item.name + '|';
+    var productKey = getProductKey(item);
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'product-reserve-wrap';
 
@@ -590,7 +590,7 @@ function buildItemCard(item) {
   // committing a default unit; non-weight items use the standard reserve button.
   if (stockVal > 0 || itemIsWeight) {
     var cartObj = buildCartObject(item);
-    var productKey = item.name + '|';
+    var productKey = getProductKey(item);
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'product-reserve-wrap';
 
@@ -686,7 +686,7 @@ function buildListTable(items) {
     var tdCart = document.createElement('td');
     if (stockVal > 0) {
       var cartObj = buildCartObject(item);
-      var productKey = item.name + '|';
+      var productKey = getProductKey(item);
       var cartWrap = document.createElement('div');
       cartWrap.className = 'product-reserve-wrap';
 

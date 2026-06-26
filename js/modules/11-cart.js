@@ -45,6 +45,20 @@ function getCartKey(product) {
   return FERMENT_CART_KEY;
 }
 
+// CART-01 (audit #15): canonical line-item identity key. SKU is Zoho's unique
+// id, so keying by it makes the SAME product merge into ONE cart line no matter
+// which surface added it (catalog used `name|brand`, the search overlay used
+// `name|` → duplicate lines). Falls back to `name|brand` when a product has no
+// SKU (services/synthetic items, and older stored cart items) — which keeps the
+// pre-existing behaviour (and existing tests) intact for those. Keys are derived
+// from item fields at lookup time (never persisted), so stored carts don't orphan.
+function getProductKey(product) {
+  if (!product) return '';
+  var sku = (product.sku != null ? String(product.sku) : '').trim();
+  if (sku) return sku;
+  return product.name + '|' + (product.brand || '');
+}
+
 function getReservation(cartKey) {
   var key = cartKey || getCartKeyForTab(_activeCartTab);
   try {
@@ -72,7 +86,7 @@ function getReservedQty(productKey, cartKey) {
     ? getReservation(cartKey)
     : [].concat(getReservation(FERMENT_CART_KEY), getReservation(INGREDIENT_CART_KEY));
   for (var i = 0; i < all.length; i++) {
-    if ((all[i].name + '|' + (all[i].brand || '')) === productKey) {
+    if (getProductKey(all[i]) === productKey) {
       return all[i].qty || 1;
     }
   }
@@ -104,10 +118,10 @@ function getEffectiveMax(product) {
 function setReservationQty(product, qty) {
   var cartKey = getCartKey(product);
   var items = getReservation(cartKey);
-  var key = product.name + '|' + (product.brand || '');
+  var key = getProductKey(product);
   var idx = -1;
   for (var i = 0; i < items.length; i++) {
-    if ((items[i].name + '|' + items[i].brand) === key) {
+    if (getProductKey(items[i]) === key) {
       idx = i;
       break;
     }
@@ -964,7 +978,7 @@ function renderCartSidebar() {
           var current = getReservation(cartKey);
           var removed = false;
           for (var i = 0; i < current.length; i++) {
-            if ((current[i].name + '|' + (current[i].brand || '')) === (itm.name + '|' + (itm.brand || ''))) {
+            if (getProductKey(current[i]) === getProductKey(itm)) {
               current[i].qty = (current[i].qty || 1) - 1;
               if (current[i].qty <= 0) { current.splice(i, 1); removed = true; }
               break;
@@ -990,7 +1004,7 @@ function renderCartSidebar() {
           return function () {
             var current = getReservation(cartKey);
             for (var i = 0; i < current.length; i++) {
-              if ((current[i].name + '|' + (current[i].brand || '')) === (itm.name + '|' + (itm.brand || ''))) {
+              if (getProductKey(current[i]) === getProductKey(itm)) {
                 var newQty = (current[i].qty || 1) + 1;
                 if (newQty > max) newQty = max;
                 current[i].qty = newQty;
@@ -1017,7 +1031,7 @@ function renderCartSidebar() {
       return function () {
         var current = getReservation(cartKey);
         var filtered = current.filter(function (r) {
-          return (r.name + '|' + (r.brand || '')) !== (itm.name + '|' + (itm.brand || ''));
+          return getProductKey(r) !== getProductKey(itm);
         });
         saveReservation(filtered, cartKey);
       };
@@ -1151,7 +1165,7 @@ function renderCartDrawer() {
           var current = getReservation(cartKey);
           var removed = false;
           for (var i = 0; i < current.length; i++) {
-            if ((current[i].name + '|' + (current[i].brand || '')) === (itm.name + '|' + (itm.brand || ''))) {
+            if (getProductKey(current[i]) === getProductKey(itm)) {
               current[i].qty = (current[i].qty || 1) - 1;
               if (current[i].qty <= 0) { current.splice(i, 1); removed = true; }
               break;
@@ -1180,7 +1194,7 @@ function renderCartDrawer() {
           return function () {
             var current = getReservation(cartKey);
             for (var i = 0; i < current.length; i++) {
-              if ((current[i].name + '|' + (current[i].brand || '')) === (itm.name + '|' + (itm.brand || ''))) {
+              if (getProductKey(current[i]) === getProductKey(itm)) {
                 var newQty = (current[i].qty || 1) + 1;
                 if (newQty > max) newQty = max;
                 current[i].qty = newQty;
@@ -1210,7 +1224,7 @@ function renderCartDrawer() {
       return function () {
         var current = getReservation(cartKey);
         var filtered = current.filter(function (r) {
-          return (r.name + '|' + (r.brand || '')) !== (itm.name + '|' + (itm.brand || ''));
+          return getProductKey(r) !== getProductKey(itm);
         });
         saveReservation(filtered, cartKey);
         updateReservationBar();
@@ -1372,6 +1386,6 @@ if (typeof module !== 'undefined' && module.exports) {
     saveReservation: saveReservation, getReservedQty: getReservedQty, isReserved: isReserved,
     setReservationQty: setReservationQty, isWeightUnit: isWeightUnit, hasMinQtyIngredients: hasMinQtyIngredients,
     renderReserveControl: renderReserveControl, renderWeightControl: renderWeightControl,
-    getAllCartItems: getAllCartItems
+    getAllCartItems: getAllCartItems, getProductKey: getProductKey
   };
 }

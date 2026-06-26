@@ -257,3 +257,38 @@ describe('hasMinQtyIngredients', function () {
     expect(hasMinQtyIngredients()).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// CART-01 (audit #15): SKU-keyed identity — same product from different
+// surfaces (which populate brand inconsistently) merges into ONE cart line.
+// ---------------------------------------------------------------------------
+describe('getProductKey / SKU-keyed cart identity', function () {
+  var getProductKey = cart.getProductKey;
+
+  test('keys by SKU when present', function () {
+    expect(getProductKey({ name: 'Wine Kit', brand: 'RJS', sku: 'WK-RJS-01' })).toBe('WK-RJS-01');
+  });
+
+  test('falls back to name|brand when no SKU (legacy/services)', function () {
+    expect(getProductKey({ name: 'Wine Kit', brand: 'RJS' })).toBe('Wine Kit|RJS');
+    expect(getProductKey({ name: 'Malt', brand: '' })).toBe('Malt|');
+  });
+
+  test('catalog (brand set) + search overlay (brand blank) with same SKU MERGE into one line', function () {
+    // Catalog populates brand; the search overlay leaves it blank — but both carry the SKU.
+    var fromCatalog = { name: 'Wine Kit', brand: 'RJS', sku: 'WK-RJS-01', _item_type: 'kit' };
+    var fromSearch  = { name: 'Wine Kit', brand: '',    sku: 'WK-RJS-01', _item_type: 'kit' };
+    setReservationQty(fromCatalog, 1);
+    setReservationQty(fromSearch, 3); // same SKU → updates the SAME line (absolute qty), not a duplicate
+    var ferment = getReservation(FERMENT_KEY);
+    expect(ferment.length).toBe(1);          // merged, not duplicated
+    expect(ferment[0].qty).toBe(3);
+    expect(getReservedQty('WK-RJS-01')).toBe(3);
+  });
+
+  test('different SKUs stay separate even with same name/brand', function () {
+    setReservationQty({ name: 'Hops', brand: '', sku: 'HOP-A', stock: 10, _item_type: 'ingredient' }, 1);
+    setReservationQty({ name: 'Hops', brand: '', sku: 'HOP-B', stock: 10, _item_type: 'ingredient' }, 1);
+    expect(getReservation(INGREDIENT_KEY).length).toBe(2);
+  });
+});

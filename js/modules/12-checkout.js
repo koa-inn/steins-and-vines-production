@@ -714,7 +714,7 @@ function renderReservationItems() {
         for (var ci = 0; ci < current.length; ci++) {
           var isMatch = item.zoho_item_id
             ? current[ci].zoho_item_id === item.zoho_item_id
-            : (current[ci].name + '|' + (current[ci].brand || '')) === (item.name + '|' + (item.brand || ''));
+            : getProductKey(current[ci]) === getProductKey(item);
           if (isMatch) {
             if (newQty <= 0) { current.splice(ci, 1); } else { current[ci].qty = newQty; }
             break;
@@ -801,7 +801,7 @@ function renderReservationItems() {
         var current = getReservation(cartKey);
         var filtered = current.filter(function (r) {
           if (itm.zoho_item_id) return r.zoho_item_id !== itm.zoho_item_id;
-          return (r.name + '|' + (r.brand || '')) !== (itm.name + '|' + (itm.brand || ''));
+          return getProductKey(r) !== getProductKey(itm);
         });
         saveReservation(filtered, cartKey);
         renderReservationItems();
@@ -1217,13 +1217,13 @@ function renderCheckoutIngredientSection() {
         if (snapped <= 0) {
           cur = cur.filter(function (r) {
             if (itm.zoho_item_id) return r.zoho_item_id !== itm.zoho_item_id;
-            return (r.name + '|' + (r.brand || '')) !== (itm.name + '|' + (itm.brand || ''));
+            return getProductKey(r) !== getProductKey(itm);
           });
         } else {
           for (var j = 0; j < cur.length; j++) {
             var isMatch = itm.zoho_item_id
               ? cur[j].zoho_item_id === itm.zoho_item_id
-              : (cur[j].name + '|' + (cur[j].brand || '')) === (itm.name + '|' + (itm.brand || ''));
+              : getProductKey(cur[j]) === getProductKey(itm);
             if (isMatch) { cur[j].qty = snapped; break; }
           }
         }
@@ -1314,7 +1314,7 @@ function renderCheckoutIngredientSection() {
         var current = getReservation(INGREDIENT_CART_KEY);
         var filtered = current.filter(function (r) {
           if (itm.zoho_item_id) return r.zoho_item_id !== itm.zoho_item_id;
-          return (r.name + '|' + (r.brand || '')) !== (itm.name + '|' + (itm.brand || ''));
+          return getProductKey(r) !== getProductKey(itm);
         });
         saveReservation(filtered, INGREDIENT_CART_KEY);
         renderCheckoutIngredientSection();

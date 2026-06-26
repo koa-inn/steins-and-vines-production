@@ -475,7 +475,7 @@ function buildResultRow(item, pageSlug) {
   // Inline cart controls — only for in-stock items (D-07: no cart on out-of-stock)
   if (!isOutOfStock) {
     var cartObj = buildCartObject(item);
-    var productKey = item.name + '|';
+    var productKey = getProductKey(item);
     var currentQty = (typeof getReservedQty === 'function') ? (getReservedQty(productKey) || 0) : 0;
     var isWeight = (typeof hasWeightConfig === 'function') && hasWeightConfig(item);
 

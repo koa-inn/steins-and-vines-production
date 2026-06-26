@@ -620,7 +620,7 @@ function buildCompareColumn(group, variant, removable) {
           });
           priceSpan.textContent = formatCurrency(cv.price_per_unit || 0);
           var cart = buildHopCartObject(cv);
-          var key = cv.name + '|';
+          var key = getProductKey(cv);
           var ren = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(cv))
             ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
           reserveWrap._reserveProduct = cart;
@@ -644,7 +644,7 @@ function buildCompareColumn(group, variant, removable) {
   var reserveWrap = document.createElement('div');
   reserveWrap.className = 'product-reserve-wrap';
   var hopForCart = buildHopCartObject(variant);
-  var productKey = variant.name + '|';
+  var productKey = getProductKey(variant);
   var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
     ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
   reserveWrap._reserveProduct = hopForCart;
@@ -847,7 +847,7 @@ function buildCompareCellContent(key, group, variant) {
             });
             priceSpan.textContent = formatCurrency(cv.price_per_unit || 0);
             var cart = buildHopCartObject(cv);
-            var pkey = cv.name + '|';
+            var pkey = getProductKey(cv);
             var ren = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(cv))
               ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
             reserveWrap._reserveProduct = cart;
@@ -870,7 +870,7 @@ function buildCompareCellContent(key, group, variant) {
     var reserveWrap = document.createElement('div');
     reserveWrap.className = 'product-reserve-wrap';
     var hopForCart = buildHopCartObject(variant);
-    var productKey = variant.name + '|';
+    var productKey = getProductKey(variant);
     var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
       ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
     reserveWrap._reserveProduct = hopForCart;
@@ -1044,7 +1044,7 @@ function buildDetailPanel(group, variant) {
   var reserveWrap = document.createElement('div');
   reserveWrap.className = 'product-reserve-wrap';
   var hopForCart = buildHopCartObject(variant);
-  var productKey = variant.name + '|';
+  var productKey = getProductKey(variant);
   var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
     ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
   reserveWrap._reserveProduct = hopForCart;
@@ -1071,7 +1071,7 @@ function buildDetailPanel(group, variant) {
           });
           priceSpan.textContent = formatCurrency(clickedVariant.price_per_unit || 0);
           var newHopForCart = buildHopCartObject(clickedVariant);
-          var newProductKey = clickedVariant.name + '|';
+          var newProductKey = getProductKey(clickedVariant);
           var newRenderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(clickedVariant))
             ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
           reserveWrap._reserveProduct = newHopForCart;
@@ -1161,7 +1161,7 @@ function buildHopCard(group) {
   var reserveWrap = document.createElement('div');
   reserveWrap.className = 'product-reserve-wrap';
   var hopForCart = buildHopCartObject(variant);
-  var productKey = variant.name + '|';
+  var productKey = getProductKey(variant);
   var renderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
     ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
   reserveWrap._reserveProduct = hopForCart;
@@ -1191,7 +1191,7 @@ function buildHopCard(group) {
           });
           priceSpan.textContent = formatCurrency(clickedVariant.price_per_unit || 0);
           var newHopForCart = buildHopCartObject(clickedVariant);
-          var newProductKey = clickedVariant.name + '|';
+          var newProductKey = getProductKey(clickedVariant);
           var newRenderer = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(clickedVariant))
             ? (typeof renderWeightControlCompact !== 'undefined' ? renderWeightControlCompact : renderWeightControl) : renderReserveControl;
           reserveWrap._reserveProduct = newHopForCart;
@@ -1472,7 +1472,7 @@ function buildHopTable(groups) {
     var tdCart = document.createElement('td');
     tdCart.setAttribute('data-label', '');
     var cartObj = buildHopCartObject(variant);
-    var cartKey = variant.name + '|';
+    var cartKey = getProductKey(variant);
     var cartWrap = document.createElement('div');
     cartWrap.className = 'product-reserve-wrap';
     var ren = (typeof hasWeightConfig !== 'undefined' && hasWeightConfig(variant))
