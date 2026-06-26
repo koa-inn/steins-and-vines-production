@@ -1,37 +1,43 @@
 {
   "version": "1.0",
-  "timestamp": "2026-06-19T04:26:48.648Z",
-  "phase": null,
-  "phase_name": "Ad-hoc recipe-builder maintenance (non-GSD-phase)",
-  "phase_dir": null,
-  "plan": null,
+  "timestamp": "2026-06-26T00:11:27.373Z",
+  "phase": "36",
+  "phase_name": "cross-surface-selection-recipe-modification",
+  "phase_dir": ".planning/phases/36-cross-surface-selection-recipe-modification",
+  "plan": 22,
   "task": null,
   "total_tasks": null,
   "status": "paused",
-  "context_note": "This session was ad-hoc bug-fixing + a small feature on the admin recipe builder, NOT a GSD phase. v4.2 phases 31-33 are complete. All work below is committed, pushed to origin (local == origin/main), and deployed to staging AND production. Clean stopping point — nothing in progress.",
+  "context_note": "Long live debugging+fix session AFTER the --gaps-only execution. Gap-closure (GAP-1..8) PLUS a series of ad-hoc post-execution fixes (36-18..36-22), a customer-search fix, and a security.txt — ALL shipped to staging AND production. Nothing in progress; clean stopping point. Remaining items are human verifications/actions, not code.",
   "completed_tasks": [
-    {"id": 1, "name": "Internal Only items appear in recipe ingredient picker (API-key-gated ?include_internal=1, separate zoho:ingredients:all cache)", "status": "done", "commit": "2c49dec"},
-    {"id": 2, "name": "Patched 2 high-severity dep CVEs (nodemailer 8->9.0.1 [vestigial/unused], form-data 4.0.6) blocking the prod deploy audit gate", "status": "done", "commit": "9bd98bd"},
-    {"id": 3, "name": "Fixed gated-deploy.yml: removed [skip ci] from prod CNAME commit that was silently preventing GitHub Pages from publishing the frontend", "status": "done", "commit": "fd49f2b"},
-    {"id": 4, "name": "Recipe editor: re-render open recipe when catalog finishes loading (fixes blank/shifting ingredient cost/retail)", "status": "done", "commit": "c9eff32"},
-    {"id": 5, "name": "Apps Script: persist pricing_mode (self-migrating column) — was always reverting to locked", "status": "done", "commit": "7926ffc", "note": "Required MANUAL Apps Script redeploy — user completed it. pricing_mode column self-migrates to END of Recipes sheet."},
-    {"id": 6, "name": "Recipe list shows ingredient-based computed_price (~$) for dynamic recipes + cold-cache file fallback in enrichListPrices", "status": "done", "commit": "6ce1620"},
-    {"id": 7, "name": "Added 'Refresh from Zoho' button to recipe builder (POST /api/admin/cache-clear + reload catalog then list)", "status": "done", "commit": "5d6aa93"}
+    {"id": "36-13..16", "name": "Round-2 gap closure GAP-4/5/6/7 (UI-SPEC + admin/kiosk/brewpad)", "status": "done", "live": "prod"},
+    {"id": "36-17", "name": "Third-pass UAT — owner approved; GAP-8 surfaced + fixed", "status": "done"},
+    {"id": "36-18", "name": "GAP-8: live price + scaled ingredient list update pre-sale-type (admin+kiosk)", "status": "done", "live": "prod"},
+    {"id": "36-19", "name": "BrewPad: style on recipe list + Clone-recipe button", "status": "done", "live": "prod", "commit": "6d812b2"},
+    {"id": "36-20", "name": "Helcim terminal SUCCESS auto-confirm (middleware): getCardTransactionById + device-pending fallback + cache JSON-string fix", "status": "done", "live": "prod-railway", "commit": "ed3af5f/806680b"},
+    {"id": "36-21", "name": "BrewPad re-login fix: use stored token on load instead of silent re-auth every refresh", "status": "done", "live": "prod", "commit": "20b7607"},
+    {"id": "customer-search", "name": "create-batch customer search: send x-api-key (was 403 -> 'No results')", "status": "done", "live": "prod", "commit": "bc85f70"},
+    {"id": "36-22", "name": "BrewPad save-refresh: afterBatchWrite helper busts sv-bp-batch-{id} snapshot + list/dash caches across ~13 write handlers", "status": "done", "live": "prod", "commit": "016f296"},
+    {"id": "security.txt", "name": "RFC 9116 .well-known/security.txt + .nojekyll (Cloudflare finding)", "status": "done", "live": "prod", "commit": "68664d6"}
   ],
   "remaining_tasks": [
-    {"id": 8, "name": "OPTIONAL/deferred: Dangerous Bunny (SV-R-000001) row has scrambled bookkeeping cells (notes holds a timestamp, created_at='middleware', created_by holds a timestamp). Cosmetic only — pricing/app unaffected. User deferred; fix by hand in the sheet if desired.", "status": "not_started"}
+    {"id": "36-07", "name": "Original-phase UAT plan (non-gap, never run under --gaps-only)", "status": "not_started", "note": "Superseded in practice by the third-pass UAT; phase is functionally shipped"},
+    {"id": "TP-8-verify", "name": "End-to-end verify SEL-02 carry-through: a non-1x volume sale stamps target_volume_l + scale_factor onto the auto-created batch row", "status": "needs_verification", "note": "Owner reported the Apps Script create_batch redeploy + Batches-sheet columns are DONE; a live end-to-end check is still recommended"}
   ],
   "blockers": [],
-  "human_actions_pending": [],
+  "human_actions_pending": [
+    {"action": "Run a real Helcim terminal sale on the kiosk", "context": "Confirm 36-20 auto-confirm advances without a manual tap and records the real txn id in Zoho", "blocking": false},
+    {"action": "On each staff iPad hit the in-app Clear-cache (the refresh icon) once", "context": "PWA caches the bundle; needed to pull new prod code; also surfaces the irish-moss-bulk ingredient", "blocking": false},
+    {"action": "Enable 2FA on the Cloudflare account (hello@steinsandvines.ca)", "context": "Cloudflare Security Insights 'Users without MFA' — the one real security item; protects full domain/edge control", "blocking": false},
+    {"action": "Confirm the 4 apex A records in Cloudflare DNS are GitHub Pages IPs 185.199.108-111.153, then dismiss the 'dangling A' findings", "context": "Almost certainly false positives; apex is proxied + serves 200", "blocking": false}
+  ],
   "decisions": [
-    {"decision": "Expose Internal Only items only via API-key-gated ?include_internal=1 with a separate zoho:ingredients:all cache", "rationale": "The public zoho:ingredients cache is read by checkout.js + pos-recipe.js money-path validation; must not leak internal items into it"},
-    {"decision": "pricing_mode column self-migrates to the END of the Recipes sheet", "rationale": "createRecipe writes base fields positionally; a column inserted mid-sheet misaligns it. Helper ensureRecipesPricingModeColumn appends at end + writes by header lookup"},
-    {"decision": "Dynamic recipes display computed_price with a ~$ prefix; locked show plain $", "rationale": "Signals the price is computed from current ingredient costs and will move"},
-    {"decision": "Use the gated-deploy.yml blessed pipeline for prod, not git push production --force", "rationale": "Test-gated + CNAME-safe; now also auto-publishes Pages after the [skip ci] fix"}
+    {"decision": "Pre-sale-type recipe price/list preview uses the in-store basis", "rationale": "Matches the existing '(based on ingredients)' label; charged amount stays server-authoritative at cart", "phase": "36"},
+    {"decision": "Folded round-1 UAT plan 36-12 into 36-17 (third pass)", "rationale": "Round-1 sign-off superseded by round-2; avoids a redundant deploy + duplicate sign-off", "phase": "36"},
+    {"decision": "No git worktrees for the gaps-only execution", "rationale": "One plan per wave (strict dependency chain) = zero parallelism benefit + disk pressure on this Drive-adjacent clone", "phase": "36"},
+    {"decision": "Helcim API token 'General' access set to Read in Helcim Hub", "rationale": "Token could charge (Transaction Processing) but not read card-transactions (401); General->Read fixes terminal success recognition", "phase": "36"}
   ],
-  "uncommitted_files": [
-    "Build byproducts only (intentionally NOT committed): re-stamped ?v= on *.html and products/*.html, zoho-middleware/ingredients-cache.json (runtime), zoho-middleware/dump.rdb (untracked Redis dump). None are part of the work."
-  ],
-  "next_action": "Nothing pending. The recipe-builder thread is complete and user-confirmed. If anything, the only open item is the optional cosmetic Dangerous Bunny bookkeeping-cell cleanup (task 8).",
-  "context_notes": "Deploy topology gotchas that cost the most time this session: (1) [skip ci] in the gated CNAME commit blocked Pages publish — every frontend fix looked broken until traced; now fixed. (2) Cloudflare Bot Fight Mode 403s plain curl — verify prod via browser User-Agent or `gh api repos/koa-inn/steins-and-vines-production/contents/<path>`. (3) Apps Script is deployed MANUALLY (paste + redeploy), not via git. (4) Staging frontend calls the PROD middleware (no staging middleware instance) — middleware changes reach prod via railway up or the gated deploy's Railway watchPatterns. (5) gated-deploy audit gate fails on newly-published CVEs because package-lock.json is gitignored (npm install resolves latest). (6) Zoho data changes propagate to the site within ~10 min (cache soft TTL) or instantly via the new Refresh-from-Zoho button / POST /api/admin/cache-clear."
+  "uncommitted_files": ["zoho-middleware/ingredients-cache.json (runtime cache — ignore); zoho-middleware/dump.rdb + .planning/ui-reviews/ (untracked runtime/scratch)"],
+  "next_action": "No code work pending. If resuming: confirm the human verifications above (terminal sale, iPad cache-clear, 2FA), then milestone v4.3 is ready to close out / archive.",
+  "context_notes": "Each issue was diagnosed-first (often verified live against the prod middleware/DNS), fixed test-first via gsd-executor, reviewed (I caught 2 executor bugs the tests missed — see anti-patterns), then deployed staging->prod. Frontend prod deploy this session = git push production main --force with CNAME swap to steinsandvines.ca then `git reset --hard` back to the staging-CNAME base (local stays on staging CNAME). Verified each prod deploy via the 'Deploy Production (filtered)' Actions run + a browser-UA curl. Middleware = single Railway instance sv_middleware (shared staging+prod, no isolation), deploy via `railway up`. Local on main @68664d6, CNAME=staging.steinsandvines.ca (correct)."
 }
