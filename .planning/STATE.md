@@ -73,7 +73,7 @@ None.
 
 ### Blockers/Concerns
 
-- Federal brewing licence pending — BEER_SALES_ENABLED must remain false in Railway production
+- BEER_SALES_ENABLED is now `true` in Railway production (confirmed live 2026-06-26, intentionally enabled) — kiosk recipe sales + recipe discounts are active. (Was previously held false pending the federal brewing licence; ensure the licence status supports live beer sales at the kiosk POS.)
 - Apps Script changes require manual redeploy (not in CI) — plan authors must flag this
 - 36-02 BLOCKED: Apps Script create_batch handler must accept + persist target_volume_l and scale_factor; manual redeploy needed before SEL-02 is fully closed
 
