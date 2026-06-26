@@ -90,7 +90,7 @@
 
 **Milestone Goal:** Close out the remaining open/partial HIGH-priority items from `PROJECT_ASSESSMENT.md` — gitignore/strip `.planning/`, fix the nightly snapshot publish, optimize facility imagery, fix the duplicate-cart bug, and de-fork the kiosk POS — risk-ordered (low-risk infra first, money-path refactor last) without weakening the v4.2-hardened money path. Continues phase numbering from Phase 38.
 
-- [ ] **Phase 38: Repo Hygiene & Deploy-Strip Confirmation** - `.gitignore .planning` + untrack + confirm absent on staging and prod (HYGIENE-01)
+- [~] **Phase 38: Repo Hygiene & Deploy-Strip Confirmation** — DEFERRED 2026-06-26 (owner). Investigation: prod already strips `.planning` (safe); staging exposes it (legacy deploy-from-branch); gitignoring would break GSD's git-tracked state (D-01). Low severity (staging noindex; `PROJECT_ASSESSMENT.md` already gitignored → 404). Content-safe fix (switch staging to workflow-based Pages w/ strip) deferred by owner. (HYGIENE-01)
 - [ ] **Phase 39: Nightly Snapshot Publishes to Prod Fallback** - drop `[skip ci]` / pull-before-force-push so prod `zoho-snapshot.json` is fresh (DEPLOY-04)
 - [ ] **Phase 40: Facility Image Optimization (webp + srcset)** - extend product image pipeline to facility/about; sub-500 KB homepage images with intrinsic dimensions (ASSET-01)
 - [ ] **Phase 41: SKU-Keyed Cart Identity** - re-key cart by SKU in `11-cart.js` + `17-search-overlay.js`; one merged line across both carts (CART-01)
