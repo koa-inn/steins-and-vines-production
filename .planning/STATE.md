@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.3
-milestone_name: Recipe Builder Refinement
-status: executing
-stopped_at: Completed 36-21-PLAN.md
-last_updated: "2026-06-25T21:18:15.871Z"
-last_activity: 2026-06-25
+milestone: v4.4
+milestone_name: Audit Remediation
+status: planning
+last_updated: "2026-06-26T04:04:56.665Z"
+last_activity: 2026-06-26
 progress:
-  total_phases: 23
-  completed_phases: 4
-  total_plans: 29
-  completed_plans: 33
-  percent: 17
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,12 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 ## Current Position
 
-Phase: 36 (cross-surface-selection-recipe-modification) — EXECUTING
-Plan: 8 of 17
-Status: Ready to execute
-Last activity: 2026-06-25
-
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-06-26 — Milestone v4.4 started
 
 ## Performance Metrics
 

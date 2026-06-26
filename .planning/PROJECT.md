@@ -8,22 +8,20 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 
 **Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.**
 
-## Current Milestone: v4.3 Recipe Builder Refinement
+## Current Milestone: v4.4 Audit Remediation
 
-**Goal:** Make recipes scalable and adjustable at the point of selection across admin, kiosk, and BrewPad — and make the recipe builder/manager available in BrewPad — without weakening the server-authoritative money path hardened in v4.2.
+**Goal:** Close out the remaining open/partial HIGH-priority items from `PROJECT_ASSESSMENT.md` (2026-06-10) — de-risk the forked kiosk POS, fix the duplicate-cart bug, and finish the deploy/repo-hygiene and image-weight items — without weakening the v4.2-hardened money path. Excludes the hero subtitle (#17, owner handling separately).
 
-**Target features:**
-- Group/sort recipe ingredients by `cf_type` (Grain/Hops/Yeast/Additive/…) in the recipe view, with server-side enrichment so all surfaces group consistently
-- Batch-size scaling by **target volume (litres)**: linearly scale weight-based ingredients, round **up** discrete (pcs) items; price scaled quantities server-authoritatively
-- Batch size selectable wherever a recipe is selected — admin, kiosk, BrewPad — with a consistent control
-- Add/remove/substitute ingredients at selection time for a one-off modified sale/batch (saved recipe untouched), with an optional "save as new recipe"
-- Surface the recipe builder/manager in BrewPad (browse/view/create/edit, reusing existing CRUD + activation guardrails)
+**Target items (from PROJECT_ASSESSMENT.md):**
+- **#14 (HIGH) Kiosk POS de-fork** — `admin.js` (embedded kiosk) and `kiosk.js` share ~34 diverging `kiosk*` functions with two payment implementations; extract a shared `js/kiosk-core.js` (or remove the admin-embedded kiosk). Highest risk/effort — touches the kiosk money path. Recent discount work landed in `kiosk.js` only, so the admin copy already lacks it.
+- **#15 (HIGH) Cart identity by SKU** — catalog keys the cart by `name|brand`, the search overlay by `name|`, producing duplicate cart lines and wrong qty. Re-key by SKU in `11-cart.js` + `17-search-overlay.js`.
+- **#6 (HIGH, partial) `.planning/` repo hygiene** — git-tracked and previously served publicly; stripped at prod deploy but not gitignored. Add `.planning/` to `.gitignore` and confirm the staging deploy also strips it.
+- **#10 (HIGH, partial) Nightly snapshot publishes** — the prod snapshot commit uses `[skip ci]` so the static prod fallback never publishes; force-push then erases it. Drop `[skip ci]` (or `workflow_dispatch`) and pull-before-force-push.
+- **#18 (HIGH, partial) Facility image weight** — ~42 MB unoptimized facility JPEGs (homepage `interior.jpg` 5.7 MB); add webp + `srcset`, extending the existing product image pipeline. (`images/products/unmatched/` already deleted.)
 
-**Key design decisions (from kickoff):**
-- Locked-price recipes scale the **ingredient-cost portion proportionally** while **service/materials fees stay fixed**; dynamic recipes price from scaled ingredient costs
-- Batch size is entered as a **target volume in litres**; scale factor = target ÷ recipe `batch_size_l`
-- Scaling + substitution must flow through `pos-recipe.js` / `lib/pricing.js` server-authoritatively and be captured in the frozen `recipe_snapshot` + Zoho invoice line items
-- Grouping dimension is `cf_type`; ingredient data enriched in the middleware
+**Key constraints:**
+- Vanilla ES5 JS, no framework; kiosk/admin are iPad Safari staff tools; staging-first deploy.
+- #14 must not weaken the v4.2-hardened, server-authoritative money path (kiosk POS checkout, terminal, void recovery). De-fork is a behavior-preserving refactor with parity tests, not a redesign.
 
 ## Current State: v4.2 Payment Path Hardening & Deploy Safety — SHIPPED 2026-06-19
 
@@ -164,4 +162,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-19 — v4.2 Payment Path Hardening & Deploy Safety milestone shipped to production and archived (Phases 31–33). Audit 14/14 requirements; the DEPLOY-03/PII-01 cross-phase blocker was fixed and verified live (authenticated snapshot fetch + CNAME-safe prod cross-push). Next milestone TBD — run /gsd-new-milestone.*
+*Last updated: 2026-06-26 — v4.4 Audit Remediation milestone started (continues phase numbering from 38). v4.3 Recipe Builder Refinement is functionally complete and shipped (Phases 34–37: ingredient grouping, batch scaling, cross-surface selection/modification, BrewPad recipe manager), plus a follow-on kiosk product-type discount feature; v4.3 awaits formal /gsd-complete-milestone archival. v4.4 scope is the remaining HIGH-priority items from PROJECT_ASSESSMENT.md (#6, #10, #14, #15, #18; #17 hero excluded).*
