@@ -82,6 +82,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-26 — v4.4 roadmap created
-Stopped at: Roadmap written for v4.4 (Phases 38-42); next is /gsd-plan-phase 38
+Last session: 2026-06-26 — v4.4 Phases 39/40/41 executed; prod kiosk hotfix
+Stopped at: v4.4 progress — Phase 38 DEFERRED (owner), 39 DONE (staging), 40 DONE (live on prod), 41 DONE (staging). Phase 42 (kiosk de-fork, KIOSK-01) NOT started — awaiting owner review (high-risk money path). Also fixed prod kiosk customer-search 403 (x-api-key on /api/contacts, kiosk.js + admin.js) — live on prod.
+Next: (1) NEW FEATURE pending — kiosk manual/custom line item with notes (see task; owner-approved design = Zoho ad-hoc invoice line + note in description, needs server custom-item path); (2) Phase 42 kiosk de-fork. Staging has 39/41 not yet promoted to prod.
 Resume file: None
