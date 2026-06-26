@@ -93,7 +93,7 @@
 - [~] **Phase 38: Repo Hygiene & Deploy-Strip Confirmation** — DEFERRED 2026-06-26 (owner). Investigation: prod already strips `.planning` (safe); staging exposes it (legacy deploy-from-branch); gitignoring would break GSD's git-tracked state (D-01). Low severity (staging noindex; `PROJECT_ASSESSMENT.md` already gitignored → 404). Content-safe fix (switch staging to workflow-based Pages w/ strip) deferred by owner. (HYGIENE-01)
 - [x] **Phase 39: Nightly Snapshot Publishes to Prod Fallback** — DONE 2026-06-26 (`303a060`): dropped `[skip ci]` from the PROD snapshot commit so `deploy-production.yml` republishes Pages (was stale); staging keeps it (legacy deploy-from-branch serves directly); prod commit already builds on prod main (FF, CNAME-safe). Verify on next nightly run / manual dispatch. (DEPLOY-04)
 - [x] **Phase 40: Facility Image Optimization (webp + srcset)** — DONE 2026-06-26 (`17f9995`): extended optimize-images.js to facility photos; 4 referenced images → webp 800w/1600w + 1600w jpg fallback via `<picture>`; originals removed. Homepage interior 5.7MB→87KB. (ASSET-01)
-- [ ] **Phase 41: SKU-Keyed Cart Identity** - re-key cart by SKU in `11-cart.js` + `17-search-overlay.js`; one merged line across both carts (CART-01)
+- [x] **Phase 41: SKU-Keyed Cart Identity** — DONE 2026-06-26 (`b2fdac1`): centralized `getProductKey()` (SKU primary, name|brand fallback) across 11-cart, 06/07/08/15/16/17 + 12-checkout comparisons; same product from catalog + search overlay now merges to one line; +4 regression tests; 928 FE tests green. (CART-01)
 - [ ] **Phase 42: Kiosk POS De-Fork (kiosk-core.js)** - shared `js/kiosk-core.js`, behaviour-preserving, parity-tested, discount on both surfaces (KIOSK-01)
 
 ## Phase Details

@@ -61,7 +61,7 @@ Confirmed by the roadmapper (2026-06-26). Phases risk-ordered: low-risk infra/hy
 | HYGIENE-01 | Phase 38 | Deferred (owner, 2026-06-26) |
 | DEPLOY-04 | Phase 39 | Done (verify next run) |
 | ASSET-01 | Phase 40 | Done (17f9995) |
-| CART-01 | Phase 41 | Pending |
+| CART-01 | Phase 41 | Done (b2fdac1) |
 | KIOSK-01 | Phase 42 | Pending |
 
 **Coverage:**
