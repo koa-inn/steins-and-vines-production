@@ -827,6 +827,11 @@
     if (Array.isArray(_kioskModifiedIngredients)) {
       url += '&modified_ingredients=' + encodeURIComponent(JSON.stringify(_kioskModifiedIngredients));
     }
+    // Discount: server applies it to the recipe's product/fee portions and returns
+    // the discounted total. The charged amount is always this server quote.
+    if (_kioskDiscount && _kioskDiscount.presetId) {
+      url += '&discount_preset_id=' + encodeURIComponent(_kioskDiscount.presetId);
+    }
     // Show "Calculating..." while waiting (GAP-4 36-15: ungated — always show)
     var previewEl = document.getElementById('kiosk-recipe-price-preview');
     if (previewEl) {
@@ -845,7 +850,15 @@
             el.style.display = '';
             var total = typeof result.data.total === 'number' ? result.data.total : null;
             if (total !== null) {
-              el.innerHTML = 'Estimated total: <strong>' + escapeHTML('$' + total.toFixed(2)) + '</strong>';
+              var disc = result.data.discount;
+              var before = result.data.total_before_discount;
+              if (disc && typeof before === 'number' && before > total) {
+                el.innerHTML = 'Estimated total: <s style="color:var(--ink-tertiary);">' +
+                  escapeHTML('$' + before.toFixed(2)) + '</s> <strong>' + escapeHTML('$' + total.toFixed(2)) + '</strong>' +
+                  ' <span style="color:var(--cellar-green,#2e6e4e);">(' + escapeHTML(disc.name) + ')</span>';
+              } else {
+                el.innerHTML = 'Estimated total: <strong>' + escapeHTML('$' + total.toFixed(2)) + '</strong>';
+              }
             } else {
               el.innerHTML = '<span style="color:var(--batch-danger);">Price unavailable — check connection</span>';
             }
@@ -1168,45 +1181,105 @@
 
   var KIOSK_TAX_RATE_DEFAULT = 0.05; // 5% GST fallback when item has no tax_percentage
 
+  function kioskR2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+
   function kioskCalcTotals() {
+    var ids = Object.keys(_kioskCart);
     var subtotal = 0;
-    Object.keys(_kioskCart).forEach(function (id) {
+    ids.forEach(function (id) {
       var entry = _kioskCart[id];
       if (!entry || !entry.item) return; // skip non-item entries (defensive guard)
-      var qty = entry.qty;
-      var rate = parseFloat(entry.item.rate) || 0;
-      subtotal += rate * qty;
+      subtotal += (parseFloat(entry.item.rate) || 0) * entry.qty;
     });
-    subtotal = parseFloat(subtotal.toFixed(2));
+    subtotal = kioskR2(subtotal);
 
+    // Per-line discount amounts (id -> $) drive both the total and per-line tax.
+    var lineDiscount = {};
     var discountAmount = 0;
+
     if (_kioskDiscount) {
-      if (_kioskDiscount.type === 'percentage') {
-        discountAmount = parseFloat((subtotal * _kioskDiscount.value / 100).toFixed(2));
+      if (_kioskRecipeContext) {
+        // Recipe cart: the discount is server-authoritative — the discount-aware
+        // quote already computed it against the recipe's product/fee portions.
+        discountAmount = (_kioskQuote && _kioskQuote.discount && typeof _kioskQuote.discount.amount === 'number')
+          ? _kioskQuote.discount.amount : 0;
+        discountAmount = Math.min(discountAmount, subtotal);
       } else {
-        discountAmount = Math.min(parseFloat(_kioskDiscount.value) || 0, subtotal);
+        // Standard cart: discount only the lines whose product type matches.
+        var scope = _kioskDiscount.scope;
+        var matchedIds = [];
+        var matchedSubtotal = 0;
+        ids.forEach(function (id) {
+          var entry = _kioskCart[id];
+          if (!entry || !entry.item) return;
+          var m;
+          if (scope === 'cart') {
+            m = true;
+          } else if (scope === 'type' && typeof discountMatches === 'function') {
+            m = discountMatches(classifyDiscountItem(entry.item), _kioskDiscount.applies_to || []);
+          } else {
+            m = false;
+          }
+          if (m) {
+            matchedIds.push(id);
+            matchedSubtotal += (parseFloat(entry.item.rate) || 0) * entry.qty;
+          }
+        });
+        matchedSubtotal = kioskR2(matchedSubtotal);
+
+        if (_kioskDiscount.type === 'percentage') {
+          matchedIds.forEach(function (id) {
+            var entry = _kioskCart[id];
+            var lt = (parseFloat(entry.item.rate) || 0) * entry.qty;
+            var d = kioskR2(lt * _kioskDiscount.value / 100);
+            lineDiscount[id] = d;
+            discountAmount += d;
+          });
+          discountAmount = kioskR2(discountAmount);
+        } else {
+          var fixed = Math.min(parseFloat(_kioskDiscount.value) || 0, matchedSubtotal);
+          var remaining = fixed;
+          matchedIds.forEach(function (id, k) {
+            var entry = _kioskCart[id];
+            var lt = (parseFloat(entry.item.rate) || 0) * entry.qty;
+            var d;
+            if (k === matchedIds.length - 1) {
+              d = remaining;
+            } else {
+              d = matchedSubtotal > 0 ? kioskR2(fixed * (lt / matchedSubtotal)) : 0;
+              remaining = kioskR2(remaining - d);
+            }
+            if (d > lt) d = lt;
+            lineDiscount[id] = d;
+          });
+          discountAmount = kioskR2(fixed);
+        }
       }
     }
 
     // Per-item tax using catalog tax_percentage (matches server-side calculation)
-    var discountRatio = subtotal > 0 ? (subtotal - discountAmount) / subtotal : 0;
     var taxTotal = 0;
-    Object.keys(_kioskCart).forEach(function (id) {
+    ids.forEach(function (id) {
       var entry = _kioskCart[id];
-      var qty = entry.qty;
-      var rate = parseFloat(entry.item.rate) || 0;
-      var lineTotal = rate * qty * discountRatio;
+      if (!entry || !entry.item) return;
+      var lt = (parseFloat(entry.item.rate) || 0) * entry.qty;
+      var d = lineDiscount[id] || 0;
+      // Recipe cart uses a uniform ratio (recipe lines are mostly tax-exempt anyway).
+      if (_kioskRecipeContext && discountAmount > 0 && subtotal > 0) {
+        d = kioskR2(lt * (discountAmount / subtotal));
+      }
+      var taxable = Math.max(lt - d, 0);
       var pct = parseFloat(entry.item.tax_percentage);
       if (isNaN(pct)) pct = KIOSK_TAX_RATE_DEFAULT * 100;
-      taxTotal += lineTotal * (pct / 100);
+      taxTotal += taxable * (pct / 100);
     });
-    taxTotal = parseFloat(taxTotal.toFixed(2));
-    var taxableAmount = subtotal - discountAmount;
+    taxTotal = kioskR2(taxTotal);
+
     return {
       subtotal: subtotal,
-      discount: discountAmount,
+      discount: kioskR2(discountAmount),
       tax: taxTotal,
-      total: parseFloat((taxableAmount + taxTotal).toFixed(2))
+      total: kioskR2(subtotal - discountAmount + taxTotal)
     };
   }
 
@@ -1944,8 +2017,12 @@
             qty: 1
           };
         });
-        // Single total line — use quote total when available, else locked_price
-        var packagePrice = quoteForCart ? Number(quoteForCart.total) : (parseFloat(recipe.locked_price) || 0);
+        // Single total line — use the PRE-DISCOUNT quote total when available, else
+        // locked_price. The discount is applied separately in kioskCalcTotals from
+        // the server quote, so the cart line must stay at the undiscounted amount.
+        var packagePrice = quoteForCart
+          ? Number(quoteForCart.total_before_discount != null ? quoteForCart.total_before_discount : quoteForCart.total)
+          : (parseFloat(recipe.locked_price) || 0);
         _kioskCart['recipe-total'] = {
           item: {
             item_id: recipe.recipe_id,
@@ -2998,10 +3075,15 @@
       recipe_id: _kioskRecipeContext.recipe_id,
       sale_type: _kioskRecipeContext.sale_type,
       mill_grain: _kioskRecipeContext.mill_grain,
+      // Forward the selected batch size + ingredient edits so the SERVER charges
+      // the scaled/modified total shown in the cart (not the base 1× recipe).
+      target_volume_l: _kioskRecipeContext.target_volume_l,
+      modified_ingredients: Array.isArray(_kioskModifiedIngredients) ? _kioskModifiedIngredients : undefined,
       customer_name: (_kioskCustomer && _kioskCustomer.name) || '',
       contact_id: (_kioskCustomer && _kioskCustomer.contact_id) || '',
       reference_number: refNumber,
-      idempotency_key: refNumber
+      idempotency_key: refNumber,
+      discount: _kioskDiscount ? { preset_id: _kioskDiscount.presetId, name: _kioskDiscount.name, type: _kioskDiscount.type, value: _kioskDiscount.value, scope: _kioskDiscount.scope } : undefined
     } : null;
     var standardSaleBody = {
       items: items,
@@ -3053,10 +3135,14 @@
           recipe_id: recipeSaleBody.recipe_id,
           sale_type: recipeSaleBody.sale_type,
           mill_grain: recipeSaleBody.mill_grain,
+          // Mirror the sale request so the invoice + charge match the cart total.
+          target_volume_l: recipeSaleBody.target_volume_l,
+          modified_ingredients: recipeSaleBody.modified_ingredients,
           customer_name: recipeSaleBody.customer_name || '',
           contact_id: recipeSaleBody.contact_id || '',
           reference: refNumber,
-          transaction_id: txnId
+          transaction_id: txnId,
+          discount: recipeSaleBody.discount
         };
         fetch(mwUrl + '/api/kiosk/recipe-sale/confirm', {
           method: 'POST',
@@ -4263,7 +4349,7 @@
     var html = '';
     _kioskDiscountPresets.forEach(function (p) {
       var detail = p.type === 'percentage' ? (p.value + '% off') : ('$' + parseFloat(p.value).toFixed(2) + ' off');
-      detail += p.scope === 'item' ? ' (per item)' : ' (cart)';
+      detail += ' (' + kioskDiscountScopeLabel(p) + ')';
       html += '<div class="kiosk-discount-preset-row" data-preset-id="' + escapeHTML(p.id) + '">';
       html += '<span class="kiosk-discount-preset-name">' + escapeHTML(p.name) + '</span>';
       html += '<span class="kiosk-discount-preset-detail">' + detail + '</span>';
@@ -4295,16 +4381,28 @@
       type: preset.type,
       value: preset.value,
       scope: preset.scope,
-      targetItemId: null
+      applies_to: preset.applies_to || null
     };
 
     document.getElementById('kiosk-discount-popover').style.display = 'none';
-    kioskUpdateDiscountDisplay();
-    kioskRenderCart();
+    kioskRefreshAfterDiscountChange();
   }
 
   function kioskRemoveDiscount() {
     _kioskDiscount = null;
+    kioskRefreshAfterDiscountChange();
+  }
+
+  // Recompute the displayed total after a discount changes. For recipe carts the
+  // discount is server-authoritative, so re-fetch the (discount-aware) quote first.
+  function kioskRefreshAfterDiscountChange() {
+    if (_kioskSelectedRecipe && typeof kioskFetchRecipeQuote === 'function') {
+      var p = kioskFetchRecipeQuote();
+      if (p && typeof p.then === 'function') {
+        p.then(function () { kioskUpdateDiscountDisplay(); kioskRenderCart(); });
+        return;
+      }
+    }
     kioskUpdateDiscountDisplay();
     kioskRenderCart();
   }
@@ -4337,14 +4435,47 @@
 
   function kioskCalcDiscountAmount() {
     if (!_kioskDiscount) return 0;
-    var totals = kioskCalcTotals();
-    var subtotal = totals.subtotal;
+    return kioskCalcTotals().discount;
+  }
 
-    if (_kioskDiscount.type === 'percentage') {
-      return parseFloat((subtotal * _kioskDiscount.value / 100).toFixed(2));
-    } else {
-      return Math.min(_kioskDiscount.value, subtotal);
-    }
+  // Collect the selected applies_to tokens from the two-tier checkbox panel.
+  // A fully-selected group collapses to its group token ('kit'/'ingredient').
+  function kioskCollectAppliesTo() {
+    var panel = document.getElementById('kiosk-discount-types');
+    if (!panel) return [];
+    var tokens = [];
+    panel.querySelectorAll('input[data-group]').forEach(function (parent) {
+      var group = parent.getAttribute('data-group');
+      if (parent.checked) {
+        tokens.push(group);
+      } else {
+        panel.querySelectorAll('input[data-token]').forEach(function (c) {
+          if (c.getAttribute('data-token').indexOf(group + ':') === 0 && c.checked) {
+            tokens.push(c.getAttribute('data-token'));
+          }
+        });
+      }
+    });
+    panel.querySelectorAll('input[data-token]').forEach(function (c) {
+      var t = c.getAttribute('data-token');
+      if (t.indexOf(':') === -1 && c.checked) tokens.push(t); // service / recipe
+    });
+    return tokens;
+  }
+
+  // Human-readable summary of a preset's targeting (for popover + mgmt list).
+  function kioskDiscountScopeLabel(p) {
+    if (!p || p.scope !== 'type') return 'Cart';
+    var at = p.applies_to || [];
+    if (!at.length) return 'Types';
+    var labelMap = {
+      kit: 'All Kits', ingredient: 'All Ingredients', service: 'Services', recipe: 'Recipes',
+      'kit:wine': 'Wine', 'kit:beer': 'Beer', 'kit:cider': 'Cider', 'kit:seltzer': 'Seltzer',
+      'ingredient:hops': 'Hops', 'ingredient:grain': 'Grain', 'ingredient:yeast': 'Yeast',
+      'ingredient:additive': 'Additive', 'ingredient:packaging': 'Packaging',
+      'ingredient:equipment': 'Equipment', 'ingredient:cleaning': 'Cleaning'
+    };
+    return at.map(function (t) { return labelMap[t] || t; }).join(', ');
   }
 
   function kioskShowDiscountMgmt() {
@@ -4364,6 +4495,19 @@
         addBtn.style.display = 'none';
         document.getElementById('kiosk-discount-form-name').value = '';
         document.getElementById('kiosk-discount-form-value').value = '';
+        // Reset scope to "Whole Cart" and clear the type checkboxes
+        modal.querySelectorAll('.kiosk-discount-scope-btn').forEach(function (b) {
+          b.classList.toggle('active', b.getAttribute('data-scope') === 'cart');
+        });
+        var tp = document.getElementById('kiosk-discount-types');
+        if (tp) {
+          tp.style.display = 'none';
+          tp.querySelectorAll('input[type="checkbox"]').forEach(function (c) { c.checked = false; });
+        }
+        // Reset type to percentage
+        modal.querySelectorAll('.kiosk-discount-type-btn').forEach(function (b) {
+          b.classList.toggle('active', b.getAttribute('data-type') === 'percentage');
+        });
       };
     }
 
@@ -4375,13 +4519,42 @@
       };
     });
 
+    var typesPanel = document.getElementById('kiosk-discount-types');
     var scopeBtns = modal.querySelectorAll('.kiosk-discount-scope-btn');
     scopeBtns.forEach(function (btn) {
       btn.onclick = function () {
         scopeBtns.forEach(function (b) { b.classList.remove('active'); });
         btn.classList.add('active');
+        if (typesPanel) typesPanel.style.display = (btn.getAttribute('data-scope') === 'type') ? '' : 'none';
       };
     });
+
+    // Two-tier checkbox sync: a parent ("All Kits"/"All Ingredients") toggles its
+    // children; unchecking a child unchecks the parent.
+    if (typesPanel) {
+      typesPanel.querySelectorAll('input[data-group]').forEach(function (parent) {
+        var group = parent.getAttribute('data-group');
+        parent.onchange = function () {
+          typesPanel.querySelectorAll('input[data-token]').forEach(function (c) {
+            if (c.getAttribute('data-token').indexOf(group + ':') === 0) c.checked = parent.checked;
+          });
+        };
+      });
+      typesPanel.querySelectorAll('input[data-token]').forEach(function (c) {
+        var t = c.getAttribute('data-token');
+        if (t.indexOf(':') === -1) return; // single tokens (service/recipe) have no parent
+        var group = t.split(':')[0];
+        c.onchange = function () {
+          var parent = typesPanel.querySelector('input[data-group="' + group + '"]');
+          if (!parent) return;
+          var all = true;
+          typesPanel.querySelectorAll('input[data-token]').forEach(function (cc) {
+            if (cc.getAttribute('data-token').indexOf(group + ':') === 0 && !cc.checked) all = false;
+          });
+          parent.checked = all;
+        };
+      });
+    }
 
     var saveBtn = document.getElementById('kiosk-discount-save-btn');
     if (saveBtn) {
@@ -4397,11 +4570,17 @@
         if (!isFinite(value) || value <= 0) { showToast('Enter a valid value', 'error'); return; }
         if (type === 'percentage' && value > 100) { showToast('Percentage cannot exceed 100%', 'error'); return; }
 
+        var payload = { name: name, type: type, value: value, scope: scope };
+        if (scope === 'type') {
+          payload.applies_to = kioskCollectAppliesTo();
+          if (!payload.applies_to.length) { showToast('Pick at least one product type', 'error'); return; }
+        }
+
         var mwUrl = kioskMwUrl();
         fetch(mwUrl + '/api/kiosk/discounts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
-          body: JSON.stringify({ name: name, type: type, value: value, scope: scope })
+          body: JSON.stringify(payload)
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
@@ -4448,7 +4627,7 @@
         var html = '';
         presets.forEach(function (p) {
           var detail = p.type === 'percentage' ? (p.value + '%') : ('$' + parseFloat(p.value).toFixed(2));
-          detail += ' \u00b7 ' + (p.scope === 'item' ? 'Per Item' : 'Cart');
+          detail += ' \u00b7 ' + kioskDiscountScopeLabel(p);
           html += '<div class="kiosk-discount-mgmt-row" data-id="' + escapeHTML(p.id) + '">';
           html += '<span class="kiosk-discount-mgmt-name">' + escapeHTML(p.name) + '</span>';
           html += '<span class="kiosk-discount-mgmt-info">' + detail + '</span>';

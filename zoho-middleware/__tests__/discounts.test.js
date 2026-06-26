@@ -220,7 +220,7 @@ describe('POST /api/kiosk/discounts', function () {
   test('appends to existing presets', function () {
     var existing = [{ id: 'disc_old', name: 'Old', type: 'fixed', value: 5, scope: 'cart', active: true }];
     cache.get.mockResolvedValue(existing);
-    var body = { name: 'New', type: 'percentage', value: 15, scope: 'item' };
+    var body = { name: 'New', type: 'percentage', value: 15, scope: 'cart' };
     var res = makeRes();
     postHandler(makeReq(body), res);
     return flushPromises().then(function () {
@@ -229,6 +229,80 @@ describe('POST /api/kiosk/discounts', function () {
       var savedArray = cache.set.mock.calls[0][1];
       expect(savedArray).toHaveLength(2);
       expect(savedArray[0].id).toBe('disc_old');
+    });
+  });
+
+  test('rejects legacy "item" scope (no longer supported)', function () {
+    var body = { name: 'Legacy', type: 'percentage', value: 10, scope: 'item' };
+    var res = makeRes();
+    postHandler(makeReq(body), res);
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res._json.error).toContain('scope');
+    });
+  });
+
+  test('creates a "type"-scoped preset with applies_to', function () {
+    cache.get.mockResolvedValue([]);
+    var body = { name: 'Wine 10%', type: 'percentage', value: 10, scope: 'type', applies_to: ['kit:wine', 'kit:beer'] };
+    var res = makeRes();
+    postHandler(makeReq(body), res);
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res._json.discount.scope).toBe('type');
+      expect(res._json.discount.applies_to).toEqual(['kit:wine', 'kit:beer']);
+    });
+  });
+
+  test('accepts group + single tokens in applies_to', function () {
+    cache.get.mockResolvedValue([]);
+    var body = { name: 'Ingredients+Svc', type: 'fixed', value: 5, scope: 'type', applies_to: ['ingredient', 'service', 'recipe'] };
+    var res = makeRes();
+    postHandler(makeReq(body), res);
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res._json.discount.applies_to).toEqual(['ingredient', 'service', 'recipe']);
+    });
+  });
+
+  test('rejects "type" scope with missing applies_to', function () {
+    var body = { name: 'NoTokens', type: 'percentage', value: 10, scope: 'type' };
+    var res = makeRes();
+    postHandler(makeReq(body), res);
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res._json.error).toContain('applies_to');
+    });
+  });
+
+  test('rejects "type" scope with empty applies_to', function () {
+    var body = { name: 'EmptyTokens', type: 'percentage', value: 10, scope: 'type', applies_to: [] };
+    var res = makeRes();
+    postHandler(makeReq(body), res);
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res._json.error).toContain('applies_to');
+    });
+  });
+
+  test('rejects unknown token in applies_to', function () {
+    var body = { name: 'BadToken', type: 'percentage', value: 10, scope: 'type', applies_to: ['kit:merlot'] };
+    var res = makeRes();
+    postHandler(makeReq(body), res);
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res._json.error).toContain('unknown token');
+    });
+  });
+
+  test('does not store applies_to for cart scope', function () {
+    cache.get.mockResolvedValue([]);
+    var body = { name: 'Cart', type: 'percentage', value: 10, scope: 'cart', applies_to: ['kit'] };
+    var res = makeRes();
+    postHandler(makeReq(body), res);
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res._json.discount.applies_to).toBeUndefined();
     });
   });
 });
@@ -281,6 +355,40 @@ describe('PUT /api/kiosk/discounts/:id', function () {
     putHandler(makeReq(body, { id: 'disc_123' }), res);
     return flushPromises().then(function () {
       expect(res.status).toHaveBeenCalledWith(400);
+    });
+  });
+
+  test('switching to "type" scope without applies_to is rejected', function () {
+    var presets = [{ id: 'disc_123', name: 'Test', type: 'percentage', value: 10, scope: 'cart', active: true }];
+    cache.get.mockResolvedValue(presets);
+    var res = makeRes();
+    putHandler(makeReq({ scope: 'type' }, { id: 'disc_123' }), res);
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res._json.error).toContain('applies_to');
+    });
+  });
+
+  test('switching to "type" scope with applies_to succeeds', function () {
+    var presets = [{ id: 'disc_123', name: 'Test', type: 'percentage', value: 10, scope: 'cart', active: true }];
+    cache.get.mockResolvedValue(presets);
+    var res = makeRes();
+    putHandler(makeReq({ scope: 'type', applies_to: ['service'] }, { id: 'disc_123' }), res);
+    return flushPromises().then(function () {
+      expect(res._json.ok).toBe(true);
+      expect(res._json.discount.scope).toBe('type');
+      expect(res._json.discount.applies_to).toEqual(['service']);
+    });
+  });
+
+  test('switching back to "cart" scope drops applies_to', function () {
+    var presets = [{ id: 'disc_123', name: 'Test', type: 'percentage', value: 10, scope: 'type', applies_to: ['kit'], active: true }];
+    cache.get.mockResolvedValue(presets);
+    var res = makeRes();
+    putHandler(makeReq({ scope: 'cart' }, { id: 'disc_123' }), res);
+    return flushPromises().then(function () {
+      expect(res._json.ok).toBe(true);
+      expect(res._json.discount.applies_to).toBeUndefined();
     });
   });
 });

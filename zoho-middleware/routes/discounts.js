@@ -4,6 +4,7 @@ var express = require('express');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var C = require('../lib/constants');
+var discountMatch = require('../lib/discount-match');
 
 var CACHE_KEY = C.CACHE_KEYS.KIOSK_DISCOUNT_PRESETS;
 var CACHE_TTL = 30 * 24 * 60 * 60; // 30 days in seconds
@@ -53,9 +54,17 @@ function validatePreset(body, isUpdate) {
   }
 
   if (!isUpdate || body.scope !== undefined) {
-    if (body.scope !== 'cart' && body.scope !== 'item') {
-      errors.push('scope must be "cart" or "item"');
+    if (body.scope !== 'cart' && body.scope !== 'type') {
+      errors.push('scope must be "cart" or "type"');
     }
+  }
+
+  // applies_to: required + validated when scope is "type"; validated whenever supplied.
+  // For creates, a "type" scope must carry a non-empty, known-token applies_to.
+  if (body.applies_to !== undefined) {
+    errors = errors.concat(discountMatch.validateAppliesTo(body.applies_to));
+  } else if (!isUpdate && body.scope === 'type') {
+    errors.push('applies_to is required when scope is "type"');
   }
 
   return errors;
@@ -104,6 +113,9 @@ router.post('/api/kiosk/discounts', function (req, res) {
     active: true,
     created_at: new Date().toISOString()
   };
+  if (body.scope === 'type') {
+    preset.applies_to = body.applies_to;
+  }
 
   loadPresets().then(function (presets) {
     presets.push(preset);
@@ -145,7 +157,19 @@ router.put('/api/kiosk/discounts/:id', function (req, res) {
     if (body.type !== undefined) found.type = body.type;
     if (body.value !== undefined) found.value = Number(body.value);
     if (body.scope !== undefined) found.scope = body.scope;
+    if (body.applies_to !== undefined) found.applies_to = body.applies_to;
     if (body.active !== undefined) found.active = !!body.active;
+
+    // Coherence: a "type"-scoped preset must end up with a valid applies_to;
+    // a "cart"-scoped preset must not carry one.
+    if (found.scope === 'type') {
+      var appliesErrors = discountMatch.validateAppliesTo(found.applies_to);
+      if (appliesErrors.length > 0) {
+        return res.status(400).json({ error: appliesErrors.join('; ') });
+      }
+    } else if (found.scope === 'cart') {
+      delete found.applies_to;
+    }
 
     return savePresets(presets).then(function () {
       log.info('[discounts] Updated preset: ' + found.id);

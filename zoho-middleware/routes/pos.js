@@ -9,6 +9,7 @@ var mailer = require('../lib/mailer');
 var ledger = require('../lib/inventory-ledger');
 var C = require('../lib/constants');
 var brewpadIntegration = require('../lib/brewpad-integration');
+var discountMatch = require('../lib/discount-match');
 var buildContactPayload = require('../lib/checkout-helpers').buildContactPayload;
 
 var zohoGet = zohoApi.zohoGet;
@@ -33,8 +34,13 @@ var router = express.Router();
 // Resolve and apply a discount preset to lineItems.
 // Returns a promise that resolves to { discountApplied, subtotal } or
 // { error, status } if validation fails. Resolves to null if no discount.
-function resolveDiscount(body, lineItems, subtotal) {
+//
+// scope 'cart' → applies to every line. scope 'type' → applies only to lines
+// whose product type (classified server-side via catalogMap) matches the
+// preset's applies_to tokens. Legacy 'item' scope is no longer supported.
+function resolveDiscount(body, lineItems, subtotal, catalogMap) {
   if (!body.discount || !body.discount.preset_id) return Promise.resolve(null);
+  catalogMap = catalogMap || {};
 
   return cache.get(C.CACHE_KEYS.KIOSK_DISCOUNT_PRESETS).then(function (presets) {
     presets = Array.isArray(presets) ? presets : [];
@@ -44,18 +50,9 @@ function resolveDiscount(body, lineItems, subtotal) {
     }
     if (!preset) return { error: 'Discount preset not found', status: 400 };
     if (!preset.active) return { error: 'Discount preset is inactive', status: 400 };
-    if (preset.scope === 'item' && !body.discount.target_item_id) {
-      return { error: 'target_item_id required for item-level discount', status: 400 };
-    }
-    if (preset.scope === 'item') {
-      var found = false;
-      for (var j = 0; j < lineItems.length; j++) {
-        if (lineItems[j].item_id === body.discount.target_item_id) { found = true; break; }
-      }
-      if (!found) return { error: 'target_item_id not found in cart', status: 400 };
-    }
 
     var discountApplied = null;
+
     if (preset.scope === 'cart') {
       if (preset.type === 'percentage') {
         lineItems.forEach(function (li) { li.discount = preset.value + '%'; });
@@ -69,19 +66,34 @@ function resolveDiscount(body, lineItems, subtotal) {
         });
         discountApplied = { preset_id: preset.id, name: preset.name, type: 'fixed', value: fixedAmount, scope: 'cart' };
       }
-    } else {
-      var targetId = body.discount.target_item_id;
-      lineItems.forEach(function (li) {
-        if (li.item_id === targetId) {
-          if (preset.type === 'percentage') {
-            li.discount = preset.value + '%';
-          } else {
-            var itemTotal = li.quantity * li.rate;
-            li.discount = Math.min(preset.value, itemTotal);
-          }
-        }
+    } else if (preset.scope === 'type') {
+      // Classify each line via the authoritative catalog and discount only matches.
+      var matchedSubtotal = 0;
+      var matchFlags = lineItems.map(function (li) {
+        var tokens = discountMatch.classifyCatalogItem(catalogMap[li.item_id]);
+        var m = discountMatch.matches(tokens, preset.applies_to);
+        if (m) matchedSubtotal += li.quantity * li.rate;
+        return m;
       });
-      discountApplied = { preset_id: preset.id, name: preset.name, type: preset.type, value: preset.value, scope: 'item', target_item_id: targetId };
+      matchedSubtotal = Math.round(matchedSubtotal * 100) / 100;
+
+      if (preset.type === 'percentage') {
+        lineItems.forEach(function (li, idx) {
+          if (matchFlags[idx]) li.discount = preset.value + '%';
+        });
+        discountApplied = { preset_id: preset.id, name: preset.name, type: 'percentage', value: preset.value, scope: 'type', applies_to: preset.applies_to };
+      } else {
+        var fixedType = Math.min(preset.value, matchedSubtotal);
+        lineItems.forEach(function (li, idx) {
+          if (!matchFlags[idx]) return;
+          var lineTotal = li.quantity * li.rate;
+          var share = matchedSubtotal > 0 ? Math.round(fixedType * (lineTotal / matchedSubtotal) * 100) / 100 : 0;
+          li.discount = share;
+        });
+        discountApplied = { preset_id: preset.id, name: preset.name, type: 'fixed', value: fixedType, scope: 'type', applies_to: preset.applies_to };
+      }
+    } else {
+      return { error: 'Unsupported discount scope — please recreate this preset', status: 400 };
     }
 
     var newSubtotal = 0;
@@ -269,7 +281,7 @@ function processSale(body, idempotencyKey, req, res) {
     subtotal = Math.round(subtotal * 100) / 100;
 
     // Apply discount (if any) before computing tax and terminal charge
-    resolveDiscount(body, lineItems, subtotal).then(function (discResult) {
+    resolveDiscount(body, lineItems, subtotal, catalogMap).then(function (discResult) {
       if (discResult && discResult.error) {
         return res.status(discResult.status).json({ error: discResult.error });
       }
@@ -428,7 +440,7 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
     });
     subtotal = Math.round(subtotal * 100) / 100;
 
-    return resolveDiscount(body, lineItems, subtotal).then(function (discResult) {
+    return resolveDiscount(body, lineItems, subtotal, catalogMap).then(function (discResult) {
       if (discResult && discResult.error) {
         return res.status(discResult.status).json({ error: discResult.error });
       }
@@ -2193,3 +2205,6 @@ router.get('/api/kiosk/salesorder/:id', function (req, res) {
 });
 
 module.exports = router;
+// Exposed for unit testing (pure-ish helpers)
+module.exports.resolveDiscount = resolveDiscount;
+module.exports.computeTax = computeTax;

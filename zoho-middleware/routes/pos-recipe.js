@@ -37,6 +37,112 @@ function callAppsScriptPost(action, payload) {
 }
 
 // ---------------------------------------------------------------------------
+// Recipe discount helpers
+//
+// Recipe sales decompose into a PRODUCT portion (locked_price × scale, or the
+// summed scaled ingredient costs) and a fixed FEE portion (service + materials
+// in-store; milling take-out). A discount preset targets these via tokens:
+//   scope 'cart'  → whole recipe (product + fees)
+//   scope 'type'  → 'recipe' token discounts the product portion;
+//                   'service' token discounts the fee portion; both → whole.
+// The customer charge is always grandTotal − discountAmount (exact). On the
+// Zoho invoice the discount is distributed per-line across the targeted lines
+// (capped per line) — exact for dynamic recipes; best-effort for locked
+// recipes where locked_price already decouples from the catalog line sum.
+// ---------------------------------------------------------------------------
+
+function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+
+function loadDiscountPreset(presetId) {
+  if (!presetId) return Promise.resolve(null);
+  return cache.get(C.CACHE_KEYS.KIOSK_DISCOUNT_PRESETS).then(function (presets) {
+    presets = Array.isArray(presets) ? presets : [];
+    for (var i = 0; i < presets.length; i++) {
+      if (presets[i].id === presetId) return presets[i];
+    }
+    return null;
+  });
+}
+
+// Compute the discount amount + discounted total for a recipe sale.
+// Returns { error, status } on a bad preset, or
+// { discountAmount, total, base, discountApplied }.
+function computeRecipeDiscount(preset, grandTotal, feePortion) {
+  if (!preset.active) return { error: 'Discount preset is inactive', status: 400 };
+  var productPortion = round2(grandTotal - feePortion);
+  var base = 0;
+  if (preset.scope === 'cart') {
+    base = grandTotal;
+  } else if (preset.scope === 'type') {
+    var at = preset.applies_to || [];
+    if (at.indexOf('recipe') !== -1) base += productPortion;
+    if (at.indexOf('service') !== -1) base += feePortion;
+    base = round2(base);
+  } else {
+    return { error: 'Unsupported discount scope — please recreate this preset', status: 400 };
+  }
+
+  var amount;
+  if (preset.type === 'percentage') {
+    amount = round2(base * preset.value / 100);
+  } else {
+    amount = round2(Math.min(preset.value, base));
+  }
+
+  return {
+    discountAmount: amount,
+    total: round2(grandTotal - amount),
+    base: base,
+    discountApplied: {
+      preset_id: preset.id,
+      name: preset.name,
+      type: preset.type,
+      value: preset.value,
+      scope: preset.scope,
+      applies_to: preset.scope === 'type' ? preset.applies_to : undefined,
+      amount: amount
+    }
+  };
+}
+
+// Distribute a recipe discount across invoice line items as per-line li.discount
+// (numbers), proportional to each targeted line's total and capped at it.
+function distributeRecipeDiscount(lineItems, feeItemIds, preset, discountAmount) {
+  if (!discountAmount || discountAmount <= 0) return;
+  var targetProduct = preset.scope === 'cart' ||
+    (preset.scope === 'type' && (preset.applies_to || []).indexOf('recipe') !== -1);
+  var targetService = preset.scope === 'cart' ||
+    (preset.scope === 'type' && (preset.applies_to || []).indexOf('service') !== -1);
+
+  var targetedIdx = [];
+  var totalTargeted = 0;
+  lineItems.forEach(function (li, i) {
+    var isFee = feeItemIds.indexOf(li.item_id) !== -1;
+    if ((isFee && targetService) || (!isFee && targetProduct)) {
+      targetedIdx.push(i);
+      totalTargeted += (Number(li.quantity) || 0) * (Number(li.rate) || 0);
+    }
+  });
+  totalTargeted = round2(totalTargeted);
+  if (targetedIdx.length === 0 || totalTargeted <= 0) return;
+
+  var remaining = discountAmount;
+  targetedIdx.forEach(function (idx, k) {
+    var li = lineItems[idx];
+    var lt = round2((Number(li.quantity) || 0) * (Number(li.rate) || 0));
+    var share;
+    if (k === targetedIdx.length - 1) {
+      share = remaining; // last line absorbs rounding remainder
+    } else {
+      share = round2(discountAmount * (lt / totalTargeted));
+      remaining = round2(remaining - share);
+    }
+    if (share > lt) share = lt; // never drive a line negative
+    if (share > 0) li.discount = share;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // computeRecipeQuote — shared helper (35-06, extended 36-03)
 // Fetches recipe, validates target_volume_l, reads INGREDIENTS_ALL catalog,
 // scales ingredients, checks stock, and computes the authoritative grand total.
@@ -52,7 +158,7 @@ function callAppsScriptPost(action, payload) {
 //                                         when present, prices via computeModifiedRecipeTotal
 // ---------------------------------------------------------------------------
 
-function computeRecipeQuote(recipeId, rawTarget, saleType, millGrain, modifiedIngredients) {
+function computeRecipeQuote(recipeId, rawTarget, saleType, millGrain, modifiedIngredients, discountReq) {
   return callAppsScriptPost('get_recipe', { recipe_id: recipeId })
     .then(function (data) {
       if (!data || !data.ok || !data.data || !data.data.recipe) {
@@ -136,7 +242,17 @@ function computeRecipeQuote(recipeId, rawTarget, saleType, millGrain, modifiedIn
           }
         }
 
-        return {
+        // Fixed fee portion (never scaled): service + materials in-store, milling take-out
+        var feePortion = 0;
+        if (saleType === 'in-store') {
+          feePortion += (Number(recipe.service_fee) || 0) + (Number(recipe.materials_fee) || 0);
+        }
+        feePortion += millingFeeAdded;
+        feePortion = round2(feePortion);
+
+        var totalBeforeDiscount = grandTotal;
+
+        var baseResult = {
           recipe: recipe,
           ingredients: ingredients,
           baseVol: baseVol,
@@ -147,8 +263,25 @@ function computeRecipeQuote(recipeId, rawTarget, saleType, millGrain, modifiedIn
           scaledIngredients: scaledIngredients,
           stockCheck: stockCheck,
           grandTotal: grandTotal,
+          totalBeforeDiscount: totalBeforeDiscount,
+          feePortion: feePortion,
+          discount: null,
           isModified: isModified
         };
+
+        // Apply discount (if any). Server-authoritative — preset re-read from cache.
+        if (discountReq && discountReq.preset_id) {
+          return loadDiscountPreset(discountReq.preset_id).then(function (preset) {
+            if (!preset) return Promise.reject({ status: 400, body: { error: 'Discount preset not found' } });
+            var disc = computeRecipeDiscount(preset, grandTotal, feePortion);
+            if (disc.error) return Promise.reject({ status: disc.status, body: { error: disc.error } });
+            baseResult.grandTotal = disc.total;
+            baseResult.discount = disc;
+            return baseResult;
+          });
+        }
+
+        return baseResult;
       });
     });
 }
@@ -181,8 +314,9 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
   var millGrain = body.mill_grain === true;
   // MOD-02 (36-03): pass modified_ingredients to pricing helper if provided (array from JSON body)
   var modifiedIngredients = Array.isArray(body.modified_ingredients) ? body.modified_ingredients : undefined;
+  var discountReq = (body.discount && body.discount.preset_id) ? body.discount : null;
 
-  computeRecipeQuote(body.recipe_id, body.target_volume_l, body.sale_type, millGrain, modifiedIngredients)
+  computeRecipeQuote(body.recipe_id, body.target_volume_l, body.sale_type, millGrain, modifiedIngredients, discountReq)
     .then(function (quote) {
       var grandTotal = quote.grandTotal;
       var scaleFactor = quote.scaleFactor;
@@ -219,6 +353,8 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
               sale_type: body.sale_type,
               mill_grain: millGrain,
               total: grandTotal,
+              total_before_discount: quote.totalBeforeDiscount,
+              discount: quote.discount ? quote.discount.discountApplied : null,
               scale_factor: scaleFactor,
               target_volume_l: targetVolumeL
             });
@@ -275,7 +411,9 @@ router.get('/api/kiosk/recipe-quote', function (req, res) {
     }
   }
 
-  computeRecipeQuote(recipeId, query.target_volume_l, saleType, false, modifiedIngredients)
+  var discountReq = query.discount_preset_id ? { preset_id: query.discount_preset_id } : null;
+
+  computeRecipeQuote(recipeId, query.target_volume_l, saleType, false, modifiedIngredients, discountReq)
     .then(function (quote) {
       var catalogMap = quote.catalogMap;
 
@@ -317,6 +455,8 @@ router.get('/api/kiosk/recipe-quote', function (req, res) {
         scale_factor: quote.scaleFactor,
         pricing_mode: quote.pricingMode,
         total: quote.grandTotal,
+        total_before_discount: quote.totalBeforeDiscount,
+        discount: quote.discount ? quote.discount.discountApplied : null,
         is_modified: quote.isModified,
         ingredients: ingredientList,
         stock: {
@@ -363,9 +503,17 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
   var millGrain = body.mill_grain === true;
   // MOD-02 (36-03): parse modified_ingredients from request body (array or null)
   var modifiedConfirm = Array.isArray(body.modified_ingredients) ? body.modified_ingredients : null;
+  var discountReq = (body.discount && body.discount.preset_id) ? body.discount : null;
+
+  // Load the discount preset (if any) FIRST so the invoice + charge can apply it
+  // synchronously in the recompute block below.
+  loadDiscountPreset(discountReq ? discountReq.preset_id : null).then(function (discountPreset) {
+    if (discountReq && !discountPreset) {
+      return res.status(400).json({ error: 'Discount preset not found' });
+    }
 
   // Re-fetch recipe server-side (never trust client data)
-  callAppsScriptPost('get_recipe', { recipe_id: body.recipe_id })
+  return callAppsScriptPost('get_recipe', { recipe_id: body.recipe_id })
     .then(function (data) {
       if (!data || !data.ok || !data.data || !data.data.recipe) {
         return res.status(404).json({ error: 'Recipe not found' });
@@ -501,6 +649,36 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
           }
         }
 
+        // Apply discount (server-authoritative): reduce the charged total and
+        // distribute the discount across the targeted invoice lines (capped).
+        var discountNote = '';
+        if (discountPreset) {
+          var feePortionC = 0;
+          if (body.sale_type === 'in-store') {
+            feePortionC += (Number(recipe.service_fee) || 0) + (Number(recipe.materials_fee) || 0);
+          }
+          if (body.sale_type === 'take-out' && millGrain) {
+            var millLi = lineItems.find(function (li) { return li.item_id === process.env.MILLING_FEE_ITEM_ID; });
+            if (millLi) feePortionC += Number(millLi.rate) || 0;
+          }
+          feePortionC = round2(feePortionC);
+
+          var discC = computeRecipeDiscount(discountPreset, grandTotal, feePortionC);
+          if (discC.error) {
+            cache.releaseLock(C.LOCK_KEYS.RECIPE_SALE).catch(function () {});
+            return res.status(discC.status).json({ error: discC.error });
+          }
+          var feeItemIds = [
+            process.env.MAKERS_FEE_ITEM_ID,
+            process.env.MATERIALS_FEE_ITEM_ID,
+            process.env.MILLING_FEE_ITEM_ID
+          ].filter(Boolean);
+          distributeRecipeDiscount(lineItems, feeItemIds, discountPreset, discC.discountAmount);
+          grandTotal = discC.total;
+          discountNote = '\nDiscount: ' + discountPreset.name + ' (-' + discC.discountAmount.toFixed(2) + ')';
+          log.info('[pos-recipe/confirm] discount applied: ' + discountPreset.name + ' amount=' + discC.discountAmount + ' new grandTotal=' + grandTotal);
+        }
+
         var today = new Date().toISOString().slice(0, 10);
 
         var invoicePayload = {
@@ -509,7 +687,7 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
           payment_terms: 0,
           payment_terms_label: 'Due on Receipt',
           line_items: lineItems,
-          notes: 'Kiosk recipe sale (' + body.sale_type + '). Recipe: ' + body.recipe_id + '. Ref: ' + body.reference,
+          notes: 'Kiosk recipe sale (' + body.sale_type + '). Recipe: ' + body.recipe_id + '. Ref: ' + body.reference + discountNote,
           custom_fields: [],
           customer_id: body.contact_id || process.env.KIOSK_CONTACT_ID || ''
         };
@@ -650,6 +828,13 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
       cache.releaseLock(C.LOCK_KEYS.RECIPE_SALE).catch(function () {});
       res.status(502).json({ error: 'Failed to fetch recipe. Please try again.' });
     });
+  }).catch(function (presetErr) {
+    log.error('[pos-recipe/confirm] Discount preset load error: ' + presetErr.message);
+    if (!res.headersSent) res.status(503).json({ error: 'Discount unavailable — please try again.' });
+  });
 });
 
 module.exports = router;
+// Exposed for unit testing (pure helpers)
+module.exports.computeRecipeDiscount = computeRecipeDiscount;
+module.exports.distributeRecipeDiscount = distributeRecipeDiscount;

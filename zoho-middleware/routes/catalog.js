@@ -831,6 +831,17 @@ router.get('/api/kiosk/products', function (req, res) {
                 tName = _TAX_RULE_NAME[ruleId] || tName;
               }
 
+              // Flatten the ingredient Subcategory custom field so discount
+              // product-type matching (lib/discount-match.js) and the kiosk
+              // cart preview have it without re-parsing custom_fields.
+              var cfSubcategory = item.cf_subcategory || '';
+              if (!cfSubcategory) {
+                var subCF = (detail.custom_fields || item.custom_fields || []).find(function (f) {
+                  return (f.label || '').toLowerCase() === 'subcategory';
+                });
+                if (subCF) cfSubcategory = subCF.value || '';
+              }
+
               return {
                 item_id:       item.item_id,
                 name:          item.name,
@@ -849,6 +860,7 @@ router.get('/api/kiosk/products', function (req, res) {
                 custom_fields: detail.custom_fields || item.custom_fields || [],
                 group_name:    item.group_name || '',
                 cf_type:       item.cf_type || '',
+                cf_subcategory: cfSubcategory,
                 unit:          item.unit || ''
               };
             });

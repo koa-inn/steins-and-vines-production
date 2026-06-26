@@ -11,16 +11,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="favicon.ico">
-  <link rel="stylesheet" href="css/kiosk.min.css?v=mqu05vt2">
+  <link rel="stylesheet" href="css/kiosk.min.css?v=mqu8flm7">
   <script src="js/lib/constants.js"></script>
   <script src="js/lib/utils.js"></script>
   <script src="js/lib/auth.js"></script>
+  <script src="js/lib/discount-match.js"></script>
   <script src="js/lib/recipe-grouping.js"></script>
   <script src="js/sheets-config.js"></script>
   <script src="js/admin-config.js"></script>
   <script src="js/vendor/qrcode.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="js/kiosk.min.js?v=mqu05vt2"></script>
+  <script src="js/kiosk.min.js?v=mqu8flm7"></script>
 </head>
 <body>
 
@@ -437,9 +438,30 @@
           <button type="button" class="btn-secondary kiosk-discount-type-btn" data-type="fixed" style="flex:1;min-height:44px;">$ Fixed</button>
         </div>
         <input type="number" id="kiosk-discount-form-value" placeholder="Value" class="kiosk-search-input" inputmode="decimal" step="0.01" min="0.01" style="margin-bottom:0.5rem;">
-        <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;">
+        <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">
           <button type="button" class="btn-secondary kiosk-discount-scope-btn active" data-scope="cart" style="flex:1;min-height:44px;">Whole Cart</button>
-          <button type="button" class="btn-secondary kiosk-discount-scope-btn" data-scope="item" style="flex:1;min-height:44px;">Per Item</button>
+          <button type="button" class="btn-secondary kiosk-discount-scope-btn" data-scope="type" style="flex:1;min-height:44px;">Specific Types</button>
+        </div>
+        <div class="kiosk-discount-types" id="kiosk-discount-types" style="display:none;margin-bottom:0.75rem;border:1px solid var(--line,#ddd);border-radius:8px;padding:0.5rem 0.75rem;max-height:240px;overflow-y:auto;">
+          <label class="kiosk-disc-type kiosk-disc-parent"><input type="checkbox" data-group="kit"> <strong>All Kits</strong></label>
+          <div class="kiosk-disc-children" style="padding-left:1.25rem;">
+            <label class="kiosk-disc-type"><input type="checkbox" data-token="kit:wine"> Wine</label>
+            <label class="kiosk-disc-type"><input type="checkbox" data-token="kit:beer"> Beer</label>
+            <label class="kiosk-disc-type"><input type="checkbox" data-token="kit:cider"> Cider</label>
+            <label class="kiosk-disc-type"><input type="checkbox" data-token="kit:seltzer"> Seltzer</label>
+          </div>
+          <label class="kiosk-disc-type kiosk-disc-parent"><input type="checkbox" data-group="ingredient"> <strong>All Ingredients</strong></label>
+          <div class="kiosk-disc-children" style="padding-left:1.25rem;">
+            <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:hops"> Hops</label>
+            <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:grain"> Grain</label>
+            <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:yeast"> Yeast</label>
+            <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:additive"> Additive</label>
+            <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:packaging"> Packaging</label>
+            <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:equipment"> Equipment</label>
+            <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:cleaning"> Cleaning/Sanitization</label>
+          </div>
+          <label class="kiosk-disc-type kiosk-disc-parent"><input type="checkbox" data-token="service"> <strong>Services &amp; Fees</strong></label>
+          <label class="kiosk-disc-type kiosk-disc-parent"><input type="checkbox" data-token="recipe"> <strong>Recipes (package price)</strong></label>
         </div>
         <div style="display:flex;gap:0.5rem;">
           <button type="button" class="btn kiosk-discount-save-btn" id="kiosk-discount-save-btn" style="flex:1;min-height:44px;background:var(--cellar-green);border-color:var(--cellar-green);">Save</button>
