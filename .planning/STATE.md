@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
 status: planning
-last_updated: "2026-06-26T04:04:56.665Z"
+last_updated: "2026-06-26T05:00:00.000Z"
 last_activity: 2026-06-26
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 36 — cross-surface-selection-recipe-modification
+**Current focus:** Phase 38 — repo-hygiene-deploy-strip-confirmation (v4.4 Audit Remediation, Phases 38-42)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 38 — Repo Hygiene & Deploy-Strip Confirmation (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-26 — Milestone v4.4 started
+Status: Roadmap created; ready for /gsd-plan-phase 38
+Last activity: 2026-06-26 — v4.4 roadmap created (Phases 38-42, 5 requirements mapped 1:1)
 
 ## Performance Metrics
 
@@ -41,6 +41,12 @@ Last activity: 2026-06-26 — Milestone v4.4 started
 
 ### Decisions
 
+- [v4.4 Roadmap]: Phases are risk-ordered — low-risk infra/hygiene first (38 `.planning` gitignore, 39 snapshot publish), then 40 facility images (build/asset, no money path), then 41 SKU cart key (public cart, has frontend tests), then 42 kiosk de-fork LAST (highest-risk money-path refactor)
+- [v4.4 Roadmap]: Each of the 5 v1 requirements maps to exactly one phase (HYGIENE-01→38, DEPLOY-04→39, ASSET-01→40, CART-01→41, KIOSK-01→42); phases are independent, sequencing is risk-ordering not hard dependency
+- [v4.4 Roadmap]: Phase 42 (KIOSK-01) is a behaviour-PRESERVING de-fork — must not weaken the v4.2-hardened money path (terminal charge → Zoho invoice/payment → void-on-failure → dual-cart); success requires existing kiosk tests passing + a new admin-vs-standalone parity check
+- [v4.4 Roadmap]: Phase 42 must resolve the existing drift where the kiosk product-type discount feature lives only in kiosk.js — after de-fork it is identical on both the standalone and admin-embedded kiosk surfaces
+- [v4.4 Roadmap]: Phase 38 — staging is served directly from the repo (no deploy-strip workflow), so `.gitignore` + `git rm -r --cached .planning` is the actual fix for staging; the prod deploy-strip step stays as defense-in-depth
+- [v4.4 Roadmap]: Phase 40 extends the existing product image pipeline (which is complete, 0 missing webp) to facility/about — not a duplicated script
 - [v4.3 Roadmap]: Phase 34 (server enrichment) must ship before Phase 35 (scaling) — `cf_type` unit field drives weight-vs-pcs rounding logic
 - [v4.3 Roadmap]: Phase 37 (BrewPad Recipe Manager) depends only on Phase 34, not 35/36 — it is independent of the money path and can be sequenced separately if needed
 - [v4.3 Roadmap]: SCALE-03/04 and MOD-02 must flow through `pos-recipe.js` / `lib/pricing.js` — never client-trusted pricing
@@ -76,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-25T21:18:15.863Z
-Stopped at: Completed 36-22-PLAN.md
+Last session: 2026-06-26 — v4.4 roadmap created
+Stopped at: Roadmap written for v4.4 (Phases 38-42); next is /gsd-plan-phase 38
 Resume file: None

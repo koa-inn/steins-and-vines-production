@@ -54,21 +54,21 @@ Deferred audit items, tracked but not in this milestone's roadmap.
 
 ## Traceability
 
-Provisional — confirmed by the roadmapper.
+Confirmed by the roadmapper (2026-06-26). Phases risk-ordered: low-risk infra/hygiene first, money-path kiosk de-fork last.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HYGIENE-01 | TBD | Pending |
-| DEPLOY-04 | TBD | Pending |
-| ASSET-01 | TBD | Pending |
-| CART-01 | TBD | Pending |
-| KIOSK-01 | TBD | Pending |
+| HYGIENE-01 | Phase 38 | Pending |
+| DEPLOY-04 | Phase 39 | Pending |
+| ASSET-01 | Phase 40 | Pending |
+| CART-01 | Phase 41 | Pending |
+| KIOSK-01 | Phase 42 | Pending |
 
 **Coverage:**
 - v1 requirements: 5 total
-- Mapped to phases: 5 (assignment finalized by roadmapper)
+- Mapped to phases: 5 (one requirement per phase, no duplicates) ✓
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-26*
-*Last updated: 2026-06-26 after initial definition*
+*Last updated: 2026-06-26 — traceability finalized by roadmapper (Phases 38-42)*

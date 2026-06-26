@@ -10,6 +10,7 @@
 - ✅ **v4.1 BrewPad Batch Lifecycle & Zoho Sync** — Phases 27-30 (shipped 2026-06-17)
 - ✅ **v4.2 Payment Path Hardening & Deploy Safety** — Phases 31-33 (shipped 2026-06-19)
 - 🚧 **v4.3 Recipe Builder Refinement** — Phases 34-37 (in progress)
+- 🚧 **v4.4 Audit Remediation** — Phases 38-42 (in progress)
 
 ## Phases
 
@@ -84,6 +85,16 @@
 - [x] **Phase 35: Batch Scaling Engine** - Staff can enter a target batch volume; the system scales ingredient quantities (linear for weight, round-up for pcs), prices scaled recipes server-authoritatively, and captures scaled quantities in the Zoho invoice and frozen `recipe_snapshot` (SCALE-01, SCALE-02, SCALE-03, SCALE-04, SCALE-05) (completed 2026-06-21)
 - [x] **Phase 36: Cross-Surface Selection & Recipe Modification** - Batch size control available on all recipe-selection surfaces; staff can add/remove/substitute ingredients for a one-off sale without touching the saved recipe, with optional save-as-new (SEL-01, SEL-02, MOD-01, MOD-02, MOD-03) (completed 2026-06-24)
 - [x] **Phase 37: BrewPad Recipe Manager** - Staff can browse, view, create, and edit recipes from within BrewPad, reusing existing recipe CRUD endpoints and activation guardrails (BPR-01, BPR-02) (completed 2026-06-20)
+
+### 🚧 v4.4 Audit Remediation (In Progress)
+
+**Milestone Goal:** Close out the remaining open/partial HIGH-priority items from `PROJECT_ASSESSMENT.md` — gitignore/strip `.planning/`, fix the nightly snapshot publish, optimize facility imagery, fix the duplicate-cart bug, and de-fork the kiosk POS — risk-ordered (low-risk infra first, money-path refactor last) without weakening the v4.2-hardened money path. Continues phase numbering from Phase 38.
+
+- [ ] **Phase 38: Repo Hygiene & Deploy-Strip Confirmation** - `.gitignore .planning` + untrack + confirm absent on staging and prod (HYGIENE-01)
+- [ ] **Phase 39: Nightly Snapshot Publishes to Prod Fallback** - drop `[skip ci]` / pull-before-force-push so prod `zoho-snapshot.json` is fresh (DEPLOY-04)
+- [ ] **Phase 40: Facility Image Optimization (webp + srcset)** - extend product image pipeline to facility/about; sub-500 KB homepage images with intrinsic dimensions (ASSET-01)
+- [ ] **Phase 41: SKU-Keyed Cart Identity** - re-key cart by SKU in `11-cart.js` + `17-search-overlay.js`; one merged line across both carts (CART-01)
+- [ ] **Phase 42: Kiosk POS De-Fork (kiosk-core.js)** - shared `js/kiosk-core.js`, behaviour-preserving, parity-tested, discount on both surfaces (KIOSK-01)
 
 ## Phase Details
 
@@ -564,6 +575,84 @@ Plans:
 
 **UI hint**: yes
 
+## Phase Details (v4.4)
+
+### Phase 38: Repo Hygiene & Deploy-Strip Confirmation
+
+**Goal**: Internal planning artifacts are no longer tracked-and-served — `.planning/` is gitignored and absent from the published artifact on both staging and production
+**Depends on**: Nothing (first phase of v4.4; lowest-risk, no money path)
+**Requirements**: HYGIENE-01
+**Success Criteria** (what must be TRUE):
+
+  1. `.planning/` is listed in `.gitignore` and `git ls-files .planning` returns nothing (the directory is untracked via `git rm -r --cached .planning`) — local working copy is preserved
+  2. The published GitHub Pages artifact for production does not contain `.planning/` — fetching `steinsandvines.ca/.planning/STATE.md` (or any known planning path) returns 404, not file contents
+  3. The published GitHub Pages artifact for staging does not contain `.planning/` — fetching `staging.steinsandvines.ca/.planning/STATE.md` returns 404 (staging is served directly from the repo, so the gitignore/untrack — not a deploy-time strip — is what removes it)
+  4. The production deploy's existing `.planning` strip step still runs (defense in depth) and the prod deploy completes green with no regression to CNAME or the live site
+
+**Plans**: TBD
+
+### Phase 39: Nightly Snapshot Publishes to Prod Fallback
+
+**Goal**: The nightly Zoho snapshot actually reaches the live production static fallback and survives the next force-push deploy
+**Depends on**: Phase 38 (sequential; both are deploy/infra hygiene, no functional overlap)
+**Requirements**: DEPLOY-04
+**Success Criteria** (what must be TRUE):
+
+  1. The nightly snapshot commit that updates `zoho-snapshot.json` no longer carries a `[skip ci]` token that suppresses the GitHub Pages publish (or the publish is driven by an explicit `workflow_dispatch`/scheduled deploy trigger that is not skipped)
+  2. The snapshot workflow pulls/rebases (or otherwise reconciles) before the production write so a subsequent `git push production main --force` deploy does not erase the freshly published snapshot
+  3. After a nightly run (or a manually triggered run), `steinsandvines.ca/content/zoho-snapshot.json` returns a snapshot whose timestamp is from that run — verifiably fresh, not stale
+  4. The change preserves the v4.2 CNAME-safe deploy invariant: the prod `main` history and CNAME are intact after the snapshot publish (no 404, no clobbered domain)
+
+**Plans**: TBD
+
+### Phase 40: Facility Image Optimization (webp + srcset)
+
+**Goal**: Facility/about imagery is served as right-sized webp with `srcset` and intrinsic dimensions, removing the multi-MB JPEG payload from the homepage by extending the existing product image pipeline
+**Depends on**: Nothing functional (independent of 38/39; sequenced after for risk ordering — build/asset change, no money path)
+**Requirements**: ASSET-01
+**Success Criteria** (what must be TRUE):
+
+  1. The homepage hero/facility image (`interior.jpg`, currently ~5.7 MB) and the about-page facility/owner photos are emitted as `webp` with a `srcset` of multiple widths, generated by the existing product image pipeline (extended, not a duplicated/parallel script)
+  2. On the homepage path, no single facility image transfers more than ~500 KB at the rendered viewport size (verified in the network panel on a standard laptop/iPad viewport)
+  3. Each optimized facility/about `<img>` carries intrinsic `width` and `height` attributes (or aspect-ratio) so the image reserves layout space and does not cause cumulative layout shift
+  4. A non-webp fallback (`<picture>` source or `jpg` fallback) is present so browsers without webp support still render the image, and `npm run build` regenerates the optimized assets without errors
+  5. The homepage and about page render correctly on staging.steinsandvines.ca with the new images and no broken-image or console errors (iPad Safari included)
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 41: SKU-Keyed Cart Identity
+
+**Goal**: The same product added from the catalog page and from the search overlay merges into one cart line keyed by SKU — no duplicate lines, correct quantity — across both the ferment and ingredients carts
+**Depends on**: Nothing functional (independent; sequenced after the infra/asset work because it touches the public cart, which has frontend tests — riskier than 38-40, lower-risk than 42)
+**Requirements**: CART-01
+**Success Criteria** (what must be TRUE):
+
+  1. The cart identity key is derived from SKU in both `11-cart.js` and `17-search-overlay.js` (replacing the `name|brand` / `name|` mismatch), with a `name|brand` fallback only when a SKU is genuinely absent
+  2. Adding a product from the catalog page and then the same product from the cross-category search overlay produces exactly one cart line whose quantity is the sum of both adds — no duplicate row, correct displayed quantity
+  3. The merge-by-SKU behaviour holds independently for the ferment cart and the ingredients cart (a SKU added on each surface routes to and merges within the correct cart per the dual-cart routing)
+  4. Existing frontend cart tests pass and new regression tests cover the catalog+overlay same-SKU merge for both carts; `npm test`, `npm run lint`, and `npm run build` are clean
+  5. Verified on staging.steinsandvines.ca: adding a product from a category subpage and from the search overlay shows one line with the correct count
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 42: Kiosk POS De-Fork (kiosk-core.js)
+
+**Goal**: The kiosk POS logic lives in a single shared `js/kiosk-core.js` consumed by both `kiosk.js` (standalone) and `admin.js` (embedded), so the cart and payment/checkout paths can no longer diverge — a behaviour-preserving refactor that does not weaken the v4.2-hardened money path
+**Depends on**: Phase 41 (sequential; both are frontend — keeps the highest-risk money-path refactor last, after the cart-identity work it conceptually relates to has shipped and been verified)
+**Requirements**: KIOSK-01
+**Success Criteria** (what must be TRUE):
+
+  1. The ~34 duplicated `kiosk*` functions (cart building, `kioskProceedToPayment`, terminal charge, Zoho invoice/payment, void-on-failure, dual-cart) exist in exactly one place, `js/kiosk-core.js`, and both `kiosk.js` and `admin.js` consume that shared module — no second copy of the payment path remains
+  2. The money path is unchanged in behaviour: terminal charge → Zoho invoice/payment → void-on-failure → dual-cart shared-charge handling all behave exactly as before, demonstrated by the existing kiosk tests passing without weakening and by a new admin-embedded-vs-standalone parity check that asserts identical request payloads/flow for the same cart
+  3. The kiosk product-type discount feature (which currently exists only in `kiosk.js`) is available identically on both the standalone kiosk and the admin-embedded kiosk after the de-fork — resolving the existing drift where `admin.js` lacks it
+  4. `npm test`, `npm run lint`, and `npm run build` are clean (concatenated `main.js`/`main.min.js` and `admin.min.js` regenerated), and no behaviour-changing logic was introduced beyond the discount-parity fix
+  5. Verified on staging on iPad Safari: a full kiosk sale (including a recipe/product-type discount) completes identically from both the standalone kiosk URL and the admin-embedded kiosk tab, with the terminal/void/dual-cart behaviour intact
+
+**Plans**: TBD
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -588,6 +677,11 @@ Plans:
 | 35. Batch Scaling Engine | v4.3 | 6/6 | Complete    | 2026-06-21 |
 | 36. Cross-Surface Selection & Recipe Modification | v4.3 | 21/17 | Complete   | 2026-06-25 |
 | 37. BrewPad Recipe Manager | v4.3 | 3/3 | Complete    | 2026-06-20 |
+| 38. Repo Hygiene & Deploy-Strip Confirmation | v4.4 | 0/? | Not started | - |
+| 39. Nightly Snapshot Publishes to Prod Fallback | v4.4 | 0/? | Not started | - |
+| 40. Facility Image Optimization (webp + srcset) | v4.4 | 0/? | Not started | - |
+| 41. SKU-Keyed Cart Identity | v4.4 | 0/? | Not started | - |
+| 42. Kiosk POS De-Fork (kiosk-core.js) | v4.4 | 0/? | Not started | - |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
 
