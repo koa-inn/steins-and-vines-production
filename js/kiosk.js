@@ -702,6 +702,7 @@
   // { presetId: 'id', name: 'Staff 10%', type: 'percentage'|'fixed', value: 10, scope: 'cart'|'item', targetItemId: '' }
 
   var _kioskDiscountPresets = [];
+  var _kioskEditingDiscountId = null; // null = creating a new preset; id = editing existing
 
   // Customer browse mode state
   var _kioskCbTab = 'kits';
@@ -4463,6 +4464,61 @@
     return tokens;
   }
 
+  // Load an existing preset into the Add/Edit form for editing.
+  function kioskPopulateDiscountForm(preset) {
+    var modal = document.getElementById('kiosk-discount-mgmt-modal');
+    var form = document.getElementById('kiosk-discount-form');
+    if (!modal || !form || !preset) return;
+
+    _kioskEditingDiscountId = preset.id;
+    document.getElementById('kiosk-discount-form-name').value = preset.name || '';
+    document.getElementById('kiosk-discount-form-value').value = preset.value != null ? preset.value : '';
+
+    modal.querySelectorAll('.kiosk-discount-type-btn').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-type') === (preset.type || 'percentage'));
+    });
+    var scope = (preset.scope === 'type') ? 'type' : 'cart';
+    modal.querySelectorAll('.kiosk-discount-scope-btn').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-scope') === scope);
+    });
+
+    var tp = document.getElementById('kiosk-discount-types');
+    if (tp) {
+      tp.querySelectorAll('input[type="checkbox"]').forEach(function (c) { c.checked = false; });
+      tp.style.display = (scope === 'type') ? '' : 'none';
+      if (scope === 'type') {
+        var at = preset.applies_to || [];
+        // Group tokens (kit/ingredient) tick the parent + all its children.
+        at.forEach(function (tok) {
+          var parent = tp.querySelector('input[data-group="' + tok + '"]');
+          if (parent) {
+            parent.checked = true;
+            tp.querySelectorAll('input[data-token]').forEach(function (c) {
+              if (c.getAttribute('data-token').indexOf(tok + ':') === 0) c.checked = true;
+            });
+          }
+          var leaf = tp.querySelector('input[data-token="' + tok + '"]');
+          if (leaf) leaf.checked = true;
+        });
+        // Reflect "all children selected" back onto each parent checkbox.
+        tp.querySelectorAll('input[data-group]').forEach(function (parent) {
+          var group = parent.getAttribute('data-group');
+          var all = true, any = false;
+          tp.querySelectorAll('input[data-token]').forEach(function (c) {
+            if (c.getAttribute('data-token').indexOf(group + ':') === 0) { any = true; if (!c.checked) all = false; }
+          });
+          if (any) parent.checked = all;
+        });
+      }
+    }
+
+    form.style.display = '';
+    var addBtn = document.getElementById('kiosk-discount-add-btn');
+    if (addBtn) addBtn.style.display = 'none';
+    var saveBtn = document.getElementById('kiosk-discount-save-btn');
+    if (saveBtn) saveBtn.textContent = 'Update';
+  }
+
   // Human-readable summary of a preset's targeting (for popover + mgmt list).
   function kioskDiscountScopeLabel(p) {
     if (!p || p.scope !== 'type') return 'Cart';
@@ -4491,6 +4547,9 @@
     var form = document.getElementById('kiosk-discount-form');
     if (addBtn && form) {
       addBtn.onclick = function () {
+        _kioskEditingDiscountId = null; // creating a new preset
+        var sb = document.getElementById('kiosk-discount-save-btn');
+        if (sb) sb.textContent = 'Save';
         form.style.display = '';
         addBtn.style.display = 'none';
         document.getElementById('kiosk-discount-form-name').value = '';
@@ -4577,15 +4636,21 @@
         }
 
         var mwUrl = kioskMwUrl();
-        fetch(mwUrl + '/api/kiosk/discounts', {
-          method: 'POST',
+        var editingId = _kioskEditingDiscountId;
+        var url = editingId
+          ? mwUrl + '/api/kiosk/discounts/' + encodeURIComponent(editingId)
+          : mwUrl + '/api/kiosk/discounts';
+        fetch(url, {
+          method: editingId ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
           body: JSON.stringify(payload)
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (data.ok) {
-            showToast('Preset saved', 'success');
+            showToast(editingId ? 'Preset updated' : 'Preset saved', 'success');
+            _kioskEditingDiscountId = null;
+            saveBtn.textContent = 'Save';
             kioskLoadDiscountPresets();
             form.style.display = 'none';
             document.getElementById('kiosk-discount-add-btn').style.display = '';
@@ -4602,6 +4667,9 @@
     var cancelFormBtn = document.getElementById('kiosk-discount-cancel-btn');
     if (cancelFormBtn) {
       cancelFormBtn.onclick = function () {
+        _kioskEditingDiscountId = null;
+        var sb = document.getElementById('kiosk-discount-save-btn');
+        if (sb) sb.textContent = 'Save';
         form.style.display = 'none';
         document.getElementById('kiosk-discount-add-btn').style.display = '';
       };
@@ -4631,10 +4699,22 @@
           html += '<div class="kiosk-discount-mgmt-row" data-id="' + escapeHTML(p.id) + '">';
           html += '<span class="kiosk-discount-mgmt-name">' + escapeHTML(p.name) + '</span>';
           html += '<span class="kiosk-discount-mgmt-info">' + detail + '</span>';
+          html += '<button type="button" class="kiosk-discount-mgmt-edit" data-id="' + escapeHTML(p.id) + '">Edit</button>';
           html += '<button type="button" class="kiosk-discount-mgmt-delete" data-id="' + escapeHTML(p.id) + '">&times;</button>';
           html += '</div>';
         });
         list.innerHTML = html;
+
+        list.querySelectorAll('.kiosk-discount-mgmt-edit').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.getAttribute('data-id');
+            var preset = null;
+            for (var i = 0; i < presets.length; i++) {
+              if (presets[i].id === id) { preset = presets[i]; break; }
+            }
+            if (preset) kioskPopulateDiscountForm(preset);
+          });
+        });
 
         list.querySelectorAll('.kiosk-discount-mgmt-delete').forEach(function (btn) {
           btn.addEventListener('click', function () {
