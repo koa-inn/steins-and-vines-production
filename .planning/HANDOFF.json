@@ -1,43 +1,37 @@
 {
   "version": "1.0",
-  "timestamp": "2026-06-26T00:11:27.373Z",
-  "phase": "36",
-  "phase_name": "cross-surface-selection-recipe-modification",
-  "phase_dir": ".planning/phases/36-cross-surface-selection-recipe-modification",
-  "plan": 22,
+  "timestamp": "2026-06-26T22:44:20.239Z",
+  "phase": "v4.4",
+  "phase_name": "Audit Remediation",
+  "phase_dir": ".planning (between phases — 39/40/41 executed inline, no per-phase PLAN dirs)",
+  "plan": null,
   "task": null,
-  "total_tasks": null,
+  "total_tasks": 5,
   "status": "paused",
-  "context_note": "Long live debugging+fix session AFTER the --gaps-only execution. Gap-closure (GAP-1..8) PLUS a series of ad-hoc post-execution fixes (36-18..36-22), a customer-search fix, and a security.txt — ALL shipped to staging AND production. Nothing in progress; clean stopping point. Remaining items are human verifications/actions, not code.",
   "completed_tasks": [
-    {"id": "36-13..16", "name": "Round-2 gap closure GAP-4/5/6/7 (UI-SPEC + admin/kiosk/brewpad)", "status": "done", "live": "prod"},
-    {"id": "36-17", "name": "Third-pass UAT — owner approved; GAP-8 surfaced + fixed", "status": "done"},
-    {"id": "36-18", "name": "GAP-8: live price + scaled ingredient list update pre-sale-type (admin+kiosk)", "status": "done", "live": "prod"},
-    {"id": "36-19", "name": "BrewPad: style on recipe list + Clone-recipe button", "status": "done", "live": "prod", "commit": "6d812b2"},
-    {"id": "36-20", "name": "Helcim terminal SUCCESS auto-confirm (middleware): getCardTransactionById + device-pending fallback + cache JSON-string fix", "status": "done", "live": "prod-railway", "commit": "ed3af5f/806680b"},
-    {"id": "36-21", "name": "BrewPad re-login fix: use stored token on load instead of silent re-auth every refresh", "status": "done", "live": "prod", "commit": "20b7607"},
-    {"id": "customer-search", "name": "create-batch customer search: send x-api-key (was 403 -> 'No results')", "status": "done", "live": "prod", "commit": "bc85f70"},
-    {"id": "36-22", "name": "BrewPad save-refresh: afterBatchWrite helper busts sv-bp-batch-{id} snapshot + list/dash caches across ~13 write handlers", "status": "done", "live": "prod", "commit": "016f296"},
-    {"id": "security.txt", "name": "RFC 9116 .well-known/security.txt + .nojekyll (Cloudflare finding)", "status": "done", "live": "prod", "commit": "68664d6"}
+    {"id": "P38", "name": "HYGIENE-01 repo hygiene", "status": "deferred", "note": "owner deferred; prod already strips .planning, staging exposes it (legacy Pages), gitignore would break GSD"},
+    {"id": "P39", "name": "DEPLOY-04 nightly snapshot publishes", "status": "done", "commit": "303a060", "where": "staging"},
+    {"id": "P40", "name": "ASSET-01 facility image webp/srcset", "status": "done", "commit": "17f9995", "where": "LIVE ON PROD"},
+    {"id": "P41", "name": "CART-01 SKU-keyed cart identity", "status": "done", "commit": "b2fdac1", "where": "staging", "note": "getProductKey() centralized across 11-cart + 06/07/08/12/15/16/17; 928 FE tests green"},
+    {"id": "PROD-HOTFIX", "name": "kiosk customer-search 403 (x-api-key on /api/contacts)", "status": "done", "commit": "50465bc", "where": "LIVE ON PROD via gated-deploy", "note": "fixed kiosk.js x3 + admin.js x2 (forked)"}
   ],
   "remaining_tasks": [
-    {"id": "36-07", "name": "Original-phase UAT plan (non-gap, never run under --gaps-only)", "status": "not_started", "note": "Superseded in practice by the third-pass UAT; phase is functionally shipped"},
-    {"id": "TP-8-verify", "name": "End-to-end verify SEL-02 carry-through: a non-1x volume sale stamps target_volume_l + scale_factor onto the auto-created batch row", "status": "needs_verification", "note": "Owner reported the Apps Script create_batch redeploy + Batches-sheet columns are DONE; a live end-to-end check is still recommended"}
+    {"id": "FEATURE", "name": "Kiosk manual/custom line item with notes", "status": "not_started", "note": "NEW owner request. Design approved: Zoho ad-hoc invoice line (name+rate+qty) + note in line description; server needs a custom-item path (generic /api/kiosk/sale rejects non-catalog item_ids); trust staff-entered price w/ bounds; confirm tax handling; build kiosk.js AND admin.js (forked)."},
+    {"id": "P42", "name": "KIOSK-01 kiosk POS de-fork into js/kiosk-core.js", "status": "not_started", "note": "HIGH RISK money path; awaiting owner review before starting; behaviour-preserving + parity tests required"}
   ],
   "blockers": [],
   "human_actions_pending": [
-    {"action": "Run a real Helcim terminal sale on the kiosk", "context": "Confirm 36-20 auto-confirm advances without a manual tap and records the real txn id in Zoho", "blocking": false},
-    {"action": "On each staff iPad hit the in-app Clear-cache (the refresh icon) once", "context": "PWA caches the bundle; needed to pull new prod code; also surfaces the irish-moss-bulk ingredient", "blocking": false},
-    {"action": "Enable 2FA on the Cloudflare account (hello@steinsandvines.ca)", "context": "Cloudflare Security Insights 'Users without MFA' — the one real security item; protects full domain/edge control", "blocking": false},
-    {"action": "Confirm the 4 apex A records in Cloudflare DNS are GitHub Pages IPs 185.199.108-111.153, then dismiss the 'dangling A' findings", "context": "Almost certainly false positives; apex is proxied + serves 200", "blocking": false}
+    {"action": "Hard-refresh each iPad kiosk (admin.html?tab=kiosk) once", "context": "drop stale admin.min.js so the customer-search fix + discounts take effect", "blocking": false},
+    {"action": "Decide when to promote staging->prod", "context": "Phases 39 & 41 + planning are on staging only; prod has 40 + customer-search fix + discount feature + images", "blocking": false},
+    {"action": "Confirm licence supports live beer sales", "context": "BEER_SALES_ENABLED is true in prod; kiosk recipe sales active", "blocking": false}
   ],
   "decisions": [
-    {"decision": "Pre-sale-type recipe price/list preview uses the in-store basis", "rationale": "Matches the existing '(based on ingredients)' label; charged amount stays server-authoritative at cart", "phase": "36"},
-    {"decision": "Folded round-1 UAT plan 36-12 into 36-17 (third pass)", "rationale": "Round-1 sign-off superseded by round-2; avoids a redundant deploy + duplicate sign-off", "phase": "36"},
-    {"decision": "No git worktrees for the gaps-only execution", "rationale": "One plan per wave (strict dependency chain) = zero parallelism benefit + disk pressure on this Drive-adjacent clone", "phase": "36"},
-    {"decision": "Helcim API token 'General' access set to Read in Helcim Hub", "rationale": "Token could charge (Transaction Processing) but not read card-transactions (401); General->Read fixes terminal success recognition", "phase": "36"}
+    {"decision": "Phase 41 keys cart lines by getProductKey() = SKU primary, name|brand fallback", "rationale": "SKU is consistent across surfaces; catalog populated brand but search overlay left it blank -> duplicate lines. Keys derived at lookup time (not persisted) so stored carts don't orphan.", "phase": "41"},
+    {"decision": "Kept zoho_item_id-primary ternaries in 12-checkout (717/1226); only routed name|brand comparisons through getProductKey; left milling-grain keys (1051/1087) untouched", "rationale": "zoho_item_id already deduped correctly; avoid destabilizing the milling feature / 11<->12 circular state", "phase": "41"},
+    {"decision": "Phase 38 deferred not gitignored", "rationale": "GSD tracks state by committing .planning; D-01 keeps it tracked + strips at prod deploy. Staging exposure low severity (noindex; PROJECT_ASSESSMENT.md already gitignored).", "phase": "38"},
+    {"decision": "Custom kiosk line item = Zoho ad-hoc invoice line + note in description", "rationale": "owner-approved; simplest reconcile-later path", "phase": "FEATURE"}
   ],
-  "uncommitted_files": ["zoho-middleware/ingredients-cache.json (runtime cache — ignore); zoho-middleware/dump.rdb + .planning/ui-reviews/ (untracked runtime/scratch)"],
-  "next_action": "No code work pending. If resuming: confirm the human verifications above (terminal sale, iPad cache-clear, 2FA), then milestone v4.3 is ready to close out / archive.",
-  "context_notes": "Each issue was diagnosed-first (often verified live against the prod middleware/DNS), fixed test-first via gsd-executor, reviewed (I caught 2 executor bugs the tests missed — see anti-patterns), then deployed staging->prod. Frontend prod deploy this session = git push production main --force with CNAME swap to steinsandvines.ca then `git reset --hard` back to the staging-CNAME base (local stays on staging CNAME). Verified each prod deploy via the 'Deploy Production (filtered)' Actions run + a browser-UA curl. Middleware = single Railway instance sv_middleware (shared staging+prod, no isolation), deploy via `railway up`. Local on main @68664d6, CNAME=staging.steinsandvines.ca (correct)."
+  "uncommitted_files": ["zoho-middleware/ingredients-cache.json (runtime cache — ignore)", "zoho-middleware/dump.rdb + .planning/ui-reviews/ (untracked runtime/scratch)"],
+  "next_action": "Start the kiosk manual/custom line-item feature (design approved). Investigate the /api/kiosk/sale catalog-validation path in zoho-middleware/routes/pos.js (it rejects non-catalog item_ids) and add a custom-item path; build the kiosk UI in kiosk.js AND admin.js. OR start Phase 42 de-fork if owner prefers.",
+  "context_notes": "Long session. v4.4 audit-remediation milestone created via GSD; executed phases inline (no per-phase PLAN dirs) because they were small/well-specified. Everything pushed to origin/main (HEAD ~277c368). Staging is AHEAD of prod (39/41 not promoted). The kiosk fork (#14) is why the customer-search 403 needed fixing in 2 files and why the new feature must touch both kiosk.js+admin.js — Phase 42 de-fork would end this. Money path was hardened in v4.2; custom line item + Phase 42 must not weaken it. CAUTION: do NOT use sed with '|' delimiter on REQUIREMENTS.md tables — it corrupted the file once (restore via git checkout). Use the Edit tool for .md table edits."
 }
