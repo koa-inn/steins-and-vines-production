@@ -515,3 +515,46 @@ describe('POST /api/checkout — fractional weight quantity (regression)', funct
       });
   });
 });
+
+// ---------------------------------------------------------------------------
+// ORPHAN PREVENTION: the card is charged in the HelcimPay iframe BEFORE this
+// route runs, so ANY early validation reject must void the already-charged
+// payment — otherwise the charge is orphaned (money taken, no Zoho order, no
+// void), exactly the Jun 2026 incident (Helcim 50641064 / INV-000118).
+// ---------------------------------------------------------------------------
+describe('POST /api/checkout — void-on-early-reject (orphan prevention)', function () {
+  beforeEach(function () {
+    jest.clearAllMocks();
+    process.env.RECAPTCHA_SECRET_KEY = '';
+    helcimLib.isEnabled.mockReturnValue(true);
+    helcimLib.voidTransaction.mockResolvedValue({ ok: true, transactionId: 'txn-mock' });
+  });
+
+  test('voids the already-charged payment when an early validation rejects', function () {
+    var body = makeCheckoutBody({
+      payment_token: 'helcim-tok-EARLY',
+      // missing item_id -> early 400, AFTER the card was charged
+      items: [{ name: 'No item_id line', quantity: 1, rate: 5 }]
+    });
+    return request(app)
+      .post('/api/checkout')
+      .send(body)
+      .expect(400)
+      .then(function () {
+        expect(helcimLib.voidTransaction).toHaveBeenCalledWith('helcim-tok-EARLY');
+      });
+  });
+
+  test('does NOT void when no payment_token is present (nothing was charged)', function () {
+    var body = makeCheckoutBody({
+      items: [{ name: 'No item_id line', quantity: 1, rate: 5 }]
+    });
+    return request(app)
+      .post('/api/checkout')
+      .send(body)
+      .expect(400)
+      .then(function () {
+        expect(helcimLib.voidTransaction).not.toHaveBeenCalled();
+      });
+  });
+});

@@ -35,6 +35,30 @@ var CHECKOUT_IDEMPOTENCY_TTL = 600; // 10 minutes in seconds
 
 var router = express.Router();
 
+// Reject a checkout request, voiding any already-charged Helcim payment first.
+// The card is charged inside the HelcimPay iframe BEFORE this route runs, so a
+// bare `res.status(4xx)` reject would orphan the charge (money taken, no Zoho
+// order, no void) — exactly the Jun 2026 incident (Helcim 50641064 / INV-000118).
+// Fire-and-forget the void; alert staff if it fails. Only attempts a void when a
+// plausibly-valid payment_token is present (can't void a malformed/absent token).
+function rejectWithVoid(res, body, status, errorMsg) {
+  var token = body && body.payment_token;
+  if (typeof token === 'string' && token.length > 0 && token.length <= 500 && helcimLib.isEnabled()) {
+    log.error('[checkout] Early reject after charge — voiding txn=' + token + ' (' + status + ': ' + errorMsg + ')');
+    eventLog.logEvent('checkout.void_early_reject', { status: status, reason: String(errorMsg).substring(0, 80) });
+    helcimLib.voidTransaction(token).catch(function (vErr) {
+      log.error('[checkout] Void after early reject failed for txn=' + token + ': ' + vErr.message);
+      mailer.sendVoidFailureAlert({
+        txnId: token,
+        amount: 0,
+        error: 'Early validation reject (' + status + ': ' + errorMsg + ') — void failed: ' + vErr.message,
+        timestamp: new Date().toISOString()
+      }).catch(function () {});
+    });
+  }
+  return res.status(status).json({ error: errorMsg });
+}
+
 /**
  * POST /api/checkout
  * Accepts a cart payload, formats it as a Zoho Books Sales Order, and creates
@@ -62,23 +86,27 @@ router.post('/api/checkout', async function (req, res) {
   var body = req.body;
 
   // --- Validate customer block ---
+  // Reject via rejectWithVoid (not res.status directly): the card is already
+  // charged in the HelcimPay iframe by the time we get here, so a bare reject
+  // would orphan the payment. See rejectWithVoid above.
   if (!body || !body.customer || !body.customer.email) {
-    return res.status(400).json({ error: 'Missing customer email' });
+    return rejectWithVoid(res, body, 400, 'Missing customer email');
   }
   if (typeof body.customer.email !== 'string' ||
       body.customer.email.length > 254 ||
       body.customer.email.indexOf('@') === -1) {
-    return res.status(400).json({ error: 'Invalid customer email' });
+    return rejectWithVoid(res, body, 400, 'Invalid customer email');
   }
   if (!Array.isArray(body.items) || body.items.length === 0) {
-    return res.status(400).json({ error: 'Cart is empty' });
+    return rejectWithVoid(res, body, 400, 'Cart is empty');
   }
   if (body.items.length > 50) {
-    return res.status(400).json({ error: 'Too many items' });
+    return rejectWithVoid(res, body, 400, 'Too many items');
   }
   if (body.transaction_id && (typeof body.transaction_id !== 'string' || body.transaction_id.length > 64)) {
-    return res.status(400).json({ error: 'Invalid transaction_id' });
+    return rejectWithVoid(res, body, 400, 'Invalid transaction_id');
   }
+  // payment_token itself is malformed here — nothing valid to void, so reject directly.
   if (body.payment_token && (typeof body.payment_token !== 'string' || body.payment_token.length > 500)) {
     return res.status(400).json({ error: 'Invalid payment_token' });
   }
@@ -88,10 +116,10 @@ router.post('/api/checkout', async function (req, res) {
   var emailVal = (body.customer && body.customer.email) ? String(body.customer.email) : '';
   var phoneVal = (body.customer && body.customer.phone) ? String(body.customer.phone) : '';
   var notesVal = body.notes ? String(body.notes) : '';
-  if (nameVal.length > 100) return res.status(400).json({ error: 'Input too long: name' });
-  if (emailVal.length > 200) return res.status(400).json({ error: 'Input too long: email' });
-  if (phoneVal.length > 30) return res.status(400).json({ error: 'Input too long: phone' });
-  if (notesVal.length > 1000) return res.status(400).json({ error: 'Input too long: notes' });
+  if (nameVal.length > 100) return rejectWithVoid(res, body, 400, 'Input too long: name');
+  if (emailVal.length > 200) return rejectWithVoid(res, body, 400, 'Input too long: email');
+  if (phoneVal.length > 30) return rejectWithVoid(res, body, 400, 'Input too long: phone');
+  if (notesVal.length > 1000) return rejectWithVoid(res, body, 400, 'Input too long: notes');
 
   // --- Validate each line item ---
   for (var v = 0; v < body.items.length; v++) {
@@ -103,15 +131,15 @@ router.post('/api/checkout', async function (req, res) {
     // in pos.js. A `< 1` floor here charged the card then 400'd the order for
     // any sub-1kg line, orphaning the payment (no Zoho record, no void).
     if (vQty <= 0 || vQty > 100) {
-      return res.status(400).json({ error: 'Invalid quantity for item ' + v });
+      return rejectWithVoid(res, body, 400, 'Invalid quantity for item ' + v);
     }
     if (vRate < 0 || vRate > 10000) {
-      return res.status(400).json({ error: 'Invalid rate for item ' + v });
+      return rejectWithVoid(res, body, 400, 'Invalid rate for item ' + v);
     }
     // M3: Validate item_id is a non-empty string or number
     if (!vi.item_id || (typeof vi.item_id !== 'string' && typeof vi.item_id !== 'number') ||
         String(vi.item_id).trim().length === 0) {
-      return res.status(400).json({ error: 'Invalid or missing item_id for item ' + v });
+      return rejectWithVoid(res, body, 400, 'Invalid or missing item_id for item ' + v);
     }
   }
 
@@ -183,7 +211,7 @@ router.post('/api/checkout', async function (req, res) {
       (isProdRcRoute ? ' — rejecting in prod: ' : ' — allowing through (dev): ') +
       (err && err.message));
     if (isProdRcRoute) {
-      return res.status(400).json({ error: 'Request could not be verified. Please try again.' });
+      return rejectWithVoid(res, body, 400, 'Request could not be verified. Please try again.');
     }
     return proceed();
   }
