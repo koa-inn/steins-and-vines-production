@@ -31,6 +31,23 @@ _TAX_RULE_PCT[process.env.ZOHO_TAX_LIQUOR_RULE   || '109900000000033429'] = 15;
 
 var router = express.Router();
 
+// Resolve the 5% GST tax_id needed for taxable custom lines (D-02).
+// Resolution order: (1) process.env.KIOSK_GST_TAX_ID; (2) auto-discover from
+// KIOSK_PRODUCTS_CACHE_KEY catalog — find an item whose sales_tax_rule_id ===
+// ZOHO_TAX_SERVICES_RULE and reuse its tax_id; (3) return null (caller fail-closes).
+function resolveGstTaxId(catalogMap) {
+  if (process.env.KIOSK_GST_TAX_ID) return process.env.KIOSK_GST_TAX_ID;
+  var serviceRule = process.env.ZOHO_TAX_SERVICES_RULE || '109900000000033417';
+  var ids = Object.keys(catalogMap || {});
+  for (var i = 0; i < ids.length; i++) {
+    var item = catalogMap[ids[i]];
+    if (item && item.sales_tax_rule_id === serviceRule && item.tax_id) {
+      return item.tax_id;
+    }
+  }
+  return null;
+}
+
 // Resolve and apply a discount preset to lineItems.
 // Returns a promise that resolves to { discountApplied, subtotal } or
 // { error, status } if validation fails. Resolves to null if no discount.
@@ -55,11 +72,15 @@ function resolveDiscount(body, lineItems, subtotal, catalogMap) {
 
     if (preset.scope === 'cart') {
       if (preset.type === 'percentage') {
-        lineItems.forEach(function (li) { li.discount = preset.value + '%'; });
+        lineItems.forEach(function (li) {
+          if (li.custom) return; // D-08: custom lines excluded from all discounts
+          li.discount = preset.value + '%';
+        });
         discountApplied = { preset_id: preset.id, name: preset.name, type: 'percentage', value: preset.value, scope: 'cart' };
       } else {
         var fixedAmount = Math.min(preset.value, subtotal);
         lineItems.forEach(function (li) {
+          if (li.custom) return; // D-08: custom lines excluded from all discounts
           var lineTotal = li.quantity * li.rate;
           var share = subtotal > 0 ? Math.round(fixedAmount * (lineTotal / subtotal) * 100) / 100 : 0;
           li.discount = share;
@@ -70,6 +91,7 @@ function resolveDiscount(body, lineItems, subtotal, catalogMap) {
       // Classify each line via the authoritative catalog and discount only matches.
       var matchedSubtotal = 0;
       var matchFlags = lineItems.map(function (li) {
+        if (li.custom) return false; // D-08: custom lines excluded from all discounts
         var tokens = discountMatch.classifyCatalogItem(catalogMap[li.item_id]);
         var m = discountMatch.matches(tokens, preset.applies_to);
         if (m) matchedSubtotal += li.quantity * li.rate;
@@ -117,6 +139,20 @@ function computeTax(lineItems, catalogMap) {
   var taxTotal = 0;
   var defaultTaxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
   lineItems.forEach(function (li) {
+    // Custom lines carry their own tax_percentage (5 or 0) — skip catalog lookup.
+    if (li.custom) {
+      var customLineTotal = li.quantity * li.rate;
+      if (li.discount) {
+        if (typeof li.discount === 'string' && li.discount.indexOf('%') !== -1) {
+          customLineTotal = customLineTotal * (1 - parseFloat(li.discount) / 100);
+        } else {
+          customLineTotal = customLineTotal - Number(li.discount);
+        }
+      }
+      customLineTotal = Math.max(customLineTotal, 0);
+      taxTotal += customLineTotal * ((li.tax_percentage || 0) / 100);
+      return;
+    }
     var catalogItem = catalogMap[li.item_id];
     var lineTotal = li.quantity * li.rate;
     if (li.discount) {
@@ -226,6 +262,25 @@ function processSale(body, idempotencyKey, req, res) {
   // Validate each line item (structural validation only — price comes from catalog)
   for (var v = 0; v < body.items.length; v++) {
     var vi = body.items[v];
+    if (vi.custom) {
+      // Custom line validation (D-05, T-43-01)
+      var vDesc = typeof vi.description === 'string' ? vi.description.trim() : '';
+      if (vDesc.length < 1 || vDesc.length > 100) {
+        return res.status(400).json({ error: 'Custom line description must be 1-100 characters for item ' + v });
+      }
+      var vRate = Number(vi.rate);
+      if (!isFinite(vRate)) {
+        return res.status(400).json({ error: 'Custom line rate must be a number for item ' + v });
+      }
+      if (Math.abs(vRate) > 10000) {
+        return res.status(400).json({ error: 'Custom line rate exceeds maximum allowed magnitude ($10,000) for item ' + v });
+      }
+      var vQtyC = Number(vi.quantity);
+      if (!isFinite(vQtyC) || !Number.isInteger(vQtyC) || vQtyC <= 0 || vQtyC > 100) {
+        return res.status(400).json({ error: 'Custom line quantity must be an integer 1-100 for item ' + v });
+      }
+      continue;
+    }
     if (!vi.item_id || typeof vi.item_id !== 'string' || vi.item_id.length > 64) {
       return res.status(400).json({ error: 'Invalid item_id for item ' + v });
     }
@@ -248,8 +303,10 @@ function processSale(body, idempotencyKey, req, res) {
 
     // Reject immediately if any requested item is not in the catalog cache.
     // Do not fall back to client-supplied rates — that would defeat the anchoring.
+    // Custom lines (no item_id) bypass this check — their rate is bounded server-side (D-03).
     for (var ci = 0; ci < body.items.length; ci++) {
       var cItem = body.items[ci];
+      if (cItem.custom) continue; // custom lines have no item_id — skip catalog check
       if (catalogMap[cItem.item_id] === undefined) {
         return res.status(400).json({
           error: 'Item not found in current catalog: ' + cItem.item_id +
@@ -258,10 +315,46 @@ function processSale(body, idempotencyKey, req, res) {
       }
     }
 
+    // Pre-resolve GST tax_id for any taxable custom lines (D-02 fail-closed).
+    // Must happen before the lineItems builder to avoid returning inside .map().
+    var needGstTaxId = body.items.some(function (item) {
+      return item.custom && item.taxable !== false;
+    });
+    var gstTaxId = null;
+    if (needGstTaxId) {
+      gstTaxId = resolveGstTaxId(catalogMap);
+      if (!gstTaxId) {
+        return res.status(400).json({
+          error: 'Cannot tax this custom line: no GST tax rate configured. Mark the line tax-exempt or set KIOSK_GST_TAX_ID.'
+        });
+      }
+    }
+
     // Build line items using catalog price, ignoring client-supplied rate
     // D-03: Include per-item tax_id from catalog so Zoho computes tax using its rules
     var subtotal = 0;
     var lineItems = body.items.map(function (item) {
+      if (item.custom) {
+        // Custom line: rate is staff-entered (bounded by validation above)
+        var qty = Number(item.quantity) || 1;
+        var rate = Number(item.rate);
+        subtotal += qty * rate;
+        var taxable = item.taxable !== false;
+        var desc = String(item.description || '').trim().replace(/[\x00-\x1F\x7F]/g, '').slice(0, 100);
+        var note = String(item.note || '').trim().replace(/[\x00-\x1F\x7F]/g, '').slice(0, 100);
+        var fullDesc = note ? (desc + ' — ' + note) : desc;
+        var li = {
+          custom: true,
+          description: fullDesc,
+          rate: rate,
+          quantity: qty,
+          tax_percentage: taxable ? 5 : 0
+        };
+        if (taxable) {
+          li.tax_id = gstTaxId;
+        }
+        return li;
+      }
       var qty = Number(item.quantity) || 1;
       var catalogItem = catalogMap[item.item_id];
       var rate = catalogItem.rate; // authoritative price from catalog
@@ -421,13 +514,48 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
     }
 
     for (var ci = 0; ci < body.items.length; ci++) {
+      if (body.items[ci].custom) continue; // custom lines bypass catalog check
       if (catalogMap[body.items[ci].item_id] === undefined) {
         return res.status(400).json({ error: 'Item not found in catalog. Refresh and try again.' });
       }
     }
 
+    // Pre-resolve GST tax_id for any taxable custom lines (D-02 fail-closed).
+    var needGstTaxIdConfirm = body.items.some(function (item) {
+      return item.custom && item.taxable !== false;
+    });
+    var gstTaxIdConfirm = null;
+    if (needGstTaxIdConfirm) {
+      gstTaxIdConfirm = resolveGstTaxId(catalogMap);
+      if (!gstTaxIdConfirm) {
+        return res.status(400).json({
+          error: 'Cannot tax this custom line: no GST tax rate configured. Mark the line tax-exempt or set KIOSK_GST_TAX_ID.'
+        });
+      }
+    }
+
     var subtotal = 0;
     var lineItems = body.items.map(function (item) {
+      if (item.custom) {
+        var qty = Number(item.quantity) || 1;
+        var rate = Number(item.rate);
+        subtotal += qty * rate;
+        var taxable = item.taxable !== false;
+        var desc = String(item.description || '').trim().replace(/[\x00-\x1F\x7F]/g, '').slice(0, 100);
+        var note = String(item.note || '').trim().replace(/[\x00-\x1F\x7F]/g, '').slice(0, 100);
+        var fullDesc = note ? (desc + ' — ' + note) : desc;
+        var li = {
+          custom: true,
+          description: fullDesc,
+          rate: rate,
+          quantity: qty,
+          tax_percentage: taxable ? 5 : 0
+        };
+        if (taxable) {
+          li.tax_id = gstTaxIdConfirm;
+        }
+        return li;
+      }
       var qty = Number(item.quantity) || 1;
       var catalogItem = catalogMap[item.item_id];
       var rate = catalogItem.rate;
@@ -2208,3 +2336,4 @@ module.exports = router;
 // Exposed for unit testing (pure-ish helpers)
 module.exports.resolveDiscount = resolveDiscount;
 module.exports.computeTax = computeTax;
+module.exports.resolveGstTaxId = resolveGstTaxId;
