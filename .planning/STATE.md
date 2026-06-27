@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-06-26T05:00:00.000Z"
 last_activity: 2026-06-26
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -24,10 +24,12 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 ## Current Position
 
-Phase: 38 — Repo Hygiene & Deploy-Strip Confirmation (not started)
+Phase: 43 — Kiosk manual custom line item with notes (not started; owner-requested KIOSK-02)
 Plan: —
-Status: Roadmap created; ready for /gsd-plan-phase 38
-Last activity: 2026-06-26 — v4.4 roadmap created (Phases 38-42, 5 requirements mapped 1:1)
+Status: Phase added to roadmap; ready for /gsd-discuss-phase 43 → /gsd-plan-phase 43
+Last activity: 2026-06-26 — Phase 43 added (kiosk custom line item) via /gsd-phase; owner chose full GSD workflow for this money-path feature
+
+Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (staging), 42 (kiosk de-fork) NOT started.
 
 ## Performance Metrics
 
@@ -38,6 +40,10 @@ Last activity: 2026-06-26 — v4.4 roadmap created (Phases 38-42, 5 requirements
 - Total execution time: ~3 hrs
 
 ## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 43 added (2026-06-26): Kiosk manual/custom line item with notes (KIOSK-02, owner-requested mid-milestone; independent of Phase 42). Locked decisions: tax = GST 5% default + per-line exempt toggle; price allows negative + large but UI confirms over $2k/negative; taxable custom line needs a GST tax_id (KIOSK_GST_TAX_ID env or catalog auto-discover) else fail-closed so terminal charge == Zoho invoice tax.
 
 ### Decisions
 
@@ -82,7 +88,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-26 — v4.4 Phases 39/40/41 executed; prod kiosk hotfix
-Stopped at: v4.4 progress — Phase 38 DEFERRED (owner), 39 DONE (staging), 40 DONE (live on prod), 41 DONE (staging). Phase 42 (kiosk de-fork, KIOSK-01) NOT started — awaiting owner review (high-risk money path). Also fixed prod kiosk customer-search 403 (x-api-key on /api/contacts, kiosk.js + admin.js) — live on prod.
-Next: (1) NEW FEATURE pending — kiosk manual/custom line item with notes (see task; owner-approved design = Zoho ad-hoc invoice line + note in description, needs server custom-item path); (2) Phase 42 kiosk de-fork. Staging has 39/41 not yet promoted to prod.
+Last session: 2026-06-26 — session resumed; owner chose to start the kiosk manual/custom line-item feature
+Stopped at: Resumed from HANDOFF.json. v4.4: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (staging), 42 NOT started. Proceeding to NEW FEATURE — kiosk manual/custom line item (server custom-item path in routes/pos.js + UI in kiosk.js AND admin.js, forked). Investigating /api/kiosk/sale catalog-validation path first.
+Next: Build custom line-item feature; then promote 39/41 staging→prod and/or Phase 42 de-fork.
 Resume file: None

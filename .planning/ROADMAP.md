@@ -787,3 +787,13 @@ Plans:
 
 **Wave 5**
 - [x] 30-06-PLAN.md — Config/infra + test cleanup: railway.toml watchPatterns (#19), node-cron 4.2.1 (#20), jest cleanup (#21) + human actions env vars/uptime (#17,#18)
+
+### Phase 43: Kiosk manual custom line item with notes
+
+**Goal:** Let kiosk staff add an ad-hoc invoice line (description + staff-entered price + qty + note) that is not a catalog product, on both kiosk surfaces (standalone `kiosk.js` and admin-embedded `admin.js`, forked per #14), without weakening the v4.2-hardened money path. Server `/api/kiosk/sale` + `/api/kiosk/sale/confirm` gain a custom-line path (no `item_id`, `custom:true`) that trusts the bounded staff price and records the note in the Zoho invoice line description; the terminal charge (server `computeTax`) must equal the Zoho invoice tax for taxable custom lines.
+**Requirements**: KIOSK-02 (new owner-requested feature; not from PROJECT_ASSESSMENT.md)
+**Depends on:** None (independent of Phase 42 de-fork; both touch the forked kiosk surfaces, sequence to avoid merge churn)
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 43 to break down)
