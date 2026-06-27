@@ -816,7 +816,27 @@ Plans:
 - **Balance integrity:** server-authoritative balance tracking (where do balances live — Zoho, Redis, Sheets? decide at planning); partial redemption must atomically decrement; guard against double-spend / replay.
 
 **Depends on:** Phase 43 (sequence after — both touch the forked kiosk surfaces; avoids `kiosk.js`/`admin.js` merge churn). Independent of Phase 42.
-**Plans:** 0 plans
+**Plans:** 8 plans (6 waves)
 
 Plans:
-- [ ] TBD (run /gsd-discuss-phase 44 → /gsd-plan-phase 44 to break down; planner may recommend a phase split given full-lifecycle scope)
+**Wave 1** (parallel — owner setup + Apps Script foundation)
+- [ ] 44-01-PLAN.md — Owner Zoho setup (Gift Card Sales income account + Gift Certificate 0%-tax item + KIOSK_GIFT_CARD_ITEM_ID) + Wave-0 API probes (payment_mode:'others', zero-tax) + validateEnv entry + deferral-journal cadence (GIFTCARD-01)
+- [ ] 44-02-PLAN.md — Apps Script adminApi.gs: GiftCards sheet + 7 actions (issue/lookup/redeem/reload/void/update-invoice/next-number) with LockService atomicity + last_tx_ref idempotency + manual redeploy (GIFTCARD-01)
+
+**Wave 2** (parallel — disjoint middleware files)
+- [ ] 44-03-PLAN.md — routes/gift-cards.js: issue + next-number + lookup (fail-closed 503, dup-reject 409, zero-tax sale, void-on-Zoho-failure) + server mount + tests (GIFTCARD-01a/01b)
+- [ ] 44-04-PLAN.md — pos.js split-tender redemption (reduce terminal by gift_amount, two customerpayments, redeem_gift_card LAST, void-on-failure, tax untouched) + pos-gift-card.test.js (GIFTCARD-01c)
+
+**Wave 3**
+- [ ] 44-05-PLAN.md — routes/gift-cards.js: reload (increment + sale accounting, fail-closed) + void routes + tests (GIFTCARD-01d/01e)
+
+**Wave 4**
+- [ ] 44-06-PLAN.md — Issue/Reload "add value" modal on BOTH forked surfaces (kiosk.js inline + admin.js openModal), suggested cert pre-fill, rebuilt bundles (GIFTCARD-01a/01d UI)
+
+**Wave 5**
+- [ ] 44-07-PLAN.md — Redeem tender (lookup → apply → split terminal) on BOTH surfaces + admin-only lookup/void management view + rebuilt bundles (GIFTCARD-01b/01c/01e UI)
+
+**Wave 6**
+- [ ] 44-08-PLAN.md — Full gate + staging deploy + iPad Safari full-lifecycle UAT on both surfaces (Zoho accounting/tax verified) + REQUIREMENTS traceability (GIFTCARD-01)
+
+**UI hint**: yes
