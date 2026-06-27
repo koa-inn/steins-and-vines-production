@@ -98,7 +98,11 @@ router.post('/api/checkout', async function (req, res) {
     var vi = body.items[v];
     var vQty = Number(vi.quantity) || 1;
     var vRate = Number(vi.rate) || 0;
-    if (vQty < 1 || vQty > 100) {
+    // Weight-priced ingredients are legitimately fractional (e.g. 0.57 kg of
+    // grain), so the floor must be > 0, not >= 1. Matches the kiosk POS guard
+    // in pos.js. A `< 1` floor here charged the card then 400'd the order for
+    // any sub-1kg line, orphaning the payment (no Zoho record, no void).
+    if (vQty <= 0 || vQty > 100) {
       return res.status(400).json({ error: 'Invalid quantity for item ' + v });
     }
     if (vRate < 0 || vRate > 10000) {

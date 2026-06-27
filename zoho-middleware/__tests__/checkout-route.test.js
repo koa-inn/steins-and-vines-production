@@ -468,3 +468,50 @@ describe('HARDEN-03: verifyRecaptcha prod behavior (unit)', function () {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// REGRESSION: fractional weight quantities (< 1 kg) must be accepted.
+// Bug: input validation used `vQty < 1`, rejecting weight-priced ingredient
+// lines under 1 kg (e.g. 0.57 kg of grain) with 400 "Invalid quantity". The
+// card is charged in the HelcimPay iframe BEFORE /api/checkout runs, and this
+// reject fires before the void path — so a real order (Helcim txn 50641064,
+// two 0.57 kg malts) was charged $125.52 then orphaned with no Zoho record.
+// ---------------------------------------------------------------------------
+describe('POST /api/checkout — fractional weight quantity (regression)', function () {
+  beforeEach(function () {
+    jest.clearAllMocks();
+    process.env.RECAPTCHA_SECRET_KEY = '';
+    cacheLib.get.mockImplementation(defaultCacheGet);
+    cacheLib.acquireLock.mockResolvedValue(true);
+    zohoApi.zohoGet.mockResolvedValue({ contacts: [{ contact_id: 'cid-001' }] });
+    zohoApi.zohoPost.mockResolvedValue({
+      salesorder: { salesorder_id: 'so-1', salesorder_number: 'SO-001', total: 2.0 }
+    });
+  });
+
+  test('accepts a 0.57 kg ingredient line (does not 400 "Invalid quantity")', function () {
+    var body = makeCheckoutBody({
+      items: [{ item_id: '12345', name: 'Gambrinus Chit Malt', quantity: 0.57, rate: 4.25 }]
+    });
+    return request(app)
+      .post('/api/checkout')
+      .send(body)
+      .expect(201)
+      .then(function (res) {
+        expect(res.body.ok).toBe(true);
+      });
+  });
+
+  test('still rejects zero / negative quantities', function () {
+    var body = makeCheckoutBody({
+      items: [{ item_id: '12345', name: 'Bad Line', quantity: -3, rate: 4.25 }]
+    });
+    return request(app)
+      .post('/api/checkout')
+      .send(body)
+      .expect(400)
+      .then(function (res) {
+        expect(res.body.error).toMatch(/Invalid quantity/);
+      });
+  });
+});
