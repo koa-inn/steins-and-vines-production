@@ -793,8 +793,8 @@ Plans:
 **Goal:** Let kiosk staff add an ad-hoc invoice line (description + staff-entered price + qty + note) that is not a catalog product, on both kiosk surfaces (standalone `kiosk.js` and admin-embedded `admin.js`, forked per #14), without weakening the v4.2-hardened money path. Server `/api/kiosk/sale` + `/api/kiosk/sale/confirm` gain a custom-line path (no `item_id`, `custom:true`) that trusts the bounded staff price and records the note in the Zoho invoice line description; the terminal charge (server `computeTax`) must equal the Zoho invoice tax for taxable custom lines.
 **Requirements**: KIOSK-02 (new owner-requested feature; not from PROJECT_ASSESSMENT.md)
 **Depends on:** None (independent of Phase 42 de-fork; both touch the forked kiosk surfaces, sequence to avoid merge churn)
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 43-01-PLAN.md — server custom-line path in routes/pos.js (test-first; bounded price, 5% GST tax_id resolution + fail-closed, note->description, discount-skip)
+- [x] 43-01-PLAN.md — server custom-line path in routes/pos.js (test-first; bounded price, 5% GST tax_id resolution + fail-closed, note->description, discount-skip)
 - [ ] 43-02-PLAN.md — "Add custom item" modal + cart wiring on BOTH kiosk.js and admin.js (forked); rebuild bundles + full gate; human-verify
