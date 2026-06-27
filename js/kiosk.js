@@ -696,6 +696,7 @@
   var _kioskTerminalReady = false;
   var _kioskCustomer = null; // { contact_id, name, email } or null (walk-in)
   var _kioskHideOutOfStock = false;
+  var _kioskCustomCounter = 0; // auto-incrementing counter for custom-line cart keys
 
   var _kioskDiscount = null;
   // null = no discount
@@ -1213,6 +1214,7 @@
         ids.forEach(function (id) {
           var entry = _kioskCart[id];
           if (!entry || !entry.item) return;
+          if (entry.item.custom) return; // D-08: custom lines are never discounted
           var m;
           if (scope === 'cart') {
             m = true;
@@ -2615,6 +2617,154 @@
     kioskRenderProducts();
   }
 
+  // ===== Custom Item Modal (D-05, D-06) =====
+
+  function kioskShowCustomItemModal() {
+    var overlay = document.getElementById('kiosk-custom-item-overlay');
+    if (!overlay) {
+      // Build the overlay once and append to kiosk container
+      overlay = document.createElement('div');
+      overlay.id = 'kiosk-custom-item-overlay';
+      overlay.style.cssText = [
+        'position:fixed', 'top:0', 'left:0', 'right:0', 'bottom:0',
+        'background:rgba(0,0,0,0.55)', 'z-index:1200',
+        'display:flex', 'align-items:center', 'justify-content:center'
+      ].join(';');
+      overlay.innerHTML = [
+        '<div style="background:#fff;border-radius:12px;padding:1.5rem;width:min(90vw,440px);box-shadow:0 8px 32px rgba(0,0,0,0.25);">',
+        '<h3 style="margin:0 0 1rem;font-size:1.25rem;">Add custom item</h3>',
+        '<div style="margin-bottom:1rem;">',
+        '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kci-desc">Description <span style="color:#c00;">*</span></label>',
+        '<input id="kci-desc" type="text" maxlength="100" placeholder="e.g. Equipment rental" autocomplete="off"',
+        ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1.1rem;border:1px solid #ccc;border-radius:6px;">',
+        '</div>',
+        '<div style="margin-bottom:1rem;">',
+        '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kci-note">Note (optional)</label>',
+        '<input id="kci-note" type="text" maxlength="100" placeholder="e.g. weekend" autocomplete="off"',
+        ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1.1rem;border:1px solid #ccc;border-radius:6px;">',
+        '</div>',
+        '<div style="display:flex;gap:1rem;margin-bottom:1rem;">',
+        '<div style="flex:1;">',
+        '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kci-price">Price ($)</label>',
+        '<input id="kci-price" type="number" step="0.01" min="0" placeholder="0.00" inputmode="decimal"',
+        ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1.1rem;border:1px solid #ccc;border-radius:6px;">',
+        '</div>',
+        '<div style="flex:1;">',
+        '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kci-qty">Qty</label>',
+        '<input id="kci-qty" type="number" step="1" min="1" value="1" inputmode="numeric"',
+        ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1.1rem;border:1px solid #ccc;border-radius:6px;">',
+        '</div>',
+        '</div>',
+        '<div style="margin-bottom:1.25rem;display:flex;align-items:center;gap:0.6rem;">',
+        '<input id="kci-exempt" type="checkbox" style="width:1.3rem;height:1.3rem;cursor:pointer;">',
+        '<label for="kci-exempt" style="font-size:1rem;cursor:pointer;">Tax-exempt (default: taxable at 5% GST)</label>',
+        '</div>',
+        '<div id="kci-error" style="color:#c00;font-size:0.9rem;margin-bottom:0.75rem;display:none;"></div>',
+        '<div style="display:flex;gap:0.75rem;justify-content:flex-end;">',
+        '<button id="kci-cancel" type="button" style="padding:0.65rem 1.25rem;font-size:1rem;border:1px solid #ccc;border-radius:6px;background:#f5f5f5;cursor:pointer;">Cancel</button>',
+        '<button id="kci-add" type="button" style="padding:0.65rem 1.25rem;font-size:1rem;border:none;border-radius:6px;background:#5a3e1b;color:#fff;cursor:pointer;font-weight:600;">Add to cart</button>',
+        '</div>',
+        '</div>'
+      ].join('');
+      var kioskRoot = document.getElementById('kiosk-root') || document.body;
+      kioskRoot.appendChild(overlay);
+    }
+    overlay.style.display = 'flex';
+
+    // Reset fields
+    var descEl = document.getElementById('kci-desc');
+    var noteEl = document.getElementById('kci-note');
+    var priceEl = document.getElementById('kci-price');
+    var qtyEl = document.getElementById('kci-qty');
+    var exemptEl = document.getElementById('kci-exempt');
+    var errEl = document.getElementById('kci-error');
+    if (descEl) { descEl.value = ''; descEl.focus(); }
+    if (noteEl) noteEl.value = '';
+    if (priceEl) priceEl.value = '';
+    if (qtyEl) qtyEl.value = '1';
+    if (exemptEl) exemptEl.checked = false;
+    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+
+    var cancelBtn = document.getElementById('kci-cancel');
+    var addBtn = document.getElementById('kci-add');
+
+    if (cancelBtn) {
+      cancelBtn.onclick = function () {
+        overlay.style.display = 'none';
+      };
+    }
+    if (addBtn) {
+      addBtn.onclick = function () {
+        kioskSubmitCustomItem(overlay);
+      };
+    }
+    // Close on backdrop click
+    overlay.onclick = function (e) {
+      if (e.target === overlay) overlay.style.display = 'none';
+    };
+  }
+
+  function kioskSubmitCustomItem(overlay) {
+    var descEl = document.getElementById('kci-desc');
+    var noteEl = document.getElementById('kci-note');
+    var priceEl = document.getElementById('kci-price');
+    var qtyEl = document.getElementById('kci-qty');
+    var exemptEl = document.getElementById('kci-exempt');
+    var errEl = document.getElementById('kci-error');
+
+    function showErr(msg) {
+      if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+    }
+
+    var desc = descEl ? descEl.value.trim() : '';
+    var note = noteEl ? noteEl.value.trim() : '';
+    var rate = priceEl ? parseFloat(priceEl.value) : NaN;
+    var qty = qtyEl ? parseInt(qtyEl.value, 10) : NaN;
+    var taxExempt = exemptEl ? exemptEl.checked : false;
+
+    // D-05 validation
+    if (!desc || desc.length < 1 || desc.length > 100) {
+      showErr('Description is required (1–100 characters).');
+      if (descEl) descEl.focus();
+      return;
+    }
+    if (!isFinite(rate)) {
+      showErr('Please enter a valid price.');
+      if (priceEl) priceEl.focus();
+      return;
+    }
+    if (!isFinite(qty) || qty < 1 || qty !== Math.floor(qty)) {
+      showErr('Quantity must be a whole number of 1 or more.');
+      if (qtyEl) qtyEl.focus();
+      return;
+    }
+
+    // D-03: explicit confirm for rate > 2000 or negative
+    if (rate > 2000 || rate < 0) {
+      var fmtAmt = '$' + Math.abs(rate).toFixed(2) + (rate < 0 ? ' (negative)' : '');
+      var confirmed = window.confirm(
+        'You entered ' + fmtAmt + ' — confirm this custom charge?'
+      );
+      if (!confirmed) return;
+    }
+
+    // Add to cart
+    var customItem = {
+      custom: true,
+      description: desc,
+      note: note,
+      name: desc,
+      rate: rate,
+      tax_percentage: taxExempt ? 0 : 5,
+      taxable: !taxExempt
+    };
+    _kioskCustomCounter += 1;
+    _kioskCart['custom-' + _kioskCustomCounter] = { item: customItem, qty: qty };
+
+    if (overlay) overlay.style.display = 'none';
+    kioskRenderCart();
+  }
+
   function kioskRenderCart() {
     var container = document.getElementById('kiosk-cart-items');
     var totalsEl = document.getElementById('kiosk-cart-totals');
@@ -2636,12 +2786,24 @@
     }
 
     if (keys.length === 0) {
-      container.innerHTML = bannerHtml + '<p class="kiosk-cart-empty">No items in cart</p>';
+      container.innerHTML = bannerHtml +
+        '<p class="kiosk-cart-empty">No items in cart</p>' +
+        '<div style="margin-top:0.5rem;">' +
+        '<button id="kiosk-add-custom-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #888;border-radius:6px;background:none;cursor:pointer;color:#555;">' +
+        '+ Add custom item' +
+        '</button>' +
+        '</div>';
       var soClearEmpty = container.querySelector('.kiosk-cart-so-clear');
       if (soClearEmpty) {
         soClearEmpty.addEventListener('click', function () {
           kioskClearImportedSo();
           kioskRenderCart();
+        });
+      }
+      var addCustomBtnEmpty = document.getElementById('kiosk-add-custom-btn');
+      if (addCustomBtnEmpty) {
+        addCustomBtnEmpty.addEventListener('click', function () {
+          kioskShowCustomItemModal();
         });
       }
       if (totalsEl) totalsEl.style.display = 'none';
@@ -2679,6 +2841,13 @@
       html += '<button class="kiosk-cart-remove-btn" data-id="' + id + '">&times;</button>';
       html += '</div>';
     });
+
+    // D-06: Add custom item button in cart area
+    html += '<div style="margin-top:0.5rem;">' +
+      '<button id="kiosk-add-custom-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #888;border-radius:6px;background:none;cursor:pointer;color:#555;">' +
+      '+ Add custom item' +
+      '</button>' +
+      '</div>';
 
     container.innerHTML = bannerHtml + html;
 
@@ -2741,6 +2910,14 @@
         kioskRemoveFromCart(id);
       });
     });
+
+    // D-06: Wire "Add custom item" button
+    var addCustomBtn = document.getElementById('kiosk-add-custom-btn');
+    if (addCustomBtn) {
+      addCustomBtn.addEventListener('click', function () {
+        kioskShowCustomItemModal();
+      });
+    }
 
     var totals = kioskCalcTotals();
     var subEl = document.getElementById('kiosk-subtotal');
@@ -2957,6 +3134,17 @@
 
     var items = Object.keys(_kioskCart).map(function (id) {
       var entry = _kioskCart[id];
+      // D-04/D-08: custom lines forward description/note/taxable — no item_id
+      if (entry.item.custom) {
+        return {
+          custom: true,
+          description: entry.item.description || '',
+          note: entry.item.note || '',
+          quantity: entry.qty,
+          rate: parseFloat(entry.item.rate) || 0,
+          taxable: entry.item.taxable !== false
+        };
+      }
       return {
         item_id: entry.item.item_id,
         name: entry.item.name || '',
