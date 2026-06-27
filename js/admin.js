@@ -9792,6 +9792,7 @@
   var _kioskTerminalReady = false;
   var _kioskCustomer = null;     // { contact_id, name, email } or null (walk-in)
   var _kioskTabActive = false;
+  var _kioskCustomCounter = 0;  // auto-incrementing counter for custom-line cart keys
 
   // ---- Recipe browser state ----
   var _kioskMode = 'products';        // 'products' | 'recipes'
@@ -10096,6 +10097,120 @@
     kioskRenderProducts();
   }
 
+  // ---- Custom Item Modal (D-05, D-06) — uses admin openModal/closeModal ----
+
+  function kioskShowAdminCustomItemModal() {
+    var html = [
+      '<div>',
+      '<div style="margin-bottom:1rem;">',
+      '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kci-desc">Description <span style="color:#c00;">*</span></label>',
+      '<input id="kci-desc" type="text" maxlength="100" placeholder="e.g. Equipment rental" autocomplete="off"',
+      ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1.05rem;border:1px solid #ccc;border-radius:6px;">',
+      '</div>',
+      '<div style="margin-bottom:1rem;">',
+      '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kci-note">Note (optional)</label>',
+      '<input id="kci-note" type="text" maxlength="100" placeholder="e.g. weekend" autocomplete="off"',
+      ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1.05rem;border:1px solid #ccc;border-radius:6px;">',
+      '</div>',
+      '<div style="display:flex;gap:1rem;margin-bottom:1rem;">',
+      '<div style="flex:1;">',
+      '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kci-price">Price ($)</label>',
+      '<input id="kci-price" type="number" step="0.01" min="0" placeholder="0.00" inputmode="decimal"',
+      ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1.05rem;border:1px solid #ccc;border-radius:6px;">',
+      '</div>',
+      '<div style="flex:1;">',
+      '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kci-qty">Qty</label>',
+      '<input id="kci-qty" type="number" step="1" min="1" value="1" inputmode="numeric"',
+      ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1.05rem;border:1px solid #ccc;border-radius:6px;">',
+      '</div>',
+      '</div>',
+      '<div style="margin-bottom:1.25rem;display:flex;align-items:center;gap:0.6rem;">',
+      '<input id="kci-exempt" type="checkbox" style="width:1.2rem;height:1.2rem;cursor:pointer;">',
+      '<label for="kci-exempt" style="font-size:1rem;cursor:pointer;">Tax-exempt (default: taxable at 5% GST)</label>',
+      '</div>',
+      '<div id="kci-error" style="color:#c00;font-size:0.9rem;margin-bottom:0.75rem;display:none;"></div>',
+      '<div style="display:flex;gap:0.75rem;justify-content:flex-end;">',
+      '<button id="kci-cancel" type="button" class="btn btn-default">Cancel</button>',
+      '<button id="kci-add" type="button" class="btn btn-primary">Add to cart</button>',
+      '</div>',
+      '</div>'
+    ].join('');
+    openModal('Add custom item', html);
+
+    var descEl = document.getElementById('kci-desc');
+    if (descEl) descEl.focus();
+
+    var cancelBtn = document.getElementById('kci-cancel');
+    var addBtn = document.getElementById('kci-add');
+    if (cancelBtn) {
+      cancelBtn.onclick = function () { closeModal(); };
+    }
+    if (addBtn) {
+      addBtn.onclick = function () { kioskSubmitAdminCustomItem(); };
+    }
+  }
+
+  function kioskSubmitAdminCustomItem() {
+    var descEl = document.getElementById('kci-desc');
+    var noteEl = document.getElementById('kci-note');
+    var priceEl = document.getElementById('kci-price');
+    var qtyEl = document.getElementById('kci-qty');
+    var exemptEl = document.getElementById('kci-exempt');
+    var errEl = document.getElementById('kci-error');
+
+    function showErr(msg) {
+      if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+    }
+
+    var desc = descEl ? descEl.value.trim() : '';
+    var note = noteEl ? noteEl.value.trim() : '';
+    var rate = priceEl ? parseFloat(priceEl.value) : NaN;
+    var qty = qtyEl ? parseInt(qtyEl.value, 10) : NaN;
+    var taxExempt = exemptEl ? exemptEl.checked : false;
+
+    // D-05 validation
+    if (!desc || desc.length < 1 || desc.length > 100) {
+      showErr('Description is required (1–100 characters).');
+      if (descEl) descEl.focus();
+      return;
+    }
+    if (!isFinite(rate)) {
+      showErr('Please enter a valid price.');
+      if (priceEl) priceEl.focus();
+      return;
+    }
+    if (!isFinite(qty) || qty < 1 || qty !== Math.floor(qty)) {
+      showErr('Quantity must be a whole number of 1 or more.');
+      if (qtyEl) qtyEl.focus();
+      return;
+    }
+
+    // D-03: explicit confirm for rate > 2000 or negative
+    if (rate > 2000 || rate < 0) {
+      var fmtAmt = '$' + Math.abs(rate).toFixed(2) + (rate < 0 ? ' (negative)' : '');
+      var confirmed = window.confirm(
+        'You entered ' + fmtAmt + ' — confirm this custom charge?'
+      );
+      if (!confirmed) return;
+    }
+
+    // Add to cart
+    var customItem = {
+      custom: true,
+      description: desc,
+      note: note,
+      name: desc,
+      rate: rate,
+      tax_percentage: taxExempt ? 0 : 5,
+      taxable: !taxExempt
+    };
+    _kioskCustomCounter += 1;
+    _kioskCart['custom-' + _kioskCustomCounter] = { item: customItem, qty: qty };
+
+    closeModal();
+    kioskRenderCart();
+  }
+
   function kioskRenderCart() {
     var container = document.getElementById('kiosk-cart-items');
     var totalsEl = document.getElementById('kiosk-cart-totals');
@@ -10106,7 +10221,18 @@
     var keys = Object.keys(_kioskCart);
 
     if (keys.length === 0) {
-      container.innerHTML = '<p class="kiosk-cart-empty">No items in cart</p>';
+      container.innerHTML = '<p class="kiosk-cart-empty">No items in cart</p>' +
+        '<div style="margin-top:0.5rem;">' +
+        '<button id="kiosk-add-custom-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #888;border-radius:6px;background:none;cursor:pointer;color:#555;">' +
+        '+ Add custom item' +
+        '</button>' +
+        '</div>';
+      var addCustomBtnEmpty = document.getElementById('kiosk-add-custom-btn');
+      if (addCustomBtnEmpty) {
+        addCustomBtnEmpty.addEventListener('click', function () {
+          kioskShowAdminCustomItemModal();
+        });
+      }
       if (totalsEl) totalsEl.style.display = 'none';
       if (checkoutBtn) checkoutBtn.disabled = true;
       if (checkoutTotal) checkoutTotal.textContent = '$0.00';
@@ -10122,7 +10248,8 @@
       var lineTotal = (parseFloat(item.rate) || 0) * qty;
 
       html += '<div class="kiosk-cart-line">';
-      html += '<div class="kiosk-cart-line-name" title="' + (item.name || '') + '">' + (item.name || '') + '</div>';
+      // T-43-04: escapeHTML on item.name to prevent XSS from custom-line description
+      html += '<div class="kiosk-cart-line-name" title="' + escapeHTML(item.name || '') + '">' + escapeHTML(item.name || '') + '</div>';
       html += '<div class="kiosk-cart-qty">';
       html += '<button class="kiosk-qty-btn" data-action="dec" data-id="' + id + '">-</button>';
       html += '<span class="kiosk-qty-val">' + qty + '</span>';
@@ -10132,7 +10259,22 @@
       html += '</div>';
     });
 
+    // D-06: Add custom item button in cart area
+    html += '<div style="margin-top:0.5rem;">' +
+      '<button id="kiosk-add-custom-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #888;border-radius:6px;background:none;cursor:pointer;color:#555;">' +
+      '+ Add custom item' +
+      '</button>' +
+      '</div>';
+
     container.innerHTML = html;
+
+    // D-06: Wire "Add custom item" button
+    var addCustomBtn = document.getElementById('kiosk-add-custom-btn');
+    if (addCustomBtn) {
+      addCustomBtn.addEventListener('click', function () {
+        kioskShowAdminCustomItemModal();
+      });
+    }
 
     // Quantity buttons
     container.querySelectorAll('.kiosk-qty-btn').forEach(function (btn) {
@@ -10360,6 +10502,17 @@
     // Build payment items summary
     var items = Object.keys(_kioskCart).map(function (id) {
       var entry = _kioskCart[id];
+      // D-04/D-08: custom lines forward description/note/taxable — no item_id
+      if (entry.item.custom) {
+        return {
+          custom: true,
+          description: entry.item.description || '',
+          note: entry.item.note || '',
+          quantity: entry.qty,
+          rate: parseFloat(entry.item.rate) || 0,
+          taxable: entry.item.taxable !== false
+        };
+      }
       return {
         item_id: entry.item.item_id,
         name: entry.item.name || '',
