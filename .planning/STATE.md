@@ -44,6 +44,7 @@ Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (stagi
 
 ### Roadmap Evolution
 
+- Phase 44 added (2026-06-27): Kiosk gift card/certificate full lifecycle (GIFTCARD-01, owner-requested). Captured pre-discussion: full lifecycle (sell/redeem/balance/partial/reload); paper certificate w/ manually-assigned number (no barcode/digital v1); both forked surfaces. CRITICAL: gift-card sale is NOT taxed at sale (tax at redemption) + is a LIABILITY not revenue (Zoho deferred account) — NOT a custom line item. Redemption = tender path. Depends on Phase 43; plan after 43 ships. Interim stopgap: tax-exempt custom line can sell a certificate (no liability accounting).
 - Phase 43 added (2026-06-26): Kiosk manual/custom line item with notes (KIOSK-02, owner-requested mid-milestone; independent of Phase 42). Locked decisions: tax = GST 5% default + per-line exempt toggle; price allows negative + large but UI confirms over $2k/negative; taxable custom line needs a GST tax_id (KIOSK_GST_TAX_ID env or catalog auto-discover) else fail-closed so terminal charge == Zoho invoice tax.
 
 ### Decisions

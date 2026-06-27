@@ -798,3 +798,25 @@ Plans:
 Plans:
 - [x] 43-01-PLAN.md — server custom-line path in routes/pos.js (test-first; bounded price, 5% GST tax_id resolution + fail-closed, note->description, discount-skip)
 - [ ] 43-02-PLAN.md — "Add custom item" modal + cart wiring on BOTH kiosk.js and admin.js (forked); rebuild bundles + full gate; human-verify
+
+### Phase 44: Kiosk gift card certificate lifecycle
+
+**Goal:** Full gift-card / gift-certificate lifecycle at the kiosk POS — **sell, redeem (as tender), balance lookup, partial redemption, and reload** — on both forked kiosk surfaces (`kiosk.js` + `admin.js`), with correct money-path + accounting semantics. This is a NEW capability, NOT an extension of the Phase 43 custom-line item.
+**Requirements**: GIFTCARD-01 (owner-requested; captured 2026-06-27, to be split into sub-requirements at planning)
+
+**Captured scope (from owner, 2026-06-27 — pre-discussion):**
+- **Lifecycle:** full — sell, redeem, balance lookup, partial redemption, reload. Likely splits into multiple plans/sub-phases at planning time.
+- **Medium:** **paper certificate with a manually-assigned number/code** (no pre-printed barcode stock, no digital/email generation in v1). Staff enter the certificate number at sale and at redemption.
+- **Both kiosk surfaces** (forked #14): build in `kiosk.js` AND `admin.js` until the Phase 42 de-fork.
+
+**Critical constraints (MUST hold — these are why this is its own phase):**
+- **Tax (BC/Canada):** a gift card/certificate sale is **NOT taxed at sale** (no GST/PST); tax applies to the underlying goods/services at **redemption**. Selling must be zero-tax; redemption applies tax to the real items being bought.
+- **Accounting:** a sale is a **liability, not revenue** — must post to an "unredeemed gift card liability" account in Zoho (deferred), recognized as revenue only on redemption. Do NOT post gift-card sales as a normal sales line. (Research the right Zoho mechanism — liability account / gift-card item / store credit — at planning.)
+- **Redemption is a tender/payment path**, not a cart line — distinct from how items are added. Must integrate with the v4.2-hardened money path (Helcim terminal for any remaining balance, Zoho payment recording) without weakening it.
+- **Balance integrity:** server-authoritative balance tracking (where do balances live — Zoho, Redis, Sheets? decide at planning); partial redemption must atomically decrement; guard against double-spend / replay.
+
+**Depends on:** Phase 43 (sequence after — both touch the forked kiosk surfaces; avoids `kiosk.js`/`admin.js` merge churn). Independent of Phase 42.
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-discuss-phase 44 → /gsd-plan-phase 44 to break down; planner may recommend a phase split given full-lifecycle scope)
