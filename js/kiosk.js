@@ -1963,8 +1963,11 @@
         // Add each ingredient as a priced line item
         // Prefer scaled+modified quantities from server quote when present
         var ingSource = quoteForCart ? quoteForCart.ingredients : ingredients;
-        ingSource.forEach(function (ing) {
-          var key = 'recipe-ing-' + (ing.item_id || ing.ingredient_id);
+        ingSource.forEach(function (ing, ingIdx) {
+          // Unique per occurrence: a recipe can list the same item_id multiple
+          // times (e.g. hop/salt additions at different times). Keying by
+          // item_id alone collided and dropped all but the last → undercharge.
+          var key = 'recipe-ing-' + ingIdx + '-' + (ing.item_id || ing.ingredient_id);
           var ingQty = Number(ing.quantity) || 0;
           var ingRate;
           if (quoteForCart) {
@@ -2011,8 +2014,10 @@
         // Locked mode: ingredient lines as info-only (rate=0), plus single total line
         // Show SCALED+MODIFIED quantities from quote when available, otherwise base quantities
         var lockedIngSource = quoteForCart ? quoteForCart.ingredients : ingredients;
-        lockedIngSource.forEach(function (ing) {
-          var key = 'recipe-ing-' + (ing.item_id || ing.ingredient_id);
+        lockedIngSource.forEach(function (ing, ingIdx) {
+          // Unique per occurrence (see dynamic-mode note): same item_id may
+          // appear multiple times in a recipe; index-qualify the cart key.
+          var key = 'recipe-ing-' + ingIdx + '-' + (ing.item_id || ing.ingredient_id);
           _kioskCart[key] = {
             item: {
               item_id: ing.item_id,
