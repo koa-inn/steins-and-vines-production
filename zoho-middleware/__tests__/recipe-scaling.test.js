@@ -107,18 +107,48 @@ describe('scaleIngredient — blank/unknown unit', function () {
     expect(result.quantity).toBe(4.5);
   });
 
-  test('unknown non-blank token treated as discrete (ceil)', function () {
-    // A token not in CONTINUOUS_UNITS and not blank → discrete
+  test('unknown non-blank token defaults to linear (not ceil)', function () {
+    // Behaviour change: an unrecognised unit now scales LINEARLY (continuous)
+    // instead of being ceil'd. Only units explicitly in DISCRETE_UNITS round up.
+    // This prevents imperial/other unmapped units from silently losing decimals.
     var result = scaleIngredient({ item_id: 'z1', quantity: 2, unit: 'sack' }, 1.5);
-    // 2 × 1.5 = 3.0 → Math.max(1, Math.ceil(3.0)) = 3
-    expect(result.quantity).toBe(3);
+    expect(result.quantity).toBe(3); // 2 × 1.5 linear
   });
 
-  test('unknown non-blank token with small factor applies floor-of-1', function () {
-    // unknown token → discrete
-    var result = scaleIngredient({ item_id: 'z2', quantity: 1, unit: 'sack' }, 0.4);
-    // 1 × 0.4 = 0.4 → Math.max(1, Math.ceil(0.4)) = 1
-    expect(result.quantity).toBe(1);
+  test('unknown non-blank token preserves fractional quantity', function () {
+    var result = scaleIngredient({ item_id: 'z2', quantity: 2.5, unit: 'sack' }, 1.0);
+    expect(result.quantity).toBe(2.5); // linear, no ceil → decimal preserved
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scaleIngredient — imperial units (oz, lb, tsp, tbsp, gal, ...) must be linear
+// Regression: BeerSmith/BeerXML recipes use imperial units; treating them as
+// discrete (ceil) lost decimals and inflated charged amounts.
+// ---------------------------------------------------------------------------
+describe('scaleIngredient — imperial units scale linearly', function () {
+  test('oz preserves decimal at factor 1.0 (5.5 oz → 5.5, not 6)', function () {
+    var result = scaleIngredient({ item_id: 'hop1', quantity: 5.5, unit: 'oz' }, 1.0);
+    expect(result.quantity).toBe(5.5);
+  });
+
+  test('lb preserves decimal at factor 1.0 (9.25 lb → 9.25, not 10)', function () {
+    var result = scaleIngredient({ item_id: 'grain1', quantity: 9.25, unit: 'lb' }, 1.0);
+    expect(result.quantity).toBe(9.25);
+  });
+
+  test('oz scales linearly (4.5 oz × 1.5 = 6.75)', function () {
+    var result = scaleIngredient({ item_id: 'hop2', quantity: 4.5, unit: 'oz' }, 1.5);
+    expect(result.quantity).toBe(6.75);
+  });
+
+  test('tsp/tbsp/gal/qt/pt/cup all scale linearly', function () {
+    expect(scaleIngredient({ item_id: 'a', quantity: 1.5, unit: 'tsp' }, 1.0).quantity).toBe(1.5);
+    expect(scaleIngredient({ item_id: 'b', quantity: 0.75, unit: 'tbsp' }, 1.0).quantity).toBe(0.75);
+    expect(scaleIngredient({ item_id: 'c', quantity: 2.5, unit: 'gal' }, 1.0).quantity).toBe(2.5);
+    expect(scaleIngredient({ item_id: 'd', quantity: 1.25, unit: 'qt' }, 1.0).quantity).toBe(1.25);
+    expect(scaleIngredient({ item_id: 'e', quantity: 3.5, unit: 'pt' }, 1.0).quantity).toBe(3.5);
+    expect(scaleIngredient({ item_id: 'f', quantity: 0.5, unit: 'cup' }, 1.0).quantity).toBe(0.5);
   });
 });
 

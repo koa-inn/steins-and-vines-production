@@ -26,10 +26,18 @@
 // Unit classification constants
 // ---------------------------------------------------------------------------
 
-// Continuous units — scale linearly (l/ml are future-proof; not in live catalog today)
-var CONTINUOUS_UNITS = ['kg', 'g', 'l', 'ml'];
+// Continuous units — scale linearly (decimals preserved).
+// Metric (kg/g/l/ml) + imperial weight/volume used by BeerSmith/BeerXML recipes
+// (oz/lb for grains & hops; tsp/tbsp/cup/pt/qt/gal/fl oz for additives & volumes).
+// NOTE: unrecognised units now ALSO scale linearly (see scaleIngredient) — this
+// list is the explicit/documented set; the linear default is the safety net.
+var CONTINUOUS_UNITS = [
+  'kg', 'g', 'mg', 'l', 'ml',
+  'oz', 'lb', 'lbs', 'tsp', 'tbsp', 'cup', 'pt', 'qt', 'gal', 'floz', 'fl oz'
+];
 
-// Discrete units — Math.max(1, Math.ceil(scaledQty))
+// Discrete units — Math.max(1, Math.ceil(scaledQty)). ONLY these explicit tokens
+// round up; anything not listed here is treated as continuous (linear).
 // 'ft' [ASSUMED discrete]: 2 packaging items (tubing/hose lengths) in live catalog.
 // Treating as discrete (integral feet) is the safe default.
 // Confirm with owner before prod — if linear ft scaling is desired, remove 'ft' from this list.
@@ -42,11 +50,14 @@ var DISCRETE_UNITS = ['pcs', 'each', 'unit', 'pkg', 'ft'];
 /**
  * Scale a single ingredient's quantity by the given factor.
  *
- * Classification rules (D-01/D-02/D-03):
- *   - Unit in CONTINUOUS_UNITS  → linear (float-drift-safe 4dp round)
+ * Classification rules (D-01/D-02/D-03; unknown-unit default revised 2026-06-27):
  *   - Unit in DISCRETE_UNITS    → Math.max(1, Math.ceil(rawQty))
- *   - Non-blank, unknown unit   → discrete (ceil) — conservative default
- *   - Blank / null / undefined  → linear (D-03: unknown/blank → continuous)
+ *   - Everything else (CONTINUOUS_UNITS, blank, OR unknown) → linear (4dp round)
+ *
+ * Rationale: only explicitly discrete units round up. Unrecognised units (e.g.
+ * imperial 'oz'/'lb' from BeerSmith, or any future unit) scale LINEARLY so they
+ * never silently lose decimals and inflate the charged amount. Previously an
+ * unknown unit defaulted to ceil, which rounded fractional imperial quantities.
  *
  * @param {Object} ing    - ingredient with { quantity, unit, item_id, ... }
  * @param {number} factor - scale factor (target_volume_l / batch_size_l)
@@ -59,13 +70,13 @@ function scaleIngredient(ing, factor) {
   var isContinuous = CONTINUOUS_UNITS.indexOf(unitLower) !== -1;
   var isDiscrete   = DISCRETE_UNITS.indexOf(unitLower)   !== -1;
 
-  // D-03: blank unit → treat as continuous (linear)
-  if (!unitLower) {
+  // Only explicitly discrete units round up. Blank/unknown/unlisted units →
+  // linear (revised 2026-06-27): a non-blank token not in DISCRETE_UNITS now
+  // scales linearly instead of ceil, so imperial/other unmapped units keep
+  // their decimals. `isContinuous` is informational; `isDiscrete` drives rounding.
+  if (!unitLower || !isDiscrete) {
     isContinuous = true;
     isDiscrete   = false;
-  } else if (!isContinuous && !isDiscrete) {
-    // Non-blank token not in either set → discrete (conservative default)
-    isDiscrete = true;
   }
 
   var scaledQty = isDiscrete
