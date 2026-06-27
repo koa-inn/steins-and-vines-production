@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-27T17:19:11.026Z';
+  var BUILD_TIMESTAMP = '2026-06-27T19:48:51.907Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -946,6 +946,10 @@
       if (mwUrl && !_kioskProductsLoaded && !_kioskProductsLoading) {
         kioskLoadProducts();
       }
+      // D-06: render the empty kiosk cart on load so "+ Add custom item" shows
+      // before any catalog item is added (kioskRenderCart is otherwise only
+      // triggered on cart change).
+      kioskRenderCart();
     }
 
     if (mwUrl) {

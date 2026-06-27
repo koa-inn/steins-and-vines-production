@@ -228,6 +228,10 @@
     startInactivityTimer();
     kioskCheckTerminal();
     kioskLoadProducts();
+    // D-06: render the empty-cart state on load so "+ Add custom item" is
+    // available before any catalog item is added (kioskRenderCart is otherwise
+    // only triggered on cart change).
+    kioskRenderCart();
   }
 
   function showKioskDenied() {
