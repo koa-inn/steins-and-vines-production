@@ -90,7 +90,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-27T17:10:28.625Z
-Stopped at: Phase 43 planned + verified (2 plans, plan-checker PASSED); awaiting execute
-Next: Build custom line-item feature; then promote 39/41 staging→prod and/or Phase 42 de-fork.
+Last session: 2026-06-27 — Phase 43 SHIPPED TO PROD; recipe bugs fixed & live; starting Phase 44
+Stopped at: Phase 43 (custom line item) COMPLETE + verified (14/14) + human-verified + LIVE ON PROD (tag prod-20260627-1, gated-deploy). Also shipped to prod this session: recipe cart-key collision undercharge fix (kiosk.js+admin.js) + imperial unit scaling fix (recipe-scaling.js) + Phases 39/41 (promoted). Prod & staging now mirror.
+Follow-up (non-blocking): brewpad-integration.js detectKitItems doesn't filter custom lines — a custom line + Maker's Fee kit in the same sale could spawn a spurious batch (pre-existing edge, low sev). Logged in 43-VERIFICATION.md.
+Next: Plan Phase 44 (gift card/certificate full lifecycle) — discuss → plan. See ROADMAP Phase 44 captured constraints (NOT taxed at sale, liability not revenue, redemption = tender path).
 Resume file: None
