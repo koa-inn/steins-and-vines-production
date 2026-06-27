@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
-status: planning
-last_updated: "2026-06-26T05:00:00.000Z"
-last_activity: 2026-06-26
+status: Phase added to roadmap; ready for /gsd-discuss-phase 43 → /gsd-plan-phase 43
+stopped_at: Phase 43 planned + verified (2 plans, plan-checker PASSED); awaiting execute
+last_updated: "2026-06-27T15:58:35.152Z"
+last_activity: 2026-06-26 — Phase 43 added (kiosk custom line item) via /gsd-phase; owner chose full GSD workflow for this money-path feature
 progress:
-  total_phases: 6
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 29
+  completed_phases: 4
+  total_plans: 31
+  completed_plans: 33
+  percent: 14
 ---
 
 # Project State
@@ -88,7 +89,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-26 — session resumed; owner chose to start the kiosk manual/custom line-item feature
-Stopped at: Resumed from HANDOFF.json. v4.4: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (staging), 42 NOT started. Proceeding to NEW FEATURE — kiosk manual/custom line item (server custom-item path in routes/pos.js + UI in kiosk.js AND admin.js, forked). Investigating /api/kiosk/sale catalog-validation path first.
+Last session: 2026-06-27T15:58:35.142Z
+Stopped at: Phase 43 planned + verified (2 plans, plan-checker PASSED); awaiting execute
 Next: Build custom line-item feature; then promote 39/41 staging→prod and/or Phase 42 de-fork.
-Resume file: None
+Resume file: .planning/phases/43-kiosk-manual-custom-line-item-with-notes/43-01-PLAN.md
