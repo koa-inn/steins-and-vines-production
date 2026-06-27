@@ -67,6 +67,19 @@ Phase 44 adds the full gift-card lifecycle to the Steins & Vines kiosk POS. Rese
 
 ## R-01 Resolution: Zoho Accounting Mechanism
 
+> **⚠ DECISION UPDATE — 2026-06-27 (owner-confirmed, SUPERSEDES the "map item to liability" approach below).**
+> Owner verified in their live Zoho Books: a **Sales item's "Account" dropdown only lists income accounts** — a Current-Liability account ("Gift Cards Sold") is NOT selectable on the item. The original recommended approach (item mapped directly to a liability account) is therefore **not implementable** in this org.
+>
+> **Locked mechanism (owner choice "#2"):**
+> - The "Gift Certificate" Zoho item maps to a **dedicated income account** ("Gift Card Sales"), with the item's **own tax set to 0% / exempt** (satisfies D-03; likely removes the need for `ZOHO_TAX_ZERO_ID`).
+> - The **"Gift Cards Sold" Current-Liability account is retained as the journal target** (not on the item).
+> - At sale, the middleware flow is UNCHANGED from the code below (invoice + payment via `KIOSK_GIFT_CARD_ITEM_ID`) — only the item's mapped account differs (income, not liability). The sale therefore initially books to income.
+> - **Revenue deferral is a periodic MANUAL journal by the owner/bookkeeper:** roughly monthly, post one journal moving the *unredeemed* gift-card balance from "Gift Card Sales" income into "Gift Cards Sold" liability. The GiftCards sheet provides the outstanding-balance figure. This preserves D-04 (liability not revenue) on an accrual basis without per-transaction journals.
+> - **NOT chosen (deferred):** option #1 (recognize at sale, no journal — would violate D-04 unless accountant approves cash-basis) and option #3 (middleware auto-posts journals at sale/redemption — clean but more build + extra Zoho calls). Option #3 remains the documented v2 upgrade path.
+> - **Planner action:** include the periodic-deferral-journal cadence as an owner `checkpoint:human-action` (not code); keep the fail-closed `KIOSK_GIFT_CARD_ITEM_ID` guard; the redemption split-tender (R-03) is unaffected.
+>
+> The `payment_mode: 'others'` redemption mechanics, two-payment invoice close, and all R-03 ordering below remain valid as written.
+
 ### What Zoho Books Does NOT Support
 - **No native gift card entity.** [VERIFIED: zoho.com/books/api/v3]
 - **`/customerpayments` requires an `invoices` array** — cannot record a standalone advance/store-credit without an invoice. [VERIFIED: zoho.com/books/api/v3/customer-payments]
@@ -162,12 +175,14 @@ For S&V's scale (estimated low transaction volume), this is acceptable. The Gift
 
 #### Human setup required (checkpoint in plan)
 
-Owner must:
-1. In Zoho Books: Settings → Chart of Accounts → Add "Gift Cards Sold" (type: Current Liability)
-2. In Zoho Books: Items → New Item "Gift Certificate" → set account to "Gift Cards Sold", tax = 0%
-3. Note the item_id (from Zoho Books item URL or GET /items)
-4. In Railway dashboard: add `KIOSK_GIFT_CARD_ITEM_ID=<zoho_item_id>`
-5. Also need `ZOHO_TAX_ZERO_ID` on Railway if not already set (for the zero-tax line)
+Owner must (UPDATED per 2026-06-27 decision — item maps to INCOME, not liability):
+1. ✅ DONE — In Zoho Books: Chart of Accounts → "Gift Cards Sold" (type: Current Liability). Retained as the periodic-journal target.
+2. In Zoho Books: Chart of Accounts → add a dedicated income account "Gift Card Sales" (type: Income) for the item to map to. (An existing income account works, but a dedicated one makes the monthly deferral journal trivial.)
+3. In Zoho Books: Items → New Item "Gift Certificate" → set account to **"Gift Card Sales" (income)** [liability is not selectable on a sales item], **tax = 0% / exempt**, item type = Sales (not inventory-tracked).
+4. Note the item_id (from Zoho Books item URL or GET /items).
+5. In Railway dashboard: add `KIOSK_GIFT_CARD_ITEM_ID=<zoho_item_id>`.
+6. `ZOHO_TAX_ZERO_ID` likely NOT needed if the item itself is set to 0% tax (verify in Wave 0).
+7. Establish the recurring (≈monthly) manual deferral journal: Dr "Gift Card Sales" income, Cr "Gift Cards Sold" liability, for the unredeemed balance per the GiftCards sheet. (Owner/bookkeeper task — not automated in v1.)
 
 ---
 
@@ -595,7 +610,7 @@ router.post('/api/kiosk/gift-card/issue', function(req, res) {
 
 ### Pitfall 4: KIOSK_GIFT_CARD_ITEM_ID Not Set
 
-**What goes wrong:** Gift card sale creates a Zoho invoice with no `item_id`, which goes to the default revenue account instead of the liability account. D-04 (sale = liability) is violated silently.
+**What goes wrong:** Gift card sale creates a Zoho invoice with no `item_id`, so it posts to a generic/default income account instead of the dedicated "Gift Card Sales" income account — the monthly deferral journal (which moves unredeemed "Gift Card Sales" income to the "Gift Cards Sold" liability per D-04) can then no longer cleanly isolate gift-card sales, silently breaking the liability treatment.
 
 **Why it happens:** Env var not set or Zoho item not created before deploying.
 
