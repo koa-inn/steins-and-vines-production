@@ -404,6 +404,7 @@ app.use('/api/kiosk/sale', function (req, res, next) {
 });
 app.use('/api/pos/collect', paymentLimiter);
 app.use('/api/kiosk/salesorder-pay', paymentLimiter);
+app.use('/api/kiosk/gift-card/issue', paymentLimiter);
 
 // ---------------------------------------------------------------------------
 // PII-01: Targeted API-key guard on exactly the 4 PII-exposing GET routes.
@@ -441,6 +442,7 @@ app.use('/', require('./routes/payments'));
 app.use('/', require('./routes/checkout'));
 app.use('/', require('./routes/taxes'));
 app.use('/', require('./routes/pos'));
+app.use('/', require('./routes/gift-cards'));
 app.use('/', require('./routes/collect'));
 app.use('/', require('./routes/purchaseorders'));
 app.use('/', require('./routes/consignment'));
