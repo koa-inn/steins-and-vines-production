@@ -63,6 +63,7 @@ var OPTIONAL = [
   { name: 'APPS_SCRIPT_SERVER_TOKEN', desc: 'Apps Script server-to-server auth token' },
   { name: 'KIOSK_CONTACT_ID',         desc: 'Zoho contact ID for kiosk walk-in sales' },
   { name: 'KIOSK_GIFT_CARD_ITEM_ID',  desc: 'Zoho item ID for gift certificate sales (maps to Gift Card Sales income account); gift-card issue/redeem routes fail-closed 503 without it' },
+  { name: 'ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID', desc: 'Zoho account_id for the "Gift Cards Sold" clearing account used when posting gift-card portion of a split-tender customerpayment (payment_mode:others); falls back to hardcoded 109900000000873231 if unset' },
   { name: 'KIOSK_TAX_RATE',           desc: 'Tax rate for kiosk sales' },
   { name: 'MW_API_KEY',               desc: 'Alias for API_SECRET_KEY (legacy)' },
   { name: 'KIOSK_PIN',                desc: 'Four-digit PIN for kiosk access verification' },

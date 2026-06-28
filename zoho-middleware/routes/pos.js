@@ -404,32 +404,68 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
     return res.status(400).json({ error: 'Sale total exceeds maximum' });
   }
 
+  // --- Gift card split-tender (Phase 44) ---
+  // D-05: amount_applied is clamped to grandTotal server-side; client cannot over-apply.
+  // D-03/R-03: tax is never recomputed — gift_amount subtracts only from post-tax grandTotal.
+  var gift_amount = 0;
+  var gift_cert_number = '';
+  if (body.gift_card && body.gift_card.cert_number) {
+    gift_amount = Math.min(
+      Math.max(Number(body.gift_card.amount_applied) || 0, 0),
+      grandTotal
+    );
+    gift_cert_number = String(body.gift_card.cert_number).trim().toUpperCase().slice(0, 20);
+  }
+  var terminal_amount = Math.round((grandTotal - gift_amount) * 100) / 100;
+
   var refNumber = (body.reference_number && typeof body.reference_number === 'string')
     ? body.reference_number.slice(0, 64)
     : ('KIOSK-' + Date.now());
 
-  log.info('[pos/kiosk/sale] Pushing to terminal: total=$' + grandTotal.toFixed(2) +
-    ' ref=' + refNumber + ' items=' + lineItems.length);
+  if (terminal_amount > 0) {
+    log.info('[pos/kiosk/sale] Pushing to terminal: total=$' + terminal_amount.toFixed(2) +
+      ' ref=' + refNumber + ' items=' + lineItems.length +
+      (gift_amount > 0 ? ' gift_card=$' + gift_amount.toFixed(2) : ''));
 
-  helcimLib.terminalPurchase(grandTotal, refNumber)
-    .then(function () {
-      var responseBody = {
-        pending: true,
-        reference: refNumber
-      };
+    helcimLib.terminalPurchase(terminal_amount, refNumber)
+      .then(function () {
+        var responseBody = {
+          pending: true,
+          reference: refNumber
+        };
 
-      var cacheWrite = idempotencyKey
-        ? cache.set(idempotencyKey, responseBody, IDEMPOTENCY_KEY_TTL).catch(function () {})
-        : Promise.resolve();
+        var cacheWrite = idempotencyKey
+          ? cache.set(idempotencyKey, responseBody, IDEMPOTENCY_KEY_TTL).catch(function () {})
+          : Promise.resolve();
 
-      return cacheWrite.then(function () {
-        res.status(202).json(responseBody);
+        return cacheWrite.then(function () {
+          res.status(202).json(responseBody);
+        });
+      })
+      .catch(function (termErr) {
+        log.error('[pos/kiosk/sale] Terminal push failed: ' + termErr.message);
+        res.status(502).json({ error: 'Terminal error — please try again' });
       });
-    })
-    .catch(function (termErr) {
-      log.error('[pos/kiosk/sale] Terminal push failed: ' + termErr.message);
-      res.status(502).json({ error: 'Terminal error — please try again' });
+  } else {
+    // Gift card covers 100% — skip terminal entirely.
+    // Return a non-pending response so the client proceeds directly to confirm.
+    log.info('[pos/kiosk/sale] Gift card covers 100% ($' + grandTotal.toFixed(2) +
+      ') — skipping terminal. ref=' + refNumber + ' cert=' + gift_cert_number);
+
+    var gcOnlyResponseBody = {
+      pending: false,
+      gift_card_only: true,
+      reference: refNumber
+    };
+
+    var gcCacheWrite = idempotencyKey
+      ? cache.set(idempotencyKey, gcOnlyResponseBody, IDEMPOTENCY_KEY_TTL).catch(function () {})
+      : Promise.resolve();
+
+    gcCacheWrite.then(function () {
+      res.status(202).json(gcOnlyResponseBody);
     });
+  }
 }
 
 /**
@@ -623,6 +659,21 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
       invoicePayload.custom_fields.push({ api_name: process.env.ZOHO_CF_CONSIGNMENT_DETAILS, value: JSON.stringify(consignmentDetails) });
     }
 
+    // --- Phase 44 split-tender: re-clamp gift_amount to re-computed grandTotal (Pitfall 3).
+    // Computed here (before zohoPost) so the outer catch can reference terminalApplied for void.
+    var gcApplied = 0;
+    var gcCertNum = '';
+    if (body.gift_card && body.gift_card.cert_number) {
+      // D-05: server-authoritative re-clamp (Pitfall 3 — prices may differ from sale quote)
+      gcApplied = Math.min(
+        Math.max(Number(body.gift_card.amount_applied) || 0, 0),
+        grandTotal
+      );
+      gcCertNum = String(body.gift_card.cert_number).trim().toUpperCase().slice(0, 20);
+    }
+    // terminalApplied is what was (or will be) charged on the Helcim terminal.
+    var terminalApplied = Math.round((grandTotal - gcApplied) * 100) / 100;
+
     return zohoPost('/invoices', invoicePayload).then(function (invoiceData) {
       var invoice = invoiceData.invoice || {};
       var invoiceId = invoice.invoice_id || '';
@@ -633,15 +684,66 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
       if (invoiceId) {
         paymentChain = zohoPost('/invoices/' + invoiceId + '/submit', {}).catch(function () {})
           .then(function () {
-            return zohoPost('/customerpayments', {
-              payment_mode: 'creditcard',
-              amount: grandTotal,
-              date: today,
-              reference_number: txnId,
-              invoices: [{ invoice_id: invoiceId, amount_applied: grandTotal }],
-              notes: 'Kiosk POS payment (manual confirm). Ref: ' + refNumber
-            });
-          }).catch(function (payErr) {
+            // Payment 1: terminal portion — skip if gift card covers 100% (Pitfall 1 ordering)
+            if (terminalApplied > 0) {
+              return zohoPost('/customerpayments', {
+                payment_mode: 'creditcard',
+                amount: terminalApplied,
+                date: today,
+                reference_number: txnId,
+                invoices: [{ invoice_id: invoiceId, amount_applied: terminalApplied }],
+                notes: 'Kiosk POS terminal payment. Ref: ' + refNumber
+              });
+            }
+          })
+          .then(function () {
+            // Payment 2: gift card portion — ONLY after terminal payment is recorded (Pitfall 1)
+            // account_id draws down the "Gift Cards Sold" clearing account (not Undeposited Funds)
+            if (gcApplied > 0 && gcCertNum) {
+              return zohoPost('/customerpayments', {
+                payment_mode: 'others',
+                account_id: process.env.ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID || '109900000000873231',
+                amount: gcApplied,
+                date: today,
+                reference_number: gcCertNum,
+                invoices: [{ invoice_id: invoiceId, amount_applied: gcApplied }],
+                notes: 'Gift certificate ' + gcCertNum + ' redemption. Ref: ' + refNumber
+              });
+            }
+          })
+          .then(function () {
+            // LAST STEP: decrement Apps Script balance (Pitfall 1 — MUST be after all Zoho calls)
+            // On failure: log CRITICAL but allow 201 (invoice already paid — Pitfall 1 accepted failure mode)
+            if (gcApplied > 0 && gcCertNum) {
+              var asUrl = process.env.APPS_SCRIPT_URL;
+              var asToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
+              if (asUrl && asToken) {
+                return axios.post(asUrl, JSON.stringify({
+                  action: 'redeem_gift_card',
+                  server_token: asToken,
+                  cert_number: gcCertNum,
+                  amount: gcApplied,
+                  transaction_ref: refNumber
+                }), { headers: { 'Content-Type': 'application/json' }, timeout: 12000, maxRedirects: 5 })
+                .then(function (asResp) {
+                  var r = asResp.data || {};
+                  if (!r.ok) {
+                    log.error('[pos/kiosk/sale/confirm] CRITICAL: Gift card balance decrement failed for ' +
+                      gcCertNum + ': ' + (r.error || 'unknown'));
+                  } else {
+                    eventLog.logEvent('kiosk.gift_card_redeemed', {
+                      certNumber: gcCertNum, amountApplied: gcApplied, refNumber: refNumber
+                    });
+                  }
+                })
+                .catch(function (asErr) {
+                  log.error('[pos/kiosk/sale/confirm] CRITICAL: Apps Script redeem_gift_card unreachable for ' +
+                    gcCertNum + ': ' + asErr.message);
+                });
+              }
+            }
+          })
+          .catch(function (payErr) {
             log.error('[pos/kiosk/sale/confirm] Payment recording failed: ' + payErr.message);
           });
       }
@@ -668,7 +770,41 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
     }); // end resolveDiscount.then
   }).catch(function (err) {
     log.error('[pos/kiosk/sale/confirm] Error: ' + err.message);
-    res.status(502).json({ error: 'Failed to create invoice. Please try again.' });
+    // Void-on-failure: if a terminal charge was made (body.transaction_id set) and the
+    // Zoho invoice/payment step failed, void the terminal charge to prevent an orphan charge.
+    // For gift-card-only sales (no terminal), body.transaction_id is absent — no void needed.
+    var _txnIdForVoid = (body && body.transaction_id) ? String(body.transaction_id) : null;
+    if (_txnIdForVoid) {
+      helcimLib.voidTransaction(_txnIdForVoid)
+        .then(function () {
+          log.info('[pos/kiosk/sale/confirm] Voided txn=' + _txnIdForVoid + ' after invoice creation failure');
+        })
+        .catch(function (voidErr) {
+          log.error('[pos/kiosk/sale/confirm] CRITICAL: Void failed for txn=' + _txnIdForVoid + ': ' + voidErr.message);
+          var failRecord = {
+            txnId: _txnIdForVoid,
+            timestamp: new Date().toISOString(),
+            error: voidErr.message,
+            needs_manual_review: true
+          };
+          cache.set('sv:void-failure:' + Date.now(), failRecord, 60 * 60 * 24 * 30).catch(function () {});
+          mailer.sendVoidFailureAlert({
+            txnId: _txnIdForVoid,
+            error: voidErr.message,
+            timestamp: failRecord.timestamp
+          }).catch(function () {});
+        })
+        .then(function () {
+          if (res.headersSent) return;
+          res.status(502).json({
+            error: 'Payment was taken but invoice could not be created. Please contact support.',
+            payment_voided: true,
+            voided_transaction_id: _txnIdForVoid
+          });
+        });
+    } else {
+      res.status(502).json({ error: 'Failed to create invoice. Please try again.' });
+    }
   });
 });
 
