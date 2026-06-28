@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
 status: executing
-stopped_at: Phase 43 Plan 01 complete (custom-line server path + tests); awaiting Plan 02 (UI)
-last_updated: "2026-06-27T18:00:00.000Z"
-last_activity: 2026-06-27
+stopped_at: "Phase 43 (custom line item) COMPLETE + verified (14/14) + human-verified + LIVE ON PROD (tag prod-20260627-1, gated-deploy). Also shipped to prod this session: recipe cart-key collision undercharge fix (kiosk.js+admin.js) + imperial unit scaling fix (recipe-scaling.js) + Phases 39/41 (promoted). Prod & staging now mirror."
+last_updated: "2026-06-28T04:46:22.660Z"
+last_activity: 2026-06-28
 progress:
-  total_phases: 29
-  completed_phases: 4
-  total_plans: 31
-  completed_plans: 34
-  percent: 14
+  total_phases: 30
+  completed_phases: 5
+  total_plans: 39
+  completed_plans: 36
+  percent: 17
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 43 — kiosk-manual-custom-line-item-with-notes
+**Current focus:** Phase 44 — kiosk-gift-card-certificate-lifecycle
 
 ## Current Position
 
-Phase: 43 (kiosk-manual-custom-line-item-with-notes) — EXECUTING
-Plan: 2 of 2
+Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTING
+Plan: 2 of 8
 Status: Ready to execute
-Last activity: 2026-06-27
+Last activity: 2026-06-28
 
 Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (staging), 42 (kiosk de-fork) NOT started.
 
@@ -49,6 +49,10 @@ Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (stagi
 
 ### Decisions
 
+- [44-01]: ZOHO_TAX_ZERO_ID not required for gift-card invoice lines — item's own 0%/EXEMPT setting is sufficient (live Probe B in S&V Zoho). 44-03 and 44-05 must NOT pass a tax_id on gift-card lines.
+- [44-01]: payment_mode:'others' accepted by Zoho but defaults to Undeposited Funds (account_id=109900000000000316) — 44-04 must pass explicit account_id for 'Gift Cards Sold' liability when recording gift redemption payment.
+- [44-01]: D-04 deferral journal: monthly Dr 'Gift Card Sales' (Income) Cr 'Gift Cards Sold' (Liability) for unredeemed balance from GiftCards sheet; manual bookkeeper cadence, NOT code in v1.
+- [44-01]: Confirmed live IDs: KIOSK_GIFT_CARD_ITEM_ID=109900000000873211, Gift Card Sales account_id=109900000000873209.
 - [v4.4 Roadmap]: Phases are risk-ordered — low-risk infra/hygiene first (38 `.planning` gitignore, 39 snapshot publish), then 40 facility images (build/asset, no money path), then 41 SKU cart key (public cart, has frontend tests), then 42 kiosk de-fork LAST (highest-risk money-path refactor)
 - [v4.4 Roadmap]: Each of the 5 v1 requirements maps to exactly one phase (HYGIENE-01→38, DEPLOY-04→39, ASSET-01→40, CART-01→41, KIOSK-01→42); phases are independent, sequencing is risk-ordering not hard dependency
 - [v4.4 Roadmap]: Phase 42 (KIOSK-01) is a behaviour-PRESERVING de-fork — must not weaken the v4.2-hardened money path (terminal charge → Zoho invoice/payment → void-on-failure → dual-cart); success requires existing kiosk tests passing + a new admin-vs-standalone parity check
@@ -90,8 +94,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-27 — Phase 43 SHIPPED TO PROD; recipe bugs fixed & live; starting Phase 44
-Stopped at: Phase 43 (custom line item) COMPLETE + verified (14/14) + human-verified + LIVE ON PROD (tag prod-20260627-1, gated-deploy). Also shipped to prod this session: recipe cart-key collision undercharge fix (kiosk.js+admin.js) + imperial unit scaling fix (recipe-scaling.js) + Phases 39/41 (promoted). Prod & staging now mirror.
-Follow-up (non-blocking): brewpad-integration.js detectKitItems doesn't filter custom lines — a custom line + Maker's Fee kit in the same sale could spawn a spurious batch (pre-existing edge, low sev). Logged in 43-VERIFICATION.md.
-Next: Plan Phase 44 (gift card/certificate full lifecycle) — discuss → plan. See ROADMAP Phase 44 captured constraints (NOT taxed at sale, liability not revenue, redemption = tender path).
+Last session: 2026-06-28T04:46:22.644Z
+Stopped at: 44-01 COMPLETE — Zoho Gift Certificate item (109900000000873211) + Gift Card Sales income account confirmed live; both Wave-0 probes resolved (zero-tax via item exemption, no ZOHO_TAX_ZERO_ID; payment_mode:'others' accepted, explicit account_id required in 44-04); KIOSK_GIFT_CARD_ITEM_ID registered as OPTIONAL env (4767a02); 977 middleware tests pass, lint clean. Advancing to 44-02 (Apps Script GiftCards sheet).
+Next: 44-02 (Apps Script adminApi.gs: GiftCards sheet + 7 actions) — Wave 1 parallel plan.
 Resume file: None
