@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
 status: executing
-stopped_at: 44-05 COMPLETE — reload (increment-first, zero-tax Zoho invoice, needs_manual_review on Zoho failure) + void (status-only via void_gift_card); paymentLimiter on reload; 12 new tests; 1021 middleware tests green. Advancing to 44-06.
-last_updated: "2026-06-28T17:25:00Z"
+stopped_at: 44-02 COMPLETE — GiftCards sheet + 7 Apps Script actions (issue/lookup/redeem/reload/void/update-invoice/next-cert-number) deployed; LockService atomicity + last_tx_ref idempotency confirmed in code. Smoke test owner-reported; 44-03 integration test is authoritative gate. Advancing to 44-03.
+last_updated: "2026-06-28T17:32:39.825Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 30
   completed_phases: 5
   total_plans: 39
-  completed_plans: 39
+  completed_plans: 41
   percent: 17
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
 Last activity: 2026-06-28
 
@@ -99,7 +99,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-28T17:13:57.936Z
+Last session: 2026-06-28T17:32:39.820Z
 Stopped at: 44-02 COMPLETE — GiftCards sheet + 7 Apps Script actions (issue/lookup/redeem/reload/void/update-invoice/next-cert-number) deployed; LockService atomicity + last_tx_ref idempotency confirmed in code. Smoke test owner-reported; 44-03 integration test is authoritative gate. Advancing to 44-03.
 Next: 44-02 (Apps Script adminApi.gs: GiftCards sheet + 7 actions) — Wave 1 parallel plan.
 Resume file: None
