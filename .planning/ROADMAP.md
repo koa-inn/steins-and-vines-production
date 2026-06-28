@@ -816,12 +816,12 @@ Plans:
 - **Balance integrity:** server-authoritative balance tracking (where do balances live — Zoho, Redis, Sheets? decide at planning); partial redemption must atomically decrement; guard against double-spend / replay.
 
 **Depends on:** Phase 43 (sequence after — both touch the forked kiosk surfaces; avoids `kiosk.js`/`admin.js` merge churn). Independent of Phase 42.
-**Plans:** 1/8 plans executed
+**Plans:** 2/8 plans executed
 
 Plans:
 **Wave 1** (parallel — owner setup + Apps Script foundation)
 - [x] 44-01-PLAN.md — Owner Zoho setup (Gift Card Sales income account + Gift Certificate 0%-tax item + KIOSK_GIFT_CARD_ITEM_ID) + Wave-0 API probes (payment_mode:'others', zero-tax) + validateEnv entry + deferral-journal cadence (GIFTCARD-01)
-- [ ] 44-02-PLAN.md — Apps Script adminApi.gs: GiftCards sheet + 7 actions (issue/lookup/redeem/reload/void/update-invoice/next-number) with LockService atomicity + last_tx_ref idempotency + manual redeploy (GIFTCARD-01)
+- [x] 44-02-PLAN.md — Apps Script adminApi.gs: GiftCards sheet + 7 actions (issue/lookup/redeem/reload/void/update-invoice/next-number) with LockService atomicity + last_tx_ref idempotency + manual redeploy (GIFTCARD-01)
 
 **Wave 2** (parallel — disjoint middleware files)
 - [ ] 44-03-PLAN.md — routes/gift-cards.js: issue + next-number + lookup (fail-closed 503, dup-reject 409, zero-tax sale, void-on-Zoho-failure) + server mount + tests (GIFTCARD-01a/01b)

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
 status: executing
-stopped_at: "Phase 43 (custom line item) COMPLETE + verified (14/14) + human-verified + LIVE ON PROD (tag prod-20260627-1, gated-deploy). Also shipped to prod this session: recipe cart-key collision undercharge fix (kiosk.js+admin.js) + imperial unit scaling fix (recipe-scaling.js) + Phases 39/41 (promoted). Prod & staging now mirror."
-last_updated: "2026-06-28T04:46:22.660Z"
+stopped_at: 44-02 COMPLETE — GiftCards sheet + 7 Apps Script actions (issue/lookup/redeem/reload/void/update-invoice/next-cert-number) deployed; LockService atomicity + last_tx_ref idempotency confirmed in code. Smoke test owner-reported; 44-03 integration test is authoritative gate. Advancing to 44-03.
+last_updated: "2026-06-28T04:50:43.294Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 30
   completed_phases: 5
   total_plans: 39
-  completed_plans: 36
+  completed_plans: 37
   percent: 17
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 Status: Ready to execute
 Last activity: 2026-06-28
 
@@ -81,6 +81,9 @@ Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (stagi
 - [36-20]: handleCardTransaction must resolve invoice+status via getCardTransactionById API primary path — Helcim minimal webhook payload never includes event.data fields; device-pending fallback caches APPROVED only when Redis has a pending invoice (no false positives)
 - [Phase ?]: 36-21: BrewPad session fast path — valid stored token bypasses Google silent-refresh; checkAuthorization fallback on error not authorized:false
 - [36-22]: afterBatchWrite opts.listAffecting=false for plato/task writes (no list card impact); refreshOpenDetail async-safe via _selectedBatchId guard; task toggles use task.batch_id not _selectedBatchId
+- [Phase ?]: 44-02: balance-write column resolution is runtime (headers.indexOf) in all handlers except issueGiftCard appendRow — robust to column reordering
+- [Phase ?]: 44-02: updateGiftCardInvoice has no LockService — invoice number overwrite is idempotent and safe without a mutex
+- [Phase ?]: 44-02: get_gift_cards routed to Google OAuth doGet (admin panel), not server_token — follows existing batch-tracking list pattern
 
 ### Pending Todos
 
@@ -94,7 +97,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-28T04:46:22.644Z
-Stopped at: 44-01 COMPLETE — Zoho Gift Certificate item (109900000000873211) + Gift Card Sales income account confirmed live; both Wave-0 probes resolved (zero-tax via item exemption, no ZOHO_TAX_ZERO_ID; payment_mode:'others' accepted, explicit account_id required in 44-04); KIOSK_GIFT_CARD_ITEM_ID registered as OPTIONAL env (4767a02); 977 middleware tests pass, lint clean. Advancing to 44-02 (Apps Script GiftCards sheet).
+Last session: 2026-06-28T04:50:43.284Z
+Stopped at: 44-02 COMPLETE — GiftCards sheet + 7 Apps Script actions (issue/lookup/redeem/reload/void/update-invoice/next-cert-number) deployed; LockService atomicity + last_tx_ref idempotency confirmed in code. Smoke test owner-reported; 44-03 integration test is authoritative gate. Advancing to 44-03.
 Next: 44-02 (Apps Script adminApi.gs: GiftCards sheet + 7 actions) — Wave 1 parallel plan.
 Resume file: None
