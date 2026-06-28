@@ -56,6 +56,7 @@ var PLATO_READINGS_SHEET_NAME = 'PlatoReadings';
 var VESSEL_HISTORY_SHEET_NAME = 'VesselHistory';
 var RECIPES_SHEET_NAME = 'Recipes';
 var RECIPE_INGREDIENTS_SHEET_NAME = 'RecipeIngredients';
+var GIFT_CARDS_SHEET_NAME = 'GiftCards';
 
 // Cal.com public booking page for the Bottling Appointment event type (Phase 25).
 // Customers self-book here; the brewpad "Send Bottling Invite" button emails this link.
@@ -191,6 +192,10 @@ function doGet(e) {
           return getRecipeDetail(e.parameter.recipe_id);
         })});
 
+      // Gift card admin list (D-06 list action for admin view)
+      case 'get_gift_cards':
+        return _jsonResponse({ ok: true, data: getGiftCards() });
+
       default:
         return _jsonResponse({ ok: false, error: 'invalid_action', message: 'Unknown action: ' + action });
     }
@@ -261,6 +266,28 @@ function doPost(e) {
         return _jsonResponse({ ok: true, data: _cachedGet('gr:' + grId, 300, function() {
           return getRecipeDetail(grId);
         })});
+      }
+      // Gift-card lifecycle actions (server_token-gated, D-05)
+      if (action === 'issue_gift_card') {
+        return _jsonResponse(issueGiftCard(payload));
+      }
+      if (action === 'lookup_gift_card') {
+        return _jsonResponse(lookupGiftCard(payload));
+      }
+      if (action === 'redeem_gift_card') {
+        return _jsonResponse(redeemGiftCard(payload));
+      }
+      if (action === 'reload_gift_card') {
+        return _jsonResponse(reloadGiftCard(payload));
+      }
+      if (action === 'void_gift_card') {
+        return _jsonResponse(voidGiftCard(payload));
+      }
+      if (action === 'update_gift_card_invoice') {
+        return _jsonResponse(updateGiftCardInvoice(payload));
+      }
+      if (action === 'get_next_cert_number') {
+        return _jsonResponse({ ok: true, suggested: generateNextId(GIFT_CARDS_SHEET_NAME, 'GC-', 6) });
       }
       return _jsonResponse({ ok: false, error: 'invalid_action', message: 'Unknown server action: ' + action });
     }
@@ -3688,6 +3715,298 @@ function setupRecipeTabs() {
   }
 
   Logger.log('Recipe tab setup complete');
+}
+
+// ─── Gift Card Lifecycle (Phase 44) ─────────────────────────────────────────
+// Balance-of-record lives in the GiftCards Google Sheets tab.
+// All balance-modifying handlers acquire LockService to prevent double-spend
+// under concurrent HTTP requests (T-44-04 mitigation, D-05).
+// Column indices are resolved at runtime by reading the header row so they
+// remain correct if columns are ever reordered (RESEARCH [ASSUMED] note).
+
+/**
+ * Issue a new gift certificate.
+ * Rejects duplicate cert_number (D-02); sets current_balance = face_value.
+ * Uses acquireScriptLock to prevent concurrent duplicate insertions.
+ * @param {Object} payload - { cert_number, face_value, issued_by?, notes? }
+ */
+function issueGiftCard(payload) {
+  var certNum = sanitizeInput(String(payload.cert_number || '').trim().toUpperCase());
+  var faceValue = parseFloat(payload.face_value);
+  var issuedBy = sanitizeInput(payload.issued_by || 'kiosk');
+  var notes = sanitizeInput(payload.notes || '');
+
+  if (!certNum || isNaN(faceValue) || faceValue <= 0) {
+    return { ok: false, error: 'missing_fields' };
+  }
+
+  var lock = acquireScriptLock(15000);
+  try {
+    // D-02: reject duplicate cert_number
+    var existing = findRowById(GIFT_CARDS_SHEET_NAME, certNum);
+    if (existing.row !== -1) {
+      return { ok: false, error: 'duplicate' };
+    }
+
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(GIFT_CARDS_SHEET_NAME);
+    if (!sheet) return { ok: false, error: 'sheet_not_found' };
+
+    var now = new Date().toISOString();
+    var today = now.slice(0, 10);
+
+    // 10-column schema (R-02): cert_number | face_value | current_balance | status | issued_date
+    //   | issued_by | zoho_invoice_number | notes | last_updated | last_tx_ref
+    sheet.appendRow([
+      certNum,
+      faceValue,
+      faceValue,   // current_balance starts equal to face_value
+      'active',
+      today,
+      issuedBy,
+      '',          // zoho_invoice_number — set later via update_gift_card_invoice
+      notes,
+      now,
+      ''           // last_tx_ref — empty at issue
+    ]);
+
+    invalidateSheetCache(GIFT_CARDS_SHEET_NAME);
+    return { ok: true, cert_number: certNum, face_value: faceValue, current_balance: faceValue };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Look up a gift certificate balance and status.
+ * No lock needed — read-only (D-05: server-authoritative, never client-supplied).
+ * @param {Object} payload - { cert_number }
+ */
+function lookupGiftCard(payload) {
+  var certNum = String(payload.cert_number || '').trim().toUpperCase();
+  if (!certNum) return { ok: false, error: 'missing_fields' };
+
+  var result = findRowById(GIFT_CARDS_SHEET_NAME, certNum);
+  if (result.row === -1) {
+    return { ok: false, error: 'not_found' };
+  }
+
+  var gc = result.data;
+  return {
+    ok: true,
+    data: {
+      cert_number: gc.cert_number,
+      current_balance: parseFloat(gc.current_balance) || 0,
+      face_value: parseFloat(gc.face_value) || 0,
+      status: gc.status,
+      zoho_invoice_number: gc.zoho_invoice_number,
+      issued_date: gc.issued_date,
+      issued_by: gc.issued_by,
+      last_updated: gc.last_updated
+    }
+  };
+}
+
+/**
+ * Atomically decrement a gift certificate balance (partial redemption supported).
+ * Idempotent: a repeated transaction_ref returns the prior result without re-decrementing (T-44-05).
+ * T-44-04: acquireScriptLock prevents concurrent double-spend.
+ * T-44-06: amount must be ≤ current_balance (float tolerance ±0.001).
+ * @param {Object} payload - { cert_number, amount, transaction_ref }
+ */
+function redeemGiftCard(payload) {
+  var certNum = String(payload.cert_number || '').trim().toUpperCase();
+  var amount = parseFloat(payload.amount);
+  var txRef = String(payload.transaction_ref || '');
+
+  if (!certNum || isNaN(amount) || amount <= 0 || !txRef) {
+    return { ok: false, error: 'missing_fields' };
+  }
+
+  var lock = acquireScriptLock(15000);
+  try {
+    var result = findRowById(GIFT_CARDS_SHEET_NAME, certNum);
+    if (result.row === -1) return { ok: false, error: 'not_found' };
+
+    var gc = result.data;
+
+    // T-44-05: idempotency — same tx_ref returns prior result without decrementing
+    if (String(gc.last_tx_ref) === String(txRef)) {
+      return { ok: true, idempotent: true, new_balance: parseFloat(gc.current_balance) || 0 };
+    }
+
+    if (String(gc.status) !== 'active') {
+      return { ok: false, error: 'invalid_status', status: gc.status };
+    }
+
+    var balance = parseFloat(gc.current_balance) || 0;
+    if (amount > balance + 0.001) {
+      return { ok: false, error: 'insufficient_balance', balance: balance };
+    }
+
+    var newBalance = Math.round((balance - amount) * 100) / 100;
+    var newStatus = newBalance <= 0 ? 'depleted' : 'active';
+    var now = new Date().toISOString();
+
+    // Resolve column indices from header row at runtime (not hardcoded positionally)
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(GIFT_CARDS_SHEET_NAME);
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var balCol = headers.indexOf('current_balance') + 1;
+    var statusCol = headers.indexOf('status') + 1;
+    var updatedCol = headers.indexOf('last_updated') + 1;
+    var txRefCol = headers.indexOf('last_tx_ref') + 1;
+
+    sheet.getRange(result.row, balCol).setValue(newBalance);
+    sheet.getRange(result.row, statusCol).setValue(newStatus);
+    sheet.getRange(result.row, updatedCol).setValue(now);
+    sheet.getRange(result.row, txRefCol).setValue(txRef);
+
+    invalidateSheetCache(GIFT_CARDS_SHEET_NAME);
+    return { ok: true, new_balance: newBalance, status: newStatus };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Atomically increment a gift certificate balance (reload / top-up).
+ * Restores status to 'active' if previously 'depleted'.
+ * Cannot reload a voided certificate.
+ * @param {Object} payload - { cert_number, amount, transaction_ref }
+ */
+function reloadGiftCard(payload) {
+  var certNum = String(payload.cert_number || '').trim().toUpperCase();
+  var amount = parseFloat(payload.amount);
+  var txRef = String(payload.transaction_ref || '');
+
+  if (!certNum || isNaN(amount) || amount <= 0 || !txRef) {
+    return { ok: false, error: 'missing_fields' };
+  }
+
+  var lock = acquireScriptLock(15000);
+  try {
+    var result = findRowById(GIFT_CARDS_SHEET_NAME, certNum);
+    if (result.row === -1) return { ok: false, error: 'not_found' };
+
+    var gc = result.data;
+
+    // Cannot reload a voided certificate
+    if (String(gc.status) === 'void') {
+      return { ok: false, error: 'invalid_status', status: gc.status };
+    }
+
+    var balance = parseFloat(gc.current_balance) || 0;
+    var newBalance = Math.round((balance + amount) * 100) / 100;
+    var now = new Date().toISOString();
+
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(GIFT_CARDS_SHEET_NAME);
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var balCol = headers.indexOf('current_balance') + 1;
+    var statusCol = headers.indexOf('status') + 1;
+    var updatedCol = headers.indexOf('last_updated') + 1;
+    var txRefCol = headers.indexOf('last_tx_ref') + 1;
+
+    sheet.getRange(result.row, balCol).setValue(newBalance);
+    sheet.getRange(result.row, statusCol).setValue('active');  // restore if depleted
+    sheet.getRange(result.row, updatedCol).setValue(now);
+    sheet.getRange(result.row, txRefCol).setValue(txRef);
+
+    invalidateSheetCache(GIFT_CARDS_SHEET_NAME);
+    return { ok: true, new_balance: newBalance, status: 'active' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Void a gift certificate (sets status to 'void').
+ * Only 'active' or 'depleted' certificates may be voided (T-44-07).
+ * Records reason in the notes column.
+ * @param {Object} payload - { cert_number, reason? }
+ */
+function voidGiftCard(payload) {
+  var certNum = String(payload.cert_number || '').trim().toUpperCase();
+  var reason = sanitizeInput(payload.reason || '');
+
+  if (!certNum) return { ok: false, error: 'missing_fields' };
+
+  var lock = acquireScriptLock(15000);
+  try {
+    var result = findRowById(GIFT_CARDS_SHEET_NAME, certNum);
+    if (result.row === -1) return { ok: false, error: 'not_found' };
+
+    var gc = result.data;
+    var currentStatus = String(gc.status);
+
+    // Only allow void from 'active' or 'depleted' (not already 'void')
+    if (currentStatus !== 'active' && currentStatus !== 'depleted') {
+      return { ok: false, error: 'invalid_status', status: currentStatus };
+    }
+
+    var now = new Date().toISOString();
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(GIFT_CARDS_SHEET_NAME);
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var statusCol = headers.indexOf('status') + 1;
+    var notesCol = headers.indexOf('notes') + 1;
+    var updatedCol = headers.indexOf('last_updated') + 1;
+
+    sheet.getRange(result.row, statusCol).setValue('void');
+    if (reason && notesCol > 0) {
+      sheet.getRange(result.row, notesCol).setValue(reason);
+    }
+    sheet.getRange(result.row, updatedCol).setValue(now);
+
+    invalidateSheetCache(GIFT_CARDS_SHEET_NAME);
+    return { ok: true, status: 'void' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Write the Zoho invoice number to a gift certificate row after the sale invoice is created.
+ * Called as the final step of the issue flow (after zohoPost('/invoices') succeeds).
+ * @param {Object} payload - { cert_number, zoho_invoice_number }
+ */
+function updateGiftCardInvoice(payload) {
+  var certNum = String(payload.cert_number || '').trim().toUpperCase();
+  var invoiceNumber = sanitizeInput(payload.zoho_invoice_number || '');
+
+  if (!certNum || !invoiceNumber) return { ok: false, error: 'missing_fields' };
+
+  var result = findRowById(GIFT_CARDS_SHEET_NAME, certNum);
+  if (result.row === -1) return { ok: false, error: 'not_found' };
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(GIFT_CARDS_SHEET_NAME);
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var invoiceCol = headers.indexOf('zoho_invoice_number') + 1;
+  var updatedCol = headers.indexOf('last_updated') + 1;
+
+  if (invoiceCol > 0) sheet.getRange(result.row, invoiceCol).setValue(invoiceNumber);
+  if (updatedCol > 0) sheet.getRange(result.row, updatedCol).setValue(new Date().toISOString());
+
+  invalidateSheetCache(GIFT_CARDS_SHEET_NAME);
+  return { ok: true };
+}
+
+/**
+ * Return all gift certificate rows for the admin panel list view (D-06).
+ * Staff-auth only (called via doGet with Google OAuth).
+ */
+function getGiftCards() {
+  var cards = sheetToObjects(GIFT_CARDS_SHEET_NAME);
+  return cards.map(function(gc) {
+    return {
+      cert_number: gc.cert_number,
+      face_value: parseFloat(gc.face_value) || 0,
+      current_balance: parseFloat(gc.current_balance) || 0,
+      status: gc.status,
+      issued_date: gc.issued_date,
+      issued_by: gc.issued_by,
+      zoho_invoice_number: gc.zoho_invoice_number,
+      notes: gc.notes,
+      last_updated: gc.last_updated
+    };
+  });
 }
 
 /**
