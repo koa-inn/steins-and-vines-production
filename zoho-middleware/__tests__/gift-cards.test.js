@@ -442,4 +442,207 @@ describe('gift-card routes', function () {
       });
     });
   });
+
+  // -------------------------------------------------------------------------
+  // POST /api/kiosk/gift-card/reload (GIFTCARD-01d)
+  // -------------------------------------------------------------------------
+
+  describe('POST /api/kiosk/gift-card/reload', function () {
+    test('valid reload → 200 with cert_number and new_balance; reload_gift_card called first then zohoPost invoice+payment (zero-tax)', function () {
+      // reload_gift_card → ok with new balance (increment first)
+      axiosMock.post.mockResolvedValueOnce({ data: { ok: true, new_balance: 150, status: 'active' } });
+      // zohoPost '/invoices' → invoice data
+      zohoApi.zohoPost.mockResolvedValueOnce({ invoice: { invoice_id: 'inv-reload-001', invoice_number: 'INV-R-001' } });
+      // zohoPost '/invoices/.../submit' → any (non-fatal)
+      zohoApi.zohoPost.mockResolvedValueOnce({});
+      // zohoPost '/customerpayments' → any
+      zohoApi.zohoPost.mockResolvedValueOnce({});
+
+      var req = { body: { cert_number: 'GC-000042', amount: 50 } };
+      var res = mockRes();
+
+      return handlers['/api/kiosk/gift-card/reload'](req, res).then(function () {
+        expect(res.status).toHaveBeenCalledWith(200);
+        var body = res.json.mock.calls[0][0];
+        expect(body.ok).toBe(true);
+        expect(body.cert_number).toBe('GC-000042');
+        expect(body.new_balance).toBe(150);
+
+        // reload_gift_card is the first Apps Script call (increment-first ordering)
+        var reloadCall = axiosMock.post.mock.calls[0];
+        var reloadPayload = JSON.parse(reloadCall[1]);
+        expect(reloadPayload.action).toBe('reload_gift_card');
+        expect(reloadPayload.cert_number).toBe('GC-000042');
+        expect(reloadPayload.amount).toBe(50);
+
+        // D-03: Zoho invoice line must NOT have a tax_id (same zero-tax as issue)
+        var invoiceArgs = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/invoices'; });
+        expect(invoiceArgs).toBeTruthy();
+        var lineItem = invoiceArgs[1].line_items[0];
+        expect(lineItem.item_id).toBe('gc-item-test-123');
+        expect(lineItem.tax_id).toBeUndefined();
+        expect(lineItem.rate).toBe(50);
+        expect(lineItem.quantity).toBe(1);
+
+        // Payment must be creditcard for the reload amount
+        var payArgs = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/customerpayments'; });
+        expect(payArgs).toBeTruthy();
+        expect(payArgs[1].payment_mode).toBe('creditcard');
+        expect(payArgs[1].amount).toBe(50);
+        expect(payArgs[1].invoices[0].amount_applied).toBe(50);
+      });
+    });
+
+    // Pitfall 4 / T-44-22: fail-closed if KIOSK_GIFT_CARD_ITEM_ID not set
+    test('KIOSK_GIFT_CARD_ITEM_ID unset → 503 before any Apps Script or Zoho call', function () {
+      delete process.env.KIOSK_GIFT_CARD_ITEM_ID;
+
+      var req = { body: { cert_number: 'GC-000042', amount: 50 } };
+      var res = mockRes();
+
+      handlers['/api/kiosk/gift-card/reload'](req, res);
+
+      expect(res.status).toHaveBeenCalledWith(503);
+      expect(axiosMock.post).not.toHaveBeenCalled();
+      expect(zohoApi.zohoPost).not.toHaveBeenCalled();
+    });
+
+    // T-44-19: unknown cert
+    test('unknown cert (Apps Script not_found) → 404, no Zoho call', function () {
+      axiosMock.post.mockResolvedValueOnce({ data: { ok: false, error: 'not_found' } });
+
+      var req = { body: { cert_number: 'GC-000099', amount: 50 } };
+      var res = mockRes();
+
+      return handlers['/api/kiosk/gift-card/reload'](req, res).then(function () {
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect(zohoApi.zohoPost).not.toHaveBeenCalled();
+      });
+    });
+
+    // T-44-19: voided cert
+    test('voided cert (Apps Script invalid_status) → 409, no Zoho call', function () {
+      axiosMock.post.mockResolvedValueOnce({ data: { ok: false, error: 'invalid_status', status: 'void' } });
+
+      var req = { body: { cert_number: 'GC-000042', amount: 50 } };
+      var res = mockRes();
+
+      return handlers['/api/kiosk/gift-card/reload'](req, res).then(function () {
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(zohoApi.zohoPost).not.toHaveBeenCalled();
+      });
+    });
+
+    // T-44-18: amount bounds
+    test('amount 0 → 400, no Apps Script call', function () {
+      var req = { body: { cert_number: 'GC-000042', amount: 0 } };
+      var res = mockRes();
+
+      handlers['/api/kiosk/gift-card/reload'](req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(axiosMock.post).not.toHaveBeenCalled();
+    });
+
+    test('amount 2001 (over limit) → 400, no Apps Script call', function () {
+      var req = { body: { cert_number: 'GC-000042', amount: 2001 } };
+      var res = mockRes();
+
+      handlers['/api/kiosk/gift-card/reload'](req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(axiosMock.post).not.toHaveBeenCalled();
+    });
+
+    test('amount "x" (non-numeric) → 400, no Apps Script call', function () {
+      var req = { body: { cert_number: 'GC-000042', amount: 'x' } };
+      var res = mockRes();
+
+      handlers['/api/kiosk/gift-card/reload'](req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(axiosMock.post).not.toHaveBeenCalled();
+    });
+
+    // T-44-20: increment-first ordering — Zoho failure after increment
+    test('zohoPost rejects after increment → 502 with needs_manual_review; reload_gift_card WAS called (no auto-reversal)', function () {
+      // reload_gift_card succeeds — balance already incremented
+      axiosMock.post.mockResolvedValueOnce({ data: { ok: true, new_balance: 150, status: 'active' } });
+      // ALL zohoPost calls reject
+      zohoApi.zohoPost.mockRejectedValue(new Error('Zoho Books unavailable'));
+
+      var req = { body: { cert_number: 'GC-000042', amount: 50 } };
+      var res = mockRes();
+
+      return handlers['/api/kiosk/gift-card/reload'](req, res).then(function () {
+        // Response must be 502 with needs_manual_review flag
+        expect(res.status).toHaveBeenCalledWith(502);
+        var body = res.json.mock.calls[0][0];
+        expect(body.needs_manual_review).toBe(true);
+
+        // reload_gift_card WAS called (increment happened first — deliberate ordering)
+        // Crucially: only ONE Apps Script call (no void/reversal call unlike issue-Zoho-failure)
+        var calls = axiosMock.post.mock.calls;
+        expect(calls.length).toBe(1);
+        var reloadPayload = JSON.parse(calls[0][1]);
+        expect(reloadPayload.action).toBe('reload_gift_card');
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/kiosk/gift-card/void (GIFTCARD-01e)
+  // -------------------------------------------------------------------------
+
+  describe('POST /api/kiosk/gift-card/void', function () {
+    test('known cert with reason → 200 {ok}; void_gift_card called with cert_number and reason', function () {
+      axiosMock.post.mockResolvedValueOnce({ data: { ok: true } });
+
+      var req = { body: { cert_number: 'GC-000042', reason: 'customer requested cancellation' } };
+      var res = mockRes();
+
+      return handlers['/api/kiosk/gift-card/void'](req, res).then(function () {
+        expect(res.status).toHaveBeenCalledWith(200);
+        var body = res.json.mock.calls[0][0];
+        expect(body.ok).toBe(true);
+
+        var voidCall = axiosMock.post.mock.calls[0];
+        var voidPayload = JSON.parse(voidCall[1]);
+        expect(voidPayload.action).toBe('void_gift_card');
+        expect(voidPayload.cert_number).toBe('GC-000042');
+        expect(voidPayload.reason).toBe('customer requested cancellation');
+      });
+    });
+
+    test('unknown cert (Apps Script not_found) → 404', function () {
+      axiosMock.post.mockResolvedValueOnce({ data: { ok: false, error: 'not_found' } });
+
+      var req = { body: { cert_number: 'GC-000099', reason: 'lost' } };
+      var res = mockRes();
+
+      return handlers['/api/kiosk/gift-card/void'](req, res).then(function () {
+        expect(res.status).toHaveBeenCalledWith(404);
+      });
+    });
+
+    test('missing reason → 400, no Apps Script call', function () {
+      var req = { body: { cert_number: 'GC-000042' } };
+      var res = mockRes();
+
+      handlers['/api/kiosk/gift-card/void'](req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(axiosMock.post).not.toHaveBeenCalled();
+    });
+
+    test('empty reason string → 400, no Apps Script call', function () {
+      var req = { body: { cert_number: 'GC-000042', reason: '' } };
+      var res = mockRes();
+
+      handlers['/api/kiosk/gift-card/void'](req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(axiosMock.post).not.toHaveBeenCalled();
+    });
+  });
 });
