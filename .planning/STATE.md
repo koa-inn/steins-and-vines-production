@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
 status: executing
-stopped_at: 44-02 COMPLETE — GiftCards sheet + 7 Apps Script actions (issue/lookup/redeem/reload/void/update-invoice/next-cert-number) deployed; LockService atomicity + last_tx_ref idempotency confirmed in code. Smoke test owner-reported; 44-03 integration test is authoritative gate. Advancing to 44-03.
-last_updated: "2026-06-28T04:50:43.294Z"
+stopped_at: 44-03 COMPLETE — issue/lookup/next-number routes (gift-cards.js), server.js mount + rate-limiter, 21-test suite; 998 tests green. Advancing to 44-04 (split-tender redeem).
+last_updated: "2026-06-28T15:06:56.632Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 30
   completed_phases: 5
   total_plans: 39
-  completed_plans: 37
+  completed_plans: 38
   percent: 17
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTING
-Plan: 3 of 8
+Plan: 4 of 8
 Status: Ready to execute
 Last activity: 2026-06-28
 
@@ -49,6 +49,7 @@ Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (stagi
 
 ### Decisions
 
+- [44-03]: Issue route void-on-Zoho-failure: void_gift_card(reason:'zoho_invoice_failed') called fire-and-forget when zohoPost throws after Sheets row created (T-44-12 atomic safety). All Apps Script gift-card actions use axios.post (doPost server_token dispatch).
 - [44-01]: ZOHO_TAX_ZERO_ID not required for gift-card invoice lines — item's own 0%/EXEMPT setting is sufficient (live Probe B in S&V Zoho). 44-03 and 44-05 must NOT pass a tax_id on gift-card lines.
 - [44-01]: payment_mode:'others' accepted by Zoho but defaults to Undeposited Funds (account_id=109900000000000316) — 44-04 must pass explicit account_id for 'Gift Cards Sold' liability when recording gift redemption payment.
 - [44-01]: D-04 deferral journal: monthly Dr 'Gift Card Sales' (Income) Cr 'Gift Cards Sold' (Liability) for unredeemed balance from GiftCards sheet; manual bookkeeper cadence, NOT code in v1.
@@ -97,7 +98,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-28T04:50:43.284Z
+Last session: 2026-06-28T15:06:56.626Z
 Stopped at: 44-02 COMPLETE — GiftCards sheet + 7 Apps Script actions (issue/lookup/redeem/reload/void/update-invoice/next-cert-number) deployed; LockService atomicity + last_tx_ref idempotency confirmed in code. Smoke test owner-reported; 44-03 integration test is authoritative gate. Advancing to 44-03.
 Next: 44-02 (Apps Script adminApi.gs: GiftCards sheet + 7 actions) — Wave 1 parallel plan.
 Resume file: None
