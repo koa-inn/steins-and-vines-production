@@ -235,4 +235,190 @@ router.post('/api/kiosk/gift-card/issue', function (req, res) {
   });
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/kiosk/gift-card/reload
+// Adds value to an existing active gift certificate.
+// Rate-limited via paymentLimiter in server.js (same as issue — money path).
+//
+// ORDERING ASYMMETRY vs issue/redeem:
+//   reload increments the balance FIRST (so the customer's added value is
+//   never lost), then records the Zoho sale invoice + payment.
+//   Issue creates the Sheets row first, then records Zoho (void-on-Zoho-failure).
+//   Redeem decrements balance LAST (after Zoho) so a Zoho failure leaves
+//   the balance untouched.
+//   For reload: if Zoho fails AFTER the balance was incremented we do NOT
+//   auto-reverse — the customer has paid and their balance is already up.
+//   Log CRITICAL + return 502 with needs_manual_review so staff can reconcile
+//   against the GiftCards sheet. Low volume / owner-visible sheet makes this
+//   an acceptable ops trade-off (T-44-20 accepted).
+//
+// Zoho accounting mirrors the issue route (D-03/D-04):
+//   - KIOSK_GIFT_CARD_ITEM_ID line, NO tax_id (item's own EXEMPT setting)
+//   - creditcard payment for the reload amount
+// ---------------------------------------------------------------------------
+router.post('/api/kiosk/gift-card/reload', function (req, res) {
+  // T-44-22 / Pitfall 4: fail-closed if gift card accounting is not configured.
+  if (!process.env.KIOSK_GIFT_CARD_ITEM_ID) {
+    log.warn('[gift-cards/reload] KIOSK_GIFT_CARD_ITEM_ID not set — refusing request (fail-closed)');
+    return res.status(503).json({
+      error: 'Gift card accounting not configured (KIOSK_GIFT_CARD_ITEM_ID missing)'
+    });
+  }
+
+  var body = req.body || {};
+
+  // T-44-18: amount must be finite and in (0, 2000]
+  var amount = parseFloat(body.amount);
+  if (!isFinite(amount) || amount <= 0 || amount > 2000) {
+    return res.status(400).json({ error: 'amount must be between $0.01 and $2000' });
+  }
+
+  // D-02 / T-44-19: cert_number must match /^GC-\d{6}$/ exactly
+  var cert_number = String(body.cert_number || '').trim().toUpperCase();
+  if (!cert_number || !/^GC-\d{6}$/.test(cert_number)) {
+    return res.status(400).json({ error: 'cert_number must match GC-NNNNNN (e.g. GC-000042)' });
+  }
+
+  var today = new Date().toISOString().slice(0, 10);
+
+  // Step 1: Increment balance in Sheets via reload_gift_card.
+  // ORDERING ASYMMETRY: balance incremented FIRST (before Zoho) so the
+  // customer's added value is safe even if accounting fails.
+  return callAppsScript('reload_gift_card', {
+    cert_number: cert_number,
+    amount: amount,
+    transaction_ref: 'reload-' + Date.now()
+  }).then(function (gsResult) {
+    if (!gsResult.ok) {
+      if (gsResult.error === 'not_found') {
+        return res.status(404).json({ ok: false, error: 'Certificate not found' });
+      }
+      if (gsResult.error === 'invalid_status') {
+        // T-44-19: cert is voided or otherwise inactive — cannot reload
+        log.info('[gift-cards/reload] Cert not active for reload: ' + cert_number +
+          ' (status: ' + (gsResult.status || 'unknown') + ')');
+        return res.status(409).json({
+          ok: false,
+          error: 'Certificate is not active and cannot be reloaded'
+        });
+      }
+      log.error('[gift-cards/reload] reload_gift_card failed: ' + (gsResult.error || 'unknown'));
+      return res.status(500).json({ error: 'Failed to reload certificate' });
+    }
+
+    var newBalance = gsResult.new_balance;
+
+    // Balance is now incremented. Record the Zoho sale.
+    // D-03: NO tax_id — KIOSK_GIFT_CARD_ITEM_ID carries its own 0%/EXEMPT setting.
+    // D-04: item maps to "Gift Card Sales" income account (same as issue).
+    return zohoPost('/invoices', {
+      date: today,
+      customer_id: process.env.KIOSK_CONTACT_ID,
+      reference_number: cert_number,
+      line_items: [{
+        item_id: process.env.KIOSK_GIFT_CARD_ITEM_ID,
+        name: 'Gift Certificate Reload ' + cert_number,
+        quantity: 1,
+        rate: amount
+        // No tax_id — item is EXEMPT; omitting lets the item's own setting apply
+      }],
+      notes: 'Gift certificate ' + cert_number + ' reload. Added: $' + amount.toFixed(2) +
+        '. New balance: $' + (typeof newBalance === 'number' ? newBalance.toFixed(2) : String(newBalance))
+    }).then(function (invoiceData) {
+      var invoice = invoiceData.invoice || {};
+      var invoiceId = invoice.invoice_id || '';
+      var invoiceNumber = invoice.invoice_number || '';
+
+      log.info('[gift-cards/reload] Invoice created: ' + invoiceNumber + ' for reload of ' + cert_number);
+
+      // Submit invoice (non-fatal) + record creditcard payment.
+      return zohoPost('/invoices/' + invoiceId + '/submit', {}).catch(function () {})
+        .then(function () {
+          return zohoPost('/customerpayments', {
+            customer_id: process.env.KIOSK_CONTACT_ID,
+            payment_mode: 'creditcard',
+            amount: amount,
+            date: today,
+            invoices: [{ invoice_id: invoiceId, amount_applied: amount }],
+            notes: 'Gift certificate ' + cert_number + ' reload payment'
+          });
+        })
+        .then(function () {
+          eventLog.logEvent('kiosk.gift_card_reloaded', {
+            certNumber: cert_number,
+            amount: amount,
+            newBalance: newBalance
+          });
+          return res.status(200).json({
+            ok: true,
+            cert_number: cert_number,
+            new_balance: newBalance
+          });
+        });
+    }).catch(function (zohoErr) {
+      // T-44-20: balance already incremented — do NOT auto-reverse.
+      // Staff must reconcile via GiftCards sheet + Zoho invoice queue.
+      log.error('[gift-cards/reload] CRITICAL: Zoho invoice/payment failed for reload of ' +
+        cert_number + ' (balance already incremented): ' + zohoErr.message);
+      if (!res.headersSent) {
+        return res.status(502).json({
+          ok: false,
+          error: 'Failed to record reload in accounting system. Balance has been updated — staff reconciliation required.',
+          needs_manual_review: true
+        });
+      }
+    });
+  }).catch(function (err) {
+    if (!res.headersSent) {
+      log.error('[gift-cards/reload] Unexpected error: ' + err.message);
+      return res.status(502).json({ error: 'Failed to reload gift certificate. Please try again.' });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/kiosk/gift-card/void
+// Cancels a gift certificate — sets status='void' in the GiftCards sheet.
+// No Zoho money movement (status-only change).
+// A voided cert returns invalid_status on any later redeem or reload.
+// ---------------------------------------------------------------------------
+router.post('/api/kiosk/gift-card/void', function (req, res) {
+  var body = req.body || {};
+
+  // D-02 / T-44-21: cert_number must match /^GC-\d{6}$/ exactly
+  var cert_number = String(body.cert_number || '').trim().toUpperCase();
+  if (!cert_number || !/^GC-\d{6}$/.test(cert_number)) {
+    return res.status(400).json({ error: 'cert_number must match GC-NNNNNN (e.g. GC-000042)' });
+  }
+
+  // T-44-21: require a non-empty reason (sanitized + length-capped for audit trail)
+  var reason = String(body.reason || '').trim().slice(0, 512);
+  if (!reason) {
+    return res.status(400).json({ error: 'reason is required to void a certificate' });
+  }
+
+  return callAppsScript('void_gift_card', {
+    cert_number: cert_number,
+    reason: reason
+  }).then(function (gsResult) {
+    if (!gsResult.ok) {
+      if (gsResult.error === 'not_found') {
+        return res.status(404).json({ ok: false, error: 'Certificate not found' });
+      }
+      log.error('[gift-cards/void] void_gift_card failed: ' + (gsResult.error || 'unknown'));
+      return res.status(500).json({ error: 'Failed to void certificate' });
+    }
+
+    log.info('[gift-cards/void] Certificate voided: ' + cert_number + ' (reason: ' + reason + ')');
+    eventLog.logEvent('kiosk.gift_card_voided', {
+      certNumber: cert_number,
+      reason: reason
+    });
+    return res.status(200).json({ ok: true });
+  }).catch(function (err) {
+    log.error('[gift-cards/void] Unexpected error: ' + err.message);
+    return res.status(502).json({ error: 'Failed to void gift certificate. Please try again.' });
+  });
+});
+
 module.exports = router;

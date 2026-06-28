@@ -405,6 +405,7 @@ app.use('/api/kiosk/sale', function (req, res, next) {
 app.use('/api/pos/collect', paymentLimiter);
 app.use('/api/kiosk/salesorder-pay', paymentLimiter);
 app.use('/api/kiosk/gift-card/issue', paymentLimiter);
+app.use('/api/kiosk/gift-card/reload', paymentLimiter);
 
 // ---------------------------------------------------------------------------
 // PII-01: Targeted API-key guard on exactly the 4 PII-exposing GET routes.
