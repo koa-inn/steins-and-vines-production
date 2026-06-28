@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
 status: executing
-stopped_at: 44-03 COMPLETE — issue/lookup/next-number routes (gift-cards.js), server.js mount + rate-limiter, 21-test suite; 998 tests green. Advancing to 44-04 (split-tender redeem).
-last_updated: "2026-06-28T15:06:56.632Z"
+stopped_at: 44-04 COMPLETE — split-tender gift card redeem (pos.js), two customerpayments (creditcard + others/account_id=109900000000873231), redeem_gift_card LAST, void-on-failure; 11-test suite; 1009 middleware tests green. Advancing to 44-05 (reload route).
+last_updated: "2026-06-28T17:13:57.944Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 30
   completed_phases: 5
   total_plans: 39
-  completed_plans: 38
+  completed_plans: 39
   percent: 17
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTING
-Plan: 4 of 8
+Plan: 5 of 8
 Status: Ready to execute
 Last activity: 2026-06-28
 
@@ -98,7 +98,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-28T15:06:56.626Z
+Last session: 2026-06-28T17:13:57.936Z
 Stopped at: 44-02 COMPLETE — GiftCards sheet + 7 Apps Script actions (issue/lookup/redeem/reload/void/update-invoice/next-cert-number) deployed; LockService atomicity + last_tx_ref idempotency confirmed in code. Smoke test owner-reported; 44-03 integration test is authoritative gate. Advancing to 44-03.
 Next: 44-02 (Apps Script adminApi.gs: GiftCards sheet + 7 actions) — Wave 1 parallel plan.
 Resume file: None
