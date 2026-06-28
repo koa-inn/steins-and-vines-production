@@ -2774,6 +2774,187 @@
     kioskRenderCart();
   }
 
+  // ===== Gift Card Issue / Reload Modal (GIFTCARD-01a, 01d — D-08) =====
+
+  function kioskShowGiftCardIssueModal() {
+    var overlay = document.getElementById('kiosk-gift-card-issue-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'kiosk-gift-card-issue-overlay';
+      overlay.style.cssText = [
+        'position:fixed', 'top:0', 'left:0', 'right:0', 'bottom:0',
+        'background:rgba(0,0,0,0.55)', 'z-index:1200',
+        'display:flex', 'align-items:center', 'justify-content:center'
+      ].join(';');
+      overlay.innerHTML = [
+        '<div style="background:#fff;border-radius:12px;padding:1.5rem;width:min(90vw,440px);box-shadow:0 8px 32px rgba(0,0,0,0.25);">',
+        '<h3 id="kgci-title" style="margin:0 0 1rem;font-size:1.25rem;">Issue Gift Certificate</h3>',
+        '<div style="display:flex;gap:0.5rem;margin-bottom:1rem;">',
+        '<button id="kgci-mode-issue" type="button" style="flex:1;padding:0.5rem;font-size:0.95rem;border:2px solid #5a3e1b;border-radius:6px;background:#5a3e1b;color:#fff;cursor:pointer;font-weight:600;">Issue New</button>',
+        '<button id="kgci-mode-reload" type="button" style="flex:1;padding:0.5rem;font-size:0.95rem;border:2px solid #ccc;border-radius:6px;background:#f5f5f5;color:#333;cursor:pointer;">Reload Existing</button>',
+        '</div>',
+        '<div style="margin-bottom:1rem;">',
+        '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kgci-cert">Certificate # <span style="color:#c00;">*</span></label>',
+        '<input id="kgci-cert" type="text" maxlength="10" placeholder="GC-000001" autocomplete="off"',
+        ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:6px;">',
+        '</div>',
+        '<div style="margin-bottom:1.25rem;">',
+        '<label id="kgci-value-label" style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kgci-value">Face Value ($) <span style="color:#c00;">*</span></label>',
+        '<input id="kgci-value" type="number" step="0.01" min="0.01" max="2000" placeholder="0.00" inputmode="decimal"',
+        ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:6px;">',
+        '</div>',
+        '<div id="kgci-error" style="color:#c00;font-size:0.9rem;margin-bottom:0.75rem;display:none;"></div>',
+        '<div style="display:flex;gap:0.75rem;justify-content:flex-end;">',
+        '<button id="kgci-cancel" type="button" style="padding:0.65rem 1.25rem;font-size:1rem;border:1px solid #ccc;border-radius:6px;background:#f5f5f5;cursor:pointer;">Cancel</button>',
+        '<button id="kgci-issue" type="button" style="padding:0.65rem 1.25rem;font-size:1rem;border:none;border-radius:6px;background:#5a3e1b;color:#fff;cursor:pointer;font-weight:600;">Issue Certificate</button>',
+        '</div>',
+        '</div>'
+      ].join('');
+      var kioskRoot = document.getElementById('kiosk-root') || document.body;
+      kioskRoot.appendChild(overlay);
+    }
+
+    overlay.style.display = 'flex';
+
+    var _gcMode = 'issue';
+    var titleEl = document.getElementById('kgci-title');
+    var certEl = document.getElementById('kgci-cert');
+    var valueEl = document.getElementById('kgci-value');
+    var valueLabelEl = document.getElementById('kgci-value-label');
+    var errEl = document.getElementById('kgci-error');
+    var cancelBtn = document.getElementById('kgci-cancel');
+    var issueBtn = document.getElementById('kgci-issue');
+    var modeIssueBtn = document.getElementById('kgci-mode-issue');
+    var modeReloadBtn = document.getElementById('kgci-mode-reload');
+
+    if (valueEl) valueEl.value = '';
+    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+
+    function setGcMode(mode) {
+      _gcMode = mode;
+      var isIssue = mode === 'issue';
+      if (titleEl) titleEl.textContent = isIssue ? 'Issue Gift Certificate' : 'Reload Gift Certificate';
+      if (valueLabelEl) valueLabelEl.innerHTML = (isIssue ? 'Face Value ($)' : 'Reload Amount ($)') + ' <span style="color:#c00;">*</span>';
+      if (issueBtn) issueBtn.textContent = isIssue ? 'Issue Certificate' : 'Reload Certificate';
+      if (modeIssueBtn) {
+        modeIssueBtn.style.background = isIssue ? '#5a3e1b' : '#f5f5f5';
+        modeIssueBtn.style.color = isIssue ? '#fff' : '#333';
+        modeIssueBtn.style.borderColor = isIssue ? '#5a3e1b' : '#ccc';
+      }
+      if (modeReloadBtn) {
+        modeReloadBtn.style.background = isIssue ? '#f5f5f5' : '#5a3e1b';
+        modeReloadBtn.style.color = isIssue ? '#333' : '#fff';
+        modeReloadBtn.style.borderColor = isIssue ? '#ccc' : '#5a3e1b';
+      }
+      if (certEl) {
+        certEl.value = '';
+        certEl.readOnly = false;
+        if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+        if (isIssue) {
+          certEl.value = 'Loading…';
+          certEl.readOnly = true;
+          var mwUrl = kioskMwUrl();
+          fetch(mwUrl + '/api/kiosk/gift-card/next-number', {
+            headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+          }).then(function (r) { return r.json(); }).then(function (d) {
+            if (certEl) { certEl.value = d.suggested || ''; certEl.readOnly = false; }
+          }).catch(function () {
+            if (certEl) { certEl.value = ''; certEl.readOnly = false; }
+          });
+        }
+      }
+      if (valueEl) valueEl.value = '';
+    }
+
+    if (modeIssueBtn) { modeIssueBtn.onclick = function () { setGcMode('issue'); }; }
+    if (modeReloadBtn) { modeReloadBtn.onclick = function () { setGcMode('reload'); }; }
+
+    if (cancelBtn) {
+      cancelBtn.onclick = function () { overlay.style.display = 'none'; };
+    }
+    if (issueBtn) {
+      issueBtn.onclick = function () { kioskSubmitGiftCardIssue(overlay, _gcMode); };
+    }
+    overlay.onclick = function (e) {
+      if (e.target === overlay) overlay.style.display = 'none';
+    };
+
+    // Initialize in Issue mode (fetches suggested cert number)
+    setGcMode('issue');
+  }
+
+  function kioskSubmitGiftCardIssue(overlay, mode) {
+    var certEl = document.getElementById('kgci-cert');
+    var valueEl = document.getElementById('kgci-value');
+    var errEl = document.getElementById('kgci-error');
+    var issueBtn = document.getElementById('kgci-issue');
+
+    function showGcErr(msg) {
+      if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+    }
+
+    var cert = certEl ? certEl.value.trim().toUpperCase() : '';
+    var val = valueEl ? parseFloat(valueEl.value) : NaN;
+    var isIssue = mode === 'issue';
+
+    if (!/^GC-\d{6}$/.test(cert)) {
+      showGcErr('Certificate number must be in the format GC-000001.');
+      if (certEl) certEl.focus();
+      return;
+    }
+    if (!isFinite(val) || val <= 0 || val > 2000) {
+      showGcErr('Amount must be between $0.01 and $2,000.00.');
+      if (valueEl) valueEl.focus();
+      return;
+    }
+
+    if (issueBtn) { issueBtn.disabled = true; issueBtn.textContent = 'Processing…'; }
+    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+
+    var mwUrl = kioskMwUrl();
+    var endpoint = isIssue ? '/api/kiosk/gift-card/issue' : '/api/kiosk/gift-card/reload';
+    var body = isIssue
+      ? JSON.stringify({ cert_number: cert, face_value: val, issued_by: 'kiosk' })
+      : JSON.stringify({ cert_number: cert, amount: val });
+
+    fetch(mwUrl + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+      body: body
+    })
+    .then(function (r) {
+      return r.json().then(function (d) { return { status: r.status, data: d }; });
+    })
+    .then(function (result) {
+      var btnLabel = isIssue ? 'Issue Certificate' : 'Reload Certificate';
+      if (result.status === 201 || result.status === 200) {
+        if (overlay) overlay.style.display = 'none';
+        var d = result.data;
+        var msg = isIssue
+          ? 'Gift Certificate ' + escapeHTML(d.cert_number || cert) + ' issued for ' + kioskFmt(d.face_value || val) + '.'
+          : 'Reloaded ' + escapeHTML(d.cert_number || cert) + ' — new balance: ' + kioskFmt(d.new_balance || val) + '.';
+        showToast(msg, 'success');
+      } else if (result.status === 409) {
+        showGcErr('Certificate number already in use. Try a different number.');
+        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
+      } else if (result.status === 503) {
+        showGcErr('Gift card accounting not configured. Contact your system administrator.');
+        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
+      } else if (result.status === 404) {
+        showGcErr('Certificate not found. Check the certificate number and try again.');
+        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
+      } else {
+        showGcErr((result.data && result.data.error) || 'An error occurred. Please try again.');
+        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
+      }
+    })
+    .catch(function () {
+      var btnLabel = isIssue ? 'Issue Certificate' : 'Reload Certificate';
+      showGcErr('Connection error. Please check your connection and try again.');
+      if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
+    });
+  }
+
   function kioskRenderCart() {
     var container = document.getElementById('kiosk-cart-items');
     var totalsEl = document.getElementById('kiosk-cart-totals');
@@ -2801,6 +2982,11 @@
         '<button id="kiosk-add-custom-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #888;border-radius:6px;background:none;cursor:pointer;color:#555;">' +
         '+ Add custom item' +
         '</button>' +
+        '</div>' +
+        '<div style="margin-top:0.5rem;">' +
+        '<button id="kiosk-add-gc-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #5a3e1b;border-radius:6px;background:none;cursor:pointer;color:#5a3e1b;">' +
+        '+ Issue / Reload Gift Card' +
+        '</button>' +
         '</div>';
       var soClearEmpty = container.querySelector('.kiosk-cart-so-clear');
       if (soClearEmpty) {
@@ -2813,6 +2999,12 @@
       if (addCustomBtnEmpty) {
         addCustomBtnEmpty.addEventListener('click', function () {
           kioskShowCustomItemModal();
+        });
+      }
+      var addGcBtnEmpty = document.getElementById('kiosk-add-gc-btn');
+      if (addGcBtnEmpty) {
+        addGcBtnEmpty.addEventListener('click', function () {
+          kioskShowGiftCardIssueModal();
         });
       }
       if (totalsEl) totalsEl.style.display = 'none';
@@ -2855,6 +3047,12 @@
     html += '<div style="margin-top:0.5rem;">' +
       '<button id="kiosk-add-custom-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #888;border-radius:6px;background:none;cursor:pointer;color:#555;">' +
       '+ Add custom item' +
+      '</button>' +
+      '</div>';
+    // GIFTCARD-01a/01d: Issue / Reload Gift Card button
+    html += '<div style="margin-top:0.5rem;">' +
+      '<button id="kiosk-add-gc-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #5a3e1b;border-radius:6px;background:none;cursor:pointer;color:#5a3e1b;">' +
+      '+ Issue / Reload Gift Card' +
       '</button>' +
       '</div>';
 
@@ -2925,6 +3123,13 @@
     if (addCustomBtn) {
       addCustomBtn.addEventListener('click', function () {
         kioskShowCustomItemModal();
+      });
+    }
+    // GIFTCARD-01a/01d: Wire "Issue / Reload Gift Card" button
+    var addGcBtn = document.getElementById('kiosk-add-gc-btn');
+    if (addGcBtn) {
+      addGcBtn.addEventListener('click', function () {
+        kioskShowGiftCardIssueModal();
       });
     }
 
