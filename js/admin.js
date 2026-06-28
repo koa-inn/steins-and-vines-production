@@ -10101,6 +10101,170 @@
     kioskRenderProducts();
   }
 
+  // ---- Gift Card Issue / Reload Modal (GIFTCARD-01a, 01d — D-08 paired with kiosk.js) ----
+
+  function kioskShowAdminGiftCardIssueModal() {
+    var _gcMode = 'issue';
+
+    var html = [
+      '<div>',
+      '<div style="display:flex;gap:0.5rem;margin-bottom:1rem;">',
+      '<button id="kgci-mode-issue" type="button" class="btn btn-primary" style="flex:1;">Issue New</button>',
+      '<button id="kgci-mode-reload" type="button" class="btn btn-default" style="flex:1;">Reload Existing</button>',
+      '</div>',
+      '<div style="margin-bottom:1rem;">',
+      '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kgci-cert">Certificate # <span style="color:#c00;">*</span></label>',
+      '<input id="kgci-cert" type="text" maxlength="10" placeholder="GC-000001" autocomplete="off"',
+      ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:4px;">',
+      '</div>',
+      '<div style="margin-bottom:1.25rem;">',
+      '<label id="kgci-value-label" style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kgci-value">Face Value ($) <span style="color:#c00;">*</span></label>',
+      '<input id="kgci-value" type="number" step="0.01" min="0.01" max="2000" placeholder="0.00" inputmode="decimal"',
+      ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:4px;">',
+      '</div>',
+      '<div id="kgci-error" style="color:#c00;font-size:0.9rem;margin-bottom:0.75rem;display:none;"></div>',
+      '<div style="display:flex;gap:0.75rem;justify-content:flex-end;">',
+      '<button id="kgci-cancel" type="button" class="btn btn-default">Cancel</button>',
+      '<button id="kgci-issue" type="button" class="btn btn-primary">Issue Certificate</button>',
+      '</div>',
+      '</div>'
+    ].join('');
+
+    openModal('Issue Gift Certificate', html);
+
+    var titleEl = document.getElementById('admin-modal-title');
+    var certEl = document.getElementById('kgci-cert');
+    if (certEl) certEl.focus();
+
+    var valueLabelEl = document.getElementById('kgci-value-label');
+    var valueEl = document.getElementById('kgci-value');
+    var errEl = document.getElementById('kgci-error');
+    var cancelBtn = document.getElementById('kgci-cancel');
+    var issueBtn = document.getElementById('kgci-issue');
+    var modeIssueBtn = document.getElementById('kgci-mode-issue');
+    var modeReloadBtn = document.getElementById('kgci-mode-reload');
+
+    function setGcMode(mode) {
+      _gcMode = mode;
+      var isIssue = mode === 'issue';
+      if (titleEl) titleEl.textContent = isIssue ? 'Issue Gift Certificate' : 'Reload Gift Certificate';
+      if (valueLabelEl) valueLabelEl.innerHTML = (isIssue ? 'Face Value ($)' : 'Reload Amount ($)') + ' <span style="color:#c00;">*</span>';
+      if (issueBtn) issueBtn.textContent = isIssue ? 'Issue Certificate' : 'Reload Certificate';
+      if (modeIssueBtn) {
+        modeIssueBtn.className = isIssue ? 'btn btn-primary' : 'btn btn-default';
+      }
+      if (modeReloadBtn) {
+        modeReloadBtn.className = isIssue ? 'btn btn-default' : 'btn btn-primary';
+      }
+      if (certEl) {
+        certEl.value = '';
+        certEl.readOnly = false;
+        if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+        if (isIssue) {
+          certEl.value = 'Loading…';
+          certEl.readOnly = true;
+          var mwUrl = kioskMwUrl();
+          fetch(mwUrl + '/api/kiosk/gift-card/next-number', {
+            headers: { 'x-api-key': (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) ? SHEETS_CONFIG.MW_API_KEY : '' }
+          }).then(function (r) { return r.json(); }).then(function (d) {
+            if (certEl) { certEl.value = d.suggested || ''; certEl.readOnly = false; }
+          }).catch(function () {
+            if (certEl) { certEl.value = ''; certEl.readOnly = false; }
+          });
+        }
+      }
+      if (valueEl) valueEl.value = '';
+    }
+
+    if (modeIssueBtn) { modeIssueBtn.onclick = function () { setGcMode('issue'); }; }
+    if (modeReloadBtn) { modeReloadBtn.onclick = function () { setGcMode('reload'); }; }
+
+    if (cancelBtn) {
+      cancelBtn.onclick = function () { closeModal(); };
+    }
+    if (issueBtn) {
+      issueBtn.onclick = function () { kioskSubmitAdminGiftCardIssue(_gcMode); };
+    }
+
+    // Initialize in Issue mode (fetches suggested cert number)
+    setGcMode('issue');
+  }
+
+  function kioskSubmitAdminGiftCardIssue(mode) {
+    var certEl = document.getElementById('kgci-cert');
+    var valueEl = document.getElementById('kgci-value');
+    var errEl = document.getElementById('kgci-error');
+    var issueBtn = document.getElementById('kgci-issue');
+
+    function showGcErr(msg) {
+      if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+    }
+
+    var cert = certEl ? certEl.value.trim().toUpperCase() : '';
+    var val = valueEl ? parseFloat(valueEl.value) : NaN;
+    var isIssue = mode === 'issue';
+
+    if (!/^GC-\d{6}$/.test(cert)) {
+      showGcErr('Certificate number must be in the format GC-000001.');
+      if (certEl) certEl.focus();
+      return;
+    }
+    if (!isFinite(val) || val <= 0 || val > 2000) {
+      showGcErr('Amount must be between $0.01 and $2,000.00.');
+      if (valueEl) valueEl.focus();
+      return;
+    }
+
+    if (issueBtn) { issueBtn.disabled = true; issueBtn.textContent = 'Processing…'; }
+    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+
+    var mwUrl = kioskMwUrl();
+    var endpoint = isIssue ? '/api/kiosk/gift-card/issue' : '/api/kiosk/gift-card/reload';
+    var body = isIssue
+      ? JSON.stringify({ cert_number: cert, face_value: val, issued_by: 'kiosk' })
+      : JSON.stringify({ cert_number: cert, amount: val });
+
+    fetch(mwUrl + endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) ? SHEETS_CONFIG.MW_API_KEY : ''
+      },
+      body: body
+    })
+    .then(function (r) {
+      return r.json().then(function (d) { return { status: r.status, data: d }; });
+    })
+    .then(function (result) {
+      var btnLabel = isIssue ? 'Issue Certificate' : 'Reload Certificate';
+      if (result.status === 201 || result.status === 200) {
+        closeModal();
+        var d = result.data;
+        var msg = isIssue
+          ? 'Gift Certificate ' + escapeHTML(d.cert_number || cert) + ' issued for ' + kioskFmt(d.face_value || val) + '.'
+          : 'Reloaded ' + escapeHTML(d.cert_number || cert) + ' — new balance: ' + kioskFmt(d.new_balance || val) + '.';
+        showToast(msg, 'success');
+      } else if (result.status === 409) {
+        showGcErr('Certificate number already in use. Try a different number.');
+        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
+      } else if (result.status === 503) {
+        showGcErr('Gift card accounting not configured. Contact your system administrator.');
+        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
+      } else if (result.status === 404) {
+        showGcErr('Certificate not found. Check the certificate number and try again.');
+        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
+      } else {
+        showGcErr((result.data && result.data.error) || 'An error occurred. Please try again.');
+        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
+      }
+    })
+    .catch(function () {
+      var btnLabel = isIssue ? 'Issue Certificate' : 'Reload Certificate';
+      showGcErr('Connection error. Please check your connection and try again.');
+      if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
+    });
+  }
+
   // ---- Custom Item Modal (D-05, D-06) — uses admin openModal/closeModal ----
 
   function kioskShowAdminCustomItemModal() {
@@ -10230,11 +10394,22 @@
         '<button id="kiosk-add-custom-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #888;border-radius:6px;background:none;cursor:pointer;color:#555;">' +
         '+ Add custom item' +
         '</button>' +
+        '</div>' +
+        '<div style="margin-top:0.5rem;">' +
+        '<button id="kiosk-add-gc-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #5a3e1b;border-radius:6px;background:none;cursor:pointer;color:#5a3e1b;">' +
+        '+ Issue / Reload Gift Card' +
+        '</button>' +
         '</div>';
       var addCustomBtnEmpty = document.getElementById('kiosk-add-custom-btn');
       if (addCustomBtnEmpty) {
         addCustomBtnEmpty.addEventListener('click', function () {
           kioskShowAdminCustomItemModal();
+        });
+      }
+      var addGcBtnEmpty = document.getElementById('kiosk-add-gc-btn');
+      if (addGcBtnEmpty) {
+        addGcBtnEmpty.addEventListener('click', function () {
+          kioskShowAdminGiftCardIssueModal();
         });
       }
       if (totalsEl) totalsEl.style.display = 'none';
@@ -10269,6 +10444,12 @@
       '+ Add custom item' +
       '</button>' +
       '</div>';
+    // GIFTCARD-01a/01d: Issue / Reload Gift Card button
+    html += '<div style="margin-top:0.5rem;">' +
+      '<button id="kiosk-add-gc-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #5a3e1b;border-radius:6px;background:none;cursor:pointer;color:#5a3e1b;">' +
+      '+ Issue / Reload Gift Card' +
+      '</button>' +
+      '</div>';
 
     container.innerHTML = html;
 
@@ -10277,6 +10458,13 @@
     if (addCustomBtn) {
       addCustomBtn.addEventListener('click', function () {
         kioskShowAdminCustomItemModal();
+      });
+    }
+    // GIFTCARD-01a/01d: Wire "Issue / Reload Gift Card" button
+    var addGcBtn = document.getElementById('kiosk-add-gc-btn');
+    if (addGcBtn) {
+      addGcBtn.addEventListener('click', function () {
+        kioskShowAdminGiftCardIssueModal();
       });
     }
 
