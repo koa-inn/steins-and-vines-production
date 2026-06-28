@@ -816,7 +816,7 @@ Plans:
 - **Balance integrity:** server-authoritative balance tracking (where do balances live — Zoho, Redis, Sheets? decide at planning); partial redemption must atomically decrement; guard against double-spend / replay.
 
 **Depends on:** Phase 43 (sequence after — both touch the forked kiosk surfaces; avoids `kiosk.js`/`admin.js` merge churn). Independent of Phase 42.
-**Plans:** 4/8 plans executed
+**Plans:** 5/8 plans executed
 
 Plans:
 **Wave 1** (parallel — owner setup + Apps Script foundation)
@@ -828,7 +828,7 @@ Plans:
 - [x] 44-04-PLAN.md — pos.js split-tender redemption (reduce terminal by gift_amount, two customerpayments, redeem_gift_card LAST, void-on-failure, tax untouched) + pos-gift-card.test.js (GIFTCARD-01c)
 
 **Wave 3**
-- [ ] 44-05-PLAN.md — routes/gift-cards.js: reload (increment + sale accounting, fail-closed) + void routes + tests (GIFTCARD-01d/01e)
+- [x] 44-05-PLAN.md — routes/gift-cards.js: reload (increment + sale accounting, fail-closed) + void routes + tests (GIFTCARD-01d/01e)
 
 **Wave 4**
 - [ ] 44-06-PLAN.md — Issue/Reload "add value" modal on BOTH forked surfaces (kiosk.js inline + admin.js openModal), suggested cert pre-fill, rebuilt bundles (GIFTCARD-01a/01d UI)

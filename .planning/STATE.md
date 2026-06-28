@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
 status: executing
-stopped_at: 44-04 COMPLETE — split-tender gift card redeem (pos.js), two customerpayments (creditcard + others/account_id=109900000000873231), redeem_gift_card LAST, void-on-failure; 11-test suite; 1009 middleware tests green. Advancing to 44-05 (reload route).
-last_updated: "2026-06-28T17:13:57.944Z"
+stopped_at: 44-05 COMPLETE — reload (increment-first, zero-tax Zoho invoice, needs_manual_review on Zoho failure) + void (status-only via void_gift_card); paymentLimiter on reload; 12 new tests; 1021 middleware tests green. Advancing to 44-06.
+last_updated: "2026-06-28T17:25:00Z"
 last_activity: 2026-06-28
 progress:
   total_phases: 30
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTING
-Plan: 5 of 8
+Plan: 6 of 8
 Status: Ready to execute
 Last activity: 2026-06-28
 
@@ -49,6 +49,7 @@ Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (stagi
 
 ### Decisions
 
+- [44-05]: Reload ordering asymmetry: reload_gift_card increments balance FIRST before Zoho invoice/payment (protects customer value); Zoho failure logs CRITICAL + needs_manual_review (no auto-reversal, T-44-20 accepted). Void is status-only (no Zoho money movement).
 - [44-03]: Issue route void-on-Zoho-failure: void_gift_card(reason:'zoho_invoice_failed') called fire-and-forget when zohoPost throws after Sheets row created (T-44-12 atomic safety). All Apps Script gift-card actions use axios.post (doPost server_token dispatch).
 - [44-01]: ZOHO_TAX_ZERO_ID not required for gift-card invoice lines — item's own 0%/EXEMPT setting is sufficient (live Probe B in S&V Zoho). 44-03 and 44-05 must NOT pass a tax_id on gift-card lines.
 - [44-01]: payment_mode:'others' accepted by Zoho but defaults to Undeposited Funds (account_id=109900000000000316) — 44-04 must pass explicit account_id for 'Gift Cards Sold' liability when recording gift redemption payment.
