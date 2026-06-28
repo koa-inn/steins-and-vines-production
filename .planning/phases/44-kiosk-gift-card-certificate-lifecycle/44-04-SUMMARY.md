@@ -157,7 +157,7 @@ For gift-card-only (`terminal_amount=0`), `transaction_id` is absent; confirm is
 | `zoho-middleware/lib/validateEnv.js` | OPTIONAL entry with description | No — startup warning only |
 | `zoho-middleware/routes/pos.js` line ~705 | `process.env.ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID \|\| '109900000000873231'` | No — hardcoded fallback used if unset |
 
-**Owner action required:** The hardcoded fallback `109900000000873231` is the "Gift Cards Sold" clearing account_id confirmed live (Probe C, 44-01). The system works without setting `ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID` in Railway because the fallback is the correct live value. Setting the env var is optional but recommended for transparency and to allow account remapping without a code deploy.
+**Owner action required:** The hardcoded fallback `109900000000873231` is the "Gift Card Redemptions" (cash-type) clearing account_id confirmed live (Probe C, 44-01) — distinct from the "Gift Cards Sold" liability account (`109900000000873204`), which the monthly journal clears the redemptions clearing balance into. The system works without setting `ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID` in Railway because the fallback is the correct live value. Setting the env var is optional but recommended for transparency and to allow account remapping without a code deploy.
 
 ## Deviations from Plan
 
