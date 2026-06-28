@@ -62,6 +62,7 @@ var OPTIONAL = [
   { name: 'APPS_SCRIPT_URL',          desc: 'Google Apps Script Web App URL' },
   { name: 'APPS_SCRIPT_SERVER_TOKEN', desc: 'Apps Script server-to-server auth token' },
   { name: 'KIOSK_CONTACT_ID',         desc: 'Zoho contact ID for kiosk walk-in sales' },
+  { name: 'KIOSK_GIFT_CARD_ITEM_ID',  desc: 'Zoho item ID for gift certificate sales (maps to Gift Card Sales income account); gift-card issue/redeem routes fail-closed 503 without it' },
   { name: 'KIOSK_TAX_RATE',           desc: 'Tax rate for kiosk sales' },
   { name: 'MW_API_KEY',               desc: 'Alias for API_SECRET_KEY (legacy)' },
   { name: 'KIOSK_PIN',                desc: 'Four-digit PIN for kiosk access verification' },
