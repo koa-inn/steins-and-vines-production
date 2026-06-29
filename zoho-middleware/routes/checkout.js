@@ -8,6 +8,7 @@ var ledger = require('../lib/inventory-ledger');
 var C = require('../lib/constants');
 var helpers = require('../lib/checkout-helpers');
 var brewpadIntegration = require('../lib/brewpad-integration');
+var redact = require('../lib/redact');
 
 var readServicesSnapshot = helpers.readServicesSnapshot;
 var readIngredientsFileCache = helpers.readIngredientsFileCache;
@@ -406,9 +407,9 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         var promoExisting = await cache.get(promoKey);
         if (!promoExisting) {
           promoDiscount = 20;
-          log.info('[checkout] Promo FIRSTBATCH validated for checkout by ' + customerEmail);
+          log.info('[checkout] Promo FIRSTBATCH validated for checkout by ' + redact.maskEmail(customerEmail));
         } else {
-          log.warn('[checkout] Promo code FIRSTBATCH rejected — already redeemed by ' + customerEmail);
+          log.warn('[checkout] Promo code FIRSTBATCH rejected — already redeemed by ' + redact.maskEmail(customerEmail));
         }
       } catch (promoCheckErr) {
         // Fail open — allow discount if Redis unavailable
@@ -517,7 +518,8 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       var contactWasFresh = resolved.freshlyCreated;
 
       if (!customerId) {
-        throw new Error('Could not resolve Zoho contact for email: ' + customerEmail);
+        // Masked: this message is logged verbatim by the handler catch (M9).
+        throw new Error('Could not resolve Zoho contact for email: ' + redact.maskEmail(customerEmail));
       }
       log.info('[checkout] Resolved contact_id=' + customerId + ' fresh=' + contactWasFresh);
 
@@ -602,7 +604,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         var burnKey = C.CACHE_KEYS.PROMO_REDEEMED_PREFIX + customerEmail.toLowerCase();
         cache.set(burnKey, { redeemedAt: new Date().toISOString(), soId: soId }, 5 * 365 * 24 * 60 * 60)
           .catch(function (burnErr) { log.error('[promo] Failed to burn redemption: ' + burnErr.message); });
-        log.info('[promo] Redemption burned for FIRSTBATCH, email=' + customerEmail + ' soId=' + soId);
+        log.info('[promo] Redemption burned for FIRSTBATCH, email=' + redact.maskEmail(customerEmail) + ' soId=' + soId);
       }
 
       // Use the Zoho response total (tax-inclusive) for payment recording.

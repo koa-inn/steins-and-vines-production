@@ -4,6 +4,7 @@ var express = require('express');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var C = require('../lib/constants');
+var redact = require('../lib/redact');
 
 var PROMO_CODE = 'FIRSTBATCH';
 var PROMO_DISCOUNT_PCT = 20;
@@ -62,7 +63,7 @@ router.delete('/api/promo/redemption/:email', async function (req, res) {
     await cache.del(C.CACHE_KEYS.PROMO_REDEEMED_PREFIX + email);
     return res.json({ ok: true, email: email, message: 'Redemption cleared' });
   } catch (err) {
-    log.error('[promo/reset] Failed to clear redemption for ' + email + ': ' + err.message);
+    log.error('[promo/reset] Failed to clear redemption for ' + redact.maskEmail(email) + ': ' + err.message);
     return res.status(500).json({ error: 'Failed to clear redemption' });
   }
 });

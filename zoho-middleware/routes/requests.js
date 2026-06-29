@@ -7,6 +7,7 @@ var express = require('express');
 var router = express.Router();
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
+var redact = require('../lib/redact');
 
 var REQUESTS_KEY = 'sv:product-requests';
 var MAX_REQUESTS = 500;
@@ -39,7 +40,7 @@ router.post('/product-requests', function (req, res) {
     if (list.length > MAX_REQUESTS) list = list.slice(0, MAX_REQUESTS);
     return cache.set(REQUESTS_KEY, list, 365 * 24 * 3600);
   }).then(function () {
-    log.info('[product-requests] New request from ' + email);
+    log.info('[product-requests] New request from ' + redact.maskEmail(email));
     res.json({ ok: true });
   }).catch(function (err) {
     log.error('[product-requests] Failed to store request: ' + (err && err.message));
