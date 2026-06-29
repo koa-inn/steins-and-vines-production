@@ -1031,3 +1031,496 @@ describe('pos routes — gift_cert line pricing (Phase 44-09)', function () {
   });
 
 }); // Phase 44-09 pricing
+
+// =============================================================================
+// Phase 44-09: gift_cert ACTIVATION — post-payment, fail-closed, idempotency
+// =============================================================================
+
+describe('pos routes — gift_cert activation + confirm idempotency (Phase 44-09)', function () {
+  var cache, zohoApi, helcimLib, axiosMock, log, eventLogMock, router, handlers;
+
+  function getHandlers() {
+    jest.resetModules();
+    cache        = require('../lib/cache');
+    zohoApi      = require('../lib/zoho-api');
+    helcimLib    = require('../lib/helcim');
+    axiosMock    = require('axios');
+    log          = require('../lib/logger');
+    eventLogMock = require('../lib/eventLog');
+    require('../routes/pos');
+    router = require('express').Router();
+    handlers = {};
+    router.post.mock.calls.forEach(function (call) { handlers[call[0]] = call[call.length - 1]; });
+    router.get.mock.calls.forEach(function (call) { handlers[call[0]] = call[call.length - 1]; });
+  }
+
+  function mockRes() {
+    var res = { json: jest.fn(), status: jest.fn(), headersSent: false };
+    res.status.mockReturnValue(res);
+    return res;
+  }
+
+  beforeEach(function () {
+    getHandlers();
+    process.env.KIOSK_CONTACT_ID = 'contact-walkin';
+    process.env.APPS_SCRIPT_URL = 'https://script.example.com/exec';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'server-token-test';
+    process.env.ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID = '109900000000873231';
+    process.env.KIOSK_GIFT_CARD_ITEM_ID = 'gc-item-server-123';
+  });
+
+  afterEach(function () {
+    delete process.env.KIOSK_CONTACT_ID;
+    delete process.env.APPS_SCRIPT_URL;
+    delete process.env.APPS_SCRIPT_SERVER_TOKEN;
+    delete process.env.ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID;
+    delete process.env.KIOSK_GIFT_CARD_ITEM_ID;
+  });
+
+  // -------------------------------------------------------------------------
+  // issue_gift_card ordering: AFTER both customerpayments
+  // -------------------------------------------------------------------------
+
+  test('confirm: issue_gift_card called AFTER both customerpayments (Pitfall 1 / T-44-G3)', function (done) {
+    cache.get.mockResolvedValue([]);
+    var callOrder = [];
+
+    zohoApi.zohoPost.mockImplementation(function (path) {
+      callOrder.push('zohoPost:' + path);
+      if (path === '/invoices') {
+        return Promise.resolve({ invoice: { invoice_id: 'inv-act-1', invoice_number: 'INV-ACT-001' } });
+      }
+      return Promise.resolve({});
+    });
+    axiosMock.post.mockImplementation(function (url, body) {
+      var parsed = typeof body === 'string' ? JSON.parse(body) : body;
+      callOrder.push('axiosPost:' + (parsed && parsed.action));
+      return Promise.resolve({ data: { ok: true } });
+    });
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'GC-000001', rate: 50 }],
+        transaction_id: 'txn-act-order',
+        reference_number: 'KIOSK-ACT-001'
+      }
+    };
+    var res = mockRes();
+
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(body.ok).toBe(true);
+
+        var issueIdx = callOrder.indexOf('axiosPost:issue_gift_card');
+        expect(issueIdx).toBeGreaterThan(-1);
+
+        // Both customerpayments must appear BEFORE issue_gift_card
+        var payIdxs = callOrder
+          .map(function (c, i) { return c === 'zohoPost:/customerpayments' ? i : -1; })
+          .filter(function (i) { return i !== -1; });
+
+        expect(payIdxs.length).toBeGreaterThan(0);
+        payIdxs.forEach(function (pi) {
+          expect(issueIdx).toBeGreaterThan(pi);
+        });
+        done();
+      } catch (e) { done(e); }
+    });
+    res.status.mockImplementation(function (code) {
+      if (code >= 400) {
+        return { json: function (b) { done(new Error('Got ' + code + ': ' + JSON.stringify(b))); } };
+      }
+      return res;
+    });
+
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  // -------------------------------------------------------------------------
+  // update_gift_card_invoice: called with cart invoice number ONLY on success
+  // -------------------------------------------------------------------------
+
+  test('confirm: issue path — update_gift_card_invoice called with cart invoice number after issue succeeds', function (done) {
+    cache.get.mockResolvedValue([]);
+
+    zohoApi.zohoPost.mockImplementation(function (path) {
+      if (path === '/invoices') {
+        return Promise.resolve({ invoice: { invoice_id: 'inv-upd-1', invoice_number: 'INV-UPD-001' } });
+      }
+      return Promise.resolve({});
+    });
+    axiosMock.post.mockImplementation(function (url, body) {
+      var parsed = typeof body === 'string' ? JSON.parse(body) : body;
+      return Promise.resolve({ data: { ok: true, action: parsed.action } });
+    });
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'GC-000002', rate: 75 }],
+        transaction_id: 'txn-upd-1',
+        reference_number: 'KIOSK-UPD-001'
+      }
+    };
+    var res = mockRes();
+
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(body.ok).toBe(true);
+
+        var asCalls = axiosMock.post.mock.calls.map(function (c) {
+          return typeof c[1] === 'string' ? JSON.parse(c[1]) : c[1];
+        });
+        var issueCalled = asCalls.some(function (p) { return p.action === 'issue_gift_card'; });
+        var updateCalled = asCalls.some(function (p) { return p.action === 'update_gift_card_invoice'; });
+        expect(issueCalled).toBe(true);
+        expect(updateCalled).toBe(true);
+
+        var updateCall = asCalls.find(function (p) { return p.action === 'update_gift_card_invoice'; });
+        expect(updateCall.cert_number).toBe('GC-000002');
+        expect(updateCall.zoho_invoice_number).toBe('INV-UPD-001');
+        done();
+      } catch (e) { done(e); }
+    });
+    res.status.mockImplementation(function (code) {
+      if (code >= 400) {
+        return { json: function (b) { done(new Error('Got ' + code + ': ' + JSON.stringify(b))); } };
+      }
+      return res;
+    });
+
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  test('confirm: if issue_gift_card fails, update_gift_card_invoice is NOT called', function (done) {
+    cache.get.mockResolvedValue([]);
+
+    zohoApi.zohoPost.mockImplementation(function (path) {
+      if (path === '/invoices') {
+        return Promise.resolve({ invoice: { invoice_id: 'inv-fail-1', invoice_number: 'INV-FAIL-001' } });
+      }
+      return Promise.resolve({});
+    });
+    axiosMock.post.mockImplementation(function (url, body) {
+      var parsed = typeof body === 'string' ? JSON.parse(body) : body;
+      if (parsed.action === 'issue_gift_card') {
+        return Promise.resolve({ data: { ok: false, error: 'duplicate' } });
+      }
+      return Promise.resolve({ data: { ok: true } });
+    });
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'GC-000003', rate: 50 }],
+        transaction_id: 'txn-fail-1',
+        reference_number: 'KIOSK-FAIL-001'
+      }
+    };
+    var res = mockRes();
+
+    res.json.mockImplementation(function (body) {
+      try {
+        // Still returns 201 (money is in)
+        expect(body.ok).toBe(true);
+
+        var asCalls = axiosMock.post.mock.calls.map(function (c) {
+          return typeof c[1] === 'string' ? JSON.parse(c[1]) : c[1];
+        });
+        var updateCalled = asCalls.some(function (p) { return p.action === 'update_gift_card_invoice'; });
+        // update_gift_card_invoice must NOT be called when issue_gift_card fails
+        expect(updateCalled).toBe(false);
+        done();
+      } catch (e) { done(e); }
+    });
+    res.status.mockImplementation(function (code) {
+      if (code >= 400) {
+        return { json: function (b) { done(new Error('Got ' + code + ': ' + JSON.stringify(b))); } };
+      }
+      return res;
+    });
+
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  // -------------------------------------------------------------------------
+  // Activation failure → 201 with gift_card_activation_failed flags
+  // -------------------------------------------------------------------------
+
+  test('confirm: issue activation failure → 201 with gift_card_activation_failed:true + needs_manual_review:true + CRITICAL log', function (done) {
+    cache.get.mockResolvedValue([]);
+
+    zohoApi.zohoPost.mockImplementation(function (path) {
+      if (path === '/invoices') {
+        return Promise.resolve({ invoice: { invoice_id: 'inv-actfail', invoice_number: 'INV-ACTFAIL' } });
+      }
+      return Promise.resolve({});
+    });
+    // issue_gift_card fails (Apps Script error)
+    axiosMock.post.mockRejectedValue(new Error('Apps Script unreachable'));
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'GC-000004', rate: 50 }],
+        transaction_id: 'txn-actfail',
+        reference_number: 'KIOSK-ACTFAIL'
+      }
+    };
+    var res = mockRes();
+
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(body.ok).toBe(true);
+        expect(body.gift_card_activation_failed).toBe(true);
+        expect(body.needs_manual_review).toBe(true);
+
+        var criticalLogs = log.error.mock.calls.filter(function (c) {
+          return c[0] && c[0].indexOf('CRITICAL') !== -1;
+        });
+        expect(criticalLogs.length).toBeGreaterThan(0);
+        done();
+      } catch (e) { done(e); }
+    });
+    res.status.mockImplementation(function (code) {
+      if (code >= 400) {
+        return { json: function (b) { done(new Error('Got ' + code + ': ' + JSON.stringify(b))); } };
+      }
+      return res;
+    });
+
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  // -------------------------------------------------------------------------
+  // reload_gift_card: ordering + failure flags
+  // -------------------------------------------------------------------------
+
+  test('confirm: reload path — reload_gift_card called AFTER customerpayments', function (done) {
+    cache.get.mockResolvedValue([]);
+    var callOrder = [];
+
+    zohoApi.zohoPost.mockImplementation(function (path) {
+      callOrder.push('zohoPost:' + path);
+      if (path === '/invoices') {
+        return Promise.resolve({ invoice: { invoice_id: 'inv-rel-1', invoice_number: 'INV-REL-001' } });
+      }
+      return Promise.resolve({});
+    });
+    axiosMock.post.mockImplementation(function (url, body) {
+      var parsed = typeof body === 'string' ? JSON.parse(body) : body;
+      callOrder.push('axiosPost:' + (parsed && parsed.action));
+      return Promise.resolve({ data: { ok: true, new_balance: 150 } });
+    });
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'reload', cert_number: 'GC-000005', rate: 50 }],
+        transaction_id: 'txn-rel-1',
+        reference_number: 'KIOSK-REL-001'
+      }
+    };
+    var res = mockRes();
+
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(body.ok).toBe(true);
+
+        var reloadIdx = callOrder.indexOf('axiosPost:reload_gift_card');
+        expect(reloadIdx).toBeGreaterThan(-1);
+
+        var payIdxs = callOrder
+          .map(function (c, i) { return c === 'zohoPost:/customerpayments' ? i : -1; })
+          .filter(function (i) { return i !== -1; });
+
+        expect(payIdxs.length).toBeGreaterThan(0);
+        payIdxs.forEach(function (pi) {
+          expect(reloadIdx).toBeGreaterThan(pi);
+        });
+        done();
+      } catch (e) { done(e); }
+    });
+    res.status.mockImplementation(function (code) {
+      if (code >= 400) {
+        return { json: function (b) { done(new Error('Got ' + code + ': ' + JSON.stringify(b))); } };
+      }
+      return res;
+    });
+
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  test('confirm: reload activation failure → 201 with gift_card_activation_failed:true + CRITICAL log', function (done) {
+    cache.get.mockResolvedValue([]);
+
+    zohoApi.zohoPost.mockImplementation(function (path) {
+      if (path === '/invoices') {
+        return Promise.resolve({ invoice: { invoice_id: 'inv-relfail', invoice_number: 'INV-RELFAIL' } });
+      }
+      return Promise.resolve({});
+    });
+    axiosMock.post.mockResolvedValue({ data: { ok: false, error: 'not_found' } });
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'reload', cert_number: 'GC-000006', rate: 50 }],
+        transaction_id: 'txn-relfail',
+        reference_number: 'KIOSK-RELFAIL'
+      }
+    };
+    var res = mockRes();
+
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(body.ok).toBe(true);
+        expect(body.gift_card_activation_failed).toBe(true);
+        expect(body.needs_manual_review).toBe(true);
+        done();
+      } catch (e) { done(e); }
+    });
+    res.status.mockImplementation(function (code) {
+      if (code >= 400) {
+        return { json: function (b) { done(new Error('Got ' + code + ': ' + JSON.stringify(b))); } };
+      }
+      return res;
+    });
+
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  // -------------------------------------------------------------------------
+  // Confirm-level idempotency (T-44-G2)
+  // -------------------------------------------------------------------------
+
+  test('confirm: replayed confirm with same idempotency_key returns cached 201; no second invoice or activation', function (done) {
+    var cachedResult = { ok: true, invoice_number: 'INV-IDEM-001', total: 50 };
+    cache.get.mockImplementation(function (key) {
+      if (key && key.indexOf('confirm:') !== -1) return Promise.resolve(cachedResult);
+      return Promise.resolve(null);
+    });
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'GC-000007', rate: 50 }],
+        transaction_id: 'txn-idem',
+        reference_number: 'KIOSK-IDEM-001',
+        idempotency_key: 'key-idem-replay-001'
+      }
+    };
+    var res = mockRes();
+
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(body.invoice_number).toBe('INV-IDEM-001');
+        // No Zoho or Apps Script calls on replay
+        expect(zohoApi.zohoPost).not.toHaveBeenCalled();
+        expect(axiosMock.post).not.toHaveBeenCalled();
+        done();
+      } catch (e) { done(e); }
+    });
+    res.status.mockImplementation(function (code) {
+      if (code >= 400) {
+        return { json: function (b) { done(new Error('Got ' + code + ': ' + JSON.stringify(b))); } };
+      }
+      return res;
+    });
+
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  // -------------------------------------------------------------------------
+  // Void-on-failure: issue_gift_card NOT called when invoice fails
+  // -------------------------------------------------------------------------
+
+  test('confirm: invoice creation failure + gift_cert → voidTransaction called, issue_gift_card NOT called', function (done) {
+    cache.get.mockResolvedValue([]);
+    zohoApi.zohoPost.mockImplementation(function (path) {
+      if (path === '/invoices') {
+        return Promise.reject(new Error('Zoho 500'));
+      }
+      return Promise.resolve({});
+    });
+    axiosMock.post.mockResolvedValue({ data: { ok: true } });
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'GC-000008', rate: 50 }],
+        transaction_id: 'txn-voidgc',
+        reference_number: 'KIOSK-VOIDGC'
+      }
+    };
+    var res = mockRes();
+
+    res.status.mockImplementation(function (code) {
+      return {
+        json: function () {
+          try {
+            expect(code).toBe(502);
+            expect(helcimLib.voidTransaction).toHaveBeenCalledWith('txn-voidgc');
+            var asCalls = axiosMock.post.mock.calls.map(function (c) {
+              try { return typeof c[1] === 'string' ? JSON.parse(c[1]) : c[1]; } catch (e) { return {}; }
+            });
+            var issueCalled = asCalls.some(function (p) { return p.action === 'issue_gift_card'; });
+            expect(issueCalled).toBe(false);
+            done();
+          } catch (e) { done(e); }
+        }
+      };
+    });
+    res.json.mockImplementation(function () {
+      done(new Error('Expected res.status(502)'));
+    });
+
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  // -------------------------------------------------------------------------
+  // Regression: gift_cert issue + body.gift_card redeem in same cart (T-44-G5)
+  // -------------------------------------------------------------------------
+
+  test('confirm: gift_cert issue line + body.gift_card redeem tender — both activate correctly (T-44-G5)', function (done) {
+    // Cart: $50 gift cert issue + $100 catalog item; $40 gift card redeem applied
+    cache.get.mockResolvedValue(CATALOG_EXEMPT);
+    var axiosCalls = [];
+    zohoApi.zohoPost.mockImplementation(function (path) {
+      if (path === '/invoices') {
+        return Promise.resolve({ invoice: { invoice_id: 'inv-combo', invoice_number: 'INV-COMBO' } });
+      }
+      return Promise.resolve({});
+    });
+    axiosMock.post.mockImplementation(function (url, body) {
+      var parsed = typeof body === 'string' ? JSON.parse(body) : body;
+      axiosCalls.push(parsed.action);
+      return Promise.resolve({ data: { ok: true } });
+    });
+
+    var req = {
+      body: {
+        items: [
+          { item_id: 'item-gc-test', name: 'Gift Test Item', quantity: 1 },
+          { gift_cert: true, gift_action: 'issue', cert_number: 'GC-000009', rate: 50 }
+        ],
+        transaction_id: 'txn-combo',
+        reference_number: 'KIOSK-COMBO',
+        gift_card: { cert_number: 'GC-000001', amount_applied: 40 }  // redeem tender
+      }
+    };
+    var res = mockRes();
+
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(body.ok).toBe(true);
+        // Both redeem (existing 44-04) and issue (new 44-09) must be called
+        expect(axiosCalls).toContain('redeem_gift_card');
+        expect(axiosCalls).toContain('issue_gift_card');
+        done();
+      } catch (e) { done(e); }
+    });
+    res.status.mockImplementation(function (code) {
+      if (code >= 400) {
+        return { json: function (b) { done(new Error('Got ' + code + ': ' + JSON.stringify(b))); } };
+      }
+      return res;
+    });
+
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+}); // Phase 44-09 activation
