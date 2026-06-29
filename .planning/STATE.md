@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
 status: executing
-stopped_at: 44-07 COMPLETE — GC redeem tender (kgcr-*) injected in payment view on both surfaces (D-08 parity); gift_card_only path handled; admin-only management modal (kgcm-*) for lookup+void; 928 tests green. Advancing to 44-08 (staging UAT).
+stopped_at: "44-08 UAT GAP (BLOCKING) — 44-01..44-07 done + deployed (staging frontend via git push origin main; middleware via railway up; backend smoke-test live: next-number→GC-000001). UAT halted on step 1: issue/reload mark the Zoho invoice PAID with a phantom creditcard payment and NO terminal charge (Zoho overstates collected cash). Owner decision: rework issue+reload to Cart + terminal checkout (activate cert on payment success). See 44-08-UAT.md (G-44-01). NEXT: /gsd:plan-phase 44 --gaps then /gsd:execute-phase 44 --gaps-only. Phase NOT complete; 44-08 not signed off."
 last_updated: "2026-06-29T04:01:04.909Z"
 last_activity: 2026-06-29
 progress:
@@ -49,6 +49,7 @@ Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (stagi
 
 ### Decisions
 
+- [44-08 UAT]: Issue+reload money-in flow is DEFECTIVE as shipped — records a creditcard customerpayment (invoice→paid) with no real Helcim charge (phantom revenue). Owner-chosen fix model: **Cart + terminal checkout** — issue/reload add a gift-cert line to the kiosk cart, paid via the normal terminal flow, cert activated on payment SUCCESS (one cart invoice; no standalone pre-paid invoice). Gap G-44-01 in 44-08-UAT.md. Redeem path is correct (already charges terminal).
 - [44-07]: GC panel gates terminal push on both surfaces — staff must Skip or Apply+Proceed before terminal starts (prevents accidental charges)
 - [44-07]: gift_card_only path (202+pending:false, gift_card_only:true) → immediate /confirm with gift_card, no transaction_id; terminal skipped for full-coverage redemptions
 - [44-07]: Management modal (admin-only): kgcm-* IDs; void sub-view is mode-switch within openModal; reason required; 409 = already voided
