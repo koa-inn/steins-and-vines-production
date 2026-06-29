@@ -1,6 +1,8 @@
 module.exports = {
   testEnvironment: 'node',
   testMatch: ['**/__tests__/**/*.test.js'],
+  // Per-file env isolation (clears the shared API key vars). See jest.setup.js.
+  setupFiles: ['<rootDir>/jest.setup.js'],
   collectCoverage: true,
   collectCoverageFrom: [
     'lib/**/*.js',

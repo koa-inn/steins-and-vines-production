@@ -7,6 +7,7 @@ var log = require('../lib/logger');
 var C = require('../lib/constants');
 
 var ledger = require('../lib/inventory-ledger');
+var apiKeyGuard = require('../lib/apiKey');
 
 var inventoryGet = zohoApi.inventoryGet;
 var fetchAllItems = zohoApi.fetchAllItems;
@@ -627,12 +628,10 @@ function doRefreshIngredients() {
 
 // Admin gate for the include_internal=1 mode. Internal-only items are not PII,
 // but exposing them is staff-only — match the API key the recipe builder already
-// sends (x-api-key header). Mirrors the env-var pair used by server.js / pos.js.
+// sends (x-api-key header). Delegates to the shared header-only, unified-key,
+// constant-time guard used by server.js / pos.js.
 function hasValidApiKey(req) {
-  var sent = (req && req.headers && req.headers['x-api-key']) ||
-             (req && req.query && req.query.api_key) || '';
-  var key = process.env.API_SECRET_KEY || process.env.MW_API_KEY || '';
-  return !!key && sent === key;
+  return apiKeyGuard.matches(req && req.headers && req.headers['x-api-key']);
 }
 
 // Serve the full ingredient list INCLUDING Internal Only items (admin recipe

@@ -237,7 +237,8 @@ app.use('/api', function (req, res, next) {
 // API key guard — protects mutating /api/* endpoints from unauthorized callers
 // ---------------------------------------------------------------------------
 
-var API_SECRET_KEY = process.env.API_SECRET_KEY || process.env.MW_API_KEY || '';
+var apiKeyGuard = require('./lib/apiKey');
+var API_SECRET_KEY = apiKeyGuard.getKey();
 
 if (!API_SECRET_KEY) {
   log.warn('');
@@ -250,18 +251,8 @@ if (!API_SECRET_KEY) {
   log.warn('');
 }
 
-// Constant-time API key comparison. A plain `===` on the secret is a timing
-// oracle that leaks the key byte-by-byte via response-time measurement; this
-// matters most for the PII GET guard below. Length is checked first (lengths
-// are not secret) so timingSafeEqual always gets equal-length buffers.
-function apiKeyMatches(sent) {
-  if (!API_SECRET_KEY || typeof sent !== 'string') return false;
-  var a = Buffer.from(sent);
-  var b = Buffer.from(API_SECRET_KEY);
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
-
+// Key comparison (constant-time, header-only, unified env pair) lives in
+// lib/apiKey so server.js and the individual route guards can never drift.
 app.use('/api', function (req, res, next) {
   if (req.method === 'GET') return next();
   // /api/checkout is public — protected by reCAPTCHA + rate limit instead of API key
@@ -273,7 +264,7 @@ app.use('/api', function (req, res, next) {
   if (!API_SECRET_KEY) {
     return res.status(503).json({ error: 'Server not configured: API_SECRET_KEY is not set. Contact your administrator.' });
   }
-  if (apiKeyMatches(req.headers['x-api-key'])) return next();
+  if (apiKeyGuard.matches(req.headers['x-api-key'])) return next();
   var sent = req.headers['x-api-key'];
   log.warn('[api-key] Forbidden: method=' + req.method + ' path=' + req.path +
     ' header-present=' + (sent !== undefined) +
@@ -424,7 +415,7 @@ app.use('/api/kiosk/gift-card/reload', paymentLimiter);
 var PII_GET_ROUTES = ['/api/contacts', '/api/invoices', '/api/items/inspect', '/api/snapshot'];
 
 function requirePiiApiKey(req, res, next) {
-  if (apiKeyMatches(req.headers['x-api-key'])) return next();
+  if (apiKeyGuard.matches(req.headers['x-api-key'])) return next();
   return res.status(403).json({ error: 'Forbidden' });
 }
 

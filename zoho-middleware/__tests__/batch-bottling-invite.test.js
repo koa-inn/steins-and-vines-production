@@ -134,16 +134,24 @@ describe('POST /api/batch/bottling-invite', function () {
   var OLD_MW_KEY;
   var handler;
 
+  var OLD_SECRET_KEY;
+
   beforeEach(function () {
     jest.clearAllMocks();
     OLD_MW_KEY = process.env.MW_API_KEY;
+    OLD_SECRET_KEY = process.env.API_SECRET_KEY;
     process.env.MW_API_KEY = 'test-api-key';
+    // The guard now resolves API_SECRET_KEY || MW_API_KEY; clear the primary so
+    // this file deterministically owns the key via the alias (no cross-file bleed).
+    delete process.env.API_SECRET_KEY;
     handler = findHandler('post', '/api/batch/bottling-invite');
     mailer.sendBottlingInvite.mockResolvedValue({ id: 'email_abc' });
   });
 
   afterEach(function () {
     process.env.MW_API_KEY = OLD_MW_KEY;
+    if (OLD_SECRET_KEY === undefined) delete process.env.API_SECRET_KEY;
+    else process.env.API_SECRET_KEY = OLD_SECRET_KEY;
   });
 
   // ── 401 ──────────────────────────────────────────────────────────────────
@@ -249,8 +257,8 @@ describe('POST /api/batch/bottling-invite', function () {
     });
   });
 
-  // ── accepts api_key query param (same as siblings) ────────────────────────
-  it('accepts api_key as query param instead of header', function () {
+  // ── rejects api_key in the URL (#2: header-only, no key-in-URL) ────────────
+  it('rejects api_key supplied as a query param (header-only)', function () {
     var req = makeReq({
       email: 'jane@example.com',
       name: 'Jane',
@@ -261,8 +269,9 @@ describe('POST /api/batch/bottling-invite', function () {
     handler(req, res);
 
     return flushPromises().then(function () {
-      expect(mailer.sendBottlingInvite).toHaveBeenCalled();
-      expect(res._json).toMatchObject({ success: true });
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res._json).toMatchObject({ error: 'Unauthorized' });
+      expect(mailer.sendBottlingInvite).not.toHaveBeenCalled();
     });
   });
 });

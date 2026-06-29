@@ -5,6 +5,7 @@ var zohoApi = require('../lib/zoho-api');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var C = require('../lib/constants');
+var apiKeyGuard = require('../lib/apiKey');
 
 var zohoGet = zohoApi.zohoGet;
 
@@ -22,8 +23,7 @@ function lastDayOfMonth(year, month) {
  * Returns consignment sales aggregated by artisan for the given month.
  */
 router.get('/api/admin/consignment-report', function (req, res) {
-  var apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (apiKey !== process.env.MW_API_KEY) {
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
