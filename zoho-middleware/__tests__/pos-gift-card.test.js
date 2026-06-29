@@ -654,3 +654,380 @@ describe('pos routes — gift card split-tender (Phase 44)', function () {
   }); // regression
 
 }); // describe
+
+// =============================================================================
+// Phase 44-09: gift_cert CART LINE — pricing, zero-tax, fail-closed
+// =============================================================================
+
+// A taxable catalog item used in mixed-cart tests.
+var CATALOG_WITH_TAXABLE = [
+  {
+    item_id: 'item-taxable-test',
+    name: 'Taxable Item',
+    rate: 20.00,
+    stock_on_hand: 10,
+    tax_percentage: 5,
+    tax_id: 'tax-5pct',
+    custom_fields: []
+  }
+];
+
+describe('pos routes — gift_cert line pricing (Phase 44-09)', function () {
+  var cache, zohoApi, helcimLib, log, router, handlers;
+
+  function getHandlers() {
+    jest.resetModules();
+    cache      = require('../lib/cache');
+    zohoApi    = require('../lib/zoho-api');
+    helcimLib  = require('../lib/helcim');
+    log        = require('../lib/logger');
+    require('../routes/pos');
+    router = require('express').Router();
+    handlers = {};
+    router.post.mock.calls.forEach(function (call) {
+      handlers[call[0]] = call[call.length - 1];
+    });
+    router.get.mock.calls.forEach(function (call) {
+      handlers[call[0]] = call[call.length - 1];
+    });
+  }
+
+  function mockRes() {
+    var res = { json: jest.fn(), status: jest.fn(), headersSent: false };
+    res.status.mockReturnValue(res);
+    return res;
+  }
+
+  beforeEach(function () {
+    getHandlers();
+    process.env.KIOSK_CONTACT_ID = 'contact-walkin';
+    process.env.APPS_SCRIPT_URL = 'https://script.example.com/exec';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'server-token-test';
+    process.env.ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID = '109900000000873231';
+    process.env.KIOSK_GIFT_CARD_ITEM_ID = 'gc-item-server-123';
+  });
+
+  afterEach(function () {
+    delete process.env.KIOSK_CONTACT_ID;
+    delete process.env.APPS_SCRIPT_URL;
+    delete process.env.APPS_SCRIPT_SERVER_TOKEN;
+    delete process.env.ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID;
+    delete process.env.KIOSK_GIFT_CARD_ITEM_ID;
+  });
+
+  // -------------------------------------------------------------------------
+  // Fail-closed: KIOSK_GIFT_CARD_ITEM_ID unset
+  // -------------------------------------------------------------------------
+
+  test('sale: gift_cert line with KIOSK_GIFT_CARD_ITEM_ID unset → 503', function (done) {
+    delete process.env.KIOSK_GIFT_CARD_ITEM_ID;
+    cache.get.mockResolvedValue([]);
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'GC-000042', rate: 50 }]
+      }
+    };
+    var res = mockRes();
+
+    res.status.mockImplementation(function (code) {
+      return {
+        json: function () {
+          try {
+            expect(code).toBe(503);
+            expect(helcimLib.terminalPurchase).not.toHaveBeenCalled();
+            done();
+          } catch (e) { done(e); }
+        }
+      };
+    });
+    res.json.mockImplementation(function () {
+      done(new Error('Expected res.status(503) but got res.json directly'));
+    });
+
+    handlers['/api/kiosk/sale'](req, res);
+  });
+
+  test('confirm: gift_cert line with KIOSK_GIFT_CARD_ITEM_ID unset → 503', function (done) {
+    delete process.env.KIOSK_GIFT_CARD_ITEM_ID;
+    cache.get.mockResolvedValue([]);
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'GC-000042', rate: 50 }],
+        transaction_id: 'txn-123',
+        reference_number: 'KIOSK-GC-503'
+      }
+    };
+    var res = mockRes();
+
+    res.status.mockImplementation(function (code) {
+      return {
+        json: function () {
+          try {
+            expect(code).toBe(503);
+            done();
+          } catch (e) { done(e); }
+        }
+      };
+    });
+    res.json.mockImplementation(function () {
+      done(new Error('Expected res.status(503) but got res.json directly'));
+    });
+
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  // -------------------------------------------------------------------------
+  // Validation: cert_number format and rate bounds
+  // -------------------------------------------------------------------------
+
+  test('sale: gift_cert cert_number bad format → 400', function (done) {
+    cache.get.mockResolvedValue([]);
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'INVALID', rate: 50 }]
+      }
+    };
+    var res = mockRes();
+
+    res.status.mockImplementation(function (code) {
+      return {
+        json: function () {
+          try {
+            expect(code).toBe(400);
+            done();
+          } catch (e) { done(e); }
+        }
+      };
+    });
+    res.json.mockImplementation(function () {
+      done(new Error('Expected res.status(400)'));
+    });
+
+    handlers['/api/kiosk/sale'](req, res);
+  });
+
+  test('sale: gift_cert rate > 2000 → 400', function (done) {
+    cache.get.mockResolvedValue([]);
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'GC-000042', rate: 2001 }]
+      }
+    };
+    var res = mockRes();
+
+    res.status.mockImplementation(function (code) {
+      return {
+        json: function () {
+          try {
+            expect(code).toBe(400);
+            done();
+          } catch (e) { done(e); }
+        }
+      };
+    });
+    res.json.mockImplementation(function () {
+      done(new Error('Expected res.status(400)'));
+    });
+
+    handlers['/api/kiosk/sale'](req, res);
+  });
+
+  test('sale: gift_cert rate <= 0 → 400', function (done) {
+    cache.get.mockResolvedValue([]);
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'GC-000042', rate: 0 }]
+      }
+    };
+    var res = mockRes();
+
+    res.status.mockImplementation(function (code) {
+      return {
+        json: function () {
+          try {
+            expect(code).toBe(400);
+            done();
+          } catch (e) { done(e); }
+        }
+      };
+    });
+    res.json.mockImplementation(function () {
+      done(new Error('Expected res.status(400)'));
+    });
+
+    handlers['/api/kiosk/sale'](req, res);
+  });
+
+  // -------------------------------------------------------------------------
+  // gift_cert face value is included in the terminal charge
+  // -------------------------------------------------------------------------
+
+  test('sale: gift_cert-only cart — terminal charged face_value ($50)', function (done) {
+    cache.get.mockResolvedValue([]);
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'GC-000042', rate: 50 }]
+      }
+    };
+    var res = mockRes();
+
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(body.pending).toBe(true);
+        var termCall = helcimLib.terminalPurchase.mock.calls[0];
+        expect(termCall).toBeTruthy();
+        expect(termCall[0]).toBe(50);   // face value charged
+        done();
+      } catch (e) { done(e); }
+    });
+    res.status.mockImplementation(function (code) {
+      if (code >= 400) {
+        return { json: function (b) { done(new Error('Got status ' + code + ': ' + JSON.stringify(b))); } };
+      }
+      return res;
+    });
+
+    handlers['/api/kiosk/sale'](req, res);
+  });
+
+  // -------------------------------------------------------------------------
+  // Mixed cart: gift_cert + taxable catalog item — only catalog item taxed
+  // -------------------------------------------------------------------------
+
+  test('sale: gift_cert + taxable catalog item — gift_cert adds $0 tax; catalog item taxed normally', function (done) {
+    // CATALOG_WITH_TAXABLE: item-taxable-test at $20, 5% tax → tax $1
+    // gift_cert: rate $50, zero-tax (D-03)
+    // Expected grandTotal = $20 + $50 + $1 = $71; terminal charge = $71
+    cache.get.mockResolvedValue(CATALOG_WITH_TAXABLE);
+
+    var req = {
+      body: {
+        items: [
+          { item_id: 'item-taxable-test', name: 'Taxable Item', quantity: 1 },
+          { gift_cert: true, gift_action: 'issue', cert_number: 'GC-000042', rate: 50 }
+        ]
+      }
+    };
+    var res = mockRes();
+
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(body.pending).toBe(true);
+        var termCall = helcimLib.terminalPurchase.mock.calls[0];
+        expect(termCall).toBeTruthy();
+        expect(termCall[0]).toBe(71);   // $20 + $50 + $1 tax = $71
+        done();
+      } catch (e) { done(e); }
+    });
+    res.status.mockImplementation(function (code) {
+      if (code >= 400) {
+        return { json: function (b) { done(new Error('Got status ' + code + ': ' + JSON.stringify(b))); } };
+      }
+      return res;
+    });
+
+    handlers['/api/kiosk/sale'](req, res);
+  });
+
+  // -------------------------------------------------------------------------
+  // Confirm: gift_cert line uses KIOSK_GIFT_CARD_ITEM_ID + no tax_id in invoice
+  // -------------------------------------------------------------------------
+
+  test('confirm: gift_cert line uses KIOSK_GIFT_CARD_ITEM_ID and no tax_id in Zoho invoice (D-03, T-44-G1)', function (done) {
+    cache.get.mockResolvedValue([]);
+    zohoApi.zohoPost.mockImplementation(function (path) {
+      if (path === '/invoices') {
+        return Promise.resolve({ invoice: { invoice_id: 'inv-gc-new-1', invoice_number: 'INV-GC-NEW-001' } });
+      }
+      return Promise.resolve({});
+    });
+    require('axios').post.mockResolvedValue({ data: { ok: true } });
+
+    var req = {
+      body: {
+        items: [{ gift_cert: true, gift_action: 'issue', cert_number: 'GC-000042', rate: 50 }],
+        transaction_id: 'txn-gc-line-confirm',
+        reference_number: 'KIOSK-GC-LINE-001'
+      }
+    };
+    var res = mockRes();
+
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(body.ok).toBe(true);
+
+        var invoiceCall = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/invoices'; });
+        expect(invoiceCall).toBeTruthy();
+        var lineItems = invoiceCall[1].line_items;
+        expect(lineItems.length).toBe(1);
+
+        var gcLine = lineItems[0];
+        // Server-authoritative item_id (D-05/T-44-G1)
+        expect(gcLine.item_id).toBe('gc-item-server-123');
+        // No tax_id (D-03)
+        expect(gcLine.tax_id).toBeUndefined();
+        expect(gcLine.rate).toBe(50);
+        expect(gcLine.quantity).toBe(1);
+        expect(gcLine.name).toMatch(/GC-000042/);
+        done();
+      } catch (e) { done(e); }
+    });
+    res.status.mockImplementation(function (code) {
+      if (code >= 400) {
+        return { json: function (b) { done(new Error('Got status ' + code + ': ' + JSON.stringify(b))); } };
+      }
+      return res;
+    });
+
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  test('confirm: client-supplied item_id on gift_cert line is ignored; KIOSK_GIFT_CARD_ITEM_ID used (T-44-G1)', function (done) {
+    cache.get.mockResolvedValue([]);
+    zohoApi.zohoPost.mockImplementation(function (path) {
+      if (path === '/invoices') {
+        return Promise.resolve({ invoice: { invoice_id: 'inv-gc-ignore', invoice_number: 'INV-GC-IGNORE' } });
+      }
+      return Promise.resolve({});
+    });
+    require('axios').post.mockResolvedValue({ data: { ok: true } });
+
+    var req = {
+      body: {
+        items: [{
+          gift_cert: true, gift_action: 'issue', cert_number: 'GC-000042', rate: 50,
+          item_id: 'client-attacker-item-id'   // must be ignored
+        }],
+        transaction_id: 'txn-gc-ignore',
+        reference_number: 'KIOSK-GC-IGNORE'
+      }
+    };
+    var res = mockRes();
+
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(body.ok).toBe(true);
+        var invoiceCall = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/invoices'; });
+        var gcLine = invoiceCall[1].line_items[0];
+        expect(gcLine.item_id).toBe('gc-item-server-123');  // server-authoritative
+        expect(gcLine.item_id).not.toBe('client-attacker-item-id');
+        done();
+      } catch (e) { done(e); }
+    });
+    res.status.mockImplementation(function (code) {
+      if (code >= 400) {
+        return { json: function (b) { done(new Error('Got status ' + code + ': ' + JSON.stringify(b))); } };
+      }
+      return res;
+    });
+
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+}); // Phase 44-09 pricing
