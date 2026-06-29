@@ -709,6 +709,9 @@
   var _kioskDiscountPresets = [];
   var _kioskEditingDiscountId = null; // null = creating a new preset; id = editing existing
 
+  var _kioskGiftCard = null;
+  // null = no gift card applied to this sale; { cert_number, amount_applied, balance } when applied (Phase 44, D-08)
+
   // Customer browse mode state
   var _kioskCbTab = 'kits';
   var _kioskCbSearch = '';
@@ -2611,6 +2614,7 @@
     _kioskMakersFeeWaived = false;
     _kioskCart = {};
     _kioskDiscount = null;
+    _kioskGiftCard = null;
     _kioskSelectedRecipe = null;
     _kioskSaleType = null;
     _kioskMillGrain = false;
@@ -3427,8 +3431,8 @@
     var cancelBtn = document.getElementById('kiosk-cancel-payment');
 
     if (amountEl) amountEl.textContent = kioskFmt(totals.total);
-    if (msgEl) msgEl.textContent = 'Tap, insert, or swipe card on terminal...';
-    if (spinnerEl) spinnerEl.style.display = '';
+    if (msgEl) msgEl.textContent = '';
+    if (spinnerEl) spinnerEl.style.display = 'none';
 
     if (itemsEl) {
       var itemHtml = '';
@@ -3448,18 +3452,12 @@
     }
 
     var cancelled = false;
+    // Phase 44: Before terminal push, Cancel just returns to browse (no terminal to cancel yet)
     if (cancelBtn) {
       cancelBtn.disabled = false;
       cancelBtn.onclick = function () {
         cancelled = true;
-        cancelBtn.disabled = true;
-        if (msgEl) msgEl.textContent = 'Cancelling...';
-        fetch(mwUrl + '/api/pos/cancel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
-        }).catch(function () {}).then(function () {
-          kioskShowView('browse');
-        });
+        kioskShowView('browse');
       };
     }
 
@@ -3488,11 +3486,13 @@
       idempotency_key: refNumber,
       discount: _kioskDiscount ? { preset_id: _kioskDiscount.presetId, name: _kioskDiscount.name, type: _kioskDiscount.type, value: _kioskDiscount.value, scope: _kioskDiscount.scope } : undefined
     } : null;
+    // Phase 44 (D-05): gift_card set inside _kioskPushToTerminal after the GC panel step
     var standardSaleBody = {
       items: items,
       reference_number: refNumber,
       idempotency_key: refNumber,
-      discount: _kioskDiscount ? { preset_id: _kioskDiscount.presetId, name: _kioskDiscount.name, type: _kioskDiscount.type, value: _kioskDiscount.value, scope: _kioskDiscount.scope } : undefined
+      discount: _kioskDiscount ? { preset_id: _kioskDiscount.presetId, name: _kioskDiscount.name, type: _kioskDiscount.type, value: _kioskDiscount.value, scope: _kioskDiscount.scope } : undefined,
+      gift_card: undefined
     };
     var saleBody = isRecipeSale ? recipeSaleBody : standardSaleBody;
 
@@ -3579,6 +3579,7 @@
         return;
       }
 
+      // Phase 44 (D-05): include gift_card in confirm body so server records split payment
       fetch(mwUrl + '/api/kiosk/sale/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
@@ -3588,7 +3589,8 @@
           transaction_id: txnId,
           customer_name: _kioskCustomer ? _kioskCustomer.name : '',
           contact_id: _kioskCustomer ? _kioskCustomer.contact_id : '',
-          discount: _kioskDiscount ? { preset_id: _kioskDiscount.presetId, name: _kioskDiscount.name, type: _kioskDiscount.type, value: _kioskDiscount.value, scope: _kioskDiscount.scope } : undefined
+          discount: _kioskDiscount ? { preset_id: _kioskDiscount.presetId, name: _kioskDiscount.name, type: _kioskDiscount.type, value: _kioskDiscount.value, scope: _kioskDiscount.scope } : undefined,
+          gift_card: _kioskGiftCard ? { cert_number: _kioskGiftCard.cert_number, amount_applied: _kioskGiftCard.amount_applied } : undefined
         })
       })
       .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -3600,68 +3602,114 @@
       });
     }
 
-    // Step 1: Push payment to terminal via backend
-    fetch(saleUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
-      body: JSON.stringify(saleBody)
-    })
-    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
-    .then(function (result) {
-      if (cancelled || saleCompleted) return;
-      if (result.status !== 202 || !result.data.pending) {
-        if (spinnerEl) spinnerEl.style.display = 'none';
-        kioskShowError('Terminal Error', (result.data && result.data.error) || 'Failed to push to terminal.', true);
-        return;
+    // Phase 44: _kioskPushToTerminal — called by GC panel "Proceed" / "Skip" buttons (or immediately for recipe sales).
+    // Hides GC panel, switches cancel to terminal-cancel, updates amount display, then starts terminal push + poll.
+    var _kioskPushToTerminal = function () {
+      // Update standardSaleBody with the current gift card state (D-05: client-side clamp already applied in GC panel)
+      if (!isRecipeSale) {
+        standardSaleBody.gift_card = _kioskGiftCard
+          ? { cert_number: _kioskGiftCard.cert_number, amount_applied: _kioskGiftCard.amount_applied }
+          : undefined;
       }
 
-      // Step 2: Poll for terminal result every 3 seconds
-      var pollRef = result.data.reference;
-      pollTimer = setInterval(function () {
-        if (cancelled || saleCompleted) { clearInterval(pollTimer); pollTimer = null; return; }
-        if (Date.now() - pollStart >= POLL_TIMEOUT_MS) {
-          if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-          if (spinnerEl) spinnerEl.style.display = 'none';
-          if (msgEl) msgEl.textContent = 'Terminal did not respond. Confirm manually if payment was taken, or cancel.';
-          if (confirmBtn) { confirmBtn.style.display = ''; confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Manually'; }
+      // Update amount display to terminal amount (total minus gift card)
+      var terminalAmtDisplay = (!isRecipeSale && _kioskGiftCard)
+        ? Math.max(0, Math.round((totals.total - _kioskGiftCard.amount_applied) * 100) / 100)
+        : totals.total;
+      if (amountEl) amountEl.textContent = kioskFmt(terminalAmtDisplay);
+
+      // Hide GC panel
+      var gcPanelEl = document.getElementById('kiosk-gc-panel');
+      if (gcPanelEl) gcPanelEl.style.display = 'none';
+
+      // Switch cancel button to terminal-cancel behavior
+      if (cancelBtn) {
+        cancelBtn.disabled = false;
+        cancelBtn.onclick = function () {
+          cancelled = true;
+          cancelBtn.disabled = true;
+          if (msgEl) msgEl.textContent = 'Cancelling...';
+          fetch(mwUrl + '/api/pos/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+          }).catch(function () {}).then(function () {
+            kioskShowView('browse');
+          });
+        };
+      }
+
+      // Show terminal UI
+      if (msgEl) msgEl.textContent = (terminalAmtDisplay > 0) ? 'Tap, insert, or swipe card on terminal...' : 'Processing gift card payment...';
+      if (spinnerEl) spinnerEl.style.display = '';
+
+      // Step 1: Push payment to terminal via backend (gift_card_only path skips terminal)
+      fetch(saleUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+        body: JSON.stringify(saleBody)
+      })
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+      .then(function (result) {
+        if (cancelled || saleCompleted) return;
+        // Phase 44: gift-card-only path (full coverage, no terminal charge needed)
+        if (result.status === 202 && result.data && result.data.gift_card_only) {
+          confirmSale(undefined); // no transaction_id — terminal was not charged
           return;
         }
-        fetch(mwUrl + '/api/kiosk/sale/status?ref=' + encodeURIComponent(pollRef), {
-          headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (statusData) {
-          if (cancelled || saleCompleted) return;
-          if (statusData.status === 'approved') {
-            confirmSale(statusData.transaction_id);
-          } else if (statusData.status === 'declined') {
-            if (saleCompleted) return;
-            saleCompleted = true;
+        if (result.status !== 202 || !result.data.pending) {
+          if (spinnerEl) spinnerEl.style.display = 'none';
+          kioskShowError('Terminal Error', (result.data && result.data.error) || 'Failed to push to terminal.', true);
+          return;
+        }
+
+        // Step 2: Poll for terminal result every 3 seconds
+        var pollRef = result.data.reference;
+        pollTimer = setInterval(function () {
+          if (cancelled || saleCompleted) { clearInterval(pollTimer); pollTimer = null; return; }
+          if (Date.now() - pollStart >= POLL_TIMEOUT_MS) {
             if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
             if (spinnerEl) spinnerEl.style.display = 'none';
-            if (confirmBtn) confirmBtn.style.display = 'none';
-            kioskShowError('Payment Declined', 'The card was declined or cancelled on the terminal. Please try again.', true);
+            if (msgEl) msgEl.textContent = 'Terminal did not respond. Confirm manually if payment was taken, or cancel.';
+            if (confirmBtn) { confirmBtn.style.display = ''; confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Manually'; }
+            return;
           }
-        })
-        .catch(function () {});
-      }, 3000);
-    })
-    .catch(function () {
-      if (cancelled || saleCompleted) return;
-      if (spinnerEl) spinnerEl.style.display = 'none';
-      if (msgEl) msgEl.textContent = 'Terminal connection lost. Confirm manually if payment was taken.';
-    });
+          fetch(mwUrl + '/api/kiosk/sale/status?ref=' + encodeURIComponent(pollRef), {
+            headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+          })
+          .then(function (r) { return r.json(); })
+          .then(function (statusData) {
+            if (cancelled || saleCompleted) return;
+            if (statusData.status === 'approved') {
+              confirmSale(statusData.transaction_id);
+            } else if (statusData.status === 'declined') {
+              if (saleCompleted) return;
+              saleCompleted = true;
+              if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+              if (spinnerEl) spinnerEl.style.display = 'none';
+              if (confirmBtn) confirmBtn.style.display = 'none';
+              kioskShowError('Payment Declined', 'The card was declined or cancelled on the terminal. Please try again.', true);
+            }
+          })
+          .catch(function () {});
+        }, 3000);
+      })
+      .catch(function () {
+        if (cancelled || saleCompleted) return;
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        if (msgEl) msgEl.textContent = 'Terminal connection lost. Confirm manually if payment was taken.';
+      });
 
-    // Show manual confirm fallback after 15 seconds
-    setTimeout(function () {
-      if (cancelled || saleCompleted) return;
-      if (confirmBtn) {
-        confirmBtn.style.display = '';
-        confirmBtn.disabled = false;
-        confirmBtn.textContent = 'Confirm Manually';
-      }
-      if (msgEl) msgEl.textContent = 'Waiting for terminal... or confirm manually if payment was taken.';
-    }, 15000);
+      // Show manual confirm fallback after 15 seconds
+      setTimeout(function () {
+        if (cancelled || saleCompleted) return;
+        if (confirmBtn) {
+          confirmBtn.style.display = '';
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = 'Confirm Manually';
+        }
+        if (msgEl) msgEl.textContent = 'Waiting for terminal... or confirm manually if payment was taken.';
+      }, 15000);
+    };
 
     if (confirmBtn) {
       confirmBtn.onclick = function () {
@@ -3670,6 +3718,190 @@
         if (cancelBtn) cancelBtn.disabled = true;
         confirmSale('manual-confirm');
       };
+    }
+
+    // === Phase 44: Gift Card Tender Panel — inject for non-recipe standard sales only ===
+    // For recipe sales, push to terminal immediately (no GC tender on recipe path).
+    if (isRecipeSale) {
+      _kioskPushToTerminal();
+    } else {
+      // Inject GC panel between kiosk-payment-items and payment footer
+      if (itemsEl && itemsEl.parentNode) {
+        var gcPanelEl2 = document.getElementById('kiosk-gc-panel');
+        if (!gcPanelEl2) {
+          gcPanelEl2 = document.createElement('div');
+          gcPanelEl2.id = 'kiosk-gc-panel';
+          gcPanelEl2.style.cssText = 'margin:0.75rem 0;padding:0.75rem;border:1px solid #e0e0e0;border-radius:8px;background:#fafafa;';
+          itemsEl.parentNode.insertBefore(gcPanelEl2, itemsEl.nextSibling);
+        }
+        gcPanelEl2.style.display = '';
+        gcPanelEl2.innerHTML = [
+          '<div id="kgcr-initial-row" style="display:flex;gap:0.5rem;flex-wrap:wrap;">',
+          '<button type="button" id="kgcr-open-btn" style="flex:1;min-width:110px;padding:0.5rem 0.75rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.9rem;">Apply Gift Card</button>',
+          '<button type="button" id="kgcr-skip-btn" style="flex:2;min-width:110px;padding:0.5rem 0.75rem;background:var(--cellar-green,#2e7d32);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.9rem;">Proceed to Terminal &#x2192;</button>',
+          '</div>',
+          '<div id="kgcr-form" style="display:none;margin-top:0.5rem;">',
+          '<div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">',
+          '<input type="text" id="kgcr-cert" placeholder="GC-000000" autocomplete="off" ',
+          'style="flex:1;padding:0.4rem 0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:4px;text-transform:uppercase;" />',
+          '<button type="button" id="kgcr-lookup-btn" style="padding:0.4rem 0.8rem;background:#fff;border:1px solid #bbb;border-radius:4px;cursor:pointer;font-size:0.9rem;">Look Up</button>',
+          '</div>',
+          '<div id="kgcr-balance-info" style="display:none;margin-bottom:0.5rem;padding:0.4rem 0.6rem;background:#f0f4f0;border-radius:4px;font-size:0.9rem;"></div>',
+          '<div id="kgcr-amount-wrap" style="display:none;">',
+          '<div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;">',
+          '<input type="number" id="kgcr-amount" placeholder="0.00" step="0.01" min="0.01" ',
+          'style="flex:1;padding:0.4rem 0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:4px;" />',
+          '<button type="button" id="kgcr-confirm-btn" style="padding:0.4rem 0.8rem;background:var(--cellar-green,#2e7d32);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.9rem;">Apply</button>',
+          '</div>',
+          '</div>',
+          '<div id="kgcr-error" style="display:none;color:#c00;font-size:0.88rem;margin-bottom:0.4rem;"></div>',
+          '<button type="button" id="kgcr-back-btn" style="background:none;border:none;cursor:pointer;color:#666;font-size:0.85rem;padding:0;">&#x2190; Back</button>',
+          '</div>',
+          '<div id="kgcr-applied" style="display:none;margin-top:0.5rem;">',
+          '<div id="kgcr-split-display" style="font-size:0.92rem;padding:0.3rem 0;margin-bottom:0.5rem;"></div>',
+          '<div style="display:flex;gap:0.5rem;">',
+          '<button type="button" id="kgcr-remove-btn" style="flex:1;padding:0.5rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.85rem;">Remove</button>',
+          '<button type="button" id="kgcr-proceed-btn" style="flex:2;padding:0.5rem;background:var(--cellar-green,#2e7d32);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.9rem;">Proceed to Terminal &#x2192;</button>',
+          '</div>',
+          '</div>'
+        ].join('');
+
+        var _gcLookedUpBalance = 0;
+        var gcInitialRow = document.getElementById('kgcr-initial-row');
+        var gcForm = document.getElementById('kgcr-form');
+        var gcApplied = document.getElementById('kgcr-applied');
+        var gcBalanceInfo = document.getElementById('kgcr-balance-info');
+        var gcAmountWrap = document.getElementById('kgcr-amount-wrap');
+        var gcErrorEl = document.getElementById('kgcr-error');
+        var gcSplitDisplay = document.getElementById('kgcr-split-display');
+        var gcOpenBtn = document.getElementById('kgcr-open-btn');
+        var gcSkipBtn = document.getElementById('kgcr-skip-btn');
+        var gcLookupBtn = document.getElementById('kgcr-lookup-btn');
+        var gcConfirmBtn = document.getElementById('kgcr-confirm-btn');
+        var gcBackBtn = document.getElementById('kgcr-back-btn');
+        var gcRemoveBtn = document.getElementById('kgcr-remove-btn');
+        var gcProceedBtn = document.getElementById('kgcr-proceed-btn');
+
+        if (gcOpenBtn) {
+          gcOpenBtn.onclick = function () {
+            if (gcInitialRow) gcInitialRow.style.display = 'none';
+            if (gcApplied) gcApplied.style.display = 'none';
+            if (gcErrorEl) { gcErrorEl.style.display = 'none'; gcErrorEl.textContent = ''; }
+            if (gcBalanceInfo) gcBalanceInfo.style.display = 'none';
+            if (gcAmountWrap) gcAmountWrap.style.display = 'none';
+            if (gcForm) gcForm.style.display = '';
+            var ci = document.getElementById('kgcr-cert');
+            if (ci) ci.focus();
+          };
+        }
+
+        if (gcSkipBtn) {
+          gcSkipBtn.onclick = function () { _kioskGiftCard = null; _kioskPushToTerminal(); };
+        }
+
+        if (gcBackBtn) {
+          gcBackBtn.onclick = function () {
+            if (gcForm) gcForm.style.display = 'none';
+            if (gcApplied) gcApplied.style.display = 'none';
+            if (gcInitialRow) gcInitialRow.style.display = 'flex';
+            if (gcErrorEl) { gcErrorEl.style.display = 'none'; gcErrorEl.textContent = ''; }
+          };
+        }
+
+        if (gcLookupBtn) {
+          gcLookupBtn.onclick = function () {
+            var ci = document.getElementById('kgcr-cert');
+            var cert2 = ci ? ci.value.trim().toUpperCase() : '';
+            if (!cert2) {
+              if (gcErrorEl) { gcErrorEl.textContent = 'Enter a certificate number.'; gcErrorEl.style.display = ''; }
+              return;
+            }
+            if (gcErrorEl) { gcErrorEl.style.display = 'none'; gcErrorEl.textContent = ''; }
+            if (gcBalanceInfo) gcBalanceInfo.style.display = 'none';
+            if (gcAmountWrap) gcAmountWrap.style.display = 'none';
+            gcLookupBtn.disabled = true; gcLookupBtn.textContent = 'Looking up...';
+            fetch(mwUrl + '/api/kiosk/gift-card/lookup?cert_number=' + encodeURIComponent(cert2), {
+              headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+            })
+            .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+            .then(function (res2) {
+              gcLookupBtn.disabled = false; gcLookupBtn.textContent = 'Look Up';
+              if (res2.status === 404 || !res2.data.ok) {
+                if (gcErrorEl) { gcErrorEl.textContent = 'Certificate not found.'; gcErrorEl.style.display = ''; }
+                return;
+              }
+              var d2 = res2.data.data || {};
+              if (d2.status && d2.status !== 'active') {
+                if (gcErrorEl) { gcErrorEl.textContent = 'Certificate is ' + d2.status + ' and cannot be redeemed.'; gcErrorEl.style.display = ''; }
+                return;
+              }
+              _gcLookedUpBalance = parseFloat(d2.current_balance) || 0;
+              if (_gcLookedUpBalance <= 0) {
+                if (gcErrorEl) { gcErrorEl.textContent = 'Certificate has a zero balance.'; gcErrorEl.style.display = ''; }
+                return;
+              }
+              if (gcBalanceInfo) {
+                gcBalanceInfo.textContent = 'Balance: ' + kioskFmt(_gcLookedUpBalance) +
+                  (d2.face_value ? ' (Face: ' + kioskFmt(parseFloat(d2.face_value)) + ')' : '');
+                gcBalanceInfo.style.display = '';
+              }
+              var defAmt = Math.round(Math.min(_gcLookedUpBalance, totals.total) * 100) / 100;
+              var ai = document.getElementById('kgcr-amount');
+              if (ai) ai.value = defAmt.toFixed(2);
+              if (gcAmountWrap) gcAmountWrap.style.display = '';
+            })
+            .catch(function () {
+              gcLookupBtn.disabled = false; gcLookupBtn.textContent = 'Look Up';
+              if (gcErrorEl) { gcErrorEl.textContent = 'Lookup failed. Check connection and try again.'; gcErrorEl.style.display = ''; }
+            });
+          };
+        }
+
+        if (gcConfirmBtn) {
+          gcConfirmBtn.onclick = function () {
+            var ci = document.getElementById('kgcr-cert');
+            var ai = document.getElementById('kgcr-amount');
+            var cert2 = ci ? ci.value.trim().toUpperCase() : '';
+            var applied2 = parseFloat(ai ? ai.value : 0) || 0;
+            // D-05: clamp to min(balance, total) client-side; server re-clamps
+            applied2 = Math.round(Math.min(applied2, _gcLookedUpBalance, totals.total) * 100) / 100;
+            if (applied2 <= 0) {
+              if (gcErrorEl) { gcErrorEl.textContent = 'Amount must be greater than zero.'; gcErrorEl.style.display = ''; }
+              return;
+            }
+            _kioskGiftCard = { cert_number: cert2, amount_applied: applied2, balance: _gcLookedUpBalance };
+            var termAmt2 = Math.max(0, Math.round((totals.total - applied2) * 100) / 100);
+            if (gcSplitDisplay) {
+              gcSplitDisplay.innerHTML = '<strong>Gift Card:</strong> ' + kioskFmt(applied2) +
+                (termAmt2 > 0
+                  ? ' &nbsp;&nbsp; <strong>Terminal:</strong> ' + kioskFmt(termAmt2)
+                  : ' &nbsp;&nbsp; <em>(Full coverage — no terminal charge)</em>');
+            }
+            if (amountEl) amountEl.textContent = kioskFmt(termAmt2 > 0 ? termAmt2 : totals.total);
+            if (gcForm) gcForm.style.display = 'none';
+            if (gcInitialRow) gcInitialRow.style.display = 'none';
+            if (gcApplied) gcApplied.style.display = '';
+            if (gcProceedBtn) gcProceedBtn.textContent = termAmt2 > 0 ? 'Proceed to Terminal →' : 'Complete Gift Card Payment →';
+          };
+        }
+
+        if (gcRemoveBtn) {
+          gcRemoveBtn.onclick = function () {
+            _kioskGiftCard = null;
+            if (amountEl) amountEl.textContent = kioskFmt(totals.total);
+            if (gcApplied) gcApplied.style.display = 'none';
+            if (gcInitialRow) gcInitialRow.style.display = 'flex';
+            if (gcErrorEl) { gcErrorEl.style.display = 'none'; gcErrorEl.textContent = ''; }
+          };
+        }
+
+        if (gcProceedBtn) {
+          gcProceedBtn.onclick = function () { _kioskPushToTerminal(); };
+        }
+      } else {
+        // GC panel injection failed (unexpected DOM state) — fall through to terminal immediately
+        _kioskPushToTerminal();
+      }
     }
   }
 
