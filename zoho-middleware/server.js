@@ -395,8 +395,9 @@ app.use('/api/kiosk/sale', function (req, res, next) {
 });
 app.use('/api/pos/collect', paymentLimiter);
 app.use('/api/kiosk/salesorder-pay', paymentLimiter);
-app.use('/api/kiosk/gift-card/issue', paymentLimiter);
-app.use('/api/kiosk/gift-card/reload', paymentLimiter);
+// NOTE (Phase 44-09): /api/kiosk/gift-card/issue + /reload paymentLimiter mounts
+// removed — those phantom-payment routes are decommissioned. Gift cert issue/reload
+// now flows through /api/kiosk/sale (already rate-limited via paymentLimiter above).
 
 // ---------------------------------------------------------------------------
 // PII-01: Targeted API-key guard on exactly the 4 PII-exposing GET routes.
