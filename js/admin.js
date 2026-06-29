@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-29T03:58:15.759Z';
+  var BUILD_TIMESTAMP = '2026-06-29T22:16:23.919Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -9797,6 +9797,7 @@
   var _kioskCustomer = null;     // { contact_id, name, email } or null (walk-in)
   var _kioskTabActive = false;
   var _kioskCustomCounter = 0;  // auto-incrementing counter for custom-line cart keys
+  var _kioskGiftCertCounter = 0; // counter for gift-cert cart line keys (GIFTCARD-01)
 
   var _kioskGiftCard = null;
   // null = no gift card applied to this sale; { cert_number, amount_applied, balance } when applied (Phase 44, D-08)
@@ -10219,54 +10220,66 @@
       return;
     }
 
-    if (issueBtn) { issueBtn.disabled = true; issueBtn.textContent = 'Processing…'; }
-    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
-
-    var mwUrl = kioskMwUrl();
-    var endpoint = isIssue ? '/api/kiosk/gift-card/issue' : '/api/kiosk/gift-card/reload';
-    var body = isIssue
-      ? JSON.stringify({ cert_number: cert, face_value: val, issued_by: 'kiosk' })
-      : JSON.stringify({ cert_number: cert, amount: val });
-
-    fetch(mwUrl + endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) ? SHEETS_CONFIG.MW_API_KEY : ''
-      },
-      body: body
-    })
-    .then(function (r) {
-      return r.json().then(function (d) { return { status: r.status, data: d }; });
-    })
-    .then(function (result) {
-      var btnLabel = isIssue ? 'Issue Certificate' : 'Reload Certificate';
-      if (result.status === 201 || result.status === 200) {
+    if (isIssue) {
+      // Issue mode: add gift_cert line to cart; cert is activated on payment success (G-44-01 fix, D-08)
+      _kioskGiftCertCounter += 1;
+      _kioskCart['giftcert-' + _kioskGiftCertCounter] = {
+        item: {
+          gift_cert: true,
+          gift_action: 'issue',
+          cert_number: cert,
+          name: 'Gift Certificate ' + cert,
+          rate: val,
+          tax_percentage: 0,
+          taxable: false
+        },
+        qty: 1
+      };
+      closeModal();
+      kioskRenderCart();
+    } else {
+      // Reload mode: pre-check cert exists and is active (UX guard; server re-validates, D-05)
+      if (issueBtn) { issueBtn.disabled = true; issueBtn.textContent = 'Checking…'; }
+      if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+      var mwUrl = kioskMwUrl();
+      fetch(mwUrl + '/api/kiosk/gift-card/lookup?cert_number=' + encodeURIComponent(cert), {
+        headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+      })
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+      .then(function (result) {
+        if (result.status === 404 || !result.data.ok) {
+          showGcErr('Certificate not found. Check the certificate number and try again.');
+          if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = 'Reload Certificate'; }
+          return;
+        }
+        var certData = result.data.data || {};
+        if (certData.status && certData.status !== 'active') {
+          showGcErr('Certificate is not active and cannot be reloaded.');
+          if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = 'Reload Certificate'; }
+          return;
+        }
+        // Cert is valid and active — add reload line to cart
+        _kioskGiftCertCounter += 1;
+        _kioskCart['giftcert-' + _kioskGiftCertCounter] = {
+          item: {
+            gift_cert: true,
+            gift_action: 'reload',
+            cert_number: cert,
+            name: 'Gift Cert Reload ' + cert,
+            rate: val,
+            tax_percentage: 0,
+            taxable: false
+          },
+          qty: 1
+        };
         closeModal();
-        var d = result.data;
-        var msg = isIssue
-          ? 'Gift Certificate ' + escapeHTML(d.cert_number || cert) + ' issued for ' + kioskFmt(d.face_value || val) + '.'
-          : 'Reloaded ' + escapeHTML(d.cert_number || cert) + ' — new balance: ' + kioskFmt(d.new_balance || val) + '.';
-        showToast(msg, 'success');
-      } else if (result.status === 409) {
-        showGcErr('Certificate number already in use. Try a different number.');
-        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
-      } else if (result.status === 503) {
-        showGcErr('Gift card accounting not configured. Contact your system administrator.');
-        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
-      } else if (result.status === 404) {
-        showGcErr('Certificate not found. Check the certificate number and try again.');
-        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
-      } else {
-        showGcErr((result.data && result.data.error) || 'An error occurred. Please try again.');
-        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
-      }
-    })
-    .catch(function () {
-      var btnLabel = isIssue ? 'Issue Certificate' : 'Reload Certificate';
-      showGcErr('Connection error. Please check your connection and try again.');
-      if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = btnLabel; }
-    });
+        kioskRenderCart();
+      })
+      .catch(function () {
+        showGcErr('Connection error. Please check your connection and try again.');
+        if (issueBtn) { issueBtn.disabled = false; issueBtn.textContent = 'Reload Certificate'; }
+      });
+    }
   }
 
   // ---- Gift Card Management Modal (D-06, admin-only) — lookup balance + void ----
@@ -10634,6 +10647,16 @@
       var qty = entry.qty;
       var lineTotal = (parseFloat(item.rate) || 0) * qty;
 
+      // GIFTCARD-01: gift_cert lines render with fixed qty=1 and a remove button (D-08)
+      if (item.gift_cert) {
+        html += '<div class="kiosk-cart-line">';
+        html += '<div class="kiosk-cart-line-name" title="' + escapeHTML(item.name || '') + '">' + escapeHTML(item.name || '') + '</div>';
+        html += '<div class="kiosk-cart-qty"><span class="kiosk-qty-val">1</span></div>';
+        html += '<div class="kiosk-cart-line-total">' + kioskFmt(lineTotal) + '</div>';
+        html += '<button class="kiosk-cart-remove-btn" data-id="' + id + '">&times;</button>';
+        html += '</div>';
+        return;
+      }
       html += '<div class="kiosk-cart-line">';
       // T-43-04: escapeHTML on item.name to prevent XSS from custom-line description
       html += '<div class="kiosk-cart-line-name" title="' + escapeHTML(item.name || '') + '">' + escapeHTML(item.name || '') + '</div>';
@@ -10666,6 +10689,17 @@
       '</div>';
 
     container.innerHTML = html;
+
+    // GIFTCARD-01: Wire gift-cert line remove buttons
+    container.querySelectorAll('.kiosk-cart-remove-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-id');
+        if (id && _kioskCart[id]) {
+          delete _kioskCart[id];
+          kioskRenderCart();
+        }
+      });
+    });
 
     // D-06: Wire "Add custom item" button
     var addCustomBtn = document.getElementById('kiosk-add-custom-btn');
@@ -10915,6 +10949,16 @@
     // Build payment items summary
     var items = Object.keys(_kioskCart).map(function (id) {
       var entry = _kioskCart[id];
+      // GIFTCARD-01: gift_cert lines forward cert info; server prices via KIOSK_GIFT_CARD_ITEM_ID (D-05, D-08)
+      if (entry.item.gift_cert) {
+        return {
+          gift_cert: true,
+          gift_action: entry.item.gift_action,
+          cert_number: entry.item.cert_number,
+          quantity: 1,
+          rate: parseFloat(entry.item.rate) || 0
+        };
+      }
       // D-04/D-08: custom lines forward description/note/taxable — no item_id
       if (entry.item.custom) {
         return {
@@ -11126,6 +11170,11 @@
           .then(function (confirmResult) {
             if (spinnerEl) spinnerEl.style.display = 'none';
             if (confirmResult.status === 201 && confirmResult.data.ok) {
+              // T-44-G11 (D-08): If gift cert activation failed post-payment, show prominent blocking staff alert
+              if (confirmResult.data.gift_card_activation_failed) {
+                var certNums = items.filter(function (it) { return it.gift_cert; }).map(function (it) { return it.cert_number; }).join(', ');
+                alert('STAFF ALERT: Gift cert activation FAILED — payment was taken. Record the certificate number(s) and activate manually before the customer leaves.' + (certNums ? '\nCertificate(s): ' + certNums : ''));
+              }
               _kioskSaleData = confirmResult.data;
               kioskShowReceipt(confirmResult.data, totals, items, []);
               kioskClearCart();
@@ -11145,6 +11194,11 @@
         if (spinnerEl) spinnerEl.style.display = 'none';
 
         if (result.status === 201 && result.data.ok) {
+          // T-44-G11 (D-08): If gift cert activation failed post-payment, show prominent blocking staff alert
+          if (result.data.gift_card_activation_failed) {
+            var certNums2 = items.filter(function (it) { return it.gift_cert; }).map(function (it) { return it.cert_number; }).join(', ');
+            alert('STAFF ALERT: Gift cert activation FAILED — payment was taken. Record the certificate number(s) and activate manually before the customer leaves.' + (certNums2 ? '\nCertificate(s): ' + certNums2 : ''));
+          }
           _kioskSaleData = result.data;
 
           // Auto-create batch records for kit items
