@@ -816,7 +816,7 @@ Plans:
 - **Balance integrity:** server-authoritative balance tracking (where do balances live — Zoho, Redis, Sheets? decide at planning); partial redemption must atomically decrement; guard against double-spend / replay.
 
 **Depends on:** Phase 43 (sequence after — both touch the forked kiosk surfaces; avoids `kiosk.js`/`admin.js` merge churn). Independent of Phase 42.
-**Plans:** 7/8 plans executed
+**Plans:** 7/10 plans executed (44-09, 44-10 = gap closure for G-44-01; 44-08 UAT re-run after)
 
 Plans:
 **Wave 1** (parallel — owner setup + Apps Script foundation)
@@ -838,5 +838,9 @@ Plans:
 
 **Wave 6**
 - [ ] 44-08-PLAN.md — Full gate + staging deploy + iPad Safari full-lifecycle UAT on both surfaces (Zoho accounting/tax verified) + REQUIREMENTS traceability (GIFTCARD-01)
+
+**Wave 7** (gap closure — G-44-01 from 44-08 UAT: issue/reload recorded a phantom paid invoice with no terminal charge)
+- [ ] 44-09-PLAN.md — Middleware: pos.js prices a gift_cert cart line (zero-tax via KIOSK_GIFT_CARD_ITEM_ID, D-03) + activates cert on payment SUCCESS (issue_gift_card/reload_gift_card LAST, needs_manual_review on failure, no orphan) + confirm idempotency; decommission phantom-payment /issue+/reload routes (GIFTCARD-01a/01d)
+- [ ] 44-10-PLAN.md — Frontend (D-08): kiosk.js + admin.js issue/reload modal ADDS a gift_cert cart line (paid via real terminal checkout) instead of POSTing /issue|/reload; reload lookup pre-check; rebuilt bundles (GIFTCARD-01a/01d UI)
 
 **UI hint**: yes
