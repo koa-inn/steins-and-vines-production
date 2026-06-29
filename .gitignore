@@ -12,6 +12,10 @@ style_guide.md
 *~
 .vscode/
 .idea/
+.obsidian/
+
+# Personal Obsidian notes / scratch planning — NOT tracked, NOT served on staging
+notes/
 
 # Environment secrets
 .env
