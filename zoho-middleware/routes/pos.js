@@ -588,6 +588,28 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
     return res.status(400).json({ error: 'Cart is empty' });
   }
 
+  // Confirm-level idempotency (T-44-G2): prevents double invoice / double activation on replay.
+  // Uses a 'confirm:' prefix so it never collides with the sale endpoint's cached 202.
+  var confirmIdemKey = (typeof body.idempotency_key === 'string' && body.idempotency_key)
+    ? C.CACHE_KEYS.KIOSK_IDEM_PREFIX + 'confirm:' + body.idempotency_key.slice(0, 128)
+    : null;
+
+  if (confirmIdemKey) {
+    return cache.get(confirmIdemKey).then(function (cached) {
+      if (cached) {
+        log.info('[pos/kiosk/sale/confirm] Idempotent replay: ' + confirmIdemKey);
+        return res.status(201).json(cached);
+      }
+      runConfirm(body, confirmIdemKey, req, res);
+    }).catch(function () {
+      runConfirm(body, confirmIdemKey, req, res);
+    });
+  }
+
+  runConfirm(body, null, req, res);
+});
+
+function runConfirm(body, confirmIdemKey, req, res) {
   cache.get(KIOSK_PRODUCTS_CACHE_KEY).then(function (catalog) {
     var catalogMap = {};
     if (Array.isArray(catalog)) {
@@ -774,6 +796,10 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
       var invoiceNumber = invoice.invoice_number || '';
       log.info('[pos/kiosk/sale/confirm] Invoice created: ' + invoiceNumber);
 
+      // Tracks whether any gift-cert activation failed post-payment (money in, cert not active).
+      // Set inside the LAST-STEP block; surfaced in the 201 response body.
+      var giftCardActivationFailed = false;
+
       var paymentChain = Promise.resolve();
       if (invoiceId) {
         paymentChain = zohoPost('/invoices/' + invoiceId + '/submit', {}).catch(function () {})
@@ -806,12 +832,16 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
             }
           })
           .then(function () {
-            // LAST STEP: decrement Apps Script balance (Pitfall 1 — MUST be after all Zoho calls)
-            // On failure: log CRITICAL but allow 201 (invoice already paid — Pitfall 1 accepted failure mode)
-            if (gcApplied > 0 && gcCertNum) {
-              var asUrl = process.env.APPS_SCRIPT_URL;
-              var asToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
-              if (asUrl && asToken) {
+            // LAST STEP: all Apps Script balance/activation calls (Pitfall 1 — MUST be after all Zoho calls).
+            // On failure: log CRITICAL but resolve (invoice already paid — Pitfall 1 accepted failure mode).
+            var asUrl = process.env.APPS_SCRIPT_URL;
+            var asToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
+
+            var lastStep = Promise.resolve();
+
+            // Step A: Redeem gift card balance (existing 44-04 path)
+            if (gcApplied > 0 && gcCertNum && asUrl && asToken) {
+              lastStep = lastStep.then(function () {
                 return axios.post(asUrl, JSON.stringify({
                   action: 'redeem_gift_card',
                   server_token: asToken,
@@ -834,8 +864,90 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
                   log.error('[pos/kiosk/sale/confirm] CRITICAL: Apps Script redeem_gift_card unreachable for ' +
                     gcCertNum + ': ' + asErr.message);
                 });
-              }
+              });
             }
+
+            // Step B: Activate gift cert lines (issue/reload) — 44-09 (D-05, T-44-G3)
+            // Runs AFTER Step A so both are post-payment; ordering within last-step doesn't matter
+            // since they operate on different certs, but sequential chaining keeps the code clean.
+            if (asUrl && asToken) {
+              lineItems.forEach(function (gcLine) {
+                if (!gcLine.gift_cert) return;
+                var certNum = gcLine.cert_number;
+                var certRate = gcLine.rate;
+                var certAction = gcLine.gift_action || 'issue';
+
+                if (certAction === 'issue') {
+                  lastStep = lastStep.then(function () {
+                    return axios.post(asUrl, JSON.stringify({
+                      action: 'issue_gift_card',
+                      server_token: asToken,
+                      cert_number: certNum,
+                      face_value: certRate,
+                      issued_by: 'kiosk',
+                      notes: 'Issued via kiosk cart. Ref: ' + refNumber
+                    }), { headers: { 'Content-Type': 'application/json' }, timeout: 12000, maxRedirects: 5 })
+                    .then(function (issueResp) {
+                      var r = issueResp.data || {};
+                      if (!r.ok) {
+                        log.error('[pos/kiosk/sale/confirm] CRITICAL: gift card activation failed for ' +
+                          certNum + ': ' + (r.error || 'unknown'));
+                        giftCardActivationFailed = true;
+                        return; // do NOT call update_gift_card_invoice on failure
+                      }
+                      eventLog.logEvent('kiosk.gift_card_issued', {
+                        certNumber: certNum, faceValue: certRate, invoiceNumber: invoiceNumber
+                      });
+                      // update_gift_card_invoice only on success (links Sheets row to cart invoice)
+                      return axios.post(asUrl, JSON.stringify({
+                        action: 'update_gift_card_invoice',
+                        server_token: asToken,
+                        cert_number: certNum,
+                        zoho_invoice_number: invoiceNumber
+                      }), { headers: { 'Content-Type': 'application/json' }, timeout: 12000, maxRedirects: 5 })
+                      .catch(function (updErr) {
+                        log.error('[pos/kiosk/sale/confirm] update_gift_card_invoice failed for ' +
+                          certNum + ': ' + updErr.message);
+                      });
+                    })
+                    .catch(function (issueErr) {
+                      log.error('[pos/kiosk/sale/confirm] CRITICAL: gift card activation unreachable for ' +
+                        certNum + ': ' + issueErr.message);
+                      giftCardActivationFailed = true;
+                    });
+                  });
+                } else if (certAction === 'reload') {
+                  lastStep = lastStep.then(function () {
+                    return axios.post(asUrl, JSON.stringify({
+                      action: 'reload_gift_card',
+                      server_token: asToken,
+                      cert_number: certNum,
+                      amount: certRate,
+                      transaction_ref: refNumber
+                    }), { headers: { 'Content-Type': 'application/json' }, timeout: 12000, maxRedirects: 5 })
+                    .then(function (relResp) {
+                      var r = relResp.data || {};
+                      if (!r.ok) {
+                        log.error('[pos/kiosk/sale/confirm] CRITICAL: gift card reload activation failed for ' +
+                          certNum + ': ' + (r.error || 'unknown'));
+                        giftCardActivationFailed = true;
+                      } else {
+                        eventLog.logEvent('kiosk.gift_card_reloaded', {
+                          certNumber: certNum, amount: certRate, refNumber: refNumber
+                        });
+                      }
+                    })
+                    .catch(function (relErr) {
+                      log.error('[pos/kiosk/sale/confirm] CRITICAL: gift card reload unreachable for ' +
+                        certNum + ': ' + relErr.message);
+                      giftCardActivationFailed = true;
+                    });
+                  });
+                }
+              });
+            }
+
+            return lastStep;
           })
           .catch(function (payErr) {
             log.error('[pos/kiosk/sale/confirm] Payment recording failed: ' + payErr.message);
@@ -858,7 +970,18 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
           reference_number: refNumber, subtotal: subtotal, tax_total: taxTotal, total: grandTotal, date: today
         };
         if (discountApplied) result.discount_applied = discountApplied;
-        res.status(201).json(result);
+        // Surface activation failure so 44-10 frontend can alert staff (T-44-G11)
+        if (giftCardActivationFailed) {
+          result.gift_card_activation_failed = true;
+          result.needs_manual_review = true;
+        }
+        // Cache confirm result for idempotency (T-44-G2)
+        var cacheWrite = confirmIdemKey
+          ? cache.set(confirmIdemKey, result, IDEMPOTENCY_KEY_TTL).catch(function () {})
+          : Promise.resolve();
+        cacheWrite.then(function () {
+          res.status(201).json(result);
+        });
       });
     });
     }); // end resolveDiscount.then
@@ -900,7 +1023,7 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
       res.status(502).json({ error: 'Failed to create invoice. Please try again.' });
     }
   });
-});
+}
 
 router.post('/api/pos/cancel', function (req, res) {
   helcimLib.cancelTerminal().then(function (result) {
