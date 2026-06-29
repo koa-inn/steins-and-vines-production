@@ -5,6 +5,7 @@ var zohoApi = require('../lib/zoho-api');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var eventLog = require('../lib/eventLog');
+var apiKeyGuard = require('../lib/apiKey');
 var mailer = require('../lib/mailer');
 var ledger = require('../lib/inventory-ledger');
 var C = require('../lib/constants');
@@ -73,14 +74,14 @@ function resolveDiscount(body, lineItems, subtotal, catalogMap) {
     if (preset.scope === 'cart') {
       if (preset.type === 'percentage') {
         lineItems.forEach(function (li) {
-          if (li.custom) return; // D-08: custom lines excluded from all discounts
+          if (li.custom || li.gift_cert) return; // D-08: custom/gift_cert lines excluded from all discounts
           li.discount = preset.value + '%';
         });
         discountApplied = { preset_id: preset.id, name: preset.name, type: 'percentage', value: preset.value, scope: 'cart' };
       } else {
         var fixedAmount = Math.min(preset.value, subtotal);
         lineItems.forEach(function (li) {
-          if (li.custom) return; // D-08: custom lines excluded from all discounts
+          if (li.custom || li.gift_cert) return; // D-08: custom/gift_cert lines excluded from all discounts
           var lineTotal = li.quantity * li.rate;
           var share = subtotal > 0 ? Math.round(fixedAmount * (lineTotal / subtotal) * 100) / 100 : 0;
           li.discount = share;
@@ -91,7 +92,7 @@ function resolveDiscount(body, lineItems, subtotal, catalogMap) {
       // Classify each line via the authoritative catalog and discount only matches.
       var matchedSubtotal = 0;
       var matchFlags = lineItems.map(function (li) {
-        if (li.custom) return false; // D-08: custom lines excluded from all discounts
+        if (li.custom || li.gift_cert) return false; // D-08: custom/gift_cert lines excluded from all discounts
         var tokens = discountMatch.classifyCatalogItem(catalogMap[li.item_id]);
         var m = discountMatch.matches(tokens, preset.applies_to);
         if (m) matchedSubtotal += li.quantity * li.rate;
@@ -139,6 +140,8 @@ function computeTax(lineItems, catalogMap) {
   var taxTotal = 0;
   var defaultTaxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
   lineItems.forEach(function (li) {
+    // Gift cert lines are zero-tax (D-03) — item's own EXEMPT setting; no catalog lookup.
+    if (li.gift_cert) { return; }
     // Custom lines carry their own tax_percentage (5 or 0) — skip catalog lookup.
     if (li.custom) {
       var customLineTotal = li.quantity * li.rate;
@@ -281,6 +284,7 @@ function processSale(body, idempotencyKey, req, res) {
       }
       continue;
     }
+    if (vi.gift_cert) continue; // gift_cert lines have no catalog item_id; validated below
     if (!vi.item_id || typeof vi.item_id !== 'string' || vi.item_id.length > 64) {
       return res.status(400).json({ error: 'Invalid item_id for item ' + v });
     }
@@ -303,15 +307,38 @@ function processSale(body, idempotencyKey, req, res) {
 
     // Reject immediately if any requested item is not in the catalog cache.
     // Do not fall back to client-supplied rates — that would defeat the anchoring.
-    // Custom lines (no item_id) bypass this check — their rate is bounded server-side (D-03).
+    // Custom and gift_cert lines bypass this check — their rate is bounded server-side.
     for (var ci = 0; ci < body.items.length; ci++) {
       var cItem = body.items[ci];
       if (cItem.custom) continue; // custom lines have no item_id — skip catalog check
+      if (cItem.gift_cert) continue; // gift_cert lines have no catalog item_id — handled below
       if (catalogMap[cItem.item_id] === undefined) {
         return res.status(400).json({
           error: 'Item not found in current catalog: ' + cItem.item_id +
             '. Refresh the product list and try again.'
         });
+      }
+    }
+
+    // Fail-closed guard: if any gift_cert line is present, KIOSK_GIFT_CARD_ITEM_ID must be set
+    // (T-44-G4 — mirrors the issue route guard).
+    if (body.items.some(function (i) { return i.gift_cert === true; }) &&
+        !process.env.KIOSK_GIFT_CARD_ITEM_ID) {
+      log.warn('[pos/kiosk/sale] gift_cert line rejected — KIOSK_GIFT_CARD_ITEM_ID not configured');
+      return res.status(503).json({ error: 'Gift card accounting not configured (KIOSK_GIFT_CARD_ITEM_ID missing)' });
+    }
+
+    // Validate gift_cert line fields before building lineItems (cannot return inside .map).
+    for (var gcv = 0; gcv < body.items.length; gcv++) {
+      var gcItem = body.items[gcv];
+      if (!gcItem.gift_cert) continue;
+      var gcCertNum = String(gcItem.cert_number || '').trim().toUpperCase();
+      if (!/^GC-\d{6}$/.test(gcCertNum)) {
+        return res.status(400).json({ error: 'gift_cert cert_number must match GC-NNNNNN format (e.g. GC-000042)' });
+      }
+      var gcRate = Number(gcItem.rate);
+      if (!isFinite(gcRate) || gcRate <= 0 || gcRate > 2000) {
+        return res.status(400).json({ error: 'gift_cert rate must be between $0.01 and $2000' });
       }
     }
 
@@ -354,6 +381,26 @@ function processSale(body, idempotencyKey, req, res) {
           li.tax_id = gstTaxId;
         }
         return li;
+      }
+      // Gift cert line (Phase 44-09): server-authoritative item_id, zero-tax (D-03, T-44-G1).
+      // Client-supplied item_id is ignored; face value / reload amount validated above.
+      if (item.gift_cert) {
+        var gcCertNumSale = String(item.cert_number || '').trim().toUpperCase();
+        var gcRateSale = Number(item.rate);
+        var gcNameSale = item.gift_action === 'reload'
+          ? 'Gift Certificate Reload ' + gcCertNumSale
+          : 'Gift Certificate ' + gcCertNumSale;
+        subtotal += gcRateSale;
+        return {
+          gift_cert: true,
+          gift_action: item.gift_action || 'issue',
+          cert_number: gcCertNumSale,
+          item_id: process.env.KIOSK_GIFT_CARD_ITEM_ID, // server-authoritative (D-05)
+          name: gcNameSale,
+          quantity: 1,
+          rate: gcRateSale
+          // NO tax_id — item carries its own EXEMPT setting (D-03)
+        };
       }
       var qty = Number(item.quantity) || 1;
       var catalogItem = catalogMap[item.item_id];
@@ -551,8 +598,30 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
 
     for (var ci = 0; ci < body.items.length; ci++) {
       if (body.items[ci].custom) continue; // custom lines bypass catalog check
+      if (body.items[ci].gift_cert) continue; // gift_cert lines bypass catalog check
       if (catalogMap[body.items[ci].item_id] === undefined) {
         return res.status(400).json({ error: 'Item not found in catalog. Refresh and try again.' });
+      }
+    }
+
+    // Fail-closed guard: gift_cert lines require KIOSK_GIFT_CARD_ITEM_ID (T-44-G4)
+    if (body.items.some(function (i) { return i.gift_cert === true; }) &&
+        !process.env.KIOSK_GIFT_CARD_ITEM_ID) {
+      log.warn('[pos/kiosk/sale/confirm] gift_cert line rejected — KIOSK_GIFT_CARD_ITEM_ID not configured');
+      return res.status(503).json({ error: 'Gift card accounting not configured (KIOSK_GIFT_CARD_ITEM_ID missing)' });
+    }
+
+    // Validate gift_cert lines before building lineItems
+    for (var gcvC = 0; gcvC < body.items.length; gcvC++) {
+      var gcItemC = body.items[gcvC];
+      if (!gcItemC.gift_cert) continue;
+      var gcCertNumC = String(gcItemC.cert_number || '').trim().toUpperCase();
+      if (!/^GC-\d{6}$/.test(gcCertNumC)) {
+        return res.status(400).json({ error: 'gift_cert cert_number must match GC-NNNNNN format (e.g. GC-000042)' });
+      }
+      var gcRateC = Number(gcItemC.rate);
+      if (!isFinite(gcRateC) || gcRateC <= 0 || gcRateC > 2000) {
+        return res.status(400).json({ error: 'gift_cert rate must be between $0.01 and $2000' });
       }
     }
 
@@ -592,6 +661,25 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
         }
         return li;
       }
+      // Gift cert line (Phase 44-09): server-authoritative item_id, zero-tax (D-03, T-44-G1)
+      if (item.gift_cert) {
+        var gcCertNumConfirm = String(item.cert_number || '').trim().toUpperCase();
+        var gcRateConfirm = Number(item.rate);
+        var gcNameConfirm = item.gift_action === 'reload'
+          ? 'Gift Certificate Reload ' + gcCertNumConfirm
+          : 'Gift Certificate ' + gcCertNumConfirm;
+        subtotal += gcRateConfirm;
+        return {
+          gift_cert: true,
+          gift_action: item.gift_action || 'issue',
+          cert_number: gcCertNumConfirm,
+          item_id: process.env.KIOSK_GIFT_CARD_ITEM_ID, // server-authoritative (D-05)
+          name: gcNameConfirm,
+          quantity: 1,
+          rate: gcRateConfirm
+          // NO tax_id — item carries its own EXEMPT setting (D-03)
+        };
+      }
       var qty = Number(item.quantity) || 1;
       var catalogItem = catalogMap[item.item_id];
       var rate = catalogItem.rate;
@@ -626,12 +714,18 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
       invoiceNotes += '\nDiscount: ' + discountApplied.name + ' (' + discountApplied.type + ' ' + discountApplied.value + (discountApplied.type === 'percentage' ? '%' : '') + ')';
     }
 
+    // Strip internal gift_cert tracking fields before sending to Zoho
+    var zohoLineItems = lineItems.map(function (li) {
+      if (!li.gift_cert) return li;
+      return { item_id: li.item_id, name: li.name, quantity: li.quantity, rate: li.rate };
+    });
+
     var invoicePayload = {
       date: today,
       reference_number: refNumber,
       payment_terms: 0,
       payment_terms_label: 'Due on Receipt',
-      line_items: lineItems,
+      line_items: zohoLineItems,
       notes: invoiceNotes,
       custom_fields: []
     };
@@ -972,8 +1066,7 @@ router.post('/api/pos/sale', function (req, res) {
 router.get('/api/orders/recent', function (req, res) {
   // Item #13: This endpoint exposes sensitive order data. Require an API key
   // even for GET requests, overriding the global GET exemption in server.js.
-  var apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (apiKey !== process.env.MW_API_KEY) {
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -1044,8 +1137,7 @@ router.get('/api/orders/recent', function (req, res) {
  * Shows recent stock adjustments and the current version counter.
  */
 router.get('/api/admin/inventory-ledger', function (req, res) {
-  var apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (apiKey !== process.env.MW_API_KEY) {
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -1510,8 +1602,7 @@ router.post('/api/kiosk/salesorder-pay', function (req, res) {
  * Response: { ok, salesorder_id, salesorder_number, total, balance }
  */
 router.put('/api/kiosk/salesorder-update', function (req, res) {
-  var apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (apiKey !== process.env.MW_API_KEY) {
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -1581,8 +1672,7 @@ router.put('/api/kiosk/salesorder-update', function (req, res) {
 
 // Phase 7: Sync batch status to Zoho invoice custom field (D-01, D-02, D-03)
 router.post('/api/batch/sync-zoho', function (req, res) {
-  var apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (apiKey !== process.env.MW_API_KEY) {
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -1614,8 +1704,7 @@ router.post('/api/batch/sync-zoho', function (req, res) {
 
 // Phase 7: Search invoices for batch linking (D-04)
 router.get('/api/batch/search-invoices', function (req, res) {
-  var apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (apiKey !== process.env.MW_API_KEY) {
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -1646,8 +1735,7 @@ router.get('/api/batch/search-invoices', function (req, res) {
 
 // Phase 28: Resolve customer details from a Zoho invoice or SO number (D-01..D-16)
 router.get('/api/batch/customer-by-number', function (req, res) {
-  var apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (apiKey !== process.env.MW_API_KEY) {
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -1765,8 +1853,7 @@ router.get('/api/batch/customer-by-number', function (req, res) {
 // GET /api/batch/scan-invoices
 // Optional: ?number=INV-XXXXX => single-invoice mode (D-09)
 router.get('/api/batch/scan-invoices', function (req, res) {
-  var apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (apiKey !== process.env.MW_API_KEY) {
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -1946,8 +2033,7 @@ router.get('/api/batch/scan-invoices', function (req, res) {
 // POST /api/batch/bulk-create
 // Body: { invoice_ids: ['INV-ID-001', ...] } — client supplies ONLY invoice ids (D-06)
 router.post('/api/batch/bulk-create', function (req, res) {
-  var apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (apiKey !== process.env.MW_API_KEY) {
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -2061,8 +2147,7 @@ router.post('/api/batch/bulk-create', function (req, res) {
 
 // Phase 29.1: Search Zoho contacts by name/email/phone for customer type-ahead
 router.get('/api/contacts/search', function (req, res) {
-  var apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (apiKey !== process.env.MW_API_KEY) {
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -2108,8 +2193,7 @@ router.get('/api/contacts/search', function (req, res) {
 
 // Phase 29.1: Reassign the customer on a batch and propagate to the linked Zoho SO/invoice (D-02/D-03/D-05)
 router.post('/api/batch/reassign-customer', function (req, res) {
-  var apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (apiKey !== process.env.MW_API_KEY) {
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -2394,8 +2478,7 @@ router.post('/api/batch/reassign-customer', function (req, res) {
 // Auth: x-api-key header (same as all /api/batch/* siblings).
 // ---------------------------------------------------------------------------
 router.post('/api/batch/bottling-invite', function (req, res) {
-  var apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (apiKey !== process.env.MW_API_KEY) {
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
