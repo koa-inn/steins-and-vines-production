@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
 status: executing
-stopped_at: 44-02 COMPLETE — GiftCards sheet + 7 Apps Script actions (issue/lookup/redeem/reload/void/update-invoice/next-cert-number) deployed; LockService atomicity + last_tx_ref idempotency confirmed in code. Smoke test owner-reported; 44-03 integration test is authoritative gate. Advancing to 44-03.
-last_updated: "2026-06-28T17:32:39.825Z"
-last_activity: 2026-06-28
+stopped_at: 44-07 COMPLETE — GC redeem tender (kgcr-*) injected in payment view on both surfaces (D-08 parity); gift_card_only path handled; admin-only management modal (kgcm-*) for lookup+void; 928 tests green. Advancing to 44-08 (staging UAT).
+last_updated: "2026-06-29T04:01:04.909Z"
+last_activity: 2026-06-29
 progress:
   total_phases: 30
   completed_phases: 5
   total_plans: 39
-  completed_plans: 41
+  completed_plans: 42
   percent: 17
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTING
-Plan: 7 of 8
+Plan: 8 of 8
 Status: Ready to execute
-Last activity: 2026-06-28
+Last activity: 2026-06-29
 
 Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (staging), 42 (kiosk de-fork) NOT started.
 
@@ -49,6 +49,9 @@ Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (stagi
 
 ### Decisions
 
+- [44-07]: GC panel gates terminal push on both surfaces — staff must Skip or Apply+Proceed before terminal starts (prevents accidental charges)
+- [44-07]: gift_card_only path (202+pending:false, gift_card_only:true) → immediate /confirm with gift_card, no transaction_id; terminal skipped for full-coverage redemptions
+- [44-07]: Management modal (admin-only): kgcm-* IDs; void sub-view is mode-switch within openModal; reason required; 409 = already voided
 - [44-05]: Reload ordering asymmetry: reload_gift_card increments balance FIRST before Zoho invoice/payment (protects customer value); Zoho failure logs CRITICAL + needs_manual_review (no auto-reversal, T-44-20 accepted). Void is status-only (no Zoho money movement).
 - [44-03]: Issue route void-on-Zoho-failure: void_gift_card(reason:'zoho_invoice_failed') called fire-and-forget when zohoPost throws after Sheets row created (T-44-12 atomic safety). All Apps Script gift-card actions use axios.post (doPost server_token dispatch).
 - [44-01]: ZOHO_TAX_ZERO_ID not required for gift-card invoice lines — item's own 0%/EXEMPT setting is sufficient (live Probe B in S&V Zoho). 44-03 and 44-05 must NOT pass a tax_id on gift-card lines.
@@ -99,7 +102,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-28T17:32:39.820Z
+Last session: 2026-06-29T04:01:04.901Z
 Stopped at: 44-02 COMPLETE — GiftCards sheet + 7 Apps Script actions (issue/lookup/redeem/reload/void/update-invoice/next-cert-number) deployed; LockService atomicity + last_tx_ref idempotency confirmed in code. Smoke test owner-reported; 44-03 integration test is authoritative gate. Advancing to 44-03.
 Next: 44-02 (Apps Script adminApi.gs: GiftCards sheet + 7 actions) — Wave 1 parallel plan.
 Resume file: None

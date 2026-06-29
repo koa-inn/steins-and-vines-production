@@ -816,7 +816,7 @@ Plans:
 - **Balance integrity:** server-authoritative balance tracking (where do balances live — Zoho, Redis, Sheets? decide at planning); partial redemption must atomically decrement; guard against double-spend / replay.
 
 **Depends on:** Phase 43 (sequence after — both touch the forked kiosk surfaces; avoids `kiosk.js`/`admin.js` merge churn). Independent of Phase 42.
-**Plans:** 6/8 plans executed
+**Plans:** 7/8 plans executed
 
 Plans:
 **Wave 1** (parallel — owner setup + Apps Script foundation)
@@ -834,7 +834,7 @@ Plans:
 - [x] 44-06-PLAN.md — Issue/Reload "add value" modal on BOTH forked surfaces (kiosk.js inline + admin.js openModal), suggested cert pre-fill, rebuilt bundles (GIFTCARD-01a/01d UI)
 
 **Wave 5**
-- [ ] 44-07-PLAN.md — Redeem tender (lookup → apply → split terminal) on BOTH surfaces + admin-only lookup/void management view + rebuilt bundles (GIFTCARD-01b/01c/01e UI)
+- [x] 44-07-PLAN.md — Redeem tender (lookup → apply → split terminal) on BOTH surfaces + admin-only lookup/void management view + rebuilt bundles (GIFTCARD-01b/01c/01e UI)
 
 **Wave 6**
 - [ ] 44-08-PLAN.md — Full gate + staging deploy + iPad Safari full-lifecycle UAT on both surfaces (Zoho accounting/tax verified) + REQUIREMENTS traceability (GIFTCARD-01)
