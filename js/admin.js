@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-28T17:30:31.613Z';
+  var BUILD_TIMESTAMP = '2026-06-29T03:58:15.759Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -9798,6 +9798,9 @@
   var _kioskTabActive = false;
   var _kioskCustomCounter = 0;  // auto-incrementing counter for custom-line cart keys
 
+  var _kioskGiftCard = null;
+  // null = no gift card applied to this sale; { cert_number, amount_applied, balance } when applied (Phase 44, D-08)
+
   // ---- Recipe browser state ----
   var _kioskMode = 'products';        // 'products' | 'recipes'
   var _kioskRecipes = [];
@@ -10087,6 +10090,7 @@
 
   function kioskClearCart() {
     _kioskCart = {};
+    _kioskGiftCard = null;
     // Reset recipe state on cart clear
     _kioskSelectedRecipe = null;
     _kioskSaleType = null;
@@ -10265,6 +10269,199 @@
     });
   }
 
+  // ---- Gift Card Management Modal (D-06, admin-only) — lookup balance + void ----
+  // kgcm-* IDs: avoids collision with kgci-* (issue/reload) and kgcr-* (redeem tender)
+
+  function kioskShowAdminGiftCardMgmtModal() {
+    var html = [
+      '<div>',
+      '<div id="kgcm-lookup-view">',
+      '<div style="display:flex;gap:0.5rem;margin-bottom:1rem;align-items:flex-end;">',
+      '<div style="flex:1;">',
+      '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kgcm-cert">Certificate #</label>',
+      '<input id="kgcm-cert" type="text" maxlength="10" placeholder="GC-000000" autocomplete="off"',
+      ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:4px;">',
+      '</div>',
+      '<button id="kgcm-lookup-btn" type="button" class="btn btn-default">Look Up</button>',
+      '</div>',
+      '<div id="kgcm-error" style="color:#c00;font-size:0.9rem;margin-bottom:0.75rem;display:none;"></div>',
+      '<div id="kgcm-result" style="display:none;background:#f7f5f0;border:1px solid #ddd;border-radius:6px;padding:0.75rem 1rem;margin-bottom:1rem;">',
+      '<div id="kgcm-result-info" style="font-size:0.95rem;"></div>',
+      '<div style="margin-top:0.75rem;">',
+      '<button id="kgcm-void-btn" type="button" class="btn btn-danger" style="font-size:0.9rem;">Void Certificate</button>',
+      '</div>',
+      '</div>',
+      '<div style="display:flex;justify-content:flex-end;">',
+      '<button id="kgcm-close-btn" type="button" class="btn btn-default">Close</button>',
+      '</div>',
+      '</div>',
+      '<div id="kgcm-void-view" style="display:none;">',
+      '<div id="kgcm-void-confirm" style="font-weight:600;margin-bottom:0.75rem;font-size:1rem;"></div>',
+      '<div style="margin-bottom:1rem;">',
+      '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kgcm-void-reason">Reason <span style="color:#c00;">*</span></label>',
+      '<input id="kgcm-void-reason" type="text" maxlength="100" placeholder="e.g. customer request, duplicate, lost"',
+      ' autocomplete="off" style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:4px;">',
+      '</div>',
+      '<div id="kgcm-void-error" style="color:#c00;font-size:0.9rem;margin-bottom:0.75rem;display:none;"></div>',
+      '<div style="display:flex;gap:0.75rem;justify-content:flex-end;">',
+      '<button id="kgcm-void-cancel-btn" type="button" class="btn btn-default">Back</button>',
+      '<button id="kgcm-void-confirm-btn" type="button" class="btn btn-danger">Confirm Void</button>',
+      '</div>',
+      '</div>',
+      '</div>'
+    ].join('');
+
+    openModal('Gift Card Management', html);
+
+    var certEl = document.getElementById('kgcm-cert');
+    if (certEl) certEl.focus();
+    var mwUrl = (SHEETS_CONFIG && SHEETS_CONFIG.MW_URL) ? SHEETS_CONFIG.MW_URL : '';
+    var apiKey = (SHEETS_CONFIG && SHEETS_CONFIG.MW_API_KEY) ? SHEETS_CONFIG.MW_API_KEY : '';
+
+    var lookupView = document.getElementById('kgcm-lookup-view');
+    var voidView = document.getElementById('kgcm-void-view');
+    var errEl = document.getElementById('kgcm-error');
+    var resultEl = document.getElementById('kgcm-result');
+    var resultInfoEl = document.getElementById('kgcm-result-info');
+    var lookupBtn = document.getElementById('kgcm-lookup-btn');
+    var voidBtn = document.getElementById('kgcm-void-btn');
+    var closeBtn = document.getElementById('kgcm-close-btn');
+    var voidConfirmLabel = document.getElementById('kgcm-void-confirm');
+    var voidReasonEl = document.getElementById('kgcm-void-reason');
+    var voidErrEl = document.getElementById('kgcm-void-error');
+    var voidCancelBtn = document.getElementById('kgcm-void-cancel-btn');
+    var voidConfirmBtn = document.getElementById('kgcm-void-confirm-btn');
+
+    // Tracks the last looked-up cert for void
+    var _mgmtCert = null;
+
+    function showMgmtErr(msg) {
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+    }
+    function hideMgmtErr() {
+      if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+    }
+
+    if (closeBtn) {
+      closeBtn.onclick = function () { closeModal(); };
+    }
+
+    if (lookupBtn) {
+      lookupBtn.onclick = function () {
+        var cert = certEl ? certEl.value.trim().toUpperCase() : '';
+        if (!cert) { showMgmtErr('Please enter a certificate number.'); return; }
+        hideMgmtErr();
+        if (resultEl) resultEl.style.display = 'none';
+        lookupBtn.disabled = true;
+        lookupBtn.textContent = 'Looking up…';
+        fetch(mwUrl + '/api/kiosk/gift-card/lookup?cert_number=' + encodeURIComponent(cert), {
+          headers: { 'x-api-key': apiKey }
+        })
+        .then(function (r) {
+          return r.json().then(function (d) { return { status: r.status, data: d }; });
+        })
+        .then(function (result) {
+          lookupBtn.disabled = false;
+          lookupBtn.textContent = 'Look Up';
+          if (result.status === 200 && result.data && result.data.ok) {
+            var d = result.data;
+            _mgmtCert = d.cert_number || cert;
+            var statusStr = d.status || 'active';
+            var statusColor = (statusStr === 'active') ? '#2e7d32' : '#c00';
+            if (resultInfoEl) {
+              resultInfoEl.innerHTML =
+                '<strong>Cert #:</strong> ' + escapeHTML(_mgmtCert) + '<br>' +
+                '<strong>Status:</strong> <span style="color:' + statusColor + ';font-weight:600;">' + escapeHTML(statusStr) + '</span><br>' +
+                '<strong>Face Value:</strong> ' + kioskFmt(d.face_value || 0) + '<br>' +
+                '<strong>Current Balance:</strong> ' + kioskFmt(d.balance || 0);
+            }
+            if (voidBtn) voidBtn.style.display = (statusStr === 'voided') ? 'none' : '';
+            if (resultEl) resultEl.style.display = 'block';
+          } else if (result.status === 404) {
+            showMgmtErr('Certificate not found. Check the number and try again.');
+          } else {
+            showMgmtErr((result.data && result.data.error) || 'Lookup failed. Please try again.');
+          }
+        })
+        .catch(function () {
+          lookupBtn.disabled = false;
+          lookupBtn.textContent = 'Look Up';
+          showMgmtErr('Connection error. Please check your connection and try again.');
+        });
+      };
+    }
+
+    if (voidBtn) {
+      voidBtn.onclick = function () {
+        if (!_mgmtCert) return;
+        // Switch to void confirmation view
+        if (lookupView) lookupView.style.display = 'none';
+        if (voidView) voidView.style.display = 'block';
+        if (voidConfirmLabel) voidConfirmLabel.textContent = 'Void ' + _mgmtCert + '? This cannot be undone.';
+        if (voidReasonEl) { voidReasonEl.value = ''; voidReasonEl.focus(); }
+        if (voidErrEl) { voidErrEl.style.display = 'none'; voidErrEl.textContent = ''; }
+        var titleEl = document.getElementById('admin-modal-title');
+        if (titleEl) titleEl.textContent = 'Void Gift Certificate';
+      };
+    }
+
+    if (voidCancelBtn) {
+      voidCancelBtn.onclick = function () {
+        if (voidView) voidView.style.display = 'none';
+        if (lookupView) lookupView.style.display = 'block';
+        var titleEl = document.getElementById('admin-modal-title');
+        if (titleEl) titleEl.textContent = 'Gift Card Management';
+      };
+    }
+
+    if (voidConfirmBtn) {
+      voidConfirmBtn.onclick = function () {
+        var reason = voidReasonEl ? voidReasonEl.value.trim() : '';
+        if (!reason) {
+          if (voidErrEl) { voidErrEl.textContent = 'Please enter a reason for voiding.'; voidErrEl.style.display = 'block'; }
+          return;
+        }
+        if (!_mgmtCert) return;
+        voidConfirmBtn.disabled = true;
+        voidConfirmBtn.textContent = 'Voiding…';
+        if (voidErrEl) { voidErrEl.style.display = 'none'; voidErrEl.textContent = ''; }
+        fetch(mwUrl + '/api/kiosk/gift-card/void', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey
+          },
+          body: JSON.stringify({ cert_number: _mgmtCert, reason: reason })
+        })
+        .then(function (r) {
+          return r.json().then(function (d) { return { status: r.status, data: d }; });
+        })
+        .then(function (result) {
+          voidConfirmBtn.disabled = false;
+          voidConfirmBtn.textContent = 'Confirm Void';
+          if (result.status === 200 && result.data && result.data.ok) {
+            closeModal();
+            showToast('Gift Certificate ' + escapeHTML(_mgmtCert) + ' has been voided.', 'success');
+          } else if (result.status === 404) {
+            if (voidErrEl) { voidErrEl.textContent = 'Certificate not found.'; voidErrEl.style.display = 'block'; }
+          } else if (result.status === 409) {
+            if (voidErrEl) { voidErrEl.textContent = 'Certificate is already voided.'; voidErrEl.style.display = 'block'; }
+          } else {
+            if (voidErrEl) {
+              voidErrEl.textContent = (result.data && result.data.error) || 'Void failed. Please try again.';
+              voidErrEl.style.display = 'block';
+            }
+          }
+        })
+        .catch(function () {
+          voidConfirmBtn.disabled = false;
+          voidConfirmBtn.textContent = 'Confirm Void';
+          if (voidErrEl) { voidErrEl.textContent = 'Connection error. Please try again.'; voidErrEl.style.display = 'block'; }
+        });
+      };
+    }
+  }
+
   // ---- Custom Item Modal (D-05, D-06) — uses admin openModal/closeModal ----
 
   function kioskShowAdminCustomItemModal() {
@@ -10399,6 +10596,11 @@
         '<button id="kiosk-add-gc-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #5a3e1b;border-radius:6px;background:none;cursor:pointer;color:#5a3e1b;">' +
         '+ Issue / Reload Gift Card' +
         '</button>' +
+        '</div>' +
+        '<div style="margin-top:0.5rem;">' +
+        '<button id="kiosk-gc-mgmt-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #888;border-radius:6px;background:none;cursor:pointer;color:#555;">' +
+        'Gift Card Management (Lookup / Void)' +
+        '</button>' +
         '</div>';
       var addCustomBtnEmpty = document.getElementById('kiosk-add-custom-btn');
       if (addCustomBtnEmpty) {
@@ -10410,6 +10612,12 @@
       if (addGcBtnEmpty) {
         addGcBtnEmpty.addEventListener('click', function () {
           kioskShowAdminGiftCardIssueModal();
+        });
+      }
+      var gcMgmtBtnEmpty = document.getElementById('kiosk-gc-mgmt-btn');
+      if (gcMgmtBtnEmpty) {
+        gcMgmtBtnEmpty.addEventListener('click', function () {
+          kioskShowAdminGiftCardMgmtModal();
         });
       }
       if (totalsEl) totalsEl.style.display = 'none';
@@ -10450,6 +10658,12 @@
       '+ Issue / Reload Gift Card' +
       '</button>' +
       '</div>';
+    // GIFTCARD-01e (admin-only): Gift Card Management button (D-06)
+    html += '<div style="margin-top:0.5rem;">' +
+      '<button id="kiosk-gc-mgmt-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #888;border-radius:6px;background:none;cursor:pointer;color:#555;">' +
+      'Gift Card Management (Lookup / Void)' +
+      '</button>' +
+      '</div>';
 
     container.innerHTML = html;
 
@@ -10465,6 +10679,13 @@
     if (addGcBtn) {
       addGcBtn.addEventListener('click', function () {
         kioskShowAdminGiftCardIssueModal();
+      });
+    }
+    // GIFTCARD-01e (admin-only): Wire "Gift Card Management" button
+    var gcMgmtBtn = document.getElementById('kiosk-gc-mgmt-btn');
+    if (gcMgmtBtn) {
+      gcMgmtBtn.addEventListener('click', function () {
+        kioskShowAdminGiftCardMgmtModal();
       });
     }
 
@@ -10724,8 +10945,8 @@
     var cancelBtn = document.getElementById('kiosk-cancel-payment');
 
     if (amountEl) amountEl.textContent = kioskFmt(totals.total);
-    if (msgEl) msgEl.textContent = 'Tap, insert, or swipe card on terminal...';
-    if (spinnerEl) spinnerEl.style.display = '';
+    if (msgEl) msgEl.textContent = '';
+    if (spinnerEl) spinnerEl.style.display = 'none';
 
     // Render item summary on payment screen
     if (itemsEl) {
@@ -10743,12 +10964,12 @@
     }
 
     var cancelled = false;
+    // Phase 44: Before terminal push, Cancel just returns to browse
     if (cancelBtn) {
       cancelBtn.disabled = false;
       cancelBtn.onclick = function () {
         cancelled = true;
         kioskShowView('browse');
-        if (msgEl) msgEl.textContent = 'Cancelled.';
       };
     }
 
@@ -10760,12 +10981,14 @@
     var saleUrl = isRecipeSale
       ? mwUrl + '/api/kiosk/recipe-sale'
       : mwUrl + '/api/kiosk/sale';
+    // Phase 44 (D-05, D-08): gift_card set inside _adminDoSale after the GC panel step
     var existingSaleBody = {
       items: items,
       tax_total: totals.tax,
       reference_number: refNumber,
       contact_id: _kioskCustomer ? _kioskCustomer.contact_id : '',
-      idempotency_key: idempotencyKey
+      idempotency_key: idempotencyKey,
+      gift_card: undefined
     };
     var recipeSaleBody = isRecipeSale ? {
       recipe_id: _kioskRecipeContext.recipe_id,
@@ -10780,164 +11003,404 @@
     } : null;
     var saleBody = isRecipeSale ? recipeSaleBody : existingSaleBody;
 
-    // POST to sale endpoint — this blocks until the terminal responds
-    fetch(saleUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(saleBody)
-    })
-    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
-    .then(function (result) {
-      if (cancelled) return;
-
-      // SCALE-05: Recipe sale 409 stock conflict — surface short ingredients + override (Phase 35)
-      if (isRecipeSale && result.status === 409 && result.data && result.data.conflicts) {
-        if (spinnerEl) spinnerEl.style.display = 'none';
-        var conflictEl2 = document.getElementById('kiosk-stock-conflict');
-        var conflictMsg = document.querySelector('#kiosk-stock-conflict .kiosk-stock-conflict-msg');
-        if (conflictMsg) {
-          var lines = ['Insufficient stock for scaled batch:'];
-          result.data.conflicts.forEach(function (c) {
-            lines.push('• ' + (c.item_name || c.item_id) + ': need ' + c.needed + ' ' + (c.unit || '') + ', have ' + c.stock);
-          });
-          conflictMsg.textContent = lines.join('\n');
-        }
-        if (conflictEl2) conflictEl2.style.display = '';
-        var overrideBtn = document.getElementById('kiosk-stock-override-btn');
-        if (overrideBtn) {
-          overrideBtn.onclick = function () {
-            _kioskStockOverride = true;
-            if (conflictEl2) conflictEl2.style.display = 'none';
-            // Re-trigger the sale with override=true
-            kioskProcessSale();
-          };
-        }
-        return;
+    // Phase 44: _adminDoSale — called by GC panel "Proceed"/"Skip" or immediately for recipe sales.
+    // Updates existingSaleBody with gift_card, hides GC panel, shows terminal UI, then starts the sale.
+    var _adminDoSale = function () {
+      // Update existingSaleBody with current gift card state (D-05: clamp already applied in GC panel)
+      if (!isRecipeSale) {
+        existingSaleBody.gift_card = _kioskGiftCard
+          ? { cert_number: _kioskGiftCard.cert_number, amount_applied: _kioskGiftCard.amount_applied }
+          : undefined;
       }
 
-      // Recipe sale: 202 pending → call confirm endpoint to finalize invoice
-      if (isRecipeSale && result.status === 202 && result.data && result.data.pending) {
-        var confirmUrl = mwUrl + '/api/kiosk/recipe-sale/confirm';
-        var confirmBody = {
-          recipe_id: saleBody.recipe_id,
-          sale_type: saleBody.sale_type,
-          mill_grain: saleBody.mill_grain,
-          customer_name: saleBody.customer_name || '',
-          contact_id: saleBody.contact_id || '',
-          reference: result.data.reference,
-          transaction_id: result.data.transaction_id || '',
-          target_volume_l: saleBody.target_volume_l,
-          override: saleBody.override || false
-        };
-        fetch(confirmUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(confirmBody)
-        })
-        .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
-        .then(function (confirmResult) {
+      // Update amount display to terminal amount
+      var terminalAmtDisplay = (!isRecipeSale && _kioskGiftCard)
+        ? Math.max(0, Math.round((totals.total - _kioskGiftCard.amount_applied) * 100) / 100)
+        : totals.total;
+      if (amountEl) amountEl.textContent = kioskFmt(terminalAmtDisplay);
+
+      // Hide GC panel
+      var gcPanelEl = document.getElementById('kiosk-gc-panel');
+      if (gcPanelEl) gcPanelEl.style.display = 'none';
+
+      // Show terminal UI
+      if (msgEl) msgEl.textContent = (terminalAmtDisplay > 0) ? 'Tap, insert, or swipe card on terminal...' : 'Processing gift card payment...';
+      if (spinnerEl) spinnerEl.style.display = '';
+
+      // POST to sale endpoint
+      fetch(saleUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+        body: JSON.stringify(saleBody)
+      })
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+      .then(function (result) {
+        if (cancelled) return;
+
+        // SCALE-05: Recipe sale 409 stock conflict — surface short ingredients + override (Phase 35)
+        if (isRecipeSale && result.status === 409 && result.data && result.data.conflicts) {
           if (spinnerEl) spinnerEl.style.display = 'none';
-          if (confirmResult.status === 201 && confirmResult.data.ok) {
-            _kioskSaleData = confirmResult.data;
-            kioskShowReceipt(confirmResult.data, totals, items, []);
-            kioskClearCart();
-          } else if (confirmResult.data && confirmResult.data.payment_voided) {
-            kioskShowError(
-              'Sale Could Not Complete',
-              (confirmResult.data.error || 'Payment was taken but could not be recorded. Payment has been voided.'),
-              false
-            );
-          } else {
-            kioskShowError(
-              'Sale Error',
-              (confirmResult.data && confirmResult.data.error) || 'An error occurred. Please try again.',
-              true
-            );
+          var conflictEl2 = document.getElementById('kiosk-stock-conflict');
+          var conflictMsg = document.querySelector('#kiosk-stock-conflict .kiosk-stock-conflict-msg');
+          if (conflictMsg) {
+            var lines = ['Insufficient stock for scaled batch:'];
+            result.data.conflicts.forEach(function (c) {
+              lines.push('• ' + (c.item_name || c.item_id) + ': need ' + c.needed + ' ' + (c.unit || '') + ', have ' + c.stock);
+            });
+            conflictMsg.textContent = lines.join('\n');
           }
-        })
-        .catch(function () {
-          if (spinnerEl) spinnerEl.style.display = 'none';
-          kioskShowError('Connection Error', 'Could not confirm the recipe sale. Contact staff for assistance.', false);
-        });
-        return;
-      }
-
-      if (spinnerEl) spinnerEl.style.display = 'none';
-
-      if (result.status === 201 && result.data.ok) {
-        _kioskSaleData = result.data;
-
-        // Auto-create batch records for kit items
-        var today = new Date().toISOString().slice(0, 10);
-        var kitItems = items.filter(function (it) {
-          return (it.product_type || '').toLowerCase() === 'kit';
-        });
-
-        var batchPromises = [];
-        kitItems.forEach(function (it) {
-          for (var q = 0; q < (it.quantity || 1); q++) {
-            batchPromises.push(
-              adminApiPost('create_batch', {
-                product_name: it.name,
-                product_sku: it.item_id || '',
-                customer_firstname: _kioskCustomer ? _kioskCustomer.name.split(/\s+/)[0] : 'Walk-In',
-                customer_lastname: _kioskCustomer ? _kioskCustomer.name.split(/\s+/).slice(1).join(' ') : '',
-                customer_name: _kioskCustomer ? _kioskCustomer.name : 'Walk-In',
-                customer_email: _kioskCustomer ? (_kioskCustomer.email || '') : '',
-                start_date: today,
-                vessel_id: '',
-                schedule_id: ''
-              })
-            );
+          if (conflictEl2) conflictEl2.style.display = '';
+          var overrideBtn = document.getElementById('kiosk-stock-override-btn');
+          if (overrideBtn) {
+            overrideBtn.onclick = function () {
+              _kioskStockOverride = true;
+              if (conflictEl2) conflictEl2.style.display = 'none';
+              // Re-trigger the sale with override=true
+              kioskProcessSale();
+            };
           }
-        });
-
-        if (batchPromises.length === 0) {
-          kioskShowReceipt(result.data, totals, items, []);
-          kioskClearCart();
           return;
         }
 
-        Promise.all(batchPromises.map(function (p) {
-          return p.catch(function (err) {
-            console.error('[kiosk] batch creation failed:', err);
-            return null;
+        // Recipe sale: 202 pending → call confirm endpoint to finalize invoice
+        if (isRecipeSale && result.status === 202 && result.data && result.data.pending) {
+          var confirmUrl = mwUrl + '/api/kiosk/recipe-sale/confirm';
+          var confirmBodyR = {
+            recipe_id: saleBody.recipe_id,
+            sale_type: saleBody.sale_type,
+            mill_grain: saleBody.mill_grain,
+            customer_name: saleBody.customer_name || '',
+            contact_id: saleBody.contact_id || '',
+            reference: result.data.reference,
+            transaction_id: result.data.transaction_id || '',
+            target_volume_l: saleBody.target_volume_l,
+            override: saleBody.override || false
+          };
+          fetch(confirmUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(confirmBodyR)
+          })
+          .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+          .then(function (confirmResult) {
+            if (spinnerEl) spinnerEl.style.display = 'none';
+            if (confirmResult.status === 201 && confirmResult.data.ok) {
+              _kioskSaleData = confirmResult.data;
+              kioskShowReceipt(confirmResult.data, totals, items, []);
+              kioskClearCart();
+            } else if (confirmResult.data && confirmResult.data.payment_voided) {
+              kioskShowError(
+                'Sale Could Not Complete',
+                (confirmResult.data.error || 'Payment was taken but could not be recorded. Payment has been voided.'),
+                false
+              );
+            } else {
+              kioskShowError(
+                'Sale Error',
+                (confirmResult.data && confirmResult.data.error) || 'An error occurred. Please try again.',
+                true
+              );
+            }
+          })
+          .catch(function () {
+            if (spinnerEl) spinnerEl.style.display = 'none';
+            kioskShowError('Connection Error', 'Could not confirm the recipe sale. Contact staff for assistance.', false);
           });
-        })).then(function (batchResults) {
-          var batches = batchResults.filter(function (b) {
-            return b && b.batch_id;
+          return;
+        }
+
+        // Phase 44: Gift-card-only path (full coverage, no terminal charge needed) — D-01, D-05
+        if (!isRecipeSale && result.status === 202 && result.data && result.data.gift_card_only) {
+          if (msgEl) msgEl.textContent = 'Completing gift card payment...';
+          fetch(mwUrl + '/api/kiosk/sale/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+            body: JSON.stringify({
+              items: items,
+              reference_number: refNumber,
+              contact_id: _kioskCustomer ? _kioskCustomer.contact_id : '',
+              gift_card: _kioskGiftCard ? { cert_number: _kioskGiftCard.cert_number, amount_applied: _kioskGiftCard.amount_applied } : undefined
+            })
+          })
+          .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+          .then(function (confirmResult) {
+            if (spinnerEl) spinnerEl.style.display = 'none';
+            if (confirmResult.status === 201 && confirmResult.data.ok) {
+              _kioskSaleData = confirmResult.data;
+              kioskShowReceipt(confirmResult.data, totals, items, []);
+              kioskClearCart();
+            } else if (confirmResult.data && confirmResult.data.payment_voided) {
+              kioskShowError('Sale Could Not Complete', confirmResult.data.error || 'Gift card payment could not be recorded.', false);
+            } else {
+              kioskShowError('Sale Error', (confirmResult.data && confirmResult.data.error) || 'Gift card payment failed.', true);
+            }
+          })
+          .catch(function () {
+            if (spinnerEl) spinnerEl.style.display = 'none';
+            kioskShowError('Connection Error', 'Could not confirm gift card payment.', false);
           });
-          if (batches.length < batchPromises.length) {
-            showToast('Some batch records could not be created', 'warn');
+          return;
+        }
+
+        if (spinnerEl) spinnerEl.style.display = 'none';
+
+        if (result.status === 201 && result.data.ok) {
+          _kioskSaleData = result.data;
+
+          // Auto-create batch records for kit items
+          var today = new Date().toISOString().slice(0, 10);
+          var kitItems = items.filter(function (it) {
+            return (it.product_type || '').toLowerCase() === 'kit';
+          });
+
+          var batchPromises = [];
+          kitItems.forEach(function (it) {
+            for (var q = 0; q < (it.quantity || 1); q++) {
+              batchPromises.push(
+                adminApiPost('create_batch', {
+                  product_name: it.name,
+                  product_sku: it.item_id || '',
+                  customer_firstname: _kioskCustomer ? _kioskCustomer.name.split(/\s+/)[0] : 'Walk-In',
+                  customer_lastname: _kioskCustomer ? _kioskCustomer.name.split(/\s+/).slice(1).join(' ') : '',
+                  customer_name: _kioskCustomer ? _kioskCustomer.name : 'Walk-In',
+                  customer_email: _kioskCustomer ? (_kioskCustomer.email || '') : '',
+                  start_date: today,
+                  vessel_id: '',
+                  schedule_id: ''
+                })
+              );
+            }
+          });
+
+          if (batchPromises.length === 0) {
+            kioskShowReceipt(result.data, totals, items, []);
+            kioskClearCart();
+            return;
           }
-          kioskShowReceipt(result.data, totals, items, batches);
-          kioskClearCart();
-        });
-      } else if (result.status === 402) {
-        kioskShowError(
-          'Payment Declined',
-          result.data.error || 'Card was declined. Please try a different payment method.',
-          true
-        );
-      } else if (result.data && result.data.payment_voided) {
-        kioskShowError(
-          'Sale Could Not Complete',
-          (result.data.error || 'Payment was taken but could not be recorded. Payment has been voided.'),
-          false
-        );
+
+          Promise.all(batchPromises.map(function (p) {
+            return p.catch(function (err) {
+              console.error('[kiosk] batch creation failed:', err);
+              return null;
+            });
+          })).then(function (batchResults) {
+            var batches = batchResults.filter(function (b) {
+              return b && b.batch_id;
+            });
+            if (batches.length < batchPromises.length) {
+              showToast('Some batch records could not be created', 'warn');
+            }
+            kioskShowReceipt(result.data, totals, items, batches);
+            kioskClearCart();
+          });
+        } else if (result.status === 402) {
+          kioskShowError(
+            'Payment Declined',
+            result.data.error || 'Card was declined. Please try a different payment method.',
+            true
+          );
+        } else if (result.data && result.data.payment_voided) {
+          kioskShowError(
+            'Sale Could Not Complete',
+            (result.data.error || 'Payment was taken but could not be recorded. Payment has been voided.'),
+            false
+          );
+        } else {
+          kioskShowError(
+            'Sale Error',
+            result.data.error || 'An error occurred. Please try again.',
+            true
+          );
+        }
+      })
+      .catch(function () {
+        if (cancelled) return;
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        kioskShowError('Connection Error', 'Could not reach the payment server. Please try again.', true);
+      });
+    };
+
+    // === Phase 44: Gift Card Tender Panel — D-08 paired with kiosk.js (non-recipe standard sales only) ===
+    if (isRecipeSale) {
+      _adminDoSale();
+    } else {
+      if (itemsEl && itemsEl.parentNode) {
+        var gcPanelEl2 = document.getElementById('kiosk-gc-panel');
+        if (!gcPanelEl2) {
+          gcPanelEl2 = document.createElement('div');
+          gcPanelEl2.id = 'kiosk-gc-panel';
+          gcPanelEl2.style.cssText = 'margin:0.75rem 0;padding:0.75rem;border:1px solid #e0e0e0;border-radius:8px;background:#fafafa;';
+          itemsEl.parentNode.insertBefore(gcPanelEl2, itemsEl.nextSibling);
+        }
+        gcPanelEl2.style.display = '';
+        gcPanelEl2.innerHTML = [
+          '<div id="kgcr-initial-row" style="display:flex;gap:0.5rem;flex-wrap:wrap;">',
+          '<button type="button" id="kgcr-open-btn" style="flex:1;min-width:110px;padding:0.5rem 0.75rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.9rem;">Apply Gift Card</button>',
+          '<button type="button" id="kgcr-skip-btn" style="flex:2;min-width:110px;padding:0.5rem 0.75rem;background:var(--cellar-green,#2e7d32);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.9rem;">Proceed to Terminal &#x2192;</button>',
+          '</div>',
+          '<div id="kgcr-form" style="display:none;margin-top:0.5rem;">',
+          '<div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">',
+          '<input type="text" id="kgcr-cert" placeholder="GC-000000" autocomplete="off" ',
+          'style="flex:1;padding:0.4rem 0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:4px;text-transform:uppercase;" />',
+          '<button type="button" id="kgcr-lookup-btn" style="padding:0.4rem 0.8rem;background:#fff;border:1px solid #bbb;border-radius:4px;cursor:pointer;font-size:0.9rem;">Look Up</button>',
+          '</div>',
+          '<div id="kgcr-balance-info" style="display:none;margin-bottom:0.5rem;padding:0.4rem 0.6rem;background:#f0f4f0;border-radius:4px;font-size:0.9rem;"></div>',
+          '<div id="kgcr-amount-wrap" style="display:none;">',
+          '<div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;">',
+          '<input type="number" id="kgcr-amount" placeholder="0.00" step="0.01" min="0.01" ',
+          'style="flex:1;padding:0.4rem 0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:4px;" />',
+          '<button type="button" id="kgcr-confirm-btn" style="padding:0.4rem 0.8rem;background:var(--cellar-green,#2e7d32);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.9rem;">Apply</button>',
+          '</div>',
+          '</div>',
+          '<div id="kgcr-error" style="display:none;color:#c00;font-size:0.88rem;margin-bottom:0.4rem;"></div>',
+          '<button type="button" id="kgcr-back-btn" style="background:none;border:none;cursor:pointer;color:#666;font-size:0.85rem;padding:0;">&#x2190; Back</button>',
+          '</div>',
+          '<div id="kgcr-applied" style="display:none;margin-top:0.5rem;">',
+          '<div id="kgcr-split-display" style="font-size:0.92rem;padding:0.3rem 0;margin-bottom:0.5rem;"></div>',
+          '<div style="display:flex;gap:0.5rem;">',
+          '<button type="button" id="kgcr-remove-btn" style="flex:1;padding:0.5rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.85rem;">Remove</button>',
+          '<button type="button" id="kgcr-proceed-btn" style="flex:2;padding:0.5rem;background:var(--cellar-green,#2e7d32);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.9rem;">Proceed to Terminal &#x2192;</button>',
+          '</div>',
+          '</div>'
+        ].join('');
+
+        var _gcLookedUpBalance = 0;
+        var gcInitialRow = document.getElementById('kgcr-initial-row');
+        var gcForm = document.getElementById('kgcr-form');
+        var gcApplied = document.getElementById('kgcr-applied');
+        var gcBalanceInfo = document.getElementById('kgcr-balance-info');
+        var gcAmountWrap = document.getElementById('kgcr-amount-wrap');
+        var gcErrorEl = document.getElementById('kgcr-error');
+        var gcSplitDisplay = document.getElementById('kgcr-split-display');
+        var gcOpenBtn = document.getElementById('kgcr-open-btn');
+        var gcSkipBtn = document.getElementById('kgcr-skip-btn');
+        var gcLookupBtn = document.getElementById('kgcr-lookup-btn');
+        var gcConfirmBtn = document.getElementById('kgcr-confirm-btn');
+        var gcBackBtn = document.getElementById('kgcr-back-btn');
+        var gcRemoveBtn = document.getElementById('kgcr-remove-btn');
+        var gcProceedBtn = document.getElementById('kgcr-proceed-btn');
+
+        if (gcOpenBtn) {
+          gcOpenBtn.onclick = function () {
+            if (gcInitialRow) gcInitialRow.style.display = 'none';
+            if (gcApplied) gcApplied.style.display = 'none';
+            if (gcErrorEl) { gcErrorEl.style.display = 'none'; gcErrorEl.textContent = ''; }
+            if (gcBalanceInfo) gcBalanceInfo.style.display = 'none';
+            if (gcAmountWrap) gcAmountWrap.style.display = 'none';
+            if (gcForm) gcForm.style.display = '';
+            var ci = document.getElementById('kgcr-cert');
+            if (ci) ci.focus();
+          };
+        }
+
+        if (gcSkipBtn) {
+          gcSkipBtn.onclick = function () { _kioskGiftCard = null; _adminDoSale(); };
+        }
+
+        if (gcBackBtn) {
+          gcBackBtn.onclick = function () {
+            if (gcForm) gcForm.style.display = 'none';
+            if (gcApplied) gcApplied.style.display = 'none';
+            if (gcInitialRow) gcInitialRow.style.display = 'flex';
+            if (gcErrorEl) { gcErrorEl.style.display = 'none'; gcErrorEl.textContent = ''; }
+          };
+        }
+
+        if (gcLookupBtn) {
+          gcLookupBtn.onclick = function () {
+            var ci = document.getElementById('kgcr-cert');
+            var cert2 = ci ? ci.value.trim().toUpperCase() : '';
+            if (!cert2) {
+              if (gcErrorEl) { gcErrorEl.textContent = 'Enter a certificate number.'; gcErrorEl.style.display = ''; }
+              return;
+            }
+            if (gcErrorEl) { gcErrorEl.style.display = 'none'; gcErrorEl.textContent = ''; }
+            if (gcBalanceInfo) gcBalanceInfo.style.display = 'none';
+            if (gcAmountWrap) gcAmountWrap.style.display = 'none';
+            gcLookupBtn.disabled = true; gcLookupBtn.textContent = 'Looking up...';
+            fetch(mwUrl + '/api/kiosk/gift-card/lookup?cert_number=' + encodeURIComponent(cert2), {
+              headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+            })
+            .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+            .then(function (res2) {
+              gcLookupBtn.disabled = false; gcLookupBtn.textContent = 'Look Up';
+              if (res2.status === 404 || !res2.data.ok) {
+                if (gcErrorEl) { gcErrorEl.textContent = 'Certificate not found.'; gcErrorEl.style.display = ''; }
+                return;
+              }
+              var d2 = res2.data.data || {};
+              if (d2.status && d2.status !== 'active') {
+                if (gcErrorEl) { gcErrorEl.textContent = 'Certificate is ' + d2.status + ' and cannot be redeemed.'; gcErrorEl.style.display = ''; }
+                return;
+              }
+              _gcLookedUpBalance = parseFloat(d2.current_balance) || 0;
+              if (_gcLookedUpBalance <= 0) {
+                if (gcErrorEl) { gcErrorEl.textContent = 'Certificate has a zero balance.'; gcErrorEl.style.display = ''; }
+                return;
+              }
+              if (gcBalanceInfo) {
+                gcBalanceInfo.textContent = 'Balance: ' + kioskFmt(_gcLookedUpBalance) +
+                  (d2.face_value ? ' (Face: ' + kioskFmt(parseFloat(d2.face_value)) + ')' : '');
+                gcBalanceInfo.style.display = '';
+              }
+              var defAmt = Math.round(Math.min(_gcLookedUpBalance, totals.total) * 100) / 100;
+              var ai = document.getElementById('kgcr-amount');
+              if (ai) ai.value = defAmt.toFixed(2);
+              if (gcAmountWrap) gcAmountWrap.style.display = '';
+            })
+            .catch(function () {
+              gcLookupBtn.disabled = false; gcLookupBtn.textContent = 'Look Up';
+              if (gcErrorEl) { gcErrorEl.textContent = 'Lookup failed. Check connection and try again.'; gcErrorEl.style.display = ''; }
+            });
+          };
+        }
+
+        if (gcConfirmBtn) {
+          gcConfirmBtn.onclick = function () {
+            var ci = document.getElementById('kgcr-cert');
+            var ai = document.getElementById('kgcr-amount');
+            var cert2 = ci ? ci.value.trim().toUpperCase() : '';
+            var applied2 = parseFloat(ai ? ai.value : 0) || 0;
+            // D-05: clamp to min(balance, total) client-side; server re-clamps
+            applied2 = Math.round(Math.min(applied2, _gcLookedUpBalance, totals.total) * 100) / 100;
+            if (applied2 <= 0) {
+              if (gcErrorEl) { gcErrorEl.textContent = 'Amount must be greater than zero.'; gcErrorEl.style.display = ''; }
+              return;
+            }
+            _kioskGiftCard = { cert_number: cert2, amount_applied: applied2, balance: _gcLookedUpBalance };
+            var termAmt2 = Math.max(0, Math.round((totals.total - applied2) * 100) / 100);
+            if (gcSplitDisplay) {
+              gcSplitDisplay.innerHTML = '<strong>Gift Card:</strong> ' + kioskFmt(applied2) +
+                (termAmt2 > 0
+                  ? ' &nbsp;&nbsp; <strong>Terminal:</strong> ' + kioskFmt(termAmt2)
+                  : ' &nbsp;&nbsp; <em>(Full coverage — no terminal charge)</em>');
+            }
+            if (amountEl) amountEl.textContent = kioskFmt(termAmt2 > 0 ? termAmt2 : totals.total);
+            if (gcForm) gcForm.style.display = 'none';
+            if (gcInitialRow) gcInitialRow.style.display = 'none';
+            if (gcApplied) gcApplied.style.display = '';
+            if (gcProceedBtn) gcProceedBtn.textContent = termAmt2 > 0 ? 'Proceed to Terminal →' : 'Complete Gift Card Payment →';
+          };
+        }
+
+        if (gcRemoveBtn) {
+          gcRemoveBtn.onclick = function () {
+            _kioskGiftCard = null;
+            if (amountEl) amountEl.textContent = kioskFmt(totals.total);
+            if (gcApplied) gcApplied.style.display = 'none';
+            if (gcInitialRow) gcInitialRow.style.display = 'flex';
+            if (gcErrorEl) { gcErrorEl.style.display = 'none'; gcErrorEl.textContent = ''; }
+          };
+        }
+
+        if (gcProceedBtn) {
+          gcProceedBtn.onclick = function () { _adminDoSale(); };
+        }
       } else {
-        kioskShowError(
-          'Sale Error',
-          result.data.error || 'An error occurred. Please try again.',
-          true
-        );
+        // GC panel injection failed (unexpected DOM state) — fall through to sale immediately
+        _adminDoSale();
       }
-    })
-    .catch(function () {
-      if (cancelled) return;
-      if (spinnerEl) spinnerEl.style.display = 'none';
-      kioskShowError('Connection Error', 'Could not reach the payment server. Please try again.', true);
-    });
+    }
   }
 
   function kioskShowReceipt(saleData, totals, items, batches) {
