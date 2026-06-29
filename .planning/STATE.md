@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
-status: executing
-stopped_at: "44-08 UAT GAP (BLOCKING) — 44-01..44-07 done + deployed (staging frontend via git push origin main; middleware via railway up; backend smoke-test live: next-number→GC-000001). UAT halted on step 1: issue/reload mark the Zoho invoice PAID with a phantom creditcard payment and NO terminal charge (Zoho overstates collected cash). Owner decision: rework issue+reload to Cart + terminal checkout (activate cert on payment success). See 44-08-UAT.md (G-44-01). NEXT: /gsd:plan-phase 44 --gaps then /gsd:execute-phase 44 --gaps-only. Phase NOT complete; 44-08 not signed off."
-last_updated: "2026-06-29T04:01:04.909Z"
+status: verifying
+stopped_at: Completed 44-09-PLAN.md
+last_updated: "2026-06-29T21:58:00.742Z"
 last_activity: 2026-06-29
 progress:
   total_phases: 30
   completed_phases: 5
-  total_plans: 39
-  completed_plans: 42
+  total_plans: 41
+  completed_plans: 43
   percent: 17
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTING
 Plan: 8 of 8
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-29
 
 Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (staging), 42 (kiosk de-fork) NOT started.
@@ -90,6 +90,9 @@ Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (stagi
 - [Phase ?]: 44-02: balance-write column resolution is runtime (headers.indexOf) in all handlers except issueGiftCard appendRow — robust to column reordering
 - [Phase ?]: 44-02: updateGiftCardInvoice has no LockService — invoice number overwrite is idempotent and safe without a mutex
 - [Phase ?]: 44-02: get_gift_cards routed to Google OAuth doGet (admin panel), not server_token — follows existing batch-tracking list pattern
+- [Phase ?]: giftCardActivationFailed closure preferred over promise rejection — invoice is paid; must not propagate to outer catch (void trigger)
+- [Phase ?]: runConfirm() extracted from router.post callback to allow confirm-level Redis idempotency check to wrap full confirm body (mirrors sale handler pattern)
+- [Phase ?]: resolveDiscount gift_cert exclusion (Rule 2): discounting a gift cert face value is semantically wrong; all three discount scope loops exclude gift_cert lines
 
 ### Pending Todos
 
@@ -103,7 +106,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-29T04:01:04.901Z
-Stopped at: 44-02 COMPLETE — GiftCards sheet + 7 Apps Script actions (issue/lookup/redeem/reload/void/update-invoice/next-cert-number) deployed; LockService atomicity + last_tx_ref idempotency confirmed in code. Smoke test owner-reported; 44-03 integration test is authoritative gate. Advancing to 44-03.
+Last session: 2026-06-29T21:58:00.737Z
+Stopped at: Completed 44-09-PLAN.md
 Next: 44-02 (Apps Script adminApi.gs: GiftCards sheet + 7 actions) — Wave 1 parallel plan.
 Resume file: None
