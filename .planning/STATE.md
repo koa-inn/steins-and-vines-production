@@ -4,13 +4,13 @@ milestone: v4.4
 milestone_name: Audit Remediation
 status: verifying
 stopped_at: Completed 44-09-PLAN.md
-last_updated: "2026-06-29T21:58:00.742Z"
+last_updated: "2026-06-29T22:21:31.918Z"
 last_activity: 2026-06-29
 progress:
   total_phases: 30
   completed_phases: 5
   total_plans: 41
-  completed_plans: 43
+  completed_plans: 44
   percent: 17
 ---
 
@@ -93,6 +93,8 @@ Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (stagi
 - [Phase ?]: giftCardActivationFailed closure preferred over promise rejection — invoice is paid; must not propagate to outer catch (void trigger)
 - [Phase ?]: runConfirm() extracted from router.post callback to allow confirm-level Redis idempotency check to wrap full confirm body (mirrors sale handler pattern)
 - [Phase ?]: resolveDiscount gift_cert exclusion (Rule 2): discounting a gift cert face value is semantically wrong; all three discount scope loops exclude gift_cert lines
+- [44-10]: alert() used for gift_card_activation_failed (blocking native dialog on both kiosk.js + admin.js D-08 parity); cert number(s) shown; staff cannot skip before cleanup
+- [44-10]: gift_cert cart line adds certificate to kiosk cart on both surfaces (D-08 parity); activated post-payment by 44-09 confirm chain; _kioskGiftCertCounter separate from _kioskCustomCounter to avoid key collisions
 
 ### Pending Todos
 
@@ -106,7 +108,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-29T21:58:00.737Z
-Stopped at: Completed 44-09-PLAN.md
-Next: 44-02 (Apps Script adminApi.gs: GiftCards sheet + 7 actions) — Wave 1 parallel plan.
+Last session: 2026-06-29T22:21:31.912Z
+Stopped at: Completed 44-10-PLAN.md
+Next: 44-08 UAT re-run (full iPad UAT — issue via cart+terminal, reload, lookup, partial/full redeem, void).
 Resume file: None
