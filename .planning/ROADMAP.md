@@ -758,7 +758,7 @@ Plans:
   - Acceptable risk window for the DNS cutover (propagation), and staging-first strategy for an infra change that GitHub Pages serves directly?
 
 **Requirements**: TBD (derive in discuss-phase)
-**Plans:** 0 plans
+**Plans:** 9 plans (5 waves). ⚠ Auth re-architecture (the CRITICAL, D-01..D-05) recommended to split to Phase 46 — see note below.
 
 Plans:
 
@@ -863,5 +863,26 @@ Plans:
 
 **Out of scope** (defer to follow-on phases 46+): the 25 medium / 16 low / info findings — mobile-responsive (iOS auto-zoom inputs, <44px touch targets, safe-area), testing/CI (coverage floors for `pos.js`/`kiosk.js`, `--max-warnings 0` lint gate, ES5 lint rule, money-path E2E), webhook replay/dedup hardening, observability (Sentry on money-path catches), and dependency hygiene (`npm ci`, Node `engines` pin).
 
+**Planned scope (this phase):** Waves 1-5 cover the Redis fail-open, money-path hardening, gift-card split-tender, reconciliation backstop, CI drift, PII guards, and quick-win containments (D-06..D-17). The auth re-architecture (D-01..D-05, the CRITICAL key exposure) is **recommended to split to a new Phase 46** — it contains a net-new device-credential mechanism (an open design decision) plus an owner-coordinated key-rotation cutover (D-04), and bundling it risks degrading the money-path plans' fidelity. Interim containment ships in Wave 1 (PII guards) + the audit's rotate-now option; residual key-validity-until-cutover risk is documented (D-04).
+
 Plans:
-- [ ] TBD (run /gsd-plan-phase 45 to break down)
+**Wave 1** (parallel — disjoint files)
+- [ ] 45-01-PLAN.md — Quick-win code containments: guard 2 kiosk PII GETs (D-09), KIOSK_PIN length-check (D-15), gitignore dump.rdb (D-15)
+- [ ] 45-03-PLAN.md — Redis fail-closed policy: drop limiter skip → MemoryStore fallback + in-process acquireLock fallback + fix false comments (D-06/07/08)
+- [ ] 45-04-PLAN.md — CI artifact-drift check, stamp-normalized (D-10)
+- [ ] 45-05-PLAN.md — Extract lib/money-path.js from checkout.js + refactor checkout to consume it, no behaviour change (D-11)
+
+**Wave 2**
+- [ ] 45-02-PLAN.md — Ship Wave-1 containments to prod Railway + verify (D-15) [checkpoint]
+- [ ] 45-06-PLAN.md — pos.js sale/confirm: atomic required idempotency + deterministic Helcim key + confirm propagates recording failure → void (D-12)
+
+**Wave 3**
+- [ ] 45-07-PLAN.md — Gift-card split-tender balance validation + needs_manual_review + terminal-timeout pending-charge persist (D-12 + D-13 interface)
+
+**Wave 4**
+- [ ] 45-08-PLAN.md — Reconciliation backstop: lib/reconcile.js + webhook reconcile + periodic sweep, match on reference_number (D-13)
+
+**Wave 5**
+- [ ] 45-09-PLAN.md — Bundled live gift-card + money-path UAT on prod (with P44 deferred UAT, D-16) [checkpoint]
+
+**Recommended split → Phase 46 (Auth Re-Architecture):** D-01..D-05 — kiosk device-provisioned credential, admin per-user Google OAuth (server-side ID-token verifier + staff allowlist), remove `MW_API_KEY` from `js/sheets-config.js:65` + rebuild, rotate `API_SECRET_KEY` at cutover. Needs owner sign-off on the device-credential mechanism before planning.
