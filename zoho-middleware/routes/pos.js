@@ -498,8 +498,8 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
     )
     .then(function (resp) {
       var r = (resp && resp.data) || {};
-      if (r.ok === true && r.data && typeof r.data.balance === 'number') {
-        return { state: 'ok', balance: r.data.balance };
+      if (r.ok === true && r.data && typeof r.data.current_balance === 'number') {
+        return { state: 'ok', balance: r.data.current_balance };
       }
       // Apps Script explicitly reported ok:false → cert invalid or not found
       if (r.ok === false) { return { state: 'invalid' }; }
@@ -926,8 +926,8 @@ function runConfirm(body, confirmIdemKey, req, res) {
       )
       .then(function (resp) {
         var r = (resp && resp.data) || {};
-        if (r.ok === true && r.data && typeof r.data.balance === 'number') {
-          return { state: 'ok', balance: r.data.balance };
+        if (r.ok === true && r.data && typeof r.data.current_balance === 'number') {
+          return { state: 'ok', balance: r.data.current_balance };
         }
         // Apps Script explicitly reported ok:false → cert invalid or not found.
         // In production this is a hard reject; in non-prod treat as unavailable

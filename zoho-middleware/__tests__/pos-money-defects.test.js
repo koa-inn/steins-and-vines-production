@@ -445,7 +445,7 @@ describe('CR-02 — gift card balance validation: discriminated result rejects i
     axiosMock.post.mockImplementation(function (url, body) {
       var parsed = (typeof body === 'string') ? JSON.parse(body) : body;
       if (parsed && parsed.action === 'lookup_gift_card') {
-        return Promise.resolve({ data: { ok: true, data: { balance: 30 } } });
+        return Promise.resolve({ data: { ok: true, data: { current_balance: 30 } } });
       }
       return Promise.resolve({ data: { ok: true } });
     });

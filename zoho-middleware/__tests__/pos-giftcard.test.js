@@ -178,7 +178,7 @@ describe('pos routes — gift-card hardening Phase 45-07', function () {
         axiosMock.post.mockImplementation(function (url, body) {
           var parsed = (typeof body === 'string') ? JSON.parse(body) : body;
           if (parsed.action === 'lookup_gift_card') {
-            return Promise.resolve({ data: { ok: true, data: { balance: 30 } } });
+            return Promise.resolve({ data: { ok: true, data: { current_balance: 30 } } });
           }
           return Promise.resolve({ data: { ok: true } });
         });
@@ -219,7 +219,7 @@ describe('pos routes — gift-card hardening Phase 45-07', function () {
         axiosMock.post.mockImplementation(function (url, body) {
           var parsed = (typeof body === 'string') ? JSON.parse(body) : body;
           if (parsed.action === 'lookup_gift_card') {
-            return Promise.resolve({ data: { ok: true, data: { balance: 60 } } });
+            return Promise.resolve({ data: { ok: true, data: { current_balance: 60 } } });
           }
           return Promise.resolve({ data: { ok: true } });
         });
@@ -239,6 +239,49 @@ describe('pos routes — gift-card hardening Phase 45-07', function () {
             expect(termCall).toBeTruthy();
             // No clamping — still $60
             expect(termCall[0]).toBeCloseTo(60, 2);
+            done();
+          } catch (e) { done(e); }
+        });
+        res.status.mockImplementation(function (code) {
+          if (code >= 400) {
+            return { json: function (b) { done(new Error('Got ' + code + ': ' + JSON.stringify(b))); } };
+          }
+          return res;
+        });
+
+        handlers['/api/kiosk/sale'](req, res);
+      });
+
+      test('T-FIELD: real Apps Script shape (current_balance) is recognized → clamp applies (45-09 regression)', function (done) {
+        // Apps Script lookup_gift_card returns the balance under `current_balance`
+        // (proven by gift-cards.test.js), NOT `balance`. Reading the wrong key made
+        // the sale path treat every prod lookup as 'unavailable' → 503 fail-closed.
+        // Catalog: $100 item → grandTotal = $100; realBalance = $30; submitted = $50
+        // Expected: terminalPurchase($70) = $100 − $30 (clamped to real balance).
+        cache.get.mockResolvedValue(CATALOG_EXEMPT);
+        axiosMock.post.mockImplementation(function (url, body) {
+          var parsed = (typeof body === 'string') ? JSON.parse(body) : body;
+          if (parsed.action === 'lookup_gift_card') {
+            return Promise.resolve({ data: { ok: true, data: { current_balance: 30, status: 'active', face_value: 100 } } });
+          }
+          return Promise.resolve({ data: { ok: true } });
+        });
+
+        var req = {
+          body: {
+            items:     [{ item_id: 'item-gc-test', name: 'Gift Test Item', quantity: 1 }],
+            gift_card: { cert_number: 'GC-000001', amount_applied: 50 }
+          }
+        };
+        var res = mockRes();
+
+        res.json.mockImplementation(function (body) {
+          try {
+            expect(body.pending).toBe(true);
+            var termCall = helcimLib.terminalPurchase.mock.calls[0];
+            expect(termCall).toBeTruthy();
+            // clamp must apply off current_balance → $70, not the submitted-amount $50
+            expect(termCall[0]).toBeCloseTo(70, 2);
             done();
           } catch (e) { done(e); }
         });
@@ -271,7 +314,7 @@ describe('pos routes — gift-card hardening Phase 45-07', function () {
             return Promise.resolve({ data: { ok: false, error: 'insufficient_balance' } });
           }
           if (parsed.action === 'lookup_gift_card') {
-            return Promise.resolve({ data: { ok: true, data: { balance: 40 } } });
+            return Promise.resolve({ data: { ok: true, data: { current_balance: 40 } } });
           }
           return Promise.resolve({ data: { ok: true } });
         });
