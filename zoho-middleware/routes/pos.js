@@ -12,6 +12,7 @@ var C = require('../lib/constants');
 var brewpadIntegration = require('../lib/brewpad-integration');
 var discountMatch = require('../lib/discount-match');
 var buildContactPayload = require('../lib/checkout-helpers').buildContactPayload;
+var moneyPath = require('../lib/money-path');
 
 var zohoGet = zohoApi.zohoGet;
 var zohoPost = zohoApi.zohoPost;
@@ -233,21 +234,30 @@ router.post('/api/kiosk/sale', function (req, res) {
 
   var body = req.body;
 
-  // Idempotency: if client supplies a key, return cached result on retry
+  // D-12: idempotency_key is required in production (fail-closed-in-prod pattern);
+  // falls through to non-atomic flow without a key in non-prod for backward compat.
   var idempotencyKey = (body && typeof body.idempotency_key === 'string' && body.idempotency_key)
     ? C.CACHE_KEYS.KIOSK_IDEM_PREFIX + body.idempotency_key.slice(0, 128)
     : null;
 
+  if (!idempotencyKey && process.env.NODE_ENV === 'production') {
+    return res.status(400).json({ error: 'idempotency_key is required' });
+  }
+
   if (idempotencyKey) {
-    return cache.get(idempotencyKey).then(function (cached) {
-      if (cached) {
-        log.info('[pos/kiosk/sale] Idempotent replay: ' + idempotencyKey);
-        return res.status(201).json(cached);
-      }
-      processSale(body, idempotencyKey, req, res);
-    }).catch(function () {
-      processSale(body, idempotencyKey, req, res);
-    });
+    // D-12: atomic idempotency lock via shared money-path primitive (replaces non-atomic get-then-set)
+    return moneyPath.acquireIdempotencyLock(cache, idempotencyKey, IDEMPOTENCY_KEY_TTL)
+      .then(function (lockResult) {
+        if (lockResult.status === 'replay') {
+          log.info('[pos/kiosk/sale] Idempotent replay: ' + idempotencyKey);
+          return res.status(201).json(lockResult.cached);
+        }
+        if (lockResult.status === 'contention' || lockResult.status === 'failclosed') {
+          return res.status(409).json({ error: 'Sale already in progress — please wait and check your order before retrying' });
+        }
+        // status === 'acquired' — proceed
+        processSale(body, idempotencyKey, req, res);
+      });
   }
 
   processSale(body, null, req, res);
@@ -474,7 +484,14 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
       ' ref=' + refNumber + ' items=' + lineItems.length +
       (gift_amount > 0 ? ' gift_card=$' + gift_amount.toFixed(2) : ''));
 
-    helcimLib.terminalPurchase(terminal_amount, refNumber)
+    // D-12: derive Helcim terminal idempotency key deterministically from the client
+    // idempotency_key so retries reuse the same Helcim key (no double terminal charge).
+    // When no client key is provided, pass null so helcimLib generates a random key.
+    var helcimIdemKey = (body.idempotency_key && typeof body.idempotency_key === 'string')
+      ? crypto.createHash('sha256').update(body.idempotency_key).digest('hex').substring(0, 25)
+      : null;
+
+    helcimLib.terminalPurchase(terminal_amount, refNumber, helcimIdemKey)
       .then(function () {
         var responseBody = {
           pending: true,
@@ -591,22 +608,31 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
     return res.status(400).json({ error: 'Cart is empty' });
   }
 
-  // Confirm-level idempotency (T-44-G2): prevents double invoice / double activation on replay.
+  // Confirm-level idempotency (T-44-G2, D-12): prevents double invoice / double activation on replay.
   // Uses a 'confirm:' prefix so it never collides with the sale endpoint's cached 202.
+  // D-12: required in production (fail-closed-in-prod); optional in non-prod for backward compat.
   var confirmIdemKey = (typeof body.idempotency_key === 'string' && body.idempotency_key)
     ? C.CACHE_KEYS.KIOSK_IDEM_PREFIX + 'confirm:' + body.idempotency_key.slice(0, 128)
     : null;
 
+  if (!confirmIdemKey && process.env.NODE_ENV === 'production') {
+    return res.status(400).json({ error: 'idempotency_key is required' });
+  }
+
   if (confirmIdemKey) {
-    return cache.get(confirmIdemKey).then(function (cached) {
-      if (cached) {
-        log.info('[pos/kiosk/sale/confirm] Idempotent replay: ' + confirmIdemKey);
-        return res.status(201).json(cached);
-      }
-      runConfirm(body, confirmIdemKey, req, res);
-    }).catch(function () {
-      runConfirm(body, confirmIdemKey, req, res);
-    });
+    // D-12: atomic idempotency lock via shared money-path primitive (replaces non-atomic get-then-set)
+    return moneyPath.acquireIdempotencyLock(cache, confirmIdemKey, IDEMPOTENCY_KEY_TTL)
+      .then(function (lockResult) {
+        if (lockResult.status === 'replay') {
+          log.info('[pos/kiosk/sale/confirm] Idempotent replay: ' + confirmIdemKey);
+          return res.status(201).json(lockResult.cached);
+        }
+        if (lockResult.status === 'contention' || lockResult.status === 'failclosed') {
+          return res.status(409).json({ error: 'Confirm already in progress — please wait before retrying' });
+        }
+        // status === 'acquired' — proceed
+        runConfirm(body, confirmIdemKey, req, res);
+      });
   }
 
   runConfirm(body, null, req, res);
@@ -953,7 +979,11 @@ function runConfirm(body, confirmIdemKey, req, res) {
             return lastStep;
           })
           .catch(function (payErr) {
+            // D-12: propagate payment-recording failure so the outer void path fires.
+            // Previous behaviour: log-only (swallowed) → success path ran → 201 ok:true
+            // with money charged on terminal but unrecorded in Zoho.
             log.error('[pos/kiosk/sale/confirm] Payment recording failed: ' + payErr.message);
+            throw payErr;
           });
       }
 
@@ -991,37 +1021,44 @@ function runConfirm(body, confirmIdemKey, req, res) {
   }).catch(function (err) {
     log.error('[pos/kiosk/sale/confirm] Error: ' + err.message);
     // Void-on-failure: if a terminal charge was made (body.transaction_id set) and the
-    // Zoho invoice/payment step failed, void the terminal charge to prevent an orphan charge.
+    // Zoho invoice/payment step (or payment recording step — D-12 propagated) failed,
+    // void the terminal charge to prevent an orphan charge.
     // For gift-card-only sales (no terminal), body.transaction_id is absent — no void needed.
     var _txnIdForVoid = (body && body.transaction_id) ? String(body.transaction_id) : null;
     if (_txnIdForVoid) {
-      helcimLib.voidTransaction(_txnIdForVoid)
-        .then(function () {
-          log.info('[pos/kiosk/sale/confirm] Voided txn=' + _txnIdForVoid + ' after invoice creation failure');
-        })
-        .catch(function (voidErr) {
-          log.error('[pos/kiosk/sale/confirm] CRITICAL: Void failed for txn=' + _txnIdForVoid + ': ' + voidErr.message);
-          var failRecord = {
-            txnId: _txnIdForVoid,
-            timestamp: new Date().toISOString(),
-            error: voidErr.message,
-            needs_manual_review: true
-          };
-          cache.set('sv:void-failure:' + Date.now(), failRecord, 60 * 60 * 24 * 30).catch(function () {});
-          mailer.sendVoidFailureAlert({
-            txnId: _txnIdForVoid,
-            error: voidErr.message,
-            timestamp: failRecord.timestamp
-          }).catch(function () {});
-        })
-        .then(function () {
-          if (res.headersSent) return;
-          res.status(502).json({
-            error: 'Payment was taken but invoice could not be created. Please contact support.',
-            payment_voided: true,
-            voided_transaction_id: _txnIdForVoid
+      // D-12: track void failure via a thin wrapper so the response body can include
+      // needs_manual_review and the sv:void-failure record is persisted for reconciliation.
+      // The wrapper re-throws so moneyPath.voidWithTimeout's CRITICAL log + sendVoidFailureAlert fires.
+      var _voidFailed = false;
+      var _helcimForVoid = {
+        voidTransaction: function (txnId) {
+          return helcimLib.voidTransaction(txnId).catch(function (voidErr) {
+            _voidFailed = true;
+            var failRecord = {
+              txnId: _txnIdForVoid,
+              timestamp: new Date().toISOString(),
+              error: voidErr.message,
+              needs_manual_review: true
+            };
+            cache.set('sv:void-failure:' + Date.now(), failRecord, 60 * 60 * 24 * 30).catch(function () {});
+            throw voidErr; // Re-throw so voidWithTimeout's CRITICAL log + mailer alert fires
           });
-        });
+        }
+      };
+
+      moneyPath.voidWithTimeout(_helcimForVoid, _txnIdForVoid, 0, {
+        mailer: mailer,
+        eventLog: eventLog
+      }).then(function () {
+        if (res.headersSent) return;
+        var responseBody = {
+          error: 'Payment was taken but could not be recorded. Please contact support.',
+          payment_voided: !_voidFailed,
+          voided_transaction_id: _txnIdForVoid
+        };
+        if (_voidFailed) responseBody.needs_manual_review = true;
+        res.status(502).json(responseBody);
+      });
     } else {
       res.status(502).json({ error: 'Failed to create invoice. Please try again.' });
     }

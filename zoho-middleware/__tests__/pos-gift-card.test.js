@@ -67,7 +67,8 @@ jest.mock('../lib/brewpad-integration', function () {
   return { createBatchesFromSale: jest.fn() };
 });
 jest.mock('../lib/checkout-helpers', function () {
-  return { buildContactPayload: jest.fn() };
+  // withTimeout pass-through required by moneyPath.voidWithTimeout (D-12: outer catch upgrade)
+  return { buildContactPayload: jest.fn(), withTimeout: function (p) { return p; } };
 });
 jest.mock('../lib/constants', function () {
   return {
