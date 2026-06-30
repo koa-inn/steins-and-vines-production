@@ -837,7 +837,7 @@ Plans:
 - [x] 44-07-PLAN.md — Redeem tender (lookup → apply → split terminal) on BOTH surfaces + admin-only lookup/void management view + rebuilt bundles (GIFTCARD-01b/01c/01e UI)
 
 **Wave 6**
-- [ ] 44-08-PLAN.md — Full gate + staging deploy + iPad Safari full-lifecycle UAT on both surfaces (Zoho accounting/tax verified) + REQUIREMENTS traceability (GIFTCARD-01)
+- [x] 44-08-PLAN.md — Full gate + staging deploy (frontend + prod middleware) + iPad Safari UAT + REQUIREMENTS traceability (GIFTCARD-01). UAT round 1 found G-44-01 (phantom payment) → fixed by Wave 7 (44-09/44-10) → round 2 visible behavior verified. ⚠ Live terminal-sale checks (real card) DEFERRED by owner 2026-06-29; phase NOT production-promoted until they pass — see 44-08-UAT.md
 
 **Wave 7** (gap closure — G-44-01 from 44-08 UAT: issue/reload recorded a phantom paid invoice with no terminal charge)
 - [x] 44-09-PLAN.md — Middleware: pos.js prices a gift_cert cart line (zero-tax via KIOSK_GIFT_CARD_ITEM_ID, D-03) + activates cert on payment SUCCESS (issue_gift_card/reload_gift_card LAST, needs_manual_review on failure, no orphan) + confirm idempotency; decommission phantom-payment /issue+/reload routes (GIFTCARD-01a/01d)

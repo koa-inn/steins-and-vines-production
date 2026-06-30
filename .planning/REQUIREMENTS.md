@@ -12,6 +12,15 @@ Requirements for this milestone. Each maps to exactly one roadmap phase.
 
 - [ ] **KIOSK-01** (audit #14): The kiosk POS logic exists in a single shared implementation (`js/kiosk-core.js`) consumed by both the standalone kiosk (`kiosk.js`) and the admin-embedded kiosk (`admin.js`), so the cart and payment/checkout paths can no longer diverge. The de-fork is behaviour-preserving: existing kiosk money-path behaviour (terminal charge, Zoho invoice/payment, void-on-failure, dual-cart) is unchanged and verified by the existing kiosk tests plus an admin-vs-kiosk parity check; the kiosk product-type discount feature is available identically on both surfaces.
 
+### Gift Cards
+
+- [ ] **GIFTCARD-01** (owner-requested, 2026-06-27): Full kiosk gift-card / paper-certificate lifecycle on both forked surfaces (standalone kiosk + admin-embedded), server-authoritative balances (Google Sheets `GiftCards` tab via Apps Script), with correct Zoho accounting — gift-card sale carries **no tax** (item's own EXEMPT setting; tax applies to redeemed goods) and is treated as a **liability** via a monthly manual deferral journal (income item + periodic Dr income / Cr liability), not a custom line item. Sub-requirements:
+  - **GIFTCARD-01a** issue a new certificate (cart line → real terminal charge → activate on payment success)
+  - **GIFTCARD-01b** look up live balance
+  - **GIFTCARD-01c** redeem as a tender (partial = terminal charges remainder via split tender; full = terminal skipped)
+  - **GIFTCARD-01d** reload an existing certificate (cart line → real terminal charge → increment on payment success)
+  - **GIFTCARD-01e** void a certificate (admin-only)
+
 ### Cart Correctness
 
 - [ ] **CART-01** (audit #15): Adding the same product from the catalog page and from the cross-category search overlay produces one merged cart line keyed by SKU — no duplicate lines and the displayed quantity is correct — across both the ferment and ingredients carts.
@@ -63,6 +72,7 @@ Confirmed by the roadmapper (2026-06-26). Phases risk-ordered: low-risk infra/hy
 | ASSET-01 | Phase 40 | Done (17f9995) |
 | CART-01 | Phase 41 | Done (b2fdac1) |
 | KIOSK-01 | Phase 42 | Pending |
+| GIFTCARD-01 (a–e) | Phase 44 | Built + on staging (44-01…44-10); live terminal-sale UAT deferred (owner, 2026-06-29); not yet production-promoted |
 
 **Coverage:**
 - v1 requirements: 5 total

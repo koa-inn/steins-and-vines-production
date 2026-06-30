@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
-status: verifying
-stopped_at: Completed 44-09-PLAN.md
+status: executed-pending-live-uat
+stopped_at: "Phase 44 gap fix (44-09/44-10) DONE + deployed to staging + prod middleware. G-44-01 closed; UAT round-2 visible behavior verified by owner. ⚠ Live terminal-sale UAT (real card: issue/reload/partial/full redeem → Zoho accounting + activation-on-payment) DEFERRED by owner 2026-06-29 (tracked in 44-08-UAT.md). Phase NOT production-promoted until those pass. NEXT (owner, later): run live sale checks → flip 44-08-UAT to passed → git push production main --force + railway up."
 last_updated: "2026-06-29T22:21:31.918Z"
 last_activity: 2026-06-29
 progress:
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 ## Current Position
 
-Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTING
-Plan: 8 of 8
-Status: Phase complete — ready for verification
+Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTED, pending live UAT
+Plan: 10 of 10 (incl. gap plans 44-09/44-10)
+Status: Code complete + on staging; G-44-01 closed; live terminal-sale UAT deferred by owner (see 44-08-UAT.md). Not production-promoted.
 Last activity: 2026-06-29
 
 Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (staging), 42 (kiosk de-fork) NOT started.
