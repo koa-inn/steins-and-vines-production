@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
 status: executing
-stopped_at: "Phase 45 Plan 04 complete — CI artifact-drift check added (AUDIT-H-CI, D-10)"
-last_updated: "2026-06-30T05:56:03.429Z"
+stopped_at: "Phase 45 Plan 05 complete — shared lib/money-path.js created, checkout.js refactored (D-11)"
+last_updated: "2026-06-30T06:13:22.559Z"
 last_activity: 2026-06-30
 progress:
   total_phases: 32
   completed_phases: 6
   total_plans: 50
-  completed_plans: 48
+  completed_plans: 49
   percent: 19
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 45 (security-and-money-path-hardening-audit-critical-and-high) — EXECUTING
-Plan: 4 of 9
+Plan: 5 of 9
 Status: Ready to execute
 Last activity: 2026-06-30
 
@@ -96,6 +96,7 @@ Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (stagi
 - [Phase ?]: resolveDiscount gift_cert exclusion (Rule 2): discounting a gift cert face value is semantically wrong; all three discount scope loops exclude gift_cert lines
 - [44-10]: alert() used for gift_card_activation_failed (blocking native dialog on both kiosk.js + admin.js D-08 parity); cert number(s) shown; staff cannot skip before cleanup
 - [44-10]: gift_cert cart line adds certificate to kiosk cart on both surfaces (D-08 parity); activated post-payment by 44-09 confirm chain; _kioskGiftCertCounter separate from _kioskCustomCounter to avoid key collisions
+- [45-05]: D-11 complete — shared lib/money-path.js created (acquireIdempotencyLock, assertTxnNotReplayed, markTxnUsed, rejectWithVoid, voidWithTimeout); checkout.js refactored to consume it (zero behaviour change); pos.js adoption in 45-06/07/08. When wiring pos.js: pass module-scope helcimLib/mailer/eventLog as explicit deps to rejectWithVoid and voidWithTimeout calls for Jest-safe mock behavior
 
 ### Pending Todos
 
@@ -111,7 +112,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-30T05:56:03.422Z
+Last session: 2026-06-30T06:13:22.551Z
 Stopped at: Phase 45 context gathered (Security & Money-Path Hardening; auth re-arch + Redis policy + money-path + sequencing decided)
 Next: 44-08 UAT re-run (full iPad UAT — issue via cart+terminal, reload, lookup, partial/full redeem, void).
 Resume file: None
