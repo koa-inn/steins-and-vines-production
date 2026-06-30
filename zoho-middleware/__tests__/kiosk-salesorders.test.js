@@ -75,9 +75,11 @@ function findHandler(method, path) {
 }
 
 var getSalesordersHandler = findHandler('get', '/api/kiosk/salesorders');
+var getSalesorderDetailHandler = findHandler('get', '/api/kiosk/salesorder/:id');
 var createSalesorderHandler = findHandler('post', '/api/kiosk/salesorder-create');
 var paySalesorderHandler = findHandler('post', '/api/kiosk/salesorder-pay');
 var updateSalesorderHandler = findHandler('put', '/api/kiosk/salesorder-update');
+var verifyPinHandler = findHandler('post', '/api/kiosk/verify-pin');
 
 // ---------------------------------------------------------------------------
 // Helpers — fake req/res for handler testing
@@ -112,10 +114,28 @@ function flushPromises() {
 // GET /api/kiosk/salesorders
 // ---------------------------------------------------------------------------
 describe('GET /api/kiosk/salesorders', function () {
+  var OLD_MW_KEY;
+
   beforeEach(function () {
     jest.clearAllMocks();
     cache.get.mockResolvedValue(null);
     cache.set.mockResolvedValue('OK');
+    OLD_MW_KEY = process.env.MW_API_KEY;
+    process.env.MW_API_KEY = 'test-api-key';
+  });
+
+  afterEach(function () {
+    process.env.MW_API_KEY = OLD_MW_KEY;
+  });
+
+  // D-09 auth guard
+  test('returns 401 without x-api-key header', function () {
+    var req = makeReq(null, {}, {});
+    var res = makeRes();
+    getSalesordersHandler(req, res);
+    expect(res._status).toBe(401);
+    expect(res._json.error).toBe('Unauthorized');
+    expect(zohoApi.zohoGet).not.toHaveBeenCalled();
   });
 
   test('returns list of open sales orders from Zoho', function () {
@@ -130,7 +150,7 @@ describe('GET /api/kiosk/salesorders', function () {
       .mockResolvedValueOnce({ salesorders: [] })
       .mockResolvedValueOnce({ salesorders: [] });
 
-    var req = makeReq(null, {});
+    var req = makeReq(null, {}, { 'x-api-key': 'test-api-key' });
     var res = makeRes();
 
     getSalesordersHandler(req, res);
@@ -150,7 +170,7 @@ describe('GET /api/kiosk/salesorders', function () {
     ]);
     cache.get.mockResolvedValue(cachedData);
 
-    var req = makeReq(null, {});
+    var req = makeReq(null, {}, { 'x-api-key': 'test-api-key' });
     var res = makeRes();
 
     getSalesordersHandler(req, res);
@@ -173,7 +193,7 @@ describe('GET /api/kiosk/salesorders', function () {
       .mockResolvedValueOnce({ salesorders: [] })
       .mockResolvedValueOnce({ salesorders: [] });
 
-    var req = makeReq(null, { search: 'alice' });
+    var req = makeReq(null, { search: 'alice' }, { 'x-api-key': 'test-api-key' });
     var res = makeRes();
 
     getSalesordersHandler(req, res);
@@ -189,7 +209,7 @@ describe('GET /api/kiosk/salesorders', function () {
   test('handles Zoho API error gracefully with 502', function () {
     zohoApi.zohoGet.mockRejectedValue(new Error('Zoho unavailable'));
 
-    var req = makeReq(null, {});
+    var req = makeReq(null, {}, { 'x-api-key': 'test-api-key' });
     var res = makeRes();
 
     getSalesordersHandler(req, res);
@@ -214,7 +234,7 @@ describe('GET /api/kiosk/salesorders', function () {
       .mockResolvedValueOnce({ salesorders: [] })
       .mockResolvedValueOnce({ salesorders: [] });
 
-    var req = makeReq(null, {});
+    var req = makeReq(null, {}, { 'x-api-key': 'test-api-key' });
     var res = makeRes();
     getSalesordersHandler(req, res);
 
@@ -228,7 +248,7 @@ describe('GET /api/kiosk/salesorders', function () {
   test('fetches 5 statuses (open, draft, closed, confirmed, invoiced)', function () {
     zohoApi.zohoGet.mockResolvedValue({ salesorders: [] });
 
-    var req = makeReq(null, {});
+    var req = makeReq(null, {}, { 'x-api-key': 'test-api-key' });
     var res = makeRes();
     getSalesordersHandler(req, res);
 
@@ -676,3 +696,76 @@ describe('PUT /api/kiosk/salesorder-update', function () {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// GET /api/kiosk/salesorder/:id  (D-09 auth guard + happy path)
+// ---------------------------------------------------------------------------
+describe('GET /api/kiosk/salesorder/:id', function () {
+  var OLD_MW_KEY;
+
+  beforeEach(function () {
+    jest.clearAllMocks();
+    OLD_MW_KEY = process.env.MW_API_KEY;
+    process.env.MW_API_KEY = 'test-api-key';
+  });
+
+  afterEach(function () {
+    process.env.MW_API_KEY = OLD_MW_KEY;
+  });
+
+  test('returns 401 without x-api-key header', function () {
+    var req = makeReq(null, {}, {});
+    req.params = { id: 'SO-123' };
+    var res = makeRes();
+    getSalesorderDetailHandler(req, res);
+    expect(res._status).toBe(401);
+    expect(res._json.error).toBe('Unauthorized');
+    expect(zohoApi.zohoGet).not.toHaveBeenCalled();
+  });
+
+  test('returns order detail with valid API key', function () {
+    zohoApi.zohoGet.mockResolvedValue({
+      salesorder: {
+        salesorder_id: 'SO-123',
+        salesorder_number: 'SO-00123',
+        customer_name: 'Alice',
+        customer_id: 'CUST-1',
+        balance: 50,
+        total: 100,
+        status: 'open',
+        date: '2026-06-29',
+        line_items: [{ item_id: 'ITEM-A', name: 'Kit', quantity: 1, rate: 100, item_total: 100 }]
+      }
+    });
+
+    var req = makeReq(null, {}, { 'x-api-key': 'test-api-key' });
+    req.params = { id: 'SO-123' };
+    var res = makeRes();
+
+    getSalesorderDetailHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(res.json).toHaveBeenCalled();
+      var data = res._json;
+      expect(data.salesorder_id).toBe('SO-123');
+      expect(data.customer_name).toBe('Alice');
+      expect(data.line_items).toHaveLength(1);
+      expect(data.line_items[0].item_id).toBe('ITEM-A');
+    });
+  });
+
+  test('returns 502 when Zoho API fails', function () {
+    zohoApi.zohoGet.mockRejectedValue(new Error('Zoho unavailable'));
+
+    var req = makeReq(null, {}, { 'x-api-key': 'test-api-key' });
+    req.params = { id: 'SO-123' };
+    var res = makeRes();
+
+    getSalesorderDetailHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(res.status).toHaveBeenCalledWith(502);
+    });
+  });
+});
+

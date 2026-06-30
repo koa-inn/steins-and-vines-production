@@ -1301,6 +1301,12 @@ var KIOSK_SO_CACHE_TTL = 120; // seconds
  * Response: { salesorders: [...] }
  */
 router.get('/api/kiosk/salesorders', function (req, res) {
+  // D-09: kiosk order-book exposes PII (customer names, balances, line items).
+  // Guard with the shared admin key — mirrors /api/orders/recent (pos.js:1192).
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   var status = req.query.status || 'open';
   var search = req.query.search || '';
 
@@ -2636,6 +2642,13 @@ router.post('/api/batch/bottling-invite', function (req, res) {
  * The list endpoint (/salesorders) does not return line_items.
  */
 router.get('/api/kiosk/salesorder/:id', function (req, res) {
+  // D-09: individual order detail also exposes PII — guard identically.
+  // Inline guard used (rather than server.js PII_GET_ROUTES list) because
+  // Express path-pattern matching is required for :id params.
+  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   var soId = req.params.id;
   if (!soId || typeof soId !== 'string') {
     return res.status(400).json({ error: 'Missing or invalid salesorder_id' });
