@@ -851,10 +851,10 @@ Plans:
 
 **Requirements**: Audit remediation (CRITICAL + HIGH tier). Source: `AUDIT-2026-06-29.md`.
 **Depends on:** Phase 44 (done). Coordinate with Phase 42 (Kiosk POS De-Fork, not started) — the shared money-path primitive extraction overlaps the de-fork; plan must decide whether to precede, fold in, or sequence around it.
-**Plans:** 0 plans
+**Plans:** 9 plans (auth re-architecture split to Phase 46)
 
 **In scope:**
-- **[CRITICAL] Auth-model exposure** — admin API key (= Railway `API_SECRET_KEY`) is hardcoded in publicly-served, git-tracked `js/sheets-config.js:65` and loaded on ~13 public pages. Rotate the leaked key and re-architect staff-surface auth to server-side identity (reuse existing Google OAuth) so no shared secret ships to the browser. ⚠ Owner decision: interim containment (network/IP allowlist for the fixed in-store kiosk) vs straight to OAuth.
+- **[CRITICAL] Auth-model exposure → MOVED to Phase 46** — admin API key (= Railway `API_SECRET_KEY`) is hardcoded in publicly-served, git-tracked `js/sheets-config.js:65` and loaded on ~13 public pages. Rotate the leaked key and re-architect staff-surface auth to server-side identity (reuse existing Google OAuth) so no shared secret ships to the browser. ⚠ Owner decision: interim containment (network/IP allowlist for the fixed in-store kiosk) vs straight to OAuth. **Split approved (2026-06-29) → see Phase 46.**
 - **[HIGH] Unguarded PII GETs** — `/api/kiosk/salesorders` + `/api/kiosk/salesorder/:id` leak customer name/id/totals/line-items with no key check; add to `PII_GET_ROUTES` (quick containment).
 - **[HIGH] Fail-open under Redis outage** — rate limiting (PIN brute-force, payment, checkout), distributed locks, and idempotency all silently disable during a Redis outage (the "MemoryStore fallback" comments are wrong). Make security-critical limiters/locks fail-closed or process-local.
 - **[HIGH] Kiosk money-path = un-hardened re-impl of checkout.js** (the through-line) — extract `checkout.js` safety primitives (atomic `acquireLock`, error-propagating payment recording, void-on-failure, terminal-timeout reconciliation) into shared helpers used by both paths. Closes: non-atomic sale/confirm idempotency (double-charge/double-invoice), `confirm` swallowing payment-recording failures while returning 201 ok, terminal-timeout orphan charges with no reconciliation, and gift-card split-tender underpay (validate applied amount vs real balance + `needs_manual_review` on redeem failure).
@@ -863,7 +863,7 @@ Plans:
 
 **Out of scope** (defer to follow-on phases 46+): the 25 medium / 16 low / info findings — mobile-responsive (iOS auto-zoom inputs, <44px touch targets, safe-area), testing/CI (coverage floors for `pos.js`/`kiosk.js`, `--max-warnings 0` lint gate, ES5 lint rule, money-path E2E), webhook replay/dedup hardening, observability (Sentry on money-path catches), and dependency hygiene (`npm ci`, Node `engines` pin).
 
-**Planned scope (this phase):** Waves 1-5 cover the Redis fail-open, money-path hardening, gift-card split-tender, reconciliation backstop, CI drift, PII guards, and quick-win containments (D-06..D-17). The auth re-architecture (D-01..D-05, the CRITICAL key exposure) is **recommended to split to a new Phase 46** — it contains a net-new device-credential mechanism (an open design decision) plus an owner-coordinated key-rotation cutover (D-04), and bundling it risks degrading the money-path plans' fidelity. Interim containment ships in Wave 1 (PII guards) + the audit's rotate-now option; residual key-validity-until-cutover risk is documented (D-04).
+**Planned scope (this phase):** Waves 1-5 cover the Redis fail-open, money-path hardening, gift-card split-tender, reconciliation backstop, CI drift, PII guards, and quick-win containments (D-06..D-17). The auth re-architecture (D-01..D-05, the CRITICAL key exposure) is **split to Phase 46 (approved 2026-06-29)** — it contains a net-new device-credential mechanism (an open design decision) plus an owner-coordinated key-rotation cutover (D-04), and bundling it risks degrading the money-path plans' fidelity. Interim containment ships in Wave 1 (PII guards) + the audit's rotate-now option; residual key-validity-until-cutover risk is documented (D-04).
 
 Plans:
 **Wave 1** (parallel — disjoint files)
@@ -885,4 +885,27 @@ Plans:
 **Wave 5**
 - [ ] 45-09-PLAN.md — Bundled live gift-card + money-path UAT on prod (with P44 deferred UAT, D-16) [checkpoint]
 
-**Recommended split → Phase 46 (Auth Re-Architecture):** D-01..D-05 — kiosk device-provisioned credential, admin per-user Google OAuth (server-side ID-token verifier + staff allowlist), remove `MW_API_KEY` from `js/sheets-config.js:65` + rebuild, rotate `API_SECRET_KEY` at cutover. Needs owner sign-off on the device-credential mechanism before planning.
+---
+
+### Phase 46: Auth Re-Architecture (CRITICAL — split from Phase 45)
+
+**Goal:** Eliminate the shared-secret browser auth model. Stop shipping the admin API key in public git-tracked JS, move staff surfaces to server-side identity, and rotate the leaked `API_SECRET_KEY` at cutover — closing the CRITICAL auth-model exposure from `AUDIT-2026-06-29.md` without locking out the in-store kiosk.
+
+**Requirements**: Audit remediation (CRITICAL tier — auth-model exposure). Source: `AUDIT-2026-06-29.md`. Carried over from Phase 45 decisions D-01..D-05.
+**Depends on:** Phase 45 (Wave 1 interim containment ships first). Coordinate with Phase 42 (Kiosk POS De-Fork) — admin/kiosk frontend auth gating overlaps the de-fork.
+**Status:** Not started — **needs owner sign-off on the kiosk device-credential mechanism before planning.**
+**Plans:** 0 plans
+
+**In scope (D-01..D-05):**
+- **Kiosk device-provisioned credential** — single managed in-store iPad on store WiFi (D-01); device-bound session/credential entered/stored once on the iPad, no shared secret served to public pages. Exact mechanism (long-lived device token vs first-run provisioning vs client cert) is an **open design decision** for discuss/research — no existing analog.
+- **Admin per-user Google OAuth** (D-02) — admin (`admin.html`) is opened off-site (laptop/phone), so it must require real per-user Google login. The reusable Google identity is frontend-only today (`js/lib/auth.js`, GIS); the **server-side Google ID-token verifier + staff allowlist is net-new** (guard registration mirrors `server.js:418-423`). NOTE: `routes/auth.js` is Zoho OAuth, not Google.
+- **Remove `MW_API_KEY`** from `js/sheets-config.js:65` (D-03); public pages (index/products/contact/404) carry no admin key; rebuild artifacts (`npm run build`).
+- **Rotate `API_SECRET_KEY` at cutover** (D-04) — owner-coordinated; leaked key stays valid until the new auth is live (documented residual risk, owner-accepted).
+- **Interim network containment** (D-05) — IP allowlist as a possible stopgap; likely unnecessary if cutover is quick (planner to confirm).
+
+**Out of scope:** the money-path / quick-win / Redis / CI work (stays in Phase 45); the medium/low/info findings (phases 47+).
+
+**Pre-planning gate:** Run `/gsd:discuss-phase 46` to lock the device-credential mechanism before `/gsd:plan-phase 46`.
+
+Plans:
+- [ ] TBD (run /gsd:discuss-phase 46, then /gsd:plan-phase 46 to break down)

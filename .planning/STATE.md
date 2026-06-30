@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
-status: verifying
+status: executing
 stopped_at: Phase 45 context gathered (Security & Money-Path Hardening; auth re-arch + Redis policy + money-path + sequencing decided)
-last_updated: "2026-06-30T04:16:09.710Z"
-last_activity: 2026-06-29
+last_updated: "2026-06-30T04:53:53.125Z"
+last_activity: 2026-06-30 -- Phase 45 planning complete
 progress:
-  total_phases: 31
+  total_phases: 32
   completed_phases: 6
-  total_plans: 41
+  total_plans: 50
   completed_plans: 45
   percent: 19
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTED + PRODUCTION-PROMOTED, pending live UAT
 Plan: 10 of 10 (incl. gap plans 44-09/44-10)
-Status: Code complete; deployed to staging AND production (2026-06-29, owner-approved — public site unchanged/cache-stamps only, gift-card UI is staff-only kiosk/admin). G-44-01 closed. ⚠ Live terminal-sale UAT (real card → Zoho accounting + activation) STILL DEFERRED — owner to run a controlled first real gift-card sale on prod and verify Zoho before relying on it (see 44-08-UAT.md).
-Last activity: 2026-06-29
+Status: Ready to execute
+Last activity: 2026-06-30 -- Phase 45 planning complete
 
 Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (staging), 42 (kiosk de-fork) NOT started.
 
@@ -103,6 +103,8 @@ None.
 
 ### Blockers/Concerns
 
+- **[45 plan] Decision-coverage override (approved 2026-06-29):** Phase 45 plans intentionally do NOT cover D-01..D-05 (auth re-architecture — the CRITICAL key exposure). These are **split to Phase 46** (owner-approved). Decision-coverage gate is 10/15 by design; the 5 uncovered are the deferred set. verify-phase should treat their absence as expected, not a gap. Interim containment for the CRITICAL ships in Phase 45 Wave 1 (PII guards) + the audit's rotate-now option; residual key-validity-until-cutover risk documented (D-04).
+- **[45-02 deploy ordering — plan-checker warning]:** 45-02 ships Wave-1 containments to prod, but 45-05 (checkout→money-path refactor, behaviorally inert) commits in Wave 1 first. Pin 45-02's `railway up` to the 45-01 commit (or gate 45-06/07/08 commits behind 45-02) so un-UAT'd kiosk money-path hardening (45-06/07/08) does NOT reach prod before the 45-09 live-card UAT (D-16/D-17).
 - BEER_SALES_ENABLED is now `true` in Railway production (confirmed live 2026-06-26, intentionally enabled) — kiosk recipe sales + recipe discounts are active. (Was previously held false pending the federal brewing licence; ensure the licence status supports live beer sales at the kiosk POS.)
 - Apps Script changes require manual redeploy (not in CI) — plan authors must flag this
 - 36-02 BLOCKED: Apps Script create_batch handler must accept + persist target_volume_l and scale_factor; manual redeploy needed before SEL-02 is fully closed
