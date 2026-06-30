@@ -7,12 +7,12 @@ var helcimLib = require('../lib/helcim');
 var ledger = require('../lib/inventory-ledger');
 var C = require('../lib/constants');
 var helpers = require('../lib/checkout-helpers');
+var moneyPath = require('../lib/money-path');
 var brewpadIntegration = require('../lib/brewpad-integration');
 var redact = require('../lib/redact');
 
 var readServicesSnapshot = helpers.readServicesSnapshot;
 var readIngredientsFileCache = helpers.readIngredientsFileCache;
-var withTimeout = helpers.withTimeout;
 var verifyRecaptcha = helpers.verifyRecaptcha;
 var notifyAdminPanel = helpers.notifyAdminPanel;
 var buildLineItems = helpers.buildLineItems;
@@ -32,32 +32,21 @@ if (!process.env.RECAPTCHA_SECRET_KEY) {
 var PRODUCTS_CACHE_KEY = C.CACHE_KEYS.PRODUCTS;
 var SERVICES_CACHE_KEY = C.CACHE_KEYS.SERVICES;
 var INGREDIENTS_CACHE_KEY = C.CACHE_KEYS.INGREDIENTS;
-var CHECKOUT_IDEMPOTENCY_TTL = 600; // 10 minutes in seconds
+// D-11: CHECKOUT_IDEMPOTENCY_TTL imported from shared lib/money-path.js
+var CHECKOUT_IDEMPOTENCY_TTL = moneyPath.CHECKOUT_IDEMPOTENCY_TTL;
 
 var router = express.Router();
 
-// Reject a checkout request, voiding any already-charged Helcim payment first.
-// The card is charged inside the HelcimPay iframe BEFORE this route runs, so a
-// bare `res.status(4xx)` reject would orphan the charge (money taken, no Zoho
-// order, no void) — exactly the Jun 2026 incident (Helcim 50641064 / INV-000118).
-// Fire-and-forget the void; alert staff if it fails. Only attempts a void when a
-// plausibly-valid payment_token is present (can't void a malformed/absent token).
+// D-11: rejectWithVoid extracted to shared lib/money-path.js.
+// Pass checkout.js's own helcimLib + mailer references so the primitive uses
+// the same module-scope instances (and Jest mocks) as the rest of this route.
+// Docs: see lib/money-path.js#rejectWithVoid for the orphan-charge rationale
+// (Jun 2026 incident, Helcim 50641064 / INV-000118).
 function rejectWithVoid(res, body, status, errorMsg) {
-  var token = body && body.payment_token;
-  if (typeof token === 'string' && token.length > 0 && token.length <= 500 && helcimLib.isEnabled()) {
-    log.error('[checkout] Early reject after charge — voiding txn=' + token + ' (' + status + ': ' + errorMsg + ')');
-    eventLog.logEvent('checkout.void_early_reject', { status: status, reason: String(errorMsg).substring(0, 80) });
-    helcimLib.voidTransaction(token).catch(function (vErr) {
-      log.error('[checkout] Void after early reject failed for txn=' + token + ': ' + vErr.message);
-      mailer.sendVoidFailureAlert({
-        txnId: token,
-        amount: 0,
-        error: 'Early validation reject (' + status + ': ' + errorMsg + ') — void failed: ' + vErr.message,
-        timestamp: new Date().toISOString()
-      }).catch(function () {});
-    });
-  }
-  return res.status(status).json({ error: errorMsg });
+  return moneyPath.rejectWithVoid(res, body, status, errorMsg, {
+    helcim: helcimLib,
+    mailer: mailer
+  });
 }
 
 /**
@@ -156,29 +145,17 @@ router.post('/api/checkout', async function (req, res) {
 
   async function proceed() {
     if (idempotencyKey) {
-      try {
-        var cached = await cache.get(idempotencyKey);
-        if (cached) {
-          log.info('[checkout] Idempotent replay: ' + idempotencyKey);
-          return res.status(201).json(cached);
-        }
-        // H1: Atomic lock prevents TOCTOU race on concurrent duplicate requests
-        var lockAcquired = await cache.acquireLock(idempotencyKey, CHECKOUT_IDEMPOTENCY_TTL);
-        if (!lockAcquired) {
-          return res.status(409).json({ error: 'Checkout already in progress' });
-        }
-        processCheckout(body, idempotencyKey, res, zohoOffline);
-      } catch (e) {
-        // Redis unavailable — fail closed in prod (no duplicate Zoho order for same charge)
-        // Dev stays fail-open for local development convenience
-        var isProdIdem = process.env.NODE_ENV === 'production';
-        if (isProdIdem) {
-          log.warn('[checkout] Redis unavailable for idempotency-key lock — rejecting in prod (fail closed): ' + e.message);
-          return res.status(409).json({ error: 'Checkout already in progress' });
-        }
-        log.warn('[checkout] Redis unavailable for idempotency-key lock — allowing through (dev): ' + e.message);
-        processCheckout(body, idempotencyKey, res, zohoOffline);
+      // H1: Atomic lock via shared primitive — TOCTOU-safe, fail-CLOSED-in-prod (D-11)
+      var lockResult = await moneyPath.acquireIdempotencyLock(cache, idempotencyKey, CHECKOUT_IDEMPOTENCY_TTL);
+      if (lockResult.status === 'replay') {
+        log.info('[checkout] Idempotent replay: ' + idempotencyKey);
+        return res.status(201).json(lockResult.cached);
       }
+      if (lockResult.status === 'contention' || lockResult.status === 'failclosed') {
+        return res.status(409).json({ error: 'Checkout already in progress' });
+      }
+      // status === 'acquired' — proceed to checkout
+      processCheckout(body, idempotencyKey, res, zohoOffline);
       return;
     }
     processCheckout(body, null, res, zohoOffline);
@@ -245,8 +222,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
   // depositAmount is set to orderTotal after line items are built (inside runCheckout).
   var depositAmount = 0;
 
-  // H3: Transaction ID single-use enforcement — prevent replay attacks
-  // Check Redis before processing; mark as used after successful order creation.
+  // H3: Transaction ID single-use enforcement via shared primitive (D-11).
   // Dual-cart checkout shares one Helcim transaction across two cart_keys,
   // so the replay key includes the cart_key to allow both orders through.
   async function checkTransactionIdAndProceed() {
@@ -254,19 +230,12 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       return runCheckout();
     }
     var txnKeySuffix = body.cart_key ? ':' + body.cart_key : '';
-    var txnKey = 'helcim:txn:' + transactionId + txnKeySuffix;
-    try {
-      var existing = await cache.get(txnKey);
-      if (existing) {
-        log.warn('[checkout] Replay attack detected — transaction_id already used: ' + transactionId);
-        return res.status(409).json({ error: 'Payment already processed' });
-      }
-      return runCheckout();
-    } catch (e) {
-      // Redis unavailable — fail closed: a charged transactionId must never create a duplicate Zoho order
-      log.warn('[checkout] Redis unavailable for transactionId replay check — rejecting (fail closed): ' + e.message);
+    var txnResult = await moneyPath.assertTxnNotReplayed(cache, transactionId, txnKeySuffix);
+    if (txnResult.status !== 'ok') {
+      // 'replay' or 'failclosed' — both prevent a duplicate Zoho order (→ 409)
       return res.status(409).json({ error: 'Payment already processed' });
     }
+    return runCheckout();
   }
 
   // --- Resolve Zoho contact server-side from email (lookup or create) ---
@@ -715,11 +684,11 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       var cacheWrite = idempotencyKey
         ? cache.set(idempotencyKey, responseBody, CHECKOUT_IDEMPOTENCY_TTL).catch(function () {})
         : Promise.resolve();
-      // H3: Mark transaction ID as used in Redis (24h TTL) to prevent replay
+      // H3: Mark transaction ID as used via shared primitive (D-11)
       // Uses cart_key suffix to match the check in checkTransactionIdAndProceed()
       var txnKeySuffix2 = body.cart_key ? ':' + body.cart_key : '';
       var txnMark = transactionId
-        ? cache.set('helcim:txn:' + transactionId + txnKeySuffix2, 'used', 86400).catch(function () {})
+        ? moneyPath.markTxnUsed(cache, transactionId, txnKeySuffix2)
         : Promise.resolve();
       await Promise.all([cacheWrite, txnMark]);
       responseSent = true;
@@ -822,55 +791,20 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
           grandTotal: orderTotal,
           txnId: transactionId
         });
-        // C4: Wrap void in 8s timeout; log for manual action if it times out
-        withTimeout(
-          helcimLib.voidTransaction(transactionId),
-          8000
-        )
-          .then(function (voidResult) {
-            if (!voidResult || !voidResult.ok) {
-              log.error('[checkout] Helcim void returned non-ok: ' + JSON.stringify(voidResult));
-              eventLog.logEvent('checkout.void_fired', {
-                txnId: transactionId,
-                voidResult: 'declined'
-              });
-            } else {
-              log.info('[checkout] Voided txn=' + transactionId);
-              eventLog.logEvent('checkout.void_fired', {
-                txnId: transactionId,
-                voidResult: 'success'
-              });
-            }
-          })
-          .catch(function (voidErr) {
-            if (voidErr && voidErr.message && voidErr.message.indexOf('Timeout') === 0) {
-              log.error('[checkout] Helcim void timed out — manual void required for txn=' + transactionId + ': ' + voidErr.message);
-            } else {
-              var voidFailTs = new Date().toISOString();
-              log.error('[checkout] CRITICAL: Void failed for txn=' + transactionId + ': ' + voidErr.message);
-              eventLog.logEvent('checkout.void_failed', {
-                txnId: transactionId,
-                voidError: voidErr.message
-              });
-              mailer.sendVoidFailureAlert({
-                txnId: transactionId,
-                amount: depositAmount,
-                error: voidErr.message,
-                timestamp: voidFailTs
-              }).catch(function (mailErr) {
-                log.error('[checkout] Void failure alert email failed: ' + mailErr.message);
-              });
-            }
-          })
-          .then(function () {
-            if (!responseSent) {
-              // M10: Do not include voided_transaction_id in client response
-              res.status(status).json({
-                error: clientMsg,
-                payment_voided: true
-              });
-            }
-          });
+        // C4: Void via shared primitive — 8s timeout, eventLog + mailer on failure (D-11)
+        // Pass checkout.js's own module-scope deps so Jest mocks remain in scope.
+        moneyPath.voidWithTimeout(helcimLib, transactionId, depositAmount, {
+          mailer: mailer,
+          eventLog: eventLog
+        }).then(function () {
+          if (!responseSent) {
+            // M10: Do not include voided_transaction_id in client response
+            res.status(status).json({
+              error: clientMsg,
+              payment_voided: true
+            });
+          }
+        });
         return;
       }
 
