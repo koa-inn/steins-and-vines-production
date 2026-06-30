@@ -851,7 +851,7 @@ Plans:
 
 **Requirements**: Audit remediation (CRITICAL + HIGH tier). Source: `AUDIT-2026-06-29.md`.
 **Depends on:** Phase 44 (done). Coordinate with Phase 42 (Kiosk POS De-Fork, not started) — the shared money-path primitive extraction overlaps the de-fork; plan must decide whether to precede, fold in, or sequence around it.
-**Plans:** 2/9 plans executed
+**Plans:** 3/9 plans executed
 
 **In scope:**
 - **[CRITICAL] Auth-model exposure → MOVED to Phase 46** — admin API key (= Railway `API_SECRET_KEY`) is hardcoded in publicly-served, git-tracked `js/sheets-config.js:65` and loaded on ~13 public pages. Rotate the leaked key and re-architect staff-surface auth to server-side identity (reuse existing Google OAuth) so no shared secret ships to the browser. ⚠ Owner decision: interim containment (network/IP allowlist for the fixed in-store kiosk) vs straight to OAuth. **Split approved (2026-06-29) → see Phase 46.**
@@ -869,7 +869,7 @@ Plans:
 **Wave 1** (parallel — disjoint files)
 - [x] 45-01-PLAN.md — Quick-win code containments: guard 2 kiosk PII GETs (D-09), KIOSK_PIN length-check (D-15), gitignore dump.rdb (D-15)
 - [x] 45-03-PLAN.md — Redis fail-closed policy: drop limiter skip → MemoryStore fallback + in-process acquireLock fallback + fix false comments (D-06/07/08)
-- [ ] 45-04-PLAN.md — CI artifact-drift check, stamp-normalized (D-10)
+- [x] 45-04-PLAN.md — CI artifact-drift check, stamp-normalized (D-10)
 - [ ] 45-05-PLAN.md — Extract lib/money-path.js from checkout.js + refactor checkout to consume it, no behaviour change (D-11)
 
 **Wave 2**
