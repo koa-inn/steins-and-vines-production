@@ -10,6 +10,10 @@ var log = require('./logger');
 
 var client = null;
 var connected = false;
+// In-process lock Map: key → expiresAt (ms). Provides NX-style lock semantics
+// when Redis is unavailable. Within a single Railway instance, per-process
+// coverage is equivalent to cross-process coverage (D-06).
+var inProcessLocks = Object.create(null);
 
 function getClient() {
   if (client) return Promise.resolve(client);
@@ -101,16 +105,30 @@ function del(key) {
 /**
  * Acquire a distributed lock (Redis SETNX with TTL).
  * Returns true if the lock was acquired, false if already held.
- * Falls back to true if Redis is unavailable (in-process flag takes over).
+ *
+ * When Redis is unavailable, falls back to a per-process in-memory Map with
+ * NX semantics and TTL expiry. This serializes a double-tap within the single
+ * Railway instance (D-06) instead of failing open (allowing both requests).
  */
+function acquireInProcessLock(key, ttlSeconds) {
+  var now = Date.now();
+  var entry = inProcessLocks[key];
+  if (entry && now < entry.expiresAt) {
+    return false; // lock is held and has not expired
+  }
+  inProcessLocks[key] = { expiresAt: now + ttlSeconds * 1000 };
+  return true;
+}
+
 function acquireLock(key, ttlSeconds) {
-  if (!connected) return Promise.resolve(true);
+  if (!connected) return Promise.resolve(acquireInProcessLock(key, ttlSeconds));
   return getClient().then(function (c) {
     return c.set('lock:' + key, '1', { NX: true, EX: ttlSeconds });
   }).then(function (result) {
     return result !== null; // 'OK' if acquired; null if already held
   }).catch(function () {
-    return true; // on Redis error, fall through to in-process guard
+    // Redis mid-op error: fall back to in-process guard (D-06)
+    return acquireInProcessLock(key, ttlSeconds);
   });
 }
 
