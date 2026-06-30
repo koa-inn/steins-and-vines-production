@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 ## Current Position
 
-Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTED, pending live UAT
+Phase: 44 (kiosk-gift-card-certificate-lifecycle) — EXECUTED + PRODUCTION-PROMOTED, pending live UAT
 Plan: 10 of 10 (incl. gap plans 44-09/44-10)
-Status: Code complete + on staging; G-44-01 closed; live terminal-sale UAT deferred by owner (see 44-08-UAT.md). Not production-promoted.
+Status: Code complete; deployed to staging AND production (2026-06-29, owner-approved — public site unchanged/cache-stamps only, gift-card UI is staff-only kiosk/admin). G-44-01 closed. ⚠ Live terminal-sale UAT (real card → Zoho accounting + activation) STILL DEFERRED — owner to run a controlled first real gift-card sale on prod and verify Zoho before relying on it (see 44-08-UAT.md).
 Last activity: 2026-06-29
 
 Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (staging), 42 (kiosk de-fork) NOT started.
