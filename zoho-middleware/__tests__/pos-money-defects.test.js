@@ -422,8 +422,10 @@ describe('CR-02 — gift card balance validation: discriminated result rejects i
 
     var req = {
       body: {
-        items:     [{ item_id: 'item-gc-def', name: 'Test Item', quantity: 1 }],
-        gift_card: { cert_number: 'GC-000001', amount_applied: 50 }
+        items:           [{ item_id: 'item-gc-def', name: 'Test Item', quantity: 1 }],
+        // idempotency_key required by the sale endpoint in production (D-12 prod guard)
+        idempotency_key: 'idem-cr02-b-prod',
+        gift_card:       { cert_number: 'GC-000001', amount_applied: 50 }
       }
     };
     var res = mockRes();
@@ -471,7 +473,8 @@ describe('CR-02 — gift card balance validation: discriminated result rejects i
 
   // ---- CONFIRM PATH ----
 
-  test('CR-02-D: confirm with bogus cert (ok:false) → 400 hard reject', function (done) {
+  test('CR-02-D: confirm with bogus cert (ok:false) in production → 400 hard reject', function (done) {
+    process.env.NODE_ENV = 'production';
     axiosMock.post.mockImplementation(function (url, body) {
       var parsed = (typeof body === 'string') ? JSON.parse(body) : body;
       if (parsed && parsed.action === 'lookup_gift_card') {

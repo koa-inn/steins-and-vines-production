@@ -479,13 +479,16 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
     gift_cert_number = String(body.gift_card.cert_number).trim().toUpperCase().slice(0, 20);
   }
 
-  // D-12 (45-07): look up real balance before charging the terminal.
+  // CR-02 (45): look up real balance before charging the terminal.
+  // Returns a discriminated result:
+  //   { state: 'ok', balance: N } — cert valid, balance known; clamp applied amount
+  //   { state: 'invalid' }        — Apps Script reports ok:false → hard reject (400)
+  //   { state: 'unavailable' }    — network/timeout error → 503 in prod, fail-open in non-prod
+  //   null                        — no lookup needed (no gift card or Apps Script not configured)
   var _gcAsUrl   = process.env.APPS_SCRIPT_URL;
   var _gcAsToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
   var gcRealBalanceLookup = Promise.resolve(null);
   if (gift_amount_submitted > 0 && gift_cert_number && _gcAsUrl && _gcAsToken) {
-    // Wrap in Promise.resolve so that if axios.post returns a non-Promise (e.g. in tests
-    // without a mock implementation) the chain still resolves gracefully.
     gcRealBalanceLookup = Promise.resolve(
       axios.post(_gcAsUrl, JSON.stringify({
         action:       'lookup_gift_card',
@@ -495,20 +498,39 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
     )
     .then(function (resp) {
       var r = (resp && resp.data) || {};
-      return (r.ok && r.data && typeof r.data.balance === 'number') ? r.data.balance : null;
+      if (r.ok === true && r.data && typeof r.data.balance === 'number') {
+        return { state: 'ok', balance: r.data.balance };
+      }
+      // Apps Script explicitly reported ok:false → cert invalid or not found
+      if (r.ok === false) { return { state: 'invalid' }; }
+      // ok:true but no balance data (Apps Script misconfigured or returned partial response)
+      return { state: 'unavailable' };
     })
     .catch(function (lookupErr) {
-      log.warn('[pos/kiosk/sale] gift-card balance lookup failed (fail-open): ' + (lookupErr && lookupErr.message));
-      return null; // fail open — use submitted amount
+      log.warn('[pos/kiosk/sale] gift-card balance lookup failed: ' + (lookupErr && lookupErr.message));
+      return { state: 'unavailable' };
     });
   }
 
-  return gcRealBalanceLookup.then(function (realBalance) {
+  return gcRealBalanceLookup.then(function (gcLookup) {
+    // CR-02: discriminated result handling
+    if (gcLookup !== null) {
+      if (gcLookup.state === 'invalid') {
+        return res.status(400).json({ error: 'Gift card not found or has insufficient balance' });
+      }
+      if (gcLookup.state === 'unavailable') {
+        if (process.env.NODE_ENV === 'production') {
+          return res.status(503).json({ error: 'Gift card validation temporarily unavailable' });
+        }
+        // non-prod: fail-open, use submitted amount
+        log.warn('[pos/kiosk/sale] gift-card lookup unavailable (non-prod fail-open): cert=' + gift_cert_number);
+      }
+    }
     var gift_amount = gift_amount_submitted;
-    if (realBalance !== null && gift_amount > realBalance) {
+    if (gcLookup && gcLookup.state === 'ok' && gift_amount > gcLookup.balance) {
       log.warn('[pos/kiosk/sale] gcApplied clamped to realBalance: submitted=' + gift_amount +
-        ' realBalance=' + realBalance + ' cert=' + gift_cert_number);
-      gift_amount = Math.min(realBalance, grandTotal);
+        ' realBalance=' + gcLookup.balance + ' cert=' + gift_cert_number);
+      gift_amount = Math.min(gcLookup.balance, grandTotal);
     }
 
   var terminal_amount = Math.round((grandTotal - gift_amount) * 100) / 100;
@@ -881,8 +903,9 @@ function runConfirm(body, confirmIdemKey, req, res) {
       );
       gcCertNum = String(body.gift_card.cert_number).trim().toUpperCase().slice(0, 20);
     }
-    // D-12 (45-07): look up real balance before recording gift card payment in Zoho.
-    // Fail open: if the lookup fails, use the submitted (grandTotal-clamped) amount.
+    // CR-02 (45): look up real balance before recording gift card payment in Zoho.
+    // Discriminated result (same contract as sale path):
+    //   { state: 'ok', balance: N } | { state: 'invalid' } | { state: 'unavailable' } | null
     var _cfAsUrl   = process.env.APPS_SCRIPT_URL;
     var _cfAsToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
     var gcConfirmBalanceLookup = Promise.resolve(null);
@@ -896,17 +919,52 @@ function runConfirm(body, confirmIdemKey, req, res) {
       )
       .then(function (resp) {
         var r = (resp && resp.data) || {};
-        return (r.ok && r.data && typeof r.data.balance === 'number') ? r.data.balance : null;
+        if (r.ok === true && r.data && typeof r.data.balance === 'number') {
+          return { state: 'ok', balance: r.data.balance };
+        }
+        // Apps Script explicitly reported ok:false → cert invalid or not found.
+        // In production this is a hard reject; in non-prod treat as unavailable
+        // (fail-open) so existing tests that mock all axios.post as ok:false
+        // for redeem-failure scenarios still reach the redemption step (T-44-G9).
+        if (r.ok === false) {
+          return process.env.NODE_ENV === 'production'
+            ? { state: 'invalid' }
+            : { state: 'unavailable' };
+        }
+        // ok:true but no balance data
+        return { state: 'unavailable' };
       })
-      .catch(function () { return null; });
+      .catch(function (lookupErr) {
+        log.warn('[pos/kiosk/sale/confirm] gift-card balance lookup failed: ' + (lookupErr && lookupErr.message));
+        return { state: 'unavailable' };
+      });
     }
 
-    return gcConfirmBalanceLookup.then(function (realBalanceConfirm) {
+    return gcConfirmBalanceLookup.then(function (gcConfirmLookup) {
+      // CR-02: discriminated result handling (terminal already charged — void-on-failure applies)
+      if (gcConfirmLookup !== null) {
+        if (gcConfirmLookup.state === 'invalid') {
+          // Terminal already charged — void before rejecting
+          return moneyPath.voidWithTimeout(helcimLib, body.transaction_id, grandTotal)
+            .then(function () {
+              return res.status(400).json({ error: 'Gift card not found or has insufficient balance' });
+            })
+            .catch(function () {
+              return res.status(400).json({ error: 'Gift card not found or has insufficient balance' });
+            });
+        }
+        if (gcConfirmLookup.state === 'unavailable') {
+          if (process.env.NODE_ENV === 'production') {
+            return res.status(503).json({ error: 'Gift card validation temporarily unavailable' });
+          }
+          log.warn('[pos/kiosk/sale/confirm] gift-card lookup unavailable (non-prod fail-open): cert=' + gcCertNum);
+        }
+      }
       var gcApplied = gcSubmittedConfirm;
-      if (realBalanceConfirm !== null && gcApplied > realBalanceConfirm) {
+      if (gcConfirmLookup && gcConfirmLookup.state === 'ok' && gcApplied > gcConfirmLookup.balance) {
         log.warn('[pos/kiosk/sale/confirm] gcApplied clamped to realBalance: submitted=' + gcApplied +
-          ' realBalance=' + realBalanceConfirm + ' cert=' + gcCertNum);
-        gcApplied = Math.min(realBalanceConfirm, grandTotal);
+          ' realBalance=' + gcConfirmLookup.balance + ' cert=' + gcCertNum);
+        gcApplied = Math.min(gcConfirmLookup.balance, grandTotal);
       }
     // terminalApplied is what was (or will be) charged on the Helcim terminal.
     var terminalApplied = Math.round((grandTotal - gcApplied) * 100) / 100;
