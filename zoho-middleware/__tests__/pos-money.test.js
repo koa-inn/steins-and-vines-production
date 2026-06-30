@@ -328,22 +328,32 @@ describe('pos — D-12 Task 1: atomic idempotency + required key (confirm)', fun
     delete process.env.NODE_ENV;
   });
 
-  test('T6: confirm missing idempotency_key in production → 400', function (done) {
+  test('T6: confirm missing idempotency_key in production — falls back to transaction_id seed, proceeds to 201 (CR-01)', function (done) {
+    // CR-01 fix: the old code bare-400'd here, orphaning any charge already made.
+    // After the fix, the server derives the idem seed from body.transaction_id and
+    // proceeds normally — NEVER returns a bare 400 on the confirm path.
     process.env.NODE_ENV = 'production';
     var req = {
       body: {
         items: [{ item_id: 'test-item-001', name: 'Test Kit', quantity: 1 }],
         transaction_id: 'txn-001',
         reference_number: 'REF-001'
-        // no idempotency_key
+        // no idempotency_key — CR-01: must NOT 400; falls back to transaction_id seed
       }
     };
     var res = mockRes();
     var statusCapture = captureStatus(res);
     res.json.mockImplementation(function (body) {
       try {
-        expect(statusCapture.code).toBe(400);
-        expect(body.error).toMatch(/idempotency_key/i);
+        // Must NOT 400 — the terminal was already charged; bare 400 = orphan charge
+        expect(statusCapture.code).toBe(201);
+        expect(body.ok).toBe(true);
+        // Confirm must have derived seed from transaction_id
+        expect(moneyPath.acquireIdempotencyLock).toHaveBeenCalledWith(
+          cache,
+          'test:idem:confirm:txn-001',
+          expect.any(Number)
+        );
         done();
       } catch (e) { done(e); }
     });
