@@ -114,7 +114,14 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-30T13:37:15.761Z
-Stopped at: Phase 45 context gathered (Security & Money-Path Hardening; auth re-arch + Redis policy + money-path + sequencing decided)
-Next: 44-08 UAT re-run (full iPad UAT — issue via cart+terminal, reload, lookup, partial/full redeem, void).
+Last session: 2026-06-30 (live UAT, store closed)
+Stopped at: 45-09 live-card UAT IN PROGRESS, PAUSED after step 4a. Prod now runs 97e8124 (money-path waves + F1 + F3 fixes). Prod deploys this session: 322c963 (45-02 containment), 41f6462 (money-path), 51f3c64 (F1), 97e8124 (F3). Railway var ZOHO_TAX_ZERO_ID=109900000000014433 set for F3. Build churn still STASHED (stash@{0}) — pop after session.
+UAT findings → .planning/phases/45-.../45-09-UAT-FINDINGS.md:
+  - F1 gift-card lookup read `balance` not `current_balance` → 503 blocked all redemptions. FIXED 51f3c64, deployed + verified.
+  - F2 auto-confirm didn't recognize a successful terminal charge → live orphan, recovered via manual-confirm. UNRESOLVED, needs a logged repro of the sale→poll path. (NOT correlated with F3.)
+  - F3 exempt custom line default-taxed by Zoho (no zero-rate exemption sent; tax_percentage:0 ignored, no tax_id) → phantom GST, INV-000129 partially_paid. ROOT CAUSE FOUND + FIXED 97e8124 (tag exempt custom lines with ZOHO_TAX_ZERO_ID in both sale+confirm builders; regression in pos-tax.test.js). Pre-existing Phase 43; hit ALL exempt custom-line sales. Verify end-to-end on UAT resume.
+  - F4 cart re-sync forces staff out of payment every sale (kiosk.js:1388). FILED issue #108 (used `env -u GH_TOKEN gh` — stale GH_TOKEN in ~/.zshrc:16 shadows keychain creds).
+UAT steps 1-3 PASS; 4a booking-defective (F2/F3); 4b/5/6/7/8 NOT RUN.
+Cleanup owed: cert GC-000001 = $10 active; test invoices INV-000127/128/129 + ~$20 real card charges to void/refund; F3 $0.50 phantom clears with INV-000129 reversal.
+Next: F2 still open (needs repro at kiosk). Re-run UAT 4b/5/6/7/8 (with a fresh exempt custom-line sale to verify F3 books tax_total:0). Then clean up test transactions.
 Resume file: None
