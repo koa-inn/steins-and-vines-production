@@ -136,6 +136,10 @@ function acquireLock(key, ttlSeconds) {
  * Release a distributed lock.
  */
 function releaseLock(key) {
+  // WR-03: always clear the in-process fallback lock so retries can re-acquire
+  // even when Redis is unavailable.  The in-process lock must be cleared regardless
+  // of Redis connectivity — failing to do so blocks retries for the full TTL.
+  delete inProcessLocks[key];
   if (!connected) return Promise.resolve();
   return getClient().then(function (c) {
     return c.del('lock:' + key);

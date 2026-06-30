@@ -581,6 +581,13 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
       })
       .catch(function (termErr) {
         log.error('[pos/kiosk/sale] Terminal push failed: ' + termErr.message);
+        // WR-03: release idempotency lock so the client can retry.  The terminal
+        // push failed and NO charge was recorded — it's safe to allow a retry under
+        // a fresh lock.  Do NOT release the lock when a charge may have succeeded
+        // (i.e., polled OK then failed) — that case doesn't reach this catch.
+        if (idempotencyKey) {
+          cache.releaseLock(idempotencyKey).catch(function () {});
+        }
         res.status(502).json({ error: 'Terminal error — please try again' });
       });
   } else {
