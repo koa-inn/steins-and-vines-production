@@ -22,6 +22,8 @@ var KIOSK_PRODUCTS_CACHE_KEY = C.CACHE_KEYS.KIOSK_PRODUCTS;
 var RECENT_ORDERS_CACHE_KEY = C.CACHE_KEYS.RECENT_ORDERS;
 var RECENT_ORDERS_CACHE_TTL = 60; // seconds
 var IDEMPOTENCY_KEY_TTL = 300; // 5 minutes in seconds
+// D-13: pending-charge records live 7 days so the reconciliation backstop (45-08) can find them.
+var KIOSK_PENDING_CHARGE_TTL = 604800;
 
 var crypto = require('crypto');
 
@@ -461,18 +463,54 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
     return res.status(400).json({ error: 'Sale total exceeds maximum' });
   }
 
-  // --- Gift card split-tender (Phase 44) ---
+  // --- Gift card split-tender (Phase 44 / D-12 hardened in 45-07) ---
   // D-05: amount_applied is clamped to grandTotal server-side; client cannot over-apply.
   // D-03/R-03: tax is never recomputed — gift_amount subtracts only from post-tax grandTotal.
-  var gift_amount = 0;
+  // D-12 (45-07): gcApplied is further clamped to the certificate's REAL server-side balance
+  //   via an Apps Script lookup BEFORE the terminal is charged.  Fails open: if the lookup
+  //   is unavailable, the client-submitted (grandTotal-clamped) amount is used.
+  var gift_amount_submitted = 0;
   var gift_cert_number = '';
   if (body.gift_card && body.gift_card.cert_number) {
-    gift_amount = Math.min(
+    gift_amount_submitted = Math.min(
       Math.max(Number(body.gift_card.amount_applied) || 0, 0),
       grandTotal
     );
     gift_cert_number = String(body.gift_card.cert_number).trim().toUpperCase().slice(0, 20);
   }
+
+  // D-12 (45-07): look up real balance before charging the terminal.
+  var _gcAsUrl   = process.env.APPS_SCRIPT_URL;
+  var _gcAsToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
+  var gcRealBalanceLookup = Promise.resolve(null);
+  if (gift_amount_submitted > 0 && gift_cert_number && _gcAsUrl && _gcAsToken) {
+    // Wrap in Promise.resolve so that if axios.post returns a non-Promise (e.g. in tests
+    // without a mock implementation) the chain still resolves gracefully.
+    gcRealBalanceLookup = Promise.resolve(
+      axios.post(_gcAsUrl, JSON.stringify({
+        action:       'lookup_gift_card',
+        server_token: _gcAsToken,
+        cert_number:  gift_cert_number
+      }), { headers: { 'Content-Type': 'application/json' }, timeout: 12000, maxRedirects: 5 })
+    )
+    .then(function (resp) {
+      var r = (resp && resp.data) || {};
+      return (r.ok && r.data && typeof r.data.balance === 'number') ? r.data.balance : null;
+    })
+    .catch(function (lookupErr) {
+      log.warn('[pos/kiosk/sale] gift-card balance lookup failed (fail-open): ' + (lookupErr && lookupErr.message));
+      return null; // fail open — use submitted amount
+    });
+  }
+
+  return gcRealBalanceLookup.then(function (realBalance) {
+    var gift_amount = gift_amount_submitted;
+    if (realBalance !== null && gift_amount > realBalance) {
+      log.warn('[pos/kiosk/sale] gcApplied clamped to realBalance: submitted=' + gift_amount +
+        ' realBalance=' + realBalance + ' cert=' + gift_cert_number);
+      gift_amount = Math.min(realBalance, grandTotal);
+    }
+
   var terminal_amount = Math.round((grandTotal - gift_amount) * 100) / 100;
 
   var refNumber = (body.reference_number && typeof body.reference_number === 'string')
@@ -497,6 +535,19 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
           pending: true,
           reference: refNumber
         };
+
+        // D-13 (45-07): persist pending-charge context for the reconciliation backstop (45-08).
+        // Written fire-and-forget after every successful push so a client-side timeout
+        // leaves a reconcilable trail.  Key = KIOSK_PENDING_CHARGE_PREFIX + refNumber.
+        var pendingCacheKey = C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + refNumber;
+        var pendingContext = {
+          reference_number: refNumber,
+          amount:           terminal_amount,
+          idempotency_key:  (body.idempotency_key && typeof body.idempotency_key === 'string')
+                              ? body.idempotency_key : null,
+          created_at:       new Date().toISOString()
+        };
+        cache.set(pendingCacheKey, pendingContext, KIOSK_PENDING_CHARGE_TTL).catch(function () {});
 
         var cacheWrite = idempotencyKey
           ? cache.set(idempotencyKey, responseBody, IDEMPOTENCY_KEY_TTL).catch(function () {})
@@ -530,6 +581,7 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
       res.status(202).json(gcOnlyResponseBody);
     });
   }
+  }); // end gcRealBalanceLookup.then (D-12 balance validation)
 }
 
 /**
@@ -805,17 +857,44 @@ function runConfirm(body, confirmIdemKey, req, res) {
     }
 
     // --- Phase 44 split-tender: re-clamp gift_amount to re-computed grandTotal (Pitfall 3).
-    // Computed here (before zohoPost) so the outer catch can reference terminalApplied for void.
-    var gcApplied = 0;
+    // D-12 (45-07): gcApplied further validated against real server-side balance (fail-open).
+    var gcSubmittedConfirm = 0;
     var gcCertNum = '';
     if (body.gift_card && body.gift_card.cert_number) {
       // D-05: server-authoritative re-clamp (Pitfall 3 — prices may differ from sale quote)
-      gcApplied = Math.min(
+      gcSubmittedConfirm = Math.min(
         Math.max(Number(body.gift_card.amount_applied) || 0, 0),
         grandTotal
       );
       gcCertNum = String(body.gift_card.cert_number).trim().toUpperCase().slice(0, 20);
     }
+    // D-12 (45-07): look up real balance before recording gift card payment in Zoho.
+    // Fail open: if the lookup fails, use the submitted (grandTotal-clamped) amount.
+    var _cfAsUrl   = process.env.APPS_SCRIPT_URL;
+    var _cfAsToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
+    var gcConfirmBalanceLookup = Promise.resolve(null);
+    if (gcSubmittedConfirm > 0 && gcCertNum && _cfAsUrl && _cfAsToken) {
+      gcConfirmBalanceLookup = Promise.resolve(
+        axios.post(_cfAsUrl, JSON.stringify({
+          action:       'lookup_gift_card',
+          server_token: _cfAsToken,
+          cert_number:  gcCertNum
+        }), { headers: { 'Content-Type': 'application/json' }, timeout: 12000, maxRedirects: 5 })
+      )
+      .then(function (resp) {
+        var r = (resp && resp.data) || {};
+        return (r.ok && r.data && typeof r.data.balance === 'number') ? r.data.balance : null;
+      })
+      .catch(function () { return null; });
+    }
+
+    return gcConfirmBalanceLookup.then(function (realBalanceConfirm) {
+      var gcApplied = gcSubmittedConfirm;
+      if (realBalanceConfirm !== null && gcApplied > realBalanceConfirm) {
+        log.warn('[pos/kiosk/sale/confirm] gcApplied clamped to realBalance: submitted=' + gcApplied +
+          ' realBalance=' + realBalanceConfirm + ' cert=' + gcCertNum);
+        gcApplied = Math.min(realBalanceConfirm, grandTotal);
+      }
     // terminalApplied is what was (or will be) charged on the Helcim terminal.
     var terminalApplied = Math.round((grandTotal - gcApplied) * 100) / 100;
 
@@ -883,6 +962,8 @@ function runConfirm(body, confirmIdemKey, req, res) {
                   if (!r.ok) {
                     log.error('[pos/kiosk/sale/confirm] CRITICAL: Gift card balance decrement failed for ' +
                       gcCertNum + ': ' + (r.error || 'unknown'));
+                    // D-12 (45-07): flag for staff review — mirrors giftCardActivationFailed pattern
+                    giftCardActivationFailed = true;
                   } else {
                     eventLog.logEvent('kiosk.gift_card_redeemed', {
                       certNumber: gcCertNum, amountApplied: gcApplied, refNumber: refNumber
@@ -892,6 +973,8 @@ function runConfirm(body, confirmIdemKey, req, res) {
                 .catch(function (asErr) {
                   log.error('[pos/kiosk/sale/confirm] CRITICAL: Apps Script redeem_gift_card unreachable for ' +
                     gcCertNum + ': ' + asErr.message);
+                  // D-12 (45-07): unreachable Apps Script — flag for staff review
+                  giftCardActivationFailed = true;
                 });
               });
             }
@@ -1016,7 +1099,8 @@ function runConfirm(body, confirmIdemKey, req, res) {
           res.status(201).json(result);
         });
       });
-    });
+    }); // end zohoPost.then (inside gcConfirmBalanceLookup.then)
+    }); // end gcConfirmBalanceLookup.then (D-12 balance validation)
     }); // end resolveDiscount.then
   }).catch(function (err) {
     log.error('[pos/kiosk/sale/confirm] Error: ' + err.message);
@@ -1733,6 +1817,18 @@ router.post('/api/kiosk/salesorder-pay', function (req, res) {
         .catch(function (termErr) {
           if (termErr.message === 'Terminal timeout after 90s') {
             log.warn('[kiosk/so-pay] Terminal timed out after 90s — no txn to void');
+            // D-13 (45-07): persist pending-charge context for reconciliation backstop (45-08).
+            // The terminal push may have reached Helcim before the timeout; the record lets
+            // the daily reconcile job detect any orphaned charges.
+            var _pendingKey = C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + soNumber;
+            var _pendingCtx = {
+              reference_number: soNumber,
+              amount:           balance,
+              salesorder_id:    soId,
+              idempotency_key:  idempotencyKey,
+              created_at:       new Date().toISOString()
+            };
+            cache.set(_pendingKey, _pendingCtx, KIOSK_PENDING_CHARGE_TTL).catch(function () {});
             return res.status(504).json({ error: 'Terminal did not respond in time. Please try again.' });
           }
           if (termErr.isDeclined) {

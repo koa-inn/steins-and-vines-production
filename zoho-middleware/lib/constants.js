@@ -46,6 +46,10 @@ var CACHE_KEYS = {
   COLLECT_IDEM_PREFIX:    'collect:idem:',
   COLLECT_PENDING_PREFIX: 'collect:pending:',
 
+  // Kiosk pending charge — D-13 reconciliation interface (45-07 → consumed by 45-08)
+  // Keyed by reference_number; TTL 7 days so the daily reconciliation backstop can find it.
+  KIOSK_PENDING_CHARGE_PREFIX: 'kiosk:pending-charge:',
+
   // Kiosk sales order management
   KIOSK_SALESORDERS:      'kiosk:salesorders',
 

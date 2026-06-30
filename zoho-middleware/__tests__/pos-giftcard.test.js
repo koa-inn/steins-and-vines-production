@@ -354,7 +354,12 @@ describe('pos routes — gift-card hardening Phase 45-07', function () {
       });
 
       test('T5: kiosk/sale pending record has reference_number, amount, idempotency_key, created_at', function (done) {
-        cache.get.mockResolvedValue(CATALOG_EXEMPT);
+        // Key-aware mock: return catalog for the products key, null for idempotency key
+        // (null prevents the acquireIdempotencyLock from short-circuiting as a replay)
+        cache.get.mockImplementation(function (key) {
+          if (key === 'test:kiosk-products') return Promise.resolve(CATALOG_EXEMPT);
+          return Promise.resolve(null);
+        });
         helcimLib.terminalPurchase.mockResolvedValue({});
         var req = {
           body: {
