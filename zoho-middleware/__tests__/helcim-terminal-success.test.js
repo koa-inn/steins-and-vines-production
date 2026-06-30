@@ -13,7 +13,8 @@
 //   (a) webhook APPROVED + getCardTransactionById mocked APPROVED
 //       → caches helcim:terminal:result:{invoice} with approved:true
 //   (b) API failure + device-pending invoice present
-//       → caches approved:true (fallback) + logs warning
+//       → WR-07 fix: caches UNCONFIRMED (approved:false) + logs warning
+//         (original: approved:true — codified the WR-07 phantom-revenue bug)
 //   (c) API failure + NO device-pending invoice
 //       → caches NOTHING (no false positive)
 //   (d) getCardTransactionById returns DECLINED
@@ -194,7 +195,14 @@ describe('handleCardTransaction — terminal success recognition (regression)', 
   // (b) API failure + device-pending invoice present → fallback caches approved
   // -------------------------------------------------------------------------
 
-  test('(b) API failure + device-pending invoice → caches approved:true (fallback) + logs warning', function () {
+  // WR-07 fix: fallback now caches UNCONFIRMED (approved:false) instead of
+  // synthesising APPROVED.  If the Helcim API is down we cannot confirm the
+  // real status — caching approved:true would let a declined/voided event
+  // resolve the kiosk poll as 'approved' and create a phantom Zoho invoice.
+  // The kiosk poll returns { status: 'pending' } for UNCONFIRMED so the client
+  // keeps polling (or reaches the manual-confirm timeout).
+  // Test name and assertion updated to reflect the corrected behaviour.
+  test('(b) WR-07 fix: API failure + device-pending invoice → caches UNCONFIRMED (approved:false) + logs warning', function () {
     helcimLib.getCardTransactionById.mockRejectedValue(new Error('Network error'));
     helcimLib.getPendingInvoiceForDevice.mockResolvedValue('INV-FALLBACK');
 
@@ -208,14 +216,14 @@ describe('handleCardTransaction — terminal success recognition (regression)', 
     }).then(function () {
       expect(helcimLib.getCardTransactionById).toHaveBeenCalledWith('txn-fallback');
       expect(helcimLib.getPendingInvoiceForDevice).toHaveBeenCalled();
-      // Fallback must cache with approved:true (as a JSON string — see test (a))
+      // WR-07: Fallback must cache UNCONFIRMED (approved:false) — NOT synthesised APPROVED
       var fbCall = cache.set.mock.calls.find(function (c) { return c[0] === 'helcim:terminal:result:INV-FALLBACK'; });
       expect(fbCall).toBeDefined();
       expect(typeof fbCall[1]).toBe('string');
-      expect(JSON.parse(fbCall[1])).toMatchObject({ approved: true });
-      // Must log the unconfirmed-fallback warning
+      expect(JSON.parse(fbCall[1])).toMatchObject({ approved: false });
+      // Must log the UNCONFIRMED-fallback warning
       expect(log.warn).toHaveBeenCalledWith(
-        expect.stringContaining('device-pending fallback')
+        expect.stringContaining('UNCONFIRMED')
       );
     });
   });

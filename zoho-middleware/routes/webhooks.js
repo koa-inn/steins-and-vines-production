@@ -108,10 +108,33 @@ function handleCardTransaction(event) {
         log.warn('[webhook/helcim] cardTransaction: API unavailable and no device-pending invoice — cannot correlate txn=' + transactionId + ', dropping event');
         return;
       }
-      log.warn('[webhook/helcim] cardTransaction: API unavailable, using device-pending fallback (status unconfirmed) for invoice=' + pendingInvoice);
-      // Helcim creates a card-transaction record only on an approved auth;
-      // treat the event as APPROVED when we have a pending invoice to correlate.
-      processCardTransactionResult(transactionId, 'APPROVED', pendingInvoice, '');
+      // WR-07: Do NOT synthesise APPROVED from an API failure.
+      //
+      // The original assumption — "Helcim creates a card-transaction record only
+      // on an approved auth" — is plausible but unverifiable when the API is down.
+      // If it is wrong (declined/voided event hitting this fallback), caching APPROVED
+      // would set approved:true in the terminal-result store, resolve the kiosk poll
+      // as 'approved', and cause /confirm to create a paid Zoho invoice for an
+      // uncaptured payment (phantom revenue).
+      //
+      // Fix: cache status 'UNCONFIRMED' (approved:false).  The kiosk poll handler
+      // returns { status: 'pending' } for any non-APPROVED, non-DECLINED status,
+      // so the client keeps polling until POLL_TIMEOUT_MS (45 s) and then shows
+      // the manual-confirm fallback button.  Staff can confirm manually if the
+      // card was genuinely approved, or cancel if not.
+      //
+      // The reconcile/API-retry path (webhook retry, 5-min sweep) will establish
+      // the real status once the Helcim API is back online.
+      //
+      // Open question (WR-07 / money decision): if Helcim retries the webhook after
+      // the API recovers and calls reconcilePendingCharge for a genuinely-approved
+      // txn while staff has not yet manually confirmed (pending record still
+      // present, MIN_ORPHAN_AGE elapsed), reconcile may void a valid charge.
+      // This is documented in 45-FIX2-SUMMARY.md under "Open Money Question".
+      log.warn('[webhook/helcim] cardTransaction: API unavailable — caching UNCONFIRMED' +
+        ' for invoice=' + pendingInvoice + '; kiosk poll will keep waiting;' +
+        ' reconcile/retry will establish real status once API is available');
+      processCardTransactionResult(transactionId, 'UNCONFIRMED', pendingInvoice, '');
     }).catch(function (fbErr) {
       log.warn('[webhook/helcim] cardTransaction: device-pending fallback failed: ' + fbErr.message);
     });
