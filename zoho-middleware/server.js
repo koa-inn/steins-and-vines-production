@@ -29,6 +29,7 @@ var brewpadIntegration = require('./lib/brewpad-integration');
 
 var mailer = require('./lib/mailer');
 var mailerlite = require('./lib/mailerlite');
+var reconcile = require('./lib/reconcile');
 
 var app = express();
 app.set('trust proxy', 1); // Railway sits behind a load balancer
@@ -569,6 +570,16 @@ if (require.main === module) {
         });
       }, 5 * 60 * 1000);
       log.info('[brewpad] Batch + Zoho sync retry sweeps registered: every 5 minutes');
+
+      // D-13: Kiosk pending-charge reconciliation sweep (45-08 backstop)
+      // Catches orphan charges that the webhook handler missed (e.g. failed delivery).
+      // No-ops cleanly when Redis is disconnected.
+      setInterval(function () {
+        reconcile.sweepPendingCharges().catch(function (err) {
+          log.error('[reconcile] Pending-charge sweep failed: ' + err.message);
+        });
+      }, 5 * 60 * 1000);
+      log.info('[reconcile] Kiosk pending-charge sweep registered: every 5 minutes');
     });
 
     process.on('SIGTERM', function () {

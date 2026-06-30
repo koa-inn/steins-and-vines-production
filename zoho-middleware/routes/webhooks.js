@@ -8,6 +8,7 @@ var mailer = require('../lib/mailer');
 var zohoApi = require('../lib/zoho-api');
 var zohoPost = zohoApi.zohoPost;
 var C = require('../lib/constants');
+var reconcile = require('../lib/reconcile');
 
 var router = express.Router();
 
@@ -204,6 +205,17 @@ function processCardTransactionResult(transactionId, status, invoiceNumber, card
       }
     }).catch(function (err) {
       log.warn('[webhook/helcim] Collect-pending handling failed: ' + err.message);
+    });
+  }
+
+  // D-13: Reconcile kiosk pending charges (45-08 backstop).
+  // For APPROVED transactions: if there is a KIOSK_PENDING_CHARGE_PREFIX record
+  // for this invoiceNumber and no matching Zoho order was created (late approval),
+  // auto-void or flag for manual review.
+  // Runs after the 200 response (fire-and-forget, preserving respond-200-before-async).
+  if (status === 'APPROVED' && invoiceNumber) {
+    reconcile.reconcilePendingCharge(transactionId).catch(function (err) {
+      log.warn('[webhook/helcim] Kiosk pending charge reconcile error: ' + err.message);
     });
   }
 }

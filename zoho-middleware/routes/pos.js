@@ -1095,6 +1095,19 @@ function runConfirm(body, confirmIdemKey, req, res) {
         var cacheWrite = confirmIdemKey
           ? cache.set(confirmIdemKey, result, IDEMPOTENCY_KEY_TTL).catch(function () {})
           : Promise.resolve();
+
+        // D-13 (45-08 Rule 2): clear the kiosk pending-charge sentinel so the
+        // reconciliation backstop knows this charge is settled (no orphan).
+        // The confirm idem key (10-min TTL) is the primary signal; this deletion
+        // is the durable signal — it outlasts the short idem TTL and prevents
+        // false-positive void attempts by the sweep after the TTL expires.
+        var pendingRef = (typeof body.reference_number === 'string' && body.reference_number)
+          ? body.reference_number.slice(0, 64) : '';
+        if (pendingRef) {
+          cache.del(C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + pendingRef)
+            .catch(function () {});
+        }
+
         cacheWrite.then(function () {
           res.status(201).json(result);
         });
