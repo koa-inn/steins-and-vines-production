@@ -11,6 +11,7 @@ var mailer = require('../lib/mailer');
 var C = require('../lib/constants');
 var brewpadIntegration = require('../lib/brewpad-integration');
 var scaling = require('../lib/recipe-scaling');
+var moneyPath = require('../lib/money-path');
 
 var zohoPost = zohoApi.zohoPost;
 
@@ -499,6 +500,42 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
     return res.status(400).json({ error: 'Missing reference' });
   }
 
+  // CR-01 fix: confirm-level idempotency so replays return the cached receipt
+  // without creating a second invoice.  Seed derived from body.idempotency_key,
+  // falling back to body.transaction_id, then body.reference.  NEVER bare-400:
+  // the terminal was already charged; a bare 400 would orphan the charge.
+  var _confirmSeed = (typeof body.idempotency_key === 'string' && body.idempotency_key)
+    ? body.idempotency_key
+    : (typeof body.transaction_id === 'string' && body.transaction_id)
+      ? body.transaction_id
+      : body.reference;
+  var confirmIdemKey = _confirmSeed
+    ? C.CACHE_KEYS.KIOSK_IDEM_PREFIX + 'confirm:' + String(_confirmSeed).slice(0, 128)
+    : null;
+
+  if (confirmIdemKey) {
+    return moneyPath.acquireIdempotencyLock(cache, confirmIdemKey, moneyPath.CHECKOUT_IDEMPOTENCY_TTL)
+      .then(function (lockResult) {
+        if (lockResult.status === 'replay') {
+          log.info('[pos-recipe/recipe-sale/confirm] Idempotent replay: ' + confirmIdemKey);
+          return res.status(201).json(lockResult.cached);
+        }
+        if (lockResult.status === 'contention' || lockResult.status === 'failclosed') {
+          return res.status(409).json({ error: 'Confirm already in progress — please wait before retrying' });
+        }
+        // status === 'acquired' — proceed
+        _runRecipeConfirm(body, confirmIdemKey, req, res);
+      })
+      .catch(function (err) {
+        log.error('[pos-recipe/recipe-sale/confirm] Idempotency lock error: ' + err.message);
+        _runRecipeConfirm(body, null, req, res); // proceed without lock on unexpected error
+      });
+  }
+
+  _runRecipeConfirm(body, null, req, res);
+});
+
+function _runRecipeConfirm(body, confirmIdemKey, req, res) {
   var txnId = body.transaction_id;
   var millGrain = body.mill_grain === true;
   // MOD-02 (36-03): parse modified_ingredients from request body (array or null)
@@ -760,14 +797,21 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
               invoiceNumber: invoiceNumber
             });
 
-            // Return receipt
-            res.status(201).json({
+            // Cache confirm result for CR-01 idempotent replays (T-44-G2 parity)
+            var recipeResult = {
               ok: true,
               transaction_id: txnId,
               invoice_number: invoiceNumber,
               recipe_id: body.recipe_id,
               sale_type: body.sale_type,
               total: grandTotal
+            };
+            var cacheWriteRecipe = confirmIdemKey
+              ? cache.set(confirmIdemKey, recipeResult, moneyPath.CHECKOUT_IDEMPOTENCY_TTL).catch(function () {})
+              : Promise.resolve();
+            cacheWriteRecipe.then(function () {
+              // Return receipt
+              res.status(201).json(recipeResult);
             });
           })
           .catch(function (invoiceErr) {
@@ -832,7 +876,7 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
     log.error('[pos-recipe/confirm] Discount preset load error: ' + presetErr.message);
     if (!res.headersSent) res.status(503).json({ error: 'Discount unavailable — please try again.' });
   });
-});
+}
 
 module.exports = router;
 // Exposed for unit testing (pure helpers)

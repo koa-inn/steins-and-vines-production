@@ -3586,6 +3586,8 @@
           contact_id: recipeSaleBody.contact_id || '',
           reference: refNumber,
           transaction_id: txnId,
+          // CR-01: deterministic replay key so the server can short-circuit a duplicate confirm
+          idempotency_key: refNumber,
           discount: recipeSaleBody.discount
         };
         fetch(mwUrl + '/api/kiosk/recipe-sale/confirm', {
@@ -3628,6 +3630,8 @@
           items: items,
           reference_number: refNumber,
           transaction_id: txnId,
+          // CR-01: deterministic replay key so the server can short-circuit a duplicate confirm
+          idempotency_key: refNumber,
           customer_name: _kioskCustomer ? _kioskCustomer.name : '',
           contact_id: _kioskCustomer ? _kioskCustomer.contact_id : '',
           discount: _kioskDiscount ? { preset_id: _kioskDiscount.presetId, name: _kioskDiscount.name, type: _kioskDiscount.type, value: _kioskDiscount.value, scope: _kioskDiscount.scope } : undefined,

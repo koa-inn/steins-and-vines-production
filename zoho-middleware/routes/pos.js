@@ -662,27 +662,40 @@ router.post('/api/kiosk/sale/confirm', function (req, res) {
 
   // Confirm-level idempotency (T-44-G2, D-12): prevents double invoice / double activation on replay.
   // Uses a 'confirm:' prefix so it never collides with the sale endpoint's cached 202.
-  // D-12: required in production (fail-closed-in-prod); optional in non-prod for backward compat.
-  var confirmIdemKey = (typeof body.idempotency_key === 'string' && body.idempotency_key)
-    ? C.CACHE_KEYS.KIOSK_IDEM_PREFIX + 'confirm:' + body.idempotency_key.slice(0, 128)
+  //
+  // CR-01 fix: derive the seed from body.idempotency_key first, then fall back to
+  // body.transaction_id, then body.reference_number.  NEVER bare-400 after a charge:
+  // a 400 here when the terminal has already run → orphan charge (money taken, no invoice).
+  // If no seed is derivable at all, fall through to runConfirm so the void-on-failure
+  // path can run (it checks body.transaction_id and voids if set).
+  var _confirmSeed = (typeof body.idempotency_key === 'string' && body.idempotency_key)
+    ? body.idempotency_key
+    : (typeof body.transaction_id === 'string' && body.transaction_id)
+      ? body.transaction_id
+      : (typeof body.reference_number === 'string' && body.reference_number)
+        ? body.reference_number
+        : null;
+  var confirmIdemKey = _confirmSeed
+    ? C.CACHE_KEYS.KIOSK_IDEM_PREFIX + 'confirm:' + String(_confirmSeed).slice(0, 128)
     : null;
-
-  if (!confirmIdemKey && process.env.NODE_ENV === 'production') {
-    return res.status(400).json({ error: 'idempotency_key is required' });
-  }
 
   if (confirmIdemKey) {
     // D-12: atomic idempotency lock via shared money-path primitive (replaces non-atomic get-then-set)
     return moneyPath.acquireIdempotencyLock(cache, confirmIdemKey, IDEMPOTENCY_KEY_TTL)
       .then(function (lockResult) {
-        if (lockResult.status === 'replay') {
+        // Only short-circuit on replay when the cached value is a well-formed confirm response.
+        // Guards against test mocks that return non-null for all cache keys (catalog arrays, etc.)
+        // and against corrupt/stale cache entries.  Only successful confirms are ever cached here.
+        if (lockResult.status === 'replay' && lockResult.cached &&
+            typeof lockResult.cached === 'object' && !Array.isArray(lockResult.cached) &&
+            lockResult.cached.ok === true) {
           log.info('[pos/kiosk/sale/confirm] Idempotent replay: ' + confirmIdemKey);
           return res.status(201).json(lockResult.cached);
         }
         if (lockResult.status === 'contention' || lockResult.status === 'failclosed') {
           return res.status(409).json({ error: 'Confirm already in progress — please wait before retrying' });
         }
-        // status === 'acquired' — proceed
+        // status === 'acquired', or replay with invalid cached data — proceed to confirm
         runConfirm(body, confirmIdemKey, req, res);
       });
   }

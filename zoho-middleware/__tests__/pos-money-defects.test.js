@@ -116,7 +116,8 @@ jest.mock('../lib/constants', function () {
       KIOSK_SALESORDERS:           'test:kiosk-salesorders',
       KIOSK_DISCOUNT_PRESETS:      'test:kiosk-discount-presets',
       CONSIGNMENT_REPORT_PREFIX:   'test:consignment:report:',
-      KIOSK_PENDING_CHARGE_PREFIX: 'test:kiosk:pending-charge:'
+      KIOSK_PENDING_CHARGE_PREFIX: 'test:kiosk:pending-charge:',
+      INGREDIENTS_ALL:             'zoho:ingredients:all'
     },
     LOCK_KEYS: { RECIPE_SALE: 'recipe-sale' },
     LEDGER_KEYS: {},
