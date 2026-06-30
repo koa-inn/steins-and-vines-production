@@ -38,6 +38,16 @@ jobs:
       - name: Audit frontend dependencies
         run: npm audit --audit-level=high
 
+  artifact-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check artifact drift (AUDIT-H-CI / D-10)
+        run: bash scripts/check-artifact-drift.sh
+
   # E2E runs only on push to main (not PRs) — tests hit the live staging site.
   # Requires staging to be deployed before this job runs.
   test-e2e:
