@@ -571,7 +571,10 @@ router.post('/api/kiosk/verify-pin', function (req, res) {
     return res.status(400).json({ ok: false, error: 'PIN must be exactly 4 digits' });
   }
 
-  if (!process.env.KIOSK_PIN) {
+  // D-15: guard length BEFORE timingSafeEqual — different-length buffers cause a RangeError,
+  // which Express surfaces as a 500 on every login (staff lockout).
+  // Length is not secret; comparing lengths first is safe (mirrors lib/apiKey.js:34).
+  if (!process.env.KIOSK_PIN || process.env.KIOSK_PIN.length !== pin.length) {
     return res.status(503).json({ ok: false, error: 'PIN not configured' });
   }
 

@@ -769,3 +769,67 @@ describe('GET /api/kiosk/salesorder/:id', function () {
   });
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/kiosk/verify-pin  (D-15 regression: length-check before timingSafeEqual)
+// ---------------------------------------------------------------------------
+describe('POST /api/kiosk/verify-pin', function () {
+  var OLD_KIOSK_PIN;
+
+  beforeEach(function () {
+    jest.clearAllMocks();
+    OLD_KIOSK_PIN = process.env.KIOSK_PIN;
+  });
+
+  afterEach(function () {
+    process.env.KIOSK_PIN = OLD_KIOSK_PIN;
+  });
+
+  // REGRESSION: Before the D-15 fix, a misconfigured KIOSK_PIN (wrong length)
+  // caused crypto.timingSafeEqual to throw a RangeError — Express surfaced a 500
+  // on every login, locking out all staff. This test asserts the correct 503 path.
+  test('[REGRESSION D-15] KIOSK_PIN length mismatch returns 503 (not 500/RangeError)', function () {
+    process.env.KIOSK_PIN = '123456'; // 6 chars — mismatched with 4-digit submitted pin
+    var req = makeReq({ pin: '1234' });
+    var res = makeRes();
+    verifyPinHandler(req, res);
+    expect(res._status).toBe(503);
+    expect(res._json.ok).toBe(false);
+    expect(res._json.error).toBe('PIN not configured');
+  });
+
+  test('returns 400 when pin is not 4 digits', function () {
+    var req = makeReq({ pin: '123' });
+    var res = makeRes();
+    verifyPinHandler(req, res);
+    expect(res._status).toBe(400);
+    expect(res._json.error).toMatch(/4 digits/i);
+  });
+
+  test('returns 503 when KIOSK_PIN is not set', function () {
+    delete process.env.KIOSK_PIN;
+    var req = makeReq({ pin: '1234' });
+    var res = makeRes();
+    verifyPinHandler(req, res);
+    expect(res._status).toBe(503);
+    expect(res._json.error).toBe('PIN not configured');
+  });
+
+  test('returns ok:true when correct 4-digit PIN is submitted', function () {
+    process.env.KIOSK_PIN = '1234';
+    var req = makeReq({ pin: '1234' });
+    var res = makeRes();
+    verifyPinHandler(req, res);
+    expect(res.json).toHaveBeenCalled();
+    expect(res._json.ok).toBe(true);
+  });
+
+  test('returns 401 when wrong same-length PIN is submitted', function () {
+    process.env.KIOSK_PIN = '1234';
+    var req = makeReq({ pin: '5678' });
+    var res = makeRes();
+    verifyPinHandler(req, res);
+    expect(res._status).toBe(401);
+    expect(res._json.ok).toBe(false);
+  });
+});
+
