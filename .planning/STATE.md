@@ -4,13 +4,13 @@ milestone: v4.4
 milestone_name: Audit Remediation
 status: executing
 stopped_at: Phase 45 context gathered (Security & Money-Path Hardening; auth re-arch + Redis policy + money-path + sequencing decided)
-last_updated: "2026-06-30T12:55:58.403Z"
+last_updated: "2026-06-30T13:17:45.749Z"
 last_activity: 2026-06-30
 progress:
   total_phases: 32
   completed_phases: 6
   total_plans: 50
-  completed_plans: 50
+  completed_plans: 51
   percent: 19
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 45 (security-and-money-path-hardening-audit-critical-and-high) — EXECUTING
-Plan: 6 of 9
+Plan: 7 of 9
 Status: Ready to execute
 Last activity: 2026-06-30
 
@@ -50,6 +50,8 @@ Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (stagi
 
 ### Decisions
 
+- [45-07]: D-12: balance lookup wraps axios.post in Promise.resolve() — fail-open even when Apps Script is unreachable; clamps gcApplied to min(realBalance, grandTotal) in both kiosk/sale and confirm paths before Helcim terminal / Zoho gift-card payment
+- [45-07]: D-13: KIOSK_PENDING_CHARGE_PREFIX='kiosk:pending-charge:' (7-day TTL); written after every kiosk/sale terminal push and on salesorder-pay timeout (reference_number, amount, salesorder_id, idempotency_key, created_at); 45-08 reconciliation backstop consumes it
 - [44-08 UAT]: Issue+reload money-in flow is DEFECTIVE as shipped — records a creditcard customerpayment (invoice→paid) with no real Helcim charge (phantom revenue). Owner-chosen fix model: **Cart + terminal checkout** — issue/reload add a gift-cert line to the kiosk cart, paid via the normal terminal flow, cert activated on payment SUCCESS (one cart invoice; no standalone pre-paid invoice). Gap G-44-01 in 44-08-UAT.md. Redeem path is correct (already charges terminal).
 - [44-07]: GC panel gates terminal push on both surfaces — staff must Skip or Apply+Proceed before terminal starts (prevents accidental charges)
 - [44-07]: gift_card_only path (202+pending:false, gift_card_only:true) → immediate /confirm with gift_card, no transaction_id; terminal skipped for full-coverage redemptions
@@ -112,7 +114,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-30T12:55:58.396Z
+Last session: 2026-06-30T13:17:45.739Z
 Stopped at: Phase 45 context gathered (Security & Money-Path Hardening; auth re-arch + Redis policy + money-path + sequencing decided)
 Next: 44-08 UAT re-run (full iPad UAT — issue via cart+terminal, reload, lookup, partial/full redeem, void).
 Resume file: None
