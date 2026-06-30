@@ -138,6 +138,7 @@ describe('pos routes — per-item tax on line items', function () {
   afterEach(function () {
     delete process.env.KIOSK_TAX_RATE;
     delete process.env.KIOSK_CONTACT_ID;
+    delete process.env.ZOHO_TAX_ZERO_ID;
   });
 
   // --- processSale tests ---
@@ -310,6 +311,50 @@ describe('pos routes — per-item tax on line items', function () {
           // item-pst should have tax_id
           var pstItem = payload.line_items.find(function (li) { return li.item_id === 'item-pst'; });
           expect(pstItem.tax_id).toBe('tax-gst-pst-12');
+          done();
+        } catch (e) { done(e); }
+      });
+      res.status.mockImplementation(function (code) {
+        if (code >= 400) {
+          return { json: function (body) { done(new Error('Got status ' + code + ': ' + JSON.stringify(body))); } };
+        }
+        return res;
+      });
+
+      handlers['/api/kiosk/sale/confirm'](req, res);
+    });
+
+    test('F3: exempt custom line is tagged with ZOHO_TAX_ZERO_ID so Zoho does not default-tax it', function (done) {
+      // 45-09 UAT: a tax-exempt custom line has no backing Zoho item, so an
+      // un-tagged line (tax_percentage:0 only, no tax_id) gets DEFAULT-taxed by
+      // Zoho — leaving the invoice partially_paid (phantom GST). The fix attaches
+      // the explicit Zero Rate tax_id so Zoho books the line at a real 0%.
+      process.env.ZOHO_TAX_ZERO_ID = 'tax-zero-test';
+      cache.get.mockResolvedValue(CATALOG_WITH_TAX);
+      zohoApi.zohoPost.mockResolvedValue({
+        invoice: { invoice_id: 'inv-f3', invoice_number: 'INV-F3' }
+      });
+
+      var req = {
+        body: {
+          items: [
+            { custom: true, description: 'Test', rate: 10, quantity: 1, taxable: false }
+          ],
+          transaction_id: 'manual-confirm-f3',
+          reference_number: 'KIOSK-F3'
+        }
+      };
+      var res = mockRes();
+
+      res.json.mockImplementation(function () {
+        try {
+          var invoiceCall = zohoApi.zohoPost.mock.calls.find(function (c) {
+            return c[0] === '/invoices';
+          });
+          expect(invoiceCall).toBeTruthy();
+          var customLine = invoiceCall[1].line_items.find(function (li) { return li.custom; });
+          expect(customLine).toBeTruthy();
+          expect(customLine.tax_id).toBe('tax-zero-test');
           done();
         } catch (e) { done(e); }
       });

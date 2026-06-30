@@ -391,6 +391,11 @@ function processSale(body, idempotencyKey, req, res) {
         };
         if (taxable) {
           li.tax_id = gstTaxId;
+        } else if (process.env.ZOHO_TAX_ZERO_ID) {
+          // F3 (45-09): exempt custom lines have no backing Zoho item — tag with
+          // the explicit Zero Rate tax so Zoho does not default-tax them. Mirrors
+          // the confirm path; keeps /sale and the invoice in agreement.
+          li.tax_id = process.env.ZOHO_TAX_ZERO_ID;
         }
         return li;
       }
@@ -803,6 +808,11 @@ function runConfirm(body, confirmIdemKey, req, res) {
         };
         if (taxable) {
           li.tax_id = gstTaxIdConfirm;
+        } else if (process.env.ZOHO_TAX_ZERO_ID) {
+          // F3 (45-09): an exempt custom line has no backing Zoho item, so an
+          // un-tagged line is DEFAULT-taxed by Zoho (phantom GST → partial-paid
+          // invoice). Attach the explicit Zero Rate tax so Zoho books a real 0%.
+          li.tax_id = process.env.ZOHO_TAX_ZERO_ID;
         }
         return li;
       }
