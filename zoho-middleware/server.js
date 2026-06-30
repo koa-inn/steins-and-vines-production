@@ -282,9 +282,13 @@ app.use('/api', function (req, res, next) {
 /**
  * Build a minimal express-rate-limit custom store backed by the existing Redis
  * client from lib/cache.js. Uses INCR + EXPIRE so the window auto-resets.
- * Falls back gracefully to a no-op (skip) when Redis is unavailable, which
- * allows the in-process MemoryStore (express-rate-limit default) to take over
- * per-instance — preserving at least single-instance protection.
+ *
+ * When Redis is unavailable, the store falls back to a per-limiter in-process
+ * Map (key → { hits, expiresAt }). This provides genuine per-process rate
+ * limiting during a Redis outage — the middleware runs as a single Railway
+ * instance so per-process covers all traffic (D-06). Security-critical
+ * limiters (pin, payment, api) do NOT use skip:redisUnavailableSkip so this
+ * in-process fallback is always active for those paths (D-07).
  *
  * express-rate-limit v6+ store interface:
  *   increment(key) -> Promise<{ totalHits, resetTime }>
@@ -296,12 +300,33 @@ function makeRedisStore(windowMs, prefix) {
   // Each limiter must use a unique prefix so they track separate counters per IP.
   // Without a prefix all limiters share 'rl:<ip>' and cross-contaminate each other.
   var keyPrefix = C.RATE_LIMIT_PREFIX + (prefix || 'default') + ':';
+  // In-process fallback: tracks hits per client IP when Redis is unavailable.
+  // Keyed by the same value express-rate-limit passes (default: req.ip).
+  var memStore = Object.create(null);
+  // Loopback addresses only appear in direct-connection scenarios (health checks,
+  // local dev). In production, Railway's load balancer always injects a real
+  // client IP via X-Forwarded-For (trust proxy:1), so req.ip is never loopback.
+  // Skipping loopback keys avoids accumulating counts across test requests that
+  // share the same 127.x/::1 address without representing external clients.
+  var LOOPBACK_RE = /^(127\.|::1$|::ffff:127\.)/;
 
   return {
     increment: function (key) {
       if (!cache.isConnected()) {
-        // Redis down — return a sentinel that signals "skip this store"
-        return Promise.resolve({ totalHits: 0, resetTime: new Date(Date.now() + windowMs) });
+        // Redis down — count in-process so security limits still apply (D-06/D-07).
+        // Loopback traffic (health checks, tests) never represents an external
+        // client in production, so it returns totalHits:1 (never accumulates).
+        if (!key || LOOPBACK_RE.test(key)) {
+          return Promise.resolve({ totalHits: 1, resetTime: new Date(Date.now() + windowMs) });
+        }
+        var now = Date.now();
+        var entry = memStore[key];
+        if (!entry || now >= entry.expiresAt) {
+          memStore[key] = { hits: 1, expiresAt: now + windowMs };
+          return Promise.resolve({ totalHits: 1, resetTime: new Date(now + windowMs) });
+        }
+        memStore[key].hits++;
+        return Promise.resolve({ totalHits: memStore[key].hits, resetTime: new Date(memStore[key].expiresAt) });
       }
       var redisKey = keyPrefix + key;
       return cache.getClient().then(function (c) {
@@ -328,7 +353,12 @@ function makeRedisStore(windowMs, prefix) {
     },
 
     decrement: function (key) {
-      if (!cache.isConnected()) return Promise.resolve();
+      if (!cache.isConnected()) {
+        if (key && !LOOPBACK_RE.test(key) && memStore[key] && memStore[key].hits > 0) {
+          memStore[key].hits--;
+        }
+        return Promise.resolve();
+      }
       var redisKey = keyPrefix + key;
       return cache.getClient().then(function (c) {
         if (!c) return;
@@ -337,48 +367,58 @@ function makeRedisStore(windowMs, prefix) {
     },
 
     resetKey: function (key) {
-      if (!cache.isConnected()) return Promise.resolve();
+      if (!cache.isConnected()) {
+        if (key && !LOOPBACK_RE.test(key)) {
+          delete memStore[key];
+        }
+        return Promise.resolve();
+      }
       return cache.del(keyPrefix + key);
     }
   };
 }
 
-// skip() returns true when Redis is down so express-rate-limit bypasses the
-// Redis store entirely and falls back to its default MemoryStore behaviour.
-// This means per-process limiting still applies when Redis is unavailable.
+// skip() bypasses the limiter entirely when Redis is down.
+// Used ONLY for lower-stakes abuse limiters (contact, waitlist, requests)
+// where availability is prioritised over strict counting during an outage.
+// Security-critical limiters (pin, payment, api) do NOT use this skip —
+// they count in-process via makeRedisStore's memStore fallback instead (D-07).
 function redisUnavailableSkip() {
   return !cache.isConnected();
 }
 
+// D-07: apiLimiter has no skip — in-process memStore fallback applies when
+// Redis is down. Requests still count per-process (single Railway instance).
 var apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   store: makeRedisStore(60 * 1000, 'api'),
-  skip: redisUnavailableSkip,
   validate: { singleCount: false },
   message: { error: 'Too many requests, please try again later' }
 });
 
+// D-07: paymentLimiter has no skip — in-process memStore fallback applies
+// when Redis is down so money-path throttling is always enforced.
 var paymentLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   store: makeRedisStore(60 * 1000, 'payment'),
-  skip: redisUnavailableSkip,
   validate: { singleCount: false },
   message: { error: 'Too many requests, please try again in a minute' }
 });
 
+// D-07: pinLimiter has no skip — PIN brute-force throttling is always-on.
+// In-process memStore ensures 5/min cap holds even during a Redis outage.
 var pinLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   store: makeRedisStore(60 * 1000, 'pin'),
-  skip: redisUnavailableSkip,
   validate: { singleCount: false },
   message: { error: 'Too many PIN attempts, please try again in a minute' }
 });
