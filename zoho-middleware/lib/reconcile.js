@@ -43,9 +43,28 @@ var PENDING_PREFIX         = C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX;
 var TERMINAL_RESULT_PREFIX = 'helcim:terminal:result:';
 // 30-day TTL for void-failure sentinel records (matches pos.js:1007/1664 convention)
 var VOID_FAILURE_TTL = 30 * 24 * 60 * 60;
-// Minimum pending-record age (seconds) before sweep flags as a potential orphan
-// Chosen to be larger than the 90-second terminal polling window + a safety margin.
-var MIN_ORPHAN_AGE_SECONDS = 120;
+// Minimum pending-record age (seconds) before reconcile treats a charge as a
+// potential orphan.
+//
+// WR-02(a): The original value (120 s) was barely larger than the 90-second
+// terminal approval window, leaving no room for the human-in-the-loop confirm
+// step.  If staff take more than 120 s to tap "Confirm" after the terminal
+// approves (slow batch review, second screen, network hiccup), the sweep would
+// void a valid charge and then /confirm would record a Zoho payment against a
+// reversed charge.
+//
+// Raised to 600 s (10 min):
+//   - Covers the full 45 s client poll + manual-confirm fallback window
+//   - Leaves ample time for staff to complete the confirm step
+//   - Terminal-result cache TTL (300 s) expires before the age guard fires, so
+//     the sweep transitions to the "manual review" path (not auto-void) for
+//     stale APPROVED results — avoiding the false-positive-void race entirely
+//   - Genuine orphans (no confirm at all) are still caught after 10 min
+//
+// Future improvement: replace the age guard with an authoritative Zoho API
+// check (GET /invoices?invoice_number=<refNumber>) so the decision is based on
+// "does a Zoho invoice exist?" rather than "is the record old enough?".
+var MIN_ORPHAN_AGE_SECONDS = 600;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -104,6 +123,44 @@ function isOldEnough(ctx) {
   return ageSeconds >= MIN_ORPHAN_AGE_SECONDS;
 }
 
+/**
+ * Return true if the void-transaction error indicates the charge was already
+ * reversed/voided before this reconcile attempt ran.
+ *
+ * This covers the race where two paths (webhook + sweep) both see a pending
+ * record and both call voidTransaction.  The second call fails with an
+ * "already reversed" / "already voided" error from Helcim.  Rather than
+ * treating this as a genuine failure (which would write sv:void-failure and
+ * send a staff alert), we treat it as a success — the charge IS voided, we
+ * just didn't do it.
+ *
+ * Helcim returns HTTP 422 with a body containing the word "already" or
+ * "reversal" for already-reversed transactions.  We also check the error
+ * message text for both forms since the exact wording may vary.
+ *
+ * @param {Error} err  Error from voidTransaction rejection
+ * @returns {boolean}
+ */
+function isAlreadyVoidedError(err) {
+  if (!err) return false;
+  var msg = (err.message || '').toLowerCase();
+  // Check error message text
+  if (msg.indexOf('already') !== -1 || msg.indexOf('reversal') !== -1 ||
+      msg.indexOf('reversed') !== -1 || msg.indexOf('voided') !== -1) {
+    return true;
+  }
+  // Check HTTP response body (Helcim 422 body)
+  if (err.response && err.response.data) {
+    var body = '';
+    try { body = JSON.stringify(err.response.data).toLowerCase(); } catch (e) { body = ''; }
+    if (body.indexOf('already') !== -1 || body.indexOf('reversal') !== -1 ||
+        body.indexOf('reversed') !== -1 || body.indexOf('voided') !== -1) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -131,7 +188,25 @@ function reconcilePendingCharge(transactionId, deps) {
 
   if (!transactionId) return Promise.resolve();
 
-  return helcimLib.getCardTransactionById(transactionId)
+  // WR-02(c): Acquire a short-lived lock before doing anything destructive.
+  // Both the webhook handler and the 5-minute sweep can call this function for
+  // the same transactionId concurrently.  Without a lock both would reach the
+  // voidTransaction step, the second void would fail (already voided), and the
+  // void-failure handler would persist a sv:void-failure sentinel and send a
+  // false-positive staff alert.
+  //
+  // The lock is keyed on transactionId (unique per Helcim transaction) with a
+  // 60-second TTL — enough to cover the entire void + cleanup cycle.  The lock
+  // is always released when reconcile completes (success or failure).
+  var lockKey = 'reconcile:txn:' + transactionId;
+  return cache.acquireLock(lockKey, 60).then(function (acquired) {
+    if (!acquired) {
+      log.info('[reconcile] Duplicate reconcile for txn=' + transactionId +
+        ' — another path holds the lock; skipping');
+      return;
+    }
+
+    return helcimLib.getCardTransactionById(transactionId)
     .then(function (txnData) {
       var status        = (txnData.status || '').toUpperCase();
       var invoiceNumber = txnData.invoiceNumber || '';
@@ -184,6 +259,15 @@ function reconcilePendingCharge(transactionId, deps) {
               return cache.del(pendingKey);
             })
             .catch(function (voidErr) {
+              // WR-02(c): "already reversed/voided" means another path already
+              // voided the charge — treat as success (clear the pending sentinel,
+              // no staff alert, no sv:void-failure record).
+              if (isAlreadyVoidedError(voidErr)) {
+                log.info('[reconcile] txn=' + transactionId +
+                  ' already voided by another path — treating as success, clearing pending record');
+                return cache.del(pendingKey);
+              }
+
               var voidFailureKey = 'sv:void-failure:' + Date.now();
               var voidFailureRecord = {
                 txn_id:           transactionId,
@@ -220,7 +304,15 @@ function reconcilePendingCharge(transactionId, deps) {
       // Helcim lookup failed — leave the pending record intact for a later attempt
       log.warn('[reconcile] Helcim lookup failed for txn=' + transactionId +
         ' (' + (lookupErr.message || lookupErr) + ') — leaving pending record intact');
+    })
+    .then(function () {
+      // WR-02(c): Always release the reconcile lock when the cycle completes
+      // (void success, already-settled, deferred, already-voided, or lookup failure).
+      // Releasing promptly allows the next webhook retry or sweep cycle to re-acquire
+      // if needed.  Cache errors on release are silently ignored.
+      return cache.releaseLock(lockKey).catch(function () {});
     });
+  }); // end cache.acquireLock.then (WR-02(c) serialisation wrapper)
 }
 
 /**

@@ -24,6 +24,11 @@ jest.mock('../lib/cache', function () {
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue(),
     del: jest.fn().mockResolvedValue(),
+    // WR-02(c): lock primitives added to support the new serialisation path
+    // in reconcilePendingCharge.  Defaults: acquired=true, release=OK so all
+    // existing tests continue to exercise the full reconcile logic path.
+    acquireLock: jest.fn().mockResolvedValue(true),
+    releaseLock: jest.fn().mockResolvedValue(),
     isConnected: jest.fn().mockReturnValue(true),
     getClient: jest.fn().mockResolvedValue({
       keys: jest.fn().mockResolvedValue([])
@@ -41,13 +46,16 @@ var C         = require('../lib/constants');
 
 var reconcile; // loaded after mocks
 
-// Helper: pending context shape (kiosk/sale, 5 min old = "late approval")
+// Helper: pending context shape (kiosk/sale, 15 min old = "late approval")
+// WR-02(a): MIN_ORPHAN_AGE_SECONDS raised from 120 to 600.  Records must be
+// at least 600 s old to trigger orphan detection.  15 min (900 s) > 600 s —
+// tests continue to exercise the full orphan-detection path unchanged.
 function oldPendingCtx(overrides) {
   return Object.assign({
     reference_number: 'KIOSK-TEST-001',
     amount: 70.00,
     idempotency_key: 'idem-test-abc',
-    created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString()  // 5 min ago
+    created_at: new Date(Date.now() - 15 * 60 * 1000).toISOString()  // 15 min ago
   }, overrides || {});
 }
 
@@ -64,6 +72,9 @@ describe('reconcilePendingCharge', function () {
     cache.get.mockResolvedValue(null);
     cache.set.mockResolvedValue();
     cache.del.mockResolvedValue();
+    // WR-02(c): lock defaults — acquired=true so existing tests exercise the full path
+    cache.acquireLock.mockResolvedValue(true);
+    cache.releaseLock.mockResolvedValue();
     cache.getClient.mockResolvedValue({ keys: jest.fn().mockResolvedValue([]) });
 
     helcimLib.voidTransaction.mockResolvedValue({ ok: true, transactionId: 'txn-001', status: 'voided' });
@@ -228,6 +239,9 @@ describe('sweepPendingCharges', function () {
     cache.get.mockResolvedValue(null);
     cache.set.mockResolvedValue();
     cache.del.mockResolvedValue();
+    // WR-02(c): lock defaults for sweep tests (acquired=true — same reasoning as above)
+    cache.acquireLock.mockResolvedValue(true);
+    cache.releaseLock.mockResolvedValue();
     cache.getClient.mockResolvedValue({ keys: jest.fn().mockResolvedValue([]) });
 
     helcimLib.getCardTransactionById.mockResolvedValue({
