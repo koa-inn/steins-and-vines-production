@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
-status: executed-pending-live-uat
-stopped_at: "Phase 44 gap fix (44-09/44-10) DONE + deployed to staging + prod middleware. G-44-01 closed; UAT round-2 visible behavior verified by owner. ⚠ Live terminal-sale UAT (real card: issue/reload/partial/full redeem → Zoho accounting + activation-on-payment) DEFERRED by owner 2026-06-29 (tracked in 44-08-UAT.md). Phase NOT production-promoted until those pass. NEXT (owner, later): run live sale checks → flip 44-08-UAT to passed → git push production main --force + railway up."
-last_updated: "2026-06-29T22:21:31.918Z"
+status: verifying
+stopped_at: Phase 45 context gathered (Security & Money-Path Hardening; auth re-arch + Redis policy + money-path + sequencing decided)
+last_updated: "2026-06-30T04:16:09.710Z"
 last_activity: 2026-06-29
 progress:
-  total_phases: 30
-  completed_phases: 5
+  total_phases: 31
+  completed_phases: 6
   total_plans: 41
-  completed_plans: 44
-  percent: 17
+  completed_plans: 45
+  percent: 19
 ---
 
 # Project State
@@ -44,6 +44,7 @@ Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (stagi
 
 ### Roadmap Evolution
 
+- Phase 45 added (2026-06-29): Security & Money-Path Hardening (audit CRITICAL + HIGH). Source: `AUDIT-2026-06-29.md` — 7-lead multi-agent audit, 1 critical + 7 high verified (0 refuted). Headline: admin API key (= Railway `API_SECRET_KEY`) is published in git-tracked, publicly-served `js/sheets-config.js` → re-architect staff auth to server-side Google OAuth (no browser-shipped secret) + rotate. Plus: unguarded PII kiosk GETs, Redis-outage fail-open (rate-limit/locks/idempotency), kiosk `pos.js` re-implements `checkout.js` WITHOUT its safety guards (extract shared primitives — atomic lock, error-propagating payment recording, void-on-failure, timeout reconciliation; closes 4 highs incl. orphan-charge class), CI artifact-drift check, + quick-wins (deploy committed #2 e8b81ce/#10 7c68f05, KIOSK_PIN length-check, gitignore dump.rdb). Out of scope → phases 46+ (mediums/lows: mobile a11y, coverage floors/lint gate, webhook dedup, Sentry money-path, deps). Coordinate with un-started Phase 42 (kiosk de-fork) which overlaps the money-path work.
 - Phase 44 added (2026-06-27): Kiosk gift card/certificate full lifecycle (GIFTCARD-01, owner-requested). Captured pre-discussion: full lifecycle (sell/redeem/balance/partial/reload); paper certificate w/ manually-assigned number (no barcode/digital v1); both forked surfaces. CRITICAL: gift-card sale is NOT taxed at sale (tax at redemption) + is a LIABILITY not revenue (Zoho deferred account) — NOT a custom line item. Redemption = tender path. Depends on Phase 43; plan after 43 ships. Interim stopgap: tax-exempt custom line can sell a certificate (no liability accounting).
 - Phase 43 added (2026-06-26): Kiosk manual/custom line item with notes (KIOSK-02, owner-requested mid-milestone; independent of Phase 42). Locked decisions: tax = GST 5% default + per-line exempt toggle; price allows negative + large but UI confirms over $2k/negative; taxable custom line needs a GST tax_id (KIOSK_GST_TAX_ID env or catalog auto-discover) else fail-closed so terminal charge == Zoho invoice tax.
 
@@ -108,7 +109,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-29T22:21:31.912Z
-Stopped at: Completed 44-10-PLAN.md
+Last session: 2026-06-30T04:16:09.699Z
+Stopped at: Phase 45 context gathered (Security & Money-Path Hardening; auth re-arch + Redis policy + money-path + sequencing decided)
 Next: 44-08 UAT re-run (full iPad UAT — issue via cart+terminal, reload, lookup, partial/full redeem, void).
-Resume file: None
+Resume file: .planning/phases/45-security-and-money-path-hardening-audit-critical-and-high/45-CONTEXT.md
