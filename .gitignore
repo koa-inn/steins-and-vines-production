@@ -49,3 +49,7 @@ CNAME
 
 # Internal assessment — do not deploy (repo root is served publicly)
 PROJECT_ASSESSMENT.md
+
+# Redis dump files — may contain cached PII/tokens (D-15)
+*.rdb
+zoho-middleware/dump.rdb
