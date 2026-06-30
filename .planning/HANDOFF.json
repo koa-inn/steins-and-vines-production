@@ -1,42 +1,50 @@
 {
   "version": "1.0",
-  "timestamp": "2026-06-29T21:17:20.568Z",
-  "phase": "incident/ops thread (PARALLEL to active Phase 44 — not phase work)",
-  "phase_name": "Online-checkout orphaned-charge incident + issue triage + tooling",
-  "phase_dir": ".planning (default context)",
-  "plan": null,
-  "task": null,
-  "total_tasks": 6,
+  "timestamp": "2026-06-30T22:19:12.590Z",
+  "phase": "45",
+  "phase_name": "Security and money-path hardening audit (critical and high) — Live-Card UAT validation",
+  "phase_dir": ".planning/phases/45-security-and-money-path-hardening-audit-critical-and-high",
+  "plan": "45-09 (gift-card split-tender) — post-execution live UAT",
+  "task": "UAT step 4a complete; paused before re-charging the card",
+  "total_tasks": 8,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Reconciled orphaned Helcim charge in Zoho", "status": "done", "note": "Customer Jacob MacDonald (CUS-00151), Helcim txn 50641064, $125.52. Created INV-000118 (9 ingredient lines + Milling Fee + $5.48 entity discount to match the exact charge) + customer payment #119; added thornfull@gmail.com to the contact. Balance $0, paid."},
-    {"id": 2, "name": "Fixed root-cause bug (sub-1kg weight quantities)", "status": "done", "commit": "fa1e649", "note": "checkout.js vQty<1 -> vQty<=0 (matches pos.js). Regression test added. Deployed via railway up; verified live."},
-    {"id": 3, "name": "Hardened: void-on-early-reject", "status": "done", "commit": "8562ff7", "note": "Every early /api/checkout 400 now voids the already-charged payment (rejectWithVoid). Tests added. Deployed via railway up; verified live."},
-    {"id": 4, "name": "Filed issue #107", "status": "done", "note": "Incident writeup + remaining hardening + audit. priority:critical / type:bug."},
-    {"id": 5, "name": "Issue triage", "status": "done", "note": "Closed 33 stale/done/duplicate issues (board 98 -> 65) with evidence comments. Real live set ~8."},
-    {"id": 6, "name": "Tooling/planning setup", "status": "done", "commit": "1b43106", "note": "Obsidian vault at repo root (.obsidian/ + notes/ gitignored; notes/START-HERE.md). zsh shortcuts ~/.sv-commands.zsh sourced from .zshrc (type sv-help). Warp Workflows written to ~/.warp/workflows but greyed out (free-tier gated) -> using zsh instead."}
+    {"id": 1, "name": "UAT Step 1 — Issue cert (cart + terminal)", "status": "done", "note": "INV-000127 $10, Gift Card Sales liability, no tax at sale, cert GC-000001 active."},
+    {"id": 2, "name": "UAT Step 2 — Balance lookup", "status": "done", "note": "$10; also surfaced the lookup read path works after F1 fix."},
+    {"id": 3, "name": "UAT Step 3 — Reload (cart + terminal)", "status": "done", "note": "INV-000128 $5, liability, no tax, balance $10 -> $15."},
+    {"id": 4, "name": "UAT Step 4a — Partial redeem (split tender)", "status": "done_with_findings", "note": "Redemption booked (cert $15 -> $10, $5 redeemed) via manual-confirm recovery (INV-000129). Surfaced F2 (orphan/auto-confirm miss) and F3 (exempt custom line default-taxed)."},
+    {"id": "F1", "name": "F1 fix — gift-card balance validation read wrong field", "status": "done", "commit": "51f3c64", "note": "read current_balance (not balance) at routes/pos.js:501 + :929; T-FIELD regression RED->GREEN; corrected mis-mocked tests. Deployed (image sha256:b2c84eee) + verified live."},
+    {"id": "F3", "name": "F3 fix — exempt custom line default-taxed by Zoho", "status": "done", "commit": "97e8124", "note": "Tag taxable===false custom lines with ZOHO_TAX_ZERO_ID (Zero Rate tax_id) in both sale + confirm builders; pos-tax.test.js regression RED->GREEN. ZOHO_TAX_ZERO_ID=109900000000014433 set in Railway. Deployed (image sha256:5ec14723). NEEDS end-to-end live verify on resume."},
+    {"id": "F4", "name": "F4 filed — cart inventory re-sync forces staff off payment screen", "status": "done", "note": "GitHub issue #108 (type:ux + type:performance). UX, owner-reported 'pretty much every sale'. Pointer js/kiosk.js:1388 kioskLoadProducts(forceRefresh) + catalog cache."}
   ],
   "remaining_tasks": [
-    {"id": 7, "name": "Orphan-charge audit (Apr->Jun 2026)", "status": "blocked", "note": "Cross-match online Helcim charges vs Zoho invoices (reference_number = txn id). Other customers likely affected by the same sub-1kg bug. BLOCKED on the user's Helcim export — Railway CLI logs can't cover the window (retention + large --since is capped)."},
-    {"id": 8, "name": "#107 webhook reconciliation backstop", "status": "not_started", "note": "Helcim webhook already receives every cardTransaction; flag/auto-reconcile online charges with no matching Zoho order after N minutes. The real safety net."},
-    {"id": 9, "name": "#2 dual API-key + key-in-URL quick fix", "status": "not_started", "note": "~30 min: point pos.js routes at the unified key; drop req.query.api_key (headers only). Deferred by user."},
-    {"id": 10, "name": "#10 PII in logs", "status": "not_started", "note": "3 log refs still contain customerEmail in checkout.js/pos.js."},
-    {"id": 11, "name": "#1 session-auth the PII routes", "status": "not_started", "note": "/api/orders/recent guarded only by the browser-public MW_API_KEY. Kept OPEN intentionally (real exposure, not by-design)."}
+    {"id": "F2", "name": "Investigate F2 — auto-confirm did not recognize a successful terminal payment (orphan-charge path)", "status": "in_progress_blocked", "note": "Card was charged but kiosk did not auto-recognize the approval; no invoice/redemption recorded until manual-confirm recovery. Need a logged repro of the sale -> terminal-poll/webhook path. Open question: terminal-poll/webhook timing vs a regression in the just-deployed money-path. transaction_id recorded as literal 'manual-confirm' (reconciliation cosmetic gap)."},
+    {"id": "F3-verify", "name": "Verify F3 fix end-to-end live", "status": "not_started", "note": "Next exempt custom-line sale must book tax_total:0 in Zoho. Throwaway probe invoice before declaring fixed."},
+    {"id": "UAT-4b", "name": "UAT Step 4b — Full redeem (terminal skipped)", "status": "not_started"},
+    {"id": "UAT-5", "name": "UAT Step 5 — Void certificate", "status": "not_started"},
+    {"id": "UAT-6", "name": "UAT Step 6 — Over-balance clamp", "status": "not_started"},
+    {"id": "UAT-7", "name": "UAT Step 7 — Redeem-failure -> needs_manual_review", "status": "not_started", "note": "unit-test covered; live re-run pending."},
+    {"id": "UAT-8", "name": "UAT Step 8 — Double-tap idempotency", "status": "not_started"},
+    {"id": "cleanup", "name": "Reverse UAT test transactions on owner's card", "status": "not_started", "note": "Void cert GC-000001 ($10 active); reverse INV-000127 ($10), INV-000128 ($5), INV-000129 ($10.50 partially_paid). Real card charges to refund: issue $10 + reload $5 + redeem $5 = $20. F3 $0.50 phantom balance disappears with the INV-000129 reversal."}
   ],
   "blockers": [
-    {"description": "Orphan audit needs the Helcim online-transactions export (Apr->Jun 2026)", "type": "human_action", "workaround": "none — Helcim is the only authoritative source of all online charges"},
-    {"description": "Prod startup logs show Resend email transport verification FAILED ('API key restricted to only send emails') — void-failure ALERTS may not send", "type": "technical", "workaround": "verify transactional email actually sends; may be a false-alarm verify() call"}
+    {"description": "F2 unresolved — auto-confirm missed a live terminal approval (real money charged, nothing booked until manual recovery). Cause unknown.", "type": "technical", "workaround": "manual-confirm fallback (confirmSale('manual-confirm'), kiosk.js:3764) is books-only, no re-charge, verified safe; reconciliation backstop (45-08) would eventually sweep the orphan."},
+    {"description": "F3 fix deployed but not yet confirmed end-to-end against live Zoho", "type": "technical", "workaround": "run one throwaway exempt custom-line probe sale and assert tax_total:0 before closing F3."}
   ],
   "human_actions_pending": [
-    {"action": "Provide Helcim online/HelcimPay transactions export Apr->Jun 2026", "context": "to run the orphan-charge audit for other affected customers", "blocking": true},
-    {"action": "Confirm transactional email (Resend) actually sends from prod", "context": "void-failure alerts ride on it; startup verify failed", "blocking": false}
+    {"action": "Refund/void the UAT test transactions (~$20 on owner card: issue $10, reload $5, redeem $5) and void cert GC-000001; reverse INV-000127/128/129", "context": "live controlled session ran on the owner's own card; cert + invoices are test artifacts", "blocking": false},
+    {"action": "Verify F3 end-to-end (next exempt custom-line sale books tax_total:0 in Zoho)", "context": "F3 fix 97e8124 deployed but only proven by unit tests + arithmetic, not a live invoice", "blocking": false},
+    {"action": "Remove/refresh the stale GH_TOKEN in ~/.zshrc:16", "context": "invalid token shadows valid keychain creds; gh works only via 'env -u GH_TOKEN gh' (sv-issues workaround)", "blocking": false}
   ],
   "decisions": [
-    {"decision": "Reconcile the orphan in Zoho (INV-000118 + $5.48 reconciling discount) rather than refund", "rationale": "customer paid once and wanted the order; cart total didn't reconcile cleanly to the charge so a discount line trues it to the exact $125.52", "phase": "incident"},
-    {"decision": "Keep #1 and #2 OPEN (not 'close as by-design')", "rationale": "real PII exposure (orders/recent on a browser-public key) + a genuine query-param key leak / dual-var footgun — verified still present in code", "phase": "incident"},
-    {"decision": "Use zsh aliases (~/.sv-commands.zsh) instead of Warp Workflows", "rationale": "Warp Workflows greyed out (free-tier/account gated); zsh is tier/account/cloud-free and portable across terminals", "phase": "tooling"}
+    {"decision": "F2 and F3 are INDEPENDENT defects", "rationale": "earlier 'possibly correlated' was wrong — F3 is server-side Zoho tax tagging that hits ALL exempt custom-line sales (auto- and manual-confirm), unrelated to F2's auto-confirm miss", "phase": "45"},
+    {"decision": "F3 is a pre-existing Phase 43 custom-line defect, not a Phase 45 regression", "rationale": "exempt custom lines never wired a Zoho exemption/zero-rate; surfaced by this UAT", "phase": "45"},
+    {"decision": "Fix F3 via tax_id: ZOHO_TAX_ZERO_ID rather than tax_exemption_id", "rationale": "explicit zero-rate tax on the custom line; env mechanism already existed, just never applied to custom lines", "phase": "45"},
+    {"decision": "Pause UAT after step 4a before re-charging the card", "rationale": "fix/triage F2 (orphan path) and F3 (phantom GST) before spending more real money on test charges", "phase": "45"}
   ],
-  "uncommitted_files": [],
-  "next_action": "If the Helcim export is available -> run the orphan-charge audit (cross-match online charges vs Zoho by reference_number). Otherwise -> #2 quick fix (+#10) on staging, or start the #107 webhook reconciliation backstop.",
-  "context_notes": "THIS IS A SEPARATE THREAD from the active Phase 44 (kiosk gift-card lifecycle) GSD work running in another window — do NOT disturb Phase 44 files or its uncommitted STATE.md/ROADMAP.md/SECURITY.md. All of this session's code is committed (fa1e649, 8562ff7, 1b43106) and both middleware fixes are LIVE on prod (railway up x2, verified). Key lesson: the 'phone died' framing was WRONG — the real cause was a server-side validation 400 after the HelcimPay iframe already charged the card; always check railway logs (sv-logs) for money-path incidents before accepting a behavioral explanation. If you actually meant to resume Phase 44, see .planning/phases/44-* and recent git log, not this handoff."
+  "uncommitted_files": [
+    "Staged build-stamp byproducts only (npm run build cache-bust v=mr0rde31): about.html, admin.html, brewpad.html, contact.html, custom-labels.html, index.html, ingredients.html, kiosk.html, products.html, products/*.html, reservation.html, js/admin.js, js/admin.min.js, zoho-middleware/ingredients-cache.json. NOT part of the UAT work; substantive fixes already committed (51f3c64, 97e8124)."
+  ],
+  "next_action": "Resume the F2 investigation: get a logged repro of the kiosk sale -> terminal-poll/webhook approval path (sv-logs) to find why auto-confirm did not surface the live approval. Then verify F3 end-to-end with one throwaway exempt custom-line probe (assert tax_total:0). Then re-run UAT steps 4b/5/6/7/8 and finish with the cleanup (void cert + reverse invoices + refund ~$20).",
+  "context_notes": "Phase 45 money-path waves (45-03/05/06/07/08 + FIX1/FIX2) plus 45-09 gift-card split-tender are all deployed to prod (image sha256:5ec14723 after F3). This session was a LIVE controlled UAT on the standalone kiosk (kiosk.js) -> prod Railway -> live Helcim terminal + Zoho, store closed, on the owner's own card. KEY LESSON repeated from the prior incident: F1's code and its unit mocks agreed on a fictional Apps Script response key ('balance') that never occurs in prod ('current_balance') — mocks mirroring an invented shape gave false green. Derive mock shapes from a real captured response/contract, not from the code under test. Manual-confirm is the safe recovery for an orphaned terminal charge (books-only, idempotency-guarded). Full UAT detail in 45-09-UAT-FINDINGS.md."
 }
