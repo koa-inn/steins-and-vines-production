@@ -27,6 +27,34 @@ Test cert: **GC-000001** (paper). Test invoices: **INV-000127, INV-000128, INV-0
 - **Open questions:** why did auto-confirm not surface the approval? terminal-polling/webhook timing, or a regression in the just-deployed money-path? Frequency unknown. The reconciliation backstop (45-08) would eventually sweep such an orphan, but it had not yet.
 - **Note:** `transaction_id` was recorded as the literal `"manual-confirm"`, so the Zoho payment does NOT carry the real Helcim txn id — reconciliation cosmetic gap.
 
+#### ROOT CAUSE — investigated 2026-07-01 (Railway logs)
+**Finding: premature manual-confirm race, NOT a broken webhook/poll.** The auto-confirm infra is healthy; the 15s "Confirm Manually" button appears ~6s *before* a normal card-present approval completes, inviting staff to preempt it.
+
+**Evidence & limitation:** INV-000129's own logs have rotated out — the session made 3 deploys (money-path, F1, F3), each restarting the container (`railway logs` only tails the *current* deployment; earliest retained line is the 22:00:36Z restart). So the F2 transaction itself is not directly reproducible from logs. But a **same-session, same-code-path** card sale IS retained and is decisive:
+
+`KIOSK-1782857853344` → **INV-000130** ($191.10, standalone kiosk, prod image after F3):
+- `22:17:35.009` push to terminal
+- polls every 3s → `pending` through `22:17:53`
+- `22:17:56.676` poll #7 flips `304→200` = **`approved` via the direct `/card-transactions?invoiceNumber=` API-poll fallback** (~21.7s after push)
+- `22:17:57.727` **auto-confirm** created INV-000130 with the real txn id
+- `22:17:58.638` webhook APPROVED `txn=50808404` arrived *after* (redundant) — poll had already won
+
+So: (a) the API-poll + webhook paths both work; (b) **no `401/403`/"token missing read scope" errors** in-window (rules out the Helcim read-scope hypothesis); (c) a real approval legitimately took **~21s**, but the manual-confirm button is enabled at **15s** (`kiosk.js:3748`), i.e. it was on screen for ~6s while the charge was still legitimately processing. In the 4a redemption, staff (watching the terminal approve) tapped that already-visible button → `confirmSale('manual-confirm')` fired before the poll/webhook surfaced the approval → books-only confirm with no real Helcim id. At the instant of the tap it looked like an orphan (charge on terminal, nothing booked yet); the manual confirm then booked it.
+
+**Severity re-assessment:** downgrade from "orphan charge (lost money)" → **UX timing race + txn-id fidelity gap**. Money was never actually lost (manual-confirm recovered it same-second); the durable defect is the missing real txn id + the latent risk that manual-confirm books a card payment *without server-side proof a charge occurred*.
+
+**Latent risk exposed:** the `/confirm` handler treats `transaction_id` as opaque (`txnId = body.transaction_id || 'manual-confirm'`, `pos.js:864`) and records the card payment regardless — it never re-verifies against Helcim. If staff mis-tap manual-confirm when **no** charge happened, it books an uncharged invoice as paid (phantom-revenue class, same family as G-44-01).
+
+**Fix — IMPLEMENTED 2026-07-01 (A + B, owner-approved), code-complete, NOT yet committed/deployed:**
+- **A (frontend, `js/kiosk.js`):** the manual-confirm reveal timer changed `15000` → `POLL_TIMEOUT_MS` (45s), so the button no longer appears while a normal ~21s approval is still processing. Auto-confirm wins first; the button still surfaces at 45s for the genuine stall / failed-initial-POST case. Rebuilt `kiosk.min.js`.
+- **B (backend, `zoho-middleware/routes/pos.js`):** `/api/kiosk/sale/confirm` now verifies before booking. When the confirm carries no real terminal id (`transaction_id` absent or `'manual-confirm'`) AND a card amount is owed, it calls `helcimLib.pollTerminalResult(reference_number)`:
+  - approved → book with the **real Helcim txn id** (fixes the id-fidelity gap; the creditcard `customerpayment.reference_number` now carries the real id).
+  - declined/cancelled → **400, nothing booked** ("do not re-charge").
+  - pending/unverifiable → **409 fail-closed, nothing booked** ("will be reconciled automatically — do NOT re-charge"); the 45-08 sweep settles a genuinely-orphaned real charge. A real txn id (auto-confirm) is trusted and skips the lookup (no added latency).
+- **Regression tests:** `pos-money-defects.test.js` → F2-A (books real id), F2-B (declined→400 no invoice), F2-C (pending→409 no invoice), F2-D (real id trusted, poll not called). RED→GREEN. Full suites green (mw 1122, fe 928), lint 0 errors.
+- **Known limitation (accepted):** on a 409/400 fail-closed, the confirm idempotency lock is not released (matches existing confirm-failure behaviour), so an immediate staff retry may get a `409 contention` — acceptable given the "do not re-charge, reconciliation will settle" stance.
+- **Still owed:** commit (2 logical commits: backend+tests, then frontend+build), deploy to prod, and live-verify on UAT resume (a real manual-confirm should now record the true Helcim id; a manual-confirm with no charge should refuse to book).
+
 ### F3 — Exempt custom line is default-taxed by Zoho (no zero-rate exemption sent) → phantom GST + partial-paid invoice  ✅ FIXED
 - **Severity:** High (accounting integrity, GST mis-statement) — ✅ FIXED commit `97e8124`, deployed (image `sha256:5ec14723`); `ZOHO_TAX_ZERO_ID=109900000000014433` set in Railway. Definitive end-to-end check = next exempt custom-line sale books `tax_total:0` (verify on UAT resume).
 - **Symptom (live):** a custom line marked **tax-exempt** (no tax shown on the kiosk) produced **INV-000129 = $10.50** (line booked taxable, GST $0.50), while only **$10.00** was tendered ($5 gift + $5 card) → invoice left **`partially_paid`, balance $0.50**. The customer's money was correct ($10 for an intended $10 exempt item); Zoho added GST that should not exist.

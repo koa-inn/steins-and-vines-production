@@ -572,3 +572,126 @@ describe('WR-03 — idempotency lock released on terminal failure so retries can
     handlers['/api/kiosk/sale'](req, res);
   });
 });
+
+// =============================================================================
+// F2 (45-09) — manual-confirm verifies the terminal charge before booking
+//
+// Root cause (UAT 45-09): the "Confirm Manually" fallback books a creditcard
+// payment on trust — it never verifies a charge actually happened and records the
+// literal string 'manual-confirm' instead of the real Helcim txn id. That is a
+// phantom-revenue risk (uncharged invoice booked as paid) plus a reconciliation
+// gap. Fix: when confirm carries no real terminal txn id ('manual-confirm' / none)
+// and a card amount is owed, resolve the approved transaction from Helcim first;
+// fail closed (no invoice, no payment) if it can't be positively verified.
+//
+// RED before the pos.js fix, GREEN after.
+// =============================================================================
+
+describe('F2 — manual-confirm verifies terminal charge before booking', function () {
+
+  beforeEach(function () {
+    getPosHandlers();
+    process.env.KIOSK_CONTACT_ID = 'contact-walkin';
+    delete process.env.NODE_ENV;
+    cache.get.mockImplementation(function (key) {
+      if (key === 'test:kiosk-products') return Promise.resolve(CATALOG_EXEMPT);
+      return Promise.resolve(null);
+    });
+    moneyPath.acquireIdempotencyLock.mockResolvedValue({ status: 'acquired' });
+    zohoApi.zohoPost.mockResolvedValue({ invoice: { invoice_id: 'inv-f2', invoice_number: 'INV-F2-001' } });
+  });
+
+  afterEach(function () {
+    delete process.env.KIOSK_CONTACT_ID;
+  });
+
+  function manualConfirmReq(txnId) {
+    return {
+      body: {
+        items:            [{ item_id: 'item-gc-def', name: 'Test Item', quantity: 1 }],
+        transaction_id:   txnId,               // 'manual-confirm' or a real id
+        reference_number: 'KIOSK-F2-REF',
+        idempotency_key:  'idem-f2-' + String(txnId)
+      }
+    };
+  }
+
+  test('F2-A: manual-confirm with an APPROVED terminal txn → books the REAL Helcim id (not "manual-confirm")', function (done) {
+    helcimLib.pollTerminalResult.mockResolvedValue({
+      approved: true, transactionId: 'txn-real-approved', status: 'APPROVED', cardType: 'Visa'
+    });
+    var req = manualConfirmReq('manual-confirm');
+    var res = mockRes();
+    var statusCapture = captureStatus(res);
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(statusCapture.code).toBe(201);
+        expect(body.ok).toBe(true);
+        // Verification must have resolved the real charge for THIS reference
+        expect(helcimLib.pollTerminalResult).toHaveBeenCalledWith('KIOSK-F2-REF');
+        // The booked response + creditcard payment carry the real id, never 'manual-confirm'
+        expect(body.transaction_id).toBe('txn-real-approved');
+        var cardPay = zohoApi.zohoPost.mock.calls.filter(function (c) {
+          return c[0] === '/customerpayments' && c[1] && c[1].payment_mode === 'creditcard';
+        });
+        expect(cardPay.length).toBe(1);
+        expect(cardPay[0][1].reference_number).toBe('txn-real-approved');
+        done();
+      } catch (e) { done(e); }
+    });
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  test('F2-B: manual-confirm but terminal reports DECLINED → 400, nothing booked (no invoice)', function (done) {
+    helcimLib.pollTerminalResult.mockResolvedValue({
+      approved: false, transactionId: '', status: 'DECLINED', cardType: ''
+    });
+    var req = manualConfirmReq('manual-confirm');
+    var res = mockRes();
+    var statusCapture = captureStatus(res);
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(statusCapture.code).toBe(400);
+        expect(body.error).toBeTruthy();
+        var invoiceCalls = zohoApi.zohoPost.mock.calls.filter(function (c) { return c[0] === '/invoices'; });
+        expect(invoiceCalls.length).toBe(0);
+        done();
+      } catch (e) { done(e); }
+    });
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  test('F2-C: manual-confirm but terminal result still PENDING/unverifiable → 409, nothing booked', function (done) {
+    helcimLib.pollTerminalResult.mockResolvedValue({
+      approved: false, transactionId: null, status: 'PENDING', cardType: ''
+    });
+    var req = manualConfirmReq('manual-confirm');
+    var res = mockRes();
+    var statusCapture = captureStatus(res);
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(statusCapture.code).toBe(409);
+        expect(body.error).toMatch(/reconcil|verif|re-?charge/i);
+        var invoiceCalls = zohoApi.zohoPost.mock.calls.filter(function (c) { return c[0] === '/invoices'; });
+        expect(invoiceCalls.length).toBe(0);
+        done();
+      } catch (e) { done(e); }
+    });
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
+  test('F2-D: a real terminal transaction_id (auto-confirm) is trusted — pollTerminalResult NOT called', function (done) {
+    var req = manualConfirmReq('txn-real-999');
+    var res = mockRes();
+    var statusCapture = captureStatus(res);
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(statusCapture.code).toBe(201);
+        expect(body.transaction_id).toBe('txn-real-999');
+        expect(helcimLib.pollTerminalResult).not.toHaveBeenCalled();
+        done();
+      } catch (e) { done(e); }
+    });
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+});

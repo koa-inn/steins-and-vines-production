@@ -986,6 +986,29 @@ function runConfirm(body, confirmIdemKey, req, res) {
     // terminalApplied is what was (or will be) charged on the Helcim terminal.
     var terminalApplied = Math.round((grandTotal - gcApplied) * 100) / 100;
 
+    // F2 (45-09): a manual confirm ('manual-confirm' / no txn id) carries no proof a
+    // card charge actually happened. Booking a creditcard payment on trust risks
+    // phantom revenue (uncharged invoice booked as paid) AND records the literal
+    // 'manual-confirm' instead of the real Helcim id. Before creating the invoice,
+    // resolve the actual approved transaction from Helcim; fail closed (no invoice,
+    // no payment) if it can't be positively verified — the 45-08 reconciliation
+    // backstop settles a genuinely-orphaned real charge. A real txn id (auto-confirm,
+    // already poll-verified) is trusted and skips this lookup.
+    var isManualConfirm = !body.transaction_id || body.transaction_id === 'manual-confirm';
+    var verifyManualCharge = (isManualConfirm && terminalApplied > 0)
+      ? helcimLib.pollTerminalResult(refNumber).then(function (tr) {
+          if (tr && tr.approved && tr.transactionId) {
+            txnId = String(tr.transactionId); // real id → proof-of-charge + reconciliation fidelity
+            return;
+          }
+          var mvErr = new Error('manual-confirm not verified');
+          mvErr.__manualVerify = (tr && (tr.status === 'DECLINED' || tr.status === 'CANCELLED'))
+            ? 'declined' : 'unverified';
+          throw mvErr;
+        })
+      : Promise.resolve();
+
+    return verifyManualCharge.then(function () {
     return zohoPost('/invoices', invoicePayload).then(function (invoiceData) {
       var invoice = invoiceData.invoice || {};
       var invoiceId = invoice.invoice_id || '';
@@ -1201,9 +1224,24 @@ function runConfirm(body, confirmIdemKey, req, res) {
         });
       });
     }); // end zohoPost.then (inside gcConfirmBalanceLookup.then)
+    }); // end verifyManualCharge.then (F2 45-09 manual-confirm verification)
     }); // end gcConfirmBalanceLookup.then (D-12 balance validation)
     }); // end resolveDiscount.then
   }).catch(function (err) {
+    // F2 (45-09): manual-confirm could not be positively verified against Helcim.
+    // No invoice was created and there is no real terminal txn to void — fail closed
+    // WITHOUT booking. A genuinely-orphaned real charge is settled by the 45-08 sweep.
+    if (err && err.__manualVerify) {
+      if (res.headersSent) return;
+      if (err.__manualVerify === 'declined') {
+        return res.status(400).json({
+          error: 'No approved card payment found for this sale (terminal reported declined or cancelled). Nothing was booked — do not re-charge.'
+        });
+      }
+      return res.status(409).json({
+        error: 'Card payment could not be verified yet. If the terminal approved, it will be reconciled automatically — do NOT re-charge. Otherwise wait a moment and retry.'
+      });
+    }
     log.error('[pos/kiosk/sale/confirm] Error: ' + err.message);
     // Void-on-failure: if a terminal charge was made (body.transaction_id set) and the
     // Zoho invoice/payment step (or payment recording step — D-12 propagated) failed,
