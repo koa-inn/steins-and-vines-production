@@ -3744,7 +3744,11 @@
         if (msgEl) msgEl.textContent = 'Terminal connection lost. Confirm manually if payment was taken.';
       });
 
-      // Show manual confirm fallback after 15 seconds
+      // F2 (45-09): only reveal the manual-confirm fallback once auto-confirm has had
+      // its full chance (POLL_TIMEOUT_MS). A real card-present approval takes ~20-25s;
+      // showing this button at 15s invited staff to preempt the poll/webhook, booking a
+      // sale with no real Helcim txn id (the F2 orphan-then-manual-recovery symptom).
+      // The server now also verifies a manual confirm against Helcim before booking.
       setTimeout(function () {
         if (cancelled || saleCompleted) return;
         if (confirmBtn) {
@@ -3753,7 +3757,7 @@
           confirmBtn.textContent = 'Confirm Manually';
         }
         if (msgEl) msgEl.textContent = 'Waiting for terminal... or confirm manually if payment was taken.';
-      }, 15000);
+      }, POLL_TIMEOUT_MS);
     };
 
     if (confirmBtn) {
