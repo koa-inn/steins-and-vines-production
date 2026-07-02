@@ -114,14 +114,17 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-30 (live UAT, store closed)
-Stopped at: 45-09 live-card UAT IN PROGRESS, PAUSED after step 4a. Prod now runs 97e8124 (money-path waves + F1 + F3 fixes). Prod deploys this session: 322c963 (45-02 containment), 41f6462 (money-path), 51f3c64 (F1), 97e8124 (F3). Railway var ZOHO_TAX_ZERO_ID=109900000000014433 set for F3. Build churn still STASHED (stash@{0}) — pop after session.
-UAT findings → .planning/phases/45-.../45-09-UAT-FINDINGS.md:
-  - F1 gift-card lookup read `balance` not `current_balance` → 503 blocked all redemptions. FIXED 51f3c64, deployed + verified.
-  - F2 auto-confirm didn't recognize a successful terminal charge → live orphan, recovered via manual-confirm. ROOT-CAUSED + FIXED 2026-07-01 (commits d8bf965 backend, e029108 frontend; NOT yet deployed). Root cause via Railway logs: premature manual-confirm race — the "Confirm Manually" button appeared at 15s while a real ~21s approval was still processing (proven by same-session healthy auto-confirm INV-000130 @ ~21s via API-poll fallback; no webhook/token-scope errors). Fix A: kiosk.js manual-confirm reveal 15s→POLL_TIMEOUT_MS(45s). Fix B: /confirm verifies manual-confirm via pollTerminalResult before booking (real id on approve, 400 declined, 409 fail-closed unverifiable) — closes phantom-revenue + txn-id gaps. Regression F2-A/B/C/D green; mw 1122 / fe 928 / lint 0. Live-verify on UAT resume. (NOT correlated with F3.)
-  - F3 exempt custom line default-taxed by Zoho (no zero-rate exemption sent; tax_percentage:0 ignored, no tax_id) → phantom GST, INV-000129 partially_paid. ROOT CAUSE FOUND + FIXED 97e8124 (tag exempt custom lines with ZOHO_TAX_ZERO_ID in both sale+confirm builders; regression in pos-tax.test.js). Pre-existing Phase 43; hit ALL exempt custom-line sales. Verify end-to-end on UAT resume.
-  - F4 cart re-sync forces staff out of payment every sale (kiosk.js:1388). FILED issue #108 (used `env -u GH_TOKEN gh` — stale GH_TOKEN in ~/.zshrc:16 shadows keychain creds).
-UAT steps 1-3 PASS; 4a booking-defective (F2/F3); 4b/5/6/7/8 NOT RUN.
-Cleanup owed: cert GC-000001 = $10 active; test invoices INV-000127/128/129 + ~$20 real card charges to void/refund; F3 $0.50 phantom clears with INV-000129 reversal.
-Next: F2 FIXED (d8bf965 + e029108, undeployed) — deploy + live-verify on UAT resume (a real manual-confirm should now record the true Helcim id; a manual-confirm with no charge should refuse to book). Re-run UAT 4b/5/6/7/8 (with a fresh exempt custom-line sale to verify F3 books tax_total:0). Then clean up test transactions. NOTE: build churn from `npm run build` still in working tree (about.html/admin.*/products/* + zoho-middleware/ingredients-cache.json); stash@{0}/stash@{1} still pending reconcile. `git reset` this session moved pre-existing STAGED churn → unstaged (nothing lost).
+Last session: 2026-07-02 (live UAT at kiosk — COMPLETE)
+Stopped at: **45-09 live-card UAT COMPLETE — all 8 steps pass** (7 = covered-by-test). Full detail in 45-09-UAT-FINDINGS.md.
+Session summary:
+  - Deployed F2 (d8bf965+e029108) via staging push 211ad6e + prod force-push; Railway auto-deployed (NOTE: Railway watches koa-inn/steins-and-vines-production zoho-middleware/** — a prod force-push IS a middleware deploy; `railway up` redundant).
+  - F2 LIVE-VERIFIED all 3 paths: auto-confirm ~12s real id (INV-000131); no-charge manual-confirm → 409 nothing booked; slow-customer manual-confirm → server verified via pollTerminalResult, booked real id 50915774 (INV-000134).
+  - F3 LIVE-VERIFIED: INV-000131 exempt custom line booked Zero Rate tax_id, tax_total:0.
+  - Steps 4b/6/8 PASS (gift_card_only skip-terminal; $20→$8 server clamp + $2 card split; idempotent replay in 15ms on same-key duplicate POST).
+  - **F7 found + FIXED f057094 + live-verified:** admin gift-card mgmt modal was dead (SHEETS_CONFIG.MW_URL nonexistent → relative fetch; response read too shallow; `balance` vs `current_balance`). Regression tests/frontend/admin-gift-card-mgmt.test.js; fe suite 931 green. Step 5 void then PASSED (GC-000001 voided).
+  - F5 (observability): Helcim refund webhooks look identical to purchases in logs — owner's dashboard refunds caused a false orphan-charge scare. F6 (UX): double-tap falls through to control underneath → issue #109.
+  - Accounting spot-check consistent with D-04 manual-deferral design (Gift Card Sales income $15; Gift Card Redemptions clearing $15).
+Cleanup owed (owner): refund $3 remaining card charges (txn 50914850 $2, txn 50915774 $1; June-30 $20 + Test-1 $1 already refunded); Zoho reverse INV-000127/128/129/131/132/133/134 + their payments; dismiss reconcile needs_manual_review flag for KIOSK-1783016597951 (false alarm); remove stale GH_TOKEN ~/.zshrc:16.
+Follow-ups (non-blocking, in findings §Follow-ups): F6 tap-shield (#109), webhook type logging, invoice-note wording, gift-card-only txnId label, void 409 mapping, cancel-aware reconcile sweep.
+Next: mark 45-09 UAT-approved in the phase flow (executor resume-signal was "approved") → 45-09 SUMMARY + phase-45 verification/wrap-up. Build churn from `npm run build` still in working tree (about.html/brewpad/products/* + zoho-middleware/ingredients-cache.json); stash@{0}/stash@{1} still pending reconcile.
 Resume file: None

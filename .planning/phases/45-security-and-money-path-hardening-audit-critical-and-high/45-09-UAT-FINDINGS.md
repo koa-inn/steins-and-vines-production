@@ -53,7 +53,12 @@ So: (a) the API-poll + webhook paths both work; (b) **no `401/403`/"token missin
   - pending/unverifiable → **409 fail-closed, nothing booked** ("will be reconciled automatically — do NOT re-charge"); the 45-08 sweep settles a genuinely-orphaned real charge. A real txn id (auto-confirm) is trusted and skips the lookup (no added latency).
 - **Regression tests:** `pos-money-defects.test.js` → F2-A (books real id), F2-B (declined→400 no invoice), F2-C (pending→409 no invoice), F2-D (real id trusted, poll not called). RED→GREEN. Full suites green (mw 1122, fe 928), lint 0 errors.
 - **Known limitation (accepted):** on a 409/400 fail-closed, the confirm idempotency lock is not released (matches existing confirm-failure behaviour), so an immediate staff retry may get a `409 contention` — acceptable given the "do not re-charge, reconciliation will settle" stance.
-- **Still owed:** commit (2 logical commits: backend+tests, then frontend+build), deploy to prod, and live-verify on UAT resume (a real manual-confirm should now record the true Helcim id; a manual-confirm with no charge should refuse to book).
+
+#### ✅ DEPLOYED + LIVE-VERIFIED 2026-07-02 (all three paths)
+Deployed as `d8bf965` (backend) + `e029108` (frontend), pushed at `211ad6e` (staging + prod Pages `v=mr2fiih7`; Railway deployment `b8aebdca`, container `4833df8e9f8f`).
+1. **Auto-confirm (healthy path):** $1 exempt custom sale → webhook APPROVED `txn=50913349` at ~10s → auto-confirm booked **INV-000131** with the real id in ~12s; manual button never appeared.
+2. **Manual-confirm, no charge (fail-closed):** sale pushed, card never tapped, button appeared at ~45s (not 15s), tap → server `409`, **nothing booked** in Zoho.
+3. **Manual-confirm, real charge (slow-customer):** sale pushed, card tapped ~47s later (`txn=50915774` APPROVED), manual confirm → server log `pollTerminalResult: webhook cache hit` → booked **INV-000134** with payment `reference_number: 50915774` (**real Helcim id**, verified in Zoho payment #135).
 
 ### F3 — Exempt custom line is default-taxed by Zoho (no zero-rate exemption sent) → phantom GST + partial-paid invoice  ✅ FIXED
 - **Severity:** High (accounting integrity, GST mis-statement) — ✅ FIXED commit `97e8124`, deployed (image `sha256:5ec14723`); `ZOHO_TAX_ZERO_ID=109900000000014433` set in Railway. Definitive end-to-end check = next exempt custom-line sale books `tax_total:0` (verify on UAT resume).
@@ -72,6 +77,22 @@ So: (a) the API-poll + webhook paths both work; (b) **no `401/403`/"token missin
 - **Asks:** preload/refresh the catalog ahead of checkout, allow pay without a blocking re-sync, or otherwise streamline this sticking point.
 - **Status:** ✅ filed as **issue #108** (https://github.com/koa-inn/steins-and-vines-staging/issues/108), labels `type:ux` + `type:performance`. (Env `GH_TOKEN` in ~/.zshrc:16 is invalid and shadows valid keychain creds — used `env -u GH_TOKEN gh` per the existing `sv-issues` workaround. Consider removing/refreshing the stale token in ~/.zshrc.)
 
+### F5 — Helcim refund webhooks are indistinguishable from purchases in our logs  📝 observability note (2026-07-02)
+- During the resume session, four `cardTransaction … status=APPROVED` webhooks (txns 50913643/50913672/50913693/50913770) appeared carrying June-30 and Test-1 invoice references — initially read as unexplained charges. They were the **owner's Helcim-dashboard refunds** of earlier test charges: a refund is its own cardTransaction (new txn id, same invoiceNumber) and the webhook resolver never surfaces the transaction *type*. No defect, no money impact, and reconcile no-opped them correctly (their pending records were already settled) — but logs cannot distinguish refund from purchase, which cost real investigation time. Follow-up: log the txn `type` in `[webhook/helcim] cardTransaction:` lines.
+
+### F6 — Double-tap on "Proceed to Terminal" falls through to the control underneath  📝 UX (2026-07-02)
+- **Symptom (live):** during the step-8 double-tap probe, the first tap hid the button (good — that guard works) but the **second tap landed on the button that renders in the same position** ("back to cart"), yanking staff off the payment screen while a terminal request was live.
+- **No money impact** (the pending terminal request stayed valid; idempotency held), but same family as F4: staff gets bounced off the payment flow. Fix idea: brief tap-shield/disabled overlay during the payment-view transition.
+
+### F7 — Admin gift-card management modal completely non-functional (lookup + void)  ✅ FIXED `f057094` (2026-07-02)
+- **Severity:** High (feature-dead — UAT step 5 was unexecutable from admin)
+- **Symptom (live):** looking up GC-000001 in the admin management modal → "Connection error. Please check your connection and try again."
+- **Root cause (three independent defects in the kgcm modal, `js/admin.js`):**
+  1. Read `SHEETS_CONFIG.MW_URL`, which does not exist (the key is `MIDDLEWARE_URL`) → lookup AND void fetched relative to the static Pages host.
+  2. Read lookup fields one level too shallow (`result.data.X` instead of `result.data.data.X`).
+  3. Used `balance` instead of the contract's `current_balance` — the same field-name defect family as F1, and the same lesson: the modal was never exercised against the real response contract.
+- **Fix:** route through the existing `kioskMwUrl()` helper + consume the nested contract kiosk.js uses. Regression `tests/frontend/admin-gift-card-mgmt.test.js` (3 tests, RED→GREEN, mock mirrors the real contract per the F1 lesson). Frontend suite 931 green, lint 0 errors. Deployed to staging+prod (`admin.min.js?v=mr3v5go3`) and **live-verified**: lookup rendered real status/balance; void succeeded (`kiosk.gift_card_voided GC-000001`).
+
 ---
 
 ## UAT step status
@@ -82,29 +103,48 @@ So: (a) the API-poll + webhook paths both work; (b) **no `401/403`/"token missin
 | 2 | Balance lookup | ✅ PASS — $10 (and surfaced the read path works) |
 | 3 | Reload (cart+terminal) | ✅ PASS — INV-000128 $5, liability, no tax, balance $10→$15 |
 | 4a | Partial redeem (split tender) | ⚠️ Redemption booked (cert $15→$10, $5 redeemed) BUT surfaced **F2** (orphan/manual-confirm) and **F3** (exempt→taxable, $0.50 phantom) |
-| 4b | Full redeem (terminal skipped) | ⏸️ NOT RUN |
-| 5 | Void certificate | ⏸️ NOT RUN |
-| 6 | Over-balance clamp | ⏸️ NOT RUN |
-| 7 | Redeem-failure → needs_manual_review | ⏸️ NOT RUN (unit-test covered) |
-| 8 | Double-tap idempotency | ⏸️ NOT RUN |
+| 4b | Full redeem (terminal skipped) | ✅ PASS (2026-07-02) — $2 exempt custom, `gift_card_only` path, terminal never woke; INV-000132 paid via $2 `others` payment to the clearing account; balance $10→$8 |
+| 5 | Void certificate | ✅ PASS (2026-07-02, after F7 fix) — GC-000001 voided with reason, `kiosk.gift_card_voided` logged |
+| 6 | Over-balance clamp | ✅ PASS (2026-07-02) — $10 sale, attempted $20 apply → server clamped to real $8 (`gift_card=$8.00`), terminal charged $2 (`txn=50914850`); INV-000133 paid by $8 GC + $2 card; balance $8→$0 |
+| 7 | Redeem-failure → needs_manual_review | ✅ COVERED BY TEST — not safely reproducible on live money; regression suite covers forced Apps Script failure → `needs_manual_review` |
+| 8 | Double-tap idempotency | ✅ PASS (2026-07-02) — UI hides the button on first tap; a same-key duplicate POST fired at the live server was answered in 15ms by `money-path Idempotent replay` (no second terminal push). Surfaced F6 (tap-through) |
 
-**Session paused after 4a** to fix/triage F2/F3 before re-charging the card.
+**2026-07-02 resume session additions:** F2 + F3 live-verified (see F2 resolution block; F3: INV-000131 booked the exempt custom line with `Zero Rate (0%)` tax_id, `tax_total: 0`). Accounting spot-check: Gift Card Sales (income) $15 = issue+reload; Gift Card Redemptions (cash-type clearing) $15 = $5+$2+$8 redeemed; consistent with the D-04 manual-deferral design. **UAT COMPLETE.**
 
 ---
 
 ## Cleanup owed (test transactions on owner's own card)
 
-- **Cert GC-000001** currently **$10** balance, active. (Issued $10 + reloaded $5 − redeemed $5.)
-- **INV-000127** $10 paid (issue), **INV-000128** $5 paid (reload), **INV-000129** $10.50 partially_paid (**$0.50 phantom GST balance — F3**).
-- Real card charges to refund/void: issue $10, reload $5, redeem $5 (= $20). Void the cert and reverse the invoices/payments when wrapping up; the F3 $0.50 phantom balance disappears with the INV-000129 reversal.
+**Card side (Helcim):**
+- ✅ Refunded by owner 2026-07-02: June-30 charges ($10 issue, $5 reload, $5 redeem) + Test-1 $1 (the four F5 refund webhooks).
+- ⏳ Still to refund: **$2** (step 6, `txn=50914850`) + **$1** (step 8/manual-confirm, `txn=50915774`) = **$3**.
+
+**Zoho side (all WALK IN, 2026-06-30 + 2026-07-02):**
+- Reverse/void: **INV-000127** $10, **INV-000128** $5, **INV-000129** $10.50 partially_paid (the $0.50 F3 phantom clears with it), **INV-000131** $1 (card already refunded), **INV-000132** $2, **INV-000133** $10, **INV-000134** $1 — with their customerpayments (#131–135 + June 30's). Note Zoho requires deleting/refunding a payment before voiding its invoice.
+- The Gift Card Sales ($15) and Gift Card Redemptions ($15) account balances unwind as those invoices/payments are reversed.
+- Cert **GC-000001 is voided** (was $0 balance). GiftCards sheet retains the audit trail.
+- Dismiss the reconcile-sweep `needs_manual_review` flag for `KIOSK-1783016597951` (Test 2's cancelled, never-charged $1 — false alarm; alert email may have been sent).
+
+---
+
+## Follow-ups (non-blocking, post-phase)
+
+1. **F6** — tap-shield during payment-view transition (file as issue; F4 family).
+2. **F5** — log Helcim txn `type` in webhook lines so refunds are distinguishable from purchases.
+3. Invoice notes say "In-store kiosk sale (manual confirm)" for EVERY kiosk sale (`pos.js:867` hardcoded) — now misleading since paths are distinguished.
+4. `kiosk.sale_completed` event logs `txnId="manual-confirm"` for gift-card-only sales (no terminal txn exists — label should be `gift-card-only`/null).
+5. Void route returns 500 (not 409) for already-voided certs — the modal's 409 "already voided" branch is dead code.
+6. Reconcile sweep flags terminal-**cancelled** references as POTENTIAL ORPHAN even though the cancel is in the webhook cache — could consume the cached cancel and skip the false alarm.
 
 ---
 
 ## Disposition
 
-- **F1:** done (fixed, deployed, verified).
-- **F3:** ✅ FIXED + deployed (`97e8124`). Exempt custom lines now tagged with the Zero Rate `tax_id` (`ZOHO_TAX_ZERO_ID` set in Railway) in both sale + confirm builders; F3 regression added (pos-tax.test.js, RED→GREEN). Verify end-to-end on UAT resume (exempt custom line → `tax_total:0`). Pre-existing Phase 43; affected all exempt custom-line sales.
-- **F2:** still needs investigation — why auto-confirm didn't surface the terminal approval (terminal poll/webhook vs deploy regression); reconciliation-backstop timing. Needs a logged repro of the sale→poll path.
-- **F2 & F3 are independent** (earlier "possibly correlated" was wrong — F3 is server-side Zoho tagging, hits all exempt custom sales).
-- **F4:** file as GitHub issue once `gh` auth is restored.
-- Re-run UAT steps 4b/5/6/7/8 after F2/F3 fixes.
+- **F1:** ✅ done (fixed `51f3c64`, deployed, verified live).
+- **F2:** ✅ done (fixed `d8bf965`+`e029108`, deployed `211ad6e`, live-verified on all three confirm paths 2026-07-02).
+- **F3:** ✅ done (fixed `97e8124`, deployed, live-verified: INV-000131 `tax_total:0` with Zero Rate tax_id).
+- **F4:** ✅ filed as issue #108.
+- **F5:** observability note; follow-up item.
+- **F6:** UX; to file as issue (F4 family).
+- **F7:** ✅ done (fixed `f057094`, deployed, live-verified: lookup + void working from admin).
+- **All 8 UAT steps pass (7 = covered-by-test). 45-09 live-card UAT COMPLETE 2026-07-02.**
