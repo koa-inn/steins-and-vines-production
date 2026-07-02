@@ -845,13 +845,13 @@ Plans:
 
 **UI hint**: yes
 
-### Phase 45: Security and Money-Path Hardening (audit critical and high)
+### Phase 45: Security and Money-Path Hardening (audit critical and high) ✅ COMPLETE 2026-07-02 (VERIFIED)
 
 **Goal:** Close the verified CRITICAL and HIGH findings from the 2026-06-29 multi-agent audit (`AUDIT-2026-06-29.md`, 7 leads, 1 critical + 7 high, 0 refuted) — the public-key/auth-model exposure and the kiosk money-path weaknesses — plus safe quick-win containments, **without weakening the v4.2/v4.4-hardened online checkout path** (existing money-path tests must stay green).
 
 **Requirements**: Audit remediation (CRITICAL + HIGH tier). Source: `AUDIT-2026-06-29.md`.
 **Depends on:** Phase 44 (done). Coordinate with Phase 42 (Kiosk POS De-Fork, not started) — the shared money-path primitive extraction overlaps the de-fork; plan must decide whether to precede, fold in, or sequence around it.
-**Plans:** 7/9 plans executed
+**Plans:** 9/9 plans executed. **Verification:** 45-VERIFICATION.md — PASSED, 11/11 must-haves (D-01..D-05 absent by owner-approved split to Phase 46). Live-card UAT all 8 steps pass (45-09-SUMMARY.md).
 
 **In scope:**
 - **[CRITICAL] Auth-model exposure → MOVED to Phase 46** — admin API key (= Railway `API_SECRET_KEY`) is hardcoded in publicly-served, git-tracked `js/sheets-config.js:65` and loaded on ~13 public pages. Rotate the leaked key and re-architect staff-surface auth to server-side identity (reuse existing Google OAuth) so no shared secret ships to the browser. ⚠ Owner decision: interim containment (network/IP allowlist for the fixed in-store kiosk) vs straight to OAuth. **Split approved (2026-06-29) → see Phase 46.**

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
-status: executing
-stopped_at: Phase 45 all 9 plans COMPLETE (45-09 live-card UAT passed 2026-07-02) — phase verification/wrap-up next
-last_updated: "2026-07-02T19:20:00.000Z"
+status: phase-complete
+stopped_at: Phase 45 COMPLETE + VERIFIED (45-VERIFICATION.md PASSED 11/11, 2026-07-02) — next is Phase 46 (auth re-architecture, deferred CRITICAL)
+last_updated: "2026-07-02T19:35:00.000Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 32
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 50
-  completed_plans: 52
-  percent: 19
+  completed_plans: 54
+  percent: 22
 ---
 
 # Project State
@@ -25,10 +25,12 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 ## Current Position
 
-Phase: 45 (security-and-money-path-hardening-audit-critical-and-high) — ALL 9 PLANS COMPLETE
-Plan: 9 of 9 (45-09 live-card UAT passed 2026-07-02; 45-02 checkpoint confirmed complete 2026-06-30)
-Status: Awaiting phase verification / wrap-up (then Phase 46 auth re-architecture — the deferred CRITICAL)
+Phase: 45 (security-and-money-path-hardening-audit-critical-and-high) — ✅ COMPLETE + VERIFIED
+Plan: 9 of 9. Verification: 45-VERIFICATION.md PASSED (11/11 must-haves; D-01..D-05 absent by approved Phase-46 split; suites mw 1122 / fe 931 / lint 0)
+Status: Phase 46 (Auth Re-Architecture — the audit CRITICAL) is next; not yet discussed/planned
 Last activity: 2026-07-02
+
+Verifier advisory (non-blocking, from 45-VERIFICATION.md): review warnings WR-01/04/05/06/08/09 + IN-01/02 remain open with no explicit deferral record — most map to roadmap out-of-scope items (phases 46+); record their disposition when planning Phase 46/47 to close the audit trail.
 
 Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (staging), 42 (kiosk de-fork) NOT started.
 
