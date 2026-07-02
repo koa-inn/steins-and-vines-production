@@ -341,6 +341,84 @@ describe('sweepPendingCharges', function () {
       );
       // Alert sent
       expect(mailer.sendVoidFailureAlert).toHaveBeenCalled();
+      // Regression (re-alert flood): the pending record must be re-written with
+      // a manual_review_alerted marker so the next sweep does not re-alert.
+      expect(cache.set).toHaveBeenCalledWith(
+        pendingKey,
+        expect.objectContaining({ manual_review_alerted: true, reference_number: 'KIOSK-OLD-001' }),
+        expect.any(Number)
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // T6b: already-flagged pending record → NO duplicate alert (single sweep)
+  // ---------------------------------------------------------------------------
+  test('T6b: pending record already marked manual_review_alerted → no duplicate alert', function () {
+    var pendingKey = C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + 'KIOSK-OLD-002';
+    var resultKey  = TERMINAL_RESULT_KEY_PREFIX + 'KIOSK-OLD-002';
+    var ctx = oldPendingCtx({
+      reference_number: 'KIOSK-OLD-002',
+      amount: 60,
+      idempotency_key: 'idem-old-002',
+      manual_review_alerted: true  // a prior sweep already alerted + flagged this record
+    });
+
+    cache.getClient.mockResolvedValue({
+      keys: jest.fn().mockResolvedValue([pendingKey])
+    });
+
+    cache.get.mockImplementation(function (key) {
+      if (key === pendingKey) return Promise.resolve(ctx);
+      if (key === resultKey)  return Promise.resolve(null); // result expired
+      return Promise.resolve(null);
+    });
+
+    return reconcile.sweepPendingCharges(deps()).then(function () {
+      // Already flagged — no new sentinel, no new email
+      expect(mailer.sendVoidFailureAlert).not.toHaveBeenCalled();
+      expect(cache.set).not.toHaveBeenCalledWith(
+        expect.stringMatching(/^sv:void-failure:/),
+        expect.anything(),
+        expect.anything()
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // T6c: regression — two consecutive sweeps of the SAME stuck record alert ONCE
+  // (reproduces the observed email flood: one alert per record per 5-min sweep
+  //  for up to the 7-day pending TTL). With the marker persisted across sweeps,
+  //  only the first sweep alerts.
+  // ---------------------------------------------------------------------------
+  test('T6c: two sweeps of the same stuck record → alert sent exactly once', function () {
+    var pendingKey = C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + 'KIOSK-FLOOD-001';
+    var resultKey  = TERMINAL_RESULT_KEY_PREFIX + 'KIOSK-FLOOD-001';
+
+    // Stateful store so the marker written in sweep #1 is visible in sweep #2.
+    var store = {};
+    store[pendingKey] = oldPendingCtx({
+      reference_number: 'KIOSK-FLOOD-001',
+      amount: 1,
+      idempotency_key: 'idem-flood-001'
+    });
+
+    cache.getClient.mockResolvedValue({
+      keys: jest.fn().mockResolvedValue([pendingKey])
+    });
+    cache.get.mockImplementation(function (key) {
+      if (key === resultKey) return Promise.resolve(null); // no terminal result, ever
+      return Promise.resolve(Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null);
+    });
+    cache.set.mockImplementation(function (key, value) {
+      store[key] = value;
+      return Promise.resolve();
+    });
+
+    return reconcile.sweepPendingCharges(deps()).then(function () {
+      return reconcile.sweepPendingCharges(deps());
+    }).then(function () {
+      expect(mailer.sendVoidFailureAlert).toHaveBeenCalledTimes(1);
     });
   });
 });

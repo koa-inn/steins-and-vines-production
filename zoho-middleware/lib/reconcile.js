@@ -43,6 +43,9 @@ var PENDING_PREFIX         = C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX;
 var TERMINAL_RESULT_PREFIX = 'helcim:terminal:result:';
 // 30-day TTL for void-failure sentinel records (matches pos.js:1007/1664 convention)
 var VOID_FAILURE_TTL = 30 * 24 * 60 * 60;
+// 7-day TTL for the pending-charge record when re-written with the
+// manual_review_alerted marker (mirrors KIOSK_PENDING_CHARGE_TTL in routes/pos.js).
+var PENDING_CHARGE_TTL = 7 * 24 * 60 * 60;
 // Minimum pending-record age (seconds) before reconcile treats a charge as a
 // potential orphan.
 //
@@ -391,6 +394,18 @@ function sweepPendingCharges(deps) {
               return;
             }
 
+            // De-dupe repeat alerts.  This sweep runs every 5 minutes and the
+            // pending record persists for KIOSK_PENDING_CHARGE_TTL (7 days), so
+            // without a marker the same stuck record re-emits a "void failed —
+            // manual review" email on every cycle — up to ~2000 emails per
+            // record before the TTL expires (observed 2026-07-02).  Once a
+            // record has been flagged, skip the sentinel + alert on later sweeps.
+            if (ctx.manual_review_alerted) {
+              log.info('[reconcile/sweep] pending charge invoice=' + invoiceNumber +
+                ' already flagged for manual review — skipping duplicate alert');
+              return;
+            }
+
             // Old pending record with no known terminal result → flag for review
             var voidFailureKey = 'sv:void-failure:' + Date.now();
             var flagRecord = {
@@ -408,6 +423,16 @@ function sweepPendingCharges(deps) {
               ' amount=$' + (ctx.amount || 0) + ' — flagging for manual review');
 
             cache.set(voidFailureKey, flagRecord, VOID_FAILURE_TTL)
+              .catch(function () {});
+
+            // Mark the pending record so subsequent sweeps do not re-alert.
+            // created_at is preserved (isOldEnough depends on it); the record is
+            // re-set with the original pending-charge TTL so it still self-expires.
+            // The sv:void-failure sentinel above remains the durable manual-review
+            // artifact; a genuinely late webhook can still auto-void via the
+            // reconcilePendingCharge path while the marked record lives.
+            var alertedCtx = Object.assign({}, ctx, { manual_review_alerted: true });
+            cache.set(key, alertedCtx, PENDING_CHARGE_TTL)
               .catch(function () {});
 
             return mailer.sendVoidFailureAlert({
