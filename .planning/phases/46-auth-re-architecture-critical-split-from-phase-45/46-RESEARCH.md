@@ -496,17 +496,17 @@ router.post('/auth/google', function (req, res) {
 
 ## Open Questions
 
-1. **Should discount-preset CRUD (`/api/kiosk/discounts*`) be kiosk-scoped or admin-scoped?**
+1. **[RESOLVED in planning — 46-03 assumption A1: kiosk-scoped]** **Should discount-preset CRUD (`/api/kiosk/discounts*`) be kiosk-scoped or admin-scoped?** Resolved: classified kiosk-scoped in 46-03 `KIOSK_ROUTES` (matches current reality, no PII/refund); surfaced for owner re-bucketing at the 46-10 cutover review.
    - What we know: it lives on the standalone kiosk today, ungated by Google auth even now; it has real (if modest) financial-policy impact.
    - What's unclear: CONTEXT.md's explicit exclusion list doesn't mention it either way.
    - Recommendation: default to kiosk-scoped (matches current reality), but have the planner surface this explicitly to the owner during plan review rather than deciding silently.
 
-2. **Should `/api/bookings`, `/api/contacts`, `/api/payment/initialize` get their own recaptcha check as part of this phase, or inherit the existing referer+rate-limit-only bar that `/promo/validate` already has?**
+2. **[RESOLVED in planning — 46-03 assumption A3 / 46-08: inherit /promo/validate bar]** **Should `/api/bookings`, `/api/contacts`, `/api/payment/initialize` get their own recaptcha check as part of this phase, or inherit the existing referer+rate-limit-only bar that `/promo/validate` already has?** Resolved: inherit the existing bar (accepted residual, recorded in 46-03 threat model T-46-06 and the 46-10 audit-trail note); added-recaptcha is out-of-scope-unless-owner-requests.
    - What we know: `/checkout` alone is recaptcha-verified today; the other two are not, and never have been.
    - What's unclear: whether "eliminate the shared-secret model" is meant to also close this adjacent, pre-existing gap, or whether that's separate hardening work.
    - Recommendation: treat as out-of-scope-unless-free (same framing CONTEXT.md already uses for the gift-card-lookup-GET item), but name it explicitly in the phase's audit-trail notes so it isn't silently swept under "done."
 
-3. **Exact session TTL-refresh cadence (refresh Redis TTL on every request vs. every N minutes)?**
+3. **[RESOLVED in planning — 46-01 Task 3: coarse hourly refresh]** **Exact session TTL-refresh cadence (refresh Redis TTL on every request vs. every N minutes)?** Resolved: `touchSession` re-sets the 7-day TTL only when >1h since last refresh (sliding idle expiry, minimal Redis writes).
    - What we know: D-46-06 specifies a ~7-day *idle* expiry, meaning it must be sliding, not fixed-at-issuance.
    - What's unclear: whether refreshing Redis on literally every authenticated request is an acceptable write-volume increase, or whether a coarser refresh (e.g. only if >1hr since last refresh) is preferred.
    - Recommendation: coarser refresh (e.g. hourly) — negligible UX difference at a 7-day scale, meaningfully less Redis write volume; planner's call to confirm.
