@@ -873,7 +873,7 @@ Plans:
 - [x] 45-05-PLAN.md — Extract lib/money-path.js from checkout.js + refactor checkout to consume it, no behaviour change (D-11)
 
 **Wave 2**
-- [ ] 45-02-PLAN.md — Ship Wave-1 containments to prod Railway + verify (D-15) [checkpoint]
+- [x] 45-02-PLAN.md — Ship Wave-1 containments to prod Railway + verify (D-15) [checkpoint]
 - [x] 45-06-PLAN.md — pos.js sale/confirm: atomic required idempotency + deterministic Helcim key + confirm propagates recording failure → void (D-12)
 
 **Wave 3**
@@ -883,7 +883,7 @@ Plans:
 - [x] 45-08-PLAN.md — Reconciliation backstop: lib/reconcile.js + webhook reconcile + periodic sweep, match on reference_number (D-13)
 
 **Wave 5**
-- [ ] 45-09-PLAN.md — Bundled live gift-card + money-path UAT on prod (with P44 deferred UAT, D-16) [checkpoint]
+- [x] 45-09-PLAN.md — Bundled live gift-card + money-path UAT on prod (with P44 deferred UAT, D-16) [checkpoint] — COMPLETE 2026-07-02, all 8 steps pass (45-09-SUMMARY.md)
 
 ---
 
