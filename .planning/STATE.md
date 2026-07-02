@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
-status: phase-complete
-stopped_at: Phase 45 COMPLETE + VERIFIED (45-VERIFICATION.md PASSED 11/11, 2026-07-02) — next is Phase 46 (auth re-architecture, deferred CRITICAL)
-last_updated: "2026-07-02T19:35:00.000Z"
+status: Phase 46 (Auth Re-Architecture — the audit CRITICAL) is next; not yet discussed/planned
+stopped_at: "Phase 46 context gathered (auth re-arch: kiosk typed-in device token kiosk-scoped, admin/BrewPad Google OAuth + 7d server session, dual-accept cutover rotate in days, D-05 skipped)"
+last_updated: "2026-07-02T19:42:45.826Z"
 last_activity: 2026-07-02
 progress:
   total_phases: 32
   completed_phases: 7
   total_plans: 50
-  completed_plans: 54
+  completed_plans: 56
   percent: 22
 ---
 
@@ -116,9 +116,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-02 (live UAT at kiosk — COMPLETE)
-Stopped at: **45-09 live-card UAT COMPLETE — all 8 steps pass** (7 = covered-by-test). Full detail in 45-09-UAT-FINDINGS.md.
+Last session: 2026-07-02T19:42:45.815Z
+Stopped at: Phase 46 context gathered (auth re-arch: kiosk typed-in device token kiosk-scoped, admin/BrewPad Google OAuth + 7d server session, dual-accept cutover rotate in days, D-05 skipped)
 Session summary:
+
   - Deployed F2 (d8bf965+e029108) via staging push 211ad6e + prod force-push; Railway auto-deployed (NOTE: Railway watches koa-inn/steins-and-vines-production zoho-middleware/** — a prod force-push IS a middleware deploy; `railway up` redundant).
   - F2 LIVE-VERIFIED all 3 paths: auto-confirm ~12s real id (INV-000131); no-charge manual-confirm → 409 nothing booked; slow-customer manual-confirm → server verified via pollTerminalResult, booked real id 50915774 (INV-000134).
   - F3 LIVE-VERIFIED: INV-000131 exempt custom line booked Zero Rate tax_id, tax_total:0.
@@ -126,7 +127,8 @@ Session summary:
   - **F7 found + FIXED f057094 + live-verified:** admin gift-card mgmt modal was dead (SHEETS_CONFIG.MW_URL nonexistent → relative fetch; response read too shallow; `balance` vs `current_balance`). Regression tests/frontend/admin-gift-card-mgmt.test.js; fe suite 931 green. Step 5 void then PASSED (GC-000001 voided).
   - F5 (observability): Helcim refund webhooks look identical to purchases in logs — owner's dashboard refunds caused a false orphan-charge scare. F6 (UX): double-tap falls through to control underneath → issue #109.
   - Accounting spot-check consistent with D-04 manual-deferral design (Gift Card Sales income $15; Gift Card Redemptions clearing $15).
+
 Cleanup owed (owner): refund $3 remaining card charges (txn 50914850 $2, txn 50915774 $1; June-30 $20 + Test-1 $1 already refunded); Zoho reverse INV-000127/128/129/131/132/133/134 + their payments; dismiss reconcile needs_manual_review flag for KIOSK-1783016597951 (false alarm); remove stale GH_TOKEN ~/.zshrc:16.
 Follow-ups (non-blocking, in findings §Follow-ups): F6 tap-shield (#109), webhook type logging, invoice-note wording, gift-card-only txnId label, void 409 mapping, cancel-aware reconcile sweep.
 Next: mark 45-09 UAT-approved in the phase flow (executor resume-signal was "approved") → 45-09 SUMMARY + phase-45 verification/wrap-up. Build churn from `npm run build` still in working tree (about.html/brewpad/products/* + zoho-middleware/ingredients-cache.json); stash@{0}/stash@{1} still pending reconcile.
-Resume file: None
+Resume file: .planning/phases/46-auth-re-architecture-critical-split-from-phase-45/46-CONTEXT.md
