@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.4
 milestone_name: Audit Remediation
-status: Phase 46 (Auth Re-Architecture — the audit CRITICAL) is next; not yet discussed/planned
+status: executing
 stopped_at: "Phase 46 context gathered (auth re-arch: kiosk typed-in device token kiosk-scoped, admin/BrewPad Google OAuth + 7d server session, dual-accept cutover rotate in days, D-05 skipped)"
-last_updated: "2026-07-02T19:42:45.826Z"
-last_activity: 2026-07-02
+last_updated: "2026-07-02T23:14:07.742Z"
+last_activity: 2026-07-02 -- Phase 46 planning complete
 progress:
   total_phases: 32
   completed_phases: 7
-  total_plans: 50
+  total_plans: 60
   completed_plans: 56
   percent: 22
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 Phase: 45 (security-and-money-path-hardening-audit-critical-and-high) — ✅ COMPLETE + VERIFIED
 Plan: 9 of 9. Verification: 45-VERIFICATION.md PASSED (11/11 must-haves; D-01..D-05 absent by approved Phase-46 split; suites mw 1122 / fe 931 / lint 0)
-Status: Phase 46 (Auth Re-Architecture — the audit CRITICAL) is next; not yet discussed/planned
-Last activity: 2026-07-02
+Status: Ready to execute
+Last activity: 2026-07-02 -- Phase 46 planning complete
 
 Verifier advisory (non-blocking, from 45-VERIFICATION.md): review warnings WR-01/04/05/06/08/09 + IN-01/02 remain open with no explicit deferral record — most map to roadmap out-of-scope items (phases 46+); record their disposition when planning Phase 46/47 to close the audit trail.
 
