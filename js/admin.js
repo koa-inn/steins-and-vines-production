@@ -4,7 +4,7 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-06-29T22:16:23.919Z';
+  var BUILD_TIMESTAMP = '2026-07-02T18:54:14.572Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
 
   var accessToken = null;
@@ -10328,7 +10328,7 @@
 
     var certEl = document.getElementById('kgcm-cert');
     if (certEl) certEl.focus();
-    var mwUrl = (SHEETS_CONFIG && SHEETS_CONFIG.MW_URL) ? SHEETS_CONFIG.MW_URL : '';
+    var mwUrl = kioskMwUrl();
     var apiKey = (SHEETS_CONFIG && SHEETS_CONFIG.MW_API_KEY) ? SHEETS_CONFIG.MW_API_KEY : '';
 
     var lookupView = document.getElementById('kgcm-lookup-view');
@@ -10377,7 +10377,9 @@
           lookupBtn.disabled = false;
           lookupBtn.textContent = 'Look Up';
           if (result.status === 200 && result.data && result.data.ok) {
-            var d = result.data;
+            // F7 (45-09): payload is nested under data.data, and the balance field is
+            // current_balance — same contract kiosk.js consumes (see gift-cards.js lookup)
+            var d = (result.data && result.data.data) || {};
             _mgmtCert = d.cert_number || cert;
             var statusStr = d.status || 'active';
             var statusColor = (statusStr === 'active') ? '#2e7d32' : '#c00';
@@ -10386,7 +10388,7 @@
                 '<strong>Cert #:</strong> ' + escapeHTML(_mgmtCert) + '<br>' +
                 '<strong>Status:</strong> <span style="color:' + statusColor + ';font-weight:600;">' + escapeHTML(statusStr) + '</span><br>' +
                 '<strong>Face Value:</strong> ' + kioskFmt(d.face_value || 0) + '<br>' +
-                '<strong>Current Balance:</strong> ' + kioskFmt(d.balance || 0);
+                '<strong>Current Balance:</strong> ' + kioskFmt(d.current_balance || 0);
             }
             if (voidBtn) voidBtn.style.display = (statusStr === 'voided') ? 'none' : '';
             if (resultEl) resultEl.style.display = 'block';
@@ -12823,7 +12825,9 @@
       _kioskOpenModifyPanel: function (r) { return kioskOpenModifyPanel(r); },
       // GAP-3 test hook (36-09): allows tests to drive the full volume+factor wiring setup
       // by calling the prompt function directly with a minimal DOM fixture.
-      _kioskShowRecipePrompt: function (r) { return kioskShowRecipePrompt(r); }
+      _kioskShowRecipePrompt: function (r) { return kioskShowRecipePrompt(r); },
+      // F7 test hook (45-09): gift-card management modal (lookup/void)
+      _kioskShowGcMgmtModal: function () { return kioskShowAdminGiftCardMgmtModal(); }
     });
   }
 
