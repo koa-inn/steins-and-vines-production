@@ -316,7 +316,7 @@ describe('PII-02: body-shape validation on mutating routes', function () {
 
     test('returns 400 when body is not an object', function () {
       return request(app)
-        .put('/api/inventory/items/ITEM-123')
+        .put('/api/inventory/items/12345')
         .set('x-api-key', VALID_KEY)
         .set('Content-Type', 'application/json')
         .send('"bad-string"')
@@ -333,7 +333,7 @@ describe('PII-02: body-shape validation on mutating routes', function () {
         unknown_key: 'drop-me'
       };
       return request(app)
-        .put('/api/inventory/items/ITEM-123')
+        .put('/api/inventory/items/12345')
         .set('x-api-key', VALID_KEY)
         .send(body)
         .then(function (res) {
@@ -348,7 +348,7 @@ describe('PII-02: body-shape validation on mutating routes', function () {
 
     test('returns 400 when rate field is not a number', function () {
       return request(app)
-        .put('/api/inventory/items/ITEM-123')
+        .put('/api/inventory/items/12345')
         .set('x-api-key', VALID_KEY)
         .send({ rate: 'not-a-number' })
         .then(function (res) {
