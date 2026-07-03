@@ -5,7 +5,7 @@ var zohoApi = require('../lib/zoho-api');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var eventLog = require('../lib/eventLog');
-var apiKeyGuard = require('../lib/apiKey');
+var authTiers = require('../lib/authTiers');
 var mailer = require('../lib/mailer');
 var ledger = require('../lib/inventory-ledger');
 var C = require('../lib/constants');
@@ -1450,12 +1450,10 @@ router.post('/api/pos/sale', function (req, res) {
  * Used by the admin panel's "Recent Kiosk Orders" section.
  */
 router.get('/api/orders/recent', function (req, res) {
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
   // Item #13: This endpoint exposes sensitive order data. Require an API key
-  // even for GET requests, overriding the global GET exemption in server.js.
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  // even for GET requests, overriding the global GET exemption in server.js
+  // (admin-grade — device tier rejected by requireTiers above, T-46-18b).
   // Item #47: Cap at 50 regardless of caller-supplied value.
   var limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
   var cacheKey = RECENT_ORDERS_CACHE_KEY + ':' + limit;
@@ -1515,6 +1513,7 @@ router.get('/api/orders/recent', function (req, res) {
       log.error('[api/orders/recent] ' + err.message);
       res.status(502).json({ error: 'Unable to fetch orders' });
     });
+  });
 });
 
 /**
@@ -1523,10 +1522,7 @@ router.get('/api/orders/recent', function (req, res) {
  * Shows recent stock adjustments and the current version counter.
  */
 router.get('/api/admin/inventory-ledger', function (req, res) {
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
   Promise.all([
     cache.get(C.LEDGER_KEYS.VERSION),
     cache.getClient().then(function (c) {
@@ -1543,6 +1539,7 @@ router.get('/api/admin/inventory-ledger', function (req, res) {
     });
   }).catch(function (err) {
     res.status(500).json({ error: err.message });
+  });
   });
 });
 
@@ -1564,12 +1561,9 @@ var KIOSK_SO_CACHE_TTL = 120; // seconds
  * Response: { salesorders: [...] }
  */
 router.get('/api/kiosk/salesorders', function (req, res) {
+  authTiers.requireTiers(['legacy', 'device', 'session'])(req, res, function () {
   // D-09: kiosk order-book exposes PII (customer names, balances, line items).
-  // Guard with the shared admin key — mirrors /api/orders/recent (pos.js:1192).
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  // Kiosk-scoped (46-04 interfaces) — device token allowed alongside legacy/session.
   var status = req.query.status || 'open';
   var search = req.query.search || '';
 
@@ -1644,6 +1638,7 @@ router.get('/api/kiosk/salesorders', function (req, res) {
       log.error('[kiosk/salesorders] ' + err.message);
       res.status(502).json({ error: 'Unable to fetch sales orders' });
     });
+  });
 });
 
 /**
@@ -2006,10 +2001,8 @@ router.post('/api/kiosk/salesorder-pay', function (req, res) {
  * Response: { ok, salesorder_id, salesorder_number, total, balance }
  */
 router.put('/api/kiosk/salesorder-update', function (req, res) {
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  authTiers.requireTiers(['legacy', 'device', 'session'])(req, res, function () {
+  // Kiosk-scoped (46-04 interfaces) — device token allowed alongside legacy/session.
   var body = req.body || {};
 
   var soId = body.salesorder_id;
@@ -2072,14 +2065,13 @@ router.put('/api/kiosk/salesorder-update', function (req, res) {
       log.error('[kiosk/so-update] Zoho error: ' + msg);
       res.status(502).json({ error: 'Failed to update sales order' });
     });
+  });
 });
 
 // Phase 7: Sync batch status to Zoho invoice custom field (D-01, D-02, D-03)
 router.post('/api/batch/sync-zoho', function (req, res) {
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
+  // BrewPad/session-scoped (device rejected) — 46-04 interfaces.
   var body = req.body || {};
   var soId = body.so_id;
   var batchId = body.batch_id;
@@ -2104,14 +2096,13 @@ router.post('/api/batch/sync-zoho', function (req, res) {
       log.error('[batch/sync-zoho] Unexpected error: ' + err.message);
       res.status(500).json({ ok: false, error: 'Internal error' });
     });
+  });
 });
 
 // Phase 7: Search invoices for batch linking (D-04)
 router.get('/api/batch/search-invoices', function (req, res) {
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
+  // BrewPad/session-scoped GET (device rejected) — 46-04 interfaces (T-46-18b).
   var search = (req.query.search || '').trim();
   if (!search || search.length < 2) {
     return res.status(400).json({ error: 'Search term must be at least 2 characters' });
@@ -2135,14 +2126,13 @@ router.get('/api/batch/search-invoices', function (req, res) {
       log.error('[batch/search-invoices] Zoho error: ' + (err.message || err));
       res.status(502).json({ error: 'Invoice search failed' });
     });
+  });
 });
 
 // Phase 28: Resolve customer details from a Zoho invoice or SO number (D-01..D-16)
 router.get('/api/batch/customer-by-number', function (req, res) {
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
+  // BrewPad/session-scoped GET (device rejected) — 46-04 interfaces (T-46-18b).
   // CR-01 (plan 29-04): normalize to uppercase so the case-sensitive regexes accept
   // lowercase refs (inv-000123 / so-42) — aligns with the frontend's case-insensitive
   // /^(INV|SO)-\d+$/i gate and the downstream case-insensitive exact-match at line 1409.
@@ -2250,6 +2240,7 @@ router.get('/api/batch/customer-by-number', function (req, res) {
       res.status(502).json({ error: 'zoho_error',
         message: 'Failed to retrieve document from Zoho' });
     });
+  });
 });
 
 // Phase 29.3: Bulk-scan recent Zoho invoices for ferment-in-store sales (Maker's Fee present)
@@ -2257,10 +2248,8 @@ router.get('/api/batch/customer-by-number', function (req, res) {
 // GET /api/batch/scan-invoices
 // Optional: ?number=INV-XXXXX => single-invoice mode (D-09)
 router.get('/api/batch/scan-invoices', function (req, res) {
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
+  // BrewPad/session-scoped GET (device rejected) — 46-04 interfaces (T-46-18b).
   var CF_BATCH_STATUS = process.env.ZOHO_CF_BATCH_STATUS || 'cf_batch_status';
   var MAX_PAGES = 4; // Hard server-side cap (~200 invoices). NEVER read from request (D-01/T-29.3-03).
   var CANDIDATE_STATUSES = { paid: true, sent: true, draft: true }; // void excluded (D-04)
@@ -2431,16 +2420,15 @@ router.get('/api/batch/scan-invoices', function (req, res) {
     log.error('[batch/scan-invoices] Zoho scan error: ' + err.message);
     return res.status(502).json({ error: 'zoho_error', message: 'Failed to scan invoices from Zoho' });
   });
+  });
 });
 
 // Phase 29.3: Server-authoritative bulk-create pending batches for confirmed scan candidates.
 // POST /api/batch/bulk-create
 // Body: { invoice_ids: ['INV-ID-001', ...] } — client supplies ONLY invoice ids (D-06)
 router.post('/api/batch/bulk-create', function (req, res) {
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
+  // BrewPad/session-scoped (device rejected) — 46-04 interfaces.
   var body = req.body || {};
   var invoiceIds = body.invoice_ids;
   if (!Array.isArray(invoiceIds) || invoiceIds.length === 0) {
@@ -2547,14 +2535,14 @@ router.post('/api/batch/bulk-create', function (req, res) {
     log.error('[batch/bulk-create] error: ' + err.message);
     return res.status(502).json({ error: 'zoho_error', message: 'Failed to bulk-create batches' });
   });
+  });
 });
 
 // Phase 29.1: Search Zoho contacts by name/email/phone for customer type-ahead
 router.get('/api/contacts/search', function (req, res) {
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  authTiers.requireTiers(['legacy', 'device', 'session'])(req, res, function () {
+  // Kiosk-scoped GET (T-46-19) — this route is GET-exempt at the global guard,
+  // so it resolves its own tier here (device token allowed alongside legacy/session).
   var term = (req.query.q || '').trim();
   if (!term || term.length < 2) {
     return res.status(400).json({ error: 'Query param q must be at least 2 characters' });
@@ -2593,14 +2581,13 @@ router.get('/api/contacts/search', function (req, res) {
       log.error('[contacts/search] Zoho error: ' + msg);
       res.status(502).json({ error: 'Contact search failed' });
     });
+  });
 });
 
 // Phase 29.1: Reassign the customer on a batch and propagate to the linked Zoho SO/invoice (D-02/D-03/D-05)
 router.post('/api/batch/reassign-customer', function (req, res) {
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
+  // BrewPad/session-scoped (device rejected) — 46-04 interfaces.
   var body = req.body || {};
   var batchId = body.batch_id;
   var soNumber = body.zoho_so_number || null;   // may be absent (D-03)
@@ -2872,6 +2859,7 @@ router.post('/api/batch/reassign-customer', function (req, res) {
       log.error('[batch/reassign-customer] Error: ' + msg);
       res.status(500).json({ ok: false, error: 'Internal error: ' + msg });
     });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -2882,10 +2870,8 @@ router.post('/api/batch/reassign-customer', function (req, res) {
 // Auth: x-api-key header (same as all /api/batch/* siblings).
 // ---------------------------------------------------------------------------
 router.post('/api/batch/bottling-invite', function (req, res) {
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
+  // BrewPad/session-scoped (device rejected) — 46-04 interfaces.
   var body = req.body || {};
   var name = (body.name || '').trim();
   var email = (body.email || '').trim();
@@ -2909,6 +2895,7 @@ router.post('/api/batch/bottling-invite', function (req, res) {
       log.error('[batch/bottling-invite] Send failed: ' + err.message);
       res.status(500).json({ error: 'Failed to send bottling invite' });
     });
+  });
 });
 
 /**
@@ -2917,13 +2904,10 @@ router.post('/api/batch/bottling-invite', function (req, res) {
  * The list endpoint (/salesorders) does not return line_items.
  */
 router.get('/api/kiosk/salesorder/:id', function (req, res) {
-  // D-09: individual order detail also exposes PII — guard identically.
-  // Inline guard used (rather than server.js PII_GET_ROUTES list) because
-  // Express path-pattern matching is required for :id params.
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  authTiers.requireTiers(['legacy', 'device', 'session'])(req, res, function () {
+  // D-09: individual order detail also exposes PII — kiosk-scoped, device token
+  // allowed (46-04 interfaces). Inline tier resolution used (rather than server.js
+  // PII_GET_ROUTES list) because Express path-pattern matching is required for :id params.
   var soId = req.params.id;
   if (!soId || typeof soId !== 'string') {
     return res.status(400).json({ error: 'Missing or invalid salesorder_id' });
@@ -2960,6 +2944,7 @@ router.get('/api/kiosk/salesorder/:id', function (req, res) {
       log.error('[kiosk/so-detail] Zoho error: ' + msg);
       res.status(502).json({ error: 'Failed to fetch sales order' });
     });
+  });
 });
 
 module.exports = router;
