@@ -213,16 +213,13 @@ function mapKitItem(z) {
 function fetchAllProducts() {
   var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
     ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
-  var apiKey = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY)
-    ? SHEETS_CONFIG.MW_API_KEY : '';
-  var headers = { 'x-api-key': apiKey };
 
-  var ingredientsP = fetch(middlewareUrl + '/api/ingredients', { headers: headers })
+  var ingredientsP = fetch(middlewareUrl + '/api/ingredients')
     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
     .then(function (data) { return (data.items || []).map(mapItem); })
     .catch(function () { return []; });
 
-  var productsP = fetch(middlewareUrl + '/api/products', { headers: headers })
+  var productsP = fetch(middlewareUrl + '/api/products')
     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
     .then(function (data) { return (data.items || []).map(mapKitItem); })
     .catch(function () { return []; });
@@ -245,12 +242,8 @@ function fetchAllProducts() {
 function fetchFromMiddleware() {
   var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
     ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
-  var apiKey = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY)
-    ? SHEETS_CONFIG.MW_API_KEY : '';
 
-  return fetch(middlewareUrl + '/api/ingredients', {
-    headers: { 'x-api-key': apiKey }
-  })
+  return fetch(middlewareUrl + '/api/ingredients')
     .then(function (r) {
       if (!r.ok) throw new Error('Middleware returned ' + r.status);
       return r.json();
