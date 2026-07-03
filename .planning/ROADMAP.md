@@ -699,7 +699,7 @@ Plans:
 | 46. Auth Re-Architecture | v4.5 (carryover, SEC-02) | 9/10 | Code-complete, owner cutover pending | - |
 | 47. Purge Publicly-Served Internal Docs | v4.5 | 1/1 | ✅ Closed on staging (verified 2026-07-03); prod audit-doc at next prod deploy | 2026-07-03 |
 | 48. Kiosk POS De-Fork (kiosk-core.js) | v4.5 | 0/? | Not started | - |
-| 49. Online Captured-Amount Verification | v4.5 | 0/? | Not started | - |
+| 49. Online Captured-Amount Verification | v4.5 | 1/2 | 49-01 done (H2 fix + 13-test regression, suite green); 49-02 live-card UAT pending deploy | - |
 | 50. Kiosk Money-Path Defect Closeout | v4.5 | 0/? | Not started | - |
 | 51. Gift-Card Ledger Integrity | v4.5 | 0/? | Not started | - |
 | 52. Fail-Closed Sweep | v4.5 | 0/? | Not started | - |
@@ -1003,7 +1003,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 49-01-PLAN.md — TDD RED→GREEN: failing H2 regression, then getCardTransactionById captured-amount check (±$0.01) + void-on-mismatch in /api/checkout (autonomous)
+- [x] 49-01-PLAN.md — TDD RED→GREEN: failing H2 regression, then getCardTransactionById captured-amount check (±$0.01) + void-on-mismatch in /api/checkout (autonomous)
 - [ ] 49-02-PLAN.md — Live-card UAT: legit order books paid (no false-void) + tamper attempt voided/4xx on staging (checkpoint)
 
 ### Phase 50: Kiosk Money-Path Defect Closeout
