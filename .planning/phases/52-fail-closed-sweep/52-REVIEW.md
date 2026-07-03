@@ -20,7 +20,19 @@ findings:
   warning: 3
   info: 3
   total: 6
-status: issues_found
+warnings_resolved: 3
+status: resolved
+---
+
+## Resolution Log (2026-07-02)
+
+All 3 warnings were fixed after review (RED→GREEN regression test per finding):
+
+- **WR-01** (SSRF redirect bypass, `taxes.js`) — RESOLVED. `axios.get` now pins `maxRedirects: 0`; a 3xx from an allowlisted host fails closed instead of following to an unvalidated target. Test: `__tests__/taxes-ssrf-redirect.test.js`. Commits `3422e93` (RED) → `9290013` (GREEN).
+- **WR-02** (`PUT /items/:id` missing M20 guard, `items.js`) — RESOLVED. `isValidId(req.params.id)` now guards the mutating route. Test: `__tests__/items-put-id-validation.test.js`. Commits `6d053f5` (RED) → `8ebed3e` (GREEN). Follow-through `7466acd`: `pii-access.test.js` fixture id `ITEM-123` → numeric `12345` (unrealistic non-numeric fixture; no assertion changed; precedent 45-01/D-09).
+- **WR-03** (promo lock had no mutual exclusion, `checkout.js`) — RESOLVED. Discount is now gated on `lockAcquired`; a concurrent same-email checkout that loses the lock fails closed (no discount). Test: `__tests__/promo-lock-concurrency.test.js`. Commits `d1f17ad` (RED) → `7ccca9f` (GREEN).
+
+Info items IN-01/IN-02/IN-03 left as tracked follow-ups (non-blocking; IN-03 errs safe). Full middleware suite 74 suites / 1239 tests green; 0 lint errors.
 ---
 
 # Phase 52: Code Review Report
