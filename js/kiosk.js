@@ -4,56 +4,20 @@
 (function () {
   'use strict';
 
-  // ===== State =====
-  var accessToken = null;
-  var userEmail = null;
-  var tokenClient = null;
-  var _tokenRefreshTimer = null;
-  var _silentRefreshTimer = null;
-  var _handlingUnauthorized = false;
+  // ===== Kiosk Device Token (D-46-01) =====
+  // Typed-in device credential replacing per-staff Google sign-in on the
+  // shared in-store iPad. Persisted in localStorage; sent as the
+  // x-device-token header on every kiosk middleware call in place of the
+  // leaked shared admin API key. The staff PIN (KIOSK_PIN) still gates the
+  // PIN pad on top of this device credential (D-46-02).
+  var DEVICE_TOKEN_KEY = 'sv_kiosk_device_token';
 
-  // ===== Persistent Session =====
-  var SESSION_KEY = 'sv-kiosk-session';
-
-  function saveSession(token, expiresIn, email, name) {
-    var existing = loadSessionRaw();
-    var data = {
-      token: token,
-      expires_at: Date.now() + (expiresIn * 1000),
-      email: email,
-      name: name || (existing && existing.name) || '',
-      auth_at: (existing && existing.auth_at) ? existing.auth_at : Date.now()
-    };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+  function kioskDeviceToken() {
+    return localStorage.getItem(DEVICE_TOKEN_KEY) || '';
   }
 
-  /** Load session without expiry check (for PIN flow). */
-  function loadSessionRaw() {
-    try {
-      var raw = localStorage.getItem(SESSION_KEY);
-      if (!raw) return null;
-      return JSON.parse(raw);
-    } catch (e) { return null; }
-  }
-
-  function loadSession() {
-    try {
-      var raw = localStorage.getItem(SESSION_KEY);
-      if (!raw) return null;
-      var data = JSON.parse(raw);
-      // Expired if within 5 minutes of expiry
-      if (data.expires_at < Date.now() + 5 * 60 * 1000) return null;
-      return data;
-    } catch (e) { return null; }
-  }
-
-  function isSessionValidForPin(session) {
-    if (!session || !session.email || !session.auth_at) return false;
-    return (Date.now() - session.auth_at) < SESSION_MAX_AGE;
-  }
-
-  function clearSession() {
-    localStorage.removeItem(SESSION_KEY);
+  function saveKioskDeviceToken(token) {
+    localStorage.setItem(DEVICE_TOKEN_KEY, token || '');
   }
 
   // ===== Toast Notification System =====
@@ -106,104 +70,75 @@
     }, 150);
   }
 
-  // ===== Google OAuth =====
+  // ===== Device Token Gate (replaces Google sign-in, D-46-01/D-46-02) =====
 
-  function initGoogleAuth() {
-    // waitForGoogleIdentity / gsiInitTokenClient defined in js/lib/auth.js
-    tokenClient = gsiInitTokenClient({
-      client_id: SHEETS_CONFIG.CLIENT_ID,
-      scope: SHEETS_CONFIG.SCOPES + ' https://www.googleapis.com/auth/userinfo.email',
-      callback: onTokenResponse
-    });
-
+  function initKioskAuth() {
     var signoutBtn = document.getElementById('kiosk-signout');
-    if (signoutBtn) signoutBtn.addEventListener('click', kioskSignOut);
-
-    // Check for PIN-lockable session first (no token refresh needed)
-    var savedRaw = loadSessionRaw();
-    if (savedRaw && isSessionValidForPin(savedRaw)) {
-      showLockScreen(savedRaw);
-      return;
+    if (signoutBtn) {
+      // Repurposed: was "Sign Out" for the removed per-staff Google session;
+      // now reopens the device-token prompt for recovery/replacement (D-46-03).
+      signoutBtn.textContent = 'Device Settings';
+      signoutBtn.style.display = '';
+      signoutBtn.addEventListener('click', showDeviceTokenPrompt);
     }
 
-    // Try restoring a saved session via silent token refresh
-    var saved = loadSession();
-    if (saved) {
-      _silentRefreshTimer = setTimeout(function () {
-        _silentRefreshTimer = null;
-        console.warn('[Kiosk] Silent refresh timed out — showing sign-in button');
-        clearSession();
-        showSignInButton();
-      }, 5000);
-      try {
-        tokenClient.requestAccessToken({ prompt: '', login_hint: saved.email });
-      } catch (err) {
-        clearTimeout(_silentRefreshTimer);
-        _silentRefreshTimer = null;
-        console.warn('[Kiosk] Silent refresh failed:', err.message);
-        clearSession();
-        showSignInButton();
-      }
-      return;
+    if (kioskDeviceToken()) {
+      showLockScreen({});
+    } else {
+      showDeviceTokenPrompt();
     }
-
-    showSignInButton();
   }
 
-  function showSignInButton() {
-    var signinBtn = document.getElementById('kiosk-google-signin-btn');
-    if (signinBtn && !signinBtn.querySelector('button')) {
+  // Hidden/unobtrusive settings prompt (D-46-01/D-46-03) — reuses the existing
+  // #kiosk-signin screen (previously the Google sign-in card) since customers
+  // may see this screen; it is not a full staff login UI.
+  function showDeviceTokenPrompt() {
+    var kioskApp = document.getElementById('kiosk-app');
+    if (kioskApp) kioskApp.style.display = 'none';
+    var lockScreen = document.getElementById('kiosk-lock-screen');
+    if (lockScreen) lockScreen.style.display = 'none';
+
+    var signinScreen = document.getElementById('kiosk-signin');
+    if (!signinScreen) return;
+    signinScreen.style.display = '';
+
+    var promptText = signinScreen.querySelector('p');
+    if (promptText) promptText.textContent = 'Enter this device’s token to continue';
+
+    var deniedMsg = document.getElementById('kiosk-denied-msg');
+    if (deniedMsg) deniedMsg.style.display = 'none';
+
+    var mount = document.getElementById('kiosk-google-signin-btn');
+    if (mount && !mount.querySelector('#kiosk-device-token-input')) {
+      mount.innerHTML = '';
+
+      var input = document.createElement('input');
+      input.type = 'password';
+      input.className = 'admin-input';
+      input.id = 'kiosk-device-token-input';
+      input.placeholder = 'Device token';
+      input.setAttribute('autocomplete', 'off');
+
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn';
-      btn.textContent = 'Sign in with Google';
-      btn.addEventListener('click', function () {
-        tokenClient.requestAccessToken();
+      btn.textContent = 'Save';
+
+      var save = function () {
+        var value = input.value.trim();
+        if (!value) return;
+        saveKioskDeviceToken(value);
+        input.value = '';
+        showLockScreen({});
+      };
+      btn.addEventListener('click', save);
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') save();
       });
-      signinBtn.appendChild(btn);
+
+      mount.appendChild(input);
+      mount.appendChild(btn);
     }
-  }
-
-  function onTokenResponse(response) {
-    if (_silentRefreshTimer) { clearTimeout(_silentRefreshTimer); _silentRefreshTimer = null; }
-    _handlingUnauthorized = false;
-    if (response.error) {
-      console.warn('[Kiosk] Token response error:', response.error);
-      clearSession();
-      showSignInButton();
-      return;
-    }
-    accessToken = response.access_token;
-    var expiresIn = response.expires_in || 3600;
-
-    // fetchGoogleUserInfo defined in js/lib/auth.js
-    fetchGoogleUserInfo(accessToken)
-      .then(function (info) {
-        userEmail = info.email;
-        saveSession(accessToken, expiresIn, userEmail, info.name || '');
-        kioskCheckAuthorization();
-      })
-      .catch(function () {
-        showKioskDenied();
-      });
-  }
-
-  function kioskCheckAuthorization() {
-    console.log('[Kiosk] Checking authorization for:', userEmail);
-
-    adminApiGet('check_auth')
-      .then(function (result) {
-        console.log('[Kiosk] Server auth result:', result);
-        if (result.authorized) {
-          showKioskApp();
-        } else {
-          showKioskDenied();
-        }
-      })
-      .catch(function (err) {
-        console.error('[Kiosk] Server auth failed:', err.message);
-        showKioskDenied();
-      });
   }
 
   function showKioskApp() {
@@ -211,19 +146,10 @@
     document.getElementById('kiosk-app').style.display = '';
 
     var emailEl = document.getElementById('kiosk-user-email');
-    if (emailEl) emailEl.textContent = userEmail;
-
-    var signoutBtn = document.getElementById('kiosk-signout');
-    if (signoutBtn) signoutBtn.style.display = '';
+    if (emailEl) emailEl.textContent = '';
 
     var deniedMsg = document.getElementById('kiosk-denied-msg');
     if (deniedMsg) deniedMsg.style.display = 'none';
-
-    // Set up periodic token refresh (~50 min)
-    if (_tokenRefreshTimer) clearInterval(_tokenRefreshTimer);
-    _tokenRefreshTimer = setInterval(function () {
-      tokenClient.requestAccessToken({ prompt: '' });
-    }, 50 * 60 * 1000);
 
     startInactivityTimer();
     kioskCheckTerminal();
@@ -232,53 +158,6 @@
     // available before any catalog item is added (kioskRenderCart is otherwise
     // only triggered on cart change).
     kioskRenderCart();
-  }
-
-  function showKioskDenied() {
-    var deniedMsg = document.getElementById('kiosk-denied-msg');
-    if (deniedMsg) deniedMsg.style.display = '';
-  }
-
-  function kioskSignOut() {
-    stopInactivityTimer();
-    if (_tokenRefreshTimer) { clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null; }
-    if (accessToken) {
-      google.accounts.oauth2.revoke(accessToken);
-    }
-    accessToken = null;
-    userEmail = null;
-    clearSession();
-
-    document.getElementById('kiosk-signin').style.display = '';
-    document.getElementById('kiosk-app').style.display = 'none';
-
-    var signoutBtn = document.getElementById('kiosk-signout');
-    if (signoutBtn) signoutBtn.style.display = 'none';
-
-    var emailEl = document.getElementById('kiosk-user-email');
-    if (emailEl) emailEl.textContent = '';
-
-    showSignInButton();
-  }
-
-  function handleUnauthorized() {
-    if (_handlingUnauthorized) return;
-    _handlingUnauthorized = true;
-    if (_tokenRefreshTimer) { clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null; }
-    clearSession();
-    accessToken = null;
-    userEmail = null;
-
-    document.getElementById('kiosk-signin').style.display = '';
-    document.getElementById('kiosk-app').style.display = 'none';
-
-    var signoutBtn = document.getElementById('kiosk-signout');
-    if (signoutBtn) signoutBtn.style.display = 'none';
-
-    var emailEl = document.getElementById('kiosk-user-email');
-    if (emailEl) emailEl.textContent = '';
-
-    showSignInButton();
   }
 
   // ===== PIN Lock Screen =====
@@ -292,7 +171,7 @@
     var errorEl = document.getElementById('kiosk-lock-error');
     var dots = document.querySelectorAll('.kiosk-lock-dot');
 
-    if (userEl) userEl.textContent = session.name || session.email || '';
+    if (userEl) userEl.textContent = (session && (session.name || session.email)) || '';
     if (errorEl) errorEl.textContent = '';
     dots.forEach(function (d) { d.classList.remove('kiosk-lock-dot--filled'); });
 
@@ -309,11 +188,16 @@
     var backspace = document.getElementById('kiosk-lock-backspace');
     if (backspace) backspace.onclick = pinBackspace;
 
+    // Repurposed (D-46-03): was "Sign out" for the removed Google session;
+    // now reopens the device-token prompt for recovery/replacement.
     var signoutBtn = document.getElementById('kiosk-lock-signout');
-    if (signoutBtn) signoutBtn.onclick = function () {
-      lockScreen.style.display = 'none';
-      kioskSignOut();
-    };
+    if (signoutBtn) {
+      signoutBtn.textContent = 'Device Settings';
+      signoutBtn.onclick = function () {
+        lockScreen.style.display = 'none';
+        showDeviceTokenPrompt();
+      };
+    }
   }
 
   function hideLockScreen() {
@@ -354,14 +238,14 @@
     var mwUrl = kioskMwUrl();
     fetch(mwUrl + '/api/kiosk/verify-pin', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+      headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() },
       body: JSON.stringify({ pin: _pinBuffer })
     })
     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
     .then(function (result) {
       if (result.data.ok) {
         hideLockScreen();
-        unlockAfterPin();
+        showKioskApp();
       } else {
         _pinAttempts++;
         var dotsContainer = document.getElementById('kiosk-lock-dots');
@@ -399,26 +283,6 @@
     });
   }
 
-  function unlockAfterPin() {
-    var saved = loadSession();
-    if (!saved) {
-      // Token expired — try silent refresh
-      var savedRaw = loadSessionRaw();
-      if (!savedRaw) { kioskSignOut(); return; }
-      try {
-        tokenClient.requestAccessToken({ prompt: '', login_hint: savedRaw.email });
-      } catch (e) {
-        kioskSignOut();
-      }
-      return;
-    }
-
-    // Token still valid — go straight to app
-    accessToken = saved.token;
-    userEmail = saved.email;
-    showKioskApp();
-  }
-
   // ===== Inactivity Timer =====
 
   function startInactivityTimer() {
@@ -449,79 +313,9 @@
 
   function lockKiosk() {
     stopInactivityTimer();
-    var saved = loadSessionRaw();
-    if (saved && isSessionValidForPin(saved)) {
-      showLockScreen(saved);
-    } else {
-      kioskSignOut();
-    }
-  }
-
-  // ===== Admin API Helpers =====
-
-  function fetchWithRetry(url, options, retries) {
-    if (retries === undefined) retries = 1;
-    return fetch(url, options).catch(function (err) {
-      if (retries > 0) {
-        return new Promise(function (resolve) {
-          setTimeout(resolve, 1000);
-        }).then(function () {
-          return fetchWithRetry(url, options, retries - 1);
-        });
-      }
-      throw err;
-    });
-  }
-
-  function isUnauthorizedError(data) {
-    var msg = ((data.message || data.error || '') + '').toLowerCase();
-    return msg.indexOf('unauthorized') !== -1 || msg.indexOf('not authorized') !== -1;
-  }
-
-  function adminApiGet(action, params) {
-    if (!SHEETS_CONFIG.ADMIN_API_URL) {
-      return Promise.reject(new Error('Admin API not configured'));
-    }
-    var url = SHEETS_CONFIG.ADMIN_API_URL + '?action=' + encodeURIComponent(action) + '&token=' + encodeURIComponent(accessToken);
-    if (params) {
-      Object.keys(params).forEach(function (key) {
-        url += '&' + encodeURIComponent(key) + '=' + encodeURIComponent(params[key]);
-      });
-    }
-    return fetchWithRetry(url, {
-      method: 'GET'
-    }).then(function (res) {
-      return res.json();
-    }).then(function (data) {
-      if (!data.ok) {
-        if (isUnauthorizedError(data)) handleUnauthorized();
-        throw new Error(data.message || data.error || 'API error');
-      }
-      return data;
-    });
-  }
-
-  function adminApiPost(action, payload) {
-    if (!SHEETS_CONFIG.ADMIN_API_URL) {
-      return Promise.reject(new Error('Admin API not configured'));
-    }
-    payload.action = action;
-    payload.token = accessToken;
-    return fetchWithRetry(SHEETS_CONFIG.ADMIN_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain' // Use text/plain to avoid CORS preflight
-      },
-      body: JSON.stringify(payload)
-    }).then(function (res) {
-      return res.json();
-    }).then(function (data) {
-      if (!data.ok) {
-        if (isUnauthorizedError(data)) handleUnauthorized();
-        throw new Error(data.message || data.error || 'API error');
-      }
-      return data;
-    });
+    // Shared iPad, no per-staff Google session to expire — the device token
+    // persists indefinitely (D-46-04); re-locking always returns to the PIN pad.
+    showLockScreen({});
   }
 
   // ===== Shared Utilities =====
@@ -685,7 +479,6 @@
   var _inactivityTimer = null;
   var _isLocked = false;
   var INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
-  var SESSION_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
   // ===== Kiosk Sale State =====
 
@@ -822,9 +615,7 @@
     if (!_kioskSelectedRecipe) return;
     var mw = kioskMwUrl();
     var headers = {};
-    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-      headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
-    }
+    headers['x-device-token'] = kioskDeviceToken();
     var recipeId = _kioskSelectedRecipe.recipe_id;
     var targetVol = _kioskTargetVolumeL || (Number(_kioskSelectedRecipe.batch_size_l) || null);
     // GAP-8 (36-18): Use real sale type when chosen; 'in-store' preview default otherwise.
@@ -929,9 +720,7 @@
     var mw = kioskMwUrl();
     if (!mw) return;
     var headers = {};
-    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-      headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
-    }
+    headers['x-device-token'] = kioskDeviceToken();
     fetch(mw + '/api/ingredients?include_internal=1', { headers: headers })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
       .then(function (data) {
@@ -1433,7 +1222,7 @@
     if (grid) grid.innerHTML = '<p class="kiosk-loading">Loading recipes...</p>';
     var mw = kioskMwUrl();
     fetch(mw + '/api/recipes?status=active', {
-      headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+      headers: { 'x-device-token': kioskDeviceToken() }
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -1531,7 +1320,7 @@
       (function (recipe) {
         var mwWarm = kioskMwUrl();
         fetch(mwWarm + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), {
-          headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+          headers: { 'x-device-token': kioskDeviceToken() }
         })
           .then(function (resp) { return resp.json(); })
           .then(function (data) {
@@ -1606,7 +1395,7 @@
       } else {
         var mwForSummary = kioskMwUrl();
         fetch(mwForSummary + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), {
-          headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+          headers: { 'x-device-token': kioskDeviceToken() }
         })
           .then(function (r) { return r.json(); })
           .then(function (data) {
@@ -1890,7 +1679,7 @@
     if (bannerEl) bannerEl.innerHTML = '<p class="kiosk-loading">Checking stock...</p>';
     var mw = kioskMwUrl();
     fetch(mw + '/api/recipes/' + encodeURIComponent(recipeId) + '/availability', {
-      headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+      headers: { 'x-device-token': kioskDeviceToken() }
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -2059,7 +1848,7 @@
     {
       var mw = kioskMwUrl();
       fetch(mw + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), {
-        headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+        headers: { 'x-device-token': kioskDeviceToken() }
       })
         .then(function (r) { return r.json(); })
         .then(processRecipeData)
@@ -2860,7 +2649,7 @@
           certEl.readOnly = true;
           var mwUrl = kioskMwUrl();
           fetch(mwUrl + '/api/kiosk/gift-card/next-number', {
-            headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+            headers: { 'x-device-token': kioskDeviceToken() }
           }).then(function (r) { return r.json(); }).then(function (d) {
             if (certEl) { certEl.value = d.suggested || ''; certEl.readOnly = false; }
           }).catch(function () {
@@ -2936,7 +2725,7 @@
       if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       var mwUrl = kioskMwUrl();
       fetch(mwUrl + '/api/kiosk/gift-card/lookup?cert_number=' + encodeURIComponent(cert), {
-        headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+        headers: { 'x-device-token': kioskDeviceToken() }
       })
       .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
       .then(function (result) {
@@ -3278,7 +3067,7 @@
         var mwUrl = kioskMwUrl();
         fetch(mwUrl + '/api/contacts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+          headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() },
           body: JSON.stringify({ name: name, email: email, phone: phone })
         })
         .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -3308,7 +3097,7 @@
         if (!q) { if (resultsEl) resultsEl.innerHTML = ''; return; }
         searchTimer = setTimeout(function () {
           var mwUrl = kioskMwUrl();
-          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q), { headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' } })
+          fetch(mwUrl + '/api/contacts/search?q=' + encodeURIComponent(q), { headers: { 'x-device-token': kioskDeviceToken() } })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             if (!resultsEl) return;
@@ -3423,7 +3212,7 @@
 
       fetch(mwUrl + '/api/kiosk/salesorder-update', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+        headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() },
         body: JSON.stringify({ salesorder_id: _kioskImportedSoId, items: items })
       })
       .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -3548,13 +3337,13 @@
           alert('STAFF ALERT: Gift cert activation FAILED — payment was taken. Record the certificate number(s) and activate manually before the customer leaves.' + (certNums ? '\nCertificate(s): ' + certNums : ''));
         }
         _kioskSaleData = result.data;
-        var kitItems = items.filter(function (it) { return kioskGetItemType(it) === 'kit'; });
-        if (kitItems.length > 0) {
-          kioskShowBatchReview(result.data, totals, items, kitItems);
-        } else {
-          kioskShowReceipt(result.data, totals, items, []);
-          kioskClearCart();
-        }
+        // D-46-01: batch creation for kit items is handled server-side
+        // (brewpad-integration.js createBatchesFromSale, fire-and-forget on
+        // every kiosk sale confirm) — the client no longer POSTs its own
+        // create_batch call (that path required a per-staff Google
+        // accessToken which no longer exists on the standalone kiosk).
+        kioskShowReceipt(result.data, totals, items, []);
+        kioskClearCart();
       } else {
         if (result.data && result.data.payment_voided) {
           kioskShowError('Payment Voided',
@@ -3592,7 +3381,7 @@
         };
         fetch(mwUrl + '/api/kiosk/recipe-sale/confirm', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+          headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() },
           body: JSON.stringify(confirmBody)
         })
         .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -3625,7 +3414,7 @@
       // Phase 44 (D-05): include gift_card in confirm body so server records split payment
       fetch(mwUrl + '/api/kiosk/sale/confirm', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+        headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() },
         body: JSON.stringify({
           items: items,
           reference_number: refNumber,
@@ -3676,7 +3465,7 @@
           if (msgEl) msgEl.textContent = 'Cancelling...';
           fetch(mwUrl + '/api/pos/cancel', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+            headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() }
           }).catch(function () {}).then(function () {
             kioskShowView('browse');
           });
@@ -3690,7 +3479,7 @@
       // Step 1: Push payment to terminal via backend (gift_card_only path skips terminal)
       fetch(saleUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+        headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() },
         body: JSON.stringify(saleBody)
       })
       .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -3719,7 +3508,7 @@
             return;
           }
           fetch(mwUrl + '/api/kiosk/sale/status?ref=' + encodeURIComponent(pollRef), {
-            headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+            headers: { 'x-device-token': kioskDeviceToken() }
           })
           .then(function (r) { return r.json(); })
           .then(function (statusData) {
@@ -3870,7 +3659,7 @@
             if (gcAmountWrap) gcAmountWrap.style.display = 'none';
             gcLookupBtn.disabled = true; gcLookupBtn.textContent = 'Looking up...';
             fetch(mwUrl + '/api/kiosk/gift-card/lookup?cert_number=' + encodeURIComponent(cert2), {
-              headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+              headers: { 'x-device-token': kioskDeviceToken() }
             })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
             .then(function (res2) {
@@ -3956,81 +3745,18 @@
 
   // ===== Batch Review (NEW) =====
 
-  function kioskShowBatchReview(saleData, totals, items, kitItems) {
-    kioskShowView('review-batches');
-    var today = new Date().toISOString().slice(0, 10);
-    var formList = document.getElementById('kiosk-batch-form-list');
-    if (!formList) return;
-
-    // Expand kits by quantity into individual batch entries
-    var batchEntries = [];
-    kitItems.forEach(function (it) {
-      for (var q = 0; q < (it.quantity || 1); q++) {
-        batchEntries.push({ name: it.name, sku: it.item_id || '' });
-      }
-    });
-
-    var html = '';
-    batchEntries.forEach(function (be, i) {
-      html += '<div class="kiosk-batch-form-card" data-idx="' + i + '">';
-      html += '<div class="kiosk-batch-form-title">' + escapeHTML(be.name) + '</div>';
-      if (_kioskCustomer) {
-        html += '<div class="kiosk-batch-form-customer">Customer: ' + escapeHTML(_kioskCustomer.name) + '</div>';
-      }
-      html += '<div class="form-group"><label>Start Date</label>' +
-        '<input type="date" class="admin-input kiosk-batch-start-date" value="' + today + '"></div>';
-      html += '<div class="form-group"><label>Vessel <span class="optional">(optional)</span></label>' +
-        '<input type="text" class="admin-input kiosk-batch-vessel" placeholder="Leave blank to assign later"></div>';
-      html += '<div class="form-group"><label>Schedule Template <span class="optional">(optional)</span></label>' +
-        '<input type="text" class="admin-input kiosk-batch-schedule" placeholder="e.g. FS-0001"></div>';
-      html += '</div>';
-    });
-    formList.innerHTML = html;
-
-    var saveBtn = document.getElementById('kiosk-save-batches-btn');
-    var skipBtn = document.getElementById('kiosk-skip-batches-btn');
-
-    if (saveBtn) {
-      saveBtn.disabled = false;
-      saveBtn.onclick = function () {
-        saveBtn.disabled = true;
-        var cards = formList.querySelectorAll('.kiosk-batch-form-card');
-        var promises = batchEntries.map(function (be, i) {
-          var card = cards[i];
-          var startDate = card.querySelector('.kiosk-batch-start-date').value || today;
-          var vessel = card.querySelector('.kiosk-batch-vessel').value.trim();
-          var schedule = card.querySelector('.kiosk-batch-schedule').value.trim();
-          return adminApiPost('create_batch', {
-            product_name: be.name,
-            product_sku: be.sku,
-            customer_name: _kioskCustomer ? _kioskCustomer.name : 'Walk-In',
-            customer_email: _kioskCustomer ? (_kioskCustomer.email || '') : '',
-            start_date: startDate,
-            vessel_id: vessel,
-            schedule_id: schedule
-          }).catch(function (err) {
-            console.error('[kiosk] batch creation failed:', err);
-            return null;
-          });
-        });
-        Promise.all(promises).then(function (results) {
-          var batches = results.filter(function (b) { return b && b.batch_id; });
-          if (batches.length < promises.length) {
-            showToast('Some batches could not be saved', 'warn');
-          }
-          kioskShowReceipt(saleData, totals, items, batches);
-          kioskClearCart();
-        });
-      };
-    }
-
-    if (skipBtn) {
-      skipBtn.onclick = function () {
-        kioskShowReceipt(saleData, totals, items, []);
-        kioskClearCart();
-      };
-    }
-  }
+  // NOTE (D-46-01): the staff-facing "review batches" screen (enter start
+  // date/vessel/schedule at kiosk checkout, POST directly to Apps Script's
+  // Google-authenticated create_batch action) was removed here. It relied on
+  // the per-staff Google accessToken this phase removes from the standalone
+  // kiosk, and investigation found the middleware already auto-creates one
+  // batch per kit line item on every sale confirm (server_token-gated,
+  // brewpad-integration.js createBatchesFromSale) — this client-side call had
+  // no zoho_so_number in its payload, so Apps Script's duplicate_so_number
+  // guard never caught it, meaning a *second*, unlinked batch was created
+  // whenever staff filled in the form. Kit sales now go straight to the
+  // receipt like any other sale; staff enter start date/vessel/schedule via
+  // BrewPad's existing pending-batch guided-activation flow (Phase 27).
 
   // ===== Receipt =====
 
@@ -4506,7 +4232,7 @@
 
       return fetch(mwUrl + '/api/kiosk/salesorder-create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+        headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() },
         body: JSON.stringify(payload)
       })
       .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -4592,7 +4318,7 @@
 
     fetch(mwUrl + '/api/kiosk/salesorder-pay', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+      headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() },
       body: JSON.stringify({ salesorder_id: soId })
     })
     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -4735,7 +4461,7 @@
         if (!q) { if (custDropdown) custDropdown.style.display = 'none'; return; }
         custTimer = setTimeout(function () {
           var mwUrl = kioskMwUrl();
-          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q), { headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' } })
+          fetch(mwUrl + '/api/contacts/search?q=' + encodeURIComponent(q), { headers: { 'x-device-token': kioskDeviceToken() } })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             if (!custDropdown) return;
@@ -4973,7 +4699,7 @@
 
     fetch(mwUrl + '/api/kiosk/salesorder-create', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+      headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() },
       body: JSON.stringify(payload)
     })
     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -5325,7 +5051,7 @@
           : mwUrl + '/api/kiosk/discounts';
         fetch(url, {
           method: editingId ? 'PUT' : 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+          headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() },
           body: JSON.stringify(payload)
         })
         .then(function (r) { return r.json(); })
@@ -5396,7 +5122,7 @@
             var nowActive = btn.getAttribute('data-active') === 'true';
             fetch(mwUrl + '/api/kiosk/discounts/' + encodeURIComponent(id), {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+              headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() },
               body: JSON.stringify({ active: !nowActive })
             })
             .then(function (r) { return r.json(); })
@@ -5430,7 +5156,7 @@
             if (!confirm('Delete this preset?')) return;
             fetch(mwUrl + '/api/kiosk/discounts/' + encodeURIComponent(id), {
               method: 'DELETE',
-              headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+              headers: { 'Content-Type': 'application/json', 'x-device-token': kioskDeviceToken() }
             })
             .then(function () {
               showToast('Preset deleted', 'success');
@@ -5550,7 +5276,7 @@
         if (!q) { if (custResults) custResults.innerHTML = ''; return; }
         custSearchTimer = setTimeout(function () {
           var mwUrl = kioskMwUrl();
-          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q), { headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' } })
+          fetch(mwUrl + '/api/contacts/search?q=' + encodeURIComponent(q), { headers: { 'x-device-token': kioskDeviceToken() } })
             .then(function (r) { return r.json(); })
             .then(function (data) {
               if (!custResults) return;
@@ -5766,8 +5492,7 @@
   // ===== Bootstrap =====
 
   document.addEventListener('DOMContentLoaded', function () {
-    // waitForGoogleIdentity defined in js/lib/auth.js
-    waitForGoogleIdentity(initGoogleAuth);
+    initKioskAuth();
     initKioskSaleTab();
   });
 
@@ -5795,8 +5520,15 @@
       // Phase 36 state accessors
       _kioskGetModifiedIngredients: function () { return _kioskModifiedIngredients; },
       _kioskSetModifiedIngredients: function (v) { _kioskModifiedIngredients = v; },
-      renderKioskModifyRows: renderKioskModifyRows
+      renderKioskModifyRows: renderKioskModifyRows,
       // Note: kioskSaveAsNewRecipe is intentionally NOT exported — not exposed on kiosk (UI-SPEC §2)
+      // Phase 46 (D-46-01): device-token gate exports
+      kioskDeviceToken: kioskDeviceToken,
+      saveKioskDeviceToken: saveKioskDeviceToken,
+      initKioskAuth: initKioskAuth,
+      showDeviceTokenPrompt: showDeviceTokenPrompt,
+      showKioskApp: showKioskApp,
+      kioskShowCustomerStep: kioskShowCustomerStep
     });
   }
 
