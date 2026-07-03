@@ -208,7 +208,7 @@ describe('kioskFetchRecipeQuote — HTTP request', function () {
     expect(url).toContain('target_volume_l=138');
   });
 
-  test('T1b: includes x-api-key header from SHEETS_CONFIG.MW_API_KEY', function () {
+  test('T1b: sends credentials:"include" (session cookie) instead of x-api-key (46-06)', function () {
     admin._kioskSetSelectedRecipe(BASE_RECIPE);
     admin._kioskSetSaleType('in-store');
     admin._kioskSetTargetVolumeL(23);
@@ -222,8 +222,8 @@ describe('kioskFetchRecipeQuote — HTTP request', function () {
 
     var opts = global.fetch.mock.calls[0][1];
     expect(opts).toBeDefined();
-    expect(opts.headers).toBeDefined();
-    expect(opts.headers['x-api-key']).toBe('test-api-key');
+    expect(opts.credentials).toBe('include');
+    expect(opts.headers).toBeUndefined();
   });
 
   test('T1c: does not call fetch when no recipe is selected', function () {

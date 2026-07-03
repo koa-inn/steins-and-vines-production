@@ -3221,12 +3221,10 @@
     return (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL) ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
   }
 
-  function getMwHeaders(mutating) {
-    var h = { 'Content-Type': 'application/json' };
-    if (mutating && typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-      h['X-API-Key'] = SHEETS_CONFIG.MW_API_KEY;
-    }
-    return h;
+  function getMwHeaders() {
+    // Session cookie (sv_session) carries authorization now; callers add
+    // credentials:'include' to the fetch options object.
+    return { 'Content-Type': 'application/json' };
   }
 
   function loadOpenPOs() {
@@ -3344,7 +3342,8 @@
       var z = zohoKitMap[sku];
       fetch(mwUrl + '/api/purchase-orders/' + po.purchaseorder_id + '/add-item', {
         method: 'POST',
-        headers: getMwHeaders(true),
+        credentials: 'include',
+        headers: getMwHeaders(),
         body: JSON.stringify({ item_id: itemId, quantity: qty, rate: z ? (z.rate || 0) : 0 })
       })
         .then(function (r) { return r.json(); })
@@ -3419,7 +3418,8 @@
       };
       return fetch(mwUrl + '/api/purchase-orders', {
         method: 'POST',
-        headers: getMwHeaders(true),
+        credentials: 'include',
+        headers: getMwHeaders(),
         body: JSON.stringify(payload)
       })
         .then(function (r) { return r.json(); })
@@ -4800,7 +4800,8 @@
 
     fetch(mwUrl + '/api/admin/upload-catalog', {
       method: 'POST',
-      headers: getMwHeaders(true),
+      credentials: 'include',
+      headers: getMwHeaders(),
       body: JSON.stringify(_catalogCsvParsed)
     })
     .then(function (r) { return r.json(); })
@@ -5367,7 +5368,7 @@
       return;
     }
 
-    fetch(mwUrl + '/api/orders/recent?limit=20', { headers: getMwHeaders(true) })
+    fetch(mwUrl + '/api/orders/recent?limit=20', { credentials: 'include', headers: getMwHeaders() })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         renderKioskOrders(data.orders || []);
@@ -5446,7 +5447,7 @@
     container.innerHTML = '<p class="admin-order-info">Loading...</p>';
 
     var url = MW_URL + '/api/admin/consignment-report?month=' + encodeURIComponent(month);
-    fetch(url, { headers: { 'x-api-key': MW_API_KEY } })
+    fetch(url, { credentials: 'include' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data.error) {
@@ -6071,7 +6072,7 @@
 
         var mwUrl = getMwUrl();
         fetch(mwUrl + '/api/batch/customer-by-number?number=' + encodeURIComponent(soNumber), {
-          headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+          credentials: 'include'
         })
           .then(function (r) {
             if (r.status === 404) return r.json().then(function (d) { throw { status: 404, error: d.error }; });
@@ -7068,7 +7069,7 @@
           return;
         }
 
-        fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(term), { headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' } })
+        fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(term), { credentials: 'include' })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             var contacts = data.contacts || [];
@@ -7217,7 +7218,8 @@
       if (!customerId && mwUrl && customerEmail) {
         fetch(mwUrl + '/api/contacts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: customerName, email: customerEmail })
         })
         .then(function (r) { return r.json(); })
@@ -8466,12 +8468,10 @@
       ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
   }
 
-  function getRecipesMwHeaders(mutating) {
-    var h = { 'Content-Type': 'application/json' };
-    if (mutating && typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-      h['X-API-Key'] = SHEETS_CONFIG.MW_API_KEY;
-    }
-    return h;
+  function getRecipesMwHeaders() {
+    // Session cookie (sv_session) carries authorization now; callers add
+    // credentials:'include' to the fetch options object.
+    return { 'Content-Type': 'application/json' };
   }
 
   // Hook into tab navigation: lazy-load recipes on first visit
@@ -8505,12 +8505,9 @@
     if (!mwUrl) return Promise.resolve();
     // include_internal=1 returns items flagged "Internal Only" in Zoho (hidden
     // from the public catalog but valid recipe ingredients). The middleware gates
-    // this on a valid API key, so send it explicitly for this GET.
-    var headers = getRecipesMwHeaders(false);
-    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-      headers['X-API-Key'] = SHEETS_CONFIG.MW_API_KEY;
-    }
-    return fetch(mwUrl + '/api/ingredients?include_internal=1', { headers: headers })
+    // this on the admin session cookie, so send credentials for this GET.
+    var headers = getRecipesMwHeaders();
+    return fetch(mwUrl + '/api/ingredients?include_internal=1', { credentials: 'include', headers: headers })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
       .then(function (data) {
         _recipesState.catalog = data.items || data.ingredients || data || [];
@@ -8540,7 +8537,8 @@
     if (tbody) tbody.innerHTML = '<tr><td colspan="6">Loading recipes...</td></tr>';
 
     fetch(mwUrl + '/api/recipes?status=' + encodeURIComponent(status), {
-      headers: getRecipesMwHeaders(false)
+      credentials: 'include',
+      headers: getRecipesMwHeaders()
     })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
       .then(function (data) {
@@ -8679,9 +8677,9 @@
 
     // Fetch detail + availability in parallel (D-06)
     Promise.all([
-      fetch(mwUrl + '/api/recipes/' + encodeURIComponent(recipeId), { headers: getRecipesMwHeaders(false) })
+      fetch(mwUrl + '/api/recipes/' + encodeURIComponent(recipeId), { credentials: 'include', headers: getRecipesMwHeaders() })
         .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); }),
-      fetch(mwUrl + '/api/recipes/' + encodeURIComponent(recipeId) + '/availability', { headers: getRecipesMwHeaders(false) })
+      fetch(mwUrl + '/api/recipes/' + encodeURIComponent(recipeId) + '/availability', { credentials: 'include', headers: getRecipesMwHeaders() })
         .then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; })
     ]).then(function (results) {
@@ -9051,7 +9049,8 @@
 
     fetch(url, {
       method: method,
-      headers: getRecipesMwHeaders(true),
+      credentials: 'include',
+      headers: getRecipesMwHeaders(),
       body: JSON.stringify(formData)
     })
       .then(function (r) { return r.json(); })
@@ -9088,7 +9087,8 @@
 
     fetch(mwUrl + '/api/recipes/' + encodeURIComponent(recipeId), {
       method: 'DELETE',
-      headers: getRecipesMwHeaders(true)
+      credentials: 'include',
+      headers: getRecipesMwHeaders()
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -9145,7 +9145,7 @@
         var origText = refreshZohoBtn.textContent;
         refreshZohoBtn.disabled = true;
         refreshZohoBtn.textContent = 'Refreshing…';
-        fetch(mwUrl + '/api/admin/cache-clear', { method: 'POST', headers: getRecipesMwHeaders(true) })
+        fetch(mwUrl + '/api/admin/cache-clear', { method: 'POST', credentials: 'include', headers: getRecipesMwHeaders() })
           .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
           .then(function () {
             // The catalog is rebuilding server-side (ingredients refresh is async
@@ -10150,7 +10150,7 @@
           certEl.readOnly = true;
           var mwUrl = kioskMwUrl();
           fetch(mwUrl + '/api/kiosk/gift-card/next-number', {
-            headers: { 'x-api-key': (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) ? SHEETS_CONFIG.MW_API_KEY : '' }
+            credentials: 'include'
           }).then(function (r) { return r.json(); }).then(function (d) {
             if (certEl) { certEl.value = d.suggested || ''; certEl.readOnly = false; }
           }).catch(function () {
@@ -10223,7 +10223,7 @@
       if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
       var mwUrl = kioskMwUrl();
       fetch(mwUrl + '/api/kiosk/gift-card/lookup?cert_number=' + encodeURIComponent(cert), {
-        headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+        credentials: 'include'
       })
       .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
       .then(function (result) {
@@ -10309,7 +10309,6 @@
     var certEl = document.getElementById('kgcm-cert');
     if (certEl) certEl.focus();
     var mwUrl = kioskMwUrl();
-    var apiKey = (SHEETS_CONFIG && SHEETS_CONFIG.MW_API_KEY) ? SHEETS_CONFIG.MW_API_KEY : '';
 
     var lookupView = document.getElementById('kgcm-lookup-view');
     var voidView = document.getElementById('kgcm-void-view');
@@ -10348,7 +10347,7 @@
         lookupBtn.disabled = true;
         lookupBtn.textContent = 'Looking up…';
         fetch(mwUrl + '/api/kiosk/gift-card/lookup?cert_number=' + encodeURIComponent(cert), {
-          headers: { 'x-api-key': apiKey }
+          credentials: 'include'
         })
         .then(function (r) {
           return r.json().then(function (d) { return { status: r.status, data: d }; });
@@ -10422,9 +10421,9 @@
         if (voidErrEl) { voidErrEl.style.display = 'none'; voidErrEl.textContent = ''; }
         fetch(mwUrl + '/api/kiosk/gift-card/void', {
           method: 'POST',
+          credentials: 'include',
           headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({ cert_number: _mgmtCert, reason: reason })
         })
@@ -10825,7 +10824,8 @@
         var mwUrl = kioskMwUrl();
         fetch(mwUrl + '/api/contacts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: name, email: email, phone: phone })
         })
         .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -10855,7 +10855,7 @@
         if (!q) { if (resultsEl) resultsEl.innerHTML = ''; return; }
         searchTimer = setTimeout(function () {
           var mwUrl = kioskMwUrl();
-          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q), { headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' } })
+          fetch(mwUrl + '/api/contacts?search=' + encodeURIComponent(q), { credentials: 'include' })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             if (!resultsEl) return;
@@ -11056,7 +11056,8 @@
       // POST to sale endpoint
       fetch(saleUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(saleBody)
       })
       .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -11104,6 +11105,7 @@
           };
           fetch(confirmUrl, {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(confirmBodyR)
           })
@@ -11140,7 +11142,8 @@
           if (msgEl) msgEl.textContent = 'Completing gift card payment...';
           fetch(mwUrl + '/api/kiosk/sale/confirm', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' },
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               items: items,
               reference_number: refNumber,
@@ -11355,7 +11358,7 @@
             if (gcAmountWrap) gcAmountWrap.style.display = 'none';
             gcLookupBtn.disabled = true; gcLookupBtn.textContent = 'Looking up...';
             fetch(mwUrl + '/api/kiosk/gift-card/lookup?cert_number=' + encodeURIComponent(cert2), {
-              headers: { 'x-api-key': SHEETS_CONFIG.MW_API_KEY || '' }
+              credentials: 'include'
             })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
             .then(function (res2) {
@@ -11735,11 +11738,7 @@
     var grid = document.getElementById('kiosk-recipe-grid');
     if (grid) grid.innerHTML = '<p class="kiosk-loading">Loading recipes...</p>';
     var mw = kioskMwUrl();
-    var headers = {};
-    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-      headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
-    }
-    fetch(mw + '/api/recipes?status=active', { headers: headers })
+    fetch(mw + '/api/recipes?status=active', { credentials: 'include' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         _kioskRecipes = data.recipes || [];
@@ -11832,11 +11831,7 @@
       }
       (function (recipe) {
         var mwWarm = kioskMwUrl();
-        var hdrsWarm = {};
-        if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-          hdrsWarm['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
-        }
-        fetch(mwWarm + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), { headers: hdrsWarm })
+        fetch(mwWarm + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), { credentials: 'include' })
           .then(function (resp) { return resp.json(); })
           .then(function (data) {
             recipe._fetchedDetail = data;
@@ -11882,10 +11877,6 @@
     // The charged amount is still the server total at the REAL sale type (chosen later).
     if (!_kioskSelectedRecipe) return;
     var mw = kioskMwUrl();
-    var headers = {};
-    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-      headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
-    }
     var recipeId = _kioskSelectedRecipe.recipe_id;
     var targetVol = _kioskTargetVolumeL || (Number(_kioskSelectedRecipe.batch_size_l) || null);
     // GAP-8 (36-18): Use real sale type when chosen; 'in-store' preview default otherwise.
@@ -11904,7 +11895,7 @@
       previewEl.style.display = '';
       previewEl.innerHTML = '<span style="color:var(--ink-tertiary);">Calculating…</span>';
     }
-    return fetch(url, { headers: headers })
+    return fetch(url, { credentials: 'include' })
       .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
       .then(function (result) {
         if (result.status === 200 && result.data && result.data.ok &&
@@ -12164,11 +12155,7 @@
         }
       } else {
         var mwForSummary = kioskMwUrl();
-        var hdrs = {};
-        if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-          hdrs['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
-        }
-        fetch(mwForSummary + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), { headers: hdrs })
+        fetch(mwForSummary + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), { credentials: 'include' })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             var ingEl2 = document.getElementById('kiosk-recipe-ingredients');
@@ -12395,12 +12382,10 @@
 
     var mw = kioskMwUrl();
     var headers = { 'Content-Type': 'application/json' };
-    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-      headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
-    }
 
     fetch(mw + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), {
       method: 'PUT',
+      credentials: 'include',
       headers: headers,
       body: JSON.stringify(fields)
     })
@@ -12429,9 +12414,6 @@
   function kioskSaveAsNewRecipe(name, modifiedBaseIngredients) {
     var mw = kioskMwUrl();
     var headers = { 'Content-Type': 'application/json' };
-    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-      headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
-    }
     // D-12: save pre-scale base ingredients; D-13: dynamic; D-14: draft
     var payload = {
       name: name,
@@ -12443,6 +12425,7 @@
     };
     return fetch(mw + '/api/recipes', {
       method: 'POST',
+      credentials: 'include',
       headers: headers,
       body: JSON.stringify(payload)
     })
@@ -12561,11 +12544,7 @@
     var bannerEl = document.getElementById('kiosk-avail-banner');
     if (bannerEl) bannerEl.innerHTML = '<p class="kiosk-loading">Checking stock...</p>';
     var mw = kioskMwUrl();
-    var headers = {};
-    if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-      headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
-    }
-    fetch(mw + '/api/recipes/' + encodeURIComponent(recipeId) + '/availability', { headers: headers })
+    fetch(mw + '/api/recipes/' + encodeURIComponent(recipeId) + '/availability', { credentials: 'include' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         _kioskRecipeAvailability = data;
@@ -12735,11 +12714,7 @@
     // Always fetch fresh to ensure tax rates and prices are current
     {
       var mw = kioskMwUrl();
-      var headers = {};
-      if (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) {
-        headers['x-api-key'] = SHEETS_CONFIG.MW_API_KEY;
-      }
-      fetch(mw + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), { headers: headers })
+      fetch(mw + '/api/recipes/' + encodeURIComponent(recipe.recipe_id), { credentials: 'include' })
         .then(function (r) { return r.json(); })
         .then(processRecipeData)
         .catch(function (err) {
