@@ -186,6 +186,78 @@ A healthy post-deploy `/health` response (HTTP 200, `redis:true`) confirms the a
 
 ---
 
+## Phase 46 Auth Cutover (CRITICAL — leaked-key neutralization)
+
+Closes the audit CRITICAL: the storefront previously shipped `MW_API_KEY` in client JS, so the
+shared `API_SECRET_KEY` is compromised (its value also persists in git history). Phase 46 replaces
+the single shared key with three credential tiers — legacy `x-api-key`, kiosk `x-device-token`,
+and Google `sv_session` cookie — all accepted **simultaneously** (dual-accept) until the owner
+**rotates `API_SECRET_KEY`**, which is the step that actually kills the leaked key.
+
+**Status:** ⏳ PENDING owner execution (code + build complete and tested as of Phase 46 waves 1–5).
+
+### Secret locations (values are NOT stored in this file)
+
+| Variable | Where the value lives | Notes |
+|----------|----------------------|-------|
+| `STAFF_EMAILS` | Owner-defined → Railway `svmiddleware-production` → Variables | Comma-separated allowlisted Google emails (D-46-07) |
+| `KIOSK_DEVICE_TOKEN` | Password manager + Railway → Variables | Generated during cutover prep (`openssl rand -base64 48`) |
+| `SHEETS_CLIENT_ID` | Railway → Variables | Public Google OAuth client id `8605205683-tck2da2tpp03vcbr5etauu9q7kompg3q.apps.googleusercontent.com` (not a secret) |
+| `API_SECRET_KEY` | Railway → Variables | UNCHANGED until Task 3, then rotated (`openssl rand -base64 32`) |
+| `API_SECRET_KEY_PREVIOUS` | Railway → Variables (optional) | Set to the retired key value after rotation for canary logging (Finding #6) |
+
+### Task 1 — Set new env vars + deploy backend (dual-accept live)
+
+- [ ] Set `STAFF_EMAILS`, `KIOSK_DEVICE_TOKEN`, `SHEETS_CLIENT_ID` in Railway `svmiddleware-production` → Variables (leave `API_SECRET_KEY` unchanged)
+- [ ] Deploy the middleware (push `zoho-middleware/**` changes to the production repo → Railway auto-redeploys)
+- [ ] Push frontend to staging: `git push origin main` (staging calls prod middleware)
+- [ ] Store `KIOSK_DEVICE_TOKEN` in the password manager
+
+**Verify:**
+```bash
+# /health authenticated + redis up
+curl -s https://<prod-middleware-host>/health   # expect 200, authenticated:true, redis:true
+# dual-accept: OLD key still works on a mutating route
+curl -i -X POST https://<prod-middleware-host>/api/<mutating-route> \
+  -H "x-api-key: <OLD_API_SECRET_KEY>" -H "Content-Type: application/json" -d '{...}'   # expect NOT 401/403
+```
+Resume signal: **"deployed"**
+
+### Task 2 — Provision iPad + verify all three surfaces
+
+- [ ] KIOSK (store iPad, staging `kiosk.html`): open the device-token settings prompt, paste `KIOSK_DEVICE_TOKEN`, save → PIN pad appears (no Google sign-in). Ring up a real test sale end-to-end (terminal charge → Zoho invoice). Confirm customer search works (via `/api/contacts/search`).
+- [ ] ADMIN (`admin.html`): sign in with an **allowlisted** Google account → dashboard loads; perform an admin-grade action (report / gift-card void view). Sign in with a **non-allowlisted** account → denied.
+- [ ] BREWPAD (`brewpad.html`): Google sign-in → authenticated; load a batch list (session-auth) → works.
+- [ ] NEGATIVE: from the kiosk device token, confirm an admin-grade route (gift-card void) is **refused 403** (device scope holds).
+
+Resume signal: **"verified"**
+
+### Task 3 — Rotate API_SECRET_KEY + confirm old key dead
+
+- [ ] Within ~2–3 business days of go-live (D-46-12): promote frontend to production: `git push production main --force`
+- [ ] Rotate `API_SECRET_KEY` in Railway to the new value (ends dual-accept)
+- [ ] (optional) Set `API_SECRET_KEY_PREVIOUS` to the retired value for canary logging
+
+**Verify:**
+```bash
+# old key now dead
+curl -i -X POST https://<prod-middleware-host>/api/<mutating-route> \
+  -H "x-api-key: <OLD_API_SECRET_KEY>" -d '{...}'   # expect 403
+# no lockout: re-check kiosk sale, an admin action, a BrewPad load
+# public prod checkout (ferment reservation → /api/bookings + /api/contacts + /api/payment/initialize) completes with NO 403
+```
+Resume signal: **"rotated"**
+
+### Outcome record (fill in on completion)
+
+- Go-live (Task 1) date: _pending_
+- Surfaces verified (Task 2) date: _pending_
+- `API_SECRET_KEY` rotation date: _pending_
+- Retired-key disposition: _pending_
+- **D-46-13 (interim IP allowlist): SKIPPED** — Phase 45 containment already shipped, cutover is days away, and the store IP may be dynamic. Recorded here per decision; no interim allowlist added.
+
+---
+
 ## CNAME Reference
 
 The CNAME file is **tracked in git** (not untracked — see Research note below).
