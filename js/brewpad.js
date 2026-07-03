@@ -1040,7 +1040,17 @@ function bpScaleIngredients(list, factor) {
   }
 
   function checkAuthorization(onError) {
-    adminApiGet('check_auth')
+    // D-46-09: verify identity via the server session exchange (sv_session cookie)
+    // instead of the Apps-Script check_auth round trip. The onError callback contract
+    // is preserved — it is the silent-refresh fallback used by initGoogleAuth's
+    // stored-token fast path (see doSilentRefreshOnLoad above).
+    fetch(mwUrl() + '/auth/google', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: accessToken })
+    })
+      .then(function (res) { return res.json(); })
       .then(function (result) {
         if (result.authorized) { showApp(); } else { showDenied(); }
       })
@@ -8697,7 +8707,9 @@ function bpScaleIngredients(list, factor) {
     module.exports = Object.assign(module.exports || {}, {
       _initGoogleAuth: initGoogleAuth,
       _getAccessToken: function () { return accessToken; },
+      _setAccessTokenForTest: function (v) { accessToken = v; },
       _getUserEmail:   function () { return userEmail; },
+      _checkAuthorization: checkAuthorization,
       // Allow tests to reset IIFE-scoped auth state between runs.
       _resetAuthStateForTest: function () {
         accessToken = null;
