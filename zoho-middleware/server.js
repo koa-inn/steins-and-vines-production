@@ -319,9 +319,14 @@ app.use('/api', async function (req, res, next) {
 
   // D-46-02 / T-46-03: device tokens are scoped to the explicit kiosk-route
   // allowlist — never admin-grade (a stolen iPad must not reach PII/void/
-  // consignment routes).
-  if (tier === 'device' && !authTiers.isKioskRoute(req.path)) {
-    log.warn('[auth-guard] Forbidden: device token on non-kiosk route path=' + req.path);
+  // consignment routes). This guard is mounted via app.use('/api', ...), so
+  // req.path here is mount-relative (e.g. '/kiosk/sale', NOT
+  // '/api/kiosk/sale') — KIOSK_ROUTES is defined in absolute form (matching
+  // how 46-04 calls isKioskRoute() from inside route files, where req.path
+  // IS the full absolute path), so it must be reconstructed here.
+  var fullPath = '/api' + req.path;
+  if (tier === 'device' && !authTiers.isKioskRoute(fullPath)) {
+    log.warn('[auth-guard] Forbidden: device token on non-kiosk route path=' + fullPath);
     return res.status(403).json({ error: 'Forbidden' });
   }
 
