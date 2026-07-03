@@ -594,7 +594,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
       }
 
       // Use the Zoho response total (tax-inclusive) for payment recording.
-      if (transactionId && zohoEntity && zohoEntity.total != null) {
+      if (transactionId && zohoEntity && zohoEntity.total != null) { // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
         var zohoTotal = parseFloat(zohoEntity.total);
         if (!isNaN(zohoTotal)) {
           depositAmount = Math.round(zohoTotal * 100) / 100;
