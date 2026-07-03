@@ -894,7 +894,7 @@ Plans:
 **Requirements**: Audit remediation (CRITICAL tier — auth-model exposure). Source: `AUDIT-2026-06-29.md`. Carried over from Phase 45 decisions D-01..D-05.
 **Depends on:** Phase 45 (Wave 1 interim containment ships first). Coordinate with Phase 42 (Kiosk POS De-Fork) — admin/kiosk frontend auth gating overlaps the de-fork.
 **Status:** Planned — 10 plans across 6 waves (owner sign-off on the device-credential mechanism captured in 46-CONTEXT.md D-46-01).
-**Plans:** 5/10 plans executed
+**Plans:** 6/10 plans executed
 
 **In scope (D-01..D-05):**
 - **Kiosk device-provisioned credential** — single managed in-store iPad on store WiFi (D-01); device-bound session/credential entered/stored once on the iPad, no shared secret served to public pages. Exact mechanism (long-lived device token vs first-run provisioning vs client cert) is an **open design decision** for discuss/research — no existing analog.
@@ -916,7 +916,7 @@ Plans:
 - [x] 46-08-PLAN.md — Public bundles keyless + remove MW_API_KEY from sheets-config (12-checkout 6 sites, 16/17 GETs)
 
 **Wave 2**
-- [ ] 46-02-PLAN.md — lib/googleVerify.js (getTokenInfo + mandatory aud check) + POST /auth/google & /auth/logout
+- [x] 46-02-PLAN.md — lib/googleVerify.js (getTokenInfo + mandatory aud check) + POST /auth/google & /auth/logout
 
 **Wave 3**
 - [ ] 46-03-PLAN.md — server.js 3-tier guard (legacy/device/session) + lib/authTiers.js + cookie-parser + keyless exemptions + PII session acceptance
