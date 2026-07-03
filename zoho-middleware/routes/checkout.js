@@ -11,6 +11,7 @@ var moneyPath = require('../lib/money-path');
 var brewpadIntegration = require('../lib/brewpad-integration');
 var redact = require('../lib/redact');
 var closedOnRedisError = require('../lib/redis-guard').closedOnRedisError;
+var Sentry = require('@sentry/node');
 
 var readServicesSnapshot = helpers.readServicesSnapshot;
 var readIngredientsFileCache = helpers.readIngredientsFileCache;
@@ -43,10 +44,11 @@ var router = express.Router();
 // the same module-scope instances (and Jest mocks) as the rest of this route.
 // Docs: see lib/money-path.js#rejectWithVoid for the orphan-charge rationale
 // (Jun 2026 incident, Helcim 50641064 / INV-000118).
-function rejectWithVoid(res, body, status, errorMsg) {
+function rejectWithVoid(res, body, status, errorMsg, reqId) {
   return moneyPath.rejectWithVoid(res, body, status, errorMsg, {
     helcim: helcimLib,
-    mailer: mailer
+    mailer: mailer,
+    reqId: reqId
   });
 }
 
@@ -81,21 +83,21 @@ router.post('/api/checkout', async function (req, res) {
   // charged in the HelcimPay iframe by the time we get here, so a bare reject
   // would orphan the payment. See rejectWithVoid above.
   if (!body || !body.customer || !body.customer.email) {
-    return rejectWithVoid(res, body, 400, 'Missing customer email');
+    return rejectWithVoid(res, body, 400, 'Missing customer email', req.id);
   }
   if (typeof body.customer.email !== 'string' ||
       body.customer.email.length > 254 ||
       body.customer.email.indexOf('@') === -1) {
-    return rejectWithVoid(res, body, 400, 'Invalid customer email');
+    return rejectWithVoid(res, body, 400, 'Invalid customer email', req.id);
   }
   if (!Array.isArray(body.items) || body.items.length === 0) {
-    return rejectWithVoid(res, body, 400, 'Cart is empty');
+    return rejectWithVoid(res, body, 400, 'Cart is empty', req.id);
   }
   if (body.items.length > 50) {
-    return rejectWithVoid(res, body, 400, 'Too many items');
+    return rejectWithVoid(res, body, 400, 'Too many items', req.id);
   }
   if (body.transaction_id && (typeof body.transaction_id !== 'string' || body.transaction_id.length > 64)) {
-    return rejectWithVoid(res, body, 400, 'Invalid transaction_id');
+    return rejectWithVoid(res, body, 400, 'Invalid transaction_id', req.id);
   }
   // payment_token itself is malformed here — nothing valid to void, so reject directly.
   if (body.payment_token && (typeof body.payment_token !== 'string' || body.payment_token.length > 500)) {
@@ -107,10 +109,10 @@ router.post('/api/checkout', async function (req, res) {
   var emailVal = (body.customer && body.customer.email) ? String(body.customer.email) : '';
   var phoneVal = (body.customer && body.customer.phone) ? String(body.customer.phone) : '';
   var notesVal = body.notes ? String(body.notes) : '';
-  if (nameVal.length > 100) return rejectWithVoid(res, body, 400, 'Input too long: name');
-  if (emailVal.length > 200) return rejectWithVoid(res, body, 400, 'Input too long: email');
-  if (phoneVal.length > 30) return rejectWithVoid(res, body, 400, 'Input too long: phone');
-  if (notesVal.length > 1000) return rejectWithVoid(res, body, 400, 'Input too long: notes');
+  if (nameVal.length > 100) return rejectWithVoid(res, body, 400, 'Input too long: name', req.id);
+  if (emailVal.length > 200) return rejectWithVoid(res, body, 400, 'Input too long: email', req.id);
+  if (phoneVal.length > 30) return rejectWithVoid(res, body, 400, 'Input too long: phone', req.id);
+  if (notesVal.length > 1000) return rejectWithVoid(res, body, 400, 'Input too long: notes', req.id);
 
   // --- Validate each line item ---
   for (var v = 0; v < body.items.length; v++) {
@@ -122,15 +124,15 @@ router.post('/api/checkout', async function (req, res) {
     // in pos.js. A `< 1` floor here charged the card then 400'd the order for
     // any sub-1kg line, orphaning the payment (no Zoho record, no void).
     if (vQty <= 0 || vQty > 100) {
-      return rejectWithVoid(res, body, 400, 'Invalid quantity for item ' + v);
+      return rejectWithVoid(res, body, 400, 'Invalid quantity for item ' + v, req.id);
     }
     if (vRate < 0 || vRate > 10000) {
-      return rejectWithVoid(res, body, 400, 'Invalid rate for item ' + v);
+      return rejectWithVoid(res, body, 400, 'Invalid rate for item ' + v, req.id);
     }
     // M3: Validate item_id is a non-empty string or number
     if (!vi.item_id || (typeof vi.item_id !== 'string' && typeof vi.item_id !== 'number') ||
         String(vi.item_id).trim().length === 0) {
-      return rejectWithVoid(res, body, 400, 'Invalid or missing item_id for item ' + v);
+      return rejectWithVoid(res, body, 400, 'Invalid or missing item_id for item ' + v, req.id);
     }
   }
 
@@ -156,10 +158,10 @@ router.post('/api/checkout', async function (req, res) {
         return res.status(409).json({ error: 'Checkout already in progress' });
       }
       // status === 'acquired' — proceed to checkout
-      processCheckout(body, idempotencyKey, res, zohoOffline);
+      processCheckout(body, idempotencyKey, res, zohoOffline, req.id);
       return;
     }
-    processCheckout(body, null, res, zohoOffline);
+    processCheckout(body, null, res, zohoOffline, req.id);
   }
 
   try {
@@ -172,6 +174,10 @@ router.post('/api/checkout', async function (req, res) {
         log.error('[checkout] Voiding txn=' + body.payment_token + ' after reCAPTCHA rejection');
         helcimLib.voidTransaction(body.payment_token).catch(function (vErr) {
           log.error('[checkout] Void after reCAPTCHA rejection failed: ' + vErr.message);
+          Sentry.captureException(vErr, {
+            level: 'error',
+            tags: { reqId: req.id, txnId: body.payment_token, phase: 'void_recaptcha_reject' }
+          });
           mailer.sendVoidFailureAlert({
             txnId: body.payment_token,
             amount: 0,
@@ -190,13 +196,13 @@ router.post('/api/checkout', async function (req, res) {
       (isProdRcRoute ? ' — rejecting in prod: ' : ' — allowing through (dev): ') +
       (err && err.message));
     if (isProdRcRoute) {
-      return rejectWithVoid(res, body, 400, 'Request could not be verified. Please try again.');
+      return rejectWithVoid(res, body, 400, 'Request could not be verified. Please try again.', req.id);
     }
     return proceed();
   }
 });
 
-async function processCheckout(body, idempotencyKey, res, zohoOffline) {
+async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
   // Offline fallback: Zoho not authenticated — send email notification and return reference number
   if (zohoOffline) {
     var offlineRef = 'REF-' + Date.now().toString(36).toUpperCase();
@@ -613,6 +619,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         } catch (captureReadErr) {
           log.error('[checkout] MONEY-01/H2: captured-amount readback failed for txn=' +
             transactionId + ': ' + captureReadErr.message);
+          Sentry.captureException(captureReadErr, {
+            level: 'error',
+            tags: { reqId: reqId || null, txnId: transactionId, invoiceId: soId || null }
+          });
           captured = NaN;
         }
         if (!isFinite(captured) || captured <= 0 || captured < depositAmount - CAPTURED_AMOUNT_TOLERANCE) {
@@ -686,6 +696,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
           log.info('[checkout] Payment recorded for ' + (useInvoice ? 'INV' : 'SO') + '=' + soNumber);
         } catch (payErr) {
           log.error('[checkout] Payment recording failed (non-fatal): ' + payErr.message);
+          Sentry.captureException(payErr, {
+            level: 'error',
+            tags: { reqId: reqId || null, txnId: transactionId, invoiceId: soId || null }
+          });
         }
       }
 
@@ -779,6 +793,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
 
       // M9: Log the actual Zoho error server-side; send only generic message to client
       log.error('[checkout] Order creation failed: ' + internalMessage);
+      Sentry.captureException(err, {
+        level: 'error',
+        tags: { reqId: reqId || null, txnId: transactionId || null, invoiceId: (typeof soId !== 'undefined' && soId) || null }
+      });
       var clientMsg = err.isSnapshotFallback
         ? err.message
         : 'Order creation failed. Please try again.';
@@ -849,7 +867,8 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         // Pass checkout.js's own module-scope deps so Jest mocks remain in scope.
         moneyPath.voidWithTimeout(helcimLib, transactionId, depositAmount, {
           mailer: mailer,
-          eventLog: eventLog
+          eventLog: eventLog,
+          reqId: reqId
         }).then(function () {
           if (!responseSent) {
             // M10: Do not include voided_transaction_id in client response
@@ -899,6 +918,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       log.error('[checkout/pre-validate] Cache read failed: ' + cacheErr.message);
       helcimLib.voidTransaction(transactionId).catch(function (vErr) {
         log.error('[checkout/pre-validate] Void after cache failure failed: ' + vErr.message);
+        Sentry.captureException(vErr, {
+          level: 'error',
+          tags: { reqId: reqId || null, txnId: transactionId, phase: 'void_pre_validate_cache' }
+        });
       });
       return res.status(503).json({ error: 'Unable to verify item prices. Please try again.' });
     }
@@ -920,6 +943,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       log.warn('[checkout/pre-validate] Catalog unavailable — voiding txn=' + transactionId);
       helcimLib.voidTransaction(transactionId).catch(function (vErr) {
         log.error('[checkout/pre-validate] Void after catalog unavailable failed: ' + vErr.message);
+        Sentry.captureException(vErr, {
+          level: 'error',
+          tags: { reqId: reqId || null, txnId: transactionId, phase: 'void_pre_validate_catalog' }
+        });
       });
       return res.status(503).json({ error: 'Pricing temporarily unavailable. Please try again in a moment.' });
     }
@@ -938,6 +965,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         log.warn('[checkout/pre-validate] item_id not in catalog: ' + body.items[pi].item_id + ' — voiding txn=' + transactionId);
         helcimLib.voidTransaction(transactionId).catch(function (vErr) {
           log.error('[checkout/pre-validate] Void after unknown item failed: ' + vErr.message);
+          Sentry.captureException(vErr, {
+            level: 'error',
+            tags: { reqId: reqId || null, txnId: transactionId, phase: 'void_pre_validate_unknown_item' }
+          });
         });
         return res.status(400).json({ error: 'One or more items could not be priced. Please refresh and try again.' });
       }
@@ -946,6 +977,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         log.warn('[checkout/pre-validate] Non-numeric item_id (snapshot fallback?) — voiding txn=' + transactionId + ' item_id=' + body.items[pi].item_id);
         helcimLib.voidTransaction(transactionId).catch(function (vErr) {
           log.error('[checkout/pre-validate] Void after snapshot item_id failed: ' + vErr.message);
+          Sentry.captureException(vErr, {
+            level: 'error',
+            tags: { reqId: reqId || null, txnId: transactionId, phase: 'void_pre_validate_snapshot_item' }
+          });
         });
         return res.status(503).json({ error: 'Pricing temporarily unavailable. Please try again in a moment.' });
       }
@@ -969,6 +1004,10 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       log.error('[checkout/pre-validate] Maker\'s Fee item not found in services catalog — voiding txn=' + transactionId);
       helcimLib.voidTransaction(transactionId).catch(function (vErr) {
         log.error('[checkout/pre-validate] Void after missing Maker\'s Fee failed: ' + vErr.message);
+        Sentry.captureException(vErr, {
+          level: 'error',
+          tags: { reqId: reqId || null, txnId: transactionId, phase: 'void_pre_validate_makers_fee' }
+        });
       });
       return res.status(503).json({ error: 'Order configuration error. Please contact us.' });
     }

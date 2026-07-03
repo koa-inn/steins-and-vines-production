@@ -13,6 +13,7 @@ var brewpadIntegration = require('../lib/brewpad-integration');
 var discountMatch = require('../lib/discount-match');
 var buildContactPayload = require('../lib/checkout-helpers').buildContactPayload;
 var moneyPath = require('../lib/money-path');
+var Sentry = require('@sentry/node');
 
 var zohoGet = zohoApi.zohoGet;
 var zohoPost = zohoApi.zohoPost;
@@ -962,7 +963,7 @@ function runConfirm(body, confirmIdemKey, req, res) {
       if (gcConfirmLookup !== null) {
         if (gcConfirmLookup.state === 'invalid') {
           // Terminal already charged — void before rejecting
-          return moneyPath.voidWithTimeout(helcimLib, body.transaction_id, grandTotal)
+          return moneyPath.voidWithTimeout(helcimLib, body.transaction_id, grandTotal, { reqId: req.id })
             .then(function () {
               return res.status(400).json({ error: 'Gift card not found or has insufficient balance' });
             })
@@ -998,7 +999,7 @@ function runConfirm(body, confirmIdemKey, req, res) {
       log.error('[pos/kiosk/sale/confirm] CRITICAL: gift-card redemption blocked — ' +
         'ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID is unset; refusing to post to a guessed ledger. cert=' + gcCertNum);
       var gcAcctVoid = terminalApplied > 0
-        ? moneyPath.voidWithTimeout(helcimLib, body.transaction_id, grandTotal)
+        ? moneyPath.voidWithTimeout(helcimLib, body.transaction_id, grandTotal, { reqId: req.id })
         : Promise.resolve();
       return gcAcctVoid
         .then(function () {
@@ -1268,6 +1269,11 @@ function runConfirm(body, confirmIdemKey, req, res) {
       });
     }
     log.error('[pos/kiosk/sale/confirm] Error: ' + err.message);
+    var _txnIdForVoidCapture = (body && body.transaction_id) ? String(body.transaction_id) : null;
+    Sentry.captureException(err, {
+      level: 'error',
+      tags: { reqId: req.id, txnId: _txnIdForVoidCapture, salesOrderId: null }
+    });
     // Void-on-failure: if a terminal charge was made (body.transaction_id set) and the
     // Zoho invoice/payment step (or payment recording step — D-12 propagated) failed,
     // void the terminal charge to prevent an orphan charge.
@@ -1296,7 +1302,8 @@ function runConfirm(body, confirmIdemKey, req, res) {
 
       moneyPath.voidWithTimeout(_helcimForVoid, _txnIdForVoid, 0, {
         mailer: mailer,
-        eventLog: eventLog
+        eventLog: eventLog,
+        reqId: req.id
       }).then(function () {
         if (res.headersSent) return;
         var responseBody = {

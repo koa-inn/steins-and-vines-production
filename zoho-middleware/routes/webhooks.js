@@ -9,6 +9,7 @@ var zohoApi = require('../lib/zoho-api');
 var zohoPost = zohoApi.zohoPost;
 var C = require('../lib/constants');
 var reconcile = require('../lib/reconcile');
+var Sentry = require('@sentry/node');
 
 var router = express.Router();
 
@@ -239,6 +240,10 @@ function processCardTransactionResult(transactionId, status, invoiceNumber, card
   if (status === 'APPROVED' && invoiceNumber) {
     reconcile.reconcilePendingCharge(transactionId).catch(function (err) {
       log.warn('[webhook/helcim] Kiosk pending charge reconcile error: ' + err.message);
+      Sentry.captureException(err, {
+        level: 'error',
+        tags: { txnId: transactionId, invoiceNumber: invoiceNumber || null }
+      });
     });
   }
 }

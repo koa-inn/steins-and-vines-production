@@ -20,7 +20,7 @@ jest.mock('../lib/brewpad-integration', function () {
 });
 jest.mock('node-cron', function () { return { schedule: jest.fn() }; });
 jest.mock('@sentry/node', function () {
-  return { init: jest.fn(), setupExpressErrorHandler: jest.fn() };
+  return { init: jest.fn(), setupExpressErrorHandler: jest.fn(), captureException: jest.fn() };
 });
 jest.mock('../lib/mailerlite', function () {
   return { isConfigured: jest.fn().mockReturnValue(false), addSubscriber: jest.fn().mockResolvedValue() };

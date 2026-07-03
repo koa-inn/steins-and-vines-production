@@ -20,6 +20,7 @@
 
 var log = require('./logger');
 var eventLog = require('./eventLog');
+var Sentry = require('@sentry/node');
 
 // Lazy-require helpers — called once per function invocation if deps not provided
 function getHelcim() { return require('./helcim'); }
@@ -155,6 +156,10 @@ function rejectWithVoid(res, body, status, errorMsg, deps) {
     });
     helcim.voidTransaction(token).catch(function (vErr) {
       log.error('[money-path] Void after early reject failed for txn=' + token + ': ' + vErr.message);
+      Sentry.captureException(vErr, {
+        level: 'error',
+        tags: { reqId: (deps && deps.reqId) || null, txnId: token, phase: 'void_early_reject' }
+      });
       mailer.sendVoidFailureAlert({
         txnId: token,
         amount: 0,
@@ -211,10 +216,18 @@ function voidWithTimeout(helcimLib, token, amount, opts) {
         // Timeout — log for manual reconciliation; no mailer alert (checkout.js:846)
         log.error('[money-path] Helcim void timed out — manual void required for txn=' + token +
           ': ' + voidErr.message);
+        Sentry.captureException(voidErr, {
+          level: 'error',
+          tags: { reqId: deps.reqId || null, txnId: token, phase: 'void_failed' }
+        });
       } else {
         // Non-timeout failure — CRITICAL: alert staff immediately
         var voidFailTs = new Date().toISOString();
         log.error('[money-path] CRITICAL: Void failed for txn=' + token + ': ' + voidErr.message);
+        Sentry.captureException(voidErr, {
+          level: 'error',
+          tags: { reqId: deps.reqId || null, txnId: token, phase: 'void_failed' }
+        });
         eventLogDep.logEvent('checkout.void_failed', {
           txnId: token,
           voidError: voidErr.message
