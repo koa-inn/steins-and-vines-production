@@ -6,6 +6,7 @@
 exclude:
   - .planning/
   - PROJECT_ASSESSMENT.md
+  - "AUDIT-*.md"
   - "*.sh"
   - node_modules/
   - zoho-middleware/
