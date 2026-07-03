@@ -133,3 +133,7 @@ None - no external service configuration required.
 ---
 *Phase: 46-auth-re-architecture-critical-split-from-phase-45*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+
+All created/modified files verified present on disk (js/main.js, js/main.min.js, js/admin.min.js, js/kiosk.min.js, js/brewpad.min.js, js/modules/01-config.js, js/modules/16-catalog-subpage.min.js, js/modules/17-search-overlay.min.js, admin.html, kiosk.html, brewpad.html, index.html, and this SUMMARY.md). All commit hashes verified present in `git log --oneline --all` (427903e, c11c856, f47ac27). No missing items.
