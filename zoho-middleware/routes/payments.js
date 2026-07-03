@@ -47,7 +47,7 @@ router.post('/api/payment/void', function (req, res) {
   }
 
   helcimLib.voidTransaction(txnId)
-    .then(function (result) {
+    .then(function () {
       log.info('[payment/void] Voided txn=' + txnId);
       res.json({ ok: true, transaction_id: txnId, status: 'voided' });
     })

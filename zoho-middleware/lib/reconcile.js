@@ -155,7 +155,7 @@ function isAlreadyVoidedError(err) {
   // Check HTTP response body (Helcim 422 body)
   if (err.response && err.response.data) {
     var body = '';
-    try { body = JSON.stringify(err.response.data).toLowerCase(); } catch (e) { body = ''; }
+    try { body = JSON.stringify(err.response.data).toLowerCase(); } catch { body = ''; }
     if (body.indexOf('already') !== -1 || body.indexOf('reversal') !== -1 ||
         body.indexOf('reversed') !== -1 || body.indexOf('voided') !== -1) {
       return true;
@@ -375,7 +375,7 @@ function sweepPendingCharges(deps) {
                 parsed = typeof rawResult === 'string'
                   ? JSON.parse(rawResult)
                   : rawResult;  // defensive: already an object (shouldn't happen)
-              } catch (e) {
+              } catch {
                 parsed = null;
               }
             }

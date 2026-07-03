@@ -839,7 +839,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
                 log.error('[checkout] Dual-cart alert email failed: ' + mailErr.message);
               });
             }
-          } catch (cacheCheckErr) {
+          } catch {
             // Redis unavailable — can't confirm, safer to skip void than destroy the other order
             skipVoid = true;
             log.error('[checkout] Dual-cart void guard: Redis unavailable, skipping void for safety. txn=' + transactionId);

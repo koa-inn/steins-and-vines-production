@@ -50,7 +50,7 @@ function decrypt(ciphertext) {
     var decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     decipher.setAuthTag(tag);
     return decipher.update(encrypted) + decipher.final('utf8');
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -136,7 +136,7 @@ function postToken(params) {
           } else {
             resolve(data);
           }
-        } catch (e) {
+        } catch {
           reject(new Error('Failed to parse Zoho token response'));
         }
       });
@@ -175,7 +175,7 @@ function exchangeCode(code) {
     try {
       cache.set(C.CACHE_KEYS.ACCESS_TOKEN, data.access_token, ttl);
       cache.set(C.CACHE_KEYS.TOKEN_EXPIRY, String(Date.now() + ttl * 1000), ttl);
-    } catch (e) {
+    } catch {
       // Redis unavailable — in-memory only
     }
 
@@ -220,7 +220,7 @@ function refreshAccessToken() {
       try {
         cache.set(C.CACHE_KEYS.ACCESS_TOKEN, data.access_token, ttl);
         cache.set(C.CACHE_KEYS.TOKEN_EXPIRY, String(Date.now() + ttl * 1000), ttl);
-      } catch (e) {
+      } catch {
         // Redis unavailable — in-memory only is fine
       }
 
@@ -280,7 +280,7 @@ function getAccessToken() {
         }
         return null;
       });
-    } catch (e) {
+    } catch {
       return null;
     }
   }).then(function (cachedToken) {

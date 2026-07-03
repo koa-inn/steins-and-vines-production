@@ -72,7 +72,7 @@ router.get('/api/admin/consignment-report', function (req, res) {
           var details;
           try {
             details = JSON.parse(detailsField);
-          } catch (e) {
+          } catch {
             return;
           }
 

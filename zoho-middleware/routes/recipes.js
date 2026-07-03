@@ -11,9 +11,6 @@ var authTiers = require('../lib/authTiers');
 
 var router = express.Router();
 
-// Same file the catalog route writes on every ingredients refresh — used as a
-// fallback so dynamic recipe pricing still computes when Redis is cold.
-var INGREDIENTS_FILE_CACHE = path.join(__dirname, '..', 'ingredients-cache.json');
 // Full ingredient list INCLUDING Internal Only items — same file catalog.js writes on refresh.
 // Used as cold-cache fallback for enrichment functions that must see internal-only items.
 var INGREDIENTS_ALL_FILE_CACHE = path.join(__dirname, '..', 'ingredients-all-cache.json');
@@ -23,23 +20,6 @@ var RECIPES_CACHE_TTL = 600; // 10 minutes (D-09)
 // ---------------------------------------------------------------------------
 // Helpers — Apps Script communication
 // ---------------------------------------------------------------------------
-
-function callAppsScriptGet(action, params) {
-  var url = process.env.APPS_SCRIPT_URL;
-  var token = process.env.APPS_SCRIPT_SERVER_TOKEN;
-  if (!url || !token) {
-    log.warn('[recipes] APPS_SCRIPT_URL or APPS_SCRIPT_SERVER_TOKEN not configured');
-    return Promise.reject(new Error('Apps Script not configured'));
-  }
-  var qs = Object.keys(params || {}).map(function (k) {
-    return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
-  }).join('&');
-  var fullUrl = url + '?action=' + encodeURIComponent(action) + '&server_token=' + encodeURIComponent(token);
-  if (qs) fullUrl += '&' + qs;
-  return axios.get(fullUrl, { timeout: 15000, maxRedirects: 5 }).then(function (resp) {
-    return resp.data;
-  });
-}
 
 function callAppsScriptPost(action, payload) {
   var url = process.env.APPS_SCRIPT_URL;
@@ -101,7 +81,7 @@ function enrichIngredientGroups(ingredients) {
       // (e.g. Gypsum Bulk) still receive grouping fields when Redis is unavailable.
       try {
         catalog = JSON.parse(fs.readFileSync(INGREDIENTS_ALL_FILE_CACHE, 'utf8'));
-      } catch (e) {
+      } catch {
         catalog = null;
       }
       if (!catalog || !Array.isArray(catalog)) return; // D-07: degrade gracefully
@@ -177,7 +157,7 @@ function enrichListPrices(recipes) {
       // no price for dynamic recipes containing internal items.
       try {
         catalog = JSON.parse(fs.readFileSync(INGREDIENTS_ALL_FILE_CACHE, 'utf8'));
-      } catch (e) {
+      } catch {
         catalog = null;
       }
       if (!catalog || !Array.isArray(catalog)) return;

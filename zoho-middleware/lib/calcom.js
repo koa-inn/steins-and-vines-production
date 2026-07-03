@@ -147,7 +147,7 @@ function verifyWebhook(rawBody, signature) {
   var expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
   try {
     return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature || ''));
-  } catch (e) {
+  } catch {
     // Length mismatch between expected and provided signature — not valid
     return false;
   }

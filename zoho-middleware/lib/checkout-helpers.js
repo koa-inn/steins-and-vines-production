@@ -23,7 +23,7 @@ function readServicesSnapshot() {
         });
       });
     }
-  } catch (e) {}
+  } catch {}
   return [];
 }
 
@@ -242,7 +242,7 @@ function readIngredientsFileCache() {
       path.join(__dirname, '..', 'ingredients-cache.json'), 'utf8'
     ));
     if (Array.isArray(data) && data.length > 0) return data;
-  } catch (e) {}
+  } catch {}
   return [];
 }
 

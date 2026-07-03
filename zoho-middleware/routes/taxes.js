@@ -55,7 +55,7 @@ function validateCsvUrl(csvUrl) {
   var parsed;
   try {
     parsed = new URL(csvUrl);
-  } catch (e) {
+  } catch {
     return { ok: false, error: 'Invalid csv_url' };
   }
 

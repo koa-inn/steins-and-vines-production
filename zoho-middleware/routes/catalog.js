@@ -9,7 +9,6 @@ var C = require('../lib/constants');
 var ledger = require('../lib/inventory-ledger');
 var authTiers = require('../lib/authTiers');
 
-var inventoryGet = zohoApi.inventoryGet;
 var fetchAllItems = zohoApi.fetchAllItems;
 var fetchItemDetailsBulk = zohoApi.fetchItemDetailsBulk;
 
@@ -362,7 +361,7 @@ router.get('/api/products', function (req, res) {
       var fileData = null;
       try {
         fileData = JSON.parse(fs.readFileSync(PRODUCTS_FILE_CACHE, 'utf8'));
-      } catch (e) {}
+      } catch {}
 
       if (fileData && fileData.length > 0) {
         log.info('[api/products] File fallback hit (' + fileData.length + ' items)');
@@ -395,7 +394,7 @@ router.get('/api/products', function (req, res) {
             return Object.assign({}, p, { rate: rate, source: 'snapshot' });
           });
         }
-      } catch (e) {}
+      } catch {}
 
       if (snapshotData && snapshotData.length > 0) {
         log.info('[api/products] Snapshot fallback hit (' + snapshotData.length + ' items)');
@@ -509,7 +508,7 @@ router.get('/api/services', function (req, res) {
           cache.set(SERVICES_CACHE_KEY, svcItems, 300);
           return res.json({ source: 'snapshot', items: svcItems });
         }
-      } catch (snapErr) {}
+      } catch {}
       res.status(502).json({ error: 'Unable to fetch services' });
     });
 });
@@ -654,7 +653,7 @@ function serveFullIngredients(res) {
       }
 
       var fileData = null;
-      try { fileData = JSON.parse(fs.readFileSync(INGREDIENTS_ALL_FILE_CACHE, 'utf8')); } catch (e) {}
+      try { fileData = JSON.parse(fs.readFileSync(INGREDIENTS_ALL_FILE_CACHE, 'utf8')); } catch {}
       if (fileData && fileData.length > 0) {
         log.info('[api/ingredients] include_internal file fallback (' + fileData.length + ' items)');
         cache.set(INGREDIENTS_ALL_CACHE_KEY, fileData, INGREDIENTS_CACHE_TTL);
@@ -729,7 +728,7 @@ function servePublicIngredients(req, res) {
       var fileData = null;
       try {
         fileData = JSON.parse(fs.readFileSync(INGREDIENTS_FILE_CACHE, 'utf8'));
-      } catch (e) {}
+      } catch {}
 
       if (fileData && fileData.length > 0) {
         log.info('[api/ingredients] File fallback hit (' + fileData.length + ' items)');
@@ -757,7 +756,7 @@ function servePublicIngredients(req, res) {
             return Object.assign({}, p, { rate: rate, source: 'snapshot' });
           });
         }
-      } catch (e) {}
+      } catch {}
 
       if (snapIngData && snapIngData.length > 0) {
         log.info('[api/ingredients] Snapshot fallback hit (' + snapIngData.length + ' items)');
@@ -1141,7 +1140,7 @@ router.post('/api/admin/cache-clear', function (req, res) {
   ];
   // Also delete file caches so stale file data doesn't re-populate Redis
   [PRODUCTS_FILE_CACHE, INGREDIENTS_FILE_CACHE].forEach(function (f) {
-    try { fs.unlinkSync(f); } catch (e) {}
+    try { fs.unlinkSync(f); } catch {}
   });
   // Reset in-memory rate-limit cooldowns so the refresh isn't blocked
   _productsCooldownUntil = 0;

@@ -218,7 +218,7 @@ function terminalPurchase(amount, invoiceNumber, idempotencyKey) {
   ).then(function () {
     // Cache pending invoice by device code so terminalCancel webhook can correlate
     var pendingCache;
-    try { pendingCache = require('./cache'); } catch (e) { pendingCache = null; }
+    try { pendingCache = require('./cache'); } catch { pendingCache = null; }
     if (pendingCache && invoiceNumber) {
       pendingCache.set('helcim:terminal:pending:' + HELCIM_DEVICE_CODE, invoiceNumber, 300)
         .catch(function () {});
@@ -242,12 +242,12 @@ function pollTerminalResult(invoiceNumber) {
   }
   // Check webhook cache first — if webhook already delivered the result, skip the API call
   var cache;
-  try { cache = require('./cache'); } catch (e) { cache = null; }
+  try { cache = require('./cache'); } catch { cache = null; }
   var cacheKey = 'helcim:terminal:result:' + invoiceNumber;
   var cacheCheck = cache
     ? cache.get(cacheKey).then(function (cached) {
         if (cached) {
-          try { return JSON.parse(cached); } catch (e) { return null; }
+          try { return JSON.parse(cached); } catch { return null; }
         }
         return null;
       }).catch(function () { return null; })
@@ -336,7 +336,7 @@ function getPendingInvoiceForDevice() {
     return Promise.resolve(null);
   }
   var cache;
-  try { cache = require('./cache'); } catch (e) { cache = null; }
+  try { cache = require('./cache'); } catch { cache = null; }
   if (!cache) return Promise.resolve(null);
   return cache.get('helcim:terminal:pending:' + HELCIM_DEVICE_CODE).then(function (val) {
     // cache.get already JSON-parses; if it's a plain string the value is the invoice
@@ -392,7 +392,7 @@ function verifyWebhookSignature(webhookId, timestamp, rawBody, signature) {
         if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) {
           return true;
         }
-      } catch (e) {
+      } catch {
         // length mismatch — try next
       }
     }

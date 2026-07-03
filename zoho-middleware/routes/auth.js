@@ -1,6 +1,4 @@
 var express = require('express');
-var crypto = require('crypto');
-var axios = require('axios');
 var zohoAuth = require('../lib/zohoAuth');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
