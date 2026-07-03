@@ -17,7 +17,9 @@ describe('validateEnv', () => {
   // Env keys to restore on teardown
   var SAVED_ENV = {};
 
-  // The full SC#5 prod secrets (D-06 + MONITOR-02 / phase 33)
+  // The full SC#5 prod secrets (D-06 + MONITOR-02 / phase 33) plus the
+  // Phase 46 auth-re-architecture additions (STAFF_EMAILS, KIOSK_DEVICE_TOKEN,
+  // SHEETS_CLIENT_ID — 46-01 Task 1).
   var PROD_SECRETS = [
     'RECAPTCHA_SECRET_KEY',
     'HELCIM_WEBHOOK_SECRET',
@@ -25,6 +27,9 @@ describe('validateEnv', () => {
     'REDIS_ENCRYPTION_KEY',
     'SENTRY_DSN',
     'HELCIM_API_TOKEN',
+    'STAFF_EMAILS',
+    'KIOSK_DEVICE_TOKEN',
+    'SHEETS_CLIENT_ID',
   ];
 
   // Minimum required vars so the REQUIRED check passes
@@ -119,7 +124,8 @@ describe('validateEnv', () => {
   describe('D-06: REQUIRED_IN_PROD boot gate (NODE_ENV=production)', () => {
     beforeEach(() => {
       process.env.NODE_ENV = 'production';
-      // Set all prod secrets (full SC#5 set: MONITOR-02 / phase 33)
+      // Set all prod secrets (full SC#5 set: MONITOR-02 / phase 33, plus
+      // Phase 46's STAFF_EMAILS/KIOSK_DEVICE_TOKEN/SHEETS_CLIENT_ID)
       setEnv({
         RECAPTCHA_SECRET_KEY: 'rcaptcha-secret',
         HELCIM_WEBHOOK_SECRET: 'helcim-secret',
@@ -127,6 +133,9 @@ describe('validateEnv', () => {
         REDIS_ENCRYPTION_KEY: 'redis-key',
         SENTRY_DSN: 'https://sentry.io/test-dsn',
         HELCIM_API_TOKEN: 'helcim-api-token',
+        STAFF_EMAILS: 'staff@example.com',
+        KIOSK_DEVICE_TOKEN: 'test-device-token',
+        SHEETS_CLIENT_ID: 'test-client-id.apps.googleusercontent.com',
       });
     });
 
@@ -185,6 +194,28 @@ describe('validateEnv', () => {
       validateEnv();
       expect(process.exit).not.toHaveBeenCalled();
     });
+
+    // ── Phase 46 auth re-architecture additions (46-01 Task 1) ─────────────
+    test('calls process.exit(1) when STAFF_EMAILS is missing in production', () => {
+      delete process.env.STAFF_EMAILS;
+      validateEnv = require('../lib/validateEnv');
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    test('calls process.exit(1) when KIOSK_DEVICE_TOKEN is missing in production', () => {
+      delete process.env.KIOSK_DEVICE_TOKEN;
+      validateEnv = require('../lib/validateEnv');
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    test('calls process.exit(1) when SHEETS_CLIENT_ID is missing in production', () => {
+      delete process.env.SHEETS_CLIENT_ID;
+      validateEnv = require('../lib/validateEnv');
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
   });
 
   // ─── 2b. Non-prod gate — SENTRY_DSN + HELCIM_API_TOKEN not enforced outside prod ──
@@ -229,7 +260,8 @@ describe('validateEnv', () => {
     test('does NOT exit when RAILWAY_ENVIRONMENT is set and NODE_ENV=production (with all prod secrets)', () => {
       process.env.RAILWAY_ENVIRONMENT = 'production';
       process.env.NODE_ENV = 'production';
-      // Provide all prod secrets (full SC#5 set) so REQUIRED_IN_PROD check also passes
+      // Provide all prod secrets (full SC#5 set, plus Phase 46 additions) so
+      // REQUIRED_IN_PROD check also passes
       setEnv({
         RECAPTCHA_SECRET_KEY: 'rcaptcha-secret',
         HELCIM_WEBHOOK_SECRET: 'helcim-secret',
@@ -237,6 +269,9 @@ describe('validateEnv', () => {
         REDIS_ENCRYPTION_KEY: 'redis-key',
         SENTRY_DSN: 'https://sentry.io/test-dsn',
         HELCIM_API_TOKEN: 'helcim-api-token',
+        STAFF_EMAILS: 'staff@example.com',
+        KIOSK_DEVICE_TOKEN: 'test-device-token',
+        SHEETS_CLIENT_ID: 'test-client-id.apps.googleusercontent.com',
       });
       validateEnv = require('../lib/validateEnv');
       validateEnv();
