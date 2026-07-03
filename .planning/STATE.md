@@ -4,8 +4,8 @@ milestone: v4.4
 milestone_name: Audit Remediation
 status: executing
 stopped_at: "Phase 46 context gathered (auth re-arch: kiosk typed-in device token kiosk-scoped, admin/BrewPad Google OAuth + 7d server session, dual-accept cutover rotate in days, D-05 skipped)"
-last_updated: "2026-07-02T23:14:07.742Z"
-last_activity: 2026-07-02 -- Phase 46 planning complete
+last_updated: "2026-07-03T00:15:34.135Z"
+last_activity: 2026-07-03 -- Phase 46 execution started
 progress:
   total_phases: 32
   completed_phases: 7
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 45 — security-and-money-path-hardening-audit-critical-and-high
+**Current focus:** Phase 46 — auth-re-architecture-critical-split-from-phase-45
 
 ## Current Position
 
-Phase: 45 (security-and-money-path-hardening-audit-critical-and-high) — ✅ COMPLETE + VERIFIED
-Plan: 9 of 9. Verification: 45-VERIFICATION.md PASSED (11/11 must-haves; D-01..D-05 absent by approved Phase-46 split; suites mw 1122 / fe 931 / lint 0)
-Status: Ready to execute
-Last activity: 2026-07-02 -- Phase 46 planning complete
+Phase: 46 (auth-re-architecture-critical-split-from-phase-45) — EXECUTING
+Plan: 1 of 10
+Status: Executing Phase 46
+Last activity: 2026-07-03 -- Phase 46 execution started
 
 Verifier advisory (non-blocking, from 45-VERIFICATION.md): review warnings WR-01/04/05/06/08/09 + IN-01/02 remain open with no explicit deferral record — most map to roadmap out-of-scope items (phases 46+); record their disposition when planning Phase 46/47 to close the audit trail.
 

@@ -894,7 +894,7 @@ Plans:
 **Requirements**: Audit remediation (CRITICAL tier — auth-model exposure). Source: `AUDIT-2026-06-29.md`. Carried over from Phase 45 decisions D-01..D-05.
 **Depends on:** Phase 45 (Wave 1 interim containment ships first). Coordinate with Phase 42 (Kiosk POS De-Fork) — admin/kiosk frontend auth gating overlaps the de-fork.
 **Status:** Planned — 10 plans across 6 waves (owner sign-off on the device-credential mechanism captured in 46-CONTEXT.md D-46-01).
-**Plans:** 10 plans (6 waves)
+**Plans:** 5/10 plans executed
 
 **In scope (D-01..D-05):**
 - **Kiosk device-provisioned credential** — single managed in-store iPad on store WiFi (D-01); device-bound session/credential entered/stored once on the iPad, no shared secret served to public pages. Exact mechanism (long-lived device token vs first-run provisioning vs client cert) is an **open design decision** for discuss/research — no existing analog.
@@ -909,11 +909,11 @@ Plans:
 
 Plans:
 **Wave 1** (parallel — disjoint files)
-- [ ] 46-01-PLAN.md — Backend credential primitives: lib/deviceToken.js + lib/session.js + validateEnv vars + install google-auth-library/cookie-parser
-- [ ] 46-05-PLAN.md — Kiosk full migration: remove Google-auth gate, device-token settings prompt + PIN gate, swap headers to x-device-token, /api/contacts/search
-- [ ] 46-06-PLAN.md — Admin session migration: checkAuthorization → /auth/google, all calls credentials:'include' (incl. embedded kiosk)
-- [ ] 46-07-PLAN.md — BrewPad session migration: checkAuthorization(onError) → /auth/google, all calls credentials:'include'
-- [ ] 46-08-PLAN.md — Public bundles keyless + remove MW_API_KEY from sheets-config (12-checkout 6 sites, 16/17 GETs)
+- [x] 46-01-PLAN.md — Backend credential primitives: lib/deviceToken.js + lib/session.js + validateEnv vars + install google-auth-library/cookie-parser
+- [x] 46-05-PLAN.md — Kiosk full migration: remove Google-auth gate, device-token settings prompt + PIN gate, swap headers to x-device-token, /api/contacts/search
+- [x] 46-06-PLAN.md — Admin session migration: checkAuthorization → /auth/google, all calls credentials:'include' (incl. embedded kiosk)
+- [x] 46-07-PLAN.md — BrewPad session migration: checkAuthorization(onError) → /auth/google, all calls credentials:'include'
+- [x] 46-08-PLAN.md — Public bundles keyless + remove MW_API_KEY from sheets-config (12-checkout 6 sites, 16/17 GETs)
 
 **Wave 2**
 - [ ] 46-02-PLAN.md — lib/googleVerify.js (getTokenInfo + mandatory aud check) + POST /auth/google & /auth/logout
