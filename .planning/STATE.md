@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: milestone_complete
-stopped_at: Milestone complete (Phase 53 was final phase)
+status: in_progress
+stopped_at: Phase 53 (OBS-01) complete + verified + on staging. NOT milestone-complete — phase.complete mis-flagged this because 53 is the highest-numbered phase, but Phases 48/50/51 are unbuilt, 49 needs UAT, and 46/47 await owner prod cutover. Next buildable: Phase 48 (KIOSK-01).
 last_updated: 2026-07-03T17:27:29.076Z
 last_activity: 2026-07-03 -- Phase 53 execution started
 progress:
@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Milestone complete
+**Current focus:** v4.5 in progress — Phase 53 done; next buildable is Phase 48 (KIOSK-01 kiosk de-fork), which unblocks Phases 50 & 51
 
 ## Current Position
 
