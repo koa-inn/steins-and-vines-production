@@ -371,10 +371,14 @@ function makeRedisStore(windowMs, prefix) {
   // express-rate-limit passes (default: req.ip).
   var memStore = Object.create(null);
   // Loopback addresses only appear in direct-connection scenarios (health checks,
-  // local dev). In production, Railway's load balancer always injects a real
-  // client IP via X-Forwarded-For (trust proxy:1), so req.ip is never loopback.
-  // Skipping loopback keys avoids accumulating counts across test requests that
-  // share the same 127.x/::1 address without representing external clients.
+  // local dev, supertest). Skipping loopback keys there avoids accumulating
+  // counts across test requests that share the same 127.x/::1 address without
+  // representing external clients.
+  // M5 (RESIL-01): this skip is gated to non-production below — trust proxy:1
+  // trusts the X-Forwarded-For value Railway's load balancer forwards, but a
+  // client-supplied XFF is still attacker-controlled input; a spoofed
+  // `X-Forwarded-For: ::1` must not be able to defeat PIN/payment throttling
+  // in production, so the skip never applies once NODE_ENV === 'production'.
   var LOOPBACK_RE = /^(127\.|::1$|::ffff:127\.)/;
 
   // Shared in-process accounting (M4) — the single place that increments the
@@ -396,9 +400,13 @@ function makeRedisStore(windowMs, prefix) {
     increment: function (key) {
       if (!cache.isConnected()) {
         // Redis down — count in-process so security limits still apply (D-06/D-07).
-        // Loopback traffic (health checks, tests) never represents an external
-        // client in production, so it returns totalHits:1 (never accumulates).
-        if (!key || LOOPBACK_RE.test(key)) {
+        // D-07/M5: the loopback short-circuit is a TEST/DEV convenience only —
+        // in production a spoofed X-Forwarded-For loopback address must not be
+        // able to defeat PIN throttling, so it is gated to non-production.
+        // Outside production, loopback traffic (health checks, local dev,
+        // supertest) never represents an external client, so it returns
+        // totalHits:1 (never accumulates).
+        if ((!key || LOOPBACK_RE.test(key)) && process.env.NODE_ENV !== 'production') {
           return Promise.resolve({ totalHits: 1, resetTime: new Date(Date.now() + windowMs) });
         }
         return Promise.resolve(countInProcess(key));
