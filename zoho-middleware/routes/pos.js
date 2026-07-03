@@ -986,6 +986,29 @@ function runConfirm(body, confirmIdemKey, req, res) {
     // terminalApplied is what was (or will be) charged on the Helcim terminal.
     var terminalApplied = Math.round((grandTotal - gcApplied) * 100) / 100;
 
+    // M3 (52-03, RESIL-01): the gift-card clearing customerpayment REQUIRES a real
+    // ledger account — no hardcoded fallback (Pattern D). Fail CLOSED before the
+    // invoice/payment chain runs: if a redemption is in play (gcApplied > 0 &&
+    // gcCertNum) but ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID is unset, do NOT post to a
+    // guessed account. Mirrors the CR-02 gcConfirmLookup 'invalid' precedent just
+    // above — void any terminal charge already pushed, then reject, rather than
+    // creating an invoice that can never be correctly paid off.
+    var gcClearingAccount = process.env.ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID;
+    if (gcApplied > 0 && gcCertNum && !gcClearingAccount) {
+      log.error('[pos/kiosk/sale/confirm] CRITICAL: gift-card redemption blocked — ' +
+        'ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID is unset; refusing to post to a guessed ledger. cert=' + gcCertNum);
+      var gcAcctVoid = terminalApplied > 0
+        ? moneyPath.voidWithTimeout(helcimLib, body.transaction_id, grandTotal)
+        : Promise.resolve();
+      return gcAcctVoid
+        .then(function () {
+          return res.status(503).json({ error: 'Gift card redemption temporarily unavailable — contact staff' });
+        })
+        .catch(function () {
+          return res.status(503).json({ error: 'Gift card redemption temporarily unavailable — contact staff' });
+        });
+    }
+
     // F2 (45-09): a manual confirm ('manual-confirm' / no txn id) carries no proof a
     // card charge actually happened. Booking a creditcard payment on trust risks
     // phantom revenue (uncharged invoice booked as paid) AND records the literal
@@ -1041,7 +1064,9 @@ function runConfirm(body, confirmIdemKey, req, res) {
             if (gcApplied > 0 && gcCertNum) {
               return zohoPost('/customerpayments', {
                 payment_mode: 'others',
-                account_id: process.env.ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID || '109900000000873231',
+                // M3 (52-03): no hardcoded fallback — the pre-flight check above
+                // already rejected this request if gcClearingAccount were falsy.
+                account_id: gcClearingAccount,
                 amount: gcApplied,
                 date: today,
                 reference_number: gcCertNum,
