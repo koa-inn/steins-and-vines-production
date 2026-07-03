@@ -739,7 +739,7 @@ function loadFAQ() {
       });
     })
     .catch(function (err) {
-      console.error('[FAQ] Error loading:', err);
+      console.error('[FAQ] Error loading:', err); // eslint-disable-line no-console -- operational: reports FAQ load failure for troubleshooting
     });
 }
 

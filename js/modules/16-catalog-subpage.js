@@ -834,7 +834,7 @@ function renderCatalog() {
 if (typeof document !== 'undefined') { document.addEventListener('DOMContentLoaded', function () {
   // Guard: abort if SUBPAGE_CONFIG is not defined
   if (typeof SUBPAGE_CONFIG === 'undefined') {
-    console.error('[16-catalog-subpage] SUBPAGE_CONFIG not defined — module aborted.');
+    console.error('[16-catalog-subpage] SUBPAGE_CONFIG not defined — module aborted.'); // eslint-disable-line no-console -- operational: reports missing SUBPAGE_CONFIG guard failure for troubleshooting
     return;
   }
 

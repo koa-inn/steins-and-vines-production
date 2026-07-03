@@ -5,7 +5,7 @@
 
   // Build timestamp - updated on each deploy
   var BUILD_TIMESTAMP = '2026-07-03T01:14:59.056Z';
-  console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
+  console.log('[Admin] Build: ' + BUILD_TIMESTAMP); // eslint-disable-line no-console -- deploy build-verification log
 
   var accessToken = null;
   var userEmail = null;
@@ -412,11 +412,10 @@
     // Try restoring a saved session via silent token refresh
     var saved = loadSession();
     if (saved) {
-      console.log('[Admin] Attempting silent token refresh for', saved.email);
       // Fallback: if GIS never fires the callback, show sign-in button after 5s
       _silentRefreshTimer = setTimeout(function () {
         _silentRefreshTimer = null;
-        console.warn('[Admin] Silent refresh timed out — showing sign-in button');
+        console.warn('[Admin] Silent refresh timed out — showing sign-in button'); // eslint-disable-line no-console -- operational: warns staff when silent auth refresh times out
         clearSession();
         showSignInButton();
       }, 5000);
@@ -425,7 +424,7 @@
       } catch (err) {
         clearTimeout(_silentRefreshTimer);
         _silentRefreshTimer = null;
-        console.warn('[Admin] Silent refresh failed:', err.message);
+        console.warn('[Admin] Silent refresh failed:', err.message); // eslint-disable-line no-console -- operational: warns staff when silent auth refresh fails
         clearSession();
         showSignInButton();
       }
@@ -453,7 +452,7 @@
     if (_silentRefreshTimer) { clearTimeout(_silentRefreshTimer); _silentRefreshTimer = null; }
     _handlingUnauthorized = false; // Reset guard so handleUnauthorized works again if needed
     if (response.error) {
-      console.warn('[Admin] Token response error:', response.error);
+      console.warn('[Admin] Token response error:', response.error); // eslint-disable-line no-console -- operational: warns staff on auth token response error
       clearSession();
       showSignInButton();
       return;
@@ -474,8 +473,6 @@
   }
 
   function checkAuthorization() {
-    console.log('[Admin] Checking authorization for:', userEmail);
-
     // Identity is established by the server session exchange: POST the GIS
     // access token to /auth/google, which verifies it against the allowlist
     // (D-46-07) and sets the sv_session cookie. The client-side Config-sheet
@@ -489,7 +486,6 @@
     })
       .then(function (res) { return res.json(); })
       .then(function (result) {
-        console.log('[Admin] Server auth result:', result);
         if (result.authorized) {
           showDashboard();
         } else {
@@ -497,7 +493,7 @@
         }
       })
       .catch(function (err) {
-        console.error('[Admin] Server auth failed:', err && err.message);
+        console.error('[Admin] Server auth failed:', err && err.message); // eslint-disable-line no-console -- operational: reports server auth failure for troubleshooting
         showDenied();
       });
   }
@@ -786,7 +782,8 @@
   function loadAllData() {
     // Reset pagination when loading all data
     reservationsPagination.offset = 0;
-    reservationsPagination.currentFilter = document.getElementById('res-status-filter')?.value || 'pending';
+    var _resStatusFilterEl = document.getElementById('res-status-filter');
+    reservationsPagination.currentFilter = (_resStatusFilterEl ? _resStatusFilterEl.value : '') || 'pending';
 
     // Use Admin API if configured (server-side auth on every request)
     if (SHEETS_CONFIG.ADMIN_API_URL) {
@@ -811,7 +808,7 @@
         parseSheetData(ingredientsResult, 'ingredients');
         finishDataLoad();
       }).catch(function (err) {
-        console.error('Failed to load data via Admin API:', err);
+        console.error('Failed to load data via Admin API:', err); // eslint-disable-line no-console -- operational: reports dashboard data-load failure to console for troubleshooting
         // Show error to user
         showToast('Failed to load data: ' + err.message, 'error');
       });
@@ -836,7 +833,7 @@
       reservationsPagination.filtered = reservationsData.length;
       finishDataLoad();
     }).catch(function (err) {
-      console.error('Failed to load data:', err);
+      console.error('Failed to load data:', err); // eslint-disable-line no-console -- operational: reports dashboard data-load failure to console for troubleshooting
     });
   }
 
@@ -882,7 +879,7 @@
     loadReservationsPage().then(function () {
       renderReservationsTab();
     }).catch(function (err) {
-      console.error('Failed to load reservations page:', err);
+      console.error('Failed to load reservations page:', err); // eslint-disable-line no-console -- operational: reports reservations page load failure for troubleshooting
     });
   }
 
@@ -902,7 +899,7 @@
     loadReservationsPage().then(function () {
       renderReservationsTab();
     }).catch(function (err) {
-      console.error('Failed to load reservations page:', err);
+      console.error('Failed to load reservations page:', err); // eslint-disable-line no-console -- operational: reports reservations page load failure for troubleshooting
     });
   }
 
@@ -1330,7 +1327,7 @@
           loadReservationsPage().then(function () {
             renderReservationsTab();
           }).catch(function (err) {
-            console.error('Failed to load filtered reservations:', err);
+            console.error('Failed to load filtered reservations:', err); // eslint-disable-line no-console -- operational: reports filtered reservations load failure for troubleshooting
           });
         } else {
           // Client-side filtering
@@ -2095,7 +2092,7 @@
             }
           })
           .catch(function (err) {
-            console.error('Failed to auto-update reservation status:', err);
+            console.error('Failed to auto-update reservation status:', err); // eslint-disable-line no-console -- operational: reports auto-update reservation status failure for troubleshooting
           });
       } else {
         var statusCol = reservationsHeaders.indexOf('status');
@@ -2913,7 +2910,6 @@
       saveOrder(order);
       populateOrderBrandFilter();
       renderOrderTab();
-      console.log('[Admin] Loaded ' + order.length + ' item(s) from sheet on_order column');
     }
   }
 
@@ -2947,7 +2943,7 @@
       Promise.all(updates).then(function () {
         renderKitsTab();
       }).catch(function (err) {
-        console.error('Failed to sync on_order:', err);
+        console.error('Failed to sync on_order:', err); // eslint-disable-line no-console -- operational: reports on_order sync failure for troubleshooting
       });
     }
   }
@@ -3487,13 +3483,11 @@
     var activeIndex = -1;
 
     function renderDropdown(query) {
-      console.log('[Order] renderDropdown called, query:', query, 'options count:', orderKitOptions.length);
       var q = (query || '').toLowerCase();
       var matches = orderKitOptions.filter(function (opt) {
         if (!q) return true;
         return opt.label.toLowerCase().indexOf(q) !== -1;
       });
-      console.log('[Order] matches:', matches.length);
 
       dropdown.innerHTML = '';
       activeIndex = -1;
@@ -4940,7 +4934,7 @@
         if (fbField) fbField.value = homepageConfig['social-facebook'] || '';
       })
       .catch(function (err) {
-        console.error('[Homepage] Error loading from sheet:', err);
+        console.error('[Homepage] Error loading from sheet:', err); // eslint-disable-line no-console -- operational: reports homepage settings load failure for troubleshooting
       });
   }
 
@@ -5093,7 +5087,7 @@
           showToast('Homepage settings saved!', 'success');
         })
         .catch(function (err) {
-          console.error('[Homepage] Error saving via Admin API:', err);
+          console.error('[Homepage] Error saving via Admin API:', err); // eslint-disable-line no-console -- operational: reports homepage settings save failure for troubleshooting
           showToast('Error saving homepage settings: ' + err.message, 'error');
         });
     } else {
@@ -5105,7 +5099,7 @@
         .then(function () { return sheetsUpdate(SHEETS_CONFIG.SHEET_NAMES.HOMEPAGE + '!A1', rows); })
         .then(function () { showToast('Homepage settings saved to Google Sheets!', 'success'); })
         .catch(function (err) {
-          console.error('[Homepage] Error saving:', err);
+          console.error('[Homepage] Error saving:', err); // eslint-disable-line no-console -- operational: reports homepage settings save failure for troubleshooting
           showToast('Error saving homepage settings: ' + err.message, 'error');
         });
     }
@@ -11223,7 +11217,7 @@
 
           Promise.all(batchPromises.map(function (p) {
             return p.catch(function (err) {
-              console.error('[kiosk] batch creation failed:', err);
+              console.error('[kiosk] batch creation failed:', err); // eslint-disable-line no-console -- operational: reports kiosk batch-creation failure for troubleshooting
               return null;
             });
           })).then(function (batchResults) {
