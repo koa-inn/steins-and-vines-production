@@ -35,7 +35,7 @@ containment → correctness → fail-closed sweep → signal.
 
 ### Observability & CI
 
-- [ ] **OBS-01** (audit **M17/L1/L2/L12/L13**): Money-path observability + CI enforcement — `Sentry.captureException` (tagged `txnId`/`reqId`) in every money-path catch (M17); `npm ci` in CI + Railway + a Node `engines`/`.nvmrc` pin (L1, L2); `--max-warnings 0` + an ES5-only lint rule so the gate actually fails (L12); a per-file coverage floor on `pos.js` (L13). A forced money-path error produces a Sentry event; CI fails on a new lint warning and on ES6 syntax; `pos.js` floor set just below measured. Sequenced last — it protects every earlier fix from regressing.
+- [x] **OBS-01** (audit **M17/L1/L2/L12/L13**): Money-path observability + CI enforcement — `Sentry.captureException` (tagged `txnId`/`reqId`) in every money-path catch (M17); `npm ci` in CI + Railway + a Node `engines`/`.nvmrc` pin (L1, L2); `--max-warnings 0` + an ES5-only lint rule so the gate actually fails (L12); a per-file coverage floor on `pos.js` (L13). A forced money-path error produces a Sentry event; CI fails on a new lint warning and on ES6 syntax; `pos.js` floor set just below measured. Sequenced last — it protects every earlier fix from regressing.
 
 ## v2 Requirements
 
@@ -83,7 +83,7 @@ Phases risk-ordered: containment (SEC) → de-fork backbone → correctness (MON
 | MONEY-02 | Phase 50 | Pending (depends on KIOSK-01) |
 | MONEY-03 | Phase 51 | Pending (depends on KIOSK-01) |
 | RESIL-01 | Phase 52 | Complete |
-| OBS-01 | Phase 53 | Pending |
+| OBS-01 | Phase 53 | Complete |
 
 **Coverage:**
 - v1 requirements: 8 total

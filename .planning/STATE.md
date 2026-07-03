@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: executing
-stopped_at: Phase 53 context gathered
-last_updated: "2026-07-03T15:30:49.687Z"
+status: milestone_complete
+stopped_at: Milestone complete (Phase 53 was final phase)
+last_updated: 2026-07-03T17:27:29.076Z
 last_activity: 2026-07-03 -- Phase 53 execution started
 progress:
   total_phases: 39
   completed_phases: 9
   total_plans: 74
-  completed_plans: 72
+  completed_plans: 78
   percent: 23
 ---
 
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 53 — money-path-observability-ci-gates
+**Current focus:** Milestone complete
 
 ## Current Position
 
-Phase: 53 (money-path-observability-ci-gates) — EXECUTING
-Plan: 1 of 6
+Phase: 53
+Plan: Not started
 Milestone: v4.5 Security & Money-Path Closeout — roadmap set (Phases 46–53). Phases 47 + 49-01 code landed; owner deploys/UAT pending.
-Status: Executing Phase 53
-Last activity: 2026-07-03 -- Phase 53 execution started
+Status: Milestone complete
+Last activity: 2026-07-03
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
@@ -41,7 +41,7 @@ Last activity: 2026-07-03 -- Phase 53 execution started
 
 **Velocity:**
 
-- Total plans completed: 52 (prior milestone v4.1) + 11 (v4.2)
+- Total plans completed: 58 (prior milestone v4.1) + 11 (v4.2)
 - Average duration: 3 min
 - Total execution time: ~3 hrs
 
