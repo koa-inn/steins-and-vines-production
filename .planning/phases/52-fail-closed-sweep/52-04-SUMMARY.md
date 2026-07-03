@@ -120,3 +120,7 @@ None for this plan's own scope. Operational note (documented in `.env.example`):
 ---
 *Phase: 52-fail-closed-sweep*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+
+All created/modified files confirmed present on disk; all 5 task/summary commit hashes (`a387a7c`, `256bdd4`, `90c0c80`, `63dbf96`, `0a84f89`) confirmed in `git log`.
