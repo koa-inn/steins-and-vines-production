@@ -138,3 +138,7 @@ None - no external service configuration required.
 ---
 *Phase: 52-fail-closed-sweep*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+
+All 9 claimed files verified present on disk; all 5 claimed commit hashes (`aaa767a`, `ab1ed19`, `cd39d5a`, `fe8e094`, `389d520`) verified present in `git log --oneline --all`.
