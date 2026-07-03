@@ -24,13 +24,13 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 ## Current Position
 
-Milestone: v4.5 Security & Money-Path Closeout — building roadmap (additive; continues numbering from 46).
-Status: Requirements defined (`REQUIREMENTS.md`); roadmap in progress.
-Last activity: 2026-07-03 — Milestone v4.5 started from the 2026-07-02 whole-repo audit.
+Milestone: v4.5 Security & Money-Path Closeout — roadmap set (Phases 46–53). Phase 47 code done; two owner-coordinated deploys pending.
+Status: Executing — Phase 47 (SEC-01) code complete; Phase 46 (SEC-02) cutover pending.
+Last activity: 2026-07-03 — Phase 47 code landed (untrack audit doc + Actions-based staging strip).
 
 **Carryover — SEC-02 / Phase 46 (auth re-architecture):** code-complete + verified; **owner production cutover (46-10) is the immediate open work** — pending off-hours coupled deploy + `API_SECRET_KEY` rotation. Full runbook: `docs/RUNBOOK.md` § Phase 46 Auth Cutover. Resume with "let's do the cutover". Prod currently runs the OLD code with the OLD key restored (stable/working).
 
-**Immediate v4.5 priority — SEC-01 / Phase 47 (H1, confirmed live):** `.planning/` + `AUDIT-2026-06-29.md` served publicly on staging (HTTP 200) — cheap, high-leverage; sequenced first.
+**Phase 47 / SEC-01 (H1) — code complete, owner deploy pending:** audit doc untracked+gitignored+excluded (`065ed99`); Actions-based `deploy-staging.yml` strips `.planning/`+audit docs, mirroring prod (`7116801`). PENDING (Task 3, `docs/…/47-01-SUMMARY.md`): push to staging → owner flips staging repo Pages source to "GitHub Actions" → verify `.planning`/audit-doc 404 + `.well-known/security.txt` 200. Prod audit-doc leak closes at the next prod deploy (Phase 46 cutover).
 
 ## Performance Metrics
 
