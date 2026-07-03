@@ -22,7 +22,6 @@ notes/
 
 # Node
 node_modules/
-package-lock.json
 
 # Test coverage output
 coverage/
