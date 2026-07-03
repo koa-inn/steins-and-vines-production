@@ -3,6 +3,9 @@
   "version": "1.0.1",
   "description": "Express middleware bridging Steins & Vines frontend to Zoho Books API",
   "main": "server.js",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
