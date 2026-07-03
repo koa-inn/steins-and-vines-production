@@ -985,8 +985,16 @@ Plans:
   4. `npm test`, `npm run lint`, and `npm run build` are clean (concatenated `main.js`/`main.min.js` and `admin.min.js` regenerated), and no behaviour-changing logic was introduced beyond the discount-parity fix
   5. Verified on staging on iPad Safari: a full kiosk sale (including a recipe/product-type discount) completes identically from both the standalone kiosk URL and the admin-embedded kiosk tab, with terminal/void/dual-cart behaviour intact
 
-**Plans**: TBD
+**Plans**: 6 plans (6 waves — sequential; shared-file ownership of kiosk-core.js/kiosk.js/admin.js/HTML forbids parallelism)
 **UI hint**: yes
+Plans:
+
+- [ ] 48-01-PLAN.md — kiosk-core.js skeleton + Node-require guard spike (Pitfall 4/A2) + build wiring (terser + stamp + script tags)
+- [ ] 48-02-PLAN.md — kiosk.js migration pt1: cart/catalog/render/totals + 12-fn discount subsystem + module state + init/auth seam into core
+- [ ] 48-03-PLAN.md — kiosk.js migration pt2: payment/checkout/terminal/confirm (canonical sale-body) + dual-cart/SO logic into core
+- [ ] 48-04-PLAN.md — admin.js consumes KioskCore + delete dup defs + 2 drift-bug fixes (D-05) + idempotency unify + discount markup port to admin.html
+- [ ] 48-05-PLAN.md — admin-vs-standalone parity test (SC#2/D-03) + final build/lint/test gate + KIOSK-01 traceability
+- [ ] 48-06-PLAN.md — staging deploy + iPad Safari full-sale manual checkpoint (SC#5, autonomous: false)
 
 ### Phase 49: Online Captured-Amount Verification
 
