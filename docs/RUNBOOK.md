@@ -9,6 +9,14 @@
 
 Use the blessed path unless something is actively broken and you need to ship a fix without waiting for tests.
 
+> **Install command (D-08):** CI (`tests.yml`) now runs `npm ci` (not `npm install`) in every job.
+> Railway's Nixpacks builder auto-detects `npm ci` vs `npm install` based on whether a
+> `package-lock.json` is present — now that `zoho-middleware/package-lock.json` is committed
+> (Phase 53), Railway's middleware build switched to `npm ci` automatically. No `railway.toml`
+> change was needed (it only sets `watchPatterns`). **If a future contributor deletes
+> `zoho-middleware/package-lock.json`, Railway silently reverts to `npm install`** — keep the
+> lockfile committed and in sync with `package.json`.
+
 ---
 
 ## Deploy History
