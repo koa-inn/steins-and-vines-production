@@ -85,12 +85,12 @@ function loadProducts() {
             name: z.name || '',
             sku: z.sku || '',
             brand: z.brand || '',
-            stock: z.stock || (z.stock_on_hand != null ? String(z.stock_on_hand) : '0'),
+            stock: z.stock || (z.stock_on_hand != null ? String(z.stock_on_hand) : '0'), // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             description: z.description || '',
-            discount: z.discount != null ? String(z.discount) : '0',
+            discount: z.discount != null ? String(z.discount) : '0', // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             _zoho_category: z._zoho_category || z.category_name || '',
             zoho_item_id: z.item_id || '',
-            tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0,
+            tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             tax_name: z.tax_name || '',
             type: z.type || '',
             subcategory: z.subcategory || '',
@@ -106,7 +106,7 @@ function loadProducts() {
           // Flatten custom fields if present (raw Zoho response — overrides top-level fields)
           flattenCustomFields(obj, z.custom_fields);
           // Derive prices from rate only if not already set
-          if (z.rate != null) {
+          if (z.rate != null) { // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             var rateNum = parseFloat(z.rate);
             if (!obj.retail_kit) {
               obj.retail_kit = '$' + rateNum.toFixed(2);

@@ -102,8 +102,8 @@ function mapItem(z) {
   var obj = {
     name: z.name || '',
     unit: z.unit || '',
-    price_per_unit: z.price_per_unit != null ? String(z.price_per_unit) : (z.rate != null ? String(z.rate) : ''),
-    stock: z.stock != null ? String(z.stock) : (z.stock_on_hand != null ? String(z.stock_on_hand) : '0'),
+    price_per_unit: z.price_per_unit != null ? String(z.price_per_unit) : (z.rate != null ? String(z.rate) : ''), // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+    stock: z.stock != null ? String(z.stock) : (z.stock_on_hand != null ? String(z.stock_on_hand) : '0'), // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
     description: z.description || '',
     sales_description: z.sales_description || '',
     sku: z.sku || '',
@@ -112,7 +112,7 @@ function mapItem(z) {
     low_amount: '',
     high_amount: '',
     step: '',
-    tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0,
+    tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
     tax_name: z.tax_name || '',
     max_order_qty: z.max_order_qty || '',
     cf_subcategory: '',
@@ -459,7 +459,7 @@ function buildCartObject(item) {
     max_order_qty: item.max_order_qty || '',
     zoho_item_id: item.zoho_item_id || '',
     millable: item.millable || '',
-    tax_percentage: item.tax_percentage != null ? item.tax_percentage : 0,
+    tax_percentage: item.tax_percentage != null ? item.tax_percentage : 0, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
     tax_name: item.tax_name || ''
   };
 }

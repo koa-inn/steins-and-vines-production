@@ -738,7 +738,7 @@ function renderReservationItems() {
     qtyInput.type = 'text';
     qtyInput.className = 'qty-input';
     var decimalsA = itemIsWeighted ? 2 : 0;
-    qtyInput.value = itemIsWeighted ? parseFloat(item.qty || 1).toFixed(decimalsA) : String(item.qty != null ? item.qty : 1);
+    qtyInput.value = itemIsWeighted ? parseFloat(item.qty || 1).toFixed(decimalsA) : String(item.qty != null ? item.qty : 1); // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
     qtyInput.setAttribute('aria-label', 'Quantity for ' + item.name);
     qtyInput.setAttribute('inputmode', itemIsWeighted ? 'decimal' : 'numeric');
     qtyInput.setAttribute('pattern', itemIsWeighted ? '[0-9]*\\.?[0-9]*' : '[0-9]*');
@@ -768,7 +768,7 @@ function renderReservationItems() {
     qtyInput.addEventListener('change', function () {
       var val = parseFloat(qtyInput.value);
       if (isNaN(val) || val <= 0) {
-        qtyInput.value = itemIsWeighted ? parseFloat(item.qty || 1).toFixed(decimalsA) : String(item.qty != null ? item.qty : 1);
+        qtyInput.value = itemIsWeighted ? parseFloat(item.qty || 1).toFixed(decimalsA) : String(item.qty != null ? item.qty : 1); // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
         return;
       }
       if (!itemIsWeighted) val = Math.round(val);

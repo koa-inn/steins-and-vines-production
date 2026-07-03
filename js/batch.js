@@ -183,7 +183,7 @@
     // Table
     var html = '<table class="batch-readings-table"><thead><tr><th>Date</th><th>&deg;P</th><th>Temp</th><th>pH</th><th>Notes</th></tr></thead><tbody>';
     readings.slice().reverse().forEach(function (r) {
-      html += '<tr><td>' + toDateStr(r.timestamp) + '</td><td>' + esc(r.degrees_plato) + '</td><td>' + esc(r.temperature != null && r.temperature !== '' ? r.temperature : '') + '</td><td>' + esc(r.ph != null && r.ph !== '' ? r.ph : '') + '</td><td>' + esc(r.notes || '') + '</td></tr>';
+      html += '<tr><td>' + toDateStr(r.timestamp) + '</td><td>' + esc(r.degrees_plato) + '</td><td>' + esc(r.temperature != null && r.temperature !== '' ? r.temperature : '') + '</td><td>' + esc(r.ph != null && r.ph !== '' ? r.ph : '') + '</td><td>' + esc(r.notes || '') + '</td></tr>'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
     });
     html += '</tbody></table>';
     listEl.innerHTML = html;

@@ -939,8 +939,8 @@
           var map = {};
           (data.items || []).forEach(function (z) {
             if (z.sku) map[z.sku] = {
-              stock: z.stock_on_hand != null ? parseInt(z.stock_on_hand, 10) : null,
-              rate: z.rate != null ? parseFloat(z.rate) : null,
+              stock: z.stock_on_hand != null ? parseInt(z.stock_on_hand, 10) : null, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+              rate: z.rate != null ? parseFloat(z.rate) : null, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
               item_id: z.item_id || '',
               vendor_id: z.vendor_id || '',
               vendor_name: z.vendor_name || ''
@@ -3258,7 +3258,7 @@
     html += '<tbody>';
     openPOsData.forEach(function (po) {
       var lineCount = (po.line_items || []).length;
-      var total = po.total != null ? '$' + parseFloat(po.total).toFixed(2) : '';
+      var total = po.total != null ? '$' + parseFloat(po.total).toFixed(2) : ''; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       var status = po.status ? po.status.charAt(0).toUpperCase() + po.status.slice(1) : '';
       html += '<tr>';
       html += '<td><strong>' + (po.purchaseorder_number || po.purchaseorder_id) + '</strong></td>';
@@ -6495,8 +6495,8 @@
         html += '<tr data-reading-id="' + escapeHTML(r.reading_id) + '">';
         html += '<td>' + String(r.timestamp || '').substring(0, 10) + '</td>';
         html += '<td>' + escapeHTML(r.degrees_plato) + '</td>';
-        html += '<td>' + escapeHTML(r.temperature != null && r.temperature !== '' ? r.temperature : '') + '</td>';
-        html += '<td>' + escapeHTML(r.ph != null && r.ph !== '' ? r.ph : '') + '</td>';
+        html += '<td>' + escapeHTML(r.temperature != null && r.temperature !== '' ? r.temperature : '') + '</td>'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+        html += '<td>' + escapeHTML(r.ph != null && r.ph !== '' ? r.ph : '') + '</td>'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
         html += '<td>' + escapeHTML(r.notes || '') + '</td>';
         html += '<td class="plato-actions">';
         html += '<button type="button" class="plato-edit-btn" title="Edit">&#9998;</button>';
@@ -8714,8 +8714,8 @@
     document.getElementById('recipe-ibu').value = r.ibu || '';
     document.getElementById('recipe-colour').value = r.colour_srm || '';
     document.getElementById('recipe-locked-price').value = r.locked_price || '';
-    document.getElementById('recipe-service-fee').value = r.service_fee != null ? r.service_fee : 45;
-    document.getElementById('recipe-materials-fee').value = r.materials_fee != null ? r.materials_fee : 5;
+    document.getElementById('recipe-service-fee').value = r.service_fee != null ? r.service_fee : 45; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+    document.getElementById('recipe-materials-fee').value = r.materials_fee != null ? r.materials_fee : 5; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
     document.getElementById('recipe-status').value = r.status || 'draft';
     var pricingModeSelect = document.getElementById('recipe-pricing-mode');
     if (pricingModeSelect) pricingModeSelect.value = r.pricing_mode || 'locked';
@@ -8783,8 +8783,8 @@
         var idx = ingredients.indexOf(ing);
         var avail = availMap[String(ing.item_id)] || {};
         var dotClass = 'ing-status-dot ing-status-dot--' + escapeHTML(avail.status || 'unknown');
-        var stockText = avail.stock_on_hand != null ? avail.stock_on_hand + ' ' + (ing.unit || '') + ' available' : '';
-        var dotTitle = avail.status === 'unknown' ? 'Stock data loading -- try again shortly' : (avail.batches_possible != null ? avail.batches_possible + ' batch(es) possible' : '');
+        var stockText = avail.stock_on_hand != null ? avail.stock_on_hand + ' ' + (ing.unit || '') + ' available' : ''; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+        var dotTitle = avail.status === 'unknown' ? 'Stock data loading -- try again shortly' : (avail.batches_possible != null ? avail.batches_possible + ' batch(es) possible' : ''); // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
         var qty = parseFloat(ing.quantity) || 0;
         var costEach = parseFloat(ing.purchase_rate) || 0;
         var retailEach = parseFloat(ing.rate) || 0;
@@ -8889,7 +8889,7 @@
     matches.forEach(function (item) {
       var opt = document.createElement('div');
       opt.setAttribute('role', 'option');
-      var stockLabel = item.stock_on_hand != null ? item.stock_on_hand : '?';
+      var stockLabel = item.stock_on_hand != null ? item.stock_on_hand : '?'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       var unitLabel = item.unit || '';
       opt.innerHTML = escapeHTML(item.name || '') + ' &mdash; ' + escapeHTML(item.sku || '') + ' <span class="ing-stock-hint">(' + stockLabel + (unitLabel ? ' ' + escapeHTML(unitLabel) : '') + ' available)</span>';
       opt.addEventListener('mousedown', function (e) {
@@ -8927,7 +8927,7 @@
     if (unitTd) unitTd.textContent = item.unit || '';
     var hintSpan = row.querySelector('.ing-stock-hint');
     if (hintSpan) {
-      var stockVal = item.stock_on_hand != null ? item.stock_on_hand : '?';
+      var stockVal = item.stock_on_hand != null ? item.stock_on_hand : '?'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       hintSpan.textContent = stockVal + ' ' + (item.unit || '') + ' available';
     }
     row.setAttribute('data-item-id', item.item_id || '');
@@ -11823,7 +11823,7 @@
       if (r.pricing_mode !== 'dynamic') return;
       if (Number(r.computed_price) > 0) return;
       if (r._fetchedDetail) {
-        if (r._fetchedDetail.recipe && r._fetchedDetail.recipe.computed_price != null) {
+        if (r._fetchedDetail.recipe && r._fetchedDetail.recipe.computed_price != null) { // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
           r.computed_price = r._fetchedDetail.recipe.computed_price;
           var priceCell = grid.querySelector('[data-recipe-price-id="' + r.recipe_id + '"]');
           if (priceCell) {
@@ -11840,8 +11840,8 @@
           .then(function (data) {
             recipe._fetchedDetail = data;
             if (data.recipe) {
-              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price;
-              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate;
+              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
               var priceEl = grid.querySelector('[data-recipe-price-id="' + recipe.recipe_id + '"]');
               if (priceEl) {
                 var warm = kioskRecipePrice(recipe);
@@ -12152,7 +12152,7 @@
           kioskRenderRecipeIngredients(recipe._fetchedDetail.ingredients, ingEl);
         }
         // Update computed_price on recipe in case card fetch already populated it
-        if (recipe._fetchedDetail.recipe && recipe._fetchedDetail.recipe.computed_price != null) {
+        if (recipe._fetchedDetail.recipe && recipe._fetchedDetail.recipe.computed_price != null) { // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
           recipe.computed_price = recipe._fetchedDetail.recipe.computed_price;
           kioskUpdateSummaryPrice();
           kioskUpdateAddToCartButton();
@@ -12168,8 +12168,8 @@
             }
             recipe._fetchedDetail = data;
             if (data.recipe) {
-              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price;
-              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate;
+              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
               var cardGrid = document.getElementById('kiosk-recipe-grid');
               if (cardGrid) {
                 var cardPriceEl = cardGrid.querySelector('[data-recipe-price-id="' + recipe.recipe_id + '"]');
