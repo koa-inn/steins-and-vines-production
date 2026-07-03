@@ -476,48 +476,28 @@
   function checkAuthorization() {
     console.log('[Admin] Checking authorization for:', userEmail);
 
-    // Use server-side validation if Admin API is configured (more secure)
-    if (SHEETS_CONFIG.ADMIN_API_URL) {
-      console.log('[Admin] Using server-side auth validation');
-      adminApiGet('check_auth')
-        .then(function (result) {
-          console.log('[Admin] Server auth result:', result);
-          if (result.authorized) {
-            showDashboard();
-          } else {
-            showDenied();
-          }
-        })
-        .catch(function (err) {
-          console.error('[Admin] Server auth failed:', err.message);
-          showDenied();
-        });
-      return;
-    }
-
-    // Fallback: client-side check (less secure, for development)
-    console.warn('[Admin] Using client-side auth (ADMIN_API_URL not configured)');
-    sheetsGet(SHEETS_CONFIG.SHEET_NAMES.CONFIG + '!A:B')
-      .then(function (data) {
-        var rows = data.values || [];
-        console.log('[Admin] Config sheet rows:', JSON.stringify(rows));
-        for (var i = 0; i < rows.length; i++) {
-          if (rows[i][0] === 'staff_emails') {
-            staffEmails = (rows[i][1] || '').split(',').map(function (e) { return e.trim().toLowerCase(); });
-            break;
-          }
-        }
-        console.log('[Admin] Parsed staff emails:', staffEmails);
-        console.log('[Admin] User email match:', staffEmails.indexOf(userEmail.toLowerCase()) !== -1);
-        if (staffEmails.indexOf(userEmail.toLowerCase()) !== -1) {
+    // Identity is established by the server session exchange: POST the GIS
+    // access token to /auth/google, which verifies it against the allowlist
+    // (D-46-07) and sets the sv_session cookie. The client-side Config-sheet
+    // allowlist fallback is removed — the server allowlist is the sole
+    // source of truth (T-46-22).
+    fetch(getMwUrl() + '/auth/google', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: accessToken })
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (result) {
+        console.log('[Admin] Server auth result:', result);
+        if (result.authorized) {
           showDashboard();
         } else {
           showDenied();
         }
       })
       .catch(function (err) {
-        // If Config sheet can't be read, deny access
-        console.error('[Admin] Failed to read Config sheet:', err);
+        console.error('[Admin] Server auth failed:', err && err.message);
         showDenied();
       });
   }
