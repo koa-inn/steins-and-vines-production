@@ -806,7 +806,7 @@ router.get('/api/kiosk/products', function (req, res) {
   // precedent) so an anon caller cannot repeatedly exhaust Zoho quota. The
   // normal cached read below stays public.
   if (bustCache) {
-    return authTiers.requireTiers(['legacy', 'session'])(req, res, function () { proceed(); });
+    return authTiers.requireTiers(['legacy', 'session'])(req, res, function () { return proceed(); });
   }
   return proceed();
 

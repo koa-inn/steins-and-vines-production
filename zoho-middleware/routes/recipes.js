@@ -7,6 +7,7 @@ var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var C = require('../lib/constants');
 var axios = require('axios');
+var authTiers = require('../lib/authTiers');
 
 var router = express.Router();
 
@@ -306,69 +307,85 @@ router.get('/api/recipes/:id', function (req, res) {
 // ---------------------------------------------------------------------------
 
 router.get('/api/recipes/:id/availability', function (req, res) {
-  var recipeId = req.params.id;
+  // M8 (Phase 52-05): this route calls Apps Script uncached — gate behind a
+  // credential (kiosk device tokens included, D-46 tier) so an anon caller
+  // cannot repeatedly exhaust Apps Script quota. The global GET exemption in
+  // server.js skips this route, so it must resolve its own tier.
+  return authTiers.requireTiers(['legacy', 'device', 'session'])(req, res, function () {
+    var recipeId = req.params.id;
+    var cacheKey = C.CACHE_KEYS.RECIPE_AVAILABILITY + ':' + recipeId;
 
-  // Step 1: Fetch recipe ingredients from Apps Script (server fetches item_ids, never client — API-02)
-  callAppsScriptPost('get_recipe', { recipe_id: recipeId }).then(function (data) {
-    if (!data.ok) {
-      return res.status(404).json({ error: data.message || 'Recipe not found' });
-    }
-    var detail = data.data || {};
-    var ingredients = detail.ingredients || [];
-    if (!ingredients.length) {
-      return res.json({ recipe_id: recipeId, summary: 'all_ok', ingredients: [] });
-    }
-
-    // Step 2: Get ingredient stock from the full cached ingredients catalog (includes internal-only items)
-    return cache.get(C.CACHE_KEYS.INGREDIENTS_ALL).then(function (catalog) {
-      // If full ingredients cache is cold, return unknown status (Pitfall 5)
-      if (!catalog) {
-        var unknownResult = ingredients.map(function (ing) {
-          return {
-            item_id: ing.item_id,
-            item_name: ing.item_name,
-            unit: ing.unit,
-            quantity_per_batch: ing.quantity || 0,
-            stock_on_hand: null,
-            batches_possible: null,
-            status: 'unknown'
-          };
-        });
-        return res.json({ recipe_id: recipeId, summary: 'unknown', ingredients: unknownResult });
+    return cache.get(cacheKey).then(function (cached) {
+      if (cached) {
+        return res.json(cached);
       }
 
-      // Build stock map from cached ingredients
-      var stockMap = {};
-      (Array.isArray(catalog) ? catalog : []).forEach(function (item) {
-        stockMap[String(item.item_id)] = item.stock_on_hand || 0;
+      // Step 1: Fetch recipe ingredients from Apps Script (server fetches item_ids, never client — API-02)
+      return callAppsScriptPost('get_recipe', { recipe_id: recipeId }).then(function (data) {
+        if (!data.ok) {
+          return res.status(404).json({ error: data.message || 'Recipe not found' });
+        }
+        var detail = data.data || {};
+        var ingredients = detail.ingredients || [];
+        if (!ingredients.length) {
+          return res.json({ recipe_id: recipeId, summary: 'all_ok', ingredients: [] });
+        }
+
+        // Step 2: Get ingredient stock from the full cached ingredients catalog (includes internal-only items)
+        return cache.get(C.CACHE_KEYS.INGREDIENTS_ALL).then(function (catalog) {
+          // If full ingredients cache is cold, return unknown status (Pitfall 5) — NOT cached,
+          // so a subsequent request re-checks once the ingredients catalog warms up.
+          if (!catalog) {
+            var unknownResult = ingredients.map(function (ing) {
+              return {
+                item_id: ing.item_id,
+                item_name: ing.item_name,
+                unit: ing.unit,
+                quantity_per_batch: ing.quantity || 0,
+                stock_on_hand: null,
+                batches_possible: null,
+                status: 'unknown'
+              };
+            });
+            return res.json({ recipe_id: recipeId, summary: 'unknown', ingredients: unknownResult });
+          }
+
+          // Build stock map from cached ingredients
+          var stockMap = {};
+          (Array.isArray(catalog) ? catalog : []).forEach(function (item) {
+            stockMap[String(item.item_id)] = item.stock_on_hand || 0;
+          });
+
+          // Step 3: Compute per-ingredient availability (D-07, D-08)
+          var result = ingredients.map(function (ing) {
+            var stock = stockMap[String(ing.item_id)] || 0;
+            var needed = ing.quantity || 0;
+            var batches = needed > 0 ? Math.floor(stock / needed) : 999;
+            var status = batches === 0 ? 'out' : batches < 3 ? 'low' : 'ok';
+            return {
+              item_id: ing.item_id,
+              item_name: ing.item_name,
+              unit: ing.unit,
+              quantity_per_batch: needed,
+              stock_on_hand: stock,
+              batches_possible: batches,
+              status: status
+            };
+          });
+
+          var anyOut = result.some(function (r) { return r.status === 'out'; });
+          var allOk = result.every(function (r) { return r.status === 'ok'; });
+          var summary = anyOut ? 'cannot_brew' : allOk ? 'all_ok' : 'some_low';
+
+          var response = { recipe_id: recipeId, summary: summary, ingredients: result };
+          cache.set(cacheKey, response, RECIPES_CACHE_TTL);
+          res.json(response);
+        });
       });
-
-      // Step 3: Compute per-ingredient availability (D-07, D-08)
-      var result = ingredients.map(function (ing) {
-        var stock = stockMap[String(ing.item_id)] || 0;
-        var needed = ing.quantity || 0;
-        var batches = needed > 0 ? Math.floor(stock / needed) : 999;
-        var status = batches === 0 ? 'out' : batches < 3 ? 'low' : 'ok';
-        return {
-          item_id: ing.item_id,
-          item_name: ing.item_name,
-          unit: ing.unit,
-          quantity_per_batch: needed,
-          stock_on_hand: stock,
-          batches_possible: batches,
-          status: status
-        };
-      });
-
-      var anyOut = result.some(function (r) { return r.status === 'out'; });
-      var allOk = result.every(function (r) { return r.status === 'ok'; });
-      var summary = anyOut ? 'cannot_brew' : allOk ? 'all_ok' : 'some_low';
-
-      res.json({ recipe_id: recipeId, summary: summary, ingredients: result });
+    }).catch(function (err) {
+      log.error('[api/recipes/' + recipeId + '/availability] ' + err.message);
+      res.status(502).json({ error: 'Unable to check availability' });
     });
-  }).catch(function (err) {
-    log.error('[api/recipes/' + recipeId + '/availability] ' + err.message);
-    res.status(502).json({ error: 'Unable to check availability' });
   });
 });
 

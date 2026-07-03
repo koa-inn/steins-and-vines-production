@@ -134,19 +134,22 @@ describe('GET /api/recipes/:id/availability — auth + cache (M8)', function () 
     // Only the recipe-detail POST + ingredients-all cache lookup should occur; no
     // Apps Script call happens for the ingredients catalog (it's read from cache).
     var req = { params: { id: 'SV-R-000001' }, headers: { 'x-api-key': API_KEY } };
+    var C = require('../lib/constants');
 
-    return callHandler('GET', '/api/recipes/:id/availability', req).then(function (res1) {
-      expect(res1._status).not.toBe(401);
-      expect(res1._status).not.toBe(403);
-      expect(res1._body.recipe_id).toBe('SV-R-000001');
-      expect(mocks.axios.post).toHaveBeenCalledTimes(1);
-
-      return callHandler('GET', '/api/recipes/:id/availability', req).then(function (res2) {
-        expect(res2._body.recipe_id).toBe('SV-R-000001');
-        // Served from cache — Apps Script POST count unchanged.
+    return mocks.cache.set(C.CACHE_KEYS.INGREDIENTS_ALL, [{ item_id: '100', stock_on_hand: 45 }])
+      .then(function () { return callHandler('GET', '/api/recipes/:id/availability', req); })
+      .then(function (res1) {
+        expect(res1._status).not.toBe(401);
+        expect(res1._status).not.toBe(403);
+        expect(res1._body.recipe_id).toBe('SV-R-000001');
         expect(mocks.axios.post).toHaveBeenCalledTimes(1);
+
+        return callHandler('GET', '/api/recipes/:id/availability', req).then(function (res2) {
+          expect(res2._body.recipe_id).toBe('SV-R-000001');
+          // Served from cache — Apps Script POST count unchanged.
+          expect(mocks.axios.post).toHaveBeenCalledTimes(1);
+        });
       });
-    });
   });
 });
 

@@ -4,8 +4,16 @@ var express = require('express');
 var axios = require('axios');
 var log = require('../lib/logger');
 var eventLog = require('../lib/eventLog');
+var cache = require('../lib/cache');
+var C = require('../lib/constants');
+var authTiers = require('../lib/authTiers');
 
 var router = express.Router();
+
+// M8 (Phase 52-05): next-number is a suggestion only — the server still
+// enforces uniqueness on issue — so a short cache is safe (reduces repeat
+// Apps Script calls from a busy kiosk without risking a stale money value).
+var GC_NEXT_NUMBER_CACHE_TTL = 30; // seconds
 
 // ---------------------------------------------------------------------------
 // Internal helper: call Apps Script via POST.
@@ -33,20 +41,33 @@ function callAppsScript(action, payload) {
 // ---------------------------------------------------------------------------
 // GET /api/kiosk/gift-card/next-number
 // Suggests the next GC-NNNNNN cert number from Apps Script generateNextId.
-// Not rate-limited — read/suggest only, no money path.
 // The client pre-fills the cert_number field; staff may override.
 // The server still enforces uniqueness on issue.
+// M8 (Phase 52-05): gated behind a credential tier + a short read-through
+// cache — this was previously unauth + uncached, letting an anon caller
+// repeatedly exhaust Apps Script quota (KIOSK_ROUTES entry, kiosk-scoped).
 // ---------------------------------------------------------------------------
 router.get('/api/kiosk/gift-card/next-number', function (req, res) {
-  return callAppsScript('get_next_cert_number', {}).then(function (result) {
-    if (!result.ok) {
-      log.warn('[gift-cards/next-number] Apps Script error: ' + (result.error || 'unknown'));
-      return res.status(500).json({ error: 'Failed to get next cert number' });
-    }
-    return res.status(200).json({ ok: true, suggested: result.suggested });
-  }).catch(function (err) {
-    log.error('[gift-cards/next-number] Apps Script call failed: ' + err.message);
-    return res.status(502).json({ error: 'Failed to reach Apps Script' });
+  return authTiers.requireTiers(['legacy', 'device', 'session'])(req, res, function () {
+    var cacheKey = C.CACHE_KEYS.GIFT_CARD_NEXT_NUMBER;
+
+    return cache.get(cacheKey).then(function (cached) {
+      if (cached) {
+        return res.status(200).json(cached);
+      }
+      return callAppsScript('get_next_cert_number', {}).then(function (result) {
+        if (!result.ok) {
+          log.warn('[gift-cards/next-number] Apps Script error: ' + (result.error || 'unknown'));
+          return res.status(500).json({ error: 'Failed to get next cert number' });
+        }
+        var body = { ok: true, suggested: result.suggested };
+        cache.set(cacheKey, body, GC_NEXT_NUMBER_CACHE_TTL);
+        return res.status(200).json(body);
+      });
+    }).catch(function (err) {
+      log.error('[gift-cards/next-number] Apps Script call failed: ' + err.message);
+      return res.status(502).json({ error: 'Failed to reach Apps Script' });
+    });
   });
 });
 
@@ -54,28 +75,35 @@ router.get('/api/kiosk/gift-card/next-number', function (req, res) {
 // GET /api/kiosk/gift-card/lookup?cert_number=GC-NNNNNN
 // Server-authoritative balance lookup (D-05).
 // Client never supplies a balance — balance always read from Apps Script.
-// Not rate-limited — read-only, no money path.
+// M8 (Phase 52-05): gated behind a credential tier (KIOSK_ROUTES entry,
+// kiosk-scoped) — was previously unauth, letting an anon caller repeatedly
+// exhaust Apps Script quota. T-52-M8b: this returns a live gift-card
+// BALANCE — deliberately NOT cached (auth alone stops the quota DoS;
+// caching a balance risks serving a stale value into a redemption, i.e.
+// over-redemption).
 // ---------------------------------------------------------------------------
 router.get('/api/kiosk/gift-card/lookup', function (req, res) {
-  var certNumber = String(req.query.cert_number || '').trim().toUpperCase();
+  return authTiers.requireTiers(['legacy', 'device', 'session'])(req, res, function () {
+    var certNumber = String(req.query.cert_number || '').trim().toUpperCase();
 
-  if (!certNumber || !/^GC-\d{6}$/.test(certNumber)) {
-    return res.status(400).json({ error: 'cert_number must match GC-NNNNNN format (e.g. GC-000042)' });
-  }
-
-  return callAppsScript('lookup_gift_card', { cert_number: certNumber }).then(function (result) {
-    if (!result.ok) {
-      if (result.error === 'not_found') {
-        return res.status(404).json({ ok: false, error: 'Certificate not found' });
-      }
-      log.warn('[gift-cards/lookup] Apps Script error for ' + certNumber + ': ' + (result.error || 'unknown'));
-      return res.status(500).json({ error: 'Failed to look up certificate' });
+    if (!certNumber || !/^GC-\d{6}$/.test(certNumber)) {
+      return res.status(400).json({ error: 'cert_number must match GC-NNNNNN format (e.g. GC-000042)' });
     }
-    // D-05: return server-authoritative data; never expose internal Zoho IDs
-    return res.status(200).json({ ok: true, data: result.data });
-  }).catch(function (err) {
-    log.error('[gift-cards/lookup] Apps Script call failed: ' + err.message);
-    return res.status(502).json({ error: 'Failed to reach Apps Script' });
+
+    return callAppsScript('lookup_gift_card', { cert_number: certNumber }).then(function (result) {
+      if (!result.ok) {
+        if (result.error === 'not_found') {
+          return res.status(404).json({ ok: false, error: 'Certificate not found' });
+        }
+        log.warn('[gift-cards/lookup] Apps Script error for ' + certNumber + ': ' + (result.error || 'unknown'));
+        return res.status(500).json({ error: 'Failed to look up certificate' });
+      }
+      // D-05: return server-authoritative data; never expose internal Zoho IDs
+      return res.status(200).json({ ok: true, data: result.data });
+    }).catch(function (err) {
+      log.error('[gift-cards/lookup] Apps Script call failed: ' + err.message);
+      return res.status(502).json({ error: 'Failed to reach Apps Script' });
+    });
   });
 });
 
