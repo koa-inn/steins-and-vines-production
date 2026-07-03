@@ -1051,7 +1051,12 @@ Plans:
   5. Numeric `:id` path parameters are validated, closing the `%2F` path-pivot vector (M20)
   6. A regression test asserts the promo is not repeatable during a simulated Redis outage
 
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 52-01-PLAN.md — shared closed-on-Redis-error helper (redis-guard) [wave 1]
+- [ ] 52-02-PLAN.md — apply helper: promo M1 fail-closed + rate-limit M4/M5 fail-closed [wave 2]
+- [ ] 52-03-PLAN.md — pos.js: quarantine legacy /api/pos/sale (M2) + gift-card account fail-closed (M3) [wave 1]
+- [ ] 52-04-PLAN.md — items :id validation (M20) + csv_url SSRF allowlist (M6) [wave 1]
+- [ ] 52-05-PLAN.md — auth+cache: ?bust=1 key (M7) + Apps-Script proxies (M8) [wave 1]
 
 ### Phase 53: Money-Path Observability & CI Gates
 
