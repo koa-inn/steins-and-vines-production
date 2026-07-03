@@ -45,8 +45,10 @@ jobs:
       # NOTE: actions/upload-pages-artifact auto-injects .nojekyll which bypasses
       # Jekyll on prod, so _config.yml exclude: has no effect here — this rm step
       # is the authoritative prod mechanism.
-      - name: Strip .planning from published artifact
-        run: rm -rf .planning
+      - name: Strip internal docs from published artifact
+        run: |
+          rm -rf .planning
+          rm -f AUDIT-*.md PROJECT_ASSESSMENT.md
 
       - uses: actions/configure-pages@v5
 

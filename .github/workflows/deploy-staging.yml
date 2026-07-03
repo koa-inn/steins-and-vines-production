@@ -1,0 +1,61 @@
+name: Deploy Staging (filtered)
+
+# SEC-01 / audit H1: staging previously served the raw branch via classic
+# branch-based Pages, so the internal .planning/ tree + audit docs were publicly
+# fetchable (verified 200). This Actions-based deploy strips them from the
+# published artifact before serving — mirroring deploy-production.yml — while
+# keeping raw (no-Jekyll) serving: actions/upload-pages-artifact auto-injects
+# .nojekyll, so inline JS/JSON-LD is untouched and .well-known/security.txt still
+# serves. .planning/ stays tracked in git (D-01); it is only stripped from what
+# is published. Flip the staging repo Pages source to "GitHub Actions" to activate.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: true
+
+jobs:
+  check-repo:
+    runs-on: ubuntu-latest
+    outputs:
+      is_staging: ${{ steps.check.outputs.is_staging }}
+    steps:
+      - id: check
+        run: |
+          if [[ "${{ github.repository }}" == *"-staging" ]]; then
+            echo "is_staging=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_staging=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: check-repo
+    if: needs.check-repo.outputs.is_staging == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Strip internal, non-public files from the published artifact (SEC-01 / D-01).
+      # These stay tracked in git but must not be publicly served on staging.
+      - name: Strip internal docs from published artifact
+        run: |
+          rm -rf .planning
+          rm -f AUDIT-*.md PROJECT_ASSESSMENT.md
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
