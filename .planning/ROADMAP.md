@@ -698,7 +698,7 @@ Plans:
 | 42. Kiosk POS De-Fork (kiosk-core.js) → rehomed to v4.5 Phase 48 (KIOSK-01) | v4.4 | 0/? | Not started | - |
 | 46. Auth Re-Architecture | v4.5 (carryover, SEC-02) | 9/10 | Code-complete, owner cutover pending | - |
 | 47. Purge Publicly-Served Internal Docs | v4.5 | 1/1 | ✅ Closed on staging (verified 2026-07-03); prod audit-doc at next prod deploy | 2026-07-03 |
-| 48. Kiosk POS De-Fork (kiosk-core.js) | v4.5 | 0/? | Not started | - |
+| 48. Kiosk POS De-Fork (kiosk-core.js) | v4.5 | 1/6 | In Progress|  |
 | 49. Online Captured-Amount Verification | v4.5 | 1/2 | 49-01 done (H2 fix + 13-test regression, suite green); 49-02 live-card UAT pending deploy | - |
 | 50. Kiosk Money-Path Defect Closeout | v4.5 | 0/? | Not started | - |
 | 51. Gift-Card Ledger Integrity | v4.5 | 0/? | Not started | - |
@@ -1021,7 +1021,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 48-01-PLAN.md — kiosk-core.js skeleton + Node-require guard spike (Pitfall 4/A2) + build wiring (terser + stamp + script tags)
+- [x] 48-01-PLAN.md — kiosk-core.js skeleton + Node-require guard spike (Pitfall 4/A2) + build wiring (terser + stamp + script tags)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
