@@ -814,9 +814,9 @@ function loadFeaturedProducts() {
             sku: z.sku || '',
             item_id: z.item_id || '',
             brand: z.brand || '',
-            stock: z.stock || (z.stock_on_hand != null ? String(z.stock_on_hand) : '0'),
+            stock: z.stock || (z.stock_on_hand != null ? String(z.stock_on_hand) : '0'), // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             description: z.description || '',
-            discount: z.discount != null ? String(z.discount) : '0',
+            discount: z.discount != null ? String(z.discount) : '0', // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             _zoho_category: z._zoho_category || z.category_name || '',
             type: z.type || '',
             subcategory: z.subcategory || '',
@@ -833,7 +833,7 @@ function loadFeaturedProducts() {
               }
             });
           }
-          if (z.rate != null) {
+          if (z.rate != null) { // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             var rateNum = parseFloat(z.rate);
             if (!obj.retail_kit) {
               obj.retail_kit = '$' + rateNum.toFixed(2);
@@ -1659,12 +1659,12 @@ function loadProducts() {
             name: z.name || '',
             sku: z.sku || '',
             brand: z.brand || '',
-            stock: z.stock || (z.stock_on_hand != null ? String(z.stock_on_hand) : '0'),
+            stock: z.stock || (z.stock_on_hand != null ? String(z.stock_on_hand) : '0'), // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             description: z.description || '',
-            discount: z.discount != null ? String(z.discount) : '0',
+            discount: z.discount != null ? String(z.discount) : '0', // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             _zoho_category: z._zoho_category || z.category_name || '',
             zoho_item_id: z.item_id || '',
-            tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0,
+            tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             tax_name: z.tax_name || '',
             type: z.type || '',
             subcategory: z.subcategory || '',
@@ -1680,7 +1680,7 @@ function loadProducts() {
           // Flatten custom fields if present (raw Zoho response — overrides top-level fields)
           flattenCustomFields(obj, z.custom_fields);
           // Derive prices from rate only if not already set
-          if (z.rate != null) {
+          if (z.rate != null) { // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             var rateNum = parseFloat(z.rate);
             if (!obj.retail_kit) {
               obj.retail_kit = '$' + rateNum.toFixed(2);
@@ -3161,8 +3161,8 @@ function loadIngredients(callback) {
           var obj = {
             name: z.name || '',
             unit: z.unit || '',
-            price_per_unit: z.price_per_unit != null ? String(z.price_per_unit) : (z.rate != null ? String(z.rate) : ''),
-            stock: z.stock != null ? String(z.stock) : (z.stock_on_hand != null ? String(z.stock_on_hand) : '0'),
+            price_per_unit: z.price_per_unit != null ? String(z.price_per_unit) : (z.rate != null ? String(z.rate) : ''), // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+            stock: z.stock != null ? String(z.stock) : (z.stock_on_hand != null ? String(z.stock_on_hand) : '0'), // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             description: z.description || '',
             sku: z.sku || '',
             category: z.category || z.category_name || '',
@@ -3170,7 +3170,7 @@ function loadIngredients(callback) {
             low_amount: '',
             high_amount: '',
             step: '',
-            tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0,
+            tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             tax_name: z.tax_name || ''
           };
           if (z.custom_fields && z.custom_fields.length) {
@@ -3602,7 +3602,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
           max_order_qty: item.max_order_qty || '',
           zoho_item_id: item.zoho_item_id || '',
           millable: item.millable || '',
-          tax_percentage: item.tax_percentage != null ? item.tax_percentage : 0,
+          tax_percentage: item.tax_percentage != null ? item.tax_percentage : 0, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
           tax_name: item.tax_name || ''
         };
         var ingReserveWrap = document.createElement('div');
@@ -3797,7 +3797,7 @@ function renderIngredientSection(catalog, title, items, extraClass) {
           max_order_qty: item.max_order_qty || '',
           zoho_item_id: item.zoho_item_id || '',
           millable: item.millable || '',
-          tax_percentage: item.tax_percentage != null ? item.tax_percentage : 0,
+          tax_percentage: item.tax_percentage != null ? item.tax_percentage : 0, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
           tax_name: item.tax_name || ''
         };
         var reserveWrap = document.createElement('div');
@@ -3963,11 +3963,11 @@ function loadServices(callback) {
         return items.map(function (z) {
           return {
             name: z.name || '',
-            price: z.rate != null ? String(z.rate) : '',
+            price: z.rate != null ? String(z.rate) : '', // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             description: z.description || '',
             sku: z.sku || '',
-            stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
-            discount: z.discount != null ? String(z.discount) : '0'
+            stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0', // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+            discount: z.discount != null ? String(z.discount) : '0' // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
           };
         });
       });
@@ -4555,7 +4555,7 @@ function getCartKey(product) {
 // from item fields at lookup time (never persisted), so stored carts don't orphan.
 function getProductKey(product) {
   if (!product) return '';
-  var sku = (product.sku != null ? String(product.sku) : '').trim();
+  var sku = (product.sku != null ? String(product.sku) : '').trim(); // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
   if (sku) return sku;
   return product.name + '|' + (product.brand || '');
 }
@@ -6123,7 +6123,7 @@ function loadTimeslots() {
         grid.appendChild(c);
       }
     }).catch(function (err) {
-      console.error('[calendar] Failed to load availability:', err);
+      console.error('[calendar] Failed to load availability:', err); // eslint-disable-line no-console -- operational: reports booking-availability load failure for troubleshooting
       grid.innerHTML = '<p class="calendar-error" style="grid-column:1/-1">Unable to load availability. Please refresh or call us at (604) 567-4565.</p>';
     });
   }
@@ -6171,7 +6171,7 @@ function loadTimeslots() {
       });
       fs.appendChild(g); slots.appendChild(fs);
     }).catch(function (err) {
-      console.error('[calendar] Failed to load slots:', err);
+      console.error('[calendar] Failed to load slots:', err); // eslint-disable-line no-console -- operational: reports booking-slots load failure for troubleshooting
       slots.innerHTML = '<p class="calendar-error">Unable to load available times. Please refresh or call us at (604) 567-4565.</p>';
     });
   }
@@ -6942,7 +6942,7 @@ function renderReservationItems() {
     qtyInput.type = 'text';
     qtyInput.className = 'qty-input';
     var decimalsA = itemIsWeighted ? 2 : 0;
-    qtyInput.value = itemIsWeighted ? parseFloat(item.qty || 1).toFixed(decimalsA) : String(item.qty != null ? item.qty : 1);
+    qtyInput.value = itemIsWeighted ? parseFloat(item.qty || 1).toFixed(decimalsA) : String(item.qty != null ? item.qty : 1); // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
     qtyInput.setAttribute('aria-label', 'Quantity for ' + item.name);
     qtyInput.setAttribute('inputmode', itemIsWeighted ? 'decimal' : 'numeric');
     qtyInput.setAttribute('pattern', itemIsWeighted ? '[0-9]*\\.?[0-9]*' : '[0-9]*');
@@ -6972,7 +6972,7 @@ function renderReservationItems() {
     qtyInput.addEventListener('change', function () {
       var val = parseFloat(qtyInput.value);
       if (isNaN(val) || val <= 0) {
-        qtyInput.value = itemIsWeighted ? parseFloat(item.qty || 1).toFixed(decimalsA) : String(item.qty != null ? item.qty : 1);
+        qtyInput.value = itemIsWeighted ? parseFloat(item.qty || 1).toFixed(decimalsA) : String(item.qty != null ? item.qty : 1); // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
         return;
       }
       if (!itemIsWeighted) val = Math.round(val);
@@ -9180,7 +9180,7 @@ function loadFAQ() {
       });
     })
     .catch(function (err) {
-      console.error('[FAQ] Error loading:', err);
+      console.error('[FAQ] Error loading:', err); // eslint-disable-line no-console -- operational: reports FAQ load failure for troubleshooting
     });
 }
 
