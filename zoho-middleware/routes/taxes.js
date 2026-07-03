@@ -714,7 +714,11 @@ router.post('/api/items/migrate', function (req, res) {
   var csvRows, zohoItems;
 
   // Step 1: Fetch CSV (csv_path removed to prevent path traversal)
-  var csvPromise = axios.get(csvUrl, { responseType: 'text', timeout: 30000 });
+  // WR-01 (SSRF): validateCsvUrl only vets the INITIAL url; pin maxRedirects: 0 so
+  // an allowlisted open-redirect host cannot bounce the fetch to an unvalidated
+  // (possibly private/metadata) target. A 3xx now fails the default validateStatus
+  // and rejects, closing the redirect-follow SSRF corner rather than following it.
+  var csvPromise = axios.get(csvUrl, { responseType: 'text', timeout: 30000, maxRedirects: 0 });
 
   csvPromise
     .then(function (csvResp) {
