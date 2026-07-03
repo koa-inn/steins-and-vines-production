@@ -6,11 +6,17 @@ var checkMailer = require('./lib/checkMailer');
 validateEnv();
 
 var Sentry = require('@sentry/node');
+var scrub = require('./lib/sentry-scrub');
 if (process.env.SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
     environment: process.env.NODE_ENV || 'production',
-    tracesSampleRate: 0.1
+    tracesSampleRate: 0.1,
+    beforeSend: function (event) {
+      event = scrub.scrubEvent(event);
+      event.fingerprint = scrub.fingerprintFor(event);
+      return event;
+    }
   });
 }
 
