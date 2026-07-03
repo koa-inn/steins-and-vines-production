@@ -584,6 +584,42 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
         }
       }
 
+      // MONEY-01 / audit H2: verify the ACTUAL amount captured on the card (read back
+      // via helcimLib.getCardTransactionById) covers the invoice total BEFORE any
+      // side-effect (inventory decrement, emails) or the customerpayment recording
+      // below. Without this, a tampered POST /api/payment/initialize {amount: 0.01}
+      // followed by a full order would book the books as paid-in-full against a
+      // capture that never covered it. On short/unverifiable capture, throw a tagged
+      // error so the EXISTING catch block (below) reuses the hardened
+      // moneyPath.voidWithTimeout primitive — no second void path is introduced here
+      // (audit H5/L18: raw voidTransaction calls outside that primitive are forbidden).
+      if (transactionId && depositAmount > 0) {
+        var CAPTURED_AMOUNT_TOLERANCE = 0.01;
+        var captured;
+        try {
+          var capturedTxn = await helcimLib.getCardTransactionById(transactionId);
+          captured = parseFloat(capturedTxn && capturedTxn.amount);
+        } catch (captureReadErr) {
+          log.error('[checkout] MONEY-01/H2: captured-amount readback failed for txn=' +
+            transactionId + ': ' + captureReadErr.message);
+          captured = NaN;
+        }
+        if (!isFinite(captured) || captured <= 0 || captured < depositAmount - CAPTURED_AMOUNT_TOLERANCE) {
+          log.error('[checkout] MONEY-01/H2: captured amount mismatch — txn=' + transactionId +
+            ' captured=' + captured + ' recorded=' + depositAmount);
+          var mismatchErr = new Error('Captured amount could not be verified against the recorded total');
+          mismatchErr.isCapturedAmountMismatch = true;
+          throw mismatchErr;
+        }
+        if (captured > depositAmount + CAPTURED_AMOUNT_TOLERANCE) {
+          // Overpayment: customer captured more than the invoice — not our bug to
+          // reject here; log for reconciliation and proceed.
+          log.warn('[checkout] MONEY-01/H2: captured amount (' + captured +
+            ') exceeds recorded total (' + depositAmount + ') for txn=' + transactionId +
+            ' — overpayment, allowing through (reconciliation note only)');
+        }
+      }
+
       // Fire-and-forget: decrement inventory ledger for sold items
       ledger.decrementStock(lineItems, 'checkout:' + (soNumber || 'unknown')).catch(function (err) {
         log.error('[checkout] Inventory ledger decrement failed (non-fatal): ' + err.message);
@@ -712,6 +748,13 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
       // Snapshot fallback guard: non-numeric item_ids can't be submitted to Zoho
       if (err.isSnapshotFallback) {
         status = 503;
+      }
+
+      // MONEY-01 / audit H2: captured amount short of (or unverifiable against) the
+      // recorded total — 402 Payment Required. The void below reuses the existing
+      // hardened moneyPath.voidWithTimeout primitive (single void path, H5/L18).
+      if (err.isCapturedAmountMismatch) {
+        status = 402;
       }
 
       // M9: Extract Zoho error details for server-side logging only — never send raw Zoho messages to client
