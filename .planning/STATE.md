@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: ready_to_plan
-stopped_at: Phase 52 complete (5/5) — ready to discuss Phase 53
-last_updated: 2026-07-03T06:22:51.022Z
-last_activity: 2026-07-03 -- Phase 52 execution started
+status: planning
+stopped_at: Phase 53 context gathered
+last_updated: "2026-07-03T06:34:17.368Z"
+last_activity: 2026-07-03
 progress:
   total_phases: 39
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 68
   completed_plans: 72
-  percent: 21
+  percent: 23
 ---
 
 # Project State
@@ -119,8 +119,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-02T19:42:45.815Z
-Stopped at: Phase 46 context gathered (auth re-arch: kiosk typed-in device token kiosk-scoped, admin/BrewPad Google OAuth + 7d server session, dual-accept cutover rotate in days, D-05 skipped)
+Last session: 2026-07-03T06:34:17.361Z
+Stopped at: Phase 53 context gathered
 Session summary:
 
   - Deployed F2 (d8bf965+e029108) via staging push 211ad6e + prod force-push; Railway auto-deployed (NOTE: Railway watches koa-inn/steins-and-vines-production zoho-middleware/** — a prod force-push IS a middleware deploy; `railway up` redundant).
@@ -134,4 +134,4 @@ Session summary:
 Cleanup owed (owner): refund $3 remaining card charges (txn 50914850 $2, txn 50915774 $1; June-30 $20 + Test-1 $1 already refunded); Zoho reverse INV-000127/128/129/131/132/133/134 + their payments; dismiss reconcile needs_manual_review flag for KIOSK-1783016597951 (false alarm); remove stale GH_TOKEN ~/.zshrc:16.
 Follow-ups (non-blocking, in findings §Follow-ups): F6 tap-shield (#109), webhook type logging, invoice-note wording, gift-card-only txnId label, void 409 mapping, cancel-aware reconcile sweep.
 Next: mark 45-09 UAT-approved in the phase flow (executor resume-signal was "approved") → 45-09 SUMMARY + phase-45 verification/wrap-up. Build churn from `npm run build` still in working tree (about.html/brewpad/products/* + zoho-middleware/ingredients-cache.json); stash@{0}/stash@{1} still pending reconcile.
-Resume file: .planning/phases/46-auth-re-architecture-critical-split-from-phase-45/46-CONTEXT.md
+Resume file: .planning/phases/53-money-path-observability-ci-gates/53-CONTEXT.md
