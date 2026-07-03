@@ -1000,7 +1000,11 @@ Plans:
   3. A regression test simulating `initialize(amount: 0.01)` against a full-price order asserts: charge voided, no paid invoice persisted, 4xx response
   4. The existing v4.2-hardened checkout test suite remains green — no regression to the happy-path charge→Zoho-order flow
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 49-01-PLAN.md — TDD RED→GREEN: failing H2 regression, then getCardTransactionById captured-amount check (±$0.01) + void-on-mismatch in /api/checkout (autonomous)
+- [ ] 49-02-PLAN.md — Live-card UAT: legit order books paid (no false-void) + tamper attempt voided/4xx on staging (checkpoint)
 
 ### Phase 50: Kiosk Money-Path Defect Closeout
 
