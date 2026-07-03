@@ -800,6 +800,17 @@ function servePublicIngredients(req, res) {
  */
 router.get('/api/kiosk/products', function (req, res) {
   var bustCache = req.query.bust === '1';
+
+  // M7 (Phase 52-05): ?bust=1 forces a cold Zoho refetch — gate ONLY this
+  // branch behind a credential (admin-grade, matches the /api/orders/recent
+  // precedent) so an anon caller cannot repeatedly exhaust Zoho quota. The
+  // normal cached read below stays public.
+  if (bustCache) {
+    return authTiers.requireTiers(['legacy', 'session'])(req, res, function () { return proceed(); });
+  }
+  return proceed();
+
+  function proceed() {
   (bustCache ? cache.del(KIOSK_PRODUCTS_CACHE_KEY).then(function () { return null; }) : cache.get(KIOSK_PRODUCTS_CACHE_KEY))
     .then(function (cached) {
       if (cached) {
@@ -894,6 +905,7 @@ router.get('/api/kiosk/products', function (req, res) {
       log.error('[api/kiosk/products] ' + err.message);
       res.status(502).json({ error: 'Unable to fetch kiosk products', detail: err.message, zoho_status: status });
     });
+  }
 });
 
 /**

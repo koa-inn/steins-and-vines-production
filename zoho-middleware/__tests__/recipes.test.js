@@ -36,7 +36,8 @@ jest.mock('../lib/constants', function () {
       RECIPES: 'sv:recipes',
       RECIPES_TS: 'sv:recipes:ts',
       INGREDIENTS: 'zoho:ingredients',
-      INGREDIENTS_ALL: 'zoho:ingredients:all'
+      INGREDIENTS_ALL: 'zoho:ingredients:all',
+      RECIPE_AVAILABILITY: 'sv:recipe-availability'
     }
   };
 });
@@ -162,14 +163,35 @@ describe('GET /api/recipes/:id', function () {
   });
 });
 
+// M8 (Phase 52-05): this route now requires a credential tier (previously
+// unauth — the DoS vector this plan closes). Mirrors the D-09 precedent
+// (commit 313b91a) — existing success-path requests gain an x-api-key
+// header (no assertion changed); a new 401-without-key test is added.
 describe('GET /api/recipes/:id/availability', function () {
   var mocks;
+  var OLD_API_SECRET_KEY;
+
   beforeEach(function () {
     mocks = resetAndLoadRecipes();
     mocks.cache.set.mockResolvedValue(true);
     mocks.cache.del.mockResolvedValue(true);
     process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
     process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-token';
+    OLD_API_SECRET_KEY = process.env.API_SECRET_KEY;
+    process.env.API_SECRET_KEY = 'test-api-key';
+  });
+
+  afterEach(function () {
+    process.env.API_SECRET_KEY = OLD_API_SECRET_KEY;
+  });
+
+  // M8 auth guard (Phase 52-05)
+  test('returns 401 without x-api-key header, Apps Script never called', function () {
+    mocks.cache.get.mockResolvedValue(null);
+    return callHandler('GET', '/api/recipes/:id/availability', { params: { id: 'SV-R-000001' }, headers: {} }).then(function (res) {
+      expect(res._status).toBe(401);
+      expect(mocks.axios.post).not.toHaveBeenCalled();
+    });
   });
 
   test('returns per-ingredient status with stock data from ingredients cache', function () {
@@ -203,7 +225,7 @@ describe('GET /api/recipes/:id/availability', function () {
       return Promise.resolve(null);
     });
 
-    return callHandler('GET', '/api/recipes/:id/availability', { params: { id: 'SV-R-000001' } }).then(function (res) {
+    return callHandler('GET', '/api/recipes/:id/availability', { params: { id: 'SV-R-000001' }, headers: { 'x-api-key': 'test-api-key' } }).then(function (res) {
       expect(res._body.recipe_id).toBe('SV-R-000001');
       expect(res._body.summary).toBe('some_low');
       expect(res._body.ingredients).toHaveLength(2);
@@ -231,7 +253,7 @@ describe('GET /api/recipes/:id/availability', function () {
     // Ingredients cache is cold (null)
     mocks.cache.get.mockResolvedValue(null);
 
-    return callHandler('GET', '/api/recipes/:id/availability', { params: { id: 'SV-R-000001' } }).then(function (res) {
+    return callHandler('GET', '/api/recipes/:id/availability', { params: { id: 'SV-R-000001' }, headers: { 'x-api-key': 'test-api-key' } }).then(function (res) {
       expect(res._body.summary).toBe('unknown');
       expect(res._body.ingredients[0].status).toBe('unknown');
       expect(res._body.ingredients[0].stock_on_hand).toBeNull();
@@ -270,7 +292,7 @@ describe('GET /api/recipes/:id/availability', function () {
       return Promise.resolve(null);
     });
 
-    return callHandler('GET', '/api/recipes/:id/availability', { params: { id: 'SV-R-GYPSUM' } }).then(function (res) {
+    return callHandler('GET', '/api/recipes/:id/availability', { params: { id: 'SV-R-GYPSUM' }, headers: { 'x-api-key': 'test-api-key' } }).then(function (res) {
       expect(res._body.summary).toBe('all_ok');
       var gypsumResult = res._body.ingredients[0];
       // Real stock must be visible (not 0)

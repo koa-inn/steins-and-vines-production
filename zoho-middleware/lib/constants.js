@@ -71,6 +71,10 @@ var CACHE_KEYS = {
   // Recipes (Apps Script sourced, Redis cached)
   RECIPES:             'sv:recipes',
   RECIPES_TS:          'sv:recipes:ts',
+  RECIPE_AVAILABILITY: 'sv:recipe-availability',  // append ':' + recipe_id (Phase 52-05 M8)
+
+  // Gift cards (Apps Script sourced, Redis cached — Phase 52-05 M8)
+  GIFT_CARD_NEXT_NUMBER: 'kiosk:gift-card-next-number',
 };
 
 // ---------------------------------------------------------------------------

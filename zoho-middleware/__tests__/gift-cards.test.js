@@ -45,7 +45,7 @@ jest.mock('../lib/cache', function () {
 // ---------------------------------------------------------------------------
 
 describe('gift-card routes', function () {
-  var axiosMock, zohoApi, router, handlers;
+  var axiosMock, zohoApi, cache, router, handlers;
 
   /**
    * Reset all module state and re-require the route module so each test
@@ -55,6 +55,7 @@ describe('gift-card routes', function () {
     jest.resetModules();
     axiosMock = require('axios');
     zohoApi = require('../lib/zoho-api');
+    cache = require('../lib/cache');
     require('../routes/gift-cards');
     router = require('express').Router();
     handlers = {};
@@ -78,6 +79,12 @@ describe('gift-card routes', function () {
     process.env.KIOSK_CONTACT_ID = 'contact-walkin-test';
     process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
     process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-server-token';
+    process.env.API_SECRET_KEY = 'test-api-key';
+    // M8 (Phase 52-05): next-number now read-through-caches via lib/cache —
+    // default to a cold cache (miss) so existing Apps-Script-call assertions
+    // are unaffected; individual tests override via cache.get.mockResolvedValueOnce.
+    cache.get.mockResolvedValue(null);
+    cache.set.mockResolvedValue('OK');
   });
 
   afterEach(function () {
@@ -85,17 +92,32 @@ describe('gift-card routes', function () {
     delete process.env.KIOSK_CONTACT_ID;
     delete process.env.APPS_SCRIPT_URL;
     delete process.env.APPS_SCRIPT_SERVER_TOKEN;
+    delete process.env.API_SECRET_KEY;
   });
 
   // -------------------------------------------------------------------------
   // GET /api/kiosk/gift-card/next-number
+  // M8 (Phase 52-05): now requires a credential tier (previously unauth —
+  // the DoS vector this plan closes). Mirrors the D-09 precedent (commit
+  // 313b91a) — existing success-path requests gain an x-api-key header (no
+  // assertion changed); a new 401-without-key test is added.
   // -------------------------------------------------------------------------
 
   describe('GET /api/kiosk/gift-card/next-number', function () {
+    test('returns 401 without x-api-key header, Apps Script never called', function () {
+      var req = { headers: {} };
+      var res = mockRes();
+
+      handlers['/api/kiosk/gift-card/next-number'](req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(axiosMock.post).not.toHaveBeenCalled();
+    });
+
     test('returns suggested cert number from Apps Script', function () {
       axiosMock.post.mockResolvedValueOnce({ data: { ok: true, suggested: 'GC-000001' } });
 
-      var req = {};
+      var req = { headers: { 'x-api-key': 'test-api-key' } };
       var res = mockRes();
 
       return handlers['/api/kiosk/gift-card/next-number'](req, res).then(function () {
@@ -114,7 +136,7 @@ describe('gift-card routes', function () {
     test('Apps Script error → 500', function () {
       axiosMock.post.mockResolvedValueOnce({ data: { ok: false, error: 'script_error' } });
 
-      var req = {};
+      var req = { headers: { 'x-api-key': 'test-api-key' } };
       var res = mockRes();
 
       return handlers['/api/kiosk/gift-card/next-number'](req, res).then(function () {
@@ -125,9 +147,22 @@ describe('gift-card routes', function () {
 
   // -------------------------------------------------------------------------
   // GET /api/kiosk/gift-card/lookup
+  // M8 (Phase 52-05): now requires a credential tier (same rationale as
+  // next-number above); existing success/validation-path requests gain an
+  // x-api-key header (no assertion changed).
   // -------------------------------------------------------------------------
 
   describe('GET /api/kiosk/gift-card/lookup', function () {
+    test('returns 401 without x-api-key header, Apps Script never called', function () {
+      var req = { query: { cert_number: 'GC-000001' }, headers: {} };
+      var res = mockRes();
+
+      handlers['/api/kiosk/gift-card/lookup'](req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(axiosMock.post).not.toHaveBeenCalled();
+    });
+
     test('found cert → 200 with current_balance, status, face_value', function () {
       axiosMock.post.mockResolvedValueOnce({
         data: {
@@ -136,7 +171,7 @@ describe('gift-card routes', function () {
         }
       });
 
-      var req = { query: { cert_number: 'GC-000001' } };
+      var req = { query: { cert_number: 'GC-000001' }, headers: { 'x-api-key': 'test-api-key' } };
       var res = mockRes();
 
       return handlers['/api/kiosk/gift-card/lookup'](req, res).then(function () {
@@ -156,7 +191,7 @@ describe('gift-card routes', function () {
     test('unknown cert → 404', function () {
       axiosMock.post.mockResolvedValueOnce({ data: { ok: false, error: 'not_found' } });
 
-      var req = { query: { cert_number: 'GC-000099' } };
+      var req = { query: { cert_number: 'GC-000099' }, headers: { 'x-api-key': 'test-api-key' } };
       var res = mockRes();
 
       return handlers['/api/kiosk/gift-card/lookup'](req, res).then(function () {
@@ -167,7 +202,7 @@ describe('gift-card routes', function () {
     });
 
     test('invalid cert_number format (too short) → 400, no Apps Script call', function () {
-      var req = { query: { cert_number: 'GC-12' } };
+      var req = { query: { cert_number: 'GC-12' }, headers: { 'x-api-key': 'test-api-key' } };
       var res = mockRes();
 
       handlers['/api/kiosk/gift-card/lookup'](req, res);
@@ -177,7 +212,7 @@ describe('gift-card routes', function () {
     });
 
     test('invalid cert_number format (wrong prefix) → 400', function () {
-      var req = { query: { cert_number: 'X-000001' } };
+      var req = { query: { cert_number: 'X-000001' }, headers: { 'x-api-key': 'test-api-key' } };
       var res = mockRes();
 
       handlers['/api/kiosk/gift-card/lookup'](req, res);
@@ -191,7 +226,7 @@ describe('gift-card routes', function () {
         data: { ok: true, data: { current_balance: 100, status: 'active', face_value: 100 } }
       });
 
-      var req = { query: { cert_number: 'gc-000001' } };
+      var req = { query: { cert_number: 'gc-000001' }, headers: { 'x-api-key': 'test-api-key' } };
       var res = mockRes();
 
       return handlers['/api/kiosk/gift-card/lookup'](req, res).then(function () {
