@@ -5,7 +5,7 @@ var zohoApi = require('../lib/zoho-api');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var C = require('../lib/constants');
-var apiKeyGuard = require('../lib/apiKey');
+var authTiers = require('../lib/authTiers');
 
 var zohoGet = zohoApi.zohoGet;
 
@@ -23,10 +23,8 @@ function lastDayOfMonth(year, month) {
  * Returns consignment sales aggregated by artisan for the given month.
  */
 router.get('/api/admin/consignment-report', function (req, res) {
-  if (!apiKeyGuard.matches(req.headers['x-api-key'])) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
+  // Admin-grade (device rejected, T-46-03b) — 46-04 interfaces.
   var month = req.query.month || new Date().toISOString().slice(0, 7);
   if (!/^\d{4}-\d{2}$/.test(month)) {
     return res.status(400).json({ error: 'Invalid month format (expected YYYY-MM)' });
@@ -138,6 +136,7 @@ router.get('/api/admin/consignment-report', function (req, res) {
       log.error('[consignment-report] ' + err.message);
       res.status(502).json({ error: 'Failed to generate consignment report' });
     });
+  });
 });
 
 module.exports = router;
