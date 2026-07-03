@@ -141,6 +141,11 @@ router.get('/api/inventory/items/:id', function (req, res) {
  * Partial update — name is not required in body (id is in path).
  */
 router.put('/api/inventory/items/:id', function (req, res) {
+  // WR-02 (M20 consistency): validate the numeric :id on the mutating route too,
+  // not just the GET siblings — closes the same %2F path-pivot surface.
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid item ID' });
+  }
   var result = validateBody(req.body, ITEM_UPDATE_SCHEMA);
   if (result.error) {
     return res.status(400).json({ error: result.error });
