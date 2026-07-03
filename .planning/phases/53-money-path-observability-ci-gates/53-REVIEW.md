@@ -16,11 +16,11 @@ files_reviewed_list:
   - eslint.config.js
   - .github/workflows/tests.yml
 findings:
-  critical: 1
+  critical: 0
   warning: 3
   info: 2
   total: 6
-status: issues_found
+status: issues_found_1_critical_resolved
 ---
 
 # Phase 53: Code Review Report
@@ -63,6 +63,11 @@ most likely carriers — exception messages and console breadcrumbs — and the 
 ## Critical Issues
 
 ### CR-01: Sentry scrub does not cover exception messages or breadcrumbs — raw payment amounts and customer emails leak past the control
+
+> **RESOLVED (commit 21656e2):** `scrubEvent` now applies a new `scrubString()`
+> (email-mask + currency-redact) to `event.exception.values[].value` and to
+> `event.breadcrumbs[].message`/`.data`. Regression tests added first (RED),
+> now green — full middleware suite 1247 passing, lint gate clean.
 
 **File:** `zoho-middleware/lib/sentry-scrub.js:58-83` (scrub coverage), `zoho-middleware/server.js:15-20` (wiring), plus every new `captureException(err, …)` call site
 
