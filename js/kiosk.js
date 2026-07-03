@@ -5520,8 +5520,15 @@
       // Phase 36 state accessors
       _kioskGetModifiedIngredients: function () { return _kioskModifiedIngredients; },
       _kioskSetModifiedIngredients: function (v) { _kioskModifiedIngredients = v; },
-      renderKioskModifyRows: renderKioskModifyRows
+      renderKioskModifyRows: renderKioskModifyRows,
       // Note: kioskSaveAsNewRecipe is intentionally NOT exported — not exposed on kiosk (UI-SPEC §2)
+      // Phase 46 (D-46-01): device-token gate exports
+      kioskDeviceToken: kioskDeviceToken,
+      saveKioskDeviceToken: saveKioskDeviceToken,
+      initKioskAuth: initKioskAuth,
+      showDeviceTokenPrompt: showDeviceTokenPrompt,
+      showKioskApp: showKioskApp,
+      kioskShowCustomerStep: kioskShowCustomerStep
     });
   }
 
