@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: planning
+status: executing
 stopped_at: Phase 53 context gathered
-last_updated: "2026-07-03T06:34:17.368Z"
-last_activity: 2026-07-03
+last_updated: "2026-07-03T15:07:01.139Z"
+last_activity: 2026-07-03 -- Phase 53 planning complete
 progress:
   total_phases: 39
   completed_phases: 9
-  total_plans: 68
+  total_plans: 74
   completed_plans: 72
   percent: 23
 ---
@@ -28,8 +28,8 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 Phase: 53
 Plan: Not started
 Milestone: v4.5 Security & Money-Path Closeout — roadmap set (Phases 46–53). Phases 47 + 49-01 code landed; owner deploys/UAT pending.
-Status: Ready to plan
-Last activity: 2026-07-03
+Status: Ready to execute
+Last activity: 2026-07-03 -- Phase 53 planning complete
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
