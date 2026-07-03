@@ -20,7 +20,7 @@
     "snapshot": "node zoho-middleware/scripts/export-snapshot.js",
     "snapshot:csv": "node zoho-middleware/scripts/csv-to-snapshot.js",
     "watch": "echo 'Run build after making changes'",
-    "lint": "eslint js/",
+    "lint": "eslint js/ --max-warnings 0",
     "test": "jest --config jest.config.js",
     "test:coverage": "jest --config jest.config.js --coverage",
     "test:e2e": "playwright test",
