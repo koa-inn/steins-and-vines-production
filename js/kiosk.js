@@ -4,6 +4,15 @@
 (function () {
   'use strict';
 
+  // ===== Test-only KioskCore attach (mirrors the module.exports guard pattern
+  // already used at the bottom of this file) — inert in the browser, where
+  // <script src="kiosk-core.min.js"> has already run and set window.KioskCore
+  // before this file parses. Under Node/Jest, window.KioskCore is undefined,
+  // so this loads the shared skeleton (48-01 Task 2 / RESEARCH.md Pitfall 4).
+  if (typeof window !== 'undefined' && !window.KioskCore && typeof require === 'function') {
+    require('./kiosk-core.js');
+  }
+
   // ===== Kiosk Device Token (D-46-01) =====
   // Typed-in device credential replacing per-staff Google sign-in on the
   // shared in-store iPad. Persisted in localStorage; sent as the
