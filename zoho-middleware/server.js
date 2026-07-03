@@ -30,6 +30,8 @@ var brewpadIntegration = require('./lib/brewpad-integration');
 var mailer = require('./lib/mailer');
 var mailerlite = require('./lib/mailerlite');
 var reconcile = require('./lib/reconcile');
+var cookieParser = require('cookie-parser');
+var authTiers = require('./lib/authTiers');
 
 var app = express();
 app.set('trust proxy', 1); // Railway sits behind a load balancer
@@ -44,6 +46,10 @@ app.use(express.json({
   limit: '1mb',
   verify: function (req, res, buf) { req.rawBody = buf; }
 }));
+// Session cookies (sv_session, D-46-04) must be readable before the auth
+// router and the /api guard — mounted here so req.cookies is populated on
+// every request, including GETs the global guard skips (46-03).
+app.use(cookieParser());
 // H3: CORS origin whitelist — only allow requests from known frontend origins
 var allowedOrigins = [
   'https://steinsandvines.ca',
@@ -75,6 +81,12 @@ function requireAllowedReferer(req, res, next) {
   if (req.method === 'OPTIONS' || !req.headers.referer) return next();
   // Checkout is protected by reCAPTCHA + rate limit instead of Referer check
   if (req.path === '/checkout') return next();
+  // NOTE (D-46-10): /bookings, /contacts, /payment/initialize are exempted
+  // from the API-KEY guard below (keyless) but deliberately NOT exempted
+  // here — must_haves truth requires them to stay "referer + rate-limit
+  // only", matching /promo/validate's existing risk profile (which is also
+  // not referer-exempt). Referer is the only remaining gate for these public
+  // POSTs, so it must keep running.
   var referer = req.headers.referer;
   var allowed = allowedReferers.some(function(origin) {
     return referer === origin || referer.startsWith(origin + '/');
@@ -235,13 +247,17 @@ app.use('/api', function (req, res, next) {
 });
 
 // ---------------------------------------------------------------------------
-// API key guard — protects mutating /api/* endpoints from unauthorized callers
+// 3-tier /api guard — legacy key / kiosk device token / session cookie
+// (D-46-02, D-46-06, D-46-10, D-46-11). All three are valid simultaneously
+// during the dual-accept window; the legacy branch dies the moment
+// API_SECRET_KEY is rotated (cutover, 46-10). Credential resolution + the
+// kiosk route allowlist live in lib/authTiers so this guard and 46-04's
+// in-route checks (requireTiers) share one source of truth (req.authTier).
 // ---------------------------------------------------------------------------
 
 var apiKeyGuard = require('./lib/apiKey');
-var API_SECRET_KEY = apiKeyGuard.getKey();
 
-if (!API_SECRET_KEY) {
+if (!apiKeyGuard.getKey()) {
   log.warn('');
   log.warn('┌─────────────────────────────────────────────────────────┐');
   log.warn('│  SECURITY WARNING: API_SECRET_KEY is not set.           │');
@@ -252,9 +268,16 @@ if (!API_SECRET_KEY) {
   log.warn('');
 }
 
-// Key comparison (constant-time, header-only, unified env pair) lives in
-// lib/apiKey so server.js and the individual route guards can never drift.
-app.use('/api', function (req, res, next) {
+// D-46-10 / Finding #1: these three public POSTs are keyless — protected by
+// Referer + rate-limit only (requireAllowedReferer still runs on them, see
+// the NOTE above), matching the existing /promo/validate risk profile.
+var KEYLESS_POSTS = ['/bookings', '/contacts', '/payment/initialize'];
+
+// Credential comparison (constant-time, header-only) lives in lib/apiKey /
+// lib/deviceToken; session lookup lives in lib/session. lib/authTiers is the
+// single place that dispatches between them so server.js and route-level
+// guards can never drift.
+app.use('/api', async function (req, res, next) {
   if (req.method === 'GET') return next();
   // /api/checkout is public — protected by reCAPTCHA + rate limit instead of API key
   if (req.path === '/checkout') return next();
@@ -262,18 +285,52 @@ app.use('/api', function (req, res, next) {
   if (req.path === '/promo/validate') return next();
   // Webhooks are protected by HMAC signature verification, not API key
   if (req.path.indexOf('/webhooks/') === 0) return next();
-  if (!API_SECRET_KEY) {
+  if (KEYLESS_POSTS.indexOf(req.path) !== -1) return next();
+
+  // Fail closed if NO credential path can EVER succeed — no legacy key
+  // (either half of the unified API_SECRET_KEY/MW_API_KEY pair), no device
+  // token, no staff allowlist for sessions.
+  if (!apiKeyGuard.getKey() && !process.env.KIOSK_DEVICE_TOKEN && !process.env.STAFF_EMAILS) {
     return res.status(503).json({ error: 'Server not configured: API_SECRET_KEY is not set. Contact your administrator.' });
   }
-  if (apiKeyGuard.matches(req.headers['x-api-key'])) return next();
-  var sent = req.headers['x-api-key'];
-  log.warn('[api-key] Forbidden: method=' + req.method + ' path=' + req.path +
-    ' header-present=' + (sent !== undefined) +
-    ' header-length=' + (sent ? sent.length : 0) +
-    ' expected-length=' + API_SECRET_KEY.length +
-    ' origin=' + (req.headers.origin || 'none') +
-    ' referer=' + (req.headers.referer || 'none'));
-  res.status(403).json({ error: 'Forbidden' });
+
+  var tier;
+  try {
+    // Express 4 does not catch a rejected middleware promise — an unwrapped
+    // await on a session.getSession rejection would hang the request instead
+    // of failing closed, so this is explicitly try/caught (T-46-17).
+    tier = await authTiers.resolveTier(req);
+  } catch (e) {
+    log.warn('[auth-guard] resolveTier failed: ' + e.message);
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  req.authTier = tier;
+
+  if (!tier) {
+    var sent = req.headers['x-api-key'];
+    log.warn('[auth-guard] Forbidden: method=' + req.method + ' path=' + req.path +
+      ' x-api-key-present=' + (sent !== undefined) +
+      ' x-device-token-present=' + (req.headers['x-device-token'] !== undefined) +
+      ' session-cookie-present=' + !!(req.cookies && req.cookies.sv_session) +
+      ' origin=' + (req.headers.origin || 'none') +
+      ' referer=' + (req.headers.referer || 'none'));
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  // D-46-02 / T-46-03: device tokens are scoped to the explicit kiosk-route
+  // allowlist — never admin-grade (a stolen iPad must not reach PII/void/
+  // consignment routes). This guard is mounted via app.use('/api', ...), so
+  // req.path here is mount-relative (e.g. '/kiosk/sale', NOT
+  // '/api/kiosk/sale') — KIOSK_ROUTES is defined in absolute form (matching
+  // how 46-04 calls isKioskRoute() from inside route files, where req.path
+  // IS the full absolute path), so it must be reconstructed here.
+  var fullPath = '/api' + req.path;
+  if (tier === 'device' && !authTiers.isKioskRoute(fullPath)) {
+    log.warn('[auth-guard] Forbidden: device token on non-kiosk route path=' + fullPath);
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  next();
 });
 
 // ---------------------------------------------------------------------------
@@ -456,9 +513,19 @@ app.use('/api/kiosk/salesorder-pay', paymentLimiter);
 
 var PII_GET_ROUTES = ['/api/contacts', '/api/invoices', '/api/items/inspect', '/api/snapshot'];
 
+// D-46-02: PII GET routes accept the legacy key OR a session — a bare
+// kiosk device token must NOT reach customer/contact/invoice data.
 function requirePiiApiKey(req, res, next) {
   if (apiKeyGuard.matches(req.headers['x-api-key'])) return next();
-  return res.status(403).json({ error: 'Forbidden' });
+  Promise.resolve(authTiers.resolveTier(req)).then(function (tier) {
+    if (authTiers.allowAdmin(tier)) {
+      req.authTier = tier;
+      return next();
+    }
+    return res.status(403).json({ error: 'Forbidden' });
+  }).catch(function () {
+    return res.status(403).json({ error: 'Forbidden' });
+  });
 }
 
 PII_GET_ROUTES.forEach(function (p) { app.get(p, requirePiiApiKey); });
