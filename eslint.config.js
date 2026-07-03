@@ -8,7 +8,7 @@ module.exports = [
   {
     files: ['js/**/*.js'],
     languageOptions: {
-      ecmaVersion: 2020,
+      ecmaVersion: 5,
       sourceType: 'script',
       globals: {
         ...globals.browser,
