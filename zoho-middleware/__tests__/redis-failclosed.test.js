@@ -199,23 +199,59 @@ describe('Rate limiter fail-closed: in-process counting when Redis is down', fun
   });
 
   // -------------------------------------------------------------------------
-  // Test 3 (regression): when Redis IS connected, the in-process Map must NOT
-  // be used — the limiter delegates to the Redis store, and since our mock
-  // getClient() returns null (totalHits: 0), no in-process counting occurs.
-  // All 6 requests must pass (no 429 from spurious in-process counting).
+  // Test 3 (regression, updated 52-02/M4): when Redis IS connected and the
+  // client is healthy, the REAL Redis path handles counting — not the
+  // in-process Map. Verified by asserting the mock Redis client's incr() is
+  // actually invoked once per request, and that the limiter enforces
+  // normally through that path (6th request trips, same as production).
+  //
+  // Before 52-02 (M4), this test drove a mock combination that cannot happen
+  // in production — isConnected():true while getClient() resolves null —
+  // and asserted 6 requests never trip (totalHits:0 forever). That exact
+  // combination was the fail-open corner 52-02 closes: a connected-but-
+  // absent-client race now falls through to the same in-process accounting
+  // used when Redis is fully down, rather than silently returning
+  // totalHits:0. See __tests__/ratelimit-failclosed-52.test.js for the M4
+  // regression coverage of that corner. This test now verifies the healthy-
+  // client case instead: a working, connected Redis client is genuinely used
+  // (not bypassed by the in-process Map).
   // -------------------------------------------------------------------------
-  test('in-process Map NOT used when Redis is connected — no spurious 429', async function () {
+  test('Redis path is used (not the in-process Map) when Redis is connected and healthy', async function () {
     cacheLib.isConnected.mockReturnValue(true);
+    // Track hits per redisKey (not a single shared counter) — apiLimiter runs
+    // ahead of pinLimiter on every request and shares this same mock client,
+    // so counts must stay isolated per key the way real Redis INCR would.
+    var hitsByKey = {};
+    var healthyClient = {
+      incr: jest.fn(function (redisKey) {
+        hitsByKey[redisKey] = (hitsByKey[redisKey] || 0) + 1;
+        return Promise.resolve(hitsByKey[redisKey]);
+      }),
+      expire: jest.fn().mockResolvedValue(1),
+      ttl: jest.fn().mockResolvedValue(30)
+    };
+    cacheLib.getClient.mockResolvedValue(healthyClient);
 
-    for (var i = 0; i < 6; i++) {
+    for (var i = 0; i < 5; i++) {
       var res = await request(app)
         .post('/api/kiosk/verify-pin')
         .set('X-Forwarded-For', '10.3.0.1')
         .set('x-api-key', 'test-key')
         .send({ pin: '0000' });
-      // None of these should return 429 — the in-process Map must stay idle
       expect(res.status).not.toBe(429);
     }
+    // 6th request: the Redis-backed count reaches 6 > max:5 — the limiter
+    // enforces via the real Redis path itself, same as it would in production.
+    var blocked = await request(app)
+      .post('/api/kiosk/verify-pin')
+      .set('X-Forwarded-For', '10.3.0.1')
+      .set('x-api-key', 'test-key')
+      .send({ pin: '0000' });
+    expect(blocked.status).toBe(429);
+    // pinLimiter's own key (prefix rl:pin:) reached 6 via the real incr() path
+    var pinKey = Object.keys(hitsByKey).filter(function (k) { return k.indexOf('rl:pin:') === 0; })[0];
+    expect(pinKey).toBeTruthy();
+    expect(hitsByKey[pinKey]).toBe(6);
   });
 });
 
