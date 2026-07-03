@@ -290,7 +290,9 @@ describe('kioskFetchRecipeQuote (kiosk.js) — URL construction', function () {
     expect(url).not.toContain('modified_ingredients');
   });
 
-  test('T2d: API key header is sent', function () {
+  test('T2d: device token header is sent (D-46-01 — replaces x-api-key)', function () {
+    localStorage.setItem('sv_kiosk_device_token', 'kiosk-test-device-token');
+
     kiosk._kioskSetSelectedRecipe(BASE_RECIPE);
     kiosk._kioskSetSaleType('in-store');
     kiosk._kioskSetTargetVolumeL(23);
@@ -305,7 +307,10 @@ describe('kioskFetchRecipeQuote (kiosk.js) — URL construction', function () {
     var opts = global.fetch.mock.calls[0][1];
     expect(opts).toBeDefined();
     expect(opts.headers).toBeDefined();
-    expect(opts.headers['x-api-key']).toBe('test-api-key');
+    expect(opts.headers['x-device-token']).toBe('kiosk-test-device-token');
+    expect(opts.headers['x-api-key']).toBeUndefined();
+
+    localStorage.removeItem('sv_kiosk_device_token');
   });
 });
 
