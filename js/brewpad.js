@@ -1040,7 +1040,17 @@ function bpScaleIngredients(list, factor) {
   }
 
   function checkAuthorization(onError) {
-    adminApiGet('check_auth')
+    // D-46-09: verify identity via the server session exchange (sv_session cookie)
+    // instead of the Apps-Script check_auth round trip. The onError callback contract
+    // is preserved — it is the silent-refresh fallback used by initGoogleAuth's
+    // stored-token fast path (see doSilentRefreshOnLoad above).
+    fetch(mwUrl() + '/auth/google', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: accessToken })
+    })
+      .then(function (res) { return res.json(); })
       .then(function (result) {
         if (result.authorized) { showApp(); } else { showDenied(); }
       })
@@ -1259,10 +1269,6 @@ function bpScaleIngredients(list, factor) {
 
   function mwUrl() {
     return (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL) || '';
-  }
-
-  function mwApiKey() {
-    return (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) || '';
   }
 
   // ===== Phase 36: Recipe-Attach Flow — Scale + Modify + Advisory =====
@@ -1488,7 +1494,8 @@ function bpScaleIngredients(list, factor) {
     };
     return fetch(mwUrl() + '/api/recipes', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': mwApiKey() },
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
       .then(function (r) { return r.json(); })
@@ -1509,7 +1516,8 @@ function bpScaleIngredients(list, factor) {
   function postBottlingInvite(data) {
     return fetch(mwUrl() + '/api/batch/bottling-invite', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': mwApiKey() },
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     }).then(function (r) {
       return r.json().then(function (d) {
@@ -1543,7 +1551,8 @@ function bpScaleIngredients(list, factor) {
     showSyncIndicator('syncing');
     fetch(mwUrl() + '/api/batch/sync-zoho', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': mwApiKey() },
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ batch_id: batchId, so_id: soId, status: status })
     }).then(function (r) { return r.json(); })
       .then(function (data) {
@@ -1560,7 +1569,7 @@ function bpScaleIngredients(list, factor) {
     resultsEl.innerHTML = '<div class="bp-so-result-item" style="color:var(--ink-muted);">Searching…</div>';
 
     fetch(mwUrl() + '/api/batch/search-invoices?search=' + encodeURIComponent(term), {
-      headers: { 'x-api-key': mwApiKey() }
+      credentials: 'include'
     }).then(function (r) { return r.json(); })
       .then(function (data) {
         var orders = data.invoices || [];
@@ -1602,7 +1611,7 @@ function bpScaleIngredients(list, factor) {
     resultsEl.innerHTML = '<div class="bp-so-result-item" style="color:var(--ink-muted);">Searching…</div>';
 
     fetch(mwUrl() + '/api/contacts/search?q=' + encodeURIComponent(term), {
-      headers: { 'x-api-key': mwApiKey() }
+      credentials: 'include'
     }).then(function (r) { return r.json(); })
       .then(function (data) {
         var contacts = data.contacts || [];
@@ -1689,7 +1698,8 @@ function bpScaleIngredients(list, factor) {
 
       fetch(mwUrl() + '/api/batch/reassign-customer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': mwApiKey() },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })
         .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -1987,10 +1997,8 @@ function bpScaleIngredients(list, factor) {
   var _recipesDataLoaded = false;
   var _recipesDataLoading = false;
 
-  function getRecipesMwHeaders(mutating) {
-    var h = { 'Content-Type': 'application/json' };
-    if (mutating && mwApiKey()) h['x-api-key'] = mwApiKey();
-    return h;
+  function getRecipesMwHeaders() {
+    return { 'Content-Type': 'application/json' };
   }
 
   function initRecipesTab() {
@@ -2004,8 +2012,8 @@ function bpScaleIngredients(list, factor) {
   function loadIngredientCatalogForRecipes() {
     var url = mwUrl();
     if (!url) return Promise.resolve();
-    var headers = getRecipesMwHeaders(true);
-    return fetch(url + '/api/ingredients?include_internal=1', { headers: headers })
+    var headers = getRecipesMwHeaders();
+    return fetch(url + '/api/ingredients?include_internal=1', { credentials: 'include', headers: headers })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
       .then(function (data) {
         _recipesState.catalog = data.items || data.ingredients || data || [];
@@ -2039,7 +2047,8 @@ function bpScaleIngredients(list, factor) {
     if (inner) inner.innerHTML = '<div class="bp-skeleton-block"></div>';
 
     fetch(url + '/api/recipes?status=' + encodeURIComponent(status), {
-      headers: getRecipesMwHeaders(false)
+      credentials: 'include',
+      headers: getRecipesMwHeaders()
     })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
       .then(function (data) {
@@ -2144,9 +2153,9 @@ function bpScaleIngredients(list, factor) {
     renderAvailabilityBannerBp({ summary: 'loading' });
 
     Promise.all([
-      fetch(url + '/api/recipes/' + encodeURIComponent(recipeId), { headers: getRecipesMwHeaders(false) })
+      fetch(url + '/api/recipes/' + encodeURIComponent(recipeId), { credentials: 'include', headers: getRecipesMwHeaders() })
         .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); }),
-      fetch(url + '/api/recipes/' + encodeURIComponent(recipeId) + '/availability', { headers: getRecipesMwHeaders(false) })
+      fetch(url + '/api/recipes/' + encodeURIComponent(recipeId) + '/availability', { credentials: 'include', headers: getRecipesMwHeaders() })
         .then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; })
     ]).then(function (results) {
@@ -2561,7 +2570,8 @@ function bpScaleIngredients(list, factor) {
 
     fetch(endpoint, {
       method: method,
-      headers: getRecipesMwHeaders(true),
+      credentials: 'include',
+      headers: getRecipesMwHeaders(),
       body: JSON.stringify(formData)
     })
       .then(function (r) { return r.json(); })
@@ -2597,7 +2607,8 @@ function bpScaleIngredients(list, factor) {
       function () {
         fetch(url + '/api/recipes/' + encodeURIComponent(recipeId), {
           method: 'DELETE',
-          headers: getRecipesMwHeaders(true)
+          credentials: 'include',
+          headers: getRecipesMwHeaders()
         })
           .then(function (r) { return r.json(); })
           .then(function (data) {
@@ -3840,7 +3851,7 @@ function bpScaleIngredients(list, factor) {
         importBtn.textContent = 'Scanning…';
         fetch(mwUrl() + '/api/batch/scan-invoices?number=' + encodeURIComponent(num), {
           method: 'GET',
-          headers: { 'x-api-key': mwApiKey() }
+          credentials: 'include'
         })
           .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
           .then(function (resp) {
@@ -3886,7 +3897,8 @@ function bpScaleIngredients(list, factor) {
         var payload = buildBulkCreatePayload(selected);
         fetch(mwUrl() + '/api/batch/bulk-create', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': mwApiKey() },
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         })
           .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
@@ -3981,7 +3993,7 @@ function bpScaleIngredients(list, factor) {
           importBtn.textContent = 'Scanning…';
           fetch(mwUrl() + '/api/batch/scan-invoices?number=' + encodeURIComponent(num), {
             method: 'GET',
-            headers: { 'x-api-key': mwApiKey() }
+            credentials: 'include'
           })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
             .then(function (resp) {
@@ -4010,7 +4022,7 @@ function bpScaleIngredients(list, factor) {
     // Kick off the background scan
     fetch(mwUrl() + '/api/batch/scan-invoices', {
       method: 'GET',
-      headers: { 'x-api-key': mwApiKey() }
+      credentials: 'include'
     })
       .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
       .then(function (resp) {
@@ -4450,7 +4462,7 @@ function bpScaleIngredients(list, factor) {
       if (!_catalog) {
         dropdown.innerHTML = '<div class="bp-vessel-option bp-vessel-option--empty">Loading recipes…</div>';
         dropdown.style.display = '';
-        fetch(mwUrl() + '/api/recipes?status=active', { headers: { 'x-api-key': mwApiKey() } })
+        fetch(mwUrl() + '/api/recipes?status=active', { credentials: 'include' })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             _catalog = data.recipes || [];
@@ -4481,7 +4493,7 @@ function bpScaleIngredients(list, factor) {
           dropdown.style.display = 'none';
 
           // Phase 36: RESOLVE only — do NOT write the batch
-          fetch(mwUrl() + '/api/recipes/' + encodeURIComponent(rid), { headers: { 'x-api-key': mwApiKey() } })
+          fetch(mwUrl() + '/api/recipes/' + encodeURIComponent(rid), { credentials: 'include' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
               var snap = data.recipe || {};
@@ -4624,7 +4636,8 @@ function bpScaleIngredients(list, factor) {
         };
         fetch(mwUrl() + '/api/recipes', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': mwApiKey() },
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         })
           .then(function (r) { return r.json(); })
@@ -5271,7 +5284,7 @@ function bpScaleIngredients(list, factor) {
         zohoRefreshBtn.textContent = 'Refreshing…';
 
         fetch(mwUrl() + '/api/batch/customer-by-number?number=' + encodeURIComponent(soNumber), {
-          headers: { 'x-api-key': mwApiKey() }
+          credentials: 'include'
         })
           .then(function (r) {
             if (r.status === 404) return r.json().then(function (d) { throw { status: 404, error: d.error }; });
@@ -5481,7 +5494,7 @@ function bpScaleIngredients(list, factor) {
       var searchTerm = getCustomerDisplayName(b) || '';
       if (searchTerm) {
         fetch(mwUrl() + '/api/batch/search-invoices?search=' + encodeURIComponent(searchTerm), {
-          headers: { 'x-api-key': mwApiKey() }
+          credentials: 'include'
         }).then(function (r) { return r.json(); })
           .then(function (data) {
             var invoices = data.invoices || [];
@@ -6843,7 +6856,7 @@ function bpScaleIngredients(list, factor) {
         dropdown.innerHTML = '<div class="bp-vessel-option bp-vessel-option--empty">Loading recipes…</div>';
         dropdown.style.display = '';
         fetch(mwUrl() + '/api/recipes?status=active', {
-          headers: { 'x-api-key': mwApiKey() }
+          credentials: 'include'
         }).then(function (r) { return r.json(); })
           .then(function (data) {
             _recipeCatalog = data.recipes || [];
@@ -6879,7 +6892,7 @@ function bpScaleIngredients(list, factor) {
           if (recipeIdHidden) recipeIdHidden.value = rid;
           dropdown.style.display = 'none';
           fetch(mwUrl() + '/api/recipes/' + encodeURIComponent(rid), {
-            headers: { 'x-api-key': mwApiKey() }
+            credentials: 'include'
           }).then(function (r) { return r.json(); })
             .then(function (data) {
               var snap = data.recipe || {};
@@ -6954,10 +6967,10 @@ function bpScaleIngredients(list, factor) {
       timer = setTimeout(function () {
         if (_custSearchAbort) { try { _custSearchAbort.abort(); } catch (e) {} }
         _custSearchAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-        // The /api gate returns 403 Forbidden without the API key, so the search
-        // silently returned no contacts. Send x-api-key like the sibling reassign
-        // search (fetchReassignSearch) and the new-customer POST below.
-        var fetchOpts = { headers: { 'x-api-key': mwApiKey() } };
+        // The /api gate requires the session cookie, so the search must send
+        // credentials:'include' — same as the sibling reassign search
+        // (fetchReassignSearch) and the new-customer POST below.
+        var fetchOpts = { credentials: 'include' };
         if (_custSearchAbort) fetchOpts.signal = _custSearchAbort.signal;
         fetch(base + '/api/contacts?search=' + encodeURIComponent(q), fetchOpts)
           .then(function (r) { return r.json(); })
@@ -7018,7 +7031,8 @@ function bpScaleIngredients(list, factor) {
         ncSaveBtn.disabled = true;
         fetch(base + '/api/contacts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY) || '' },
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: name, first_name: firstName, last_name: lastName, email: email, phone: phone })
         })
           .then(function (r) { return r.json(); })
@@ -8697,7 +8711,9 @@ function bpScaleIngredients(list, factor) {
     module.exports = Object.assign(module.exports || {}, {
       _initGoogleAuth: initGoogleAuth,
       _getAccessToken: function () { return accessToken; },
+      _setAccessTokenForTest: function (v) { accessToken = v; },
       _getUserEmail:   function () { return userEmail; },
+      _checkAuthorization: checkAuthorization,
       // Allow tests to reset IIFE-scoped auth state between runs.
       _resetAuthStateForTest: function () {
         accessToken = null;

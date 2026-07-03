@@ -167,19 +167,23 @@ describe('initGoogleAuth — valid stored token path', function () {
     expect(bp._getUserEmail()).toBe('brewer@steinsandvines.ca');
   });
 
-  test('(a) valid stored session: calls fetch for checkAuthorization with stored token', function () {
+  // D-46-09: checkAuthorization now POSTs to /auth/google with credentials:'include'
+  // instead of the Apps-Script adminApiGet('check_auth') round trip.
+  test('(a) valid stored session: calls fetch for checkAuthorization against /auth/google with the stored token', function () {
     var session = makeValidSession();
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     global.fetch = jest.fn().mockResolvedValue({
-      json: function () { return Promise.resolve({ ok: true, authorized: true }); }
+      json: function () { return Promise.resolve({ authorized: true }); }
     });
 
     bp._initGoogleAuth();
 
     expect(global.fetch).toHaveBeenCalled();
-    var calledUrl = global.fetch.mock.calls[0][0];
-    expect(calledUrl).toContain('action=check_auth');
-    expect(calledUrl).toContain(encodeURIComponent(session.token));
+    var call = global.fetch.mock.calls[0];
+    expect(call[0]).toBe('http://localhost:3001/auth/google');
+    expect(call[1].method).toBe('POST');
+    expect(call[1].credentials).toBe('include');
+    expect(JSON.parse(call[1].body)).toEqual({ access_token: session.token });
   });
 });
 
@@ -308,15 +312,14 @@ describe('initGoogleAuth — graceful fallback on stale stored token', function 
     var session = makeValidSession();
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 
-    // checkAuthorization → adminApiGet → fetchWithRetry retries once after 1s then rejects.
-    // Use a spy that fails immediately (no real network) so the 1s retry still fires.
+    // checkAuthorization now fetches /auth/google directly (D-46-09) — a rejected
+    // fetch reaches checkAuthorization's .catch() (the onError callback), which
+    // calls doSilentRefreshOnLoad().
     global.fetch = jest.fn().mockRejectedValue(new Error('network error'));
 
     bp._initGoogleAuth();
 
-    // fetchWithRetry default retries=1 delays ~1000ms before final rejection reaches
-    // checkAuthorization's .catch(), which calls doSilentRefreshOnLoad().
-    // Allow 2.5s to cover the retry + promise microtask chain.
+    // Allow 2.5s to cover the promise microtask chain.
     setTimeout(function () {
       expect(mockRequestAccessToken).toHaveBeenCalledWith(
         expect.objectContaining({ prompt: '' })
