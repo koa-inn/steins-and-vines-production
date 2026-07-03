@@ -29,6 +29,14 @@ This is the structural prerequisite for MONEY-02 (Phase 50) and MONEY-03 (Phase 
 ### Product-type discount parity
 - **D-04:** The product-type discount becomes **purely identical on both surfaces** — it simply moves into `kiosk-core.js` so the admin-embedded kiosk gets it for free. No admin-specific override or staff affordance. This is the single allowed behaviour change; keep it minimal.
 
+### Drift-bug fixes surfaced by research (added 2026-07-03 after RESEARCH.md)
+- **D-05:** Research found `admin.js`'s money/cart copies have **drifted** from `kiosk.js`, including two real bugs that unifying-to-`kiosk.js`-as-canonical fixes for free. **User decision: fix both as part of unification** (not deferred). D-04's "single allowed behaviour change" is widened to include these, because preserving admin's buggy behaviour would require reintroducing admin-specific divergence into the shared core — which directly contradicts D-02. The two fixes:
+  1. **Duplicate batch creation** — delete `admin.js`'s client-side `create_batch` loop (`js/admin.js` ~11178-11213); the server auto-creates the batch (`pos.js:1219`). `kiosk.js` already removed this from itself (documented at `js/kiosk.js:3748-3759`).
+  2. **Missing `modified_ingredients`** — `admin.js`'s recipe-sale charge body (`~11016-11026`) omits `modified_ingredients`; unify on `kiosk.js`'s version (`js/kiosk.js:3300-3313`) which forwards it, so the charged price matches the staff-edited preview.
+  - Both fixes MUST be called out explicitly in the plan and checked at verification (no duplicate batch; `modified_ingredients` present in admin charge payload) — they are intentional, not silent.
+  - **Idempotency-key unification:** also unify on `kiosk.js`'s simpler `refNumber` (`'KIOSK-' + Date.now()`) form; drop `admin.js`'s extra `Math.random()` suffix (no protective benefit). Behaviour-neutral, enables the payload-parity test.
+- **D-06 (naming):** functions exposed on `KioskCore` drop the redundant `kiosk` prefix (e.g. `KioskCore.proceedToPayment`, matching D-01's own example), since every call site needs updating regardless. Claude's discretion per CONTEXT — recorded for the planner.
+
 ### Claude's Discretion
 - Exact `KioskCore` API surface (function names, init signature, how environment is injected) — planner/researcher decide, constrained by D-01/D-02.
 - Build wiring for `kiosk-core.js` (separate `<script>` before `kiosk.js`/`admin.js` on each page vs prepend-per-bundle at build time) — see Research Hints below.
