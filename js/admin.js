@@ -9760,7 +9760,11 @@
       buildRefreshUpdates: buildRefreshUpdates,
       compareRefreshFields: compareRefreshFields,
       splitCustomerName: splitCustomerName,
-      isVersionConflict: isVersionConflict
+      isVersionConflict: isVersionConflict,
+      // 46-06: session-cookie auth exchange test hooks
+      checkAuthorization: checkAuthorization,
+      _setAccessToken: function (t) { accessToken = t; },
+      _setUserEmail: function (e) { userEmail = e; }
     });
   }
 
