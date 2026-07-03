@@ -8,20 +8,26 @@ The Steins & Vines website and in-store system (steinsandvines.ca) serves a Squa
 
 **Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.**
 
-## Current Milestone: v4.4 Audit Remediation
+## Current Milestone: v4.5 Security & Money-Path Closeout
 
-**Goal:** Close out the remaining open/partial HIGH-priority items from `PROJECT_ASSESSMENT.md` (2026-06-10) — de-risk the forked kiosk POS, fix the duplicate-cart bug, and finish the deploy/repo-hygiene and image-weight items — without weakening the v4.2-hardened money path. Excludes the hero subtitle (#17, owner handling separately).
+**Goal:** Close the deferred CRITICAL and the verified High/Medium security + money-path defects from the 2026-07-02 whole-repo audit (`.planning/reports/AUDIT.md`) — and cure the root cause (the kiosk is a second-class re-implementation of the online-checkout money path) via the KIOSK-01 de-fork plus full synchronous adoption of `lib/money-path.js` primitives across `pos.js`/`pos-recipe.js` — without weakening the gold-standard online checkout.
 
-**Target items (from PROJECT_ASSESSMENT.md):**
-- **#14 (HIGH) Kiosk POS de-fork** — `admin.js` (embedded kiosk) and `kiosk.js` share ~34 diverging `kiosk*` functions with two payment implementations; extract a shared `js/kiosk-core.js` (or remove the admin-embedded kiosk). Highest risk/effort — touches the kiosk money path. Recent discount work landed in `kiosk.js` only, so the admin copy already lacks it.
-- **#15 (HIGH) Cart identity by SKU** — catalog keys the cart by `name|brand`, the search overlay by `name|`, producing duplicate cart lines and wrong qty. Re-key by SKU in `11-cart.js` + `17-search-overlay.js`.
-- **#6 (HIGH, partial) `.planning/` repo hygiene** — git-tracked and previously served publicly; stripped at prod deploy but not gitignored. Add `.planning/` to `.gitignore` and confirm the staging deploy also strips it.
-- **#10 (HIGH, partial) Nightly snapshot publishes** — the prod snapshot commit uses `[skip ci]` so the static prod fallback never publishes; force-push then erases it. Drop `[skip ci]` (or `workflow_dispatch`) and pull-before-force-push.
-- **#18 (HIGH, partial) Facility image weight** — ~42 MB unoptimized facility JPEGs (homepage `interior.jpg` 5.7 MB); add webp + `srcset`, extending the existing product image pipeline. (`images/products/unmatched/` already deleted.)
+**Target items (from `.planning/reports/AUDIT.md` §5, risk-ordered):**
+- **SEC-01 (H-1, HIGH — confirmed live) Purge publicly-served internal docs** — the `.planning/` tree and `AUDIT-2026-06-29.md` are served publicly on staging (verified HTTP 200), handing out the admin key + a file:line exploit map. `git rm --cached` the audit docs + `.gitignore`; reconcile the root `.nojekyll` vs `_config.yml exclude` on staging; ensure prod strip removes root audit docs. Sequenced first — ~minutes, independent.
+- **SEC-02 (H-2) Auth re-architecture** — *existing Phase 46, code-complete/verified, owner cutover pending.* Server-side Google-OAuth identity for staff surfaces; no shared secret in the browser; rotate `API_SECRET_KEY`. Folded in as-is, not re-planned. Closes CRITICAL C1 (whose blast radius grew via Phase 43/44 — gift-cert void, SSRF, DoS under the public key).
+- **KIOSK-01 (de-fork) Kiosk POS de-fork → `kiosk-core.js`** — pulled forward from the un-started Phase 42; the structural backbone that lets the kiosk void-on-failure synchronously like checkout. Prereq for the kiosk money-path closeout.
+- **MONEY-01 (H-3) Online captured-amount verification** — assert captured card amount ≥ recorded/invoiced total before booking (`checkout.js`); voids + rejects on mismatch.
+- **MONEY-02 (H-4) Kiosk money-path defect closeout** — reconcile TTL/authoritative-Zoho check (H3), release idempotency lock on every failure path (H4), `voidTransaction` inspects reversal status (H5), `salesorder-pay` lock + unique ref (H8), sweep clears pending records (M13), `pos-recipe.js` adopts `money-path` primitives (M12).
+- **MONEY-03 (H-5) Gift-card ledger integrity** — idempotent `reloadGiftCard` + append-only processed-ref ledger (H7); durable `needs_manual_review` on redeem failure + a test that asserts the flag not the log (H6); cell sanitizer for `=+-@` (M9); header-mapped `issueGiftCard` + bounded numerics (M18); negative-taxable-line tax parity (M15).
+- **RESIL-01 (H-6) Fail-closed sweep of remaining call-sites** — one shared closed-on-Redis-error helper applied to promo (M1), rate-limit store mid-op (M4) + loopback (M5); quarantine legacy `/api/pos/sale` (M2); fail-closed gift-card account fallback (M3); allowlist `csv_url` (M6); auth+cache the Apps-Script GETs (M7,M8); validate `:id` (M20).
+- **OBS-01 (H-7) Money-path observability + CI gates** — `Sentry.captureException` in every money-path catch (M17); `npm ci` in CI + Railway + Node pin (L1,L2); `--max-warnings 0` + an ES5 lint rule (L12); per-file coverage floor on `pos.js` (L13). Last — protects the earlier fixes from regressing.
 
 **Key constraints:**
-- Vanilla ES5 JS, no framework; kiosk/admin are iPad Safari staff tools; staging-first deploy.
-- #14 must not weaken the v4.2-hardened, server-authoritative money path (kiosk POS checkout, terminal, void recovery). De-fork is a behavior-preserving refactor with parity tests, not a redesign.
+- Vanilla ES5 JS, no framework; kiosk/admin are iPad Safari staff tools; staging-first deploy; no staging middleware (staging calls prod middleware).
+- The money-path fixes must not weaken the v4.2-hardened online checkout; every fix ships with a regression test that asserts the fail-*closed* behavior.
+- De-fork (KIOSK-01) is behaviour-preserving with parity tests, not a redesign.
+
+> **Milestone lineage:** v4.4 Audit Remediation is wound down — its shipped items (Phases 38–41: repo-hygiene/deferred, snapshot publish, facility images, SKU cart key) plus Phases 43–45 (kiosk custom line, gift-card lifecycle, security/money-path hardening) are complete. Its one un-started item, KIOSK-01 (was Phase 42), rehomes into v4.5. Phase 46 (auth re-arch) carries over as v4.5's SEC-02. Additive setup: nothing archived or renumbered below 46; new phases continue at 47.
 
 ## Current State: v4.2 Payment Path Hardening & Deploy Safety — SHIPPED 2026-06-19
 

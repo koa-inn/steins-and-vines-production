@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.4
-milestone_name: Audit Remediation
-status: executing
-stopped_at: "Phase 46 context gathered (auth re-arch: kiosk typed-in device token kiosk-scoped, admin/BrewPad Google OAuth + 7d server session, dual-accept cutover rotate in days, D-05 skipped)"
-last_updated: "2026-07-03T00:15:34.135Z"
-last_activity: 2026-07-03 -- Phase 46 execution started
+milestone: v4.5
+milestone_name: Security & Money-Path Closeout
+status: planning
+last_updated: "2026-07-03T03:11:53.894Z"
+last_activity: 2026-07-03
 progress:
-  total_phases: 32
-  completed_phases: 7
-  total_plans: 60
-  completed_plans: 56
-  percent: 22
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,14 +24,13 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 ## Current Position
 
-Phase: 46 (auth-re-architecture-critical-split-from-phase-45) — EXECUTING
-Plan: 1 of 10
-Status: Executing Phase 46
-Last activity: 2026-07-03 -- Phase 46 execution started
+Milestone: v4.5 Security & Money-Path Closeout — building roadmap (additive; continues numbering from 46).
+Status: Requirements defined (`REQUIREMENTS.md`); roadmap in progress.
+Last activity: 2026-07-03 — Milestone v4.5 started from the 2026-07-02 whole-repo audit.
 
-Verifier advisory (non-blocking, from 45-VERIFICATION.md): review warnings WR-01/04/05/06/08/09 + IN-01/02 remain open with no explicit deferral record — most map to roadmap out-of-scope items (phases 46+); record their disposition when planning Phase 46/47 to close the audit trail.
+**Carryover — SEC-02 / Phase 46 (auth re-architecture):** code-complete + verified; **owner production cutover (46-10) is the immediate open work** — pending off-hours coupled deploy + `API_SECRET_KEY` rotation. Full runbook: `docs/RUNBOOK.md` § Phase 46 Auth Cutover. Resume with "let's do the cutover". Prod currently runs the OLD code with the OLD key restored (stable/working).
 
-Prior v4.4 state: 38 DEFERRED, 39 DONE (staging), 40 DONE (prod), 41 DONE (staging), 42 (kiosk de-fork) NOT started.
+**Immediate v4.5 priority — SEC-01 / Phase 47 (H1, confirmed live):** `.planning/` + `AUDIT-2026-06-29.md` served publicly on staging (HTTP 200) — cheap, high-leverage; sequenced first.
 
 ## Performance Metrics
 

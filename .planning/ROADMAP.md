@@ -11,6 +11,7 @@
 - ✅ **v4.2 Payment Path Hardening & Deploy Safety** — Phases 31-33 (shipped 2026-06-19)
 - 🚧 **v4.3 Recipe Builder Refinement** — Phases 34-37 (in progress)
 - 🚧 **v4.4 Audit Remediation** — Phases 38-42 (in progress)
+- 🚧 **v4.5 Security & Money-Path Closeout** — Phases 46-53 (in progress)
 
 ## Phases
 
@@ -94,7 +95,20 @@
 - [x] **Phase 39: Nightly Snapshot Publishes to Prod Fallback** — DONE 2026-06-26 (`303a060`): dropped `[skip ci]` from the PROD snapshot commit so `deploy-production.yml` republishes Pages (was stale); staging keeps it (legacy deploy-from-branch serves directly); prod commit already builds on prod main (FF, CNAME-safe). Verify on next nightly run / manual dispatch. (DEPLOY-04)
 - [x] **Phase 40: Facility Image Optimization (webp + srcset)** — DONE 2026-06-26 (`17f9995`): extended optimize-images.js to facility photos; 4 referenced images → webp 800w/1600w + 1600w jpg fallback via `<picture>`; originals removed. Homepage interior 5.7MB→87KB. (ASSET-01)
 - [x] **Phase 41: SKU-Keyed Cart Identity** — DONE 2026-06-26 (`b2fdac1`): centralized `getProductKey()` (SKU primary, name|brand fallback) across 11-cart, 06/07/08/15/16/17 + 12-checkout comparisons; same product from catalog + search overlay now merges to one line; +4 regression tests; 928 FE tests green. (CART-01)
-- [ ] **Phase 42: Kiosk POS De-Fork (kiosk-core.js)** - shared `js/kiosk-core.js`, behaviour-preserving, parity-tested, discount on both surfaces (KIOSK-01)
+- [ ] **Phase 42: Kiosk POS De-Fork (kiosk-core.js)** - shared `js/kiosk-core.js`, behaviour-preserving, parity-tested, discount on both surfaces (KIOSK-01) → rehomed to v4.5 Phase 48 (KIOSK-01)
+
+### 🚧 v4.5 Security & Money-Path Closeout (In Progress)
+
+**Milestone Goal:** Close the deferred CRITICAL and the verified High/Medium security + money-path defects from the 2026-07-02 whole-repo audit (`.planning/reports/AUDIT.md`) — and cure the root cause (the kiosk is a second-class re-implementation of the online-checkout money path) via the KIOSK-01 de-fork plus full synchronous adoption of `lib/money-path.js` primitives across `pos.js`/`pos-recipe.js` — without weakening the gold-standard online checkout. Additive setup: continues phase numbering from Phase 46; nothing archived or renumbered ≤ 46.
+
+- [~] **Phase 46: Auth Re-Architecture** — carried over as v4.5 SEC-02 (existing phase, not re-planned); code-complete + verified, owner production cutover (46-10) pending
+- [ ] **Phase 47: Purge Publicly-Served Internal Docs** - untrack `.planning/`/audit docs from staging+prod, reconcile `.nojekyll` vs `_config.yml` exclude (SEC-01)
+- [ ] **Phase 48: Kiosk POS De-Fork (kiosk-core.js)** - shared `js/kiosk-core.js`, behaviour-preserving, parity-tested, discount on both surfaces (KIOSK-01) — rehomed from v4.4 Phase 42
+- [ ] **Phase 49: Online Captured-Amount Verification** - assert captured card amount ≥ recorded/invoiced total before booking; void + reject on mismatch (MONEY-01)
+- [ ] **Phase 50: Kiosk Money-Path Defect Closeout** - reconcile TTL/lock-release/void-status/salesorder-pay/sweep fixes, `pos-recipe.js` adopts money-path primitives (MONEY-02)
+- [ ] **Phase 51: Gift-Card Ledger Integrity** - idempotent reload, durable needs_manual_review, cell sanitizer, header-mapped issueGiftCard, tax parity (MONEY-03)
+- [ ] **Phase 52: Fail-Closed Sweep** - shared closed-on-Redis-error helper across remaining money/security call-sites (RESIL-01)
+- [ ] **Phase 53: Money-Path Observability & CI Gates** - Sentry on every money-path catch, `npm ci` + Node pin, `--max-warnings 0` + ES5 lint rule, pos.js coverage floor (OBS-01)
 
 ## Phase Details
 
@@ -681,7 +695,15 @@ Plans:
 | 39. Nightly Snapshot Publishes to Prod Fallback | v4.4 | 0/? | Not started | - |
 | 40. Facility Image Optimization (webp + srcset) | v4.4 | 0/? | Not started | - |
 | 41. SKU-Keyed Cart Identity | v4.4 | 0/? | Not started | - |
-| 42. Kiosk POS De-Fork (kiosk-core.js) | v4.4 | 0/? | Not started | - |
+| 42. Kiosk POS De-Fork (kiosk-core.js) → rehomed to v4.5 Phase 48 (KIOSK-01) | v4.4 | 0/? | Not started | - |
+| 46. Auth Re-Architecture | v4.5 (carryover, SEC-02) | 9/10 | Code-complete, owner cutover pending | - |
+| 47. Purge Publicly-Served Internal Docs | v4.5 | 0/? | Not started | - |
+| 48. Kiosk POS De-Fork (kiosk-core.js) | v4.5 | 0/? | Not started | - |
+| 49. Online Captured-Amount Verification | v4.5 | 0/? | Not started | - |
+| 50. Kiosk Money-Path Defect Closeout | v4.5 | 0/? | Not started | - |
+| 51. Gift-Card Ledger Integrity | v4.5 | 0/? | Not started | - |
+| 52. Fail-Closed Sweep | v4.5 | 0/? | Not started | - |
+| 53. Money-Path Observability & CI Gates | v4.5 | 0/? | Not started | - |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
 
@@ -889,6 +911,8 @@ Plans:
 
 ### Phase 46: Auth Re-Architecture (CRITICAL — split from Phase 45)
 
+**v4.5 carryover:** This phase now also closes v4.5 **SEC-02** (audit C1) — carried over as-is, not re-planned; code-complete + verified, owner production cutover (46-10) pending. See `REQUIREMENTS.md` Traceability.
+
 **Goal:** Eliminate the shared-secret browser auth model. Stop shipping the admin API key in public git-tracked JS, move staff surfaces to server-side identity, and rotate the leaked `API_SECRET_KEY` at cutover — closing the CRITICAL auth-model exposure from `AUDIT-2026-06-29.md` without locking out the in-store kiosk.
 
 **Requirements**: Audit remediation (CRITICAL tier — auth-model exposure). Source: `AUDIT-2026-06-29.md`. Carried over from Phase 45 decisions D-01..D-05.
@@ -929,3 +953,112 @@ Plans:
 
 **Wave 6** (owner cutover — checkpoints)
 - [ ] 46-10-PLAN.md — Dual-accept deploy + iPad provisioning + per-surface verify + API_SECRET_KEY rotation + runbook
+
+
+## Phase Details (v4.5)
+
+### Phase 47: Purge Publicly-Served Internal Docs
+
+**Goal**: Internal planning/audit artifacts are no longer served publicly on either staging or production — closing the confirmed-live H1 exposure that hands out the admin key and a file:line exploit map
+**Depends on**: Nothing (first phase of v4.5; ~minutes, independent containment; sequenced first because it removes an active exploit map)
+**Requirements**: SEC-01
+**Success Criteria** (what must be TRUE):
+
+  1. `curl https://staging.steinsandvines.ca/.planning/STATE.md` returns 404, not file contents
+  2. `curl <prod>/AUDIT-2026-06-29.md` (and the equivalent staging path) returns 404
+  3. `AUDIT-2026-06-29.md` and any other root audit docs are `git rm --cached` from the served repos and added to `.gitignore`
+  4. The root `.nojekyll`-vs-`_config.yml exclude` contradiction on staging is reconciled — either `.nojekyll` is dropped on staging so the exclude works, or a `.planning`/audit strip is added to the staging deploy matching prod
+  5. The existing production `.planning` strip step still runs and continues to remove root audit docs, with no regression to CNAME or the live site
+
+**Plans**: TBD
+
+### Phase 48: Kiosk POS De-Fork (kiosk-core.js)
+
+**Goal**: The kiosk POS logic lives in a single shared `js/kiosk-core.js` consumed by both `kiosk.js` (standalone) and `admin.js` (embedded), so the cart and payment/checkout paths can no longer diverge — the structural backbone that lets the kiosk void-on-failure synchronously like `checkout.js`, and the prerequisite for MONEY-02 (Phase 50) and MONEY-03 (Phase 51)
+**Depends on**: Nothing new (rehomed from v4.4 Phase 42; independent of Phase 47)
+**Requirements**: KIOSK-01
+**Success Criteria** (what must be TRUE):
+
+  1. The ~34 duplicated `kiosk*` functions (cart building, `kioskProceedToPayment`, terminal charge, Zoho invoice/payment, void-on-failure, dual-cart) exist in exactly one place, `js/kiosk-core.js`, and both `kiosk.js` and `admin.js` consume that shared module — no second copy of the payment path remains
+  2. The money path is unchanged in behaviour: terminal charge → Zoho invoice/payment → void-on-failure → dual-cart shared-charge handling all behave exactly as before, demonstrated by the existing kiosk tests passing without weakening and by a new admin-embedded-vs-standalone parity check that asserts identical request payloads/flow for the same cart
+  3. The kiosk product-type discount feature (which currently exists only in `kiosk.js`) is available identically on both the standalone kiosk and the admin-embedded kiosk after the de-fork
+  4. `npm test`, `npm run lint`, and `npm run build` are clean (concatenated `main.js`/`main.min.js` and `admin.min.js` regenerated), and no behaviour-changing logic was introduced beyond the discount-parity fix
+  5. Verified on staging on iPad Safari: a full kiosk sale (including a recipe/product-type discount) completes identically from both the standalone kiosk URL and the admin-embedded kiosk tab, with terminal/void/dual-cart behaviour intact
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 49: Online Captured-Amount Verification
+
+**Goal**: `/api/checkout` verifies the captured card amount against the recorded/invoiced total before booking payment, voiding and rejecting on any mismatch — closing audit H2
+**Depends on**: Nothing new (extends the existing `lib/money-path.js`/`checkout.js` primitives; independent of Phase 48)
+**Requirements**: MONEY-01
+**Success Criteria** (what must be TRUE):
+
+  1. After resolving `transactionId` in `/api/checkout`, the handler fetches the Helcim `getCardTransactionById` record and asserts captured amount ≥ recorded/invoiced total before any payment is booked
+  2. A mismatch (captured amount below the recorded/invoiced total) triggers `voidWithTimeout` and the request returns a 4xx rejection — no paid Zoho invoice is created
+  3. A regression test simulating `initialize(amount: 0.01)` against a full-price order asserts: charge voided, no paid invoice persisted, 4xx response
+  4. The existing v4.2-hardened checkout test suite remains green — no regression to the happy-path charge→Zoho-order flow
+
+**Plans**: TBD
+
+### Phase 50: Kiosk Money-Path Defect Closeout
+
+**Goal**: The kiosk money path closes its remaining correctness defects — reconcile TTL/orphan-age, idempotency lock release on failure, void-status inspection, `salesorder-pay` locking, sweep cleanup, and `pos-recipe.js` primitive adoption — closing audit H3/H4/H5/H8/M12/M13
+**Depends on**: Phase 48 (kiosk de-fork must land first so shared money-path primitives have one call site to fix, not two)
+**Requirements**: MONEY-02
+**Success Criteria** (what must be TRUE):
+
+  1. Reconcile's TTL-vs-orphan-age check is fixed / made Zoho-authoritative (H3) — a regression test asserts a settled paid charge is never voided by reconcile
+  2. The idempotency lock is released on every confirm/checkout failure path (H4) — a regression test asserts a retry after a failed attempt re-acquires the lock rather than hanging locked
+  3. `voidTransaction` inspects the actual reversal status returned by Helcim rather than trusting any 2xx response (H5) — a regression test covers a 2xx-but-not-reversed response
+  4. `salesorder-pay` acquires a lock, deletes its pending record on success, and uses a unique reference (H8) — a duplicate/racing call cannot double-pay
+  5. The sweep clears or marks pending records so the alert storm ends (M13), and `pos-recipe.js` adopts the same `money-path` primitives + pending-record pattern already used by `checkout.js`/`pos.js` (M12)
+
+**Plans**: TBD
+
+### Phase 51: Gift-Card Ledger Integrity
+
+**Goal**: Gift-card issue/reload/redeem operations are idempotent and ledger-integral — no duplicate credits, no silent redeem failures, no formula-injection or unbounded-numeric corruption of the Sheets-backed ledger — closing audit H6/H7/M9/M15/M18
+**Depends on**: Phase 48 (kiosk de-fork lands first; gift-card redemption is a kiosk tender path)
+**Requirements**: MONEY-03
+**Success Criteria** (what must be TRUE):
+
+  1. `reloadGiftCard` is idempotent via an append-only processed-ref ledger (H7) — a regression test asserts a duplicate reload request produces a single credit, not two
+  2. A redeem failure durably sets `needs_manual_review: true` on the gift-card/transaction record (H6) — a regression test asserts the flag itself, not just a log line
+  3. Every Sheets write sanitizes leading `=+-@` characters in user-supplied cell values (M9) — a regression test asserts `=IMPORTRANGE(...)` entered as a void reason is stored as inert text, not a formula
+  4. `issueGiftCard`'s `appendRow` is header-mapped (not positional) with bounded numeric fields (M18) — malformed/oversized numeric input is rejected or clamped, not written raw
+  5. Negative-taxable custom-line tax parity holds (M15) — a regression test asserts a legitimately discounted sale is not voided by a tax mismatch
+  6. An interleaved redeem retry decrements the balance exactly once, verified by a regression test
+
+**Plans**: TBD
+
+### Phase 52: Fail-Closed Sweep
+
+**Goal**: Every remaining Redis-degradation and auth/validation gap that currently fails open now fails closed — no security or money-path guard silently permits an unsafe operation when Redis or an upstream service is unavailable
+**Depends on**: Nothing new (independent of Phases 48-51; sequenced after money-path correctness per audit risk order)
+**Requirements**: RESIL-01
+**Success Criteria** (what must be TRUE):
+
+  1. A single shared closed-on-Redis-error helper is applied to the promo `FIRSTBATCH` check (M1), the rate-limit store's mid-op error path (M4), and its loopback skip (M5) — a test asserts each guard returns closed when its Redis call throws
+  2. The legacy `/api/pos/sale` route is quarantined or deleted (M2), and the hardcoded gift-card `account_id` fallback fails closed rather than silently using a default (M3)
+  3. The `csv_url` fetch is restricted to `https`-only with a host allowlist, closing the SSRF vector (M6)
+  4. The unauthenticated Apps-Script-backed GET routes are auth-guarded and cached (M7, M8) — an unauthenticated `?bust=1` request requires the key
+  5. Numeric `:id` path parameters are validated, closing the `%2F` path-pivot vector (M20)
+  6. A regression test asserts the promo is not repeatable during a simulated Redis outage
+
+**Plans**: TBD
+
+### Phase 53: Money-Path Observability & CI Gates
+
+**Goal**: Every money-path failure emits a tagged Sentry event, and CI enforces the lint/coverage/dependency gates that keep the hardened money path from silently regressing — protecting every fix made in Phases 47-52
+**Depends on**: Phases 49, 50, 51, 52 (sequenced last so its Sentry/coverage gates protect every earlier money-path/resilience fix from regressing, per audit rationale)
+**Requirements**: OBS-01
+**Success Criteria** (what must be TRUE):
+
+  1. Every money-path `catch` block calls `Sentry.captureException` tagged with `txnId`/`reqId` (M17) — a forced money-path error produces a visible Sentry event
+  2. CI and Railway both run `npm ci` (not `npm install`), and a Node `engines` field / `.nvmrc` pins the runtime version (L1, L2)
+  3. Lint runs with `--max-warnings 0` and an ES5-only lint rule is enforced — CI fails on a new lint warning and on ES6 syntax (L12)
+  4. A per-file coverage floor is set on `pos.js`, calibrated just below its measured coverage so it can't silently regress (L13)
+
+**Plans**: TBD
