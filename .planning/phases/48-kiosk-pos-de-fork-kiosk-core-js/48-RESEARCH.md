@@ -379,12 +379,14 @@ Not applicable in the conventional sense (no external framework/library version 
 
 ## Open Questions
 
-1. **Should this phase also fix the duplicate-batch-creation bug and the missing-`modified_ingredients`-forwarding bug in admin.js, or strictly limit itself to mechanical extraction + the named discount fix?**
+> **(RESOLVED 2026-07-03)** Both questions below are resolved by CONTEXT.md decisions added after this research: OQ1 → **D-05** (user confirmed: fix both admin bugs as part of unification), OQ2 → **D-06** (drop the `kiosk` prefix on `KioskCore` functions). A third, reverse-drift finding (Manager Override) surfaced later during plan review → **D-07**. Retained below for the reasoning trail.
+
+1. **(RESOLVED → D-05)** **Should this phase also fix the duplicate-batch-creation bug and the missing-`modified_ingredients`-forwarding bug in admin.js, or strictly limit itself to mechanical extraction + the named discount fix?**
    - What we know: both are real, verified bugs in admin.js's current code; both are naturally fixed by using kiosk.js's version as canonical during unification (which D-02 mandates); both are money/cart-path correctness issues squarely inside KIOSK-01's stated concern ("cart and payment/checkout paths can no longer diverge").
    - What's unclear: whether the user wants these called out and confirmed before the plan bakes them in, given CONTEXT.md explicitly scoped "the single allowed behaviour change" to the discount.
    - Recommendation: surface both explicitly to the user/plan-checker as "found during research, recommend fixing as part of unification since D-02 already mandates resolving all such divergence" — likely a quick confirm rather than a blocker, but shouldn't be silently absorbed.
 
-2. **Exact final `KioskCore` function-naming convention** (drop the `kiosk` prefix inside the namespace, e.g. `KioskCore.proceedToPayment` vs keep `KioskCore.kioskProceedToPayment`)?
+2. **(RESOLVED → D-06)** **Exact final `KioskCore` function-naming convention** (drop the `kiosk` prefix inside the namespace, e.g. `KioskCore.proceedToPayment` vs keep `KioskCore.kioskProceedToPayment`)?
    - What we know: D-01/CONTEXT's "Specific Ideas" section shows `KioskCore.proceedToPayment(...)` as an example, implying the prefix is dropped.
    - What's unclear: whether dropping the prefix on all ~37+12 promoted functions is worth the mechanical rename risk (every call site in both consumers needs updating either way, so cost is similar) versus keeping `kiosk`-prefixed names for a smaller diff.
    - Recommendation: drop the `kiosk` prefix for functions exposed on `KioskCore` (cleaner, matches D-01's own example) since call sites already need updating from `kioskProceedToPayment()` to `KioskCore.something()` regardless — the prefix is redundant on a namespace already called `KioskCore`.
