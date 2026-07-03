@@ -17,7 +17,7 @@ files_reviewed_list:
   - .github/workflows/tests.yml
 findings:
   critical: 0
-  warning: 3
+  warning: 2
   info: 2
   total: 6
 status: issues_found_1_critical_resolved
@@ -143,6 +143,12 @@ Sentry.init({
 ## Warnings
 
 ### WR-01: `captureException` runs before the orphan-charge void logic in money-movement catch blocks
+
+> **RESOLVED (commit after 0688bdd):** Added `lib/sentry-capture.js` —
+> `captureExceptionSafe()` wraps the SDK call in try/catch — and routed all 14
+> money-path capture sites through it, so telemetry can never throw into a void
+> path even if the SDK contract were ever violated. Regression tests assert the
+> wrapper swallows a throwing SDK; full middleware suite 1250 passing.
 
 **File:** `zoho-middleware/routes/checkout.js:793-796`, `zoho-middleware/routes/pos.js:1269-1275`
 
