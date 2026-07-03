@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: in_progress
-stopped_at: Phase 48 context gathered (ready for /gsd:plan-phase 48). NOT milestone-complete — GSD state-derivation keeps flagging "completed" because Phase 53 is highest-numbered, but Phases 48/50/51 are unbuilt, 49 needs UAT, 46/47 await owner prod cutover.
-last_updated: "2026-07-03T19:12:01.496Z"
-last_activity: 2026-07-03
+status: executing
+stopped_at: Phase 48 context gathered
+last_updated: "2026-07-03T22:40:35.528Z"
+last_activity: 2026-07-03 -- Phase 48 planning complete
 progress:
   total_phases: 39
   completed_phases: 10
-  total_plans: 74
+  total_plans: 80
   completed_plans: 78
   percent: 26
 ---
@@ -28,8 +28,8 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 Phase: 48
 Plan: Not started — CONTEXT.md gathered 2026-07-03; next is /gsd:plan-phase 48
 Milestone: v4.5 Security & Money-Path Closeout — roadmap set (Phases 46–53). Done: 52 (RESIL-01), 53 (OBS-01). Remaining: 48 (KIOSK-01, next), 50/51 (blocked on 48), 49 UAT, 46/47 owner cutover.
-Status: In progress — Phase 48 (KIOSK-01 kiosk de-fork) discussed, ready to plan
-Last activity: 2026-07-03
+Status: Ready to execute
+Last activity: 2026-07-03 -- Phase 48 planning complete
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 

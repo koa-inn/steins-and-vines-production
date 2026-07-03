@@ -713,6 +713,7 @@ Plans:
 **Plans:** 2/2 plans complete
 
 Plans:
+
 - [x] 29.4-01-PLAN.md — Pure helper/data layer: buildSkuLookup, normalizeWineTime, bucketWineDimension, applyTopN + Jest suite
 - [x] 29.4-02-PLAN.md — Render/interaction layer: Wine Breakdown card, segmented selector, snapshot lazy-fetch, handlers, build
 
@@ -724,6 +725,7 @@ Plans:
 **Plans:** 3/3 plans complete
 
 Plans:
+
 - [x] 29.3-01-PLAN.md — Middleware scan + bulk-create endpoints (GET /api/batch/scan-invoices, POST /api/batch/bulk-create) with Jest tests [wave 1]
 - [x] 29.3-02-PLAN.md — Apps Script createBatch zoho_so_number idempotency guard (D-10) [wave 1]
 - [x] 29.3-03-PLAN.md — BrewPad "Pull from Zoho" control + confirm sheet + single-import + list refresh [wave 2]
@@ -736,6 +738,7 @@ Plans:
 **Plans:** 5/5 plans complete
 
 Plans:
+
 - [x] 29.2-01-PLAN.md — Test scaffold + todayPacific() helper + status badge pending guard (bug fix, regression test first)
 - [x] 29.2-02-PLAN.md — Needs Scheduling rows: Activate + Schedule & Activate buttons and one-click delegation
 - [x] 29.2-03-PLAN.md — Guided Schedule & Activate bottom sheet + detail pane pending action buttons
@@ -795,19 +798,24 @@ Plans:
 
 Plans:
 **Wave 1**
+
 - [x] 30-01-PLAN.md — Dead-weight removal: delete unreferenced assets, dead lib, 9 dead content files, self-destruct sw.js + build refs (#10-14)
 - [x] 30-02-PLAN.md — Repo hygiene: deploy-layer `.planning/` exclusion kept-in-git (D-01/#15) + untrack CNAME (#16)
 
 **Wave 2**
+
 - [x] 30-03-PLAN.md — User-facing content/CSS/404 fixes: hero subtitle, nested-URL 404, contrast, empty story paragraph (#1,#3,#5,#6)
 
 **Wave 3**
+
 - [ ] 30-04-PLAN.md — User-facing JS fixes (build): beer waitlist via /api/contact (D-02/#2) + kiosk idle-reset cart leak (#4)
 
 **Wave 4**
+
 - [ ] 30-05-PLAN.md — Security batch (payment-adjacent): escape contact XSS sinks (#7), canonical escapeHTML (#8), proto-pollution guard (#9) + staging-kiosk verify
 
 **Wave 5**
+
 - [x] 30-06-PLAN.md — Config/infra + test cleanup: railway.toml watchPatterns (#19), node-cron 4.2.1 (#20), jest cleanup (#21) + human actions env vars/uptime (#17,#18)
 
 ### Phase 43: Kiosk manual custom line item with notes
@@ -818,6 +826,7 @@ Plans:
 **Plans:** 2/2 plans complete
 
 Plans:
+
 - [x] 43-01-PLAN.md — server custom-line path in routes/pos.js (test-first; bounded price, 5% GST tax_id resolution + fail-closed, note->description, discount-skip)
 - [x] 43-02-PLAN.md — "Add custom item" modal + cart wiring on BOTH kiosk.js and admin.js (forked); rebuild bundles + full gate; human-verify
 
@@ -827,11 +836,13 @@ Plans:
 **Requirements**: GIFTCARD-01 (owner-requested; captured 2026-06-27, to be split into sub-requirements at planning)
 
 **Captured scope (from owner, 2026-06-27 — pre-discussion):**
+
 - **Lifecycle:** full — sell, redeem, balance lookup, partial redemption, reload. Likely splits into multiple plans/sub-phases at planning time.
 - **Medium:** **paper certificate with a manually-assigned number/code** (no pre-printed barcode stock, no digital/email generation in v1). Staff enter the certificate number at sale and at redemption.
 - **Both kiosk surfaces** (forked #14): build in `kiosk.js` AND `admin.js` until the Phase 42 de-fork.
 
 **Critical constraints (MUST hold — these are why this is its own phase):**
+
 - **Tax (BC/Canada):** a gift card/certificate sale is **NOT taxed at sale** (no GST/PST); tax applies to the underlying goods/services at **redemption**. Selling must be zero-tax; redemption applies tax to the real items being bought.
 - **Accounting:** a sale is a **liability, not revenue** — must post to an "unredeemed gift card liability" account in Zoho (deferred), recognized as revenue only on redemption. Do NOT post gift-card sales as a normal sales line. (Research the right Zoho mechanism — liability account / gift-card item / store credit — at planning.)
 - **Redemption is a tender/payment path**, not a cart line — distinct from how items are added. Must integrate with the v4.2-hardened money path (Helcim terminal for any remaining balance, Zoho payment recording) without weakening it.
@@ -842,26 +853,33 @@ Plans:
 
 Plans:
 **Wave 1** (parallel — owner setup + Apps Script foundation)
+
 - [x] 44-01-PLAN.md — Owner Zoho setup (Gift Card Sales income account + Gift Certificate 0%-tax item + KIOSK_GIFT_CARD_ITEM_ID) + Wave-0 API probes (payment_mode:'others', zero-tax) + validateEnv entry + deferral-journal cadence (GIFTCARD-01)
 - [x] 44-02-PLAN.md — Apps Script adminApi.gs: GiftCards sheet + 7 actions (issue/lookup/redeem/reload/void/update-invoice/next-number) with LockService atomicity + last_tx_ref idempotency + manual redeploy (GIFTCARD-01)
 
 **Wave 2** (parallel — disjoint middleware files)
+
 - [x] 44-03-PLAN.md — routes/gift-cards.js: issue + next-number + lookup (fail-closed 503, dup-reject 409, zero-tax sale, void-on-Zoho-failure) + server mount + tests (GIFTCARD-01a/01b)
 - [x] 44-04-PLAN.md — pos.js split-tender redemption (reduce terminal by gift_amount, two customerpayments, redeem_gift_card LAST, void-on-failure, tax untouched) + pos-gift-card.test.js (GIFTCARD-01c)
 
 **Wave 3**
+
 - [x] 44-05-PLAN.md — routes/gift-cards.js: reload (increment + sale accounting, fail-closed) + void routes + tests (GIFTCARD-01d/01e)
 
 **Wave 4**
+
 - [x] 44-06-PLAN.md — Issue/Reload "add value" modal on BOTH forked surfaces (kiosk.js inline + admin.js openModal), suggested cert pre-fill, rebuilt bundles (GIFTCARD-01a/01d UI)
 
 **Wave 5**
+
 - [x] 44-07-PLAN.md — Redeem tender (lookup → apply → split terminal) on BOTH surfaces + admin-only lookup/void management view + rebuilt bundles (GIFTCARD-01b/01c/01e UI)
 
 **Wave 6**
+
 - [x] 44-08-PLAN.md — Full gate + staging deploy (frontend + prod middleware) + iPad Safari UAT + REQUIREMENTS traceability (GIFTCARD-01). UAT round 1 found G-44-01 (phantom payment) → fixed by Wave 7 (44-09/44-10) → round 2 visible behavior verified. ⚠ Live terminal-sale checks (real card) DEFERRED by owner 2026-06-29; phase NOT production-promoted until they pass — see 44-08-UAT.md
 
 **Wave 7** (gap closure — G-44-01 from 44-08 UAT: issue/reload recorded a phantom paid invoice with no terminal charge)
+
 - [x] 44-09-PLAN.md — Middleware: pos.js prices a gift_cert cart line (zero-tax via KIOSK_GIFT_CARD_ITEM_ID, D-03) + activates cert on payment SUCCESS (issue_gift_card/reload_gift_card LAST, needs_manual_review on failure, no orphan) + confirm idempotency; decommission phantom-payment /issue+/reload routes (GIFTCARD-01a/01d)
 - [x] 44-10-PLAN.md — Frontend (D-08): kiosk.js + admin.js issue/reload modal ADDS a gift_cert cart line (paid via real terminal checkout) instead of POSTing /issue|/reload; reload lookup pre-check; rebuilt bundles (GIFTCARD-01a/01d UI)
 
@@ -876,6 +894,7 @@ Plans:
 **Plans:** 9/9 plans executed. **Verification:** 45-VERIFICATION.md — PASSED, 11/11 must-haves (D-01..D-05 absent by owner-approved split to Phase 46). Live-card UAT all 8 steps pass (45-09-SUMMARY.md).
 
 **In scope:**
+
 - **[CRITICAL] Auth-model exposure → MOVED to Phase 46** — admin API key (= Railway `API_SECRET_KEY`) is hardcoded in publicly-served, git-tracked `js/sheets-config.js:65` and loaded on ~13 public pages. Rotate the leaked key and re-architect staff-surface auth to server-side identity (reuse existing Google OAuth) so no shared secret ships to the browser. ⚠ Owner decision: interim containment (network/IP allowlist for the fixed in-store kiosk) vs straight to OAuth. **Split approved (2026-06-29) → see Phase 46.**
 - **[HIGH] Unguarded PII GETs** — `/api/kiosk/salesorders` + `/api/kiosk/salesorder/:id` leak customer name/id/totals/line-items with no key check; add to `PII_GET_ROUTES` (quick containment).
 - **[HIGH] Fail-open under Redis outage** — rate limiting (PIN brute-force, payment, checkout), distributed locks, and idempotency all silently disable during a Redis outage (the "MemoryStore fallback" comments are wrong). Make security-critical limiters/locks fail-closed or process-local.
@@ -889,22 +908,27 @@ Plans:
 
 Plans:
 **Wave 1** (parallel — disjoint files)
+
 - [x] 45-01-PLAN.md — Quick-win code containments: guard 2 kiosk PII GETs (D-09), KIOSK_PIN length-check (D-15), gitignore dump.rdb (D-15)
 - [x] 45-03-PLAN.md — Redis fail-closed policy: drop limiter skip → MemoryStore fallback + in-process acquireLock fallback + fix false comments (D-06/07/08)
 - [x] 45-04-PLAN.md — CI artifact-drift check, stamp-normalized (D-10)
 - [x] 45-05-PLAN.md — Extract lib/money-path.js from checkout.js + refactor checkout to consume it, no behaviour change (D-11)
 
 **Wave 2**
+
 - [x] 45-02-PLAN.md — Ship Wave-1 containments to prod Railway + verify (D-15) [checkpoint]
 - [x] 45-06-PLAN.md — pos.js sale/confirm: atomic required idempotency + deterministic Helcim key + confirm propagates recording failure → void (D-12)
 
 **Wave 3**
+
 - [x] 45-07-PLAN.md — Gift-card split-tender balance validation + needs_manual_review + terminal-timeout pending-charge persist (D-12 + D-13 interface)
 
 **Wave 4**
+
 - [x] 45-08-PLAN.md — Reconciliation backstop: lib/reconcile.js + webhook reconcile + periodic sweep, match on reference_number (D-13)
 
 **Wave 5**
+
 - [x] 45-09-PLAN.md — Bundled live gift-card + money-path UAT on prod (with P44 deferred UAT, D-16) [checkpoint] — COMPLETE 2026-07-02, all 8 steps pass (45-09-SUMMARY.md)
 
 ---
@@ -921,6 +945,7 @@ Plans:
 **Plans:** 9/10 plans executed
 
 **In scope (D-01..D-05):**
+
 - **Kiosk device-provisioned credential** — single managed in-store iPad on store WiFi (D-01); device-bound session/credential entered/stored once on the iPad, no shared secret served to public pages. Exact mechanism (long-lived device token vs first-run provisioning vs client cert) is an **open design decision** for discuss/research — no existing analog.
 - **Admin per-user Google OAuth** (D-02) — admin (`admin.html`) is opened off-site (laptop/phone), so it must require real per-user Google login. The reusable Google identity is frontend-only today (`js/lib/auth.js`, GIS); the **server-side Google ID-token verifier + staff allowlist is net-new** (guard registration mirrors `server.js:418-423`). NOTE: `routes/auth.js` is Zoho OAuth, not Google.
 - **Remove `MW_API_KEY`** from `js/sheets-config.js:65` (D-03); public pages (index/products/contact/404) carry no admin key; rebuild artifacts (`npm run build`).
@@ -933,6 +958,7 @@ Plans:
 
 Plans:
 **Wave 1** (parallel — disjoint files)
+
 - [x] 46-01-PLAN.md — Backend credential primitives: lib/deviceToken.js + lib/session.js + validateEnv vars + install google-auth-library/cookie-parser
 - [x] 46-05-PLAN.md — Kiosk full migration: remove Google-auth gate, device-token settings prompt + PIN gate, swap headers to x-device-token, /api/contacts/search
 - [x] 46-06-PLAN.md — Admin session migration: checkAuthorization → /auth/google, all calls credentials:'include' (incl. embedded kiosk)
@@ -940,20 +966,24 @@ Plans:
 - [x] 46-08-PLAN.md — Public bundles keyless + remove MW_API_KEY from sheets-config (12-checkout 6 sites, 16/17 GETs)
 
 **Wave 2**
+
 - [x] 46-02-PLAN.md — lib/googleVerify.js (getTokenInfo + mandatory aud check) + POST /auth/google & /auth/logout
 
 **Wave 3**
+
 - [x] 46-03-PLAN.md — server.js 3-tier guard (legacy/device/session) + lib/authTiers.js + cookie-parser + keyless exemptions + PII session acceptance
 
 **Wave 4**
+
 - [x] 46-04-PLAN.md — In-route credential migration: pos.js 13 checks + consignment/catalog → req.authTier (kiosk survives rotation; void stays admin-grade)
 
 **Wave 5**
+
 - [x] 46-09-PLAN.md — Rebuild all bundles + full frontend/middleware/lint gate + no-key grep proof
 
 **Wave 6** (owner cutover — checkpoints)
-- [ ] 46-10-PLAN.md — Dual-accept deploy + iPad provisioning + per-surface verify + API_SECRET_KEY rotation + runbook
 
+- [ ] 46-10-PLAN.md — Dual-accept deploy + iPad provisioning + per-surface verify + API_SECRET_KEY rotation + runbook
 
 ## Phase Details (v4.5)
 
@@ -989,11 +1019,28 @@ Plans:
 **UI hint**: yes
 Plans:
 
+**Wave 1**
+
 - [ ] 48-01-PLAN.md — kiosk-core.js skeleton + Node-require guard spike (Pitfall 4/A2) + build wiring (terser + stamp + script tags)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 48-02-PLAN.md — kiosk.js migration pt1: cart/catalog/render/totals + 12-fn discount subsystem + module state + init/auth seam into core
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 48-03-PLAN.md — kiosk.js migration pt2: payment/checkout/terminal/confirm (canonical sale-body) + dual-cart/SO logic into core
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 48-04-PLAN.md — admin.js consumes KioskCore + delete dup defs + 2 drift-bug fixes (D-05) + idempotency unify + discount markup port to admin.html
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 48-05-PLAN.md — admin-vs-standalone parity test (SC#2/D-03) + final build/lint/test gate + KIOSK-01 traceability
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 48-06-PLAN.md — staging deploy + iPad Safari full-sale manual checkpoint (SC#5, autonomous: false)
 
 ### Phase 49: Online Captured-Amount Verification
@@ -1011,6 +1058,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
+
 - [x] 49-01-PLAN.md — TDD RED→GREEN: failing H2 regression, then getCardTransactionById captured-amount check (±$0.01) + void-on-mismatch in /api/checkout (autonomous)
 - [ ] 49-02-PLAN.md — Live-card UAT: legit order books paid (no false-void) + tamper attempt voided/4xx on staging (checkpoint)
 
@@ -1060,6 +1108,7 @@ Plans:
   6. A regression test asserts the promo is not repeatable during a simulated Redis outage
 
 **Plans**: 5 plans
+
 - [x] 52-01-PLAN.md — shared closed-on-Redis-error helper (redis-guard) [wave 1]
 - [x] 52-02-PLAN.md — apply helper: promo M1 fail-closed + rate-limit M4/M5 fail-closed [wave 2]
 - [x] 52-03-PLAN.md — pos.js: quarantine legacy /api/pos/sale (M2) + gift-card account fail-closed (M3) [wave 1]
@@ -1099,4 +1148,3 @@ Plans:
 **Wave 4**
 
 - [x] 53-06-PLAN.md — Lint gate flip: --max-warnings 0 + ES5 rule (D-05/D-06)
-
