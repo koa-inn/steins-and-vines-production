@@ -7,7 +7,7 @@ var log = require('../lib/logger');
 var C = require('../lib/constants');
 
 var ledger = require('../lib/inventory-ledger');
-var apiKeyGuard = require('../lib/apiKey');
+var authTiers = require('../lib/authTiers');
 
 var inventoryGet = zohoApi.inventoryGet;
 var fetchAllItems = zohoApi.fetchAllItems;
@@ -626,12 +626,16 @@ function doRefreshIngredients() {
   return _ingredientsRefreshPromise;
 }
 
-// Admin gate for the include_internal=1 mode. Internal-only items are not PII,
-// but exposing them is staff-only — match the API key the recipe builder already
-// sends (x-api-key header). Delegates to the shared header-only, unified-key,
-// constant-time guard used by server.js / pos.js.
-function hasValidApiKey(req) {
-  return apiKeyGuard.matches(req && req.headers && req.headers['x-api-key']);
+// Admin gate for the include_internal=1 mode (46-04). Internal-only items are
+// not PII, but exposing them is staff-only. Resolves the request's own credential
+// tier (this GET route is exempt from the global guard, so req.authTier is never
+// set) and accepts legacy|session only — a kiosk device token must NEVER unlock
+// Internal Only items (D-46-02, T-46-03b). Async because session lookup is async;
+// callers must consume the returned Promise<boolean>.
+function isAdminGrade(req) {
+  return authTiers.resolveTier(req).then(function (tier) {
+    return authTiers.allowAdmin(tier);
+  });
 }
 
 // Serve the full ingredient list INCLUDING Internal Only items (admin recipe
@@ -687,9 +691,16 @@ function serveFullIngredients(res) {
  * default (public) response always strips Internal Only items.
  */
 router.get('/api/ingredients', function (req, res) {
-  if (req.query && req.query.include_internal === '1' && hasValidApiKey(req)) {
-    return serveFullIngredients(res);
+  if (req.query && req.query.include_internal === '1') {
+    return isAdminGrade(req).then(function (isAdmin) {
+      if (isAdmin) return serveFullIngredients(res);
+      return servePublicIngredients(req, res);
+    });
   }
+  return servePublicIngredients(req, res);
+});
+
+function servePublicIngredients(req, res) {
   cache.get(INGREDIENTS_CACHE_KEY)
     .then(function (cached) {
       if (cached && cached.length > 0) {
@@ -773,7 +784,7 @@ router.get('/api/ingredients', function (req, res) {
       log.error('[api/ingredients] ' + err.message);
       res.status(502).json({ error: 'Unable to fetch products' });
     });
-});
+}
 
 /**
  * GET /api/kiosk/products
