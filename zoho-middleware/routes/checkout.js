@@ -373,6 +373,14 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
 
       if (lockResult.status === 'failclosed') {
         log.warn('[checkout] Promo lock acquisition failed — fail closed, no discount for ' + redact.maskEmail(customerEmail));
+      } else if (!lockAcquired) {
+        // WR-03: the lock is already held by a concurrent same-email checkout.
+        // Fail closed — only the request that actually holds the lock may proceed
+        // to the redemption re-check + discount, so two simultaneous FIRSTBATCH
+        // checkouts cannot both burn the code. The lock is left to expire via its
+        // 30s TTL; the permanent redemption record (burnKey) is the durable guard
+        // once the winner completes.
+        log.warn('[checkout] Promo lock held by a concurrent request — fail closed, no discount for ' + redact.maskEmail(customerEmail));
       } else {
         // Re-validate: check Redis to confirm not already redeemed
         var promoCheckResult = await closedOnRedisError(function () {
