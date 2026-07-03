@@ -108,7 +108,7 @@
 - [ ] **Phase 50: Kiosk Money-Path Defect Closeout** - reconcile TTL/lock-release/void-status/salesorder-pay/sweep fixes, `pos-recipe.js` adopts money-path primitives (MONEY-02)
 - [ ] **Phase 51: Gift-Card Ledger Integrity** - idempotent reload, durable needs_manual_review, cell sanitizer, header-mapped issueGiftCard, tax parity (MONEY-03)
 - [x] **Phase 52: Fail-Closed Sweep** - shared closed-on-Redis-error helper across remaining money/security call-sites (RESIL-01) (completed 2026-07-03)
-- [ ] **Phase 53: Money-Path Observability & CI Gates** - Sentry on every money-path catch, `npm ci` + Node pin, `--max-warnings 0` + ES5 lint rule, pos.js coverage floor (OBS-01)
+- [x] **Phase 53: Money-Path Observability & CI Gates** - Sentry on every money-path catch, `npm ci` + Node pin, `--max-warnings 0` + ES5 lint rule, pos.js coverage floor (OBS-01) (completed 2026-07-03)
 
 ## Phase Details
 
@@ -703,7 +703,7 @@ Plans:
 | 50. Kiosk Money-Path Defect Closeout | v4.5 | 0/? | Not started | - |
 | 51. Gift-Card Ledger Integrity | v4.5 | 0/? | Not started | - |
 | 52. Fail-Closed Sweep | v4.5 | 5/5 | Complete    | 2026-07-03 |
-| 53. Money-Path Observability & CI Gates | v4.5 | 5/6 | In Progress|  |
+| 53. Money-Path Observability & CI Gates | v4.5 | 6/6 | Complete   | 2026-07-03 |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
 
@@ -1090,5 +1090,5 @@ Plans:
 
 **Wave 4**
 
-- [ ] 53-06-PLAN.md — Lint gate flip: --max-warnings 0 + ES5 rule (D-05/D-06)
+- [x] 53-06-PLAN.md — Lint gate flip: --max-warnings 0 + ES5 rule (D-05/D-06)
 
