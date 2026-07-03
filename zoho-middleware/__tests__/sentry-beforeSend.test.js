@@ -76,4 +76,58 @@ describe('sentry-scrub beforeSend path', function () {
 
     expect(scrub.fingerprintFor(eventA)).not.toEqual(scrub.fingerprintFor(eventB));
   });
+
+  // CR-01 regression: captureException(err) feeds err.message straight into
+  // event.exception.values[].value. That message is the money-path's dominant
+  // leak vector — a raw email or amount there must never survive to send
+  // (T-53-02). Same for breadcrumbs echoed from console-logged amounts.
+  it('scrubs raw email and amount from the exception message', function () {
+    var event = {
+      exception: {
+        values: [{
+          type: 'Error',
+          value: 'charge failed for jacob@gmail.com: total=$45.50 gift_card=$10.00'
+        }]
+      }
+    };
+
+    var scrubbed = scrub.scrubEvent(event);
+    var msg = scrubbed.exception.values[0].value;
+
+    expect(msg).not.toContain('jacob@gmail.com');
+    expect(msg).toContain('***');
+    expect(msg).not.toContain('45.50');
+    expect(msg).not.toContain('$45.50');
+    expect(msg).not.toContain('10.00');
+    // Error class preserved for fingerprinting/debuggability.
+    expect(scrubbed.exception.values[0].type).toBe('Error');
+    expect(msg).toContain('charge failed');
+  });
+
+  it('scrubs raw amounts and emails from breadcrumbs', function () {
+    var event = {
+      breadcrumbs: [
+        {
+          category: 'console',
+          message: '[pos/kiosk/sale] Pushing to terminal: total=$45.50 for jacob@gmail.com'
+        },
+        {
+          category: 'console',
+          message: 'ok',
+          data: { amount: 45.5, customerEmail: 'jacob@gmail.com', reqId: 'req-abc123' }
+        }
+      ]
+    };
+
+    var scrubbed = scrub.scrubEvent(event);
+
+    expect(scrubbed.breadcrumbs[0].message).not.toContain('$45.50');
+    expect(scrubbed.breadcrumbs[0].message).not.toContain('45.50');
+    expect(scrubbed.breadcrumbs[0].message).not.toContain('jacob@gmail.com');
+
+    // Money-keyed breadcrumb data dropped; email masked; safe id preserved.
+    expect(scrubbed.breadcrumbs[1].data.amount).toBeUndefined();
+    expect(scrubbed.breadcrumbs[1].data.customerEmail).not.toBe('jacob@gmail.com');
+    expect(scrubbed.breadcrumbs[1].data.reqId).toBe('req-abc123');
+  });
 });

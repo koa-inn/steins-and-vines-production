@@ -14,6 +14,12 @@
 var redact = require('./redact');
 
 var EMAIL_RE = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+// Global variants for free-text scrubbing (error messages, breadcrumbs).
+var EMAIL_RE_G = /[^\s@]+@[^\s@]+\.[^\s@]+/g;
+// Currency-shaped substrings: a `$`-prefixed number, or a bare two-decimal
+// amount (e.g. `45.50` from `.toFixed(2)`). Correlation ids (req-abc123,
+// inv-42, txn-999) have no decimal point, so they pass through untouched.
+var MONEY_VALUE_RE = /\$\s?\d[\d,]*(?:\.\d+)?|\b\d[\d,]*\.\d{2}\b/g;
 var MONEY_KEY_RE = /amount|total|price|balance|grandtotal/i;
 var SAFE_ID_ALLOWLIST = [
   'reqId',
@@ -48,6 +54,18 @@ function scrubMap(map) {
   });
 }
 
+// Scrub a free-text string (exception message, breadcrumb text) that may
+// carry a customer email or a raw money amount. Emails are masked
+// (j***@gmail.com); currency-shaped substrings are redacted. Everything else
+// — including safe correlation ids and stack context — passes through so
+// money-path issues stay debuggable (T-53-02).
+function scrubString(str) {
+  if (typeof str !== 'string') return str;
+  var out = str.replace(EMAIL_RE_G, function (m) { return redact.maskEmail(m); });
+  out = out.replace(MONEY_VALUE_RE, '[redacted]');
+  return out;
+}
+
 /**
  * Scrub a Sentry event in place before it is sent.
  * Never throws on malformed/undefined event fields.
@@ -77,6 +95,28 @@ function scrubEvent(event) {
     delete event.request.data;
     delete event.request.cookies;
     delete event.request.headers;
+  }
+
+  // Exception messages (event.exception.values[].value) hold the raw text
+  // passed to captureException — the money-path's dominant leak vector, since
+  // this phase adds captureException(err) to every money-movement catch.
+  // Scrub each in place; .type is preserved for fingerprinting.
+  if (event.exception && Array.isArray(event.exception.values)) {
+    event.exception.values.forEach(function (v) {
+      if (v && typeof v.value === 'string') {
+        v.value = scrubString(v.value);
+      }
+    });
+  }
+
+  // Breadcrumbs (e.g. the default console integration) can echo amounts and
+  // emails from logged lines like pos.js's "total=$X" terminal push.
+  if (Array.isArray(event.breadcrumbs)) {
+    event.breadcrumbs.forEach(function (b) {
+      if (!b || typeof b !== 'object') return;
+      if (typeof b.message === 'string') b.message = scrubString(b.message);
+      scrubMap(b.data);
+    });
   }
 
   return event;
