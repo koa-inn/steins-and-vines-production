@@ -30,7 +30,7 @@ Last activity: 2026-07-03 — Phase 47 code landed (untrack audit doc + Actions-
 
 **Carryover — SEC-02 / Phase 46 (auth re-architecture):** code-complete + verified; **owner production cutover (46-10) is the immediate open work** — pending off-hours coupled deploy + `API_SECRET_KEY` rotation. Full runbook: `docs/RUNBOOK.md` § Phase 46 Auth Cutover. Resume with "let's do the cutover". Prod currently runs the OLD code with the OLD key restored (stable/working).
 
-**Phase 47 / SEC-01 (H1) — code complete, owner deploy pending:** audit doc untracked+gitignored+excluded (`065ed99`); Actions-based `deploy-staging.yml` strips `.planning/`+audit docs, mirroring prod (`7116801`). PENDING (Task 3, `docs/…/47-01-SUMMARY.md`): push to staging → owner flips staging repo Pages source to "GitHub Actions" → verify `.planning`/audit-doc 404 + `.well-known/security.txt` 200. Prod audit-doc leak closes at the next prod deploy (Phase 46 cutover).
+**Phase 47 / SEC-01 (H1) — ✅ CLOSED on staging (2026-07-03).** Audit doc untracked+gitignored+excluded (`065ed99`); Actions-based `deploy-staging.yml` strips `.planning/`+audit docs (`7116801`); owner flipped staging Pages source → GitHub Actions; fixed a concurrency-group collision that had cancelled the deploy (`b9ac218`). Verified live: `.planning/` + audit docs → 404, `.well-known/security.txt` + site → 200. **Prod:** audit-doc removal rides the next prod deploy (Phase 46 cutover); prod `.planning/` already stripped pre-existing. Note: `Tests` CI is red on a pre-existing dev-only `form-data` advisory (v4.5 OBS-01 scope).
 
 ## Performance Metrics
 

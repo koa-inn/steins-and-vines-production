@@ -1,6 +1,16 @@
 # Summary: 47-01 — Purge publicly-served internal docs (SEC-01 / H1)
 
-**Status:** Code complete (Tasks 1–2). Task 3 = owner-coordinated deploy + verification, PENDING.
+**Status:** ✅ **SEC-01 CLOSED on staging (verified live 2026-07-03).** Prod audit-doc removal rides the next production deploy (Phase 46 cutover); prod `.planning/` was already stripped pre-existing.
+
+## Verification (staging, live)
+After the owner flipped Pages source → GitHub Actions and the concurrency-group fix (`b9ac218`) let `Deploy Staging (filtered)` complete:
+- `.planning/STATE.md`, `.planning/reports/AUDIT.md`, `.planning/ROADMAP.md`, deep phase files → **404**
+- `AUDIT-2026-06-29.md`, `PROJECT_ASSESSMENT.md` → **404**
+- `.well-known/security.txt` → **200**; `/` (renders HTML), `products.html`, `kiosk.html` → **200**
+
+**Bug found + fixed during rollout (`b9ac218`):** `deploy-staging.yml` and `deploy-production.yml` both shipped in the staging repo sharing `concurrency: pages-deploy` with `cancel-in-progress` — the no-op prod run cancelled the real staging deploy, so the first attempts kept serving the stale build. Gave staging its own group `pages-deploy-staging`.
+
+**Unrelated pre-existing issue noticed:** the `Tests` CI workflow is red — `npm audit --audit-level=high` (run without `--omit=dev`) trips on the dev-only `form-data` HIGH advisory (jsdom test stack; prod tree is clean). This is audit L-item territory, in v4.5 **OBS-01** scope — not caused by this phase.
 
 ## What was built
 

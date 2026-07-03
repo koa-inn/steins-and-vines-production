@@ -697,7 +697,7 @@ Plans:
 | 41. SKU-Keyed Cart Identity | v4.4 | 0/? | Not started | - |
 | 42. Kiosk POS De-Fork (kiosk-core.js) → rehomed to v4.5 Phase 48 (KIOSK-01) | v4.4 | 0/? | Not started | - |
 | 46. Auth Re-Architecture | v4.5 (carryover, SEC-02) | 9/10 | Code-complete, owner cutover pending | - |
-| 47. Purge Publicly-Served Internal Docs | v4.5 | 1/1 code | Code done (065ed99/7116801); owner deploy + Pages-source flip pending | - |
+| 47. Purge Publicly-Served Internal Docs | v4.5 | 1/1 | ✅ Closed on staging (verified 2026-07-03); prod audit-doc at next prod deploy | 2026-07-03 |
 | 48. Kiosk POS De-Fork (kiosk-core.js) | v4.5 | 0/? | Not started | - |
 | 49. Online Captured-Amount Verification | v4.5 | 0/? | Not started | - |
 | 50. Kiosk Money-Path Defect Closeout | v4.5 | 0/? | Not started | - |
