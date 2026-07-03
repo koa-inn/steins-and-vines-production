@@ -196,6 +196,15 @@ and Google `sv_session` cookie — all accepted **simultaneously** (dual-accept)
 
 **Status:** ⏳ PENDING owner execution (code + build complete and tested as of Phase 46 waves 1–5).
 
+> **Deploy topology note (matters for sequencing):** Railway (middleware) and GitHub Pages
+> (frontend) both build from the **production** repo, so a prod deploy ships them **together** —
+> the new middleware cannot go live without the new frontend. Chosen approach: **coupled deploy,
+> off-hours.** Deploy both to prod at once under dual-accept (old `API_SECRET_KEY` retained), when
+> the store is closed, then immediately provision the iPad. Only the kiosk is affected, and only
+> until its device token is entered; admin/BrewPad/public keep working throughout. There is no
+> staging middleware (staging frontend calls prod middleware), so the new auth is truly verifiable
+> only on prod post-deploy — dual-accept is the safety net, not staging.
+
 ### Secret locations (values are NOT stored in this file)
 
 | Variable | Where the value lives | Notes |
@@ -206,12 +215,14 @@ and Google `sv_session` cookie — all accepted **simultaneously** (dual-accept)
 | `API_SECRET_KEY` | Railway → Variables | UNCHANGED until Task 3, then rotated (`openssl rand -base64 32`) |
 | `API_SECRET_KEY_PREVIOUS` | Railway → Variables (optional) | Set to the retired key value after rotation for canary logging (Finding #6) |
 
-### Task 1 — Set new env vars + deploy backend (dual-accept live)
+### Task 1 — Set env vars + coupled prod deploy (dual-accept live)
 
-- [ ] Set `STAFF_EMAILS`, `KIOSK_DEVICE_TOKEN`, `SHEETS_CLIENT_ID` in Railway `svmiddleware-production` → Variables (leave `API_SECRET_KEY` unchanged)
-- [ ] Deploy the middleware (push `zoho-middleware/**` changes to the production repo → Railway auto-redeploys)
-- [ ] Push frontend to staging: `git push origin main` (staging calls prod middleware)
+- [ ] Generate secrets in your OWN terminal (keep them out of chat): `openssl rand -base64 48` → `KIOSK_DEVICE_TOKEN`; hold `openssl rand -base64 32` → new `API_SECRET_KEY` for Task 3
+- [ ] Set `STAFF_EMAILS`, `KIOSK_DEVICE_TOKEN`, `SHEETS_CLIENT_ID` in Railway `svmiddleware-production` → Variables. **Leave `API_SECRET_KEY` at its current (old) value** (dual-accept)
 - [ ] Store `KIOSK_DEVICE_TOKEN` in the password manager
+- [ ] `git push origin main` — publish to staging + run CI (nothing goes live on prod yet)
+- [ ] **When the store is CLOSED**, promote to prod: trigger the `Gated Production Deploy` workflow (workflow_dispatch), or break-glass `git push production main --force`. This publishes new frontend (Pages) **and** new middleware (Railway) together; `API_SECRET_KEY` stays old, so old key + new credentials are all accepted
+- [ ] Proceed to Task 2 immediately — the store kiosk is down until its device token is entered
 
 **Verify:**
 ```bash
@@ -234,8 +245,8 @@ Resume signal: **"verified"**
 
 ### Task 3 — Rotate API_SECRET_KEY + confirm old key dead
 
-- [ ] Within ~2–3 business days of go-live (D-46-12): promote frontend to production: `git push production main --force`
-- [ ] Rotate `API_SECRET_KEY` in Railway to the new value (ends dual-accept)
+- [ ] (Frontend is already live on prod from the Task 1 coupled deploy — no separate promotion needed.)
+- [ ] Within ~2–3 business days of go-live (D-46-12), once all surfaces are confirmed on the new credentials: rotate `API_SECRET_KEY` in Railway to the new value from Task 1 (this ends dual-accept and kills the leaked key)
 - [ ] (optional) Set `API_SECRET_KEY_PREVIOUS` to the retired value for canary logging
 
 **Verify:**
