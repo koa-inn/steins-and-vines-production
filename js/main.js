@@ -7719,7 +7719,7 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError, transactio
   var bookingProm = (slot && slot !== 'Walk-in \u2014 Immediate')
     ? fetch(mw + '/api/bookings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           date: parts[0],
           time: parts.slice(1).join(' '),
@@ -8135,7 +8135,7 @@ function setupReservationForm() {
           var mwForDual = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
           fetch(mwForDual + '/api/contacts', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(contactData)
           }).catch(function () {}).then(function () {
             submitDualCart(contactData, dualToken,
@@ -8181,7 +8181,7 @@ function setupReservationForm() {
           var mwForPay = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
           fetch(mwForPay + '/api/payment/initialize', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount: _dualCharge })
           }).then(function (r) { return r.json(); }).then(function (cfg) {
             if (!cfg || !cfg.checkoutToken) {
@@ -8261,7 +8261,7 @@ function setupReservationForm() {
         sub.textContent = 'Initializing payment...';
         fetch(mw + '/api/payment/initialize', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ amount: Math.round(charge * 100) / 100 })
         }).then(function (r) { return r.json(); }).then(function (cfg) {
           if (!cfg || !cfg.checkoutToken) {
@@ -8293,9 +8293,9 @@ function setupReservationForm() {
       var pProm = Promise.resolve({});
 
       pProm.then(function (pR) {
-        return fetch(mw + '/api/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY }, body: JSON.stringify({ name: document.getElementById('res-name').value, email: document.getElementById('res-email').value, phone: document.getElementById('res-phone').value }) }).then(function (r) { return r.json(); }).then(function (cD) {
+        return fetch(mw + '/api/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: document.getElementById('res-name').value, email: document.getElementById('res-email').value, phone: document.getElementById('res-phone').value }) }).then(function (r) { return r.json(); }).then(function (cD) {
           var slot = sel ? sel.value : 'In-store pickup'; var parts = slot.split(' ');
-          var bProm = (slot === 'Walk-in \u2014 Immediate') ? Promise.resolve({ booking_id: null, timeslot: slot }) : fetch(mw + '/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': MW_API_KEY }, body: JSON.stringify({ date: parts[0], time: parts.slice(1).join(' '), customer: { name: document.getElementById('res-name').value, email: document.getElementById('res-email').value }, notes: items.map(function (i) { return i.name; }).join(', ') }) }).then(function (r) { return r.json(); });
+          var bProm = (slot === 'Walk-in \u2014 Immediate') ? Promise.resolve({ booking_id: null, timeslot: slot }) : fetch(mw + '/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: parts[0], time: parts.slice(1).join(' '), customer: { name: document.getElementById('res-name').value, email: document.getElementById('res-email').value }, notes: items.map(function (i) { return i.name; }).join(', ') }) }).then(function (r) { return r.json(); });
           return bProm.then(function (bD) {
             var lines = items.map(function (i) {
               var lineDiscount = i.discount || 0;
