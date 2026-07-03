@@ -1070,4 +1070,25 @@ Plans:
   3. Lint runs with `--max-warnings 0` and an ES5-only lint rule is enforced — CI fails on a new lint warning and on ES6 syntax (L12)
   4. A per-file coverage floor is set on `pos.js`, calibrated just below its measured coverage so it can't silently regress (L13)
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 53-01-PLAN.md — Sentry beforeSend PII scrub + error-class fingerprint (D-03/D-04) + regression test
+- [ ] 53-04-PLAN.md — Frontend lint cleanup (125 warnings) + admin.js optional-chaining→ES5 + rebuild (D-05/D-06)
+- [ ] 53-05-PLAN.md — npm ci + Node 20 pin (lockfiles/engines/.nvmrc/CI) + pos.js coverage floor (D-07/08/09/10)
+
+**Wave 2**
+
+- [ ] 53-02-PLAN.md — Sentry captureException at money-path catch sites, tagged reqId/txnId/invoice-SO (D-01/D-02)
+
+**Wave 3**
+
+- [ ] 53-03-PLAN.md — Middleware lint cleanup (60 warnings, own commit) (D-05)
+
+**Wave 4**
+
+- [ ] 53-06-PLAN.md — Lint gate flip: --max-warnings 0 + ES5 rule (D-05/D-06)
+
