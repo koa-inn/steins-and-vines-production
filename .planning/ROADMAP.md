@@ -703,7 +703,7 @@ Plans:
 | 50. Kiosk Money-Path Defect Closeout | v4.5 | 0/? | Not started | - |
 | 51. Gift-Card Ledger Integrity | v4.5 | 0/? | Not started | - |
 | 52. Fail-Closed Sweep | v4.5 | 5/5 | Complete    | 2026-07-03 |
-| 53. Money-Path Observability & CI Gates | v4.5 | 0/? | Not started | - |
+| 53. Money-Path Observability & CI Gates | v4.5 | 3/6 | In Progress|  |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
 
@@ -1076,9 +1076,9 @@ Plans:
 
 **Wave 1**
 
-- [ ] 53-01-PLAN.md — Sentry beforeSend PII scrub + error-class fingerprint (D-03/D-04) + regression test
-- [ ] 53-04-PLAN.md — Frontend lint cleanup (125 warnings) + admin.js optional-chaining→ES5 + rebuild (D-05/D-06)
-- [ ] 53-05-PLAN.md — npm ci + Node 20 pin (lockfiles/engines/.nvmrc/CI) + pos.js coverage floor (D-07/08/09/10)
+- [x] 53-01-PLAN.md — Sentry beforeSend PII scrub + error-class fingerprint (D-03/D-04) + regression test
+- [x] 53-04-PLAN.md — Frontend lint cleanup (125 warnings) + admin.js optional-chaining→ES5 + rebuild (D-05/D-06)
+- [x] 53-05-PLAN.md — npm ci + Node 20 pin (lockfiles/engines/.nvmrc/CI) + pos.js coverage floor (D-07/08/09/10)
 
 **Wave 2**
 
