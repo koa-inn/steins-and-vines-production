@@ -31,7 +31,7 @@ containment → correctness → fail-closed sweep → signal.
 
 ### Resilience
 
-- [ ] **RESIL-01** (audit **M1–M8/M20**): Fail-closed sweep of the remaining Redis-degradation and auth/validation corners — one shared closed-on-Redis-error helper applied to promo `FIRSTBATCH` (M1), the rate-limit store mid-op error (M4) and loopback skip (M5); quarantine/delete legacy `/api/pos/sale` (M2); fail-closed hardcoded gift-card `account_id` (M3); `https`-only + host allowlist on the `csv_url` SSRF (M6); auth + cache the unauth Apps-Script-backed GETs (M7, M8); validate numeric `:id` to stop the `%2F` path pivot (M20). A test asserts every money/security guard returns closed when its Redis call throws; promo not repeatable during a simulated outage; `?bust=1` requires the key.
+- [x] **RESIL-01** (audit **M1–M8/M20**): Fail-closed sweep of the remaining Redis-degradation and auth/validation corners — one shared closed-on-Redis-error helper applied to promo `FIRSTBATCH` (M1), the rate-limit store mid-op error (M4) and loopback skip (M5); quarantine/delete legacy `/api/pos/sale` (M2); fail-closed hardcoded gift-card `account_id` (M3); `https`-only + host allowlist on the `csv_url` SSRF (M6); auth + cache the unauth Apps-Script-backed GETs (M7, M8); validate numeric `:id` to stop the `%2F` path pivot (M20). A test asserts every money/security guard returns closed when its Redis call throws; promo not repeatable during a simulated outage; `?bust=1` requires the key.
 
 ### Observability & CI
 
@@ -82,7 +82,7 @@ Phases risk-ordered: containment (SEC) → de-fork backbone → correctness (MON
 | MONEY-01 | Phase 49 | Pending |
 | MONEY-02 | Phase 50 | Pending (depends on KIOSK-01) |
 | MONEY-03 | Phase 51 | Pending (depends on KIOSK-01) |
-| RESIL-01 | Phase 52 | Pending |
+| RESIL-01 | Phase 52 | Complete |
 | OBS-01 | Phase 53 | Pending |
 
 **Coverage:**

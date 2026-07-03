@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: executing
-stopped_at: "Phase 46 context gathered (auth re-arch: kiosk typed-in device token kiosk-scoped, admin/BrewPad Google OAuth + 7d server session, dual-accept cutover rotate in days, D-05 skipped)"
-last_updated: "2026-07-03T05:27:18.335Z"
+status: ready_to_plan
+stopped_at: Phase 52 complete (5/5) — ready to discuss Phase 53
+last_updated: 2026-07-03T06:22:51.022Z
 last_activity: 2026-07-03 -- Phase 52 execution started
 progress:
   total_phases: 39
   completed_phases: 8
   total_plans: 68
-  completed_plans: 67
+  completed_plans: 72
   percent: 21
 ---
 
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 52 — fail-closed-sweep
+**Current focus:** Phase 53 — money path observability & ci gates
 
 ## Current Position
 
-Phase: 52 (fail-closed-sweep) — EXECUTING
-Plan: 1 of 5
+Phase: 53
+Plan: Not started
 Milestone: v4.5 Security & Money-Path Closeout — roadmap set (Phases 46–53). Phases 47 + 49-01 code landed; owner deploys/UAT pending.
-Status: Executing Phase 52
-Last activity: 2026-07-03 -- Phase 52 execution started
+Status: Ready to plan
+Last activity: 2026-07-03
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
@@ -41,7 +41,7 @@ Last activity: 2026-07-03 -- Phase 52 execution started
 
 **Velocity:**
 
-- Total plans completed: 47 (prior milestone v4.1) + 11 (v4.2)
+- Total plans completed: 52 (prior milestone v4.1) + 11 (v4.2)
 - Average duration: 3 min
 - Total execution time: ~3 hrs
 
