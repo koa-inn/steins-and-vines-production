@@ -137,3 +137,7 @@ None — no external service configuration required. The Railway install-command
 ---
 *Phase: 53-money-path-observability-ci-gates*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+
+All claimed files verified present on disk; all 4 task/summary commit hashes (`b84f5ea`, `0161386`, `b35cd69`, `abfbc9c`) verified present in git log.
