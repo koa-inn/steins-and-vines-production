@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: planning
-last_updated: "2026-07-03T03:11:53.894Z"
-last_activity: 2026-07-03
+status: executing
+stopped_at: "Phase 46 context gathered (auth re-arch: kiosk typed-in device token kiosk-scoped, admin/BrewPad Google OAuth + 7d server session, dual-accept cutover rotate in days, D-05 skipped)"
+last_updated: "2026-07-03T05:27:18.335Z"
+last_activity: 2026-07-03 -- Phase 52 execution started
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_phases: 39
+  completed_phases: 8
+  total_plans: 68
+  completed_plans: 67
+  percent: 21
 ---
 
 # Project State
@@ -20,13 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 46 — auth-re-architecture-critical-split-from-phase-45
+**Current focus:** Phase 52 — fail-closed-sweep
 
 ## Current Position
 
+Phase: 52 (fail-closed-sweep) — EXECUTING
+Plan: 1 of 5
 Milestone: v4.5 Security & Money-Path Closeout — roadmap set (Phases 46–53). Phases 47 + 49-01 code landed; owner deploys/UAT pending.
-Status: Executing — Phase 49 (MONEY-01) code done; Phase 47 (SEC-01) closed on staging; Phase 46 (SEC-02) cutover pending.
-Last activity: 2026-07-03 — Phase 49-01 landed (captured-amount verification, H2 fix, suite green).
+Status: Executing Phase 52
+Last activity: 2026-07-03 -- Phase 52 execution started
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
