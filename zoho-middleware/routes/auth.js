@@ -6,8 +6,11 @@ var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var helcimLib = require('../lib/helcim');
 var C = require('../lib/constants');
+var googleVerify = require('../lib/googleVerify');
+var session = require('../lib/session');
 
 var OAUTH_STATE_TTL = 600; // 10 minutes
+var SESSION_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 var router = express.Router();
 
@@ -70,6 +73,69 @@ router.get('/auth/status', function (req, res) {
  */
 router.get('/api/payment/config', function (req, res) {
   res.json({ enabled: helcimLib.isEnabled(), depositAmount: 0 });
+});
+
+/**
+ * POST /auth/google
+ * Exchanges a Google access token (obtained client-side via the existing GIS
+ * flow, js/lib/auth.js — unchanged) for an httpOnly server session cookie.
+ *
+ * The server independently derives the staff email from the access token via
+ * lib/googleVerify.js (T-46-09) — it NEVER reads an email from req.body. Only
+ * allowlisted (STAFF_EMAILS), Google-verified emails get a session (D-46-07;
+ * one flat tier, equal — D-46-08).
+ */
+router.post('/auth/google', function (req, res) {
+  var accessToken = req.body && req.body.access_token;
+  if (!accessToken) {
+    return res.status(400).json({ error: 'Missing access_token' });
+  }
+
+  googleVerify.verifyStaffAccessToken(accessToken)
+    .then(function (email) {
+      var allowlist = (process.env.STAFF_EMAILS || '').split(',').map(function (e) {
+        return e.trim().toLowerCase();
+      });
+      if (allowlist.indexOf(email) === -1) {
+        return res.status(403).json({ authorized: false });
+      }
+      return session.createSession(email).then(function (sid) {
+        res.cookie('sv_session', sid, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+          maxAge: SESSION_COOKIE_MAX_AGE_MS,
+          path: '/'
+        });
+        res.json({ authorized: true, email: email });
+      });
+    })
+    .catch(function (err) {
+      log.warn('[auth/google] verification failed: ' + err.message);
+      res.status(401).json({ authorized: false });
+    });
+});
+
+/**
+ * POST /auth/logout
+ * Destroys the caller's server-side session (if any) and clears the cookie.
+ *
+ * Note: reading req.cookies requires cookie-parser, mounted in 46-03. Guarded
+ * here so this route degrades safely (no-op destroy) if called before that
+ * middleware is wired up.
+ */
+router.post('/auth/logout', function (req, res) {
+  var sid = req.cookies && req.cookies.sv_session;
+  res.clearCookie('sv_session', { path: '/' });
+  if (!sid) {
+    return res.json({ ok: true });
+  }
+  session.destroySession(sid).then(function () {
+    res.json({ ok: true });
+  }).catch(function (err) {
+    log.error('[auth/logout] destroySession failed: ' + err.message);
+    res.json({ ok: true });
+  });
 });
 
 module.exports = router;
