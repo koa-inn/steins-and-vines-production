@@ -138,12 +138,8 @@ function mapItem(z) {
 function fetchFromMiddleware() {
   var middlewareUrl = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL)
     ? SHEETS_CONFIG.MIDDLEWARE_URL : '';
-  var apiKey = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MW_API_KEY)
-    ? SHEETS_CONFIG.MW_API_KEY : '';
 
-  return fetch(middlewareUrl + '/api/ingredients', {
-    headers: { 'x-api-key': apiKey }
-  })
+  return fetch(middlewareUrl + '/api/ingredients')
     .then(function (r) {
       if (!r.ok) throw new Error('Middleware returned ' + r.status);
       return r.json();
