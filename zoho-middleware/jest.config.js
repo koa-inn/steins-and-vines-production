@@ -21,6 +21,8 @@ module.exports = {
     './routes/payments.js':  { lines: 36 },
     './routes/webhooks.js':  { lines: 62 },
     './lib/helcim.js':       { lines: 25 },
+    // D-10: measured 81.08% — floor set at 80, ~1pt headroom.
+    './routes/pos.js':       { lines: 80 },
     // Existing utility floors (restored — both measured at 100%):
     './lib/validate.js': { lines: 98 },
     './lib/logger.js':   { lines: 98 }
