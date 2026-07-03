@@ -4,8 +4,8 @@ milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
 stopped_at: Phase 53 context gathered
-last_updated: "2026-07-03T15:07:01.139Z"
-last_activity: 2026-07-03 -- Phase 53 planning complete
+last_updated: "2026-07-03T15:30:49.687Z"
+last_activity: 2026-07-03 -- Phase 53 execution started
 progress:
   total_phases: 39
   completed_phases: 9
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 53 — money path observability & ci gates
+**Current focus:** Phase 53 — money-path-observability-ci-gates
 
 ## Current Position
 
-Phase: 53
-Plan: Not started
+Phase: 53 (money-path-observability-ci-gates) — EXECUTING
+Plan: 1 of 6
 Milestone: v4.5 Security & Money-Path Closeout — roadmap set (Phases 46–53). Phases 47 + 49-01 code landed; owner deploys/UAT pending.
-Status: Ready to execute
-Last activity: 2026-07-03 -- Phase 53 planning complete
+Status: Executing Phase 53
+Last activity: 2026-07-03 -- Phase 53 execution started
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
