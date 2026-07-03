@@ -1310,6 +1310,20 @@ router.post('/api/pos/cancel', function (req, res) {
  * Returns: { transaction_id, status, auth_code } on success
  */
 router.post('/api/pos/sale', function (req, res) {
+  // 52-03 (M2, RESIL-01): QUARANTINED — grep-confirmed dead route (2026-07-03):
+  //   `grep -rn "pos/sale" js/` → zero frontend callers. Only remaining references:
+  //   docs/*, openapi.yaml, and this file's own JSDoc/route def + the
+  //   `app.use('/api/pos/sale', paymentLimiter)` rate-limit mount in server.js (harmless
+  //   — the route below now always 410s, so the mount just rate-limits a dead endpoint).
+  // Reason for quarantine (not deletion): the body below charges the Helcim terminal then
+  //   treats a subsequent Zoho invoice/payment failure as "non-fatal" (no void, no pending
+  //   record) — an invisible orphan charge invisible even to the 45-08 reconciliation
+  //   backstop. Retired in favor of /api/kiosk/sale, which uses lib/money-path's
+  //   void-on-failure + pending-record primitives. Returns 410 BEFORE any helcimLib
+  //   terminal call so no charge can ever occur again. Body preserved below (unreachable)
+  //   for audit trail — see 52-03-SUMMARY.md.
+  return res.status(410).json({ error: 'Legacy POS sale endpoint retired — use /api/kiosk/sale' });
+
   if (!helcimLib.isTerminalEnabled()) {
     return res.status(503).json({ error: 'POS terminal not configured' });
   }
