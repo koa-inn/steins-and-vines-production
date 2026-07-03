@@ -17,6 +17,63 @@ var PRODUCTS_CACHE_KEY = C.CACHE_KEYS.PRODUCTS;
 
 var router = express.Router();
 
+// M6 (SSRF) — loopback / private / link-local host literals blocked on the
+// /api/items/migrate csv_url, defense-in-depth alongside the mandatory
+// CSV_MIGRATE_ALLOWED_HOSTS allowlist below. Includes the cloud metadata IP
+// (169.254.169.254, covered by the 169.254.0.0/16 link-local pattern).
+var PRIVATE_HOST_PATTERNS = [
+  /^localhost$/i,
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^::1$/,
+  /^\[::1\]$/
+];
+
+function isPrivateHost(hostname) {
+  return PRIVATE_HOST_PATTERNS.some(function (re) { return re.test(hostname); });
+}
+
+/**
+ * Validate a csv_url for /api/items/migrate. FAILS CLOSED BY DEFAULT:
+ * CSV_MIGRATE_ALLOWED_HOSTS is MANDATORY — when unset/empty the route
+ * refuses to fetch anything (no default-open). See 52-04-PLAN.md M6.
+ * Returns { ok: true, parsed } or { ok: false, error }.
+ */
+function validateCsvUrl(csvUrl) {
+  var allowed = (process.env.CSV_MIGRATE_ALLOWED_HOSTS || '')
+    .split(',')
+    .map(function (h) { return h.trim().toLowerCase(); })
+    .filter(Boolean);
+
+  if (allowed.length === 0) {
+    return { ok: false, error: 'csv_url migration is not configured (CSV_MIGRATE_ALLOWED_HOSTS unset)' };
+  }
+
+  var parsed;
+  try {
+    parsed = new URL(csvUrl);
+  } catch (e) {
+    return { ok: false, error: 'Invalid csv_url' };
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return { ok: false, error: 'csv_url must be https' };
+  }
+
+  if (isPrivateHost(parsed.hostname)) {
+    return { ok: false, error: 'csv_url host not allowed' };
+  }
+
+  if (allowed.indexOf(parsed.hostname.toLowerCase()) === -1) {
+    return { ok: false, error: 'csv_url host not allowed' };
+  }
+
+  return { ok: true, parsed: parsed };
+}
+
 /**
  * Test if a keyword (possibly with \b word boundary markers) matches in text.
  */
@@ -645,6 +702,13 @@ router.post('/api/items/migrate', function (req, res) {
 
   if (!csvUrl) {
     return res.status(400).json({ error: 'Missing csv_url' });
+  }
+
+  // M6 (SSRF): mandatory host allowlist + https-only + private-range block,
+  // all before any fetch. Fails closed when CSV_MIGRATE_ALLOWED_HOSTS is unset.
+  var urlCheck = validateCsvUrl(csvUrl);
+  if (!urlCheck.ok) {
+    return res.status(400).json({ error: urlCheck.error });
   }
 
   var csvRows, zohoItems;
