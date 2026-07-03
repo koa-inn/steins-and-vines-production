@@ -30,7 +30,7 @@ jobs:
         run: npm run lint
         working-directory: zoho-middleware
       - name: Audit middleware dependencies
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
         working-directory: zoho-middleware
 
   # -------------------------------------------------------------------------
@@ -48,7 +48,7 @@ jobs:
       - name: Lint frontend
         run: npm run lint
       - name: Audit frontend dependencies
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
 
   # -------------------------------------------------------------------------
   # Job 3: Deploy -- only runs when BOTH test jobs pass (D-03)

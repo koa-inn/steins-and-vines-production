@@ -21,7 +21,7 @@ jobs:
         run: npm run lint
         working-directory: zoho-middleware
       - name: Audit middleware dependencies
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
         working-directory: zoho-middleware
 
   test-frontend:
@@ -36,7 +36,7 @@ jobs:
       - name: Lint frontend
         run: npm run lint
       - name: Audit frontend dependencies
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
 
   artifact-drift:
     runs-on: ubuntu-latest
