@@ -10,6 +10,7 @@ var helpers = require('../lib/checkout-helpers');
 var moneyPath = require('../lib/money-path');
 var brewpadIntegration = require('../lib/brewpad-integration');
 var redact = require('../lib/redact');
+var closedOnRedisError = require('../lib/redis-guard').closedOnRedisError;
 
 var readServicesSnapshot = helpers.readServicesSnapshot;
 var readIngredientsFileCache = helpers.readIngredientsFileCache;
@@ -361,29 +362,31 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline) {
     if (body.promo_code === 'FIRSTBATCH' && customerEmail) {
       var promoKey = C.CACHE_KEYS.PROMO_REDEEMED_PREFIX + customerEmail.toLowerCase();
 
-      // Acquire per-email lock to prevent two simultaneous checkout requests burning the same code
-      var lockAcquired = false;
-      try {
-        lockAcquired = await cache.acquireLock(promoKey, 30);
-      } catch (lockErr) {
-        // Lock acquisition failed — fail open (allow through)
-        lockAcquired = true;
-        log.warn('[checkout] Promo lock acquisition failed, proceeding: ' + lockErr.message);
-      }
+      // Acquire per-email lock to prevent two simultaneous checkout requests burning the same code.
+      // M1 (RESIL-01): routed through the shared redis-guard — a money guard, so
+      // alwaysClosed:true regardless of NODE_ENV. On failclosed, skip the lock AND
+      // the discount below (do not acquire, do not grant).
+      var lockResult = await closedOnRedisError(function () {
+        return cache.acquireLock(promoKey, 30);
+      }, { alwaysClosed: true, label: 'checkout.promo.lock' });
+      var lockAcquired = (lockResult.status === 'value') ? lockResult.value : false;
 
-      // Re-validate: check Redis to confirm not already redeemed
-      try {
-        var promoExisting = await cache.get(promoKey);
-        if (!promoExisting) {
+      if (lockResult.status === 'failclosed') {
+        log.warn('[checkout] Promo lock acquisition failed — fail closed, no discount for ' + redact.maskEmail(customerEmail));
+      } else {
+        // Re-validate: check Redis to confirm not already redeemed
+        var promoCheckResult = await closedOnRedisError(function () {
+          return cache.get(promoKey);
+        }, { alwaysClosed: true, label: 'checkout.promo.redemption' });
+
+        if (promoCheckResult.status === 'failclosed') {
+          log.warn('[checkout] Promo Redis check failed — fail closed, no discount for ' + redact.maskEmail(customerEmail));
+        } else if (!promoCheckResult.value) {
           promoDiscount = 20;
           log.info('[checkout] Promo FIRSTBATCH validated for checkout by ' + redact.maskEmail(customerEmail));
         } else {
           log.warn('[checkout] Promo code FIRSTBATCH rejected — already redeemed by ' + redact.maskEmail(customerEmail));
         }
-      } catch (promoCheckErr) {
-        // Fail open — allow discount if Redis unavailable
-        promoDiscount = 20;
-        log.warn('[checkout] Promo Redis check failed, allowing discount: ' + promoCheckErr.message);
       }
     }
 
