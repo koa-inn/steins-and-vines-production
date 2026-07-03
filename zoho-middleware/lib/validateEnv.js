@@ -19,6 +19,9 @@ var REQUIRED_IN_PROD = [
   { name: 'REDIS_ENCRYPTION_KEY',  desc: 'Redis Zoho refresh-token encryption key — required in prod (#106)' },
   { name: 'SENTRY_DSN',            desc: 'Sentry DSN for error tracking — required in prod (MONITOR-02, ROADMAP SC#5, phase 33)' },
   { name: 'HELCIM_API_TOKEN',      desc: 'Helcim API token for payment processing — required in prod (live Helcim, ROADMAP SC#5, phase 33)' },
+  { name: 'STAFF_EMAILS',          desc: 'Comma-separated staff Google email allowlist (D-46-07)' },
+  { name: 'KIOSK_DEVICE_TOKEN',    desc: 'Kiosk device token, constant-time compared (D-46-01)' },
+  { name: 'SHEETS_CLIENT_ID',      desc: 'Google OAuth client ID for server-side aud check (D-46-05)' },
 ];
 
 // Optional vars — missing any logs a warning but startup continues.
