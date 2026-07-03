@@ -45,6 +45,14 @@ var ITEM_UPDATE_SCHEMA = {
 
 var router = express.Router();
 
+// Local numeric-id guard (M20) — mirrors purchaseorders.js:17-19. Kept as a
+// local copy rather than extracted to a shared lib per CLAUDE rule 2 (simplest
+// change); this is the 2nd copy of the same idiom — a lib/validate.js home
+// would prevent drift if a 3rd copy is ever needed (follow-up, not in scope).
+function isValidId(id) {
+  return /^\d+$/.test(String(id));
+}
+
 /**
  * GET /api/items
  * Fetch inventory items from Zoho Books (uncached, all statuses).
@@ -115,6 +123,9 @@ router.get('/api/invoices', function (req, res) {
  * Fetch a single item from Zoho Inventory (full detail).
  */
 router.get('/api/inventory/items/:id', function (req, res) {
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid item ID' });
+  }
   inventoryGet('/items/' + req.params.id)
     .then(function (data) { res.json(data); })
     .catch(function (err) {
@@ -149,6 +160,9 @@ router.put('/api/inventory/items/:id', function (req, res) {
  * Returns 404 if the item has no image.
  */
 router.get('/api/items/:item_id/image', function (req, res) {
+  if (!isValidId(req.params.item_id)) {
+    return res.status(400).json({ error: 'Invalid item ID' });
+  }
   zohoAuth.getAccessToken()
     .then(function (token) {
       return axios.get(ZOHO_INVENTORY_BASE + '/items/' + req.params.item_id + '/image', {
