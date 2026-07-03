@@ -32,6 +32,7 @@ var mailerlite = require('./lib/mailerlite');
 var reconcile = require('./lib/reconcile');
 var cookieParser = require('cookie-parser');
 var authTiers = require('./lib/authTiers');
+var closedOnRedisError = require('./lib/redis-guard').closedOnRedisError;
 
 var app = express();
 app.set('trust proxy', 1); // Railway sits behind a load balancer
@@ -341,12 +342,19 @@ app.use('/api', async function (req, res, next) {
  * Build a minimal express-rate-limit custom store backed by the existing Redis
  * client from lib/cache.js. Uses INCR + EXPIRE so the window auto-resets.
  *
- * When Redis is unavailable, the store falls back to a per-limiter in-process
- * Map (key → { hits, expiresAt }). This provides genuine per-process rate
- * limiting during a Redis outage — the middleware runs as a single Railway
- * instance so per-process covers all traffic (D-06). Security-critical
- * limiters (pin, payment, api) do NOT use skip:redisUnavailableSkip so this
- * in-process fallback is always active for those paths (D-07).
+ * When Redis is unavailable — or reports connected but a mid-op call fails
+ * (M4, RESIL-01) — the store falls back to a per-limiter in-process Map
+ * (key → { hits, expiresAt }) via countInProcess(). This provides genuine
+ * per-process rate limiting during a Redis outage — the middleware runs as a
+ * single Railway instance so per-process covers all traffic (D-06).
+ * Security-critical limiters (pin, payment, api) do NOT use
+ * skip:redisUnavailableSkip so this in-process fallback is always active for
+ * those paths (D-07). The connected-but-failed Redis path is routed through
+ * the shared lib/redis-guard closedOnRedisError helper (alwaysClosed:true —
+ * this backs security-critical limiters, so the invariant holds in every
+ * environment) and falls through to the SAME countInProcess accounting on
+ * failclosed — never a bare { totalHits: 0 }, which would silently disable
+ * the limiter (express-rate-limit also rejects a totalHits of 0 as invalid).
  *
  * express-rate-limit v6+ store interface:
  *   increment(key) -> Promise<{ totalHits, resetTime }>
@@ -358,55 +366,79 @@ function makeRedisStore(windowMs, prefix) {
   // Each limiter must use a unique prefix so they track separate counters per IP.
   // Without a prefix all limiters share 'rl:<ip>' and cross-contaminate each other.
   var keyPrefix = C.RATE_LIMIT_PREFIX + (prefix || 'default') + ':';
-  // In-process fallback: tracks hits per client IP when Redis is unavailable.
-  // Keyed by the same value express-rate-limit passes (default: req.ip).
+  // In-process fallback: tracks hits per client IP when Redis is unavailable OR
+  // a connected-but-failed Redis op falls closed (M4). Keyed by the same value
+  // express-rate-limit passes (default: req.ip).
   var memStore = Object.create(null);
   // Loopback addresses only appear in direct-connection scenarios (health checks,
-  // local dev). In production, Railway's load balancer always injects a real
-  // client IP via X-Forwarded-For (trust proxy:1), so req.ip is never loopback.
-  // Skipping loopback keys avoids accumulating counts across test requests that
-  // share the same 127.x/::1 address without representing external clients.
+  // local dev, supertest). Skipping loopback keys there avoids accumulating
+  // counts across test requests that share the same 127.x/::1 address without
+  // representing external clients.
+  // M5 (RESIL-01): this skip is gated to non-production below — trust proxy:1
+  // trusts the X-Forwarded-For value Railway's load balancer forwards, but a
+  // client-supplied XFF is still attacker-controlled input; a spoofed
+  // `X-Forwarded-For: ::1` must not be able to defeat PIN/payment throttling
+  // in production, so the skip never applies once NODE_ENV === 'production'.
   var LOOPBACK_RE = /^(127\.|::1$|::ffff:127\.)/;
+
+  // Shared in-process accounting (M4) — the single place that increments the
+  // per-process Map, used by the disconnected branch AND by any connected-but-
+  // failed Redis path (mid-op error, absent client) so both share one counter
+  // per key rather than drifting into separate fail-open states.
+  function countInProcess(key) {
+    var now = Date.now();
+    var entry = memStore[key];
+    if (!entry || now >= entry.expiresAt) {
+      memStore[key] = { hits: 1, expiresAt: now + windowMs };
+      return { totalHits: 1, resetTime: new Date(now + windowMs) };
+    }
+    memStore[key].hits++;
+    return { totalHits: memStore[key].hits, resetTime: new Date(memStore[key].expiresAt) };
+  }
 
   return {
     increment: function (key) {
       if (!cache.isConnected()) {
         // Redis down — count in-process so security limits still apply (D-06/D-07).
-        // Loopback traffic (health checks, tests) never represents an external
-        // client in production, so it returns totalHits:1 (never accumulates).
-        if (!key || LOOPBACK_RE.test(key)) {
+        // D-07/M5: the loopback short-circuit is a TEST/DEV convenience only —
+        // in production a spoofed X-Forwarded-For loopback address must not be
+        // able to defeat PIN throttling, so it is gated to non-production.
+        // Outside production, loopback traffic (health checks, local dev,
+        // supertest) never represents an external client, so it returns
+        // totalHits:1 (never accumulates).
+        if ((!key || LOOPBACK_RE.test(key)) && process.env.NODE_ENV !== 'production') {
           return Promise.resolve({ totalHits: 1, resetTime: new Date(Date.now() + windowMs) });
         }
-        var now = Date.now();
-        var entry = memStore[key];
-        if (!entry || now >= entry.expiresAt) {
-          memStore[key] = { hits: 1, expiresAt: now + windowMs };
-          return Promise.resolve({ totalHits: 1, resetTime: new Date(now + windowMs) });
-        }
-        memStore[key].hits++;
-        return Promise.resolve({ totalHits: memStore[key].hits, resetTime: new Date(memStore[key].expiresAt) });
+        return Promise.resolve(countInProcess(key));
       }
       var redisKey = keyPrefix + key;
-      return cache.getClient().then(function (c) {
-        if (!c) {
-          return { totalHits: 0, resetTime: new Date(Date.now() + windowMs) };
-        }
-        // INCR is atomic; set expiry only on the first increment (NX flag)
-        return c.incr(redisKey).then(function (hits) {
-          if (hits === 1) {
-            // First hit in this window — set expiry
-            return c.expire(redisKey, windowSec).then(function () {
-              return { totalHits: hits, resetTime: new Date(Date.now() + windowMs) };
-            });
+      return closedOnRedisError(function () {
+        return cache.getClient().then(function (c) {
+          if (!c) {
+            // Race window: isConnected() reported true but the client is absent
+            // (e.g. an 'end' event fired between the check and this resolve).
+            throw new Error('Redis client unavailable mid-op');
           }
-          // Subsequent hits — check remaining TTL for accurate resetTime
-          return c.ttl(redisKey).then(function (ttlSec) {
-            var resetMs = ttlSec > 0 ? Date.now() + ttlSec * 1000 : Date.now() + windowMs;
-            return { totalHits: hits, resetTime: new Date(resetMs) };
+          // INCR is atomic; set expiry only on the first increment (NX flag)
+          return c.incr(redisKey).then(function (hits) {
+            if (hits === 1) {
+              // First hit in this window — set expiry
+              return c.expire(redisKey, windowSec).then(function () {
+                return { totalHits: hits, resetTime: new Date(Date.now() + windowMs) };
+              });
+            }
+            // Subsequent hits — check remaining TTL for accurate resetTime
+            return c.ttl(redisKey).then(function (ttlSec) {
+              var resetMs = ttlSec > 0 ? Date.now() + ttlSec * 1000 : Date.now() + windowMs;
+              return { totalHits: hits, resetTime: new Date(resetMs) };
+            });
           });
         });
-      }).catch(function () {
-        return { totalHits: 0, resetTime: new Date(Date.now() + windowMs) };
+      }, { alwaysClosed: true, label: 'ratelimit' }).then(function (result) {
+        if (result.status === 'failclosed') {
+          return countInProcess(key);
+        }
+        return result.value;
       });
     },
 
