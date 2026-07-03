@@ -594,7 +594,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
       }
 
       // Use the Zoho response total (tax-inclusive) for payment recording.
-      if (transactionId && zohoEntity && zohoEntity.total != null) {
+      if (transactionId && zohoEntity && zohoEntity.total != null) { // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
         var zohoTotal = parseFloat(zohoEntity.total);
         if (!isNaN(zohoTotal)) {
           depositAmount = Math.round(zohoTotal * 100) / 100;
@@ -839,7 +839,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
                 log.error('[checkout] Dual-cart alert email failed: ' + mailErr.message);
               });
             }
-          } catch (cacheCheckErr) {
+          } catch {
             // Redis unavailable — can't confirm, safer to skip void than destroy the other order
             skipVoid = true;
             log.error('[checkout] Dual-cart void guard: Redis unavailable, skipping void for safety. txn=' + transactionId);

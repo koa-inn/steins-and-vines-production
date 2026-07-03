@@ -70,7 +70,7 @@ function get(key) {
     if (val === null) return null;
     try {
       return JSON.parse(val);
-    } catch (e) {
+    } catch {
       return null;
     }
   }).catch(function () {

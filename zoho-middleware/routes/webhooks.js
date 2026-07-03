@@ -4,7 +4,6 @@ var calcom = require('../lib/calcom');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var eventLog = require('../lib/eventLog');
-var mailer = require('../lib/mailer');
 var zohoApi = require('../lib/zoho-api');
 var zohoPost = zohoApi.zohoPost;
 var C = require('../lib/constants');
@@ -193,7 +192,7 @@ function processCardTransactionResult(transactionId, status, invoiceNumber, card
     cache.get(pendingKey).then(function (raw) {
       if (!raw) return; // Not a collect-flow transaction
       var ctx;
-      try { ctx = JSON.parse(raw); } catch (e) { return; }
+      try { ctx = JSON.parse(raw); } catch { return; }
 
       if (status === 'APPROVED') {
         return zohoPost('/customerpayments', {

@@ -67,16 +67,14 @@ function scaleIngredient(ing, factor) {
   var rawQty    = (Number(ing.quantity) || 0) * factor;
   var unitLower = (ing.unit || '').toLowerCase().trim();
 
-  var isContinuous = CONTINUOUS_UNITS.indexOf(unitLower) !== -1;
-  var isDiscrete   = DISCRETE_UNITS.indexOf(unitLower)   !== -1;
+  var isDiscrete = DISCRETE_UNITS.indexOf(unitLower) !== -1;
 
   // Only explicitly discrete units round up. Blank/unknown/unlisted units →
   // linear (revised 2026-06-27): a non-blank token not in DISCRETE_UNITS now
   // scales linearly instead of ceil, so imperial/other unmapped units keep
-  // their decimals. `isContinuous` is informational; `isDiscrete` drives rounding.
+  // their decimals.
   if (!unitLower || !isDiscrete) {
-    isContinuous = true;
-    isDiscrete   = false;
+    isDiscrete = false;
   }
 
   var scaledQty = isDiscrete

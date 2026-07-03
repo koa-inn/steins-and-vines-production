@@ -9,7 +9,6 @@ var C = require('../lib/constants');
 var ledger = require('../lib/inventory-ledger');
 var authTiers = require('../lib/authTiers');
 
-var inventoryGet = zohoApi.inventoryGet;
 var fetchAllItems = zohoApi.fetchAllItems;
 var fetchItemDetailsBulk = zohoApi.fetchItemDetailsBulk;
 
@@ -186,7 +185,7 @@ function doRefreshProducts() {
             item.tax_name = detail.tax_name || item.tax_name || '';
             var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
               ? parseFloat(detail.tax_percentage)
-              : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0);
+              : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0); // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
             if (!_pct && detail.taxes && detail.taxes.length) {
               _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
             }
@@ -362,7 +361,7 @@ router.get('/api/products', function (req, res) {
       var fileData = null;
       try {
         fileData = JSON.parse(fs.readFileSync(PRODUCTS_FILE_CACHE, 'utf8'));
-      } catch (e) {}
+      } catch {}
 
       if (fileData && fileData.length > 0) {
         log.info('[api/products] File fallback hit (' + fileData.length + ' items)');
@@ -395,7 +394,7 @@ router.get('/api/products', function (req, res) {
             return Object.assign({}, p, { rate: rate, source: 'snapshot' });
           });
         }
-      } catch (e) {}
+      } catch {}
 
       if (snapshotData && snapshotData.length > 0) {
         log.info('[api/products] Snapshot fallback hit (' + snapshotData.length + ' items)');
@@ -469,7 +468,7 @@ router.get('/api/services', function (req, res) {
                 item.tax_name = detail.tax_name || item.tax_name || '';
                 var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
                   ? parseFloat(detail.tax_percentage)
-                  : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0);
+                  : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0); // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
                 if (!_pct && detail.taxes && detail.taxes.length) {
                   _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
                 }
@@ -499,7 +498,7 @@ router.get('/api/services', function (req, res) {
             return Object.assign({}, s, {
               item_id:        s.item_id || s.sku || '',
               rate:           parseFloat(String(s.price || s.rate || '0').replace(/[^0-9.]/g, '')) || 0,
-              tax_percentage: s.tax_percentage != null ? s.tax_percentage : 0,
+              tax_percentage: s.tax_percentage != null ? s.tax_percentage : 0, // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
               tax_name:       s.tax_name || '',
               source:         'snapshot'
             });
@@ -509,7 +508,7 @@ router.get('/api/services', function (req, res) {
           cache.set(SERVICES_CACHE_KEY, svcItems, 300);
           return res.json({ source: 'snapshot', items: svcItems });
         }
-      } catch (snapErr) {}
+      } catch {}
       res.status(502).json({ error: 'Unable to fetch services' });
     });
 });
@@ -552,7 +551,7 @@ function doRefreshIngredients() {
             var millCF = (item.custom_fields || []).find(function (f) {
               return (f.label || '').toLowerCase() === 'millable';
             });
-            item.millable = (millCF && millCF.value != null)
+            item.millable = (millCF && millCF.value != null) // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
               ? String(millCF.value).toLowerCase()
               : (item.millable || 'false');
             if (detail.sales_description) item.sales_description = detail.sales_description;
@@ -562,7 +561,7 @@ function doRefreshIngredients() {
             item.tax_name = detail.tax_name || item.tax_name || '';
             var _pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
               ? parseFloat(detail.tax_percentage)
-              : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0);
+              : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0); // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
             if (!_pct && detail.taxes && detail.taxes.length) {
               _pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
             }
@@ -654,7 +653,7 @@ function serveFullIngredients(res) {
       }
 
       var fileData = null;
-      try { fileData = JSON.parse(fs.readFileSync(INGREDIENTS_ALL_FILE_CACHE, 'utf8')); } catch (e) {}
+      try { fileData = JSON.parse(fs.readFileSync(INGREDIENTS_ALL_FILE_CACHE, 'utf8')); } catch {}
       if (fileData && fileData.length > 0) {
         log.info('[api/ingredients] include_internal file fallback (' + fileData.length + ' items)');
         cache.set(INGREDIENTS_ALL_CACHE_KEY, fileData, INGREDIENTS_CACHE_TTL);
@@ -729,7 +728,7 @@ function servePublicIngredients(req, res) {
       var fileData = null;
       try {
         fileData = JSON.parse(fs.readFileSync(INGREDIENTS_FILE_CACHE, 'utf8'));
-      } catch (e) {}
+      } catch {}
 
       if (fileData && fileData.length > 0) {
         log.info('[api/ingredients] File fallback hit (' + fileData.length + ' items)');
@@ -757,7 +756,7 @@ function servePublicIngredients(req, res) {
             return Object.assign({}, p, { rate: rate, source: 'snapshot' });
           });
         }
-      } catch (e) {}
+      } catch {}
 
       if (snapIngData && snapIngData.length > 0) {
         log.info('[api/ingredients] Snapshot fallback hit (' + snapIngData.length + ' items)');
@@ -842,7 +841,7 @@ router.get('/api/kiosk/products', function (req, res) {
               var tName = detail.tax_name || item.tax_name || '';
               var pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
                 ? parseFloat(detail.tax_percentage)
-                : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0);
+                : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0); // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
               if (!pct && detail.taxes && detail.taxes.length) {
                 pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
               }
@@ -868,7 +867,7 @@ router.get('/api/kiosk/products', function (req, res) {
                 name:          item.name,
                 sku:           item.sku || '',
                 rate:          item.rate,
-                stock_on_hand: item.stock_on_hand != null ? item.stock_on_hand : 0,
+                stock_on_hand: item.stock_on_hand != null ? item.stock_on_hand : 0, // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
                 category_name: item.category_name || '',
                 product_type:  item.product_type || '',
                 image_name:    detail.image_name || item.image_name || '',
@@ -946,16 +945,16 @@ router.get('/api/snapshot', function (req, res) {
       item_id:        z.item_id || '',
       brand:          z.brand || '',
       manufacturer:   z.manufacturer || '',
-      stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
+      stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0', // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
       description:    z.description || '',
-      discount:       z.discount != null ? String(z.discount) : '0',
+      discount:       z.discount != null ? String(z.discount) : '0', // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
       _zoho_category: z.category_name || '',
-      tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0,
+      tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0, // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
       tax_name:       z.tax_name || '',
       tax_id:         z.tax_id  || ''
     };
     flattenCF(z.custom_fields, obj);
-    if (z.rate != null) {
+    if (z.rate != null) { // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
       var rateNum = parseFloat(z.rate);
       if (!obj.retail_kit)     obj.retail_kit     = '$' + rateNum.toFixed(2);
       if (!obj.retail_instore) obj.retail_instore  = '$' + (rateNum + 50).toFixed(2);
@@ -967,8 +966,8 @@ router.get('/api/snapshot', function (req, res) {
     var obj = {
       name:           z.name || '',
       unit:           z.unit || '',
-      price_per_unit: z.rate != null ? String(z.rate) : '',
-      stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
+      price_per_unit: z.rate != null ? String(z.rate) : '', // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
+      stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0', // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
       description:    z.description || '',
       sales_description: z.sales_description || '',
       sku:            z.sku || '',
@@ -976,7 +975,7 @@ router.get('/api/snapshot', function (req, res) {
       low_amount:     '',
       high_amount:    '',
       step:           '',
-      tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0,
+      tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0, // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
       tax_name:       z.tax_name || '',
       tax_id:         z.tax_id  || ''
     };
@@ -988,12 +987,12 @@ router.get('/api/snapshot', function (req, res) {
     return {
       name:           z.name || '',
       item_id:        z.item_id || '',
-      price:          z.rate != null ? String(z.rate) : '',
+      price:          z.rate != null ? String(z.rate) : '', // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
       description:    z.description || '',
       sku:            z.sku || '',
-      stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
-      discount:       z.discount != null ? String(z.discount) : '0',
-      tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0,
+      stock:          z.stock_on_hand != null ? String(z.stock_on_hand) : '0', // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
+      discount:       z.discount != null ? String(z.discount) : '0', // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
+      tax_percentage: z.tax_percentage != null ? z.tax_percentage : 0, // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
       tax_name:       z.tax_name || '',
       tax_id:         z.tax_id  || ''
     };
@@ -1141,7 +1140,7 @@ router.post('/api/admin/cache-clear', function (req, res) {
   ];
   // Also delete file caches so stale file data doesn't re-populate Redis
   [PRODUCTS_FILE_CACHE, INGREDIENTS_FILE_CACHE].forEach(function (f) {
-    try { fs.unlinkSync(f); } catch (e) {}
+    try { fs.unlinkSync(f); } catch {}
   });
   // Reset in-memory rate-limit cooldowns so the refresh isn't blocked
   _productsCooldownUntil = 0;

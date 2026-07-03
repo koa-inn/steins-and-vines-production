@@ -407,7 +407,7 @@ router.get('/api/kiosk/recipe-quote', function (req, res) {
     try {
       modifiedIngredients = JSON.parse(query.modified_ingredients);
       if (!Array.isArray(modifiedIngredients)) modifiedIngredients = null;
-    } catch (e) {
+    } catch {
       modifiedIngredients = null;
     }
   }

@@ -451,7 +451,7 @@ function processSale(body, idempotencyKey, req, res) {
       var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
 
       processSaleWithPrices(body, idempotencyKey, req, res,
-        lineItems, subtotal, taxTotal, grandTotal, catalogMap);
+        lineItems, subtotal, taxTotal, grandTotal);
     });
   }).catch(function (cacheErr) {
     log.error('[pos/kiosk/sale] Catalog cache read failed: ' + cacheErr.message);
@@ -460,7 +460,7 @@ function processSale(body, idempotencyKey, req, res) {
 }
 
 function processSaleWithPrices(body, idempotencyKey, req, res,
-  lineItems, subtotal, taxTotal, grandTotal, catalogMap) {
+  lineItems, subtotal, taxTotal, grandTotal) {
 
   if (grandTotal <= 0) {
     return res.status(400).json({ error: 'Sale total must be greater than zero' });
@@ -1577,7 +1577,7 @@ router.get('/api/admin/inventory-ledger', function (req, res) {
     })
   ]).then(function (results) {
     var adjustments = (results[1] || []).map(function (entry) {
-      try { return JSON.parse(entry); } catch (e) { return entry; }
+      try { return JSON.parse(entry); } catch { return entry; }
     });
     res.json({
       version: results[0] || 0,
@@ -1610,7 +1610,6 @@ router.get('/api/kiosk/salesorders', function (req, res) {
   authTiers.requireTiers(['legacy', 'device', 'session'])(req, res, function () {
   // D-09: kiosk order-book exposes PII (customer names, balances, line items).
   // Kiosk-scoped (46-04 interfaces) — device token allowed alongside legacy/session.
-  var status = req.query.status || 'open';
   var search = req.query.search || '';
 
   cache.get(KIOSK_SO_CACHE_KEY)
