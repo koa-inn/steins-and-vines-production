@@ -11,7 +11,7 @@ var moneyPath = require('../lib/money-path');
 var brewpadIntegration = require('../lib/brewpad-integration');
 var redact = require('../lib/redact');
 var closedOnRedisError = require('../lib/redis-guard').closedOnRedisError;
-var Sentry = require('@sentry/node');
+var captureExceptionSafe = require('../lib/sentry-capture').captureExceptionSafe;
 
 var readServicesSnapshot = helpers.readServicesSnapshot;
 var readIngredientsFileCache = helpers.readIngredientsFileCache;
@@ -174,7 +174,7 @@ router.post('/api/checkout', async function (req, res) {
         log.error('[checkout] Voiding txn=' + body.payment_token + ' after reCAPTCHA rejection');
         helcimLib.voidTransaction(body.payment_token).catch(function (vErr) {
           log.error('[checkout] Void after reCAPTCHA rejection failed: ' + vErr.message);
-          Sentry.captureException(vErr, {
+          captureExceptionSafe(vErr, {
             level: 'error',
             tags: { reqId: req.id, txnId: body.payment_token, phase: 'void_recaptcha_reject' }
           });
@@ -619,7 +619,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
         } catch (captureReadErr) {
           log.error('[checkout] MONEY-01/H2: captured-amount readback failed for txn=' +
             transactionId + ': ' + captureReadErr.message);
-          Sentry.captureException(captureReadErr, {
+          captureExceptionSafe(captureReadErr, {
             level: 'error',
             tags: { reqId: reqId || null, txnId: transactionId, invoiceId: soId || null }
           });
@@ -696,7 +696,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
           log.info('[checkout] Payment recorded for ' + (useInvoice ? 'INV' : 'SO') + '=' + soNumber);
         } catch (payErr) {
           log.error('[checkout] Payment recording failed (non-fatal): ' + payErr.message);
-          Sentry.captureException(payErr, {
+          captureExceptionSafe(payErr, {
             level: 'error',
             tags: { reqId: reqId || null, txnId: transactionId, invoiceId: soId || null }
           });
@@ -793,7 +793,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
 
       // M9: Log the actual Zoho error server-side; send only generic message to client
       log.error('[checkout] Order creation failed: ' + internalMessage);
-      Sentry.captureException(err, {
+      captureExceptionSafe(err, {
         level: 'error',
         tags: { reqId: reqId || null, txnId: transactionId || null, invoiceId: (typeof soId !== 'undefined' && soId) || null }
       });
@@ -918,7 +918,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
       log.error('[checkout/pre-validate] Cache read failed: ' + cacheErr.message);
       helcimLib.voidTransaction(transactionId).catch(function (vErr) {
         log.error('[checkout/pre-validate] Void after cache failure failed: ' + vErr.message);
-        Sentry.captureException(vErr, {
+        captureExceptionSafe(vErr, {
           level: 'error',
           tags: { reqId: reqId || null, txnId: transactionId, phase: 'void_pre_validate_cache' }
         });
@@ -943,7 +943,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
       log.warn('[checkout/pre-validate] Catalog unavailable — voiding txn=' + transactionId);
       helcimLib.voidTransaction(transactionId).catch(function (vErr) {
         log.error('[checkout/pre-validate] Void after catalog unavailable failed: ' + vErr.message);
-        Sentry.captureException(vErr, {
+        captureExceptionSafe(vErr, {
           level: 'error',
           tags: { reqId: reqId || null, txnId: transactionId, phase: 'void_pre_validate_catalog' }
         });
@@ -965,7 +965,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
         log.warn('[checkout/pre-validate] item_id not in catalog: ' + body.items[pi].item_id + ' — voiding txn=' + transactionId);
         helcimLib.voidTransaction(transactionId).catch(function (vErr) {
           log.error('[checkout/pre-validate] Void after unknown item failed: ' + vErr.message);
-          Sentry.captureException(vErr, {
+          captureExceptionSafe(vErr, {
             level: 'error',
             tags: { reqId: reqId || null, txnId: transactionId, phase: 'void_pre_validate_unknown_item' }
           });
@@ -977,7 +977,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
         log.warn('[checkout/pre-validate] Non-numeric item_id (snapshot fallback?) — voiding txn=' + transactionId + ' item_id=' + body.items[pi].item_id);
         helcimLib.voidTransaction(transactionId).catch(function (vErr) {
           log.error('[checkout/pre-validate] Void after snapshot item_id failed: ' + vErr.message);
-          Sentry.captureException(vErr, {
+          captureExceptionSafe(vErr, {
             level: 'error',
             tags: { reqId: reqId || null, txnId: transactionId, phase: 'void_pre_validate_snapshot_item' }
           });
@@ -1004,7 +1004,7 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
       log.error('[checkout/pre-validate] Maker\'s Fee item not found in services catalog — voiding txn=' + transactionId);
       helcimLib.voidTransaction(transactionId).catch(function (vErr) {
         log.error('[checkout/pre-validate] Void after missing Maker\'s Fee failed: ' + vErr.message);
-        Sentry.captureException(vErr, {
+        captureExceptionSafe(vErr, {
           level: 'error',
           tags: { reqId: reqId || null, txnId: transactionId, phase: 'void_pre_validate_makers_fee' }
         });

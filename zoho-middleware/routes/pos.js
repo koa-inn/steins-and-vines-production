@@ -13,7 +13,7 @@ var brewpadIntegration = require('../lib/brewpad-integration');
 var discountMatch = require('../lib/discount-match');
 var buildContactPayload = require('../lib/checkout-helpers').buildContactPayload;
 var moneyPath = require('../lib/money-path');
-var Sentry = require('@sentry/node');
+var captureExceptionSafe = require('../lib/sentry-capture').captureExceptionSafe;
 
 var zohoGet = zohoApi.zohoGet;
 var zohoPost = zohoApi.zohoPost;
@@ -1270,7 +1270,7 @@ function runConfirm(body, confirmIdemKey, req, res) {
     }
     log.error('[pos/kiosk/sale/confirm] Error: ' + err.message);
     var _txnIdForVoidCapture = (body && body.transaction_id) ? String(body.transaction_id) : null;
-    Sentry.captureException(err, {
+    captureExceptionSafe(err, {
       level: 'error',
       tags: { reqId: req.id, txnId: _txnIdForVoidCapture, salesOrderId: null }
     });
