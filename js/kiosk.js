@@ -1307,7 +1307,7 @@
       if (Number(r.computed_price) > 0) return; // already have a price
       if (r._fetchedDetail) {
         // Detail already fetched (e.g. user returned from prompt); update card directly.
-        if (r._fetchedDetail.recipe && r._fetchedDetail.recipe.computed_price != null) {
+        if (r._fetchedDetail.recipe && r._fetchedDetail.recipe.computed_price != null) { // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
           r.computed_price = r._fetchedDetail.recipe.computed_price;
           var priceCell = grid.querySelector('[data-recipe-price-id="' + r.recipe_id + '"]');
           if (priceCell) {
@@ -1326,8 +1326,8 @@
           .then(function (data) {
             recipe._fetchedDetail = data;
             if (data.recipe) {
-              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price;
-              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate;
+              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
               var priceEl = grid.querySelector('[data-recipe-price-id="' + recipe.recipe_id + '"]');
               if (priceEl) {
                 var warm = kioskRecipePrice(recipe);
@@ -1387,7 +1387,7 @@
           kioskRenderRecipeIngredients(recipe._fetchedDetail.ingredients, ingEl);
         }
         // Update computed_price on recipe in case card fetch already populated it
-        if (recipe._fetchedDetail.recipe && recipe._fetchedDetail.recipe.computed_price != null) {
+        if (recipe._fetchedDetail.recipe && recipe._fetchedDetail.recipe.computed_price != null) { // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
           recipe.computed_price = recipe._fetchedDetail.recipe.computed_price;
           kioskUpdateSummaryPrice();
           kioskUpdateAddToCartButton();
@@ -1405,8 +1405,8 @@
             }
             recipe._fetchedDetail = data;
             if (data.recipe) {
-              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price;
-              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate;
+              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
               var cardGrid = document.getElementById('kiosk-recipe-grid');
               if (cardGrid) {
                 var cardPriceEl = cardGrid.querySelector('[data-recipe-price-id="' + recipe.recipe_id + '"]');
@@ -1826,7 +1826,7 @@
         // locked_price. The discount is applied separately in kioskCalcTotals from
         // the server quote, so the cart line must stay at the undiscounted amount.
         var packagePrice = quoteForCart
-          ? Number(quoteForCart.total_before_discount != null ? quoteForCart.total_before_discount : quoteForCart.total)
+          ? Number(quoteForCart.total_before_discount != null ? quoteForCart.total_before_discount : quoteForCart.total) // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
           : (parseFloat(recipe.locked_price) || 0);
         _kioskCart['recipe-total'] = {
           item: {
@@ -4881,7 +4881,7 @@
 
     _kioskEditingDiscountId = preset.id;
     document.getElementById('kiosk-discount-form-name').value = preset.name || '';
-    document.getElementById('kiosk-discount-form-value').value = preset.value != null ? preset.value : '';
+    document.getElementById('kiosk-discount-form-value').value = preset.value != null ? preset.value : ''; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
 
     modal.querySelectorAll('.kiosk-discount-type-btn').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-type') === (preset.type || 'percentage'));

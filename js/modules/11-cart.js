@@ -54,7 +54,7 @@ function getCartKey(product) {
 // from item fields at lookup time (never persisted), so stored carts don't orphan.
 function getProductKey(product) {
   if (!product) return '';
-  var sku = (product.sku != null ? String(product.sku) : '').trim();
+  var sku = (product.sku != null ? String(product.sku) : '').trim(); // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
   if (sku) return sku;
   return product.name + '|' + (product.brand || '');
 }

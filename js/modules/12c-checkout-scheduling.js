@@ -110,7 +110,7 @@ function loadTimeslots() {
         grid.appendChild(c);
       }
     }).catch(function (err) {
-      console.error('[calendar] Failed to load availability:', err);
+      console.error('[calendar] Failed to load availability:', err); // eslint-disable-line no-console -- operational: reports booking-availability load failure for troubleshooting
       grid.innerHTML = '<p class="calendar-error" style="grid-column:1/-1">Unable to load availability. Please refresh or call us at (604) 567-4565.</p>';
     });
   }
@@ -158,7 +158,7 @@ function loadTimeslots() {
       });
       fs.appendChild(g); slots.appendChild(fs);
     }).catch(function (err) {
-      console.error('[calendar] Failed to load slots:', err);
+      console.error('[calendar] Failed to load slots:', err); // eslint-disable-line no-console -- operational: reports booking-slots load failure for troubleshooting
       slots.innerHTML = '<p class="calendar-error">Unable to load available times. Please refresh or call us at (604) 567-4565.</p>';
     });
   }

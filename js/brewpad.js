@@ -188,7 +188,7 @@ function recipeRowPrice(recipe) {
 function enrichIngredientsWithCatalogRates(ingredients, catalog) {
   if (!Array.isArray(ingredients) || !Array.isArray(catalog)) return ingredients || [];
   ingredients.forEach(function (ing) {
-    if (!ing || ing.item_id == null || ing.item_id === '') return;
+    if (!ing || ing.item_id == null || ing.item_id === '') return; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
     var match = catalog.find(function (c) {
       return c && String(c.item_id) === String(ing.item_id);
     });
@@ -318,7 +318,7 @@ function buildSkuLookup(products) {
 // Singular/plural merge: both '5 week' and '5 weeks' map to label '5 weeks', week 5.
 // Non-numeric or empty strings return the trimmed input with week = 9999 (sorts last).
 function normalizeWineTime(timeStr) {
-  var s = String(timeStr == null ? '' : timeStr).trim();
+  var s = String(timeStr == null ? '' : timeStr).trim(); // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
   var m = s.match(/^(\d+)\s*weeks?/i);
   if (m) {
     var n = parseInt(m[1], 10);
@@ -343,7 +343,7 @@ function bucketWineDimension(batches, scheduleCategoryById, skuLookup, dimension
   // Compute cutoff date string ('YYYY-MM-DD'). null/0 windowDays = no cutoff (All Time).
   // Use UTC date methods throughout to avoid timezone-dependent off-by-one errors when the
   // `now` param is a 'YYYY-MM-DD' date string (parsed as UTC midnight by Date()).
-  var numDays = (windowDays == null || windowDays === 0) ? null : windowDays;
+  var numDays = (windowDays == null || windowDays === 0) ? null : windowDays; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
   var cutoffDateStr = null;
   if (numDays) {
     // Work in UTC milliseconds: subtract (numDays * ms/day) from refDate's UTC timestamp.
@@ -379,7 +379,7 @@ function bucketWineDimension(batches, scheduleCategoryById, skuLookup, dimension
       var dimValue = product ? product[dimension] : null;
 
       // Empty or missing dimension value -> 'Unknown' (D-10)
-      if (!product || dimValue == null || String(dimValue).trim() === '') {
+      if (!product || dimValue == null || String(dimValue).trim() === '') { // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
         unknownCount++;
         continue;
       }
@@ -410,8 +410,8 @@ function bucketWineDimension(batches, scheduleCategoryById, skuLookup, dimension
   // Sort: time dimension by week ascending; others by count descending (D-02, D-12)
   if (dimension === 'time') {
     result.sort(function (a, b) {
-      var wa = weekForLabel[a.label] != null ? weekForLabel[a.label] : 9999;
-      var wb = weekForLabel[b.label] != null ? weekForLabel[b.label] : 9999;
+      var wa = weekForLabel[a.label] != null ? weekForLabel[a.label] : 9999; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+      var wb = weekForLabel[b.label] != null ? weekForLabel[b.label] : 9999; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       return wa - wb;
     });
   } else {
@@ -642,8 +642,8 @@ function buildRecipePayload(formData, ingredients) {
     colour_srm: formData.colour_srm || 0,
     pricing_mode: formData.pricing_mode || 'locked',
     locked_price: formData.locked_price || 0,
-    service_fee: formData.service_fee != null ? formData.service_fee : 45,
-    materials_fee: formData.materials_fee != null ? formData.materials_fee : 5,
+    service_fee: formData.service_fee != null ? formData.service_fee : 45, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+    materials_fee: formData.materials_fee != null ? formData.materials_fee : 5, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
     status: formData.status || 'draft',
     ingredients: validIngredients,
     ingredient_count: validIngredients.length
@@ -1305,7 +1305,7 @@ function bpScaleIngredients(list, factor) {
     var baseIngredients = _bpResolvedRecipe.ingredients || [];
     var listToScale = _bpModifiedIngredients || baseIngredients;
     var factor = _bpScaleFactor || 1.0;
-    var targetVol = _bpTargetVolumeL != null ? _bpTargetVolumeL : (Number(snap.batch_size_l) || null);
+    var targetVol = _bpTargetVolumeL != null ? _bpTargetVolumeL : (Number(snap.batch_size_l) || null); // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
 
     var mappedBase = baseIngredients.map(function (i) {
       return {
@@ -2191,8 +2191,8 @@ function bpScaleIngredients(list, factor) {
     if (get('bp-recipe-ibu')) get('bp-recipe-ibu').value = r.ibu || '';
     if (get('bp-recipe-colour-srm')) get('bp-recipe-colour-srm').value = r.colour_srm || '';
     if (get('bp-recipe-locked-price')) get('bp-recipe-locked-price').value = r.locked_price || '';
-    if (get('bp-recipe-service-fee')) get('bp-recipe-service-fee').value = r.service_fee != null ? r.service_fee : 45;
-    if (get('bp-recipe-materials-fee')) get('bp-recipe-materials-fee').value = r.materials_fee != null ? r.materials_fee : 5;
+    if (get('bp-recipe-service-fee')) get('bp-recipe-service-fee').value = r.service_fee != null ? r.service_fee : 45; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+    if (get('bp-recipe-materials-fee')) get('bp-recipe-materials-fee').value = r.materials_fee != null ? r.materials_fee : 5; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
     if (get('bp-recipe-status')) get('bp-recipe-status').value = r.status || 'draft';
     if (get('bp-recipe-pricing-mode')) get('bp-recipe-pricing-mode').value = r.pricing_mode || 'locked';
     _recipesState.previousStatus = r.status || 'draft';
@@ -2259,9 +2259,9 @@ function bpScaleIngredients(list, factor) {
         var idx = ingredients.indexOf(ing); // CRITICAL: original array index
         var avail = availMap[String(ing.item_id)] || {};
         var dotClass = 'bp-ing-status-dot bp-ing-status-dot--' + escapeHTML(avail.status || 'unknown');
-        var stockText = avail.stock_on_hand != null ? avail.stock_on_hand + ' ' + escapeHTML(ing.unit || '') + ' available' : '';
+        var stockText = avail.stock_on_hand != null ? avail.stock_on_hand + ' ' + escapeHTML(ing.unit || '') + ' available' : ''; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
         var dotTitle = avail.status === 'unknown' ? 'Stock data loading — try again shortly'
-          : (avail.batches_possible != null ? avail.batches_possible + ' batch(es) possible' : '');
+          : (avail.batches_possible != null ? avail.batches_possible + ' batch(es) possible' : ''); // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
         var qty = parseFloat(ing.quantity) || 0;
         var costEach = parseFloat(ing.purchase_rate) || 0;
         var retailEach = parseFloat(ing.rate) || 0;
@@ -2380,7 +2380,7 @@ function bpScaleIngredients(list, factor) {
     matches.forEach(function (item) {
       var opt = document.createElement('div');
       opt.setAttribute('role', 'option');
-      var stockLabel = item.stock_on_hand != null ? item.stock_on_hand : '?';
+      var stockLabel = item.stock_on_hand != null ? item.stock_on_hand : '?'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       var unitLabel = item.unit || '';
       opt.innerHTML = escapeHTML(item.name || '') + ' &mdash; ' + escapeHTML(item.sku || '') +
         ' <span class="bp-ing-stock-hint">(' + stockLabel + (unitLabel ? ' ' + escapeHTML(unitLabel) : '') + ' available)</span>';
@@ -2418,7 +2418,7 @@ function bpScaleIngredients(list, factor) {
     if (unitTd) unitTd.textContent = item.unit || '';
     var hintSpan = row && row.querySelector('.bp-ing-stock-hint');
     if (hintSpan) {
-      var stockVal = item.stock_on_hand != null ? item.stock_on_hand : '?';
+      var stockVal = item.stock_on_hand != null ? item.stock_on_hand : '?'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       hintSpan.textContent = stockVal + ' ' + (item.unit || '') + ' available';
     }
     if (row) row.setAttribute('data-item-id', item.item_id || '');
@@ -2467,8 +2467,8 @@ function bpScaleIngredients(list, factor) {
       colour_srm: r.colour_srm || 0,
       pricing_mode: r.pricing_mode || 'locked',
       locked_price: r.locked_price || 0,
-      service_fee: r.service_fee != null ? r.service_fee : 45,
-      materials_fee: r.materials_fee != null ? r.materials_fee : 5,
+      service_fee: r.service_fee != null ? r.service_fee : 45, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+      materials_fee: r.materials_fee != null ? r.materials_fee : 5, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       status: 'draft'
     };
     var ings = Array.isArray(sourceIngredients) ? sourceIngredients : [];
@@ -4500,7 +4500,7 @@ function bpScaleIngredients(list, factor) {
               var ingredients = (data.ingredients || []).map(function (i) {
                 return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit,
                          cf_type: i.cf_type || '', cf_subcategory: i.cf_subcategory || '', display_group: i.display_group || '',
-                         stock_on_hand: i.stock_on_hand != null ? i.stock_on_hand : null };
+                         stock_on_hand: i.stock_on_hand != null ? i.stock_on_hand : null }; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
               });
 
               // Store resolved recipe — no update_batch call here (D-10)
@@ -5875,8 +5875,8 @@ function bpScaleIngredients(list, factor) {
     if (readings && readings.length >= 2) {
       var ogReading = null, fgReading = null;
       for (var ri = 0; ri < readings.length; ri++) {
-        if (readings[ri].degrees_plato != null && !ogReading) ogReading = readings[ri];
-        if (readings[ri].degrees_plato != null) fgReading = readings[ri];
+        if (readings[ri].degrees_plato != null && !ogReading) ogReading = readings[ri]; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+        if (readings[ri].degrees_plato != null) fgReading = readings[ri]; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       }
       if (ogReading && fgReading && ogReading !== fgReading) {
         var og = parseFloat(ogReading.degrees_plato);
@@ -5896,9 +5896,9 @@ function bpScaleIngredients(list, factor) {
         var actualIdx = rdLen - 1 - i;
         html += '<tr>';
         html += '<td>' + fmtDate(r.timestamp) + '</td>';
-        html += '<td>' + escapeHTML(r.degrees_plato != null ? r.degrees_plato : '') + '</td>';
-        html += '<td>' + escapeHTML(r.temperature != null ? r.temperature : '') + '</td>';
-        html += '<td>' + escapeHTML(r.ph != null ? r.ph : '') + '</td>';
+        html += '<td>' + escapeHTML(r.degrees_plato != null ? r.degrees_plato : '') + '</td>'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+        html += '<td>' + escapeHTML(r.temperature != null ? r.temperature : '') + '</td>'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+        html += '<td>' + escapeHTML(r.ph != null ? r.ph : '') + '</td>'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
         html += '<td>' + escapeHTML(r.notes || '') + '</td>';
         html += '<td class="bp-reading-actions">';
         html += '<button class="bp-reading-edit" data-idx="' + actualIdx + '" title="Edit">\u270E</button>';
@@ -5928,9 +5928,9 @@ function bpScaleIngredients(list, factor) {
     _detailPlatoStaging.forEach(function (r, i) {
       html += '<tr>';
       html += '<td>' + escapeHTML(r.timestamp) + '</td>';
-      html += '<td>' + escapeHTML(r.degrees_plato != null ? r.degrees_plato : '') + '</td>';
-      html += '<td>' + escapeHTML(r.temperature != null ? r.temperature : '') + '</td>';
-      html += '<td>' + escapeHTML(r.ph != null ? r.ph : '') + '</td>';
+      html += '<td>' + escapeHTML(r.degrees_plato != null ? r.degrees_plato : '') + '</td>'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+      html += '<td>' + escapeHTML(r.temperature != null ? r.temperature : '') + '</td>'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+      html += '<td>' + escapeHTML(r.ph != null ? r.ph : '') + '</td>'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       html += '<td>' + escapeHTML(r.notes || '') + '</td>';
       html += '<td><button type="button" class="bp-staging-remove" data-idx="' + i + '">&times;</button></td>';
       html += '</tr>';
@@ -6057,9 +6057,9 @@ function bpScaleIngredients(list, factor) {
     rowEl.className = 'bp-reading-edit-row';
     rowEl.innerHTML =
       '<td><input class="bp-inline-input" id="re-date" type="date" value="' + escapeHTML(r.timestamp ? String(r.timestamp).slice(0, 10) : '') + '" style="width:110px;"></td>' +
-      '<td><input class="bp-inline-input" id="re-plato" type="number" inputmode="decimal" step="0.1" max="40" value="' + escapeHTML(r.degrees_plato != null ? r.degrees_plato : '') + '" style="width:56px;"></td>' +
-      '<td><input class="bp-inline-input" id="re-temp" type="number" inputmode="decimal" step="0.1" value="' + escapeHTML(r.temperature != null ? r.temperature : '') + '" style="width:56px;"></td>' +
-      '<td><input class="bp-inline-input" id="re-ph" type="number" inputmode="decimal" step="0.01" min="0" max="14" value="' + escapeHTML(r.ph != null ? r.ph : '') + '" style="width:52px;"></td>' +
+      '<td><input class="bp-inline-input" id="re-plato" type="number" inputmode="decimal" step="0.1" max="40" value="' + escapeHTML(r.degrees_plato != null ? r.degrees_plato : '') + '" style="width:56px;"></td>' + // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+      '<td><input class="bp-inline-input" id="re-temp" type="number" inputmode="decimal" step="0.1" value="' + escapeHTML(r.temperature != null ? r.temperature : '') + '" style="width:56px;"></td>' + // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+      '<td><input class="bp-inline-input" id="re-ph" type="number" inputmode="decimal" step="0.01" min="0" max="14" value="' + escapeHTML(r.ph != null ? r.ph : '') + '" style="width:52px;"></td>' + // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       '<td><input class="bp-inline-input" id="re-notes" type="text" value="' + escapeHTML(r.notes || '') + '" style="width:100%;"></td>' +
       '<td class="bp-reading-actions">' +
       '<button class="btn bp-btn-sm bp-reading-save-edit" data-idx="' + idx + '">Save</button>' +
@@ -6152,8 +6152,8 @@ function bpScaleIngredients(list, factor) {
       var d = new Date(r.timestamp);
       return {
         day: Math.round((d - start) / 86400000),
-        plato: r.degrees_plato != null ? Number(r.degrees_plato) : NaN,
-        temp: r.temperature != null ? Number(r.temperature) : NaN
+        plato: r.degrees_plato != null ? Number(r.degrees_plato) : NaN, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+        temp: r.temperature != null ? Number(r.temperature) : NaN // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       };
     }).filter(function (p) { return !isNaN(p.plato); });
     if (points.length < 2) return '';

@@ -50,11 +50,11 @@ function loadServices(callback) {
         return items.map(function (z) {
           return {
             name: z.name || '',
-            price: z.rate != null ? String(z.rate) : '',
+            price: z.rate != null ? String(z.rate) : '', // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
             description: z.description || '',
             sku: z.sku || '',
-            stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0',
-            discount: z.discount != null ? String(z.discount) : '0'
+            stock: z.stock_on_hand != null ? String(z.stock_on_hand) : '0', // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+            discount: z.discount != null ? String(z.discount) : '0' // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
           };
         });
       });

@@ -4,8 +4,8 @@
   'use strict';
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-07-03T01:14:59.056Z';
-  console.log('[Admin] Build: ' + BUILD_TIMESTAMP);
+  var BUILD_TIMESTAMP = '2026-07-03T15:38:05.321Z';
+  console.log('[Admin] Build: ' + BUILD_TIMESTAMP); // eslint-disable-line no-console -- deploy build-verification log
 
   var accessToken = null;
   var userEmail = null;
@@ -412,11 +412,10 @@
     // Try restoring a saved session via silent token refresh
     var saved = loadSession();
     if (saved) {
-      console.log('[Admin] Attempting silent token refresh for', saved.email);
       // Fallback: if GIS never fires the callback, show sign-in button after 5s
       _silentRefreshTimer = setTimeout(function () {
         _silentRefreshTimer = null;
-        console.warn('[Admin] Silent refresh timed out — showing sign-in button');
+        console.warn('[Admin] Silent refresh timed out — showing sign-in button'); // eslint-disable-line no-console -- operational: warns staff when silent auth refresh times out
         clearSession();
         showSignInButton();
       }, 5000);
@@ -425,7 +424,7 @@
       } catch (err) {
         clearTimeout(_silentRefreshTimer);
         _silentRefreshTimer = null;
-        console.warn('[Admin] Silent refresh failed:', err.message);
+        console.warn('[Admin] Silent refresh failed:', err.message); // eslint-disable-line no-console -- operational: warns staff when silent auth refresh fails
         clearSession();
         showSignInButton();
       }
@@ -453,7 +452,7 @@
     if (_silentRefreshTimer) { clearTimeout(_silentRefreshTimer); _silentRefreshTimer = null; }
     _handlingUnauthorized = false; // Reset guard so handleUnauthorized works again if needed
     if (response.error) {
-      console.warn('[Admin] Token response error:', response.error);
+      console.warn('[Admin] Token response error:', response.error); // eslint-disable-line no-console -- operational: warns staff on auth token response error
       clearSession();
       showSignInButton();
       return;
@@ -474,8 +473,6 @@
   }
 
   function checkAuthorization() {
-    console.log('[Admin] Checking authorization for:', userEmail);
-
     // Identity is established by the server session exchange: POST the GIS
     // access token to /auth/google, which verifies it against the allowlist
     // (D-46-07) and sets the sv_session cookie. The client-side Config-sheet
@@ -489,7 +486,6 @@
     })
       .then(function (res) { return res.json(); })
       .then(function (result) {
-        console.log('[Admin] Server auth result:', result);
         if (result.authorized) {
           showDashboard();
         } else {
@@ -497,7 +493,7 @@
         }
       })
       .catch(function (err) {
-        console.error('[Admin] Server auth failed:', err && err.message);
+        console.error('[Admin] Server auth failed:', err && err.message); // eslint-disable-line no-console -- operational: reports server auth failure for troubleshooting
         showDenied();
       });
   }
@@ -786,7 +782,8 @@
   function loadAllData() {
     // Reset pagination when loading all data
     reservationsPagination.offset = 0;
-    reservationsPagination.currentFilter = document.getElementById('res-status-filter')?.value || 'pending';
+    var _resStatusFilterEl = document.getElementById('res-status-filter');
+    reservationsPagination.currentFilter = (_resStatusFilterEl ? _resStatusFilterEl.value : '') || 'pending';
 
     // Use Admin API if configured (server-side auth on every request)
     if (SHEETS_CONFIG.ADMIN_API_URL) {
@@ -811,7 +808,7 @@
         parseSheetData(ingredientsResult, 'ingredients');
         finishDataLoad();
       }).catch(function (err) {
-        console.error('Failed to load data via Admin API:', err);
+        console.error('Failed to load data via Admin API:', err); // eslint-disable-line no-console -- operational: reports dashboard data-load failure to console for troubleshooting
         // Show error to user
         showToast('Failed to load data: ' + err.message, 'error');
       });
@@ -836,7 +833,7 @@
       reservationsPagination.filtered = reservationsData.length;
       finishDataLoad();
     }).catch(function (err) {
-      console.error('Failed to load data:', err);
+      console.error('Failed to load data:', err); // eslint-disable-line no-console -- operational: reports dashboard data-load failure to console for troubleshooting
     });
   }
 
@@ -882,7 +879,7 @@
     loadReservationsPage().then(function () {
       renderReservationsTab();
     }).catch(function (err) {
-      console.error('Failed to load reservations page:', err);
+      console.error('Failed to load reservations page:', err); // eslint-disable-line no-console -- operational: reports reservations page load failure for troubleshooting
     });
   }
 
@@ -902,7 +899,7 @@
     loadReservationsPage().then(function () {
       renderReservationsTab();
     }).catch(function (err) {
-      console.error('Failed to load reservations page:', err);
+      console.error('Failed to load reservations page:', err); // eslint-disable-line no-console -- operational: reports reservations page load failure for troubleshooting
     });
   }
 
@@ -939,8 +936,8 @@
           var map = {};
           (data.items || []).forEach(function (z) {
             if (z.sku) map[z.sku] = {
-              stock: z.stock_on_hand != null ? parseInt(z.stock_on_hand, 10) : null,
-              rate: z.rate != null ? parseFloat(z.rate) : null,
+              stock: z.stock_on_hand != null ? parseInt(z.stock_on_hand, 10) : null, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+              rate: z.rate != null ? parseFloat(z.rate) : null, // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
               item_id: z.item_id || '',
               vendor_id: z.vendor_id || '',
               vendor_name: z.vendor_name || ''
@@ -1330,7 +1327,7 @@
           loadReservationsPage().then(function () {
             renderReservationsTab();
           }).catch(function (err) {
-            console.error('Failed to load filtered reservations:', err);
+            console.error('Failed to load filtered reservations:', err); // eslint-disable-line no-console -- operational: reports filtered reservations load failure for troubleshooting
           });
         } else {
           // Client-side filtering
@@ -2095,7 +2092,7 @@
             }
           })
           .catch(function (err) {
-            console.error('Failed to auto-update reservation status:', err);
+            console.error('Failed to auto-update reservation status:', err); // eslint-disable-line no-console -- operational: reports auto-update reservation status failure for troubleshooting
           });
       } else {
         var statusCol = reservationsHeaders.indexOf('status');
@@ -2913,7 +2910,6 @@
       saveOrder(order);
       populateOrderBrandFilter();
       renderOrderTab();
-      console.log('[Admin] Loaded ' + order.length + ' item(s) from sheet on_order column');
     }
   }
 
@@ -2947,7 +2943,7 @@
       Promise.all(updates).then(function () {
         renderKitsTab();
       }).catch(function (err) {
-        console.error('Failed to sync on_order:', err);
+        console.error('Failed to sync on_order:', err); // eslint-disable-line no-console -- operational: reports on_order sync failure for troubleshooting
       });
     }
   }
@@ -3258,7 +3254,7 @@
     html += '<tbody>';
     openPOsData.forEach(function (po) {
       var lineCount = (po.line_items || []).length;
-      var total = po.total != null ? '$' + parseFloat(po.total).toFixed(2) : '';
+      var total = po.total != null ? '$' + parseFloat(po.total).toFixed(2) : ''; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       var status = po.status ? po.status.charAt(0).toUpperCase() + po.status.slice(1) : '';
       html += '<tr>';
       html += '<td><strong>' + (po.purchaseorder_number || po.purchaseorder_id) + '</strong></td>';
@@ -3487,13 +3483,11 @@
     var activeIndex = -1;
 
     function renderDropdown(query) {
-      console.log('[Order] renderDropdown called, query:', query, 'options count:', orderKitOptions.length);
       var q = (query || '').toLowerCase();
       var matches = orderKitOptions.filter(function (opt) {
         if (!q) return true;
         return opt.label.toLowerCase().indexOf(q) !== -1;
       });
-      console.log('[Order] matches:', matches.length);
 
       dropdown.innerHTML = '';
       activeIndex = -1;
@@ -4940,7 +4934,7 @@
         if (fbField) fbField.value = homepageConfig['social-facebook'] || '';
       })
       .catch(function (err) {
-        console.error('[Homepage] Error loading from sheet:', err);
+        console.error('[Homepage] Error loading from sheet:', err); // eslint-disable-line no-console -- operational: reports homepage settings load failure for troubleshooting
       });
   }
 
@@ -5093,7 +5087,7 @@
           showToast('Homepage settings saved!', 'success');
         })
         .catch(function (err) {
-          console.error('[Homepage] Error saving via Admin API:', err);
+          console.error('[Homepage] Error saving via Admin API:', err); // eslint-disable-line no-console -- operational: reports homepage settings save failure for troubleshooting
           showToast('Error saving homepage settings: ' + err.message, 'error');
         });
     } else {
@@ -5105,7 +5099,7 @@
         .then(function () { return sheetsUpdate(SHEETS_CONFIG.SHEET_NAMES.HOMEPAGE + '!A1', rows); })
         .then(function () { showToast('Homepage settings saved to Google Sheets!', 'success'); })
         .catch(function (err) {
-          console.error('[Homepage] Error saving:', err);
+          console.error('[Homepage] Error saving:', err); // eslint-disable-line no-console -- operational: reports homepage settings save failure for troubleshooting
           showToast('Error saving homepage settings: ' + err.message, 'error');
         });
     }
@@ -6495,8 +6489,8 @@
         html += '<tr data-reading-id="' + escapeHTML(r.reading_id) + '">';
         html += '<td>' + String(r.timestamp || '').substring(0, 10) + '</td>';
         html += '<td>' + escapeHTML(r.degrees_plato) + '</td>';
-        html += '<td>' + escapeHTML(r.temperature != null && r.temperature !== '' ? r.temperature : '') + '</td>';
-        html += '<td>' + escapeHTML(r.ph != null && r.ph !== '' ? r.ph : '') + '</td>';
+        html += '<td>' + escapeHTML(r.temperature != null && r.temperature !== '' ? r.temperature : '') + '</td>'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+        html += '<td>' + escapeHTML(r.ph != null && r.ph !== '' ? r.ph : '') + '</td>'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
         html += '<td>' + escapeHTML(r.notes || '') + '</td>';
         html += '<td class="plato-actions">';
         html += '<button type="button" class="plato-edit-btn" title="Edit">&#9998;</button>';
@@ -8714,8 +8708,8 @@
     document.getElementById('recipe-ibu').value = r.ibu || '';
     document.getElementById('recipe-colour').value = r.colour_srm || '';
     document.getElementById('recipe-locked-price').value = r.locked_price || '';
-    document.getElementById('recipe-service-fee').value = r.service_fee != null ? r.service_fee : 45;
-    document.getElementById('recipe-materials-fee').value = r.materials_fee != null ? r.materials_fee : 5;
+    document.getElementById('recipe-service-fee').value = r.service_fee != null ? r.service_fee : 45; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+    document.getElementById('recipe-materials-fee').value = r.materials_fee != null ? r.materials_fee : 5; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
     document.getElementById('recipe-status').value = r.status || 'draft';
     var pricingModeSelect = document.getElementById('recipe-pricing-mode');
     if (pricingModeSelect) pricingModeSelect.value = r.pricing_mode || 'locked';
@@ -8783,8 +8777,8 @@
         var idx = ingredients.indexOf(ing);
         var avail = availMap[String(ing.item_id)] || {};
         var dotClass = 'ing-status-dot ing-status-dot--' + escapeHTML(avail.status || 'unknown');
-        var stockText = avail.stock_on_hand != null ? avail.stock_on_hand + ' ' + (ing.unit || '') + ' available' : '';
-        var dotTitle = avail.status === 'unknown' ? 'Stock data loading -- try again shortly' : (avail.batches_possible != null ? avail.batches_possible + ' batch(es) possible' : '');
+        var stockText = avail.stock_on_hand != null ? avail.stock_on_hand + ' ' + (ing.unit || '') + ' available' : ''; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+        var dotTitle = avail.status === 'unknown' ? 'Stock data loading -- try again shortly' : (avail.batches_possible != null ? avail.batches_possible + ' batch(es) possible' : ''); // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
         var qty = parseFloat(ing.quantity) || 0;
         var costEach = parseFloat(ing.purchase_rate) || 0;
         var retailEach = parseFloat(ing.rate) || 0;
@@ -8889,7 +8883,7 @@
     matches.forEach(function (item) {
       var opt = document.createElement('div');
       opt.setAttribute('role', 'option');
-      var stockLabel = item.stock_on_hand != null ? item.stock_on_hand : '?';
+      var stockLabel = item.stock_on_hand != null ? item.stock_on_hand : '?'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       var unitLabel = item.unit || '';
       opt.innerHTML = escapeHTML(item.name || '') + ' &mdash; ' + escapeHTML(item.sku || '') + ' <span class="ing-stock-hint">(' + stockLabel + (unitLabel ? ' ' + escapeHTML(unitLabel) : '') + ' available)</span>';
       opt.addEventListener('mousedown', function (e) {
@@ -8927,7 +8921,7 @@
     if (unitTd) unitTd.textContent = item.unit || '';
     var hintSpan = row.querySelector('.ing-stock-hint');
     if (hintSpan) {
-      var stockVal = item.stock_on_hand != null ? item.stock_on_hand : '?';
+      var stockVal = item.stock_on_hand != null ? item.stock_on_hand : '?'; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
       hintSpan.textContent = stockVal + ' ' + (item.unit || '') + ' available';
     }
     row.setAttribute('data-item-id', item.item_id || '');
@@ -11223,7 +11217,7 @@
 
           Promise.all(batchPromises.map(function (p) {
             return p.catch(function (err) {
-              console.error('[kiosk] batch creation failed:', err);
+              console.error('[kiosk] batch creation failed:', err); // eslint-disable-line no-console -- operational: reports kiosk batch-creation failure for troubleshooting
               return null;
             });
           })).then(function (batchResults) {
@@ -11823,7 +11817,7 @@
       if (r.pricing_mode !== 'dynamic') return;
       if (Number(r.computed_price) > 0) return;
       if (r._fetchedDetail) {
-        if (r._fetchedDetail.recipe && r._fetchedDetail.recipe.computed_price != null) {
+        if (r._fetchedDetail.recipe && r._fetchedDetail.recipe.computed_price != null) { // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
           r.computed_price = r._fetchedDetail.recipe.computed_price;
           var priceCell = grid.querySelector('[data-recipe-price-id="' + r.recipe_id + '"]');
           if (priceCell) {
@@ -11840,8 +11834,8 @@
           .then(function (data) {
             recipe._fetchedDetail = data;
             if (data.recipe) {
-              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price;
-              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate;
+              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
               var priceEl = grid.querySelector('[data-recipe-price-id="' + recipe.recipe_id + '"]');
               if (priceEl) {
                 var warm = kioskRecipePrice(recipe);
@@ -12152,7 +12146,7 @@
           kioskRenderRecipeIngredients(recipe._fetchedDetail.ingredients, ingEl);
         }
         // Update computed_price on recipe in case card fetch already populated it
-        if (recipe._fetchedDetail.recipe && recipe._fetchedDetail.recipe.computed_price != null) {
+        if (recipe._fetchedDetail.recipe && recipe._fetchedDetail.recipe.computed_price != null) { // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
           recipe.computed_price = recipe._fetchedDetail.recipe.computed_price;
           kioskUpdateSummaryPrice();
           kioskUpdateAddToCartButton();
@@ -12168,8 +12162,8 @@
             }
             recipe._fetchedDetail = data;
             if (data.recipe) {
-              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price;
-              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate;
+              if (data.recipe.computed_price != null) recipe.computed_price = data.recipe.computed_price; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+              if (data.recipe.milling_fee_rate != null) recipe.milling_fee_rate = data.recipe.milling_fee_rate; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
               var cardGrid = document.getElementById('kiosk-recipe-grid');
               if (cardGrid) {
                 var cardPriceEl = cardGrid.querySelector('[data-recipe-price-id="' + recipe.recipe_id + '"]');
