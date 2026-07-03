@@ -123,3 +123,18 @@ None - no external service configuration required.
 ---
 *Phase: 52-fail-closed-sweep*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+
+- FOUND: zoho-middleware/routes/checkout.js
+- FOUND: zoho-middleware/server.js
+- FOUND: zoho-middleware/__tests__/promo-failclosed.test.js
+- FOUND: zoho-middleware/__tests__/ratelimit-failclosed-52.test.js
+- FOUND: zoho-middleware/__tests__/redis-failclosed.test.js
+- FOUND: .planning/phases/52-fail-closed-sweep/52-02-SUMMARY.md
+- FOUND: e269934 (test — promo RED commit)
+- FOUND: 5a5e468 (fix — promo M1 GREEN commit)
+- FOUND: a14c062 (test — rate-limit RED commit)
+- FOUND: 91eb7bd (fix — rate-limit M4 GREEN commit)
+- FOUND: 96160fa (fix — rate-limit M5 GREEN commit)
+- FOUND: e8105b3 (docs — summary commit)
