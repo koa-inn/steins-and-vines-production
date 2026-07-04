@@ -698,7 +698,7 @@ Plans:
 | 42. Kiosk POS De-Fork (kiosk-core.js) → rehomed to v4.5 Phase 48 (KIOSK-01) | v4.4 | 0/? | Not started | - |
 | 46. Auth Re-Architecture | v4.5 (carryover, SEC-02) | 9/10 | Code-complete, owner cutover pending | - |
 | 47. Purge Publicly-Served Internal Docs | v4.5 | 1/1 | ✅ Closed on staging (verified 2026-07-03); prod audit-doc at next prod deploy | 2026-07-03 |
-| 48. Kiosk POS De-Fork (kiosk-core.js) | v4.5 | 3/6 | In Progress|  |
+| 48. Kiosk POS De-Fork (kiosk-core.js) | v4.5 | 4/6 | In Progress|  |
 | 49. Online Captured-Amount Verification | v4.5 | 1/2 | 49-01 done (H2 fix + 13-test regression, suite green); 49-02 live-card UAT pending deploy | - |
 | 50. Kiosk Money-Path Defect Closeout | v4.5 | 0/? | Not started | - |
 | 51. Gift-Card Ledger Integrity | v4.5 | 0/? | Not started | - |
@@ -1033,7 +1033,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 48-04-PLAN.md — admin.js consumes KioskCore + delete dup defs + 2 drift-bug fixes (D-05) + idempotency unify + discount markup port to admin.html
+- [x] 48-04-PLAN.md — admin.js consumes KioskCore + delete dup defs + 2 drift-bug fixes (D-05) + idempotency unify + discount markup port to admin.html
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
