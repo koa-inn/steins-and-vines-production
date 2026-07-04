@@ -2213,6 +2213,410 @@
     return kioskCalcTotals().discount;
   }
 
+  // ===== Discount System (48-02 Task 2 — D-04: product-type discount subsystem,
+  // moves into core so the admin-embedded kiosk gets it for free) =====
+
+  function kioskLoadDiscountPresets() {
+    var mwUrl = _kcEnv.mwUrl;
+    if (!mwUrl) return;
+    fetch(mwUrl + '/api/kiosk/discounts', _kcMergeAuth({}))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _kioskDiscountPresets = (data.discounts || []).filter(function (d) { return d.active; });
+      })
+      .catch(function () {});
+  }
+
+  function kioskShowDiscountPopover() {
+    var popover = document.getElementById('kiosk-discount-popover');
+    var list = document.getElementById('kiosk-discount-preset-list');
+    if (!popover || !list) return;
+
+    var html = '';
+    _kioskDiscountPresets.forEach(function (p) {
+      var detail = p.type === 'percentage' ? (p.value + '% off') : ('$' + parseFloat(p.value).toFixed(2) + ' off');
+      detail += ' (' + kioskDiscountScopeLabel(p) + ')';
+      html += '<div class="kiosk-discount-preset-row" data-preset-id="' + escapeHTML(p.id) + '">';
+      html += '<span class="kiosk-discount-preset-name">' + escapeHTML(p.name) + '</span>';
+      html += '<span class="kiosk-discount-preset-detail">' + detail + '</span>';
+      html += '</div>';
+    });
+    if (!_kioskDiscountPresets.length) {
+      html = '<div style="padding:1rem;color:var(--ink-tertiary);text-align:center;">No presets configured</div>';
+    }
+    list.innerHTML = html;
+
+    list.querySelectorAll('.kiosk-discount-preset-row').forEach(function (row) {
+      row.addEventListener('click', function () {
+        var id = row.getAttribute('data-preset-id');
+        var preset = null;
+        for (var i = 0; i < _kioskDiscountPresets.length; i++) {
+          if (_kioskDiscountPresets[i].id === id) { preset = _kioskDiscountPresets[i]; break; }
+        }
+        if (preset) kioskApplyDiscount(preset);
+      });
+    });
+
+    popover.style.display = '';
+  }
+
+  function kioskApplyDiscount(preset) {
+    _kcEnv.setDiscount({
+      presetId: preset.id,
+      name: preset.name,
+      type: preset.type,
+      value: preset.value,
+      scope: preset.scope,
+      applies_to: preset.applies_to || null
+    });
+
+    document.getElementById('kiosk-discount-popover').style.display = 'none';
+    kioskRefreshAfterDiscountChange();
+  }
+
+  function kioskRemoveDiscount() {
+    _kcEnv.setDiscount(null);
+    kioskRefreshAfterDiscountChange();
+  }
+
+  // Recompute the displayed total after a discount changes. For recipe carts the
+  // discount is server-authoritative, so re-fetch the (discount-aware) quote first.
+  function kioskRefreshAfterDiscountChange() {
+    if (_kioskSelectedRecipe && typeof kioskFetchRecipeQuote === 'function') {
+      var p = kioskFetchRecipeQuote();
+      if (p && typeof p.then === 'function') {
+        p.then(function () { kioskUpdateDiscountDisplay(); kioskRenderCart(); });
+        return;
+      }
+    }
+    kioskUpdateDiscountDisplay();
+    kioskRenderCart();
+  }
+
+  // Collect the selected applies_to tokens from the two-tier checkbox panel.
+  // A fully-selected group collapses to its group token ('kit'/'ingredient').
+  function kioskCollectAppliesTo() {
+    var panel = document.getElementById('kiosk-discount-types');
+    if (!panel) return [];
+    var tokens = [];
+    panel.querySelectorAll('input[data-group]').forEach(function (parent) {
+      var group = parent.getAttribute('data-group');
+      if (parent.checked) {
+        tokens.push(group);
+      } else {
+        panel.querySelectorAll('input[data-token]').forEach(function (c) {
+          if (c.getAttribute('data-token').indexOf(group + ':') === 0 && c.checked) {
+            tokens.push(c.getAttribute('data-token'));
+          }
+        });
+      }
+    });
+    panel.querySelectorAll('input[data-token]').forEach(function (c) {
+      var t = c.getAttribute('data-token');
+      if (t.indexOf(':') === -1 && c.checked) tokens.push(t); // service / recipe
+    });
+    return tokens;
+  }
+
+  // Load an existing preset into the Add/Edit form for editing.
+  function kioskPopulateDiscountForm(preset) {
+    var modal = document.getElementById('kiosk-discount-mgmt-modal');
+    var form = document.getElementById('kiosk-discount-form');
+    if (!modal || !form || !preset) return;
+
+    _kioskEditingDiscountId = preset.id;
+    document.getElementById('kiosk-discount-form-name').value = preset.name || '';
+    document.getElementById('kiosk-discount-form-value').value = preset.value != null ? preset.value : ''; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+
+    modal.querySelectorAll('.kiosk-discount-type-btn').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-type') === (preset.type || 'percentage'));
+    });
+    var scope = (preset.scope === 'type') ? 'type' : 'cart';
+    modal.querySelectorAll('.kiosk-discount-scope-btn').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-scope') === scope);
+    });
+
+    var tp = document.getElementById('kiosk-discount-types');
+    if (tp) {
+      tp.querySelectorAll('input[type="checkbox"]').forEach(function (c) { c.checked = false; });
+      tp.style.display = (scope === 'type') ? '' : 'none';
+      if (scope === 'type') {
+        var at = preset.applies_to || [];
+        // Group tokens (kit/ingredient) tick the parent + all its children.
+        at.forEach(function (tok) {
+          var parent = tp.querySelector('input[data-group="' + tok + '"]');
+          if (parent) {
+            parent.checked = true;
+            tp.querySelectorAll('input[data-token]').forEach(function (c) {
+              if (c.getAttribute('data-token').indexOf(tok + ':') === 0) c.checked = true;
+            });
+          }
+          var leaf = tp.querySelector('input[data-token="' + tok + '"]');
+          if (leaf) leaf.checked = true;
+        });
+        // Reflect "all children selected" back onto each parent checkbox.
+        tp.querySelectorAll('input[data-group]').forEach(function (parent) {
+          var group = parent.getAttribute('data-group');
+          var all = true, any = false;
+          tp.querySelectorAll('input[data-token]').forEach(function (c) {
+            if (c.getAttribute('data-token').indexOf(group + ':') === 0) { any = true; if (!c.checked) all = false; }
+          });
+          if (any) parent.checked = all;
+        });
+      }
+    }
+
+    form.style.display = '';
+    var addBtn = document.getElementById('kiosk-discount-add-btn');
+    if (addBtn) addBtn.style.display = 'none';
+    var saveBtn = document.getElementById('kiosk-discount-save-btn');
+    if (saveBtn) saveBtn.textContent = 'Update';
+  }
+
+  // Human-readable summary of a preset's targeting (for popover + mgmt list).
+  function kioskDiscountScopeLabel(p) {
+    if (!p || p.scope !== 'type') return 'Cart';
+    var at = p.applies_to || [];
+    if (!at.length) return 'Types';
+    var labelMap = {
+      kit: 'All Kits', ingredient: 'All Ingredients', service: 'Services', recipe: 'Recipes',
+      'kit:wine': 'Wine', 'kit:beer': 'Beer', 'kit:cider': 'Cider', 'kit:seltzer': 'Seltzer',
+      'ingredient:hops': 'Hops', 'ingredient:grain': 'Grain', 'ingredient:yeast': 'Yeast',
+      'ingredient:additive': 'Additive', 'ingredient:packaging': 'Packaging',
+      'ingredient:equipment': 'Equipment', 'ingredient:cleaning': 'Cleaning'
+    };
+    return at.map(function (t) { return labelMap[t] || t; }).join(', ');
+  }
+
+  function kioskShowDiscountMgmt() {
+    var modal = document.getElementById('kiosk-discount-mgmt-modal');
+    if (!modal) return;
+    modal.style.display = '';
+    kioskRenderDiscountMgmtList();
+
+    var closeBtn = document.getElementById('kiosk-discount-mgmt-close');
+    if (closeBtn) closeBtn.onclick = function () { modal.style.display = 'none'; };
+
+    var addBtn = document.getElementById('kiosk-discount-add-btn');
+    var form = document.getElementById('kiosk-discount-form');
+    if (addBtn && form) {
+      addBtn.onclick = function () {
+        _kioskEditingDiscountId = null; // creating a new preset
+        var sb = document.getElementById('kiosk-discount-save-btn');
+        if (sb) sb.textContent = 'Save';
+        form.style.display = '';
+        addBtn.style.display = 'none';
+        document.getElementById('kiosk-discount-form-name').value = '';
+        document.getElementById('kiosk-discount-form-value').value = '';
+        // Reset scope to "Whole Cart" and clear the type checkboxes
+        modal.querySelectorAll('.kiosk-discount-scope-btn').forEach(function (b) {
+          b.classList.toggle('active', b.getAttribute('data-scope') === 'cart');
+        });
+        var tp = document.getElementById('kiosk-discount-types');
+        if (tp) {
+          tp.style.display = 'none';
+          tp.querySelectorAll('input[type="checkbox"]').forEach(function (c) { c.checked = false; });
+        }
+        // Reset type to percentage
+        modal.querySelectorAll('.kiosk-discount-type-btn').forEach(function (b) {
+          b.classList.toggle('active', b.getAttribute('data-type') === 'percentage');
+        });
+      };
+    }
+
+    var typeBtns = modal.querySelectorAll('.kiosk-discount-type-btn');
+    typeBtns.forEach(function (btn) {
+      btn.onclick = function () {
+        typeBtns.forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+      };
+    });
+
+    var typesPanel = document.getElementById('kiosk-discount-types');
+    var scopeBtns = modal.querySelectorAll('.kiosk-discount-scope-btn');
+    scopeBtns.forEach(function (btn) {
+      btn.onclick = function () {
+        scopeBtns.forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        if (typesPanel) typesPanel.style.display = (btn.getAttribute('data-scope') === 'type') ? '' : 'none';
+      };
+    });
+
+    // Two-tier checkbox sync: a parent ("All Kits"/"All Ingredients") toggles its
+    // children; unchecking a child unchecks the parent.
+    if (typesPanel) {
+      typesPanel.querySelectorAll('input[data-group]').forEach(function (parent) {
+        var group = parent.getAttribute('data-group');
+        parent.onchange = function () {
+          typesPanel.querySelectorAll('input[data-token]').forEach(function (c) {
+            if (c.getAttribute('data-token').indexOf(group + ':') === 0) c.checked = parent.checked;
+          });
+        };
+      });
+      typesPanel.querySelectorAll('input[data-token]').forEach(function (c) {
+        var t = c.getAttribute('data-token');
+        if (t.indexOf(':') === -1) return; // single tokens (service/recipe) have no parent
+        var group = t.split(':')[0];
+        c.onchange = function () {
+          var parent = typesPanel.querySelector('input[data-group="' + group + '"]');
+          if (!parent) return;
+          var all = true;
+          typesPanel.querySelectorAll('input[data-token]').forEach(function (cc) {
+            if (cc.getAttribute('data-token').indexOf(group + ':') === 0 && !cc.checked) all = false;
+          });
+          parent.checked = all;
+        };
+      });
+    }
+
+    var saveBtn = document.getElementById('kiosk-discount-save-btn');
+    if (saveBtn) {
+      saveBtn.onclick = function () {
+        var name = (document.getElementById('kiosk-discount-form-name').value || '').trim();
+        var value = parseFloat(document.getElementById('kiosk-discount-form-value').value);
+        var typeBtn = modal.querySelector('.kiosk-discount-type-btn.active');
+        var scopeBtn = modal.querySelector('.kiosk-discount-scope-btn.active');
+        var type = typeBtn ? typeBtn.getAttribute('data-type') : 'percentage';
+        var scope = scopeBtn ? scopeBtn.getAttribute('data-scope') : 'cart';
+
+        if (!name) { showToast('Enter a discount name', 'error'); return; }
+        if (!isFinite(value) || value <= 0) { showToast('Enter a valid value', 'error'); return; }
+        if (type === 'percentage' && value > 100) { showToast('Percentage cannot exceed 100%', 'error'); return; }
+
+        var payload = { name: name, type: type, value: value, scope: scope };
+        if (scope === 'type') {
+          payload.applies_to = kioskCollectAppliesTo();
+          if (!payload.applies_to.length) { showToast('Pick at least one product type', 'error'); return; }
+        }
+
+        var mwUrl = _kcEnv.mwUrl;
+        var editingId = _kioskEditingDiscountId;
+        var url = editingId
+          ? mwUrl + '/api/kiosk/discounts/' + encodeURIComponent(editingId)
+          : mwUrl + '/api/kiosk/discounts';
+        fetch(url, _kcMergeAuth({
+          method: editingId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.ok) {
+            showToast(editingId ? 'Preset updated' : 'Preset saved', 'success');
+            _kioskEditingDiscountId = null;
+            saveBtn.textContent = 'Save';
+            kioskLoadDiscountPresets();
+            form.style.display = 'none';
+            document.getElementById('kiosk-discount-add-btn').style.display = '';
+            kioskRenderDiscountMgmtList();
+            setTimeout(function () { kioskRenderDiscountMgmtList(); }, 500);
+          } else {
+            showToast(data.error || 'Failed to save', 'error');
+          }
+        })
+        .catch(function () { showToast('Network error', 'error'); });
+      };
+    }
+
+    var cancelFormBtn = document.getElementById('kiosk-discount-cancel-btn');
+    if (cancelFormBtn) {
+      cancelFormBtn.onclick = function () {
+        _kioskEditingDiscountId = null;
+        var sb = document.getElementById('kiosk-discount-save-btn');
+        if (sb) sb.textContent = 'Save';
+        form.style.display = 'none';
+        document.getElementById('kiosk-discount-add-btn').style.display = '';
+      };
+    }
+  }
+
+  function kioskRenderDiscountMgmtList() {
+    var list = document.getElementById('kiosk-discount-mgmt-list');
+    if (!list) return;
+
+    var mwUrl = _kcEnv.mwUrl;
+    fetch(mwUrl + '/api/kiosk/discounts', _kcMergeAuth({}))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var presets = data.discounts || [];
+        _kioskDiscountPresets = presets.filter(function (d) { return d.active; });
+
+        if (!presets.length) {
+          list.innerHTML = '<p style="padding:0.75rem 0;color:var(--ink-tertiary);text-align:center;">No presets yet</p>';
+          return;
+        }
+
+        var html = '';
+        presets.forEach(function (p) {
+          var detail = p.type === 'percentage' ? (p.value + '%') : ('$' + parseFloat(p.value).toFixed(2));
+          detail += ' · ' + kioskDiscountScopeLabel(p);
+          var isActive = p.active !== false;
+          html += '<div class="kiosk-discount-mgmt-row' + (isActive ? '' : ' kiosk-discount-mgmt-row--inactive') + '" data-id="' + escapeHTML(p.id) + '">';
+          html += '<span class="kiosk-discount-mgmt-name">' + escapeHTML(p.name) + '</span>';
+          html += '<span class="kiosk-discount-mgmt-info">' + detail + '</span>';
+          html += '<button type="button" class="kiosk-discount-mgmt-toggle' + (isActive ? ' is-active' : '') + '" data-id="' + escapeHTML(p.id) + '" data-active="' + isActive + '">' + (isActive ? 'Active' : 'Paused') + '</button>';
+          html += '<button type="button" class="kiosk-discount-mgmt-edit" data-id="' + escapeHTML(p.id) + '">Edit</button>';
+          html += '<button type="button" class="kiosk-discount-mgmt-delete" data-id="' + escapeHTML(p.id) + '">&times;</button>';
+          html += '</div>';
+        });
+        list.innerHTML = html;
+
+        list.querySelectorAll('.kiosk-discount-mgmt-toggle').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.getAttribute('data-id');
+            var nowActive = btn.getAttribute('data-active') === 'true';
+            fetch(mwUrl + '/api/kiosk/discounts/' + encodeURIComponent(id), _kcMergeAuth({
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ active: !nowActive })
+            }))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data.ok) {
+                showToast(!nowActive ? 'Preset activated' : 'Preset paused', 'success');
+                kioskLoadDiscountPresets();
+                kioskRenderDiscountMgmtList();
+              } else {
+                showToast(data.error || 'Failed to update', 'error');
+              }
+            })
+            .catch(function () { showToast('Network error', 'error'); });
+          });
+        });
+
+        list.querySelectorAll('.kiosk-discount-mgmt-edit').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.getAttribute('data-id');
+            var preset = null;
+            for (var i = 0; i < presets.length; i++) {
+              if (presets[i].id === id) { preset = presets[i]; break; }
+            }
+            if (preset) kioskPopulateDiscountForm(preset);
+          });
+        });
+
+        list.querySelectorAll('.kiosk-discount-mgmt-delete').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.getAttribute('data-id');
+            if (!confirm('Delete this preset?')) return;
+            fetch(mwUrl + '/api/kiosk/discounts/' + encodeURIComponent(id), _kcMergeAuth({
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' }
+            }))
+            .then(function () {
+              showToast('Preset deleted', 'success');
+              kioskLoadDiscountPresets();
+              kioskRenderDiscountMgmtList();
+            })
+            .catch(function () { showToast('Failed to delete', 'error'); });
+          });
+        });
+      })
+      .catch(function () {
+        list.innerHTML = '<p style="padding:0.75rem 0;color:#c00;">Failed to load presets</p>';
+      });
+  }
+
   // ===== Public namespace (D-06: prefix dropped) =====
   var KioskCore = {
     init: kcInit,
@@ -2274,6 +2678,16 @@
     // discount display (Task 1 slice — calcTotals dependency)
     updateDiscountDisplay: kioskUpdateDiscountDisplay,
     calcDiscountAmount: kioskCalcDiscountAmount,
+    loadDiscountPresets: kioskLoadDiscountPresets,
+    showDiscountPopover: kioskShowDiscountPopover,
+    applyDiscount: kioskApplyDiscount,
+    removeDiscount: kioskRemoveDiscount,
+    refreshAfterDiscountChange: kioskRefreshAfterDiscountChange,
+    collectAppliesTo: kioskCollectAppliesTo,
+    populateDiscountForm: kioskPopulateDiscountForm,
+    discountScopeLabel: kioskDiscountScopeLabel,
+    showDiscountMgmt: kioskShowDiscountMgmt,
+    renderDiscountMgmtList: kioskRenderDiscountMgmtList,
 
     // ---- Test-export-style accessors (mirror js/kiosk.js's existing idiom) ----
     _getQuote: function () { return _kioskQuote; },
