@@ -16,9 +16,9 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="favicon.ico">
-  <link rel="stylesheet" href="css/styles.min.css?v=mr5ix7de">
-  <link rel="stylesheet" href="css/admin.min.css?v=mr5ix7de">
-  <link rel="stylesheet" href="css/kiosk.min.css?v=mr5ix7de">
+  <link rel="stylesheet" href="css/styles.min.css?v=mr6hcmyg">
+  <link rel="stylesheet" href="css/admin.min.css?v=mr6hcmyg">
+  <link rel="stylesheet" href="css/kiosk.min.css?v=mr6hcmyg">
 </head>
 <body data-page="admin">
 
@@ -702,10 +702,23 @@
                   <div id="kiosk-cart-items" class="kiosk-cart-items">
                     <p class="kiosk-cart-empty">No items in cart</p>
                   </div>
+                  <!-- SC#3 (Phase 48-04): product-type discount — ported verbatim from kiosk.html -->
+                  <div class="kiosk-discount-zone" id="kiosk-discount-zone">
+                    <button type="button" class="btn-secondary kiosk-discount-btn" id="kiosk-discount-btn" disabled>Apply Discount</button>
+                    <div class="kiosk-discount-applied" id="kiosk-discount-applied" style="display:none;">
+                      <span class="kiosk-discount-applied-name" id="kiosk-discount-applied-name"></span>
+                      <span class="kiosk-discount-applied-amount" id="kiosk-discount-applied-amount"></span>
+                      <button type="button" class="kiosk-discount-remove-btn" id="kiosk-discount-remove-btn">&times;</button>
+                    </div>
+                  </div>
                   <div class="kiosk-cart-totals" id="kiosk-cart-totals" style="display:none;">
                     <div class="kiosk-total-row">
                       <span>Subtotal</span>
                       <span id="kiosk-subtotal">$0.00</span>
+                    </div>
+                    <div class="kiosk-total-row kiosk-total-row--discount" id="kiosk-discount-total-row" style="display:none;">
+                      <span id="kiosk-discount-total-label">Discount</span>
+                      <span id="kiosk-discount-total-amount"></span>
                     </div>
                     <div class="kiosk-total-row">
                       <span>Tax</span>
@@ -720,6 +733,14 @@
                     <button type="button" class="btn kiosk-checkout-btn" id="kiosk-checkout-btn" disabled>
                       Charge &mdash; <span id="kiosk-checkout-total">$0.00</span>
                     </button>
+                  </div>
+                  <div class="kiosk-discount-popover" id="kiosk-discount-popover" style="display:none;">
+                    <div class="kiosk-discount-popover-header">
+                      <span>Apply Discount</span>
+                      <button type="button" class="kiosk-discount-close-btn" id="kiosk-discount-close-btn">&times;</button>
+                    </div>
+                    <div class="kiosk-discount-preset-list" id="kiosk-discount-preset-list"></div>
+                    <button type="button" class="kiosk-discount-manage-link" id="kiosk-discount-manage-btn">&#9881; Manage Discounts</button>
                   </div>
                 </div>
               </div>
@@ -814,6 +835,55 @@
             <div class="kiosk-terminal-bar" id="kiosk-terminal-bar">
               <span class="kiosk-terminal-dot" id="kiosk-terminal-dot"></span>
               <span id="kiosk-terminal-label">Checking terminal...</span>
+            </div>
+          </div>
+
+          <!-- SC#3 (Phase 48-04): Discount Presets management modal — ported verbatim from kiosk.html -->
+          <div class="kiosk-discount-mgmt-modal" id="kiosk-discount-mgmt-modal" style="display:none;">
+            <div class="kiosk-discount-mgmt-sheet">
+              <div class="kiosk-discount-mgmt-header">
+                <h2>Discount Presets</h2>
+                <button type="button" class="kiosk-discount-mgmt-close" id="kiosk-discount-mgmt-close">&times;</button>
+              </div>
+              <div id="kiosk-discount-mgmt-list"></div>
+              <button type="button" class="btn-secondary kiosk-discount-add-btn" id="kiosk-discount-add-btn">+ Add New Preset</button>
+              <div class="kiosk-discount-form" id="kiosk-discount-form" style="display:none;">
+                <input type="text" id="kiosk-discount-form-name" placeholder="Discount name (e.g. Staff 10%)" class="kiosk-search-input" style="margin-bottom:0.5rem;">
+                <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">
+                  <button type="button" class="btn-secondary kiosk-discount-type-btn active" data-type="percentage" style="flex:1;min-height:44px;">% Percentage</button>
+                  <button type="button" class="btn-secondary kiosk-discount-type-btn" data-type="fixed" style="flex:1;min-height:44px;">$ Fixed</button>
+                </div>
+                <input type="number" id="kiosk-discount-form-value" placeholder="Value" class="kiosk-search-input" inputmode="decimal" step="0.01" min="0.01" style="margin-bottom:0.5rem;">
+                <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">
+                  <button type="button" class="btn-secondary kiosk-discount-scope-btn active" data-scope="cart" style="flex:1;min-height:44px;">Whole Cart</button>
+                  <button type="button" class="btn-secondary kiosk-discount-scope-btn" data-scope="type" style="flex:1;min-height:44px;">Specific Types</button>
+                </div>
+                <div class="kiosk-discount-types" id="kiosk-discount-types" style="display:none;margin-bottom:0.75rem;border:1px solid var(--line,#ddd);border-radius:8px;padding:0.5rem 0.75rem;max-height:240px;overflow-y:auto;">
+                  <label class="kiosk-disc-type kiosk-disc-parent"><input type="checkbox" data-group="kit"> <strong>All Kits</strong></label>
+                  <div class="kiosk-disc-children" style="padding-left:1.25rem;">
+                    <label class="kiosk-disc-type"><input type="checkbox" data-token="kit:wine"> Wine</label>
+                    <label class="kiosk-disc-type"><input type="checkbox" data-token="kit:beer"> Beer</label>
+                    <label class="kiosk-disc-type"><input type="checkbox" data-token="kit:cider"> Cider</label>
+                    <label class="kiosk-disc-type"><input type="checkbox" data-token="kit:seltzer"> Seltzer</label>
+                  </div>
+                  <label class="kiosk-disc-type kiosk-disc-parent"><input type="checkbox" data-group="ingredient"> <strong>All Ingredients</strong></label>
+                  <div class="kiosk-disc-children" style="padding-left:1.25rem;">
+                    <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:hops"> Hops</label>
+                    <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:grain"> Grain</label>
+                    <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:yeast"> Yeast</label>
+                    <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:additive"> Additive</label>
+                    <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:packaging"> Packaging</label>
+                    <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:equipment"> Equipment</label>
+                    <label class="kiosk-disc-type"><input type="checkbox" data-token="ingredient:cleaning"> Cleaning/Sanitization</label>
+                  </div>
+                  <label class="kiosk-disc-type kiosk-disc-parent"><input type="checkbox" data-token="service"> <strong>Services &amp; Fees</strong></label>
+                  <label class="kiosk-disc-type kiosk-disc-parent"><input type="checkbox" data-token="recipe"> <strong>Recipes (package price)</strong></label>
+                </div>
+                <div style="display:flex;gap:0.5rem;">
+                  <button type="button" class="btn kiosk-discount-save-btn" id="kiosk-discount-save-btn" style="flex:1;min-height:44px;background:var(--cellar-green);border-color:var(--cellar-green);">Save</button>
+                  <button type="button" class="btn-secondary kiosk-discount-cancel-btn" id="kiosk-discount-cancel-btn" style="flex:1;min-height:44px;">Cancel</button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -995,7 +1065,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="js/vendor/qrcode.min.js" defer></script>
   <script src="js/lib/discount-match.js" defer></script>
-  <script src="js/kiosk-core.min.js?v=mr5ix7de" defer></script>
-  <script src="js/admin.min.js?v=mr5ix7de" defer></script>
+  <script src="js/kiosk-core.min.js?v=mr6hcmyg" defer></script>
+  <script src="js/admin.min.js?v=mr6hcmyg" defer></script>
 </body>
 </html>
