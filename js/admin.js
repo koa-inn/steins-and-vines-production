@@ -13,7 +13,7 @@
   }
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-07-04T15:07:45.531Z';
+  var BUILD_TIMESTAMP = '2026-07-04T17:17:11.365Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP); // eslint-disable-line no-console -- deploy build-verification log
 
   var accessToken = null;
@@ -9825,7 +9825,7 @@
   // env seam (D-02) — and bridges the cart/discount/gift-card/customer/
   // recipe-context/modified-ingredients state it still physically owns.
   KioskCore.init({
-    mwUrl: kioskMwUrl(),
+    mwUrl: kioskMwUrl, // WR-01: pass the resolver, not its value — core reads it lazily per call
     buildAuthOptions: function () {
       return { credentials: 'include' };
     },

@@ -302,10 +302,8 @@ describe('kiosk-core parity — recipe sale', function () {
           var kioskBody = JSON.parse(kioskCall[1].body);
           var adminBody = JSON.parse(adminCall[1].body);
 
-          // Pitfall 3: modified_ingredients key present (undefined here — no
-          // modification made — but the field name/shape is asserted identical).
-          expect(Object.prototype.hasOwnProperty.call(kioskBody, 'modified_ingredients') ||
-            kioskBody.modified_ingredients === undefined).toBe(true);
+          // Pitfall 3 (modified_ingredients forwarding) is exercised with a REAL
+          // modification in the dedicated WR-05 test below — this case seeds none.
 
           var kioskNorm = stripNonDeterministic(kioskBody);
           var adminNorm = stripNonDeterministic(adminBody);
@@ -321,6 +319,60 @@ describe('kiosk-core parity — recipe sale', function () {
         });
       });
     })();
+  });
+
+  // WR-05 (Phase 48 review): Pitfall 3 (admin previously dropped
+  // modified_ingredients) is the exact drift bug this de-fork fixes, so the parity
+  // suite must actually exercise an edited quantity — the prior assertion only
+  // checked key presence with no modification seeded and could never fail.
+  test('edited modified_ingredients are forwarded identically on both surfaces (Pitfall 3)', function () {
+    var mods = [
+      { item_id: 'ING-1', item_name: 'Pale Malt', quantity: 9, unit: 'kg' },
+      { item_id: 'ING-2', item_name: 'Cascade Hops', quantity: 0.25, unit: 'kg' }
+    ];
+
+    var kioskSurface = loadSurface('../../js/kiosk.js');
+    localStorage.setItem(DEVICE_TOKEN_KEY, 'parity-test-device-token');
+    return seedRecipeCart(kioskSurface).then(function () {
+      kioskSurface.core._setModifiedIngredients(mods);
+      global.fetch.mockClear();
+      kioskSurface.core.proceedToPayment();
+      var kioskBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+
+      var adminSurface = loadSurface('../../js/admin.js');
+      return seedRecipeCart(adminSurface).then(function () {
+        adminSurface.core._setModifiedIngredients(mods);
+        global.fetch.mockClear();
+        adminSurface.core.proceedToPayment();
+        var adminBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+
+        // Non-tautological: the edited quantities are actually present...
+        expect(kioskBody.modified_ingredients).toEqual(mods);
+        expect(kioskBody.modified_ingredients[0].quantity).toBe(9);
+        // ...and identical across both surfaces (the whole point of the de-fork).
+        expect(adminBody.modified_ingredients).toEqual(kioskBody.modified_ingredients);
+      });
+    });
+  });
+
+  // WR-01 (Phase 48 review): the core must resolve the middleware URL lazily, so a
+  // MIDDLEWARE_URL value that lands after KioskCore.init (async / late SHEETS_CONFIG
+  // or script-order change) is still honored — the pre-phase kioskMwUrl() re-evaluated
+  // per call. Before the fix the URL was captured once at init and a later change was
+  // permanently ignored (every middleware call would silently target the stale URL).
+  test('the core resolves the middleware URL lazily — a MIDDLEWARE_URL change after init is honored', function () {
+    var surface = loadSurface('../../js/kiosk.js');
+    localStorage.setItem(DEVICE_TOKEN_KEY, 'parity-test-device-token');
+    var origUrl = global.SHEETS_CONFIG.MIDDLEWARE_URL;
+    // Config changes AFTER KioskCore.init already ran.
+    global.SHEETS_CONFIG.MIDDLEWARE_URL = 'http://mw-late.test';
+    return seedRecipeCart(surface).then(function () {
+      global.fetch.mockClear();
+      surface.core.proceedToPayment();
+      var saleUrl = global.fetch.mock.calls[0][0];
+      global.SHEETS_CONFIG.MIDDLEWARE_URL = origUrl; // restore before asserting (shared global)
+      expect(saleUrl).toBe('http://mw-late.test/api/kiosk/recipe-sale');
+    });
   });
 });
 
@@ -428,6 +480,46 @@ describe('kiosk-core parity — Manager Override (D-07)', function () {
             assertAuthDivergence(kioskResult.resubmitOpts, adminResult.resubmitOpts);
           });
         });
+      });
+    });
+  });
+
+  // WR-03 (Phase 48 review): the manual-confirm fallback must NOT be armed on a
+  // 409 stock-conflict early-return. Before the fix, _kioskPushToTerminal scheduled
+  // the "Confirm Manually" setTimeout unconditionally (outside the fetch chain), so
+  // ~45s after a 409 it overlaid the override panel and offered to book a sale the
+  // server had just rejected for insufficient stock.
+  test('a 409 stock conflict does NOT reveal the manual-confirm fallback (no overlay of the override panel)', function () {
+    var surface = loadSurface('../../js/kiosk.js');
+    localStorage.setItem(DEVICE_TOKEN_KEY, 'parity-test-device-token');
+    return seedRecipeCart(surface).then(function () {
+      global.fetch.mockClear();
+      injectStockConflictMarkup();
+      var confirmBtn = document.createElement('button');
+      confirmBtn.id = 'kiosk-confirm-payment';
+      confirmBtn.style.display = 'none';
+      document.body.appendChild(confirmBtn);
+
+      global.fetch.mockImplementationOnce(function () {
+        return Promise.resolve({
+          status: 409,
+          json: function () {
+            return Promise.resolve({
+              error: 'Insufficient stock for scaled batch',
+              conflicts: [{ item_name: 'Pale Malt', needed: 5, unit: 'kg', stock: 2 }]
+            });
+          }
+        });
+      });
+
+      surface.core.proceedToPayment();
+      return flushPromises().then(function () {
+        // Conflict panel is shown...
+        expect(document.getElementById('kiosk-stock-conflict').style.display).not.toBe('none');
+        // ...and the manual-confirm fallback was never armed, so it stays hidden.
+        // (With the pre-fix unconditional setTimeout — which the test harness fires
+        // synchronously — this button would have been revealed.)
+        expect(confirmBtn.style.display).toBe('none');
       });
     });
   });

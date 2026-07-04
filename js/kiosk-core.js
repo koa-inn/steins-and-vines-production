@@ -36,8 +36,14 @@
   'use strict';
 
   // ===== Environment injection seam (D-02/D-06) =====
+  // WR-01 (Phase 48 review): the middleware URL is resolved LAZILY on every read
+  // via _mwUrlResolver, not captured once at init. This preserves the pre-phase
+  // behaviour where kioskMwUrl() was re-evaluated per call, so the core recovers
+  // if SHEETS_CONFIG.MIDDLEWARE_URL becomes available after init (async/late config
+  // injection or script-order change) instead of permanently caching an empty string.
+  var _mwUrlResolver = function () { return ''; };
   var _kcEnv = {
-    mwUrl: '',
+    get mwUrl() { return _mwUrlResolver(); },
     buildAuthOptions: function () {
       return {};
     },
@@ -64,8 +70,12 @@
     if (!env) {
       return;
     }
-    if (typeof env.mwUrl !== 'undefined') {
-      _kcEnv.mwUrl = env.mwUrl;
+    // Accept either a resolver FUNCTION (preferred — lazy per-call, WR-01) or a
+    // plain value (wrapped so any string-passing caller keeps eager semantics).
+    if (typeof env.mwUrl === 'function') {
+      _mwUrlResolver = env.mwUrl;
+    } else if (typeof env.mwUrl !== 'undefined') {
+      _mwUrlResolver = (function (v) { return function () { return v; }; }(env.mwUrl));
     }
     if (typeof env.buildAuthOptions === 'function') {
       _kcEnv.buildAuthOptions = env.buildAuthOptions;
@@ -2647,27 +2657,30 @@
           })
           .catch(function () {});
         }, 3000);
+
+        // F2 (45-09): only reveal the manual-confirm fallback once auto-confirm has had
+        // its full chance (POLL_TIMEOUT_MS). A real card-present approval takes ~20-25s;
+        // showing this button at 15s invited staff to preempt the poll/webhook, booking a
+        // sale with no real Helcim txn id (the F2 orphan-then-manual-recovery symptom).
+        // The server now also verifies a manual confirm against Helcim before booking.
+        // WR-03 (Phase 48 review): armed HERE, inside the 202-pending branch — not
+        // unconditionally after the fetch chain — so a 409 stock-conflict or terminal
+        // error early-return can no longer leave it armed to overlay the override panel.
+        setTimeout(function () {
+          if (cancelled || saleCompleted) return;
+          if (confirmBtn) {
+            confirmBtn.style.display = '';
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Confirm Manually';
+          }
+          if (msgEl) msgEl.textContent = 'Waiting for terminal... or confirm manually if payment was taken.';
+        }, POLL_TIMEOUT_MS);
       })
       .catch(function () {
         if (cancelled || saleCompleted) return;
         if (spinnerEl) spinnerEl.style.display = 'none';
         if (msgEl) msgEl.textContent = 'Terminal connection lost. Confirm manually if payment was taken.';
       });
-
-      // F2 (45-09): only reveal the manual-confirm fallback once auto-confirm has had
-      // its full chance (POLL_TIMEOUT_MS). A real card-present approval takes ~20-25s;
-      // showing this button at 15s invited staff to preempt the poll/webhook, booking a
-      // sale with no real Helcim txn id (the F2 orphan-then-manual-recovery symptom).
-      // The server now also verifies a manual confirm against Helcim before booking.
-      setTimeout(function () {
-        if (cancelled || saleCompleted) return;
-        if (confirmBtn) {
-          confirmBtn.style.display = '';
-          confirmBtn.disabled = false;
-          confirmBtn.textContent = 'Confirm Manually';
-        }
-        if (msgEl) msgEl.textContent = 'Waiting for terminal... or confirm manually if payment was taken.';
-      }, POLL_TIMEOUT_MS);
     };
 
     if (confirmBtn) {

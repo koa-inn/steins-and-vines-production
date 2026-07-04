@@ -39,7 +39,7 @@
   // own custom-item/gift-card-issue modals and customer-browse UI read/write
   // it directly) through KioskCore.init — never behaviour.
   KioskCore.init({
-    mwUrl: kioskMwUrl(),
+    mwUrl: kioskMwUrl, // WR-01: pass the resolver, not its value — core reads it lazily per call
     buildAuthOptions: function () {
       return { headers: { 'x-device-token': kioskDeviceToken() } };
     },
