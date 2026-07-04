@@ -698,7 +698,7 @@ Plans:
 | 42. Kiosk POS De-Fork (kiosk-core.js) → rehomed to v4.5 Phase 48 (KIOSK-01) | v4.4 | 0/? | Not started | - |
 | 46. Auth Re-Architecture | v4.5 (carryover, SEC-02) | 9/10 | Code-complete, owner cutover pending | - |
 | 47. Purge Publicly-Served Internal Docs | v4.5 | 1/1 | ✅ Closed on staging (verified 2026-07-03); prod audit-doc at next prod deploy | 2026-07-03 |
-| 48. Kiosk POS De-Fork (kiosk-core.js) | v4.5 | 1/6 | In Progress|  |
+| 48. Kiosk POS De-Fork (kiosk-core.js) | v4.5 | 2/6 | In Progress|  |
 | 49. Online Captured-Amount Verification | v4.5 | 1/2 | 49-01 done (H2 fix + 13-test regression, suite green); 49-02 live-card UAT pending deploy | - |
 | 50. Kiosk Money-Path Defect Closeout | v4.5 | 0/? | Not started | - |
 | 51. Gift-Card Ledger Integrity | v4.5 | 0/? | Not started | - |
@@ -1025,7 +1025,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 48-02-PLAN.md — kiosk.js migration pt1: cart/catalog/render/totals + 12-fn discount subsystem + module state + init/auth seam into core
+- [x] 48-02-PLAN.md — kiosk.js migration pt1: cart/catalog/render/totals + 12-fn discount subsystem + module state + init/auth seam into core
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
