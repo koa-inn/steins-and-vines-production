@@ -253,6 +253,35 @@ describe('summarizeBulkResults', function () {
     expect(summary.okCount).toBe(0);
     expect(summary.failCount).toBe(0);
   });
+
+  // Regression: an invoice with multiple kit line items produces MULTIPLE batches
+  // (server returns a kit_results[] array). The summary must count each batch, not
+  // one per invoice — previously "Created 1 batch(es)" showed when 2 were created.
+  it('counts each batch on a multi-batch invoice (kit_results), not one per invoice', function () {
+    var results = [
+      { invoice_number: 'INV-001', ok: true, batch_id: 'SV-B-000001', kit_results: [
+        { sku: 'KIT-A', ok: true, batch_id: 'SV-B-000001' },
+        { sku: 'KIT-B', ok: true, batch_id: 'SV-B-000002' }
+      ] },
+      { invoice_number: 'INV-002', ok: true, batch_id: 'SV-B-000003' }
+    ];
+    var summary = fn(results);
+    expect(summary.okCount).toBe(3); // 2 (from INV-001) + 1 (INV-002), not 2
+    expect(summary.failCount).toBe(0);
+    expect(summary.message).toContain('Created 3 batch(es)');
+  });
+
+  it('counts a partial failure within a multi-batch invoice per batch', function () {
+    var results = [
+      { invoice_number: 'INV-001', ok: false, batch_id: 'SV-B-000001', kit_results: [
+        { sku: 'KIT-A', ok: true,  batch_id: 'SV-B-000001' },
+        { sku: 'KIT-B', ok: false, error: 'apps_script_error' }
+      ] }
+    ];
+    var summary = fn(results);
+    expect(summary.okCount).toBe(1);
+    expect(summary.failCount).toBe(1);
+  });
 });
 
 // ---------------------------------------------------------------------------

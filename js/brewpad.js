@@ -586,7 +586,16 @@ function summarizeBulkResults(results) {
   var okCount = 0;
   var failCount = 0;
   for (var i = 0; i < results.length; i++) {
-    if (results[i].ok) {
+    var r = results[i];
+    // An invoice with multiple kit line items yields multiple batches; the server
+    // returns them in kit_results[]. Count each batch, not one per invoice, so the
+    // summary reflects the true number created (previously undercounted multi-batch
+    // invoices as a single batch).
+    if (r && Array.isArray(r.kit_results) && r.kit_results.length) {
+      for (var k = 0; k < r.kit_results.length; k++) {
+        if (r.kit_results[k] && r.kit_results[k].ok) { okCount++; } else { failCount++; }
+      }
+    } else if (r && r.ok) {
       okCount++;
     } else {
       failCount++;
