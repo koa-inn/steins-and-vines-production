@@ -217,7 +217,7 @@ and Google `sv_session` cookie — all accepted **simultaneously** (dual-accept)
 
 | Variable | Where the value lives | Notes |
 |----------|----------------------|-------|
-| `STAFF_EMAILS` | Owner-defined → Railway `svmiddleware-production` → Variables | Comma-separated allowlisted Google emails (D-46-07) |
+| `STAFF_EMAILS` | Owner-defined → Railway `svmiddleware-production` → Variables | Comma-separated allowlisted Google emails (D-46-07). **Current value to set: `hello@steinsandvines.ca`** (expand later as staff are added) |
 | `KIOSK_DEVICE_TOKEN` | Password manager + Railway → Variables | Generated during cutover prep (`openssl rand -base64 48`) |
 | `SHEETS_CLIENT_ID` | Railway → Variables | Public Google OAuth client id `8605205683-tck2da2tpp03vcbr5etauu9q7kompg3q.apps.googleusercontent.com` (not a secret) |
 | `API_SECRET_KEY` | Railway → Variables | UNCHANGED until Task 3, then rotated (`openssl rand -base64 32`) |
@@ -226,7 +226,7 @@ and Google `sv_session` cookie — all accepted **simultaneously** (dual-accept)
 ### Task 1 — Set env vars + coupled prod deploy (dual-accept live)
 
 - [ ] Generate secrets in your OWN terminal (keep them out of chat): `openssl rand -base64 48` → `KIOSK_DEVICE_TOKEN`; hold `openssl rand -base64 32` → new `API_SECRET_KEY` for Task 3
-- [ ] Set `STAFF_EMAILS`, `KIOSK_DEVICE_TOKEN`, `SHEETS_CLIENT_ID` in Railway `svmiddleware-production` → Variables. **Leave `API_SECRET_KEY` at its current (old) value** (dual-accept)
+- [ ] Set `STAFF_EMAILS=hello@steinsandvines.ca`, `KIOSK_DEVICE_TOKEN`, `SHEETS_CLIENT_ID` in Railway `svmiddleware-production` → Variables. **Leave `API_SECRET_KEY` at its current (old) value** (dual-accept)
 - [ ] Store `KIOSK_DEVICE_TOKEN` in the password manager
 - [ ] `git push origin main` — publish to staging + run CI (nothing goes live on prod yet)
 - [ ] **When the store is CLOSED**, promote to prod: trigger the `Gated Production Deploy` workflow (workflow_dispatch), or break-glass `git push production main --force`. This publishes new frontend (Pages) **and** new middleware (Railway) together; `API_SECRET_KEY` stays old, so old key + new credentials are all accepted
@@ -235,12 +235,27 @@ and Google `sv_session` cookie — all accepted **simultaneously** (dual-accept)
 **Verify:**
 ```bash
 # /health authenticated + redis up
-curl -s https://<prod-middleware-host>/health   # expect 200, authenticated:true, redis:true
-# dual-accept: OLD key still works on a mutating route
-curl -i -X POST https://<prod-middleware-host>/api/<mutating-route> \
-  -H "x-api-key: <OLD_API_SECRET_KEY>" -H "Content-Type: application/json" -d '{...}'   # expect NOT 401/403
+curl -s https://svmiddleware-production.up.railway.app/health   # expect 200, authenticated:true, redis:true
+# dual-accept: OLD key still accepted. Non-mutating PII-GET probe (200 if accepted, 403 if not).
+# <OLD_API_SECRET_KEY> is the current leaked value re-enabled on 2026-07-04.
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "x-api-key: <OLD_API_SECRET_KEY>" \
+  'https://svmiddleware-production.up.railway.app/api/contacts?search=zz_verify'   # expect 200
 ```
 Resume signal: **"deployed"**
+
+### Rollback (Stage 1 — if the coupled deploy misbehaves BEFORE Task 3 rotation)
+
+During Task 1–2, `API_SECRET_KEY` is still the current (leaked) value, so rolling the
+**code** back to the prior production release restores exactly today's working state
+(old `x-api-key` middleware + matching key). The new env vars (`KIOSK_DEVICE_TOKEN`,
+`STAFF_EMAILS`, `SHEETS_CLIENT_ID`) are harmless to the old code — leave them set.
+
+- [ ] Redeploy the prior production release **`495630177bbe60b36cffaf6f2bcf6a69425e826e`** (the pre-cutover prod HEAD, "fix(reconcile): stop re-alert flood…"):
+  - Preferred: re-run the **Gated Production Deploy** workflow targeting that SHA (handles the `steinsandvines.ca` CNAME commit correctly).
+  - Break-glass: `git push production 495630177bbe60b36cffaf6f2bcf6a69425e826e:main --force` — then confirm the prod Pages CNAME is still `steinsandvines.ca` (the gated workflow normally owns this; verify in repo settings after a raw force-push).
+- [ ] Railway auto-redeploys the middleware from the rolled-back SHA. Verify sales with the same PII-GET probe above (expect 200 with the leaked key).
+- [ ] **Do NOT use this path AFTER Task 3.** Once `API_SECRET_KEY` is rotated, the leaked key is dead — a code rollback would also require reverting `API_SECRET_KEY` to the old value (which re-exposes the leaked key). After rotation, fix forward instead.
 
 ### Task 2 — Provision iPad + verify all three surfaces
 
@@ -259,9 +274,10 @@ Resume signal: **"verified"**
 
 **Verify:**
 ```bash
-# old key now dead
-curl -i -X POST https://<prod-middleware-host>/api/<mutating-route> \
-  -H "x-api-key: <OLD_API_SECRET_KEY>" -d '{...}'   # expect 403
+# old key now DEAD (same non-mutating probe as Task 1, now expected to 403)
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "x-api-key: <OLD_API_SECRET_KEY>" \
+  'https://svmiddleware-production.up.railway.app/api/contacts?search=zz_verify'   # expect 403
 # no lockout: re-check kiosk sale, an admin action, a BrewPad load
 # public prod checkout (ferment reservation → /api/bookings + /api/contacts + /api/payment/initialize) completes with NO 403
 ```
