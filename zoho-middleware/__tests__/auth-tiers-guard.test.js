@@ -115,13 +115,13 @@ describe('3-tier /api guard — dual-accept (legacy / device / session)', functi
       });
   });
 
-  test('(3) valid x-device-token on an admin-grade route (gift-card/void) — 403 (device rejected)', function () {
+  test('(3) valid x-device-token on gift-card/void — not 403 (D-54-GC: device now allowed to void)', function () {
     return request(app)
       .post('/api/kiosk/gift-card/void')
       .set('x-device-token', DEVICE_TOKEN)
       .send({ cert_number: 'GC-000042', reason: 'test' })
       .then(function (res) {
-        expect(res.status).toBe(403);
+        expect(res.status).not.toBe(403);
       });
   });
 

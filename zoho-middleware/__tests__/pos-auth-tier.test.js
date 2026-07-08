@@ -118,15 +118,15 @@ describe('46-04 pos.js in-route tier migration', function () {
   });
 
   // -------------------------------------------------------------------------
-  // (3)/(4) Admin-grade gift-card void — device rejected, session accepted
+  // (3)/(4) gift-card void — device now allowed (D-54-GC), session accepted
   // -------------------------------------------------------------------------
-  test('(3) /api/kiosk/gift-card/void with a valid device token — 403 (admin-grade)', function () {
+  test('(3) /api/kiosk/gift-card/void with a valid device token — not 403 (D-54-GC: device now allowed)', function () {
     return request(app)
       .post('/api/kiosk/gift-card/void')
       .set('x-device-token', DEVICE_TOKEN)
       .send({ cert_number: 'GC-000042', reason: 'test' })
       .then(function (res) {
-        expect(res.status).toBe(403);
+        expect(res.status).not.toBe(403);
       });
   });
 
