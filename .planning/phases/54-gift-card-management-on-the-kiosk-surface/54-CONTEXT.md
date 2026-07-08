@@ -24,6 +24,7 @@ Two parts:
 
 ### Entry-point placement
 - **D-54-01:** The "Gift Card Management" entry lives in the **hidden kiosk settings area** (behind the existing device-token / PIN settings gate), NOT on the main POS/sales toolbar. Rationale: management is low-frequency, staff-only, and void is money-destroying — keeping it off the sales screen prevents a mistap during a busy sale from reaching it.
+  - **SUPERSEDED 2026-07-08 (owner override, recorded in 54-VERIFICATION.md):** the button shipped on the always-visible kiosk shell bar (`#kiosk-gc-mgmt-btn`), not a gated settings area. Owner accepted this placement: opening the panel is a harmless lookup, the destructive void stays behind the two-step + required-reason + "cannot be undone" confirm, and a persistent button matches the "everything on the kiosk" intent. The gated-placement clause of D-54-01 is waived; the rest of the decisions stand.
 
 ### Void confirmation UX
 - **D-54-02:** Keep the admin two-step flow: lookup → result card (cert #, status, face value, current balance) → **Void Certificate** button → **reason field (required)** → **Confirm Void** with a "this cannot be undone" label. No manager-PIN gate (owner declined). No type-the-cert-number-to-confirm friction — the two-step + required reason + irreversible-warning label is sufficient and matches what the server enforces. Mirror the admin flow's states so behavior is consistent across surfaces.

@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: verifying
-stopped_at: Completed 54-03-PLAN.md (Phase 54 complete)
-last_updated: "2026-07-08T21:04:01.666Z"
+status: milestone_complete
+stopped_at: Milestone complete (Phase 54 was final phase)
+last_updated: 2026-07-08T21:14:46.669Z
 last_activity: 2026-07-08
 progress:
   total_phases: 40
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 54 — gift-card-management-on-the-kiosk-surface
+**Current focus:** Milestone complete
 
 ## Current Position
 
-Phase: 54 (gift-card-management-on-the-kiosk-surface) — EXECUTING
-Plan: 3 of 3
+Phase: 54
+Plan: Not started
 Milestone: v4.5 Security & Money-Path Closeout. Done: 46 (SEC-02 ✅), 47 (SEC-01 ✅), 52 (RESIL-01 ✅), 53 (OBS-01 ✅). Phase 48 (KIOSK-01) code done + on staging, awaiting iPad UAT. **Phase 54 (owner-requested) is the active next-to-plan — lands before the Phase 48 iPad UAT so both are verified together.** Remaining after: 48 UAT + verify, 49-02 live-card UAT, 50/51 (blocked on 48).
-Status: Phase complete — ready for verification
+Status: Milestone complete
 Last activity: 2026-07-08
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
@@ -41,7 +41,7 @@ Last activity: 2026-07-08
 
 **Velocity:**
 
-- Total plans completed: 58 (prior milestone v4.1) + 11 (v4.2)
+- Total plans completed: 61 (prior milestone v4.1) + 11 (v4.2)
 - Average duration: 3 min
 - Total execution time: ~3 hrs
 
