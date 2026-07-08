@@ -1,64 +1,72 @@
 ---
 phase: 46-auth-re-architecture-critical-split-from-phase-45
 plan: 10
-status: pending_execution
+status: complete
 type: execute
 autonomous: false
 requirements: [AUDIT-CRITICAL-AUTH, D-46-01, D-46-04, D-46-05, D-46-07, D-46-11, D-46-12, D-46-13]
-started: pending
-completed: pending
+started: 2026-07-08
+completed: 2026-07-08
 ---
 
-# 46-10 SUMMARY — Auth Cutover (SCAFFOLD — fill during execution)
+# 46-10 SUMMARY — Auth Cutover (COMPLETE 2026-07-08)
 
-> **This is a scaffold.** The cutover is an owner-gated, off-hours production
-> procedure. Fill each section as the corresponding runbook task completes. The
-> authoritative checklist lives in `docs/RUNBOOK.md` → "Phase 46 Auth Cutover";
-> the sequencing/scope context lives in `.planning/PROD-CUTOVER-v4.5-PLAN.md`.
+Owner-executed, off-hours production cutover. The new 3-tier auth (device-token
+kiosk / Google-session admin+BrewPad / legacy key) shipped to production, all three
+surfaces were verified, and `API_SECRET_KEY` was rotated — neutralizing the leaked
+key. Authoritative checklist: `docs/RUNBOOK.md` → "Phase 46 Auth Cutover".
 
-## Context at execution time
+## Context
 
-- Prior production HEAD (rollback target): `495630177bbe60b36cffaf6f2bcf6a69425e826e`
-- Deploy SHA (Stage 1 payload — `origin/main` at cutover, phases 46/47/49/52/53, **48 excluded**): `pending`
-- `STAFF_EMAILS` set to: `hello@steinsandvines.ca`
-- Middleware host: `svmiddleware-production.up.railway.app`
+- Deploy mechanism: **Gated Production Deploy** workflow (run 28964582252), shipping
+  `origin/main` → production repo `caafb19`. Excluded Phase 48 (local-only).
+- Rollback target (unused): prior prod HEAD `495630177bbe60b36cffaf6f2bcf6a69425e826e`.
+- `STAFF_EMAILS` = `hello@steinsandvines.ca`. Middleware host: `svmiddleware-production.up.railway.app`.
 
-## Task 1 — Env vars + coupled prod deploy (dual-accept live)
+## Task 1 — Env vars + coupled deploy (dual-accept)
 
-- Go-live date/time: `pending`
-- Env vars confirmed set (STAFF_EMAILS / KIOSK_DEVICE_TOKEN / SHEETS_CLIENT_ID; API_SECRET_KEY unchanged): `pending`
-- `/health` result: `pending`
-- Dual-accept confirmed (old key still 200 on PII-GET probe): `pending`
-- Notes / deviations: `pending`
+- Go-live: 2026-07-08. `/health` → `authenticated:true, redis:true`.
+- Dual-accept confirmed: old key still 200 on PII-GET during the window.
+- New middleware verified via new-only route `POST /auth/google` → 400 (exists).
+- Leaked `MW_API_KEY` gone from the served `sheets-config.js` (edge).
+- **Process note:** initial verification produced two false readings — a false-positive
+  ("verified" on old routes) and a false-negative (probed `/api/auth/google` instead of
+  the correct `/auth/google`). Corrected; the reliable markers are: served
+  `sheets-config.js` has no `MW_API_KEY`, and `POST /auth/google` → 400.
+- **Deploy-lag note:** setting Railway vars alone does NOT ship code — the Gated Deploy
+  workflow does. A first "deployed" was only the pre-set vars; the workflow was then run.
+  Pages (frontend) propagated in ~2 min; the middleware was actually live quickly (the
+  "still old" reading was the wrong-path probe above).
 
 ## Task 2 — Provision iPad + verify all three surfaces
 
-- Kiosk device token provisioned + real test sale booked: `pending`
-- Admin allowlisted sign-in OK / non-allowlisted denied: `pending`
-- BrewPad session-auth load OK: `pending`
-- Negative device-scope (kiosk token → gift-card void → 403): `pending`
-- Notes / deviations: `pending`
+- Kiosk: cleared iPad site data → device-token prompt → pasted `KIOSK_DEVICE_TOKEN`
+  (pre-set in Railway) → PIN pad → **real terminal sale booked** (after waking the
+  physical Helcim terminal — an initial "Terminal error" was a sleeping terminal, not
+  the cutover; `terminalPurchase` is byte-identical old→new). Customer search OK.
+- Admin: Google sign-in with `hello@steinsandvines.ca` → dashboard OK.
+- BrewPad: Google session → batch list OK.
 
 ## Task 3 — Rotate API_SECRET_KEY + confirm old key dead
 
-- Rotation date: `pending`
-- Old key now 403 (leaked key neutralized): `pending`
-- No lockout (kiosk sale + admin action + BrewPad + public checkout all OK): `pending`
-- `API_SECRET_KEY_PREVIOUS` canary set? / stragglers observed?: `pending`
-- Retired-key disposition: `pending`
-
-## Rollback events (if any)
-
-- `none / pending`
+- Rotation: 2026-07-08. Old leaked key now returns **403** (dead).
+- No lockout: public checkout keyless route 200; `/health` OK; middleware still new.
+- **Process note:** the new key was first pasted into `MW_API_KEY` while `API_SECRET_KEY`
+  (which `getKey()` prefers) kept the old value, so the old key survived. Corrected by
+  setting `API_SECRET_KEY` = new value and **deleting** `MW_API_KEY`.
+- `API_SECRET_KEY_PREVIOUS` canary (46-RESEARCH Finding #6) was never implemented in
+  `apiKey.js`, so rotation was a hard cutover (no grace). Safe because no served
+  frontend still sends `x-api-key`.
 
 ## Outcome
 
-- CRITICAL closed (leaked key dead, no lockout, public checkout intact): `pending`
-- `docs/RUNBOOK.md` Outcome record filled: `pending`
+- ✅ Leaked key neutralized (403), no surface locked out, public checkout intact.
+- ✅ `docs/RUNBOOK.md` Outcome record filled.
 - D-46-13 (interim IP allowlist): SKIPPED per decision.
 
-## Self-Check
+## Follow-ups
 
-- [ ] Runbook Outcome record filled with real dates
-- [ ] Phase 46 marked complete + SEC-02 closed in ROADMAP/REQUIREMENTS after rotation
-- [ ] `.planning/PROD-CUTOVER-v4.5-PLAN.md` Stage 1 marked done; Stage 2 (Phase 48) unblocked
+- Mark Phase 46 complete + close SEC-02 in ROADMAP/REQUIREMENTS.
+- `PROD-CUTOVER-v4.5-PLAN.md` Stage 1 done → Stage 2 (Phase 48 to staging + iPad UAT)
+  is now UNBLOCKED (prod middleware speaks device-token).
+- Consider implementing the `API_SECRET_KEY_PREVIOUS` canary for future rotations.

@@ -202,7 +202,7 @@ the single shared key with three credential tiers — legacy `x-api-key`, kiosk 
 and Google `sv_session` cookie — all accepted **simultaneously** (dual-accept) until the owner
 **rotates `API_SECRET_KEY`**, which is the step that actually kills the leaked key.
 
-**Status:** ⏳ PENDING owner execution (code + build complete and tested as of Phase 46 waves 1–5).
+**Status:** ✅ COMPLETE — executed 2026-07-08. New 3-tier auth live on prod, all three surfaces verified, `API_SECRET_KEY` rotated, leaked key confirmed dead (403). Audit CRITICAL closed.
 
 > **Deploy topology note (matters for sequencing):** Railway (middleware) and GitHub Pages
 > (frontend) both build from the **production** repo, so a prod deploy ships them **together** —
@@ -285,10 +285,11 @@ Resume signal: **"rotated"**
 
 ### Outcome record (fill in on completion)
 
-- Go-live (Task 1) date: _pending_
-- Surfaces verified (Task 2) date: _pending_
-- `API_SECRET_KEY` rotation date: _pending_
-- Retired-key disposition: _pending_
+- Go-live (Task 1) date: 2026-07-08 — new frontend + middleware live, dual-accept confirmed, leaked key removed from served `sheets-config.js`
+- Surfaces verified (Task 2) date: 2026-07-08 — kiosk (device token → PIN → real terminal sale + customer search), admin (`hello@steinsandvines.ca` Google sign-in), BrewPad (Google session) all confirmed
+- `API_SECRET_KEY` rotation date: 2026-07-08 — old leaked key now returns 403; no lockout (public checkout + all surfaces OK). Note: new key was first pasted into `MW_API_KEY` (which `API_SECRET_KEY` overrides), corrected by setting `API_SECRET_KEY` and deleting `MW_API_KEY`.
+- Retired-key disposition: leaked key `a9QK…3fM=` neutralized (invalid on prod middleware); it remains in git history but is now dead.
+- **Deploy mechanism:** Gated Production Deploy workflow (run 28964582252), origin/main → production repo `caafb19`. `API_SECRET_KEY_PREVIOUS` canary from the plan was NOT implemented in `apiKey.js` — rotation was a hard cutover (no grace window); safe because no frontend still sends `x-api-key`.
 - **D-46-13 (interim IP allowlist): SKIPPED** — Phase 45 containment already shipped, cutover is days away, and the store IP may be dynamic. Recorded here per decision; no interim allowlist added.
 
 ---
