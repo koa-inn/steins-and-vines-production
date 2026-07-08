@@ -947,8 +947,10 @@ Plans:
 
 **Pre-planning gate:** Run `/gsd:discuss-phase 54` to lock the kiosk modal-container approach + void-confirmation UX before `/gsd:plan-phase 54`.
 
-Plans:
-- [ ] TBD (run /gsd:plan-phase 54 to break down)
+Plans: 3 plans across 3 waves
+- [ ] 54-01-PLAN.md — Backend: add /api/kiosk/gift-card/void to KIOSK_ROUTES (D-54-GC) + flip 2 device→403 tests to not-403 + dual-suite gate
+- [ ] 54-02-PLAN.md — Frontend: kgcm- lookup+void panel in kiosk-core.js + settings-gated entry in kiosk.html/kiosk.js + rebuild bundles
+- [ ] 54-03-PLAN.md — Frontend regression test: device-token lookup+void path + reason-required void gate
 
 ---
 
