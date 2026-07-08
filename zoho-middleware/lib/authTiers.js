@@ -19,11 +19,22 @@
  *
  * ---------------------------------------------------------------------------
  * KIOSK_ROUTES is an EXPLICIT path allowlist, not a `/api/kiosk/*` prefix.
- * Anti-pattern warning (T-46-07): a prefix match would silently pull
- * /api/kiosk/gift-card/void (admin-grade — money-destroying void) into the
- * kiosk-scoped bucket the moment anyone adds a new /api/kiosk/* route.
- * Explicit list = the only route class ever added here is one a human
- * reviewed and decided is safe for a bare device token.
+ * Anti-pattern warning (T-46-07): a prefix match would silently pull ANY
+ * future /api/kiosk/* route into the kiosk-scoped bucket the moment anyone
+ * adds it, without a human reviewing whether a bare device token should
+ * reach it. Explicit list = the only route class ever added here is one a
+ * human reviewed and decided is safe for a bare device token.
+ *
+ * D-54-GC reversal: /api/kiosk/gift-card/void used to be this comment's
+ * running example of a route that must NEVER be swept in — T-46-07/D-46-02
+ * kept void session/admin-only. Phase 54 (owner decision D-54-GC)
+ * consciously supersedes that stance: void is status-only (no cash / no
+ * Zoho money movement), requires a non-empty reason, and is logged
+ * (kiosk.gift_card_voided) — so it is now an intentionally-reviewed
+ * KIOSK_ROUTES member (see the entry below). The owner accepts the residual
+ * risk that a leaked device token could void a certificate. The "explicit
+ * list, not a prefix" rationale above still stands for every OTHER future
+ * kiosk route — this reversal does not change how new routes get vetted.
  * ---------------------------------------------------------------------------
  */
 
@@ -38,6 +49,7 @@ var KIOSK_ROUTES = [
   '/api/kiosk/discounts', // A1: discount-preset CRUD classified kiosk-scoped
   '/api/kiosk/gift-card/lookup',
   '/api/kiosk/gift-card/next-number',
+  '/api/kiosk/gift-card/void', // D-54-GC: status-only, reason-required, logged — supersedes T-46-07/D-46-02
   '/api/kiosk/recipe-quote',
   '/api/kiosk/recipe-sale',
   '/api/kiosk/recipe-sale/confirm',
