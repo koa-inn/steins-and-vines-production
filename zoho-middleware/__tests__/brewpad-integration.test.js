@@ -142,6 +142,34 @@ describe('brewpad-integration', function () {
       expect(result[0].item_id).toBe('kit-1');
     });
 
+    it('skips truly-blank line items (no sku, item_id, or name) — INV-000137', function () {
+      var items = [
+        { name: 'Italy Nebbiolo Style', sku: '80087352', item_id: 'kit-1' },
+        { name: '', sku: '', item_id: '' },   // blank — cannot form a batch; must be skipped
+        { name: "Maker's Fee", sku: 'MAKERS-FEE', item_id: 'fee-1' }
+      ];
+      var result = brewpadIntegration.detectKitItems(items);
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Italy Nebbiolo Style');
+    });
+
+  });
+
+  describe('kitBatchQuantity', function () {
+    it('defaults to 1 when quantity is missing or invalid', function () {
+      expect(brewpadIntegration.kitBatchQuantity({})).toBe(1);
+      expect(brewpadIntegration.kitBatchQuantity({ quantity: 0 })).toBe(1);
+      expect(brewpadIntegration.kitBatchQuantity({ quantity: 'abc' })).toBe(1);
+      expect(brewpadIntegration.kitBatchQuantity(null)).toBe(1);
+    });
+    it('returns the integer quantity for a multi-unit kit line', function () {
+      expect(brewpadIntegration.kitBatchQuantity({ quantity: 3 })).toBe(3);
+      expect(brewpadIntegration.kitBatchQuantity({ quantity: 2 })).toBe(2);
+    });
+    it('floors fractional quantities and clamps absurd ones', function () {
+      expect(brewpadIntegration.kitBatchQuantity({ quantity: 3.9 })).toBe(3);
+      expect(brewpadIntegration.kitBatchQuantity({ quantity: 9999 })).toBe(100);
+    });
   });
 
   describe('splitCustomerName', function () {
@@ -256,6 +284,19 @@ describe('brewpad-integration', function () {
       var callPayload = JSON.parse(axios.post.mock.calls[0][1]);
       expect(callPayload.source).toBe('kiosk');
       expect(callPayload.zoho_so_number).toBe('INV-001');
+    });
+
+    it('creates one batch per UNIT for a kit line with quantity > 1 (INV-000137)', function () {
+      axios.post.mockResolvedValue({ data: { ok: true, batch_id: 'SV-B-000001' } });
+      var items = [
+        { name: 'Italy Nebbiolo Style', sku: '80087352', item_id: 'kit-1', quantity: 3 },
+        { name: "Maker's Fee", sku: 'MAKERS-FEE', item_id: '99', quantity: 1 }
+      ];
+      brewpadIntegration.createBatchesFromSale(items, 'INV-000137', 'Jane', 'C-1', null);
+      // qty 3 on the one kit line → 3 Apps Script creates (Maker's Fee excluded)
+      expect(axios.post).toHaveBeenCalledTimes(3);
+      var callPayload = JSON.parse(axios.post.mock.calls[0][1]);
+      expect(callPayload.product_name).toBe('Italy Nebbiolo Style');
     });
 
   });

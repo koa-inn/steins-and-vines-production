@@ -51,10 +51,30 @@ function detectKitItems(lineItems) {
   var materialsFeeItemId = process.env.MATERIALS_FEE_ITEM_ID || '';
   var matFeeItem = checkoutHelpers.findMaterialsFeeItem(lineItems, materialsFeeItemId);
 
-  // Return all non-fee items (the actual kits)
+  // Return all non-fee items (the actual kits), skipping truly-blank lines.
   return lineItems.filter(function (item) {
-    return item !== feeItem && item !== matFeeItem;
+    if (item === feeItem || item === matFeeItem) return false;
+    // A line with no sku, no item_id AND no name cannot form a real batch — creating
+    // one previously errored on import with an empty product (INV-000137). Skip it.
+    var hasId = ((item && (item.sku || item.item_id)) || '').toString().trim() !== '';
+    var hasName = ((item && item.name) || '').toString().trim() !== '';
+    if (!hasId && !hasName) return false;
+    return true;
   });
+}
+
+// Number of batches to create for a kit line item — one fermentation batch per unit
+// (D-03 revised: quantity-aware). Missing/invalid quantity defaults to 1; an absurd
+// quantity is clamped as a fat-finger guard.
+var MAX_BATCHES_PER_KIT_LINE = 100;
+function kitBatchQuantity(item) {
+  var q = Math.floor(Number(item && item.quantity));
+  if (!isFinite(q) || q < 1) return 1;
+  if (q > MAX_BATCHES_PER_KIT_LINE) {
+    log.warn('[brewpad] kit line quantity ' + q + ' exceeds cap ' + MAX_BATCHES_PER_KIT_LINE + ' — clamping');
+    return MAX_BATCHES_PER_KIT_LINE;
+  }
+  return q;
 }
 
 /**
@@ -154,10 +174,19 @@ function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId
   var kitItems = detectKitItems(lineItems);
   if (kitItems.length === 0) return;
 
-  log.info('[brewpad] Detected ' + kitItems.length + ' kit item(s) for batch creation, invoice=' + invoiceNumber + ' source=' + (source || 'kiosk'));
+  var nameParts = splitCustomerName(customerName);
+  var totalBatches = 0;
+  kitItems.forEach(function (item) { totalBatches += kitBatchQuantity(item); });
 
+  log.info('[brewpad] Detected ' + kitItems.length + ' kit line(s) / ' + totalBatches +
+    ' batch(es) for invoice=' + invoiceNumber + ' source=' + (source || 'kiosk'));
+
+  // Create one batch per kit UNIT (quantity-aware). Creates fire in parallel (as
+  // before); a single first-created batch id is captured for the single-batch label.
+  var creates = [];
+  var firstBatchId = '';
   kitItems.forEach(function (item) {
-    var nameParts = splitCustomerName(customerName);
+    var qty = kitBatchQuantity(item);
     var batchPayload = {
       product_sku: item.sku || item.item_id || '',
       product_name: item.name || '',
@@ -172,13 +201,28 @@ function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId
     // send the Cal.com bottling invite. Kiosk callers omit it (privacy, D-09).
     if (customerEmail) batchPayload.customer_email = customerEmail;
 
-    callAppsScriptCreateBatch(batchPayload).then(function (result) {
-      if (result && result.ok && invoiceId) {
-        syncBatchToZoho(invoiceId, result.batch_id || '', 'pending')
+    for (var n = 0; n < qty; n++) {
+      creates.push(callAppsScriptCreateBatch(batchPayload).then(function (result) {
+        if (result && result.ok) {
+          if (!firstBatchId && result.batch_id) firstBatchId = result.batch_id;
+          return true;
+        }
+        return false;
+      }));
+    }
+  });
+
+  // Sync the invoice's Zoho batch-status field ONCE, after all creates settle —
+  // a count when >1 (avoids per-batch last-write-wins overwrite), else the batch id.
+  if (invoiceId) {
+    Promise.all(creates).then(function (oks) {
+      var okCount = oks.filter(Boolean).length;
+      if (okCount > 0) {
+        syncBatchToZoho(invoiceId, firstBatchId, 'pending', { count: okCount })
           .catch(function () {}); // fire-and-forget; errors already queued for retry
       }
     });
-  });
+  }
 }
 
 /**
@@ -261,7 +305,14 @@ function syncBatchToZoho(soId, batchId, status, opts) {
     return Promise.resolve({ ok: true, skipped: true });
   }
 
-  var statusLabel = status.charAt(0).toUpperCase() + status.slice(1) + ' — ' + batchId;
+  // When one invoice produced multiple batches (a kit line with quantity > 1, or
+  // several kit lines), show a count instead of a single batch id — otherwise each
+  // per-batch sync would overwrite the field and only the last id would survive.
+  var count = opts && opts.count;
+  var capitalized = status.charAt(0).toUpperCase() + status.slice(1);
+  var statusLabel = (count && count > 1)
+    ? capitalized + ' — ' + count + ' batches'
+    : capitalized + ' — ' + batchId;
 
   var payload = {
     custom_fields: [{ api_name: cfName, value: statusLabel }]
@@ -280,7 +331,7 @@ function syncBatchToZoho(soId, batchId, status, opts) {
       if (skipQueue) {
         return { ok: false, error: msg };
       }
-      return queueSyncForRetry({ so_id: soId, batch_id: batchId, status: status }, msg).then(function () {
+      return queueSyncForRetry({ so_id: soId, batch_id: batchId, status: status, count: count }, msg).then(function () {
         return { ok: false, queued: true };
       });
     });
@@ -347,7 +398,7 @@ function retrySyncQueue() {
 
           log.info('[brewpad] Retrying Zoho sync: attempt ' + retryData.attempts + '/' + SYNC_MAX_RETRIES + ' key=' + key);
 
-          return syncBatchToZoho(retryData.payload.so_id, retryData.payload.batch_id, retryData.payload.status, { skipQueue: true }).then(function (result) {
+          return syncBatchToZoho(retryData.payload.so_id, retryData.payload.batch_id, retryData.payload.status, { skipQueue: true, count: retryData.payload.count }).then(function (result) {
             if (result && result.ok) {
               return cache.del(key);
             }
@@ -401,6 +452,7 @@ module.exports = {
   createBatchesFromSale: createBatchesFromSale,
   retryPendingBatches: retryPendingBatches,
   detectKitItems: detectKitItems,
+  kitBatchQuantity: kitBatchQuantity,
   callAppsScriptCreateBatch: callAppsScriptCreateBatch,
   splitCustomerName: splitCustomerName,
   syncBatchToZoho: syncBatchToZoho,

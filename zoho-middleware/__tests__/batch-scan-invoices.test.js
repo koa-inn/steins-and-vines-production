@@ -36,6 +36,12 @@ jest.mock('../lib/inventory-ledger', function () { return {
 
 jest.mock('../lib/brewpad-integration', function () { return {
   detectKitItems: jest.fn(),
+  // Mirrors the real kitBatchQuantity: quantity → batch count, default 1, clamp 100.
+  kitBatchQuantity: jest.fn(function (item) {
+    var q = Math.floor(Number(item && item.quantity));
+    if (!isFinite(q) || q < 1) return 1;
+    return q > 100 ? 100 : q;
+  }),
   callAppsScriptCreateBatch: jest.fn(),
   splitCustomerName: jest.fn(function (name) {
     var parts = (name || '').trim().split(/\s+/);
@@ -669,6 +675,38 @@ describe('POST /api/batch/bulk-create', function () {
       var results = res._json.results || [];
       expect(results.length).toBe(1);
       expect(results[0].ok).toBe(true);
+    });
+  });
+
+  // ── quantity-aware (INV-000137): a kit line at quantity 3 => 3 batches ──
+  test('quantity-aware: a kit line with quantity 3 yields 3 creates, 3 kit_results, and one count sync', function () {
+    zohoApi.zohoGet.mockResolvedValue({
+      invoice: makeDetailInvoice({
+        line_items: [
+          { item_id: 'KIT-001', sku: '80087352', name: 'Italy Nebbiolo Style', quantity: 3 },
+          { item_id: 'FEE-001', sku: 'MAKERS-FEE', name: "Maker's Fee", quantity: 1 }
+        ]
+      })
+    });
+    brewpadIntegration.detectKitItems.mockReturnValue([
+      { item_id: 'KIT-001', sku: '80087352', name: 'Italy Nebbiolo Style', quantity: 3 }
+    ]);
+    brewpadIntegration.callAppsScriptCreateBatch.mockResolvedValue({ ok: true, batch_id: 'SV-B-000002' });
+
+    var req = makeReq({ invoice_ids: ['109900000000000001'] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    bulkCreateHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(brewpadIntegration.callAppsScriptCreateBatch).toHaveBeenCalledTimes(3);
+      var results = res._json.results || [];
+      expect(results.length).toBe(1);
+      expect(results[0].ok).toBe(true);
+      expect(results[0].kit_results).toHaveLength(3);
+      // Zoho batch-status synced once with a count of 3 (not 3 overwriting single-id syncs)
+      expect(brewpadIntegration.syncBatchToZoho).toHaveBeenCalledWith(
+        expect.any(String), 'SV-B-000002', 'pending', { count: 3 }
+      );
     });
   });
 

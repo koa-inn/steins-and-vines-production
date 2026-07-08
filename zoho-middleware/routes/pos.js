@@ -2516,46 +2516,51 @@ router.post('/api/batch/bulk-create', function (req, res) {
           var customerId = inv.customer_id || '';
           var invoiceNumber = inv.invoice_number || '';
 
-          // Per-kit-item creates (D-07) — sequential within this invoice
+          // Per-kit-UNIT creates (D-07, quantity-aware) — sequential within this invoice.
+          // A kit line with quantity N yields N batches (one fermentation batch per unit).
           var kitChain = Promise.resolve();
           var invoiceResults = [];
 
           kitItems.forEach(function (item) {
-            kitChain = kitChain.then(function () {
-              var nameParts = brewpadIntegration.splitCustomerName(customerName);
-              var batchPayload = {
-                product_sku:        item.sku || item.item_id || '',
-                product_name:       item.name || '',
-                customer_name:      customerName,
-                customer_firstname: nameParts.first || '',
-                customer_lastname:  nameParts.last  || '',
-                customer_id:        customerId,
-                source:             'zoho_scan',
-                zoho_so_number:     invoiceNumber
-                // customer_email omitted — no PII per D-06/T-29.3-06
-              };
-
-              return brewpadIntegration.callAppsScriptCreateBatch(batchPayload)
-                .then(function (result) {
-                  if (result && result.ok && inv.invoice_id) {
-                    // Fire-and-forget sync to Zoho custom field
-                    brewpadIntegration.syncBatchToZoho(inv.invoice_id, result.batch_id || '', 'pending')
-                      .catch(function () {}); // noop — errors queued in brewpad-integration
-                  }
-                  invoiceResults.push({
-                    sku: item.sku || '',
-                    ok: !!(result && result.ok),
-                    batch_id: (result && result.batch_id) || undefined,
-                    error: (result && !result.ok && result.error) || undefined
+            var nameParts = brewpadIntegration.splitCustomerName(customerName);
+            var batchPayload = {
+              product_sku:        item.sku || item.item_id || '',
+              product_name:       item.name || '',
+              customer_name:      customerName,
+              customer_firstname: nameParts.first || '',
+              customer_lastname:  nameParts.last  || '',
+              customer_id:        customerId,
+              source:             'zoho_scan',
+              zoho_so_number:     invoiceNumber
+              // customer_email omitted — no PII per D-06/T-29.3-06
+            };
+            var qty = brewpadIntegration.kitBatchQuantity(item);
+            for (var u = 0; u < qty; u++) {
+              kitChain = kitChain.then(function () {
+                return brewpadIntegration.callAppsScriptCreateBatch(batchPayload)
+                  .then(function (result) {
+                    invoiceResults.push({
+                      sku: item.sku || '',
+                      ok: !!(result && result.ok),
+                      batch_id: (result && result.batch_id) || undefined,
+                      error: (result && !result.ok && result.error) || undefined
+                    });
                   });
-                });
-            });
+              });
+            }
           });
 
           return kitChain.then(function () {
-            // Summarise per-invoice: ok if all kit items succeeded
-            var allOk = invoiceResults.every(function (r) { return r.ok; });
-            var firstError = !allOk && invoiceResults.find(function (r) { return !r.ok; });
+            // Summarise per-invoice: ok only if every batch (across all units) succeeded
+            var okResults = invoiceResults.filter(function (r) { return r.ok; });
+            var allOk = invoiceResults.length > 0 && okResults.length === invoiceResults.length;
+            var firstError = invoiceResults.find(function (r) { return !r.ok; });
+            // Sync the invoice's Zoho batch-status field ONCE, with a count when >1
+            // (avoids the per-batch last-write-wins overwrite of the single-value field).
+            if (inv.invoice_id && okResults.length > 0) {
+              brewpadIntegration.syncBatchToZoho(inv.invoice_id, okResults[0].batch_id || '', 'pending', { count: okResults.length })
+                .catch(function () {}); // noop — errors queued in brewpad-integration
+            }
             results.push({
               invoice_id: invoiceId,
               invoice_number: invoiceNumber,

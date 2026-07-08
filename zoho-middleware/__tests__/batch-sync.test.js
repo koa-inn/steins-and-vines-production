@@ -91,6 +91,20 @@ describe('syncBatchToZoho', function () {
     });
   });
 
+  it('shows a count when opts.count > 1 (multi-batch invoice)', function () {
+    process.env.ZOHO_CF_BATCH_STATUS = 'cf_batch_status';
+    return brewpadIntegration.syncBatchToZoho('inv-001', 'SV-B-000001', 'pending', { count: 3 }).then(function () {
+      expect(zohoApi.zohoPut.mock.calls[0][1].custom_fields[0].value).toBe('Pending — 3 batches');
+    });
+  });
+
+  it('shows the batch id when count is 1 (single-batch invoice, unchanged)', function () {
+    process.env.ZOHO_CF_BATCH_STATUS = 'cf_batch_status';
+    return brewpadIntegration.syncBatchToZoho('inv-001', 'SV-B-000009', 'pending', { count: 1 }).then(function () {
+      expect(zohoApi.zohoPut.mock.calls[0][1].custom_fields[0].value).toBe('Pending — SV-B-000009');
+    });
+  });
+
   it('calls zohoPut with correct path and custom_fields payload', function () {
     process.env.ZOHO_CF_BATCH_STATUS = 'cf_batch_status';
     return brewpadIntegration.syncBatchToZoho('INV-00123', 'SV-B-000001', 'pending').then(function (result) {
