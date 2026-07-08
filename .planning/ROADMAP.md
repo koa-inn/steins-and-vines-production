@@ -109,6 +109,7 @@
 - [ ] **Phase 51: Gift-Card Ledger Integrity** - idempotent reload, durable needs_manual_review, cell sanitizer, header-mapped issueGiftCard, tax parity (MONEY-03)
 - [x] **Phase 52: Fail-Closed Sweep** - shared closed-on-Redis-error helper across remaining money/security call-sites (RESIL-01) (completed 2026-07-03)
 - [x] **Phase 53: Money-Path Observability & CI Gates** - Sentry on every money-path catch, `npm ci` + Node pin, `--max-warnings 0` + ES5 lint rule, pos.js coverage floor (OBS-01) (completed 2026-07-03)
+- [ ] **Phase 54: Gift-Card Management on the Kiosk Surface** - lookup + void on the staff-only kiosk page; add `gift-card/void` to the kiosk device-token scope (owner decision D-54-GC, supersedes D-46-02/T-46-07); kiosk-native `kgcm-*` panel in `kiosk-core.js`. Depends on Phase 48; land before the 48 iPad UAT.
 
 ## Phase Details
 
@@ -704,6 +705,7 @@ Plans:
 | 51. Gift-Card Ledger Integrity | v4.5 | 0/? | Not started | - |
 | 52. Fail-Closed Sweep | v4.5 | 5/5 | Complete    | 2026-07-03 |
 | 53. Money-Path Observability & CI Gates | v4.5 | 6/6 | Complete    | 2026-07-03 |
+| 54. Gift-Card Management on the Kiosk Surface | v4.5 | 0/? | Not planned — depends on Phase 48; land before 48 iPad UAT | - |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
 
@@ -930,6 +932,23 @@ Plans:
 **Wave 5**
 
 - [x] 45-09-PLAN.md — Bundled live gift-card + money-path UAT on prod (with P44 deferred UAT, D-16) [checkpoint] — COMPLETE 2026-07-02, all 8 steps pass (45-09-SUMMARY.md)
+
+### Phase 54: Gift-Card Management on the Kiosk Surface
+
+**Goal:** Staff can do full gift-card management — balance **lookup** + **void** — directly from the staff-only standalone kiosk page, not only the admin panel. The owner runs everything from the kiosk and never uses the admin-embedded kiosk for sales, so gift-card management must live where the work happens.
+
+**Requirements**: Owner-requested (post-Phase-48). Extends KIOSK-01's "single shared kiosk surface" intent to gift-card management.
+**Depends on:** Phase 48 (kiosk de-fork — builds on `js/kiosk-core.js` and the injected `buildAuthOptions()` per-surface auth). Phase 48 is on staging awaiting iPad UAT; **Phase 54 should land before that UAT so both are verified in one iPad session.**
+
+**Two parts:**
+
+1. **Backend** — add `/api/kiosk/gift-card/void` to the `KIOSK_ROUTES` device-token allowlist in `zoho-middleware/lib/authTiers.js` so the kiosk device token may void a certificate. This **consciously SUPERSEDES D-46-02 / T-46-07** (void was session/admin-only). Owner decision **D-54-GC**; residual risk (a leaked device token could void a *status-only* cert — no cash movement, non-empty reason required) explicitly accepted. Flip the two existing `device→403 on gift-card/void` tests (`auth-tiers-guard.test.js` test 3, `pos-auth-tier.test.js` test 3) to expect not-403 + add positive coverage. Device negative-scope coverage stays intact via the existing PII-GET / BrewPad-GET / admin-GET `device→403` tests.
+2. **Frontend** — author a **kiosk-native** Gift Card Management panel (lookup + void, `kgcm-*`). The existing modal lives only in `js/admin.js` on admin's `openModal`/`closeModal` (absent on the kiosk page), so build fresh in `js/kiosk-core.js` (shared, via injected `buildAuthOptions()` → `x-device-token` on kiosk / cookie on admin), mirroring the existing `kgcr-` redeem-modal pattern, with markup + an entry button in `kiosk.html`. Rebuild bundles; add a frontend regression test.
+
+**Pre-planning gate:** Run `/gsd:discuss-phase 54` to lock the kiosk modal-container approach + void-confirmation UX before `/gsd:plan-phase 54`.
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 54 to break down)
 
 ---
 
