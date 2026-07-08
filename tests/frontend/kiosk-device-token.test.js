@@ -160,6 +160,37 @@ describe('kiosk device-token gate — boot flow', function () {
     // matching the pre-existing showLockScreen() contract.
     expect(document.getElementById('kiosk-lock-screen').style.display).not.toBe('none');
   });
+
+  test('T1d: with a stored token, the prompt shows a Back button that returns to the PIN lock screen without re-entry', function () {
+    injectKioskShell();
+    localStorage.setItem(DEVICE_TOKEN_KEY, 'kiosk-existing-token');
+
+    // Simulate an accidental "Device Settings" tap during a sale.
+    kiosk.showDeviceTokenPrompt();
+
+    var backBtn = document.getElementById('kiosk-device-token-cancel');
+    expect(backBtn).not.toBeNull();
+    expect(backBtn.style.display).not.toBe('none');
+
+    backBtn.click();
+
+    // Returns to the PIN lock screen; the stored token is left untouched.
+    expect(document.getElementById('kiosk-lock-screen').style.display).not.toBe('none');
+    expect(localStorage.getItem(DEVICE_TOKEN_KEY)).toBe('kiosk-existing-token');
+  });
+
+  test('T1e: with NO stored token, the Back button is hidden so first-time setup stays mandatory', function () {
+    injectKioskShell();
+    expect(localStorage.getItem(DEVICE_TOKEN_KEY)).toBeNull();
+
+    kiosk.showDeviceTokenPrompt();
+
+    var backBtn = document.getElementById('kiosk-device-token-cancel');
+    // Built into the DOM once, but must not be an escape hatch when there is
+    // no token to fall back to.
+    expect(backBtn).not.toBeNull();
+    expect(backBtn.style.display).toBe('none');
+  });
 });
 
 // ---------------------------------------------------------------------------

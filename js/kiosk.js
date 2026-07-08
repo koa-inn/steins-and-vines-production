@@ -275,7 +275,29 @@
 
       mount.appendChild(input);
       mount.appendChild(btn);
+
+      // Back — lets staff leave the token screen WITHOUT re-entering the token
+      // when one is already stored. An accidental "Device Settings" tap during
+      // a sale must not trap the kiosk (there is no browser reload in the
+      // home-screen web app). Visibility is decided per-open below, since this
+      // mount is built only once.
+      var backBtn = document.createElement('button');
+      backBtn.type = 'button';
+      backBtn.className = 'btn-secondary';
+      backBtn.id = 'kiosk-device-token-cancel';
+      backBtn.textContent = 'Back';
+      backBtn.addEventListener('click', function () {
+        var inp = document.getElementById('kiosk-device-token-input');
+        if (inp) inp.value = '';
+        showLockScreen({});
+      });
+      mount.appendChild(backBtn);
     }
+
+    // Show Back only when a token already exists — during genuine first-time
+    // setup there is nothing to return to, so entry stays mandatory.
+    var cancelBtn = document.getElementById('kiosk-device-token-cancel');
+    if (cancelBtn) cancelBtn.style.display = kioskDeviceToken() ? '' : 'none';
   }
 
   function showKioskApp() {
