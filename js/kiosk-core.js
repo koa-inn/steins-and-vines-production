@@ -4406,6 +4406,167 @@
       });
   }
 
+  // ===== Gift Card Management panel (Phase 54, D-54-01/02/03/05) =====
+  // Kiosk-native lookup + void panel authored fresh in the shared module
+  // (the kiosk page has no openModal/closeModal, unlike admin.js). Container
+  // open/close mirrors kioskShowDiscountMgmt(); the two-step lookup->void
+  // state machine ports js/admin.js's kioskShowAdminGiftCardMgmtModal()
+  // behavior verbatim (D-54-02 behavior parity), with every fetch routed
+  // through _kcMergeAuth instead of admin's hard-coded credentials:'include'
+  // (D-54-03 — the admin-only bug pattern this phase exists to avoid).
+  function kioskShowGiftCardMgmt() {
+    var panel = document.getElementById('kgcm-panel');
+    if (!panel) return;
+    panel.style.display = '';
+
+    var mwUrl = _kcEnv.mwUrl;
+    var lookupView = document.getElementById('kgcm-lookup-view');
+    var voidView = document.getElementById('kgcm-void-view');
+    var certEl = document.getElementById('kgcm-cert');
+    var errEl = document.getElementById('kgcm-error');
+    var resultEl = document.getElementById('kgcm-result');
+    var resultInfoEl = document.getElementById('kgcm-result-info');
+    var lookupBtn = document.getElementById('kgcm-lookup-btn');
+    var voidBtn = document.getElementById('kgcm-void-btn');
+    var closeBtn = document.getElementById('kgcm-close');
+    var voidConfirmLabel = document.getElementById('kgcm-void-confirm');
+    var voidReasonEl = document.getElementById('kgcm-void-reason');
+    var voidErrEl = document.getElementById('kgcm-void-error');
+    var voidCancelBtn = document.getElementById('kgcm-void-cancel-btn');
+    var voidConfirmBtn = document.getElementById('kgcm-void-confirm-btn');
+
+    // Reset to the lookup view every time the panel is (re)opened.
+    if (lookupView) lookupView.style.display = '';
+    if (voidView) voidView.style.display = 'none';
+    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+    if (resultEl) resultEl.style.display = 'none';
+    if (certEl) { certEl.value = ''; certEl.focus(); }
+
+    // Tracks the last looked-up cert for void.
+    var _mgmtCert = null;
+
+    function showMgmtErr(msg) {
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+    }
+    function hideMgmtErr() {
+      if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+    }
+
+    if (closeBtn) {
+      closeBtn.onclick = function () { panel.style.display = 'none'; };
+    }
+
+    if (lookupBtn) {
+      lookupBtn.onclick = function () {
+        var cert = certEl ? certEl.value.trim().toUpperCase() : '';
+        if (!cert) { showMgmtErr('Please enter a certificate number.'); return; }
+        hideMgmtErr();
+        if (resultEl) resultEl.style.display = 'none';
+        lookupBtn.disabled = true;
+        lookupBtn.textContent = 'Looking up…';
+        fetch(mwUrl + '/api/kiosk/gift-card/lookup?cert_number=' + encodeURIComponent(cert), _kcMergeAuth({}))
+        .then(function (r) {
+          return r.json().then(function (d) { return { status: r.status, data: d }; });
+        })
+        .then(function (result) {
+          lookupBtn.disabled = false;
+          lookupBtn.textContent = 'Look Up';
+          if (result.status === 200 && result.data && result.data.ok) {
+            // F7 (45-09): payload is nested under data.data, and the balance
+            // field is current_balance — same contract kiosk.js's redeem
+            // panel (kgcr-) consumes.
+            var d = (result.data && result.data.data) || {};
+            _mgmtCert = d.cert_number || cert;
+            var statusStr = d.status || 'active';
+            var statusColor = (statusStr === 'active') ? '#2e7d32' : '#c00';
+            if (resultInfoEl) {
+              resultInfoEl.innerHTML =
+                '<strong>Cert #:</strong> ' + escapeHTML(_mgmtCert) + '<br>' +
+                '<strong>Status:</strong> <span style="color:' + statusColor + ';font-weight:600;">' + escapeHTML(statusStr) + '</span><br>' +
+                '<strong>Face Value:</strong> ' + kioskFmt(d.face_value || 0) + '<br>' +
+                '<strong>Current Balance:</strong> ' + kioskFmt(d.current_balance || 0);
+            }
+            if (voidBtn) voidBtn.style.display = (statusStr === 'voided') ? 'none' : '';
+            if (resultEl) resultEl.style.display = 'block';
+          } else if (result.status === 404) {
+            showMgmtErr('Certificate not found. Check the number and try again.');
+          } else {
+            showMgmtErr((result.data && result.data.error) || 'Lookup failed. Please try again.');
+          }
+        })
+        .catch(function () {
+          lookupBtn.disabled = false;
+          lookupBtn.textContent = 'Look Up';
+          showMgmtErr('Connection error. Please check your connection and try again.');
+        });
+      };
+    }
+
+    if (voidBtn) {
+      voidBtn.onclick = function () {
+        if (!_mgmtCert) return;
+        // Switch to the void-confirmation view (D-54-02: two-step, required
+        // reason, "cannot be undone" label — no manager-PIN gate).
+        if (lookupView) lookupView.style.display = 'none';
+        if (voidView) voidView.style.display = 'block';
+        if (voidConfirmLabel) voidConfirmLabel.textContent = 'Void ' + _mgmtCert + '? This cannot be undone.';
+        if (voidReasonEl) { voidReasonEl.value = ''; voidReasonEl.focus(); }
+        if (voidErrEl) { voidErrEl.style.display = 'none'; voidErrEl.textContent = ''; }
+      };
+    }
+
+    if (voidCancelBtn) {
+      voidCancelBtn.onclick = function () {
+        if (voidView) voidView.style.display = 'none';
+        if (lookupView) lookupView.style.display = 'block';
+      };
+    }
+
+    if (voidConfirmBtn) {
+      voidConfirmBtn.onclick = function () {
+        var reason = voidReasonEl ? voidReasonEl.value.trim() : '';
+        if (!reason) {
+          if (voidErrEl) { voidErrEl.textContent = 'Please enter a reason for voiding.'; voidErrEl.style.display = 'block'; }
+          return;
+        }
+        if (!_mgmtCert) return;
+        voidConfirmBtn.disabled = true;
+        voidConfirmBtn.textContent = 'Voiding…';
+        if (voidErrEl) { voidErrEl.style.display = 'none'; voidErrEl.textContent = ''; }
+        fetch(mwUrl + '/api/kiosk/gift-card/void', _kcMergeAuth({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cert_number: _mgmtCert, reason: reason })
+        }))
+        .then(function (r) {
+          return r.json().then(function (d) { return { status: r.status, data: d }; });
+        })
+        .then(function (result) {
+          voidConfirmBtn.disabled = false;
+          voidConfirmBtn.textContent = 'Confirm Void';
+          if (result.status === 200 && result.data && result.data.ok) {
+            panel.style.display = 'none';
+            showToast('Gift Certificate ' + _mgmtCert + ' has been voided.', 'success');
+          } else if (result.status === 404) {
+            if (voidErrEl) { voidErrEl.textContent = 'Certificate not found.'; voidErrEl.style.display = 'block'; }
+          } else if (result.status === 409) {
+            if (voidErrEl) { voidErrEl.textContent = 'Certificate is already voided.'; voidErrEl.style.display = 'block'; }
+          } else {
+            if (voidErrEl) {
+              voidErrEl.textContent = (result.data && result.data.error) || 'Void failed. Please try again.';
+              voidErrEl.style.display = 'block';
+            }
+          }
+        })
+        .catch(function () {
+          voidConfirmBtn.disabled = false;
+          voidConfirmBtn.textContent = 'Confirm Void';
+          if (voidErrEl) { voidErrEl.textContent = 'Connection error. Please try again.'; voidErrEl.style.display = 'block'; }
+        });
+      };
+    }
+  }
+
   // ===== Public namespace (D-06: prefix dropped) =====
   var KioskCore = {
     init: kcInit,
@@ -4502,6 +4663,9 @@
     discountScopeLabel: kioskDiscountScopeLabel,
     showDiscountMgmt: kioskShowDiscountMgmt,
     renderDiscountMgmtList: kioskRenderDiscountMgmtList,
+
+    // gift card management (Phase 54, D-54-03)
+    showGiftCardMgmt: kioskShowGiftCardMgmt,
 
     // ---- Test-export-style accessors (mirror js/kiosk.js's existing idiom) ----
     _getQuote: function () { return _kioskQuote; },
