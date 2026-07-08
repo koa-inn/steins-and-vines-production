@@ -209,6 +209,16 @@
       signoutBtn.addEventListener('click', showDeviceTokenPrompt);
     }
 
+    // Phase 54 (D-54-01): Gift Card Management entry lives in the Device
+    // Settings cluster, NOT the sales toolbar/discount popover — void is
+    // money-destroying and must not be a mistap away during a busy sale.
+    var gcMgmtBtn = document.getElementById('kiosk-gc-mgmt-btn');
+    if (gcMgmtBtn) {
+      gcMgmtBtn.addEventListener('click', function () {
+        KioskCore.showGiftCardMgmt();
+      });
+    }
+
     if (kioskDeviceToken()) {
       showLockScreen({});
     } else {
