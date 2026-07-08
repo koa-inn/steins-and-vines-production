@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-07-08T18:48:25Z",
+  "phase": "48",
+  "phase_name": "kiosk-pos-de-fork-kiosk-core-js",
+  "phase_dir": ".planning/phases/48-kiosk-pos-de-fork-kiosk-core-js",
+  "status": "paused",
+  "session_theme": "Executed Phase 46 prod auth cutover (Stage 1) + BrewPad fixes; Phase 48 sits verified at human gate",
+  "completed_this_session": [
+    {"item": "Phase 48 waves 1-5 executed + verified (8/9, human_needed)", "detail": "kiosk-core.js de-fork; committed locally"},
+    {"item": "Phase 48 code-review fixes WR-01/03/05", "commit": "b842f50"},
+    {"item": "BrewPad import count fix (multi-batch summary)", "commit": "4299cc7"},
+    {"item": "BrewPad quantity-aware batch creation + blank-line skip + Zoho count", "commit": "fda6e40"},
+    {"item": "Kiosk customer-autoclear todo captured", "commit": "42967e3"},
+    {"item": "PHASE 46 PROD AUTH CUTOVER (Stage 1) COMPLETE — leaked key dead (403)", "commit": "096025a", "detail": "Gated Production Deploy run 28964582252; API_SECRET_KEY rotated"}
+  ],
+  "blockers": [],
+  "human_actions_pending": [
+    {"action": "Stage 2: push Phase 48 to staging then run 48-HUMAN-UAT.md on iPad", "context": "Now unblocked — prod middleware speaks device-token after the cutover", "blocking": false},
+    {"action": "Optional: one post-rotation kiosk sale + admin action to confirm no lockout", "context": "Uses device-token/session, not the rotated key — expected fine", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "Stage 1 deploys origin/main only (excludes Phase 48)", "rationale": "Phase 48 live-terminal UAT (48-06) can only happen AFTER device tokens are live on prod middleware"},
+    {"decision": "Immediate hard rotation (no canary)", "rationale": "API_SECRET_KEY_PREVIOUS canary was never implemented; safe because no served frontend sends x-api-key"}
+  ],
+  "uncommitted_files": [],
+  "unpushed_commits_to_origin": 46,
+  "next_action": "Stage 2 of PROD-CUTOVER-v4.5-PLAN.md: git push origin main (Phase 48 -> staging), then run .planning/phases/48-.../48-HUMAN-UAT.md on the iPad against prod middleware; then mark Phase 46 complete / close SEC-02.",
+  "context_notes": "Production is NOW on origin/main (phases 46-53, device-token auth, leaked key dead). Local main is 46 commits ahead (Phase 48 + BrewPad fixes + cutover docs) and NOT pushed. These reach prod only via a future deploy (Stage 3). Deploy = Gated Production Deploy workflow (never `git push production main --force`, which would push local main incl. Phase 48)."
+}
