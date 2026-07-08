@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: executing
-stopped_at: Completed 54-02-PLAN.md
-last_updated: "2026-07-08T20:57:00.453Z"
+status: verifying
+stopped_at: Completed 54-03-PLAN.md (Phase 54 complete)
+last_updated: "2026-07-08T21:04:01.666Z"
 last_activity: 2026-07-08
 progress:
   total_phases: 40
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 83
-  completed_plans: 86
-  percent: 28
+  completed_plans: 87
+  percent: 30
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 Phase: 54 (gift-card-management-on-the-kiosk-surface) — EXECUTING
 Plan: 3 of 3
 Milestone: v4.5 Security & Money-Path Closeout. Done: 46 (SEC-02 ✅), 47 (SEC-01 ✅), 52 (RESIL-01 ✅), 53 (OBS-01 ✅). Phase 48 (KIOSK-01) code done + on staging, awaiting iPad UAT. **Phase 54 (owner-requested) is the active next-to-plan — lands before the Phase 48 iPad UAT so both are verified together.** Remaining after: 48 UAT + verify, 49-02 live-card UAT, 50/51 (blocked on 48).
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-08
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
@@ -109,6 +109,7 @@ Last activity: 2026-07-08
 - [Phase 54-01]: D-54-GC-a executed — device-403 void tests flipped to not-403 in both auth-tiers-guard.test.js and pos-auth-tier.test.js; all other admin-grade device-403 negatives (PII/BrewPad/admin GET) left untouched
 - [Phase 54-02]: Gift Cards entry button placed in shell-user bar next to Device Settings (not sales toolbar/discount popover) per D-54-01
 - [Phase 54-02]: Reused kiosk-discount-mgmt-modal CSS classes for kgcm- overlay (generic, not id-scoped) — no CSS file changes needed
+- [Phase 54-03]: Kiosk gift-card mgmt test uses real timers (no synchronous setTimeout mock) so flushPromises() drains the fetch(...).then().then() microtask chain, matching admin-gift-card-mgmt.test.js
 
 ### Pending Todos
 
@@ -124,8 +125,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-08T20:57:00.446Z
-Stopped at: Completed 54-02-PLAN.md
+Last session: 2026-07-08T21:04:01.660Z
+Stopped at: Completed 54-03-PLAN.md (Phase 54 complete)
 
 ### Prior session (2026-07-03T19:12:01.492Z)
 

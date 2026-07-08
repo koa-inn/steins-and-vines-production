@@ -109,7 +109,7 @@
 - [ ] **Phase 51: Gift-Card Ledger Integrity** - idempotent reload, durable needs_manual_review, cell sanitizer, header-mapped issueGiftCard, tax parity (MONEY-03)
 - [x] **Phase 52: Fail-Closed Sweep** - shared closed-on-Redis-error helper across remaining money/security call-sites (RESIL-01) (completed 2026-07-03)
 - [x] **Phase 53: Money-Path Observability & CI Gates** - Sentry on every money-path catch, `npm ci` + Node pin, `--max-warnings 0` + ES5 lint rule, pos.js coverage floor (OBS-01) (completed 2026-07-03)
-- [ ] **Phase 54: Gift-Card Management on the Kiosk Surface** - lookup + void on the staff-only kiosk page; add `gift-card/void` to the kiosk device-token scope (owner decision D-54-GC, supersedes D-46-02/T-46-07); kiosk-native `kgcm-*` panel in `kiosk-core.js`. Depends on Phase 48; land before the 48 iPad UAT.
+- [x] **Phase 54: Gift-Card Management on the Kiosk Surface** - lookup + void on the staff-only kiosk page; add `gift-card/void` to the kiosk device-token scope (owner decision D-54-GC, supersedes D-46-02/T-46-07); kiosk-native `kgcm-*` panel in `kiosk-core.js`. Depends on Phase 48; land before the 48 iPad UAT. (completed 2026-07-08)
 
 ## Phase Details
 
@@ -705,7 +705,7 @@ Plans:
 | 51. Gift-Card Ledger Integrity | v4.5 | 0/? | Not started | - |
 | 52. Fail-Closed Sweep | v4.5 | 5/5 | Complete    | 2026-07-03 |
 | 53. Money-Path Observability & CI Gates | v4.5 | 6/6 | Complete    | 2026-07-03 |
-| 54. Gift-Card Management on the Kiosk Surface | v4.5 | 2/3 | In Progress|  |
+| 54. Gift-Card Management on the Kiosk Surface | v4.5 | 3/3 | Complete   | 2026-07-08 |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
 
@@ -950,7 +950,7 @@ Plans:
 Plans: 3 plans across 3 waves
 - [x] 54-01-PLAN.md — Backend: add /api/kiosk/gift-card/void to KIOSK_ROUTES (D-54-GC) + flip 2 device→403 tests to not-403 + dual-suite gate
 - [x] 54-02-PLAN.md — Frontend: kgcm- lookup+void panel in kiosk-core.js + settings-gated entry in kiosk.html/kiosk.js + rebuild bundles
-- [ ] 54-03-PLAN.md — Frontend regression test: device-token lookup+void path + reason-required void gate
+- [x] 54-03-PLAN.md — Frontend regression test: device-token lookup+void path + reason-required void gate
 
 ---
 
