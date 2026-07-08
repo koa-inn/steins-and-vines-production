@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
-stopped_at: Phase 54 context gathered
-last_updated: "2026-07-08T20:37:54.768Z"
-last_activity: 2026-07-08 -- Phase 54 planning complete
+stopped_at: Completed 54-01-PLAN.md
+last_updated: "2026-07-08T20:46:23.603Z"
+last_activity: 2026-07-08
 progress:
   total_phases: 40
   completed_phases: 11
   total_plans: 83
-  completed_plans: 84
+  completed_plans: 85
   percent: 28
 ---
 
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** v4.5 in progress — Phase 53 done; next buildable is Phase 48 (KIOSK-01 kiosk de-fork), which unblocks Phases 50 & 51
+**Current focus:** Phase 54 — gift-card-management-on-the-kiosk-surface
 
 ## Current Position
 
-Phase: 54 (Gift-Card Management on the Kiosk Surface) — planned 2026-07-08 (3 plans, 3 waves); next is /gsd:execute-phase 54
-Plan: 3 plans ready (54-01 backend scope → 54-02 kgcm- panel → 54-03 regression test)
+Phase: 54 (gift-card-management-on-the-kiosk-surface) — EXECUTING
+Plan: 2 of 3
 Milestone: v4.5 Security & Money-Path Closeout. Done: 46 (SEC-02 ✅), 47 (SEC-01 ✅), 52 (RESIL-01 ✅), 53 (OBS-01 ✅). Phase 48 (KIOSK-01) code done + on staging, awaiting iPad UAT. **Phase 54 (owner-requested) is the active next-to-plan — lands before the Phase 48 iPad UAT so both are verified together.** Remaining after: 48 UAT + verify, 49-02 live-card UAT, 50/51 (blocked on 48).
 Status: Ready to execute
-Last activity: 2026-07-08 -- Phase 54 planning complete
+Last activity: 2026-07-08
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
@@ -105,6 +105,8 @@ Last activity: 2026-07-08 -- Phase 54 planning complete
 - [44-10]: alert() used for gift_card_activation_failed (blocking native dialog on both kiosk.js + admin.js D-08 parity); cert number(s) shown; staff cannot skip before cleanup
 - [44-10]: gift_cert cart line adds certificate to kiosk cart on both surfaces (D-08 parity); activated post-payment by 44-09 confirm chain; _kioskGiftCertCounter separate from _kioskCustomCounter to avoid key collisions
 - [45-05]: D-11 complete — shared lib/money-path.js created (acquireIdempotencyLock, assertTxnNotReplayed, markTxnUsed, rejectWithVoid, voidWithTimeout); checkout.js refactored to consume it (zero behaviour change); pos.js adoption in 45-06/07/08. When wiring pos.js: pass module-scope helcimLib/mailer/eventLog as explicit deps to rejectWithVoid and voidWithTimeout calls for Jest-safe mock behavior
+- [Phase 54-01]: D-54-GC executed — /api/kiosk/gift-card/void added to KIOSK_ROUTES, superseding D-46-02/T-46-07 (owner-accepted residual risk: status-only, reason-required, logged)
+- [Phase 54-01]: D-54-GC-a executed — device-403 void tests flipped to not-403 in both auth-tiers-guard.test.js and pos-auth-tier.test.js; all other admin-grade device-403 negatives (PII/BrewPad/admin GET) left untouched
 
 ### Pending Todos
 
@@ -120,8 +122,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-08T20:13:01.142Z
-Stopped at: Phase 54 context gathered
+Last session: 2026-07-08T20:46:23.596Z
+Stopped at: Completed 54-01-PLAN.md
 
 ### Prior session (2026-07-03T19:12:01.492Z)
 
@@ -139,4 +141,4 @@ Session summary:
 Cleanup owed (owner): refund $3 remaining card charges (txn 50914850 $2, txn 50915774 $1; June-30 $20 + Test-1 $1 already refunded); Zoho reverse INV-000127/128/129/131/132/133/134 + their payments; dismiss reconcile needs_manual_review flag for KIOSK-1783016597951 (false alarm); remove stale GH_TOKEN ~/.zshrc:16.
 Follow-ups (non-blocking, in findings §Follow-ups): F6 tap-shield (#109), webhook type logging, invoice-note wording, gift-card-only txnId label, void 409 mapping, cancel-aware reconcile sweep.
 Next: mark 45-09 UAT-approved in the phase flow (executor resume-signal was "approved") → 45-09 SUMMARY + phase-45 verification/wrap-up. Build churn from `npm run build` still in working tree (about.html/brewpad/products/* + zoho-middleware/ingredients-cache.json); stash@{0}/stash@{1} still pending reconcile.
-Resume file: .planning/phases/54-gift-card-management-on-the-kiosk-surface/54-CONTEXT.md
+Resume file: .planning/phases/54-gift-card-management-on-the-kiosk-surface/54-02-PLAN.md

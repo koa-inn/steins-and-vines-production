@@ -705,7 +705,7 @@ Plans:
 | 51. Gift-Card Ledger Integrity | v4.5 | 0/? | Not started | - |
 | 52. Fail-Closed Sweep | v4.5 | 5/5 | Complete    | 2026-07-03 |
 | 53. Money-Path Observability & CI Gates | v4.5 | 6/6 | Complete    | 2026-07-03 |
-| 54. Gift-Card Management on the Kiosk Surface | v4.5 | 0/? | Not planned — depends on Phase 48; land before 48 iPad UAT | - |
+| 54. Gift-Card Management on the Kiosk Surface | v4.5 | 1/3 | In Progress|  |
 
 ### Phase 29.4: Wine drill-down analytics on BrewPad dashboard — wine-specific category breakdown splitting wine batches by a selectable dimension (subcategory, brand, manufacturer, or kit time e.g. 4-week/5-week). Builds on the Phase 29.3 Batches-by-Month type-breakdown chart. New data source in BrewPad: load product catalog (cheapest: static /content/zoho-snapshot.json — carries sku, subcategory, brand, manufacturer, time per wine kit) and join batch.product_sku -> catalog sku to derive the split attribute (batches store only product_sku/product_name today). Dynamic categories (brand/manufacturer are open sets -> top-N + 'Other' grouping with dynamic colors) + a dimension selector. Frontend-only: js/brewpad.js + tests. Depends on Phase 29.3. (INSERTED)
 
@@ -948,7 +948,7 @@ Plans:
 **Pre-planning gate:** Run `/gsd:discuss-phase 54` to lock the kiosk modal-container approach + void-confirmation UX before `/gsd:plan-phase 54`.
 
 Plans: 3 plans across 3 waves
-- [ ] 54-01-PLAN.md — Backend: add /api/kiosk/gift-card/void to KIOSK_ROUTES (D-54-GC) + flip 2 device→403 tests to not-403 + dual-suite gate
+- [x] 54-01-PLAN.md — Backend: add /api/kiosk/gift-card/void to KIOSK_ROUTES (D-54-GC) + flip 2 device→403 tests to not-403 + dual-suite gate
 - [ ] 54-02-PLAN.md — Frontend: kgcm- lookup+void panel in kiosk-core.js + settings-gated entry in kiosk.html/kiosk.js + rebuild bundles
 - [ ] 54-03-PLAN.md — Frontend regression test: device-token lookup+void path + reason-required void gate
 
