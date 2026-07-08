@@ -101,7 +101,7 @@
 
 **Milestone Goal:** Close the deferred CRITICAL and the verified High/Medium security + money-path defects from the 2026-07-02 whole-repo audit (`.planning/reports/AUDIT.md`) — and cure the root cause (the kiosk is a second-class re-implementation of the online-checkout money path) via the KIOSK-01 de-fork plus full synchronous adoption of `lib/money-path.js` primitives across `pos.js`/`pos-recipe.js` — without weakening the gold-standard online checkout. Additive setup: continues phase numbering from Phase 46; nothing archived or renumbered ≤ 46.
 
-- [~] **Phase 46: Auth Re-Architecture** — carried over as v4.5 SEC-02 (existing phase, not re-planned); code-complete + verified, owner production cutover (46-10) pending
+- [x] **Phase 46: Auth Re-Architecture** — carried over as v4.5 SEC-02 (existing phase, not re-planned); ✅ COMPLETE 2026-07-08 — owner cutover done, all 3 surfaces verified, `API_SECRET_KEY` rotated → leaked key dead (403). Closes SEC-02.
 - [ ] **Phase 47: Purge Publicly-Served Internal Docs** - untrack `.planning/`/audit docs from staging+prod, reconcile `.nojekyll` vs `_config.yml` exclude (SEC-01)
 - [ ] **Phase 48: Kiosk POS De-Fork (kiosk-core.js)** - shared `js/kiosk-core.js`, behaviour-preserving, parity-tested, discount on both surfaces (KIOSK-01) — rehomed from v4.4 Phase 42
 - [ ] **Phase 49: Online Captured-Amount Verification** - assert captured card amount ≥ recorded/invoiced total before booking; void + reject on mismatch (MONEY-01)
@@ -696,7 +696,7 @@ Plans:
 | 40. Facility Image Optimization (webp + srcset) | v4.4 | 0/? | Not started | - |
 | 41. SKU-Keyed Cart Identity | v4.4 | 0/? | Not started | - |
 | 42. Kiosk POS De-Fork (kiosk-core.js) → rehomed to v4.5 Phase 48 (KIOSK-01) | v4.4 | 0/? | Not started | - |
-| 46. Auth Re-Architecture | v4.5 (carryover, SEC-02) | 9/10 | Code-complete, owner cutover pending | - |
+| 46. Auth Re-Architecture | v4.5 (carryover, SEC-02) | 10/10 | ✅ Complete — cutover done, all surfaces verified, leaked key rotated dead (403) | 2026-07-08 |
 | 47. Purge Publicly-Served Internal Docs | v4.5 | 1/1 | ✅ Closed on staging (verified 2026-07-03); prod audit-doc at next prod deploy | 2026-07-03 |
 | 48. Kiosk POS De-Fork (kiosk-core.js) | v4.5 | 5/6 | In Progress|  |
 | 49. Online Captured-Amount Verification | v4.5 | 1/2 | 49-01 done (H2 fix + 13-test regression, suite green); 49-02 live-card UAT pending deploy | - |
@@ -935,7 +935,7 @@ Plans:
 
 ### Phase 46: Auth Re-Architecture (CRITICAL — split from Phase 45)
 
-**v4.5 carryover:** This phase now also closes v4.5 **SEC-02** (audit C1) — carried over as-is, not re-planned; code-complete + verified, owner production cutover (46-10) pending. See `REQUIREMENTS.md` Traceability.
+**v4.5 carryover:** This phase closes v4.5 **SEC-02** (audit C1) — carried over as-is, not re-planned. ✅ COMPLETE 2026-07-08: owner production cutover (46-10) executed off-hours; kiosk (device token), admin + BrewPad (Google session) all verified; `API_SECRET_KEY` rotated → leaked key dead (403), no surface locked out, public checkout intact. See `46-10-SUMMARY.md` and `docs/RUNBOOK.md` Outcome record; `REQUIREMENTS.md` Traceability.
 
 **Goal:** Eliminate the shared-secret browser auth model. Stop shipping the admin API key in public git-tracked JS, move staff surfaces to server-side identity, and rotate the leaked `API_SECRET_KEY` at cutover — closing the CRITICAL auth-model exposure from `AUDIT-2026-06-29.md` without locking out the in-store kiosk.
 

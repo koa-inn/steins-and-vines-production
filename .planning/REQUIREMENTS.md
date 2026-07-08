@@ -17,7 +17,7 @@ containment → correctness → fail-closed sweep → signal.
 
 ### Staff Authentication
 
-- [ ] **SEC-02** (audit **C1**, the deferred CRITICAL): Staff surfaces (admin, BrewPad, kiosk) authenticate via server-side identity with **no shared secret shipped to the browser**, and the leaked `API_SECRET_KEY` is rotated dead with no surface locked out. *Status:* **existing Phase 46 — code-complete + verified; owner production cutover (46-10) pending.** Folded in as-is, not re-planned. Closes C1, whose blast radius grew via Phase 43/44 (gift-cert void, SSRF, DoS reachable under the public key).
+- [x] **SEC-02** (audit **C1**, the deferred CRITICAL): Staff surfaces (admin, BrewPad, kiosk) authenticate via server-side identity with **no shared secret shipped to the browser**, and the leaked `API_SECRET_KEY` is rotated dead with no surface locked out. *Status:* **✅ COMPLETE 2026-07-08 (Phase 46).** Owner production cutover executed; new 3-tier auth live (device-token kiosk / Google-session admin+BrewPad / legacy key), all three surfaces verified, `API_SECRET_KEY` rotated → leaked key returns 403, no surface locked out, public checkout intact. See `phases/46-…/46-10-SUMMARY.md` + `docs/RUNBOOK.md`. Closed C1, whose blast radius grew via Phase 43/44 (gift-cert void, SSRF, DoS reachable under the public key).
 
 ### Kiosk Architecture
 
@@ -77,7 +77,7 @@ Phases risk-ordered: containment (SEC) → de-fork backbone → correctness (MON
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | SEC-01 | Phase 47 | Pending (H1 confirmed live) |
-| SEC-02 | Phase 46 | Code-complete + verified; owner cutover pending |
+| SEC-02 | Phase 46 | ✅ Complete (2026-07-08) — cutover done, leaked key rotated dead (403) |
 | KIOSK-01 | Phase 48 | Pending (rehomed from Phase 42) |
 | MONEY-01 | Phase 49 | Pending |
 | MONEY-02 | Phase 50 | Pending (depends on KIOSK-01) |

@@ -8,7 +8,7 @@ last_updated: "2026-07-08T18:54:04Z"
 last_activity: 2026-07-08 -- Phase 48 pushed to staging; Stage 2 UAT gate
 progress:
   total_phases: 39
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 80
   completed_plans: 78
   percent: 26
@@ -33,7 +33,7 @@ Last activity: 2026-07-03 -- Phase 48 planning complete
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
-**Carryover — SEC-02 / Phase 46 (auth re-architecture):** code-complete + verified; **owner production cutover (46-10) is the immediate open work** — pending off-hours coupled deploy + `API_SECRET_KEY` rotation. Full runbook: `docs/RUNBOOK.md` § Phase 46 Auth Cutover. Resume with "let's do the cutover". Prod currently runs the OLD code with the OLD key restored (stable/working).
+**SEC-02 / Phase 46 (auth re-architecture) — ✅ COMPLETE 2026-07-08.** Owner production cutover (46-10) executed off-hours: new 3-tier auth live (device-token kiosk / Google-session admin+BrewPad / legacy key), all three surfaces verified, `API_SECRET_KEY` rotated → **leaked key dead (403)**, no surface locked out, public checkout intact. 46-10-SUMMARY.md written; ROADMAP + REQUIREMENTS marked SEC-02 closed. Prod now runs `origin/main` (device-token auth). Detail: `docs/RUNBOOK.md` § Phase 46 Auth Cutover Outcome.
 
 **Phase 47 / SEC-01 (H1) — ✅ CLOSED on staging (2026-07-03).** Audit doc untracked+gitignored+excluded (`065ed99`); Actions-based `deploy-staging.yml` strips `.planning/`+audit docs (`7116801`); owner flipped staging Pages source → GitHub Actions; fixed a concurrency-group collision that had cancelled the deploy (`b9ac218`). Verified live: `.planning/` + audit docs → 404, `.well-known/security.txt` + site → 200. **Prod:** audit-doc removal rides the next prod deploy (Phase 46 cutover); prod `.planning/` already stripped pre-existing. Note: `Tests` CI is red on a pre-existing dev-only `form-data` advisory (v4.5 OBS-01 scope).
 
