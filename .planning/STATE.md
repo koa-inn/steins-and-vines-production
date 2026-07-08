@@ -4,12 +4,12 @@ milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
 stopped_at: Phase 54 context gathered
-last_updated: "2026-07-08T20:13:01.153Z"
-last_activity: 2026-07-03 -- Phase 48 planning complete
+last_updated: "2026-07-08T20:37:54.768Z"
+last_activity: 2026-07-08 -- Phase 54 planning complete
 progress:
   total_phases: 40
   completed_phases: 11
-  total_plans: 80
+  total_plans: 83
   completed_plans: 84
   percent: 28
 ---
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 ## Current Position
 
-Phase: 54 (Gift-Card Management on the Kiosk Surface) — CONTEXT.md gathered 2026-07-08; next is /gsd:plan-phase 54
-Plan: Not started
+Phase: 54 (Gift-Card Management on the Kiosk Surface) — planned 2026-07-08 (3 plans, 3 waves); next is /gsd:execute-phase 54
+Plan: 3 plans ready (54-01 backend scope → 54-02 kgcm- panel → 54-03 regression test)
 Milestone: v4.5 Security & Money-Path Closeout. Done: 46 (SEC-02 ✅), 47 (SEC-01 ✅), 52 (RESIL-01 ✅), 53 (OBS-01 ✅). Phase 48 (KIOSK-01) code done + on staging, awaiting iPad UAT. **Phase 54 (owner-requested) is the active next-to-plan — lands before the Phase 48 iPad UAT so both are verified together.** Remaining after: 48 UAT + verify, 49-02 live-card UAT, 50/51 (blocked on 48).
-Status: Phase 54 ready to plan
-Last activity: 2026-07-08 -- Phase 54 context gathered
+Status: Ready to execute
+Last activity: 2026-07-08 -- Phase 54 planning complete
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
