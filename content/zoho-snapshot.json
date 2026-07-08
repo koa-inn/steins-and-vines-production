@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-07T08:59:52.715Z",
+  "generated_at": "2026-07-08T08:02:09.051Z",
   "products": [
     {
       "name": "Acai Raspberry Rapture",
@@ -2998,7 +2998,7 @@
       "item_id": "109900000000021885",
       "brand": "Cru International",
       "manufacturer": "RJS Craft Winemaking",
-      "stock": "13",
+      "stock": "10",
       "description": "Luxurious flavours of dark plums and chocolate greet the nose, while hints of blackberries, toasted oak, and spices are found on the palate of this great Italian classic.",
       "discount": "0",
       "_zoho_category": "",
@@ -7928,7 +7928,7 @@
       "name": "Citric Acid",
       "unit": "kg",
       "price_per_unit": "25",
-      "stock": "5",
+      "stock": "4",
       "description": "Tart acidulant used in fruit wines, ciders, and meads to adjust acidity and add brightness. Best added after fermentation to avoid conversion by yeast. Sold by the gram.",
       "sales_description": "",
       "sku": "10105",
