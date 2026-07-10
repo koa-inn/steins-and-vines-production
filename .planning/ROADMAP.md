@@ -1214,4 +1214,9 @@ Plans:
   4. After data flows, `purchase` is marked a GA4 key event; a second GTM account admin is added
   5. The pending Metricool tag is consciously decided at publish, and the container publish respects the RUNBOOK Stage-3 CSP↔GTM ordering (prod CSP live before publishing)
 
-**Plans**: TBD (mostly human-action in the GTM/GA4 UI; scaffold when Phase 55 ships)
+**Plans**: 1 plan (owner console run-sheet — GTM/GA4 UI, not code)
+Plans:
+
+- [ ] 56-01-PLAN.md — T1 staging-exclusion FIRST (GA4 internal-traffic filter on staging hostname, keeps DebugView for the UAT) → verify the 3 ecommerce event tags (already live) → Conversion Linker → Ads Google tag AW-18091171314 → Metricool decision + CSP↔GTM publish ordering → publish → mark `purchase` key event + 2nd admin → then close the Phase 55 purchase UAT in DebugView + promote c86b5b3 to prod (ANALYTICS-02)
+
+**Note**: The 3 GA4 ecommerce event tags already appear LIVE (Phase 55 browser check saw a GA4 collect POST `tid=G-WDYSXCM703 en=add_to_cart`). T1's staging exclusion gates the Phase 55 `purchase` UAT — do it before any test order so staging doesn't pollute the prod GA4 property.
