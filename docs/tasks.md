@@ -19,6 +19,7 @@
 
 ## Open — Critical / High Priority
 
+- [ ] **catalog-error-boundary** [BUG] `renderIngredients()`' `.catch()` treats ANY render-time throw as a data-fetch failure and shows the "Couldn't load products. Check your connection…" banner — so a decorative bug (e.g. `injectProductSchema` throwing on a quoted product name, 2026-07-10 prod outage, fixed in 202744d) takes down the whole catalog with a misleading message. Harden the boundary: wrap the non-critical `injectProductSchema` call so SEO markup can never break the grid, and only show the connection-error banner on a genuine data-fetch rejection. Same pattern exists on subpages (module 16, `renderCatalog` → `buildItemCard` → `injectProductSchema`), where the throw is uncaught entirely. _(surfaced during 202744d incident)_
 - [ ] **#101** [TECH-DEBT] Break middleware `checkout.js` into payment, scheduling, and validation sub-modules _(frontend 12a/12b/12c done; middleware routes/checkout.js still monolithic)_
 - [ ] **#81** [HIGH] Create README.md
 
