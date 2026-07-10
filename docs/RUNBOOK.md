@@ -19,27 +19,24 @@ Use the blessed path unless something is actively broken and you need to ship a 
 
 ---
 
-## Pending Production Promotions (on staging, awaiting next prod deploy)
+## Pending Production Promotions — ✅ SHIPPED 2026-07-10 (Stage 3 cutover)
 
-Production is at v4.5 auth-cutover Stage 1 (`origin/main` phases 46–53) **plus the
-2026-07-10 break-glass hotfix** (Fix 1, `54291bc`, tag `prod-20260710-1`).
-The items below are on **staging** (`origin/main`) but **not yet on production** — they
-ride the next coupled prod deploy (Stage 3 of `PROD-CUTOVER-v4.5-PLAN.md`). Do them as a
-batch after the iPad UAT passes.
+**Production is now at the full v4.5 Stage-3 + v4.6 GA4 cutover** (tag `prod-20260710-2`, blessed
+`gated-deploy.yml` run 29127742148). Shipped as one coupled deploy after the iPad UAT (48/54) +
+GA4 staging verification passed. Frontend live (kiosk-core, Metricool CSP, GA4 events); middleware
+redeployed (uptime reset, redis ✅) with the Phase 54 gift-card/void scope + `pos.js` + brewpad.
 
-| Item | On staging | Prod-deploy notes |
-|------|-----------|-------------------|
-| **Phase 48** — kiosk POS de-fork (`kiosk-core.js`) | ✅ | Gate on iPad UAT (standalone kiosk). |
-| **Phase 54** — kiosk gift-card management (lookup + void; device-token `gift-card/void` scope, D-54-GC) | ✅ | Gate on iPad UAT. Money-path/auth change — eyes on Sentry after. |
-| **Kiosk device-token "Back" button** fix (Device-Settings trap escape) | ✅ | Frontend only; no middleware impact. |
-| **Kiosk load resilience** (`36bf00c`) — keep last-good product/recipe grid when a refresh fails | ✅ | Frontend only. The *other* half of the blank-products bug; its middleware half (Fix 1) already shipped standalone on 2026-07-10. |
-| **Kiosk cart "Clear" customer button** (`05800a4`) | ✅ | Frontend only; no middleware impact. |
-| **Metricool CSP allowlist** (`tracker.metricool.com` in `script-src` + `connect-src`, 15 public pages) | ✅ | ⚠ **See ordering below — coordinate with the GTM publish.** |
+| Item | Shipped | Notes |
+|------|---------|-------|
+| **Phase 48** — kiosk POS de-fork (`kiosk-core.js`) | ✅ | Standalone UAT verified + 22/22 threats secured. |
+| **Phase 54** — kiosk gift-card mgmt (device-token `gift-card/void` scope, D-54-GC) | ✅ | Money-path/auth change — **keep eyes on Sentry**. |
+| **Kiosk fixes** — Back button, load resilience (`36bf00c`), Clear-customer (`05800a4`) | ✅ | Frontend. |
+| **brewpad** — quantity-aware batch creation | ✅ | Middleware. |
+| **Metricool CSP allowlist** (15 public pages) | ✅ | Prod CSP live → Metricool no longer CSP-blocked. |
+| **GA4 ecommerce events** (v4.6 Phase 55) | ✅ | GA4 delivery pending Realtime confirm on a live prod order. |
 
-> **Already on production (do not re-litigate):** Fix 1 — `device` tier allowed on
-> `/api/kiosk/products?bust=1` (`0d9fe73` on staging = `54291bc` on production). Shipped
-> break-glass on 2026-07-10 because the live store kiosk was degraded. It is an ancestor
-> of staging `main`, so the Stage 3 deploy is a no-op for it.
+> **Fix 1** (`device` tier on `?bust=1`, `54291bc`, tag `prod-20260710-1`) was already on prod via
+> the 2026-07-10 break-glass; ancestor of this deploy (no-op here).
 
 ### Stage 3 checklist — Metricool (CSP ↔ GTM ordering)
 
