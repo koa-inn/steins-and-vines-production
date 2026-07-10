@@ -12,6 +12,7 @@
 - 🚧 **v4.3 Recipe Builder Refinement** — Phases 34-37 (in progress)
 - 🚧 **v4.4 Audit Remediation** — Phases 38-42 (in progress)
 - 🚧 **v4.5 Security & Money-Path Closeout** — Phases 46-53 (in progress)
+- 🚧 **v4.6 Analytics & Conversion Tracking** — Phases 55-56 (in progress)
 
 ## Phases
 
@@ -110,6 +111,13 @@
 - [x] **Phase 52: Fail-Closed Sweep** - shared closed-on-Redis-error helper across remaining money/security call-sites (RESIL-01) (completed 2026-07-03)
 - [x] **Phase 53: Money-Path Observability & CI Gates** - Sentry on every money-path catch, `npm ci` + Node pin, `--max-warnings 0` + ES5 lint rule, pos.js coverage floor (OBS-01) (completed 2026-07-03)
 - [x] **Phase 54: Gift-Card Management on the Kiosk Surface** - lookup + void on the staff-only kiosk page; add `gift-card/void` to the kiosk device-token scope (owner decision D-54-GC, supersedes D-46-02/T-46-07); kiosk-native `kgcm-*` panel in `kiosk-core.js`. Depends on Phase 48; land before the 48 iPad UAT. (completed 2026-07-08)
+
+### 🚧 v4.6 Analytics & Conversion Tracking (In Progress)
+
+**Milestone Goal:** GA4 finally receives ecommerce data from the custom cart/checkout so online revenue and the shopping funnel are measurable, and the flagged GTM/Google-Ads container-quality gaps are closed. Source briefs: `Claude-Code-Prompt-Ecommerce-Tracking.md` (review-and-ship) + `Steins-and-Vines-GA4-Purchase-Tracking-Plan.md` (GTM plan), both in the Google Drive Reports folder. GA4 `G-WDYSXCM703`, GTM `GTM-NHRCGLC5`, Google Ads `AW-18091171314`. Additive: continues phase numbering from Phase 55; nothing renumbered.
+
+- [ ] **Phase 55: GA4 Ecommerce Events (code review + ship)** — review the ALREADY-WRITTEN, uncommitted `dataLayer` ecommerce events (`add_to_cart`, `begin_checkout`, `purchase` — dedup by `transaction_id`, analytics can never throw into checkout) + the `products.html` GTM-snippet fix; re-run gates; commit; ship staging → prod after GA4 DebugView UAT. Do NOT re-implement. (ANALYTICS-01)
+- [ ] **Phase 56: GTM Container Quality & Ads Measurement (config, mostly non-code)** — create the 3 GA4 event tags + triggers + DLV variables, add the Conversion Linker tag (All Pages), add the Google tag for Ads `AW-18091171314`, mark `purchase` a GA4 key event, add a 2nd GTM admin, and decide the pending Metricool tag at publish. Coordinated with the RUNBOOK Stage-3 CSP↔GTM ordering. (ANALYTICS-02)
 
 ## Phase Details
 
@@ -1169,3 +1177,41 @@ Plans:
 **Wave 4**
 
 - [x] 53-06-PLAN.md — Lint gate flip: --max-warnings 0 + ES5 rule (D-05/D-06)
+
+## Phase Details (v4.6)
+
+### Phase 55: GA4 Ecommerce Events (code review + ship)
+
+**Goal**: GA4 (`G-WDYSXCM703`) receives `add_to_cart`, `begin_checkout`, and `purchase` ecommerce events from the custom cart/checkout, so online revenue and the shopping funnel become measurable — shipped from the ALREADY-WRITTEN, uncommitted working-tree implementation without altering any payment/charge/cart logic.
+**Depends on**: Nothing (first phase of v4.6; the code already exists uncommitted in the tree)
+**Requirements**: ANALYTICS-01
+**Success Criteria** (what must be TRUE):
+
+  1. The uncommitted GA4 diff is reviewed for correctness/safety — special attention to `js/modules/12-checkout.js`: `purchase` fires only on confirmed Helcim success (single + dual paths), exactly once per order (dedup by `transaction_id`), before carts/idempotency state are cleared; no payment/charge/cart logic was altered; analytics is wrapped so it can never throw into checkout
+  2. Both gate suites pass: `npm test` (frontend, incl. the new `ga4-ecommerce.test.js`) AND `cd zoho-middleware && npm test`; `npm run lint` clean. If any module changed, `npm run build` was re-run so `js/main.js`/`js/main.min.js` + HTML cache stamps are regenerated (never hand-edited)
+  3. The work is committed as one logical change and pushed to staging first (`git push origin main` → staging.steinsandvines.ca) — never straight to production
+  4. Verified on staging with GTM Preview + GA4 DebugView by running a test order: exactly one `purchase` event with populated `ecommerce` (`transaction_id`, `value`, `currency: "CAD"`, `items`), plus `add_to_cart` and `begin_checkout`; re-triggering the success path for the same order does NOT produce a second `purchase`
+  5. `products.html` carries the standard GTM container snippet (it was a live, untagged page per GTM diagnostics); confirm whether this fix is in the current diff or add it
+  6. Only after staging approval, promoted to production per the CLAUDE.md deploy flow
+
+**Plans**: 1 plan (review-and-ship of pre-written code)
+Plans:
+
+- [ ] 55-01-PLAN.md — Review the uncommitted GA4 diff (focus 12-checkout.js), re-run FE+middleware gates + lint, confirm/add products.html GTM tag, commit as one change, push staging, GA4 DebugView UAT, promote to prod after approval (ANALYTICS-01)
+
+**Note**: The GTM-side wiring (3 GA4 event tags + triggers + DLV variables) is NOT code — it lives in Phase 56. The site events are inert until those tags exist.
+
+### Phase 56: GTM Container Quality & Ads Measurement (config, mostly non-code)
+
+**Goal**: The GTM container (`GTM-NHRCGLC5`) sends the site's ecommerce events to GA4 and the flagged container-quality/Ads-measurement gaps are closed, so `purchase` becomes a populated GA4 key event and Google Ads (`AW-18091171314`) attribution is complete.
+**Depends on**: Phase 55 (the site must push the events before the GTM tags have anything to read)
+**Requirements**: ANALYTICS-02
+**Success Criteria** (what must be TRUE):
+
+  1. Three GA4 Event tags (`add_to_cart`, `begin_checkout`, `purchase`) with matching Custom Event triggers and Data Layer Variables (`ecommerce.value/currency/transaction_id/items`), "Send Ecommerce data" = from Data Layer, tested in GTM Preview against staging before publish
+  2. A Conversion Linker tag fires on All Pages (fixes the highest-priority GTM diagnostic)
+  3. A Google tag for the Ads destination `AW-18091171314` is present (or the existing Google tag also loads it)
+  4. After data flows, `purchase` is marked a GA4 key event; a second GTM account admin is added
+  5. The pending Metricool tag is consciously decided at publish, and the container publish respects the RUNBOOK Stage-3 CSP↔GTM ordering (prod CSP live before publishing)
+
+**Plans**: TBD (mostly human-action in the GTM/GA4 UI; scaffold when Phase 55 ships)

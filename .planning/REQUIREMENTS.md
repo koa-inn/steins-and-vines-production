@@ -84,6 +84,8 @@ Phases risk-ordered: containment (SEC) → de-fork backbone → correctness (MON
 | MONEY-03 | Phase 51 | Pending (depends on KIOSK-01) |
 | RESIL-01 | Phase 52 | Complete |
 | OBS-01 | Phase 53 | Complete |
+| ANALYTICS-01 | Phase 55 | Pending (code written, uncommitted — review-and-ship) |
+| ANALYTICS-02 | Phase 56 | Pending (GTM/Ads config, mostly non-code) |
 
 **Coverage:**
 - v1 requirements: 8 total
@@ -91,5 +93,14 @@ Phases risk-ordered: containment (SEC) → de-fork backbone → correctness (MON
 - Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-07-03*
-*Last updated: 2026-07-03 — v4.5 Security & Money-Path Closeout scoped from the 2026-07-02 whole-repo audit.*
+
+## v4.6 Requirements (Analytics & Conversion Tracking)
+
+**Defined:** 2026-07-10. **Source:** `Claude-Code-Prompt-Ecommerce-Tracking.md` + `Steins-and-Vines-GA4-Purchase-Tracking-Plan.md` (Google Drive Reports). GA4 `G-WDYSXCM703`, GTM `GTM-NHRCGLC5`, Google Ads `AW-18091171314`. Unlike v4.5 (hardening), this milestone adds measurement — but the site code is analytics-only and must never alter the payment/charge/cart path.
+
+- [ ] **ANALYTICS-01** (Phase 55): The custom cart/checkout pushes GA4-schema `add_to_cart`, `begin_checkout`, and `purchase` events into the `dataLayer`. `purchase` fires only on confirmed Helcim success (single + dual-cart paths), exactly once per order (dedup by `transaction_id`), before cart/idempotency state is cleared; analytics is wrapped so it can never throw into checkout. Shipped from the pre-written uncommitted implementation after review + green gates + a staging GA4 DebugView UAT; no payment/charge/cart logic altered. Includes the `products.html` GTM-snippet fix (live untagged page).
+- [ ] **ANALYTICS-02** (Phase 56): The GTM container sends those events to GA4 (3 event tags + triggers + DLV variables) and the flagged container-quality/Ads gaps are closed — Conversion Linker on All Pages, a Google tag for Ads `AW-18091171314`, `purchase` marked a GA4 key event, a 2nd GTM admin, and a conscious Metricool-tag decision at publish respecting the RUNBOOK Stage-3 CSP↔GTM ordering. Mostly human-action in the GTM/GA4 UI.
+
+---
+*Requirements defined: 2026-07-03 (v4.5); 2026-07-10 (v4.6 analytics)*
+*Last updated: 2026-07-10 — added v4.6 Analytics & Conversion Tracking (ANALYTICS-01/02).*
