@@ -200,9 +200,15 @@ function injectProductSchema(product, productType) {
   var cleanedPrice = parseFloat(String(rawPrice).replace(/[^0-9.]/g, '')) || 0;
   if (cleanedPrice <= 0) return; // skip zero-price items
 
-  // Avoid duplicate injection
+  // Avoid duplicate injection. skuAttr can contain characters that are special
+  // inside a CSS attribute selector (e.g. a product name with inch marks:
+  // Muslin Strainer Bags (5" x 15")). Escape it before building the selector so
+  // querySelector never throws a SyntaxError into the catalog render path.
   var skuAttr = product.sku || (product.name + '-nsku');
-  var existing = document.querySelector('script[data-schema-sku="' + skuAttr + '"]');
+  var escapedAttr = (typeof CSS !== 'undefined' && CSS.escape)
+    ? CSS.escape(skuAttr)
+    : skuAttr.replace(/["\\]/g, '\\$&');
+  var existing = document.querySelector('script[data-schema-sku="' + escapedAttr + '"]');
   if (existing) return;
 
   // Determine availability
