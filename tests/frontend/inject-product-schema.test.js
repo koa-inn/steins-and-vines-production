@@ -52,4 +52,18 @@ describe('injectProductSchema — selector safety', () => {
     expect(() => injectProductSchema(product, 'ingredient')).not.toThrow();
     expect(document.head.querySelectorAll('script[data-schema-sku]').length).toBe(1);
   });
+
+  // Error-boundary hardening: the helper is decorative SEO markup and must never
+  // throw into the catalog render path, even if the DOM injection itself fails.
+  test('never throws even if DOM injection fails internally (best-effort by contract)', () => {
+    const orig = document.head.appendChild.bind(document.head);
+    document.head.appendChild = () => { throw new Error('simulated DOM failure'); };
+    try {
+      expect(() =>
+        injectProductSchema({ name: 'Anything', price_per_unit: '9.99', stock: '4' }, 'ingredient')
+      ).not.toThrow();
+    } finally {
+      document.head.appendChild = orig;
+    }
+  });
 });

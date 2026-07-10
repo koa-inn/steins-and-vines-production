@@ -129,9 +129,12 @@ function loadIngredients(callback) {
       wireIngredientEvents();
       renderIngredients();
       if (callback) callback();
-    })
-    .catch(function () {
-      // Both middleware and snapshot failed — show error state with retry
+    }, function () {
+      // Data fetch genuinely failed (middleware AND snapshot rejected). ONLY
+      // this path shows the connection-error banner. A throw during render above
+      // is a code bug, not a connectivity problem, so it is deliberately NOT
+      // caught here — otherwise a render bug masquerades as "check your
+      // connection" while the data actually loaded fine (see 202744d incident).
       var catalog = document.getElementById('product-catalog');
       if (catalog) {
         catalog.innerHTML = '';

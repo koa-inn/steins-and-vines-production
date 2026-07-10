@@ -228,8 +228,10 @@ function loadSubpageItems(callback) {
       }
 
       if (callback) callback();
-    })
-    .catch(function () {
+    }, function () {
+      // Only a genuine data-fetch failure shows the error state. A throw during
+      // render (callback) is a code bug, not a fetch failure, and must not be
+      // mislabeled here (see 202744d incident).
       showError(catalog);
     });
 }

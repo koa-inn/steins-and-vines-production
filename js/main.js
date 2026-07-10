@@ -291,6 +291,15 @@ function parseCSVLine(line) {
 // Uses data-schema-sku to avoid duplicate injection for the same SKU.
 // productType: 'kit' | 'ingredient' | 'service'
 function injectProductSchema(product, productType) {
+  // Decorative JSON-LD for SEO only — must NEVER throw into the catalog render
+  // path. A malformed value (e.g. a product name that breaks a selector) once
+  // crashed the entire product grid; this helper is best-effort by contract.
+  try {
+    injectProductSchemaImpl(product, productType);
+  } catch (e) { /* SEO markup is non-critical; never break render */ }
+}
+
+function injectProductSchemaImpl(product, productType) {
   if (!product || !product.name) return;
 
   // Clean and parse price
@@ -3341,9 +3350,12 @@ function loadIngredients(callback) {
       wireIngredientEvents();
       renderIngredients();
       if (callback) callback();
-    })
-    .catch(function () {
-      // Both middleware and snapshot failed — show error state with retry
+    }, function () {
+      // Data fetch genuinely failed (middleware AND snapshot rejected). ONLY
+      // this path shows the connection-error banner. A throw during render above
+      // is a code bug, not a connectivity problem, so it is deliberately NOT
+      // caught here — otherwise a render bug masquerades as "check your
+      // connection" while the data actually loaded fine (see 202744d incident).
       var catalog = document.getElementById('product-catalog');
       if (catalog) {
         catalog.innerHTML = '';

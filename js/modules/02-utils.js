@@ -188,6 +188,15 @@ function parseCSVLine(line) {
 // Uses data-schema-sku to avoid duplicate injection for the same SKU.
 // productType: 'kit' | 'ingredient' | 'service'
 function injectProductSchema(product, productType) {
+  // Decorative JSON-LD for SEO only — must NEVER throw into the catalog render
+  // path. A malformed value (e.g. a product name that breaks a selector) once
+  // crashed the entire product grid; this helper is best-effort by contract.
+  try {
+    injectProductSchemaImpl(product, productType);
+  } catch (e) { /* SEO markup is non-critical; never break render */ }
+}
+
+function injectProductSchemaImpl(product, productType) {
   if (!product || !product.name) return;
 
   // Clean and parse price
