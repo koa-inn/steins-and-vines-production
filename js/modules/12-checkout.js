@@ -1857,6 +1857,15 @@ function setupReservationForm() {
     _checkoutSubmitting = true;
     if (!_helcimTransactionId) {
       _checkoutIdempotencyKey = generateIdempotencyKey();
+      // GA4 funnel: fire begin_checkout once, on the initial submit only.
+      // (Payment re-entry sets _helcimTransactionId, so this block is skipped then.)
+      var _bcItems = getAllCartItems();
+      var _bcValue = 0;
+      for (var _bci = 0; _bci < _bcItems.length; _bci++) {
+        var _bcP = parseFloat(String(_bcItems[_bci].price || '0').replace(/[^0-9.]/g, '')) || 0;
+        _bcValue += _bcP * (parseFloat(_bcItems[_bci].qty) || 1);
+      }
+      ga4BeginCheckout(_bcItems, _bcValue);
     }
 
     // Dual-cart path: both carts have items and no specific ?cart= was supplied
@@ -1931,6 +1940,14 @@ function setupReservationForm() {
             submitDualCart(contactData, dualToken,
               function (results) {
                 _checkoutSubmitting = false;
+                // GA4: fire purchase once on confirmed dual-cart success, before carts are cleared.
+                var _pFermentItems = getReservation(FERMENT_CART_KEY);
+                var _pIngItems = results.ingredientFailed ? [] : getReservation(INGREDIENT_CART_KEY);
+                var _pTxn = (results.ferment && (results.ferment.salesorder_number || results.ferment.order_number))
+                  || (results.ingredient && (results.ingredient.salesorder_number || results.ingredient.order_number))
+                  || txnId || _checkoutIdempotencyKey;
+                ga4Purchase(_pTxn, _dualCharge, null,
+                  toGa4Items(_pFermentItems, 'Ferment Sessions').concat(toGa4Items(_pIngItems, 'Ingredients & Supplies')));
                 clearPaymentCooldown();
                 _helcimTransactionId = null;
                 _helcimCheckoutToken = null;
@@ -2120,6 +2137,9 @@ function setupReservationForm() {
         if (!oR || (!oR.ok && !oR.success)) {
           throw new Error(oR && oR.error ? oR.error : 'Checkout failed. Please try again or call us.');
         }
+
+        // GA4: fire purchase once on confirmed success, before cart/idempotency state is cleared.
+        ga4Purchase((oR && oR.salesorder_number) || _checkoutIdempotencyKey, charge, tax, toGa4Items(items));
 
         clearPaymentCooldown();
         _helcimTransactionId = null;

@@ -1484,6 +1484,7 @@ function renderKitBuyControl(wrap, product) {
     buyBtn.addEventListener('click', function () {
       setReservationQty(kitProduct, 1);
       trackEvent('add_to_cart', product.sku || '', product.name + ' (kit)');
+      ga4AddToCart(kitProduct, 1);
       renderKitBuyControl(wrap, product);
     });
     wrap.appendChild(buyBtn);

@@ -214,6 +214,7 @@ function renderReserveControl(wrap, product, productKey) {
       reserveBtn.addEventListener('click', function () {
         setReservationQty(product, 1);
         trackEvent('add_to_cart', product.sku || '', product.name || '');
+        ga4AddToCart(product, 1);
         renderReserveControl(wrap, product, productKey);
       });
     }
@@ -341,6 +342,7 @@ function renderWeightControl(wrap, product, productKey) {
     addBtn.addEventListener('click', function () {
       setReservationQty(product, minVal);
       trackEvent('add_to_cart', product.sku || '', product.name || '');
+      ga4AddToCart(product, minVal);
       renderWeightControl(wrap, product, productKey);
     });
     wrap.appendChild(addBtn);
@@ -523,6 +525,7 @@ function renderWeightControl(wrap, product, productKey) {
     var amt = snapVal(parseFloat(numInput.value) || minVal);
     setReservationQty(product, amt);
     trackEvent('add_to_cart', product.sku || '', product.name || '');
+    ga4AddToCart(product, amt);
     renderWeightControl(wrap, product, productKey);
   });
 
@@ -572,6 +575,7 @@ function renderWeightControlCompact(wrap, product, productKey) {
     addBtn.addEventListener('click', function () {
       setReservationQty(product, minVal);
       trackEvent('add_to_cart', product.sku || '', product.name || '');
+      ga4AddToCart(product, minVal);
       renderWeightControlCompact(wrap, product, productKey);
     });
     wrap.appendChild(addBtn);
@@ -690,6 +694,7 @@ function renderWeightControlCompact(wrap, product, productKey) {
     var amt = snapVal(parseFloat(numInput.value) || minVal);
     setReservationQty(product, amt);
     trackEvent('add_to_cart', product.sku || '', product.name || '');
+    ga4AddToCart(product, amt);
     renderWeightControlCompact(wrap, product, productKey);
   });
 
