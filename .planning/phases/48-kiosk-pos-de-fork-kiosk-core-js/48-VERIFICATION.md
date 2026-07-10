@@ -1,8 +1,9 @@
 ---
 phase: 48-kiosk-pos-de-fork-kiosk-core-js
 verified: 2026-07-04T16:40:00Z
-status: human_needed
-score: 8/9 must-haves verified (1 human-verification gate pending, 1 disclosed narrow exception accepted as WARNING not blocker)
+status: passed
+score: 9/9 — human gate closed by 2026-07-10 iPad UAT (standalone surface live-verified; admin-surface owner-waived w/ automated parity coverage); 22/22 threats secured (48-SECURITY.md)
+human_gate_closed: 2026-07-10
 overrides_applied: 0
 human_verification:
   - test: "Full kiosk sale (product + recipe + product-type discount) from BOTH the standalone kiosk URL and the admin-embedded kiosk tab on staging, iPad Safari"

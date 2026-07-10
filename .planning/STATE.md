@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: milestone_complete
-stopped_at: Milestone complete (Phase 54 was final phase)
-last_updated: 2026-07-08T21:14:46.669Z
+status: ready_to_plan
+stopped_at: Phase 48 complete (5/6) — ready to discuss Phase 49
+last_updated: 2026-07-10T19:50:20.463Z
 last_activity: 2026-07-08
 progress:
   total_phases: 40
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Milestone complete
+**Current focus:** Phase 49 — online captured amount verification
 
 ## Current Position
 
-Phase: 54
+Phase: 49
 Plan: Not started
-Milestone: v4.5 Security & Money-Path Closeout. Done: 46 (SEC-02 ✅), 47 (SEC-01 ✅), 52 (RESIL-01 ✅), 53 (OBS-01 ✅). Phase 48 (KIOSK-01) code done + on staging, awaiting iPad UAT. **Phase 54 (owner-requested) is the active next-to-plan — lands before the Phase 48 iPad UAT so both are verified together.** Remaining after: 48 UAT + verify, 49-02 live-card UAT, 50/51 (blocked on 48).
-Status: Milestone complete
-Last activity: 2026-07-08
+Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 `milestone_complete` flag was false; corrected 2026-07-10). Done: 46 (SEC-02 ✅), 48 (KIOSK-01 ✅ — de-fork live-verified standalone 2026-07-10, 22/22 threats secured), 52 (RESIL-01 ✅), 53 (OBS-01 ✅), 54 (kiosk gift-card mgmt ✅ — UAT+security closed 2026-07-10). **Open phases:** 47 (SEC-01 — STATE narrative says closed-on-staging but ROADMAP checkbox is still `[ ]`; needs owner reconciliation), 49 (MONEY-01 — 49-01 code merged, 49-02 live-card UAT pending), 50 (MONEY-02) + 51 (MONEY-03) — both now UNBLOCKED (were gated on 48). 50/51 also depend on the money-path-primitive adoption in pos-recipe.js.
+Status: Ready to plan
+Last activity: 2026-07-10
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
@@ -41,7 +41,7 @@ Last activity: 2026-07-08
 
 **Velocity:**
 
-- Total plans completed: 61 (prior milestone v4.1) + 11 (v4.2)
+- Total plans completed: 66 (prior milestone v4.1) + 11 (v4.2)
 - Average duration: 3 min
 - Total execution time: ~3 hrs
 
@@ -125,7 +125,12 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-08T21:04:01.660Z
+Last session: 2026-07-10
+Stopped at: Phases 48 + 54 fully closed — iPad UAT run (standalone), Fix 1 shipped to prod middleware (break-glass 54291bc / tag prod-20260710-1), 9 test invoices + 11 payments deleted from Zoho, Phase 48 secured (22/22 threats), ROADMAP/STATE/REQUIREMENTS reconciled + false milestone_complete flag corrected. Consumed HANDOFF.json + root .continue-here.md deleted.
+Open threads: (1) v4.5 Phase 47 SEC-01 checkbox vs narrative mismatch — owner reconcile; (2) Phases 49/50/51 remain in v4.5; (3) Metricool GTM tag publish (RUNBOOK Stage-3); (4) GiftCards Google Sheet tidy for GC-000001; (5) NEW: GA4 e-commerce tracking (review-and-ship) — uncommitted in working tree, being set up as its own GSD phase.
+Resume file: None
+
+### Prior session (2026-07-08T21:04:01.660Z)
 Stopped at: Completed 54-03-PLAN.md (Phase 54 complete)
 
 ### Prior session (2026-07-03T19:12:01.492Z)

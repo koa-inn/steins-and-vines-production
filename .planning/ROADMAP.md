@@ -103,7 +103,7 @@
 
 - [x] **Phase 46: Auth Re-Architecture** — carried over as v4.5 SEC-02 (existing phase, not re-planned); ✅ COMPLETE 2026-07-08 — owner cutover done, all 3 surfaces verified, `API_SECRET_KEY` rotated → leaked key dead (403). Closes SEC-02.
 - [ ] **Phase 47: Purge Publicly-Served Internal Docs** - untrack `.planning/`/audit docs from staging+prod, reconcile `.nojekyll` vs `_config.yml` exclude (SEC-01)
-- [ ] **Phase 48: Kiosk POS De-Fork (kiosk-core.js)** - shared `js/kiosk-core.js`, behaviour-preserving, parity-tested, discount on both surfaces (KIOSK-01) — rehomed from v4.4 Phase 42
+- [x] **Phase 48: Kiosk POS De-Fork (kiosk-core.js)** - shared `js/kiosk-core.js`, behaviour-preserving, parity-tested, discount on both surfaces (KIOSK-01) — rehomed from v4.4 Phase 42 (completed 2026-07-10: 5/6 plans + human UAT gate satisfied + 22/22 threats secured)
 - [ ] **Phase 49: Online Captured-Amount Verification** - assert captured card amount ≥ recorded/invoiced total before booking; void + reject on mismatch (MONEY-01)
 - [ ] **Phase 50: Kiosk Money-Path Defect Closeout** - reconcile TTL/lock-release/void-status/salesorder-pay/sweep fixes, `pos-recipe.js` adopts money-path primitives (MONEY-02)
 - [ ] **Phase 51: Gift-Card Ledger Integrity** - idempotent reload, durable needs_manual_review, cell sanitizer, header-mapped issueGiftCard, tax parity (MONEY-03)
@@ -699,7 +699,7 @@ Plans:
 | 42. Kiosk POS De-Fork (kiosk-core.js) → rehomed to v4.5 Phase 48 (KIOSK-01) | v4.4 | 0/? | Not started | - |
 | 46. Auth Re-Architecture | v4.5 (carryover, SEC-02) | 10/10 | ✅ Complete — cutover done, all surfaces verified, leaked key rotated dead (403) | 2026-07-08 |
 | 47. Purge Publicly-Served Internal Docs | v4.5 | 1/1 | ✅ Closed on staging (verified 2026-07-03); prod audit-doc at next prod deploy | 2026-07-03 |
-| 48. Kiosk POS De-Fork (kiosk-core.js) | v4.5 | 5/6 | In Progress|  |
+| 48. Kiosk POS De-Fork (kiosk-core.js) | v4.5 | 5/6 | Complete    | 2026-07-10 |
 | 49. Online Captured-Amount Verification | v4.5 | 1/2 | 49-01 done (H2 fix + 13-test regression, suite green); 49-02 live-card UAT pending deploy | - |
 | 50. Kiosk Money-Path Defect Closeout | v4.5 | 0/? | Not started | - |
 | 51. Gift-Card Ledger Integrity | v4.5 | 0/? | Not started | - |

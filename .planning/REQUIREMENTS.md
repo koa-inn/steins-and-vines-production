@@ -21,7 +21,7 @@ containment → correctness → fail-closed sweep → signal.
 
 ### Kiosk Architecture
 
-- [ ] **KIOSK-01** (audit §4 backbone; rehomed from v4.4 #14): The kiosk POS logic exists in a single shared implementation (`js/kiosk-core.js`) consumed by both the standalone kiosk (`kiosk.js`) and the admin-embedded kiosk (`admin.js`), so the cart and payment/checkout paths can no longer diverge. Behaviour-preserving: existing kiosk money-path behaviour (terminal charge, Zoho invoice/payment, void-on-failure, dual-cart) is unchanged and verified by the existing kiosk tests plus an admin-vs-kiosk parity check; the product-type discount is identical on both surfaces. Audit §4 identifies this as the structural backbone that lets the kiosk void-on-failure **synchronously** like `checkout.js` — the prerequisite that makes MONEY-02/03 durable rather than another async backstop patch.
+- [x] **KIOSK-01** (audit §4 backbone; rehomed from v4.4 #14): The kiosk POS logic exists in a single shared implementation (`js/kiosk-core.js`) consumed by both the standalone kiosk (`kiosk.js`) and the admin-embedded kiosk (`admin.js`), so the cart and payment/checkout paths can no longer diverge. Behaviour-preserving: existing kiosk money-path behaviour (terminal charge, Zoho invoice/payment, void-on-failure, dual-cart) is unchanged and verified by the existing kiosk tests plus an admin-vs-kiosk parity check; the product-type discount is identical on both surfaces. Audit §4 identifies this as the structural backbone that lets the kiosk void-on-failure **synchronously** like `checkout.js` — the prerequisite that makes MONEY-02/03 durable rather than another async backstop patch.
 
 ### Money-Path Correctness
 
@@ -78,7 +78,7 @@ Phases risk-ordered: containment (SEC) → de-fork backbone → correctness (MON
 |-------------|-------|--------|
 | SEC-01 | Phase 47 | Pending (H1 confirmed live) |
 | SEC-02 | Phase 46 | ✅ Complete (2026-07-08) — cutover done, leaked key rotated dead (403) |
-| KIOSK-01 | Phase 48 | Pending (rehomed from Phase 42) |
+| KIOSK-01 | Phase 48 | ✅ Complete (2026-07-10) — de-fork verified (standalone UAT live), 22/22 threats secured; admin-surface UAT owner-waived w/ automated parity coverage |
 | MONEY-01 | Phase 49 | Pending |
 | MONEY-02 | Phase 50 | Pending (depends on KIOSK-01) |
 | MONEY-03 | Phase 51 | Pending (depends on KIOSK-01) |
