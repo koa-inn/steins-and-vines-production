@@ -21,7 +21,8 @@ Use the blessed path unless something is actively broken and you need to ship a 
 
 ## Pending Production Promotions (on staging, awaiting next prod deploy)
 
-Production is at end of the v4.5 auth-cutover Stage 1 (`origin/main` phases 46–53).
+Production is at v4.5 auth-cutover Stage 1 (`origin/main` phases 46–53) **plus the
+2026-07-10 break-glass hotfix** (Fix 1, `54291bc`, tag `prod-20260710-1`).
 The items below are on **staging** (`origin/main`) but **not yet on production** — they
 ride the next coupled prod deploy (Stage 3 of `PROD-CUTOVER-v4.5-PLAN.md`). Do them as a
 batch after the iPad UAT passes.
@@ -31,7 +32,14 @@ batch after the iPad UAT passes.
 | **Phase 48** — kiosk POS de-fork (`kiosk-core.js`) | ✅ | Gate on iPad UAT (standalone kiosk). |
 | **Phase 54** — kiosk gift-card management (lookup + void; device-token `gift-card/void` scope, D-54-GC) | ✅ | Gate on iPad UAT. Money-path/auth change — eyes on Sentry after. |
 | **Kiosk device-token "Back" button** fix (Device-Settings trap escape) | ✅ | Frontend only; no middleware impact. |
+| **Kiosk load resilience** (`36bf00c`) — keep last-good product/recipe grid when a refresh fails | ✅ | Frontend only. The *other* half of the blank-products bug; its middleware half (Fix 1) already shipped standalone on 2026-07-10. |
+| **Kiosk cart "Clear" customer button** (`05800a4`) | ✅ | Frontend only; no middleware impact. |
 | **Metricool CSP allowlist** (`tracker.metricool.com` in `script-src` + `connect-src`, 15 public pages) | ✅ | ⚠ **See ordering below — coordinate with the GTM publish.** |
+
+> **Already on production (do not re-litigate):** Fix 1 — `device` tier allowed on
+> `/api/kiosk/products?bust=1` (`0d9fe73` on staging = `54291bc` on production). Shipped
+> break-glass on 2026-07-10 because the live store kiosk was degraded. It is an ancestor
+> of staging `main`, so the Stage 3 deploy is a no-op for it.
 
 ### Stage 3 checklist — Metricool (CSP ↔ GTM ordering)
 
@@ -54,6 +62,7 @@ error + no tracking, but avoid it):
 
 | Date | Git SHA | Railway Deploy ID | Deploy URL | Notes |
 |------|---------|-------------------|------------|-------|
+| 2026-07-10 14:24 UTC | `54291bc` | `manual` | break-glass (no Actions run) | **Break-glass hotfix** — Fix 1 only: allow `device` tier on `/api/kiosk/products?bust=1` (`0d9fe73` cherry-picked onto `21b0c428`). Tag `prod-20260710-1`. Deliberately does NOT carry Phases 48/54, Metricool CSP, or the Back button. Gates run locally: middleware 1251 tests, lint, `npm audit --omit=dev` clean. Post-deploy `/health` 200 redis=true; Railway uptime reset confirmed. |
 | 2026-07-08 18:02 UTC | `21b0c428` | `f6a45777-13ef-4516-a6a9-50f28c345f8b` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/28964582252) | v4.5 auth cutover Stage 1 — deploy origin/main (phases 46-53), excludes Phase 48 |
 | 2026-06-27 20:46 UTC | `3d770f29` | `31585f6d-cd04-4785-9b46-ecf34303a481` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/28301299186) | Promote v4.4: recipe cart-collision undercharge fix + imperial scaling + Phase 43 custom line item + Phases 39/41 |
 | 2026-06-26 21:50 UTC | `50465bc6` | `ca24b052-023e-40ad-9c1c-9200d648a0d2` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/28267197386) | Hotfix: kiosk customer-search x-api-key (prod-down) + promote v4.4 discount feature + facility image optimization |
