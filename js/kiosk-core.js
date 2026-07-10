@@ -787,7 +787,10 @@
 
     var url = mwUrl + '/api/kiosk/products' + (forceRefresh ? '?bust=1' : '');
     fetch(url, _kcMergeAuth({}))
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
       .then(function (data) {
         _kioskProducts = data.items || [];
         _kioskProductsLoaded = true;
@@ -797,6 +800,13 @@
       })
       .catch(function (err) {
         _kioskProductsLoading = false;
+        // Resilience: a failed refresh (e.g. a bust=1 request the server
+        // rejects) must NOT wipe the grid. Keep the last-good products and
+        // the loaded flag; only surface an error when we have nothing to show.
+        if (_kioskProductsLoaded && _kioskProducts.length) {
+          kioskRenderProducts();
+          return;
+        }
         var grid2 = document.getElementById('kiosk-product-grid');
         if (grid2) grid2.innerHTML = '<p class="kiosk-loading">Failed to load products: ' + err.message + '</p>';
       });
@@ -815,7 +825,10 @@
     if (grid) grid.innerHTML = '<p class="kiosk-loading">Loading recipes...</p>';
     var mw = _kcEnv.mwUrl;
     fetch(mw + '/api/recipes?status=active', _kcMergeAuth({}))
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
       .then(function (data) {
         _kioskRecipes = data.recipes || [];
         _kioskRecipesLoaded = true;
@@ -824,6 +837,13 @@
       })
       .catch(function (err) {
         _kioskRecipesLoading = false;
+        // Resilience: a failed refresh must NOT wipe the grid. Keep the
+        // last-good recipes and the loaded flag; only surface an error when
+        // we have nothing to show.
+        if (_kioskRecipesLoaded && _kioskRecipes.length) {
+          kioskRenderRecipes();
+          return;
+        }
         var grid2 = document.getElementById('kiosk-recipe-grid');
         if (grid2) grid2.innerHTML = '<p class="kiosk-loading">Failed to load recipes: ' + err.message + '</p>';
       });
