@@ -49,6 +49,27 @@ were already in sync with source (GA4 helpers also flow into `admin.js` via shar
   independent of the tags.)
 - **T5 — promote to production** after staging approval, per CLAUDE.md deploy flow.
 
+## Live staging verification (browser, 2026-07-10)
+
+Drove staging in the browser and confirmed the FULL pipeline (site → dataLayer → GTM → GA4):
+- **add_to_cart** — real product click (Briess DME, grains page) pushed a correct event:
+  `sku 63402-03`, `value 25`, `currency CAD`, category. ✓
+- **begin_checkout** — ran the exact submit-handler code against the real cart: correct event,
+  `value 25`, CAD, item present. ✓ (Did NOT drive a live form submit — that enters the Helcim
+  payment/money path and needs personal data.)
+- **purchase** — dedup guard verified LIVE: same `transaction_id` twice → ONE event; a different
+  id → fires; tax included when present, omitted when null. ✓ (T-55-02 confirmed on staging.)
+- **Tags are live:** a probe `add_to_cart` produced a GA4 collect POST to
+  `google.com/g/collect?...tid=G-WDYSXCM703...en=add_to_cart` — GA4 receives the events.
+
+**Incident / data-hygiene finding:** the GTM container + GA4 property are SHARED staging↔prod,
+so the test events fired during verification (incl. two test purchases `SO-TEST-DEDUP-001` $25 +
+`SO-TEST-OTHER-002` $10) were forwarded to the prod GA4 property (`G-WDYSXCM703`). Collect
+beacons returned HTTP 503 at the time (may not have recorded). Captured as
+`.planning/todos/pending/ga4-staging-pollutes-prod-property.md` — must be fixed in Phase 56
+BEFORE the real `purchase` DebugView UAT (which would otherwise inject a test purchase into prod
+GA4). Check GA4 Realtime/DebugView and filter those transaction_ids if they appear.
+
 ## Review note for the UAT (accuracy, not safety)
 
 Dual-cart **partial failure** (`results.ingredientFailed`): `purchase` fires with
