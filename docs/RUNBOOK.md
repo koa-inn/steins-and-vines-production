@@ -62,6 +62,7 @@ error + no tracking, but avoid it):
 
 | Date | Git SHA | Railway Deploy ID | Deploy URL | Notes |
 |------|---------|-------------------|------------|-------|
+| 2026-07-10 22:27 UTC | `43b6c5c5` | `0a7eae08-cc2e-4073-bfe1-baeef75a06cd` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/29127742148) | Stage-3 cutover: Phases 48+54 + kiosk fixes + Metricool CSP + GA4 |
 | 2026-07-10 14:24 UTC | `54291bc` | `manual` | break-glass (no Actions run) | **Break-glass hotfix** — Fix 1 only: allow `device` tier on `/api/kiosk/products?bust=1` (`0d9fe73` cherry-picked onto `21b0c428`). Tag `prod-20260710-1`. Deliberately does NOT carry Phases 48/54, Metricool CSP, or the Back button. Gates run locally: middleware 1251 tests, lint, `npm audit --omit=dev` clean. Post-deploy `/health` 200 redis=true; Railway uptime reset confirmed. |
 | 2026-07-08 18:02 UTC | `21b0c428` | `f6a45777-13ef-4516-a6a9-50f28c345f8b` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/28964582252) | v4.5 auth cutover Stage 1 — deploy origin/main (phases 46-53), excludes Phase 48 |
 | 2026-06-27 20:46 UTC | `3d770f29` | `31585f6d-cd04-4785-9b46-ecf34303a481` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/28301299186) | Promote v4.4: recipe cart-collision undercharge fix + imperial scaling + Phase 43 custom line item + Phases 39/41 |
