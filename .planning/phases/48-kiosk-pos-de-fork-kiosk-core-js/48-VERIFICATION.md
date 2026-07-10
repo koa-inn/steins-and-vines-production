@@ -164,3 +164,37 @@ The remaining path to `status: passed` is exclusively the human-verification gat
 
 _Verified: 2026-07-04T16:40:00Z_
 _Verifier: Claude (gsd-verifier)_
+
+---
+
+## UAT Closure (2026-07-10 — iPad Safari, standalone kiosk)
+
+The SC#5 human gate was exercised on real hardware (staging → PROD middleware, live
+Helcim terminal). Results recorded in `48-HUMAN-UAT.md`. Mapping to the 6 human-verification
+items above:
+
+| Human item | Result | Notes |
+|---|---|---|
+| 1. Full-sale (product+recipe+discount) | **PASS (standalone)** | Terminal charged, receipt shown, Zoho invoice/payment booked. Ran during the 2026-07-09 evening sitting; invoices since deleted as test data. Admin-surface half NOT exercised. |
+| 2. Dual-cart / SO import | **SKIPPED** | Not run live; relies on `kiosk-core-parity.test.js`. |
+| 3. Void-on-failure | **PASS** | Terminal failure forced; `payment_voided` rendered; nothing orphaned. |
+| 4. Manager Override (D-07) | **PASS (standalone)** | Previously-dead standalone override now works: 409 → override → success. Admin-surface half NOT exercised. |
+| 5. Admin modified_ingredients pricing | **NOT RUN** | Admin surface — out of scope. |
+| 6. Admin single-batch | **NOT RUN** | Admin surface — out of scope. |
+
+**Owner-accepted scope narrowing (standalone-only UAT):** the admin-embedded kiosk is not
+used for sales in practice (owner runs everything from the standalone kiosk), so the
+admin-surface human items (#5, #6, and the admin halves of #1/#4) were consciously waived.
+Those admin paths remain covered by the automated parity test (`kiosk-core-parity.test.js`,
+3/3 passing), not by live hardware. This mirrors the Phase-48 roadmap scoping already
+recorded in STATE.md and the Phase 54 coupling.
+
+**Money-path integrity:** no orphaned charges — all UAT terminal charges were test sales,
+refunded in Helcim, with their Zoho invoices/payments deleted during 2026-07-10 cleanup.
+
+**Remaining gate to `status: passed`:** `/gsd:secure-phase 48`. Phase 48 de-forked the
+kiosk money path and has NO SECURITY.md; security_enforcement is on, so verify-work will
+not auto-advance the phase (or the milestone) until the security review runs. This is the
+single blocker — the UAT gate is satisfied for the in-scope (standalone) surface.
+
+_UAT closure recorded: 2026-07-10_
