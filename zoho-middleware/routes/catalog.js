@@ -801,11 +801,15 @@ router.get('/api/kiosk/products', function (req, res) {
   var bustCache = req.query.bust === '1';
 
   // M7 (Phase 52-05): ?bust=1 forces a cold Zoho refetch — gate ONLY this
-  // branch behind a credential (admin-grade, matches the /api/orders/recent
-  // precedent) so an anon caller cannot repeatedly exhaust Zoho quota. The
-  // normal cached read below stays public.
+  // branch behind a credential so an anon caller cannot repeatedly exhaust Zoho
+  // quota. The normal cached read below stays public.
+  // D-54-BUST (2026-07-09): 'device' MUST be allowed. The kiosk's own post-sale
+  // force-refresh (`kioskLoadProducts(true)` → `?bust=1`) runs under the device
+  // token after the Phase 46 cutover; gating to legacy/session only made that
+  // 403, so stock never refreshed without a manual page reload. A valid device
+  // token is still authenticated (not anon), so the anti-quota-abuse intent holds.
   if (bustCache) {
-    return authTiers.requireTiers(['legacy', 'session'])(req, res, function () { return proceed(); });
+    return authTiers.requireTiers(['legacy', 'session', 'device'])(req, res, function () { return proceed(); });
   }
   return proceed();
 

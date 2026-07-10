@@ -143,6 +143,25 @@ describe('GET /api/kiosk/products?bust=1 — requires a credential (M7)', functi
     });
   });
 
+  // D-54-BUST: the kiosk's own post-sale force-refresh runs under the device
+  // token (Phase 46 cutover). It MUST be allowed to bust — otherwise stock never
+  // refreshes without a manual reload. A valid device token is still authenticated,
+  // so the anti-anon-quota intent (M7) holds.
+  test('WITH a valid device token → bust path proceeds (cache busted), not 403', function () {
+    var OLD_DEVICE = process.env.KIOSK_DEVICE_TOKEN;
+    process.env.KIOSK_DEVICE_TOKEN = 'test-kiosk-device-token';
+    mocks.cache.get.mockResolvedValue(null);
+    return callHandler('/api/kiosk/products', {
+      query: { bust: '1' },
+      headers: { 'x-device-token': 'test-kiosk-device-token' }
+    }).then(function (res) {
+      expect(res._status).not.toBe(401);
+      expect(res._status).not.toBe(403);
+      expect(mocks.cache.del).toHaveBeenCalled();
+      process.env.KIOSK_DEVICE_TOKEN = OLD_DEVICE;
+    });
+  });
+
   test('normal read (no bust) stays public — 200 with no credential', function () {
     mocks.cache.get.mockResolvedValue([{ item_id: 'i1' }]);
     return callHandler('/api/kiosk/products', { query: {}, headers: {} }).then(function (res) {
