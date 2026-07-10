@@ -1193,6 +1193,7 @@
     var custInput = document.getElementById('kiosk-cart-cust-input');
     var custResults = document.getElementById('kiosk-cart-cust-results');
     var custLabel = document.getElementById('kiosk-cart-customer-label');
+    var custClearBtn = document.getElementById('kiosk-cart-customer-clear');
     var custSearchTimer = null;
 
     function updateCustomerLabel() {
@@ -1200,10 +1201,23 @@
       if (_kioskCustomer) {
         custLabel.textContent = 'Customer: ' + (_kioskCustomer.name || _kioskCustomer.email || 'Selected');
         if (custBtn) custBtn.textContent = 'Change';
+        if (custClearBtn) custClearBtn.style.display = '';
       } else {
         custLabel.textContent = 'Customer: Walk-in';
         if (custBtn) custBtn.textContent = 'Select';
+        if (custClearBtn) custClearBtn.style.display = 'none';
       }
+    }
+
+    // Clear the attached customer back to Walk-in on a shared iPad without
+    // opening the search panel (prevents the previous customer carrying into the
+    // next sale). Mirrors setCustomer(null) so KioskCore's view stays in sync.
+    if (custClearBtn) {
+      custClearBtn.addEventListener('click', function () {
+        _kioskCustomer = null;
+        if (custSearchPanel) custSearchPanel.style.display = 'none';
+        updateCustomerLabel();
+      });
     }
 
     if (custBtn) {
