@@ -19,6 +19,35 @@ Use the blessed path unless something is actively broken and you need to ship a 
 
 ---
 
+## Pending Production Promotions (on staging, awaiting next prod deploy)
+
+Production is at end of the v4.5 auth-cutover Stage 1 (`origin/main` phases 46–53).
+The items below are on **staging** (`origin/main`) but **not yet on production** — they
+ride the next coupled prod deploy (Stage 3 of `PROD-CUTOVER-v4.5-PLAN.md`). Do them as a
+batch after the iPad UAT passes.
+
+| Item | On staging | Prod-deploy notes |
+|------|-----------|-------------------|
+| **Phase 48** — kiosk POS de-fork (`kiosk-core.js`) | ✅ | Gate on iPad UAT (standalone kiosk). |
+| **Phase 54** — kiosk gift-card management (lookup + void; device-token `gift-card/void` scope, D-54-GC) | ✅ | Gate on iPad UAT. Money-path/auth change — eyes on Sentry after. |
+| **Kiosk device-token "Back" button** fix (Device-Settings trap escape) | ✅ | Frontend only; no middleware impact. |
+| **Metricool CSP allowlist** (`tracker.metricool.com` in `script-src` + `connect-src`, 15 public pages) | ✅ | ⚠ **See ordering below — coordinate with the GTM publish.** |
+
+### Stage 3 checklist — Metricool (CSP ↔ GTM ordering)
+
+The Metricool tag lives in **GTM (container `GTM-NHRCGLC5`)**, which is shared across staging
+AND production. The CSP that allows it is deployed **per-repo**, so it must reach production
+**before** the GTM tag is published, or Metricool is CSP-blocked on prod (harmless console
+error + no tracking, but avoid it):
+
+- [ ] **Before publishing the GTM tag:** confirm the Metricool CSP change is live on production (`curl -s https://steinsandvines.ca/index.html | grep -c tracker.metricool.com` → `1`). It rides this Stage 3 deploy.
+- [ ] Test the GTM Metricool tag in **GTM Preview mode against staging** first (no publish) — no CSP violations in console, Metricool dashboard registers the visit.
+- [ ] **Only after prod CSP is live:** Submit/Publish the GTM container so Metricool goes live on production.
+- [ ] If Preview shows an **image/pixel** CSP violation, add `https://tracker.metricool.com` to `img-src` on the same 15 pages and redeploy before publishing.
+- [ ] Staff surfaces (`kiosk/admin/brewpad/batch`) intentionally have **no** Metricool/CSP — do not add it there.
+
+---
+
 ## Deploy History
 
 <!-- gated-deploy.yml inserts each new deploy row directly under the table separator below (newest first). -->
