@@ -807,9 +807,56 @@
           kioskRenderProducts();
           return;
         }
-        var grid2 = document.getElementById('kiosk-product-grid');
-        if (grid2) grid2.innerHTML = '<p class="kiosk-loading">Failed to load products: ' + err.message + '</p>';
+        kioskRenderLoadError('kiosk-product-grid', 'kiosk-products-retry',
+          'Failed to load products: ' + err.message, function () { kioskLoadProducts(); });
       });
+  }
+
+  // A catalog load that fails with nothing to show must never be a dead end: the
+  // iPad wakes from sleep with the wifi still reconnecting, the first fetch rejects,
+  // and staff used to have to reload the whole page. Always offer a retry.
+  function kioskRenderLoadError(gridId, retryId, message, onRetry) {
+    var grid = document.getElementById(gridId);
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    var wrap = document.createElement('p');
+    wrap.className = 'kiosk-loading';
+    wrap.textContent = message + ' ';
+
+    var btn = document.createElement('button');
+    btn.id = retryId;
+    btn.type = 'button';
+    btn.className = 'btn-secondary';
+    btn.textContent = 'Retry';
+    btn.addEventListener('click', function () { onRetry(); });
+
+    wrap.appendChild(btn);
+    grid.appendChild(wrap);
+  }
+
+  // Self-healing: when the kiosk comes back (tab visible again, or the network
+  // returns) and a catalog never loaded, retry it. Guarded on the loading flag so a
+  // wake never stampedes an in-flight request, and on the loaded flag so a good grid
+  // is never re-fetched (a failed refresh must not risk what we already have).
+  function kioskRetryStalledLoads() {
+    if (!_kioskProductsLoaded && !_kioskProductsLoading &&
+        document.getElementById('kiosk-product-grid')) {
+      kioskLoadProducts();
+    }
+    if (!_kioskRecipesLoaded && !_kioskRecipesLoading &&
+        document.getElementById('kiosk-recipe-grid')) {
+      kioskLoadRecipes();
+    }
+  }
+
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') kioskRetryStalledLoads();
+    });
+  }
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('online', kioskRetryStalledLoads);
   }
 
   // ===== Recipe Browser =====
@@ -844,8 +891,8 @@
           kioskRenderRecipes();
           return;
         }
-        var grid2 = document.getElementById('kiosk-recipe-grid');
-        if (grid2) grid2.innerHTML = '<p class="kiosk-loading">Failed to load recipes: ' + err.message + '</p>';
+        kioskRenderLoadError('kiosk-recipe-grid', 'kiosk-recipes-retry',
+          'Failed to load recipes: ' + err.message, function () { kioskLoadRecipes(); });
       });
   }
 
