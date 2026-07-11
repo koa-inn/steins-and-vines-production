@@ -261,20 +261,32 @@ function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId
   log.info('[brewpad] Detected ' + kitItems.length + ' kit line(s) / ' + batchUnits.length +
     ' batch(es) for invoice=' + invoiceNumber + ' source=' + (source || 'kiosk'));
 
+  // How many batches this sale expects per (invoice + SKU). The Apps Script dedup
+  // guard keys on exactly that pair, so without this it admits the first unit of a
+  // kit line and rejects the rest as duplicates — which is how INV-000137 sold three
+  // kits and kept one batch. unit_total tells the guard how many are legitimate.
+  var unitTotalBySku = {};
+  batchUnits.forEach(function (item) {
+    var sku = item.sku || item.item_id || '';
+    unitTotalBySku[sku] = (unitTotalBySku[sku] || 0) + 1;
+  });
+
   // Creates fire in parallel (as before); a single first-created batch id is captured
   // for the single-batch label.
   var creates = [];
   var firstBatchId = '';
   batchUnits.forEach(function (item) {
+    var sku = item.sku || item.item_id || '';
     var batchPayload = {
-      product_sku: item.sku || item.item_id || '',
+      product_sku: sku,
       product_name: item.name || '',
       customer_name: customerName || 'Walk-in Customer',
       customer_firstname: nameParts.first || (customerName ? '' : 'Walk-in'),
       customer_lastname: nameParts.last || (customerName ? '' : 'Customer'),
       customer_id: contactId || '',
       source: source || 'kiosk',
-      zoho_so_number: invoiceNumber || ''
+      zoho_so_number: invoiceNumber || '',
+      unit_total: unitTotalBySku[sku]
     };
     // Online orders carry the customer's order email — store it so staff can later
     // send the Cal.com bottling invite. Kiosk callers omit it (privacy, D-09).

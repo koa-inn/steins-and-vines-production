@@ -29,6 +29,8 @@ jest.mock('../lib/eventLog', function () {
   return { logEvent: jest.fn() };
 });
 
+jest.mock('axios');
+
 var brewpadIntegration = require('../lib/brewpad-integration');
 
 var MAKERS_FEE = { item_id: '109900000000046478', sku: 'MAKERS-FEE', name: 'Makers Fee', quantity: 1, rate: 45 };
@@ -123,5 +125,56 @@ describe('planKitBatches — Makers Fee quantity bounds batch creation', functio
   it('is defensive about junk input', function () {
     expect(brewpadIntegration.planKitBatches(null)).toEqual([]);
     expect(brewpadIntegration.planKitBatches([])).toEqual([]);
+  });
+});
+
+// The Apps Script createBatch guard rejects a second batch for the same
+// (zoho_so_number + product_sku) as a duplicate — which silently killed batches
+// 2..N of every multi-unit kit line (INV-000137 sold 3 kits and kept 1).
+// The payload now carries unit_total so the guard can allow exactly that many.
+describe('createBatchesFromSale — unit_total lets Apps Script admit every unit', function () {
+  var axios = require('axios');
+
+  beforeEach(function () {
+    jest.resetModules();
+    axios.post.mockReset();
+    axios.post.mockResolvedValue({ data: { ok: true, batch_id: 'SV-B-000001' } });
+    process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-token';
+  });
+
+  it('stamps unit_total = the number of batches for that invoice+SKU', function () {
+    var items = [
+      { item_id: 'kit-1', sku: '80087352', name: 'Italy Nebbiolo Style', quantity: 3, rate: 170 },
+      makersFee(3),
+      matFee(3)
+    ];
+    brewpadIntegration.createBatchesFromSale(items, 'INV-000137', 'Gamba, Remo', 'C-1', null);
+
+    expect(axios.post).toHaveBeenCalledTimes(3);
+    axios.post.mock.calls.forEach(function (call) {
+      var payload = JSON.parse(call[1]);
+      expect(payload.product_sku).toBe('80087352');
+      expect(payload.unit_total).toBe(3);
+    });
+  });
+
+  it('unit_total is per-SKU, not per-sale, on a multi-kit invoice', function () {
+    var items = [
+      { item_id: 'k1', sku: 'ST1', name: 'Italy Super Tuscan', quantity: 3, rate: 180 },
+      { item_id: 'k2', sku: 'SB1', name: 'South Africa Sauvignon Blanc', quantity: 1, rate: 160 },
+      makersFee(4),
+      matFee(4)
+    ];
+    brewpadIntegration.createBatchesFromSale(items, 'INV-000022', 'Tanner, Ken', 'C-2', null);
+
+    expect(axios.post).toHaveBeenCalledTimes(4);
+    var bySku = {};
+    axios.post.mock.calls.forEach(function (call) {
+      var p = JSON.parse(call[1]);
+      bySku[p.product_sku] = p.unit_total;
+    });
+    expect(bySku.ST1).toBe(3);   // 3 units of this kit
+    expect(bySku.SB1).toBe(1);   // 1 unit of that kit
   });
 });
