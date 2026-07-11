@@ -6,7 +6,11 @@ on:
 
 concurrency:
   group: pages-deploy
-  cancel-in-progress: true
+  # false, NOT true: cancelling a run mid actions/deploy-pages can orphan a GitHub
+  # Pages deployment in a stuck "in progress" state, which then blocks every later
+  # deploy. GitHub's own Pages workflow recommends false so a new deploy queues
+  # behind an in-progress one instead of interrupting it.
+  cancel-in-progress: false
 
 jobs:
   check-repo:

@@ -18,7 +18,12 @@ concurrency:
   # repos (shared git content), so a shared group made the no-op prod run cancel the
   # real staging deploy (cancel-in-progress). Separate groups → no mutual cancellation.
   group: pages-deploy-staging
-  cancel-in-progress: true
+  # false, NOT true: cancelling a run mid actions/deploy-pages can orphan a GitHub
+  # Pages deployment in a stuck "in progress" state, which then blocks every later
+  # deploy ("due to in progress deployment. Please cancel <sha> first"). This froze
+  # staging on 2026-07-10. GitHub's own Pages workflow recommends false so a new
+  # deploy queues behind an in-progress one instead of interrupting it.
+  cancel-in-progress: false
 
 jobs:
   check-repo:
