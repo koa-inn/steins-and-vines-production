@@ -290,7 +290,8 @@ describe('brewpad-integration', function () {
       axios.post.mockResolvedValue({ data: { ok: true, batch_id: 'SV-B-000001' } });
       var items = [
         { name: 'Italy Nebbiolo Style', sku: '80087352', item_id: 'kit-1', quantity: 3 },
-        { name: "Maker's Fee", sku: 'MAKERS-FEE', item_id: '99', quantity: 1 }
+        // Fee quantity mirrors the real INV-000137: 3 kits = 3 fermentation slots sold.
+        { name: "Maker's Fee", sku: 'MAKERS-FEE', item_id: '99', quantity: 3 }
       ];
       brewpadIntegration.createBatchesFromSale(items, 'INV-000137', 'Jane', 'C-1', null);
       // qty 3 on the one kit line → 3 Apps Script creates (Maker's Fee excluded)

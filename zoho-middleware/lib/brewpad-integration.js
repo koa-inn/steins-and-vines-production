@@ -78,6 +78,83 @@ function kitBatchQuantity(item) {
 }
 
 /**
+ * Fermentation slots sold, taken from the Maker's Fee quantity.
+ *
+ * The catalog carries no marker distinguishing a kit from ordinary merchandise
+ * (every item has a blank category and product_type "goods"), so the line items
+ * alone cannot say which ones ferment. The Maker's Fee is charged once per
+ * fermentation slot, which makes its quantity the authoritative batch count.
+ *
+ * Every real invoice carries it (verified back to INV-000001, Feb 2026: kit x3, fee x3).
+ * A payload that omits it entirely is treated as unknown — see planKitBatches, which
+ * then falls back to the pre-existing per-unit behaviour rather than guessing 1.
+ *
+ * @returns {number} slots sold; 0 when not a ferment-in-store sale; -1 when unknown
+ */
+function makersFeeSlots(lineItems) {
+  var feeItem = checkoutHelpers.findMakersFeeItem(lineItems, process.env.MAKERS_FEE_ITEM_ID || '');
+  if (!feeItem) return 0;
+  if (feeItem.quantity === undefined || feeItem.quantity === null || feeItem.quantity === '') return -1;
+  var q = Math.floor(Number(feeItem.quantity));
+  if (!isFinite(q) || q < 1) return -1;  // unusable — fall back rather than under-create
+  if (q > MAX_BATCHES_PER_KIT_LINE) {
+    log.warn('[brewpad] makers fee quantity ' + q + ' exceeds cap ' + MAX_BATCHES_PER_KIT_LINE + ' — clamping');
+    return MAX_BATCHES_PER_KIT_LINE;
+  }
+  return q;
+}
+
+/**
+ * Expand a sale into the exact list of batches to create — one entry per batch.
+ *
+ * The Maker's Fee quantity caps the total, so merchandise on a ferment sale can
+ * never inflate the batch count (INV-000067 sold 12 bottles beside one kit and
+ * would otherwise have produced 13 batches).
+ *
+ * When the kit quantities already sum to the slots sold, every candidate line is a
+ * real kit and all of them are used. When they exceed it, the sale mixes kits with
+ * merchandise and the line data cannot tell them apart — we fill the slots from the
+ * most expensive lines first (kits run $140–$230; merchandise is far cheaper) and
+ * warn, so a mis-attributed batch is visible. Tagging kits with a Zoho item category
+ * would make this exact.
+ *
+ * @returns {Array} one kit line item per batch to create
+ */
+function planKitBatches(lineItems) {
+  var kits = detectKitItems(lineItems);
+  if (kits.length === 0) return [];
+
+  var slots = makersFeeSlots(lineItems);
+  if (slots === 0) return [];  // no Maker's Fee = not a ferment-in-store sale
+
+  var totalKitQty = 0;
+  kits.forEach(function (item) { totalKitQty += kitBatchQuantity(item); });
+
+  // Fee quantity unusable (legacy payload): keep the pre-existing per-unit behaviour.
+  if (slots < 0) slots = totalKitQty;
+
+  var ordered = kits;
+  if (totalKitQty !== slots) {
+    log.warn('[brewpad] kit quantities (' + totalKitQty + ') do not match makers fee slots (' +
+      slots + ') — sale likely mixes kits with merchandise; filling slots by highest unit price');
+    // Stable sort: price descending, original line order breaks ties.
+    ordered = kits.map(function (item, idx) { return { item: item, idx: idx }; })
+      .sort(function (a, b) {
+        var rateDiff = (Number(b.item.rate) || 0) - (Number(a.item.rate) || 0);
+        return rateDiff !== 0 ? rateDiff : a.idx - b.idx;
+      })
+      .map(function (entry) { return entry.item; });
+  }
+
+  var units = [];
+  for (var i = 0; i < ordered.length && units.length < slots; i++) {
+    var qty = kitBatchQuantity(ordered[i]);
+    for (var n = 0; n < qty && units.length < slots; n++) units.push(ordered[i]);
+  }
+  return units;
+}
+
+/**
  * Call Apps Script to create a single batch.
  * Resolves to { ok: true/false } so callers can distinguish success from app-level error.
  *
@@ -175,18 +252,20 @@ function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId
   if (kitItems.length === 0) return;
 
   var nameParts = splitCustomerName(customerName);
-  var totalBatches = 0;
-  kitItems.forEach(function (item) { totalBatches += kitBatchQuantity(item); });
 
-  log.info('[brewpad] Detected ' + kitItems.length + ' kit line(s) / ' + totalBatches +
+  // One entry per batch to create, bounded by the Maker's Fee quantity so merchandise
+  // on the sale cannot inflate the count.
+  var batchUnits = planKitBatches(lineItems);
+  if (batchUnits.length === 0) return;
+
+  log.info('[brewpad] Detected ' + kitItems.length + ' kit line(s) / ' + batchUnits.length +
     ' batch(es) for invoice=' + invoiceNumber + ' source=' + (source || 'kiosk'));
 
-  // Create one batch per kit UNIT (quantity-aware). Creates fire in parallel (as
-  // before); a single first-created batch id is captured for the single-batch label.
+  // Creates fire in parallel (as before); a single first-created batch id is captured
+  // for the single-batch label.
   var creates = [];
   var firstBatchId = '';
-  kitItems.forEach(function (item) {
-    var qty = kitBatchQuantity(item);
+  batchUnits.forEach(function (item) {
     var batchPayload = {
       product_sku: item.sku || item.item_id || '',
       product_name: item.name || '',
@@ -201,15 +280,13 @@ function createBatchesFromSale(lineItems, invoiceNumber, customerName, contactId
     // send the Cal.com bottling invite. Kiosk callers omit it (privacy, D-09).
     if (customerEmail) batchPayload.customer_email = customerEmail;
 
-    for (var n = 0; n < qty; n++) {
-      creates.push(callAppsScriptCreateBatch(batchPayload).then(function (result) {
-        if (result && result.ok) {
-          if (!firstBatchId && result.batch_id) firstBatchId = result.batch_id;
-          return true;
-        }
-        return false;
-      }));
-    }
+    creates.push(callAppsScriptCreateBatch(batchPayload).then(function (result) {
+      if (result && result.ok) {
+        if (!firstBatchId && result.batch_id) firstBatchId = result.batch_id;
+        return true;
+      }
+      return false;
+    }));
   });
 
   // Sync the invoice's Zoho batch-status field ONCE, after all creates settle —
@@ -453,6 +530,8 @@ module.exports = {
   retryPendingBatches: retryPendingBatches,
   detectKitItems: detectKitItems,
   kitBatchQuantity: kitBatchQuantity,
+  makersFeeSlots: makersFeeSlots,
+  planKitBatches: planKitBatches,
   callAppsScriptCreateBatch: callAppsScriptCreateBatch,
   splitCustomerName: splitCustomerName,
   syncBatchToZoho: syncBatchToZoho,
