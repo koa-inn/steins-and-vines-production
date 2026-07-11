@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: ready_to_plan
-stopped_at: Phase 48 complete (5/6) — ready to discuss Phase 49
-last_updated: 2026-07-10T19:50:20.463Z
-last_activity: 2026-07-08
+stopped_at: Phase 56 audited live — T1-T7a already done; remaining: 2nd GTM admin + purchase UAT (both owner-only)
+last_updated: 2026-07-11T05:40:00.000Z
+last_activity: 2026-07-11
 progress:
   total_phases: 40
   completed_phases: 12
@@ -125,7 +125,15 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-10
+Last session: 2026-07-11
+Stopped at: **Phase 56 (GTM/GA4) audited live — most of it was already done.** Verified against the live prod page + the published GTM-NHRCGLC5 container (NOT from notes): T1 ✅ (GA4 data filter "Exclude Staging Hostname", Web Hostname Traffic / Exclude / Active — the hostname variant, not the internal-traffic variant the run-sheet recommended); T2 ✅ (add_to_cart/begin_checkout/purchase GA4 event tags present, all `sendEcommerceData` from Data Layer — so the missing `ecommerce.currency`/`transaction_id` DLVs are a non-issue); T3 ✅ (Conversion Linker `__gclidw` published); T4 ✅ (`AW-18091171314` + an `awct` conversion tag loading on prod); T5/T6 ✅ (Metricool CSP live on prod, tag published); T7a ✅ (`purchase` is a permanent GA4 key event — star is disabled, tooltip "Key event can't be unmarked"; nothing to do, nothing changed).
+**Phase 56 remaining (both owner-only):** (a) T7b add a 2nd GTM admin (permissions change); (b) T8 purchase UAT — ONE real test order on staging → confirm ONE `purchase` in GA4 DebugView + no duplicate on replay. Phase 55 code (c86b5b3) is ALREADY on prod, so T8's "promote" step is moot.
+**⚠️ Pre-UAT risk flagged:** `purchase` is a key event AND an Ads conversion tag (`awct`) is in the shared container, so a staging test order may register a real conversion in **Google Ads** — the GA4 hostname data filter does NOT protect Ads. Consider a GTM hostname trigger-exception on the Ads conversion tag before charging a card.
+**Gotcha (cost me a wrong conclusion):** prod `steinsandvines.ca` is behind Cloudflare and returns **403 bot-challenge to curl** — CLI checks of prod HTML are worthless (they show 0 hits for GTM/CSP). Verify prod through the browser only. Staging is not behind Cloudflare.
+**Cosmetic defect (not fixed):** existing GA4 key event + GTM tag is misspelled `resrvation_page_view` (missing "e"). Renaming breaks historical continuity — owner's call.
+GA4 IDs: account `a391385411`, property `p533046537`.
+
+### Prior session (2026-07-10)
 Stopped at: **PROD STAGE-3 CUTOVER SHIPPED** (tag prod-20260710-2, blessed gated-deploy run 29127742148) — Phases 48 + 54 + kiosk fixes + brewpad + Metricool CSP + v4.6 GA4 events all live on production; middleware redeployed (uptime reset, redis ✅); frontend verified (kiosk-core, Metricool CSP, GA4 in bundle). Earlier this session: iPad UAT (48/54 standalone), Fix 1 break-glass (prod-20260710-1), 9 test invoices+11 payments deleted from Zoho, Phase 48 secured (22/22), v4.6 milestone + Phase 55/56 scaffolded, GA4 reviewed + shipped + staging-verified (site half proven; GA4 collect 503s from this browser only), milestone state reconciled.
 Open threads: (1) **watch Sentry** on the 48/54 money-path/auth changes now live; (2) **GA4 Realtime** confirm on a real prod order (Option A — the staging DebugView 503 was environment-local); (3) delete test order INV-000145 from Zoho (Helcim already voided by owner); (4) v4.5 Phase 47 SEC-01 checkbox vs narrative mismatch — owner reconcile; (5) Phases 49/50/51 remain in v4.5; (6) Phase 56 GTM remaining (Conversion Linker, Ads tag AW-18091171314, mark purchase key event, 2nd admin) + staging internal-traffic filter (todo); (7) GiftCards sheet tidy for GC-000001.
 Resume file: None
