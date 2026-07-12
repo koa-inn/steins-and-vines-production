@@ -662,6 +662,20 @@ if (require.main === module) {
         log.info('[cron] Scheduled warm-up registered: 05:00 and 13:00 UTC daily');
       }
 
+      // Kit registry: the Kits sheet is the only authoritative answer to "is this line
+      // item a kit?" (the Zoho catalog has no category on any item). Loaded once at
+      // startup and refreshed hourly; batch creation degrades to a heuristic without it,
+      // so a failure here is non-fatal.
+      brewpadIntegration.refreshKitSkus().catch(function (err) {
+        log.error('[brewpad] Initial kit registry load failed: ' + err.message);
+      });
+      setInterval(function () {
+        brewpadIntegration.refreshKitSkus().catch(function (err) {
+          log.error('[brewpad] Kit registry refresh failed: ' + err.message);
+        });
+      }, 60 * 60 * 1000);
+      log.info('[brewpad] Kit registry refresh registered: hourly');
+
       // Retry pending batch creations + Zoho sync retries every 5 minutes (D-04, D-10)
       // Runs regardless of Zoho auth state since Apps Script calls don't need Zoho auth.
       // retrySyncQueue skips gracefully if Zoho is not authenticated.

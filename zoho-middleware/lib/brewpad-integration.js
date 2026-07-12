@@ -90,6 +90,67 @@ function kitBatchQuantity(item) {
 }
 
 /**
+ * The authoritative kit registry: the SKUs on the "Kits" sheet (97 kits across 8
+ * brands, with stock/pricing/batch sizes). The Zoho catalog cannot identify a kit —
+ * every item has a blank category and product_type "goods" — so without this we can
+ * only guess which lines on a ferment sale actually ferment.
+ *
+ * Held in module scope and refreshed in the background rather than fetched per sale:
+ * createBatchesFromSale is fire-and-forget and must stay synchronous for its callers.
+ * null = not loaded (or unavailable) — callers then fall back to the old behaviour.
+ */
+var _kitSkus = null;
+var KIT_SKU_CACHE_KEY = 'brewpad:kit-skus';
+var KIT_SKU_TTL = 3600;  // 1 hour
+
+function _getKitSkus() { return _kitSkus; }
+function _setKitSkus(set) { _kitSkus = set; }
+
+/**
+ * Load the Kits sheet SKUs into module scope. Called at startup and hourly.
+ * Never throws — an unavailable registry degrades to the previous heuristic.
+ *
+ * @returns {Promise<Set|null>} the SKU set, or null when unavailable
+ */
+function refreshKitSkus() {
+  var url = process.env.APPS_SCRIPT_URL;
+  var token = process.env.APPS_SCRIPT_SERVER_TOKEN;
+  if (!url || !token) return Promise.resolve(null);
+
+  return axios.get(url, {
+    params: { action: 'get_kits', server_token: token },
+    timeout: 15000
+  }).then(function (resp) {
+    var data = resp.data || {};
+    if (!data.ok) throw new Error(data.message || data.error || 'get_kits returned ok:false');
+
+    var values = (data.data && data.data.values) || [];
+    if (values.length < 2) throw new Error('Kits sheet returned no rows');
+
+    var header = values[0].map(function (h) { return String(h || '').trim().toLowerCase(); });
+    var skuCol = header.indexOf('sku');
+    if (skuCol === -1) throw new Error('Kits sheet has no sku column');
+
+    var set = new Set();
+    for (var i = 1; i < values.length; i++) {
+      var sku = String((values[i] || [])[skuCol] || '').trim();
+      if (sku) set.add(sku);
+    }
+    if (set.size === 0) throw new Error('Kits sheet yielded no SKUs');
+
+    _kitSkus = set;
+    cache.set(KIT_SKU_CACHE_KEY, Array.from(set), KIT_SKU_TTL).catch(function () {});
+    log.info('[brewpad] Kit registry loaded: ' + set.size + ' kit SKU(s)');
+    return set;
+  }).catch(function (err) {
+    // Do NOT clear a previously-good registry on a transient failure.
+    log.warn('[brewpad] Kit registry refresh failed (' + err.message +
+      ') — kit detection falls back to the fee-cap heuristic');
+    return _kitSkus;
+  });
+}
+
+/**
  * Fermentation slots sold, taken from the Maker's Fee quantity.
  *
  * The catalog carries no marker distinguishing a kit from ordinary merchandise
@@ -138,6 +199,27 @@ function planKitBatches(lineItems) {
 
   var slots = makersFeeSlots(lineItems);
   if (slots === 0) return [];  // no Maker's Fee = not a ferment-in-store sale
+
+  // Narrow to lines the Kits sheet recognises. This is exact where the price heuristic
+  // below could only guess — a $40 cider kit beside a $300 fermenter resolves correctly.
+  //
+  // Only ever NARROWS: if the registry recognises nothing on a genuine ferment sale
+  // (a kit added to Zoho but not yet to the sheet), keep every candidate rather than
+  // create zero batches. Silently losing a customer's batch is worse than mislabelling
+  // one, and the fee-quantity cap still bounds the count either way.
+  if (_kitSkus) {
+    var known = kits.filter(function (item) {
+      return _kitSkus.has(String(item.sku || '').trim()) ||
+             _kitSkus.has(String(item.item_id || '').trim());
+    });
+    if (known.length > 0) {
+      kits = known;
+    } else {
+      log.warn('[brewpad] Kit registry recognised none of the ' + kits.length +
+        ' candidate line(s) on this ferment sale — keeping all of them. Is a new kit ' +
+        'missing from the Kits sheet?');
+    }
+  }
 
   var totalKitQty = 0;
   kits.forEach(function (item) { totalKitQty += kitBatchQuantity(item); });
@@ -556,6 +638,9 @@ module.exports = {
   kitBatchQuantity: kitBatchQuantity,
   makersFeeSlots: makersFeeSlots,
   planKitBatches: planKitBatches,
+  refreshKitSkus: refreshKitSkus,
+  _getKitSkus: _getKitSkus,
+  _setKitSkus: _setKitSkus,
   callAppsScriptCreateBatch: callAppsScriptCreateBatch,
   splitCustomerName: splitCustomerName,
   syncBatchToZoho: syncBatchToZoho,
