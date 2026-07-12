@@ -27,6 +27,18 @@ var SYNC_RETRY_PREFIX = C.CACHE_KEYS.BATCH_SYNC_RETRY_PREFIX;
 function splitCustomerName(fullName) {
   var trimmed = (fullName || '').trim();
   if (!trimmed) return { first: '', last: '' };
+
+  // Zoho stores contacts surname-first ("Gamba, Remo") and that display name is what
+  // the kiosk sends. Splitting on whitespace alone kept the comma AND swapped the
+  // fields (batch SV-B-000173 was written with firstname "Gamba,", lastname "Remo").
+  if (trimmed.indexOf(',') !== -1) {
+    var commaParts = trimmed.split(',');
+    return {
+      first: commaParts.slice(1).join(',').trim(),
+      last: commaParts[0].trim()
+    };
+  }
+
   var parts = trimmed.split(/\s+/);
   if (parts.length === 1) return { first: parts[0], last: '' };
   return { first: parts[0], last: parts.slice(1).join(' ') };

@@ -93,8 +93,20 @@ function doGet(e) {
   }
 
   // Server-token bypass for middleware GET requests (recipes, etc.)
+  //
+  // 2026-07-12: doPost validates against the script property SERVER_WRITE_TOKEN while
+  // this read path validated against SERVER_TOKEN — two different properties for the
+  // one secret the middleware actually holds (APPS_SCRIPT_SERVER_TOKEN). Writes
+  // therefore authenticated and reads did not: every middleware GET fell through to
+  // checkAuthorization and failed with "Could not determine user email". The only
+  // caller is pos.js /api/batch/scan-invoices, whose duplicate-batch lookup silently
+  // saw an empty set and swallowed the error. Accept either property so the
+  // middleware's single token works on both verbs; SERVER_WRITE_TOKEN is the same
+  // secret it already writes with, so this grants no new privilege.
   var serverTokenParam = e.parameter.server_token || '';
-  var storedTokenForGet = PropertiesService.getScriptProperties().getProperty('SERVER_TOKEN');
+  var scriptPropsForGet = PropertiesService.getScriptProperties();
+  var storedTokenForGet = scriptPropsForGet.getProperty('SERVER_TOKEN') ||
+                          scriptPropsForGet.getProperty('SERVER_WRITE_TOKEN') || '';
   var isServerAuth = (serverTokenParam && storedTokenForGet && serverTokenParam === storedTokenForGet);
   var authResult = { authorized: false, email: null, message: '' };
 
