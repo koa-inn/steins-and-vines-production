@@ -1104,7 +1104,29 @@ Plans:
   4. `salesorder-pay` acquires a lock, deletes its pending record on success, and uses a unique reference (H8) — a duplicate/racing call cannot double-pay
   5. The sweep clears or marks pending records so the alert storm ends (M13), and `pos-recipe.js` adopts the same `money-path` primitives + pending-record pattern already used by `checkout.js`/`pos.js` (M12)
 
-**Plans**: TBD
+**Plans**: 5 plans (3 waves)
+
+**Planning notes (2026-07-13):** Scoped against `.planning/AUDIT-STATUS-2026-07-13.md` (every finding re-verified against current source), not the stale original audit.
+- M13 (sweep clears/marks pending records to end the alert storm) was verified **ALREADY FIXED** on 2026-07-02 — `lib/reconcile.js:397-436` `manual_review_alerted` marker, covered by `reconcile.test.js` T6b/T6c. No work planned; SC#5 therefore reduces to M12 (`pos-recipe.js`).
+- **M-B1 folded in** (plan 50-04): the client mints a fresh `KIOSK-<Date.now()>` per tap and never disables the money-path buttons, so a double-tap produces two DIFFERENT idempotency keys and the Phase 45 server lock never sees a duplicate. It is the client half of SC#4.
+- **Deferred, explicitly NOT planned:** M-D1 (brewpad retry sweeps use blocking `KEYS PREFIX*` with no distributed lock — `lib/brewpad-integration.js:421`, `:557`, `server.js:682-690`). It is a Resilience finding on the brewpad batch path, not the kiosk money path, and does not serve any MONEY-02 success criterion. → backlog / a future RESIL phase.
+- **Out of scope** (belong to Phase 51 or are unowned): gift-card ledger integrity (H6/H7/M9/M15/M18 → Phase 51), the unescaped `it.name` XSS (M-C1), iOS auto-zoom / touch targets (M-C2..C7), E2E money-path coverage (M-E1/E2), `railway.toml` (M-E3), webhook replay protection (M-A4/M-A6).
+
+Plans:
+
+**Wave 1**
+
+- [ ] 50-01-PLAN.md — `voidTransaction` inspects the actual reversal status instead of trusting any 2xx (M-A2/H5, SC#3) + blocking live-void checkpoint
+- [ ] 50-04-PLAN.md — Client: one stable idempotency key per payment attempt + disable-on-click on the sale and SO-pay buttons (M-B1; both kiosk.html and admin.html via the shared `kiosk-core.js`)
+
+**Wave 2**
+
+- [ ] 50-02-PLAN.md — `/api/kiosk/salesorder-pay` gets an idempotency lock, a deterministic Helcim key, a unique reference, a pending record and a hardened void (M-A1/H8, SC#4 — the headline double-charge defect)
+- [ ] 50-05-PLAN.md — `pos-recipe.js` adopts the money-path primitives + pending record (M12, SC#5); reconcile becomes Zoho-authoritative so a settled paid charge is never voided (H3, SC#1)
+
+**Wave 3**
+
+- [ ] 50-03-PLAN.md — Captured-amount verification at kiosk confirm (M-A3, SC#1) + idempotency lock released on every confirm/sale failure path, retained when a charge is unvoided (H4, SC#2)
 
 ### Phase 51: Gift-Card Ledger Integrity
 
