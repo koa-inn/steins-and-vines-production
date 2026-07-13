@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: ready_to_plan
-stopped_at: Phase 56 audited live — T1-T7a already done; remaining: 2nd GTM admin + purchase UAT (both owner-only)
-last_updated: 2026-07-11T05:40:00.000Z
-last_activity: 2026-07-11
+stopped_at: Ad-hoc bug-fix session complete — kiosk catalog load + BrewPad batch creation shipped to prod (2134da6); nothing mid-task
+last_updated: 2026-07-13T05:08:23.984Z
+last_activity: 2026-07-13
 progress:
   total_phases: 40
   completed_phases: 12
@@ -125,7 +125,13 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-11
+Last session: 2026-07-13
+Stopped at: **Ad-hoc bug-fix session — kiosk catalog load + BrewPad batch creation. All shipped to staging + prod (`2134da6`) and verified live.** Five commits: `ee7b0f1` (batch count capped by the Makers Fee quantity — merchandise could otherwise inflate it; INV-000067's 12 bottles + 1 kit would have made 13 batches), `d3e32f4` (**the owner's actual bug**: Apps Script's dedup guard keyed on invoice+SKU and silently rejected units 2..N, so the 2026-07-08 quantity-aware fix `fda6e40` had NEVER worked in prod — now bounded by `unit_total`), `7cbf856` (kiosk catalog load is recoverable: Retry button + retry on visibilitychange/online; a failed fetch was previously terminal until a page reload), `255308d` (`splitCustomerName` handles Zoho surname-first names — `"Gamba, Remo"` was stored mangled AND swapped; plus Apps Script `doGet` checked `SERVER_TOKEN` while `doPost` checked `SERVER_WRITE_TOKEN`, so middleware **reads never authenticated at all** — `pos.js` scan-invoices dedup always saw an empty set), `2134da6` (kit identity from the **Kits sheet**, 115 SKUs — retires the unit-price heuristic; loaded at startup + hourly, narrows only, never to zero).
+**INV-000137 backfilled** — `SV-B-000183` + `SV-B-000184`; guard now reports "3 of 3" and rejects a 4th. Owner redeployed Apps Script twice. Middleware suite 1283 / frontend 986 / lint clean.
+**⚠️ Anti-patterns discovered (see `.planning/.continue-here.md`):** (1) *green tests ≠ working system* — `fda6e40` passed its suite for 4 days while dead in prod, because the contradicting logic lived in Apps Script (no CI deploy, no Jest); exercise Apps-Script-crossing changes against the live system. (2) *`curl` against prod lies* — Cloudflare returns a 403 bot-challenge page, which made me wrongly conclude prod had no GTM/CSP; verify prod **through the browser**. (3) `apps-script/*.gs` needs a MANUAL redeploy.
+**Open (owner-only, non-blocking):** iPad UAT of the kiosk recovery fix (the one fix inferred from symptoms, never reproduced); watch the next multi-kit sale in BrewPad; Phase 56 leftovers (2nd GTM admin + `purchase` UAT); optional repair of historical mangled customer names.
+
+### Prior session (2026-07-11)
 Stopped at: **Phase 56 (GTM/GA4) audited live — most of it was already done.** Verified against the live prod page + the published GTM-NHRCGLC5 container (NOT from notes): T1 ✅ (GA4 data filter "Exclude Staging Hostname", Web Hostname Traffic / Exclude / Active — the hostname variant, not the internal-traffic variant the run-sheet recommended); T2 ✅ (add_to_cart/begin_checkout/purchase GA4 event tags present, all `sendEcommerceData` from Data Layer — so the missing `ecommerce.currency`/`transaction_id` DLVs are a non-issue); T3 ✅ (Conversion Linker `__gclidw` published); T4 ✅ (`AW-18091171314` + an `awct` conversion tag loading on prod); T5/T6 ✅ (Metricool CSP live on prod, tag published); T7a ✅ (`purchase` is a permanent GA4 key event — star is disabled, tooltip "Key event can't be unmarked"; nothing to do, nothing changed).
 **Phase 56 remaining (both owner-only):** (a) T7b add a 2nd GTM admin (permissions change); (b) T8 purchase UAT — ONE real test order on staging → confirm ONE `purchase` in GA4 DebugView + no duplicate on replay. Phase 55 code (c86b5b3) is ALREADY on prod, so T8's "promote" step is moot.
 **⚠️ Pre-UAT risk flagged:** `purchase` is a key event AND an Ads conversion tag (`awct`) is in the shared container, so a staging test order may register a real conversion in **Google Ads** — the GA4 hostname data filter does NOT protect Ads. Consider a GTM hostname trigger-exception on the Ads conversion tag before charging a card.
