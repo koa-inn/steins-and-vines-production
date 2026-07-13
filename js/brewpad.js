@@ -1536,6 +1536,29 @@ function bpScaleIngredients(list, factor) {
     });
   }
 
+  // Send a bottling invite for a batch, resolving the customer email from the batch
+  // record first. The dashboard's ready-to-bottle payload carries only has_email —
+  // never the address (D-09) — so callers there cannot supply one.
+  function sendBottlingInviteForBatch(opts) {
+    var o = opts || {};
+    var batchId = (o.batchId || '').trim();
+    if (!batchId) return Promise.reject(new Error('Missing batchId'));
+
+    return adminApiGet('get_batch', { batch_id: batchId }).then(function (r) {
+      var batch = (r && r.data && r.data.batch) || {};
+      var email = String(batch.customer_email || '').trim();
+      if (!email) {
+        throw new Error('This batch has no customer email on file');
+      }
+      return postBottlingInvite({
+        name: o.name || batch.customer_name || '',
+        email: email,
+        batchId: batchId,
+        productName: o.productName || batch.product_name || ''
+      });
+    });
+  }
+
   function showSyncIndicator(state) {
     var el = document.getElementById('bp-sync-indicator');
     if (!el) return;
@@ -3148,7 +3171,7 @@ function bpScaleIngredients(list, factor) {
           html += '<span style="font-size:0.75rem;color:#5f5f5f;margin-left:6px;">Bottling date TBD</span>';
         }
         if (it.has_email) {
-          html += '<button type="button" class="bp-rtb-invite-btn" data-batch-id="' + escapeHTML(it.batch_id || '') + '" data-customer="' + escapeHTML(it.customer_name || 'this customer') + '" data-email="' + escapeHTML(it.customer_email || '') + '" data-product="' + escapeHTML(it.product_name || '') + '" style="margin-left:8px;font-size:0.72rem;padding:2px 8px;border-radius:6px;border:1px solid #4a6f4b;background:#fff;color:#4a6f4b;cursor:pointer;">Send Invite</button>';
+          html += '<button type="button" class="bp-rtb-invite-btn" data-batch-id="' + escapeHTML(it.batch_id || '') + '" data-customer="' + escapeHTML(it.customer_name || 'this customer') + '" data-product="' + escapeHTML(it.product_name || '') + '" style="margin-left:8px;font-size:0.72rem;padding:2px 8px;border-radius:6px;border:1px solid #4a6f4b;background:#fff;color:#4a6f4b;cursor:pointer;">Send Invite</button>';
         }
         html += '</div></div>';
       });
@@ -7831,9 +7854,8 @@ function bpScaleIngredients(list, factor) {
           if (iname === 'this customer') iname = '';
           showConfirmSheet('Send a bottling booking invite to ' + iwho + '?', 'Send Invite', '', function () {
             rtbInvite.disabled = true;
-            postBottlingInvite({
+            sendBottlingInviteForBatch({
               name: iname,
-              email: rtbInvite.getAttribute('data-email') || '',
               batchId: ibid,
               productName: rtbInvite.getAttribute('data-product') || ''
             })
@@ -8763,6 +8785,7 @@ function bpScaleIngredients(list, factor) {
       },
       // Plan 36-22: cache-busting helper — exported from IIFE so it can access state vars
       afterBatchWrite: afterBatchWrite,
+      sendBottlingInviteForBatch: sendBottlingInviteForBatch,
       // Plan 36-22: test-only state accessors for the cache-bust state vars
       getStateForTest: function () {
         return {
