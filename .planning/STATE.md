@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: ready_to_plan
-stopped_at: Ad-hoc bug-fix session complete — kiosk catalog load + BrewPad batch creation shipped to prod (2134da6); nothing mid-task
-last_updated: 2026-07-13T05:08:23.984Z
+stopped_at: "Resume session 2026-07-13: no code work queued — all 4 open plans are owner UAT gates, consolidated into .planning/UAT-RUNSHEET.md. ⚠️ KEY FINDING: the Phase 49 captured-amount check is fail-closed and has been LIVE ON PROD since ~2026-07-08 with ZERO online orders to exercise it (every invoice since is KIOSK-*). If Helcim's readback doesn't populate `amount` for online HelcimPay txns, every online order is being charged+voided+402'd. Next action: the no-card probe in UAT-RUNSHEET §0.1 (curl card-transactions/49332865)."
+last_updated: 2026-07-13T00:00:00.000Z
 last_activity: 2026-07-13
 progress:
   total_phases: 40
