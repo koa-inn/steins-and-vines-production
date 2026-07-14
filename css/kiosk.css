@@ -851,7 +851,7 @@ img {
   border-bottom: 1px solid var(--ledger-soft);
 }
 .kiosk-cart-customer-search .kiosk-search-input {
-  font-size: 0.8rem;
+  font-size: 1rem; /* ≥16px — prevents iOS Safari auto-zoom */
   min-height: 36px;
   margin-bottom: 0.3rem;
 }
@@ -978,7 +978,7 @@ img {
 .kiosk-qty-input {
   width: 48px;
   text-align: center;
-  font-size: 0.9rem;
+  font-size: 1rem; /* ≥16px — prevents iOS Safari auto-zoom */
   font-weight: 600;
   border: 1px solid var(--ledger-emphasis);
   border-radius: 4px;

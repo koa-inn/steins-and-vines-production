@@ -3393,3 +3393,22 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
   position: sticky;
   bottom: 0;
 }
+
+/* ---------------------------------------------------------------------------
+   Audit M-C3: iOS Safari auto-zooms any focused input whose font-size is < 16px.
+   The `.admin-input` base is 13px, and the ≥16px guard was only ever applied
+   narrowly — to `#tab-kiosk .admin-input` and `.kiosk-customer-wrap .admin-input`
+   — so EVERY other admin tab still auto-zooms on an iPad or phone.
+
+   Fixed on touch pointers only, rather than by raising the 13px base: desktop
+   admin keeps its intended information density, and the zoom is killed exactly
+   where it happens. `pointer: coarse` is the touch signal; the `max-width` arm
+   covers touch laptops and narrow windows.
+   --------------------------------------------------------------------------- */
+@media (pointer: coarse), (max-width: 1024px) {
+  .admin-input,
+  .admin-select,
+  .admin-textarea {
+    font-size: 1rem; /* ≥16px — prevents iOS Safari auto-zoom on focus */
+  }
+}
