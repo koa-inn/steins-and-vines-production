@@ -394,8 +394,11 @@ img {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  /* account for fixed terminal bar */
-  padding-bottom: 36px;
+  /* Account for the fixed terminal bar. It pads itself by
+     `calc(0.4rem + env(safe-area-inset-bottom))` (see .kiosk-terminal-bar), so on a
+     device with a home indicator the bar is TALLER than a flat 36px and the last row
+     of content was being clipped behind it. Mirror the bar's own inset here. */
+  padding-bottom: calc(36px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ---- Browse Layout ---- */
@@ -768,7 +771,7 @@ img {
 }
 .kiosk-list-add-btn {
   width: 44px;
-  height: 38px;
+  height: 44px; /* 44px touch-target standard */
   border: 1px solid var(--ledger-emphasis);
   border-radius: 6px;
   background: var(--cellar-raised);
@@ -844,7 +847,7 @@ img {
 .kiosk-cart-customer-btn {
   font-size: 0.75rem;
   padding: 4px 10px;
-  min-height: 32px;
+  min-height: 44px; /* 44px touch-target standard */
 }
 .kiosk-cart-customer-search {
   padding: 0.4rem 0;
@@ -852,7 +855,7 @@ img {
 }
 .kiosk-cart-customer-search .kiosk-search-input {
   font-size: 1rem; /* ≥16px — prevents iOS Safari auto-zoom */
-  min-height: 36px;
+  min-height: 44px; /* 44px touch-target standard */
   margin-bottom: 0.3rem;
 }
 .kiosk-cart-cust-results {
@@ -2140,8 +2143,8 @@ img {
   font-size: 1.1rem;
   padding: 0 0.3rem;
   color: var(--ink-secondary);
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 44px; /* 44px touch-target standard */
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2190,8 +2193,8 @@ img {
   font-size: 1.2rem;
   color: var(--batch-danger);
   padding: 0 0.3rem;
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 44px; /* 44px touch-target standard */
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2237,11 +2240,11 @@ img {
 
 /* ===== Discount Zone ===== */
 .kiosk-discount-zone { flex-shrink: 0; padding: 0.4rem 0; border-top: 1px solid var(--ledger-soft); }
-.kiosk-discount-btn { width: 100%; font-size: 0.85rem; min-height: 40px; }
+.kiosk-discount-btn { width: 100%; font-size: 0.85rem; min-height: 44px; /* 44px touch-target standard */ }
 .kiosk-discount-applied { display: flex; align-items: center; gap: 0.5rem; background: rgba(61,122,64,0.08); border-left: 3px solid #4a6f4b; border-radius: 6px; padding: 0.5rem 0.75rem; min-height: 40px; }
 .kiosk-discount-applied-name { flex: 1; font-size: 0.82rem; font-weight: 600; color: var(--ink-primary); }
 .kiosk-discount-applied-amount { font-size: 0.82rem; font-weight: 700; color: #4a6f4b; }
-.kiosk-discount-remove-btn { background: none; border: none; color: var(--ink-tertiary); font-size: 1.1rem; cursor: pointer; padding: 4px 8px; min-width: 36px; min-height: 36px; }
+.kiosk-discount-remove-btn { background: none; border: none; color: var(--ink-tertiary); font-size: 1.1rem; cursor: pointer; padding: 4px 8px; min-width: 44px; min-height: 44px; /* 44px touch-target standard */ }
 .kiosk-discount-remove-btn:active { color: #c00; }
 
 /* Discount Total Row */
