@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: ready_to_plan
-stopped_at: "Resume session 2026-07-13: no code work queued — all 4 open plans are owner UAT gates, consolidated into .planning/UAT-RUNSHEET.md. ⚠️ KEY FINDING: the Phase 49 captured-amount check is fail-closed and has been LIVE ON PROD since ~2026-07-08 with ZERO online orders to exercise it (every invoice since is KIOSK-*). If Helcim's readback doesn't populate `amount` for online HelcimPay txns, every online order is being charged+voided+402'd. Next action: the no-card probe in UAT-RUNSHEET §0.1 (curl card-transactions/49332865)."
+stopped_at: "Session 2026-07-13/14. No code work queued — all 4 open plans are owner UAT gates (.planning/UAT-RUNSHEET.md). ✅ RESOLVED: the Phase 49 online captured-amount readback WORKS — owner-run probe against a real historical online txn (49332865) returned amount=127.85, APPROVED. Legitimate online orders book as paid and are NOT being voided; the suspected silent revenue outage does not exist. UAT-RUNSHEET §0 closed. Phase 49-02 reduces to the tamper test (security assurance, not outage risk). Phase 50 is PLANNED (5 plans, 3 waves, 2 blockers caught+closed by plan-check) but NOT executed — 4 of 5 plans block on a human at a live terminal. Open audit findings: .planning/AUDIT-STATUS-2026-07-13.md (17 open, verified against source)."
 last_updated: 2026-07-13T00:00:00.000Z
 last_activity: 2026-07-13
 progress:

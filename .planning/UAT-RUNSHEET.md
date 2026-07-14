@@ -1,8 +1,10 @@
 ---
 title: Consolidated Owner UAT Run-Sheet
 created: 2026-07-13
+updated: 2026-07-14
 status: open
 covers: [49-02, 56-01, 55-01, kiosk-catalog-recovery]
+closed: ["§0 — Phase 49 online captured-amount readback (2026-07-14, owner-run probe: amount=127.85, APPROVED)"]
 ---
 
 # Owner UAT Run-Sheet — v4.5 outstanding checkpoints
@@ -10,88 +12,98 @@ covers: [49-02, 56-01, 55-01, kiosk-catalog-recovery]
 Everything here needs a human: a physical card, an iPad, a Google console login, or a
 token you have and Claude does not. Ordered by **risk**, not phase number.
 
-> ⚠️ Read §0 before anything else. It changes what "pending UAT" means for Phase 49.
+> **§0 is CLOSED (2026-07-14).** The Phase 49 online readback works — `amount` comes back
+> populated and correct, so legitimate online orders book as paid and are not being voided.
+> The urgent item on this sheet is resolved; nothing here is now an active outage risk.
 
 ---
 
-## §0 — URGENT: the Phase 49 fail-closed check is ALREADY LIVE and UNVERIFIED
+## §0 — ✅ CLOSED 2026-07-14: the Phase 49 online readback WORKS. No outage.
 
-**What was assumed:** plan 49-02 was written as a gate to run on staging *before* the
-captured-amount check reached production.
+**The risk that was raised.** Phase 49's captured-amount check is **fail-closed**: in
+`routes/checkout.js`, if the Helcim readback throws or `amount` is missing, `captured` becomes
+`NaN` and the code **voids the charge and returns 402**. That check landed in `main` on
+2026-07-02 (`d0471d64`), rode the Phase 46 cutover to **production around 2026-07-08** — and
+plan 49-02 had been written to de-risk it on staging *before* production, an ordering that
+reality had already overtaken.
 
-**What is actually true:**
+Worse, **no online order had ever exercised it**: every Zoho invoice since the deploy is
+`KIOSK-*` (card-present, via `pos.js`, which does not run this check). Online orders go through
+`/api/checkout`; the last one was INV-000078 on 2026-06-01. So if `getCardTransactionById` did
+not populate `amount` for an **online HelcimPay** transaction the way it does for a terminal
+one, every legitimate online order was being charged, voided and rejected — a silent revenue
+outage on a channel that sees roughly one order a month.
 
-- The check landed in `main` on **2026-07-02** (`d0471d64`) and rode the Phase 46 prod
-  cutover to production around **2026-07-08**. It is on production HEAD (`1219ccbf`) today.
-- Since that deploy, **every Zoho invoice has been `KIOSK-*`** — card-present terminal sales
-  through `pos.js`, which does *not* run this check.
-- Online orders go through `/api/checkout`, which stamps `reference_number = transactionId`
-  (a bare Helcim id). The last one was **INV-000078, 2026-06-01, txn `49332865`, $127.85**.
-- So: **zero online orders have exercised the new check.** The next real online customer is
-  the first test of it.
-
-**Why that matters.** The check fails *closed*. In `routes/checkout.js`, if the readback
-throws or `amount` is missing, `captured` becomes `NaN` and the code **voids the charge and
-returns 402**. If Helcim's `GET /card-transactions/{id}` does not populate `amount` for an
-**online HelcimPay** transaction the way it does for a terminal one, then *every* legitimate
-online order is charged, voided, and rejected. Money stays safe — but the online sales channel
-silently stops working, and at roughly one online order a month, that could go unnoticed for
-weeks.
-
-### §0.1 — The no-card probe (do this first; 30 seconds, read-only, zero money)
-
-This answers the whole question without a card, because it replays the readback against a
-**real online transaction that already happened**.
-
-Get `HELCIM_API_TOKEN` from Railway (middleware service → Variables), then:
+**How it was settled — no card, no money, 30 seconds.** Replayed the readback against a real
+historical *online* transaction (INV-000078, txn `49332865`, $127.85):
 
 ```bash
 curl -s -H "api-token: $HELCIM_API_TOKEN" -H "Accept: application/json" \
   https://api.helcim.com/v2/card-transactions/49332865
 ```
 
-`49332865` is INV-000078 — a genuine **online HelcimPay** charge of **$127.85**.
+**Result (owner-run, 2026-07-14):**
 
-| Result | Meaning | Action |
-|---|---|---|
-| `"amount": 127.85` (or `"127.85"`) | ✅ The readback works on the online path. The legit-order risk is disproven. | Phase 49's legit half is effectively closed — record it and skip straight to §0.2. |
-| `amount` absent, `0`, `null`, or under a different key | 🔴 **Production is currently voiding every online order.** | STOP. Tell me the exact JSON; the fix is a small one (read the correct field, or scope the fail-open) and it ships same-day. |
-| 404 / auth error | Inconclusive — token scope or txn age. | Tell me the response; we fall back to the live-card test in §1. |
+```json
+{"transactionId":49332865,"dateCreated":"2026-06-01 16:48:37","status":"APPROVED",
+ "type":"purchase","amount":127.85,"currency":"CAD","cardType":"MC", ...}
+```
 
-Paste me the raw JSON either way — the field names are the whole point.
+`amount` is present, numeric, and matches the invoice total exactly. `parseFloat()` in
+`checkout.js` resolves it to `127.85`, which covers the invoice total — so a legitimate online
+order **verifies and books as paid**. It is not voided.
 
-### §0.2 — Interim safety valve (worth 2 minutes regardless)
+### Verdict
 
-Until §0.1 comes back green, you have no alerting on this. If an online order *is* being
-false-voided, the Sentry event is already being sent (`captureExceptionSafe` fires on readback
-failure). Worth confirming you'd actually see it: check that Sentry is routing
-`[checkout] MONEY-01/H2` errors to a channel you read.
+- ✅ **The online sales channel is healthy.** No orders were ever silently reversed, and the
+  next online customer will not be either.
+- ✅ **Phase 49-02's legit-path half is closed by evidence** — the half that could have been an
+  outage. What remains of 49-02 (the TAMPER test, §1 below) is a *security assurance* that the
+  guard catches an attacker. It is no longer protecting against a revenue outage, and can be
+  run whenever convenient.
+- ✅ **Plan 50-03 is materially de-risked.** It relies on the same `getCardTransactionById`
+  readback, and its check is fail-closed on *every kiosk sale* — i.e. it could have taken the
+  till down. That specific fear is now much smaller. (50-03 still opens with its own read-only
+  probe, which is correct: this probe proved the **card-not-present/online** shape; the
+  card-present shape is what 50-03 depends on.)
+
+### Residual — known, accepted, not a bug
+
+The check also fails closed when the readback **errors** (Helcim API timeout, network blip):
+`captured` → `NaN` → void + 402. So a Helcim hiccup mid-checkout **costs the sale** — the
+customer is not charged (money is safe), they just see a failure. This is the correct direction
+to fail for a money path, but it means a Helcim outage reads as a checkout outage. Worth knowing
+before an incident rather than discovering it during one.
+
+Sentry already fires on this path (`captureExceptionSafe` on readback failure) — worth
+confirming `[checkout] MONEY-01/H2` errors route to a channel someone actually reads.
 
 ---
 
-## §1 — Phase 49-02: live-card UAT (`/api/checkout`)
+## §1 — Phase 49-02: live-card TAMPER test (`/api/checkout`)
 
-**Run this only if §0.1 is green or inconclusive.** If §0.1 is red, the code changes first.
+**Downgraded from urgent by §0.** The legit-path half is closed by evidence. What is left is
+proving the guard *catches* a tamper — a security assurance, not an outage risk. Run it when
+you are next at the terminal with a card.
 
-Note the scope change: this is no longer a pre-production gate — it is a **post-production
-confirmation**, and the tamper half is still genuinely unproven.
+Note the scope change: this was written as a pre-production gate. The code is already in
+production and §0 proved the legit path is safe, so this is now a **post-production security
+confirmation** of the one thing §0 could not prove — that a tamper is actually caught.
 
-Both scenarios use a real card on **staging** (which calls the prod middleware — real money;
-refund afterwards).
+Uses a real card on **staging** (which calls the prod middleware — real money; refund
+afterwards).
 
-1. **LEGIT** — place a small normal order, pay in full via the HelcimPay iframe.
-   - Expect: `201`; Zoho invoice created **and marked paid**; no void.
-   - Record: Helcim txn id + Zoho invoice number.
-   - If this false-voids → you've caught in staging exactly what §0 warns about in prod.
-
-2. **TAMPER** (this is the half §0 cannot prove) — `POST /api/payment/initialize` with
+1. **TAMPER** (the only genuinely unproven half) — `POST /api/payment/initialize` with
    `{amount: 0.01}`, complete the HelcimPay charge for that $0.01, then submit `/api/checkout`
    for the real, larger cart using that `transaction_id`.
    - Expect: `402`; **no** customerpayment recorded; invoice **not** marked paid; a
      `moneyPath.voidWithTimeout` void fires; the $0.01 shows reversed in Helcim.
    - Record: txn id + void outcome.
 
-3. Refund/reverse the test charges. Record both outcomes in
+2. **(Optional) LEGIT** — a small normal order paid in full. §0 already proves this books
+   correctly, so this is belt-and-braces. Expect `201`, invoice marked paid, no void.
+
+3. Refund/reverse the test charges. Record the outcome — plus the §0 probe result — in
    `.planning/phases/49-online-captured-amount-verification/49-02-UAT.md`.
 
 ---
