@@ -119,6 +119,13 @@
 - [ ] **Phase 55: GA4 Ecommerce Events (code review + ship)** — review the ALREADY-WRITTEN, uncommitted `dataLayer` ecommerce events (`add_to_cart`, `begin_checkout`, `purchase` — dedup by `transaction_id`, analytics can never throw into checkout) + the `products.html` GTM-snippet fix; re-run gates; commit; ship staging → prod after GA4 DebugView UAT. Do NOT re-implement. (ANALYTICS-01)
 - [ ] **Phase 56: GTM Container Quality & Ads Measurement (config, mostly non-code)** — create the 3 GA4 event tags + triggers + DLV variables, add the Conversion Linker tag (All Pages), add the Google tag for Ads `AW-18091171314`, mark `purchase` a GA4 key event, add a 2nd GTM admin, and decide the pending Metricool tag at publish. Coordinated with the RUNBOOK Stage-3 CSP↔GTM ordering. (ANALYTICS-02)
 
+### 📋 Backlog — captured, not yet scheduled
+
+- **Kiosk manual card entry / MOTO** (owner request, 2026-07-14) — take a card payment when the customer is not present (phone orders). Every kiosk tender path today assumes a card-present tap on the terminal. Full brief: `.planning/todos/pending/kiosk-manual-card-entry-moto.md`.
+  - ⚠️ **PCI:** must NOT build a card form in `kiosk-core.js` — collecting a raw PAN drags the kiosk + middleware into PCI-DSS scope. Use the terminal's own manual-entry mode (check this first — likely zero code) or the existing HelcimPay hosted iframe, so the PAN never touches our code.
+  - **Depends on Phase 50.** A MOTO path must ADOPT the money-path primitives (idempotency lock, captured-amount verification, single void path), not become a fourth divergent payment flow — which is precisely the "two-tier money path maturity" failure the audit named as its #1 systemic theme.
+  - Business: MOTO may need enabling on the Helcim account, costs more per transaction, and **shifts chargeback liability to the merchant** (no EMV protection). Owner decision, not a technical one.
+
 ## Phase Details
 
 ### Phase 20: Zoho Data Foundation
