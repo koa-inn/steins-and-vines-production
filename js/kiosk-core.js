@@ -2420,7 +2420,7 @@
       var itemHtml = '';
       items.forEach(function (it) {
         itemHtml += '<div class="kiosk-payment-item-row">';
-        itemHtml += '<span>' + (it.name || '') + ' x' + (it.quantity || 1) + '</span>';
+        itemHtml += '<span>' + escapeHTML(it.name || '') + ' x' + (it.quantity || 1) + '</span>';
         itemHtml += '<span>' + kioskFmt((it.rate || 0) * (it.quantity || 1)) + '</span>';
         itemHtml += '</div>';
       });
@@ -3097,7 +3097,7 @@
 
     items.forEach(function (it) {
       html += '<div class="kiosk-receipt-row">';
-      html += '<span>' + (it.name || '') + ' x' + (it.quantity || 1) + '</span>';
+      html += '<span>' + escapeHTML(it.name || '') + ' x' + (it.quantity || 1) + '</span>';
       html += '<span>' + kioskFmt((it.rate || 0) * (it.quantity || 1)) + '</span>';
       html += '</div>';
     });
