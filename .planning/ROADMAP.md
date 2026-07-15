@@ -1285,7 +1285,7 @@ Plans:
 
 **Wave 2** (blocking checkpoint — live iPad)
 
-- [ ] 57-02-PLAN.md — Deploy 57-01 to prod, capture a REAL failure occurrence on the live iPad, record the confirmed cause in 57-DIAGNOSIS.md before any fix (REVIEW-01)
+- [x] 57-02-PLAN.md — Deploy 57-01 to prod, capture a REAL failure occurrence on the live iPad, record the confirmed cause in 57-DIAGNOSIS.md before any fix (REVIEW-01)
 
 **Wave 3** (fix — keyed to 57-02 diagnosis; 57-03 + 57-04 run in parallel, no file overlap)
 

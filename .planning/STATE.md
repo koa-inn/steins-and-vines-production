@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: ready_to_plan
-stopped_at: "Session 2026-07-15 (part 3). ⭐ Phase 57-02 DIAGNOSIS CAPTURED — owner reproduced the kiosk error live + photographed it: 'Terminal Error — Item not found in current catalog: 1099000000000109115. Refresh the product list and try again.' CONFIRMED CAUSE (57-DIAGNOSIS.md): the server price-anchoring guard (pos.js:325-332) hard-rejects a sale when an item_id is absent from KIOSK_PRODUCTS_CACHE_KEY; item 1099000000000109115 does NOT exist in Zoho, so the CLIENT is showing a STALE/PHANTOM catalog entry. Manual refresh rebuilds the client catalog → sale works. This is NONE of the 4 planned hypotheses (they assumed load-failure; actually the sale is rejected against a stale client catalog → branch h5-stale-catalog). TWO beacon findings: 57-01 did NOT capture this (it's the .then server-error branch at kiosk-core.js:2745, not the network .catch the beacon covers) AND its 13-19 digit PAN-redaction would have logged the 19-digit item_id as [REDACTED] — must narrow. NEXT = Phase 57-03 (the FIX, now unblocked): recommended branch h5 = server-side auto-reconcile (on catalog miss, force ONE ?bust rebuild + re-check before rejecting, so a current item self-heals while an invalid one still rejects; keep price-anchoring; NOT just a shorter TTL). Re-run /gsd:plan-phase 57 to collapse 57-03 to the h5 branch, or execute option A directly RED-first + verify on the live iPad. Also: extend the beacon to the sale error branch + fix the item-id redaction collision. STILL PENDING: promote 58+59 (on staging 311be5cf) to prod; Phase 60 (admin data hygiene) not started; Phase 50 planned-not-executed. 57-01 live on prod a1e2f519. Paused at ~66% context."
-last_updated: 2026-07-13T00:00:00.000Z
-last_activity: 2026-07-13
+status: executing
+stopped_at: "**Ad-hoc bug-fix session — kiosk catalog load + BrewPad batch creation. All shipped to staging + prod (`2134da6`) and verified live.** Five commits: `ee7b0f1` (batch count capped by the Makers Fee quantity — merchandise could otherwise inflate it; INV-000067's 12 bottles + 1 kit would have made 13 batches), `d3e32f4` (**the owner's actual bug**: Apps Script's dedup guard keyed on invoice+SKU and silently rejected units 2..N, so the 2026-07-08 quantity-aware fix `fda6e40` had NEVER worked in prod — now bounded by `unit_total`), `7cbf856` (kiosk catalog load is recoverable: Retry button + retry on visibilitychange/online; a failed fetch was previously terminal until a page reload), `255308d` (`splitCustomerName` handles Zoho surname-first names — `"Gamba, Remo"` was stored mangled AND swapped; plus Apps Script `doGet` checked `SERVER_TOKEN` while `doPost` checked `SERVER_WRITE_TOKEN`, so middleware **reads never authenticated at all** — `pos.js` scan-invoices dedup always saw an empty set), `2134da6` (kit identity from the **Kits sheet**, 115 SKUs — retires the unit-price heuristic; loaded at startup + hourly, narrows only, never to zero)."
+last_updated: "2026-07-15T18:27:25.426Z"
+last_activity: 2026-07-15 -- Phase 57 execution started
 progress:
-  total_phases: 40
-  completed_phases: 12
-  total_plans: 83
-  completed_plans: 87
-  percent: 30
+  total_phases: 47
+  completed_phases: 13
+  total_plans: 95
+  completed_plans: 91
+  percent: 28
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 49 — online captured amount verification
+**Current focus:** Phase 57 — kiosk-sale-blocking-recovery
 
 ## Current Position
 
-Phase: 49
-Plan: Not started
+Phase: 57 (kiosk-sale-blocking-recovery) — EXECUTING
+Plan: 1 of 5
 Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 `milestone_complete` flag was false; corrected 2026-07-10). Done: 46 (SEC-02 ✅), 48 (KIOSK-01 ✅ — de-fork live-verified standalone 2026-07-10, 22/22 threats secured), 52 (RESIL-01 ✅), 53 (OBS-01 ✅), 54 (kiosk gift-card mgmt ✅ — UAT+security closed 2026-07-10). **Open phases:** 47 (SEC-01 — STATE narrative says closed-on-staging but ROADMAP checkbox is still `[ ]`; needs owner reconciliation), 49 (MONEY-01 — 49-01 code merged, 49-02 live-card UAT pending), 50 (MONEY-02) + 51 (MONEY-03) — both now UNBLOCKED (were gated on 48). 50/51 also depend on the money-path-primitive adoption in pos-recipe.js.
-Status: Ready to plan
-Last activity: 2026-07-10
+Status: Executing Phase 57
+Last activity: 2026-07-15 -- Phase 57 execution started
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
@@ -132,6 +132,7 @@ Stopped at: **Ad-hoc bug-fix session — kiosk catalog load + BrewPad batch crea
 **Open (owner-only, non-blocking):** iPad UAT of the kiosk recovery fix (the one fix inferred from symptoms, never reproduced); watch the next multi-kit sale in BrewPad; Phase 56 leftovers (2nd GTM admin + `purchase` UAT); optional repair of historical mangled customer names.
 
 ### Prior session (2026-07-11)
+
 Stopped at: **Phase 56 (GTM/GA4) audited live — most of it was already done.** Verified against the live prod page + the published GTM-NHRCGLC5 container (NOT from notes): T1 ✅ (GA4 data filter "Exclude Staging Hostname", Web Hostname Traffic / Exclude / Active — the hostname variant, not the internal-traffic variant the run-sheet recommended); T2 ✅ (add_to_cart/begin_checkout/purchase GA4 event tags present, all `sendEcommerceData` from Data Layer — so the missing `ecommerce.currency`/`transaction_id` DLVs are a non-issue); T3 ✅ (Conversion Linker `__gclidw` published); T4 ✅ (`AW-18091171314` + an `awct` conversion tag loading on prod); T5/T6 ✅ (Metricool CSP live on prod, tag published); T7a ✅ (`purchase` is a permanent GA4 key event — star is disabled, tooltip "Key event can't be unmarked"; nothing to do, nothing changed).
 **Phase 56 remaining (both owner-only):** (a) T7b add a 2nd GTM admin (permissions change); (b) T8 purchase UAT — ONE real test order on staging → confirm ONE `purchase` in GA4 DebugView + no duplicate on replay. Phase 55 code (c86b5b3) is ALREADY on prod, so T8's "promote" step is moot.
 **⚠️ Pre-UAT risk flagged:** `purchase` is a key event AND an Ads conversion tag (`awct`) is in the shared container, so a staging test order may register a real conversion in **Google Ads** — the GA4 hostname data filter does NOT protect Ads. Consider a GTM hostname trigger-exception on the Ads conversion tag before charging a card.
@@ -140,11 +141,13 @@ Stopped at: **Phase 56 (GTM/GA4) audited live — most of it was already done.**
 GA4 IDs: account `a391385411`, property `p533046537`.
 
 ### Prior session (2026-07-10)
+
 Stopped at: **PROD STAGE-3 CUTOVER SHIPPED** (tag prod-20260710-2, blessed gated-deploy run 29127742148) — Phases 48 + 54 + kiosk fixes + brewpad + Metricool CSP + v4.6 GA4 events all live on production; middleware redeployed (uptime reset, redis ✅); frontend verified (kiosk-core, Metricool CSP, GA4 in bundle). Earlier this session: iPad UAT (48/54 standalone), Fix 1 break-glass (prod-20260710-1), 9 test invoices+11 payments deleted from Zoho, Phase 48 secured (22/22), v4.6 milestone + Phase 55/56 scaffolded, GA4 reviewed + shipped + staging-verified (site half proven; GA4 collect 503s from this browser only), milestone state reconciled.
 Open threads: (1) **watch Sentry** on the 48/54 money-path/auth changes now live; (2) **GA4 Realtime** confirm on a real prod order (Option A — the staging DebugView 503 was environment-local); (3) delete test order INV-000145 from Zoho (Helcim already voided by owner); (4) v4.5 Phase 47 SEC-01 checkbox vs narrative mismatch — owner reconcile; (5) Phases 49/50/51 remain in v4.5; (6) Phase 56 GTM remaining (Conversion Linker, Ads tag AW-18091171314, mark purchase key event, 2nd admin) + staging internal-traffic filter (todo); (7) GiftCards sheet tidy for GC-000001.
 Resume file: None
 
 ### Prior session (2026-07-08T21:04:01.660Z)
+
 Stopped at: Completed 54-03-PLAN.md (Phase 54 complete)
 
 ### Prior session (2026-07-03T19:12:01.492Z)
