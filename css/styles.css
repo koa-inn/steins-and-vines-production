@@ -7225,4 +7225,25 @@ footer {
   width: 100%;
   height: auto;
   display: block;
+  /* REVIEW-03: a brand-tone placeholder so a not-yet-lazy-loaded content photo
+     reads as "loading" instead of an empty bordered box. The loaded image paints
+     over this; a broken image degrades to a plain tinted box — never worse than
+     before. The shimmer stops once 13-init adds .is-loaded (see below). */
+  background-color: var(--color-cream);
+}
+
+.facility-photo-img:not(.is-loaded) {
+  background-image: linear-gradient(
+    100deg,
+    rgba(119, 70, 45, 0.05) 30%,
+    rgba(119, 70, 45, 0.14) 50%,
+    rgba(119, 70, 45, 0.05) 70%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .facility-photo-img:not(.is-loaded) { animation: none; }
 }
