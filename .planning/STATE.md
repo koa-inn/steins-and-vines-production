@@ -4,7 +4,7 @@ milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
 stopped_at: "**Ad-hoc bug-fix session — kiosk catalog load + BrewPad batch creation. All shipped to staging + prod (`2134da6`) and verified live.** Five commits: `ee7b0f1` (batch count capped by the Makers Fee quantity — merchandise could otherwise inflate it; INV-000067's 12 bottles + 1 kit would have made 13 batches), `d3e32f4` (**the owner's actual bug**: Apps Script's dedup guard keyed on invoice+SKU and silently rejected units 2..N, so the 2026-07-08 quantity-aware fix `fda6e40` had NEVER worked in prod — now bounded by `unit_total`), `7cbf856` (kiosk catalog load is recoverable: Retry button + retry on visibilitychange/online; a failed fetch was previously terminal until a page reload), `255308d` (`splitCustomerName` handles Zoho surname-first names — `"Gamba, Remo"` was stored mangled AND swapped; plus Apps Script `doGet` checked `SERVER_TOKEN` while `doPost` checked `SERVER_WRITE_TOKEN`, so middleware **reads never authenticated at all** — `pos.js` scan-invoices dedup always saw an empty set), `2134da6` (kit identity from the **Kits sheet**, 115 SKUs — retires the unit-price heuristic; loaded at startup + hourly, narrows only, never to zero)."
-last_updated: "2026-07-15T18:27:25.426Z"
+last_updated: "2026-07-15T18:57:41.858Z"
 last_activity: 2026-07-15 -- Phase 57 execution started
 progress:
   total_phases: 47
