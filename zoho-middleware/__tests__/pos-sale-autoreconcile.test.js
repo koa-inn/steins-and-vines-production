@@ -109,7 +109,9 @@ var ITEM_Z = '1099000000000000002'; // second phantom (Test C: two misses, one r
 
 var STALE_CATALOG_MISSING_X = []; // simulates a stale cache that doesn't have ITEM_X yet
 var FRESH_CATALOG_WITH_X = [
-  { item_id: ITEM_X, name: 'Current Item X', sku: 'SKU-X', rate: 42, stock_on_hand: 5, custom_fields: [] }
+  // tax_id set (zero-rate) so computeTax's implicit-default-tax fallback does
+  // NOT apply — keeps the grandTotal assertion (Test D) a clean catalog rate.
+  { item_id: ITEM_X, name: 'Current Item X', sku: 'SKU-X', rate: 42, stock_on_hand: 5, tax_id: 'test-zero-tax', tax_percentage: 0, custom_fields: [] }
 ];
 
 // ---------------------------------------------------------------------------

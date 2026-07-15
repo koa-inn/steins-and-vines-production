@@ -14,6 +14,10 @@ var discountMatch = require('../lib/discount-match');
 var buildContactPayload = require('../lib/checkout-helpers').buildContactPayload;
 var moneyPath = require('../lib/money-path');
 var captureExceptionSafe = require('../lib/sentry-capture').captureExceptionSafe;
+// 57-04: reuse routes/catalog.js's rebuildKioskCatalog() for the sale-time
+// auto-reconcile (bounded one-shot rebuild on a catalog-miss). No require
+// cycle — catalog.js never requires pos.js.
+var catalogRoutes = require('./catalog');
 
 var zohoGet = zohoApi.zohoGet;
 var zohoPost = zohoApi.zohoPost;
@@ -266,6 +270,33 @@ router.post('/api/kiosk/sale', function (req, res) {
   processSale(body, null, req, res);
 });
 
+// Build an item_id -> catalog entry lookup from a kiosk products catalog array
+// (57-04: shared by both the initial catalogMap build and the post-rebuild
+// re-check so the two stay in lockstep).
+function buildKioskCatalogMap(catalog) {
+  var catalogMap = {};
+  if (Array.isArray(catalog)) {
+    catalog.forEach(function (p) {
+      if (p && p.item_id) catalogMap[p.item_id] = p;
+    });
+  }
+  return catalogMap;
+}
+
+// Return the item_id of the first non-custom, non-gift_cert cart line whose
+// item_id is absent from catalogMap, or null if every line resolves. Custom
+// and gift_cert lines bypass the catalog check — their rate is bounded
+// server-side, not read from the catalog (57-04).
+function findMissingCatalogItem(items, catalogMap) {
+  for (var i = 0; i < items.length; i++) {
+    var item = items[i];
+    if (item.custom) continue;
+    if (item.gift_cert) continue;
+    if (catalogMap[item.item_id] === undefined) return item.item_id;
+  }
+  return null;
+}
+
 function processSale(body, idempotencyKey, req, res) {
   // Validate required fields
   if (!body || !Array.isArray(body.items) || body.items.length === 0) {
@@ -311,148 +342,166 @@ function processSale(body, idempotencyKey, req, res) {
   // Client-supplied rate values are ignored for all financial calculations.
   cache.get(KIOSK_PRODUCTS_CACHE_KEY).then(function (catalog) {
     // Build item_id → catalog entry lookup from the authoritative catalog
-    var catalogMap = {};
-    if (Array.isArray(catalog)) {
-      catalog.forEach(function (p) {
-        if (p && p.item_id) catalogMap[p.item_id] = p;
+    var catalogMap = buildKioskCatalogMap(catalog);
+
+    // Reject if any requested item is not in the catalog cache — UNLESS a
+    // bounded, one-shot auto-reconcile (57-04, T-57-04-01/02) can self-heal
+    // it first: the client's catalog may simply be STALE (the item is still
+    // CURRENT in Zoho, just missing from our cache) rather than genuinely
+    // invalid. Do not fall back to client-supplied rates in either case —
+    // that would defeat the anchoring. Custom and gift_cert lines bypass
+    // this check entirely — their rate is bounded server-side.
+    var missingItemId = findMissingCatalogItem(body.items, catalogMap);
+    if (missingItemId !== null) {
+      // Bounded to ONE rebuild per sale attempt (T-57-04-02) — reuses the
+      // exact same rebuild the manual `?bust=1` refresh triggers.
+      return catalogRoutes.rebuildKioskCatalog().then(function (freshCatalog) {
+        var rebuiltMap = buildKioskCatalogMap(freshCatalog);
+        var stillMissingItemId = findMissingCatalogItem(body.items, rebuiltMap);
+        if (stillMissingItemId !== null) {
+          // Genuinely invalid/phantom item — absent even after rebuild.
+          // Price-anchoring stays intact: still reject, client rate still ignored.
+          return res.status(400).json({
+            error: 'Item not found in current catalog: ' + stillMissingItemId +
+              '. Refresh the product list and try again.'
+          });
+        }
+        log.info('[pos/kiosk/sale] Auto-reconcile: catalog rebuild resolved stale-cache miss for ' + missingItemId);
+        return continueSaleWithCatalog(rebuiltMap);
+      }, function (rebuildErr) {
+        log.error('[pos/kiosk/sale] catalog auto-reconcile rebuild failed: ' +
+          (rebuildErr && rebuildErr.message));
+        return res.status(400).json({
+          error: 'Item not found in current catalog: ' + missingItemId +
+            '. Refresh the product list and try again.'
+        });
       });
     }
 
-    // Reject immediately if any requested item is not in the catalog cache.
-    // Do not fall back to client-supplied rates — that would defeat the anchoring.
-    // Custom and gift_cert lines bypass this check — their rate is bounded server-side.
-    for (var ci = 0; ci < body.items.length; ci++) {
-      var cItem = body.items[ci];
-      if (cItem.custom) continue; // custom lines have no item_id — skip catalog check
-      if (cItem.gift_cert) continue; // gift_cert lines have no catalog item_id — handled below
-      if (catalogMap[cItem.item_id] === undefined) {
-        return res.status(400).json({
-          error: 'Item not found in current catalog: ' + cItem.item_id +
-            '. Refresh the product list and try again.'
-        });
-      }
-    }
+    return continueSaleWithCatalog(catalogMap);
 
-    // Fail-closed guard: if any gift_cert line is present, KIOSK_GIFT_CARD_ITEM_ID must be set
-    // (T-44-G4 — mirrors the issue route guard).
-    if (body.items.some(function (i) { return i.gift_cert === true; }) &&
-        !process.env.KIOSK_GIFT_CARD_ITEM_ID) {
-      log.warn('[pos/kiosk/sale] gift_cert line rejected — KIOSK_GIFT_CARD_ITEM_ID not configured');
-      return res.status(503).json({ error: 'Gift card accounting not configured (KIOSK_GIFT_CARD_ITEM_ID missing)' });
-    }
-
-    // Validate gift_cert line fields before building lineItems (cannot return inside .map).
-    for (var gcv = 0; gcv < body.items.length; gcv++) {
-      var gcItem = body.items[gcv];
-      if (!gcItem.gift_cert) continue;
-      var gcCertNum = String(gcItem.cert_number || '').trim().toUpperCase();
-      if (!/^GC-\d{6}$/.test(gcCertNum)) {
-        return res.status(400).json({ error: 'gift_cert cert_number must match GC-NNNNNN format (e.g. GC-000042)' });
+    function continueSaleWithCatalog(catalogMap) {
+      // Fail-closed guard: if any gift_cert line is present, KIOSK_GIFT_CARD_ITEM_ID must be set
+      // (T-44-G4 — mirrors the issue route guard).
+      if (body.items.some(function (i) { return i.gift_cert === true; }) &&
+          !process.env.KIOSK_GIFT_CARD_ITEM_ID) {
+        log.warn('[pos/kiosk/sale] gift_cert line rejected — KIOSK_GIFT_CARD_ITEM_ID not configured');
+        return res.status(503).json({ error: 'Gift card accounting not configured (KIOSK_GIFT_CARD_ITEM_ID missing)' });
       }
-      var gcRate = Number(gcItem.rate);
-      if (!isFinite(gcRate) || gcRate <= 0 || gcRate > 2000) {
-        return res.status(400).json({ error: 'gift_cert rate must be between $0.01 and $2000' });
-      }
-    }
 
-    // Pre-resolve GST tax_id for any taxable custom lines (D-02 fail-closed).
-    // Must happen before the lineItems builder to avoid returning inside .map().
-    var needGstTaxId = body.items.some(function (item) {
-      return item.custom && item.taxable !== false;
-    });
-    var gstTaxId = null;
-    if (needGstTaxId) {
-      gstTaxId = resolveGstTaxId(catalogMap);
-      if (!gstTaxId) {
-        return res.status(400).json({
-          error: 'Cannot tax this custom line: no GST tax rate configured. Mark the line tax-exempt or set KIOSK_GST_TAX_ID.'
-        });
+      // Validate gift_cert line fields before building lineItems (cannot return inside .map).
+      for (var gcv = 0; gcv < body.items.length; gcv++) {
+        var gcItem = body.items[gcv];
+        if (!gcItem.gift_cert) continue;
+        var gcCertNum = String(gcItem.cert_number || '').trim().toUpperCase();
+        if (!/^GC-\d{6}$/.test(gcCertNum)) {
+          return res.status(400).json({ error: 'gift_cert cert_number must match GC-NNNNNN format (e.g. GC-000042)' });
+        }
+        var gcRate = Number(gcItem.rate);
+        if (!isFinite(gcRate) || gcRate <= 0 || gcRate > 2000) {
+          return res.status(400).json({ error: 'gift_cert rate must be between $0.01 and $2000' });
+        }
       }
-    }
 
-    // Build line items using catalog price, ignoring client-supplied rate
-    // D-03: Include per-item tax_id from catalog so Zoho computes tax using its rules
-    var subtotal = 0;
-    var lineItems = body.items.map(function (item) {
-      if (item.custom) {
-        // Custom line: rate is staff-entered (bounded by validation above)
+      // Pre-resolve GST tax_id for any taxable custom lines (D-02 fail-closed).
+      // Must happen before the lineItems builder to avoid returning inside .map().
+      var needGstTaxId = body.items.some(function (item) {
+        return item.custom && item.taxable !== false;
+      });
+      var gstTaxId = null;
+      if (needGstTaxId) {
+        gstTaxId = resolveGstTaxId(catalogMap);
+        if (!gstTaxId) {
+          return res.status(400).json({
+            error: 'Cannot tax this custom line: no GST tax rate configured. Mark the line tax-exempt or set KIOSK_GST_TAX_ID.'
+          });
+        }
+      }
+
+      // Build line items using catalog price, ignoring client-supplied rate
+      // D-03: Include per-item tax_id from catalog so Zoho computes tax using its rules
+      var subtotal = 0;
+      var lineItems = body.items.map(function (item) {
+        if (item.custom) {
+          // Custom line: rate is staff-entered (bounded by validation above)
+          var qty = Number(item.quantity) || 1;
+          var rate = Number(item.rate);
+          subtotal += qty * rate;
+          var taxable = item.taxable !== false;
+          var desc = String(item.description || '').trim().replace(/[\x00-\x1F\x7F]/g, '').slice(0, 100);
+          var note = String(item.note || '').trim().replace(/[\x00-\x1F\x7F]/g, '').slice(0, 100);
+          var fullDesc = note ? (desc + ' — ' + note) : desc;
+          var li = {
+            custom: true,
+            description: fullDesc,
+            rate: rate,
+            quantity: qty,
+            tax_percentage: taxable ? 5 : 0
+          };
+          if (taxable) {
+            li.tax_id = gstTaxId;
+          } else if (process.env.ZOHO_TAX_ZERO_ID) {
+            // F3 (45-09): exempt custom lines have no backing Zoho item — tag with
+            // the explicit Zero Rate tax so Zoho does not default-tax them. Mirrors
+            // the confirm path; keeps /sale and the invoice in agreement.
+            li.tax_id = process.env.ZOHO_TAX_ZERO_ID;
+          }
+          return li;
+        }
+        // Gift cert line (Phase 44-09): server-authoritative item_id, zero-tax (D-03, T-44-G1).
+        // Client-supplied item_id is ignored; face value / reload amount validated above.
+        if (item.gift_cert) {
+          var gcCertNumSale = String(item.cert_number || '').trim().toUpperCase();
+          var gcRateSale = Number(item.rate);
+          var gcNameSale = item.gift_action === 'reload'
+            ? 'Gift Certificate Reload ' + gcCertNumSale
+            : 'Gift Certificate ' + gcCertNumSale;
+          subtotal += gcRateSale;
+          return {
+            gift_cert: true,
+            gift_action: item.gift_action || 'issue',
+            cert_number: gcCertNumSale,
+            item_id: process.env.KIOSK_GIFT_CARD_ITEM_ID, // server-authoritative (D-05)
+            name: gcNameSale,
+            quantity: 1,
+            rate: gcRateSale
+            // NO tax_id — item carries its own EXEMPT setting (D-03)
+          };
+        }
         var qty = Number(item.quantity) || 1;
-        var rate = Number(item.rate);
+        var catalogItem = catalogMap[item.item_id];
+        var rate = catalogItem.rate; // authoritative price from catalog
         subtotal += qty * rate;
-        var taxable = item.taxable !== false;
-        var desc = String(item.description || '').trim().replace(/[\x00-\x1F\x7F]/g, '').slice(0, 100);
-        var note = String(item.note || '').trim().replace(/[\x00-\x1F\x7F]/g, '').slice(0, 100);
-        var fullDesc = note ? (desc + ' — ' + note) : desc;
         var li = {
-          custom: true,
-          description: fullDesc,
-          rate: rate,
+          item_id: item.item_id,
+          name: item.name || '',
+          sku: catalogItem.sku || '',
           quantity: qty,
-          tax_percentage: taxable ? 5 : 0
+          rate: rate
         };
-        if (taxable) {
-          li.tax_id = gstTaxId;
-        } else if (process.env.ZOHO_TAX_ZERO_ID) {
-          // F3 (45-09): exempt custom lines have no backing Zoho item — tag with
-          // the explicit Zero Rate tax so Zoho does not default-tax them. Mirrors
-          // the confirm path; keeps /sale and the invoice in agreement.
-          li.tax_id = process.env.ZOHO_TAX_ZERO_ID;
+        if (catalogItem.tax_id) {
+          li.tax_id = catalogItem.tax_id;
         }
         return li;
-      }
-      // Gift cert line (Phase 44-09): server-authoritative item_id, zero-tax (D-03, T-44-G1).
-      // Client-supplied item_id is ignored; face value / reload amount validated above.
-      if (item.gift_cert) {
-        var gcCertNumSale = String(item.cert_number || '').trim().toUpperCase();
-        var gcRateSale = Number(item.rate);
-        var gcNameSale = item.gift_action === 'reload'
-          ? 'Gift Certificate Reload ' + gcCertNumSale
-          : 'Gift Certificate ' + gcCertNumSale;
-        subtotal += gcRateSale;
-        return {
-          gift_cert: true,
-          gift_action: item.gift_action || 'issue',
-          cert_number: gcCertNumSale,
-          item_id: process.env.KIOSK_GIFT_CARD_ITEM_ID, // server-authoritative (D-05)
-          name: gcNameSale,
-          quantity: 1,
-          rate: gcRateSale
-          // NO tax_id — item carries its own EXEMPT setting (D-03)
-        };
-      }
-      var qty = Number(item.quantity) || 1;
-      var catalogItem = catalogMap[item.item_id];
-      var rate = catalogItem.rate; // authoritative price from catalog
-      subtotal += qty * rate;
-      var li = {
-        item_id: item.item_id,
-        name: item.name || '',
-        sku: catalogItem.sku || '',
-        quantity: qty,
-        rate: rate
-      };
-      if (catalogItem.tax_id) {
-        li.tax_id = catalogItem.tax_id;
-      }
-      return li;
-    });
-    subtotal = Math.round(subtotal * 100) / 100;
+      });
+      subtotal = Math.round(subtotal * 100) / 100;
 
-    // Apply discount (if any) before computing tax and terminal charge
-    resolveDiscount(body, lineItems, subtotal, catalogMap).then(function (discResult) {
-      if (discResult && discResult.error) {
-        return res.status(discResult.status).json({ error: discResult.error });
-      }
-      if (discResult) {
-        subtotal = discResult.subtotal;
-      }
+      // Apply discount (if any) before computing tax and terminal charge
+      return resolveDiscount(body, lineItems, subtotal, catalogMap).then(function (discResult) {
+        if (discResult && discResult.error) {
+          return res.status(discResult.status).json({ error: discResult.error });
+        }
+        if (discResult) {
+          subtotal = discResult.subtotal;
+        }
 
-      var taxTotal = computeTax(lineItems, catalogMap);
-      var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
+        var taxTotal = computeTax(lineItems, catalogMap);
+        var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
 
-      processSaleWithPrices(body, idempotencyKey, req, res,
-        lineItems, subtotal, taxTotal, grandTotal);
-    });
+        processSaleWithPrices(body, idempotencyKey, req, res,
+          lineItems, subtotal, taxTotal, grandTotal);
+      });
+    }
   }).catch(function (cacheErr) {
     log.error('[pos/kiosk/sale] Catalog cache read failed: ' + cacheErr.message);
     res.status(503).json({ error: 'Unable to verify item prices. Please try again.' });
