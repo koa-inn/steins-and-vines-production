@@ -101,6 +101,16 @@ Phases risk-ordered: containment (SEC) → de-fork backbone → correctness (MON
 - [ ] **ANALYTICS-01** (Phase 55): The custom cart/checkout pushes GA4-schema `add_to_cart`, `begin_checkout`, and `purchase` events into the `dataLayer`. `purchase` fires only on confirmed Helcim success (single + dual-cart paths), exactly once per order (dedup by `transaction_id`), before cart/idempotency state is cleared; analytics is wrapped so it can never throw into checkout. Shipped from the pre-written uncommitted implementation after review + green gates + a staging GA4 DebugView UAT; no payment/charge/cart logic altered. Includes the `products.html` GTM-snippet fix (live untagged page).
 - [ ] **ANALYTICS-02** (Phase 56): The GTM container sends those events to GA4 (3 event tags + triggers + DLV variables) and the flagged container-quality/Ads gaps are closed — Conversion Linker on All Pages, a Google tag for Ads `AW-18091171314`, `purchase` marked a GA4 key event, a 2nd GTM admin, and a conscious Metricool-tag decision at publish respecting the RUNBOOK Stage-3 CSP↔GTM ordering. Mostly human-action in the GTM/GA4 UI.
 
+## v4.7 Requirements (Post-Review Polish & Trust)
+
+**Defined:** 2026-07-15. **Source:** external website review `steinsandvines-website-review-2026-07-14.md` (Google Drive Reports) + owner-reported recurring kiosk sale-blocker (2026-07-14). Ordered by business impact. Three items (cart pre-populate, Open/Closed, overdue-count mismatch) are VERIFY-then-fix — the reviewer was a first-time visitor and each may be session state / correct behaviour / different scopes rather than a bug; a phase must confirm the defect is real before changing code.
+
+- [ ] **REVIEW-01** (Phase 57): A kiosk sale can be started without a manual page refresh, even after the iPad wakes from sleep — the recurring "hit refresh to sell" failure is diagnosed from a REAL captured occurrence (not inferred) and fixed at its actual cause. Precondition: frontend error capture exists so the failure is no longer lost when staff tap Retry. Verified on the live iPad.
+- [ ] **REVIEW-02** (Phase 58): Admin Kit Inventory shows no malformed/negative/unrounded prices (the `$-68.949…` class is traced to its source and corrected), and the header Open/Closed indicator provably matches the real posted hours in the correct timezone.
+- [ ] **REVIEW-03** (Phase 59): Home/About/Contact have no empty gap above the footer; a first-time visitor's cart is never pre-populated and stays in sync across every page (after confirming whether the observed mystery item was a real bug or session state); the "Our Story" image and mobile framed images reliably render (no blank bordered boxes).
+- [ ] **REVIEW-04** (Phase 60): The Kit Inventory table is free of blank/orphan/all-zero rows, the "kits low stock" alert reflects only real kits, and the overdue-task counts across Dashboard/Tasks/Admin either reconcile or are precisely labelled by scope.
+- [ ] **REVIEW-05** (Phase 61): First contentful paint is materially faster (font loading no longer render-blocking), meaningful homepage images carry descriptive alt text, and the flagged UI-polish items (Ingredients filter-bar placement, Instagram loading state, testimonials, kiosk token helper text, BrewPad/Admin session decision) are addressed.
+
 ---
-*Requirements defined: 2026-07-03 (v4.5); 2026-07-10 (v4.6 analytics)*
-*Last updated: 2026-07-10 — added v4.6 Analytics & Conversion Tracking (ANALYTICS-01/02).*
+*Requirements defined: 2026-07-03 (v4.5); 2026-07-10 (v4.6 analytics); 2026-07-15 (v4.7 post-review polish)*
+*Last updated: 2026-07-15 — added v4.7 Post-Review Polish & Trust (REVIEW-01..05).*
