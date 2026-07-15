@@ -519,9 +519,22 @@ var pinLimiter = rateLimit({
   message: { error: 'Too many PIN attempts, please try again in a minute' }
 });
 
+// 57-01: cap the kiosk client-error beacon so a wedged/looping iPad (or a leaked
+// device token) cannot spam the telemetry sink and flood Sentry/Redis. T-57-03.
+var clientErrorLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: makeRedisStore(60 * 1000, 'client-error'),
+  skip: redisUnavailableSkip,
+  message: { error: 'Too many client-error reports, slow down' }
+});
+
 app.use('/api', apiLimiter);
 app.use('/api', requireAllowedReferer);
 app.use('/api/kiosk/verify-pin', pinLimiter);
+app.use('/api/kiosk/client-error', clientErrorLimiter);
 app.use('/api/payment', paymentLimiter);
 app.use('/api/checkout', paymentLimiter);
 app.use('/api/pos/sale', paymentLimiter);

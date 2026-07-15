@@ -689,6 +689,52 @@ router.post('/api/kiosk/verify-pin', function (req, res) {
   return res.status(401).json({ ok: false, error: 'Invalid PIN' });
 });
 
+// 57-01: durable telemetry sink for the kiosk client-error beacon. The kiosk POSTs
+// here from its failure catch handlers so the real error (text/status/endpoint/auth
+// state) is captured to Sentry BEFORE staff tap Retry and it vanishes. This route
+// accepts client-authored strings from the shop-floor iPad, so it treats the body as
+// hostile: only the six whitelisted fields are read; the message is scrubbed for
+// log-injection control chars and any 13-19 digit run (potential PAN) is redacted;
+// nothing else in the body is ever forwarded. It returns 204 with no body and has no
+// money/data side-effect. Device-token gated (KIOSK_ROUTES) + rate-limited (server.js
+// clientErrorLimiter). Threats T-57-01..05.
+function scrubClientErrorText(value, maxLen) {
+  var s = typeof value === 'string' ? value : String(value == null ? '' : value); // eslint-disable-line eqeqeq -- intentional == null matches undefined too
+  // Redact any run of 13-19 digits (card-number shape) before anything else.
+  s = s.replace(/\d{13,19}/g, '[REDACTED]');
+  // Strip CR/LF and other C0/C1 control characters (log injection).
+  s = s.replace(/[\x00-\x1f\x7f-\x9f]/g, ' ');
+  s = s.slice(0, maxLen || 500);
+  return s;
+}
+
+router.post('/api/kiosk/client-error', function (req, res) {
+  var body = req.body || {};
+  var message = scrubClientErrorText(body.message, 500);
+  var endpoint = scrubClientErrorText(body.endpoint, 120);
+  var authState = scrubClientErrorText(body.auth_state, 40);
+  var userAgent = scrubClientErrorText(body.user_agent, 200);
+  var clientTimestamp = scrubClientErrorText(body.timestamp, 40);
+  var httpStatus = (typeof body.http_status === 'number' && isFinite(body.http_status))
+    ? body.http_status : null;
+
+  captureExceptionSafe(new Error(message), {
+    level: 'error',
+    tags: {
+      source: 'kiosk-client',
+      endpoint: endpoint,
+      http_status: httpStatus,
+      auth_state: authState
+    },
+    extra: { user_agent: userAgent, client_timestamp: clientTimestamp }
+  });
+
+  log.warn('[pos/kiosk/client-error] ' + endpoint + ' status=' + httpStatus +
+    ' auth=' + authState + ' :: ' + message);
+
+  return res.status(204).end();
+});
+
 router.post('/api/kiosk/sale/confirm', function (req, res) {
   var body = req.body;
   if (!body || !Array.isArray(body.items) || body.items.length === 0) {
