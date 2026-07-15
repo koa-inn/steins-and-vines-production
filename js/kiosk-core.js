@@ -142,6 +142,15 @@
       timestamp: new Date().toISOString(),
       user_agent: (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : ''
     };
+    // 57-03 (57-DIAGNOSIS.md beacon finding #2, client half): item_id is an
+    // OPTIONAL structured field, only added when a caller passes one — never
+    // added as an explicit `undefined` key, which would change the whitelisted
+    // key set for every OTHER call site (kiosk-client-error-beacon.test.js Test
+    // 5 pins the six-key shape for the network-reject paths). A Zoho item id
+    // is not PII; length-capped defensively.
+    if (info.item_id) {
+      payload.item_id = String(info.item_id).slice(0, 40);
+    }
     try {
       fetch(mwUrl + '/api/kiosk/client-error', _kcMergeAuth({
         method: 'POST',
@@ -227,6 +236,13 @@
   var MATERIALS_FEE_SKU = 'MAT-FEE';
   var KIOSK_TAX_RATE_DEFAULT = 0.05; // 5% GST fallback when item has no tax_percentage
 
+  // 57-03: a loaded catalog is considered stale after this many ms and is
+  // force-refreshed on the next wake (visibilitychange/pageshow/online), so a
+  // long-open iPad self-heals a phantom item instead of requiring staff to
+  // manually tap "Refresh the product list". 10 minutes bounds the staleness
+  // window without refetching on every wake (T-57-03-03).
+  var KIOSK_CATALOG_MAX_AGE_MS = 10 * 60 * 1000;
+
   // ===== Module-scope state relocated into this closure (D-02) =====
   // None of this state is read/written by js/kiosk.js's deferred payment-path
   // functions (kioskProceedToPayment/kioskShowReceipt/terminal/SO-checkout-fork),
@@ -236,6 +252,11 @@
   var _kioskMakersFeeWaived = false;
   var _kioskProductsLoaded = false;
   var _kioskProductsLoading = false;
+  // 57-03: timestamp of the last successful catalog load. A long-open kiosk
+  // that never re-fetches can hold a STALE catalog containing a phantom item
+  // (an item_id no longer in Zoho) indefinitely — the confirmed variant-2
+  // cause in 57-DIAGNOSIS.md. Paired with KIOSK_CATALOG_MAX_AGE_MS below.
+  var _kioskProductsLoadedAt = null;
   var _kioskCurrentView = 'browse';
   var _kioskMode = 'products';
   var _kioskRecipesLoaded = false;
@@ -837,6 +858,7 @@
         _kioskProducts = data.items || [];
         _kioskProductsLoaded = true;
         _kioskProductsLoading = false;
+        _kioskProductsLoadedAt = Date.now(); // 57-03: staleness clock resets on every successful load
         kioskPopulateCategories();
         kioskRenderProducts();
       })
@@ -887,6 +909,14 @@
     if (!_kioskProductsLoaded && !_kioskProductsLoading &&
         document.getElementById('kiosk-product-grid')) {
       kioskLoadProducts();
+    } else if (_kioskProductsLoaded && !_kioskProductsLoading &&
+               document.getElementById('kiosk-product-grid') &&
+               (Date.now() - (_kioskProductsLoadedAt || 0)) >= KIOSK_CATALOG_MAX_AGE_MS) {
+      // 57-03: the catalog loaded fine but has sat long enough that it may hold
+      // a phantom item (57-DIAGNOSIS.md variant 2) — force-refresh on wake. The
+      // existing keep-last-good `.catch` in kioskLoadProducts is inherited
+      // unchanged, so a failed refresh here never wipes the good grid.
+      kioskLoadProducts(true);
     }
     if (!_kioskRecipesLoaded && !_kioskRecipesLoading &&
         document.getElementById('kiosk-recipe-grid')) {
@@ -901,6 +931,10 @@
   }
   if (typeof window !== 'undefined' && window.addEventListener) {
     window.addEventListener('online', kioskRetryStalledLoads);
+    // 57-03: iOS Safari can restore a backgrounded/suspended tab via the
+    // bfcache without firing visibilitychange — pageshow is the reliable wake
+    // signal on iPad Safari for that case.
+    window.addEventListener('pageshow', kioskRetryStalledLoads);
   }
 
   // ===== Recipe Browser =====
@@ -2399,6 +2433,32 @@
       };
     });
 
+    // 57-03: pre-checkout phantom guard — the confirmed variant-2 stale-catalog
+    // cause (57-DIAGNOSIS.md). A cart line whose item_id is no longer in the
+    // current catalog must be blocked HERE, before the sale POST, not left to
+    // the server's price-anchoring 400 (pos.js:325-333, which remains the
+    // backstop if this check is ever bypassed — never removed, never trusted
+    // as the sole guard). Scoped to a LOADED, non-empty catalog only (an
+    // empty/never-fetched _kioskProducts means there is nothing authoritative
+    // to check against yet, not a stale catalog) and to the plain
+    // product-catalog sale (recipe ingredients live in a separate catalog;
+    // an imported Sales Order's lines come straight from Zoho) — neither is a
+    // candidate for THIS catalog going stale.
+    if (!_kcEnv.getRecipeContext() && !_kioskImportedSoId &&
+        _kioskProductsLoaded && _kioskProducts.length) {
+      for (var pgI = 0; pgI < items.length; pgI++) {
+        var pgItem = items[pgI];
+        if (pgItem.custom || pgItem.gift_cert) continue;
+        if (!kioskFindProductById(pgItem.item_id)) {
+          kioskShowError('Item Unavailable',
+            'Item "' + (pgItem.name || pgItem.item_id) + '" is no longer in the current catalog. ' +
+            'Remove it and re-add it from the product grid, then try again.',
+            true);
+          return;
+        }
+      }
+    }
+
     // === CHECKOUT FORK: imported SO vs new sale (D-02, D-08) ===
     // 48-03 Task 2: the SO subsystem (kioskCollectPayment, kioskShowSoError,
     // the imported-SO tracking state) is now fully internalized in this
@@ -2742,6 +2802,21 @@
         }
         if (result.status !== 202 || !result.data.pending) {
           if (spinnerEl) spinnerEl.style.display = 'none';
+          // 57-03 (57-DIAGNOSIS.md beacon findings #1/#2, client half): this is
+          // the server catalog-miss 400 (pos.js:325-333) — the exact branch the
+          // 57-01 beacon never saw (it only fired from the network `.catch`).
+          // Beacon it here with a structured item_id so a future occurrence is
+          // observed unattended, surviving PAN redaction of the free-text
+          // message (a 19-digit Zoho id collides with the 13-19-digit
+          // card-number heuristic). Fire-and-forget; never blocks the UI.
+          var saleErrMsg = (result.data && result.data.error) || '';
+          var saleErrItemIdMatch = saleErrMsg.match(/(\d{15,})/);
+          _kcReportClientError({
+            message: saleErrMsg,
+            http_status: result.status,
+            endpoint: '/api/kiosk/sale',
+            item_id: saleErrItemIdMatch ? saleErrItemIdMatch[1] : undefined
+          });
           kioskShowError('Terminal Error', (result.data && result.data.error) || 'Failed to push to terminal.', true);
           return;
         }
