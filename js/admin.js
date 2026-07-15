@@ -13,7 +13,7 @@
   }
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-07-15T14:05:57.322Z';
+  var BUILD_TIMESTAMP = '2026-07-15T14:41:11.244Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP); // eslint-disable-line no-console -- deploy build-verification log
 
   var accessToken = null;
@@ -2237,6 +2237,18 @@
     });
   }
 
+  // REVIEW-02 (Phase 58): one rule for every kit price cell. The review found a
+  // raw "$-68.949…" printed straight from the Kits sheet. A missing price stays
+  // blank (the kit simply has no price entered — not an error), but a present-but-
+  // invalid value (negative / non-numeric) renders as an em dash so a garbage
+  // source value can never read as a real price, and valid prices are rounded.
+  function formatKitPrice(raw) {
+    if (raw === null || raw === undefined || raw === '') return '';
+    var n = parseFloat(String(raw).replace(/\$/g, '').trim());
+    if (isNaN(n) || n < 0) return '—';
+    return '$' + n.toFixed(2);
+  }
+
   function renderKitsTab() {
     var tbody = document.getElementById('kits-tbody');
     var emptyMsg = document.getElementById('kits-empty');
@@ -2368,18 +2380,18 @@
       var zohoRate = zohoEntry ? zohoEntry.rate : null;
       if (zohoRate !== null) {
         var instoreTd = document.createElement('td');
-        instoreTd.textContent = '$' + (zohoRate + 50).toFixed(2);
+        instoreTd.textContent = formatKitPrice(zohoRate + 50);
         instoreTd.className = 'admin-cell-readonly';
         instoreTd.title = 'Price synced from Zoho Inventory';
         tr.appendChild(instoreTd);
         var kitTd = document.createElement('td');
-        kitTd.textContent = '$' + zohoRate.toFixed(2);
+        kitTd.textContent = formatKitPrice(zohoRate);
         kitTd.className = 'admin-cell-readonly';
         kitTd.title = 'Price synced from Zoho Inventory';
         tr.appendChild(kitTd);
       } else {
-        appendTd(tr, kit.retail_instore ? '$' + String(kit.retail_instore).replace('$', '') : '');
-        appendTd(tr, kit.retail_kit ? '$' + String(kit.retail_kit).replace('$', '') : '');
+        appendTd(tr, formatKitPrice(kit.retail_instore));
+        appendTd(tr, formatKitPrice(kit.retail_kit));
       }
 
       // Actions column
@@ -9761,6 +9773,7 @@
       parseBeerXML: parseBeerXML,
       autoMatchIngredients: autoMatchIngredients,
       isValidZohoNumber: isValidZohoNumber,
+      formatKitPrice: formatKitPrice,
       buildRefreshUpdates: buildRefreshUpdates,
       compareRefreshFields: compareRefreshFields,
       splitCustomerName: splitCustomerName,
