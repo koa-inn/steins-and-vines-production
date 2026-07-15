@@ -1281,7 +1281,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 57-01-PLAN.md — Client-error capture: ES5 kiosk beacon + device-token-gated, rate-limited, PII-scrubbed POST /api/kiosk/client-error → Sentry; regression tests both sides (REVIEW-01)
+- [x] 57-01-PLAN.md — Client-error capture: ES5 kiosk beacon + device-token-gated, rate-limited, PII-scrubbed POST /api/kiosk/client-error → Sentry; regression tests both sides (REVIEW-01)
 
 **Wave 2** (blocking checkpoint — live iPad)
 
