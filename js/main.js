@@ -8587,6 +8587,30 @@ if (typeof module !== 'undefined' && module.exports) {
     setupBeerWaitlistFormForTest: setupBeerWaitlistForm
   };
 }
+// REVIEW-03 (Phase 59): content photos (.facility-photo-img) are loading="lazy"
+// and below the fold, so their 8px-bordered box renders EMPTY until the image
+// lazy-loads on scroll — which the external review read as a "broken/blank frame".
+// A brand-tone placeholder + shimmer (CSS, on .facility-photo-img:not(.is-loaded))
+// fills that box. This helper is the progressive enhancement that removes the
+// shimmer once each image finishes (or errors), by adding `is-loaded`. The image
+// itself is never hidden by JS — the placeholder sits behind it — so if this does
+// not run, images still display normally.
+function initFacilityPhotoPlaceholders() {
+  var imgs = document.querySelectorAll('.facility-photo-img');
+  for (var i = 0; i < imgs.length; i++) {
+    (function (img) {
+      if (img.complete && img.naturalWidth > 0) {
+        img.classList.add('is-loaded');
+        return;
+      }
+      function markLoaded() { img.classList.add('is-loaded'); }
+      img.addEventListener('load', markLoaded);
+      // Mark a broken image loaded too, so the placeholder never shimmers forever.
+      img.addEventListener('error', markLoaded);
+    }(imgs[i]));
+  }
+}
+
 // ===== Promo Banner =====
 function initPromoBanner() {
   // D-02: Skip if already dismissed via localStorage
@@ -8958,6 +8982,9 @@ document.addEventListener('DOMContentLoaded', function () {
   // Re-evaluate the header open/closed badge every minute (based on Vancouver time)
   renderOpenStatus();
   setInterval(renderOpenStatus, 60 * 1000);
+
+  // REVIEW-03: fill lazy content-image frames with a placeholder until they load
+  initFacilityPhotoPlaceholders();
 
   // Social links on all pages
   loadSocialLinks();
@@ -9554,6 +9581,8 @@ function loadSocialLinks() {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     // Test-only: invoke the kiosk idle-reset cart clearing logic directly
-    _resetKioskSessionForTest: _clearKioskSession
+    _resetKioskSessionForTest: _clearKioskSession,
+    // REVIEW-03: lazy content-image placeholder load-state helper
+    initFacilityPhotoPlaceholders: initFacilityPhotoPlaceholders
   };
 }
