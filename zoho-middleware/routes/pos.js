@@ -767,19 +767,38 @@ router.post('/api/kiosk/client-error', function (req, res) {
   var httpStatus = (typeof body.http_status === 'number' && isFinite(body.http_status))
     ? body.http_status : null;
 
+  // 57-04 (57-DIAGNOSIS beacon finding 2): a real Zoho item_id is 18-19
+  // digits and collides with scrubClientErrorText's 13-19-digit PAN-shape
+  // redaction on `message` above — the field that made the 2026-07-15
+  // diagnosis possible would otherwise log as "...catalog: [REDACTED]."
+  // Rather than weaken the message redaction, item_id gets its OWN strictly
+  // shape-validated field: only a value matching a real Zoho item_id
+  // (17-19 digits, digits only — narrower than a generic 13-19-digit PAN
+  // shape so a 15/16-digit card number cannot be smuggled through as a
+  // fake item_id, T-57-04-03) is stored un-redacted; anything else is
+  // omitted entirely, never forwarded un-validated.
+  var rawItemId = typeof body.item_id === 'string' ? body.item_id : '';
+  var validatedItemId = /^\d{17,19}$/.test(rawItemId) ? rawItemId : null;
+
+  var tags = {
+    source: 'kiosk-client',
+    endpoint: endpoint,
+    http_status: httpStatus,
+    auth_state: authState
+  };
+  if (validatedItemId) {
+    tags.item_id = validatedItemId;
+  }
+
   captureExceptionSafe(new Error(message), {
     level: 'error',
-    tags: {
-      source: 'kiosk-client',
-      endpoint: endpoint,
-      http_status: httpStatus,
-      auth_state: authState
-    },
+    tags: tags,
     extra: { user_agent: userAgent, client_timestamp: clientTimestamp }
   });
 
   log.warn('[pos/kiosk/client-error] ' + endpoint + ' status=' + httpStatus +
-    ' auth=' + authState + ' :: ' + message);
+    ' auth=' + authState + (validatedItemId ? ' item_id=' + validatedItemId : '') +
+    ' :: ' + message);
 
   return res.status(204).end();
 });

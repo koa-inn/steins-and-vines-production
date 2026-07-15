@@ -13,10 +13,12 @@
 //
 // This suite proves the fix is a NEW, narrowly-validated `item_id` field
 // (not a weakening of the message redaction): a value shaped like a real
-// Zoho item_id (15-19 digits, digits only) is stored un-redacted; anything
-// else is omitted entirely (never passed through un-validated — that would
-// be a PAN-smuggling hole, T-57-04-03). The free-text `message` field must
-// keep its full PAN redaction unchanged.
+// Zoho item_id (17-19 digits, digits only — narrower than the generic
+// 13-19-digit PAN shape so a 15/16-digit card number can't pass as an
+// item_id) is stored un-redacted; anything else is omitted entirely (never
+// passed through un-validated — that would be a PAN-smuggling hole,
+// T-57-04-03). The free-text `message` field must keep its full PAN
+// redaction unchanged.
 //
 // Harness mirrors pos-client-error.test.js exactly (do NOT edit that file —
 // its own 8 tests must remain green and unedited per the plan).
