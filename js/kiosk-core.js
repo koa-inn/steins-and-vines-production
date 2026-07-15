@@ -142,6 +142,15 @@
       timestamp: new Date().toISOString(),
       user_agent: (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : ''
     };
+    // 57-03 (57-DIAGNOSIS.md beacon finding #2, client half): item_id is an
+    // OPTIONAL structured field, only added when a caller passes one — never
+    // added as an explicit `undefined` key, which would change the whitelisted
+    // key set for every OTHER call site (kiosk-client-error-beacon.test.js Test
+    // 5 pins the six-key shape for the network-reject paths). A Zoho item id
+    // is not PII; length-capped defensively.
+    if (info.item_id) {
+      payload.item_id = String(info.item_id).slice(0, 40);
+    }
     try {
       fetch(mwUrl + '/api/kiosk/client-error', _kcMergeAuth({
         method: 'POST',
@@ -2793,6 +2802,21 @@
         }
         if (result.status !== 202 || !result.data.pending) {
           if (spinnerEl) spinnerEl.style.display = 'none';
+          // 57-03 (57-DIAGNOSIS.md beacon findings #1/#2, client half): this is
+          // the server catalog-miss 400 (pos.js:325-333) — the exact branch the
+          // 57-01 beacon never saw (it only fired from the network `.catch`).
+          // Beacon it here with a structured item_id so a future occurrence is
+          // observed unattended, surviving PAN redaction of the free-text
+          // message (a 19-digit Zoho id collides with the 13-19-digit
+          // card-number heuristic). Fire-and-forget; never blocks the UI.
+          var saleErrMsg = (result.data && result.data.error) || '';
+          var saleErrItemIdMatch = saleErrMsg.match(/(\d{15,})/);
+          _kcReportClientError({
+            message: saleErrMsg,
+            http_status: result.status,
+            endpoint: '/api/kiosk/sale',
+            item_id: saleErrItemIdMatch ? saleErrItemIdMatch[1] : undefined
+          });
           kioskShowError('Terminal Error', (result.data && result.data.error) || 'Failed to push to terminal.', true);
           return;
         }
