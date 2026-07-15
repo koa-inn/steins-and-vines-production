@@ -1277,7 +1277,7 @@ Plans:
   3. The confirmed cause is fixed with a regression test written first (RED), and the auto-recovery actually works on the real device (e.g. a stale device-token/session self-heals, or the wake-retry fires) so staff no longer need a manual refresh
   4. Verified on the live iPad against the prod middleware — not merely a green suite (prior fix `7cbf856` passed its tests and still failed in the store)
 
-**Plans**: 3 plans (3 waves — debug cycle: instrument → diagnose → fix → live-verify)
+**Plans**: 5 plans (4 waves — debug cycle: instrument → diagnose → fix (client + server) → live-verify)
 Plans:
 **Wave 1**
 
@@ -1287,9 +1287,14 @@ Plans:
 
 - [ ] 57-02-PLAN.md — Deploy 57-01 to prod, capture a REAL failure occurrence on the live iPad, record the confirmed cause in 57-DIAGNOSIS.md before any fix (REVIEW-01)
 
-**Wave 3** (fix — keyed to 57-02 diagnosis)
+**Wave 3** (fix — keyed to 57-02 diagnosis; 57-03 + 57-04 run in parallel, no file overlap)
 
-- [ ] 57-03-PLAN.md — RED-first regression test + targeted fix for the CONFIRMED cause; live-iPad re-verify that a sale starts without a manual refresh (REVIEW-01)
+- [ ] 57-03-PLAN.md — CONFIRMED-cause fix (client): stale-catalog self-heal on wake/staleness + pre-checkout phantom guard + beacon the sale server-error branch with a readable item_id (REVIEW-01)
+- [ ] 57-04-PLAN.md — Server safety net: bounded catalog auto-reconcile on a sale catalog-miss (variant 1) + store a validated item_id un-redacted (REVIEW-01)
+
+**Wave 4** (live verification — blocking checkpoint)
+
+- [ ] 57-05-PLAN.md — Full gate + deploy (frontend staging→prod, middleware prod-only); live-iPad confirm a previously-stale item sells WITHOUT a manual refresh (SC#4) (REVIEW-01)
 
 ### Phase 58: Revenue & Operations Integrity
 
