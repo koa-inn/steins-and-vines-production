@@ -1289,8 +1289,8 @@ Plans:
 
 **Wave 3** (fix — keyed to 57-02 diagnosis; 57-03 + 57-04 run in parallel, no file overlap)
 
-- [ ] 57-03-PLAN.md — CONFIRMED-cause fix (client): stale-catalog self-heal on wake/staleness + pre-checkout phantom guard + beacon the sale server-error branch with a readable item_id (REVIEW-01)
-- [ ] 57-04-PLAN.md — Server safety net: bounded catalog auto-reconcile on a sale catalog-miss (variant 1) + store a validated item_id un-redacted (REVIEW-01)
+- [x] 57-03-PLAN.md — CONFIRMED-cause fix (client): stale-catalog self-heal on wake/staleness + pre-checkout phantom guard + beacon the sale server-error branch with a readable item_id (REVIEW-01)
+- [x] 57-04-PLAN.md — Server safety net: bounded catalog auto-reconcile on a sale catalog-miss (variant 1) + store a validated item_id un-redacted (REVIEW-01)
 
 **Wave 4** (live verification — blocking checkpoint)
 
