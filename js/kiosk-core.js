@@ -115,6 +115,48 @@
     return opts;
   }
 
+  // 57-01: client-error beacon. When a kiosk fetch fails, report the real error to
+  // the middleware BEFORE kioskRenderLoadError clears the grid, so the exact error
+  // (text/status/endpoint/auth-state) is captured to Sentry instead of vanishing
+  // when staff tap Retry. The body carries ONLY the six whitelisted fields — never
+  // the device-token value (it rides the auth header via _kcMergeAuth, and
+  // auth_state below is a LABEL, not the token) and never card/customer data.
+  // Fire-and-forget: a beacon failure can never throw into the caller and never
+  // re-beacons (the POST's own .catch is a no-op and is not itself instrumented).
+  function _kcReportClientError(info) {
+    info = info || {};
+    var mwUrl = _kcEnv.mwUrl;
+    if (!mwUrl) return;
+    var authOpts = _kcEnv.buildAuthOptions() || {};
+    var authState = 'none';
+    if (authOpts.headers && authOpts.headers['x-device-token']) {
+      authState = 'device-token';
+    } else if (authOpts.credentials === 'include') {
+      authState = 'session-cookie';
+    }
+    var payload = {
+      message: String(info.message == null ? '' : info.message).slice(0, 500), // eslint-disable-line eqeqeq -- intentional == null matches undefined too
+      http_status: (typeof info.http_status === 'number' ? info.http_status : null),
+      endpoint: info.endpoint || '',
+      auth_state: authState,
+      timestamp: new Date().toISOString(),
+      user_agent: (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : ''
+    };
+    try {
+      fetch(mwUrl + '/api/kiosk/client-error', _kcMergeAuth({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })).catch(function () {});
+    } catch (e) { /* never let telemetry break the kiosk */ }
+  }
+
+  // Parse an 'HTTP nnn' status out of a caught error message, else null.
+  function _kcHttpStatusFromErr(err) {
+    var m = err && err.message ? String(err.message).match(/HTTP (\d{3})/) : null;
+    return m ? parseInt(m[1], 10) : null;
+  }
+
   // ===== Shared Utilities (standalone-bundle copies — kiosk.js/admin.js each
   // carry their own copy of these too; this file is a third independent
   // bundle so it carries its own, matching the existing project convention) =====
@@ -807,6 +849,8 @@
           kioskRenderProducts();
           return;
         }
+        _kcReportClientError({ message: 'Failed to load products: ' + (err && err.message),
+          http_status: _kcHttpStatusFromErr(err), endpoint: '/api/kiosk/products' });
         kioskRenderLoadError('kiosk-product-grid', 'kiosk-products-retry',
           'Failed to load products: ' + err.message, function () { kioskLoadProducts(); });
       });
@@ -891,6 +935,8 @@
           kioskRenderRecipes();
           return;
         }
+        _kcReportClientError({ message: 'Failed to load recipes: ' + (err && err.message),
+          http_status: _kcHttpStatusFromErr(err), endpoint: '/api/recipes' });
         kioskRenderLoadError('kiosk-recipe-grid', 'kiosk-recipes-retry',
           'Failed to load recipes: ' + err.message, function () { kioskLoadRecipes(); });
       });
@@ -2569,6 +2615,8 @@
         })
         .catch(function () {
           if (cancelled || saleCompleted) return;
+          _kcReportClientError({ message: 'recipe-sale/confirm fetch rejected', http_status: null,
+            endpoint: '/api/kiosk/recipe-sale/confirm' });
           if (spinnerEl) spinnerEl.style.display = 'none';
           kioskShowError('Connection Error', 'Could not confirm the recipe sale. Contact staff for assistance.', false);
         });
@@ -2595,6 +2643,8 @@
       .then(function (result) { handleSaleResult(result); })
       .catch(function () {
         if (cancelled || saleCompleted) return;
+        _kcReportClientError({ message: 'sale/confirm fetch rejected', http_status: null,
+          endpoint: '/api/kiosk/sale/confirm' });
         if (spinnerEl) spinnerEl.style.display = 'none';
         kioskShowError('Connection Error', 'Could not reach the server. Please try again.', true);
       });
