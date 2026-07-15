@@ -41,7 +41,39 @@ global.SHEETS_CONFIG = {
 
 var DEVICE_TOKEN_KEY = 'sv_kiosk_device_token';
 
+// This file (unlike kiosk-load-recovery/resilience) exercises the NEW
+// staleness-based wake refresh, which fires whenever a closure's OWN loaded
+// catalog looks older than KIOSK_CATALOG_MAX_AGE_MS — a condition that (unlike
+// the pre-existing !loaded guard) a PRIOR test's already-loaded closure can
+// ALSO satisfy once Date.now() is mocked forward. loadSurface() creates a
+// fresh KioskCore closure per test but the previous closure's
+// document/window listeners are never detached (jsdom's document/window are
+// real singletons shared across every test in this file), so without this
+// tracking a stale prior closure's listener fires alongside the current
+// one on the same visibilitychange/online dispatch, racing the shared
+// global.fetch mock queue. Track + detach every listener before each new
+// surface loads.
+var _kcfTrackedListeners = [];
+var _kcfOrigDocAdd = document.addEventListener.bind(document);
+document.addEventListener = function (type, fn, opts) {
+  _kcfTrackedListeners.push({ target: document, type: type, fn: fn });
+  return _kcfOrigDocAdd(type, fn, opts);
+};
+var _kcfOrigWinAdd = window.addEventListener.bind(window);
+window.addEventListener = function (type, fn, opts) {
+  _kcfTrackedListeners.push({ target: window, type: type, fn: fn });
+  return _kcfOrigWinAdd(type, fn, opts);
+};
+
+function detachTrackedListeners() {
+  _kcfTrackedListeners.forEach(function (l) {
+    l.target.removeEventListener(l.type, l.fn);
+  });
+  _kcfTrackedListeners = [];
+}
+
 function loadSurface(path) {
+  detachTrackedListeners(); // remove the PREVIOUS surface's listeners before creating a new one
   jest.resetModules();
   if (global.window) delete global.window.KioskCore;
   document.body.innerHTML = '';
@@ -81,9 +113,14 @@ function setVisibility(state) {
   document.dispatchEvent(new Event('visibilitychange'));
 }
 
-// 10 minutes + 1ms — must exceed KIOSK_CATALOG_MAX_AGE_MS regardless of the
-// exact bound chosen by the implementation (documented as ~10 minutes).
-var PAST_STALENESS_BOUND_MS = 10 * 60 * 1000 + 1;
+// 10 minutes + a generous 5s buffer — must exceed KIOSK_CATALOG_MAX_AGE_MS
+// regardless of the exact bound chosen by the implementation (documented as
+// ~10 minutes). The buffer must comfortably exceed the REAL wall-clock time
+// between capturing `realNow` (before the seed load) and the moment
+// _kioskProductsLoadedAt is actually set inside the fetch promise chain — a
+// margin of only 1ms was observed to flake under CPU contention (the
+// microtask chain occasionally takes >1ms in a busy test run).
+var PAST_STALENESS_BOUND_MS = 10 * 60 * 1000 + 5000;
 
 beforeEach(function () {
   localStorage.clear();
