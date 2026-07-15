@@ -121,3 +121,9 @@ None — no external service configuration required. This is a pure code change;
 ---
 *Phase: 57-kiosk-sale-blocking-recovery*
 *Completed: 2026-07-15*
+
+## Self-Check: PASSED
+
+All created/modified files confirmed present on disk; all 5 commit hashes
+(`bff19a8b`, `6593070c`, `1bdac2c1`, `6d01b89f`, `690a4dfa`) confirmed in
+`git log`.
