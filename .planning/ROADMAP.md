@@ -1262,3 +1262,63 @@ Plans:
 - [ ] 56-01-PLAN.md — T1 staging-exclusion FIRST (GA4 internal-traffic filter on staging hostname, keeps DebugView for the UAT) → verify the 3 ecommerce event tags (already live) → Conversion Linker → Ads Google tag AW-18091171314 → Metricool decision + CSP↔GTM publish ordering → publish → mark `purchase` key event + 2nd admin → then close the Phase 55 purchase UAT in DebugView + promote c86b5b3 to prod (ANALYTICS-02)
 
 **Note**: The 3 GA4 ecommerce event tags already appear LIVE (Phase 55 browser check saw a GA4 collect POST `tid=G-WDYSXCM703 en=add_to_cart`). T1's staging exclusion gates the Phase 55 `purchase` UAT — do it before any test order so staging doesn't pollute the prod GA4 property.
+
+## Phase Details (v4.7)
+
+### Phase 57: Kiosk Sale-Blocking Recovery
+
+**Goal**: A kiosk sale can be started without a manual page refresh even after the iPad wakes from sleep — and, critically, the recurring failure is fixed from a REAL captured occurrence rather than inferred a second time. The prerequisite that makes this possible: the kiosk gains durable error capture so a failure is no longer lost the instant staff tap Retry.
+**Depends on**: none (independent; most urgent — it blocks selling)
+**Requirements**: REVIEW-01
+**Success Criteria** (what must be TRUE):
+
+  1. A kiosk-side failure (catalog load, auth, or sale POST) is reported to a durable sink (middleware log / Sentry via a small client-error beacon) with the real error text, HTTP status, endpoint, and auth state — so the exact error is no longer lost when staff tap Retry
+  2. The real cause is diagnosed from a captured occurrence (forced on the iPad or observed in the wild), not inferred — the diagnosis is recorded before any fix is written
+  3. The confirmed cause is fixed with a regression test written first (RED), and the auto-recovery actually works on the real device (e.g. a stale device-token/session self-heals, or the wake-retry fires) so staff no longer need a manual refresh
+  4. Verified on the live iPad against the prod middleware — not merely a green suite (prior fix `7cbf856` passed its tests and still failed in the store)
+
+**Plans**: TBD (debug cycle: instrument → diagnose → fix → live-verify)
+
+### Phase 58: Revenue & Operations Integrity
+
+**Goal**: The two review findings that touch money and foot traffic are closed: admin Kit Inventory shows no malformed/negative/unrounded prices, and the header Open/Closed indicator provably reflects real posted hours in the correct timezone.
+**Depends on**: none
+**Requirements**: REVIEW-02
+**Success Criteria** (what must be TRUE):
+
+  1. The `$-68.949…` class of malformed price is traced to its source (cost/margin math or a bad source value) and corrected + rounded; a regression asserts no negative/unrounded price renders
+  2. The Open/Closed logic is verified against the real posted hours (Tue 10–4, Wed 10–4, Thu 12–7, Fri 10–4, Sat 10–4, Sun/Mon closed) in the shop's timezone; if wrong, fixed with a test pinning the boundary transitions
+  3. Both are confirmed real before code changes (the Open/Closed one may already be correct — the review ran on a genuinely-closed day)
+
+### Phase 59: Public-Site Trust Polish
+
+**Goal**: The public site no longer looks unfinished or untrustworthy to a first-time visitor: no empty gap above the footer, no mystery/pre-populated cart for new visitors, and no blank framed images.
+**Depends on**: none
+**Requirements**: REVIEW-03
+**Success Criteria** (what must be TRUE):
+
+  1. Home/About/Contact have no large empty vertical gap above the footer (traced to the min-height/empty-container cause; a visual spot-check on each page confirms)
+  2. Whether the observed cart pre-populate ("Belgian Candi Syrup") is a real bug or session leftover is CONFIRMED first; then a genuinely-fresh visitor never sees a pre-filled cart, and cart state is consistent across every page
+  3. The "Our Story" image and the mobile framed images (e.g. "Homebrew Supplies" interior) reliably render — no blank bordered boxes — with the lazy-load / broken-link cause fixed at root
+
+### Phase 60: Admin Data Hygiene
+
+**Goal**: The admin dashboard's alert numbers become trustworthy: the Kit Inventory table is free of blank/orphan rows, the low-stock alert counts only real kits, and the overdue-task counts reconcile or are precisely labelled.
+**Depends on**: none
+**Requirements**: REVIEW-04
+**Success Criteria** (what must be TRUE):
+
+  1. The ~9 blank-name + ~26 all-zero orphan rows in Kit Inventory are traced to their source (likely a sync/import creating empty records) and cleaned up / prevented at the source
+  2. The "kits low stock" alert reflects only real kits after the orphan rows are gone (and/or the threshold is reviewed), so the headline number is actionable
+  3. The overdue-task counts (Dashboard 24 vs Tasks tab 45 vs Admin 24) either reconcile to one number or are each labelled by their exact scope (batch tasks vs all tasks incl. transfers/packaging)
+
+### Phase 61: Site Refinement
+
+**Goal**: The remaining review polish items are addressed on an already-solid site — faster first paint, accessible images, and the smaller UI/UX nits.
+**Depends on**: none (lowest priority; do last)
+**Requirements**: REVIEW-05
+**Success Criteria** (what must be TRUE):
+
+  1. First contentful paint is materially faster — web fonts no longer render-blocking (`font-display: swap` + preload the primary faces; self-host if needed)
+  2. Meaningful homepage images (storefront, interior, product shots) carry descriptive alt text; decorative icons may stay intentionally empty
+  3. The smaller items are handled or consciously deferred: Ingredients filter-bar sits in the toolbar not overlapping the hero; Instagram tiles have a lighter loading state; testimonials/Google-reviews snippet considered; kiosk device-token screen gains helper text; a decision is recorded on whether BrewPad + Admin share a sign-in
