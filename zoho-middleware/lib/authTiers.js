@@ -116,7 +116,14 @@ async function resolveTier(req) {
   var headers = (req && req.headers) || {};
   if (apiKeyGuard.matches(headers['x-api-key'])) return 'legacy';
   if (deviceToken.matches(headers['x-device-token'])) return 'device';
-  var sid = req && req.cookies && req.cookies.sv_session;
+  // Session credential: the httpOnly sv_session cookie is preferred, but staff
+  // surfaces (BrewPad/admin) served cross-site from steinsandvines.ca cannot rely
+  // on that cookie being sent to this Railway origin (modern browsers drop the
+  // cross-site cookie). They send the same opaque session id in an x-session-token
+  // header instead. Same server-side lookup; a header value is only ever a string.
+  var headerToken = headers['x-session-token'];
+  var sid = (req && req.cookies && req.cookies.sv_session) ||
+    (typeof headerToken === 'string' ? headerToken : '');
   if (sid) {
     var payload = await session.getSession(sid);
     if (payload) {
@@ -150,7 +157,8 @@ function requireTiers(allowedTiers) {
     var headers = req.headers || {};
     var hasApiKey = !!headers['x-api-key'];
     var hasDeviceToken = !!headers['x-device-token'];
-    var hasSessionCookie = !!(req.cookies && req.cookies.sv_session);
+    // Session presented via cookie OR x-session-token header (cross-site staff surfaces).
+    var hasSessionCookie = !!(req.cookies && req.cookies.sv_session) || !!headers['x-session-token'];
 
     if (!hasApiKey && !hasDeviceToken && !hasSessionCookie) {
       return res.status(401).json({ error: 'Unauthorized' });

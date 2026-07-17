@@ -105,7 +105,11 @@ router.post('/auth/google', function (req, res) {
           maxAge: SESSION_COOKIE_MAX_AGE_MS,
           path: '/'
         });
-        res.json({ authorized: true, email: email });
+        // Also return the session id in the body so cross-site staff surfaces
+        // (BrewPad/admin on steinsandvines.ca) can store it and send it as an
+        // x-session-token header — the sv_session cookie above is not delivered
+        // to this Railway origin cross-site by modern browsers. Same opaque id.
+        res.json({ authorized: true, email: email, token: sid });
       });
     })
     .catch(function (err) {

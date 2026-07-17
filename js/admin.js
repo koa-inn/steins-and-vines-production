@@ -3,6 +3,41 @@
 (function () {
   'use strict';
 
+  // Attach the session token as an x-session-token header on middleware requests.
+  // The httpOnly sv_session cookie is set at login but modern browsers do NOT send
+  // it to the cross-site Railway origin, so admin carries the same opaque session
+  // id in this header. Scoped strictly to MIDDLEWARE_URL requests.
+  (function () {
+    // Browser-only: under CommonJS/jest the tests mock window.fetch directly and
+    // must keep their jest.fn reference intact, so never wrap in that context.
+    if (typeof module !== 'undefined' || typeof window === 'undefined' ||
+        !window.fetch || window.__svSessionFetchWrapped) return;
+    window.__svSessionFetchWrapped = true;
+    var origFetch = window.fetch;
+    window.fetch = function (input, init) {
+      try {
+        var url = (typeof input === 'string') ? input : (input && input.url) || '';
+        var base = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL) || '';
+        if (base && url.indexOf(base) === 0) {
+          var tok = null;
+          try { tok = localStorage.getItem('sv_session_token'); } catch (e) {}
+          if (tok) {
+            init = init || {};
+            if (init.headers && typeof init.headers.set === 'function') {
+              init.headers.set('x-session-token', tok);
+            } else {
+              var merged = {}, src = init.headers || {};
+              for (var k in src) { if (Object.prototype.hasOwnProperty.call(src, k)) merged[k] = src[k]; }
+              merged['x-session-token'] = tok;
+              init.headers = merged;
+            }
+          }
+        }
+      } catch (e) { /* never break a fetch */ }
+      return origFetch.call(this, input, init);
+    };
+  })();
+
   // ===== Test-only KioskCore attach (mirrors the module.exports guard pattern
   // already used at the bottom of kiosk.js) — inert in the browser, where
   // <script src="kiosk-core.min.js"> has already run and set window.KioskCore
@@ -13,7 +48,7 @@
   }
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-07-15T15:04:31.468Z';
+  var BUILD_TIMESTAMP = '2026-07-17T17:34:08.296Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP); // eslint-disable-line no-console -- deploy build-verification log
 
   var accessToken = null;
@@ -496,6 +531,9 @@
       .then(function (res) { return res.json(); })
       .then(function (result) {
         if (result.authorized) {
+          // Store the session token for the x-session-token header (the sv_session
+          // cookie is not delivered to the cross-site Railway origin by browsers).
+          try { if (result.token) { localStorage.setItem('sv_session_token', result.token); } } catch (e) {}
           showDashboard();
         } else {
           showDenied();
@@ -567,6 +605,7 @@
   function clearSession() {
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem('sv-admin-email');
+    localStorage.removeItem('sv_session_token');
   }
 
   function signOut() {

@@ -133,7 +133,10 @@ describe('POST /auth/google', function () {
       .then(function (res) {
         expect(mockVerifyStaffAccessToken).toHaveBeenCalledWith('tok-good');
         expect(res.status).toBe(200);
-        expect(res.body).toEqual({ authorized: true, email: 'staff@steinsandvines.ca' });
+        // token: the session id is returned in the body so cross-site staff
+        // surfaces can send it as an x-session-token header (the cookie is not
+        // delivered to this origin cross-site).
+        expect(res.body).toEqual({ authorized: true, email: 'staff@steinsandvines.ca', token: 'deadbeef'.repeat(8) });
         expect(mockCreateSession).toHaveBeenCalledWith('staff@steinsandvines.ca');
         var setCookie = res.headers['set-cookie'] || [];
         var svSessionCookie = setCookie.find(function (c) { return c.indexOf('sv_session=') === 0; });

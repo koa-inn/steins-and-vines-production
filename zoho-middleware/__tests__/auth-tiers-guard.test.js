@@ -185,4 +185,40 @@ describe('3-tier /api guard — dual-accept (legacy / device / session)', functi
         expect(res.status).toBe(403);
       });
   });
+
+  // x-session-token header path: cross-site staff surfaces (BrewPad/admin served
+  // from steinsandvines.ca) cannot rely on the sv_session cookie reaching this
+  // Railway origin, so they send the same opaque session id in a header.
+  test('(9) PII GET /api/contacts with a valid session via x-session-token header — not 403', function () {
+    session.getSession.mockResolvedValueOnce({ email: 'staff@steinsandvines.ca' });
+    return request(app)
+      .get('/api/contacts')
+      .query({ email: 'a@b.com' })
+      .set('x-session-token', 'valid-sid')
+      .then(function (res) {
+        expect(res.status).not.toBe(403);
+      });
+  });
+
+  test('(10) admin-grade route (gift-card/void) with a valid session via x-session-token header — not 403', function () {
+    session.getSession.mockResolvedValueOnce({ email: 'staff@steinsandvines.ca' });
+    return request(app)
+      .post('/api/kiosk/gift-card/void')
+      .set('x-session-token', 'valid-sid')
+      .send({ cert_number: 'GC-000042', reason: 'test' })
+      .then(function (res) {
+        expect(res.status).not.toBe(403);
+      });
+  });
+
+  test('(11) x-session-token resolving to no session → 403 on a PII route (forged/stale id rejected)', function () {
+    session.getSession.mockResolvedValueOnce(null);
+    return request(app)
+      .get('/api/contacts')
+      .query({ email: 'a@b.com' })
+      .set('x-session-token', 'stale-or-forged-sid')
+      .then(function (res) {
+        expect(res.status).toBe(403);
+      });
+  });
 });

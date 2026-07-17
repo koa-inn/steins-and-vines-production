@@ -1,6 +1,42 @@
 // ===== Steins & Vines BrewPad — iPad Batch Terminal =====
 // Self-contained IIFE — no dependency on admin.js.
 
+// Attach the session token to every middleware request as an x-session-token
+// header. The httpOnly sv_session cookie is set at login but modern browsers do
+// NOT send it to the cross-site Railway origin, so staff surfaces carry the same
+// opaque session id in this header instead. Scoped strictly to MIDDLEWARE_URL
+// requests — the token is never sent to any other host.
+(function () {
+  // Browser-only: under CommonJS/jest the tests mock window.fetch directly and
+  // must keep their jest.fn reference intact, so never wrap in that context.
+  if (typeof module !== 'undefined' || typeof window === 'undefined' ||
+      !window.fetch || window.__svSessionFetchWrapped) return;
+  window.__svSessionFetchWrapped = true;
+  var origFetch = window.fetch;
+  window.fetch = function (input, init) {
+    try {
+      var url = (typeof input === 'string') ? input : (input && input.url) || '';
+      var base = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.MIDDLEWARE_URL) || '';
+      if (base && url.indexOf(base) === 0) {
+        var tok = null;
+        try { tok = localStorage.getItem('sv_session_token'); } catch (e) {}
+        if (tok) {
+          init = init || {};
+          if (init.headers && typeof init.headers.set === 'function') {
+            init.headers.set('x-session-token', tok);
+          } else {
+            var merged = {}, src = init.headers || {};
+            for (var k in src) { if (Object.prototype.hasOwnProperty.call(src, k)) merged[k] = src[k]; }
+            merged['x-session-token'] = tok;
+            init.headers = merged;
+          }
+        }
+      }
+    } catch (e) { /* never break a fetch over telemetry */ }
+    return origFetch.call(this, input, init);
+  };
+})();
+
 // Pure / near-pure helpers lifted out of the IIFE so they can be unit-tested.
 
 function escapeHTML(str) {
@@ -838,6 +874,7 @@ function bpScaleIngredients(list, factor) {
 
   function clearSession() {
     localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem('sv_session_token');
   }
 
   // ===== Toast =====
@@ -1061,7 +1098,13 @@ function bpScaleIngredients(list, factor) {
     })
       .then(function (res) { return res.json(); })
       .then(function (result) {
-        if (result.authorized) { showApp(); } else { showDenied(); }
+        if (result.authorized) {
+          // Store the session token for the x-session-token header. The httpOnly
+          // sv_session cookie is also set, but browsers don't send it to the
+          // cross-site Railway origin — the header carries the same opaque id.
+          try { if (result.token) { localStorage.setItem('sv_session_token', result.token); } } catch (e) {}
+          showApp();
+        } else { showDenied(); }
       })
       .catch(function (err) {
         if (typeof onError === 'function') {
