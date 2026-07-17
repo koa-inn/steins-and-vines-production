@@ -319,6 +319,7 @@ app.use('/api', async function (req, res, next) {
       ' x-api-key-present=' + (sent !== undefined) +
       ' x-device-token-present=' + (req.headers['x-device-token'] !== undefined) +
       ' session-cookie-present=' + !!(req.cookies && req.cookies.sv_session) +
+      ' x-session-token-present=' + (req.headers['x-session-token'] !== undefined) +
       ' origin=' + (req.headers.origin || 'none') +
       ' referer=' + (req.headers.referer || 'none'));
     return res.status(403).json({ error: 'Forbidden' });
