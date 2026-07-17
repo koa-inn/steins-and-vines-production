@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-07-17T18:13:29.858Z",
+  "phase": "57",
+  "phase_name": "kiosk-sale-blocking-recovery",
+  "phase_dir": ".planning/phases/57-kiosk-sale-blocking-recovery",
+  "status": "paused",
+  "head_commit": "55b53505",
+  "summary": "Executed+deployed Phase 57 (57-01..04 live on prod, tag prod-20260716-1; 57-05 live-iPad verify still open). Then resolved a production incident: BrewPad/admin staff auth broke because the sv_session cookie is cross-site (steinsandvines.ca page -> Railway API) and browsers drop it. Fixed with x-session-token header auth (commit 6a7b0ddd, live, backward-compatible). Owner confirmed customer lookup + bottling invite work.",
+  "completed_this_session": [
+    {"item": "Phase 57 wave 1-3 executed, merged, deployed to prod (+58/59)", "status": "done"},
+    {"item": "57-REVIEW.md code review (0 blocker / 2 warning)", "status": "done"},
+    {"item": "Diagnosed BrewPad 403 as cross-site cookie drop (hasCookieHeader=false)", "status": "done"},
+    {"item": "Shipped x-session-token header auth fix (6a7b0ddd); auth-guard token-presence log (55b53505)", "status": "done"}
+  ],
+  "remaining": [
+    {"item": "57-05 live-iPad verify of stale-catalog fix, then write 57-05-SUMMARY.md + mark phase complete", "type": "human_action"},
+    {"item": "FEATURE: bottling-invite send tracking (record bottling_invite_sent_at on batch + UI indication + resend-warning)", "type": "feature"}
+  ],
+  "blockers": [
+    {"description": "Railway could not issue TLS cert for api.steinsandvines.ca (stuck 9+ hrs VALIDATING_OWNERSHIP, no error) -> abandoned the first-party subdomain route", "type": "external", "workaround": "header-token auth instead"}
+  ],
+  "human_actions_pending": [
+    {"action": "Live-iPad verify Phase 57 stale-catalog fix (57-05)", "context": "SC#4; a green suite proved nothing before", "blocking": false},
+    {"action": "Optionally delete unused api.steinsandvines.ca DNS CNAME + Railway custom domain", "context": "abandoned subdomain route", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "Fix BrewPad cross-site auth via x-session-token header, not the api subdomain", "rationale": "Railway cert issuance broken; header path is reliable, in-our-control, money-path-safe. Tradeoff: token readable by page scripts (staff-only tool)."}
+  ],
+  "deploy_state_notes": "Prod middleware shipped via direct `railway up` (bypassed gated-deploy; prod git repo + RUNBOOK/tag not stamped). Frontend via blessed gated-deploy. Next normal deploy reconciles.",
+  "next_action": "Resume with either 57-05 live-iPad verify OR 'add bottling-invite sent tracking' (see .planning/.continue-here.md section 3)."
+}
