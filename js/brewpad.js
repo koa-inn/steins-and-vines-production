@@ -5055,7 +5055,15 @@ function bpScaleIngredients(list, factor) {
         ' title="Swap this batch&#39;s schedule and recompute its tasks — completed tasks are kept">Change Schedule</button>';
     }
     if (b.customer_email) {
-      html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-bottling-invite-btn">Send Bottling Invite</button>';
+      var inviteSentAt = b.bottling_invite_sent_at || '';
+      if (inviteSentAt) {
+        var sentTo = b.bottling_invite_email || b.customer_email || '';
+        html += '<p class="bp-invite-sent-note" id="bp-invite-sent-note">Invite sent ' +
+          escapeHTML(fmtDate(inviteSentAt)) +
+          (sentTo ? ' to ' + escapeHTML(sentTo) : '') + '</p>';
+      }
+      html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-bottling-invite-btn">' +
+        (inviteSentAt ? 'Resend Invite' : 'Send Bottling Invite') + '</button>';
     }
     html += '<button type="button" class="btn-secondary bp-btn-sm bp-danger-btn" id="bp-delete-batch-btn">Delete Batch</button>';
     html += '</div>';
@@ -5675,9 +5683,13 @@ function bpScaleIngredients(list, factor) {
     if (bottlingInviteBtn) {
       bottlingInviteBtn.addEventListener('click', function () {
         var inviteEmail = b.customer_email || '';
+        var alreadySent = b.bottling_invite_sent_at || '';
+        var confirmMsg = alreadySent
+          ? 'An invite was already sent ' + fmtDate(alreadySent) + '. Resend a bottling booking invite to ' + inviteEmail + '?'
+          : 'Email a bottling booking invite to ' + inviteEmail + '?';
         showConfirmSheet(
-          'Email a bottling booking invite to ' + inviteEmail + '?',
-          'Send Invite', '',
+          confirmMsg,
+          alreadySent ? 'Resend Invite' : 'Send Invite', '',
           function () {
             bottlingInviteBtn.disabled = true;
             postBottlingInvite({
@@ -5686,7 +5698,11 @@ function bpScaleIngredients(list, factor) {
               batchId: b.batch_id,
               productName: b.product_name || ''
             })
-              .then(function () {
+              .then(function (resp) {
+                var sentAt = (resp && resp.sent_at) || new Date().toISOString();
+                b.bottling_invite_sent_at = sentAt;
+                b.bottling_invite_email = inviteEmail;
+                markInviteSent(sentAt, inviteEmail);
                 showToast('Bottling invite sent to ' + inviteEmail, 'success');
               })
               .catch(function (err) { showToast('Failed: ' + err.message, 'error'); })
@@ -5694,6 +5710,23 @@ function bpScaleIngredients(list, factor) {
           }
         );
       });
+    }
+
+    // Reflect a just-sent invite in the detail pane without a full re-render:
+    // relabel the button "Resend Invite" and show/refresh the "Invite sent …" note.
+    function markInviteSent(sentAt, email) {
+      if (bottlingInviteBtn) bottlingInviteBtn.textContent = 'Resend Invite';
+      var noteText = 'Invite sent ' + fmtDate(sentAt) + (email ? ' to ' + email : '');
+      var note = document.getElementById('bp-invite-sent-note');
+      if (note) {
+        note.textContent = noteText;
+      } else if (bottlingInviteBtn && bottlingInviteBtn.parentNode) {
+        note = document.createElement('p');
+        note.className = 'bp-invite-sent-note';
+        note.id = 'bp-invite-sent-note';
+        note.textContent = noteText;
+        bottlingInviteBtn.parentNode.insertBefore(note, bottlingInviteBtn);
+      }
     }
   }
 
@@ -8829,6 +8862,8 @@ function bpScaleIngredients(list, factor) {
       // Plan 36-22: cache-busting helper — exported from IIFE so it can access state vars
       afterBatchWrite: afterBatchWrite,
       sendBottlingInviteForBatch: sendBottlingInviteForBatch,
+      // Test-only: render the batch-detail pane (bottling-invite send-tracking UI).
+      _renderBatchDetailForTest: renderBatchDetail,
       // Plan 36-22: test-only state accessors for the cache-bust state vars
       getStateForTest: function () {
         return {

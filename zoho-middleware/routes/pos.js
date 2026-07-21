@@ -3027,10 +3027,52 @@ router.post('/api/batch/reassign-customer', function (req, res) {
 });
 
 // ---------------------------------------------------------------------------
+// Stamp bottling_invite_sent_at + bottling_invite_email onto the batch record
+// via Apps Script update_batch, so staff can see when a customer was last invited
+// and avoid double-pinging them. Advisory only: fired fire-and-forget after the
+// email is already sent, with no optimistic lock. A failure (or a Batches sheet
+// still missing the columns — writes are silently skipped there) is logged but
+// never surfaced to the caller. Returns a promise that always resolves.
+function stampBottlingInviteSent(batchId, email, sentAt) {
+  var appsScriptUrl = process.env.APPS_SCRIPT_URL;
+  if (!appsScriptUrl) return Promise.resolve();
+
+  var payload = {
+    action: 'update_batch',
+    server_token: process.env.APPS_SCRIPT_SERVER_TOKEN,
+    batch_id: batchId,
+    updates: {
+      bottling_invite_sent_at: sentAt,
+      bottling_invite_email: email
+    }
+  };
+
+  // Promise.resolve().then wraps axios.post so a synchronous throw / undefined
+  // return (e.g. under a jest mock) is still funnelled into the .catch.
+  return Promise.resolve()
+    .then(function () {
+      return axios.post(appsScriptUrl, JSON.stringify(payload), {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 12000,
+        maxRedirects: 5
+      });
+    })
+    .then(function (resp) {
+      var result = (resp && resp.data) || {};
+      if (result.ok === false) {
+        log.warn('[batch/bottling-invite] stamp update_batch failed for ' + batchId + ': ' + (result.error || 'unknown'));
+      }
+    })
+    .catch(function (err) {
+      log.warn('[batch/bottling-invite] stamp update_batch threw for ' + batchId + ': ' + (err && err.message));
+    });
+}
+
 // POST /api/batch/bottling-invite
 // Send a bottling-appointment invite email to the customer with a pre-filled
 // Cal.com booking link. Routes through Resend (not Apps Script MailApp) so it
-// works from Railway where outbound SMTP is blocked.
+// works from Railway where outbound SMTP is blocked. After a successful send it
+// stamps bottling_invite_sent_at onto the batch (advisory, fire-and-forget).
 // Auth: x-api-key header (same as all /api/batch/* siblings).
 // ---------------------------------------------------------------------------
 router.post('/api/batch/bottling-invite', function (req, res) {
@@ -3052,8 +3094,11 @@ router.post('/api/batch/bottling-invite', function (req, res) {
 
   mailer.sendBottlingInvite({ name: name, email: email, batchId: batchId, productName: productName })
     .then(function () {
+      var sentAt = new Date().toISOString();
       eventLog.logEvent('batch.bottling_invite_sent', { batchId: batchId });
-      res.json({ success: true });
+      // Fire-and-forget: don't make the email's success wait on (or fail with) the stamp.
+      stampBottlingInviteSent(batchId, email, sentAt);
+      res.json({ success: true, sent_at: sentAt });
     })
     .catch(function (err) {
       log.error('[batch/bottling-invite] Send failed: ' + err.message);

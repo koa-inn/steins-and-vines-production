@@ -64,6 +64,7 @@ jest.mock('../lib/brewpad-integration', function () { return {
 var mailer = require('../lib/mailer');
 var eventLog = require('../lib/eventLog');
 var log = require('../lib/logger');
+var axios = require('axios');
 
 // ---------------------------------------------------------------------------
 // Mock express.Router and capture route registrations
@@ -135,23 +136,34 @@ describe('POST /api/batch/bottling-invite', function () {
   var handler;
 
   var OLD_SECRET_KEY;
+  var OLD_APPS_URL;
+  var OLD_APPS_TOKEN;
 
   beforeEach(function () {
     jest.clearAllMocks();
     OLD_MW_KEY = process.env.MW_API_KEY;
     OLD_SECRET_KEY = process.env.API_SECRET_KEY;
+    OLD_APPS_URL = process.env.APPS_SCRIPT_URL;
+    OLD_APPS_TOKEN = process.env.APPS_SCRIPT_SERVER_TOKEN;
     process.env.MW_API_KEY = 'test-api-key';
+    process.env.APPS_SCRIPT_URL = 'https://apps-script.example/exec';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'server-token-xyz';
     // The guard now resolves API_SECRET_KEY || MW_API_KEY; clear the primary so
     // this file deterministically owns the key via the alias (no cross-file bleed).
     delete process.env.API_SECRET_KEY;
     handler = findHandler('post', '/api/batch/bottling-invite');
     mailer.sendBottlingInvite.mockResolvedValue({ id: 'email_abc' });
+    axios.post.mockResolvedValue({ data: { ok: true, newVersion: '2026-07-17T00:00:00.000Z' } });
   });
 
   afterEach(function () {
     process.env.MW_API_KEY = OLD_MW_KEY;
     if (OLD_SECRET_KEY === undefined) delete process.env.API_SECRET_KEY;
     else process.env.API_SECRET_KEY = OLD_SECRET_KEY;
+    if (OLD_APPS_URL === undefined) delete process.env.APPS_SCRIPT_URL;
+    else process.env.APPS_SCRIPT_URL = OLD_APPS_URL;
+    if (OLD_APPS_TOKEN === undefined) delete process.env.APPS_SCRIPT_SERVER_TOKEN;
+    else process.env.APPS_SCRIPT_SERVER_TOKEN = OLD_APPS_TOKEN;
   });
 
   // ── 401 ──────────────────────────────────────────────────────────────────
@@ -235,6 +247,74 @@ describe('POST /api/batch/bottling-invite', function () {
 
     return flushPromises().then(function () {
       expect(eventLog.logEvent).toHaveBeenCalledWith('batch.bottling_invite_sent', { batchId: 'SV-B-000007' });
+    });
+  });
+
+  // ── Send-tracking stamp ─────────────────────────────────────────────────────
+  it('stamps bottling_invite_sent_at + email via update_batch and returns sent_at', function () {
+    var req = makeReq({
+      email: 'jane@example.com',
+      name: 'Jane Doe',
+      batchId: 'SV-B-000001',
+      productName: 'Pinot Noir'
+    }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    handler(req, res);
+
+    return flushPromises().then(function () {
+      expect(res._json).toMatchObject({ success: true });
+      expect(typeof res._json.sent_at).toBe('string');
+
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      var call = axios.post.mock.calls[0];
+      expect(call[0]).toBe('https://apps-script.example/exec');
+      var payload = JSON.parse(call[1]);
+      expect(payload).toMatchObject({
+        action: 'update_batch',
+        server_token: 'server-token-xyz',
+        batch_id: 'SV-B-000001',
+        updates: {
+          bottling_invite_sent_at: res._json.sent_at,
+          bottling_invite_email: 'jane@example.com'
+        }
+      });
+      // Advisory stamp — no optimistic lock is sent.
+      expect(payload.expectedVersion).toBeUndefined();
+    });
+  });
+
+  it('still returns success when the stamp update_batch fails', function () {
+    axios.post.mockRejectedValue(new Error('Apps Script 500'));
+    var req = makeReq({
+      email: 'jane@example.com',
+      name: 'Jane',
+      batchId: 'SV-B-000001',
+      productName: 'Pinot'
+    }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    handler(req, res);
+
+    return flushPromises().then(function () {
+      expect(res._json).toMatchObject({ success: true });
+      expect(res.status).not.toHaveBeenCalledWith(500);
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('[batch/bottling-invite]'));
+    });
+  });
+
+  it('skips the stamp (no throw) when APPS_SCRIPT_URL is unset', function () {
+    delete process.env.APPS_SCRIPT_URL;
+    var req = makeReq({
+      email: 'jane@example.com',
+      name: 'Jane',
+      batchId: 'SV-B-000001',
+      productName: 'Pinot'
+    }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    handler(req, res);
+
+    return flushPromises().then(function () {
+      expect(res._json).toMatchObject({ success: true });
+      expect(axios.post).not.toHaveBeenCalled();
     });
   });
 

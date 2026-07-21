@@ -2286,7 +2286,13 @@ function updateBatch(payload, userEmail) {
     'fermentation_started_at', 'completed_at',
     'recipe_id',   // Phase 16: recipe_id safe through sanitizeInput
     'start_date',  // Phase 27: guided activation sets start_date before schedule generation
-    'customer_email', 'customer_phone'  // Phase 28: refresh-from-Zoho write-back (D-09)
+    'customer_email', 'customer_phone',  // Phase 28: refresh-from-Zoho write-back (D-09)
+    // Bottling-invite send tracking: stamped by the middleware after a successful
+    // Resend send (POST /api/batch/bottling-invite) so staff don't double-ping a
+    // customer. Both columns are header-driven — if the Batches sheet lacks them the
+    // writes are silently skipped (headers.indexOf === -1), so the feature no-ops
+    // safely until the columns are added and this script is redeployed.
+    'bottling_invite_sent_at', 'bottling_invite_email'
   ];
   allowedFields.forEach(function (field) {
     if (updates[field] !== undefined) {
