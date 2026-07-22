@@ -53,9 +53,10 @@ npm run test:e2e                  # Playwright
 
 ### Security
 11. Never commit `.env` files or API credentials
+12. Every public HTML page has a CSP `<meta>` tag. When adding/removing any third-party or tracking service, update the CSP on **all** public pages — a missing domain silently blocks that service for every visitor (this broke Meta pixel tracking site-wide until 2026-07-22). New public pages must copy the CSP from a sibling page. See `docs/TRACKING.md`.
 
 ### Middleware
-12. The middleware has its own `node_modules` — always `cd zoho-middleware` before running middleware commands
+13. The middleware has its own `node_modules` — always `cd zoho-middleware` before running middleware commands
 
 ## Deployment
 - **Staging:** `git push origin main` → `staging.steinsandvines.ca`
