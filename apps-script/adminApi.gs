@@ -119,100 +119,116 @@ function doGet(e) {
     }
   }
 
-  // Pagination parameters
-  var limit = parseInt(e.parameter.limit, 10) || 0; // 0 = no limit
-  var offset = parseInt(e.parameter.offset, 10) || 0;
-  var status = e.parameter.status || ''; // Filter by status
-
   try {
-    switch (action) {
-      case 'check_auth':
-        return _jsonResponse({ ok: true, email: authResult.email, authorized: true });
-
-      case 'get_reservations':
-        return _jsonResponse({ ok: true, data: getReservations(limit, offset, status) });
-
-      case 'get_holds':
-        return _jsonResponse({ ok: true, data: getHolds() });
-
-      case 'get_schedule':
-        return _jsonResponse({ ok: true, data: getSchedule() });
-
-      case 'get_homepage':
-        return _jsonResponse({ ok: true, data: getHomepage() });
-
-      case 'get_kits':
-        return _jsonResponse({ ok: true, data: getKits() });
-
-      case 'get_config':
-        return _jsonResponse({ ok: true, data: getConfig() });
-
-      case 'get_dashboard_summary':
-        return _jsonResponse({ ok: true, data: _cachedGet('gds', 60, function() { return getDashboardSummary(); }) });
-
-      // Batch tracking endpoints
-      case 'get_batches':
-        return _jsonResponse({ ok: true, data: _cachedGet('gbl', 300, function() {
-          return getBatches(limit, offset, status);
-        })});
-
-      case 'get_batch':
-        return _jsonResponse({ ok: true, data: _cachedGet('gb:' + (e.parameter.batch_id || ''), 300, function() {
-          return getBatchDetail(e.parameter.batch_id);
-        })});
-
-      case 'get_ferm_schedules':
-        return _jsonResponse({ ok: true, data: _cachedGet('gfs', 300, function() {
-          return getFermSchedules();
-        })});
-
-      case 'get_tasks_calendar':
-        return _jsonResponse({ ok: true, data: getTasksCalendar(e.parameter.start_date, e.parameter.end_date) });
-
-      case 'get_tasks_upcoming':
-        return _jsonResponse({ ok: true, data: _cachedGet('gtu', 300, function() {
-          return getTasksUpcoming(limit || 50);
-        })});
-
-      case 'get_batch_dashboard_summary':
-        return _jsonResponse({ ok: true, data: _cachedGet('gbds', 300, function() {
-          return getBatchDashboardSummary();
-        })});
-
-      // Combined endpoint: batches + schedules + summary in one request
-      case 'get_batch_init':
-        return _jsonResponse({ ok: true, data: _cachedGet('gbi', 300, function() {
-          return {
-            batches: getBatches(limit, offset, status),
-            schedules: getFermSchedules(),
-            summary: getBatchDashboardSummary()
-          };
-        })});
-
-      case 'get_vessels':
-        return _jsonResponse({ ok: true, data: getVessels() });
-
-      // Recipe endpoints
-      case 'get_recipes':
-        var recipesCacheKey = 'gr:list:' + (e.parameter.status || 'all') + ':' + limit + ':' + offset;
-        return _jsonResponse({ ok: true, data: _cachedGet(recipesCacheKey, 300, function() {
-          return getRecipes(limit, offset, e.parameter.status || 'all');
-        })});
-
-      case 'get_recipe':
-        return _jsonResponse({ ok: true, data: _cachedGet('gr:' + (e.parameter.recipe_id || ''), 300, function() {
-          return getRecipeDetail(e.parameter.recipe_id);
-        })});
-
-      // Gift card admin list (D-06 list action for admin view)
-      case 'get_gift_cards':
-        return _jsonResponse({ ok: true, data: getGiftCards() });
-
-      default:
-        return _jsonResponse({ ok: false, error: 'invalid_action', message: 'Unknown action: ' + action });
-    }
+    return _jsonResponse(handleReadAction(action, function (n) { return e.parameter[n]; }, authResult.email));
   } catch (err) {
     return _jsonResponse({ ok: false, error: 'server_error', message: err.message });
+  }
+}
+
+/**
+ * Shared read-action dispatch, reachable from both doGet (GET query-string
+ * params) and doPost's OAuth-authenticated fall-through (POST JSON-body
+ * params) -- Phase 64-03 / OPS-03 SC#3. Returns a plain result object (NOT
+ * wrapped in _jsonResponse); callers wrap the return value themselves so the
+ * response envelope stays identical across both transports.
+ *
+ * @param {string} action - lowercased action name
+ * @param {function(string): *} getParam - abstracts the parameter source
+ *   (e.parameter[name] for doGet, payload[name] for doPost)
+ * @param {string} authEmail - the authorized staff email (for check_auth)
+ */
+function handleReadAction(action, getParam, authEmail) {
+  // Pagination parameters
+  var limit = parseInt(getParam('limit'), 10) || 0; // 0 = no limit
+  var offset = parseInt(getParam('offset'), 10) || 0;
+  var status = getParam('status') || ''; // Filter by status
+
+  switch (action) {
+    case 'check_auth':
+      return { ok: true, email: authEmail, authorized: true };
+
+    case 'get_reservations':
+      return { ok: true, data: getReservations(limit, offset, status) };
+
+    case 'get_holds':
+      return { ok: true, data: getHolds() };
+
+    case 'get_schedule':
+      return { ok: true, data: getSchedule() };
+
+    case 'get_homepage':
+      return { ok: true, data: getHomepage() };
+
+    case 'get_kits':
+      return { ok: true, data: getKits() };
+
+    case 'get_config':
+      return { ok: true, data: getConfig() };
+
+    case 'get_dashboard_summary':
+      return { ok: true, data: _cachedGet('gds', 60, function() { return getDashboardSummary(); }) };
+
+    // Batch tracking endpoints
+    case 'get_batches':
+      return { ok: true, data: _cachedGet('gbl', 300, function() {
+        return getBatches(limit, offset, status);
+      })};
+
+    case 'get_batch':
+      return { ok: true, data: _cachedGet('gb:' + (getParam('batch_id') || ''), 300, function() {
+        return getBatchDetail(getParam('batch_id'));
+      })};
+
+    case 'get_ferm_schedules':
+      return { ok: true, data: _cachedGet('gfs', 300, function() {
+        return getFermSchedules();
+      })};
+
+    case 'get_tasks_calendar':
+      return { ok: true, data: getTasksCalendar(getParam('start_date'), getParam('end_date')) };
+
+    case 'get_tasks_upcoming':
+      return { ok: true, data: _cachedGet('gtu', 300, function() {
+        return getTasksUpcoming(limit || 50);
+      })};
+
+    case 'get_batch_dashboard_summary':
+      return { ok: true, data: _cachedGet('gbds', 300, function() {
+        return getBatchDashboardSummary();
+      })};
+
+    // Combined endpoint: batches + schedules + summary in one request
+    case 'get_batch_init':
+      return { ok: true, data: _cachedGet('gbi', 300, function() {
+        return {
+          batches: getBatches(limit, offset, status),
+          schedules: getFermSchedules(),
+          summary: getBatchDashboardSummary()
+        };
+      })};
+
+    case 'get_vessels':
+      return { ok: true, data: getVessels() };
+
+    // Recipe endpoints
+    case 'get_recipes':
+      var recipesCacheKey = 'gr:list:' + (getParam('status') || 'all') + ':' + limit + ':' + offset;
+      return { ok: true, data: _cachedGet(recipesCacheKey, 300, function() {
+        return getRecipes(limit, offset, getParam('status') || 'all');
+      })};
+
+    case 'get_recipe':
+      return { ok: true, data: _cachedGet('gr:' + (getParam('recipe_id') || ''), 300, function() {
+        return getRecipeDetail(getParam('recipe_id'));
+      })};
+
+    // Gift card admin list (D-06 list action for admin view)
+    case 'get_gift_cards':
+      return { ok: true, data: getGiftCards() };
+
+    default:
+      return { ok: false, error: 'invalid_action', message: 'Unknown action: ' + action };
   }
 }
 
@@ -420,7 +436,12 @@ function doPost(e) {
       }
 
       default:
-        return _jsonResponse({ ok: false, error: 'invalid_action', message: 'Unknown action: ' + action });
+        // Not a known write action -- Phase 64-03 / OPS-03 SC#3: OAuth-authenticated
+        // reads (get_batch, get_batches, get_vessels, etc.) now POST here too, since
+        // adminApiGet moved the access token out of the URL query string. Delegate to
+        // the same read dispatch doGet uses so both transports return identical
+        // { ok, data } shapes (including invalid_action for a truly unknown action).
+        return _jsonResponse(handleReadAction(action, function (n) { return payload[n]; }, authResult.email));
     }
   } catch (err) {
     return _jsonResponse({ ok: false, error: 'server_error', message: err.message });
