@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
-stopped_at: "Session 2026-07-16 \u2014 Phase 57 code done AND DEPLOYED; only the live-iPad verify (57-05 Task 2) remains. DEPLOY DONE via blessed gated-deploy.yml (run 29504800191, tag prod-20260716-1): promoted all of main = 57 fixes (57-03 client self-heal + phantom guard + sale-error beacon; 57-04 server bounded auto-reconcile + un-redacted item_id) + 58 (admin kit-price guard) + 59 (facility-photo placeholder) \u2014 owner confirmed the 57+58+59 scope. CI both suites green; staging verified first; prod force-push published frontend (steinsandvines.ca kiosk.html 200, bundle kiosk-core.min.js?v=mrmf9p8u live w/ phantom-guard code); Railway middleware REDEPLOYED (uptime reset ~10s, redis:true, authenticated:true \u2014 Zoho OAuth intact, NO re-auth needed); /health smoke-check passed. Local main synced with CI runbook commit (5be0035e). NOTE: prod apex 403s a UA-less curl (bot protection) \u2014 use a browser UA to verify. REMAINING = 57-05 Task 2 (blocking human-verify, OWNER ONLY): on the real shop iPad, hard-reload once, age/sleep the catalog, then confirm a previously-stale item SELLS WITHOUT a manual 'Refresh the product list' (SC#4), and that a source:kiosk-client beacon for the sale error shows endpoint /api/kiosk/sale with a READABLE item_id (not [REDACTED]). If it still fails, capture it as a NEW 57-DIAGNOSIS occurrence rather than retrying blindly. AFTER the owner verifies: write 57-05-SUMMARY.md recording the live outcome, then re-run /gsd-execute-phase 57 (or mark 57-05 complete) to trigger phase verification + completion. Code review 57-REVIEW.md had 2 warnings now LIVE to watch: WR-02 a catalog-miss runs an uncached ~3-call Zoho fetch per attempt (a stuck phantom line could burn Zoho quota / trip paymentLimiter 429 \u2014 watch Sentry/Zoho quota post-deploy); WR-01 17-19-digit item_id logged un-redacted to Sentry (authenticated-only). Phase 57 NOT marked complete; verify_phase_goal intentionally skipped until iPad-verified. Other pending: Phase 60 not started; Phase 50 planned-not-executed; Phase 47 checkbox reconciliation. (58+59 prod-promotion pending item is now DONE via this deploy.)"
-last_updated: "2026-07-15T18:57:41.858Z"
-last_activity: 2026-07-15 -- Phase 57 execution started
+stopped_at: "**Ad-hoc bug-fix session — kiosk catalog load + BrewPad batch creation. All shipped to staging + prod (`2134da6`) and verified live.** Five commits: `ee7b0f1` (batch count capped by the Makers Fee quantity — merchandise could otherwise inflate it; INV-000067's 12 bottles + 1 kit would have made 13 batches), `d3e32f4` (**the owner's actual bug**: Apps Script's dedup guard keyed on invoice+SKU and silently rejected units 2..N, so the 2026-07-08 quantity-aware fix `fda6e40` had NEVER worked in prod — now bounded by `unit_total`), `7cbf856` (kiosk catalog load is recoverable: Retry button + retry on visibilitychange/online; a failed fetch was previously terminal until a page reload), `255308d` (`splitCustomerName` handles Zoho surname-first names — `"Gamba, Remo"` was stored mangled AND swapped; plus Apps Script `doGet` checked `SERVER_TOKEN` while `doPost` checked `SERVER_WRITE_TOKEN`, so middleware **reads never authenticated at all** — `pos.js` scan-invoices dedup always saw an empty set), `2134da6` (kit identity from the **Kits sheet**, 115 SKUs — retires the unit-price heuristic; loaded at startup + hourly, narrows only, never to zero)."
+last_updated: "2026-07-24T20:57:19.280Z"
+last_activity: 2026-07-24 -- Phase 64 execution started
 progress:
-  total_phases: 47
+  total_phases: 52
   completed_phases: 13
-  total_plans: 95
-  completed_plans: 91
-  percent: 28
+  total_plans: 98
+  completed_plans: 94
+  percent: 25
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 57 — kiosk-sale-blocking-recovery
+**Current focus:** Phase 64 — linking-search-correctness
 
 ## Current Position
 
-Phase: 57 (kiosk-sale-blocking-recovery) — EXECUTING
-Plan: 1 of 5
+Phase: 64 (linking-search-correctness) — EXECUTING
+Plan: 1 of 3
 Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 `milestone_complete` flag was false; corrected 2026-07-10). Done: 46 (SEC-02 ✅), 48 (KIOSK-01 ✅ — de-fork live-verified standalone 2026-07-10, 22/22 threats secured), 52 (RESIL-01 ✅), 53 (OBS-01 ✅), 54 (kiosk gift-card mgmt ✅ — UAT+security closed 2026-07-10). **Open phases:** 47 (SEC-01 — STATE narrative says closed-on-staging but ROADMAP checkbox is still `[ ]`; needs owner reconciliation), 49 (MONEY-01 — 49-01 code merged, 49-02 live-card UAT pending), 50 (MONEY-02) + 51 (MONEY-03) — both now UNBLOCKED (were gated on 48). 50/51 also depend on the money-path-primitive adoption in pos-recipe.js.
-Status: Executing Phase 57
-Last activity: 2026-07-15 -- Phase 57 execution started
+Status: Executing Phase 64
+Last activity: 2026-07-24 -- Phase 64 execution started
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 

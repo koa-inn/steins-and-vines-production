@@ -1392,7 +1392,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 64-01-PLAN.md — search-invoices detail-fetches real line_items (bounded/capped), middleware-only (OPS-03)
+- [x] 64-01-PLAN.md — search-invoices detail-fetches real line_items (bounded/capped), middleware-only (OPS-03)
 
 **Wave 2**
 
