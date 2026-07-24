@@ -1396,7 +1396,7 @@ Plans:
 
 **Wave 2**
 
-- [ ] 64-02-PLAN.md — Batch-delete reconcile hook + bounded dry-run stale-ref cleanup (INV-000151 class) clears/re-syncs cf_batch_status (OPS-03)
+- [x] 64-02-PLAN.md — Batch-delete reconcile hook + bounded dry-run stale-ref cleanup (INV-000151 class) clears/re-syncs cf_batch_status (OPS-03)
 
 **Wave 3**
 
