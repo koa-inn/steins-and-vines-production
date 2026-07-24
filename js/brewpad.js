@@ -8848,6 +8848,9 @@ function bpScaleIngredients(list, factor) {
       _setAccessTokenForTest: function (v) { accessToken = v; },
       _getUserEmail:   function () { return userEmail; },
       _checkAuthorization: checkAuthorization,
+      // 64-03: test seam for the adminApiGet token-transport regression test --
+      // adminApiGet has no other public caller that isolates a single call/response.
+      _adminApiGetForTest: adminApiGet,
       // Allow tests to reset IIFE-scoped auth state between runs.
       _resetAuthStateForTest: function () {
         accessToken = null;

@@ -9820,7 +9820,10 @@
       // 46-06: session-cookie auth exchange test hooks
       checkAuthorization: checkAuthorization,
       _setAccessToken: function (t) { accessToken = t; },
-      _setUserEmail: function (e) { userEmail = e; }
+      _setUserEmail: function (e) { userEmail = e; },
+      // 64-03: test seam for the adminApiGet token-transport regression test --
+      // adminApiGet has no other public caller that isolates a single call/response.
+      _adminApiGetForTest: adminApiGet
     });
   }
 
