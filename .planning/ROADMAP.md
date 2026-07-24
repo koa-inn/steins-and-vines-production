@@ -1388,6 +1388,21 @@ Plans:
   3. `adminApiGet` no longer places the Google OAuth token in the URL query string (moved to POST body or header, matching the adminApiPost precedent) — no token in intermediary/proxy logs
   4. Regression tests for each; linking flows otherwise behave identically
 
+**Plans**: 3 plans (3 waves — sequential; shared-file ordering + one-logical-change-per-commit)
+Plans:
+**Wave 1**
+
+- [ ] 64-01-PLAN.md — search-invoices detail-fetches real line_items (bounded/capped), middleware-only (OPS-03)
+
+**Wave 2**
+
+- [ ] 64-02-PLAN.md — Batch-delete reconcile hook + bounded dry-run stale-ref cleanup (INV-000151 class) clears/re-syncs cf_batch_status (OPS-03)
+
+**Wave 3**
+
+- [ ] 64-03-PLAN.md — adminApiGet moves the Google OAuth token out of the URL into the POST body (brewpad.js + admin.js) + adminApi.gs doPost read-routing (owner redeploy first) (OPS-03)
+
+
 ### Phase 65: Staff Tooling Reliability & Backfill
 
 **Goal**: Long bulk-admin sessions stop silently dropping writes, bulk operations run at bulk speed, and batches older than the scan window can be linked.
