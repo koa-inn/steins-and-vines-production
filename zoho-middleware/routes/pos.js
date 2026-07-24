@@ -2267,19 +2267,49 @@ router.get('/api/batch/search-invoices', function (req, res) {
     return res.status(400).json({ error: 'Search term must be at least 2 characters' });
   }
 
+  // T-64-01: the list endpoint's `line_items` field is ALWAYS empty (Zoho
+  // never populates it on /invoices?search_text=), so matched invoices are
+  // detail-fetched below to get real line data — mirroring the search-then-
+  // detail pattern at scan-invoices (pos.js:2449). Hard server-side cap
+  // (never request-controlled), matching the MAX_PAGES precedent above, so a
+  // search never fans out into unbounded ~1/s Zoho calls (Phase-57 WR-02).
+  var MAX_DETAIL_FETCH = 10;
+
   zohoGet('/invoices?search_text=' + encodeURIComponent(search))
     .then(function (data) {
-      var invoices = (data.invoices || []).map(function (inv) {
-        return {
-          invoice_id: inv.invoice_id,
-          invoice_number: inv.invoice_number,
-          customer_name: inv.customer_name,
-          customer_id: inv.customer_id || '',
-          date: inv.date || '',
-          line_items: inv.line_items || []
-        };
+      var matched = (data.invoices || []).slice(0, MAX_DETAIL_FETCH);
+
+      var invoices = [];
+      // Sequential chain (NOT Promise.all) to respect the ~1/s Zoho quota.
+      var chain = Promise.resolve();
+      matched.forEach(function (inv) {
+        chain = chain.then(function () {
+          return zohoGet('/invoices/' + inv.invoice_id).then(function (detailData) {
+            var detail = detailData.invoice || {};
+            var lineItems = (detail.line_items || []).map(function (li) {
+              return {
+                item_id: li.item_id || '',
+                name: li.name || li.description || '',
+                quantity: li.quantity || 1,
+                rate: li.rate || 0,
+                amount: li.item_total || li.amount || 0
+              };
+            });
+            invoices.push({
+              invoice_id: inv.invoice_id,
+              invoice_number: inv.invoice_number,
+              customer_name: inv.customer_name,
+              customer_id: inv.customer_id || '',
+              date: inv.date || '',
+              line_items: lineItems
+            });
+          });
+        });
       });
-      res.json({ invoices: invoices });
+
+      return chain.then(function () {
+        res.json({ invoices: invoices });
+      });
     })
     .catch(function (err) {
       log.error('[batch/search-invoices] Zoho error: ' + (err.message || err));
