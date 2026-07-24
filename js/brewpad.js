@@ -1638,6 +1638,20 @@ function bpScaleIngredients(list, factor) {
       });
   }
 
+  // Phase 64/OPS-03: after a successful delete_batch, re-derive the deleted batch's
+  // invoice cf_batch_status from the batches that STILL exist (cleared when none do —
+  // the INV-000151 class of bug). Fire-and-forget: never blocks or fails the delete UX
+  // — a reconcile failure is silent (the one-time cleanup route is the backstop).
+  function reconcileInvoiceStatusAfterDelete(zohoSoNumber) {
+    if (!zohoSoNumber) return;
+    fetch(mwUrl() + '/api/batch/reconcile-invoice-status', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zoho_so_number: zohoSoNumber })
+    }).catch(function () {});
+  }
+
   function fetchSoSearch(term) {
     var resultsEl = document.getElementById('bp-so-search-results');
     if (!resultsEl) return;
@@ -5657,6 +5671,10 @@ function bpScaleIngredients(list, factor) {
     var deleteBtn = document.getElementById('bp-delete-batch-btn');
     if (deleteBtn) {
       deleteBtn.addEventListener('click', function () {
+        // Captured BEFORE the delete fires (Phase 64/OPS-03) — success below never
+        // mutates b itself, but capturing up front matches the Needs-Scheduling site's
+        // pattern and stays correct regardless of future changes to the success handler.
+        var soNum = b.zoho_so_number;
         showConfirmSheet(
           'Delete ' + b.batch_id + '? This cannot be undone.',
           'Delete', 'bp-confirm-btn--danger',
@@ -5664,6 +5682,7 @@ function bpScaleIngredients(list, factor) {
             adminApiPost('delete_batch', { batch_id: b.batch_id })
               .then(function () {
                 showToast('Batch deleted', 'success');
+                if (soNum) reconcileInvoiceStatusAfterDelete(soNum);
                 closeBatchDetail();
                 _batchesLoaded = false;
                 _allBatchesData = [];
@@ -7990,6 +8009,13 @@ function bpScaleIngredients(list, factor) {
           if (!bid) { showToast('Missing batch ID', 'error'); return; }
           var prod = nsDelBtn.getAttribute('data-product');
           var cust = nsDelBtn.getAttribute('data-customer');
+          // Phase 64/OPS-03: resolve zoho_so_number from _allBatchesData BEFORE the
+          // delete fires — the success handler below sets _allBatchesData = [], so a
+          // post-delete lookup would always find nothing (CAUTION in the plan).
+          var nsSoNum = '';
+          for (var nsi = 0; nsi < _allBatchesData.length; nsi++) {
+            if (_allBatchesData[nsi].batch_id === bid) { nsSoNum = _allBatchesData[nsi].zoho_so_number || ''; break; }
+          }
           showConfirmSheet(
             'Delete ' + bid + ' (' + prod + (cust ? ' — ' + cust : '') + ')? Any attached tasks will be removed. This cannot be undone.',
             'Delete', 'bp-confirm-btn--danger',
@@ -7998,6 +8024,7 @@ function bpScaleIngredients(list, factor) {
               adminApiPost('delete_batch', { batch_id: bid })
                 .then(function () {
                   showToast('Batch ' + bid + ' deleted', 'success');
+                  if (nsSoNum) reconcileInvoiceStatusAfterDelete(nsSoNum);
                   _batchesLoaded = false;
                   _allBatchesData = [];
                   _eagerLoadTime = 0;

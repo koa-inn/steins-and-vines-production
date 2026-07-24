@@ -8,6 +8,7 @@ var C = require('./constants');
 var checkoutHelpers = require('./checkout-helpers');
 var zohoApi = require('./zoho-api');
 var zohoPut = zohoApi.zohoPut;
+var zohoGet = zohoApi.zohoGet;
 
 var RETRY_TTL = 86400;   // 24 hours
 var MAX_RETRIES = 3;
@@ -465,6 +466,44 @@ function retryPendingBatches() {
 }
 
 /**
+ * Format the cf_batch_status label server-side from a validated status + batch_id.
+ * Shared by syncBatchToZoho and reconcileInvoiceBatchStatus so "the correct label for
+ * this state" is computed exactly once — reconcile's idempotency check (skip the write
+ * if the current label already equals the correct one) depends on both call sites
+ * producing byte-identical strings.
+ *
+ * When one invoice has multiple live batches (a kit line with quantity > 1, or several
+ * kit lines), show a count instead of a single batch id — otherwise each per-batch sync
+ * would overwrite the field and only the last id would survive.
+ *
+ * @param {string} status  - one of ['pending', 'active', 'complete'] (already validated)
+ * @param {string} batchId - batch ID (e.g. "SV-B-000123")
+ * @param {number} [count] - number of live batches for this invoice; >1 switches to count form
+ * @returns {string} e.g. "Active — SV-B-000123" or "Pending — 3 batches"
+ */
+function formatBatchStatusLabel(status, batchId, count) {
+  var capitalized = status.charAt(0).toUpperCase() + status.slice(1);
+  return (count && count > 1)
+    ? capitalized + ' — ' + count + ' batches'
+    : capitalized + ' — ' + batchId;
+}
+
+/**
+ * Map a BrewPad sheet/batch status to the cf_batch_status vocabulary Zoho expects.
+ * Unrecognized/missing statuses default to 'pending' — never silently skip a
+ * re-sync just because an unfamiliar label was encountered.
+ *
+ * @param {string} status - raw batch.status from get_batches (e.g. 'primary', 'secondary')
+ * @returns {string} one of ['pending', 'active', 'complete']
+ */
+function mapBatchStatusForZoho(status) {
+  var s = String(status || '').trim().toLowerCase();
+  if (s === 'active' || s === 'primary' || s === 'secondary') return 'active';
+  if (s === 'complete' || s === 'bottled') return 'complete';
+  return 'pending';
+}
+
+/**
  * Sync batch status to a Zoho invoice custom field.
  * Constructs the status label server-side from validated enum + batch_id.
  * Per T-07-01: status is validated against enum; label is not caller-supplied.
@@ -492,10 +531,7 @@ function syncBatchToZoho(soId, batchId, status, opts) {
   // several kit lines), show a count instead of a single batch id — otherwise each
   // per-batch sync would overwrite the field and only the last id would survive.
   var count = opts && opts.count;
-  var capitalized = status.charAt(0).toUpperCase() + status.slice(1);
-  var statusLabel = (count && count > 1)
-    ? capitalized + ' — ' + count + ' batches'
-    : capitalized + ' — ' + batchId;
+  var statusLabel = formatBatchStatusLabel(status, batchId, count);
 
   var payload = {
     custom_fields: [{ api_name: cfName, value: statusLabel }]
@@ -600,6 +636,162 @@ function retrySyncQueue() {
 }
 
 /**
+ * Clear an invoice's cf_batch_status field (value: '').
+ * Used when NO live batches remain for the invoice (the INV-000151 bug: the batch was
+ * deleted but the invoice still named it).
+ *
+ * @param {string} invoiceId - Zoho invoice ID
+ * @returns {Promise<{ok: boolean, skipped?: boolean, error?: string}>}
+ */
+function clearInvoiceBatchStatus(invoiceId) {
+  var cfName = process.env.ZOHO_CF_BATCH_STATUS;
+  if (!cfName) {
+    log.warn('[batch/reconcile] ZOHO_CF_BATCH_STATUS not configured -- skipping clear');
+    return Promise.resolve({ ok: true, skipped: true });
+  }
+
+  var payload = { custom_fields: [{ api_name: cfName, value: '' }] };
+
+  return zohoPut('/invoices/' + invoiceId, payload)
+    .then(function () {
+      eventLog.logEvent('batch.zoho_status_cleared', { invoiceId: invoiceId });
+      return { ok: true };
+    })
+    .catch(function (err) {
+      var msg = err.response && err.response.data
+        ? (err.response.data.message || err.response.data.error || err.message)
+        : err.message;
+      log.error('[batch/reconcile] Zoho error clearing cf_batch_status invoiceId=' + invoiceId + ': ' + msg);
+      return { ok: false, error: msg };
+    });
+}
+
+/**
+ * Resolve a human invoice number (e.g. "INV-000151") to its Zoho invoice list-record.
+ * The list endpoint already carries cf_batch_status at the top level (pos.js:2526-2529),
+ * so no detail fetch is needed here.
+ *
+ * @param {string} soNumber - already validated to match /^INV-\d+$/ (case-insensitive)
+ * @returns {Promise<Object|null>} the matching invoice record, or null if not found
+ */
+function resolveInvoiceByNumber(soNumber) {
+  var wanted = String(soNumber || '').toUpperCase();
+  return zohoGet('/invoices', { invoice_number: wanted }).then(function (data) {
+    var docs = data.invoices || [];
+    for (var i = 0; i < docs.length; i++) {
+      if (String(docs[i].invoice_number || '').toUpperCase() === wanted) return docs[i];
+    }
+    return null;
+  });
+}
+
+/**
+ * Fetch the live batch set from Apps Script (get_batches, server_token) and index it by
+ * invoice number — reuses the pos.js:2484-2497 dedup shape. NEVER throws; callers treat
+ * a null return as "unknown" and must not act (a false-empty index would wrongly clear
+ * every stale-looking invoice).
+ *
+ * @returns {Promise<Object|null>} { byInvoiceNumber: {invoice_number: [batch,...]}, liveBatchIds: Set<string> }, or null when unavailable
+ */
+function fetchLiveBatchIndex() {
+  var url = process.env.APPS_SCRIPT_URL;
+  var token = process.env.APPS_SCRIPT_SERVER_TOKEN;
+  if (!url || !token) {
+    log.warn('[brewpad] APPS_SCRIPT_URL or APPS_SCRIPT_SERVER_TOKEN not configured -- reconcile cannot read the live batch set');
+    return Promise.resolve(null);
+  }
+
+  return axios.get(url, {
+    params: { action: 'get_batches', server_token: token, status: 'all' },
+    timeout: 12000
+  }).then(function (resp) {
+    var data = resp.data || {};
+    if (!data.ok) {
+      log.warn('[brewpad] get_batches (reconcile) returned ok:false -- treating live batch set as unavailable');
+      return null;
+    }
+    var batches = (data.data && data.data.batches) || [];
+    var byInvoiceNumber = {};
+    var liveBatchIds = new Set();
+    batches.forEach(function (b) {
+      if (b.batch_id) liveBatchIds.add(String(b.batch_id));
+      var num = b.zoho_so_number;
+      if (!num) return;
+      if (!byInvoiceNumber[num]) byInvoiceNumber[num] = [];
+      byInvoiceNumber[num].push(b);
+    });
+    return { byInvoiceNumber: byInvoiceNumber, liveBatchIds: liveBatchIds };
+  }).catch(function (err) {
+    log.warn('[brewpad] get_batches (reconcile) call failed: ' + err.message);
+    return null;
+  });
+}
+
+/**
+ * Reconcile ONE invoice's cf_batch_status against the live batch set.
+ *
+ * Core rule (unified — never parses the existing label; counts live batches instead):
+ * count batches in liveBatchIndex.byInvoiceNumber for invoice.invoice_number.
+ *   0 remaining  -> CLEAR (the INV-000151 bug: the invoice still names a deleted batch)
+ *   >=1 remaining -> re-sync to the correct label for the surviving set (a count when
+ *                    >1, else the surviving batch id) via syncBatchToZoho
+ * Idempotent: a no-op when the invoice's current label already matches the correct one.
+ * NEVER writes when opts.dryRun is true — reports what it WOULD do instead, so the
+ * cleanup route's dry-run and live-apply share exactly one decision path (no drift).
+ *
+ * @param {Object} invoice - { invoice_id, invoice_number, cf_batch_status } (current label)
+ * @param {Object} liveBatchIndex - result of fetchLiveBatchIndex() (must be non-null)
+ * @param {Object} [opts] - { dryRun: boolean }
+ * @returns {Promise<{ok: boolean, action: string, old: string, new: string}>}
+ *   action is one of 'unchanged' | 'cleared' | 'resynced' | 'would_clear' | 'would_resync' | 'error'
+ */
+function reconcileInvoiceBatchStatus(invoice, liveBatchIndex, opts) {
+  var dryRun = !!(opts && opts.dryRun);
+  var currentLabel = (invoice && invoice.cf_batch_status) || '';
+  var byInvoiceNumber = (liveBatchIndex && liveBatchIndex.byInvoiceNumber) || {};
+  var remaining = byInvoiceNumber[invoice && invoice.invoice_number] || [];
+
+  if (remaining.length === 0) {
+    if (!currentLabel) {
+      return Promise.resolve({ ok: true, action: 'unchanged', old: currentLabel, new: currentLabel });
+    }
+    if (dryRun) {
+      return Promise.resolve({ ok: true, action: 'would_clear', old: currentLabel, new: '' });
+    }
+    return clearInvoiceBatchStatus(invoice.invoice_id).then(function (result) {
+      return {
+        ok: !!(result && result.ok),
+        action: (result && result.ok) ? 'cleared' : 'error',
+        old: currentLabel,
+        new: ''
+      };
+    });
+  }
+
+  var first = remaining[0];
+  var mappedStatus = mapBatchStatusForZoho(first.status);
+  var expectedLabel = formatBatchStatusLabel(mappedStatus, first.batch_id, remaining.length);
+
+  if (currentLabel === expectedLabel) {
+    return Promise.resolve({ ok: true, action: 'unchanged', old: currentLabel, new: currentLabel });
+  }
+
+  if (dryRun) {
+    return Promise.resolve({ ok: true, action: 'would_resync', old: currentLabel, new: expectedLabel });
+  }
+
+  return syncBatchToZoho(invoice.invoice_id, first.batch_id, mappedStatus,
+    { count: remaining.length, skipQueue: true }).then(function (result) {
+    return {
+      ok: !!(result && result.ok),
+      action: (result && result.ok) ? 'resynced' : 'error',
+      old: currentLabel,
+      new: expectedLabel
+    };
+  });
+}
+
+/**
  * Create a single batch from a recipe sale.
  * Separate code path from detectKitItems/createBatchesFromSale per D-10.
  * Creates exactly ONE batch regardless of the number of ingredient line items.
@@ -644,6 +836,12 @@ module.exports = {
   callAppsScriptCreateBatch: callAppsScriptCreateBatch,
   splitCustomerName: splitCustomerName,
   syncBatchToZoho: syncBatchToZoho,
+  formatBatchStatusLabel: formatBatchStatusLabel,
+  mapBatchStatusForZoho: mapBatchStatusForZoho,
+  clearInvoiceBatchStatus: clearInvoiceBatchStatus,
+  resolveInvoiceByNumber: resolveInvoiceByNumber,
+  fetchLiveBatchIndex: fetchLiveBatchIndex,
+  reconcileInvoiceBatchStatus: reconcileInvoiceBatchStatus,
   queueSyncForRetry: queueSyncForRetry,
   retrySyncQueue: retrySyncQueue,
   detectRecipeSale: detectRecipeSale

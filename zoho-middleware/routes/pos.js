@@ -2318,6 +2318,155 @@ router.get('/api/batch/search-invoices', function (req, res) {
   });
 });
 
+// Phase 64/OPS-03: delete-hook — after a batch delete, re-derive ONE invoice's
+// cf_batch_status from the live batch set. NEVER trusts a client-supplied status
+// value; the label is always recomputed server-side from get_batches (T-64-04/T-64-07).
+// POST /api/batch/reconcile-invoice-status
+// Body: { zoho_so_number: 'INV-000151' }
+router.post('/api/batch/reconcile-invoice-status', function (req, res) {
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
+  // BrewPad/session-scoped POST — 46-04 interfaces.
+  var body = req.body || {};
+  var soNumber = (body.zoho_so_number || '').trim().toUpperCase();
+  if (!/^INV-\d+$/.test(soNumber)) {
+    return res.status(400).json({ error: 'bad_request', message: 'zoho_so_number must match INV-NNNN format' });
+  }
+
+  var cfName = process.env.ZOHO_CF_BATCH_STATUS || 'cf_batch_status';
+
+  Promise.all([
+    brewpadIntegration.resolveInvoiceByNumber(soNumber),
+    brewpadIntegration.fetchLiveBatchIndex()
+  ]).then(function (results) {
+    var doc = results[0];
+    var liveBatchIndex = results[1];
+
+    if (!doc) {
+      return res.status(404).json({ error: 'not_found', message: 'No invoice found with number ' + soNumber });
+    }
+    if (!liveBatchIndex) {
+      // Apps Script unreachable — cannot safely determine the live set; do not write.
+      return res.status(502).json({ error: 'batches_unavailable', message: 'Could not read the live batch set' });
+    }
+
+    var currentLabel = '';
+    (doc.custom_fields || []).forEach(function (cf) {
+      if (cf.api_name === cfName) currentLabel = cf.value || '';
+    });
+
+    var invoiceForReconcile = {
+      invoice_id: doc.invoice_id,
+      invoice_number: soNumber,
+      cf_batch_status: currentLabel
+    };
+
+    return brewpadIntegration.reconcileInvoiceBatchStatus(invoiceForReconcile, liveBatchIndex)
+      .then(function (result) {
+        eventLog.logEvent('batch.reconcile_invoice_status', {
+          invoiceNumber: soNumber,
+          action: result.action
+        });
+        res.json({ ok: !!result.ok, action: result.action, old: result.old, new: result.new });
+      });
+  }).catch(function (err) {
+    log.error('[batch/reconcile-invoice-status] error: ' + (err.message || err));
+    res.status(502).json({ error: 'zoho_error', message: 'Failed to reconcile invoice batch status' });
+  });
+  });
+});
+
+// Phase 64/OPS-03: one-time stale-ref cleanup (the INV-000151 class) — pages recent
+// invoices, cross-checks each cf_batch_status against the live batch set, and
+// clears/re-syncs stale refs. dry_run defaults true (T-64-05); MAX_PAGES is a hard,
+// never-request-controlled cap (T-64-05), mirroring scan-invoices (D-01/T-29.3-03).
+// POST /api/batch/reconcile-stale-batch-status
+// Body: { dry_run: true|false } (default true)
+router.post('/api/batch/reconcile-stale-batch-status', function (req, res) {
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
+  // BrewPad/session-scoped POST — 46-04 interfaces.
+  var body = req.body || {};
+  var dryRun = body.dry_run !== false; // default true
+  var MAX_PAGES = 4; // hard cap, mirrors scan-invoices (D-01/T-29.3-03) — never request-controlled
+  var cfName = process.env.ZOHO_CF_BATCH_STATUS || 'cf_batch_status';
+
+  brewpadIntegration.fetchLiveBatchIndex().then(function (liveBatchIndex) {
+    if (!liveBatchIndex) {
+      return res.status(502).json({ error: 'batches_unavailable', message: 'Could not read the live batch set' });
+    }
+
+    var today = new Date();
+    var fromDate = new Date(today);
+    fromDate.setDate(fromDate.getDate() - 30);
+    var dateStr = fromDate.toISOString().slice(0, 10); // YYYY-MM-DD
+
+    var candidates = [];
+
+    function fetchPage(pg) {
+      if (pg > MAX_PAGES) return Promise.resolve();
+      return zohoGet('/invoices', {
+        sort_column: 'created_time',
+        sort_order: 'D',
+        date_after: dateStr,
+        per_page: 50,
+        page: pg
+      }).then(function (data) {
+        var invoices = data.invoices || [];
+        invoices.forEach(function (inv) {
+          var label = '';
+          (inv.custom_fields || []).forEach(function (cf) {
+            if (cf.api_name === cfName) label = cf.value || '';
+          });
+          if (!label) return; // nothing to reconcile
+          candidates.push({
+            invoice_id: inv.invoice_id,
+            invoice_number: inv.invoice_number,
+            cf_batch_status: label
+          });
+        });
+
+        var hasMore = data.page_context && data.page_context.has_more_page;
+        if (hasMore && pg < MAX_PAGES) {
+          return fetchPage(pg + 1);
+        }
+      });
+    }
+
+    return fetchPage(1).then(function () {
+      // Sequential — same rate-limit discipline as scan-invoices (D-01).
+      var report = [];
+      var chain = Promise.resolve();
+      candidates.forEach(function (inv) {
+        chain = chain.then(function () {
+          return brewpadIntegration.reconcileInvoiceBatchStatus(inv, liveBatchIndex, { dryRun: dryRun })
+            .then(function (result) {
+              if (result.action !== 'unchanged') {
+                report.push({
+                  invoice_number: inv.invoice_number,
+                  action: result.action,
+                  old: result.old,
+                  new: result.new
+                });
+              }
+            });
+        });
+      });
+
+      return chain.then(function () {
+        eventLog.logEvent('batch.reconcile_stale_scan', {
+          dryRun: dryRun,
+          scanned: candidates.length,
+          changed: report.length
+        });
+        res.json({ dry_run: dryRun, scanned: candidates.length, changes: report });
+      });
+    });
+  }).catch(function (err) {
+    log.error('[batch/reconcile-stale-batch-status] error: ' + (err.message || err));
+    res.status(502).json({ error: 'zoho_error', message: 'Failed to scan for stale batch status refs' });
+  });
+  });
+});
+
 // Phase 28: Resolve customer details from a Zoho invoice or SO number (D-01..D-16)
 router.get('/api/batch/customer-by-number', function (req, res) {
   authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
