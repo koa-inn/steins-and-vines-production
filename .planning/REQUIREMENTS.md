@@ -13,7 +13,7 @@ containment → correctness → fail-closed sweep → signal.
 
 ### Public Exposure
 
-- [ ] **SEC-01** (audit **H1**, CONFIRMED LIVE): No internal planning tree or audit document is served publicly from either the staging or production Pages site. `curl https://staging.steinsandvines.ca/.planning/STATE.md` → 404 and `curl <prod>/AUDIT-2026-06-29.md` → 404; both audit docs `git rm --cached` from the served repos + `.gitignore`d; the root `.nojekyll`-vs-`_config.yml exclude` contradiction on staging reconciled (drop `.nojekyll` on staging so the exclude works, or add a `.planning`/audit strip to the staging deploy, matching prod). Sequenced first — ~minutes, independent; it hands out the admin key + a file:line exploit map today.
+- [x] **SEC-01** (audit **H1**, closed 2026-07-24 — staging verified 2026-07-03, prod verified live 2026-07-24): No internal planning tree or audit document is served publicly from either the staging or production Pages site. `curl https://staging.steinsandvines.ca/.planning/STATE.md` → 404 and `curl <prod>/AUDIT-2026-06-29.md` → 404; both audit docs `git rm --cached` from the served repos + `.gitignore`d; the root `.nojekyll`-vs-`_config.yml exclude` contradiction on staging reconciled (drop `.nojekyll` on staging so the exclude works, or add a `.planning`/audit strip to the staging deploy, matching prod). Sequenced first — ~minutes, independent; it hands out the admin key + a file:line exploit map today.
 
 ### Staff Authentication
 
@@ -76,7 +76,7 @@ Phases risk-ordered: containment (SEC) → de-fork backbone → correctness (MON
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEC-01 | Phase 47 | Pending (H1 confirmed live) |
+| SEC-01 | Phase 47 | ✅ Complete (2026-07-24) — staging verified 2026-07-03; prod 404s verified live 2026-07-24 (rode prod-2026071x deploys) |
 | SEC-02 | Phase 46 | ✅ Complete (2026-07-08) — cutover done, leaked key rotated dead (403) |
 | KIOSK-01 | Phase 48 | ✅ Complete (2026-07-10) — de-fork verified (standalone UAT live), 22/22 threats secured; admin-surface UAT owner-waived w/ automated parity coverage |
 | MONEY-01 | Phase 49 | Pending |
