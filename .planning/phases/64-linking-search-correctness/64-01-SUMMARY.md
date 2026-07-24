@@ -93,3 +93,13 @@ None - no external service configuration required.
 ---
 *Phase: 64-linking-search-correctness*
 *Completed: 2026-07-24*
+
+## Self-Check: PASSED
+
+All created/modified files and commit hashes verified present:
+- `zoho-middleware/routes/pos.js` - FOUND
+- `zoho-middleware/__tests__/batch-search-invoices.test.js` - FOUND
+- `.planning/phases/64-linking-search-correctness/64-01-SUMMARY.md` - FOUND
+- `0406264f` (test) - FOUND
+- `c7335114` (feat) - FOUND
+- `8ec29510` (docs, this summary) - FOUND
