@@ -111,6 +111,16 @@ Phases risk-ordered: containment (SEC) → de-fork backbone → correctness (MON
 - [ ] **REVIEW-04** (Phase 60): The Kit Inventory table is free of blank/orphan/all-zero rows, the "kits low stock" alert reflects only real kits, and the overdue-task counts across Dashboard/Tasks/Admin either reconcile or are precisely labelled by scope.
 - [ ] **REVIEW-05** (Phase 61): First contentful paint is materially faster (font loading no longer render-blocking), meaningful homepage images carry descriptive alt text, and the flagged UI-polish items (Ingredients filter-bar placement, Instagram loading state, testimonials, kiosk token helper text, BrewPad/Admin session decision) are addressed.
 
+## v4.8 Requirements (BrewPad Bookkeeping & Inventory Integrity)
+
+**Defined:** 2026-07-24. **Source:** bookkeeping/batch-linking session feedback log (`/Users/koa/dev/banking/Steins-and-Vines-Bookkeeping/feedback-log.md`), code-verified against pos.js / brewpad.js / recipes.js. Recommended execution order 64 → 62 → 63 → 65 → 66. Cross-repo: OPS-01/02/04 include Google Apps Script work (sheet columns + handlers) tracked inside their phases. **Constraint (owner decision 2026-07-24):** negative Zoho stock is an intentional manual oversell override — no requirement here may clamp negative on-hand or auto-hide storefront items at ≤0.
+
+- [ ] **OPS-01** (Phase 62, feedback #17 PRIORITY): Brewing a BrewPad batch decrements Zoho ingredient stock (stock adjustment or $0 internal-consumption transaction, × scale_factor), idempotent per batch_id, leaving intentional negative-stock overrides untouched — ending the overstated-stock → oversell → refund failure mode (SafLager). Verified against a real batch.
+- [ ] **OPS-02** (Phase 63, feedback #4/#8/#11/#13/#14): Unlinkable batches carry a structured `no_invoice_reason`; batch↔invoice matching keys on customer_id with names validated against Zoho contacts; household purchases match via linked-contacts or kit+date fallback. The "unlinked" list shows only genuine failures.
+- [ ] **OPS-03** (Phase 64, feedback #3/#7/#10): `search-invoices` returns real line items (detail-fetch); batch delete clears/re-syncs the invoice's stale `cf_batch_status`; the admin GET Google OAuth token moves out of the URL query string. Safe in-repo quick wins — execute first.
+- [ ] **OPS-04** (Phase 65, feedback #5/#6/#12/#20): Bulk admin operations pre-flight-check the session token and staff sessions outlive a working day's task (or refresh transparently); a `bulk_update_batches` Apps Script action makes backfills fast; `scan-invoices` gains a configurable/backfill window so pre-30-day batches can auto-link.
+- [ ] **OPS-05** (Phase 66, feedback #15/#16): Recipes carry a structured brewing schedule (or BeerXML import fills one automatically) instead of free-text notes; hop item units are normalized so recipe quantities are unambiguous.
+
 ---
-*Requirements defined: 2026-07-03 (v4.5); 2026-07-10 (v4.6 analytics); 2026-07-15 (v4.7 post-review polish)*
-*Last updated: 2026-07-15 — added v4.7 Post-Review Polish & Trust (REVIEW-01..05).*
+*Requirements defined: 2026-07-03 (v4.5); 2026-07-10 (v4.6 analytics); 2026-07-15 (v4.7 post-review polish); 2026-07-24 (v4.8 bookkeeping & inventory integrity)*
+*Last updated: 2026-07-24 — added v4.8 BrewPad Bookkeeping & Inventory Integrity (OPS-01..05).*
