@@ -48,7 +48,7 @@
   }
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-07-17T17:34:08.296Z';
+  var BUILD_TIMESTAMP = '2026-07-25T22:24:51.522Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP); // eslint-disable-line no-console -- deploy build-verification log
 
   var accessToken = null;
@@ -678,14 +678,23 @@
     if (!SHEETS_CONFIG.ADMIN_API_URL) {
       return Promise.reject(new Error('Admin API not configured'));
     }
-    var url = SHEETS_CONFIG.ADMIN_API_URL + '?action=' + encodeURIComponent(action) + '&token=' + encodeURIComponent(accessToken);
+    // 64-03 (OPS-03 SC#3): reads POST the OAuth token in the JSON body -- the
+    // token no longer appears in the URL where intermediary/proxy/access logs
+    // capture it. Same transport as adminApiPost (text/plain avoids the CORS
+    // preflight Apps Script can't answer); adminApi.gs doPost routes read
+    // actions through the same handlers as doGet (handleReadAction).
+    var body = { action: action, token: accessToken };
     if (params) {
       Object.keys(params).forEach(function (key) {
-        url += '&' + encodeURIComponent(key) + '=' + encodeURIComponent(params[key]);
+        body[key] = params[key];
       });
     }
-    return fetchWithRetry(url, {
-      method: 'GET'
+    return fetchWithRetry(SHEETS_CONFIG.ADMIN_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain' // Use text/plain to avoid CORS preflight
+      },
+      body: JSON.stringify(body)
     }).then(function (res) {
       return res.json();
     }).then(function (data) {
