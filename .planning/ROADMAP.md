@@ -137,7 +137,7 @@
 
 - [ ] **Phase 62: Inventory Consumption Sync** — brewing a BrewPad batch posts a Zoho stock adjustment for the recipe's ingredients × scale_factor (mirroring what a recipe-sale invoice already does), idempotent per batch_id so re-saves never double-decrement; intentional negative stock untouched. Fixes the drift that caused the SafLager oversell → refund (feedback #17, PRIORITY). Cross-repo: Apps Script createBatch + middleware. (OPS-01)
 - [ ] **Phase 63: Batch↔Invoice Reconciliation Model** — structured `no_invoice_reason` on batches (pre-Zoho / cash / legacy Global Payments / comped) so the ~40-54 legitimately-unlinkable batches stop reading as failures; matching keys on customer_id with names validated against Zoho contacts; household/linked-contact (or kit+date) fallback for cases like Witwitki-invoice → Webb-batches (feedback #4, #8, #11, #13, #14). Cross-repo: Apps Script + sheet columns. (OPS-02)
-- [ ] **Phase 64: Linking & Search Correctness** — safe in-repo quick wins, execute first: `search-invoices` detail-fetches so `line_items` are real (list endpoint never returns them — pos.js:2279; pattern exists at pos.js:3112); batch delete clears/re-syncs the invoice's stale `cf_batch_status` (INV-000151 class); `adminApiGet` stops putting the Google OAuth token in the URL query string (adminApiPost body precedent — brewpad.js:1285) (feedback #3, #7, #10). (OPS-03)
+- [x] **Phase 64: Linking & Search Correctness** — safe in-repo quick wins, execute first: `search-invoices` detail-fetches so `line_items` are real (list endpoint never returns them — pos.js:2279; pattern exists at pos.js:3112); batch delete clears/re-syncs the invoice's stale `cf_batch_status` (INV-000151 class); `adminApiGet` stops putting the Google OAuth token in the URL query string (adminApiPost body precedent — brewpad.js:1285) (feedback #3, #7, #10). (OPS-03) (completed 2026-07-25)
 - [ ] **Phase 65: Staff Tooling Reliability & Backfill** — pre-flight token check before bulk operations + longer-lived/refreshing staff sessions (builds on the shipped x-session-token auth; 4 expiries in one admin day, one silently dropped a batch of writes); `bulk_update_batches` Apps Script action (72 batches took ~6 min at ~4-5s/call); configurable / one-time-backfill `scan-invoices` window so pre-30-day batches can auto-link (feedback #5, #6, #12, #20). (OPS-04)
 - [ ] **Phase 66: Recipe Data Quality** — lowest priority: structured brewing-schedule fields (hop timing, mash steps, fermentation) extending the Phase 15 BeerXML import instead of cramming into free-text notes; normalize hop item units (pcs/g/kg drift across the same product family, e.g. Citra-100g "pcs" vs Mosaic-100g "g") (feedback #15, #16). (OPS-05)
 
@@ -1400,7 +1400,7 @@ Plans:
 
 **Wave 3**
 
-- [ ] 64-03-PLAN.md — adminApiGet moves the Google OAuth token out of the URL into the POST body (brewpad.js + admin.js) + adminApi.gs doPost read-routing (owner redeploy first) (OPS-03)
+- [x] 64-03-PLAN.md — adminApiGet moves the Google OAuth token out of the URL into the POST body (brewpad.js + admin.js) + adminApi.gs doPost read-routing (owner redeploy first) (OPS-03)
 
 
 ### Phase 65: Staff Tooling Reliability & Backfill
