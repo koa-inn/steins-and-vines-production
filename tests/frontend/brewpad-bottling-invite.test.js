@@ -49,10 +49,14 @@ var bp = require('../../js/brewpad');
 // Helpers
 // ---------------------------------------------------------------------------
 
-// Route the mock by URL: the Apps Script GET (get_batch) vs the middleware POST.
+// Route the mock by request: the Apps Script get_batch read (POSTed to
+// ADMIN_API_URL with the action in the JSON body since 64-03 moved the OAuth
+// token out of the URL) vs the middleware bottling-invite POST.
 function mockFetch(batchRecord) {
   global.fetch.mockImplementation(function (url, opts) {
-    if (String(url).indexOf('action=get_batch') !== -1) {
+    var bodyAction = '';
+    try { bodyAction = (JSON.parse((opts && opts.body) || '{}').action || ''); } catch (e) { /* not JSON */ }
+    if (String(url).indexOf('action=get_batch') !== -1 || bodyAction === 'get_batch') {
       return Promise.resolve({
         ok: true,
         json: function () {
