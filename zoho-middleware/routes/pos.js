@@ -144,10 +144,23 @@ function resolveDiscount(body, lineItems, subtotal, catalogMap) {
 }
 
 // Compute per-line-item tax total, respecting discounts already on lineItems.
+//
+// Phase 67 (KIOSK-TAX-QUOTE-01): returns a DISCRIMINATED result (mirrors the
+// CR-02 gcRealBalanceLookup idiom) instead of a bare number:
+//   { taxTotal: <number> }                        — every line resolved
+//   { error: '<message naming the item>', itemName } — a CATALOG line has no
+//     resolvable tax (no tax_percentage, no matching sales_tax_rule_id, and
+//     no tax_id) — this repo's money-path fail-closed doctrine (Phase 52)
+//     applies: never guess a tax rate, fail the sale closed and name the
+//     item so staff can fix the catalog data.
+// A resolved 0% (explicit tax_percentage: 0, a real zero-rate rule, or a
+// tax_id-tagged line with no rule match) is NOT an error — only a value that
+// is still NaN after both lookups AND has no tax_id is unresolved.
 function computeTax(lineItems, catalogMap) {
   var taxTotal = 0;
-  var defaultTaxRate = parseFloat(process.env.KIOSK_TAX_RATE) || 0.05;
+  var unresolved = null;
   lineItems.forEach(function (li) {
+    if (unresolved) return; // short-circuit once an unresolved line is found
     // Gift cert lines are zero-tax (D-03) — item's own EXEMPT setting; no catalog lookup.
     if (li.gift_cert) { return; }
     // Custom lines carry their own tax_percentage (5 or 0) — skip catalog lookup.
@@ -174,15 +187,24 @@ function computeTax(lineItems, catalogMap) {
       }
     }
     lineTotal = Math.max(lineTotal, 0);
-    var pct = catalogItem.tax_percentage || 0;
+    // NaN-preserving: a missing/undefined tax_percentage stays NaN (distinct
+    // from a legitimate explicit 0) so the unresolved check below can fire.
+    var pct = parseFloat(catalogItem.tax_percentage);
     if (catalogItem.sales_tax_rule_id && _TAX_RULE_PCT[catalogItem.sales_tax_rule_id] !== undefined) {
       pct = _TAX_RULE_PCT[catalogItem.sales_tax_rule_id];
-    } else if (!pct && !catalogItem.tax_id) {
-      pct = defaultTaxRate * 100;
+    } else if (isNaN(pct) && !catalogItem.tax_id) {
+      // Unresolved: no catalog tax_percentage, no matching rule, no tax_id
+      // to let Zoho resolve it either — fail closed, never guess.
+      var itemName = catalogItem.name || li.name || li.sku || li.item_id;
+      unresolved = { error: 'Cannot determine tax for "' + itemName + '" — no tax rate configured for this item. Refresh the product list or fix the item in Zoho.', itemName: itemName };
+      return;
     }
-    taxTotal += lineTotal * ((pct || 0) / 100);
+    // Every remaining path resolves to a real number (incl. tax_id-present
+    // NaN, which computes as 0% — unchanged Zoho-side tax_id tagging).
+    taxTotal += lineTotal * ((isNaN(pct) ? 0 : pct) / 100);
   });
-  return Math.round(taxTotal * 100) / 100;
+  if (unresolved) return unresolved;
+  return { taxTotal: Math.round(taxTotal * 100) / 100 };
 }
 
 function isConsignmentItem(catalogItem) {
@@ -226,13 +248,19 @@ function extractConsignmentInfo(catalogItem) {
  *   items: [
  *     { item_id: "zoho_item_id", name: "Product Name", quantity: 2, rate: 14.99 }
  *   ],
- *   tax_total: 3.00,          // ignored — tax is computed server-side (KIOSK_TAX_RATE, default 5%)
+ *   tax_total: 3.00,          // ignored — tax is computed server-side per catalog item
  *   reference_number: "KIOSK-001"  // optional reference for the invoice
  * }
  *
  * Note: client-supplied `rate` and `tax_total` are both ignored for all financial
  * calculations. Prices are anchored to the zoho:kiosk-products cache. Any item_id
  * not present in that cache causes an immediate 400 rejection.
+ *
+ * Tax (Phase 67, KIOSK-TAX-QUOTE-01): per-item tax is resolved from the catalog
+ * (tax_percentage / sales_tax_rule_id / tax_id) — there is no KIOSK_TAX_RATE
+ * default fallback. A catalog item with no resolvable tax fails the sale
+ * closed with a 400 naming the item (never a silent guess); a legitimate
+ * resolved 0% still sells. See computeTax().
  */
 router.post('/api/kiosk/sale', function (req, res) {
   if (!helcimLib.isTerminalEnabled()) {
@@ -495,7 +523,14 @@ function processSale(body, idempotencyKey, req, res) {
           subtotal = discResult.subtotal;
         }
 
-        var taxTotal = computeTax(lineItems, catalogMap);
+        // Phase 67 (KIOSK-TAX-QUOTE-01): SALE path — no charge has been made
+        // yet, so an early 400 is safe here (unlike the confirm path below,
+        // which must void rather than bare-400 after a charge).
+        var taxResult = computeTax(lineItems, catalogMap);
+        if (taxResult.error) {
+          return res.status(400).json({ error: taxResult.error });
+        }
+        var taxTotal = taxResult.taxTotal;
         var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
 
         processSaleWithPrices(body, idempotencyKey, req, res,
@@ -973,7 +1008,22 @@ function runConfirm(body, confirmIdemKey, req, res) {
         discountApplied = discResult.discountApplied;
       }
 
-    var taxTotal = computeTax(lineItems, catalogMap);
+    // Phase 67 (KIOSK-TAX-QUOTE-01): CONFIRM path — a terminal charge may
+    // ALREADY exist (manual confirm, body.transaction_id). An early
+    // res.status(400) here would bypass the outer .catch's void-on-failure
+    // machinery entirely and orphan the charge (pos.js:816-819 invariant:
+    // "NEVER bare-400 after a charge"). Instead, throw a TAGGED error into
+    // the promise chain so it reaches the outer .catch below, which routes
+    // through void-on-failure when a charge exists — mirroring the existing
+    // __manualVerify tagged-error idiom.
+    var taxResultConfirm = computeTax(lineItems, catalogMap);
+    if (taxResultConfirm.error) {
+      var taxUnresolvedErr = new Error(taxResultConfirm.error);
+      taxUnresolvedErr.__taxUnresolved = true;
+      taxUnresolvedErr.__taxUnresolvedItemName = taxResultConfirm.itemName;
+      throw taxUnresolvedErr;
+    }
+    var taxTotal = taxResultConfirm.taxTotal;
     var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
     var refNumber = (body.reference_number || 'KIOSK-' + Date.now()).slice(0, 64);
     var txnId = body.transaction_id || 'manual-confirm';
@@ -1381,6 +1431,16 @@ function runConfirm(body, confirmIdemKey, req, res) {
       return res.status(409).json({
         error: 'Card payment could not be verified yet. If the terminal approved, it will be reconciled automatically — do NOT re-charge. Otherwise wait a moment and retry.'
       });
+    }
+    // Phase 67 (KIOSK-TAX-QUOTE-01): computeTax could not resolve a tax rate
+    // for a catalog line (tagged __taxUnresolved thrown above). If nothing
+    // was charged yet (no body.transaction_id), a plain 400 naming the item
+    // is safe and actionable — fall through to the generic void-on-failure
+    // block below ONLY when a terminal charge already exists (never bare-400
+    // after a charge, pos.js:816-819 invariant).
+    if (err && err.__taxUnresolved && !(body && body.transaction_id)) {
+      if (res.headersSent) return;
+      return res.status(400).json({ error: err.message });
     }
     log.error('[pos/kiosk/sale/confirm] Error: ' + err.message);
     var _txnIdForVoidCapture = (body && body.transaction_id) ? String(body.transaction_id) : null;
