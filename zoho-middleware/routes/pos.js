@@ -249,6 +249,8 @@ function extractConsignmentInfo(catalogItem) {
  *     { item_id: "zoho_item_id", name: "Product Name", quantity: 2, rate: 14.99 }
  *   ],
  *   tax_total: 3.00,          // ignored — tax is computed server-side per catalog item
+ *   client_grand_total: 89.60,  // OPTIONAL — the kiosk's own displayed grand total
+ *   client_tax_total: 9.60,     // OPTIONAL — the kiosk's own displayed tax total (observability only)
  *   reference_number: "KIOSK-001"  // optional reference for the invoice
  * }
  *
@@ -261,6 +263,16 @@ function extractConsignmentInfo(catalogItem) {
  * default fallback. A catalog item with no resolvable tax fails the sale
  * closed with a 400 naming the item (never a silent guess); a legitimate
  * resolved 0% still sells. See computeTax().
+ *
+ * Pre-charge assertion (Phase 67, KIOSK-TAX-QUOTE-01): client totals are never
+ * TRUSTED for pricing (server-computed totals remain the sole source of
+ * financial truth — price anchoring above is unchanged) but `client_grand_total`
+ * IS ASSERTED against the server-computed grandTotal before any Helcim charge.
+ * Both fields are optional; the assertion is skipped when client_grand_total is
+ * absent or not a finite number (back-compat with old cached kiosk JS). On a
+ * mismatch beyond $0.01, the sale is rejected 400 with no charge and the
+ * idempotency lock is released so a corrected re-ring can retry. See
+ * processSaleWithPrices().
  */
 router.post('/api/kiosk/sale', function (req, res) {
   if (!helcimLib.isTerminalEnabled()) {
@@ -551,6 +563,24 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
   }
   if (grandTotal > 10000) {
     return res.status(400).json({ error: 'Sale total exceeds maximum' });
+  }
+
+  // --- Phase 67 (KIOSK-TAX-QUOTE-01): pre-charge total assertion ---
+  // The kiosk client MAY send its own displayed grand total (client_grand_total).
+  // Server-computed grandTotal (catalog-anchored) remains the ONLY source of
+  // financial truth — this is a divergence DETECTOR, never a pricing input.
+  // Only asserts when the field is present and a finite number (old cached
+  // kiosk JS that omits it is unaffected — back-compat by design). On
+  // mismatch beyond a cent-rounding tolerance ($0.01), reject BEFORE any
+  // gift-card lookup or Helcim terminal charge and release the idempotency
+  // lock (WR-03 shape) so a corrected re-ring can retry immediately.
+  if (typeof body.client_grand_total === 'number' && isFinite(body.client_grand_total)) {
+    if (Math.abs(body.client_grand_total - grandTotal) > 0.01) {
+      if (idempotencyKey) {
+        cache.releaseLock(idempotencyKey).catch(function () {});
+      }
+      return res.status(400).json({ error: 'Totals changed — refresh the product list and re-ring the sale.' });
+    }
   }
 
   // --- Gift card split-tender (Phase 44 / D-12 hardened in 45-07) ---
