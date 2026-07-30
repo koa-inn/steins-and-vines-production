@@ -111,6 +111,10 @@ None — no external service configuration required. This is a pure middleware c
 - **Full middleware suite green:** 86 suites / 1340 tests, `pos.js` line coverage 81.58% (floor 80%). Root `npm run lint` and `npm test` (69 suites / 1036 tests) also green. `cd zoho-middleware && npm run lint` clean.
 - No blockers for 67-02. The client-side missing-tax detection, cart-lifecycle catalog freshness hooks, and frontend regression tests are scoped to that plan and were intentionally left untouched here.
 
+## Self-Check: PASSED
+
+All created/modified files verified present; all 4 task/summary commit hashes (`568c312b`, `9df7ebeb`, `3f2fa659`, `b4fffec3`) verified in git log.
+
 ---
 *Phase: 67-kiosk-tax-quote-charge-correctness-pre-charge-total-assertio*
 *Completed: 2026-07-30*
