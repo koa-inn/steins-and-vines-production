@@ -80,13 +80,24 @@ var CATALOG_WITH_TAX = [
     custom_fields: []
   },
   {
+    // no tax_percentage, no tax_id, no sales_tax_rule_id — CONTEXT.md: a
+    // genuinely unresolvable tax must fail closed (Phase 67), not guess 5%.
     item_id: 'item-zero',
     name: 'Gift Card',
     rate: 50.00,
     stock_on_hand: 20,
     tax_id: '',
     tax_name: '',
-    tax_percentage: 0,
+    custom_fields: []
+  },
+  {
+    item_id: 'item-zero-rated',
+    name: 'Zero Rated Ingredient',
+    rate: 40.00,
+    stock_on_hand: 20,
+    tax_id: 'tax-zero-rated',
+    tax_name: 'Zero Rated',
+    sales_tax_rule_id: process.env.ZOHO_TAX_ZERO_RULE || '109900000000033411',
     custom_fields: []
   },
   {
@@ -174,7 +185,12 @@ describe('pos routes — per-item tax on line items', function () {
       handlers['/api/kiosk/sale'](req, res);
     });
 
-    test('returns 202 pending for item without tax_id (uses KIOSK_TAX_RATE fallback)', function (done) {
+    // Phase 67 (CLAUDE.md rule 10 exception, per CONTEXT.md): this test pinned
+    // the OLD documented KIOSK_TAX_RATE 5%-fallback behavior. Decision "Remove
+    // all three silent 5% fallbacks" removes it — an item with no
+    // tax_percentage, no tax_id, and no matching tax rule is now a fail-closed
+    // data error, not a guessed 5% charge.
+    test('returns 400 rejected for item with unresolvable tax (no tax_percentage, no tax_id, no rule) — fail-closed, not a 5% guess', function (done) {
       cache.get.mockResolvedValue(CATALOG_WITH_TAX);
 
       var req = {
@@ -186,10 +202,34 @@ describe('pos routes — per-item tax on line items', function () {
 
       res.json.mockImplementation(function (body) {
         try {
+          expect(body.error).toMatch(/Gift Card|item-zero/i);
+          expect(helcimLib.terminalPurchase).not.toHaveBeenCalled();
+          done();
+        } catch (e) { done(e); }
+      });
+      res.status.mockImplementation(function (code) {
+        expect(code).toBe(400);
+        return res;
+      });
+
+      handlers['/api/kiosk/sale'](req, res);
+    });
+
+    test('legitimate 0% catalog item (real zero-rate tax rule) still sells with tax 0', function (done) {
+      cache.get.mockResolvedValue(CATALOG_WITH_TAX);
+
+      var req = {
+        body: {
+          items: [{ item_id: 'item-zero-rated', name: 'Zero Rated Ingredient', quantity: 1 }]
+        }
+      };
+      var res = mockRes();
+
+      res.json.mockImplementation(function (body) {
+        try {
           expect(body.pending).toBe(true);
-          expect(body.reference).toBeTruthy();
           var termCall = helcimLib.terminalPurchase.mock.calls[0];
-          expect(termCall[0]).toBe(52.50); // 50 + (50 * 0.05) fallback
+          expect(termCall[0]).toBe(40.00); // rate 40, 0% real zero-rate rule — no tax added
           done();
         } catch (e) { done(e); }
       });
@@ -235,7 +275,13 @@ describe('pos routes — per-item tax on line items', function () {
       handlers['/api/kiosk/sale'](req, res);
     });
 
-    test('grandTotal uses KIOSK_TAX_RATE fallback when catalogItem has no tax_id AND no tax_percentage', function (done) {
+    // Phase 67 (CLAUDE.md rule 10 exception, per CONTEXT.md): pinned the OLD
+    // documented KIOSK_TAX_RATE 5%-fallback. Note the fixture below has NO
+    // tax_percentage key at all (not `tax_percentage: 0`) — a truly missing
+    // value is the genuine data error the new NaN-preserving resolution
+    // detects; an explicit 0 stays a valid resolved rate (see the
+    // legitimate-0% test above).
+    test('sale is rejected (no 5% applied) when catalogItem has no tax_id AND no tax_percentage', function (done) {
       var catalogNoTax = [{
         item_id: 'item-notax',
         name: 'Mystery Item',
@@ -243,15 +289,10 @@ describe('pos routes — per-item tax on line items', function () {
         stock_on_hand: 10,
         tax_id: '',
         tax_name: '',
-        tax_percentage: 0,
         custom_fields: []
       }];
       cache.get.mockResolvedValue(catalogNoTax);
-      zohoApi.zohoPost.mockResolvedValue({
-        invoice: { invoice_id: 'inv-4', invoice_number: 'INV-004' }
-      });
 
-      // KIOSK_TAX_RATE = 0.05, rate=100, so tax=5.00, total=105.00
       var req = {
         body: {
           items: [{ item_id: 'item-notax', name: 'Mystery Item', quantity: 1 }]
@@ -259,17 +300,15 @@ describe('pos routes — per-item tax on line items', function () {
       };
       var res = mockRes();
 
-      res.json.mockImplementation(function () {
+      res.json.mockImplementation(function (body) {
         try {
-          var termCall = helcimLib.terminalPurchase.mock.calls[0];
-          expect(termCall[0]).toBe(105.00); // 100 + (100 * 0.05) = 105.00
+          expect(body.error).toMatch(/Mystery Item|item-notax/i);
+          expect(helcimLib.terminalPurchase).not.toHaveBeenCalled();
           done();
         } catch (e) { done(e); }
       });
       res.status.mockImplementation(function (code) {
-        if (code >= 400) {
-          return { json: function (body) { done(new Error('Got status ' + code + ': ' + JSON.stringify(body))); } };
-        }
+        expect(code).toBe(400);
         return res;
       });
 

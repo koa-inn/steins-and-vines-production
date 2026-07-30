@@ -675,6 +675,30 @@ describe('GET /api/kiosk/products — tax rule enrichment', function () {
     });
   });
 
+  // Phase 67 (KIOSK-TAX-QUOTE-01): pin the exact live-incident shape (BC
+  // PST + GST compound rule) through the kiosk catalog build path, so a
+  // regression here (the client-side seam this phase closes) is caught at
+  // the catalog layer too.
+  test('BC PST+GST compound-tax item resolves tax_percentage === 12 through the kiosk catalog build path', function () {
+    var items = [makeItem({
+      item_id: 'k2-bc-pst-gst',
+      name: '750-champ-fl',
+      rate: 216,
+      tax_percentage: 5,
+      tax_id: '109900000000029101',
+      tax_name: 'GST'
+    })];
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue({
+      'k2-bc-pst-gst': { tax_percentage: 5, tax_name: 'GST', sales_tax_rule_id: STANDARD_RULE_ID }
+    });
+
+    return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
+      expect(res._body.items[0].tax_percentage).toBe(12);
+      expect(res._body.items[0].sales_tax_rule_id).toBe(STANDARD_RULE_ID);
+    });
+  });
+
   test('sales_tax_rule_id from detail overrides tax_percentage', function () {
     var items = [makeItem({
       item_id: 'k2',
