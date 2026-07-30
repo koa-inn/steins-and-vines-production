@@ -991,14 +991,16 @@ Plans: 3 plans across 3 waves
 
 ### Phase 67: Kiosk tax quote-charge correctness — pre-charge total assertion, remove silent 5% tax fallbacks, client catalog freshness
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Close the kiosk quote≠charge seam (INV-000160): make any divergence between the kiosk-displayed total and the server-charged total LOUD (fail-closed before charging) and remove every silent 5% tax guess. Server anchors all pricing to the catalog and now asserts the client's displayed total against its own before charging; the client stops guessing tax and flags missing-tax items instead; the parked-kiosk stale-catalog exposure is closed with a cart-lifecycle refresh.
+
+**Requirements**: KIOSK-TAX-QUOTE-01 (owner-reported defect; source: `.planning/debug/kiosk-tax-under-quote.md` + owner handoff — not a REQUIREMENTS.md ID)
 **Depends on:** Phase 66
-**Plans:** 0 plans
+**Plans:** 3 plans across 3 waves
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 67 to break down)
-
+- [ ] 67-01-PLAN.md — Middleware (wave 1, deploy first): remove computeTax silent 5% guess (fail-closed 400 naming the item) + pre-charge assertion (client_grand_total vs server grandTotal, ±$0.01) + update 2 pinned 5%-fallback tests + new assertion/compound-tax tests
+- [ ] 67-02-PLAN.md — Frontend (wave 2, deploy after middleware): remove client 5% fallback + flag-and-block missing-tax item by name + reconcile kioskItemTax + send client_grand_total/client_tax_total + cart-lifecycle catalog refresh + rebuild kiosk-core.min.js + frontend tests
+- [ ] 67-03-PLAN.md — Live verification (wave 3, checkpoint): real compound-tax kiosk sale proves quote == charge == Zoho invoice; assertion rejects a divergent total
 ---
 
 ### Phase 46: Auth Re-Architecture (CRITICAL — split from Phase 45)
