@@ -989,6 +989,16 @@ Plans: 3 plans across 3 waves
 - [x] 54-02-PLAN.md — Frontend: kgcm- lookup+void panel in kiosk-core.js + settings-gated entry in kiosk.html/kiosk.js + rebuild bundles
 - [x] 54-03-PLAN.md — Frontend regression test: device-token lookup+void path + reason-required void gate
 
+### Phase 67: Kiosk tax quote-charge correctness — pre-charge total assertion, remove silent 5% tax fallbacks, client catalog freshness
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 66
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 67 to break down)
+
 ---
 
 ### Phase 46: Auth Re-Architecture (CRITICAL — split from Phase 45)
