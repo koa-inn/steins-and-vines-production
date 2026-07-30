@@ -995,10 +995,10 @@ Plans: 3 plans across 3 waves
 
 **Requirements**: KIOSK-TAX-QUOTE-01 (owner-reported defect; source: `.planning/debug/kiosk-tax-under-quote.md` + owner handoff — not a REQUIREMENTS.md ID)
 **Depends on:** Phase 66
-**Plans:** 3 plans across 3 waves
+**Plans:** 1/3 plans executed
 
 Plans:
-- [ ] 67-01-PLAN.md — Middleware (wave 1, deploy first): remove computeTax silent 5% guess (fail-closed 400 naming the item) + pre-charge assertion (client_grand_total vs server grandTotal, ±$0.01) + update 2 pinned 5%-fallback tests + new assertion/compound-tax tests
+- [x] 67-01-PLAN.md — Middleware (wave 1, deploy first): remove computeTax silent 5% guess (fail-closed 400 naming the item) + pre-charge assertion (client_grand_total vs server grandTotal, ±$0.01) + update 2 pinned 5%-fallback tests + new assertion/compound-tax tests
 - [ ] 67-02-PLAN.md — Frontend (wave 2, deploy after middleware): remove client 5% fallback + flag-and-block missing-tax item by name + reconcile kioskItemTax + send client_grand_total/client_tax_total + cart-lifecycle catalog refresh + rebuild kiosk-core.min.js + frontend tests
 - [ ] 67-03-PLAN.md — Live verification (wave 3, checkpoint): real compound-tax kiosk sale proves quote == charge == Zoho invoice; assertion rejects a divergent total
 ---
