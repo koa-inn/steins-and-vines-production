@@ -2404,6 +2404,15 @@
 
   function kioskStartCheckout() {
     if (kioskCartIsEmpty()) return;
+    // 67-02: cart-lifecycle catalog refresh (INV-000160). The New Sale button
+    // already force-refreshes, but staff who go straight from an old browse
+    // session into checkout on a parked kiosk would still quote from a stale
+    // snapshot. Fire-and-forget: kioskLoadProducts keeps the last-good catalog
+    // on a failed refresh (never wipes the grid), and the 67-01 server-side
+    // pre-charge assertion is the backstop if staleness persists. No periodic
+    // polling — this cart-lifecycle hook covers the exposure (30-min server
+    // cache TTL respected).
+    kioskLoadProducts(true);
     if (!_kioskTerminalReady) {
       showToast('POS terminal is not ready. Check terminal status below.', 'error');
       return;
