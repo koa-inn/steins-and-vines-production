@@ -234,7 +234,8 @@
   var MAKERS_FEE_SKU = 'MAKERS-FEE';
   var MATERIALS_FEE = 5; // Materials fee (corks etc.) — carries PST
   var MATERIALS_FEE_SKU = 'MAT-FEE';
-  var KIOSK_TAX_RATE_DEFAULT = 0.05; // 5% GST fallback when item has no tax_percentage
+  // 67-02: the silent 5% default-tax fallback constant was removed — a missing
+  // tax_percentage is now a fail-closed data error (INV-000160), never a guess.
 
   // 57-03: a loaded catalog is considered stale after this many ms and is
   // force-refreshed on the next wake (visibilitychange/pageshow/online), so a
@@ -602,7 +603,12 @@
 
   function kioskItemTax(item, qty) {
     var rate = parseFloat(item.rate) || 0;
-    var pct = parseFloat(item.tax_percentage) || 0;
+    var pct = parseFloat(item.tax_percentage);
+    // 67-02: a missing/unparseable tax_percentage is a DATA ERROR — return NaN
+    // (a visible error) instead of silently rendering a false $0.00. This is
+    // consistent with kioskCalcTotals' missing-tax detection (which flags the
+    // item and blocks checkout). An explicit 0 is a VALID resolved rate.
+    if (isNaN(pct)) return NaN;
     return parseFloat((rate * qty * pct / 100).toFixed(2));
   }
 
@@ -754,6 +760,7 @@
 
     // Per-item tax using catalog tax_percentage (matches server-side calculation)
     var taxTotal = 0;
+    var missingTaxItem = null;
     ids.forEach(function (id) {
       var entry = cart[id];
       if (!entry || !entry.item) return;
@@ -765,7 +772,17 @@
       }
       var taxable = Math.max(lt - d, 0);
       var pct = parseFloat(entry.item.tax_percentage);
-      if (isNaN(pct)) pct = KIOSK_TAX_RATE_DEFAULT * 100;
+      if (isNaN(pct)) {
+        // 67-02: a missing/unparseable tax_percentage is a DATA ERROR, never a
+        // guess — the removed silent 5% fallback under-quoted 12% GST+PST
+        // items (INV-000160). DETECTION only here
+        // (this runs on every cart render); the BLOCK happens at checkout
+        // entry (kioskProceedToPayment) via kioskShowError, naming the item —
+        // mirroring the 57-03 phantom-item guard shape. This line contributes
+        // 0 tax; the sale is blocked before any charge, so the 0 never ships.
+        if (!missingTaxItem) missingTaxItem = entry.item.name || entry.item.item_id || id;
+        return;
+      }
       taxTotal += taxable * (pct / 100);
     });
     taxTotal = kioskR2(taxTotal);
@@ -774,7 +791,10 @@
       subtotal: subtotal,
       discount: kioskR2(discountAmount),
       tax: taxTotal,
-      total: kioskR2(subtotal - discountAmount + taxTotal)
+      total: kioskR2(subtotal - discountAmount + taxTotal),
+      // 67-02: name/id of the first cart line whose tax could not be resolved
+      // (null when every line has a valid numeric tax_percentage, incl. 0).
+      missingTaxItem: missingTaxItem
     };
   }
 
@@ -2384,6 +2404,15 @@
 
   function kioskStartCheckout() {
     if (kioskCartIsEmpty()) return;
+    // 67-02: cart-lifecycle catalog refresh (INV-000160). The New Sale button
+    // already force-refreshes, but staff who go straight from an old browse
+    // session into checkout on a parked kiosk would still quote from a stale
+    // snapshot. Fire-and-forget: kioskLoadProducts keeps the last-good catalog
+    // on a failed refresh (never wipes the grid), and the 67-01 server-side
+    // pre-charge assertion is the backstop if staleness persists. No periodic
+    // polling — this cart-lifecycle hook covers the exposure (30-min server
+    // cache TTL respected).
+    kioskLoadProducts(true);
     if (!_kioskTerminalReady) {
       showToast('POS terminal is not ready. Check terminal status below.', 'error');
       return;
@@ -2457,6 +2486,20 @@
           return;
         }
       }
+    }
+
+    // 67-02: fail-closed missing-tax gate (INV-000160). A cart line whose
+    // tax_percentage could not be resolved must block checkout HERE — the
+    // displayed total would otherwise silently under-quote (the old 5% guess).
+    // Same "detect bad cart line, name it, block checkout" shape as the 57-03
+    // phantom guard above; runs AFTER it so a phantom item reports its root
+    // cause ("Item Unavailable") first. Retry returns to browse → re-ring.
+    if (totals.missingTaxItem) {
+      kioskShowError('Tax Unavailable',
+        'Item "' + totals.missingTaxItem + '" has no tax rate in the current catalog. ' +
+        'Refresh the product list and re-add it, then try again.',
+        true);
+      return;
     }
 
     // === CHECKOUT FORK: imported SO vs new sale (D-02, D-08) ===
@@ -2583,6 +2626,14 @@
       items: items,
       reference_number: refNumber,
       idempotency_key: refNumber,
+      // 67-02: the kiosk's DISPLAYED totals, sent for the server's pre-charge
+      // assertion (67-01 interface contract — exact field names pinned there).
+      // Display values only: the server never trusts them for pricing; it
+      // asserts client_grand_total against its own computed grandTotal
+      // (tolerance $0.01) and rejects divergence 400 BEFORE any terminal
+      // charge. client_tax_total is observability-only, never asserted.
+      client_grand_total: totals.total,
+      client_tax_total: totals.tax,
       discount: _kcEnv.getDiscount() ? { preset_id: _kcEnv.getDiscount().presetId, name: _kcEnv.getDiscount().name, type: _kcEnv.getDiscount().type, value: _kcEnv.getDiscount().value, scope: _kcEnv.getDiscount().scope } : undefined,
       gift_card: undefined
     };

@@ -238,3 +238,92 @@ describe('kiosk catalog freshness — the confirmed stale-catalog/phantom-item c
     expect(errMsgEl.textContent).toMatch(/Ghost Kit|no longer|re-add/i);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 67-02 — client displayed totals on the sale body + cart-lifecycle
+// catalog refresh (kiosk-tax-under-quote.md, INV-000160).
+//
+// Contract these tests pin:
+//   D. POST /api/kiosk/sale carries client_grand_total === totals.total and
+//      client_tax_total === totals.tax (exact field names pinned by 67-01's
+//      middleware pre-charge assertion — the server asserts, never trusts).
+//   E. Entering checkout (kioskStartCheckout, the cart→customer transition
+//      the New Sale button does not cover) force-refreshes the in-memory
+//      catalog via kioskLoadProducts(true), so a parked kiosk cannot quote
+//      from a stale snapshot.
+// ---------------------------------------------------------------------------
+describe('67-02 — client displayed totals + cart-lifecycle catalog refresh', function () {
+
+  test('Test D: the sale POST body carries client_grand_total and client_tax_total matching the displayed totals', async function () {
+    localStorage.setItem(DEVICE_TOKEN_KEY, 'kiosk-token');
+    var core = loadSurface('../../js/kiosk.js').core;
+    injectEl('kiosk-product-grid');
+    // kiosk-payment-items needs a parentNode so the GC tender panel injects.
+    injectEl('kiosk-payment-items');
+
+    mockFetchOnce(200, { items: [{ item_id: 'P1', name: 'Good Kit', rate: 25, tax_percentage: 5 }] });
+    core.loadProducts();
+    await flushPromises();
+    expect(core._getProducts()).toHaveLength(1);
+
+    core._setCart({
+      'P1': { item: { item_id: 'P1', name: 'Good Kit', rate: 25, tax_percentage: 5 }, qty: 2 }
+    });
+
+    var totals = core.calcTotals();
+    expect(totals.total).toBe(52.5); // sanity: 50 + 5% tax
+    expect(totals.tax).toBe(2.5);
+
+    core.proceedToPayment();
+
+    // Standard (non-recipe) sales inject the GC tender panel; "Proceed to
+    // Terminal" (skip) fires the actual sale POST.
+    var skipBtn = document.getElementById('kgcr-skip-btn');
+    expect(skipBtn).toBeTruthy();
+    skipBtn.onclick();
+
+    var saleCall = global.fetch.mock.calls.find(function (c) {
+      return typeof c[0] === 'string' && c[0].indexOf('/api/kiosk/sale') !== -1;
+    });
+    expect(saleCall).toBeTruthy();
+    var body = JSON.parse(saleCall[1].body);
+    // Exact field names pinned by the 67-01 interface contract.
+    expect(body.client_grand_total).toBe(totals.total);
+    expect(body.client_tax_total).toBe(totals.tax);
+
+    await flushPromises(); // settle the mocked sale response chain
+  });
+
+  test('Test E: entering checkout force-refreshes the catalog (kioskLoadProducts(true) fires at kioskStartCheckout)', async function () {
+    localStorage.setItem(DEVICE_TOKEN_KEY, 'kiosk-token');
+    var core = loadSurface('../../js/kiosk.js').core;
+    injectEl('kiosk-product-grid');
+
+    mockFetchOnce(200, { items: [{ item_id: 'P1', name: 'Good Kit', rate: 25, tax_percentage: 5 }] });
+    core.loadProducts();
+    await flushPromises();
+    expect(core._getProducts()).toHaveLength(1);
+
+    core._setCart({
+      'P1': { item: { item_id: 'P1', name: 'Good Kit', rate: 25, tax_percentage: 5 }, qty: 1 }
+    });
+    core.setTerminalStatus(true, 'Terminal ready');
+
+    var callsBefore = global.fetch.mock.calls.length;
+    mockFetchOnce(200, { items: [{ item_id: 'P1', name: 'Good Kit', rate: 25, tax_percentage: 5 }] });
+    core.startCheckout();
+    await flushPromises();
+
+    // The cart-lifecycle hook must fire a force-refresh (?bust=1) of the catalog.
+    var bustCall = global.fetch.mock.calls.slice(callsBefore).find(function (c) {
+      return typeof c[0] === 'string' &&
+        c[0].indexOf('/api/kiosk/products') !== -1 && c[0].indexOf('bust=1') !== -1;
+    });
+    expect(bustCall).toBeTruthy();
+
+    // A failed refresh keeps the last-good catalog (keep-last-good inherited
+    // from kioskLoadProducts) — assert the grid was not wiped by the refresh.
+    expect(core._getProducts()).toHaveLength(1);
+    expect(core._getProductsLoaded()).toBe(true);
+  });
+});

@@ -121,7 +121,9 @@ describe('kiosk money screens must never interpret a product name as markup (M-C
 
     core._setCart({
       P1: {
-        item: { item_id: 'P1', name: HOSTILE_NAME, rate: 42.5 },
+        // 67-02: explicit tax_percentage — a missing one now fail-closed-blocks
+        // checkout before the payment-screen render this test asserts.
+        item: { item_id: 'P1', name: HOSTILE_NAME, rate: 42.5, tax_percentage: 5 },
         qty: 1
       }
     });

@@ -87,7 +87,9 @@ describe('kiosk sale server-error beacon (57-03, client half of 57-DIAGNOSIS bea
     var core = loadSurface('../../js/kiosk.js').core;
 
     core._setCart({
-      P1: { item: { item_id: 'P1', name: 'Test Kit', rate: 25 }, qty: 1 }
+      // 67-02: fixture carries an explicit tax_percentage — a missing one now
+      // fail-closed-blocks checkout before the sale POST this test needs.
+      P1: { item: { item_id: 'P1', name: 'Test Kit', rate: 25, tax_percentage: 5 }, qty: 1 }
     });
 
     // The captured catalog-miss 400 (57-DIAGNOSIS.md), no `pending` flag.
@@ -107,7 +109,9 @@ describe('kiosk sale server-error beacon (57-03, client half of 57-DIAGNOSIS bea
     var core = loadSurface('../../js/kiosk.js').core;
 
     core._setCart({
-      P1: { item: { item_id: 'P1', name: 'Test Kit', rate: 25 }, qty: 1 }
+      // 67-02: fixture carries an explicit tax_percentage — a missing one now
+      // fail-closed-blocks checkout before the sale POST this test needs.
+      P1: { item: { item_id: 'P1', name: 'Test Kit', rate: 25, tax_percentage: 5 }, qty: 1 }
     });
 
     mockFetchOnce(400, { error: 'Item not found in current catalog: 1099000000000109115. Refresh the product list and try again.' });
