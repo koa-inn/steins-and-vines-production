@@ -1512,6 +1512,16 @@
               item_id: ing.item_id,
               name: escapeHTML(ing.item_name) + ' (' + ingQty + ' ' + escapeHTML(ing.unit || '') + ')',
               rate: ingRate,
+              // 67 review (WR-04, KNOWN SEAM — deliberately deferred): this
+              // `|| 0` (and the fee lines below) coerces a missing ingredient
+              // tax to 0% — the same silent laundering Phase 67 removed for
+              // product carts. It is left in place because the SERVER's
+              // recipe total (recipe-scaling) computes no tax at all, so a
+              // fail-closed client gate here would block sales the server
+              // happily charges. The recipe path instead sends
+              // client_grand_total/client_tax_total for the server's
+              // LOG-ONLY divergence detector (pos-recipe.js); full recipe
+              // tax fail-closed is a follow-up phase (67-REVIEW.md WR-04).
               tax_percentage: Number(ing.tax_percentage) || 0,
               product_type: 'recipe_ingredient'
             },
@@ -2647,7 +2657,16 @@
       // D-07 (Manager Override): refreshed on every _kioskPushToTerminal
       // invocation (incl. the override-button resubmit) so a stale `false`
       // captured here isn't sent after the staff clicks Override.
-      override: _kioskStockOverride || false
+      override: _kioskStockOverride || false,
+      // 67 review fix (WR-04): recipe sales carry the kiosk's DISPLAYED
+      // totals too (same field names as the standard sale body, 67-01
+      // interface contract). The server side is a LOG-ONLY divergence
+      // detector for recipes (pos-recipe.js) — its recomputed grandTotal
+      // carries no tax component while this displayed total does, so a
+      // blocking assertion would false-reject taxed recipe carts. Never
+      // trusted for pricing.
+      client_grand_total: totals.total,
+      client_tax_total: totals.tax
     } : null;
     // Phase 44 (D-05): gift_card set inside _kioskPushToTerminal after the GC panel step
     var standardSaleBody = {
@@ -4971,7 +4990,11 @@
     // 67 review fix (WR-03): imported-SO state accessors so tests can pin
     // the SO-cart scoping of the missing-tax gate.
     _getImportedSoId: function () { return _kioskImportedSoId; },
-    _setImportedSo: function (id, num) { _kioskImportedSoId = id; _kioskImportedSoNumber = num || ''; }
+    _setImportedSo: function (id, num) { _kioskImportedSoId = id; _kioskImportedSoNumber = num || ''; },
+    // 67 review fix (WR-04): recipe-context accessors (delegate through the
+    // env bridge) so tests can pin the recipe sale body contract.
+    _getRecipeContext: function () { return _kcEnv.getRecipeContext(); },
+    _setRecipeContext: function (v) { _kcEnv.setRecipeContext(v); }
   };
 
   // ===== Dual-mode export (D-01) =====

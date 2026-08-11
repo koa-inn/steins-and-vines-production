@@ -250,6 +250,61 @@ describe('POST /api/kiosk/recipe-sale (initiate)', function () {
     });
   });
 
+  // Phase 67 review fix (WR-04): the kiosk now sends its displayed totals
+  // with recipe sales too. Unlike /api/kiosk/sale, the recipe comparison is
+  // deliberately LOG-ONLY (never a blocking 400): the server's recipe
+  // grandTotal (recipe-scaling) contains NO tax component while the kiosk's
+  // displayed total adds client-side per-line tax, so a blocking $0.01
+  // assertion would deterministically reject every recipe cart displaying
+  // nonzero tax — the CR-01 outage mode. Reconciling recipe tax methodology
+  // fail-closed is deferred to a follow-up phase (67-REVIEW.md WR-04).
+  test('WR-04a. divergent client_grand_total on recipe-sale logs the mismatch evidence but does NOT block the sale', function () {
+    var log = require('../lib/logger');
+    var eventLogMock = require('../lib/eventLog');
+    return callHandler('POST', '/api/kiosk/recipe-sale', {
+      // server computes 245.00 (locked 195 x 1.0 + 45 + 5); client displays 260.00
+      body: { recipe_id: 'RCP-001', sale_type: 'in-store', client_grand_total: 260.00, client_tax_total: 12.25 }
+    }).then(function (res) {
+      expect(res._status).toBe(202); // charge proceeds — detector is log-only
+      expect(res._body.pending).toBe(true);
+      var logged = log.error.mock.calls.map(function (c) { return String(c[0]); })
+        .find(function (m) { return m.indexOf('recipe pre-charge total mismatch') !== -1; });
+      expect(logged).toBeTruthy();
+      expect(logged).toContain('client_grand_total=260');
+      expect(logged).toContain('client_tax_total=12.25');
+      expect(logged).toContain('server_grand_total=245');
+      expect(logged).toContain('delta=');
+      var evt = eventLogMock.logEvent.mock.calls.find(function (c) { return c[0] === 'kiosk.recipe_total_mismatch'; });
+      expect(evt).toBeTruthy();
+      expect(evt[1].client_grand_total).toBe(260.00);
+      expect(evt[1].server_grand_total).toBe(245.00);
+    });
+  });
+
+  test('WR-04b. matching client_grand_total (within $0.01) logs no mismatch', function () {
+    var log = require('../lib/logger');
+    return callHandler('POST', '/api/kiosk/recipe-sale', {
+      body: { recipe_id: 'RCP-001', sale_type: 'in-store', client_grand_total: 245.00, client_tax_total: 0 }
+    }).then(function (res) {
+      expect(res._status).toBe(202);
+      var logged = log.error.mock.calls.map(function (c) { return String(c[0]); })
+        .find(function (m) { return m.indexOf('recipe pre-charge total mismatch') !== -1; });
+      expect(logged).toBeFalsy();
+    });
+  });
+
+  test('WR-04c. absent client_grand_total logs no mismatch (back-compat with old cached kiosk JS)', function () {
+    var log = require('../lib/logger');
+    return callHandler('POST', '/api/kiosk/recipe-sale', {
+      body: { recipe_id: 'RCP-001', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(202);
+      var logged = log.error.mock.calls.map(function (c) { return String(c[0]); })
+        .find(function (m) { return m.indexOf('recipe pre-charge total mismatch') !== -1; });
+      expect(logged).toBeFalsy();
+    });
+  });
+
   test('15. uses locked_price when pricing_mode is locked (D-06 fee-inclusive at 1x)', function () {
     // MOCK_RECIPE_RESPONSE has locked_price: 195.00, batch_size_l: 20, no pricing_mode (defaults to locked)
     // D-06: fee-inclusive formula applied globally — at 1x: 195.00 * 1.0 + 45.00 + 5.00 = 245.00

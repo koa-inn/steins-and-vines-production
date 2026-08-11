@@ -336,6 +336,39 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
       log.info('[recipe-sale] pricing_mode=' + pricingMode + ' (raw=' + quote.recipe.pricing_mode + ') locked_price=' + quote.recipe.locked_price);
       log.info('[recipe-sale] grandTotal=' + grandTotal + ' pricingMode=' + pricingMode);
 
+      // --- Phase 67 review fix (WR-04): recipe quote-vs-charge divergence
+      // DETECTOR. The kiosk now sends its displayed totals with recipe sales
+      // (same optional field names as /api/kiosk/sale). Unlike the standard
+      // sale path this comparison is deliberately LOG-ONLY (never a blocking
+      // 400): the recomputed grandTotal above (recipe-scaling) contains NO
+      // tax component, while the kiosk's displayed total adds client-side
+      // per-line tax (ingredient/fee tax_percentage) — a blocking $0.01
+      // assertion would therefore deterministically reject every recipe cart
+      // displaying nonzero tax (the CR-01 outage mode). Reconciling recipe
+      // tax methodology fail-closed is deferred to a follow-up phase
+      // (67-REVIEW.md WR-04 outcome). Until then, divergence is made LOUD in
+      // logs + the event stream without risking a checkout outage. Client
+      // totals are never trusted for pricing.
+      if (typeof body.client_grand_total === 'number' && isFinite(body.client_grand_total) &&
+          Math.abs(body.client_grand_total - grandTotal) > 0.01) {
+        var recipeMismatchDelta = Math.round((body.client_grand_total - grandTotal) * 100) / 100;
+        log.error('[pos-recipe/recipe-sale] recipe pre-charge total mismatch (log-only): client_grand_total=' + body.client_grand_total +
+          ' client_tax_total=' + body.client_tax_total +
+          ' server_grand_total=' + grandTotal +
+          ' delta=' + recipeMismatchDelta + ' recipe_id=' + body.recipe_id +
+          ' pricing_mode=' + pricingMode + ' scale_factor=' + scaleFactor);
+        eventLog.logEvent('kiosk.recipe_total_mismatch', {
+          client_grand_total: body.client_grand_total,
+          client_tax_total: (typeof body.client_tax_total === 'number' && isFinite(body.client_tax_total))
+            ? body.client_tax_total : null,
+          server_grand_total: grandTotal,
+          delta: recipeMismatchDelta,
+          recipe_id: body.recipe_id,
+          pricing_mode: pricingMode,
+          scale_factor: scaleFactor
+        });
+      }
+
       // Acquire Redis mutex before terminal push (D-04, INV-02)
       cache.acquireLock(C.LOCK_KEYS.RECIPE_SALE, 30).then(function (acquired) {
         if (!acquired) {
