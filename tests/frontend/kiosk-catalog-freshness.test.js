@@ -248,9 +248,12 @@ describe('kiosk catalog freshness — the confirmed stale-catalog/phantom-item c
 //      client_tax_total === totals.tax (exact field names pinned by 67-01's
 //      middleware pre-charge assertion — the server asserts, never trusts).
 //   E. Entering checkout (kioskStartCheckout, the cart→customer transition
-//      the New Sale button does not cover) force-refreshes the in-memory
-//      catalog via kioskLoadProducts(true), so a parked kiosk cannot quote
-//      from a stale snapshot.
+//      the New Sale button does not cover) re-fetches the in-memory catalog
+//      via kioskLoadProducts('cached') — WITHOUT ?bust=1 (67 review fix
+//      WR-02: a bust per checkout entry deleted the server cache and forced
+//      a cold Zoho rebuild every attempt, and could not change the current
+//      cart's totals anyway; the server cache TTL is respected and the
+//      pre-charge assertion is the real staleness guard).
 // ---------------------------------------------------------------------------
 describe('67-02 — client displayed totals + cart-lifecycle catalog refresh', function () {
 
@@ -294,7 +297,16 @@ describe('67-02 — client displayed totals + cart-lifecycle catalog refresh', f
     await flushPromises(); // settle the mocked sale response chain
   });
 
-  test('Test E: entering checkout force-refreshes the catalog (kioskLoadProducts(true) fires at kioskStartCheckout)', async function () {
+  // 67 review fix (WR-02, sanctioned modification of this phase's own Test E
+  // per CLAUDE.md rule 10 — noting for the record): this test previously
+  // pinned kioskLoadProducts(true) (?bust=1) at checkout entry. The bust
+  // deleted the server catalog cache and forced a cold Zoho rebuild on every
+  // checkout attempt, contradicting the hook's own "server TTL respected"
+  // comment and opening a deleted-cache race against the sale POST — while
+  // being unable to change the current cart's totals (cart entries hold
+  // references to the already-added item objects). The hook now re-fetches
+  // WITHOUT busting; the pre-charge assertion is the real staleness guard.
+  test('Test E: entering checkout re-fetches the catalog WITHOUT busting the server cache (kioskLoadProducts(\'cached\') at kioskStartCheckout)', async function () {
     localStorage.setItem(DEVICE_TOKEN_KEY, 'kiosk-token');
     var core = loadSurface('../../js/kiosk.js').core;
     injectEl('kiosk-product-grid');
@@ -314,12 +326,13 @@ describe('67-02 — client displayed totals + cart-lifecycle catalog refresh', f
     core.startCheckout();
     await flushPromises();
 
-    // The cart-lifecycle hook must fire a force-refresh (?bust=1) of the catalog.
-    var bustCall = global.fetch.mock.calls.slice(callsBefore).find(function (c) {
-      return typeof c[0] === 'string' &&
-        c[0].indexOf('/api/kiosk/products') !== -1 && c[0].indexOf('bust=1') !== -1;
+    // The cart-lifecycle hook must re-fetch the catalog…
+    var refreshCall = global.fetch.mock.calls.slice(callsBefore).find(function (c) {
+      return typeof c[0] === 'string' && c[0].indexOf('/api/kiosk/products') !== -1;
     });
-    expect(bustCall).toBeTruthy();
+    expect(refreshCall).toBeTruthy();
+    // …but must NOT bust the server cache (no ?bust=1 — WR-02).
+    expect(refreshCall[0].indexOf('bust=1')).toBe(-1);
 
     // A failed refresh keeps the last-good catalog (keep-last-good inherited
     // from kioskLoadProducts) — assert the grid was not wiped by the refresh.

@@ -850,6 +850,18 @@
 
   // ===== Load Products =====
 
+  // forceRefresh modes (67 review fix WR-02):
+  //   true      → re-fetch AND bust the server cache (?bust=1 → cold Zoho
+  //               rebuild). Reserved for points that genuinely need fresh
+  //               Zoho data (New Sale, post-sale stock refresh, staleness
+  //               wake) — every bust costs Zoho quota and briefly leaves the
+  //               server cache empty during the rebuild.
+  //   'cached'  → re-fetch WITHOUT busting: re-reads the server's cached
+  //               catalog (30-min TTL respected). Used at checkout entry,
+  //               where a full bust per attempt (incl. abandoned ones) was
+  //               pure Zoho-quota burn and opened a deleted-cache race
+  //               against the sale POST.
+  //   falsy     → render from memory if already loaded, else first fetch.
   function kioskLoadProducts(forceRefresh) {
     if (_kioskProductsLoading) return;
     if (_kioskProductsLoaded && !forceRefresh) {
@@ -868,7 +880,7 @@
     var grid = document.getElementById('kiosk-product-grid');
     if (grid) grid.innerHTML = '<p class="kiosk-loading">Loading products...</p>';
 
-    var url = mwUrl + '/api/kiosk/products' + (forceRefresh ? '?bust=1' : '');
+    var url = mwUrl + '/api/kiosk/products' + (forceRefresh === true ? '?bust=1' : '');
     fetch(url, _kcMergeAuth({}))
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -2408,11 +2420,18 @@
     // already force-refreshes, but staff who go straight from an old browse
     // session into checkout on a parked kiosk would still quote from a stale
     // snapshot. Fire-and-forget: kioskLoadProducts keeps the last-good catalog
-    // on a failed refresh (never wipes the grid), and the 67-01 server-side
-    // pre-charge assertion is the backstop if staleness persists. No periodic
-    // polling — this cart-lifecycle hook covers the exposure (30-min server
-    // cache TTL respected).
-    kioskLoadProducts(true);
+    // on a failed refresh (never wipes the grid).
+    // 67 review fix (WR-02): 'cached' (non-busting) re-fetch — the previous
+    // kioskLoadProducts(true) sent ?bust=1, which deleted the server cache
+    // and triggered a cold Zoho rebuild on EVERY checkout entry (incl.
+    // abandoned ones) and opened a deleted-cache race against the sale POST.
+    // A refresh here cannot change THIS cart's totals anyway (cart entries
+    // hold references to the already-added item objects) — it only freshens
+    // the grid for the next cart. The 67-01 server-side pre-charge assertion
+    // is the real staleness guard for the current sale. No periodic polling —
+    // this cart-lifecycle hook covers the exposure (30-min server cache TTL
+    // genuinely respected now).
+    kioskLoadProducts('cached');
     if (!_kioskTerminalReady) {
       showToast('POS terminal is not ready. Check terminal status below.', 'error');
       return;
