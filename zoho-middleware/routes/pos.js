@@ -57,6 +57,50 @@ function resolveGstTaxId(catalogMap) {
   return null;
 }
 
+// Phase 67 review fix (CR-01): allocate a fixed discount across the matched
+// lines EXACTLY the way the kiosk client does (kiosk-core.js
+// kioskCalcTotals): proportional per-line shares rounded to cents, with the
+// LAST matched line absorbing the rounding remainder so the total discount
+// equals the preset value to the cent. The previous independent per-line
+// Math.round (no remainder correction) let the server's effective discount
+// drift from the preset value by several cents, which the pre-charge
+// client_grand_total assertion then deterministically false-rejected.
+function allocateFixedDiscount(targetLines, matchedSubtotal, fixedAmount) {
+  var remaining = fixedAmount;
+  targetLines.forEach(function (li, k) {
+    var lineTotal = li.quantity * li.rate;
+    var share;
+    if (k === targetLines.length - 1) {
+      share = remaining; // last matched line absorbs the rounding remainder
+    } else {
+      share = matchedSubtotal > 0 ? Math.round(fixedAmount * (lineTotal / matchedSubtotal) * 100) / 100 : 0;
+      remaining = Math.round((remaining - share) * 100) / 100;
+    }
+    if (share > lineTotal) share = lineTotal; // never drive a line negative
+    li.discount = share;
+  });
+}
+
+// Phase 67 review fix (CR-01): a line's discounted total, using the SAME
+// per-line rounding methodology as the kiosk client (kioskCalcTotals):
+// percentage discounts are rounded to cents PER LINE (kioskR2(lt * pct/100))
+// before subtracting; fixed discounts arrive as already-rounded per-line
+// amounts. The previous code subtracted the UNROUNDED percentage
+// (lt * (1 - pct/100)) and rounded only the final sum, accumulating ~half a
+// cent of client/server drift per line — enough to deterministically trip
+// the $0.01 pre-charge assertion on ordinary discounted carts.
+function discountedLineTotal(li) {
+  var lt = li.quantity * li.rate;
+  if (li.discount) {
+    if (typeof li.discount === 'string' && li.discount.indexOf('%') !== -1) {
+      lt = lt - Math.round(lt * parseFloat(li.discount) / 100 * 100) / 100;
+    } else {
+      lt = lt - Number(li.discount);
+    }
+  }
+  return Math.max(lt, 0);
+}
+
 // Resolve and apply a discount preset to lineItems.
 // Returns a promise that resolves to { discountApplied, subtotal } or
 // { error, status } if validation fails. Resolves to null if no discount.
@@ -64,6 +108,12 @@ function resolveGstTaxId(catalogMap) {
 // scope 'cart' → applies to every line. scope 'type' → applies only to lines
 // whose product type (classified server-side via catalogMap) matches the
 // preset's applies_to tokens. Legacy 'item' scope is no longer supported.
+//
+// Phase 67 review fix (CR-01): all discount math here mirrors the kiosk
+// client's rounding methodology exactly (see allocateFixedDiscount /
+// discountedLineTotal above) so the displayed total and the charged total
+// agree to the cent and the pre-charge assertion's $0.01 tolerance stays
+// honest.
 function resolveDiscount(body, lineItems, subtotal, catalogMap) {
   if (!body.discount || !body.discount.preset_id) return Promise.resolve(null);
   catalogMap = catalogMap || {};
@@ -87,13 +137,17 @@ function resolveDiscount(body, lineItems, subtotal, catalogMap) {
         });
         discountApplied = { preset_id: preset.id, name: preset.name, type: 'percentage', value: preset.value, scope: 'cart' };
       } else {
-        var fixedAmount = Math.min(preset.value, subtotal);
-        lineItems.forEach(function (li) {
-          if (li.custom || li.gift_cert) return; // D-08: custom/gift_cert lines excluded from all discounts
-          var lineTotal = li.quantity * li.rate;
-          var share = subtotal > 0 ? Math.round(fixedAmount * (lineTotal / subtotal) * 100) / 100 : 0;
-          li.discount = share;
+        // CR-01: cap and allocate over the DISCOUNTABLE subtotal only —
+        // custom/gift_cert lines are excluded from both the cap and the
+        // proportional denominator, mirroring the client's matchedSubtotal.
+        var cartTargets = lineItems.filter(function (li) {
+          return !li.custom && !li.gift_cert; // D-08: custom/gift_cert lines excluded from all discounts
         });
+        var cartMatchedSubtotal = 0;
+        cartTargets.forEach(function (li) { cartMatchedSubtotal += li.quantity * li.rate; });
+        cartMatchedSubtotal = Math.round(cartMatchedSubtotal * 100) / 100;
+        var fixedAmount = Math.min(preset.value, cartMatchedSubtotal);
+        allocateFixedDiscount(cartTargets, cartMatchedSubtotal, fixedAmount);
         discountApplied = { preset_id: preset.id, name: preset.name, type: 'fixed', value: fixedAmount, scope: 'cart' };
       }
     } else if (preset.scope === 'type') {
@@ -115,12 +169,9 @@ function resolveDiscount(body, lineItems, subtotal, catalogMap) {
         discountApplied = { preset_id: preset.id, name: preset.name, type: 'percentage', value: preset.value, scope: 'type', applies_to: preset.applies_to };
       } else {
         var fixedType = Math.min(preset.value, matchedSubtotal);
-        lineItems.forEach(function (li, idx) {
-          if (!matchFlags[idx]) return;
-          var lineTotal = li.quantity * li.rate;
-          var share = matchedSubtotal > 0 ? Math.round(fixedType * (lineTotal / matchedSubtotal) * 100) / 100 : 0;
-          li.discount = share;
-        });
+        // CR-01: last-matched-line remainder allocation (mirror the client).
+        var typeTargets = lineItems.filter(function (li, idx) { return matchFlags[idx]; });
+        allocateFixedDiscount(typeTargets, matchedSubtotal, fixedType);
         discountApplied = { preset_id: preset.id, name: preset.name, type: 'fixed', value: fixedType, scope: 'type', applies_to: preset.applies_to };
       }
     } else {
@@ -129,15 +180,8 @@ function resolveDiscount(body, lineItems, subtotal, catalogMap) {
 
     var newSubtotal = 0;
     lineItems.forEach(function (li) {
-      var lt = li.quantity * li.rate;
-      if (li.discount) {
-        if (typeof li.discount === 'string' && li.discount.indexOf('%') !== -1) {
-          lt = lt * (1 - parseFloat(li.discount) / 100);
-        } else {
-          lt = lt - Number(li.discount);
-        }
-      }
-      newSubtotal += Math.max(lt, 0);
+      // CR-01: per-line rounded discount methodology (mirrors the client).
+      newSubtotal += discountedLineTotal(li);
     });
     return { discountApplied: discountApplied, subtotal: Math.round(newSubtotal * 100) / 100 };
   });
@@ -164,29 +208,14 @@ function computeTax(lineItems, catalogMap) {
     // Gift cert lines are zero-tax (D-03) — item's own EXEMPT setting; no catalog lookup.
     if (li.gift_cert) { return; }
     // Custom lines carry their own tax_percentage (5 or 0) — skip catalog lookup.
+    // CR-01: discountedLineTotal applies the client-mirrored per-line
+    // discount rounding, so the tax base matches the kiosk's to the cent.
     if (li.custom) {
-      var customLineTotal = li.quantity * li.rate;
-      if (li.discount) {
-        if (typeof li.discount === 'string' && li.discount.indexOf('%') !== -1) {
-          customLineTotal = customLineTotal * (1 - parseFloat(li.discount) / 100);
-        } else {
-          customLineTotal = customLineTotal - Number(li.discount);
-        }
-      }
-      customLineTotal = Math.max(customLineTotal, 0);
-      taxTotal += customLineTotal * ((li.tax_percentage || 0) / 100);
+      taxTotal += discountedLineTotal(li) * ((li.tax_percentage || 0) / 100);
       return;
     }
     var catalogItem = catalogMap[li.item_id];
-    var lineTotal = li.quantity * li.rate;
-    if (li.discount) {
-      if (typeof li.discount === 'string' && li.discount.indexOf('%') !== -1) {
-        lineTotal = lineTotal * (1 - parseFloat(li.discount) / 100);
-      } else {
-        lineTotal = lineTotal - Number(li.discount);
-      }
-    }
-    lineTotal = Math.max(lineTotal, 0);
+    var lineTotal = discountedLineTotal(li);
     // NaN-preserving: a missing/undefined tax_percentage stays NaN (distinct
     // from a legitimate explicit 0) so the unresolved check below can fire.
     var pct = parseFloat(catalogItem.tax_percentage);
