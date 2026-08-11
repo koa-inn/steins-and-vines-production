@@ -279,7 +279,9 @@ function extractConsignmentInfo(catalogItem) {
  *   ],
  *   tax_total: 3.00,          // ignored — tax is computed server-side per catalog item
  *   client_grand_total: 89.60,  // OPTIONAL — the kiosk's own displayed grand total
- *   client_tax_total: 9.60,     // OPTIONAL — the kiosk's own displayed tax total (observability only)
+ *   client_tax_total: 9.60,     // OPTIONAL — the kiosk's own displayed tax total
+ *                               // (observability only: logged in the WR-05
+ *                               // mismatch diagnostics, never asserted)
  *   reference_number: "KIOSK-001"  // optional reference for the invoice
  * }
  *
@@ -605,6 +607,27 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
   // lock (WR-03 shape) so a corrected re-ring can retry immediately.
   if (typeof body.client_grand_total === 'number' && isFinite(body.client_grand_total)) {
     if (Math.abs(body.client_grand_total - grandTotal) > 0.01) {
+      // Phase 67 review fix (WR-05): record the divergence evidence BEFORE
+      // discarding it — a divergence DETECTOR that logs nothing defeats its
+      // diagnostic purpose (INV-000160 was only diagnosable because the
+      // 57-01 beacon telemetry existed). client_tax_total is read here for
+      // diagnostics only — it is never asserted and never prices anything.
+      var mismatchDelta = Math.round((body.client_grand_total - grandTotal) * 100) / 100;
+      log.error('[pos/kiosk/sale] pre-charge total mismatch: client_grand_total=' + body.client_grand_total +
+        ' client_tax_total=' + body.client_tax_total +
+        ' server_grand_total=' + grandTotal + ' server_tax_total=' + taxTotal +
+        ' delta=' + mismatchDelta + ' items=' + lineItems.length +
+        ' ref=' + (typeof body.reference_number === 'string' ? body.reference_number.slice(0, 64) : ''));
+      eventLog.logEvent('kiosk.total_mismatch', {
+        client_grand_total: body.client_grand_total,
+        client_tax_total: (typeof body.client_tax_total === 'number' && isFinite(body.client_tax_total))
+          ? body.client_tax_total : null,
+        server_grand_total: grandTotal,
+        server_tax_total: taxTotal,
+        delta: mismatchDelta,
+        item_count: lineItems.length,
+        reference_number: (typeof body.reference_number === 'string') ? body.reference_number.slice(0, 64) : ''
+      });
       if (idempotencyKey) {
         cache.releaseLock(idempotencyKey).catch(function () {});
       }

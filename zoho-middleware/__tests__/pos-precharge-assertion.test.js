@@ -241,6 +241,45 @@ describe('Pre-charge assertion — client_grand_total vs. server grandTotal', fu
     handlers['/api/kiosk/sale'](req, res);
   });
 
+  // Phase 67 review fix (WR-05): the mismatch 400 previously discarded all
+  // divergence evidence (no log, no event) and nothing ever read
+  // client_tax_total — staff reports of "totals changed" had no server-side
+  // trail to distinguish rounding drift from a real stale-quote incident.
+  test('WR-05: a total mismatch logs the divergence evidence (both totals, tax split, delta) and emits kiosk.total_mismatch', function (done) {
+    var log = require('../lib/logger');
+    var eventLogMock = require('../lib/eventLog');
+    var req = {
+      body: {
+        items:              [{ item_id: 'item-gc-pca', name: 'Test Item', quantity: 1 }],
+        idempotency_key:    'pca-wr05-key-001',
+        reference_number:   'KIOSK-PCA-WR05-001',
+        client_grand_total: 150.00, // server computes 100.00
+        client_tax_total:   6.50
+      }
+    };
+    var res = mockRes();
+    var statusCapture = captureStatus(res);
+    res.json.mockImplementation(function () {
+      try {
+        expect(statusCapture.code).toBe(400);
+        var logged = log.error.mock.calls.map(function (c) { return String(c[0]); })
+          .find(function (m) { return m.indexOf('pre-charge total mismatch') !== -1; });
+        expect(logged).toBeTruthy();
+        expect(logged).toContain('client_grand_total=150');
+        expect(logged).toContain('client_tax_total=6.5');
+        expect(logged).toContain('server_grand_total=100');
+        expect(logged).toContain('delta=');
+        expect(logged).toContain('KIOSK-PCA-WR05-001');
+        var evt = eventLogMock.logEvent.mock.calls.find(function (c) { return c[0] === 'kiosk.total_mismatch'; });
+        expect(evt).toBeTruthy();
+        expect(evt[1].client_grand_total).toBe(150.00);
+        expect(evt[1].server_grand_total).toBe(100.00);
+        done();
+      } catch (e) { done(e); }
+    });
+    handlers['/api/kiosk/sale'](req, res);
+  });
+
   test('client_grand_total matches within $0.01 → sale proceeds to the terminal', function (done) {
     var req = {
       body: {
