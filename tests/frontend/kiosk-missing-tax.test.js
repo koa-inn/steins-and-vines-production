@@ -213,6 +213,42 @@ describe('kioskProceedToPayment — missing-tax cart line blocks checkout (fail-
     expect(errMsgEl.textContent).toMatch(/refresh/i);
   });
 
+  // Phase 67 review fix (WR-03): the gate must be scoped like its 57-03
+  // phantom-guard sibling — an imported SO's charge amount is the SO's Zoho
+  // balance via kioskCollectPayment, so the client's per-line tax resolution
+  // is irrelevant to that money path, and the "re-add it" guidance is wrong
+  // for SO-built carts (lines are mapped from Zoho, not re-added from the
+  // grid). An unresolvable-tax line must NOT block SO payment collection.
+  test('WR-03: an imported-SO cart is NOT blocked by the missing-tax gate — SO payment collection proceeds', async function () {
+    localStorage.setItem(DEVICE_TOKEN_KEY, 'kiosk-token');
+    var core = loadSurface('../../js/kiosk.js').core;
+    injectEl('kiosk-product-grid');
+    var errMsgEl = injectEl('kiosk-error-msg');
+    injectEl('kiosk-error-title');
+    injectEl('kiosk-payment-amount');
+    injectEl('kiosk-terminal-msg');
+    injectEl('kiosk-spinner');
+
+    // SO-imported cart; the line's catalog entry has an unresolvable tax
+    // (the real builder's null shape — see CR-02).
+    core._setCart({
+      'SO-LINE': { item: { item_id: 'SO-LINE', name: 'SO Imported Item', rate: 50, tax_percentage: null }, qty: 1 }
+    });
+    core._setImportedSo('so-12345', 'SO-001234');
+
+    var callsBefore = global.fetch.mock.calls.length;
+    core.proceedToPayment();
+    await flushPromises();
+
+    // The missing-tax gate must NOT fire for an SO cart…
+    expect(errMsgEl.textContent).not.toContain('SO Imported Item');
+    // …and the SO checkout fork must proceed (salesorder-update PUT fires).
+    var soCall = global.fetch.mock.calls.slice(callsBefore).find(function (c) {
+      return typeof c[0] === 'string' && c[0].indexOf('/api/kiosk/salesorder-update') !== -1;
+    });
+    expect(soCall).toBeTruthy();
+  });
+
   test('a well-taxed cart is NOT blocked by the missing-tax gate', function () {
     localStorage.setItem(DEVICE_TOKEN_KEY, 'kiosk-token');
     var core = loadSurface('../../js/kiosk.js').core;

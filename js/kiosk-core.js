@@ -2513,7 +2513,16 @@
     // Same "detect bad cart line, name it, block checkout" shape as the 57-03
     // phantom guard above; runs AFTER it so a phantom item reports its root
     // cause ("Item Unavailable") first. Retry returns to browse → re-ring.
-    if (totals.missingTaxItem) {
+    // 67 review fix (WR-03): scoped to EXCLUDE imported-SO carts, mirroring
+    // the 57-03 guard — an SO's charge amount is its Zoho balance via
+    // kioskCollectPayment, so the client's per-line tax resolution is
+    // irrelevant to that money path, and the "re-add it" guidance is wrong
+    // for SO-built carts (lines map from Zoho, not the product grid).
+    // Recipe carts are deliberately NOT excluded: their lines currently
+    // coerce a missing tax to 0 (see the WR-04 note at the recipe cart
+    // build) so the gate is a no-op there today, but if a future change
+    // preserves NaN on recipe lines this gate must cover them.
+    if (!_kioskImportedSoId && totals.missingTaxItem) {
       kioskShowError('Tax Unavailable',
         'Item "' + totals.missingTaxItem + '" has no tax rate in the current catalog. ' +
         'Refresh the product list and re-add it, then try again.',
@@ -4958,7 +4967,11 @@
     _getSaleData: function () { return _kioskSaleData; },
     // D-07 (Manager Override) accessors
     _getStockOverride: function () { return _kioskStockOverride; },
-    _setStockOverride: function (v) { _kioskStockOverride = v; }
+    _setStockOverride: function (v) { _kioskStockOverride = v; },
+    // 67 review fix (WR-03): imported-SO state accessors so tests can pin
+    // the SO-cart scoping of the missing-tax gate.
+    _getImportedSoId: function () { return _kioskImportedSoId; },
+    _setImportedSo: function (id, num) { _kioskImportedSoId = id; _kioskImportedSoNumber = num || ''; }
   };
 
   // ===== Dual-mode export (D-01) =====
