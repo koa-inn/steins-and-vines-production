@@ -20,7 +20,12 @@ findings:
   warning: 5
   info: 5
   total: 12
-status: issues_found
+fixes:
+  fixed_at: 2026-08-11T19:30:53Z
+  fixed: 7
+  skipped: 5
+  notes: all Critical + Warning findings fixed (WR-04 partial — detector wired, fail-closed deferred); Info findings skipped per fix scope
+status: fixed
 ---
 
 # Phase 67: Code Review Report
@@ -28,7 +33,32 @@ status: issues_found
 **Reviewed:** 2026-08-11T19:02:47Z
 **Depth:** standard
 **Files Reviewed:** 11 (js/kiosk-core.min.js noted as build artifact, verified regenerated, not reviewed line-by-line)
-**Status:** issues_found
+**Status:** fixed (was issues_found — see Fix Outcomes)
+
+## Fix Outcomes (2026-08-11, `fix(67-review)` commit series ae64fb81..8cf8693c)
+
+All Critical and Warning findings were fixed with regression tests written
+RED-first; Info findings were skipped per fix scope. Both suites green after
+fixes (middleware 1352, frontend 1049) plus both lints; kiosk-core.min.js
+regenerated via `npm run build` with unrelated stamp churn reverted (64-02
+precedent).
+
+| Finding | Outcome | Commit |
+|---------|---------|--------|
+| CR-01 | **Fixed** — server discount/tax math now mirrors the client's per-line rounding exactly (per-line-rounded percentage discounts; last-matched-line remainder for fixed; discountable-subtotal cap). Simulation across 20,000 random carts: 0 divergent (old: 479). Tolerance NOT widened. Zoho impact verified: percentage presets still flow as the unchanged "N%" string; fixed presets now invoice remainder-corrected per-line amounts summing exactly to the preset value. | ae64fb81 |
+| CR-02 | **Fixed** — rebuildKioskCatalog preserves unresolvability as `tax_percentage: null` (never fabricates 0); the pos.js and client fail-closed branches are now reachable, and new tests pin the REAL builder output shape end-to-end (builder → computeTax → client gate). Explicit 0 / rule / taxes-array resolutions unchanged. | 64d57458 |
+| WR-01 | **Fixed** — confirm-path no-charge `__taxUnresolved` 400 releases `confirmIdemKey` (mirrors the sale path). | e8964f1d |
+| WR-02 | **Fixed** — checkout entry now uses a new non-busting `kioskLoadProducts('cached')` mode (no `?bust=1`, no server cache deletion, TTL genuinely respected, keep-last-good preserved); false comment corrected; Test E updated (sanctioned rule-10 modification, noted in-file). | 94ce53f0 |
+| WR-03 | **Fixed** — missing-tax gate scoped `!_kioskImportedSoId` (mirrors the 57-03 guard). Recipe carts deliberately NOT excluded (documented in-code — see WR-04). | 37734b67 |
+| WR-04 | **Partial (detector wired; fail-closed deferred)** — recipeSaleBody now sends `client_grand_total`/`client_tax_total`, and pos-recipe.js logs divergence >$0.01 (log.error + `kiosk.recipe_total_mismatch` event) WITHOUT blocking. A blocking assertion is unsafe today: `recipe-scaling` computes NO tax in the recipe grandTotal while the client's displayed total includes per-line tax, so a $0.01 blocking assertion would deterministically 400 every taxed recipe cart (the CR-01 outage mode). The `\|\| 0` tax laundering at the recipe cart build is documented in-code as a deliberate deferral. **Follow-up phase needed:** reconcile recipe tax methodology (server-side recipe tax computation), then promote the detector to fail-closed — exceeds this phase's locked scope (CONTEXT.md scopes the middleware assertion to pos.js). | 4cee6fd8 |
+| WR-05 | **Fixed** — mismatch 400 now logs full evidence (client/server totals, tax split, delta, item count, ref) and emits `kiosk.total_mismatch`; `client_tax_total` is genuinely read (diagnostics only, never asserted). | 1eabfbc6 |
+| IN-01 | **Skipped** (Info — out of fix scope): unused `kioskItemTax` aliases remain. |  |
+| IN-02 | **Skipped** (Info): `validateEnv.js` still lists retired `KIOSK_TAX_RATE`. |  |
+| IN-03 | **Skipped** (Info): fixed line-number references in comments not renamed. |  |
+| IN-04 | **Skipped** (Info): no dedicated test added for explicit `{tax_percentage: 0, tax_id: ''}`; note CR-02's fix added an adjacent builder-level explicit-0 pin (`catalog.test.js` "explicit resolved 0 … preserved as 0"). |  |
+| IN-05 | **Skipped** (Info): client gate remains deliberately stricter than the server for the tax_id-present/NaN shape; CR-02 makes that shape servable as null, so if it appears in practice the client blocks a sale the server would allow — revisit with the WR-04 follow-up. |  |
+
+_Build artifact commit: 8cf8693c (kiosk-core.min.js regen)._
 
 ## Summary
 
