@@ -364,6 +364,34 @@ describe('Confirm-path unresolved tax — void, never orphan', function () {
     handlers['/api/kiosk/sale/confirm'](req, res);
   });
 
+  // Phase 67 review fix (WR-01): the no-charge 400 must ALSO release the
+  // confirm idempotency lock — acquireIdempotencyLock only replays cached
+  // RESULTS, so a held lock: key would 409 ("Confirm already in progress")
+  // every staff retry for the full IDEMPOTENCY_KEY_TTL (300s) after the
+  // catalog is fixed. The sale path's counterpart 400 already releases its
+  // lock for exactly this reason.
+  test('WR-01: unresolved-tax no-charge 400 on confirm releases the confirm idempotency lock so a corrected retry is not 409-blocked', function (done) {
+    var req = {
+      body: {
+        items:            [{ item_id: 'item-unresolved-pca', name: 'Mystery Import', quantity: 1 }],
+        idempotency_key:  'pca-wr01-key-001',
+        reference_number: 'KIOSK-PCA-WR01-001'
+        // no transaction_id — nothing was charged
+      }
+    };
+    var res = mockRes();
+    var statusCapture = captureStatus(res);
+    res.json.mockImplementation(function (body) {
+      try {
+        expect(statusCapture.code).toBe(400);
+        expect(body.error).toMatch(/Mystery Import|item-unresolved-pca/i);
+        expect(cache.releaseLock).toHaveBeenCalledWith('test:idem:confirm:pca-wr01-key-001');
+        done();
+      } catch (e) { done(e); }
+    });
+    handlers['/api/kiosk/sale/confirm'](req, res);
+  });
+
   test('unresolved tax during confirm WITHOUT body.transaction_id (nothing charged) → 400 naming the item, void NOT called', function (done) {
     var req = {
       body: {

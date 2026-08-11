@@ -1499,6 +1499,13 @@ function runConfirm(body, confirmIdemKey, req, res) {
     // after a charge, pos.js:816-819 invariant).
     if (err && err.__taxUnresolved && !(body && body.transaction_id)) {
       if (res.headersSent) return;
+      // Phase 67 review fix (WR-01): release the confirm idempotency lock on
+      // this actionable no-charge 400 — acquireIdempotencyLock only replays
+      // cached RESULTS (never failures), so a held lock: key would 409 every
+      // retry for IDEMPOTENCY_KEY_TTL (300s) after staff fix the catalog.
+      // Mirrors the sale path's pre-charge-assertion 400 (same reason:
+      // "so a corrected re-ring can retry immediately").
+      if (confirmIdemKey) { cache.releaseLock(confirmIdemKey).catch(function () {}); }
       return res.status(400).json({ error: err.message });
     }
     log.error('[pos/kiosk/sale/confirm] Error: ' + err.message);
