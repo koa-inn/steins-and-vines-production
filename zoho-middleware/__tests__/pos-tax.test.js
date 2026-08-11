@@ -215,6 +215,47 @@ describe('pos routes — per-item tax on line items', function () {
       handlers['/api/kiosk/sale'](req, res);
     });
 
+    // Phase 67 review fix (CR-02): rebuildKioskCatalog now serves a genuinely
+    // unresolvable tax as tax_percentage: null (it previously fabricated 0,
+    // which made this fail-closed branch unreachable in production). Pin the
+    // EXACT shape the real builder emits so these tests stay representative.
+    test('CR-02: real builder output shape (tax_percentage: null, empty tax_id/rule) is rejected fail-closed', function (done) {
+      cache.get.mockResolvedValue([
+        {
+          item_id: 'item-null-tax',
+          name: 'Unconfigured Import',
+          rate: 75.00,
+          stock_on_hand: 10,
+          tax_id: '',
+          tax_name: '',
+          tax_percentage: null,     // ← what rebuildKioskCatalog serves for a missing tax
+          sales_tax_rule_id: '',
+          custom_fields: []
+        }
+      ]);
+
+      var req = {
+        body: {
+          items: [{ item_id: 'item-null-tax', name: 'Unconfigured Import', quantity: 1 }]
+        }
+      };
+      var res = mockRes();
+
+      res.json.mockImplementation(function (body) {
+        try {
+          expect(body.error).toMatch(/Unconfigured Import|item-null-tax/i);
+          expect(helcimLib.terminalPurchase).not.toHaveBeenCalled();
+          done();
+        } catch (e) { done(e); }
+      });
+      res.status.mockImplementation(function (code) {
+        expect(code).toBe(400);
+        return res;
+      });
+
+      handlers['/api/kiosk/sale'](req, res);
+    });
+
     test('legitimate 0% catalog item (real zero-rate tax rule) still sells with tax 0', function (done) {
       cache.get.mockResolvedValue(CATALOG_WITH_TAX);
 

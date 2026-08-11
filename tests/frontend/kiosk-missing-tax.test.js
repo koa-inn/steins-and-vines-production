@@ -113,6 +113,24 @@ describe('kioskCalcTotals — missing tax_percentage is a data error, never a 5%
     expect(totals.total).toBe(80);
   });
 
+  // Phase 67 review fix (CR-02): the REAL catalog builder
+  // (rebuildKioskCatalog) now serves a genuinely unresolvable tax as
+  // tax_percentage: null (it previously fabricated 0, which made this gate
+  // unreachable in production). parseFloat(null) is NaN → same flag path.
+  test('CR-02: a cart line with tax_percentage null (the real builder output for a missing tax) is flagged the same way', function () {
+    var core = loadSurface('../../js/kiosk.js').core;
+
+    core._setCart({
+      'NULLTAX': { item: { item_id: 'NULLTAX', name: 'Unconfigured Import', rate: 75, tax_percentage: null }, qty: 1 }
+    });
+
+    var totals = core.calcTotals();
+
+    expect(totals.missingTaxItem).toBe('Unconfigured Import');
+    expect(totals.tax).toBe(0);
+    expect(totals.total).toBe(75);
+  });
+
   test('a valid 0% item (tax_percentage === 0) is NOT flagged — 0 is a real resolved rate', function () {
     var core = loadSurface('../../js/kiosk.js').core;
 

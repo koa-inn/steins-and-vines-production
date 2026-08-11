@@ -815,9 +815,17 @@ function rebuildKioskCatalog() {
 
           var taxId = detail.tax_id || item.tax_id || '';
           var tName = detail.tax_name || item.tax_name || '';
+          // Phase 67 review fix (CR-02): a genuinely MISSING/unparseable tax
+          // stays NaN here (and is served as null below) instead of being
+          // coerced to a "resolved 0%". Fabricating 0 made the fail-closed
+          // unresolved-tax branches in pos.js computeTax and the kiosk
+          // client unreachable — an unconfigured item silently sold at 0%
+          // tax while its untagged Zoho invoice line was default-taxed (the
+          // F3 partial-paid failure mode). A real explicit 0 (or a rule /
+          // taxes-array resolution) is still a VALID resolved rate.
           var pct = (detail.tax_percentage !== undefined && detail.tax_percentage !== null)
             ? parseFloat(detail.tax_percentage)
-            : (item.tax_percentage != null ? parseFloat(item.tax_percentage) || 0 : 0); // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
+            : (item.tax_percentage != null ? parseFloat(item.tax_percentage) : NaN); // eslint-disable-line eqeqeq -- intentional != null (matches undefined too)
           if (!pct && detail.taxes && detail.taxes.length) {
             pct = detail.taxes.reduce(function (s, t) { return s + (parseFloat(t.tax_percentage) || 0); }, 0);
           }
@@ -851,7 +859,10 @@ function rebuildKioskCatalog() {
             manufacturer:  detail.manufacturer || item.manufacturer || '',
             tax_id:        taxId,
             tax_name:      tName,
-            tax_percentage: pct,
+            // CR-02: null (JSON-serializable) marks UNRESOLVED; downstream
+            // parseFloat(null) is NaN, which pos.js computeTax and the kiosk
+            // missing-tax gate both fail closed on. Never a fabricated 0.
+            tax_percentage: isNaN(pct) ? null : pct,
             sales_tax_rule_id: ruleId,
             custom_fields: detail.custom_fields || item.custom_fields || [],
             group_name:    item.group_name || '',

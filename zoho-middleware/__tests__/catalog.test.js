@@ -732,6 +732,50 @@ describe('GET /api/kiosk/products — tax rule enrichment', function () {
     });
   });
 
+  // Phase 67 review fix (CR-02): the builder previously coerced a genuinely
+  // MISSING tax to numeric 0 ("resolved 0%"), which made the fail-closed
+  // unresolved-tax branches in pos.js computeTax and the kiosk client
+  // UNREACHABLE — the exact data-error shape Phase 67 claims to fail-close
+  // silently sold at 0% tax instead. Unresolvability must survive the build
+  // as tax_percentage: null (null survives JSON; parseFloat(null) is NaN
+  // downstream, which both fail-closed branches detect).
+  test('CR-02: an item with no resolvable tax anywhere (no tax_percentage, no taxes, no rule, no tax_id) is served with tax_percentage null — never a fabricated 0', function () {
+    var items = [makeItem({ item_id: 'k-unresolved', name: 'Mystery Import', rate: 150 })];
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue({}); // detail fetch knows nothing about it
+
+    return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
+      expect(res._body.items[0].tax_percentage).toBeNull();
+      expect(res._body.items[0].tax_id).toBe('');
+      expect(res._body.items[0].sales_tax_rule_id).toBe('');
+    });
+  });
+
+  test('CR-02: a garbage-string detail tax_percentage (no taxes, no rule) also serves null, not NaN/0', function () {
+    var items = [makeItem({ item_id: 'k-garbage', name: 'Corrupt Tax Item', rate: 60 })];
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue({
+      'k-garbage': { tax_percentage: 'not-a-number' }
+    });
+
+    return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
+      expect(res._body.items[0].tax_percentage).toBeNull();
+    });
+  });
+
+  test('CR-02: an explicit resolved 0 (zero-rated with tax_id) is preserved as 0, never nulled', function () {
+    var items = [makeItem({ item_id: 'k-zero', name: 'Zero Rated', rate: 30 })];
+    mocks.zohoApi.fetchAllItems.mockResolvedValue(items);
+    mocks.zohoApi.fetchItemDetailsBulk.mockResolvedValue({
+      'k-zero': { tax_percentage: 0, tax_id: 'tax-zero-rated', tax_name: 'Zero Rated' }
+    });
+
+    return callHandler('/api/kiosk/products', { query: {} }).then(function (res) {
+      expect(res._body.items[0].tax_percentage).toBe(0);
+      expect(res._body.items[0].tax_id).toBe('tax-zero-rated');
+    });
+  });
+
   test('filters out items with rate 0', function () {
     var items = [
       makeItem({ item_id: 'k3', rate: 0 }),
