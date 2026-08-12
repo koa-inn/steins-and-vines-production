@@ -29,6 +29,10 @@ var RECENT_ORDERS_CACHE_TTL = 60; // seconds
 var IDEMPOTENCY_KEY_TTL = 300; // 5 minutes in seconds
 // D-13: pending-charge records live 7 days so the reconciliation backstop (45-08) can find them.
 var KIOSK_PENDING_CHARGE_TTL = 604800;
+// 68-02: cancel-safety flag TTL — covers the client poll window (POLL_TIMEOUT_MS,
+// kiosk-core.js, 45s) plus webhook-delivery margin. 10 minutes is comfortably
+// longer than any realistic terminal-result delay.
+var KIOSK_CANCELLED_TTL = 600;
 
 var crypto = require('crypto');
 
@@ -1656,6 +1660,27 @@ function runConfirm(body, confirmIdemKey, req, res) {
 }
 
 router.post('/api/pos/cancel', function (req, res) {
+  var body = req.body || {};
+  var ref = (body.reference_number && typeof body.reference_number === 'string')
+    ? body.reference_number.slice(0, 64)
+    : null;
+
+  if (ref) {
+    // T-68-02-1/T-68-02-2: mark this ref as cancelled so that if a terminal push
+    // already landed (slow pipeline, or staff cancels mid-push), the Helcim
+    // webhook's APPROVED-result handler (processCardTransactionResult,
+    // webhooks.js) voids the charge on the FIRST event instead of leaving it
+    // orphaned until the reconcile.js 600s backstop. This is the reachable
+    // safety net — the client stops polling /api/kiosk/sale/status the instant
+    // cancel is clicked, so that endpoint is never hit for this scenario.
+    // Fire-and-forget: cancel must not block on Redis.
+    cache.set(
+      C.CACHE_KEYS.KIOSK_CANCELLED_PREFIX + ref,
+      { cancelled_at: new Date().toISOString() },
+      KIOSK_CANCELLED_TTL
+    ).catch(function () {});
+  }
+
   helcimLib.cancelTerminal().then(function (result) {
     res.json(result);
   });

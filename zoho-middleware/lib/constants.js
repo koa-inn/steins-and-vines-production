@@ -50,6 +50,13 @@ var CACHE_KEYS = {
   // Keyed by reference_number; TTL 7 days so the daily reconciliation backstop can find it.
   KIOSK_PENDING_CHARGE_PREFIX: 'kiosk:pending-charge:',
 
+  // Kiosk cancel-safety flag (68-02) — set by /api/pos/cancel, keyed by reference_number.
+  // Checked by the Helcim webhook's APPROVED-result handler (the only channel that
+  // resolves a terminal result independent of the client, which stops polling the
+  // instant cancel is clicked) so a charge that lands after cancel is voided
+  // immediately instead of orphaned until the reconcile.js 600s backstop.
+  KIOSK_CANCELLED_PREFIX: 'kiosk:cancelled:',
+
   // Kiosk sales order management
   KIOSK_SALESORDERS:      'kiosk:salesorders',
 

@@ -8,6 +8,7 @@ var zohoApi = require('../lib/zoho-api');
 var zohoPost = zohoApi.zohoPost;
 var C = require('../lib/constants');
 var reconcile = require('../lib/reconcile');
+var moneyPath = require('../lib/money-path');
 var captureExceptionSafe = require('../lib/sentry-capture').captureExceptionSafe;
 
 var router = express.Router();
@@ -231,20 +232,89 @@ function processCardTransactionResult(transactionId, status, invoiceNumber, card
     });
   }
 
-  // D-13: Reconcile kiosk pending charges (45-08 backstop).
-  // For APPROVED transactions: if there is a KIOSK_PENDING_CHARGE_PREFIX record
-  // for this invoiceNumber and no matching Zoho order was created (late approval),
-  // auto-void or flag for manual review.
+  // D-13 / 68-02: Reconcile kiosk pending charges (45-08 backstop), UNLESS this
+  // ref was flagged cancelled (routes/pos.js /api/pos/cancel) — in which case
+  // void immediately via the single void path instead of booking. The webhook
+  // is the only channel that resolves an approved terminal result independent
+  // of the client (which stops polling the instant cancel is clicked), so this
+  // check must live here, not on /api/kiosk/sale/status.
   // Runs after the 200 response (fire-and-forget, preserving respond-200-before-async).
   if (status === 'APPROVED' && invoiceNumber) {
-    reconcile.reconcilePendingCharge(transactionId).catch(function (err) {
-      log.warn('[webhook/helcim] Kiosk pending charge reconcile error: ' + err.message);
-      captureExceptionSafe(err, {
-        level: 'error',
-        tags: { txnId: transactionId, invoiceNumber: invoiceNumber || null }
+    cache.get(C.CACHE_KEYS.KIOSK_CANCELLED_PREFIX + invoiceNumber)
+      .catch(function () { return null; })
+      .then(function (cancelledFlag) {
+        if (!cancelledFlag) {
+          return reconcile.reconcilePendingCharge(transactionId).catch(function (err) {
+            log.warn('[webhook/helcim] Kiosk pending charge reconcile error: ' + err.message);
+            captureExceptionSafe(err, {
+              level: 'error',
+              tags: { txnId: transactionId, invoiceNumber: invoiceNumber || null }
+            });
+          });
+        }
+        return voidCancelledApprovedCharge(transactionId, invoiceNumber);
       });
-    });
   }
+}
+
+/**
+ * T-68-02-1: void a charge that was APPROVED after the sale was cancelled.
+ *
+ * Sources the void amount from the existing KIOSK_PENDING_CHARGE_PREFIX record
+ * (read as an already-parsed object — the same convention reconcile.js uses —
+ * a missing/unreadable record still proceeds to void with amount=0, since the
+ * amount is only used for the void's failure-alert payload, never to gate the
+ * void itself). Voids ONLY through moneyPath.voidWithTimeout (the single void
+ * path, audit H5/L18) and clears both the pending-charge record and the
+ * cancelled flag afterward.
+ *
+ * Guarded by the same 'reconcile:txn:' lock reconcile.js:204 uses, so a Helcim
+ * webhook re-delivery of the same APPROVED event cannot double-void (the
+ * second delivery finds the lock held, skips, and no-ops rather than firing a
+ * spurious void-failure staff alert).
+ *
+ * @param {string} transactionId - Helcim transaction ID
+ * @param {string} invoiceNumber - kiosk reference_number (= invoiceNumber)
+ * @returns {Promise<void>}
+ */
+function voidCancelledApprovedCharge(transactionId, invoiceNumber) {
+  var lockKey = 'reconcile:txn:' + transactionId;
+  return cache.acquireLock(lockKey, 60).then(function (acquired) {
+    if (!acquired) {
+      log.info('[webhook/helcim] cancel-void: duplicate delivery for txn=' + transactionId +
+        ' — another path holds the reconcile lock; skipping');
+      return;
+    }
+    return cache.get(C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + invoiceNumber)
+      .catch(function () { return null; })
+      .then(function (pendingCtx) {
+        var voidAmount = (pendingCtx && typeof pendingCtx.amount === 'number') ? pendingCtx.amount : 0;
+        log.warn('[webhook/helcim] APPROVED result for cancelled ref — voiding: txn=' +
+          transactionId + ' invoice=' + invoiceNumber + ' amount=$' + voidAmount);
+        return moneyPath.voidWithTimeout(helcimLib, transactionId, voidAmount, { reqId: invoiceNumber })
+          .then(function () {
+            eventLog.logEvent('kiosk.cancel_after_push_voided', {
+              txnId: transactionId,
+              invoiceNumber: invoiceNumber,
+              amount: voidAmount
+            });
+            return Promise.all([
+              cache.del(C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + invoiceNumber).catch(function () {}),
+              cache.del(C.CACHE_KEYS.KIOSK_CANCELLED_PREFIX + invoiceNumber).catch(function () {})
+            ]);
+          });
+      });
+  })
+  .catch(function (err) {
+    log.warn('[webhook/helcim] cancel-void error for txn=' + transactionId + ': ' + err.message);
+    captureExceptionSafe(err, {
+      level: 'error',
+      tags: { txnId: transactionId, invoiceNumber: invoiceNumber || null }
+    });
+  })
+  .then(function () {
+    return cache.releaseLock(lockKey).catch(function () {});
+  });
 }
 
 /**

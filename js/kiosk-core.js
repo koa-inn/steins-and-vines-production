@@ -2873,9 +2873,16 @@
           cancelled = true;
           cancelBtn.disabled = true;
           if (msgEl) msgEl.textContent = 'Cancelling...';
+          // 68-02: send the ref so the server can flag this sale as cancelled
+          // (KIOSK_CANCELLED_PREFIX) — if a slow terminal push already landed
+          // or lands after this, the Helcim webhook's APPROVED-result handler
+          // voids it immediately instead of leaving it orphaned. The client no
+          // longer needs to keep polling after cancel; the webhook is the
+          // safety net.
           fetch(mwUrl + '/api/pos/cancel', _kcMergeAuth({
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reference_number: refNumber })
           })).catch(function () {}).then(function () {
             kioskShowView('browse');
           });
@@ -2883,7 +2890,12 @@
       }
 
       // Show terminal UI
-      if (msgEl) msgEl.textContent = (terminalAmtDisplay > 0) ? 'Tap, insert, or swipe card on terminal...' : 'Processing gift card payment...';
+      // 68-02: neutral message until the push is CONFIRMED sent (202 pending
+      // below) — the previous immediate "Tap, insert, or swipe card..." told
+      // staff to tap a reader that might not have received the push yet (the
+      // reported "reader isn't picking up" perception). The real tap prompt
+      // is set further down, only once the server confirms the push landed.
+      if (msgEl) msgEl.textContent = (terminalAmtDisplay > 0) ? 'Contacting terminal…' : 'Processing gift card payment...';
       if (spinnerEl) spinnerEl.style.display = '';
 
       // 68-01: stamp the moment the terminal prompt is shown so the real
@@ -2961,6 +2973,12 @@
           reference_number: result.data.reference,
           stage: 'push_to_202'
         });
+
+        // 68-02: the push is now CONFIRMED sent — only now is it true that a
+        // customer can tap/insert/swipe. (The gift-card-only 100%-covered
+        // path already returned above, so reaching here always means a real
+        // terminal push was made.)
+        if (msgEl) msgEl.textContent = 'Tap, insert, or swipe card on terminal...';
 
         // Step 2: Poll for terminal result every 3 seconds
         var pollRef = result.data.reference;
