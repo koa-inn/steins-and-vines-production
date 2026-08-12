@@ -12,7 +12,18 @@ findings:
   warning: 4
   info: 1
   total: 6
-status: issues_found
+status: fixed
+fix_outcome:
+  fixed: 5
+  skipped: 1
+  fixed_ids: [CR-01, WR-01, WR-02, WR-03, WR-04]
+  skipped_ids: [IN-01]
+  fixed_at: 2026-08-12
+  note: >-
+    CR-01 + WR-01..WR-04 fixed as atomic fix(69-review) commits; both frontend
+    (1077) and middleware (1362) suites + lint green; brewpad.min.js rebuilt via
+    terser and cache-version bumped. IN-01 (info: double renderDashboard) skipped
+    per scope (critical + warning only).
 ---
 
 # Phase 69: Code Review Report
@@ -99,6 +110,12 @@ Replace the three `filterBatchesByStatus(_allBatchesData, _batchStatusFilter)`
 re-derive sites (2075, 3373, 3396) and the click handler with `applyBatchFilter()`.
 (This also fixes the click-handler duplication at 8274/8280/8285.)
 
+**Resolution (FIXED — commit 14ab4b4a):** Added `applyBatchFilter()` + `readyToBottleRows()`
+as the single derivation seam and routed all four sites through it. `applyBatchFilter`
++ filter-state accessors exported; behavioral regression test
+`tests/frontend/brewpad-filter-derive.test.js` EXECUTES the re-derive path (asserts the
+intersection, not `[]`, and that a batch drops when it leaves `_dashSummary.readyToBottle`).
+
 ## Warnings
 
 ### WR-01: `listAffecting:true` clears `_allBatchesData` but nothing reloads it — dashboard stat cards vanish after completing a task
@@ -122,6 +139,15 @@ include `get_batches` in the refetch), or have `renderDashboard` tolerate the st
 present cache, or use a lighter reset that resets `_dashLoadTime`/`_batchesLoaded`
 without zeroing `_allBatchesData` until the reload resolves.
 
+**Resolution (FIXED — commit c6828ee4):** Switched all three task handlers from
+`listAffecting:true` to `listAffecting:false` (readyToBottle freshness comes from
+`loadDashboard()` refetching `_dashSummary`, not from clearing `_allBatchesData`) and
+chained `loadDashboard().then(refreshReadyToBottleFilterView)` so the active batch-view
+readyToBottle filter re-derives live. Invariants preserved: (a) the batch drops from both
+the dashboard card and the batch-view filter without reload, (b) stat cards + month chart
+stay populated (`_allBatchesData` preserved), (c) the active filter stays correct. Behavioral
+test in `brewpad-bottled-refetch.test.js` pins the dashboard-not-empty invariant.
+
 ### WR-02: Not-loaded filter fallback refetches only the summary, never the batch list
 
 **File:** `js/brewpad.js:8279`
@@ -136,6 +162,12 @@ e.g. `Promise.all([loadDashboard(), _allBatchesData.length ? Promise.resolve() :
 or fold this into the CR-01 `applyBatchFilter` helper with a guard that reloads batches
 when `_allBatchesData.length === 0`.
 
+**Resolution (FIXED — commit 60ec9668):** Made `loadBatches()` return its fetch thenable
+and changed the click handler's not-loaded guard to `(!_dashSummary || _allBatchesData.length === 0)`,
+loading whichever of the summary / batch list is missing via `Promise.all` before applying
+the filter — exactly the reviewer's recommended shape. Structural guard added in
+`brewpad-pure.test.js` (the delegated click handler has no DOM-dispatch precedent).
+
 ### WR-03: Count chip overstates visible rows (chip from `_dashSummary`, rows from intersection)
 
 **File:** `js/brewpad.js:3464`
@@ -148,6 +180,11 @@ chip "3", list shows 0–2. The pure test at brewpad-pure.test.js:200 explicitly
 that phantom ids are dropped from the list, confirming this divergence is possible.
 **Fix:** Derive the chip count from the same intersection the list uses:
 `filterBatchesByReadyToBottle(_allBatchesData, (_dashSummary && _dashSummary.readyToBottle) || []).length`.
+
+**Resolution (FIXED — commit ab3415aa):** Chip count now `readyToBottleRows().length` — the
+same intersection `applyBatchFilter` uses for the rows, so the two can no longer diverge.
+Test in `brewpad-filter-derive.test.js` seeds a phantom readyToBottle id and asserts
+`readyToBottleRows().length === _batchesData.length`.
 
 ### WR-04: Three-handler "regression" tests are source-text pins, not behavioral tests
 
@@ -167,6 +204,14 @@ tests in brewpad-pure.test.js are genuine and good; the handler tests are not.
 that a refetch occurred. Extracting the filter-application into `applyBatchFilter`
 (CR-01 fix) makes this directly unit-testable.
 
+**Resolution (FIXED — commit 47f92c1f):** Rewrote `brewpad-bottled-refetch.test.js`: the
+four `indexOf` source pins are replaced with behavioral tests that exercise the real seams
+(`afterBatchWrite`, `applyBatchFilter`, `_dashSummary` re-derivation) — pinning the
+dashboard-not-empty invariant (WR-01) and mark-bottled freshness — plus one minimal
+structural guard that each handler still refetches via `loadDashboard()` (the delegated IIFE
+handlers have no DOM-dispatch precedent, so the freshness call keeps a single source pin).
+Per-phase test edits are in scope (these tests were created this phase).
+
 ## Info
 
 ### IN-01: Redundant double `renderDashboard()` with possible stale intermediate frame
@@ -181,6 +226,11 @@ Ready-to-Bottle card) and an already-emptied `_allBatchesData`, then re-renders 
 resolve — a visible flash and wasted work.
 **Fix:** Render once — either chain the optimistic cleanup off `loadDashboard().then(...)`,
 or skip the standalone 400 ms `renderDashboard()` when a refetch is already in flight.
+
+**Resolution (SKIPPED — out of scope):** Info-tier finding, outside the critical+warning fix
+scope for this pass. Note: WR-01's switch to `listAffecting:false` already removes the worst
+symptom (the 400 ms render no longer paints against an emptied `_allBatchesData`), so the
+remaining flash is a cosmetic double-render. Deferred for a follow-up.
 
 ---
 
