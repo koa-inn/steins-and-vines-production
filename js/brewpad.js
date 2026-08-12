@@ -8170,8 +8170,12 @@ function bpScaleIngredients(list, factor) {
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
               // Bust the task's batch detail snapshot using task.batch_id (not _selectedBatchId)
-              // so that re-opening the batch shows the updated task state (#20).
-              if (task && task.batch_id) afterBatchWrite(task.batch_id, { listAffecting: false });
+              // so that re-opening the batch shows the updated task state (#20). listAffecting:
+              // true also resets _dashLoadTime so the loadDashboard() refetch below is not
+              // treated as already-fresh (#2 mark-bottled staleness fix — a completed task
+              // changes readyToBottle, so this write is dashboard-affecting).
+              if (task && task.batch_id) afterBatchWrite(task.batch_id, { listAffecting: true });
+              loadDashboard();
               var titleLower = task ? (task.title || '').toLowerCase() : '';
               var isVesselChange = checked && task && (
                 String(task.is_transfer).toUpperCase() === 'TRUE' ||
@@ -8339,8 +8343,11 @@ function bpScaleIngredients(list, factor) {
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
               // Bust the task's batch detail snapshot using task.batch_id (not _selectedBatchId)
-              // so that re-opening the batch shows the updated task state (#21).
-              if (task && task.batch_id) afterBatchWrite(task.batch_id, { listAffecting: false });
+              // so that re-opening the batch shows the updated task state (#21). listAffecting:
+              // true also resets _dashLoadTime so a later switch to the dashboard tab is correct,
+              // and loadDashboard() refetches now (#2 mark-bottled staleness fix).
+              if (task && task.batch_id) afterBatchWrite(task.batch_id, { listAffecting: true });
+              loadDashboard();
               var titleLower2 = task ? (task.title || '').toLowerCase() : '';
               var isVesselChange2 = checked && task && (
                 String(task.is_transfer).toUpperCase() === 'TRUE' ||
@@ -8438,7 +8445,11 @@ function bpScaleIngredients(list, factor) {
                 row.setAttribute('data-save-state', 'saved');
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
-              if (_selectedBatchId) { try { sessionStorage.removeItem('sv-bp-batch-' + _selectedBatchId); } catch (e) {} }
+              // Completing a task here also changes readyToBottle, so this write is
+              // dashboard-affecting: bust the snapshot/list/dash state and refetch
+              // (#2 mark-bottled staleness fix — this handler had no afterBatchWrite before).
+              if (_selectedBatchId) afterBatchWrite(_selectedBatchId, { listAffecting: true, refreshOpenDetail: true });
+              loadDashboard();
             })
             .catch(function () {
               cb.checked = !checked;
