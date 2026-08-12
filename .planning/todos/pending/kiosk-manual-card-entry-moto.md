@@ -2,7 +2,7 @@
 title: Kiosk — manual card entry (MOTO) so staff can take a payment over the phone
 status: pending
 created: 2026-07-14
-source: owner request (2026-07-14) — "in case someone wants to pay over the phone"
+source: owner request (2026-07-14) — "in case someone wants to pay over the phone"; RE-REQUESTED 2026-08-11 ("ability to … manually enter credit card numbers (for over the phone) in the kiosk mode") — cash half of that ticket tracked in kiosk-cash-tender.md. Note: Phase 50 (the blocker) status should be re-checked; money-path primitives have since been adopted in pos.js (phases 45/49/52/67).
 area: kiosk / money path
 priority: medium
 blocked_by: Phase 50 (Kiosk Money-Path Defect Closeout) — see "Sequencing" below
