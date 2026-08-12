@@ -100,3 +100,12 @@ None - no external service configuration required. Pure frontend change; no Apps
 ---
 *Phase: 69-brewpad-batch-view-ux-mark-bottled-reflects-without-refresh-*
 *Completed: 2026-08-12*
+
+## Self-Check: PASSED
+
+All modified/created files verified present on disk (js/brewpad.js, js/brewpad.min.js,
+tests/frontend/brewpad-pure.test.js, this SUMMARY.md); all five task/summary commit hashes
+(b98128f2, 3f623b83, 0e0bfa18, 0d2c0805, 7e2244fe) verified present in git log. Grep confirms
+`filterBatchesByReadyToBottle` (4 occurrences: definition, export, click-handler call, structural
+test window) and `return Promise` (8 occurrences, including loadDashboard's Promise.all) in
+js/brewpad.js.
