@@ -1011,6 +1011,16 @@ Plans:
 Plans:
 - [ ] TBD (run /gsd-plan-phase 68 to break down)
 
+### Phase 69: BrewPad batch-view UX — mark-bottled reflects without refresh (gds cache bust + dashboard refetch) and a Ready-to-Bottle filter on the batch view
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 68
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 69 to break down)
+
 ---
 
 ### Phase 46: Auth Re-Architecture (CRITICAL — split from Phase 45)
