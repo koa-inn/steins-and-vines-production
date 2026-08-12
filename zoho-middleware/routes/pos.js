@@ -310,7 +310,18 @@ function extractConsignmentInfo(catalogItem) {
  * processSaleWithPrices().
  */
 router.post('/api/kiosk/sale', function (req, res) {
-  if (!helcimLib.isTerminalEnabled()) {
+  var body = req.body;
+
+  // 70-01: tender allow-list — 'terminal' (default) / 'cash' / 'moto'. An
+  // unknown value is rejected before any Helcim capability check or booking.
+  var tender = (body && typeof body.tender === 'string' && body.tender) ? body.tender : 'terminal';
+  if (tender !== 'terminal' && tender !== 'cash' && tender !== 'moto') {
+    return res.status(400).json({ error: 'Invalid tender type' });
+  }
+
+  // 70-01: the terminal capability guard applies ONLY to the terminal tender —
+  // cash (and moto, once built) need no Helcim device configuration at all.
+  if (tender === 'terminal' && !helcimLib.isTerminalEnabled()) {
     return res.status(503).json({ error: 'POS terminal not configured' });
   }
 
@@ -318,8 +329,6 @@ router.post('/api/kiosk/sale', function (req, res) {
   // only — see emitStageTiming). Captured before the idempotency lock so the
   // lock-acquired stage timing reflects real wall-time from request receipt.
   var stageStart = Date.now();
-
-  var body = req.body;
 
   // D-12: idempotency_key is required in production (fail-closed-in-prod pattern);
   // falls through to non-atomic flow without a key in non-prod for backward compat.
@@ -755,7 +764,30 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
     ? body.reference_number.slice(0, 64)
     : ('KIOSK-' + Date.now());
 
-  if (terminal_amount > 0) {
+  if (body.tender === 'cash') {
+    // 70-01: cash tender — skip the terminal entirely (no Helcim call, no
+    // KIOSK_PENDING_CHARGE_PREFIX write — that write lives only inside the
+    // terminal_amount > 0 branch below and has nothing to reconcile for cash).
+    // Mirrors the gift-card-100%-coverage "skip terminal, respond non-pending"
+    // shape below, plus its idempotency cache.set write.
+    log.info('[pos/kiosk/sale] Cash tender — skipping terminal. ref=' + refNumber +
+      (gift_amount > 0 ? ' gift_card=$' + gift_amount.toFixed(2) : ''));
+
+    var cashResponseBody = {
+      pending: false,
+      cash: true,
+      reference: refNumber
+    };
+
+    var cashCacheWrite = idempotencyKey
+      ? cache.set(idempotencyKey, cashResponseBody, IDEMPOTENCY_KEY_TTL).catch(function () {})
+      : Promise.resolve();
+
+    return cashCacheWrite.then(function () {
+      emitStageTiming('response_202', stageStart);
+      res.status(202).json(cashResponseBody);
+    });
+  } else if (terminal_amount > 0) {
     log.info('[pos/kiosk/sale] Pushing to terminal: total=$' + terminal_amount.toFixed(2) +
       ' ref=' + refNumber + ' items=' + lineItems.length +
       (gift_amount > 0 ? ' gift_card=$' + gift_amount.toFixed(2) : ''));
@@ -1293,8 +1325,13 @@ function runConfirm(body, confirmIdemKey, req, res) {
       // CR-02: discriminated result handling (terminal already charged — void-on-failure applies)
       if (gcConfirmLookup !== null) {
         if (gcConfirmLookup.state === 'invalid') {
-          // Terminal already charged — void before rejecting
-          return moneyPath.voidWithTimeout(helcimLib, body.transaction_id, grandTotal, { reqId: req.id })
+          // Terminal already charged — void before rejecting. 70-01: cash has no
+          // Helcim charge and no transaction_id — never attempt a void for it
+          // (T-70-03; a real Helcim call with an undefined token would otherwise fire).
+          var gcInvalidVoid = (body.tender !== 'cash')
+            ? moneyPath.voidWithTimeout(helcimLib, body.transaction_id, grandTotal, { reqId: req.id })
+            : Promise.resolve();
+          return gcInvalidVoid
             .then(function () {
               return res.status(400).json({ error: 'Gift card not found or has insufficient balance' });
             })
@@ -1317,6 +1354,10 @@ function runConfirm(body, confirmIdemKey, req, res) {
       }
     // terminalApplied is what was (or will be) charged on the Helcim terminal.
     var terminalApplied = Math.round((grandTotal - gcApplied) * 100) / 100;
+    // 70-01: cashApplied is computed the SAME way terminalApplied is (re-resolved
+    // server-side from the confirm-time grandTotal/gcApplied — Pitfall 5, never
+    // carried from the /sale-time response). Only meaningful for tender:'cash'.
+    var cashApplied = (body.tender === 'cash') ? terminalApplied : 0;
 
     // M3 (52-03, RESIL-01): the gift-card clearing customerpayment REQUIRES a real
     // ledger account — no hardcoded fallback (Pattern D). Fail CLOSED before the
@@ -1329,7 +1370,8 @@ function runConfirm(body, confirmIdemKey, req, res) {
     if (gcApplied > 0 && gcCertNum && !gcClearingAccount) {
       log.error('[pos/kiosk/sale/confirm] CRITICAL: gift-card redemption blocked — ' +
         'ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID is unset; refusing to post to a guessed ledger. cert=' + gcCertNum);
-      var gcAcctVoid = terminalApplied > 0
+      // 70-01: cash never has a Helcim charge/transaction_id to void (T-70-03).
+      var gcAcctVoid = (terminalApplied > 0 && body.tender !== 'cash')
         ? moneyPath.voidWithTimeout(helcimLib, body.transaction_id, grandTotal, { reqId: req.id })
         : Promise.resolve();
       return gcAcctVoid
@@ -1350,7 +1392,11 @@ function runConfirm(body, confirmIdemKey, req, res) {
     // backstop settles a genuinely-orphaned real charge. A real txn id (auto-confirm,
     // already poll-verified) is trusted and skips this lookup.
     var isManualConfirm = !body.transaction_id || body.transaction_id === 'manual-confirm';
-    var verifyManualCharge = (isManualConfirm && terminalApplied > 0)
+    // 70-01: cash never has a Helcim charge to verify — the physical cash IS
+    // the proof (T-70-03). Skip the poll entirely for cash so a cash confirm
+    // (which sends no transaction_id, and so would otherwise satisfy
+    // isManualConfirm) never triggers a terminal poll.
+    var verifyManualCharge = (isManualConfirm && terminalApplied > 0 && body.tender !== 'cash')
       ? helcimLib.pollTerminalResult(refNumber).then(function (tr) {
           if (tr && tr.approved && tr.transactionId) {
             txnId = String(tr.transactionId); // real id → proof-of-charge + reconciliation fidelity
@@ -1378,7 +1424,21 @@ function runConfirm(body, confirmIdemKey, req, res) {
       if (invoiceId) {
         paymentChain = zohoPost('/invoices/' + invoiceId + '/submit', {}).catch(function () {})
           .then(function () {
-            // Payment 1: terminal portion — skip if gift card covers 100% (Pitfall 1 ordering)
+            // Payment 1: terminal/cash portion — skip if gift card covers 100% (Pitfall 1
+            // ordering). 70-01: cash books payment_mode:'cash' at the SAME chain position
+            // the terminal payment occupies (before the gift-card 'others' leg below),
+            // with reference_number = the kiosk refNumber — NEVER a transaction id (there
+            // is no Helcim txn for cash).
+            if (body.tender === 'cash' && cashApplied > 0) {
+              return zohoPost('/customerpayments', {
+                payment_mode: 'cash',
+                amount: cashApplied,
+                date: today,
+                reference_number: refNumber,
+                invoices: [{ invoice_id: invoiceId, amount_applied: cashApplied }],
+                notes: 'Kiosk cash payment. Ref: ' + refNumber
+              });
+            }
             if (terminalApplied > 0) {
               return zohoPost('/customerpayments', {
                 payment_mode: 'creditcard',
