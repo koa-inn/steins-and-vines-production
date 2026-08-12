@@ -3404,6 +3404,11 @@ function bpScaleIngredients(list, factor) {
     }
   }
 
+  // Returns a thenable that resolves once the batch list is loaded (or immediately
+  // when served from cache / a fetch is already in flight). Callers that need
+  // _allBatchesData populated before acting (e.g. the Ready-to-Bottle filter's
+  // not-loaded path, WR-02) can chain on it; existing fire-and-forget callers are
+  // unaffected. The fetch chain's .catch means the returned promise never rejects.
   function loadBatches() {
     // If eager-loaded cache is fresh, derive filtered list client-side (instant)
     var now = Date.now();
@@ -3411,11 +3416,11 @@ function bpScaleIngredients(list, factor) {
       applyBatchFilter();
       _batchesLoaded = true;
       renderBatchList();
-      return;
+      return Promise.resolve();
     }
 
     // Cache stale — re-fetch all
-    if (_batchesLoading) return;
+    if (_batchesLoading) return Promise.resolve();
     _batchesLoading = true;
     _batchesLoadTime = Date.now();
 
@@ -3428,7 +3433,7 @@ function bpScaleIngredients(list, factor) {
       if (listPane) listPane.innerHTML = '<div class="bp-panel-inner"><div class="bp-skeleton-block"></div></div>';
     }
 
-    adminApiGet('get_batches', { status: 'all' })
+    return adminApiGet('get_batches', { status: 'all' })
       .then(function (r) {
         _allBatchesData = (r.data && r.data.batches) || [];
         applyBatchFilter();
@@ -8309,11 +8314,17 @@ function bpScaleIngredients(list, factor) {
         var filterBtn = e.target.closest('.bp-filter-btn');
         if (filterBtn) {
           _batchStatusFilter = filterBtn.getAttribute('data-status');
-          if (_batchStatusFilter === 'readyToBottle' && !_dashSummary) {
-            // _dashSummary not loaded yet — refetch first, then apply the filter once
-            // the summary resolves (loadDashboard fails soft on total failure). All
-            // filter application routes through applyBatchFilter (CR-01).
-            loadDashboard().then(function () {
+          if (_batchStatusFilter === 'readyToBottle' && (!_dashSummary || _allBatchesData.length === 0)) {
+            // Ready-to-Bottle needs BOTH the server readyToBottle set (_dashSummary) AND
+            // the batch list (_allBatchesData) — the rows are their intersection. Load
+            // whichever is missing, THEN apply the filter (WR-02: loadDashboard() alone
+            // refetches only the summary, so filtering an empty _allBatchesData yielded []).
+            // loadDashboard/loadBatches fail soft; all filtering routes through
+            // applyBatchFilter (CR-01).
+            Promise.all([
+              _dashSummary ? Promise.resolve() : loadDashboard(),
+              _allBatchesData.length ? Promise.resolve() : loadBatches()
+            ]).then(function () {
               applyBatchFilter();
               renderBatchList();
             });

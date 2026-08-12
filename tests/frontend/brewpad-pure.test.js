@@ -248,16 +248,27 @@ describe('Ready-to-Bottle filter wiring (structural)', function () {
     expect(window.indexOf('return Promise')).not.toBe(-1);
   });
 
-  test("readyToBottle filter click handler chains loadDashboard().then( on the not-loaded path and routes through applyBatchFilter", function () {
+  test('readyToBottle filter click handler routes through applyBatchFilter and refetches on the not-loaded path', function () {
     // CR-01: the click handler no longer calls filterBatchesByReadyToBottle directly —
     // every re-derive site (this handler + switchTab + loadBatches) routes through the
     // shared applyBatchFilter() seam so the filter survives tab switches / reloads.
     // Behavioral coverage of the derivation lives in brewpad-filter-derive.test.js.
     var idx = src.indexOf("_batchStatusFilter = filterBtn.getAttribute('data-status')");
     expect(idx).not.toBe(-1);
-    var window = src.slice(idx, idx + 800);
-    expect(window.indexOf('loadDashboard().then(')).not.toBe(-1);
+    var window = src.slice(idx, idx + 1000);
+    expect(window.indexOf('loadDashboard()')).not.toBe(-1);
     expect(window.indexOf('applyBatchFilter()')).not.toBe(-1);
+  });
+
+  test('readyToBottle not-loaded path also loads the batch list when _allBatchesData is empty (WR-02)', function () {
+    // The rows are the intersection of _allBatchesData with _dashSummary.readyToBottle,
+    // so the not-loaded fallback must load BOTH — loadDashboard() alone refetches only
+    // the summary and would filter an empty batch list to [].
+    var idx = src.indexOf("_batchStatusFilter = filterBtn.getAttribute('data-status')");
+    expect(idx).not.toBe(-1);
+    var window = src.slice(idx, idx + 1000);
+    expect(window.indexOf('_allBatchesData.length === 0')).not.toBe(-1);
+    expect(window.indexOf('loadBatches()')).not.toBe(-1);
   });
 });
 
