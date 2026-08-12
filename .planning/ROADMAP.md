@@ -1027,11 +1027,11 @@ Plans:
 **Goal:** Kiosk staff can take cash and phone-order (card-not-present) payments. Cash books a Zoho `payment_mode:'cash'` sale with a client-side change-due calculator and gift-card split and no terminal; MOTO charges the card only inside Helcim's hosted iframe (PAN never touches our code — PCI SAQ-A) and books only after a server-side captured-amount verification — all reusing the existing hardened kiosk money-path pipeline (idempotency, void-on-failure) without forking it.
 **Requirements**: Owner ticket (2026-08-11) — no ROADMAP req IDs; CONTEXT.md locked decisions are the requirement source. Tracked as KIOSK-CASH (`.planning/todos/pending/kiosk-cash-tender.md`) + KIOSK-MOTO (`.planning/todos/pending/kiosk-manual-card-entry-moto.md`, Option B).
 **Depends on:** Phase 69
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 70-01-PLAN.md — Cash tender: server `tender:'cash'` branch (skip terminal, book payment_mode:'cash', idempotent, gift+cash split) + kiosk Cash button & change-due UI
-- [ ] 70-02-PLAN.md — MOTO via HelcimPay: server init + captured-amount verify before booking + kiosk phone-order button/iframe + kiosk.html first CSP
+- [x] 70-02-PLAN.md — MOTO via HelcimPay: server init + captured-amount verify before booking + kiosk phone-order button/iframe + kiosk.html first CSP
 - [ ] 70-03-PLAN.md — Live-verify checkpoint (autonomous:false): real cash sale + real HelcimPay charge (refunded) + CSP live-verified on staging before prod
 
 ---
