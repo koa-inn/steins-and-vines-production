@@ -357,14 +357,23 @@ router.post('/api/kiosk/sale', function (req, res) {
 // money-moving conditional, never changes control flow. NO PII (eventLog
 // zero-PII policy) — stage name + millisecond delta + optional bounded extras.
 function emitStageTiming(stage, stageStart, extra) {
-  var ms = Date.now() - stageStart;
-  var payload = { stage: stage, ms_since_start: ms };
-  if (extra && typeof extra === 'object') {
-    Object.keys(extra).forEach(function (k) { payload[k] = extra[k]; });
+  // WR-03: observation-only telemetry must NEVER break the money path. This is
+  // invoked on the success path immediately before res.status(202).json(...);
+  // if log.info or eventLog.logEvent ever threw, the rejection would prevent the
+  // 202 from being sent and hang the client mid-sale. Swallow any throw here,
+  // matching the client-side beacons' try/catch contract (kiosk-core.js).
+  try {
+    var ms = Date.now() - stageStart;
+    var payload = { stage: stage, ms_since_start: ms };
+    if (extra && typeof extra === 'object') {
+      Object.keys(extra).forEach(function (k) { payload[k] = extra[k]; });
+    }
+    log.info('[pos/kiosk/sale] stage_timing stage=' + stage + ' ms_since_start=' + ms +
+      (extra && extra.cache ? ' cache=' + extra.cache : ''));
+    eventLog.logEvent('kiosk.sale_stage_timing', payload);
+  } catch {
+    // Telemetry failure is non-fatal — do not let it interfere with the sale.
   }
-  log.info('[pos/kiosk/sale] stage_timing stage=' + stage + ' ms_since_start=' + ms +
-    (extra && extra.cache ? ' cache=' + extra.cache : ''));
-  eventLog.logEvent('kiosk.sale_stage_timing', payload);
 }
 
 // Build an item_id -> catalog entry lookup from a kiosk products catalog array
