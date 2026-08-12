@@ -16,7 +16,20 @@ findings:
   warning: 3
   info: 2
   total: 6
-status: issues_found
+status: fixes_applied
+fix_outcomes:
+  fixed: 4        # CR-01, WR-01, WR-02, WR-03
+  skipped: 2      # IN-01, IN-02 (info — out of --fix scope)
+  fixed_at: 2026-08-12
+  commits:
+    - "37c6a656 fix(70-review): CR-01 require APPROVED status + exact-amount in MOTO capture verify"
+    - "4c5061d0 fix(70-review): WR-01 add MOTO pending-charge reconciliation backstop"
+    - "194cc0f3 fix(70-review): WR-02 tender-scoped idempotency key + WR-03 align Helcim origin allowlist to CSP"
+  suites: "frontend 1089/1089, middleware 1387/1387, lint (both) clean"
+  follow_ups:
+    - "CR-01: bind the verified MOTO txn to its HelcimPay checkout token (full session binding) — needs the token threaded through /confirm; deferred as out-of-scope."
+    - "WR-03: js/modules/12-checkout.js public-checkout origin allowlist carries the same bare-myhelcim.com inconsistency; fix under a public-checkout phase."
+    - "WR-03 / IN-02: still requires live-staging CSP + postMessage-origin verification before any production force-push."
 ---
 
 # Phase 70: Code Review Report
@@ -54,6 +67,16 @@ negative captures and `getCardTransactionById` throws are all rejected and voide
 ## Critical Issues
 
 ### CR-01: MOTO capture verify checks amount but not transaction status → phantom revenue
+
+**Resolution:** FIXED (commit 37c6a656, requires human verification — money-path logic
+change). `verifyMotoCharge` now asserts `txn.status === 'APPROVED'` (matching
+verifyManualCharge's `tr.approved` / the status-poll standard) AND an exact-amount
+match (lower + upper bound via `Math.abs(captured - terminalApplied) > tolerance`)
+before booking. RED regression tests added for DECLINED / VOIDED / missing-status
+transactions that carry a sufficient amount (→ 502, no invoice, no payment, existing
+void path); existing mocks updated to carry a `status` field. Full HelcimPay-session
+binding (the secondary replay gap) is recorded as a follow-up — it needs the checkout
+token threaded through `/confirm`, beyond this fix's scope.
 
 **File:** `zoho-middleware/routes/pos.js:1472-1499`
 **Issue:**
@@ -123,6 +146,15 @@ with no `status`, so the gap is currently unguarded) that mocks
 
 ### WR-01: MOTO has no orphan-charge reconciliation backstop
 
+**Resolution:** FIXED (commit 4c5061d0). The MOTO `/sale` branch now persists a
+`KIOSK_PENDING_CHARGE_PREFIX` record (keyed by refNumber, `KIOSK_PENDING_CHARGE_TTL`)
+on a successful `initializeCheckout`, mirroring the terminal branch. The 45-08
+reconcile sweep is tender-agnostic: an un-cleared MOTO pending record with no matching
+terminal-result cache is flagged as a potential orphan for manual review. A successful
+`/confirm` clears the record via the existing tender-agnostic delete keyed on
+`reference_number`. Tests: a MOTO `/sale` now writes the pending record; a successful
+MOTO `/confirm` clears it.
+
 **File:** `zoho-middleware/routes/pos.js:798-835`
 **Issue:**
 The `tender:'moto'` `/sale` branch deliberately writes **no** `KIOSK_PENDING_CHARGE_PREFIX`
@@ -142,6 +174,15 @@ HelcimPay session / `getCardTransactionById` for a captured txn and void-or-aler
 minimum, log a durable "MOTO charged, awaiting confirm" marker the sweep can find.
 
 ### WR-02: Tender switch after a MOTO abort is blocked by the shared idempotency key
+
+**Resolution:** FIXED (commit 194cc0f3). Cash and MOTO now derive a tender-scoped
+idempotency key (`refNumber + ':cash'` / `refNumber + ':moto'`) at the start of their
+respective `_kioskGo*` flows; the terminal path resets the shared body's key to the
+bare `refNumber`. Switching tenders after an abort therefore issues a distinct
+idempotency scope (no stale replay), while a genuine double-tap of the SAME tender
+still de-dupes. The bare-refNumber terminal key preserves the D-05 kiosk/admin parity
+contract (kiosk-core-parity test stays green). Additive WR-02 regression tests added to
+the cash + moto frontend suites; `kiosk-core.min.js` regenerated via terser.
 
 **File:** `js/kiosk-core.js:2774-2788, 3119-3169, 3182-3216`
 **Issue:**
@@ -164,6 +205,15 @@ or append an attempt counter) so switching tenders after an abort issues a disti
 idempotency scope, while a genuine double-tap of the *same* tender still de-dupes.
 
 ### WR-03: postMessage origin allowlist disagrees with the new CSP (`myhelcim.com` vs `secure.myhelcim.com`)
+
+**Resolution:** FIXED (commit 194cc0f3). The postMessage origin allowlist in
+`kiosk-core.js` now accepts `https://secure.helcim.app` and `https://secure.myhelcim.com`
+— the SAME origins the kiosk CSP frame-src/connect-src already list (kiosk.html:17
+needed no change). The shared `js/modules/12-checkout.js` public-checkout source carries
+the same bare-`myhelcim.com` inconsistency and is deliberately left untouched (out of
+this phase's scope) as a documented follow-up. Live-staging verification of the actual
+Helcim origin (Network + Console) is still required before any production force-push
+(see IN-02).
 
 **File:** `js/kiosk-core.js:239` and `kiosk.html:17`
 **Issue:**
@@ -188,6 +238,10 @@ the shared 12-checkout.js source at the same time).
 
 ### IN-01: `/confirm` does not re-validate `tender` against the allow-list
 
+**Resolution:** SKIPPED (Info — out of `--fix` scope, which targets Critical + Warning).
+Device-token gated and not a new exploit per the reviewer; deferred for a follow-up
+consistency pass.
+
 **File:** `zoho-middleware/routes/pos.js:1086-1133, 1521-1547`
 **Issue:**
 `/api/kiosk/sale` enforces the `terminal|cash|moto` allow-list (pos.js:317-320), but
@@ -200,6 +254,11 @@ the tender-routing invariants explicit.
 handler (400 on unknown), so both endpoints share one validation.
 
 ### IN-02: kiosk.html CSP is static-analysis-derived and unverified on live staging
+
+**Resolution:** SKIPPED (Info — out of `--fix` scope). This is a live-staging
+verification task, not a code change. It remains an open pre-production action (Network
++ Console on a real kiosk, paying attention to whichever `*helcim*` origin the
+iframe/postMessage actually use — see WR-03 follow-up).
 
 **File:** `kiosk.html:17`
 **Issue:**
