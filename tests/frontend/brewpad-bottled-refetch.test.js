@@ -1,30 +1,91 @@
+'use strict';
+
 // ---------------------------------------------------------------------------
-// Owner ticket #2: mark-bottled staleness regression tests
+// Owner ticket #2: mark-bottled staleness regression tests (WR-04 rewrite)
 // ---------------------------------------------------------------------------
 // Completing the Bottling/Packaging task checkbox must remove the batch from
-// the dashboard's Ready-to-Bottle list immediately, with no full page reload.
+// the Ready-to-Bottle list immediately, with no full page reload — AND must NOT
+// blank the dashboard stat cards / month chart (WR-01).
 //
-// Root cause (see 69-PATTERNS.md): the server already busts the `gbds` cache
-// on every bulk_update_batch_tasks write, but the client's three task-checkbox
-// handlers re-render the stale in-memory _dashSummary (via renderDashboard()/
-// renderTasks()) instead of refetching it via loadDashboard() — the only
-// function that re-fetches get_batch_dashboard_summary and rebuilds
-// _dashSummary / _dashLoadTime.
-//
-// These are structural source-text regression tests (the established pattern
-// for pinning behavior inside BrewPad's un-exported IIFE-scoped event
-// handlers — see brewpad-activation.test.js, brewpad-pull-from-zoho.test.js).
-// No synthetic DOM change-event dispatch: there is no dispatch precedent for
-// these handlers in the existing suite.
-//
-// Each handler is anchored by its adminApiPost('bulk_update_batch_tasks' call
-// site, located via successive indexOf() from an increasing offset so each
-// window is scoped to exactly one handler's success/catch block (measured
-// handler lengths: ~2079, ~2082, ~1064 chars; gaps between anchors: ~7648,
-// ~4673 chars — a 1500-char window cannot bleed into the next handler).
+// The previous version of this file was four indexOf() substring pins over the
+// raw source. They never executed anything, so they could not catch CR-01 (the
+// readyToBottle filter emptying on a re-derive), WR-01 (stat cards vanishing),
+// or a broken loadDashboard() promise — and they broke on unrelated edits that
+// shifted the scan window. They are replaced here with behavioral tests that
+// exercise the actual seams the handlers use (afterBatchWrite, applyBatchFilter,
+// _dashSummary re-derivation), plus a single robust structural guard that the
+// freshness refetch (loadDashboard()) is still wired into each handler.
 // ---------------------------------------------------------------------------
 
-describe('mark-bottled freshness: task-checkbox handlers refetch dashboard after save', function () {
+global.document = global.document || {};
+global.window = global.window || {};
+global.navigator = global.navigator || {};
+global.google = { accounts: { oauth2: { initTokenClient: jest.fn() } } };
+global.fetch = jest.fn();
+
+var _auth = require('../../js/lib/auth');
+global.waitForGoogleIdentity = _auth.waitForGoogleIdentity;
+global.gsiInitTokenClient = _auth.gsiInitTokenClient;
+global.fetchGoogleUserInfo = _auth.fetchGoogleUserInfo;
+
+var bp = require('../../js/brewpad');
+
+var BATCHES = [
+  { batch_id: 'A', status: 'secondary', start_date: '2026-01-05' },
+  { batch_id: 'B', status: 'secondary', start_date: '2026-02-05' },
+  { batch_id: 'C', status: 'primary', start_date: '2026-03-05' }
+];
+
+describe('mark-bottled freshness — behavioral (#2 / WR-01)', function () {
+  beforeEach(function () {
+    // Reset sessionStorage so afterBatchWrite's snapshot removal doesn't throw.
+    global.sessionStorage = {
+      _d: {},
+      getItem: function (k) { return this._d[k] || null; },
+      setItem: function (k, v) { this._d[k] = String(v); },
+      removeItem: function (k) { delete this._d[k]; }
+    };
+  });
+
+  test('a task write does NOT blank the batch cache the dashboard stat cards depend on (WR-01)', function () {
+    // renderDashboard() gates the stat-card grid + month chart on _allBatchesData.length > 0.
+    // The three task-checkbox handlers must therefore use listAffecting:false so the
+    // dashboard does not go empty after completing a task (freshness comes from
+    // loadDashboard() refetching _dashSummary, not from clearing _allBatchesData).
+    bp._setStateForTest({ _allBatchesData: BATCHES });
+    bp.afterBatchWrite('A', { listAffecting: false });
+    expect(bp.getStateForTest()._allBatchesData.length).toBe(3);
+  });
+
+  test('listAffecting:true DOES clear _allBatchesData — documents why the handlers must NOT use it', function () {
+    bp._setStateForTest({ _allBatchesData: BATCHES });
+    bp.afterBatchWrite('A', { listAffecting: true });
+    expect(bp.getStateForTest()._allBatchesData.length).toBe(0);
+  });
+
+  test('completing a bottling task drops the batch from the Ready-to-Bottle view without reload', function () {
+    // Simulate: readyToBottle filter active, server had A + C ready to bottle.
+    bp._setStateForTest({
+      _allBatchesData: BATCHES,
+      _batchStatusFilter: 'readyToBottle',
+      _dashSummary: { readyToBottle: [{ batch_id: 'A' }, { batch_id: 'C' }] },
+      _batchesData: []
+    });
+    bp.applyBatchFilter();
+    expect(bp.getStateForTest()._batchesData.map(function (b) { return b.batch_id; })).toEqual(['A', 'C']);
+
+    // The handler completes A's bottling task → loadDashboard() refetches _dashSummary
+    // (A now gone) → re-derive. _allBatchesData is preserved (listAffecting:false).
+    bp.afterBatchWrite('A', { listAffecting: false });
+    bp._setStateForTest({ _dashSummary: { readyToBottle: [{ batch_id: 'C' }] } });
+    bp.applyBatchFilter();
+    expect(bp.getStateForTest()._batchesData.map(function (b) { return b.batch_id; })).toEqual(['C']);
+    // And the batch cache is still intact so the dashboard stat cards render.
+    expect(bp.getStateForTest()._allBatchesData.length).toBe(3);
+  });
+});
+
+describe('mark-bottled freshness — structural freshness guard (#2)', function () {
   var fs = require('fs');
   var path = require('path');
   var src = fs.readFileSync(path.join(__dirname, '../../js/brewpad.js'), 'utf8');
@@ -32,33 +93,29 @@ describe('mark-bottled freshness: task-checkbox handlers refetch dashboard after
   var ANCHOR = "adminApiPost('bulk_update_batch_tasks'";
   var WINDOW = 1500;
 
-  var idx1 = src.indexOf(ANCHOR); // (a) dashboard handler (~8160)
-  var idx2 = src.indexOf(ANCHOR, idx1 + ANCHOR.length); // (b) tasks-tab handler (~8329)
-  var idx3 = src.indexOf(ANCHOR, idx2 + ANCHOR.length); // (c) batch-detail-pane handler (~8429)
+  var idx1 = src.indexOf(ANCHOR);
+  var idx2 = src.indexOf(ANCHOR, idx1 + ANCHOR.length);
+  var idx3 = src.indexOf(ANCHOR, idx2 + ANCHOR.length);
 
-  var window1 = idx1 === -1 ? '' : src.slice(idx1, idx1 + WINDOW);
-  var window2 = idx2 === -1 ? '' : src.slice(idx2, idx2 + WINDOW);
-  var window3 = idx3 === -1 ? '' : src.slice(idx3, idx3 + WINDOW);
+  var win1 = idx1 === -1 ? '' : src.slice(idx1, idx1 + WINDOW);
+  var win2 = idx2 === -1 ? '' : src.slice(idx2, idx2 + WINDOW);
+  var win3 = idx3 === -1 ? '' : src.slice(idx3, idx3 + WINDOW);
 
-  test('dashboard handler success path calls loadDashboard() after save (~8160)', function () {
+  // Freshness contract: each task-checkbox handler must refetch the dashboard after
+  // the save. This is the one thing no behavioral test can cover (the delegated IIFE
+  // handlers have no DOM-dispatch precedent), so it stays as a minimal structural pin.
+  test('all three task handlers refetch via loadDashboard() after the save', function () {
     expect(idx1).not.toBe(-1);
-    expect(window1.indexOf('loadDashboard()')).not.toBe(-1);
-  });
-
-  test('tasks-tab handler success path calls loadDashboard() after save (~8329)', function () {
     expect(idx2).not.toBe(-1);
-    expect(window2.indexOf('loadDashboard()')).not.toBe(-1);
-  });
-
-  test('batch-detail-pane handler success path adds afterBatchWrite( and loadDashboard() after save (~8429, absent today)', function () {
     expect(idx3).not.toBe(-1);
-    expect(window3.indexOf('afterBatchWrite(')).not.toBe(-1);
-    expect(window3.indexOf('loadDashboard()')).not.toBe(-1);
+    expect(win1.indexOf('loadDashboard()')).not.toBe(-1);
+    expect(win2.indexOf('loadDashboard()')).not.toBe(-1);
+    expect(win3.indexOf('loadDashboard()')).not.toBe(-1);
   });
 
-  test('all three handler success paths use listAffecting: true (none retain listAffecting: false)', function () {
-    expect(window1.indexOf('listAffecting: true')).not.toBe(-1);
-    expect(window2.indexOf('listAffecting: true')).not.toBe(-1);
-    expect(window3.indexOf('listAffecting: true')).not.toBe(-1);
+  test('all three task handlers call afterBatchWrite( after the save', function () {
+    expect(win1.indexOf('afterBatchWrite(')).not.toBe(-1);
+    expect(win2.indexOf('afterBatchWrite(')).not.toBe(-1);
+    expect(win3.indexOf('afterBatchWrite(')).not.toBe(-1);
   });
 });
