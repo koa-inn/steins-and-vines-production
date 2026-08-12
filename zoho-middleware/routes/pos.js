@@ -799,10 +799,19 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
     // 70-02: MOTO (phone-order, card-not-present) — initialize a HelcimPay.js
     // hosted-iframe session IN-PROCESS (helcimLib already required above; no
     // extra HTTP hop through routes/payments.js) instead of pushing to the
-    // physical terminal. No KIOSK_PENDING_CHARGE_PREFIX write (Pitfall 3 —
-    // that mechanism exists solely for the terminal's async webhook-approval
-    // race; HelcimPay resolves synchronously via postMessage in the SAME
-    // browser tab that immediately calls /confirm — nothing to reconcile).
+    // physical terminal.
+    //
+    // WR-01 (70-review): the actual card capture happens inside the iframe on
+    // the client, and booking only occurs on a SEPARATE /confirm round-trip. If
+    // the network drops (or the iPad sleeps) between the HelcimPay SUCCESS
+    // postMessage and a completed /confirm, the card is charged but no invoice
+    // exists and no void fires. "Same browser tab" is not a guarantee against a
+    // dropped confirm. So — like the terminal branch — persist a pending-charge
+    // record keyed by refNumber. The 45-08 reconcile sweep is tender-agnostic:
+    // an un-cleared pending record with no matching terminal-result cache is
+    // flagged as a potential orphan for manual review. A successful /confirm
+    // clears this record tender-agnostically (by reference_number), so the
+    // backstop only fires on a genuinely dropped confirm.
     log.info('[pos/kiosk/sale] MOTO (phone-order) tender — initializing HelcimPay. ref=' + refNumber +
       (gift_amount > 0 ? ' gift_card=$' + gift_amount.toFixed(2) : ''));
 
@@ -814,6 +823,22 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
           checkout_token: checkoutResult.checkoutToken,
           reference: refNumber
         };
+
+        // WR-01 (70-review): pending-charge backstop for a dropped MOTO /confirm.
+        // Mirrors the terminal branch's write (fire-and-forget); cleared by a
+        // successful /confirm via the tender-agnostic delete keyed on
+        // reference_number. Uses terminal_amount (the card portion after any
+        // gift-card split), matching what HelcimPay is initialized to capture.
+        var motoPendingKey = C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + refNumber;
+        var motoPendingContext = {
+          reference_number: refNumber,
+          amount:           terminal_amount,
+          idempotency_key:  (body.idempotency_key && typeof body.idempotency_key === 'string')
+                              ? body.idempotency_key : null,
+          tender:           'moto',
+          created_at:       new Date().toISOString()
+        };
+        cache.set(motoPendingKey, motoPendingContext, KIOSK_PENDING_CHARGE_TTL).catch(function () {});
 
         var motoCacheWrite = idempotencyKey
           ? cache.set(idempotencyKey, motoResponseBody, IDEMPOTENCY_KEY_TTL).catch(function () {})

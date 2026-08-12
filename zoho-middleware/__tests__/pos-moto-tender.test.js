@@ -9,8 +9,10 @@
  *     in-process (NOT terminalPurchase), responds
  *     {pending:false, moto:true, checkout_token, reference}, works even when
  *     isTerminalEnabled() is false (only isEnabled() — the API token — is
- *     required), and writes NO KIOSK_PENDING_CHARGE_PREFIX record (HelcimPay
- *     resolves synchronously — no webhook race to reconcile, Pitfall 3).
+ *     required), and (WR-01) DOES write a KIOSK_PENDING_CHARGE_PREFIX backstop
+ *     record so a dropped /confirm after a real capture is reconcilable — that
+ *     record is cleared by a successful /confirm (tender-agnostic, keyed on
+ *     reference_number).
  *   - /api/kiosk/sale/confirm: tender:'moto' REQUIRES the server to verify the
  *     ACTUAL Helcim-captured amount (via getCardTransactionById) covers the
  *     recorded total (±$0.01) BEFORE booking anything — the single most
@@ -428,8 +430,8 @@ describe('pos — 70-02 MOTO (phone-order card-not-present) tender (KIOSK-MOTO)'
 
   describe('/api/kiosk/sale — tender:moto initializes HelcimPay, skips terminal', function () {
 
-    test('moto sale → calls initializeCheckout (NOT terminalPurchase), responds {pending:false, moto:true, checkout_token, reference}; NO pending-charge write', function (done) {
-      var req = { body: { items: motoCartItems(), tender: 'moto' } };
+    test('moto sale → calls initializeCheckout (NOT terminalPurchase), responds {pending:false, moto:true, checkout_token, reference}; WR-01 writes a pending-charge backstop', function (done) {
+      var req = { body: { items: motoCartItems(), tender: 'moto', reference_number: 'KIOSK-MOTO-PEND-1' } };
       var res = mockRes();
       var statusCapture = captureStatus(res);
       res.json.mockImplementation(function (body) {
@@ -442,14 +444,44 @@ describe('pos — 70-02 MOTO (phone-order card-not-present) tender (KIOSK-MOTO)'
           expect(helcimLib.initializeCheckout).toHaveBeenCalled();
           expect(helcimLib.terminalPurchase).not.toHaveBeenCalled();
 
+          // WR-01: a pending-charge record must exist so a dropped /confirm after
+          // a real HelcimPay capture is reconcilable by the 45-08 sweep.
           var pendingChargeWrite = cache.set.mock.calls.find(function (c) {
             return typeof c[0] === 'string' && c[0].indexOf('test:kiosk:pending-charge:') === 0;
           });
-          expect(pendingChargeWrite).toBeFalsy();
+          expect(pendingChargeWrite).toBeTruthy();
+          expect(pendingChargeWrite[0]).toBe('test:kiosk:pending-charge:KIOSK-MOTO-PEND-1');
+          expect(pendingChargeWrite[1].reference_number).toBe('KIOSK-MOTO-PEND-1');
+          expect(pendingChargeWrite[1].amount).toBe(100);
           done();
         } catch (e) { done(e); }
       });
       handlers['/api/kiosk/sale'](req, res);
+    });
+
+    test('WR-01: a successful moto /confirm clears the pending-charge backstop (tender-agnostic, by reference_number)', function (done) {
+      helcimLib.getCardTransactionById.mockResolvedValue({ amount: 100, status: 'APPROVED' });
+      var req = {
+        body: {
+          items: motoCartItems(),
+          tender: 'moto',
+          transaction_id: 'txn-moto-clear',
+          reference_number: 'KIOSK-MOTO-PEND-2'
+        }
+      };
+      var res = mockRes();
+      var statusCapture = captureStatus(res);
+      res.json.mockImplementation(function (body) {
+        try {
+          expect(statusCapture.code).toBe(201);
+          expect(body.ok).toBe(true);
+          // The pending-charge sentinel written at /sale must be deleted so the
+          // reconcile sweep does not flag this settled sale as an orphan.
+          expect(cache.del).toHaveBeenCalledWith('test:kiosk:pending-charge:KIOSK-MOTO-PEND-2');
+          done();
+        } catch (e) { done(e); }
+      });
+      handlers['/api/kiosk/sale/confirm'](req, res);
     });
 
     test('moto sale succeeds when isTerminalEnabled() is false but isEnabled() is true', function (done) {
