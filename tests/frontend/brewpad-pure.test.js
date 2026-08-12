@@ -228,6 +228,36 @@ describe('filterBatchesByReadyToBottle', function () {
 });
 
 // ---------------------------------------------------------------------------
+// Ready-to-Bottle filter wiring: structural source-text regression tests
+// ---------------------------------------------------------------------------
+// loadDashboard() must return the Promise.all thenable so the filter's
+// not-loaded path can chain .then() to apply the filter after the summary
+// loads. The IIFE-scoped click handler isn't DOM-drivable in this suite (no
+// dispatch precedent for BrewPad's delegated handlers) — a source-text
+// assertion is the established pattern (see brewpad-activation.test.js,
+// brewpad-bottled-refetch.test.js).
+describe('Ready-to-Bottle filter wiring (structural)', function () {
+  var fs = require('fs');
+  var path = require('path');
+  var src = fs.readFileSync(path.join(__dirname, '../../js/brewpad.js'), 'utf8');
+
+  test('loadDashboard() returns the Promise.all thenable', function () {
+    var idx = src.indexOf('function loadDashboard()');
+    expect(idx).not.toBe(-1);
+    var window = src.slice(idx, idx + 500);
+    expect(window.indexOf('return Promise')).not.toBe(-1);
+  });
+
+  test("readyToBottle filter click handler chains loadDashboard().then( on the not-loaded path", function () {
+    var idx = src.indexOf("_batchStatusFilter === 'readyToBottle'");
+    expect(idx).not.toBe(-1);
+    var window = src.slice(idx, idx + 800);
+    expect(window.indexOf('loadDashboard().then(')).not.toBe(-1);
+    expect(window.indexOf('filterBatchesByReadyToBottle(')).not.toBe(-1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // calcAbv
 // ---------------------------------------------------------------------------
 describe('calcAbv', function () {
