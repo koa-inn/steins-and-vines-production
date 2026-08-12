@@ -63,6 +63,7 @@ var KIOSK_ROUTES = [
   '/api/kiosk/salesorder/:id', // documentation only — matched via prefix below
   '/api/kiosk/verify-pin',
   '/api/kiosk/client-error', // 57-01: no-side-effect telemetry sink — returns 204 only, never returns data; a leaked device token can at most write scrubbed error text
+  '/api/kiosk/telemetry', // 68-01: no-side-effect stage-timing/latency sink — mirrors client-error's threat posture (returns 204 only, bounded numeric+string payload)
   '/api/pos/cancel',
   '/api/pos/status',
   '/api/contacts/search',

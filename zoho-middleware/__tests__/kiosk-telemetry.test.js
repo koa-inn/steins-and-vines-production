@@ -145,8 +145,9 @@ function getPosHandlers() {
 }
 
 function mockRes() {
-  var r = { json: jest.fn(), status: jest.fn(), headersSent: false };
+  var r = { json: jest.fn(), status: jest.fn(), end: jest.fn(), headersSent: false };
   r.status.mockReturnValue(r);
+  r.end.mockReturnValue(r);
   return r;
 }
 
