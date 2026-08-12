@@ -1001,6 +1001,16 @@ Plans:
 - [x] 67-01-PLAN.md — Middleware (wave 1, deploy first): remove computeTax silent 5% guess (fail-closed 400 naming the item) + pre-charge assertion (client_grand_total vs server grandTotal, ±$0.01) + update 2 pinned 5%-fallback tests + new assertion/compound-tax tests
 - [x] 67-02-PLAN.md — Frontend (wave 2, deploy after middleware): remove client 5% fallback + flag-and-block missing-tax item by name + reconcile kioskItemTax + send client_grand_total/client_tax_total + cart-lifecycle catalog refresh + rebuild kiosk-core.min.js + frontend tests
 - [x] 67-03-PLAN.md — Live verification (wave 3, checkpoint): real compound-tax kiosk sale proves quote == charge == Zoho invoice; assertion rejects a divergent total
+### Phase 68: Kiosk terminal-push latency + cancel double-charge safety — instrument the sale pipeline, guard the cancel/orphan window
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 67
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 68 to break down)
+
 ---
 
 ### Phase 46: Auth Re-Architecture (CRITICAL — split from Phase 45)
