@@ -3390,6 +3390,20 @@ function bpScaleIngredients(list, factor) {
     }
   }
 
+  // refreshReadyToBottleFilterView — after a task write + loadDashboard() refetch,
+  // keep the batch-view Ready-to-Bottle filter live WITHOUT a page reload: if that
+  // filter is the active one and the batch list is on screen, re-derive from the
+  // freshly-refetched _dashSummary.readyToBottle and re-render. No-op otherwise
+  // (switchTab re-derives on next entry, since _allBatchesData is preserved). This
+  // is what lets a completed bottling task drop the batch from BOTH the dashboard
+  // Ready-to-Bottle card and the batch-view filter list at once (WR-01 invariant).
+  function refreshReadyToBottleFilterView() {
+    if (_activeTab === 'batches' && _batchStatusFilter === 'readyToBottle') {
+      applyBatchFilter();
+      renderBatchList();
+    }
+  }
+
   function loadBatches() {
     // If eager-loaded cache is fresh, derive filtered list client-side (instant)
     var now = Date.now();
@@ -8210,12 +8224,14 @@ function bpScaleIngredients(list, factor) {
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
               // Bust the task's batch detail snapshot using task.batch_id (not _selectedBatchId)
-              // so that re-opening the batch shows the updated task state (#20). listAffecting:
-              // true also resets _dashLoadTime so the loadDashboard() refetch below is not
-              // treated as already-fresh (#2 mark-bottled staleness fix — a completed task
-              // changes readyToBottle, so this write is dashboard-affecting).
-              if (task && task.batch_id) afterBatchWrite(task.batch_id, { listAffecting: true });
-              loadDashboard();
+              // so that re-opening the batch shows the updated task state (#20). Use
+              // listAffecting:false: readyToBottle freshness comes from loadDashboard()
+              // refetching _dashSummary, NOT from clearing _allBatchesData — clearing it
+              // would blank the dashboard stat cards + month chart until the user visits
+              // the Batches tab (WR-01). loadDashboard() then keeps the batch-view
+              // readyToBottle filter live if it's the active view.
+              if (task && task.batch_id) afterBatchWrite(task.batch_id, { listAffecting: false });
+              loadDashboard().then(refreshReadyToBottleFilterView);
               var titleLower = task ? (task.title || '').toLowerCase() : '';
               var isVesselChange = checked && task && (
                 String(task.is_transfer).toUpperCase() === 'TRUE' ||
@@ -8393,11 +8409,12 @@ function bpScaleIngredients(list, factor) {
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
               // Bust the task's batch detail snapshot using task.batch_id (not _selectedBatchId)
-              // so that re-opening the batch shows the updated task state (#21). listAffecting:
-              // true also resets _dashLoadTime so a later switch to the dashboard tab is correct,
-              // and loadDashboard() refetches now (#2 mark-bottled staleness fix).
-              if (task && task.batch_id) afterBatchWrite(task.batch_id, { listAffecting: true });
-              loadDashboard();
+              // so that re-opening the batch shows the updated task state (#21). Use
+              // listAffecting:false so the dashboard stat cards/chart aren't blanked (WR-01);
+              // loadDashboard() refetches _dashSummary for readyToBottle freshness and keeps
+              // the batch-view readyToBottle filter live if it's the active view.
+              if (task && task.batch_id) afterBatchWrite(task.batch_id, { listAffecting: false });
+              loadDashboard().then(refreshReadyToBottleFilterView);
               var titleLower2 = task ? (task.title || '').toLowerCase() : '';
               var isVesselChange2 = checked && task && (
                 String(task.is_transfer).toUpperCase() === 'TRUE' ||
@@ -8495,11 +8512,13 @@ function bpScaleIngredients(list, factor) {
                 row.setAttribute('data-save-state', 'saved');
                 setTimeout(function () { if (row) row.removeAttribute('data-save-state'); }, 1500);
               }
-              // Completing a task here also changes readyToBottle, so this write is
-              // dashboard-affecting: bust the snapshot/list/dash state and refetch
-              // (#2 mark-bottled staleness fix — this handler had no afterBatchWrite before).
-              if (_selectedBatchId) afterBatchWrite(_selectedBatchId, { listAffecting: true, refreshOpenDetail: true });
-              loadDashboard();
+              // Completing a task here also changes readyToBottle: refetch the dashboard
+              // for freshness and refresh the open detail pane. Use listAffecting:false so
+              // the dashboard stat cards/chart aren't blanked (WR-01) — freshness comes
+              // from loadDashboard() refetching _dashSummary, not from clearing
+              // _allBatchesData (#2; this handler had no afterBatchWrite before).
+              if (_selectedBatchId) afterBatchWrite(_selectedBatchId, { listAffecting: false, refreshOpenDetail: true });
+              loadDashboard().then(refreshReadyToBottleFilterView);
             })
             .catch(function () {
               cb.checked = !checked;
