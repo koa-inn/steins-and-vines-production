@@ -93,3 +93,7 @@ None - no external service configuration required. Pure frontend change; no Apps
 ---
 *Phase: 69-brewpad-batch-view-ux-mark-bottled-reflects-without-refresh-*
 *Completed: 2026-08-12*
+
+## Self-Check: PASSED
+
+All created files verified present on disk; all four task/summary commit hashes (ecc00b8a, 088aef6c, cd01fead, bd6a12a9) verified present in git log.
