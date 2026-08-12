@@ -20,7 +20,16 @@ findings:
   warning: 3
   info: 2
   total: 7
-status: issues_found
+status: fixes_applied
+fix_outcomes:
+  fixed_at: 2026-08-12
+  CR-01: fixed
+  CR-02: fixed
+  WR-01: deferred
+  WR-02: fixed
+  WR-03: fixed
+  IN-01: skipped
+  IN-02: skipped
 ---
 
 # Phase 68: Code Review Report
@@ -28,7 +37,7 @@ status: issues_found
 **Reviewed:** 2026-08-12
 **Depth:** standard
 **Files Reviewed:** 12
-**Status:** issues_found
+**Status:** fixes_applied (CR-01, CR-02, WR-02, WR-03 fixed; WR-01 deferred; IN-01/IN-02 skipped)
 
 ## Summary
 
@@ -54,6 +63,18 @@ void-*success* path, so neither defect is caught by tests.
 ## Critical Issues
 
 ### CR-01: Cancelled-approved charge is orphaned (money taken, no invoice) when the void fails
+
+> **OUTCOME: FIXED** (commit `94fc80a5`). `moneyPath.voidWithTimeout` now resolves a
+> discriminated result `{ ok, reason }` (backward-compatible — every existing caller
+> ignores the resolved value; parameter signature unchanged). `voidCancelledApprovedCharge`
+> deletes the `KIOSK_PENDING_CHARGE`/cancelled records and logs the voided event ONLY on a
+> confirmed void (`ok:true`). On any non-ok outcome (declined/timeout/error) it RETAINS the
+> pending-charge record so `reconcile.js`'s 5-minute sweep can recover the orphan, and
+> persists an `sv:void-failure` sentinel (30-day TTL) for manual review — mirroring
+> `reconcile.js:274-290`. `voidWithTimeout` still fires its own CRITICAL alert (non-timeout)
+> / logs for manual reconciliation (timeout), so we do not double-alert. Regression tests
+> (e)/(f) in `pos-cancel-orphan.test.js` assert the pending record survives a failed and a
+> timed-out void and that a sentinel is written (RED-first).
 
 **File:** `zoho-middleware/routes/webhooks.js:294-306`
 **Issue:**
@@ -120,6 +141,12 @@ captures the outcome — the same idiom `pos.js:1626-1640` uses.)
 
 ### CR-02: `reconcile:txn` lock is released on the not-acquired path, defeating the double-void guard
 
+> **OUTCOME: FIXED** (commit `94fc80a5`). `releaseLock` is now nested INSIDE the
+> `if (acquired)` branch (mirroring `reconcile.js:205-317`), so the skip path
+> (`!acquired`) returns without releasing a lock it never held. Regression test (g) in
+> `pos-cancel-orphan.test.js` asserts a lock-held re-delivery does NOT call `releaseLock`
+> and does NOT void (RED-first).
+
 **File:** `zoho-middleware/routes/webhooks.js:280-318`
 **Issue:**
 The final `.then(releaseLock)` is chained on the **outer** promise, so it runs regardless
@@ -172,6 +199,19 @@ return cache.acquireLock(lockKey, 60).then(function (acquired) {
 
 ### WR-01: Webhook void path never checks whether the ref was already booked before voiding
 
+> **OUTCOME: DEFERRED** (out of locked phase scope). Adding a `hasMatchingZohoOrder` guard
+> requires either exporting that helper from `reconcile.js` — which plan 68-02 explicitly
+> locks as UNTOUCHED ("reconcile.js and its 600s backstop are UNCHANGED"; "reconcile.js's
+> inline void is a pre-existing reviewed exception, do not copy it for new code") — or
+> duplicating a Zoho settled-order lookup, introducing a second lookup path the plan's
+> threat model (T-68-02-4) deliberately avoids. The review itself classifies this as
+> "defense-in-depth rather than a live bug": the client disables cancel once `confirmSale`
+> runs and stops the poll timer on `cancelled`, so a ref that is both cancelled AND booked
+> is not reachable through the shipped surfaces. Recommend tracking as a follow-up that
+> either (a) exports `hasMatchingZohoOrder` from `reconcile.js` for reuse, or (b) gates the
+> cancel-void behind a settled-order check, as a scoped change with its own plan. Not fixed
+> here to keep the money-path change minimal and the locked reconcile.js contract intact.
+
 **File:** `zoho-middleware/routes/webhooks.js:242-256`
 **Issue:** On an APPROVED event for a cancelled ref, `voidCancelledApprovedCharge` voids
 unconditionally. It does not verify (via `hasMatchingZohoOrder`, as `reconcile.js:246`
@@ -188,6 +228,13 @@ guards.
 
 ### WR-02: Void-failure path of the new cancel-safety code is untested
 
+> **OUTCOME: FIXED** (commit `bb52b76c`, folded into the CR-01/CR-02 regression suite). The
+> shared `voidWithTimeout` mock now resolves the discriminated `{ ok: true }` contract, and
+> three new cases were added to `pos-cancel-orphan.test.js`: (e) a FAILED void retains the
+> pending-charge record + writes a void-failure sentinel; (f) a TIMED-OUT void does the
+> same; (g) a lock-held re-delivery does not release the lock or void. All three fail
+> against the pre-fix code (RED-first) and pass after CR-01/CR-02.
+
 **File:** `zoho-middleware/__tests__/pos-cancel-orphan.test.js:34-40, 132`
 **Issue:** The suite mocks `moneyPath.voidWithTimeout` as always-resolving
 (`mockResolvedValue()`), so every assertion exercises only the void-*success* path. The
@@ -198,6 +245,12 @@ non-ok would have caught CR-01.
 (not deleted) and a void-failure sentinel/alert is produced.
 
 ### WR-03: `emitStageTiming` is not defensively wrapped
+
+> **OUTCOME: FIXED** (commit `73253046`). The body of `emitStageTiming` is now wrapped in a
+> `try/catch` (optional catch binding, matching the codebase convention) that swallows any
+> throw, so observation-only telemetry can never reject and block the `res.status(202)`
+> response — matching the client beacons' try/catch contract. No behaviour change on the
+> happy path; existing telemetry tests remain green.
 
 **File:** `zoho-middleware/routes/pos.js:359-368, 787, 819`
 **Issue:** `emitStageTiming` is invoked on the success path immediately before
@@ -214,6 +267,10 @@ interfere with the money-path response, matching the client beacon's contract.
 
 ### IN-01: Cancelled-flag TTL equals the reconcile orphan-age threshold
 
+> **OUTCOME: SKIPPED** (Info; out of fix scope for this pass). No coverage gap — the review
+> confirms an APPROVED webhook landing just after 600s correctly falls through to the
+> reconcile path. Left as a documentation/robustness note for a future tuning pass.
+
 **File:** `zoho-middleware/routes/pos.js:35` (`KIOSK_CANCELLED_TTL = 600`) vs
 `zoho-middleware/lib/reconcile.js:70` (`MIN_ORPHAN_AGE_SECONDS = 600`)
 **Issue:** The fast-path cancelled flag expires (10 min) at almost exactly the moment the
@@ -225,6 +282,10 @@ fragile and undocumented. Consider making the flag TTL comfortably exceed
 backstop window.
 
 ### IN-02: `voidAmount` defaults to 0 silently when the pending record is missing
+
+> **OUTCOME: SKIPPED** (Info; out of fix scope for this pass). Harmless to the actual
+> reversal (Helcim voids by `transactionId`, not amount) as the review notes; the only
+> impact is a `$0` label in a failure alert. Cosmetic — deferred.
 
 **File:** `zoho-middleware/routes/webhooks.js:291`
 **Issue:** When the pending-charge record is absent/unreadable, the void proceeds with
