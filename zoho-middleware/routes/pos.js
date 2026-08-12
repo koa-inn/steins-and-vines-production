@@ -310,6 +310,11 @@ router.post('/api/kiosk/sale', function (req, res) {
     return res.status(503).json({ error: 'POS terminal not configured' });
   }
 
+  // 68-01: request-start stamp for per-stage timing telemetry (observation
+  // only — see emitStageTiming). Captured before the idempotency lock so the
+  // lock-acquired stage timing reflects real wall-time from request receipt.
+  var stageStart = Date.now();
+
   var body = req.body;
 
   // D-12: idempotency_key is required in production (fail-closed-in-prod pattern);
@@ -334,12 +339,29 @@ router.post('/api/kiosk/sale', function (req, res) {
           return res.status(409).json({ error: 'Sale already in progress — please wait and check your order before retrying' });
         }
         // status === 'acquired' — proceed
-        processSale(body, idempotencyKey, req, res);
+        emitStageTiming('lock_acquired', stageStart);
+        processSale(body, idempotencyKey, req, res, stageStart);
       });
   }
 
-  processSale(body, null, req, res);
+  processSale(body, null, req, res, stageStart);
 });
+
+// 68-01: emit a per-stage timing event on the existing eventLog channel — the
+// exact idiom already used for kiosk.total_mismatch (log.info THEN
+// eventLog.logEvent). Observation-only: never called from inside a
+// money-moving conditional, never changes control flow. NO PII (eventLog
+// zero-PII policy) — stage name + millisecond delta + optional bounded extras.
+function emitStageTiming(stage, stageStart, extra) {
+  var ms = Date.now() - stageStart;
+  var payload = { stage: stage, ms_since_start: ms };
+  if (extra && typeof extra === 'object') {
+    Object.keys(extra).forEach(function (k) { payload[k] = extra[k]; });
+  }
+  log.info('[pos/kiosk/sale] stage_timing stage=' + stage + ' ms_since_start=' + ms +
+    (extra && extra.cache ? ' cache=' + extra.cache : ''));
+  eventLog.logEvent('kiosk.sale_stage_timing', payload);
+}
 
 // Build an item_id -> catalog entry lookup from a kiosk products catalog array
 // (57-04: shared by both the initial catalogMap build and the post-rebuild
@@ -368,7 +390,7 @@ function findMissingCatalogItem(items, catalogMap) {
   return null;
 }
 
-function processSale(body, idempotencyKey, req, res) {
+function processSale(body, idempotencyKey, req, res, stageStart) {
   // Validate required fields
   if (!body || !Array.isArray(body.items) || body.items.length === 0) {
     return res.status(400).json({ error: 'Cart is empty' });
@@ -438,6 +460,7 @@ function processSale(body, idempotencyKey, req, res) {
           });
         }
         log.info('[pos/kiosk/sale] Auto-reconcile: catalog rebuild resolved stale-cache miss for ' + missingItemId);
+        emitStageTiming('catalog_read', stageStart, { cache: 'rebuild' });
         return continueSaleWithCatalog(rebuiltMap);
       }, function (rebuildErr) {
         log.error('[pos/kiosk/sale] catalog auto-reconcile rebuild failed: ' +
@@ -449,6 +472,7 @@ function processSale(body, idempotencyKey, req, res) {
       });
     }
 
+    emitStageTiming('catalog_read', stageStart, { cache: 'hit' });
     return continueSaleWithCatalog(catalogMap);
 
     function continueSaleWithCatalog(catalogMap) {
@@ -577,7 +601,7 @@ function processSale(body, idempotencyKey, req, res) {
         var grandTotal = Math.round((subtotal + taxTotal) * 100) / 100;
 
         processSaleWithPrices(body, idempotencyKey, req, res,
-          lineItems, subtotal, taxTotal, grandTotal);
+          lineItems, subtotal, taxTotal, grandTotal, stageStart);
       });
     }
   }).catch(function (cacheErr) {
@@ -587,7 +611,7 @@ function processSale(body, idempotencyKey, req, res) {
 }
 
 function processSaleWithPrices(body, idempotencyKey, req, res,
-  lineItems, subtotal, taxTotal, grandTotal) {
+  lineItems, subtotal, taxTotal, grandTotal, stageStart) {
 
   if (grandTotal <= 0) {
     return res.status(400).json({ error: 'Sale total must be greater than zero' });
@@ -635,6 +659,8 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
     }
   }
 
+  emitStageTiming('assertion_done', stageStart);
+
   // --- Gift card split-tender (Phase 44 / D-12 hardened in 45-07) ---
   // D-05: amount_applied is clamped to grandTotal server-side; client cannot over-apply.
   // D-03/R-03: tax is never recomputed — gift_amount subtracts only from post-tax grandTotal.
@@ -659,6 +685,7 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
   //   null                        — no lookup needed (no gift card or Apps Script not configured)
   var _gcAsUrl   = process.env.APPS_SCRIPT_URL;
   var _gcAsToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
+  var _gcLookupStart = Date.now(); // 68-01: only meaningful when a lookup actually runs below
   var gcRealBalanceLookup = Promise.resolve(null);
   if (gift_amount_submitted > 0 && gift_cert_number && _gcAsUrl && _gcAsToken) {
     gcRealBalanceLookup = Promise.resolve(
@@ -697,6 +724,10 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
         // non-prod: fail-open, use submitted amount
         log.warn('[pos/kiosk/sale] gift-card lookup unavailable (non-prod fail-open): cert=' + gift_cert_number);
       }
+      // 68-01: only emitted when a real Apps Script lookup ran (up to a
+      // 12s timeout) — the up-to-12s gc-lookup is one of the two prime
+      // latency suspects alongside the cold-cache catalog rebuild.
+      emitStageTiming('gc_lookup_done', stageStart, { gc_lookup_duration_ms: Date.now() - _gcLookupStart });
     }
     var gift_amount = gift_amount_submitted;
     if (gcLookup && gcLookup.state === 'ok' && gift_amount > gcLookup.balance) {
@@ -715,6 +746,7 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
     log.info('[pos/kiosk/sale] Pushing to terminal: total=$' + terminal_amount.toFixed(2) +
       ' ref=' + refNumber + ' items=' + lineItems.length +
       (gift_amount > 0 ? ' gift_card=$' + gift_amount.toFixed(2) : ''));
+    emitStageTiming('terminal_push_sent', stageStart);
 
     // D-12: derive Helcim terminal idempotency key deterministically from the client
     // idempotency_key so retries reuse the same Helcim key (no double terminal charge).
@@ -748,6 +780,7 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
           : Promise.resolve();
 
         return cacheWrite.then(function () {
+          emitStageTiming('response_202', stageStart);
           res.status(202).json(responseBody);
         });
       })
@@ -779,6 +812,7 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
       : Promise.resolve();
 
     gcCacheWrite.then(function () {
+      emitStageTiming('response_202', stageStart);
       res.status(202).json(gcOnlyResponseBody);
     });
   }
@@ -916,6 +950,44 @@ router.post('/api/kiosk/client-error', function (req, res) {
   log.warn('[pos/kiosk/client-error] ' + endpoint + ' status=' + httpStatus +
     ' auth=' + authState + (validatedItemId ? ' item_id=' + validatedItemId : '') +
     ' :: ' + message);
+
+  return res.status(204).end();
+});
+
+// 68-01: durable sink for the kiosk terminal-push-latency beacon
+// (_kcReportTerminalPushLatency, kiosk-core.js). Mirrors the /api/kiosk/
+// client-error sink immediately above — same no-side-effect, bounded,
+// hostile-body-input contract (this route accepts client-authored numbers
+// from the shop-floor iPad) — but is a NEW, separate route/event so the
+// pinned 6-key /api/kiosk/client-error beacon shape (kiosk-client-error-
+// beacon.test.js) is never touched. Correlates the client's measured
+// wall-time (terminal-prompt-shown → 202) with the server's own
+// kiosk.sale_stage_timing events so a live slow case names the dominant
+// stage instead of guessing. Registered in the same KIOSK_ROUTES allowlist
+// + rate limiter class as client-error (server.js). Threats T-68-01-1/2.
+router.post('/api/kiosk/telemetry', function (req, res) {
+  var body = req.body || {};
+  var stage = scrubClientErrorText(body.stage, 40);
+  var referenceNumber = scrubClientErrorText(body.reference_number, 64);
+  // Bounded validation: clamp to a sane 0-5min window; a non-numeric/
+  // non-finite duration is ignored (no event emitted) without throwing —
+  // never trust a client-supplied number unclamped into a log/metric.
+  var durationMs = (typeof body.duration_ms === 'number' && isFinite(body.duration_ms))
+    ? Math.max(0, Math.min(body.duration_ms, 300000))
+    : null;
+
+  if (durationMs === null) {
+    return res.status(204).end();
+  }
+
+  log.info('[pos/kiosk/telemetry] stage=' + stage + ' duration_ms=' + durationMs +
+    ' ref=' + referenceNumber);
+
+  eventLog.logEvent('kiosk.terminal_push_latency', {
+    stage: stage,
+    duration_ms: durationMs,
+    reference_number: referenceNumber
+  });
 
   return res.status(204).end();
 });

@@ -532,10 +532,24 @@ var clientErrorLimiter = rateLimit({
   message: { error: 'Too many client-error reports, slow down' }
 });
 
+// 68-01: same bounded, no-side-effect telemetry class as clientErrorLimiter —
+// a separate bucket so the terminal-push-latency beacon can never crowd out
+// error reporting (or vice versa). T-68-01-2.
+var telemetryLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: makeRedisStore(60 * 1000, 'telemetry'),
+  skip: redisUnavailableSkip,
+  message: { error: 'Too many telemetry reports, slow down' }
+});
+
 app.use('/api', apiLimiter);
 app.use('/api', requireAllowedReferer);
 app.use('/api/kiosk/verify-pin', pinLimiter);
 app.use('/api/kiosk/client-error', clientErrorLimiter);
+app.use('/api/kiosk/telemetry', telemetryLimiter);
 app.use('/api/payment', paymentLimiter);
 app.use('/api/checkout', paymentLimiter);
 app.use('/api/pos/sale', paymentLimiter);
