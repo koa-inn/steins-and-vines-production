@@ -403,7 +403,15 @@ function verifyWebhookSignature(webhookId, timestamp, rawBody, signature) {
 }
 
 function cancelTerminal() {
-  log.info('[helcim] Cancel requested — cancellation must happen on the physical terminal');
+  // 68-02: Helcim has no documented in-flight device-cancel distinct from
+  // reverse/void, and no txnId exists yet at cancel time to void against.
+  // This is bookkeeping ONLY — the actual cancel-safety net is the
+  // KIOSK_CANCELLED_PREFIX flag (routes/pos.js /api/pos/cancel) checked by
+  // the Helcim webhook's APPROVED-result handler, which voids via
+  // moneyPath.voidWithTimeout if a charge lands after this call. `ok: false`
+  // reflects that the DEVICE itself was not remotely stopped — callers must
+  // not infer the reader is idle from this response.
+  log.info('[helcim] Cancel requested — device is not remotely stoppable; safety net is the server-side cancelled-flag + webhook void, not this call');
   return Promise.resolve({ ok: false, device_cancel_required: true });
 }
 
