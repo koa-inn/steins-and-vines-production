@@ -2072,7 +2072,7 @@ function bpScaleIngredients(list, factor) {
       if (_selectedBatchId) closeBatchDetail();   // close any open detail pane
       if (_allBatchesData.length > 0) {
         // Derive filtered list from cache — instant
-        _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
+        applyBatchFilter();
         _batchesLoaded = true;
         renderBatchList();
       } else {
@@ -3366,11 +3366,35 @@ function bpScaleIngredients(list, factor) {
 
   // ===== Batches =====
 
+  // readyToBottleRows — the intersection of the loaded batch list with the
+  // SERVER-computed _dashSummary.readyToBottle set (adminApi.gs:1847-1883). This is
+  // the single definition used by BOTH the batch-view Ready-to-Bottle filter rows
+  // AND its count chip (so they can never diverge — WR-03).
+  function readyToBottleRows() {
+    return filterBatchesByReadyToBottle(
+      _allBatchesData, (_dashSummary && _dashSummary.readyToBottle) || []);
+  }
+
+  // applyBatchFilter — the ONE place that derives _batchesData from _allBatchesData
+  // for the active filter. 'readyToBottle' is NOT a batch status: it must intersect
+  // the _dashSummary.readyToBottle set rather than fall through to filterBatchesByStatus
+  // (which would status-match the literal 'readyToBottle' and always return []). Every
+  // re-derive site (switchTab, loadBatches fresh + post-fetch, the filter-button click
+  // handler) routes through here so the Ready-to-Bottle filter survives tab switches and
+  // post-write reloads (CR-01).
+  function applyBatchFilter() {
+    if (_batchStatusFilter === 'readyToBottle') {
+      _batchesData = readyToBottleRows();
+    } else {
+      _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
+    }
+  }
+
   function loadBatches() {
     // If eager-loaded cache is fresh, derive filtered list client-side (instant)
     var now = Date.now();
     if (_allBatchesData.length > 0 && now - _batchesLoadTime < CACHE_TTL_LONG) {
-      _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
+      applyBatchFilter();
       _batchesLoaded = true;
       renderBatchList();
       return;
@@ -3393,7 +3417,7 @@ function bpScaleIngredients(list, factor) {
     adminApiGet('get_batches', { status: 'all' })
       .then(function (r) {
         _allBatchesData = (r.data && r.data.batches) || [];
-        _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
+        applyBatchFilter();
         _batchesLoaded = true;
         _batchesLoading = false;
         _batchDetailPreloaded = false; // allow top-3 preload on fresh batch list
@@ -8269,20 +8293,16 @@ function bpScaleIngredients(list, factor) {
         var filterBtn = e.target.closest('.bp-filter-btn');
         if (filterBtn) {
           _batchStatusFilter = filterBtn.getAttribute('data-status');
-          if (_batchStatusFilter === 'readyToBottle') {
-            if (_dashSummary) {
-              _batchesData = filterBatchesByReadyToBottle(_allBatchesData, (_dashSummary && _dashSummary.readyToBottle) || []);
+          if (_batchStatusFilter === 'readyToBottle' && !_dashSummary) {
+            // _dashSummary not loaded yet — refetch first, then apply the filter once
+            // the summary resolves (loadDashboard fails soft on total failure). All
+            // filter application routes through applyBatchFilter (CR-01).
+            loadDashboard().then(function () {
+              applyBatchFilter();
               renderBatchList();
-            } else {
-              // _dashSummary not loaded yet — refetch first, then apply the filter
-              // once the summary resolves (loadDashboard fails soft on total failure).
-              loadDashboard().then(function () {
-                _batchesData = filterBatchesByReadyToBottle(_allBatchesData, (_dashSummary && _dashSummary.readyToBottle) || []);
-                renderBatchList();
-              });
-            }
+            });
           } else {
-            _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
+            applyBatchFilter();
             renderBatchList();
           }
           return;
@@ -8940,6 +8960,9 @@ function bpScaleIngredients(list, factor) {
       },
       // Plan 36-22: cache-busting helper — exported from IIFE so it can access state vars
       afterBatchWrite: afterBatchWrite,
+      // Phase 69: filter-derivation seam — exported so behavioral tests can drive the
+      // readyToBottle re-derive path (CR-01) without a DOM change-event.
+      applyBatchFilter: applyBatchFilter,
       sendBottlingInviteForBatch: sendBottlingInviteForBatch,
       // Test-only: render the batch-detail pane (bottling-invite send-tracking UI).
       _renderBatchDetailForTest: renderBatchDetail,
@@ -8951,7 +8974,11 @@ function bpScaleIngredients(list, factor) {
           _eagerLoadTime: _eagerLoadTime,
           _dashLoadTime: _dashLoadTime,
           _preloadBatchId: _preloadBatchId,
-          _preloadPromise: _preloadPromise
+          _preloadPromise: _preloadPromise,
+          // Phase 69: batch-view filter state so tests can assert re-derive behavior
+          _batchStatusFilter: _batchStatusFilter,
+          _batchesData: _batchesData,
+          _dashSummary: _dashSummary
         };
       },
       _setStateForTest: function (patch) {
@@ -8961,6 +8988,10 @@ function bpScaleIngredients(list, factor) {
         if ('_dashLoadTime'   in patch) _dashLoadTime   = patch._dashLoadTime;
         if ('_preloadBatchId' in patch) _preloadBatchId = patch._preloadBatchId;
         if ('_preloadPromise' in patch) _preloadPromise = patch._preloadPromise;
+        // Phase 69: batch-view filter state
+        if ('_batchStatusFilter' in patch) _batchStatusFilter = patch._batchStatusFilter;
+        if ('_batchesData'       in patch) _batchesData       = patch._batchesData;
+        if ('_dashSummary'       in patch) _dashSummary       = patch._dashSummary;
       }
     });
   }
