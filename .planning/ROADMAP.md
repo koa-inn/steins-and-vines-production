@@ -1022,6 +1022,16 @@ Plans:
 - [x] 69-01-PLAN.md — Mark-bottled freshness: refetch dashboard (loadDashboard) after task writes in all three checkbox handlers
 - [x] 69-02-PLAN.md — Ready-to-Bottle filter on the batch view, reusing _dashSummary.readyToBottle as the source of truth
 
+### Phase 70: Kiosk tender types — cash tender (change-due, gift-card split) and phone-order card via HelcimPay hosted iframe (no PAN in our code)
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 69
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 70 to break down)
+
 ---
 
 ### Phase 46: Auth Re-Architecture (CRITICAL — split from Phase 45)
