@@ -1016,10 +1016,10 @@ Plans:
 **Goal:** Completing the Bottling/Packaging task on a batch removes it from Ready-to-Bottle immediately with no page reload, and the batch view has a first-class "Ready to Bottle (N)" filter matching the dashboard's server-computed set. Client-only (no Apps Script change — the server already busts the `gbds` dashboard cache on every task write).
 **Requirements**: None (owner-ticket UX phase; 69-CONTEXT.md decisions are the requirement source). Source tickets: brewpad-bottled-status-stale-ui, brewpad-ready-to-bottle-filter.
 **Depends on:** Phase 68
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 69-01-PLAN.md — Mark-bottled freshness: refetch dashboard (loadDashboard) after task writes in all three checkbox handlers
+- [x] 69-01-PLAN.md — Mark-bottled freshness: refetch dashboard (loadDashboard) after task writes in all three checkbox handlers
 - [ ] 69-02-PLAN.md — Ready-to-Bottle filter on the batch view, reusing _dashSummary.readyToBottle as the source of truth
 
 ---
