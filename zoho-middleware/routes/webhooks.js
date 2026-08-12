@@ -281,8 +281,13 @@ function voidCancelledApprovedCharge(transactionId, invoiceNumber) {
   var lockKey = 'reconcile:txn:' + transactionId;
   return cache.acquireLock(lockKey, 60).then(function (acquired) {
     if (!acquired) {
+      // CR-02: another path (the in-flight void, or a concurrent reconcile)
+      // holds the lock. Skip WITHOUT releasing — releasing here would free the
+      // lock the holder owns, letting a later Helcim re-delivery re-acquire and
+      // issue a second void (spurious CRITICAL void-failure alert). The release
+      // is nested inside the acquired branch below, mirroring reconcile.js.
       log.info('[webhook/helcim] cancel-void: duplicate delivery for txn=' + transactionId +
-        ' — another path holds the reconcile lock; skipping');
+        ' — another path holds the reconcile lock; skipping (not releasing)');
       return;
     }
     return cache.get(C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + invoiceNumber)
@@ -291,29 +296,57 @@ function voidCancelledApprovedCharge(transactionId, invoiceNumber) {
         var voidAmount = (pendingCtx && typeof pendingCtx.amount === 'number') ? pendingCtx.amount : 0;
         log.warn('[webhook/helcim] APPROVED result for cancelled ref — voiding: txn=' +
           transactionId + ' invoice=' + invoiceNumber + ' amount=$' + voidAmount);
-        return moneyPath.voidWithTimeout(helcimLib, transactionId, voidAmount, { reqId: invoiceNumber })
-          .then(function () {
-            eventLog.logEvent('kiosk.cancel_after_push_voided', {
-              txnId: transactionId,
-              invoiceNumber: invoiceNumber,
-              amount: voidAmount
-            });
-            return Promise.all([
-              cache.del(C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + invoiceNumber).catch(function () {}),
-              cache.del(C.CACHE_KEYS.KIOSK_CANCELLED_PREFIX + invoiceNumber).catch(function () {})
-            ]);
+        return moneyPath.voidWithTimeout(helcimLib, transactionId, voidAmount, {
+          eventLog: eventLog,
+          reqId: invoiceNumber
+        }).then(function (voidResult) {
+          // CR-01: voidWithTimeout ALWAYS resolves — success, decline, timeout,
+          // or error. Only a CONFIRMED void (ok:true) may delete the recovery
+          // records. On any non-ok outcome the charge was NOT reversed, so we
+          // MUST retain the KIOSK_PENDING_CHARGE record (reconcile.js's 5-minute
+          // sweep is the backstop that will retry it) and persist a
+          // void-failure sentinel for manual review — mirroring
+          // reconcile.js:274-290. voidWithTimeout has already fired the CRITICAL
+          // staff alert (non-timeout error) or logged for manual reconciliation
+          // (timeout); we do not double-alert here.
+          if (!voidResult || !voidResult.ok) {
+            var reason = (voidResult && voidResult.reason) || 'unknown';
+            log.error('[webhook/helcim] cancel-void FAILED (' + reason + ') for txn=' +
+              transactionId + ' invoice=' + invoiceNumber +
+              ' — retaining pending record for the reconcile sweep; flagging for manual review');
+            return cache.set('sv:void-failure:' + Date.now(), {
+              txn_id: transactionId,
+              invoice_number: invoiceNumber,
+              amount: voidAmount,
+              reference_number: (pendingCtx && pendingCtx.reference_number) || invoiceNumber,
+              error: 'cancel-after-push void did not confirm (' + reason + ')',
+              needs_manual_review: true,
+              created_at: new Date().toISOString()
+            }, 60 * 60 * 24 * 30).catch(function () {});
+          }
+          // Confirmed void — safe to record success and clear the recovery records.
+          eventLog.logEvent('kiosk.cancel_after_push_voided', {
+            txnId: transactionId,
+            invoiceNumber: invoiceNumber,
+            amount: voidAmount
           });
+          return Promise.all([
+            cache.del(C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + invoiceNumber).catch(function () {}),
+            cache.del(C.CACHE_KEYS.KIOSK_CANCELLED_PREFIX + invoiceNumber).catch(function () {})
+          ]);
+        });
+      })
+      .catch(function (err) {
+        log.warn('[webhook/helcim] cancel-void error for txn=' + transactionId + ': ' + err.message);
+        captureExceptionSafe(err, {
+          level: 'error',
+          tags: { txnId: transactionId, invoiceNumber: invoiceNumber || null }
+        });
+      })
+      .then(function () {
+        // CR-02: release ONLY on the path that acquired the lock.
+        return cache.releaseLock(lockKey).catch(function () {});
       });
-  })
-  .catch(function (err) {
-    log.warn('[webhook/helcim] cancel-void error for txn=' + transactionId + ': ' + err.message);
-    captureExceptionSafe(err, {
-      level: 'error',
-      tags: { txnId: transactionId, invoiceNumber: invoiceNumber || null }
-    });
-  })
-  .then(function () {
-    return cache.releaseLock(lockKey).catch(function () {});
   });
 }
 

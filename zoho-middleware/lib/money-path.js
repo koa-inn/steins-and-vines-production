@@ -186,7 +186,14 @@ function rejectWithVoid(res, body, status, errorMsg, deps) {
  * @param {string} token      - Helcim transactionId to void
  * @param {number} amount     - Order amount (for alert payload)
  * @param {object} [opts]     - { withTimeout?, mailer?, eventLog?, timeoutMs? }
- * @returns {Promise<void>}
+ * @returns {Promise<{ok: boolean, reason?: string}>}
+ *   Always resolves (never rejects). `ok` is true ONLY when the void was
+ *   confirmed successful. On a declined result, timeout, or error it resolves
+ *   `{ ok: false, reason }` (reason: 'declined' | 'timeout' | 'error'). This
+ *   lets callers that must not lose an orphan (e.g. the webhook cancel-void
+ *   path) preserve their recovery record when the void did not confirm. All
+ *   existing callers ignore the resolved value, so this enrichment is
+ *   backward-compatible (the parameter signature is unchanged).
  */
 function voidWithTimeout(helcimLib, token, amount, opts) {
   var deps = opts || {};
@@ -203,13 +210,16 @@ function voidWithTimeout(helcimLib, token, amount, opts) {
           txnId: token,
           voidResult: 'declined'
         });
-      } else {
-        log.info('[money-path] Voided txn=' + token);
-        eventLogDep.logEvent('checkout.void_fired', {
-          txnId: token,
-          voidResult: 'success'
-        });
+        // A declined reversal means the charge was NOT reversed — report failure
+        // so callers do not treat this as a confirmed void.
+        return { ok: false, reason: 'declined' };
       }
+      log.info('[money-path] Voided txn=' + token);
+      eventLogDep.logEvent('checkout.void_fired', {
+        txnId: token,
+        voidResult: 'success'
+      });
+      return { ok: true };
     })
     .catch(function (voidErr) {
       if (voidErr && voidErr.message && voidErr.message.indexOf('Timeout') === 0) {
@@ -220,27 +230,30 @@ function voidWithTimeout(helcimLib, token, amount, opts) {
           level: 'error',
           tags: { reqId: deps.reqId || null, txnId: token, phase: 'void_failed' }
         });
-      } else {
-        // Non-timeout failure — CRITICAL: alert staff immediately
-        var voidFailTs = new Date().toISOString();
-        log.error('[money-path] CRITICAL: Void failed for txn=' + token + ': ' + voidErr.message);
-        captureExceptionSafe(voidErr, {
-          level: 'error',
-          tags: { reqId: deps.reqId || null, txnId: token, phase: 'void_failed' }
-        });
-        eventLogDep.logEvent('checkout.void_failed', {
-          txnId: token,
-          voidError: voidErr.message
-        });
-        return mailerDep.sendVoidFailureAlert({
-          txnId: token,
-          amount: amount,
-          error: voidErr.message,
-          timestamp: voidFailTs
-        }).catch(function (mailErr) {
-          log.error('[money-path] Void failure alert email failed: ' + mailErr.message);
-        });
+        return { ok: false, reason: 'timeout' };
       }
+      // Non-timeout failure — CRITICAL: alert staff immediately
+      var voidFailTs = new Date().toISOString();
+      log.error('[money-path] CRITICAL: Void failed for txn=' + token + ': ' + voidErr.message);
+      captureExceptionSafe(voidErr, {
+        level: 'error',
+        tags: { reqId: deps.reqId || null, txnId: token, phase: 'void_failed' }
+      });
+      eventLogDep.logEvent('checkout.void_failed', {
+        txnId: token,
+        voidError: voidErr.message
+      });
+      return mailerDep.sendVoidFailureAlert({
+        txnId: token,
+        amount: amount,
+        error: voidErr.message,
+        timestamp: voidFailTs
+      }).then(function () {
+        return { ok: false, reason: 'error' };
+      }).catch(function (mailErr) {
+        log.error('[money-path] Void failure alert email failed: ' + mailErr.message);
+        return { ok: false, reason: 'error' };
+      });
     });
 }
 
