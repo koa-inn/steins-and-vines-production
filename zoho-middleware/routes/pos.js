@@ -325,6 +325,14 @@ router.post('/api/kiosk/sale', function (req, res) {
     return res.status(503).json({ error: 'POS terminal not configured' });
   }
 
+  // 70-02: MOTO (phone-order, card-not-present via HelcimPay) only needs the
+  // Helcim API token — NOT the physical terminal's device code. isEnabled()
+  // (API-token-only) is the correct capability gate here, not
+  // isTerminalEnabled() (API token AND device code).
+  if (tender === 'moto' && !helcimLib.isEnabled()) {
+    return res.status(503).json({ error: 'Card payments not configured' });
+  }
+
   // 68-01: request-start stamp for per-stage timing telemetry (observation
   // only — see emitStageTiming). Captured before the idempotency lock so the
   // lock-acquired stage timing reflects real wall-time from request receipt.
@@ -787,6 +795,44 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
       emitStageTiming('response_202', stageStart);
       res.status(202).json(cashResponseBody);
     });
+  } else if (body.tender === 'moto') {
+    // 70-02: MOTO (phone-order, card-not-present) — initialize a HelcimPay.js
+    // hosted-iframe session IN-PROCESS (helcimLib already required above; no
+    // extra HTTP hop through routes/payments.js) instead of pushing to the
+    // physical terminal. No KIOSK_PENDING_CHARGE_PREFIX write (Pitfall 3 —
+    // that mechanism exists solely for the terminal's async webhook-approval
+    // race; HelcimPay resolves synchronously via postMessage in the SAME
+    // browser tab that immediately calls /confirm — nothing to reconcile).
+    log.info('[pos/kiosk/sale] MOTO (phone-order) tender — initializing HelcimPay. ref=' + refNumber +
+      (gift_amount > 0 ? ' gift_card=$' + gift_amount.toFixed(2) : ''));
+
+    return helcimLib.initializeCheckout(terminal_amount, 'CAD')
+      .then(function (checkoutResult) {
+        var motoResponseBody = {
+          pending: false,
+          moto: true,
+          checkout_token: checkoutResult.checkoutToken,
+          reference: refNumber
+        };
+
+        var motoCacheWrite = idempotencyKey
+          ? cache.set(idempotencyKey, motoResponseBody, IDEMPOTENCY_KEY_TTL).catch(function () {})
+          : Promise.resolve();
+
+        return motoCacheWrite.then(function () {
+          emitStageTiming('response_202', stageStart);
+          res.status(202).json(motoResponseBody);
+        });
+      })
+      .catch(function (motoInitErr) {
+        log.error('[pos/kiosk/sale] MOTO HelcimPay initialize failed: ' + motoInitErr.message);
+        // No charge was made — safe to release the lock for an immediate retry
+        // (mirrors the terminal-push-failure catch below).
+        if (idempotencyKey) {
+          cache.releaseLock(idempotencyKey).catch(function () {});
+        }
+        res.status(502).json({ error: 'Unable to start phone-order payment — please try again' });
+      });
   } else if (terminal_amount > 0) {
     log.info('[pos/kiosk/sale] Pushing to terminal: total=$' + terminal_amount.toFixed(2) +
       ' ref=' + refNumber + ' items=' + lineItems.length +
@@ -1409,7 +1455,50 @@ function runConfirm(body, confirmIdemKey, req, res) {
         })
       : Promise.resolve();
 
-    return verifyManualCharge.then(function () {
+    // 70-02 (MONEY-01/H2 port): MOTO captured-amount verify. A HelcimPay
+    // transaction_id arrives via CLIENT-side postMessage — it is the client's
+    // word, NOT yet server-verified. Crucially, a real (non-'manual-confirm')
+    // body.transaction_id makes isManualConfirm FALSE above, so
+    // verifyManualCharge alone resolves immediately WITHOUT checking the
+    // capture for MOTO — trusting body.transaction_id here would be a
+    // phantom-revenue bug by construction (see RESEARCH.md Pitfall 1 /
+    // Anti-Patterns). verifyMotoCharge is therefore a SEPARATE, unconditional
+    // gate for tender:'moto', combined with verifyManualCharge via
+    // Promise.all below (WR-2: MUST resolve before any zohoPost('/invoices')
+    // call). Same tagged-error idiom as __manualVerify/__taxUnresolved, so a
+    // failure flows through the EXISTING outer .catch's void-on-failure block
+    // — no new void path is introduced (audit H5/L18).
+    var MOTO_CAPTURED_AMOUNT_TOLERANCE = 0.01;
+    var verifyMotoCharge = (body.tender === 'moto')
+      ? Promise.resolve().then(function () {
+          if (!body.transaction_id) {
+            var mNoTxnErr = new Error('MOTO confirm missing transaction_id');
+            mNoTxnErr.__motoVerifyFailed = true;
+            throw mNoTxnErr;
+          }
+          return helcimLib.getCardTransactionById(body.transaction_id);
+        })
+        .then(function (txn) {
+          var captured = parseFloat(txn && txn.amount);
+          if (!isFinite(captured) || captured <= 0 || captured < terminalApplied - MOTO_CAPTURED_AMOUNT_TOLERANCE) {
+            log.error('[pos/kiosk/sale/confirm] MOTO captured amount mismatch — txn=' + body.transaction_id +
+              ' captured=' + captured + ' recorded=' + terminalApplied);
+            var mErr = new Error('MOTO captured amount could not be verified against the recorded total');
+            mErr.__motoVerifyFailed = true;
+            throw mErr;
+          }
+        })
+        .catch(function (motoErr) {
+          if (motoErr && motoErr.__motoVerifyFailed) throw motoErr;
+          log.error('[pos/kiosk/sale/confirm] MOTO captured-amount readback failed for txn=' +
+            body.transaction_id + ': ' + motoErr.message);
+          var mReadErr = new Error('MOTO captured amount could not be verified against the recorded total');
+          mReadErr.__motoVerifyFailed = true;
+          throw mReadErr;
+        })
+      : Promise.resolve();
+
+    return Promise.all([verifyManualCharge, verifyMotoCharge]).then(function () {
     return zohoPost('/invoices', invoicePayload).then(function (invoiceData) {
       var invoice = invoiceData.invoice || {};
       var invoiceId = invoice.invoice_id || '';
@@ -1440,13 +1529,21 @@ function runConfirm(body, confirmIdemKey, req, res) {
               });
             }
             if (terminalApplied > 0) {
+              // 70-02: MOTO books the SAME payment_mode:'creditcard' shape as the
+              // terminal (Zoho's payment_mode enum has no CNP-specific value — see
+              // RESEARCH.md A3/Q4) — only the notes text distinguishes a phone-order
+              // (card-not-present) sale for dispute traceability. reference_number
+              // is txnId, the VERIFIED HelcimPay transaction id (verifyMotoCharge
+              // above already confirmed the captured amount before this runs).
               return zohoPost('/customerpayments', {
                 payment_mode: 'creditcard',
                 amount: terminalApplied,
                 date: today,
                 reference_number: txnId,
                 invoices: [{ invoice_id: invoiceId, amount_applied: terminalApplied }],
-                notes: 'Kiosk POS terminal payment. Ref: ' + refNumber
+                notes: (body.tender === 'moto')
+                  ? 'Kiosk phone-order (card-not-present) payment. Ref: ' + refNumber
+                  : 'Kiosk POS terminal payment. Ref: ' + refNumber
               });
             }
           })
@@ -1641,7 +1738,7 @@ function runConfirm(body, confirmIdemKey, req, res) {
         });
       });
     }); // end zohoPost.then (inside gcConfirmBalanceLookup.then)
-    }); // end verifyManualCharge.then (F2 45-09 manual-confirm verification)
+    }); // end Promise.all([verifyManualCharge, verifyMotoCharge]).then (F2 45-09 / 70-02 MONEY-01/H2 verification)
     }); // end gcConfirmBalanceLookup.then (D-12 balance validation)
     }); // end resolveDiscount.then
   }).catch(function (err) {

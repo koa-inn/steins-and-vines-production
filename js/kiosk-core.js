@@ -91,6 +91,9 @@
         _kcEnv[name] = env[name];
       }
     });
+    // 70-02 (KIOSK-MOTO): bind the HelcimPay postMessage listener once so the
+    // phone-order tender can receive the iframe's SUCCESS/ABORTED result.
+    _kcBindHelcimListener();
   }
 
   // Shallow-merges the injected auth options (headers / credentials) into a
@@ -193,6 +196,76 @@
   function _kcHttpStatusFromErr(err) {
     var m = err && err.message ? String(err.message).match(/HTTP (\d{3})/) : null;
     return m ? parseInt(m[1], 10) : null;
+  }
+
+  // ===== 70-02 (KIOSK-MOTO): HelcimPay hosted-iframe phone-order tender =====
+  // The PAN is entered ONLY inside Helcim's own iframe (secure.helcim.app) —
+  // there is NO card-number field anywhere in our DOM/JS (PCI SAQ-A). The
+  // server already initialized the HelcimPay session (pos.js tender:'moto'
+  // branch) and returned checkout_token in the /api/kiosk/sale 202 response,
+  // so the kiosk does NOT fetch /api/payment/initialize a second time — it
+  // calls the global appendHelcimPayIframe(token) directly (that global is
+  // injected by the start.js <script> added to kiosk.html in Task 3).
+  //
+  // _kcHelcimCheckoutToken is the active session token; the single
+  // window 'message' listener (bound once in kcInit) matches it against
+  // Helcim's eventName and, on SUCCESS, hands the server-VERIFIED-later txn
+  // id to the handlers _kioskGoMoto installs. The captured amount is verified
+  // server-side (pos.js verifyMotoCharge, Task 1) BEFORE any booking — a
+  // client-supplied transaction_id is never trusted on its own.
+  var _kcHelcimCheckoutToken = null;
+  var _kcMotoHandlers = null; // { onSuccess: fn(txnId), onAbort: fn() } while an iframe is mounted
+  var _kcHelcimListenerBound = false;
+
+  // Port of js/modules/12-checkout.js:59-68 (verbatim) — extracts the txn id
+  // from Helcim's postMessage payload. Reads ONLY transactionId; the raw
+  // event is never logged (PCI).
+  function extractHelcimTransactionId(postMessageData) {
+    var em = postMessageData && postMessageData.eventMessage;
+    if (typeof em === 'string') { try { em = JSON.parse(em); } catch (e) { return ''; } }
+    // Helcim wraps the response: { data: { hash, data: { transactionId, ... } }, status: 200 }
+    var inner = em && em.data && em.data.data;
+    if (inner && inner.transactionId) return String(inner.transactionId);
+    // Fallback: flat structure (em.data.transactionId)
+    var flat = em && em.data;
+    return (flat && flat.transactionId) ? String(flat.transactionId) : '';
+  }
+
+  // Port of js/modules/12-checkout.js:1806-1836 — origin-validated postMessage
+  // handler. T-70-07 (Spoofing): the origin check is UNCHANGED from the public
+  // checkout (secure.helcim.app / myhelcim.com only); a foreign-origin message
+  // is ignored so a spoofed SUCCESS cannot fake a payment confirmation.
+  function _kcHandleHelcimMessage(event) {
+    if (event.origin !== 'https://secure.helcim.app' && event.origin !== 'https://myhelcim.com') {
+      return;
+    }
+    var data = event.data || {};
+    if (typeof data === 'string') { try { data = JSON.parse(data); } catch (e) { return; } }
+    var nameMatches = _kcHelcimCheckoutToken && data.eventName === 'helcim-pay-js-' + _kcHelcimCheckoutToken;
+    if (!nameMatches) return;
+    if (data.eventStatus === 'SUCCESS') {
+      var txnId = extractHelcimTransactionId(data);
+      if (typeof removeHelcimPayIframe === 'function') removeHelcimPayIframe();
+      var handlers = _kcMotoHandlers;
+      _kcMotoHandlers = null;
+      _kcHelcimCheckoutToken = null;
+      if (handlers && typeof handlers.onSuccess === 'function') handlers.onSuccess(txnId);
+    } else if (data.eventStatus === 'ABORTED') {
+      if (typeof removeHelcimPayIframe === 'function') removeHelcimPayIframe();
+      var abortHandlers = _kcMotoHandlers;
+      _kcMotoHandlers = null;
+      _kcHelcimCheckoutToken = null;
+      if (abortHandlers && typeof abortHandlers.onAbort === 'function') abortHandlers.onAbort();
+    }
+  }
+
+  // Bind the HelcimPay postMessage listener exactly once (idempotent across
+  // both kiosk.js and admin.js consumers calling kcInit).
+  function _kcBindHelcimListener() {
+    if (_kcHelcimListenerBound) return;
+    if (typeof window === 'undefined' || !window.addEventListener) return;
+    window.addEventListener('message', _kcHandleHelcimMessage);
+    _kcHelcimListenerBound = true;
   }
 
   // ===== Shared Utilities (standalone-bundle copies — kiosk.js/admin.js each
@@ -3095,6 +3168,102 @@
       });
     };
 
+    // 70-02 (KIOSK-MOTO): _kioskGoMoto — sibling to _kioskGoCash /
+    // _kioskPushToTerminal, called by the "Phone order / card not present"
+    // tender button. POSTs /api/kiosk/sale with tender:'moto'; the server
+    // initializes a HelcimPay session in-process and returns checkout_token
+    // in the 202 response (NO second /api/payment/initialize fetch — RESEARCH
+    // Pattern 2). We then mount Helcim's hosted iframe (appendHelcimPayIframe)
+    // so staff key the card into HELCIM'S origin — the PAN never touches our
+    // DOM. The origin-validated postMessage listener (module scope) resolves
+    // to confirmSale(txnId, 'moto'); the server re-verifies the captured
+    // amount before booking (Task 1). Gift-card + moto split works exactly
+    // like cash: moto covers the post-gift-card remainder.
+    var _kioskGoMoto = function () {
+      standardSaleBody.gift_card = _kcEnv.getGiftCard()
+        ? { cert_number: _kcEnv.getGiftCard().cert_number, amount_applied: _kcEnv.getGiftCard().amount_applied }
+        : undefined;
+      standardSaleBody.tender = 'moto';
+
+      var motoRemainderDisplay = _kcEnv.getGiftCard()
+        ? Math.max(0, Math.round((totals.total - _kcEnv.getGiftCard().amount_applied) * 100) / 100)
+        : totals.total;
+      if (amountEl) amountEl.textContent = kioskFmt(motoRemainderDisplay);
+
+      var gcPanelElMoto = document.getElementById('kiosk-gc-panel');
+      if (gcPanelElMoto) gcPanelElMoto.style.display = 'none';
+
+      // Cancel returns to browse — no charge exists until the iframe completes
+      // (and its SUCCESS handler is what books). Clear any pending MOTO state.
+      if (cancelBtn) {
+        cancelBtn.disabled = false;
+        cancelBtn.onclick = function () {
+          cancelled = true;
+          _kcMotoHandlers = null;
+          _kcHelcimCheckoutToken = null;
+          if (typeof removeHelcimPayIframe === 'function') removeHelcimPayIframe();
+          kioskShowView('browse');
+        };
+      }
+
+      if (msgEl) msgEl.textContent = 'Starting phone-order payment...';
+      if (spinnerEl) spinnerEl.style.display = '';
+
+      fetch(saleUrl, _kcMergeAuth({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(standardSaleBody)
+      }))
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+      .then(function (result) {
+        if (cancelled || saleCompleted) return;
+        if (result.status === 202 && result.data && result.data.moto && result.data.checkout_token) {
+          if (typeof appendHelcimPayIframe !== 'function') {
+            if (spinnerEl) spinnerEl.style.display = 'none';
+            if (cancelBtn) cancelBtn.disabled = false;
+            kioskShowError('Payment Unavailable',
+              'The secure card payment component failed to load. Refresh the kiosk and try again.', true);
+            return;
+          }
+          _kcHelcimCheckoutToken = result.data.checkout_token;
+          _kcMotoHandlers = {
+            onSuccess: function (txnId) { confirmSale(txnId, 'moto'); },
+            onAbort: function () {
+              if (spinnerEl) spinnerEl.style.display = 'none';
+              if (msgEl) msgEl.textContent = 'Payment cancelled — choose a tender to try again.';
+              if (cancelBtn) cancelBtn.disabled = false;
+              // Return to tender selection (re-show the panel + the right row).
+              var gcPanelReshow = document.getElementById('kiosk-gc-panel');
+              if (gcPanelReshow) gcPanelReshow.style.display = '';
+              var initialRow = document.getElementById('kgcr-initial-row');
+              var appliedRow = document.getElementById('kgcr-applied');
+              if (_kcEnv.getGiftCard()) {
+                if (appliedRow) appliedRow.style.display = '';
+              } else if (initialRow) {
+                initialRow.style.display = 'flex';
+              }
+            }
+          };
+          if (msgEl) msgEl.textContent = 'Enter the customer’s card in the secure payment window...';
+          appendHelcimPayIframe(result.data.checkout_token);
+          return;
+        }
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        if (cancelBtn) cancelBtn.disabled = false;
+        var motoErrMsg = (result.data && result.data.error) || '';
+        _kcReportClientError({
+          message: motoErrMsg, http_status: result.status, endpoint: '/api/kiosk/sale'
+        });
+        kioskShowError('Phone Order Error', motoErrMsg || 'Could not start the phone-order payment.', true);
+      })
+      .catch(function () {
+        if (cancelled || saleCompleted) return;
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        if (cancelBtn) cancelBtn.disabled = false;
+        kioskShowError('Connection Error', 'Could not reach the server. Please try again.', true);
+      });
+    };
+
     if (confirmBtn) {
       confirmBtn.onclick = function () {
         if (saleCompleted) return;
@@ -3124,6 +3293,9 @@
           '<button type="button" id="kgcr-open-btn" style="flex:1;min-width:110px;padding:0.5rem 0.75rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.9rem;">Apply Gift Card</button>',
           // 70-01 (KIOSK-CASH): Cash tender button — opens the change-due sub-panel below.
           '<button type="button" id="kgcr-cash-btn" style="flex:1;min-width:110px;padding:0.5rem 0.75rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.9rem;">Cash</button>',
+          // 70-02 (KIOSK-MOTO): Phone-order (card-not-present) tender — mounts
+          // Helcim\'s hosted iframe; the PAN is keyed into Helcim\'s origin only.
+          '<button type="button" id="kgcr-moto-btn" style="flex:1;min-width:110px;padding:0.5rem 0.75rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.9rem;">Phone Order</button>',
           '<button type="button" id="kgcr-skip-btn" style="flex:2;min-width:110px;padding:0.5rem 0.75rem;background:var(--cellar-green,#2e7d32);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.9rem;">Proceed to Terminal &#x2192;</button>',
           '</div>',
           '<div id="kgcr-form" style="display:none;margin-top:0.5rem;">',
@@ -3149,6 +3321,8 @@
           '<button type="button" id="kgcr-remove-btn" style="flex:1;padding:0.5rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.85rem;">Remove</button>',
           // 70-01: Cash covers the post-gift-card remainder (split tender).
           '<button type="button" id="kgcr-applied-cash-btn" style="flex:1;padding:0.5rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.85rem;">Cash</button>',
+          // 70-02: Phone-order card covers the post-gift-card remainder (split tender).
+          '<button type="button" id="kgcr-applied-moto-btn" style="flex:1;padding:0.5rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.85rem;">Phone Order</button>',
           '<button type="button" id="kgcr-proceed-btn" style="flex:2;padding:0.5rem;background:var(--cellar-green,#2e7d32);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.9rem;">Proceed to Terminal &#x2192;</button>',
           '</div>',
           '</div>',
@@ -3234,6 +3408,14 @@
 
         if (cashBtn) { cashBtn.onclick = openCashPanel; }
         if (cashAppliedBtn) { cashAppliedBtn.onclick = openCashPanel; }
+
+        // 70-02 (KIOSK-MOTO): Phone-order tender buttons (initial row + the
+        // gift-card-applied row) both lead straight to the HelcimPay iframe
+        // via _kioskGoMoto — there is deliberately NO card-number input.
+        var motoBtn = document.getElementById('kgcr-moto-btn');
+        var motoAppliedBtn = document.getElementById('kgcr-applied-moto-btn');
+        if (motoBtn) { motoBtn.onclick = function () { _kioskGoMoto(); }; }
+        if (motoAppliedBtn) { motoAppliedBtn.onclick = function () { _kioskGoMoto(); }; }
 
         if (cashTenderedInput) {
           cashTenderedInput.oninput = updateCashCompleteState;

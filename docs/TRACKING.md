@@ -47,7 +47,7 @@ Every public HTML page carries a `<meta http-equiv="Content-Security-Policy">` t
 1. **New public HTML page** → copy the CSP from its closest sibling page. No public page ships without a CSP (`ferment-in-store.html` did, by accident, for months).
 2. **New third-party service** → add its domains to the CSP on **every** public page, not just the page you're testing on.
 3. **Removing a service** → remove its CSP entries everywhere too.
-4. `404.html` intentionally has a minimal CSP (no trackers). `admin.html`, `kiosk.html`, `brewpad.html`, `batch.html` are internal surfaces with no CSP — out of scope for measurement.
+4. `404.html` intentionally has a minimal CSP (no trackers). `admin.html`, `brewpad.html`, `batch.html` are internal surfaces with no CSP — out of scope for measurement. **`kiosk.html` now carries a scoped CSP** (Phase 70-02, KIOSK-MOTO): it renders the HelcimPay hosted card-entry iframe for phone-order sales, so it has its own `<meta http-equiv="Content-Security-Policy">` limited to the kiosk runtime domains (GSI, Google Fonts, the Railway middleware, Apps Script) plus HelcimPay (`secure.helcim.app` / `secure.myhelcim.com`) — **no trackers, no `'unsafe-inline'`** (kiosk.html has zero inline scripts). Keep this CSP in sync whenever the kiosk's external services change. The domain set was static-analysis-derived and live-verified on staging per Plan 70-03 (Network + Console, zero CSP violations) before production.
 5. After any CSP change, verify in the browser console (look for "Refused to load / violates the following Content Security Policy") and in GTM's container diagnostics ("security settings are blocking measurement" warning should stay clear).
 
 ## Verifying tracking end-to-end

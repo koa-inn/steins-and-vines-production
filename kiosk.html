@@ -2,6 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- 70-02 (KIOSK-MOTO): kiosk.html's FIRST CSP. Scoped to the exact domains
+       this page contacts — NOT a copy of reservation.html's tracker-heavy CSP.
+       kiosk.html has zero inline <script> tags, so script-src deliberately omits
+       'unsafe-inline' (a real hardening vs the public pages). Domains: GSI
+       (accounts.google.com), Google Fonts, the Railway middleware, Apps Script
+       (script.google.com — gift-card/admin-config lookups), and HelcimPay
+       (secure.helcim.app / secure.myhelcim.com) for the phone-order iframe.
+       STAGING-VERIFY (70-03) before prod: this domain set is static-analysis-
+       derived — it MUST be confirmed on a live staging kiosk (Network + Console,
+       no CSP violations) before any production force-push. A missing domain
+       silently breaks a kiosk feature exactly like the 2026-07-22 Meta-pixel
+       incident (CLAUDE.md rule 12). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com https://secure.helcim.app https://secure.myhelcim.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://svmiddleware-production.up.railway.app https://script.google.com https://sheets.googleapis.com https://www.googleapis.com https://accounts.google.com https://api.helcim.com https://secure.helcim.app https://secure.myhelcim.com; frame-src 'self' https://secure.helcim.app https://secure.myhelcim.com https://accounts.google.com">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -21,6 +34,9 @@
   <script src="js/admin-config.js"></script>
   <script src="js/vendor/qrcode.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
+  <!-- 70-02 (KIOSK-MOTO): HelcimPay.js hosted-iframe loader (injects the global
+       appendHelcimPayIframe/removeHelcimPayIframe). Same tag as reservation.html. -->
+  <script src="https://secure.helcim.app/helcim-pay/services/start.js"></script>
   <script src="js/kiosk-core.min.js?v=msf5gxir"></script>
   <script src="js/kiosk.min.js?v=mrm7o4b7"></script>
 </head>
