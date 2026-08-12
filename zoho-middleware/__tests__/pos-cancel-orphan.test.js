@@ -34,7 +34,10 @@ jest.mock('../lib/reconcile', function () {
 jest.mock('../lib/money-path', function () {
   return {
     acquireIdempotencyLock: jest.fn().mockResolvedValue({ status: 'acquired' }),
-    voidWithTimeout: jest.fn().mockResolvedValue(),
+    // CR-01: voidWithTimeout now resolves a discriminated result { ok } so callers
+    // can distinguish a confirmed void from a failed/timed-out one. Default to a
+    // confirmed-success void for the success-path assertions.
+    voidWithTimeout: jest.fn().mockResolvedValue({ ok: true }),
     CHECKOUT_IDEMPOTENCY_TTL: 600
   };
 });
@@ -129,7 +132,7 @@ describe('68-02: cancel/orphan-charge safety (webhook-anchored)', function () {
     helcim.cancelTerminal.mockResolvedValue({ ok: false, device_cancel_required: true });
     helcim.getPendingInvoiceForDevice.mockResolvedValue(null);
     reconcileLib.reconcilePendingCharge.mockResolvedValue();
-    moneyPath.voidWithTimeout.mockResolvedValue();
+    moneyPath.voidWithTimeout.mockResolvedValue({ ok: true });
   });
 
   // -------------------------------------------------------------------------
@@ -234,6 +237,139 @@ describe('68-02: cancel/orphan-charge safety (webhook-anchored)', function () {
       .then(function () { return flushPromises(); })
       .then(function () {
         expect(moneyPath.voidWithTimeout).not.toHaveBeenCalled();
+      });
+  });
+
+  // -------------------------------------------------------------------------
+  // (e) CR-01: APPROVED webhook for a cancelled ref, but the void FAILS.
+  //     The pending-charge record MUST be retained (so reconcile.js's 5-min
+  //     sweep can retry and recover the orphan) and a void-failure sentinel
+  //     MUST be persisted for manual review. Regression for the orphan-on-
+  //     void-failure blocker: voidWithTimeout always resolves, so the old
+  //     unconditional .then() deleted the pending record even on failure.
+  // -------------------------------------------------------------------------
+  test('(e) CR-01: a FAILED void retains the pending-charge record and writes a void-failure sentinel', function () {
+    var REF = 'KIOSK-CANCEL-E005';
+    var TXN = 'txn-cancel-e005';
+
+    cacheLib.get.mockImplementation(function (key) {
+      if (key === C.CACHE_KEYS.KIOSK_CANCELLED_PREFIX + REF) {
+        return Promise.resolve({ cancelled_at: new Date().toISOString() });
+      }
+      if (key === C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + REF) {
+        return Promise.resolve({ reference_number: REF, amount: 73.25, created_at: new Date().toISOString() });
+      }
+      return Promise.resolve(null);
+    });
+    helcim.getCardTransactionById.mockResolvedValue({ status: 'APPROVED', invoiceNumber: REF, cardType: 'Visa' });
+    // Void did NOT confirm success (e.g. Helcim declined the reversal / errored).
+    moneyPath.voidWithTimeout.mockResolvedValue({ ok: false, reason: 'error' });
+
+    return request(app)
+      .post('/api/webhooks/terminal')
+      .set('webhook-id', 'wh-cancel-e005')
+      .set('webhook-timestamp', '1750005000')
+      .set('webhook-signature', 'v1,valid')
+      .send({ type: 'cardTransaction', id: TXN })
+      .expect(200)
+      .then(function () { return flushPromises(); })
+      .then(function () {
+        expect(moneyPath.voidWithTimeout).toHaveBeenCalled();
+
+        // The pending-charge record must NOT be deleted — the reconcile sweep
+        // needs it to retry/recover the orphan.
+        var delKeys = cacheLib.del.mock.calls.map(function (c) { return c[0]; });
+        expect(delKeys).not.toContain(C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + REF);
+        expect(delKeys).not.toContain(C.CACHE_KEYS.KIOSK_CANCELLED_PREFIX + REF);
+
+        // A void-failure sentinel must be persisted for manual review.
+        var sentinelCall = cacheLib.set.mock.calls.find(function (c) {
+          return typeof c[0] === 'string' && c[0].indexOf('sv:void-failure:') === 0;
+        });
+        expect(sentinelCall).toBeDefined();
+        expect(sentinelCall[1]).toMatchObject({ txn_id: TXN, invoice_number: REF, needs_manual_review: true });
+
+        // The lock this invocation acquired must still be released.
+        expect(cacheLib.releaseLock).toHaveBeenCalledWith('reconcile:txn:' + TXN);
+      });
+  });
+
+  // -------------------------------------------------------------------------
+  // (f) CR-01: same guarantee on a void TIMEOUT — voidWithTimeout deliberately
+  //     sends no staff alert on timeout, so silently deleting the pending
+  //     record here would lose the orphan entirely.
+  // -------------------------------------------------------------------------
+  test('(f) CR-01: a TIMED-OUT void also retains the pending-charge record and writes a sentinel', function () {
+    var REF = 'KIOSK-CANCEL-F006';
+    var TXN = 'txn-cancel-f006';
+
+    cacheLib.get.mockImplementation(function (key) {
+      if (key === C.CACHE_KEYS.KIOSK_CANCELLED_PREFIX + REF) {
+        return Promise.resolve({ cancelled_at: new Date().toISOString() });
+      }
+      if (key === C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + REF) {
+        return Promise.resolve({ reference_number: REF, amount: 18.0, created_at: new Date().toISOString() });
+      }
+      return Promise.resolve(null);
+    });
+    helcim.getCardTransactionById.mockResolvedValue({ status: 'APPROVED', invoiceNumber: REF, cardType: 'Visa' });
+    moneyPath.voidWithTimeout.mockResolvedValue({ ok: false, reason: 'timeout' });
+
+    return request(app)
+      .post('/api/webhooks/terminal')
+      .set('webhook-id', 'wh-cancel-f006')
+      .set('webhook-timestamp', '1750006000')
+      .set('webhook-signature', 'v1,valid')
+      .send({ type: 'cardTransaction', id: TXN })
+      .expect(200)
+      .then(function () { return flushPromises(); })
+      .then(function () {
+        var delKeys = cacheLib.del.mock.calls.map(function (c) { return c[0]; });
+        expect(delKeys).not.toContain(C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + REF);
+
+        var sentinelCall = cacheLib.set.mock.calls.find(function (c) {
+          return typeof c[0] === 'string' && c[0].indexOf('sv:void-failure:') === 0;
+        });
+        expect(sentinelCall).toBeDefined();
+      });
+  });
+
+  // -------------------------------------------------------------------------
+  // (g) CR-02: a re-delivered webhook that finds the reconcile lock already
+  //     held MUST NOT release the lock (the in-flight void holds it) and MUST
+  //     NOT void. Regression for the double-void race: the old code released
+  //     the lock on the not-acquired path, letting a later retry re-acquire
+  //     and double-void.
+  // -------------------------------------------------------------------------
+  test('(g) CR-02: a skipped (lock-held) re-delivery does NOT release the lock and does NOT void', function () {
+    var REF = 'KIOSK-CANCEL-G007';
+    var TXN = 'txn-cancel-g007';
+
+    cacheLib.get.mockImplementation(function (key) {
+      if (key === C.CACHE_KEYS.KIOSK_CANCELLED_PREFIX + REF) {
+        return Promise.resolve({ cancelled_at: new Date().toISOString() });
+      }
+      if (key === C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX + REF) {
+        return Promise.resolve({ reference_number: REF, amount: 55.0, created_at: new Date().toISOString() });
+      }
+      return Promise.resolve(null);
+    });
+    helcim.getCardTransactionById.mockResolvedValue({ status: 'APPROVED', invoiceNumber: REF, cardType: 'Visa' });
+    // Lock is held by an in-flight void from the first delivery.
+    cacheLib.acquireLock.mockResolvedValue(false);
+
+    return request(app)
+      .post('/api/webhooks/terminal')
+      .set('webhook-id', 'wh-cancel-g007')
+      .set('webhook-timestamp', '1750007000')
+      .set('webhook-signature', 'v1,valid')
+      .send({ type: 'cardTransaction', id: TXN })
+      .expect(200)
+      .then(function () { return flushPromises(); })
+      .then(function () {
+        expect(moneyPath.voidWithTimeout).not.toHaveBeenCalled();
+        // Critical: must NOT release a lock this invocation never acquired.
+        expect(cacheLib.releaseLock).not.toHaveBeenCalled();
       });
   });
 });
