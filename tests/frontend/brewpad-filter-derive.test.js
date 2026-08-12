@@ -83,3 +83,22 @@ describe('applyBatchFilter — shared re-derive seam (CR-01)', function () {
     expect(ids).toEqual(['A']);
   });
 });
+
+describe('Ready-to-Bottle count chip matches the rendered rows (WR-03)', function () {
+  test('chip count (readyToBottleRows) equals the rendered row count even with phantom ids', function () {
+    // Before the fix the chip counted _dashSummary.readyToBottle.length (2) while the
+    // rows were the intersection (1) — chip "2", list shows 1. Both now derive from the
+    // same readyToBottleRows() intersection, so they cannot diverge.
+    bp._setStateForTest({
+      _allBatchesData: BATCHES,
+      _batchStatusFilter: 'readyToBottle',
+      _dashSummary: { readyToBottle: [{ batch_id: 'A' }, { batch_id: 'PHANTOM' }] },
+      _batchesData: []
+    });
+    var chipCount = bp.readyToBottleRows().length;
+    bp.applyBatchFilter();
+    var rowCount = bp.getStateForTest()._batchesData.length;
+    expect(chipCount).toBe(1);
+    expect(chipCount).toBe(rowCount);
+  });
+});

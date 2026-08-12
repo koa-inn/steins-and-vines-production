@@ -3502,9 +3502,11 @@ function bpScaleIngredients(list, factor) {
       var pendingCount = _allBatchesData.filter(function (b) {
         return String(b.status || '').toLowerCase() === 'pending';
       }).length;
-      // Reuse the server-computed set (NOT re-derived from _allBatchesData) so the
-      // count matches the dashboard's Ready-to-Bottle section exactly.
-      var readyToBottleCount = ((_dashSummary && _dashSummary.readyToBottle) || []).length;
+      // Count from the SAME intersection the rows use (readyToBottleRows), not the raw
+      // _dashSummary.readyToBottle length — otherwise a readyToBottle batch_id absent
+      // from _allBatchesData (data gap / cleared cache) inflates the chip above the
+      // number of rows actually rendered (WR-03).
+      var readyToBottleCount = readyToBottleRows().length;
       filterOpts.forEach(function (f) {
         var active = _batchStatusFilter === f.val ? ' bp-filter-btn--active' : '';
         var count = f.val === 'pending' ? pendingCount : (f.val === 'readyToBottle' ? readyToBottleCount : 0);
@@ -8993,6 +8995,9 @@ function bpScaleIngredients(list, factor) {
       // Phase 69: filter-derivation seam — exported so behavioral tests can drive the
       // readyToBottle re-derive path (CR-01) without a DOM change-event.
       applyBatchFilter: applyBatchFilter,
+      // Phase 69: the single readyToBottle intersection that drives BOTH the filter rows
+      // AND the count chip (WR-03) — exported so a test can pin that they cannot diverge.
+      readyToBottleRows: readyToBottleRows,
       sendBottlingInviteForBatch: sendBottlingInviteForBatch,
       // Test-only: render the batch-detail pane (bottling-invite send-tracking UI).
       _renderBatchDetailForTest: renderBatchDetail,
