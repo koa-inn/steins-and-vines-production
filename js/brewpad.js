@@ -198,6 +198,15 @@ function filterBatchesByStatus(batches, filter) {
   });
 }
 
+// Ready-to-Bottle filter: intersects _allBatchesData with the SERVER-computed
+// _dashSummary.readyToBottle set (adminApi.gs:1847-1883) by batch_id. Does NOT
+// re-derive the packaging-due predicate client-side.
+function filterBatchesByReadyToBottle(batches, readyToBottleList) {
+  var ids = {};
+  (readyToBottleList || []).forEach(function (r) { ids[String(r.batch_id)] = true; });
+  return (batches || []).filter(function (b) { return ids[String(b.batch_id)]; });
+}
+
 // Recipes: pure helpers lifted out of the IIFE for unit-testing.
 
 function filterRecipesByName(list, query) {
@@ -2817,7 +2826,9 @@ function bpScaleIngredients(list, factor) {
   function loadDashboard() {
     _dashLoadTime = Date.now();
     // Fetch summary + upcoming tasks together for the workload chart
-    Promise.all([
+    // (returns the thenable so callers can chain on completion — e.g. the
+    // Ready-to-Bottle filter's not-loaded path applies the filter after this resolves)
+    return Promise.all([
       adminApiGet('get_batch_dashboard_summary'),
       adminApiGet('get_tasks_upcoming', { limit: 100 })
     ]).then(function (results) {
@@ -3442,15 +3453,20 @@ function bpScaleIngredients(list, factor) {
         { val: 'active', label: 'Active' },
         { val: 'primary', label: 'Primary' },
         { val: 'secondary', label: 'Secondary' },
-        { val: 'complete', label: 'Complete' }
+        { val: 'complete', label: 'Complete' },
+        { val: 'readyToBottle', label: 'Ready to Bottle' }
       ];
       var pendingCount = _allBatchesData.filter(function (b) {
         return String(b.status || '').toLowerCase() === 'pending';
       }).length;
+      // Reuse the server-computed set (NOT re-derived from _allBatchesData) so the
+      // count matches the dashboard's Ready-to-Bottle section exactly.
+      var readyToBottleCount = ((_dashSummary && _dashSummary.readyToBottle) || []).length;
       filterOpts.forEach(function (f) {
         var active = _batchStatusFilter === f.val ? ' bp-filter-btn--active' : '';
-        var badge = (f.val === 'pending' && pendingCount > 0)
-          ? ' <span style="display:inline-block;min-width:16px;padding:0 5px;border-radius:8px;background:#e67e22;color:#fff;font-size:0.72rem;font-weight:700;line-height:16px;text-align:center;">' + pendingCount + '</span>'
+        var count = f.val === 'pending' ? pendingCount : (f.val === 'readyToBottle' ? readyToBottleCount : 0);
+        var badge = ((f.val === 'pending' || f.val === 'readyToBottle') && count > 0)
+          ? ' <span style="display:inline-block;min-width:16px;padding:0 5px;border-radius:8px;background:#e67e22;color:#fff;font-size:0.72rem;font-weight:700;line-height:16px;text-align:center;">' + count + '</span>'
           : '';
         shellHtml += '<button type="button" class="bp-filter-btn' + active + '" data-status="' + f.val + '">' + f.label + badge + '</button>';
       });
@@ -8253,8 +8269,22 @@ function bpScaleIngredients(list, factor) {
         var filterBtn = e.target.closest('.bp-filter-btn');
         if (filterBtn) {
           _batchStatusFilter = filterBtn.getAttribute('data-status');
-          _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
-          renderBatchList();
+          if (_batchStatusFilter === 'readyToBottle') {
+            if (_dashSummary) {
+              _batchesData = filterBatchesByReadyToBottle(_allBatchesData, (_dashSummary && _dashSummary.readyToBottle) || []);
+              renderBatchList();
+            } else {
+              // _dashSummary not loaded yet — refetch first, then apply the filter
+              // once the summary resolves (loadDashboard fails soft on total failure).
+              loadDashboard().then(function () {
+                _batchesData = filterBatchesByReadyToBottle(_allBatchesData, (_dashSummary && _dashSummary.readyToBottle) || []);
+                renderBatchList();
+              });
+            }
+          } else {
+            _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
+            renderBatchList();
+          }
           return;
         }
         if (e.target.closest('#bp-batch-view-toggle')) {
@@ -8943,6 +8973,7 @@ if (typeof module !== 'undefined' && module.exports) {
     escapeHTML: escapeHTML, fmtDate: fmtDate, todayStr: todayStr,
     isOverdue: isOverdue, isToday: isToday,
     filterBatchesByStatus: filterBatchesByStatus,
+    filterBatchesByReadyToBottle: filterBatchesByReadyToBottle,
     getCustomerDisplayName: getCustomerDisplayName,
     calcAbv: calcAbv, renderDataGapWarning: renderDataGapWarning,
     isSessionStale: isSessionStale,

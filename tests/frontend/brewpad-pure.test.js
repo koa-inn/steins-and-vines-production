@@ -20,6 +20,7 @@ var todayStr              = bp.todayStr;
 var isOverdue             = bp.isOverdue;
 var isToday               = bp.isToday;
 var filterBatchesByStatus = bp.filterBatchesByStatus;
+var filterBatchesByReadyToBottle = bp.filterBatchesByReadyToBottle;
 var calcAbv               = bp.calcAbv;
 var renderDataGapWarning  = bp.renderDataGapWarning;
 
@@ -156,6 +157,103 @@ describe('filterBatchesByStatus', function () {
     var result = filterBatchesByStatus(original, 'all');
     result.push({ batch_id: 'Z', status: 'test' });
     expect(original).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterBatchesByReadyToBottle
+// ---------------------------------------------------------------------------
+describe('filterBatchesByReadyToBottle', function () {
+  var batches = [
+    { batch_id: 'A', status: 'secondary' },
+    { batch_id: 'B', status: 'secondary' },
+    { batch_id: 'C', status: 'primary' }
+  ];
+
+  test('returns exactly the intersection by batch_id', function () {
+    var readyToBottle = [{ batch_id: 'A' }, { batch_id: 'C' }];
+    var result = filterBatchesByReadyToBottle(batches, readyToBottle);
+    expect(result).toHaveLength(2);
+    expect(result.map(function (b) { return b.batch_id; })).toEqual(['A', 'C']);
+  });
+
+  test('empty readyToBottle → returns []', function () {
+    expect(filterBatchesByReadyToBottle(batches, [])).toHaveLength(0);
+  });
+
+  test('null readyToBottle → returns [] (no throw)', function () {
+    expect(filterBatchesByReadyToBottle(batches, null)).toHaveLength(0);
+  });
+
+  test('undefined readyToBottle → returns [] (no throw)', function () {
+    expect(filterBatchesByReadyToBottle(batches, undefined)).toHaveLength(0);
+  });
+
+  test('null batches → returns [] (no throw)', function () {
+    expect(filterBatchesByReadyToBottle(null, [{ batch_id: 'A' }])).toHaveLength(0);
+  });
+
+  test('undefined batches → returns [] (no throw)', function () {
+    expect(filterBatchesByReadyToBottle(undefined, [{ batch_id: 'A' }])).toHaveLength(0);
+  });
+
+  test('batch_id present in readyToBottle but absent from batches is ignored (no phantom rows)', function () {
+    var readyToBottle = [{ batch_id: 'A' }, { batch_id: 'ZZZ' }];
+    var result = filterBatchesByReadyToBottle(batches, readyToBottle);
+    expect(result).toHaveLength(1);
+    expect(result[0].batch_id).toBe('A');
+  });
+
+  test('duplicate batch_ids in readyToBottle do not duplicate output rows', function () {
+    var readyToBottle = [{ batch_id: 'A' }, { batch_id: 'A' }, { batch_id: 'A' }];
+    var result = filterBatchesByReadyToBottle(batches, readyToBottle);
+    expect(result).toHaveLength(1);
+    expect(result[0].batch_id).toBe('A');
+  });
+
+  test('batch_id matching is string-normalized (numeric/string ids match)', function () {
+    var numericBatches = [{ batch_id: 123 }, { batch_id: 456 }];
+    var readyToBottle = [{ batch_id: '123' }];
+    var result = filterBatchesByReadyToBottle(numericBatches, readyToBottle);
+    expect(result).toHaveLength(1);
+    expect(result[0].batch_id).toBe(123);
+  });
+
+  test('does not mutate original batches array', function () {
+    var original = [{ batch_id: 'A' }];
+    var result = filterBatchesByReadyToBottle(original, [{ batch_id: 'A' }]);
+    result.push({ batch_id: 'Z' });
+    expect(original).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ready-to-Bottle filter wiring: structural source-text regression tests
+// ---------------------------------------------------------------------------
+// loadDashboard() must return the Promise.all thenable so the filter's
+// not-loaded path can chain .then() to apply the filter after the summary
+// loads. The IIFE-scoped click handler isn't DOM-drivable in this suite (no
+// dispatch precedent for BrewPad's delegated handlers) — a source-text
+// assertion is the established pattern (see brewpad-activation.test.js,
+// brewpad-bottled-refetch.test.js).
+describe('Ready-to-Bottle filter wiring (structural)', function () {
+  var fs = require('fs');
+  var path = require('path');
+  var src = fs.readFileSync(path.join(__dirname, '../../js/brewpad.js'), 'utf8');
+
+  test('loadDashboard() returns the Promise.all thenable', function () {
+    var idx = src.indexOf('function loadDashboard()');
+    expect(idx).not.toBe(-1);
+    var window = src.slice(idx, idx + 500);
+    expect(window.indexOf('return Promise')).not.toBe(-1);
+  });
+
+  test("readyToBottle filter click handler chains loadDashboard().then( on the not-loaded path", function () {
+    var idx = src.indexOf("_batchStatusFilter === 'readyToBottle'");
+    expect(idx).not.toBe(-1);
+    var window = src.slice(idx, idx + 800);
+    expect(window.indexOf('loadDashboard().then(')).not.toBe(-1);
+    expect(window.indexOf('filterBatchesByReadyToBottle(')).not.toBe(-1);
   });
 });
 
