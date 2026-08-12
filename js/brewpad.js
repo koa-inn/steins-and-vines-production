@@ -198,6 +198,15 @@ function filterBatchesByStatus(batches, filter) {
   });
 }
 
+// Ready-to-Bottle filter: intersects _allBatchesData with the SERVER-computed
+// _dashSummary.readyToBottle set (adminApi.gs:1847-1883) by batch_id. Does NOT
+// re-derive the packaging-due predicate client-side.
+function filterBatchesByReadyToBottle(batches, readyToBottleList) {
+  var ids = {};
+  (readyToBottleList || []).forEach(function (r) { ids[String(r.batch_id)] = true; });
+  return (batches || []).filter(function (b) { return ids[String(b.batch_id)]; });
+}
+
 // Recipes: pure helpers lifted out of the IIFE for unit-testing.
 
 function filterRecipesByName(list, query) {
@@ -8943,6 +8952,7 @@ if (typeof module !== 'undefined' && module.exports) {
     escapeHTML: escapeHTML, fmtDate: fmtDate, todayStr: todayStr,
     isOverdue: isOverdue, isToday: isToday,
     filterBatchesByStatus: filterBatchesByStatus,
+    filterBatchesByReadyToBottle: filterBatchesByReadyToBottle,
     getCustomerDisplayName: getCustomerDisplayName,
     calcAbv: calcAbv, renderDataGapWarning: renderDataGapWarning,
     isSessionStale: isSessionStale,
