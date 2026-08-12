@@ -160,6 +160,35 @@
     } catch (e) { /* never let telemetry break the kiosk */ }
   }
 
+  // 68-01: terminal-push latency beacon. Measures real wall-time from the
+  // moment the terminal prompt is shown (_kioskPushToTerminal) to the
+  // sale-push 202 response, POSTs it to /api/kiosk/telemetry which emits
+  // it server-side as kiosk.terminal_push_latency, so the reported "reader
+  // isn't picking up" symptom can be correlated with the server's own
+  // kiosk.sale_stage_timing events instead of guessed. A NEW sibling
+  // function + NEW sink route — deliberately does NOT overload
+  // _kcReportClientError/`/api/kiosk/client-error` (that beacon's 6-key
+  // payload shape is pinned by kiosk-client-error-beacon.test.js). Same
+  // fire-and-forget defensive wrapping as _kcReportClientError: a beacon
+  // failure can never throw into the payment flow.
+  function _kcReportTerminalPushLatency(info) {
+    info = info || {};
+    var mwUrl = _kcEnv.mwUrl;
+    if (!mwUrl) return;
+    var payload = {
+      stage: String(info.stage == null ? '' : info.stage).slice(0, 40), // eslint-disable-line eqeqeq -- intentional == null matches undefined too
+      duration_ms: (typeof info.duration_ms === 'number' && isFinite(info.duration_ms)) ? info.duration_ms : null,
+      reference_number: String(info.reference_number == null ? '' : info.reference_number).slice(0, 64) // eslint-disable-line eqeqeq -- intentional == null matches undefined too
+    };
+    try {
+      fetch(mwUrl + '/api/kiosk/telemetry', _kcMergeAuth({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })).catch(function () {});
+    } catch (e) { /* never let telemetry break the kiosk */ }
+  }
+
   // Parse an 'HTTP nnn' status out of a caught error message, else null.
   function _kcHttpStatusFromErr(err) {
     var m = err && err.message ? String(err.message).match(/HTTP (\d{3})/) : null;
@@ -2857,6 +2886,11 @@
       if (msgEl) msgEl.textContent = (terminalAmtDisplay > 0) ? 'Tap, insert, or swipe card on terminal...' : 'Processing gift card payment...';
       if (spinnerEl) spinnerEl.style.display = '';
 
+      // 68-01: stamp the moment the terminal prompt is shown so the real
+      // wall-time to the 202 response can be measured and beaconed
+      // (_kcReportTerminalPushLatency below).
+      var _kioskPushShownAt = Date.now();
+
       // Step 1: Push payment to terminal via backend (gift_card_only path skips terminal)
       fetch(saleUrl, _kcMergeAuth({
         method: 'POST',
@@ -2918,6 +2952,15 @@
           kioskShowError('Terminal Error', (result.data && result.data.error) || 'Failed to push to terminal.', true);
           return;
         }
+
+        // 68-01: fire-and-forget beacon — real wall-time from "tap card" shown
+        // to this 202 response. Never in the cancelled/saleCompleted-guarded
+        // return path (both were already checked above).
+        _kcReportTerminalPushLatency({
+          duration_ms: Date.now() - _kioskPushShownAt,
+          reference_number: result.data.reference,
+          stage: 'push_to_202'
+        });
 
         // Step 2: Poll for terminal result every 3 seconds
         var pollRef = result.data.reference;
