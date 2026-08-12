@@ -206,7 +206,7 @@ describe('pos — 70-02 MOTO (phone-order card-not-present) tender (KIOSK-MOTO)'
   describe('/api/kiosk/sale/confirm — captured-amount verify (phantom-revenue guard)', function () {
 
     test('MANDATORY: captured < grandTotal-$0.01 → NO invoice, NO customerpayment, routes to void-on-failure', function (done) {
-      helcimLib.getCardTransactionById.mockResolvedValue({ amount: 50 }); // short of $100 total
+      helcimLib.getCardTransactionById.mockResolvedValue({ amount: 50, status: 'APPROVED' }); // approved but short of $100 total
       var req = {
         body: {
           items: motoCartItems(),
@@ -227,6 +227,88 @@ describe('pos — 70-02 MOTO (phone-order card-not-present) tender (KIOSK-MOTO)'
           // Routed through the EXISTING outer void-on-failure catch — no new void path.
           expect(helcimLib.voidTransaction).toHaveBeenCalledWith('txn-moto-short');
           expect(body.payment_voided).toBe(true);
+          done();
+        } catch (e) { done(e); }
+      });
+      handlers['/api/kiosk/sale/confirm'](req, res);
+    });
+
+    test('CR-01: sufficient amount but status DECLINED → NO invoice, NO customerpayment, routes to void-on-failure', function (done) {
+      // A DECLINED (or voided / authorized-not-captured) card txn still carries
+      // its attempted amount. Amount >= total must NOT book on its own — the
+      // status must be APPROVED. This is the phantom-revenue blocker (CR-01).
+      helcimLib.getCardTransactionById.mockResolvedValue({ amount: 100, status: 'DECLINED' });
+      var req = {
+        body: {
+          items: motoCartItems(),
+          tender: 'moto',
+          transaction_id: 'txn-moto-declined',
+          reference_number: 'KIOSK-MOTO-CR01A'
+        }
+      };
+      var res = mockRes();
+      var statusCapture = captureStatus(res);
+      res.json.mockImplementation(function (body) {
+        try {
+          expect(statusCapture.code).toBe(502);
+          var invoiceCalls = zohoApi.zohoPost.mock.calls.filter(function (c) { return c[0] === '/invoices'; });
+          expect(invoiceCalls.length).toBe(0);
+          var paymentCalls = zohoApi.zohoPost.mock.calls.filter(function (c) { return c[0] === '/customerpayments'; });
+          expect(paymentCalls.length).toBe(0);
+          expect(helcimLib.voidTransaction).toHaveBeenCalledWith('txn-moto-declined');
+          expect(body.payment_voided).toBe(true);
+          done();
+        } catch (e) { done(e); }
+      });
+      handlers['/api/kiosk/sale/confirm'](req, res);
+    });
+
+    test('CR-01: sufficient amount but status VOIDED/reversed → REJECTED, no booking', function (done) {
+      helcimLib.getCardTransactionById.mockResolvedValue({ amount: 100, status: 'VOIDED' });
+      var req = {
+        body: {
+          items: motoCartItems(),
+          tender: 'moto',
+          transaction_id: 'txn-moto-voided',
+          reference_number: 'KIOSK-MOTO-CR01B'
+        }
+      };
+      var res = mockRes();
+      var statusCapture = captureStatus(res);
+      res.json.mockImplementation(function (body) {
+        try {
+          expect(statusCapture.code).toBe(502);
+          var invoiceCalls = zohoApi.zohoPost.mock.calls.filter(function (c) { return c[0] === '/invoices'; });
+          expect(invoiceCalls.length).toBe(0);
+          var paymentCalls = zohoApi.zohoPost.mock.calls.filter(function (c) { return c[0] === '/customerpayments'; });
+          expect(paymentCalls.length).toBe(0);
+          expect(helcimLib.voidTransaction).toHaveBeenCalledWith('txn-moto-voided');
+          done();
+        } catch (e) { done(e); }
+      });
+      handlers['/api/kiosk/sale/confirm'](req, res);
+    });
+
+    test('CR-01: missing status field (legacy shape) → REJECTED, no booking', function (done) {
+      // Defensive: a txn object with a sufficient amount but no status at all
+      // must fail closed rather than default to booking.
+      helcimLib.getCardTransactionById.mockResolvedValue({ amount: 100 });
+      var req = {
+        body: {
+          items: motoCartItems(),
+          tender: 'moto',
+          transaction_id: 'txn-moto-nostatus',
+          reference_number: 'KIOSK-MOTO-CR01C'
+        }
+      };
+      var res = mockRes();
+      var statusCapture = captureStatus(res);
+      res.json.mockImplementation(function (body) {
+        try {
+          expect(statusCapture.code).toBe(502);
+          var paymentCalls = zohoApi.zohoPost.mock.calls.filter(function (c) { return c[0] === '/customerpayments'; });
+          expect(paymentCalls.length).toBe(0);
+          expect(helcimLib.voidTransaction).toHaveBeenCalledWith('txn-moto-nostatus');
           done();
         } catch (e) { done(e); }
       });
@@ -260,7 +342,7 @@ describe('pos — 70-02 MOTO (phone-order card-not-present) tender (KIOSK-MOTO)'
     });
 
     test('getCardTransactionById returns non-finite/<=0 amount → REJECTED, no booking', function (done) {
-      helcimLib.getCardTransactionById.mockResolvedValue({ amount: 0 });
+      helcimLib.getCardTransactionById.mockResolvedValue({ amount: 0, status: 'APPROVED' });
       var req = {
         body: {
           items: motoCartItems(),
@@ -307,7 +389,7 @@ describe('pos — 70-02 MOTO (phone-order card-not-present) tender (KIOSK-MOTO)'
     });
 
     test('happy path: captured >= grandTotal-$0.01 → books invoice + payment_mode:creditcard, reference_number=verified txnId, notes contains card-not-present; stock decremented', function (done) {
-      helcimLib.getCardTransactionById.mockResolvedValue({ amount: 100 });
+      helcimLib.getCardTransactionById.mockResolvedValue({ amount: 100, status: 'APPROVED' });
       var req = {
         body: {
           items: motoCartItems(),
@@ -421,7 +503,7 @@ describe('pos — 70-02 MOTO (phone-order card-not-present) tender (KIOSK-MOTO)'
 
     test('confirm: gift+moto split — verified creditcard leg booked BEFORE the gift-card "others" leg; stock decrement unchanged', function (done) {
       // grandTotal $100, gift card $40 → terminalApplied (moto verify target) = $60
-      helcimLib.getCardTransactionById.mockResolvedValue({ amount: 60 });
+      helcimLib.getCardTransactionById.mockResolvedValue({ amount: 60, status: 'APPROVED' });
       var req = {
         body: {
           items: motoCartItems(),

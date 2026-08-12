@@ -1479,8 +1479,32 @@ function runConfirm(body, confirmIdemKey, req, res) {
           return helcimLib.getCardTransactionById(body.transaction_id);
         })
         .then(function (txn) {
+          // CR-01 (70-review): a captured AMOUNT alone is NOT proof of payment.
+          // getCardTransactionById returns an uppercased `status`; a DECLINED,
+          // VOIDED, or authorized-but-not-captured card transaction still carries
+          // its attempted `amount`. Trusting amount-without-status books phantom
+          // revenue (money recorded as collected that Helcim never captured).
+          // Assert the transaction is genuinely APPROVED first — mirroring the
+          // codebase standard (verifyManualCharge's `tr.approved`, the status
+          // poll's `result.approved` / status.toUpperCase()==='APPROVED').
+          var status = (txn && txn.status ? String(txn.status) : '').toUpperCase();
+          if (status !== 'APPROVED') {
+            log.error('[pos/kiosk/sale/confirm] MOTO transaction not approved — txn=' + body.transaction_id +
+              ' status=' + status);
+            var mStatusErr = new Error('MOTO transaction not approved (status=' + status + ')');
+            mStatusErr.__motoVerifyFailed = true;
+            throw mStatusErr;
+          }
+          // Lower AND upper bound: the capture must EQUAL the amount recorded for
+          // this cart (±$0.01). An exact match also rejects a reused older
+          // transaction id whose larger amount would satisfy a lower-bound-only
+          // check (partial replay hardening). Full HelcimPay-session binding —
+          // asserting the txn belongs to the checkout token initializeCheckout
+          // created — requires threading that token through /confirm and is a
+          // documented follow-up, kept out of this fix's scope.
           var captured = parseFloat(txn && txn.amount);
-          if (!isFinite(captured) || captured <= 0 || captured < terminalApplied - MOTO_CAPTURED_AMOUNT_TOLERANCE) {
+          if (!isFinite(captured) || captured <= 0 ||
+              Math.abs(captured - terminalApplied) > MOTO_CAPTURED_AMOUNT_TOLERANCE) {
             log.error('[pos/kiosk/sale/confirm] MOTO captured amount mismatch — txn=' + body.transaction_id +
               ' captured=' + captured + ' recorded=' + terminalApplied);
             var mErr = new Error('MOTO captured amount could not be verified against the recorded total');
