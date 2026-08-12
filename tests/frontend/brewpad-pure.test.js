@@ -20,6 +20,7 @@ var todayStr              = bp.todayStr;
 var isOverdue             = bp.isOverdue;
 var isToday               = bp.isToday;
 var filterBatchesByStatus = bp.filterBatchesByStatus;
+var filterBatchesByReadyToBottle = bp.filterBatchesByReadyToBottle;
 var calcAbv               = bp.calcAbv;
 var renderDataGapWarning  = bp.renderDataGapWarning;
 
@@ -155,6 +156,73 @@ describe('filterBatchesByStatus', function () {
     var original = [{ batch_id: 'A', status: 'primary' }];
     var result = filterBatchesByStatus(original, 'all');
     result.push({ batch_id: 'Z', status: 'test' });
+    expect(original).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterBatchesByReadyToBottle
+// ---------------------------------------------------------------------------
+describe('filterBatchesByReadyToBottle', function () {
+  var batches = [
+    { batch_id: 'A', status: 'secondary' },
+    { batch_id: 'B', status: 'secondary' },
+    { batch_id: 'C', status: 'primary' }
+  ];
+
+  test('returns exactly the intersection by batch_id', function () {
+    var readyToBottle = [{ batch_id: 'A' }, { batch_id: 'C' }];
+    var result = filterBatchesByReadyToBottle(batches, readyToBottle);
+    expect(result).toHaveLength(2);
+    expect(result.map(function (b) { return b.batch_id; })).toEqual(['A', 'C']);
+  });
+
+  test('empty readyToBottle → returns []', function () {
+    expect(filterBatchesByReadyToBottle(batches, [])).toHaveLength(0);
+  });
+
+  test('null readyToBottle → returns [] (no throw)', function () {
+    expect(filterBatchesByReadyToBottle(batches, null)).toHaveLength(0);
+  });
+
+  test('undefined readyToBottle → returns [] (no throw)', function () {
+    expect(filterBatchesByReadyToBottle(batches, undefined)).toHaveLength(0);
+  });
+
+  test('null batches → returns [] (no throw)', function () {
+    expect(filterBatchesByReadyToBottle(null, [{ batch_id: 'A' }])).toHaveLength(0);
+  });
+
+  test('undefined batches → returns [] (no throw)', function () {
+    expect(filterBatchesByReadyToBottle(undefined, [{ batch_id: 'A' }])).toHaveLength(0);
+  });
+
+  test('batch_id present in readyToBottle but absent from batches is ignored (no phantom rows)', function () {
+    var readyToBottle = [{ batch_id: 'A' }, { batch_id: 'ZZZ' }];
+    var result = filterBatchesByReadyToBottle(batches, readyToBottle);
+    expect(result).toHaveLength(1);
+    expect(result[0].batch_id).toBe('A');
+  });
+
+  test('duplicate batch_ids in readyToBottle do not duplicate output rows', function () {
+    var readyToBottle = [{ batch_id: 'A' }, { batch_id: 'A' }, { batch_id: 'A' }];
+    var result = filterBatchesByReadyToBottle(batches, readyToBottle);
+    expect(result).toHaveLength(1);
+    expect(result[0].batch_id).toBe('A');
+  });
+
+  test('batch_id matching is string-normalized (numeric/string ids match)', function () {
+    var numericBatches = [{ batch_id: 123 }, { batch_id: 456 }];
+    var readyToBottle = [{ batch_id: '123' }];
+    var result = filterBatchesByReadyToBottle(numericBatches, readyToBottle);
+    expect(result).toHaveLength(1);
+    expect(result[0].batch_id).toBe(123);
+  });
+
+  test('does not mutate original batches array', function () {
+    var original = [{ batch_id: 'A' }];
+    var result = filterBatchesByReadyToBottle(original, [{ batch_id: 'A' }]);
+    result.push({ batch_id: 'Z' });
     expect(original).toHaveLength(1);
   });
 });
