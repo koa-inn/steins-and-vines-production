@@ -177,6 +177,29 @@ describe('kiosk Cash tender + change-due UI (70-01 / KIOSK-CASH)', function () {
     expect(confirmBody.change).toBeUndefined();
   });
 
+  test('WR-02: the cash /sale idempotency_key is tender-scoped (refNumber:cash) so switching from an aborted MOTO attempt starts a clean idempotency scope', async function () {
+    var setup = setUpAtPayment();
+
+    document.getElementById('kgcr-cash-btn').onclick();
+    var tenderedInput = document.getElementById('kcash-tendered');
+    tenderedInput.value = setup.totals.total.toFixed(2);
+    tenderedInput.oninput();
+
+    mockFetchOnce(202, { pending: false, cash: true, reference: 'KIOSK-CASH-IDEM' });
+    mockFetchOnce(201, { ok: true, invoice_id: 'inv-idem', invoice_number: 'INV-IDEM', total: setup.totals.total });
+
+    document.getElementById('kcash-complete-btn').onclick();
+    await flushPromises();
+
+    var saleCall = global.fetch.mock.calls.find(function (c) {
+      return typeof c[0] === 'string' && c[0].indexOf('/api/kiosk/sale') !== -1 && c[0].indexOf('/confirm') === -1;
+    });
+    expect(saleCall).toBeTruthy();
+    var saleBody = JSON.parse(saleCall[1].body);
+    expect(saleBody.idempotency_key).toMatch(/:cash$/);
+    expect(saleBody.idempotency_key).toBe(saleBody.reference_number + ':cash');
+  });
+
   test('both the /sale and /confirm cash fetches route through _kcMergeAuth (x-device-token present, no credentials:"include")', async function () {
     var setup = setUpAtPayment();
 

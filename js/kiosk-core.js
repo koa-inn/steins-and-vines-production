@@ -231,12 +231,17 @@
     return (flat && flat.transactionId) ? String(flat.transactionId) : '';
   }
 
-  // Port of js/modules/12-checkout.js:1806-1836 — origin-validated postMessage
-  // handler. T-70-07 (Spoofing): the origin check is UNCHANGED from the public
-  // checkout (secure.helcim.app / myhelcim.com only); a foreign-origin message
-  // is ignored so a spoofed SUCCESS cannot fake a payment confirmation.
+  // Origin-validated postMessage handler (ported from js/modules/12-checkout.js).
+  // T-70-07 (Spoofing): a foreign-origin message is ignored so a spoofed SUCCESS
+  // cannot fake a payment confirmation.
+  // WR-03 (70-review): the allowlist now names the SAME Helcim origins as the
+  // kiosk CSP frame-src/connect-src (secure.helcim.app + secure.myhelcim.com).
+  // The prior bare `myhelcim.com` disagreed with the CSP's `secure.myhelcim.com`
+  // in both directions — a latent "missing domain silently breaks the feature"
+  // gap (CLAUDE.md rule 12). The shared 12-checkout.js public-checkout source
+  // carries the same inconsistency and is a separate, out-of-scope follow-up.
   function _kcHandleHelcimMessage(event) {
-    if (event.origin !== 'https://secure.helcim.app' && event.origin !== 'https://myhelcim.com') {
+    if (event.origin !== 'https://secure.helcim.app' && event.origin !== 'https://secure.myhelcim.com') {
       return;
     }
     var data = event.data || {};
@@ -2930,6 +2935,14 @@
         standardSaleBody.gift_card = _kcEnv.getGiftCard()
           ? { cert_number: _kcEnv.getGiftCard().cert_number, amount_applied: _kcEnv.getGiftCard().amount_applied }
           : undefined;
+        // WR-02 (70-review): the three tender paths share standardSaleBody. Cash
+        // and MOTO suffix the key with their tender; the terminal path is the
+        // baseline, so RESET the key to the bare refNumber here. This undoes any
+        // prior cash/moto mutation so a switch FROM an aborted moto/cash attempt
+        // TO the terminal does not inherit (and replay) that tender's cached
+        // /sale response — while a genuine terminal double-tap still de-dupes.
+        // (Bare refNumber also preserves the D-05 kiosk/admin parity contract.)
+        standardSaleBody.idempotency_key = refNumber;
       }
 
       // Update amount display to terminal amount (total minus gift card)
@@ -3124,6 +3137,13 @@
         ? { cert_number: _kcEnv.getGiftCard().cert_number, amount_applied: _kcEnv.getGiftCard().amount_applied }
         : undefined;
       standardSaleBody.tender = 'cash';
+      // WR-02 (70-review): scope the idempotency key to THIS tender attempt.
+      // The three tender paths share standardSaleBody; a bare refNumber key meant
+      // that aborting a MOTO attempt and switching to cash replayed the cached
+      // moto /sale response (no cash:true) and blocked the cash sale. A
+      // tender-suffixed key keeps a genuine double-tap of the SAME tender
+      // de-duped while letting a tender switch start a clean idempotency scope.
+      standardSaleBody.idempotency_key = refNumber + ':cash';
 
       var cashRemainderDisplay = _kcEnv.getGiftCard()
         ? Math.max(0, Math.round((totals.total - _kcEnv.getGiftCard().amount_applied) * 100) / 100)
@@ -3184,6 +3204,10 @@
         ? { cert_number: _kcEnv.getGiftCard().cert_number, amount_applied: _kcEnv.getGiftCard().amount_applied }
         : undefined;
       standardSaleBody.tender = 'moto';
+      // WR-02 (70-review): tender-scoped idempotency key — see _kioskGoCash. A
+      // fresh moto attempt after a prior aborted tender starts a clean scope
+      // instead of replaying a stale cached response.
+      standardSaleBody.idempotency_key = refNumber + ':moto';
 
       var motoRemainderDisplay = _kcEnv.getGiftCard()
         ? Math.max(0, Math.round((totals.total - _kcEnv.getGiftCard().amount_applied) * 100) / 100)

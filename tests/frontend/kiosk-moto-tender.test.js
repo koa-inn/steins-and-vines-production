@@ -212,6 +212,24 @@ describe('kiosk MOTO (phone-order card-not-present) tender (70-02 / KIOSK-MOTO)'
     expect(confirmCall[1].headers['x-device-token']).toBe('kiosk-moto-token');
   });
 
+  test('WR-02: the MOTO /sale idempotency_key is tender-scoped (refNumber:moto) so a tender switch after an abort starts a clean idempotency scope', async function () {
+    setUpAtPayment();
+
+    mockFetchOnce(202, { pending: false, moto: true, checkout_token: 'tok-moto-idem', reference: 'KIOSK-MOTO-IDEM' });
+    document.getElementById('kgcr-moto-btn').onclick();
+    await flushPromises();
+
+    var saleCall = global.fetch.mock.calls.find(function (c) {
+      return typeof c[0] === 'string' && c[0].indexOf('/api/kiosk/sale') !== -1 && c[0].indexOf('/confirm') === -1;
+    });
+    expect(saleCall).toBeTruthy();
+    var saleBody = JSON.parse(saleCall[1].body);
+    // The key is suffixed with the tender so switching to cash/terminal after an
+    // aborted MOTO attempt does NOT replay the cached moto /sale response.
+    expect(saleBody.idempotency_key).toMatch(/:moto$/);
+    expect(saleBody.idempotency_key).toBe(saleBody.reference_number + ':moto');
+  });
+
   test('an ABORTED postMessage removes the iframe and does NOT confirm the sale', async function () {
     setUpAtPayment();
 
