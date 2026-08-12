@@ -4,14 +4,14 @@ milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
 stopped_at: "**Ad-hoc bug-fix session — kiosk catalog load + BrewPad batch creation. All shipped to staging + prod (`2134da6`) and verified live.** Five commits: `ee7b0f1` (batch count capped by the Makers Fee quantity — merchandise could otherwise inflate it; INV-000067's 12 bottles + 1 kit would have made 13 batches), `d3e32f4` (**the owner's actual bug**: Apps Script's dedup guard keyed on invoice+SKU and silently rejected units 2..N, so the 2026-07-08 quantity-aware fix `fda6e40` had NEVER worked in prod — now bounded by `unit_total`), `7cbf856` (kiosk catalog load is recoverable: Retry button + retry on visibilitychange/online; a failed fetch was previously terminal until a page reload), `255308d` (`splitCustomerName` handles Zoho surname-first names — `"Gamba, Remo"` was stored mangled AND swapped; plus Apps Script `doGet` checked `SERVER_TOKEN` while `doPost` checked `SERVER_WRITE_TOKEN`, so middleware **reads never authenticated at all** — `pos.js` scan-invoices dedup always saw an empty set), `2134da6` (kit identity from the **Kits sheet**, 115 SKUs — retires the unit-price heuristic; loaded at startup + hourly, narrows only, never to zero)."
-last_updated: "2026-08-12T17:43:53.720Z"
-last_activity: 2026-08-12 -- Phase 69 execution started
+last_updated: "2026-08-12T19:04:38.856Z"
+last_activity: 2026-08-12 -- Phase 70 execution started
 progress:
-  total_phases: 55
-  completed_phases: 15
-  total_plans: 106
-  completed_plans: 102
-  percent: 27
+  total_phases: 56
+  completed_phases: 16
+  total_plans: 109
+  completed_plans: 104
+  percent: 29
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 69 — brewpad-batch-view-ux
+**Current focus:** Phase 70 — kiosk-tender-types
 
 ## Current Position
 
-Phase: 69 (brewpad-batch-view-ux) — EXECUTING
-Plan: 1 of 2
+Phase: 70 (kiosk-tender-types) — EXECUTING
+Plan: 1 of 3
 Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 `milestone_complete` flag was false; corrected 2026-07-10). Done: 46 (SEC-02 ✅), 48 (KIOSK-01 ✅ — de-fork live-verified standalone 2026-07-10, 22/22 threats secured), 52 (RESIL-01 ✅), 53 (OBS-01 ✅), 54 (kiosk gift-card mgmt ✅ — UAT+security closed 2026-07-10). **Open phases:** 47 (SEC-01 — STATE narrative says closed-on-staging but ROADMAP checkbox is still `[ ]`; needs owner reconciliation), 49 (MONEY-01 — 49-01 code merged, 49-02 live-card UAT pending), 50 (MONEY-02) + 51 (MONEY-03) — both now UNBLOCKED (were gated on 48). 50/51 also depend on the money-path-primitive adoption in pos-recipe.js.
-Status: Executing Phase 69
-Last activity: 2026-08-12 -- Phase 69 execution started
+Status: Executing Phase 70
+Last activity: 2026-08-12 -- Phase 70 execution started
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
