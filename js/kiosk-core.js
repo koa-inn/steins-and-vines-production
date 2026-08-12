@@ -2749,7 +2749,7 @@
       }
     }
 
-    function confirmSale(txnId) {
+    function confirmSale(txnId, tender) {
       if (cancelled || saleCompleted) return;
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
       if (msgEl) msgEl.textContent = 'Creating invoice...';
@@ -2810,7 +2810,9 @@
         return;
       }
 
-      // Phase 44 (D-05): include gift_card in confirm body so server records split payment
+      // Phase 44 (D-05): include gift_card in confirm body so server records split payment.
+      // 70-01: tender is forwarded so the server can route cash bookings; cash NEVER
+      // sends a transaction_id (txnId is undefined for cash — JSON.stringify drops it).
       fetch(mwUrl + '/api/kiosk/sale/confirm', _kcMergeAuth({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2818,6 +2820,7 @@
           items: items,
           reference_number: refNumber,
           transaction_id: txnId,
+          tender: tender || undefined,
           // CR-01: deterministic replay key so the server can short-circuit a duplicate confirm
           idempotency_key: refNumber,
           customer_name: _kcEnv.getCustomer() ? _kcEnv.getCustomer().name : '',
@@ -3034,6 +3037,64 @@
       });
     };
 
+    // 70-01 (KIOSK-CASH): _kioskGoCash — sibling to _kioskPushToTerminal, called
+    // by the cash-tender panel's "Complete Sale" button. Staff have already
+    // confirmed tendered >= cashRemainder in the change-due sub-panel below
+    // (display-only — tendered/change are NEVER sent to the server). Skips the
+    // terminal push + poll entirely: POST /api/kiosk/sale with tender:'cash',
+    // then confirmSale(undefined, 'cash') — no transaction_id, ever.
+    var _kioskGoCash = function () {
+      // Mirrors _kioskPushToTerminal's gift-card-state sync (D-05: client-side
+      // clamp already applied in the GC panel) — cash may skip the terminal
+      // push entirely, so this assignment must happen here too.
+      standardSaleBody.gift_card = _kcEnv.getGiftCard()
+        ? { cert_number: _kcEnv.getGiftCard().cert_number, amount_applied: _kcEnv.getGiftCard().amount_applied }
+        : undefined;
+      standardSaleBody.tender = 'cash';
+
+      var cashRemainderDisplay = _kcEnv.getGiftCard()
+        ? Math.max(0, Math.round((totals.total - _kcEnv.getGiftCard().amount_applied) * 100) / 100)
+        : totals.total;
+      if (amountEl) amountEl.textContent = kioskFmt(cashRemainderDisplay);
+
+      var gcPanelElCash = document.getElementById('kiosk-gc-panel');
+      if (gcPanelElCash) gcPanelElCash.style.display = 'none';
+
+      if (cancelBtn) {
+        cancelBtn.disabled = true; // 70-01: no terminal charge exists to cancel mid-flight
+      }
+
+      if (msgEl) msgEl.textContent = 'Processing cash payment...';
+      if (spinnerEl) spinnerEl.style.display = '';
+
+      fetch(saleUrl, _kcMergeAuth({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(standardSaleBody)
+      }))
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+      .then(function (result) {
+        if (cancelled || saleCompleted) return;
+        if (result.status === 202 && result.data && result.data.cash) {
+          confirmSale(undefined, 'cash'); // no transaction_id — cash never charges Helcim
+          return;
+        }
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        if (cancelBtn) cancelBtn.disabled = false;
+        var cashErrMsg = (result.data && result.data.error) || '';
+        _kcReportClientError({
+          message: cashErrMsg, http_status: result.status, endpoint: '/api/kiosk/sale'
+        });
+        kioskShowError('Cash Sale Error', cashErrMsg || 'Failed to record the cash sale.', true);
+      })
+      .catch(function () {
+        if (cancelled || saleCompleted) return;
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        if (cancelBtn) cancelBtn.disabled = false;
+        kioskShowError('Connection Error', 'Could not reach the server. Please try again.', true);
+      });
+    };
+
     if (confirmBtn) {
       confirmBtn.onclick = function () {
         if (saleCompleted) return;
@@ -3061,6 +3122,8 @@
         gcPanelEl2.innerHTML = [
           '<div id="kgcr-initial-row" style="display:flex;gap:0.5rem;flex-wrap:wrap;">',
           '<button type="button" id="kgcr-open-btn" style="flex:1;min-width:110px;padding:0.5rem 0.75rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.9rem;">Apply Gift Card</button>',
+          // 70-01 (KIOSK-CASH): Cash tender button — opens the change-due sub-panel below.
+          '<button type="button" id="kgcr-cash-btn" style="flex:1;min-width:110px;padding:0.5rem 0.75rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.9rem;">Cash</button>',
           '<button type="button" id="kgcr-skip-btn" style="flex:2;min-width:110px;padding:0.5rem 0.75rem;background:var(--cellar-green,#2e7d32);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.9rem;">Proceed to Terminal &#x2192;</button>',
           '</div>',
           '<div id="kgcr-form" style="display:none;margin-top:0.5rem;">',
@@ -3084,7 +3147,27 @@
           '<div id="kgcr-split-display" style="font-size:0.92rem;padding:0.3rem 0;margin-bottom:0.5rem;"></div>',
           '<div style="display:flex;gap:0.5rem;">',
           '<button type="button" id="kgcr-remove-btn" style="flex:1;padding:0.5rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.85rem;">Remove</button>',
+          // 70-01: Cash covers the post-gift-card remainder (split tender).
+          '<button type="button" id="kgcr-applied-cash-btn" style="flex:1;padding:0.5rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.85rem;">Cash</button>',
           '<button type="button" id="kgcr-proceed-btn" style="flex:2;padding:0.5rem;background:var(--cellar-green,#2e7d32);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.9rem;">Proceed to Terminal &#x2192;</button>',
+          '</div>',
+          '</div>',
+          // 70-01 (KIOSK-CASH): change-due sub-panel — client-only calculator.
+          // tendered/change are NEVER sent to the server; only the sale total
+          // (server-recomputed) is booked. Complete is disabled until
+          // tendered >= the remainder currently due (post-gift-card, if any).
+          '<div id="kgcr-cash-panel" style="display:none;margin-top:0.5rem;">',
+          '<div id="kcash-remainder-display" style="font-size:0.92rem;margin-bottom:0.5rem;"></div>',
+          '<div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;">',
+          '<label for="kcash-tendered" style="font-size:0.85rem;color:#555;">Tendered</label>',
+          '<input type="number" id="kcash-tendered" placeholder="0.00" step="0.01" min="0" ',
+          'style="flex:1;padding:0.4rem 0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:4px;" />',
+          '</div>',
+          '<div id="kcash-change-row" style="font-size:0.95rem;margin-bottom:0.5rem;">Change: <span id="kcash-change">$0.00</span></div>',
+          '<div id="kcash-error" style="display:none;color:#c00;font-size:0.88rem;margin-bottom:0.4rem;"></div>',
+          '<div style="display:flex;gap:0.5rem;">',
+          '<button type="button" id="kcash-back-btn" style="flex:1;padding:0.5rem;background:#fff;border:1px solid #bbb;border-radius:6px;cursor:pointer;font-size:0.85rem;">&#x2190; Back</button>',
+          '<button type="button" id="kcash-complete-btn" disabled style="flex:2;padding:0.5rem;background:var(--cellar-green,#2e7d32);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.9rem;opacity:0.5;">Complete Sale</button>',
           '</div>',
           '</div>'
         ].join('');
@@ -3104,6 +3187,83 @@
         var gcBackBtn = document.getElementById('kgcr-back-btn');
         var gcRemoveBtn = document.getElementById('kgcr-remove-btn');
         var gcProceedBtn = document.getElementById('kgcr-proceed-btn');
+
+        // 70-01 (KIOSK-CASH): cash tender + change-due sub-panel element refs.
+        var cashBtn = document.getElementById('kgcr-cash-btn');
+        var cashAppliedBtn = document.getElementById('kgcr-applied-cash-btn');
+        var cashPanel = document.getElementById('kgcr-cash-panel');
+        var cashRemainderDisplayEl = document.getElementById('kcash-remainder-display');
+        var cashTenderedInput = document.getElementById('kcash-tendered');
+        var cashChangeEl = document.getElementById('kcash-change');
+        var cashErrorEl = document.getElementById('kcash-error');
+        var cashBackBtn = document.getElementById('kcash-back-btn');
+        var cashCompleteBtn = document.getElementById('kcash-complete-btn');
+        var _kioskCashRemainder = 0;
+
+        // Recomputes change (display-only, never sent) and toggles Complete's
+        // disabled state: enabled only once tendered >= the remainder due.
+        var updateCashCompleteState = function () {
+          var tendered = parseFloat(cashTenderedInput ? cashTenderedInput.value : 0) || 0;
+          var change = Math.round((tendered - _kioskCashRemainder) * 100) / 100;
+          if (cashChangeEl) cashChangeEl.textContent = kioskFmt(change > 0 ? change : 0);
+          var ok = tendered >= _kioskCashRemainder && _kioskCashRemainder > 0;
+          if (cashCompleteBtn) {
+            cashCompleteBtn.disabled = !ok;
+            cashCompleteBtn.style.opacity = ok ? '1' : '0.5';
+          }
+        };
+
+        // Opens the change-due sub-panel. cashRemainder is the post-gift-card
+        // amount due — totals.total minus any applied gift-card amount.
+        var openCashPanel = function () {
+          _kioskCashRemainder = _kcEnv.getGiftCard()
+            ? Math.max(0, Math.round((totals.total - _kcEnv.getGiftCard().amount_applied) * 100) / 100)
+            : totals.total;
+          if (gcInitialRow) gcInitialRow.style.display = 'none';
+          if (gcApplied) gcApplied.style.display = 'none';
+          if (gcForm) gcForm.style.display = 'none';
+          if (gcErrorEl) { gcErrorEl.style.display = 'none'; gcErrorEl.textContent = ''; }
+          if (cashErrorEl) { cashErrorEl.style.display = 'none'; cashErrorEl.textContent = ''; }
+          if (cashRemainderDisplayEl) cashRemainderDisplayEl.textContent = 'Amount due: ' + kioskFmt(_kioskCashRemainder);
+          if (cashTenderedInput) cashTenderedInput.value = '';
+          if (cashChangeEl) cashChangeEl.textContent = kioskFmt(0);
+          updateCashCompleteState();
+          if (cashPanel) cashPanel.style.display = '';
+          if (cashTenderedInput) cashTenderedInput.focus();
+        };
+
+        if (cashBtn) { cashBtn.onclick = openCashPanel; }
+        if (cashAppliedBtn) { cashAppliedBtn.onclick = openCashPanel; }
+
+        if (cashTenderedInput) {
+          cashTenderedInput.oninput = updateCashCompleteState;
+          cashTenderedInput.onchange = updateCashCompleteState;
+        }
+
+        if (cashBackBtn) {
+          cashBackBtn.onclick = function () {
+            if (cashPanel) cashPanel.style.display = 'none';
+            if (cashErrorEl) { cashErrorEl.style.display = 'none'; cashErrorEl.textContent = ''; }
+            if (_kcEnv.getGiftCard()) {
+              if (gcApplied) gcApplied.style.display = '';
+            } else if (gcInitialRow) {
+              gcInitialRow.style.display = 'flex';
+            }
+          };
+        }
+
+        if (cashCompleteBtn) {
+          cashCompleteBtn.onclick = function () {
+            var tendered = parseFloat(cashTenderedInput ? cashTenderedInput.value : 0) || 0;
+            if (tendered < _kioskCashRemainder) {
+              if (cashErrorEl) { cashErrorEl.textContent = 'Tendered amount is less than the amount due.'; cashErrorEl.style.display = ''; }
+              return;
+            }
+            cashCompleteBtn.disabled = true;
+            if (cashBackBtn) cashBackBtn.disabled = true;
+            _kioskGoCash();
+          };
+        }
 
         if (gcOpenBtn) {
           gcOpenBtn.onclick = function () {
