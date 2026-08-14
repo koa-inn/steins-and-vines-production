@@ -1036,13 +1036,15 @@ Plans:
 
 ### Phase 71: Kiosk SO-collect reconciliation — finalize invoice (sent/open) + apply payment to the invoice, not the sales order
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** A charged kiosk SO collection reconciles in Zoho like `processSale` — the SO's invoice is finalized (sent/open) then paid (balance 0), with the customerpayment applied to the invoice (unused_amount 0), never left as an orphaned advance against the sales order. Post-charge failures fail closed with a recoverable reconcile record. The sibling online SO-deposit path (checkout.js) is fixed the same way.
+**Requirements**: Owner money-path ticket (no REQ IDs). Source: `.planning/debug/kiosk-so-collect-draft-unapplied.md` + `71-CONTEXT.md` decisions D1-D4.
 **Depends on:** Phase 70
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 71 to break down)
+- [ ] 71-01-PLAN.md — Core fix: webhooks collect APPROVED path convert/reuse+submit+apply-to-invoice, dedup finalize helper, fail-closed reconcile writer, tests
+- [ ] 71-02-PLAN.md — Sibling fix: checkout.js online SO-deposit path applies to a finalized invoice (reuses the dedup helper) + regression test
+- [ ] 71-03-PLAN.md — Live-verify checkpoint: real kiosk SO collection reconciles to a paid invoice on staging (owner)
 
 ---
 
