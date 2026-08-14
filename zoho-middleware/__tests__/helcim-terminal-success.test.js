@@ -319,9 +319,26 @@ describe('handleCardTransaction — terminal success recognition (regression)', 
   // causes Zoho payment POST (APPROVED), cleans up on DECLINED.
   // -------------------------------------------------------------------------
 
+  // 71-01: this test used to pin the pre-fix `salesorders_to_apply` shape
+  // (the exact bug the phase-71 plan fixes — see
+  // .planning/debug/kiosk-so-collect-draft-unapplied.md). Updated to the
+  // verified-correct end-state: convert-or-reuse the SO's invoice, finalize
+  // it, then apply the payment via invoices:[{invoice_id, amount_applied}].
+  // Full behavioral coverage (happy path, existing-draft reuse, fail-closed,
+  // salesorders_to_apply regression) lives in
+  // __tests__/collect-webhook-reconcile.test.js.
   test('collect-pending APPROVED: calls zohoPost customerpayments + clears pending key', function () {
     var zohoApi = require('../lib/zoho-api');
-    zohoApi.zohoPost.mockResolvedValue({ code: 0 });
+    zohoApi.zohoGet.mockResolvedValue({ salesorder: { invoices: [] } });
+    zohoApi.zohoPost.mockImplementation(function (endpoint) {
+      if (endpoint.indexOf('/invoices/fromsalesorder') === 0) {
+        return Promise.resolve({ invoice: { invoice_id: 'INV-COLLECT-NEW' } });
+      }
+      if (/^\/invoices\/.+\/submit$/.test(endpoint)) {
+        return Promise.resolve({});
+      }
+      return Promise.resolve({ code: 0 });
+    });
 
     helcimLib.getCardTransactionById.mockResolvedValue({
       status: 'APPROVED',
@@ -356,16 +373,17 @@ describe('handleCardTransaction — terminal success recognition (regression)', 
     }).then(function () {
       return new Promise(function (resolve) { setImmediate(resolve); });
     }).then(function () {
+      return new Promise(function (resolve) { setImmediate(resolve); });
+    }).then(function () {
       expect(zohoApi.zohoPost).toHaveBeenCalledWith(
         '/customerpayments',
         expect.objectContaining({
           customer_id: 'C-001',
           reference_number: 'txn-collect-001',
-          salesorders_to_apply: expect.arrayContaining([
-            expect.objectContaining({ salesorder_id: 'SO-001' })
-          ])
+          invoices: [{ invoice_id: 'INV-COLLECT-NEW', amount_applied: 75.00 }]
         })
       );
+      expect(cache.del).toHaveBeenCalledWith('collect:pending:INV-COLLECT');
     });
   });
 
