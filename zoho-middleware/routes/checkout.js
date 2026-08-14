@@ -677,6 +677,20 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
       // status is changed to "confirmed".
 
       // If an online payment was charged, record it in Zoho Books
+      //
+      // Reachability invariant: this block is only entered when transactionId
+      // is truthy (guard above). depositAmount is only ever nonzero when
+      // transactionId is truthy (see "Full amount charged" above), and
+      // useInvoice = !!transactionId — so useInvoice === true is guaranteed
+      // here, and soId is always the invoice id (zohoEntity = data.invoice).
+      // A sales-order-scoped apply-payment else-branch previously lived here
+      // but was unreachable dead code since the 2026-05-07 checkout refactor
+      // (commit f6d6e52dc). It was removed in phase 71-02 to prevent a future
+      // refactor from silently reintroducing the orphaned-advance bug: a
+      // customerpayment applied against a sales order (instead of an invoice
+      // via the `invoices` array) does not reconcile against any bookable
+      // invoice in Zoho. If the useInvoice invariant is ever violated, the
+      // guard below fails loudly instead of booking one.
       if (transactionId && depositAmount > 0 && soId) {
         try {
           var paymentBody = {
@@ -689,11 +703,19 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
           };
           if (useInvoice) {
             paymentBody.invoices = [{ invoice_id: soId, amount_applied: depositAmount }];
+            await zohoPost('/customerpayments', paymentBody);
+            log.info('[checkout] Payment recorded for INV=' + soNumber);
           } else {
-            paymentBody.salesorders_to_apply = [{ salesorder_id: soId, amount_applied: depositAmount }];
+            // Should be unreachable — see invariant note above. Fail loud
+            // rather than silently booking an orphaned advance against a
+            // sales order.
+            var invariantErr = new Error('[checkout] Invariant violation: deposit-booking block entered with useInvoice=false — refusing to book a sales-order-scoped payment (would orphan the advance).');
+            log.error(invariantErr.message);
+            captureExceptionSafe(invariantErr, {
+              level: 'error',
+              tags: { reqId: reqId || null, txnId: transactionId, invoiceId: soId || null }
+            });
           }
-          await zohoPost('/customerpayments', paymentBody);
-          log.info('[checkout] Payment recorded for ' + (useInvoice ? 'INV' : 'SO') + '=' + soNumber);
         } catch (payErr) {
           log.error('[checkout] Payment recording failed (non-fatal): ' + payErr.message);
           captureExceptionSafe(payErr, {
