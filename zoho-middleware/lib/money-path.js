@@ -21,6 +21,9 @@
 var log = require('./logger');
 var eventLog = require('./eventLog');
 var captureExceptionSafe = require('./sentry-capture').captureExceptionSafe;
+var zohoApiLib = require('./zoho-api');
+var zohoGet = zohoApiLib.zohoGet;
+var zohoPost = zohoApiLib.zohoPost;
 
 // Lazy-require helpers — called once per function invocation if deps not provided
 function getHelcim() { return require('./helcim'); }
@@ -257,11 +260,98 @@ function voidWithTimeout(helcimLib, token, amount, opts) {
     });
 }
 
+/**
+ * Ensure an open/sent Zoho invoice exists for a sales order — 71-01.
+ *
+ * Fixes the kiosk SO-collect money-path bug (webhooks.js:206 pre-fix): a
+ * customerpayment booked with `salesorders_to_apply` never reconciles against
+ * any bookable invoice. This helper produces the finalized invoice_id a
+ * caller must apply the payment to via `invoices: [{ invoice_id, amount_applied }]`.
+ *
+ * Flow:
+ *   1. DEDUP PRE-CHECK — GET /salesorders/{soId} and look for an existing
+ *      linked invoice, so a draft SO-invoice is REUSED rather than duplicated
+ *      (the debug doc's core "don't duplicate the invoice" constraint).
+ *   2. If none found, convert the SO to a new invoice via
+ *      /invoices/fromsalesorder?salesorder_id=.
+ *   3. FINALIZE — POST /invoices/{id}/submit to mark it sent/open. A genuine
+ *      submit failure REJECTS (fail-closed: never return a still-draft
+ *      invoice_id for payment application). An "already sent" / "cannot be
+ *      submitted" style error is treated as success — the invoice is already
+ *      in the desired open/sent state.
+ *
+ * DEDUP PRE-CHECK FIELD PATH (documented per 71-01 plan — no in-repo
+ * precedent for this shape prior to this change; it is mock-tested only in
+ * collect-webhook-reconcile.test.js. 71-03's live-verify MUST confirm this
+ * against a real Zoho `GET /salesorders/{id}` response before this is
+ * trusted against production SOs — a wrong shape here silently
+ * always-creates a new invoice, i.e. duplicate-invoice risk):
+ *
+ *   salesorder.invoices[].invoice_id   (first entry whose status !== 'void')
+ *
+ * Fallback (defensive, in case a Zoho SO response ever surfaces it flatly
+ * instead of as an array — unverified, kept only as a secondary signal):
+ *
+ *   salesorder.invoice_id
+ *
+ * @param {string} soId - Zoho Sales Order ID
+ * @returns {Promise<string>} resolves to a finalized (open/sent) invoice_id
+ */
+function ensureOpenInvoiceForSalesOrder(soId) {
+  return zohoGet('/salesorders/' + soId).then(function (data) {
+    var so = (data && data.salesorder) || {};
+    var linkedInvoices = Array.isArray(so.invoices) ? so.invoices : [];
+    var existing = linkedInvoices.filter(function (inv) {
+      return inv && inv.invoice_id && (inv.status || '').toLowerCase() !== 'void';
+    })[0];
+    var existingInvoiceId = (existing && existing.invoice_id) || so.invoice_id || '';
+
+    if (existingInvoiceId) {
+      log.info('[money-path] ensureOpenInvoiceForSalesOrder: reusing existing invoice=' +
+        existingInvoiceId + ' for SO=' + soId);
+      return existingInvoiceId;
+    }
+
+    log.info('[money-path] ensureOpenInvoiceForSalesOrder: no linked invoice found — converting SO=' + soId);
+    return zohoPost('/invoices/fromsalesorder?salesorder_id=' + soId, {}).then(function (invoiceData) {
+      var invoice = (invoiceData && invoiceData.invoice) || {};
+      var invoiceId = invoice.invoice_id || '';
+      if (!invoiceId) {
+        throw new Error('SO->invoice conversion did not return an invoice_id for SO=' + soId);
+      }
+      return invoiceId;
+    });
+  }).then(function (invoiceId) {
+    return zohoPost('/invoices/' + invoiceId + '/submit', {}).then(function () {
+      return invoiceId;
+    }).catch(function (submitErr) {
+      // Treat "already sent" / "cannot be submitted" as success — the invoice
+      // is already open, which is the desired end state. Any other error
+      // rejects: fail-closed means we must never apply a payment to a
+      // still-draft invoice.
+      var msg = ((submitErr && submitErr.message) || '').toLowerCase();
+      var body = '';
+      if (submitErr && submitErr.response && submitErr.response.data) {
+        try { body = JSON.stringify(submitErr.response.data).toLowerCase(); } catch { body = ''; }
+      }
+      var alreadySent = msg.indexOf('already') !== -1 || body.indexOf('already') !== -1 ||
+        msg.indexOf('cannot be submitted') !== -1 || body.indexOf('cannot be submitted') !== -1;
+      if (alreadySent) {
+        log.info('[money-path] ensureOpenInvoiceForSalesOrder: invoice=' + invoiceId +
+          ' already sent — treating submit as success');
+        return invoiceId;
+      }
+      throw submitErr;
+    });
+  });
+}
+
 module.exports = {
   CHECKOUT_IDEMPOTENCY_TTL: CHECKOUT_IDEMPOTENCY_TTL,
   acquireIdempotencyLock: acquireIdempotencyLock,
   assertTxnNotReplayed: assertTxnNotReplayed,
   markTxnUsed: markTxnUsed,
   rejectWithVoid: rejectWithVoid,
-  voidWithTimeout: voidWithTimeout
+  voidWithTimeout: voidWithTimeout,
+  ensureOpenInvoiceForSalesOrder: ensureOpenInvoiceForSalesOrder
 };

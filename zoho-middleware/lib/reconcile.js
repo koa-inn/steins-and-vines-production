@@ -35,12 +35,14 @@
 // Threat: T-45-08-ORPHAN (Repudiation / Integrity)
 // ---------------------------------------------------------------------------
 
-var log   = require('./logger');
-var cache = require('./cache');
-var C     = require('./constants');
+var log      = require('./logger');
+var cache    = require('./cache');
+var C        = require('./constants');
+var eventLog = require('./eventLog');
 
-var PENDING_PREFIX         = C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX;
-var TERMINAL_RESULT_PREFIX = 'helcim:terminal:result:';
+var PENDING_PREFIX                  = C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX;
+var TERMINAL_RESULT_PREFIX          = 'helcim:terminal:result:';
+var COLLECT_RECONCILE_FAILURE_PREFIX = C.CACHE_KEYS.COLLECT_RECONCILE_FAILURE_PREFIX;
 // 30-day TTL for void-failure sentinel records (matches pos.js:1007/1664 convention)
 var VOID_FAILURE_TTL = 30 * 24 * 60 * 60;
 // 7-day TTL for the pending-charge record when re-written with the
@@ -457,11 +459,82 @@ function sweepPendingCharges(deps) {
   });
 }
 
+/**
+ * Record a fail-closed sentinel for a collect-flow payment that could not be
+ * finalized/applied to an invoice AFTER the Helcim charge already succeeded
+ * — 71-01 (kiosk SO-collect reconciliation).
+ *
+ * Mirrors the sv:void-failure sentinel idiom above (see the void-failure
+ * branch in reconcilePendingCharge): a cache-key record with 30-day TTL plus
+ * a staff alert, so a human/backstop can recover the charge rather than it
+ * being silently stranded (draft invoice, unapplied advance, or a payment
+ * that never got booked at all).
+ *
+ * Reuses mailer.sendVoidFailureAlert (the existing staff-alert convention)
+ * rather than introducing a new mailer method — its subject line reads "void
+ * failed", which is a known cosmetic mismatch for this non-void failure
+ * class; the body's `error` field carries the real (collect-reconcile)
+ * failure description.
+ *
+ * ZERO PII: only txnId/soId/soNumber/invoiceId/amount are logged via
+ * eventLog — no customer email/name/phone (see eventLog.js header).
+ *
+ * @param {Object} ctx            - Collect-pending context (salesorder_id, salesorder_number, customer_id, amount, invoice_id?)
+ * @param {string} transactionId  - Helcim transaction ID
+ * @param {Error} err             - The error that triggered the fail-closed path
+ * @returns {Promise<void>}
+ */
+function recordCollectReconcileFailure(ctx, transactionId, err) {
+  var mailer = require('./mailer');
+  var safeCtx = ctx || {};
+  var errMessage = (err && err.message) || 'unknown';
+
+  var record = {
+    txn_id: transactionId,
+    salesorder_id: safeCtx.salesorder_id || null,
+    salesorder_number: safeCtx.salesorder_number || null,
+    invoice_id: safeCtx.invoice_id || null,
+    amount: safeCtx.amount || 0,
+    error: errMessage,
+    needs_manual_review: true,
+    created_at: new Date().toISOString()
+  };
+
+  var key = COLLECT_RECONCILE_FAILURE_PREFIX + Date.now();
+
+  log.error('[reconcile] CRITICAL: collect reconcile failed — SO=' +
+    (safeCtx.salesorder_number || safeCtx.salesorder_id || 'unknown') +
+    ' txn=' + transactionId + ' amount=$' + (safeCtx.amount || 0) +
+    ' error=' + errMessage + ' — flagging for manual review');
+
+  eventLog.logEvent('collect.reconcile_failed', {
+    soId: safeCtx.salesorder_id || null,
+    soNumber: safeCtx.salesorder_number || null,
+    txnId: transactionId,
+    amount: safeCtx.amount || 0
+  });
+
+  return cache.set(key, record, VOID_FAILURE_TTL)
+    .catch(function () {})
+    .then(function () {
+      return mailer.sendVoidFailureAlert({
+        txnId: transactionId,
+        amount: safeCtx.amount || 0,
+        error: 'Collect payment reconcile failed post-charge (SO=' +
+          (safeCtx.salesorder_number || safeCtx.salesorder_id || 'unknown') + '): ' + errMessage,
+        timestamp: record.created_at
+      }).catch(function (mailErr) {
+        log.error('[reconcile] Collect reconcile-failure alert email failed: ' + mailErr.message);
+      });
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Module exports
 // ---------------------------------------------------------------------------
 
 module.exports = {
-  reconcilePendingCharge: reconcilePendingCharge,
-  sweepPendingCharges:    sweepPendingCharges
+  reconcilePendingCharge:        reconcilePendingCharge,
+  sweepPendingCharges:           sweepPendingCharges,
+  recordCollectReconcileFailure: recordCollectReconcileFailure
 };
