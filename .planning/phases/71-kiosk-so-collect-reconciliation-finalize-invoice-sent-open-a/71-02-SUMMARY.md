@@ -123,3 +123,12 @@ None - no external service configuration required.
 ---
 *Phase: 71-kiosk-so-collect-reconciliation-finalize-invoice-sent-open-a*
 *Completed: 2026-08-14*
+
+## Self-Check: PASSED
+
+- FOUND: zoho-middleware/__tests__/checkout-so-deposit-reconcile.test.js
+- FOUND: .planning/phases/71-kiosk-so-collect-reconciliation-finalize-invoice-sent-open-a/71-02-SUMMARY.md
+- Confirmed: `grep -n "salesorders_to_apply" zoho-middleware/routes/checkout.js` returns no match
+- FOUND commit 413c7ed5 (test)
+- FOUND commit 5faf4ddb (refactor)
+- FOUND commit bb42309b (docs, this SUMMARY)
