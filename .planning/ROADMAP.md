@@ -1034,6 +1034,16 @@ Plans:
 - [x] 70-02-PLAN.md — MOTO via HelcimPay: server init + captured-amount verify before booking + kiosk phone-order button/iframe + kiosk.html first CSP
 - [ ] 70-03-PLAN.md — Live-verify checkpoint (autonomous:false): real cash sale + real HelcimPay charge (refunded) + CSP live-verified on staging before prod
 
+### Phase 71: Kiosk SO-collect reconciliation — finalize invoice (sent/open) + apply payment to the invoice, not the sales order
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 70
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 71 to break down)
+
 ---
 
 ### Phase 46: Auth Re-Architecture (CRITICAL — split from Phase 45)
