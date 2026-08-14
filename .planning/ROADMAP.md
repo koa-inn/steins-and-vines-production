@@ -1043,7 +1043,7 @@ Plans:
 
 Plans:
 - [ ] 71-01-PLAN.md — Core fix: webhooks collect APPROVED path convert/reuse+submit+apply-to-invoice, dedup finalize helper, fail-closed reconcile writer, tests
-- [ ] 71-02-PLAN.md — Sibling fix: checkout.js online SO-deposit path applies to a finalized invoice (reuses the dedup helper) + regression test
+- [ ] 71-02-PLAN.md — Dead-code cleanup: remove the unreachable salesorders_to_apply else-branch at checkout.js:693 (dead since f6d6e52dc) + invariant guard + regression lock (NOT a money-path fix)
 - [ ] 71-03-PLAN.md — Live-verify checkpoint: real kiosk SO collection reconciles to a paid invoice on staging (owner)
 
 ---
