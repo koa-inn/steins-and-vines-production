@@ -45,6 +45,9 @@ var CACHE_KEYS = {
   // Collect payment (Zoho SO → Helcim terminal)
   COLLECT_IDEM_PREFIX:    'collect:idem:',
   COLLECT_PENDING_PREFIX: 'collect:pending:',
+  // Fail-closed sentinel for a collect-flow payment that could not be
+  // finalized/applied to an invoice after the Helcim charge (71-01).
+  COLLECT_RECONCILE_FAILURE_PREFIX: 'collect:reconcile-failure:',
 
   // Kiosk pending charge — D-13 reconciliation interface (45-07 → consumed by 45-08)
   // Keyed by reference_number; TTL 7 days so the daily reconciliation backstop can find it.

@@ -188,33 +188,49 @@ function processCardTransactionResult(transactionId, status, invoiceNumber, card
 
   // Collect-pending lookup: if this transaction was initiated by the collect
   // flow, record payment in Zoho or clean up on decline.
+  //
+  // 71-01: the APPROVED branch used to book the customerpayment against the
+  // sales order directly, which Zoho never reconciles against a bookable
+  // invoice (unapplied advance, invoice left draft — see
+  // .planning/debug/kiosk-so-collect-draft-unapplied.md). It now finalizes
+  // the SO's invoice (convert-or-reuse + submit, via
+  // moneyPath.ensureOpenInvoiceForSalesOrder) and applies the payment to
+  // that invoice_id via invoices:[...] — matching the verified-correct
+  // processSale/pos-recipe shape.
   if (invoiceNumber) {
     var pendingKey = C.CACHE_KEYS.COLLECT_PENDING_PREFIX + invoiceNumber;
+    // Hoisted so the catch below (fail-closed reporting) can reach the
+    // collect context even though it is parsed inside the .then() closure.
+    var collectCtx = null;
     cache.get(pendingKey).then(function (raw) {
       if (!raw) return; // Not a collect-flow transaction
       var ctx;
       try { ctx = JSON.parse(raw); } catch { return; }
+      collectCtx = ctx;
 
       if (status === 'APPROVED') {
-        return zohoPost('/customerpayments', {
-          customer_id: ctx.customer_id,
-          payment_mode: (cardType && cardType.toLowerCase().indexOf('debit') !== -1) ? 'debitcard' : 'creditcard',
-          amount: ctx.amount,
-          date: new Date().toISOString().slice(0, 10),
-          reference_number: transactionId,
-          notes: 'In-store terminal payment. Helcim txn: ' + transactionId,
-          salesorders_to_apply: [{
-            salesorder_id: ctx.salesorder_id,
-            amount_applied: ctx.amount
-          }]
-        }).then(function () {
-          eventLog.logEvent('collect.payment_recorded', {
-            soId: ctx.salesorder_id,
-            soNumber: ctx.salesorder_number,
-            txnId: transactionId,
-            amount: ctx.amount
+        return moneyPath.ensureOpenInvoiceForSalesOrder(ctx.salesorder_id).then(function (invoiceId) {
+          return zohoPost('/customerpayments', {
+            customer_id: ctx.customer_id,
+            payment_mode: (cardType && cardType.toLowerCase().indexOf('debit') !== -1) ? 'debitcard' : 'creditcard',
+            amount: ctx.amount,
+            date: new Date().toISOString().slice(0, 10),
+            reference_number: transactionId,
+            notes: 'In-store terminal payment. Helcim txn: ' + transactionId,
+            invoices: [{ invoice_id: invoiceId, amount_applied: ctx.amount }]
+          }).then(function () {
+            eventLog.logEvent('collect.payment_recorded', {
+              soId: ctx.salesorder_id,
+              soNumber: ctx.salesorder_number,
+              txnId: transactionId,
+              amount: ctx.amount,
+              invoiceId: invoiceId
+            });
+            // Double-apply guard: delete the pending key only AFTER a
+            // successful apply, so a re-delivered APPROVED webhook finds no
+            // pending context and no-ops instead of applying twice.
+            return cache.del(pendingKey);
           });
-          return cache.del(pendingKey);
         });
       } else if (status === 'DECLINED') {
         eventLog.logEvent('collect.payment_declined', {
@@ -228,6 +244,21 @@ function processCardTransactionResult(transactionId, status, invoiceNumber, card
         return Promise.all([cache.del(pendingKey), cache.del(idemKey)]);
       }
     }).catch(function (err) {
+      if (collectCtx && status === 'APPROVED') {
+        // Fail-closed: the Helcim charge already succeeded — a finalize/apply
+        // failure here must never look like silent success (no draft-left-
+        // unapplied, no orphaned charge). Write a reconcile-failure record +
+        // staff alert and DO NOT delete the pending key, so the collect
+        // context is retained for recovery.
+        log.error('[webhook/helcim] CRITICAL: Collect-pending finalize/apply failed after charge — SO=' +
+          collectCtx.salesorder_number + ' txn=' + transactionId + ': ' + err.message);
+        reconcile.recordCollectReconcileFailure(collectCtx, transactionId, err).catch(function () {});
+        captureExceptionSafe(err, {
+          level: 'error',
+          tags: { soId: collectCtx.salesorder_id, txnId: transactionId }
+        });
+        return;
+      }
       log.warn('[webhook/helcim] Collect-pending handling failed: ' + err.message);
     });
   }
