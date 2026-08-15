@@ -14,7 +14,17 @@ findings:
   warning: 3
   info: 2
   total: 6
-status: issues_found
+status: fixes_applied
+fixes_applied: 2026-08-14
+fix_commit: 3525aee7
+resolved:
+  - "CR-01 (BL-01): per-transaction idempotency lock added (collect-specific key)"
+  - "WR-01: pending-key delete made best-effort — cleanup failure no longer alerts"
+  - "WR-03: amount_applied clamped to invoice balance_due (read back), not stale ctx.amount"
+  - "IN-01: invoice_id surfaced onto the fail-closed reconcile-failure sentinel"
+deferred:
+  - "WR-02: unverified salesorder.invoices[] dedup shape — deferred to 71-03 live-verify"
+  - "IN-02: sendVoidFailureAlert subject mismatch — cosmetic, not fixed"
 ---
 
 # Phase 71: Code Review Report
@@ -22,7 +32,7 @@ status: issues_found
 **Reviewed:** 2026-08-14
 **Depth:** standard
 **Files Reviewed:** 5
-**Status:** issues_found
+**Status:** fixes_applied (CR-01/WR-01/WR-03/IN-01 fixed in 3525aee7; WR-02 deferred to 71-03, IN-02 cosmetic)
 
 ## Summary
 
