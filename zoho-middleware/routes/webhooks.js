@@ -6,6 +6,7 @@ var log = require('../lib/logger');
 var eventLog = require('../lib/eventLog');
 var zohoApi = require('../lib/zoho-api');
 var zohoPost = zohoApi.zohoPost;
+var zohoGet = zohoApi.zohoGet;
 var C = require('../lib/constants');
 var reconcile = require('../lib/reconcile');
 var moneyPath = require('../lib/money-path');
@@ -202,6 +203,10 @@ function processCardTransactionResult(transactionId, status, invoiceNumber, card
     // Hoisted so the catch below (fail-closed reporting) can reach the
     // collect context even though it is parsed inside the .then() closure.
     var collectCtx = null;
+    // IN-01: surfaced so the fail-closed sentinel can record the invoice that
+    // ensureOpenInvoiceForSalesOrder created/reused (it lives only inside the
+    // apply closure otherwise).
+    var collectInvoiceId = null;
     cache.get(pendingKey).then(function (raw) {
       if (!raw) return; // Not a collect-flow transaction
       var ctx;
@@ -209,27 +214,91 @@ function processCardTransactionResult(transactionId, status, invoiceNumber, card
       collectCtx = ctx;
 
       if (status === 'APPROVED') {
-        return moneyPath.ensureOpenInvoiceForSalesOrder(ctx.salesorder_id).then(function (invoiceId) {
-          return zohoPost('/customerpayments', {
-            customer_id: ctx.customer_id,
-            payment_mode: (cardType && cardType.toLowerCase().indexOf('debit') !== -1) ? 'debitcard' : 'creditcard',
-            amount: ctx.amount,
-            date: new Date().toISOString().slice(0, 10),
-            reference_number: transactionId,
-            notes: 'In-store terminal payment. Helcim txn: ' + transactionId,
-            invoices: [{ invoice_id: invoiceId, amount_applied: ctx.amount }]
+        // BL-01: guard the apply with a per-transaction lock so an at-least-once
+        // Helcim re-delivery (concurrent, OR a delivery after a cleanup failure
+        // left the pending key alive) cannot double-book the customerpayment.
+        // Mirrors the reconcile.js / voidCancelledApprovedCharge discipline:
+        // acquire before any work; on contention skip WITHOUT releasing (the
+        // holder owns the lock); release ONLY on the path that acquired it.
+        //
+        // The key is collect-specific — deliberately NOT the shared
+        // 'reconcile:txn:' key the terminal reconcile paths use. For a collect
+        // txn the concurrent reconcilePendingCharge(transactionId) call below
+        // ALSO tries 'reconcile:txn:' + transactionId; it is a harmless no-op
+        // for collect (no KIOSK_PENDING record), but if it won that lock race
+        // first, sharing the key would starve THIS apply into skipping and the
+        // payment would never be booked. A distinct key still fully serialises
+        // re-deliveries of the collect flow — the only path that books this
+        // payment — which is all BL-01 requires.
+        var collectLockKey = 'reconcile:collect:txn:' + transactionId;
+        return cache.acquireLock(collectLockKey, 60).then(function (acquired) {
+          if (!acquired) {
+            log.info('[webhook/helcim] collect-apply: duplicate delivery for txn=' +
+              transactionId + ' — lock held; skipping (not releasing)');
+            return; // holder owns it — do NOT release
+          }
+          return moneyPath.ensureOpenInvoiceForSalesOrder(ctx.salesorder_id).then(function (invoiceId) {
+            collectInvoiceId = invoiceId;
+            // WR-03: apply against the invoice's ACTUAL balance_due, not the
+            // stale collect-time ctx.amount. A prior deposit or tax/rounding at
+            // SO->invoice conversion can leave the two divergent; clamp
+            // amount_applied to balance_due so Zoho is never asked to over-apply
+            // (it would 400) and any >1c divergence is logged for reconciliation.
+            // (balance_due on GET /invoices/{id} is a standard field — unlike the
+            // salesorder.invoices[] dedup shape that WR-02 defers to 71-03.)
+            return zohoGet('/invoices/' + invoiceId).then(function (invData) {
+              var invoice = (invData && invData.invoice) || {};
+              var balanceDue = parseFloat(invoice.balance_due);
+              var applyAmount = ctx.amount;
+              var TOLERANCE = 0.01;
+              if (isFinite(balanceDue)) {
+                applyAmount = Math.min(ctx.amount, balanceDue);
+                if (Math.abs(ctx.amount - balanceDue) > TOLERANCE) {
+                  log.warn('[webhook/helcim] collect-apply: charged $' + ctx.amount +
+                    ' != invoice balance_due $' + balanceDue + ' for SO=' +
+                    ctx.salesorder_number + ' invoice=' + invoiceId +
+                    ' — applying $' + applyAmount + ' (reconciliation note)');
+                }
+              } else {
+                log.warn('[webhook/helcim] collect-apply: balance_due unreadable for invoice=' +
+                  invoiceId + ' — applying charged amount $' + ctx.amount);
+              }
+              return zohoPost('/customerpayments', {
+                customer_id: ctx.customer_id,
+                payment_mode: (cardType && cardType.toLowerCase().indexOf('debit') !== -1) ? 'debitcard' : 'creditcard',
+                amount: ctx.amount,
+                date: new Date().toISOString().slice(0, 10),
+                reference_number: transactionId,
+                notes: 'In-store terminal payment. Helcim txn: ' + transactionId,
+                invoices: [{ invoice_id: invoiceId, amount_applied: applyAmount }]
+              });
+            });
           }).then(function () {
             eventLog.logEvent('collect.payment_recorded', {
               soId: ctx.salesorder_id,
               soNumber: ctx.salesorder_number,
               txnId: transactionId,
               amount: ctx.amount,
-              invoiceId: invoiceId
+              invoiceId: collectInvoiceId
             });
-            // Double-apply guard: delete the pending key only AFTER a
-            // successful apply, so a re-delivered APPROVED webhook finds no
-            // pending context and no-ops instead of applying twice.
-            return cache.del(pendingKey);
+            // WR-01: the payment is booked — the apply is DONE. Deleting the
+            // pending key is best-effort cleanup, so swallow its failure in its
+            // own continuation. Otherwise a Redis blip on del() would reject the
+            // apply chain and masquerade as a "failed after charge" alert (and
+            // leave the fail-closed catch firing on a payment that actually
+            // succeeded). The BL-01 lock covers the residual re-delivery window
+            // if the key outlives this cycle.
+            return cache.del(pendingKey).catch(function (delErr) {
+              log.warn('[webhook/helcim] collect-apply: pending-key cleanup failed ' +
+                '(payment already booked) for txn=' + transactionId + ': ' + delErr.message);
+            });
+          }).then(function () {
+            // BL-01: release ONLY on the acquired path — on success OR failure —
+            // then re-throw so a genuine apply failure still reaches the
+            // fail-closed catch below. Mirrors reconcile.js:313-318.
+            return cache.releaseLock(collectLockKey).catch(function () {});
+          }, function (err) {
+            return cache.releaseLock(collectLockKey).catch(function () {}).then(function () { throw err; });
           });
         });
       } else if (status === 'DECLINED') {
@@ -252,7 +321,13 @@ function processCardTransactionResult(transactionId, status, invoiceNumber, card
         // context is retained for recovery.
         log.error('[webhook/helcim] CRITICAL: Collect-pending finalize/apply failed after charge — SO=' +
           collectCtx.salesorder_number + ' txn=' + transactionId + ': ' + err.message);
-        reconcile.recordCollectReconcileFailure(collectCtx, transactionId, err).catch(function () {});
+        // IN-01: if the invoice was already created/reused before the failure
+        // (i.e. the apply, not the finalize, is what failed), record its id on
+        // the sentinel so the manual-review record is actionable.
+        var failureCtx = collectInvoiceId
+          ? Object.assign({}, collectCtx, { invoice_id: collectInvoiceId })
+          : collectCtx;
+        reconcile.recordCollectReconcileFailure(failureCtx, transactionId, err).catch(function () {});
         captureExceptionSafe(err, {
           level: 'error',
           tags: { soId: collectCtx.salesorder_id, txnId: transactionId }

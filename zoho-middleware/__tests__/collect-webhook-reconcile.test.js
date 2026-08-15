@@ -343,3 +343,178 @@ describe('collect webhook reconcile — APPROVED path (Phase 71-01)', function (
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 71 code-review fixes: BL-01 (idempotency lock), WR-01 (best-effort
+// cleanup), WR-03 (apply against invoice balance_due).
+//
+// Routes zohoGet by endpoint so the WR-03 balance read
+// (GET /invoices/{id}.invoice.balance_due) can be exercised alongside the
+// existing GET /salesorders/{id} dedup read.
+// ---------------------------------------------------------------------------
+var COLLECT_LOCK_KEY = 'reconcile:collect:txn:' + TXN_ID;
+
+function mockZohoGetRouting(opts) {
+  opts = opts || {};
+  var soResponse = opts.salesorder || { salesorder: { invoices: [] } };
+  var hasBalance = Object.prototype.hasOwnProperty.call(opts, 'balanceDue');
+  zohoApi.zohoGet.mockImplementation(function (endpoint) {
+    if (endpoint.indexOf('/salesorders/') === 0) return Promise.resolve(soResponse);
+    if (endpoint.indexOf('/invoices/') === 0) {
+      return Promise.resolve({
+        invoice: hasBalance
+          ? { invoice_id: 'INV999', balance_due: opts.balanceDue }
+          : { invoice_id: 'INV999' }
+      });
+    }
+    return Promise.resolve({});
+  });
+}
+
+describe('collect webhook reconcile — code-review fixes (Phase 71)', function () {
+  beforeEach(function () {
+    jest.clearAllMocks();
+    helcimLib.verifyWebhookSignature.mockReturnValue(true);
+    helcimLib.getPendingInvoiceForDevice.mockResolvedValue(null);
+    helcimLib.getDeviceCode.mockReturnValue('');
+    helcimLib.getCardTransactionById.mockResolvedValue({
+      status: 'APPROVED', invoiceNumber: SO_NUMBER, cardType: 'Visa'
+    });
+
+    cache.get.mockImplementation(function (key) {
+      if (key === COLLECT_PENDING_KEY) return Promise.resolve(JSON.stringify(pendingCtx()));
+      return Promise.resolve(null);
+    });
+    cache.set.mockResolvedValue('OK');
+    cache.del.mockResolvedValue(1);
+    cache.acquireLock.mockResolvedValue(true);
+    cache.releaseLock.mockResolvedValue();
+    mailer.sendVoidFailureAlert.mockResolvedValue({});
+    mockZohoGetRouting();
+    mockZohoPostRouting();
+  });
+
+  // -------------------------------------------------------------------------
+  // BL-01: idempotency lock guards the apply
+  // -------------------------------------------------------------------------
+  test('BL-01: apply is wrapped in a per-transaction lock, released only on the acquired path', function () {
+    var req = makeReq({ type: 'cardTransaction', id: TXN_ID });
+    var res = makeRes();
+    handler(req, res);
+
+    return flushAll().then(function () {
+      expect(cache.acquireLock).toHaveBeenCalledWith(COLLECT_LOCK_KEY, 60);
+      // Payment booked, key cleaned up, lock released on the acquired (success) path.
+      var paymentCall = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/customerpayments'; });
+      expect(paymentCall).toBeTruthy();
+      expect(cache.del).toHaveBeenCalledWith(COLLECT_PENDING_KEY);
+      expect(cache.releaseLock).toHaveBeenCalledWith(COLLECT_LOCK_KEY);
+    });
+  });
+
+  test('BL-01: duplicate delivery (lock held) skips the apply and does NOT release the lock', function () {
+    cache.acquireLock.mockResolvedValue(false); // lock already held by the in-flight delivery
+
+    var req = makeReq({ type: 'cardTransaction', id: TXN_ID });
+    var res = makeRes();
+    handler(req, res);
+
+    return flushAll().then(function () {
+      expect(cache.acquireLock).toHaveBeenCalledWith(COLLECT_LOCK_KEY, 60);
+      // No money booked, no key deleted, and the holder's lock is left intact.
+      var paymentCall = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/customerpayments'; });
+      expect(paymentCall).toBeFalsy();
+      expect(cache.del).not.toHaveBeenCalledWith(COLLECT_PENDING_KEY);
+      expect(cache.releaseLock).not.toHaveBeenCalled();
+    });
+  });
+
+  test('BL-01: apply failure after charge still releases the lock and fires the fail-closed alert', function () {
+    jest.spyOn(reconcile, 'recordCollectReconcileFailure');
+    mockZohoPostRouting({ customerpayments: new Error('Zoho payment apply failed') });
+
+    var req = makeReq({ type: 'cardTransaction', id: TXN_ID });
+    var res = makeRes();
+    handler(req, res);
+
+    return flushAll().then(function () {
+      expect(reconcile.recordCollectReconcileFailure).toHaveBeenCalled();
+      expect(cache.releaseLock).toHaveBeenCalledWith(COLLECT_LOCK_KEY);
+      expect(cache.del).not.toHaveBeenCalledWith(COLLECT_PENDING_KEY);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // WR-01: a cleanup failure after a booked payment must NOT masquerade as a
+  // post-charge apply failure.
+  // -------------------------------------------------------------------------
+  test('WR-01: cache.del failure after a successful apply does NOT fire the fail-closed alert', function () {
+    jest.spyOn(reconcile, 'recordCollectReconcileFailure');
+    cache.del.mockImplementation(function (key) {
+      if (key === COLLECT_PENDING_KEY) return Promise.reject(new Error('redis blip'));
+      return Promise.resolve(1);
+    });
+
+    var req = makeReq({ type: 'cardTransaction', id: TXN_ID });
+    var res = makeRes();
+    handler(req, res);
+
+    return flushAll().then(function () {
+      // Payment was booked...
+      var paymentCall = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/customerpayments'; });
+      expect(paymentCall).toBeTruthy();
+      // ...and the swallowed cleanup failure must NOT look like an apply failure.
+      expect(reconcile.recordCollectReconcileFailure).not.toHaveBeenCalled();
+      expect(mailer.sendVoidFailureAlert).not.toHaveBeenCalled();
+      // Lock still released on the (successful) acquired path.
+      expect(cache.releaseLock).toHaveBeenCalledWith(COLLECT_LOCK_KEY);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // WR-03: apply against the invoice's actual balance_due, not stale ctx.amount.
+  // -------------------------------------------------------------------------
+  test('WR-03: amount_applied is clamped to invoice balance_due when it is below the charged amount', function () {
+    // Invoice balance is lower than the collect-time charged amount (e.g. a
+    // prior deposit reduced it): amount_applied must clamp to balance_due so
+    // Zoho is never asked to over-apply.
+    mockZohoGetRouting({ balanceDue: 40.00 });
+
+    var req = makeReq({ type: 'cardTransaction', id: TXN_ID });
+    var res = makeRes();
+    handler(req, res);
+
+    return flushAll().then(function () {
+      var paymentCall = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/customerpayments'; });
+      expect(paymentCall).toBeTruthy();
+      expect(paymentCall[1].amount).toBe(AMOUNT);              // top-level payment = what actually hit the card
+      expect(paymentCall[1].invoices).toEqual([{ invoice_id: 'INV999', amount_applied: 40.00 }]);
+    });
+  });
+
+  test('WR-03: amount_applied equals ctx.amount when balance_due matches within tolerance', function () {
+    mockZohoGetRouting({ balanceDue: AMOUNT });
+
+    var req = makeReq({ type: 'cardTransaction', id: TXN_ID });
+    var res = makeRes();
+    handler(req, res);
+
+    return flushAll().then(function () {
+      var paymentCall = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/customerpayments'; });
+      expect(paymentCall[1].invoices).toEqual([{ invoice_id: 'INV999', amount_applied: AMOUNT }]);
+    });
+  });
+
+  test('WR-03: unreadable balance_due falls back to the charged amount (does not block a real charge)', function () {
+    mockZohoGetRouting(); // no balance_due on the invoice response
+
+    var req = makeReq({ type: 'cardTransaction', id: TXN_ID });
+    var res = makeRes();
+    handler(req, res);
+
+    return flushAll().then(function () {
+      var paymentCall = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/customerpayments'; });
+      expect(paymentCall[1].invoices).toEqual([{ invoice_id: 'INV999', amount_applied: AMOUNT }]);
+    });
+  });
+});
