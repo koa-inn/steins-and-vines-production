@@ -2741,7 +2741,16 @@
     var saleCompleted = false;
     var pollTimer = null;
     var pollStart = Date.now();
+    // Soft timeout: at this point reveal the manual-confirm fallback button —
+    // but KEEP POLLING (see the interval + setTimeout below).
     var POLL_TIMEOUT_MS = 45000;
+    // Hard timeout: only here does auto-polling actually stop. Kept generous so
+    // a slow-but-real card-present interaction (tap/insert/PIN + terminal +
+    // webhook latency) still auto-confirms. Production incident (Aug 2026):
+    // approvals were landing at ~56s while the poll cleared at 45s, so the late
+    // approval was never seen and /confirm never fired — the card was charged
+    // but no Zoho invoice was created (charged-but-unbooked orphan).
+    var POLL_HARD_TIMEOUT_MS = 180000;
 
     // Determine sale endpoint: recipe sale or standard kiosk sale
     var isRecipeSale = !!_kcEnv.getRecipeContext();
@@ -3073,7 +3082,11 @@
         var pollRef = result.data.reference;
         pollTimer = setInterval(function () {
           if (cancelled || saleCompleted) { clearInterval(pollTimer); pollTimer = null; return; }
-          if (Date.now() - pollStart >= POLL_TIMEOUT_MS) {
+          // Stop auto-polling only at the HARD cap — NOT the soft POLL_TIMEOUT_MS.
+          // The soft-timeout setTimeout below reveals the manual-confirm fallback
+          // without stopping the poll, so a late approval (after the soft timeout
+          // but before the hard cap) is still detected and auto-confirmed.
+          if (Date.now() - pollStart >= POLL_HARD_TIMEOUT_MS) {
             if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
             if (spinnerEl) spinnerEl.style.display = 'none';
             if (msgEl) msgEl.textContent = 'Terminal did not respond. Confirm manually if payment was taken, or cancel.';

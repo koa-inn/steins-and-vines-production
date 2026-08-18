@@ -48,7 +48,7 @@
   }
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-07-25T22:24:51.522Z';
+  var BUILD_TIMESTAMP = '2026-08-18T21:25:39.847Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP); // eslint-disable-line no-console -- deploy build-verification log
 
   var accessToken = null;
