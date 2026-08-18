@@ -129,39 +129,35 @@ the prod-secret set — a small code change so logs/Sentry can distinguish envs.
   **Parked on branch `feat/staging-mw-frontend-switch`** — merge to `main` only AFTER the
   staging middleware is live (otherwise `staging.steinsandvines.ca` points at a dead host).
 
-### Owner runbook — Railway staging middleware (dashboard)
-1. **New environment:** Railway → `sv-middleware` → Environments → New, name `staging`
-   (duplicate from `production` to inherit the service).
-2. **Deploy source:** point the staging service at the **`koa-inn/steins-and-vines-staging`**
-   repo, branch `main` (so `git push origin main` deploys staging). This is the key
-   difference from production (which deploys from the production repo). Watch `zoho-middleware/**`.
-3. **Domain:** Settings → Networking → set the staging service domain to
-   **`svmiddleware-staging`** (must match the frontend switch).
-4. **Separate Redis:** add a Redis DB in the staging env; put its URL in `REDIS_URL`.
-5. **Env vars (staging Variables tab):**
-   - **Copy verbatim from prod** (Option B — same org/account): all `ZOHO_*` (client id/secret,
-     org id, taxes, custom fields), `HELCIM_API_TOKEN`, `HELCIM_WEBHOOK_SECRET`,
-     `CALCOM_WEBHOOK_SECRET`, `RECAPTCHA_SECRET_KEY`, `SENTRY_DSN`, `STAFF_EMAILS`,
-     `SHEETS_CLIENT_ID`, `KIOSK_CONTACT_ID`, `KIOSK_GIFT_CARD_ITEM_ID`,
-     `ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID`, `APPS_SCRIPT_URL/SERVER_TOKEN`, fee item ids,
-     `KIOSK_TAX_RATE`, `KIOSK_PIN`, `BEER_SALES_ENABLED`, `MILLING_FEE_ITEM_ID`,
-     `API_SECRET_KEY`(/`MW_API_KEY`), `KIOSK_DEVICE_TOKEN` (reused so the same frontend/kiosk
-     auth works against staging).
-   - **Staging-specific (do NOT copy prod's):** `NODE_ENV=production` (D-02 boot guard requires it),
-     `REDIS_URL` (step 4), `REDIS_ENCRYPTION_KEY` (**new** key — staging Redis is separate),
-     `ZOHO_REDIRECT_URI` = `https://svmiddleware-staging.up.railway.app/auth/zoho`,
-     optional `SENTRY_ENVIRONMENT=staging`.
-   - **Recommended:** leave `HELCIM_DEVICE_CODE` **blank** so staging never drives the physical
-     terminal (cash + MOTO don't need it; terminal/collect flows use webhook-replay instead).
-6. **Zoho OAuth seed:** register the staging redirect URI in the Zoho OAuth app, then visit
-   `https://svmiddleware-staging.up.railway.app/auth/zoho` once to seed staging's (separate) Redis
-   with a refresh token.
-7. **Verify boot:** `git push origin main`; confirm the staging deploy boots (no missing-env exit),
-   then `curl https://svmiddleware-staging.up.railway.app/health` and `/auth/status`
-   (`{"authenticated":true}`).
+### Railway staging middleware — DONE via CLI (2026-08-18)
+- **Environment `staging`** created by duplicating `production` → all **71 vars copied
+  internally** (incl. secrets, Option B) + its **own Redis instance** (`Redis-3jZb`, separate
+  from prod — private networking is per-environment).
+- **Domain:** `https://svmiddleware-staging.up.railway.app` (auto-generated, matches the
+  frontend switch — no frontend change needed).
+- **Vars adjusted for staging:** `NODE_ENV=production` (copied; satisfies D-02), added
+  `SENTRY_ENVIRONMENT=staging`, `ZOHO_REDIRECT_URI` → `…svmiddleware-staging…/auth/zoho/callback`,
+  **deleted `HELCIM_DEVICE_CODE`** so staging never drives the physical terminal.
+- Staging middleware **boots and serves `/health`** (currently running phase-69 code from the
+  prod repo; `authenticated:false`, `redis:false` — see remaining steps).
+- Production verified **untouched** (uptime unbroken; CLI re-linked to production).
 
-*(I can drive the non-secret CLI steps — create env, set non-secret vars, generate the domain —
-if you'd rather; you'd still enter the secret values and run the Zoho OAuth seed.)*
+### Remaining — owner (Railway dashboard + Zoho), all quick
+1. **Deploy source repo (the important one):** staging `sv_middleware` still deploys from the
+   **production** repo (inherited from the duplicate). Change its Source to
+   **`koa-inn/steins-and-vines-staging`**, branch `main`, so `git push origin main` deploys the
+   staging middleware with phase 70/71 + the collect fix. *(Dashboard-only — CLI can't re-point an
+   existing service's repo.)*
+2. **Fix Redis wiring:** `REDIS_URL` was copied from prod as a literal string and reports
+   `redis:false`. In staging `sv_middleware` → Variables, set `REDIS_URL` to **reference the
+   staging Redis** (variable-reference dropdown → `Redis-3jZb`'s URL), then redeploy. Confirm
+   `/health` shows `"redis":true`.
+3. **Zoho OAuth seed:** register `https://svmiddleware-staging.up.railway.app/auth/zoho/callback`
+   in the Zoho OAuth app's redirect URIs, then visit
+   `https://svmiddleware-staging.up.railway.app/auth/zoho` (staff-auth) to seed staging's Redis
+   token. Confirm `/auth/status` → `{"authenticated":true}`.
+4. **Ping me** → I merge `feat/staging-mw-frontend-switch` → `main` → `git push origin main`, then
+   we verify a cash sale end-to-end on `staging.steinsandvines.ca/kiosk.html`.
 
 ### After staging middleware is live
 - **Merge the frontend branch:** I merge `feat/staging-mw-frontend-switch` → `main` → `git push origin main`.
