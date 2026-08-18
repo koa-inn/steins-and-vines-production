@@ -1,0 +1,126 @@
+# Staging Middleware — Setup Scope
+
+**Status:** proposal / not yet built · **Author:** scoped 2026-08-18
+
+## Why this exists
+
+There is currently **no staging middleware**. The Railway service `sv-middleware`
+(env `production`, `svmiddleware-production.up.railway.app`) is the *only* middleware,
+and **both** frontends point at it:
+
+- `js/sheets-config.js` → `MIDDLEWARE_URL` (public pages)
+- `js/admin-config.js` → `ADMIN_API_URL` (kiosk / BrewPad / admin)
+
+Both are committed with the production URL, so `staging.steinsandvines.ca` calls the
+production middleware. That middleware auto-deploys from the **production** repo's
+`main` (currently commit `a4aec80`, **phase 68**), and has historically been shipped
+via manual `railway up` (auto-deploy is flaky). Consequences:
+
+- **Client-only** frontend changes can be staged (GitHub Pages on `staging.…`).
+- **Middleware** changes cannot — they only run once on production. Phases **70**
+  (cash/MOTO) and **71** (collect) middleware have therefore **never been deployed
+  anywhere**, which is why cash/MOTO failed when tested on staging (staging frontend
+  hit the phase-68 middleware).
+
+**Goal:** a real staging middleware so `git push origin main` deploys *both* the
+staging frontend and a staging middleware running the same code, letting us verify
+money-path changes before production.
+
+## Architecture
+
+```
+git push origin main      → staging.steinsandvines.ca (GH Pages)  +  sv-middleware / STAGING env (Railway)
+git push production main   → steinsandvines.ca (GH Pages)          +  sv-middleware / production env (Railway)
+```
+
+- Add a **`staging` environment** to the existing Railway `sv-middleware` project
+  (Railway supports multiple environments per project; each has its own service
+  instance, variables, and domain).
+- Point the staging environment's deploy source at the **staging repo (`origin`) `main`**
+  (or a dedicated `staging` branch), watching `zoho-middleware/**`.
+- Staging domain, e.g. `svmiddleware-staging.up.railway.app`.
+
+## The three decisions that actually matter
+
+### 1. Zoho data isolation (biggest one)
+
+| Option | Isolation | Cost / effort | Notes |
+|---|---|---|---|
+| **A. Separate Zoho org** (test org) | Full — staging never touches live books | High: new OAuth app + re-create items, taxes, accounts, custom fields, KIOSK_CONTACT_ID, gift-card accounts | The "correct" answer; heavy one-time setup |
+| **B. Same live org + test-data convention** (recommended default) | Partial — real invoices created, then voided | Low: reuse all config | Matches how 70/71 UAT already works ("reverse the invoice afterward"). Use a `STAGING-` reference prefix for easy find/void. Risk: forgotten test data pollutes financials |
+| **C. Dry-run mode** (log-only, no Zoho write) | Full | Low code change | Weakest — proves call-shape, not real reconciliation (the exact gap 71-03 was meant to close). Useful as an extra toggle, not the primary |
+
+**Recommendation:** start with **B** + a strict `STAGING-` tag + post-test void
+checklist; move to **A** if/when test volume or risk warrants true isolation.
+
+### 2. Helcim / physical terminal
+
+Feasibility of staging each phase-70/71 flow:
+
+| Flow | Stageable on staging middleware? | How |
+|---|---|---|
+| **Cash tender** (70) | ✅ Fully | Cash skips the terminal — needs only Zoho. Clean staging win |
+| **MOTO / HelcimPay** (70) | ⚠️ Mostly | Hosted iframe card-not-present; needs `HELCIM_API_TOKEN`. Use Helcim test mode if available, else a small **refundable** real charge |
+| **Card terminal sale** | ❌ Hard | Needs the physical Smart Terminal (one device, live Helcim account) + the terminal webhook |
+| **SO collect** (71) | ❌ Hard | Same — depends on the terminal webhook (`/api/webhooks/terminal`) |
+
+**Terminal-webhook constraint:** Helcim delivers the terminal webhook to **one** URL,
+currently production. Staging can't receive live terminal webhooks without either
+(a) Helcim supporting a second webhook endpoint, (b) temporarily repointing it
+(disrupts prod), or (c) **replaying a captured webhook payload** at the staging
+`/api/webhooks/terminal` (best option — lets us verify collect/terminal *server logic*
+without the physical device). Recommend building a tiny webhook-replay helper.
+
+### 3. Secrets — staging needs the FULL prod set
+
+The `validateEnv` **D-02 guard** refuses to boot fail-open when `RAILWAY_ENVIRONMENT`
+is set but `NODE_ENV !== production`. So the staging service must run
+`NODE_ENV=production`, which triggers `REQUIRED_IN_PROD` — staging needs **all** money-path/
+security secrets, not a relaxed subset:
+
+- Required: `ZOHO_CLIENT_ID/SECRET/ORG_ID`, `API_SECRET_KEY` (or `MW_API_KEY`)
+- Required-in-prod: `RECAPTCHA_SECRET_KEY`, `HELCIM_WEBHOOK_SECRET`, `CALCOM_WEBHOOK_SECRET`,
+  `REDIS_ENCRYPTION_KEY`, `SENTRY_DSN`, `HELCIM_API_TOKEN`, `STAFF_EMAILS`,
+  `KIOSK_DEVICE_TOKEN`, `SHEETS_CLIENT_ID`
+- Plus the ~30 optional config vars (taxes, custom fields, item ids, `KIOSK_CONTACT_ID`,
+  gift-card account, Apps Script, `REDIS_URL`, `ZOHO_REDIRECT_URI`, …)
+
+*(Alternative: add a `NODE_ENV=staging` branch to the D-02 guard that still enforces
+the prod-secret set — a small code change so logs/Sentry can distinguish envs.)*
+
+## Component checklist
+
+- [ ] Railway: add `staging` environment to `sv-middleware`; set deploy source = `origin/main`, watch `zoho-middleware/**`
+- [ ] Railway: provision a **separate Redis** for staging (own `REDIS_URL`) so pending-charges/locks/idempotency don't collide with prod
+- [ ] Copy all env vars to staging (with staging-specific `ZOHO_REDIRECT_URI`, `SENTRY` env tag, own `API_SECRET_KEY`/`KIOSK_DEVICE_TOKEN`); decide Zoho org per Decision 1
+- [ ] Zoho OAuth: register the staging `/auth/zoho` redirect URI; run the OAuth flow once to seed the staging refresh token
+- [ ] Google OAuth (`SHEETS_CLIENT_ID`): allowlist the staging origin for staff sign-in
+- [ ] Frontend: make `MIDDLEWARE_URL` (sheets-config.js) **and** `ADMIN_API_URL` (admin-config.js) hostname-aware — `staging.steinsandvines.ca` → staging middleware, else production. One committed file, runtime branch
+- [ ] Resolve the `railway.toml` ambiguity (root `./railway.toml` vs `./zoho-middleware/railway.toml`; deployment meta references `/railway.toml` with `watchPatterns: ["zoho-middleware/**"]`, but repo `zoho-middleware/railway.toml` says `["**"]`)
+- [ ] Webhooks: staging `HELCIM_WEBHOOK_SECRET` / `CALCOM_WEBHOOK_SECRET`; build a webhook-replay helper for terminal/collect testing
+- [ ] Docs: update CLAUDE.md deploy section — `git push origin main` now deploys staging middleware too
+
+## Effort estimate
+
+- Railway staging env + Redis + var copy: **~2–4 h**
+- Frontend hostname switch (both config files) + test: **~1 h**
+- Zoho: **0** (Option B) or **~1 day** (Option A, new org build-out)
+- Webhook-replay helper: **~2–3 h**
+- D-02 `staging` NODE_ENV branch (optional): **~30 min**
+
+**Total ~1 day** for Option B (same Zoho org), **~2 days** for Option A.
+
+## Recommended phased rollout
+
+1. **Phase 1 (unblocks 70/71 cash/MOTO):** Railway staging env + Redis + Option B Zoho +
+   hostname config switch. Verifies cash end-to-end and MOTO server path immediately.
+2. **Phase 2:** webhook-replay helper → verify SO-collect (71) and terminal-sale server
+   logic without the physical device.
+3. **Phase 3 (optional):** separate Zoho test org (Option A) if test volume grows.
+
+## Open questions for the owner
+
+- Zoho: separate test org (A) or same-org-with-cleanup (B)?
+- Does the Helcim plan allow a second webhook endpoint / a test mode for HelcimPay?
+- OK to run staging on the same Helcim account (MOTO test charges → refunded), or get a
+  Helcim test account?
