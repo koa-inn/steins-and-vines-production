@@ -383,18 +383,26 @@ describe('POST /api/kiosk/salesorder-pay', function () {
   });
 
   test('happy path: valid SO → terminal approved → payment recorded → returns ok', function () {
-    // Mock fetching the SO
-    zohoApi.zohoGet.mockResolvedValue({
-      salesorder: {
-        salesorder_id: 'SO-PAY-1',
-        salesorder_number: 'SO-00100',
-        balance: 150.00,
-        status: 'confirmed',
-        customer_id: 'CUST-1'
+    // Mock fetching the SO + the finalized invoice (ensureOpenInvoiceForSalesOrder
+    // + apply run the real money-path against these routed mocks).
+    zohoApi.zohoGet.mockImplementation(function (path) {
+      if (path === '/salesorders/SO-PAY-1') {
+        return Promise.resolve({ salesorder: {
+          salesorder_id: 'SO-PAY-1', salesorder_number: 'SO-00100',
+          balance: 150.00, status: 'confirmed', customer_id: 'CUST-1', invoices: []
+        } });
       }
+      if (path === '/invoices/INV-SO-1') {
+        return Promise.resolve({ invoice: { invoice_id: 'INV-SO-1', balance_due: 150.00 } });
+      }
+      return Promise.resolve({});
     });
-    // Mock recording the payment in Zoho
-    zohoApi.zohoPost.mockResolvedValue({ payment: { payment_id: 'PAY-1' } });
+    zohoApi.zohoPost.mockImplementation(function (endpoint) {
+      if (endpoint.indexOf('/invoices/fromsalesorder') === 0) return Promise.resolve({ invoice: { invoice_id: 'INV-SO-1' } });
+      if (/^\/invoices\/.+\/status\/sent$/.test(endpoint)) return Promise.resolve({});
+      if (endpoint === '/customerpayments') return Promise.resolve({ payment: { payment_id: 'PAY-1' } });
+      return Promise.resolve({});
+    });
 
     var req = makeReq({ salesorder_id: 'SO-PAY-1' });
     var res = makeRes();
@@ -413,6 +421,49 @@ describe('POST /api/kiosk/salesorder-pay', function () {
         150.00, expect.any(String), expect.anything()
       );
       expect(zohoApi.zohoPost).toHaveBeenCalled();
+    });
+  });
+
+  // Phase-71 twin fix (caught on staging 2026-08-19): salesorder-pay is the LIVE
+  // kiosk SO-payment route (the frontend calls it; /api/pos/collect has no
+  // caller). It previously booked via salesorders_to_apply + a draft invoice —
+  // the same unapplied-advance/draft bug phase 71 fixed only in the collect
+  // webhook. It must now finalize the SO's invoice (/status/sent) and apply the
+  // payment to that invoice via invoices:[...].
+  test('books payment against a FINALIZED invoice via invoices[] — not salesorders_to_apply', function () {
+    zohoApi.zohoGet.mockImplementation(function (path) {
+      if (path === '/salesorders/SO-PAY-1') {
+        return Promise.resolve({ salesorder: {
+          salesorder_id: 'SO-PAY-1', salesorder_number: 'SO-00100',
+          balance: 150.00, status: 'confirmed', customer_id: 'CUST-1', invoices: []
+        } });
+      }
+      if (path === '/invoices/INV-SO-1') {
+        return Promise.resolve({ invoice: { invoice_id: 'INV-SO-1', balance_due: 150.00 } });
+      }
+      return Promise.resolve({});
+    });
+    zohoApi.zohoPost.mockImplementation(function (endpoint) {
+      if (endpoint.indexOf('/invoices/fromsalesorder') === 0) return Promise.resolve({ invoice: { invoice_id: 'INV-SO-1' } });
+      if (/^\/invoices\/.+\/status\/sent$/.test(endpoint)) return Promise.resolve({});
+      if (endpoint === '/customerpayments') return Promise.resolve({ payment: { payment_id: 'PAY-1' } });
+      return Promise.resolve({});
+    });
+
+    var req = makeReq({ salesorder_id: 'SO-PAY-1' });
+    var res = makeRes();
+    paySalesorderHandler(req, res);
+
+    return flushPromises().then(flushPromises).then(flushPromises).then(flushPromises).then(flushPromises).then(function () {
+      expect(res._json && res._json.ok).toBe(true);
+      // Finalize the SO's invoice via /status/sent (NOT /submit)
+      expect(zohoApi.zohoPost).toHaveBeenCalledWith('/invoices/fromsalesorder?salesorder_id=SO-PAY-1', {});
+      expect(zohoApi.zohoPost).toHaveBeenCalledWith('/invoices/INV-SO-1/status/sent', {});
+      // Payment applied to the INVOICE, not the sales order
+      var payCall = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/customerpayments'; });
+      expect(payCall).toBeTruthy();
+      expect(payCall[1].invoices).toEqual([{ invoice_id: 'INV-SO-1', amount_applied: 150.00 }]);
+      expect(payCall[1].salesorders_to_apply).toBeUndefined();
     });
   });
 

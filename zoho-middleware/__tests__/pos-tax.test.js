@@ -515,7 +515,7 @@ describe('pos routes — per-item tax on line items', function () {
         if (url.indexOf('/invoices/fromsalesorder') !== -1) {
           return Promise.resolve({ invoice: { invoice_id: 'inv-from-so', invoice_number: 'INV-FROM-SO-001' } });
         }
-        if (url.indexOf('/submit') !== -1) {
+        if (url.indexOf('/status/sent') !== -1) {
           return Promise.resolve({});
         }
         return Promise.resolve({});
@@ -536,11 +536,11 @@ describe('pos routes — per-item tax on line items', function () {
           expect(fromsalesorderCall).toBeTruthy();
           expect(fromsalesorderCall[0]).toContain('salesorder_id=so-123');
 
-          // Verify submit was called after fromsalesorder
-          var submitCall = zohoApi.zohoPost.mock.calls.find(function (c) {
-            return c[0].indexOf('/invoices/inv-from-so/submit') !== -1;
+          // Verify the invoice was finalized via /status/sent (NOT /submit)
+          var finalizeCall = zohoApi.zohoPost.mock.calls.find(function (c) {
+            return c[0].indexOf('/invoices/inv-from-so/status/sent') !== -1;
           });
-          expect(submitCall).toBeTruthy();
+          expect(finalizeCall).toBeTruthy();
 
           // Verify kiosk products cache was busted
           var delCalls = cache.del.mock.calls.map(function (c) { return c[0]; });
@@ -559,25 +559,30 @@ describe('pos routes — per-item tax on line items', function () {
       handlers['/api/kiosk/salesorder-pay'](req, res);
     });
 
-    test('salesorder-pay handles invoice creation failure non-fatally', function (done) {
+    test('salesorder-pay VOIDS the charge + returns 502 when invoice finalize fails (fail-closed)', function (done) {
+      // Behavior change (phase-71 twin fix): the invoice is no longer optional —
+      // the payment must apply to a finalized invoice. If finalize/apply fails
+      // AFTER the terminal charge, the route reverses the charge (void) and
+      // returns 502 rather than silently marking the SO paid via an advance.
       var soData = {
         salesorder: {
           salesorder_id: 'so-456',
           salesorder_number: 'SO-002',
           customer_id: 'cust-2',
           balance: 200.00,
-          order_status: 'open'
+          order_status: 'open',
+          invoices: []
         }
       };
 
       zohoApi.zohoGet.mockResolvedValue(soData);
 
       zohoApi.zohoPost.mockImplementation(function (url) {
-        if (url.indexOf('/customerpayments') !== -1) {
-          return Promise.resolve({ payment: { payment_id: 'pay-2' } });
-        }
         if (url.indexOf('/invoices/fromsalesorder') !== -1) {
           return Promise.reject(new Error('Zoho API error: rate limited'));
+        }
+        if (url.indexOf('/customerpayments') !== -1) {
+          return Promise.resolve({ payment: { payment_id: 'pay-2' } });
         }
         return Promise.resolve({});
       });
@@ -586,27 +591,26 @@ describe('pos routes — per-item tax on line items', function () {
         body: { salesorder_id: 'so-456' }
       };
       var res = mockRes();
-      var log = require('../lib/logger');
 
-      res.json.mockImplementation(function (body) {
-        try {
-          // Despite invoice failure, response should still be ok
-          expect(body.ok).toBe(true);
-          expect(body.salesorder_number).toBe('SO-002');
-          // Should have logged the error
-          var errorCalls = log.error.mock.calls.map(function (c) { return c[0]; });
-          var invoiceError = errorCalls.find(function (msg) {
-            return msg.indexOf('Invoice from SO failed (non-fatal)') !== -1;
-          });
-          expect(invoiceError).toBeTruthy();
-          done();
-        } catch (e) { done(e); }
-      });
       res.status.mockImplementation(function (code) {
-        if (code >= 400) {
-          return { json: function (body) { done(new Error('Got status ' + code + ': ' + JSON.stringify(body))); } };
-        }
-        return res;
+        return { json: function (body) {
+          try {
+            expect(code).toBe(502);
+            expect(body.payment_voided).toBe(true);
+            expect(body.voided_transaction_id).toBe('txn-test-123');
+            // Charge was reversed — no charge without a booked invoice
+            expect(helcimLib.voidTransaction).toHaveBeenCalledWith('txn-test-123');
+            // Payment must NOT have been applied (finalize failed first)
+            var payCall = zohoApi.zohoPost.mock.calls.find(function (c) {
+              return c[0].indexOf('/customerpayments') !== -1;
+            });
+            expect(payCall).toBeUndefined();
+            done();
+          } catch (e) { done(e); }
+        } };
+      });
+      res.json.mockImplementation(function () {
+        done(new Error('should not reach the ok path — invoice finalize failed'));
       });
 
       handlers['/api/kiosk/salesorder-pay'](req, res);

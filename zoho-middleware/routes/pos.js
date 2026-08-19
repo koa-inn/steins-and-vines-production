@@ -2451,70 +2451,68 @@ router.post('/api/kiosk/salesorder-pay', function (req, res) {
           log.info('[kiosk/so-pay] Terminal approved: txn=' + txnId +
             ' soNumber=' + soNumber);
 
-          // Record payment in Zoho
+          // Record payment in Zoho.
           var today = new Date().toISOString().slice(0, 10);
           var cardType = (termResponse.cardType || '').toLowerCase();
           var paymentMode = (cardType.indexOf('debit') !== -1) ? 'debitcard' : 'creditcard';
 
-          zohoPost('/customerpayments', {
-            customer_id: customerId,
-            payment_mode: paymentMode,
-            amount: balance,
-            date: today,
-            reference_number: txnId || soNumber,
-            salesorders_to_apply: [{ salesorder_id: soId, amount_applied: balance }],
-            notes: 'Kiosk SO payment. Terminal txn: ' + txnId
-          })
-            .then(function () {
-              log.info('[kiosk/so-pay] Payment recorded for ' + soNumber);
+          // Book the payment against a FINALIZED invoice — the same verified
+          // pattern as the collect webhook path (moneyPath.ensureOpenInvoiceForSalesOrder
+          // = convert/reuse the SO's invoice + mark it /status/sent, then apply
+          // the payment via invoices:[{invoice_id, amount_applied}]). NOT
+          // salesorders_to_apply, which Zoho books as an unapplied advance and
+          // leaves the invoice draft (the phase-71 root cause — this live route
+          // was the still-buggy twin of /api/pos/collect). Any finalize/apply
+          // failure AFTER the terminal charge falls through to the void-on-
+          // failure catch below (fail-closed: reverse the charge).
+          // (Ideal follow-up: extract a shared finalize+apply helper so this and
+          // webhooks.js collect can't drift.)
+          moneyPath.ensureOpenInvoiceForSalesOrder(soId)
+            .then(function (invoiceId) {
+              // Clamp amount_applied to the invoice's real balance_due (mirrors
+              // the collect path) so a prior deposit/rounding can't 400 an over-apply.
+              return zohoGet('/invoices/' + invoiceId).then(function (invData) {
+                var invoice = (invData && invData.invoice) || {};
+                var balanceDue = parseFloat(invoice.balance_due);
+                var applyAmount = isFinite(balanceDue) ? Math.min(balance, balanceDue) : balance;
+                return zohoPost('/customerpayments', {
+                  customer_id: customerId,
+                  payment_mode: paymentMode,
+                  amount: balance,
+                  date: today,
+                  reference_number: txnId || soNumber,
+                  invoices: [{ invoice_id: invoiceId, amount_applied: applyAmount }],
+                  notes: 'Kiosk SO payment. Terminal txn: ' + txnId
+                }).then(function () { return invoiceId; });
+              });
+            })
+            .then(function (invoiceId) {
+              log.info('[kiosk/so-pay] Payment applied to invoice=' + invoiceId + ' for ' + soNumber);
 
-              // Invalidate SO cache
+              // Invalidate caches (SO list + products stock)
               cache.del(KIOSK_SO_CACHE_KEY).catch(function () {});
+              cache.del(KIOSK_PRODUCTS_CACHE_KEY).catch(function () {});
 
               eventLog.logEvent('kiosk.salesorder_payment', {
                 soId: soId,
                 soNumber: soNumber,
                 txnId: txnId,
-                amount: balance
+                amount: balance,
+                invoiceId: invoiceId
               });
 
-              // D-02: Create invoice from SO for stock deduction
-              var invoiceFromSoChain = zohoPost('/invoices/fromsalesorder?salesorder_id=' + soId, {})
-                .then(function (invoiceData) {
-                  var invoice = (invoiceData && invoiceData.invoice) || {};
-                  var invoiceId = invoice.invoice_id || '';
-                  log.info('[kiosk/so-pay] Invoice created from SO: ' + (invoice.invoice_number || '') + ' id=' + invoiceId);
-                  if (invoiceId) {
-                    zohoPost('/invoices/' + invoiceId + '/submit', {}).catch(function (submitErr) {
-                      log.warn('[kiosk/so-pay] Invoice submit failed (non-fatal): ' + submitErr.message);
-                    });
-                  }
-                  return invoiceId;
-                })
-                .catch(function (invErr) {
-                  // Non-fatal: SO is paid, but invoice creation failed
-                  // Stock won't auto-decrement until next Zoho reconcile
-                  log.error('[kiosk/so-pay] Invoice from SO failed (non-fatal): ' + invErr.message);
-                  return '';
-                });
+              // Trigger batch creation for kit items (fire-and-forget per D-01)
+              var soLineItems = (so.line_items || []).map(function (li) {
+                return { item_id: li.item_id || '', name: li.name || li.description || '', sku: li.sku || '', quantity: li.quantity || 1, rate: li.rate || 0 };
+              });
+              brewpadIntegration.createBatchesFromSale(soLineItems, soNumber, so.customer_name || '', customerId, null, invoiceId);
 
-              invoiceFromSoChain.then(function (invoiceId) {
-                // Bust kiosk products cache so stock reflects after invoice submit
-                cache.del(KIOSK_PRODUCTS_CACHE_KEY).catch(function () {});
-
-                // Trigger batch creation for kit items (fire-and-forget per D-01)
-                var soLineItems = (so.line_items || []).map(function (li) {
-                  return { item_id: li.item_id || '', name: li.name || li.description || '', sku: li.sku || '', quantity: li.quantity || 1, rate: li.rate || 0 };
-                });
-                brewpadIntegration.createBatchesFromSale(soLineItems, soNumber, so.customer_name || '', customerId, null, invoiceId);
-
-                res.json({
-                  ok: true,
-                  transaction_id: txnId,
-                  salesorder_number: soNumber,
-                  amount: balance,
-                  card_type: paymentMode
-                });
+              res.json({
+                ok: true,
+                transaction_id: txnId,
+                salesorder_number: soNumber,
+                amount: balance,
+                card_type: paymentMode
               });
             })
             .catch(function (payErr) {
