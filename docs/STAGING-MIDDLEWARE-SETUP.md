@@ -168,9 +168,39 @@ the prod-secret set — a small code change so logs/Sentry can distinguish envs.
   `STAGING_MODE=true` env flag that makes the middleware prefix invoice notes/references
   (e.g. `STAGING-…`) for easy identification — small follow-up if manual voiding proves fiddly.
 
+### Verification status (2026-08-19)
+- **Cash tender (70): ✅ VERIFIED** end-to-end on staging.
+- **MOTO / Phone Order (70): ✅ VERIFIED end-to-end.** On `staging.steinsandvines.ca/kiosk.html`,
+  a $0.22 Phone Order ("Corks 1 1/2" + tax) confirmed:
+  - `POST /api/kiosk/sale` (tender `moto`) → **HTTP 202** with a HelcimPay `checkout_token`.
+  - HelcimPay iframe initializes (`helcim-pay-initializing`→`helcim-pay-initialized`) with the
+    correct merchant + exact amount ($0.22 CAD).
+  - **Decline/abort handling is correct:** on an ABORTED postMessage the kiosk returns cleanly
+    to tender selection ("Payment cancelled — choose a tender to try again"), **no charge, no
+    Zoho invoice, no orphan** (the WR-01 MOTO pending-charge record just TTL-expires).
+  - **Success leg (verified 2026-08-19 with a real refundable card):** approved capture (Helcim
+    txn `53442110`, APPROVED, $0.22 CAD) → `/api/kiosk/sale/confirm` → **HTTP 201** → Zoho
+    **INV-000173** booked **status `paid`, total $0.22, balance $0** (payment #174, creditcard,
+    ref = Helcim txn id). Captured-amount verify passed; **no underpayment** (tax path clean).
+  - **Post-test cleanup (owner):** reverse/refund Helcim txn `53442110` in Helcim Hub, and
+    delete payment #174 + void/delete INV-000173 in Zoho (Option B hygiene).
+- **Helcim test-mode question RESOLVED (answers the open question below): NO.** Staging's
+  `HELCIM_API_TOKEN` is the **live prod token** (Option B), and the live Helcim account has no
+  sandbox mode. The documented sandbox card `4124 9399 9999 9990` is rejected:
+  `"Transaction declined. INVALID CARD"`. Sandbox test cards from `docs/HELCIM-MIGRATION.md`
+  only work against a real Helcim **sandbox account** (never provisioned).
+- **To finish MOTO success-leg verification, pick one:**
+  1. Run a **real** small refundable charge ($0.22) → verify Zoho booking → refund via Helcim
+     `payment/refund` + void the invoice (owner declined this on 2026-08-19).
+  2. Provision a separate Helcim **sandbox account** (per HELCIM-MIGRATION Phase 0) and point
+     staging's `HELCIM_API_TOKEN` at it — then sandbox cards work with no real money.
+
 ## Open questions for the owner
 
 - Zoho: separate test org (A) or same-org-with-cleanup (B)?
-- Does the Helcim plan allow a second webhook endpoint / a test mode for HelcimPay?
+- ~~Does the Helcim plan allow a second webhook endpoint / a test mode for HelcimPay?~~
+  **RESOLVED 2026-08-19 (test mode): NO** — staging's live `HELCIM_API_TOKEN` rejects sandbox
+  cards ("INVALID CARD"). Second-webhook question (for terminal/collect) still open → Phase 2.
 - OK to run staging on the same Helcim account (MOTO test charges → refunded), or get a
-  Helcim test account?
+  Helcim test account? *(Owner declined a real refundable charge on 2026-08-19; a Helcim
+  sandbox account is the clean path to finish the MOTO success-leg test.)*
