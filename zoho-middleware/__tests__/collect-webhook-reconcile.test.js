@@ -518,3 +518,67 @@ describe('collect webhook reconcile — code-review fixes (Phase 71)', function 
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression (caught on staging 2026-08-19): the REAL lib/cache.get() returns an
+// ALREADY-PARSED object (it JSON.parses internally), and collect.js seeds the
+// pending context via cache.set(<object>). The handler previously did
+// `JSON.parse(raw)` a SECOND time — JSON.parse(<object>) throws, so the catch
+// swallowed it and EVERY real collect apply was silently dropped
+// (charged-but-unbooked). The suite above masked this by mocking cache.get to
+// return a JSON *string*; the tests below use the REAL object contract.
+// ---------------------------------------------------------------------------
+describe('collect webhook reconcile — real cache.get object contract (double-parse regression)', function () {
+  beforeEach(function () {
+    jest.clearAllMocks();
+    helcimLib.verifyWebhookSignature.mockReturnValue(true);
+    helcimLib.getPendingInvoiceForDevice.mockResolvedValue(null);
+    helcimLib.getDeviceCode.mockReturnValue('');
+
+    // REAL contract: cache.get resolves to the parsed OBJECT, not a JSON string.
+    cache.get.mockImplementation(function (key) {
+      if (key === COLLECT_PENDING_KEY) return Promise.resolve(pendingCtx());
+      return Promise.resolve(null);
+    });
+    cache.set.mockResolvedValue('OK');
+    cache.del.mockResolvedValue(1);
+    cache.acquireLock.mockResolvedValue(true);
+    cache.releaseLock.mockResolvedValue();
+  });
+
+  test('APPROVED with object-shaped pending context still finalizes + applies the payment', function () {
+    helcimLib.getCardTransactionById.mockResolvedValue({
+      status: 'APPROVED', invoiceNumber: SO_NUMBER, cardType: 'Visa'
+    });
+    zohoApi.zohoGet.mockResolvedValue({ salesorder: { invoices: [] } });
+    mockZohoPostRouting();
+
+    var req = makeReq({ type: 'cardTransaction', id: TXN_ID });
+    var res = makeRes();
+    handler(req, res);
+
+    return flushAll().then(function () {
+      // Pre-fix this is undefined: JSON.parse(<object>) threw -> silent skip ->
+      // no customerpayment ever posted (the exact staging failure).
+      var paymentCall = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/customerpayments'; });
+      expect(paymentCall).toBeTruthy();
+      expect(paymentCall[1].invoices).toEqual([{ invoice_id: 'INV999', amount_applied: AMOUNT }]);
+      expect(cache.del).toHaveBeenCalledWith(COLLECT_PENDING_KEY);
+    });
+  });
+
+  test('DECLINED with object-shaped pending context cleans up pending + idempotency keys', function () {
+    helcimLib.getCardTransactionById.mockResolvedValue({
+      status: 'DECLINED', invoiceNumber: SO_NUMBER, cardType: 'Visa'
+    });
+
+    var req = makeReq({ type: 'cardTransaction', id: TXN_ID });
+    var res = makeRes();
+    handler(req, res);
+
+    return flushAll().then(function () {
+      expect(zohoApi.zohoPost).not.toHaveBeenCalledWith('/customerpayments', expect.anything());
+      expect(cache.del).toHaveBeenCalledWith(COLLECT_PENDING_KEY);
+    });
+  });
+});

@@ -209,8 +209,19 @@ function processCardTransactionResult(transactionId, status, invoiceNumber, card
     var collectInvoiceId = null;
     cache.get(pendingKey).then(function (raw) {
       if (!raw) return; // Not a collect-flow transaction
+      // cache.get() ALREADY returns the parsed value (lib/cache.get JSON.parses
+      // internally), and collect.js seeds this key via cache.set(<object>). A
+      // second JSON.parse here throws on the object and the catch silently drops
+      // EVERY real collect apply (charged-but-unbooked) — caught on staging
+      // 2026-08-19. Use the object directly; tolerate a legacy JSON string.
       var ctx;
-      try { ctx = JSON.parse(raw); } catch { return; }
+      if (raw && typeof raw === 'object') {
+        ctx = raw;
+      } else if (typeof raw === 'string') {
+        try { ctx = JSON.parse(raw); } catch { return; }
+      } else {
+        return;
+      }
       collectCtx = ctx;
 
       if (status === 'APPROVED') {
