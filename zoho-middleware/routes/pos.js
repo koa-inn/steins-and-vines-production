@@ -2467,26 +2467,16 @@ router.post('/api/kiosk/salesorder-pay', function (req, res) {
           // failure catch below (fail-closed: reverse the charge).
           // (Ideal follow-up: extract a shared finalize+apply helper so this and
           // webhooks.js collect can't drift.)
-          moneyPath.ensureOpenInvoiceForSalesOrder(soId)
-            .then(function (invoiceId) {
-              // Clamp amount_applied to the invoice's real balance_due (mirrors
-              // the collect path) so a prior deposit/rounding can't 400 an over-apply.
-              return zohoGet('/invoices/' + invoiceId).then(function (invData) {
-                var invoice = (invData && invData.invoice) || {};
-                var balanceDue = parseFloat(invoice.balance_due);
-                var applyAmount = isFinite(balanceDue) ? Math.min(balance, balanceDue) : balance;
-                return zohoPost('/customerpayments', {
-                  customer_id: customerId,
-                  payment_mode: paymentMode,
-                  amount: balance,
-                  date: today,
-                  reference_number: txnId || soNumber,
-                  invoices: [{ invoice_id: invoiceId, amount_applied: applyAmount }],
-                  notes: 'Kiosk SO payment. Terminal txn: ' + txnId
-                }).then(function () { return invoiceId; });
-              });
-            })
-            .then(function (invoiceId) {
+          moneyPath.finalizeSalesOrderInvoiceAndApplyPayment(soId, {
+            customer_id: customerId,
+            amount: balance,
+            payment_mode: paymentMode,
+            reference_number: txnId || soNumber,
+            notes: 'Kiosk SO payment. Terminal txn: ' + txnId,
+            date: today
+          })
+            .then(function (result) {
+              var invoiceId = result.invoiceId;
               log.info('[kiosk/so-pay] Payment applied to invoice=' + invoiceId + ' for ' + soNumber);
 
               // Invalidate caches (SO list + products stock)

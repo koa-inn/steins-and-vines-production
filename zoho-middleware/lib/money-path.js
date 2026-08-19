@@ -350,6 +350,62 @@ function ensureOpenInvoiceForSalesOrder(soId) {
   });
 }
 
+/**
+ * Finalize a sales order's invoice and apply a customer payment to it — the ONE
+ * correct booking for every "customer paid against an existing SO" money-path
+ * (collect webhook + kiosk salesorder-pay). Extracting it keeps those callers
+ * from drifting back to the salesorders_to_apply / draft-invoice bug (two
+ * independent regressions caught on staging 2026-08-19).
+ *
+ *   1. ensureOpenInvoiceForSalesOrder(soId) — convert/reuse the SO's invoice and
+ *      mark it sent/open (/status/sent).
+ *   2. Read the invoice's real balance_due and clamp amount_applied to it: a
+ *      prior deposit or SO->invoice tax/rounding can diverge from the charged
+ *      amount, so clamping avoids a Zoho 400 over-apply and logs any >1c gap.
+ *   3. POST /customerpayments applying to that invoice_id via invoices:[...]
+ *      (NEVER salesorders_to_apply, which lands as an unapplied advance).
+ *
+ * Fail-closed: rejects on ANY finalize/apply failure — the caller must reverse
+ * the charge or write a reconcile record; a rejection here is never "booked".
+ *
+ * @param {string} soId
+ * @param {{customer_id:string, amount:number, payment_mode:string,
+ *          reference_number:string, notes:string, date?:string}} payment
+ * @returns {Promise<{invoiceId:string, appliedAmount:number, payment:object}>}
+ */
+function finalizeSalesOrderInvoiceAndApplyPayment(soId, payment) {
+  return ensureOpenInvoiceForSalesOrder(soId).then(function (invoiceId) {
+    return zohoGet('/invoices/' + invoiceId).then(function (invData) {
+      var invoice = (invData && invData.invoice) || {};
+      var balanceDue = parseFloat(invoice.balance_due);
+      var applyAmount = payment.amount;
+      var TOLERANCE = 0.01;
+      if (isFinite(balanceDue)) {
+        applyAmount = Math.min(payment.amount, balanceDue);
+        if (Math.abs(payment.amount - balanceDue) > TOLERANCE) {
+          log.warn('[money-path] SO-invoice apply: charged $' + payment.amount +
+            ' != invoice balance_due $' + balanceDue + ' for SO=' + soId +
+            ' invoice=' + invoiceId + ' — applying $' + applyAmount + ' (reconciliation note)');
+        }
+      } else {
+        log.warn('[money-path] SO-invoice apply: balance_due unreadable for invoice=' +
+          invoiceId + ' — applying charged amount $' + payment.amount);
+      }
+      return zohoPost('/customerpayments', {
+        customer_id: payment.customer_id,
+        payment_mode: payment.payment_mode,
+        amount: payment.amount,
+        date: payment.date || new Date().toISOString().slice(0, 10),
+        reference_number: payment.reference_number,
+        notes: payment.notes,
+        invoices: [{ invoice_id: invoiceId, amount_applied: applyAmount }]
+      }).then(function (paymentResult) {
+        return { invoiceId: invoiceId, appliedAmount: applyAmount, payment: paymentResult };
+      });
+    });
+  });
+}
+
 module.exports = {
   CHECKOUT_IDEMPOTENCY_TTL: CHECKOUT_IDEMPOTENCY_TTL,
   acquireIdempotencyLock: acquireIdempotencyLock,
@@ -357,5 +413,6 @@ module.exports = {
   markTxnUsed: markTxnUsed,
   rejectWithVoid: rejectWithVoid,
   voidWithTimeout: voidWithTimeout,
-  ensureOpenInvoiceForSalesOrder: ensureOpenInvoiceForSalesOrder
+  ensureOpenInvoiceForSalesOrder: ensureOpenInvoiceForSalesOrder,
+  finalizeSalesOrderInvoiceAndApplyPayment: finalizeSalesOrderInvoiceAndApplyPayment
 };

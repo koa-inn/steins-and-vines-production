@@ -4,9 +4,8 @@ var calcom = require('../lib/calcom');
 var cache = require('../lib/cache');
 var log = require('../lib/logger');
 var eventLog = require('../lib/eventLog');
-var zohoApi = require('../lib/zoho-api');
-var zohoPost = zohoApi.zohoPost;
-var zohoGet = zohoApi.zohoGet;
+// Zoho calls for the collect apply now go through
+// moneyPath.finalizeSalesOrderInvoiceAndApplyPayment (shared with salesorder-pay).
 var C = require('../lib/constants');
 var reconcile = require('../lib/reconcile');
 var moneyPath = require('../lib/money-path');
@@ -248,42 +247,17 @@ function processCardTransactionResult(transactionId, status, invoiceNumber, card
               transactionId + ' — lock held; skipping (not releasing)');
             return; // holder owns it — do NOT release
           }
-          return moneyPath.ensureOpenInvoiceForSalesOrder(ctx.salesorder_id).then(function (invoiceId) {
-            collectInvoiceId = invoiceId;
-            // WR-03: apply against the invoice's ACTUAL balance_due, not the
-            // stale collect-time ctx.amount. A prior deposit or tax/rounding at
-            // SO->invoice conversion can leave the two divergent; clamp
-            // amount_applied to balance_due so Zoho is never asked to over-apply
-            // (it would 400) and any >1c divergence is logged for reconciliation.
-            // (balance_due on GET /invoices/{id} is a standard field — unlike the
-            // salesorder.invoices[] dedup shape that WR-02 defers to 71-03.)
-            return zohoGet('/invoices/' + invoiceId).then(function (invData) {
-              var invoice = (invData && invData.invoice) || {};
-              var balanceDue = parseFloat(invoice.balance_due);
-              var applyAmount = ctx.amount;
-              var TOLERANCE = 0.01;
-              if (isFinite(balanceDue)) {
-                applyAmount = Math.min(ctx.amount, balanceDue);
-                if (Math.abs(ctx.amount - balanceDue) > TOLERANCE) {
-                  log.warn('[webhook/helcim] collect-apply: charged $' + ctx.amount +
-                    ' != invoice balance_due $' + balanceDue + ' for SO=' +
-                    ctx.salesorder_number + ' invoice=' + invoiceId +
-                    ' — applying $' + applyAmount + ' (reconciliation note)');
-                }
-              } else {
-                log.warn('[webhook/helcim] collect-apply: balance_due unreadable for invoice=' +
-                  invoiceId + ' — applying charged amount $' + ctx.amount);
-              }
-              return zohoPost('/customerpayments', {
-                customer_id: ctx.customer_id,
-                payment_mode: (cardType && cardType.toLowerCase().indexOf('debit') !== -1) ? 'debitcard' : 'creditcard',
-                amount: ctx.amount,
-                date: new Date().toISOString().slice(0, 10),
-                reference_number: transactionId,
-                notes: 'In-store terminal payment. Helcim txn: ' + transactionId,
-                invoices: [{ invoice_id: invoiceId, amount_applied: applyAmount }]
-              });
-            });
+          // Finalize the SO's invoice + apply the payment via the shared money-
+          // path helper — identical booking to /api/kiosk/salesorder-pay so the
+          // two can't drift back to the salesorders_to_apply / draft-invoice bug.
+          return moneyPath.finalizeSalesOrderInvoiceAndApplyPayment(ctx.salesorder_id, {
+            customer_id: ctx.customer_id,
+            amount: ctx.amount,
+            payment_mode: (cardType && cardType.toLowerCase().indexOf('debit') !== -1) ? 'debitcard' : 'creditcard',
+            reference_number: transactionId,
+            notes: 'In-store terminal payment. Helcim txn: ' + transactionId
+          }).then(function (result) {
+            collectInvoiceId = result.invoiceId;
           }).then(function () {
             eventLog.logEvent('collect.payment_recorded', {
               soId: ctx.salesorder_id,
