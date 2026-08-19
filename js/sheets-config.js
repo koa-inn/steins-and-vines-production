@@ -57,7 +57,22 @@ var SHEETS_CONFIG = {
   // Not set here so it is not delivered to all public visitors.
 
   // Zoho middleware URL (for Bookings + Checkout API)
-  MIDDLEWARE_URL: 'https://svmiddleware-production.up.railway.app',
+  // Middleware URL is chosen by hostname so the staging frontend
+  // (staging.steinsandvines.ca) talks to the staging middleware while the
+  // production domain, the kiosk iPad, and local dev all use production.
+  // Fails SAFE to production if location/hostname is unavailable — never
+  // silently point production traffic at staging.
+  MIDDLEWARE_URL: (function () {
+    var PROD_MW    = 'https://svmiddleware-production.up.railway.app';
+    var STAGING_MW = 'https://svmiddleware-staging.up.railway.app';
+    try {
+      if (typeof location !== 'undefined' && location && typeof location.hostname === 'string' &&
+          location.hostname.indexOf('staging.steinsandvines.ca') !== -1) {
+        return STAGING_MW;
+      }
+    } catch (e) { /* fall through to production */ }
+    return PROD_MW;
+  })(),
 
   // Google reCAPTCHA v3 site key (public — safe to expose)
   RECAPTCHA_SITE_KEY: '6LerSH0sAAAAAGKtltFqN5fu2w8opPV5BStdzNDu',
