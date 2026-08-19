@@ -14,7 +14,7 @@
        no CSP violations) before any production force-push. A missing domain
        silently breaks a kiosk feature exactly like the 2026-07-22 Meta-pixel
        incident (CLAUDE.md rule 12). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com https://secure.helcim.app https://secure.myhelcim.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://svmiddleware-production.up.railway.app https://script.google.com https://sheets.googleapis.com https://www.googleapis.com https://accounts.google.com https://api.helcim.com https://secure.helcim.app https://secure.myhelcim.com; frame-src 'self' https://secure.helcim.app https://secure.myhelcim.com https://accounts.google.com">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com https://secure.helcim.app https://secure.myhelcim.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://svmiddleware-production.up.railway.app https://svmiddleware-staging.up.railway.app https://script.google.com https://sheets.googleapis.com https://www.googleapis.com https://accounts.google.com https://api.helcim.com https://secure.helcim.app https://secure.myhelcim.com; frame-src 'self' https://secure.helcim.app https://secure.myhelcim.com https://accounts.google.com">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="favicon.ico">
-  <link rel="stylesheet" href="css/kiosk.min.css?v=mszj7vca">
+  <link rel="stylesheet" href="css/kiosk.min.css?v=mt0e2l97">
   <script src="js/lib/constants.js"></script>
   <script src="js/lib/utils.js"></script>
   <script src="js/lib/auth.js"></script>
@@ -37,8 +37,8 @@
   <!-- 70-02 (KIOSK-MOTO): HelcimPay.js hosted-iframe loader (injects the global
        appendHelcimPayIframe/removeHelcimPayIframe). Same tag as reservation.html. -->
   <script src="https://secure.helcim.app/helcim-pay/services/start.js"></script>
-  <script src="js/kiosk-core.min.js?v=mszj7vca"></script>
-  <script src="js/kiosk.min.js?v=mszj7vca"></script>
+  <script src="js/kiosk-core.min.js?v=mt0e2l97"></script>
+  <script src="js/kiosk.min.js?v=mt0e2l97"></script>
 </head>
 <body>
 
