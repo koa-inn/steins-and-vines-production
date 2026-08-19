@@ -137,7 +137,7 @@ function pendingCtx() {
 function mockZohoPostRouting(overrides) {
   var routes = Object.assign({
     fromsalesorder: { invoice: { invoice_id: 'INV999' } },
-    submit: {},
+    finalize: {},
     customerpayments: {
       payment: {
         payment_id: 'PAY1',
@@ -153,10 +153,10 @@ function mockZohoPostRouting(overrides) {
         ? Promise.reject(routes.fromsalesorder)
         : Promise.resolve(routes.fromsalesorder);
     }
-    if (/^\/invoices\/.+\/submit$/.test(endpoint)) {
-      return routes.submit instanceof Error
-        ? Promise.reject(routes.submit)
-        : Promise.resolve(routes.submit);
+    if (/^\/invoices\/.+\/status\/sent$/.test(endpoint)) {
+      return routes.finalize instanceof Error
+        ? Promise.reject(routes.finalize)
+        : Promise.resolve(routes.finalize);
     }
     if (endpoint === '/customerpayments') {
       return routes.customerpayments instanceof Error
@@ -208,7 +208,10 @@ describe('collect webhook reconcile — APPROVED path (Phase 71-01)', function (
       expect(zohoApi.zohoPost).toHaveBeenCalledWith(
         '/invoices/fromsalesorder?salesorder_id=' + SO_ID, {}
       );
-      expect(zohoApi.zohoPost).toHaveBeenCalledWith('/invoices/INV999/submit', {});
+      // Finalize via /status/sent (NOT /submit — the approval endpoint that 400s
+      // in orgs without invoice approvals; caught on staging 2026-08-19).
+      expect(zohoApi.zohoPost).toHaveBeenCalledWith('/invoices/INV999/status/sent', {});
+      expect(zohoApi.zohoPost).not.toHaveBeenCalledWith('/invoices/INV999/submit', {});
 
       // Apply: verified-correct payment shape — invoices array, no salesorders_to_apply
       var paymentCall = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/customerpayments'; });
@@ -262,7 +265,7 @@ describe('collect webhook reconcile — APPROVED path (Phase 71-01)', function (
       });
       expect(fromSoCalls.length).toBe(0); // no duplicate invoice created
 
-      expect(zohoApi.zohoPost).toHaveBeenCalledWith('/invoices/INV777/submit', {});
+      expect(zohoApi.zohoPost).toHaveBeenCalledWith('/invoices/INV777/status/sent', {});
 
       var paymentCall = zohoApi.zohoPost.mock.calls.find(function (c) { return c[0] === '/customerpayments'; });
       expect(paymentCall).toBeTruthy();

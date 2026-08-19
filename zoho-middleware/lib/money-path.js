@@ -274,10 +274,11 @@ function voidWithTimeout(helcimLib, token, amount, opts) {
  *      (the debug doc's core "don't duplicate the invoice" constraint).
  *   2. If none found, convert the SO to a new invoice via
  *      /invoices/fromsalesorder?salesorder_id=.
- *   3. FINALIZE — POST /invoices/{id}/submit to mark it sent/open. A genuine
- *      submit failure REJECTS (fail-closed: never return a still-draft
- *      invoice_id for payment application). An "already sent" / "cannot be
- *      submitted" style error is treated as success — the invoice is already
+ *   3. FINALIZE — POST /invoices/{id}/status/sent to mark it sent/open (NOT
+ *      /submit, which is the approval-workflow endpoint and 400s when approvals
+ *      aren't configured). A genuine finalize failure REJECTS (fail-closed:
+ *      never return a still-draft invoice_id for payment application). An
+ *      "already sent" style error is treated as success — the invoice is already
  *      in the desired open/sent state.
  *
  * DEDUP PRE-CHECK FIELD PATH (documented per 71-01 plan — no in-repo
@@ -322,26 +323,29 @@ function ensureOpenInvoiceForSalesOrder(soId) {
       return invoiceId;
     });
   }).then(function (invoiceId) {
-    return zohoPost('/invoices/' + invoiceId + '/submit', {}).then(function () {
+    // FINALIZE the draft invoice to 'sent'/'open' so a payment can be applied.
+    // Use /status/sent — NOT /submit. /submit is the APPROVAL-workflow endpoint
+    // and returns 400 (code 113024, "Approvals isn't configured") in orgs
+    // without invoice approvals, which left the invoice draft + the payment
+    // unapplied (caught on staging 2026-08-19). A genuine finalize failure
+    // REJECTS (fail-closed: never apply a payment to a still-draft invoice). An
+    // "already sent"/"already open" response is treated as success — the invoice
+    // is already in the desired state.
+    return zohoPost('/invoices/' + invoiceId + '/status/sent', {}).then(function () {
       return invoiceId;
-    }).catch(function (submitErr) {
-      // Treat "already sent" / "cannot be submitted" as success — the invoice
-      // is already open, which is the desired end state. Any other error
-      // rejects: fail-closed means we must never apply a payment to a
-      // still-draft invoice.
-      var msg = ((submitErr && submitErr.message) || '').toLowerCase();
+    }).catch(function (finalizeErr) {
+      var msg = ((finalizeErr && finalizeErr.message) || '').toLowerCase();
       var body = '';
-      if (submitErr && submitErr.response && submitErr.response.data) {
-        try { body = JSON.stringify(submitErr.response.data).toLowerCase(); } catch { body = ''; }
+      if (finalizeErr && finalizeErr.response && finalizeErr.response.data) {
+        try { body = JSON.stringify(finalizeErr.response.data).toLowerCase(); } catch { body = ''; }
       }
-      var alreadySent = msg.indexOf('already') !== -1 || body.indexOf('already') !== -1 ||
-        msg.indexOf('cannot be submitted') !== -1 || body.indexOf('cannot be submitted') !== -1;
-      if (alreadySent) {
+      var alreadyOpen = msg.indexOf('already') !== -1 || body.indexOf('already') !== -1;
+      if (alreadyOpen) {
         log.info('[money-path] ensureOpenInvoiceForSalesOrder: invoice=' + invoiceId +
-          ' already sent — treating submit as success');
+          ' already sent/open — treating finalize as success');
         return invoiceId;
       }
-      throw submitErr;
+      throw finalizeErr;
     });
   });
 }
