@@ -207,11 +207,14 @@ function loadSubpageItems(callback) {
 
   dataPromise
     .then(function (items) {
-      _allSubpageItems = items;
+      // Hide out-of-stock items site-wide (weight items included).
+      _allSubpageItems = items.filter(function (it) {
+        return (parseInt(it.stock, 10) || 0) > 0;
+      });
 
       // Build Fuse search index
       if (typeof Fuse !== 'undefined') {
-        _subpageFuse = new Fuse(items, {
+        _subpageFuse = new Fuse(_allSubpageItems, {
           keys: ['name', 'description', 'cf_subcategory'],
           threshold: 0.35,
           minMatchCharLength: 2,

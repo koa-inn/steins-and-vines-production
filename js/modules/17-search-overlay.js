@@ -226,10 +226,12 @@ function fetchAllProducts() {
 
   return Promise.all([ingredientsP, productsP]).then(function (results) {
     var ingredients = results[0].filter(function (item) {
-      return (parseFloat(item.price_per_unit || '0') || 0) > 0;
+      return (parseFloat(item.price_per_unit || '0') || 0) > 0 &&
+        (parseInt(item.stock, 10) || 0) > 0;
     });
     var kits = results[1].filter(function (item) {
-      return (parseFloat(item.price_per_unit || '0') || 0) > 0;
+      return (parseFloat(item.price_per_unit || '0') || 0) > 0 &&
+        (parseInt(item.stock, 10) || 0) > 0;
     });
     return ingredients.concat(kits);
   });

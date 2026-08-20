@@ -312,6 +312,8 @@ function loadHops(callback) {
       _allHops = items.filter(function (r) {
         var p = parseFloat(r.price_per_unit || '0') || 0;
         if (p <= 0) return false;
+        // Hide out-of-stock variants; groups with no in-stock variant disappear.
+        if ((parseInt(r.stock, 10) || 0) <= 0) return false;
         var subcat = (r.subcategory || r.category || '').toLowerCase();
         return subcat === 'hops';
       });

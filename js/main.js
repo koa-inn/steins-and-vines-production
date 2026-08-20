@@ -1006,7 +1006,10 @@ function loadFeaturedProducts() {
   Promise.all([configPromise, productsPromise])
     .then(function (results) {
       var result = results[0];
-      var products = results[1];
+      // Hide out-of-stock products from the featured carousel.
+      var products = (results[1] || []).filter(function (p) {
+        return (parseInt(p.stock, 10) || 0) > 0;
+      });
       var config = { 'promo-featured-skus': [], 'instafeed-id': (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.INSTAGRAM_FEED_ID) || '' };
 
       if (result && result.isAppsScript) {
@@ -2367,24 +2370,20 @@ function loadProducts() {
       if (r.available !== undefined && r.available !== '') return parseInt(r.available, 10) || 0;
       return parseInt(r.stock, 10) || 0;
     }
+    // Out-of-stock products are hidden site-wide, including build-to-order kits
+    // that would previously appear under an "Available to order" section.
     var inStock = rows.filter(function (r) { return getAvailable(r) > 0; });
-    var orderIn = rows.filter(function (r) { return getAvailable(r) <= 0; });
 
-    renderSection(catalog, 'Currently available', inStock);
-    injectKitListSchema(rows);
-
-    if (inStock.length > 0 && orderIn.length > 0) {
-      var divider = document.createElement('div');
-      divider.className = 'section-icon catalog-divider';
-      var icon = document.createElement('img');
-      icon.src = 'images/Icon_green.svg';
-      icon.alt = '';
-      icon.setAttribute('aria-hidden', 'true');
-      divider.appendChild(icon);
-      catalog.appendChild(divider);
+    if (inStock.length === 0) {
+      var noneMsg = document.createElement('p');
+      noneMsg.className = 'catalog-no-results';
+      noneMsg.textContent = 'No products found.';
+      catalog.appendChild(noneMsg);
+      return;
     }
 
-    renderSection(catalog, 'Available to order', orderIn, 'catalog-section--order');
+    renderSection(catalog, 'Currently available', inStock);
+    injectKitListSchema(inStock);
     equalizeCardHeights();
     setTimeout(handleDeepLinkedItem, 200);
   }

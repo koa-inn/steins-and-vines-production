@@ -199,7 +199,10 @@ function loadFeaturedProducts() {
   Promise.all([configPromise, productsPromise])
     .then(function (results) {
       var result = results[0];
-      var products = results[1];
+      // Hide out-of-stock products from the featured carousel.
+      var products = (results[1] || []).filter(function (p) {
+        return (parseInt(p.stock, 10) || 0) > 0;
+      });
       var config = { 'promo-featured-skus': [], 'instafeed-id': (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG.INSTAGRAM_FEED_ID) || '' };
 
       if (result && result.isAppsScript) {
