@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
-stopped_at: Completed 72-01-PLAN.md (beer.html + cider.html launch pages, sitemap/package.json registration, build/lint/test gate green)
-last_updated: "2026-08-22T21:49:01.150Z"
+stopped_at: Completed 72-02-PLAN.md (nav propagation + homepage launch banners)
+last_updated: "2026-08-22T21:56:07.170Z"
 last_activity: 2026-08-22
 progress:
   total_phases: 58
   completed_phases: 17
   total_plans: 115
-  completed_plans: 110
+  completed_plans: 111
   percent: 29
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 72 (beer-and-cider-launch-announcement-pages-beer-html-cider-htm) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Next: **production cutover** — deploy middleware first (`railway up --environment production --service sv_middleware`, verify /health), then `git push production main`. Per CLAUDE.md, prod only after staging approval — now satisfied.
 Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 `milestone_complete` flag was false; corrected 2026-07-10). Done: 46 (SEC-02 ✅), 48 (KIOSK-01 ✅ — de-fork live-verified standalone 2026-07-10, 22/22 threats secured), 52 (RESIL-01 ✅), 53 (OBS-01 ✅), 54 (kiosk gift-card mgmt ✅ — UAT+security closed 2026-07-10). **Open phases:** 47 (SEC-01 — STATE narrative says closed-on-staging but ROADMAP checkbox is still `[ ]`; needs owner reconciliation), 49 (MONEY-01 — 49-01 code merged, 49-02 live-card UAT pending), 50 (MONEY-02) + 51 (MONEY-03) — both now UNBLOCKED (were gated on 48). 50/51 also depend on the money-path-primitive adoption in pos-recipe.js.
 Status: Ready to execute
@@ -121,6 +121,8 @@ Last activity: 2026-08-22
 - [Phase 54-03]: Kiosk gift-card mgmt test uses real timers (no synchronous setTimeout mock) so flushPromises() drains the fetch(...).then().then() microtask chain, matching admin-gift-card-mgmt.test.js
 - [Phase 72-01]: Secondary CTA link uses class="btn-secondary" alone (not "btn btn-secondary") — matches site-wide convention confirmed by repo grep; avoids conflicting CSS rules
 - [Phase 72-01]: Added net-new twitter:title/twitter:description tags on beer.html/cider.html — about.html shell has no pre-existing twitter:title/description to inherit from (only twitter:card=summary)
+- [Phase 72-02]: Stale beer waitlist banner repurposed (not removed) into a live Now Available Beer banner; orphaned beer-waitlist-iframe removed since its form target no longer exists (setupBeerWaitlistForm is null-guarded, no JS regression)
+- [Phase 72-02]: content/home.json beer-title/beer-text updated and cider-title/cider-text added — required fix, since js/modules/13-init.js overwrites [data-content] elements from content/home.json at runtime and would have silently reverted the new banner HTML text
 
 ### Pending Todos
 
@@ -136,8 +138,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-08-22T21:49:01.142Z
-Stopped at: Completed 72-01-PLAN.md (beer.html + cider.html launch pages, sitemap/package.json registration, build/lint/test gate green)
+Last session: 2026-08-22T21:56:07.162Z
+Stopped at: Completed 72-02-PLAN.md (nav propagation + homepage launch banners)
 **INV-000137 backfilled** — `SV-B-000183` + `SV-B-000184`; guard now reports "3 of 3" and rejects a 4th. Owner redeployed Apps Script twice. Middleware suite 1283 / frontend 986 / lint clean.
 **⚠️ Anti-patterns discovered (see `.planning/.continue-here.md`):** (1) *green tests ≠ working system* — `fda6e40` passed its suite for 4 days while dead in prod, because the contradicting logic lived in Apps Script (no CI deploy, no Jest); exercise Apps-Script-crossing changes against the live system. (2) *`curl` against prod lies* — Cloudflare returns a 403 bot-challenge page, which made me wrongly conclude prod had no GTM/CSP; verify prod **through the browser**. (3) `apps-script/*.gs` needs a MANUAL redeploy.
 **Open (owner-only, non-blocking):** iPad UAT of the kiosk recovery fix (the one fix inferred from symptoms, never reproduced); watch the next multi-kit sale in BrewPad; Phase 56 leftovers (2nd GTM admin + `purchase` UAT); optional repair of historical mangled customer names.

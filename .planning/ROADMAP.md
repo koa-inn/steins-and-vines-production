@@ -1052,14 +1052,14 @@ Plans:
 **Goal:** Ship two on-brand, one-time launch announcement pages — `beer.html` ("now offering beer") and `cider.html` ("now offering 100% Okanagan Juice Cider") — that mirror existing top-level pages exactly (shared header/nav/footer, `<head>`+CSP+OG boilerplate, `css/` classes, ES5-only, CSP-clean), each announcing availability & dates + price & how-to-order and driving ONE action. Primary CTA wired to the existing ferment-session **booking flow** (`/api/bookings` + Cal.com, reusing the current booking component — no rebuild). Add Beer + Cider to the nav across all pages and feature them on `index.html`; pages cross-link. Frontend-only; no middleware changes expected. Built with **placeholder** price/dates/CTA content (owner fills real values before production promotion) on a feature branch on staging — prod promotion left to the owner.
 **Requirements**: Owner product-launch ticket (no REQ IDs). Off-theme for the v4.5 money-path milestone. Source/spec: `.planning/todos/pending/beer-cider-launch-pages.md` (full spec, locked decisions, and the "placeholders to fill before promotion" checklist).
 **Depends on:** None (independent frontend work; reuses existing booking endpoints as-is).
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 **Wave 1**
 - [x] 72-01-PLAN.md — Author beer.html + cider.html (about.html shell + index.html primitives, placeholder content, booking CTA, cross-links, head/CSP/OG); register in sitemap.xml + package.json stamp:pages; build/lint/test
 
 **Wave 2**
-- [ ] 72-02-PLAN.md — Site-wide Beer/Cider nav across all 17 public pages + homepage launch banners + reconcile stale "Beer Is Coming" waitlist banner; rebuild/stamp
+- [x] 72-02-PLAN.md — Site-wide Beer/Cider nav across all 17 public pages + homepage launch banners + reconcile stale "Beer Is Coming" waitlist banner; rebuild/stamp
 
 **Wave 3**
 - [ ] 72-03-PLAN.md — Promote-steps runbook + owner human-verify checkpoint (placeholder-fill + banner disposition); feature branch handoff, no prod deploy
