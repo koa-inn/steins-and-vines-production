@@ -131,3 +131,13 @@ None - no external service configuration required.
 ---
 *Phase: 72-beer-and-cider-launch-announcement-pages-beer-html-cider-htm*
 *Completed: 2026-08-22*
+
+## Self-Check: PASSED
+
+- FOUND: beer.html
+- FOUND: cider.html
+- FOUND: .planning/phases/72-beer-and-cider-launch-announcement-pages-beer-html-cider-htm/72-01-SUMMARY.md
+- FOUND: d616479e (Task 1 commit)
+- FOUND: c32c9961 (Task 2 commit)
+- FOUND: d6ac6b93 (Task 3 commit)
+- FOUND: 171bb05a (SUMMARY commit)
