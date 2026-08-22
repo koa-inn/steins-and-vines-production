@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: executing
-stopped_at: Completed 72-02-PLAN.md (nav propagation + homepage launch banners)
-last_updated: "2026-08-22T21:56:07.170Z"
+status: verifying
+stopped_at: Completed 72-03-PLAN.md (promote-steps runbook + owner checkpoint APPROVED) — Phase 72 complete, ready for owner-only production promotion
+last_updated: "2026-08-22T22:41:19.411Z"
 last_activity: 2026-08-22
 progress:
   total_phases: 58
-  completed_phases: 17
+  completed_phases: 18
   total_plans: 115
-  completed_plans: 111
-  percent: 29
+  completed_plans: 112
+  percent: 31
 ---
 
 # Project State
@@ -29,7 +29,7 @@ Phase: 72 (beer-and-cider-launch-announcement-pages-beer-html-cider-htm) — EXE
 Plan: 3 of 3
 Next: **production cutover** — deploy middleware first (`railway up --environment production --service sv_middleware`, verify /health), then `git push production main`. Per CLAUDE.md, prod only after staging approval — now satisfied.
 Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 `milestone_complete` flag was false; corrected 2026-07-10). Done: 46 (SEC-02 ✅), 48 (KIOSK-01 ✅ — de-fork live-verified standalone 2026-07-10, 22/22 threats secured), 52 (RESIL-01 ✅), 53 (OBS-01 ✅), 54 (kiosk gift-card mgmt ✅ — UAT+security closed 2026-07-10). **Open phases:** 47 (SEC-01 — STATE narrative says closed-on-staging but ROADMAP checkbox is still `[ ]`; needs owner reconciliation), 49 (MONEY-01 — 49-01 code merged, 49-02 live-card UAT pending), 50 (MONEY-02) + 51 (MONEY-03) — both now UNBLOCKED (were gated on 48). 50/51 also depend on the money-path-primitive adoption in pos-recipe.js.
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-22
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
@@ -123,6 +123,7 @@ Last activity: 2026-08-22
 - [Phase 72-01]: Added net-new twitter:title/twitter:description tags on beer.html/cider.html — about.html shell has no pre-existing twitter:title/description to inherit from (only twitter:card=summary)
 - [Phase 72-02]: Stale beer waitlist banner repurposed (not removed) into a live Now Available Beer banner; orphaned beer-waitlist-iframe removed since its form target no longer exists (setupBeerWaitlistForm is null-guarded, no JS regression)
 - [Phase 72-02]: content/home.json beer-title/beer-text updated and cider-title/cider-text added — required fix, since js/modules/13-init.js overwrites [data-content] elements from content/home.json at runtime and would have silently reverted the new banner HTML text
+- [Phase 72-03]: Owner approved phase 72 first pass at the Task 2 checkpoint ("cool, seems good for the first pass"); banner disposition (repurposed stale waitlist banner into live Beer banner + new Cider banner, waitlist form/iframe removed) confirmed by approval, no revision requested
 
 ### Pending Todos
 
@@ -138,8 +139,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-08-22T21:56:07.162Z
-Stopped at: Completed 72-02-PLAN.md (nav propagation + homepage launch banners)
+Last session: 2026-08-22T22:41:19.404Z
+Stopped at: Completed 72-03-PLAN.md (promote-steps runbook + owner checkpoint APPROVED) — Phase 72 complete, ready for owner-only production promotion
 **INV-000137 backfilled** — `SV-B-000183` + `SV-B-000184`; guard now reports "3 of 3" and rejects a 4th. Owner redeployed Apps Script twice. Middleware suite 1283 / frontend 986 / lint clean.
 **⚠️ Anti-patterns discovered (see `.planning/.continue-here.md`):** (1) *green tests ≠ working system* — `fda6e40` passed its suite for 4 days while dead in prod, because the contradicting logic lived in Apps Script (no CI deploy, no Jest); exercise Apps-Script-crossing changes against the live system. (2) *`curl` against prod lies* — Cloudflare returns a 403 bot-challenge page, which made me wrongly conclude prod had no GTM/CSP; verify prod **through the browser**. (3) `apps-script/*.gs` needs a MANUAL redeploy.
 **Open (owner-only, non-blocking):** iPad UAT of the kiosk recovery fix (the one fix inferred from symptoms, never reproduced); watch the next multi-kit sale in BrewPad; Phase 56 leftovers (2nd GTM admin + `purchase` UAT); optional repair of historical mangled customer names.
