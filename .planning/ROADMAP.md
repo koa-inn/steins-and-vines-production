@@ -1039,12 +1039,30 @@ Plans:
 **Goal:** A charged kiosk SO collection reconciles in Zoho like `processSale` — the SO's invoice is finalized (sent/open) then paid (balance 0), with the customerpayment applied to the invoice (unused_amount 0), never left as an orphaned advance against the sales order. Post-charge failures fail closed with a recoverable reconcile record. The sibling online SO-deposit path (checkout.js) is fixed the same way.
 **Requirements**: Owner money-path ticket (no REQ IDs). Source: `.planning/debug/kiosk-so-collect-draft-unapplied.md` + `71-CONTEXT.md` decisions D1-D4.
 **Depends on:** Phase 70
-**Plans:** 2/3 plans executed
+**Status:** ✅ COMPLETE — staging-verified 2026-08-22 (SO-000079 → INV-000180 paid, payment applied unused_amount 0, no duplicate). Production cutover pending (`docs/PROD-DEPLOY-70-71.md`).
+**Plans:** 3/3 plans executed
 
 Plans:
 - [x] 71-01-PLAN.md — Core fix: webhooks collect APPROVED path convert/reuse+submit+apply-to-invoice, dedup finalize helper, fail-closed reconcile writer, tests
 - [x] 71-02-PLAN.md — Dead-code cleanup: remove the unreachable salesorders_to_apply else-branch at checkout.js:693 (dead since f6d6e52dc) + invariant guard + regression lock (NOT a money-path fix)
-- [ ] 71-03-PLAN.md — Live-verify checkpoint: real kiosk SO collection reconciles to a paid invoice on staging (owner)
+- [x] 71-03-PLAN.md — Live-verify checkpoint: verified on staging 2026-08-22 via replay helper against the deployed fix — SO-000079 collect booked a single finalized paid invoice (INV-000180, balance 0) with the payment applied (unused_amount 0); owner-approved. See 71-03-SUMMARY.md
+
+### Phase 72: Beer and Cider launch announcement pages (beer.html + cider.html) — booking-flow CTA, nav + homepage feature, placeholder content
+
+**Goal:** Ship two on-brand, one-time launch announcement pages — `beer.html` ("now offering beer") and `cider.html` ("now offering 100% Okanagan Juice Cider") — that mirror existing top-level pages exactly (shared header/nav/footer, `<head>`+CSP+OG boilerplate, `css/` classes, ES5-only, CSP-clean), each announcing availability & dates + price & how-to-order and driving ONE action. Primary CTA wired to the existing ferment-session **booking flow** (`/api/bookings` + Cal.com, reusing the current booking component — no rebuild). Add Beer + Cider to the nav across all pages and feature them on `index.html`; pages cross-link. Frontend-only; no middleware changes expected. Built with **placeholder** price/dates/CTA content (owner fills real values before production promotion) on a feature branch on staging — prod promotion left to the owner.
+**Requirements**: Owner product-launch ticket (no REQ IDs). Off-theme for the v4.5 money-path milestone. Source/spec: `.planning/todos/pending/beer-cider-launch-pages.md` (full spec, locked decisions, and the "placeholders to fill before promotion" checklist).
+**Depends on:** None (independent frontend work; reuses existing booking endpoints as-is).
+**Plans:** 3 plans
+
+Plans:
+**Wave 1**
+- [ ] 72-01-PLAN.md — Author beer.html + cider.html (about.html shell + index.html primitives, placeholder content, booking CTA, cross-links, head/CSP/OG); register in sitemap.xml + package.json stamp:pages; build/lint/test
+
+**Wave 2**
+- [ ] 72-02-PLAN.md — Site-wide Beer/Cider nav across all 17 public pages + homepage launch banners + reconcile stale "Beer Is Coming" waitlist banner; rebuild/stamp
+
+**Wave 3**
+- [ ] 72-03-PLAN.md — Promote-steps runbook + owner human-verify checkpoint (placeholder-fill + banner disposition); feature branch handoff, no prod deploy
 
 ---
 
