@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
-stopped_at: "**Ad-hoc bug-fix session — kiosk catalog load + BrewPad batch creation. All shipped to staging + prod (`2134da6`) and verified live.** Five commits: `ee7b0f1` (batch count capped by the Makers Fee quantity — merchandise could otherwise inflate it; INV-000067's 12 bottles + 1 kit would have made 13 batches), `d3e32f4` (**the owner's actual bug**: Apps Script's dedup guard keyed on invoice+SKU and silently rejected units 2..N, so the 2026-07-08 quantity-aware fix `fda6e40` had NEVER worked in prod — now bounded by `unit_total`), `7cbf856` (kiosk catalog load is recoverable: Retry button + retry on visibilitychange/online; a failed fetch was previously terminal until a page reload), `255308d` (`splitCustomerName` handles Zoho surname-first names — `"Gamba, Remo"` was stored mangled AND swapped; plus Apps Script `doGet` checked `SERVER_TOKEN` while `doPost` checked `SERVER_WRITE_TOKEN`, so middleware **reads never authenticated at all** — `pos.js` scan-invoices dedup always saw an empty set), `2134da6` (kit identity from the **Kits sheet**, 115 SKUs — retires the unit-price heuristic; loaded at startup + hourly, narrows only, never to zero)."
-last_updated: "2026-08-22T20:15:00.000Z"
-last_activity: 2026-08-22 -- Phase 71 COMPLETE (71-03 live-verified on staging); production cutover pending
+stopped_at: Completed 72-01-PLAN.md (beer.html + cider.html launch pages, sitemap/package.json registration, build/lint/test gate green)
+last_updated: "2026-08-22T21:49:01.150Z"
+last_activity: 2026-08-22
 progress:
-  total_phases: 57
-  completed_phases: 16
-  total_plans: 112
-  completed_plans: 106
-  percent: 28
+  total_phases: 58
+  completed_phases: 17
+  total_plans: 115
+  completed_plans: 110
+  percent: 29
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 71 ✅ COMPLETE (staging-verified 2026-08-22) — next: production cutover of the 70/71 money-path (`docs/PROD-DEPLOY-70-71.md`), then remaining open money-path phases (49-02, 50, 51).
+**Current focus:** Phase 72 — beer-and-cider-launch-announcement-pages-beer-html-cider-htm
 
 ## Current Position
 
-Phase: 71 (kiosk-so-collect-reconciliation) — ✅ COMPLETE 2026-08-22
-Plan: 3 of 3 (all executed; 71-03 live-verified on staging — SO-000079 → INV-000180 paid, payment applied unused_amount 0, no duplicate. Test data cleaned up: INV-000180 + payment #181 deleted, Helcim txn 53184102 untouched.)
+Phase: 72 (beer-and-cider-launch-announcement-pages-beer-html-cider-htm) — EXECUTING
+Plan: 2 of 3
 Next: **production cutover** — deploy middleware first (`railway up --environment production --service sv_middleware`, verify /health), then `git push production main`. Per CLAUDE.md, prod only after staging approval — now satisfied.
 Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 `milestone_complete` flag was false; corrected 2026-07-10). Done: 46 (SEC-02 ✅), 48 (KIOSK-01 ✅ — de-fork live-verified standalone 2026-07-10, 22/22 threats secured), 52 (RESIL-01 ✅), 53 (OBS-01 ✅), 54 (kiosk gift-card mgmt ✅ — UAT+security closed 2026-07-10). **Open phases:** 47 (SEC-01 — STATE narrative says closed-on-staging but ROADMAP checkbox is still `[ ]`; needs owner reconciliation), 49 (MONEY-01 — 49-01 code merged, 49-02 live-card UAT pending), 50 (MONEY-02) + 51 (MONEY-03) — both now UNBLOCKED (were gated on 48). 50/51 also depend on the money-path-primitive adoption in pos-recipe.js.
-Status: Phase 71 complete — awaiting production cutover
-Last activity: 2026-08-22 -- Phase 71 71-03 live-verified on staging (owner-approved)
+Status: Ready to execute
+Last activity: 2026-08-22
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
@@ -119,6 +119,8 @@ Last activity: 2026-08-22 -- Phase 71 71-03 live-verified on staging (owner-appr
 - [Phase 54-02]: Gift Cards entry button placed in shell-user bar next to Device Settings (not sales toolbar/discount popover) per D-54-01
 - [Phase 54-02]: Reused kiosk-discount-mgmt-modal CSS classes for kgcm- overlay (generic, not id-scoped) — no CSS file changes needed
 - [Phase 54-03]: Kiosk gift-card mgmt test uses real timers (no synchronous setTimeout mock) so flushPromises() drains the fetch(...).then().then() microtask chain, matching admin-gift-card-mgmt.test.js
+- [Phase 72-01]: Secondary CTA link uses class="btn-secondary" alone (not "btn btn-secondary") — matches site-wide convention confirmed by repo grep; avoids conflicting CSS rules
+- [Phase 72-01]: Added net-new twitter:title/twitter:description tags on beer.html/cider.html — about.html shell has no pre-existing twitter:title/description to inherit from (only twitter:card=summary)
 
 ### Pending Todos
 
@@ -134,8 +136,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-07-13
-Stopped at: **Ad-hoc bug-fix session — kiosk catalog load + BrewPad batch creation. All shipped to staging + prod (`2134da6`) and verified live.** Five commits: `ee7b0f1` (batch count capped by the Makers Fee quantity — merchandise could otherwise inflate it; INV-000067's 12 bottles + 1 kit would have made 13 batches), `d3e32f4` (**the owner's actual bug**: Apps Script's dedup guard keyed on invoice+SKU and silently rejected units 2..N, so the 2026-07-08 quantity-aware fix `fda6e40` had NEVER worked in prod — now bounded by `unit_total`), `7cbf856` (kiosk catalog load is recoverable: Retry button + retry on visibilitychange/online; a failed fetch was previously terminal until a page reload), `255308d` (`splitCustomerName` handles Zoho surname-first names — `"Gamba, Remo"` was stored mangled AND swapped; plus Apps Script `doGet` checked `SERVER_TOKEN` while `doPost` checked `SERVER_WRITE_TOKEN`, so middleware **reads never authenticated at all** — `pos.js` scan-invoices dedup always saw an empty set), `2134da6` (kit identity from the **Kits sheet**, 115 SKUs — retires the unit-price heuristic; loaded at startup + hourly, narrows only, never to zero).
+Last session: 2026-08-22T21:49:01.142Z
+Stopped at: Completed 72-01-PLAN.md (beer.html + cider.html launch pages, sitemap/package.json registration, build/lint/test gate green)
 **INV-000137 backfilled** — `SV-B-000183` + `SV-B-000184`; guard now reports "3 of 3" and rejects a 4th. Owner redeployed Apps Script twice. Middleware suite 1283 / frontend 986 / lint clean.
 **⚠️ Anti-patterns discovered (see `.planning/.continue-here.md`):** (1) *green tests ≠ working system* — `fda6e40` passed its suite for 4 days while dead in prod, because the contradicting logic lived in Apps Script (no CI deploy, no Jest); exercise Apps-Script-crossing changes against the live system. (2) *`curl` against prod lies* — Cloudflare returns a 403 bot-challenge page, which made me wrongly conclude prod had no GTM/CSP; verify prod **through the browser**. (3) `apps-script/*.gs` needs a MANUAL redeploy.
 **Open (owner-only, non-blocking):** iPad UAT of the kiosk recovery fix (the one fix inferred from symptoms, never reproduced); watch the next multi-kit sale in BrewPad; Phase 56 leftovers (2nd GTM admin + `purchase` UAT); optional repair of historical mangled customer names.
