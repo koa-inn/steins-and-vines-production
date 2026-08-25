@@ -376,6 +376,7 @@ describe('D-03 code/cause consumption', function () {
   test('a 422 unit_mismatch with cause surfaces the named cause and highlights the ingredient row', function () {
     fillValidRecipeForm();
     bp._setRecipesStateForTest({ currentRecipeId: 'RCP-1', currentIngredients: TEST_INGREDIENTS.slice() });
+    bp.renderIngredientRows(TEST_INGREDIENTS.slice(), null);
 
     queueSaveResponses([{
       ok: false,
@@ -394,6 +395,7 @@ describe('D-03 code/cause consumption', function () {
   test('a 422 without code/cause falls back to the human error string without crashing', function () {
     fillValidRecipeForm();
     bp._setRecipesStateForTest({ currentRecipeId: 'RCP-1', currentIngredients: TEST_INGREDIENTS.slice() });
+    bp.renderIngredientRows(TEST_INGREDIENTS.slice(), null);
 
     queueSaveResponses([{
       ok: false,
