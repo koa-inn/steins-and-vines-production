@@ -124,6 +124,10 @@ None - no external service configuration required.
 - Full frontend suite (82 suites / 1134 tests) and full middleware suite (93 suites / 1436 tests) both green; lint clean.
 - No blockers for closing out Phase 73's gap-closure wave (73-06/73-07). 73-REVIEW.md's CR-02 finding can be marked resolved once this plan's SUMMARY is reviewed.
 
+## Self-Check: PASSED
+
+All created/modified files verified present; all four task/plan commit hashes (`08639616`, `23d5ece4`, `1aa49065`, `d9655972`) verified in git log.
+
 ---
 *Phase: 73-recipe-dynamic-pricing-unit-conversion-correctness-unit-awar*
 *Completed: 2026-08-25*
