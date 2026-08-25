@@ -590,6 +590,7 @@ describe('SCALE-05 ext — enrichment reads INGREDIENTS_ALL for internal-only in
   var INTERNAL_ID = 'ING-INTERNAL-001';
   var internalCatalogEntry = {
     item_id: INTERNAL_ID,
+    unit: 'pcs',
     rate: 1.50,
     cf_type: 'Additive',
     custom_fields: [
@@ -656,7 +657,7 @@ describe('SCALE-05 ext — enrichment reads INGREDIENTS_ALL for internal-only in
     var cachedDetail = {
       recipe: { recipe_id: 'SV-R-INTERNAL', pricing_mode: 'dynamic', service_fee: 10 },
       ingredients: [
-        { item_id: INTERNAL_ID, item_name: 'Calcium Sulfate (Bulk)', quantity: 2 }
+        { item_id: INTERNAL_ID, item_name: 'Calcium Sulfate (Bulk)', unit: 'pcs', quantity: 2 }
       ]
     };
     keyedCacheMock(cachedDetail, []);
@@ -691,7 +692,7 @@ describe('SCALE-05 ext — enrichment reads INGREDIENTS_ALL for internal-only in
             ok: true,
             data: {
               recipe: recipeInList,
-              ingredients: [{ item_id: INTERNAL_ID, item_name: 'Calcium Sulfate (Bulk)', quantity: 4 }]
+              ingredients: [{ item_id: INTERNAL_ID, item_name: 'Calcium Sulfate (Bulk)', unit: 'pcs', quantity: 4 }]
             }
           }
         });
@@ -719,6 +720,134 @@ describe('SCALE-05 ext — enrichment reads INGREDIENTS_ALL for internal-only in
       // computed_price = (4 * 1.50) + service_fee 5 = 11.00
       // Before fix: INGREDIENTS is empty → rate=0 → computed_price = 5.00 → test fails
       expect(recipe.computed_price).toBe(11.00);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 73-02: unit-aware computed_price (D-01/D-02/D-04) — read-path
+// SV-R-000004 money regression + fail-closed behavior on both sum-sites.
+// RED: these tests FAIL before enrichWithComputedPrice/enrichListPrices are
+// wired to scaling.ingredientLineCost (current code does bare qty * rate).
+// ---------------------------------------------------------------------------
+
+describe('Phase 73-02: unit-aware computed_price (detail + list read-paths)', function () {
+  var mocks;
+
+  // Fixture-driven only (D-04) — mirrors the 73-PRICING-BUG-HANDOFF.md evidence
+  // table for SV-R-000004 in its CORRECTED state (Whirlfloc line unit fixed to
+  // 'pcs' at ~$0.32/tablet per D-01 owner data action). No live recipe is edited.
+  var CATALOG_SVR4 = [
+    { item_id: 'MAG-B',   item_name: 'Magnum Bulk',                     unit: 'kg',  rate: 54 },
+    { item_id: 'MIT-B',   item_name: 'GR Hallertau Mittelfruh Bulk',    unit: 'kg',  rate: 72 },
+    { item_id: 'CACL',    item_name: 'Calcium Chloride Bulk',           unit: 'kg',  rate: 15 },
+    { item_id: 'GYP',     item_name: 'Gypsum (Calcium Sulfate) Bulk',   unit: 'kg',  rate: 10 },
+    { item_id: 'WHIRL',   item_name: 'Whirlfloc Tablets',               unit: 'pcs', rate: 0.32 },
+    { item_id: 'MALT',    item_name: 'Gambrinus Pilsner Malt',          unit: 'kg',  rate: 2.75 },
+    { item_id: 'CORN',    item_name: 'OiO Flaked Corn',                 unit: 'kg',  rate: 3 },
+    { item_id: 'YEAST',   item_name: 'Fermentis SafLager W-34/70',      unit: 'pcs', rate: 10 },
+    { item_id: 'LACTIC',  item_name: 'Lactic Acid 88%',                 unit: 'L',   rate: 25 }
+  ];
+
+  var INGREDIENTS_SVR4 = [
+    { item_id: 'MAG-B',  item_name: 'Magnum Bulk',                  unit: 'g',   quantity: 12 },
+    { item_id: 'MIT-B',  item_name: 'GR Hallertau Mittelfruh Bulk', unit: 'g',   quantity: 15 },
+    { item_id: 'CACL',   item_name: 'Calcium Chloride Bulk',        unit: 'g',   quantity: 3 },
+    { item_id: 'GYP',    item_name: 'Gypsum (Calcium Sulfate) Bulk', unit: 'g',  quantity: 3 },
+    { item_id: 'WHIRL',  item_name: 'Whirlfloc Tablets',            unit: 'pcs', quantity: 1 },
+    { item_id: 'MALT',   item_name: 'Gambrinus Pilsner Malt',       unit: 'kg',  quantity: 4.1 },
+    { item_id: 'CORN',   item_name: 'OiO Flaked Corn',              unit: 'kg',  quantity: 1.4 },
+    { item_id: 'YEAST',  item_name: 'Fermentis SafLager W-34/70',   unit: 'pcs', quantity: 2 },
+    { item_id: 'LACTIC', item_name: 'Lactic Acid 88%',              unit: 'L',   quantity: 0.02 }
+  ];
+
+  beforeEach(function () {
+    mocks = resetAndLoadRecipes();
+    mocks.cache.set.mockResolvedValue(true);
+    mocks.cache.del.mockResolvedValue(true);
+    process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-token';
+  });
+
+  test('D-04: SV-R-000004 corrected fixture recomputes to ~$88-95, not $1,896.98', function () {
+    var cachedDetail = {
+      recipe: { recipe_id: 'SV-R-000004', pricing_mode: 'dynamic', service_fee: 45, materials_fee: 5 },
+      ingredients: INGREDIENTS_SVR4.map(function (i) { return Object.assign({}, i); })
+    };
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'sv:recipes:SV-R-000004') return Promise.resolve(cachedDetail);
+      if (key === 'zoho:ingredients:all') return Promise.resolve(CATALOG_SVR4);
+      return Promise.resolve(null);
+    });
+
+    return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-000004' } }).then(function (res) {
+      expect(res._status).toBe(200);
+      var price = res._body.recipe.computed_price;
+      expect(price).toBeGreaterThanOrEqual(88);
+      expect(price).toBeLessThanOrEqual(95);
+      expect(price).not.toBeCloseTo(1896.98, 1);
+    });
+  });
+
+  test('D-02 read-path fail-closed (detail): cross-family line marks computed_price null + names the line, no 5xx', function () {
+    var badCatalog = [
+      { item_id: 'BAD-ITEM', item_name: 'Mystery Additive', unit: 'pcs', rate: 5 }
+    ];
+    var cachedDetail = {
+      recipe: { recipe_id: 'SV-R-BAD', pricing_mode: 'dynamic', service_fee: 10, materials_fee: 0 },
+      ingredients: [
+        { item_id: 'BAD-ITEM', item_name: 'Mystery Additive', unit: 'g', quantity: 5 }
+      ]
+    };
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'sv:recipes:SV-R-BAD') return Promise.resolve(cachedDetail);
+      if (key === 'zoho:ingredients:all') return Promise.resolve(badCatalog);
+      return Promise.resolve(null);
+    });
+
+    return callHandler('GET', '/api/recipes/:id', { params: { id: 'SV-R-BAD' } }).then(function (res) {
+      expect(res._status).toBe(200);
+      expect(res._body.recipe.computed_price).toBeNull();
+      expect(typeof res._body.recipe.pricing_error).toBe('string');
+      expect(res._body.recipe.pricing_error).toContain('Mystery Additive');
+    });
+  });
+
+  test('D-02 list resilience: one bad recipe among many still resolves with the good recipe priced', function () {
+    var combinedCatalog = [
+      { item_id: 'GOOD-ITEM', item_name: 'Good Malt', unit: 'kg', rate: 3 },
+      { item_id: 'BAD-ITEM', item_name: 'Bad Additive', unit: 'pcs', rate: 5 }
+    ];
+    var goodRecipe = { recipe_id: 'SV-R-GOOD', pricing_mode: 'dynamic', service_fee: 5, materials_fee: 0 };
+    var badRecipe = { recipe_id: 'SV-R-BADLIST', pricing_mode: 'dynamic', service_fee: 5, materials_fee: 0 };
+    var cachedList = { recipes: [goodRecipe, badRecipe], total: 2 };
+
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'sv:recipes:all:0:0') return Promise.resolve(cachedList);
+      if (key === 'zoho:ingredients:all') return Promise.resolve(combinedCatalog);
+      if (key === 'sv:recipes:SV-R-GOOD') {
+        return Promise.resolve({
+          recipe: goodRecipe,
+          ingredients: [{ item_id: 'GOOD-ITEM', item_name: 'Good Malt', unit: 'kg', quantity: 2 }]
+        });
+      }
+      if (key === 'sv:recipes:SV-R-BADLIST') {
+        return Promise.resolve({
+          recipe: badRecipe,
+          ingredients: [{ item_id: 'BAD-ITEM', item_name: 'Bad Additive', unit: 'g', quantity: 5 }]
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    return callHandler('GET', '/api/recipes', { query: { status: 'all' } }).then(function (res) {
+      expect(res._status).toBe(200);
+      var good = res._body.recipes.find(function (r) { return r.recipe_id === 'SV-R-GOOD'; });
+      var bad = res._body.recipes.find(function (r) { return r.recipe_id === 'SV-R-BADLIST'; });
+      expect(typeof good.computed_price).toBe('number');
+      expect(good.computed_price).toBe(11); // (2 * 3) + service_fee 5
+      expect(bad.computed_price).toBeNull();
+      expect(typeof bad.pricing_error).toBe('string');
     });
   });
 });
