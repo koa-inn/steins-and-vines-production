@@ -240,6 +240,11 @@ function enrichIngredientsWithCatalogRates(ingredients, catalog) {
     if (match) {
       ing.purchase_rate = parseFloat(match.purchase_rate) || 0;
       ing.rate = parseFloat(match.rate || match.price_per_unit) || 0;
+      // 73-07/CR-02: catalog_unit is the unit the rate is PRICED per — kept
+      // DISTINCT from ing.unit (the recipe-line unit) so bpIngredientLineCost
+      // can convert a g-line against a kg-priced catalog item instead of the
+      // two units silently collapsing into one field.
+      if (match.unit) ing.catalog_unit = match.unit;
       if (!ing.unit && match.unit) ing.unit = match.unit;
     }
   });
@@ -2455,10 +2460,16 @@ function bpIngredientLineCost(item, line) {
         var qty = parseFloat(ing.quantity) || 0;
         var costEach = parseFloat(ing.purchase_rate) || 0;
         var retailEach = parseFloat(ing.rate) || 0;
-        var lineCost = qty * costEach;
-        var lineRetail = qty * retailEach;
-        totalCost += lineCost;
-        totalRetail += lineRetail;
+        // 73-07/CR-02: catalog_unit (the unit the rate is priced per) is DISTINCT
+        // from ing.unit (the recipe-line unit) — do NOT pass ing as both args to
+        // bpIngredientLineCost, that collapses the two units and no-ops conversion.
+        var catalogUnit = ing.catalog_unit || ing.unit;
+        var costResult = bpIngredientLineCost({ unit: catalogUnit, rate: costEach }, { unit: ing.unit, quantity: qty });
+        var retailResult = bpIngredientLineCost({ unit: catalogUnit, rate: retailEach }, { unit: ing.unit, quantity: qty });
+        var lineCost = costResult.ok ? costResult.cost : 0;
+        var lineRetail = retailResult.ok ? retailResult.cost : 0;
+        if (costEach > 0 && costResult.ok) totalCost += lineCost;
+        if (retailEach > 0 && retailResult.ok) totalRetail += lineRetail;
 
         html += '<tr class="bp-recipes-ing-row" data-ing-idx="' + idx + '" data-item-id="' + escapeHTML(String(ing.item_id || '')) + '">';
         html += '<td class="bp-ing-autocomplete-wrap">';
@@ -2466,8 +2477,8 @@ function bpIngredientLineCost(item, line) {
         html += '</td>';
         html += '<td><input type="number" class="bp-input bp-ing-qty" value="' + escapeHTML(String(ing.quantity || '')) + '" step="0.01" min="0" inputmode="decimal" /></td>';
         html += '<td class="bp-ing-unit">' + escapeHTML(ing.unit || '') + '</td>';
-        html += '<td class="bp-ing-cost">' + (costEach > 0 ? '$' + lineCost.toFixed(2) : '—') + '</td>';
-        html += '<td class="bp-ing-retail">' + (retailEach > 0 ? '$' + lineRetail.toFixed(2) : '—') + '</td>';
+        html += '<td class="bp-ing-cost">' + (costEach > 0 ? (costResult.ok ? '$' + lineCost.toFixed(2) : '<span class="bp-ing-cost-unconvertible" title="' + escapeHTML(costResult.error || 'Cannot convert units') + '">N/A</span>') : '—') + '</td>';
+        html += '<td class="bp-ing-retail">' + (retailEach > 0 ? (retailResult.ok ? '$' + lineRetail.toFixed(2) : '<span class="bp-ing-cost-unconvertible" title="' + escapeHTML(retailResult.error || 'Cannot convert units') + '">N/A</span>') : '—') + '</td>';
         html += '<td><span class="bp-ing-stock-hint">' + escapeHTML(stockText) + '</span></td>';
         html += '<td><span class="' + dotClass + '" title="' + escapeHTML(dotTitle) + '"></span></td>';
         html += '<td><button type="button" class="btn-secondary bp-ing-remove" aria-label="Remove ' + escapeHTML(ing.item_name || 'ingredient') + '">&#10005;</button></td>';
@@ -2521,12 +2532,18 @@ function bpIngredientLineCost(item, line) {
         if (!isNaN(idx) && _recipesState.currentIngredients[idx]) {
           _recipesState.currentIngredients[idx].quantity = parseFloat(input.value) || 0;
         }
-        // Re-render totals inline (without full re-render)
+        // Re-render totals inline (without full re-render) — unit-aware (73-07/CR-02)
         var totalCost = 0;
         var totalRetail = 0;
         _recipesState.currentIngredients.forEach(function (ing) {
-          totalCost += (parseFloat(ing.quantity) || 0) * (parseFloat(ing.purchase_rate) || 0);
-          totalRetail += (parseFloat(ing.quantity) || 0) * (parseFloat(ing.rate) || 0);
+          var qty = parseFloat(ing.quantity) || 0;
+          var costEach = parseFloat(ing.purchase_rate) || 0;
+          var retailEach = parseFloat(ing.rate) || 0;
+          var catalogUnit = ing.catalog_unit || ing.unit;
+          var costResult = bpIngredientLineCost({ unit: catalogUnit, rate: costEach }, { unit: ing.unit, quantity: qty });
+          var retailResult = bpIngredientLineCost({ unit: catalogUnit, rate: retailEach }, { unit: ing.unit, quantity: qty });
+          if (costEach > 0 && costResult.ok) totalCost += costResult.cost;
+          if (retailEach > 0 && retailResult.ok) totalRetail += retailResult.cost;
         });
         updateIngredientTotalsBp(totalCost, totalRetail, _recipesState.currentIngredients.length);
         updateActivateGuardrail();
@@ -2599,6 +2616,9 @@ function bpIngredientLineCost(item, line) {
       _recipesState.currentIngredients[idx].item_name = item.name || '';
       _recipesState.currentIngredients[idx].sku = item.sku || '';
       _recipesState.currentIngredients[idx].unit = item.unit || '';
+      // 73-07/CR-02: record the selected catalog item's unit DISTINCTLY from
+      // the line unit above — see enrichIngredientsWithCatalogRates note.
+      _recipesState.currentIngredients[idx].catalog_unit = item.unit || '';
       _recipesState.currentIngredients[idx].purchase_rate = parseFloat(item.purchase_rate) || 0;
       _recipesState.currentIngredients[idx].rate = parseFloat(item.rate || item.price_per_unit) || 0;
     }
@@ -2613,12 +2633,18 @@ function bpIngredientLineCost(item, line) {
     }
     if (row) row.setAttribute('data-item-id', item.item_id || '');
 
-    // Recalc totals
+    // Recalc totals — unit-aware (73-07/CR-02)
     var totalCost = 0;
     var totalRetail = 0;
     _recipesState.currentIngredients.forEach(function (ing) {
-      totalCost += (parseFloat(ing.quantity) || 0) * (parseFloat(ing.purchase_rate) || 0);
-      totalRetail += (parseFloat(ing.quantity) || 0) * (parseFloat(ing.rate) || 0);
+      var qty = parseFloat(ing.quantity) || 0;
+      var costEach = parseFloat(ing.purchase_rate) || 0;
+      var retailEach = parseFloat(ing.rate) || 0;
+      var catalogUnit = ing.catalog_unit || ing.unit;
+      var costResult = bpIngredientLineCost({ unit: catalogUnit, rate: costEach }, { unit: ing.unit, quantity: qty });
+      var retailResult = bpIngredientLineCost({ unit: catalogUnit, rate: retailEach }, { unit: ing.unit, quantity: qty });
+      if (costEach > 0 && costResult.ok) totalCost += costResult.cost;
+      if (retailEach > 0 && retailResult.ok) totalRetail += retailResult.cost;
     });
     updateIngredientTotalsBp(totalCost, totalRetail, _recipesState.currentIngredients.length);
     updateActivateGuardrail();
