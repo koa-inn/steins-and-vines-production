@@ -301,6 +301,101 @@ describe('GET /api/recipes/:id/availability', function () {
       expect(gypsumResult.status).toBe('ok');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // 73-06 (WR-01): availability must convert the recipe-line quantity into the
+  // catalog item's stocking unit before computing batches_possible — the
+  // stockMap previously dropped `unit`, dividing a raw unconverted quantity.
+  // ---------------------------------------------------------------------------
+
+  test('WR-01: mixed-unit availability converts before computing batches_possible (per-kg item, 500g line -> 2 batches, low)', function () {
+    mocks.axios.post.mockResolvedValue({
+      data: {
+        ok: true,
+        data: {
+          recipe: { recipe_id: 'SV-R-MIXED' },
+          ingredients: [
+            { item_id: '300', item_name: 'Bulk Malt', unit: 'g', quantity: 500 }
+          ]
+        }
+      }
+    });
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') {
+        // Buggy pre-fix comparison: floor(1 / 500) = 0 -> 'out'.
+        // Correct: converted needed = 0.5kg -> floor(1 / 0.5) = 2 -> 'low'.
+        return Promise.resolve([
+          { item_id: '300', stock_on_hand: 1, unit: 'kg' }
+        ]);
+      }
+      return Promise.resolve(null);
+    });
+
+    return callHandler('GET', '/api/recipes/:id/availability', { params: { id: 'SV-R-MIXED' }, headers: { 'x-api-key': 'test-api-key' } }).then(function (res) {
+      var result = res._body.ingredients[0];
+      expect(result.batches_possible).toBe(2);
+      expect(result.status).toBe('low');
+      expect(res._body.summary).toBe('some_low');
+    });
+  });
+
+  test('WR-01: non-convertible unit fails CLOSED (pcs item, g line) — reported unavailable, not a raw unconverted division', function () {
+    mocks.axios.post.mockResolvedValue({
+      data: {
+        ok: true,
+        data: {
+          recipe: { recipe_id: 'SV-R-BADUNIT' },
+          ingredients: [
+            { item_id: '400', item_name: 'Whirlfloc Tablets', unit: 'g', quantity: 10 }
+          ]
+        }
+      }
+    });
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') {
+        return Promise.resolve([
+          { item_id: '400', stock_on_hand: 500, unit: 'pcs' }
+        ]);
+      }
+      return Promise.resolve(null);
+    });
+
+    return callHandler('GET', '/api/recipes/:id/availability', { params: { id: 'SV-R-BADUNIT' }, headers: { 'x-api-key': 'test-api-key' } }).then(function (res) {
+      var result = res._body.ingredients[0];
+      expect(result.batches_possible).toBe(0);
+      expect(result.status).toBe('out');
+      expect(res._body.summary).toBe('cannot_brew');
+    });
+  });
+
+  test('WR-01: matching-unit availability still computes as before (regression)', function () {
+    mocks.axios.post.mockResolvedValue({
+      data: {
+        ok: true,
+        data: {
+          recipe: { recipe_id: 'SV-R-SAMEUNIT' },
+          ingredients: [
+            { item_id: '500', item_name: 'Pale Malt', unit: 'kg', quantity: 5 }
+          ]
+        }
+      }
+    });
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') {
+        return Promise.resolve([
+          { item_id: '500', stock_on_hand: 50, unit: 'kg' }
+        ]);
+      }
+      return Promise.resolve(null);
+    });
+
+    return callHandler('GET', '/api/recipes/:id/availability', { params: { id: 'SV-R-SAMEUNIT' }, headers: { 'x-api-key': 'test-api-key' } }).then(function (res) {
+      var result = res._body.ingredients[0];
+      expect(result.batches_possible).toBe(10);
+      expect(result.status).toBe('ok');
+      expect(res._body.summary).toBe('all_ok');
+    });
+  });
 });
 
 describe('POST /api/recipes', function () {
