@@ -266,8 +266,8 @@ describe('computeScaledRecipeTotal — dynamic pricing', function () {
       { item_id: 'b1', quantity: 2,   unit: 'pcs' }
     ];
     var catalogMap = {
-      a1: { rate: 2.00 },  // 7.5 × 2.00 = 15.00
-      b1: { rate: 5.00 }   // 2   × 5.00 = 10.00
+      a1: { rate: 2.00, unit: 'kg' },  // 7.5 × 2.00 = 15.00
+      b1: { rate: 5.00, unit: 'pcs' }  // 2   × 5.00 = 10.00
     };
     // subtotal = 25.00; service_fee=10, materials_fee=5 → total = 40.00
     expect(computeScaledRecipeTotal(
@@ -282,7 +282,7 @@ describe('computeScaledRecipeTotal — dynamic pricing', function () {
     var scaledIngs = [
       { item_id: 'a1', quantity: 5, unit: 'kg' }
     ];
-    var catalogMap = { a1: { rate: 3.00 } }; // 5 × 3.00 = 15.00
+    var catalogMap = { a1: { rate: 3.00, unit: 'kg' } }; // 5 × 3.00 = 15.00
     expect(computeScaledRecipeTotal(
       { pricing_mode: 'dynamic', service_fee: 20, materials_fee: 5 },
       scaledIngs,
@@ -296,7 +296,7 @@ describe('computeScaledRecipeTotal — dynamic pricing', function () {
       { item_id: 'a1', quantity: 5, unit: 'kg' },
       { item_id: 'unknown', quantity: 10, unit: 'kg' }  // not in catalogMap
     ];
-    var catalogMap = { a1: { rate: 2.00 } };
+    var catalogMap = { a1: { rate: 2.00, unit: 'kg' } };
     expect(computeScaledRecipeTotal(
       { pricing_mode: 'dynamic', service_fee: 0, materials_fee: 0 },
       scaledIngs,
@@ -316,7 +316,7 @@ describe('computeScaledRecipeTotal — dynamic pricing', function () {
 
   test('dynamic: result is rounded to 2 decimal places', function () {
     var scaledIngs = [{ item_id: 'a1', quantity: 1, unit: 'kg' }];
-    var catalogMap = { a1: { rate: 14.999 } };
+    var catalogMap = { a1: { rate: 14.999, unit: 'kg' } };
     var result = computeScaledRecipeTotal(
       { pricing_mode: 'dynamic', service_fee: 0, materials_fee: 0 },
       scaledIngs,
@@ -324,6 +324,47 @@ describe('computeScaledRecipeTotal — dynamic pricing', function () {
       'in-store'
     );
     expect(result).toBe(15.00);
+  });
+
+  // ---------------------------------------------------------------------------
+  // D-01/D-02 unit-conversion wiring (73-01 Task 3)
+  // ---------------------------------------------------------------------------
+
+  test('D-02: g-vs-kg unit mismatch converts to the small correct contribution, not the raw-count overcharge (PRICING-BUG-HANDOFF Magnum Bulk case)', function () {
+    var scaledIngs = [
+      { item_id: 'hop1', quantity: 12, unit: 'g' }
+    ];
+    var catalogMap = {
+      hop1: { rate: 54, unit: 'kg' } // per-kg bulk item, recipe line in grams
+    };
+    var result = computeScaledRecipeTotal(
+      { pricing_mode: 'dynamic', service_fee: 0, materials_fee: 0 },
+      scaledIngs,
+      catalogMap,
+      'take-out'
+    );
+    // Correct: 0.012kg × $54 = $0.65 (rounded). Buggy raw multiply would give $648.
+    expect(result).toBe(0.65);
+  });
+
+  test('D-02: cross-family unit mismatch throws RecipeLineUnitError naming the line, never silently prices', function () {
+    var scaledIngs = [
+      { item_id: 'whirl1', item_name: 'Whirlfloc Tablets (25 pack)', quantity: 1, unit: 'L' }
+    ];
+    var catalogMap = {
+      whirl1: { rate: 8, unit: 'pcs', item_name: 'Whirlfloc Tablets (25 pack)' }
+    };
+    expect(function () {
+      computeScaledRecipeTotal(
+        { pricing_mode: 'dynamic', service_fee: 0, materials_fee: 0 },
+        scaledIngs,
+        catalogMap,
+        'take-out'
+      );
+    }).toThrow(expect.objectContaining({
+      name: 'RecipeLineUnitError',
+      message: expect.stringContaining('Whirlfloc Tablets (25 pack)')
+    }));
   });
 });
 
@@ -620,6 +661,34 @@ describe('computeModifiedRecipeTotal', function () {
     // Must use catalog rate $4, not client-sent $999
     // = 45 + 45 + 5 + (1 × 4) = $99
     expect(result).toBe(99);
+  });
+
+  // ---------------------------------------------------------------------------
+  // D-01/D-02 unit-conversion wiring (73-01 Task 3) — LOCKED-mode added-ingredient sub-sum
+  // ---------------------------------------------------------------------------
+
+  test('D-02: LOCKED-mode added ingredient converts g-vs-kg mismatch instead of raw-multiplying', function () {
+    var recipe = { locked_price: 45, service_fee: 0, materials_fee: 0, pricing_mode: 'locked', batch_size_l: 20 };
+    var originalIngredients = [];
+    // Added ingredient: 12g of a per-kg-priced item
+    var modifiedBaseIngredients = [{ item_id: 'hop1', item_name: 'Magnum Bulk', quantity: 12, unit: 'g' }];
+    var catalogMap = { hop1: { rate: 54, unit: 'kg', item_name: 'Magnum Bulk' } };
+    var result = computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.0, 'take-out');
+    // = locked_price×1 (45) + fees(0) + converted added-ingredient cost (0.012kg × $54 = $0.65)
+    expect(result).toBe(45.65);
+  });
+
+  test('D-02: LOCKED-mode added ingredient with a non-convertible unit throws RecipeLineUnitError', function () {
+    var recipe = { locked_price: 45, service_fee: 0, materials_fee: 0, pricing_mode: 'locked', batch_size_l: 20 };
+    var originalIngredients = [];
+    var modifiedBaseIngredients = [{ item_id: 'whirl1', item_name: 'Whirlfloc Tablets (25 pack)', quantity: 1, unit: 'L' }];
+    var catalogMap = { whirl1: { rate: 8, unit: 'pcs', item_name: 'Whirlfloc Tablets (25 pack)' } };
+    expect(function () {
+      computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, 1.0, 'take-out');
+    }).toThrow(expect.objectContaining({
+      name: 'RecipeLineUnitError',
+      message: expect.stringContaining('Whirlfloc Tablets (25 pack)')
+    }));
   });
 
 });
