@@ -171,10 +171,17 @@ function computeScaledRecipeTotal(recipe, scaledIngredients, catalogMap, saleTyp
  * Check scaled ingredient quantities against available stock.
  *
  * Items absent from catalogMap are skipped (unknown item — not a conflict).
- * A conflict occurs when scaled needed quantity exceeds stock_on_hand (D-08).
+ * A conflict occurs when the scaled needed quantity — converted into the
+ * catalog item's own stocking unit via ingredientLineCost.convertedQty
+ * (D-01/D-02) — exceeds stock_on_hand (D-08).
+ *
+ * Fails CLOSED (CR-01/73-06) when the recipe line's unit cannot convert to
+ * the catalog item's unit (ingredientLineCost returns ok:false): that line
+ * is always reported as a conflict, never silently passed through on the
+ * raw unconverted quantity.
  *
  * @param {Array}  scaledIngredients - output of scaleIngredients()
- * @param {Object} catalogMap        - { [item_id]: { stock_on_hand, ... } }
+ * @param {Object} catalogMap        - { [item_id]: { stock_on_hand, unit, ... } }
  * @returns {{ ok: boolean, conflicts: Array }}
  *   conflicts: [{ item_id, item_name, needed, stock, unit }]
  */
@@ -185,8 +192,24 @@ function checkScaledStock(scaledIngredients, catalogMap) {
     var entry = catalogMap[ing.item_id];
     if (!entry) return; // unknown item — skip (not a conflict)
 
-    var stock  = Number(entry.stock_on_hand) || 0;
-    var needed = Number(ing.quantity)         || 0;
+    var stock = Number(entry.stock_on_hand) || 0;
+    var lineCost = ingredientLineCost(entry, ing);
+
+    if (!lineCost.ok) {
+      // Non-convertible unit pair — fail closed (D-02 phase-wide pattern):
+      // report a conflict rather than falling back to the raw, unit-mismatched
+      // quantity, which could silently under- or over-report stock.
+      conflicts.push({
+        item_id:   ing.item_id,
+        item_name: ing.item_name,
+        needed:    Number(ing.quantity) || 0,
+        stock:     stock,
+        unit:      ing.unit
+      });
+      return;
+    }
+
+    var needed = lineCost.convertedQty;
 
     if (needed > stock) {
       conflicts.push({
