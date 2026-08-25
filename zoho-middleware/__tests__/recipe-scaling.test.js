@@ -445,6 +445,80 @@ describe('checkScaledStock', function () {
     expect(result.ok).toBe(true);
     expect(result.conflicts).toHaveLength(0);
   });
+
+  // ---------------------------------------------------------------------------
+  // 73-06 (CR-01): unit-aware stock comparison via ingredientLineCost.convertedQty.
+  // These reproduce the pre-fix bug — the gate used to compare raw ing.quantity
+  // directly against stock_on_hand with no unit conversion.
+  // ---------------------------------------------------------------------------
+
+  test('CR-01: mixed-unit line within stock is NOT falsely blocked (per-kg item, 2kg on hand, 500g line)', function () {
+    // Buggy pre-fix comparison: 500 (raw g) > 2 (kg stock) == true -> false conflict.
+    // Correct: convertedQty 0.5kg <= 2kg -> no conflict.
+    var result = checkScaledStock(
+      [{ item_id: 'a', item_name: 'Pale Malt', quantity: 500, unit: 'g' }],
+      { a: { stock_on_hand: 2, unit: 'kg' } }
+    );
+    expect(result.ok).toBe(true);
+    expect(result.conflicts).toHaveLength(0);
+  });
+
+  test('CR-01: mixed-unit oversell (kg-stocked item, 0.4kg on hand, 500g line) IS reported as a conflict', function () {
+    // convertedQty 0.5kg > 0.4kg stock -> conflict.
+    var result = checkScaledStock(
+      [{ item_id: 'a', item_name: 'Pale Malt', quantity: 500, unit: 'g' }],
+      { a: { stock_on_hand: 0.4, unit: 'kg' } }
+    );
+    expect(result.ok).toBe(false);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0].item_id).toBe('a');
+    expect(result.conflicts[0].needed).toBeCloseTo(0.5);
+    expect(result.conflicts[0].stock).toBe(0.4);
+  });
+
+  test('CR-01: mixed-unit oversell inverse direction (g-stocked item, 400g on hand, 0.5kg line) IS reported as a conflict', function () {
+    // Buggy pre-fix comparison: 0.5 (raw kg) > 400 (g stock) == false -> silent oversell.
+    // Correct: convertedQty 500g > 400g stock -> conflict.
+    var result = checkScaledStock(
+      [{ item_id: 'b', item_name: 'Bulk Sugar', quantity: 0.5, unit: 'kg' }],
+      { b: { stock_on_hand: 400, unit: 'g' } }
+    );
+    expect(result.ok).toBe(false);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0].item_id).toBe('b');
+    expect(result.conflicts[0].needed).toBeCloseTo(500);
+    expect(result.conflicts[0].stock).toBe(400);
+  });
+
+  test('CR-01: non-convertible unit (pcs item, g line) fails CLOSED — reported as a conflict, never a silent pass', function () {
+    var result = checkScaledStock(
+      [{ item_id: 'c', item_name: 'Whirlfloc Tablets', quantity: 10, unit: 'g' }],
+      { c: { stock_on_hand: 500, unit: 'pcs' } }
+    );
+    expect(result.ok).toBe(false);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0].item_id).toBe('c');
+  });
+
+  test('CR-01: matching-unit regression — same-unit lines still behave as before (no conflict when within stock)', function () {
+    var result = checkScaledStock(
+      [{ item_id: 'a', item_name: 'Pale Malt', quantity: 5, unit: 'kg' }],
+      { a: { stock_on_hand: 10, unit: 'kg' } }
+    );
+    expect(result.ok).toBe(true);
+    expect(result.conflicts).toHaveLength(0);
+  });
+
+  test('CR-01: matching-unit regression — same-unit conflict still reported', function () {
+    var result = checkScaledStock(
+      [{ item_id: 'a', item_name: 'Cascade Hops', quantity: 7, unit: 'kg' }],
+      { a: { stock_on_hand: 5, unit: 'kg' } }
+    );
+    expect(result.ok).toBe(false);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0].needed).toBe(7);
+    expect(result.conflicts[0].stock).toBe(5);
+  });
 });
 
 // ---------------------------------------------------------------------------
