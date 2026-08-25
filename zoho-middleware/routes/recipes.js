@@ -8,6 +8,7 @@ var log = require('../lib/logger');
 var C = require('../lib/constants');
 var axios = require('axios');
 var authTiers = require('../lib/authTiers');
+var scaling = require('../lib/recipe-scaling');
 
 var router = express.Router();
 
@@ -110,15 +111,32 @@ function enrichWithComputedPrice(recipe, ingredients) {
     var map = {};
     catalog.forEach(function (item) { if (item && item.item_id) map[item.item_id] = item; });
     var total = 0;
+    var pricingError = null;
     (ingredients || []).forEach(function (ing) {
       var entry = map[ing.item_id];
-      if (entry) {
-        ing.rate = Number(entry.rate) || 0;
-        ing.tax_percentage = Number(entry.tax_percentage) || 0;
-        ing.tax_id = entry.sales_tax_rule_id || entry.tax_id || '';
-        total += (Number(ing.quantity) || 0) * ing.rate;
+      if (!entry || pricingError) return;
+      ing.rate = Number(entry.rate) || 0;
+      ing.tax_percentage = Number(entry.tax_percentage) || 0;
+      ing.tax_id = entry.sales_tax_rule_id || entry.tax_id || '';
+      // Unit-aware line cost (D-01/D-02) — replaces the bare qty * rate
+      // multiply that ignored unit mismatches (kg item vs g recipe line).
+      var lineCost = scaling.ingredientLineCost(entry, ing);
+      if (!lineCost.ok) {
+        pricingError = lineCost.error;
+        return;
       }
+      total += lineCost.cost;
     });
+
+    if (pricingError) {
+      // Read-path fail-closed (D-02): this is a GET that also returns
+      // non-price recipe data, so a bad line marks only the price as
+      // errored — never a 4xx/5xx for the whole response.
+      recipe.computed_price = null;
+      recipe.pricing_error = pricingError;
+      return;
+    }
+
     total += Number(recipe.service_fee) || 0;
     total += Number(recipe.materials_fee) || 0;
     recipe.computed_price = Math.round(total * 100) / 100;
@@ -192,15 +210,39 @@ function enrichListPrices(recipes) {
       }).then(function (detail) {
         if (!detail || !detail.ingredients) return;
         var total = 0;
+        var pricingError = null;
         detail.ingredients.forEach(function (ing) {
           var entry = map[ing.item_id];
-          if (entry) total += (Number(ing.quantity) || 0) * (Number(entry.rate) || 0);
+          if (!entry || pricingError) return;
+          // Unit-aware line cost (D-01/D-02) — replaces the bare qty * rate
+          // multiply that ignored unit mismatches.
+          var lineCost = scaling.ingredientLineCost(entry, ing);
+          if (!lineCost.ok) {
+            pricingError = lineCost.error;
+            return;
+          }
+          total += lineCost.cost;
         });
+
+        if (pricingError) {
+          // D-02/D-04: one un-priceable line marks only THIS recipe's price
+          // as errored — never aborts the list for the other recipes.
+          recipe.computed_price = null;
+          recipe.pricing_error = pricingError;
+          return;
+        }
+
         total += Number(recipe.service_fee) || 0;
         total += Number(recipe.materials_fee) || 0;
         recipe.computed_price = Math.round(total * 100) / 100;
         if (millingRate > 0) recipe.milling_fee_rate = millingRate;
-      }).catch(function () {});
+      }).catch(function () {
+        // T-73-04: per-recipe guard — an unexpected error (e.g. Apps Script
+        // fetch failure) must never reject the whole Promise.all and abort
+        // the list response for every other recipe.
+        recipe.computed_price = null;
+        recipe.pricing_error = recipe.pricing_error || 'Unable to compute price for this recipe';
+      });
     }));
   }).catch(function () {});
 }
