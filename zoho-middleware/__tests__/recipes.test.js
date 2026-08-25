@@ -209,17 +209,19 @@ describe('GET /api/recipes/:id/availability', function () {
       }
     });
     // Ingredients cache has stock data (source reads INGREDIENTS_ALL for full catalog)
+    // 73-06 (WR-01): fixtures now carry `unit` — production catalog entries
+    // always include it; same-unit comparison is unchanged.
     mocks.cache.get.mockImplementation(function (key) {
       if (key === 'zoho:ingredients:all') {
         return Promise.resolve([
-          { item_id: '100', stock_on_hand: 45 },
-          { item_id: '200', stock_on_hand: 100 }
+          { item_id: '100', stock_on_hand: 45, unit: 'kg' },
+          { item_id: '200', stock_on_hand: 100, unit: 'g' }
         ]);
       }
       if (key === 'zoho:ingredients') {
         return Promise.resolve([
-          { item_id: '100', stock_on_hand: 45 },
-          { item_id: '200', stock_on_hand: 100 }
+          { item_id: '100', stock_on_hand: 45, unit: 'kg' },
+          { item_id: '200', stock_on_hand: 100, unit: 'g' }
         ]);
       }
       return Promise.resolve(null);
@@ -279,10 +281,11 @@ describe('GET /api/recipes/:id/availability', function () {
     });
     // INGREDIENTS (purchasable only) does NOT include the internal item — stock gate reads 0
     // INGREDIENTS_ALL (full catalog) DOES include it with real stock
+    // 73-06 (WR-01): fixture now carries `unit` (matches production catalog shape).
     mocks.cache.get.mockImplementation(function (key) {
       if (key === 'zoho:ingredients:all') {
         return Promise.resolve([
-          { item_id: INTERNAL_ITEM_ID, stock_on_hand: 20.83 }
+          { item_id: INTERNAL_ITEM_ID, stock_on_hand: 20.83, unit: 'kg' }
         ]);
       }
       // 'zoho:ingredients' returns list WITHOUT the internal item

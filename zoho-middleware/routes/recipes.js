@@ -372,23 +372,44 @@ router.get('/api/recipes/:id/availability', function (req, res) {
             return res.json({ recipe_id: recipeId, summary: 'unknown', ingredients: unknownResult });
           }
 
-          // Build stock map from cached ingredients
-          var stockMap = {};
+          // Build catalog entry map (unit + stock_on_hand) from cached ingredients.
+          // 73-06 (WR-01): retain the full entry — the prior stockMap dropped
+          // `unit`, so `needed` was compared/divided in the recipe line's own
+          // unit against stock_on_hand in the item's stocking unit with no
+          // conversion.
+          var entryMap = {};
           (Array.isArray(catalog) ? catalog : []).forEach(function (item) {
-            stockMap[String(item.item_id)] = item.stock_on_hand || 0;
+            entryMap[String(item.item_id)] = item;
           });
 
-          // Step 3: Compute per-ingredient availability (D-07, D-08)
+          // Step 3: Compute per-ingredient availability (D-07, D-08), unit-converted (D-01/D-02)
           var result = ingredients.map(function (ing) {
-            var stock = stockMap[String(ing.item_id)] || 0;
-            var needed = ing.quantity || 0;
-            var batches = needed > 0 ? Math.floor(stock / needed) : 999;
+            var entry = entryMap[String(ing.item_id)];
+            var stock = entry ? (Number(entry.stock_on_hand) || 0) : 0;
+
+            var needed;
+            if (entry) {
+              var lineCost = scaling.ingredientLineCost(entry, ing);
+              if (lineCost.ok) {
+                needed = lineCost.convertedQty;
+              } else {
+                // Non-convertible unit pair — fail CLOSED (D-02 phase-wide
+                // pattern): this endpoint is informational only, so a
+                // conservative "unavailable" badge is the safe default
+                // rather than dividing raw mismatched units.
+                needed = -1;
+              }
+            } else {
+              needed = Number(ing.quantity) || 0;
+            }
+
+            var batches = needed < 0 ? 0 : (needed > 0 ? Math.floor(stock / needed) : 999);
             var status = batches === 0 ? 'out' : batches < 3 ? 'low' : 'ok';
             return {
               item_id: ing.item_id,
               item_name: ing.item_name,
               unit: ing.unit,
-              quantity_per_batch: needed,
+              quantity_per_batch: ing.quantity || 0,
               stock_on_hand: stock,
               batches_possible: batches,
               status: status
