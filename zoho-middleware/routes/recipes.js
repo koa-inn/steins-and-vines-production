@@ -412,22 +412,95 @@ router.get('/api/recipes/:id/availability', function (req, res) {
 });
 
 // ---------------------------------------------------------------------------
+// Helper — D-03 save-time unit validation pre-flight
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate that every incoming recipe ingredient line's unit is convertible
+ * to its catalog item's unit (D-01/D-02/D-03), BEFORE any Apps Script write.
+ *
+ * Reuses the shared scaling.classifyUnit / scaling.ingredientLineCost
+ * conversion rules (does not duplicate them) so read-path and write-path
+ * unit-compatibility logic can never drift apart.
+ *
+ * Resolves to `null` when the payload is valid (or cannot be validated —
+ * e.g. cold cache with no fallback file, matching the enrichWithComputedPrice/
+ * enrichListPrices "degrade gracefully" idiom elsewhere in this file), or to
+ * the pinned rejection body `{ error, code: 'unit_mismatch', cause }` on the
+ * FIRST non-convertible line found in payload order.
+ *
+ * @param {Array} ingredients - payload.ingredients from the write request
+ * @returns {Promise<null|{error:string, code:string, cause:string}>}
+ */
+function validateIngredientUnits(ingredients) {
+  if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
+    return Promise.resolve(null);
+  }
+
+  return cache.get(C.CACHE_KEYS.INGREDIENTS_ALL).then(function (catalog) {
+    if (!catalog || !Array.isArray(catalog)) {
+      // Redis cold — fall back to the full-catalog file (same idiom as
+      // enrichWithComputedPrice/enrichListPrices above).
+      try {
+        catalog = JSON.parse(fs.readFileSync(INGREDIENTS_ALL_FILE_CACHE, 'utf8'));
+      } catch {
+        catalog = null;
+      }
+      // Cannot validate without a catalog — degrade gracefully (never block
+      // a save on validation infrastructure being unavailable).
+      if (!catalog || !Array.isArray(catalog)) return null;
+    }
+
+    var map = {};
+    catalog.forEach(function (item) { if (item && item.item_id) map[item.item_id] = item; });
+
+    for (var i = 0; i < ingredients.length; i++) {
+      var line = ingredients[i];
+      var entry = map[line && line.item_id];
+      if (!entry) continue; // unknown item — nothing to validate against (matches enrichment idiom)
+
+      var lineCost = scaling.ingredientLineCost(entry, line);
+      if (!lineCost.ok) {
+        var label = (line && (line.item_name || line.item_id)) ||
+          (entry && (entry.name || entry.item_name)) || 'item';
+        return {
+          error: 'Cannot save recipe: "' + label + '" unit "' + (line && line.unit) +
+            '" is not convertible to catalog unit "' + (entry && entry.unit) + '"',
+          code: 'unit_mismatch',
+          cause: label
+        };
+      }
+    }
+
+    return null;
+  }).catch(function () {
+    // Never block a save on unexpected validation-infra failure.
+    return null;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/recipes — Create new recipe
 // ---------------------------------------------------------------------------
 
 router.post('/api/recipes', function (req, res) {
   var payload = req.body || {};
 
-  callAppsScriptPost('create_recipe', payload).then(function (data) {
-    if (!data.ok) {
-      return res.status(422).json({ error: data.message || data.error || 'Create failed' });
+  return validateIngredientUnits(payload.ingredients).then(function (rejection) {
+    if (rejection) {
+      return res.status(422).json(rejection);
     }
-    return bustRecipeCache(null).then(function () {
-      res.status(201).json({ ok: true, recipe_id: data.recipe_id || (data.data && data.data.recipe_id) });
+    return callAppsScriptPost('create_recipe', payload).then(function (data) {
+      if (!data.ok) {
+        return res.status(422).json({ error: data.message || data.error || 'Create failed', code: 'save_failed' });
+      }
+      return bustRecipeCache(null).then(function () {
+        res.status(201).json({ ok: true, recipe_id: data.recipe_id || (data.data && data.data.recipe_id) });
+      });
     });
   }).catch(function (err) {
     log.error('[api/recipes] POST failed: ' + err.message);
-    res.status(502).json({ error: 'Unable to create recipe' });
+    res.status(502).json({ error: 'Unable to create recipe', code: 'save_failed' });
   });
 });
 
@@ -445,26 +518,33 @@ router.put('/api/recipes/:id', function (req, res) {
     var lockedPrice = parseFloat(payload.locked_price) || 0;
     if (lockedPrice <= 0) {
       return res.status(422).json({
-        error: 'Cannot activate recipe: a valid locked price must be set'
+        error: 'Cannot activate recipe: a valid locked price must be set',
+        code: 'activation_locked_price'
       });
     }
     if (ingCount < 1) {
       return res.status(422).json({
-        error: 'Cannot activate recipe: at least one ingredient must exist'
+        error: 'Cannot activate recipe: at least one ingredient must exist',
+        code: 'activation_no_ingredients'
       });
     }
   }
 
-  callAppsScriptPost('update_recipe', payload).then(function (data) {
-    if (!data.ok) {
-      return res.status(422).json({ error: data.message || data.error || 'Update failed' });
+  return validateIngredientUnits(payload.ingredients).then(function (rejection) {
+    if (rejection) {
+      return res.status(422).json(rejection);
     }
-    return bustRecipeCache(req.params.id).then(function () {
-      res.json({ ok: true });
+    return callAppsScriptPost('update_recipe', payload).then(function (data) {
+      if (!data.ok) {
+        return res.status(422).json({ error: data.message || data.error || 'Update failed', code: 'save_failed' });
+      }
+      return bustRecipeCache(req.params.id).then(function () {
+        res.json({ ok: true });
+      });
     });
   }).catch(function (err) {
     log.error('[api/recipes] PUT ' + req.params.id + ' failed: ' + err.message);
-    res.status(502).json({ error: 'Unable to update recipe' });
+    res.status(502).json({ error: 'Unable to update recipe', code: 'save_failed' });
   });
 });
 
