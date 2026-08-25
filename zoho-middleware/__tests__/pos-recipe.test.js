@@ -85,10 +85,10 @@ jest.mock('../lib/brewpad-integration', function () {
 // ---------------------------------------------------------------------------
 
 var MOCK_INGREDIENTS_CATALOG = [
-  { item_id: 'ing-malt-1', name: 'Pale Malt 2-Row', rate: 3.50, tax_id: 'tax-gst', stock_on_hand: 50 },
-  { item_id: 'ing-hops-1', name: 'Cascade Hops', rate: 8.00, tax_id: 'tax-gst', stock_on_hand: 2 },
-  { item_id: 'ing-yeast-1', name: 'US-05 Yeast', rate: 5.00, tax_id: 'tax-gst', stock_on_hand: 10 },
-  { item_id: 'ing-dry-hop-1', name: 'Centennial Hops (Dry Hop)', rate: 10.00, tax_id: 'tax-gst', stock_on_hand: 5 }
+  { item_id: 'ing-malt-1', name: 'Pale Malt 2-Row', rate: 3.50, tax_id: 'tax-gst', stock_on_hand: 50, unit: 'kg' },
+  { item_id: 'ing-hops-1', name: 'Cascade Hops', rate: 8.00, tax_id: 'tax-gst', stock_on_hand: 2, unit: 'kg' },
+  { item_id: 'ing-yeast-1', name: 'US-05 Yeast', rate: 5.00, tax_id: 'tax-gst', stock_on_hand: 10, unit: 'pcs' },
+  { item_id: 'ing-dry-hop-1', name: 'Centennial Hops (Dry Hop)', rate: 10.00, tax_id: 'tax-gst', stock_on_hand: 5, unit: 'kg' }
 ];
 
 var MOCK_RECIPE_RESPONSE = {
@@ -1012,8 +1012,8 @@ describe('SCALE-05 regression — internal-only ingredient reads INGREDIENTS_ALL
 
   // Catalog that simulates INGREDIENTS_ALL — includes the internal item
   var INGREDIENTS_ALL_CATALOG = [
-    { item_id: 'ing-malt-1', name: 'Pale Malt 2-Row', rate: 3.50, tax_id: 'tax-gst', stock_on_hand: 50 },
-    { item_id: INTERNAL_ITEM_ID, name: 'Gypsum (Calcium Sulfate) (Bulk)', rate: 0.50, tax_id: 'tax-gst', stock_on_hand: 20.83 }
+    { item_id: 'ing-malt-1', name: 'Pale Malt 2-Row', rate: 3.50, tax_id: 'tax-gst', stock_on_hand: 50, unit: 'kg' },
+    { item_id: INTERNAL_ITEM_ID, name: 'Gypsum (Calcium Sulfate) (Bulk)', rate: 0.50, tax_id: 'tax-gst', stock_on_hand: 20.83, unit: 'kg' }
   ];
 
   // Recipe with only the internal-only ingredient (dynamic pricing so rate matters)
