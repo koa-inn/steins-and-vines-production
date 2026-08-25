@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: verifying
-stopped_at: Completed 72-03-PLAN.md (promote-steps runbook + owner checkpoint APPROVED) — Phase 72 complete, ready for owner-only production promotion
-last_updated: "2026-08-22T22:41:19.411Z"
+status: milestone_complete
+stopped_at: Milestone complete (Phase 72 was final phase)
+last_updated: 2026-08-25T17:09:58.772Z
 last_activity: 2026-08-22
 progress:
   total_phases: 58
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 72 — beer-and-cider-launch-announcement-pages-beer-html-cider-htm
+**Current focus:** Milestone complete
 
 ## Current Position
 
-Phase: 72 (beer-and-cider-launch-announcement-pages-beer-html-cider-htm) — EXECUTING
-Plan: 3 of 3
+Phase: 72
+Plan: Not started
 Next: **production cutover** — deploy middleware first (`railway up --environment production --service sv_middleware`, verify /health), then `git push production main`. Per CLAUDE.md, prod only after staging approval — now satisfied.
 Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 `milestone_complete` flag was false; corrected 2026-07-10). Done: 46 (SEC-02 ✅), 48 (KIOSK-01 ✅ — de-fork live-verified standalone 2026-07-10, 22/22 threats secured), 52 (RESIL-01 ✅), 53 (OBS-01 ✅), 54 (kiosk gift-card mgmt ✅ — UAT+security closed 2026-07-10). **Open phases:** 47 (SEC-01 — STATE narrative says closed-on-staging but ROADMAP checkbox is still `[ ]`; needs owner reconciliation), 49 (MONEY-01 — 49-01 code merged, 49-02 live-card UAT pending), 50 (MONEY-02) + 51 (MONEY-03) — both now UNBLOCKED (were gated on 48). 50/51 also depend on the money-path-primitive adoption in pos-recipe.js.
-Status: Phase complete — ready for verification
-Last activity: 2026-08-22
+Status: Milestone complete
+Last activity: 2026-08-25
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
@@ -42,7 +42,7 @@ Last activity: 2026-08-22
 
 **Velocity:**
 
-- Total plans completed: 69 (prior milestone v4.1) + 11 (v4.2)
+- Total plans completed: 72 (prior milestone v4.1) + 11 (v4.2)
 - Average duration: 3 min
 - Total execution time: ~3 hrs
 
