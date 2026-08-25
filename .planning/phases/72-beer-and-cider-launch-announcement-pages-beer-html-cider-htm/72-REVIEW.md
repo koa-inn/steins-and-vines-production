@@ -17,10 +17,23 @@ findings:
   warning: 2
   info: 0
   total: 3
-status: issues_found
+status: resolved
+resolution:
+  cr_01: fixed        # inert search button removed from beer.html/cider.html (commit 106afafa) + regression test added
+  wr_01: fixed        # vestigial beer-*/cider-* data-content attributes stripped (commit 106afafa)
+  wr_02: deferred     # dead setupBeerWaitlistForm() handler intentionally retained per 72-01 plan; follow-up cleanup
 ---
 
 # Phase 72: Code Review Report
+
+> **Resolution (2026-08-25):** CR-01 and WR-01 fixed in commit `106afafa` — the
+> inert header search button was removed from `beer.html`/`cider.html` and the
+> unbacked `beer-*/cider-*` `data-content` attributes were stripped. A new
+> regression test (`tests/frontend/page-search-consistency.test.js`) reproduces
+> CR-01 and guards future pages. WR-02 (dead `setupBeerWaitlistForm()` handler)
+> is deferred as a follow-up: the 72-01 plan explicitly instructed retaining the
+> handler. Full frontend suite green (80 suites / 1114 tests); lint clean.
+
 
 **Reviewed:** 2026-08-22
 **Depth:** standard
