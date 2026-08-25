@@ -112,7 +112,7 @@ function scaleIngredients(ingredients, factor) {
  *
  * Pricing modes (D-04/D-05/D-07):
  *   locked  → total = locked_price × _scale_factor   (ingredient/recipe portion)
- *   dynamic → total = Σ(scaled_qty × catalog_rate)
+ *   dynamic → total = Σ ingredientLineCost(entry, ing).cost  (unit-converted, D-01/D-02)
  *
  * Fixed add-ons (never scaled, added only for in-store sales):
  *   if saleType === 'in-store': total += service_fee + materials_fee
@@ -122,9 +122,12 @@ function scaleIngredients(ingredients, factor) {
  *
  * @param {Object} recipe            - recipe object with pricing fields + _scale_factor
  * @param {Array}  scaledIngredients - output of scaleIngredients()
- * @param {Object} catalogMap        - { [item_id]: { rate, ... } }
+ * @param {Object} catalogMap        - { [item_id]: { rate, unit, ... } }
  * @param {string} saleType          - 'in-store' | 'take-out'
  * @returns {number}                 - grand total rounded to 2 decimal places
+ * @throws {Error} name === 'RecipeLineUnitError' — when a dynamic-mode line's
+ *   unit cannot convert to its catalog item's unit (D-02 fail-closed). The
+ *   error message names the offending item and both units.
  */
 function computeScaledRecipeTotal(recipe, scaledIngredients, catalogMap, saleType) {
   var hasLockedPrice = Number(recipe.locked_price) > 0;
@@ -136,11 +139,17 @@ function computeScaledRecipeTotal(recipe, scaledIngredients, catalogMap, saleTyp
     // Locked mode: scale the ingredient/recipe cost portion
     total = Number(recipe.locked_price) * factor;
   } else {
-    // Dynamic mode: sum scaled ingredient costs
+    // Dynamic mode: sum unit-converted scaled ingredient costs (D-01/D-02)
     (scaledIngredients || []).forEach(function (ing) {
       var entry = catalogMap[ing.item_id];
       if (entry) {
-        total += (Number(ing.quantity) || 0) * (Number(entry.rate) || 0);
+        var lineCost = ingredientLineCost(entry, ing);
+        if (!lineCost.ok) {
+          var err = new Error(lineCost.error);
+          err.name = 'RecipeLineUnitError';
+          throw err;
+        }
+        total += lineCost.cost;
       }
     });
   }
@@ -221,15 +230,21 @@ function checkScaledStock(scaledIngredients, catalogMap) {
  * Security (T-36-01): rate is always read from catalogMap[item_id].rate.
  * Any rate/price field on the client-supplied ingredient object is ignored.
  *
+ * Unit conversion (D-01/D-02): both the LOCKED-mode added-ingredient sub-sum
+ * and the DYNAMIC-mode total (via computeScaledRecipeTotal) price each line
+ * through the shared ingredientLineCost helper and fail closed (throw
+ * RecipeLineUnitError) on a non-convertible unit pair.
+ *
  * Pure function: no I/O, no require(). Never mutates input arrays or objects.
  *
  * @param {Object} recipe                  - recipe with locked_price, service_fee, materials_fee, pricing_mode
  * @param {Array}  originalIngredients     - unmodified base ingredient list (from Apps Script)
  * @param {Array}  modifiedBaseIngredients - staff-edited ingredient list at base (pre-scale) quantities
- * @param {Object} catalogMap              - { [item_id]: { rate, ... } } — server-authoritative rates
+ * @param {Object} catalogMap              - { [item_id]: { rate, unit, ... } } — server-authoritative rates
  * @param {number} scaleFactor             - target_volume_l / recipe.batch_size_l
  * @param {string} saleType                - 'in-store' | 'take-out'
  * @returns {number}                       - grand total rounded to 2 decimal places
+ * @throws {Error} name === 'RecipeLineUnitError' — see computeScaledRecipeTotal
  */
 function computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIngredients, catalogMap, scaleFactor, saleType) {
   var hasLockedPrice = Number(recipe.locked_price) > 0;
@@ -259,7 +274,14 @@ function computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIng
           // Scale the added ingredient the same way as base ingredients (D-04)
           var scaled = scaleIngredient(ing, factor);
           // Use ONLY the server catalog rate — never the client-supplied rate (T-36-01)
-          total += (Number(scaled.quantity) || 0) * (Number(catalogEntry.rate) || 0);
+          // Unit-convert before pricing (D-01/D-02) — fail closed on mismatch
+          var addedLineCost = ingredientLineCost(catalogEntry, scaled);
+          if (!addedLineCost.ok) {
+            var addedErr = new Error(addedLineCost.error);
+            addedErr.name = 'RecipeLineUnitError';
+            throw addedErr;
+          }
+          total += addedLineCost.cost;
         }
       }
     });
