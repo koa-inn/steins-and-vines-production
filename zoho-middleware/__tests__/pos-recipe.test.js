@@ -67,7 +67,8 @@ jest.mock('../lib/constants', function () {
       RECIPES: 'sv:recipes',
       RECIPES_TS: 'sv:recipes:ts',
       INGREDIENTS: 'zoho:ingredients',
-      INGREDIENTS_ALL: 'zoho:ingredients:all'
+      INGREDIENTS_ALL: 'zoho:ingredients:all',
+      KIOSK_DISCOUNT_PRESETS: 'kiosk:discount-presets'
     },
     LOCK_KEYS: { RECIPE_SALE: 'recipe-sale' }
   };
@@ -1823,6 +1824,244 @@ describe('POST /api/kiosk/recipe-sale/confirm — modified_ingredients + snapsho
       expect(Array.isArray(res._body.conflicts)).toBe(true);
       var conflict = res._body.conflicts.find(function (c) { return c.item_id === 'ing-dry-hop-1'; });
       expect(conflict).toBeTruthy();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unit conversion — sale/stock money path (73-03, D-01/D-02, AC-01/AC-03)
+// ---------------------------------------------------------------------------
+// The CRITICAL sale/stock sum-site: _runRecipeConfirm's invoice lineItems
+// build + the kiosk quote's display line_total must both go through the
+// shared scaling.ingredientLineCost helper so the Zoho invoice quantity
+// (= real stock decrement) and the displayed quote total are unit-converted
+// and match each other. A non-convertible line must refuse BEFORE any
+// charge; if one somehow reaches post-charge confirm, the transaction is
+// voided rather than silently mis-charged (D-02 tiered fail-closed).
+
+describe('Unit conversion — sale/stock money path (73-03, D-01/D-02)', function () {
+  var mocks;
+
+  // Catalog: hop pellets priced per KG; a cross-family "bad unit" item (count
+  // vs mass — non-convertible) used for the tiered fail-closed tests.
+  var CONVERSION_CATALOG = [
+    { item_id: 'ing-hop-pellets', name: 'Hop Pellets', rate: 20.00, tax_id: 'tax-gst', stock_on_hand: 5, unit: 'kg' },
+    { item_id: 'ing-badunit-1', name: 'Bad Unit Item', rate: 5.00, tax_id: 'tax-gst', stock_on_hand: 100, unit: 'kg' }
+  ];
+
+  // Dynamic recipe: single 12g line against a per-kg catalog item.
+  // convertedQty = 12 * 0.001 = 0.012 kg; cost = 0.012 * 20.00 = 0.24
+  var GRAM_RECIPE_RESPONSE = {
+    data: {
+      ok: true,
+      data: {
+        recipe: {
+          recipe_id: 'RCP-GRAM',
+          name: 'Gram-Line Recipe',
+          batch_size_l: 20,
+          locked_price: 0,
+          service_fee: 45.00,
+          materials_fee: 5.00,
+          status: 'active',
+          pricing_mode: 'dynamic'
+        },
+        ingredients: [
+          { ingredient_id: 'ING-G1', recipe_id: 'RCP-GRAM', item_id: 'ing-hop-pellets', item_name: 'Hop Pellets', quantity: 12, unit: 'g' }
+        ]
+      }
+    }
+  };
+
+  // Cross-family recipe: catalog item is 'kg' (mass), recipe line is 'pcs'
+  // (count) — non-convertible.
+  var CROSS_FAMILY_RECIPE_RESPONSE = {
+    data: {
+      ok: true,
+      data: {
+        recipe: {
+          recipe_id: 'RCP-BADUNIT',
+          name: 'Bad Unit Recipe',
+          batch_size_l: 20,
+          locked_price: 0,
+          service_fee: 45.00,
+          materials_fee: 5.00,
+          status: 'active',
+          pricing_mode: 'dynamic'
+        },
+        ingredients: [
+          { ingredient_id: 'ING-B1', recipe_id: 'RCP-BADUNIT', item_id: 'ing-badunit-1', item_name: 'Bad Unit Item', quantity: 3, unit: 'pcs' }
+        ]
+      }
+    }
+  };
+
+  beforeEach(function () {
+    mocks = resetAndLoadPosRecipe();
+    process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-token';
+    process.env.BEER_SALES_ENABLED = 'true';
+    process.env.MAKERS_FEE_ITEM_ID = 'fee-makers-1';
+    process.env.MATERIALS_FEE_ITEM_ID = 'fee-materials-1';
+    process.env.KIOSK_CONTACT_ID = 'contact-default';
+    delete process.env.MILLING_FEE_ITEM_ID;
+    mocks.helcim.isTerminalEnabled.mockReturnValue(true);
+    mocks.helcim.terminalPurchase.mockResolvedValue({});
+    mocks.helcim.voidTransaction.mockResolvedValue({});
+    mocks.cache.acquireLock.mockResolvedValue(true);
+    mocks.cache.releaseLock.mockResolvedValue();
+    mocks.cache.del.mockResolvedValue(1);
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') return Promise.resolve(CONVERSION_CATALOG);
+      if (key === 'zoho:ingredients') return Promise.resolve(CONVERSION_CATALOG);
+      return Promise.resolve(null);
+    });
+    mocks.axios.post.mockResolvedValue(GRAM_RECIPE_RESPONSE);
+    mocks.zohoApi.zohoPost.mockResolvedValue({ invoice: { invoice_id: 'inv-conv', invoice_number: 'INV-CONV' } });
+  });
+
+  afterEach(function () {
+    delete process.env.APPS_SCRIPT_URL;
+    delete process.env.APPS_SCRIPT_SERVER_TOKEN;
+    delete process.env.BEER_SALES_ENABLED;
+    delete process.env.MAKERS_FEE_ITEM_ID;
+    delete process.env.MATERIALS_FEE_ITEM_ID;
+    delete process.env.KIOSK_CONTACT_ID;
+    delete process.env.MILLING_FEE_ITEM_ID;
+  });
+
+  test('U1. confirm invoice lineItems quantity is the CONVERTED qty (12g -> 0.012), not the raw scaled qty', function () {
+    var capturedInvoicePayload;
+    mocks.zohoApi.zohoPost.mockImplementation(function (path, payload) {
+      if (path === '/invoices') capturedInvoicePayload = payload;
+      return Promise.resolve({ invoice: { invoice_id: 'inv-conv', invoice_number: 'INV-CONV' } });
+    });
+    return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+      body: {
+        recipe_id: 'RCP-GRAM',
+        transaction_id: 'txn-conv',
+        reference: 'RECIPE-CONV',
+        sale_type: 'in-store'
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(201);
+      var hopLine = capturedInvoicePayload.line_items.find(function (li) { return li.item_id === 'ing-hop-pellets'; });
+      expect(hopLine).toBeTruthy();
+      expect(hopLine.quantity).toBeCloseTo(0.012, 4);
+      expect(hopLine.quantity).not.toBe(12);
+    });
+  });
+
+  test('U2. quote total equals the summed invoice line totals the confirm/sale path builds (quote == sale, converted)', function () {
+    var capturedInvoicePayload;
+    mocks.zohoApi.zohoPost.mockImplementation(function (path, payload) {
+      if (path === '/invoices') capturedInvoicePayload = payload;
+      return Promise.resolve({ invoice: { invoice_id: 'inv-conv', invoice_number: 'INV-CONV' } });
+    });
+    var quoteTotal;
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-GRAM', target_volume_l: '20', sale_type: 'in-store' }
+    }).then(function (quoteRes) {
+      expect(quoteRes._status).toBe(200);
+      quoteTotal = quoteRes._body.total;
+      return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+        body: {
+          recipe_id: 'RCP-GRAM',
+          transaction_id: 'txn-conv-parity',
+          reference: 'RECIPE-CONV-PARITY',
+          sale_type: 'in-store'
+        }
+      });
+    }).then(function (confirmRes) {
+      expect(confirmRes._status).toBe(201);
+      var lineItems = capturedInvoicePayload.line_items;
+      var summedInvoiceTotal = lineItems.reduce(function (sum, li) {
+        return sum + (Number(li.quantity) || 0) * (Number(li.rate) || 0);
+      }, 0);
+      summedInvoiceTotal = Math.round(summedInvoiceTotal * 100) / 100;
+      expect(summedInvoiceTotal).toBe(quoteTotal);
+      // dynamic: 0.012kg * 20.00/kg = 0.24; + fees 45 + 5 = 50.24
+      expect(quoteTotal).toBe(50.24);
+    });
+  });
+
+  test('U3. discount on a converted line caps/distributes proportionally to the CONVERTED line cost', function () {
+    var capturedInvoicePayload;
+    var presets = [{
+      id: 'preset-full', active: true, name: 'Full Off', type: 'percentage', value: 100, scope: 'cart'
+    }];
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') return Promise.resolve(CONVERSION_CATALOG);
+      if (key === 'zoho:ingredients') return Promise.resolve(CONVERSION_CATALOG);
+      if (key === 'kiosk:discount-presets') return Promise.resolve(presets);
+      return Promise.resolve(null);
+    });
+    mocks.zohoApi.zohoPost.mockImplementation(function (path, payload) {
+      if (path === '/invoices') capturedInvoicePayload = payload;
+      return Promise.resolve({ invoice: { invoice_id: 'inv-conv', invoice_number: 'INV-CONV' } });
+    });
+    return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+      body: {
+        recipe_id: 'RCP-GRAM',
+        transaction_id: 'txn-conv-disc',
+        reference: 'RECIPE-CONV-DISC',
+        sale_type: 'in-store',
+        discount: { preset_id: 'preset-full' }
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(201);
+      // grandTotal before discount = 0.24 + 45 + 5 = 50.24; 100% off => total 0
+      expect(res._body.total).toBe(0);
+      var hopLine = capturedInvoicePayload.line_items.find(function (li) { return li.item_id === 'ing-hop-pellets'; });
+      expect(hopLine).toBeTruthy();
+      // Discount distribution must be proportional to the CONVERTED line cost
+      // (0.24), never the raw pre-conversion figure (12 * 20 = 240) which would
+      // starve the fee lines of their fair share / blow the per-line cap.
+      expect(hopLine.discount).toBeCloseTo(0.24, 2);
+      var makersFeeLine = capturedInvoicePayload.line_items.find(function (li) { return li.item_id === 'fee-makers-1'; });
+      expect(makersFeeLine.discount).toBeCloseTo(45.00, 2);
+      var materialsFeeLine = capturedInvoicePayload.line_items.find(function (li) { return li.item_id === 'fee-materials-1'; });
+      expect(materialsFeeLine.discount).toBeCloseTo(5.00, 2);
+    });
+  });
+
+  test('U4a. GET recipe-quote returns 422 naming the line for a cross-family (non-convertible) unit', function () {
+    mocks.axios.post.mockResolvedValue(CROSS_FAMILY_RECIPE_RESPONSE);
+    return callHandler('GET', '/api/kiosk/recipe-quote', {
+      query: { recipe_id: 'RCP-BADUNIT', target_volume_l: '20', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(422);
+      expect(res._body.error).toContain('Bad Unit Item');
+      expect(res._body.error).toMatch(/not convertible/i);
+    });
+  });
+
+  test('U4b. POST recipe-sale (pre-charge) returns 422 naming the line and never pushes to the terminal', function () {
+    mocks.axios.post.mockResolvedValue(CROSS_FAMILY_RECIPE_RESPONSE);
+    return callHandler('POST', '/api/kiosk/recipe-sale', {
+      body: { recipe_id: 'RCP-BADUNIT', sale_type: 'in-store' }
+    }).then(function (res) {
+      expect(res._status).toBe(422);
+      expect(res._body.error).toContain('Bad Unit Item');
+      expect(mocks.helcim.terminalPurchase).not.toHaveBeenCalled();
+      expect(mocks.cache.acquireLock).not.toHaveBeenCalled();
+    });
+  });
+
+  test('U4c. POST recipe-sale/confirm (post-charge safety net) voids the transaction instead of a bare 400', function () {
+    mocks.axios.post.mockResolvedValue(CROSS_FAMILY_RECIPE_RESPONSE);
+    return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
+      body: {
+        recipe_id: 'RCP-BADUNIT',
+        transaction_id: 'txn-badunit',
+        reference: 'RECIPE-BADUNIT',
+        sale_type: 'in-store'
+      }
+    }).then(function (res) {
+      expect(mocks.helcim.voidTransaction).toHaveBeenCalledWith('txn-badunit');
+      expect(res._status).not.toBe(400);
+      expect(res._status).toBe(502);
+      expect(res._body.payment_voided).toBe(true);
+      expect(mocks.cache.releaseLock).toHaveBeenCalledWith('recipe-sale');
     });
   });
 });
