@@ -370,6 +370,8 @@ describe('PUT /api/recipes/:id', function () {
     }).then(function (res) {
       expect(res._status).toBe(422);
       expect(res._body.error).toContain('Cannot activate recipe');
+      // D-05c: pinned code on the activation-locked-price guardrail
+      expect(res._body.code).toBe('activation_locked_price');
       expect(mocks.axios.post).not.toHaveBeenCalled();
     });
   });
@@ -381,7 +383,124 @@ describe('PUT /api/recipes/:id', function () {
     }).then(function (res) {
       expect(res._status).toBe(422);
       expect(res._body.error).toContain('Cannot activate recipe');
+      // D-05c: pinned code on the activation-no-ingredients guardrail
+      expect(res._body.code).toBe('activation_no_ingredients');
       expect(mocks.axios.post).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-03: save-time unit validation pre-flight (POST/PUT) + D-05c code/cause
+// ---------------------------------------------------------------------------
+
+describe('D-03 save-time unit validation pre-flight', function () {
+  var mocks;
+
+  // Catalog fixture WITH unit fields — mirrors the Phase 73-02 SV-R-000004
+  // fixture idiom (line 740). WHIRL is the Whirlfloc D-01 count-unit item.
+  var CATALOG_D03 = [
+    { item_id: 'MALT',  item_name: 'Gambrinus Pilsner Malt', unit: 'kg',  rate: 2.75 },
+    { item_id: 'WHIRL', item_name: 'Whirlfloc Tablets',      unit: 'pcs', rate: 0.32 },
+    { item_id: 'YEAST', item_name: 'Fermentis SafLager W-34/70', unit: 'pcs', rate: 10 }
+  ];
+
+  beforeEach(function () {
+    mocks = resetAndLoadRecipes();
+    mocks.cache.set.mockResolvedValue(true);
+    mocks.cache.del.mockResolvedValue(true);
+    mocks.cache.get.mockImplementation(function (key) {
+      if (key === 'zoho:ingredients:all') return Promise.resolve(CATALOG_D03);
+      return Promise.resolve(null);
+    });
+    process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-token';
+  });
+
+  test('PUT: mis-typed unit token on a per-kg item ("grams" instead of "g") is rejected 422 with unit_mismatch code + no Apps Script call', function () {
+    return callHandler('PUT', '/api/recipes/:id', {
+      params: { id: 'SV-R-000001' },
+      body: {
+        status: 'draft',
+        ingredients: [
+          { item_id: 'MALT', item_name: 'Gambrinus Pilsner Malt', unit: 'grams', quantity: 4100 }
+        ]
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(422);
+      expect(res._body.error).toContain('Gambrinus Pilsner Malt');
+      expect(res._body.code).toBe('unit_mismatch');
+      expect(res._body.cause).toBe('Gambrinus Pilsner Malt');
+      expect(mocks.axios.post).not.toHaveBeenCalled();
+    });
+  });
+
+  test('PUT: Whirlfloc (pcs) line saved with unit "L" is rejected 422 with unit_mismatch code (D-01)', function () {
+    return callHandler('PUT', '/api/recipes/:id', {
+      params: { id: 'SV-R-000001' },
+      body: {
+        status: 'draft',
+        ingredients: [
+          { item_id: 'WHIRL', item_name: 'Whirlfloc Tablets', unit: 'L', quantity: 1 }
+        ]
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(422);
+      expect(res._body.error).toContain('Whirlfloc Tablets');
+      expect(res._body.code).toBe('unit_mismatch');
+      expect(res._body.cause).toBe('Whirlfloc Tablets');
+      expect(mocks.axios.post).not.toHaveBeenCalled();
+    });
+  });
+
+  test('POST: un-convertible ingredient line is rejected 422 with unit_mismatch code + no Apps Script call', function () {
+    return callHandler('POST', '/api/recipes', {
+      body: {
+        name: 'Test Ale',
+        ingredients: [
+          { item_id: 'WHIRL', item_name: 'Whirlfloc Tablets', unit: 'L', quantity: 1 }
+        ]
+      }
+    }).then(function (res) {
+      expect(res._status).toBe(422);
+      expect(res._body.error).toContain('Whirlfloc Tablets');
+      expect(res._body.code).toBe('unit_mismatch');
+      expect(res._body.cause).toBe('Whirlfloc Tablets');
+      expect(mocks.axios.post).not.toHaveBeenCalled();
+    });
+  });
+
+  test('PUT: convertible payload passes the pre-flight and reaches callAppsScriptPost (happy path)', function () {
+    mocks.axios.post.mockResolvedValue({ data: { ok: true } });
+    return callHandler('PUT', '/api/recipes/:id', {
+      params: { id: 'SV-R-000001' },
+      body: {
+        status: 'draft',
+        ingredients: [
+          { item_id: 'MALT', item_name: 'Gambrinus Pilsner Malt', unit: 'g', quantity: 4100 },
+          { item_id: 'WHIRL', item_name: 'Whirlfloc Tablets', unit: 'pcs', quantity: 1 },
+          { item_id: 'YEAST', item_name: 'Fermentis SafLager W-34/70', unit: 'pcs', quantity: 2 }
+        ]
+      }
+    }).then(function (res) {
+      expect(mocks.axios.post).toHaveBeenCalled();
+      expect(res._body.ok).toBe(true);
+    });
+  });
+
+  test('POST: convertible payload passes the pre-flight and reaches callAppsScriptPost (happy path)', function () {
+    mocks.axios.post.mockResolvedValue({ data: { ok: true, recipe_id: 'SV-R-000099' } });
+    return callHandler('POST', '/api/recipes', {
+      body: {
+        name: 'Test Ale',
+        ingredients: [
+          { item_id: 'MALT', item_name: 'Gambrinus Pilsner Malt', unit: 'kg', quantity: 4.1 }
+        ]
+      }
+    }).then(function (res) {
+      expect(mocks.axios.post).toHaveBeenCalled();
+      expect(res._status).toBe(201);
+      expect(res._body.ok).toBe(true);
     });
   });
 });
