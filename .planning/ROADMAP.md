@@ -1079,7 +1079,7 @@ Plans:
 **Goal:** Fix the High-priority money-path bug where recipe dynamic pricing multiplies `item.rate × recipe_line.quantity` with NO unit conversion, so a per-kg/per-L bulk item consumed in g/ml is charged ~1000× too high (recipe `SV-R-000004` computes $1,896.98 vs expected ~$88–95). Introduce ONE shared unit-aware `ingredientLineCost(item, line)` helper (mass g↔kg, volume ml↔L, count pcs/ea/pack pass-through; reject non-convertible pairs instead of silently multiplying) and call it from EVERY ingredient-cost sum-site so they can never diverge: recipe `computed_price` (list+detail, `routes/recipes.js`), `GET /api/kiosk/recipe-quote`, and the pos-recipe sale path that builds Zoho invoice lines + draws down stock (`routes/pos-recipe.js`) — same conversion for the stock decrement. Resolve pack-granularity for multi-unit pack items (Whirlfloc 25-tablet pack) and fix the invalid `L` unit on that recipe line. Add unit validation/normalization on recipe save (`apps-script` create/update). Acceptance: `SV-R-000004` ≈ $88–95; kiosk quote == displayed price == actual sale invoice + stock draw-down; recipes can't be saved with an un-convertible unit/rate mismatch. Full diagnosis + evidence in `73-PRICING-BUG-HANDOFF.md`.
 **Requirements**: Owner bug report 2026-08-25 (money-path correctness; on-theme for v4.5 money-path milestone). Source: `73-PRICING-BUG-HANDOFF.md` (+ staging `feedback-log.md`).
 **Depends on:** Phase 72 (chronological only). Touches `zoho-middleware/` (recipes/pos-recipe routes, `lib/recipe-scaling.js`) + `apps-script/`.
-**Plans:** 5/5 shipped + 2 gap-closure plans (73-06, 73-07) open (CR-01/CR-02 from 73-REVIEW.md)
+**Plans:** 7/7 plans complete
 
 Plans:
 **Wave 1**
@@ -1101,8 +1101,8 @@ Plans:
 
 **Gap closure** *(CR-01/CR-02 from 73-REVIEW.md — same unit-mismatch bug class on stock gates + editor preview; opened 2026-08-25)*
 
-- [ ] 73-06-PLAN.md — Unit-aware stock gate: fix checkScaledStock (CR-01) + availability endpoint (WR-01) to convert before comparing to stock_on_hand; fail closed on non-convertible
-- [ ] 73-07-PLAN.md — Unit-aware BrewPad recipe-editor preview: add bpIngredientLineCost mirror + wire Cost/Retail/Totals sites (CR-02) + rebuild brewpad.min.js
+- [x] 73-06-PLAN.md — Unit-aware stock gate: fix checkScaledStock (CR-01) + availability endpoint (WR-01) to convert before comparing to stock_on_hand; fail closed on non-convertible
+- [x] 73-07-PLAN.md — Unit-aware BrewPad recipe-editor preview: add bpIngredientLineCost mirror + wire Cost/Retail/Totals sites (CR-02) + rebuild brewpad.min.js
 
 ### Phase 74: Beer/Cider/Wine catalogue pages under Ferment-in-Store — split wine to its own page, ferment-in-store becomes informational landing hub, category-scoped kit/recipe catalogue infrastructure
 
