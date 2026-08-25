@@ -660,20 +660,17 @@ function _runRecipeConfirm(body, confirmIdemKey, req, res) {
         // Re-scale server-side (never trust client quantities — Pitfall 1/D-09)
         var scaledIngredients = scaling.scaleIngredients(baseIngredientsConfirm, scaleFactorConfirm);
 
-        // Belt-and-suspenders stock re-check at confirm time (D-09)
-        // Uses scaled MODIFIED quantities (T-36-08 mitigated)
-        var stockCheckConfirm = scaling.checkScaledStock(scaledIngredients, catalogMap);
-        if (!stockCheckConfirm.ok && !body.override) {
-          return res.status(409).json({
-            error: 'Insufficient stock for scaled batch',
-            conflicts: stockCheckConfirm.conflicts
-          });
-        }
-
         // Build invoice line items — use CONVERTED quantities for Zoho inventory
         // deduction (SCALE-04, INV-01, D-01/D-02). The Zoho invoice payload
         // carries no per-line unit override, so this converted number IS what
         // Zoho decrements (12 g hop -> 0.012 kg, not 12 kg).
+        //
+        // 73-06 (CR-01): this unpriceable-line detection now runs BEFORE the
+        // stock re-check below. checkScaledStock (D-02, 73-06) itself fails
+        // closed on a non-convertible line — reordering ensures that case
+        // reaches the POST-CHARGE void safety net (payment_voided: true)
+        // instead of the plain 409 "Insufficient stock" branch, which would
+        // leave an already-charged card un-voided (U4c regression guard).
         var lineItems = [];
         var unpriceableLine = null; // D-02 tiered fail-closed (POST-CHARGE safety net)
         for (var i = 0; i < scaledIngredients.length; i++) {
@@ -755,6 +752,18 @@ function _runRecipeConfirm(body, confirmIdemKey, req, res) {
                 });
               }
             });
+        }
+
+        // Belt-and-suspenders stock re-check at confirm time (D-09)
+        // Uses scaled MODIFIED quantities (T-36-08 mitigated). Every line here
+        // is already confirmed priceable/convertible (unpriceableLine handled
+        // above), so a conflict here is a genuine quantity-exceeds-stock case.
+        var stockCheckConfirm = scaling.checkScaledStock(scaledIngredients, catalogMap);
+        if (!stockCheckConfirm.ok && !body.override) {
+          return res.status(409).json({
+            error: 'Insufficient stock for scaled batch',
+            conflicts: stockCheckConfirm.conflicts
+          });
         }
 
         // Add applicable fee line items (always added to invoice for record-keeping)

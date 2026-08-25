@@ -373,9 +373,11 @@ describe('computeScaledRecipeTotal — dynamic pricing', function () {
 // ---------------------------------------------------------------------------
 describe('checkScaledStock', function () {
   test('ok when all scaled quantities are within stock', function () {
+    // 73-06 (CR-01): catalog fixture now carries `unit` — production catalog
+    // entries always include it; same-unit comparison is unchanged.
     var result = checkScaledStock(
       [{ item_id: 'a', item_name: 'Pale Malt', quantity: 5, unit: 'kg' }],
-      { a: { stock_on_hand: 10 } }
+      { a: { stock_on_hand: 10, unit: 'kg' } }
     );
     expect(result.ok).toBe(true);
     expect(result.conflicts).toHaveLength(0);
@@ -396,18 +398,20 @@ describe('checkScaledStock', function () {
   });
 
   test('item not in catalogMap is skipped (not a conflict)', function () {
+    // 73-06 (CR-01): catalog fixture now carries `unit`.
     var result = checkScaledStock(
       [
         { item_id: 'known', item_name: 'Malt', quantity: 5, unit: 'kg' },
         { item_id: 'unknown', item_name: 'Mystery', quantity: 100, unit: 'pcs' }
       ],
-      { known: { stock_on_hand: 10 } }
+      { known: { stock_on_hand: 10, unit: 'kg' } }
     );
     expect(result.ok).toBe(true);
     expect(result.conflicts).toHaveLength(0);
   });
 
   test('multiple conflicts reported', function () {
+    // 73-06 (CR-01): catalog fixtures now carry `unit`.
     var result = checkScaledStock(
       [
         { item_id: 'a', item_name: 'Malt',  quantity: 10, unit: 'kg'  },
@@ -415,9 +419,9 @@ describe('checkScaledStock', function () {
         { item_id: 'c', item_name: 'Yeast', quantity: 2,  unit: 'pcs' }
       ],
       {
-        a: { stock_on_hand: 5 },   // conflict: need 10, have 5
-        b: { stock_on_hand: 10 },  // ok: need 5, have 10
-        c: { stock_on_hand: 1 }    // conflict: need 2, have 1
+        a: { stock_on_hand: 5,  unit: 'kg'  },  // conflict: need 10, have 5
+        b: { stock_on_hand: 10, unit: 'pcs' },  // ok: need 5, have 10
+        c: { stock_on_hand: 1,  unit: 'pcs' }   // conflict: need 2, have 1
       }
     );
     expect(result.ok).toBe(false);
@@ -426,9 +430,10 @@ describe('checkScaledStock', function () {
   });
 
   test('exact stock match (needed === stock_on_hand) is NOT a conflict', function () {
+    // 73-06 (CR-01): catalog fixture now carries `unit`.
     var result = checkScaledStock(
       [{ item_id: 'a', item_name: 'Malt', quantity: 5, unit: 'kg' }],
-      { a: { stock_on_hand: 5 } }
+      { a: { stock_on_hand: 5, unit: 'kg' } }
     );
     expect(result.ok).toBe(true);
     expect(result.conflicts).toHaveLength(0);
