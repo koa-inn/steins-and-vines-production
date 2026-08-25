@@ -1064,6 +1064,26 @@ Plans:
 **Wave 3**
 - [x] 72-03-PLAN.md — Promote-steps runbook + owner human-verify checkpoint (placeholder-fill + banner disposition); feature branch handoff, no prod deploy
 
+### Phase 73: Recipe dynamic pricing unit-conversion correctness — unit-aware ingredient cost helper + pack-granularity, quote=displayed=sale invoice=stock draw-down
+
+**Goal:** Fix the High-priority money-path bug where recipe dynamic pricing multiplies `item.rate × recipe_line.quantity` with NO unit conversion, so a per-kg/per-L bulk item consumed in g/ml is charged ~1000× too high (recipe `SV-R-000004` computes $1,896.98 vs expected ~$88–95). Introduce ONE shared unit-aware `ingredientLineCost(item, line)` helper (mass g↔kg, volume ml↔L, count pcs/ea/pack pass-through; reject non-convertible pairs instead of silently multiplying) and call it from EVERY ingredient-cost sum-site so they can never diverge: recipe `computed_price` (list+detail, `routes/recipes.js`), `GET /api/kiosk/recipe-quote`, and the pos-recipe sale path that builds Zoho invoice lines + draws down stock (`routes/pos-recipe.js`) — same conversion for the stock decrement. Resolve pack-granularity for multi-unit pack items (Whirlfloc 25-tablet pack) and fix the invalid `L` unit on that recipe line. Add unit validation/normalization on recipe save (`apps-script` create/update). Acceptance: `SV-R-000004` ≈ $88–95; kiosk quote == displayed price == actual sale invoice + stock draw-down; recipes can't be saved with an un-convertible unit/rate mismatch. Full diagnosis + evidence in `73-PRICING-BUG-HANDOFF.md`.
+**Requirements**: Owner bug report 2026-08-25 (money-path correctness; on-theme for v4.5 money-path milestone). Source: `73-PRICING-BUG-HANDOFF.md` (+ staging `feedback-log.md`).
+**Depends on:** Phase 72 (chronological only). Touches `zoho-middleware/` (recipes/pos-recipe routes, `lib/recipe-scaling.js`) + `apps-script/`.
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 73 to break down)
+
+### Phase 74: Beer/Cider/Wine catalogue pages under Ferment-in-Store — split wine to its own page, ferment-in-store becomes informational landing hub, category-scoped kit/recipe catalogue infrastructure
+
+**Goal:** Follow-up to Phase 72's beer/cider announcement pages. Build the INFRASTRUCTURE (not shipping inventory yet — populated later; products come from kits and/or recipes) for category-scoped catalogue pages modelled on the "wine page" (`products/ferment-in-store.html`): `page-header` → collapsible "Read more" info block → centered catalogue. Rebuild `beer.html`/`cider.html` in this layout (replacing the announcement hero), add a NEW dedicated wine catalogue page, and convert `products/ferment-in-store.html` into an informational landing/hub. Reach all three via the Products → Ferment-in-Store dropdown (remove the top-level Beer/Cider nav from 72-02). Scope the catalogue per category — the kit catalogue already supports `KIT_CATEGORIES=['wine','beer','cider','seltzer']` with a dedicated `buildBeerCard()`, but category-scoping needs shared money-path-adjacent JS changes (`07-catalog-kits.js`/`13-init.js`) → full frontend+middleware test runs. Data reality: 238 wine / 11 cider / 1 beer kits today (beer catalogue near-empty, acceptable — it's infra). A public recipe catalogue does NOT exist yet (recipes are staff-only in `brewpad.html`) — its inclusion is an open scope decision.
+**Requirements**: Owner direction 2026-08-25 (off-theme frontend infra; no ship deadline). Open decisions for discuss-phase: wine page URL, `/products/` move for beer/cider, ferment landing scope, kit-vs-recipe source + whether public recipe catalogue is in-scope now, per-category filters (wine's body/oak/sweetness don't fit beer/cider).
+**Depends on:** Phase 72 (builds on its beer/cider pages). Independent of Phase 73 — sequenced after it by priority, not by dependency.
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 74 to break down)
+
 ---
 
 ### Phase 46: Auth Re-Architecture (CRITICAL — split from Phase 45)
