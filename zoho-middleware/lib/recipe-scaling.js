@@ -370,7 +370,11 @@ function ingredientLineCost(item, line) {
   var convertible = itemUnit.family !== null && itemUnit.family === lineUnit.family;
 
   if (!convertible) {
-    var label = (item && (item.item_name || item.item_id)) || 'item';
+    // Catalog entries from the live Zoho-backed ingredient cache carry a
+    // `name` field (routes/catalog.js); `item_name` is only present on
+    // recipe-ingredient LINE objects. Check both so the error names the
+    // human-readable item, not its raw item_id (73-03 fail-closed messages).
+    var label = (item && (item.name || item.item_name || item.item_id)) || 'item';
     return {
       ok: false,
       error: 'Cannot price "' + label + '": recipe unit "' + (line && line.unit) +
