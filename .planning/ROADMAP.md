@@ -985,6 +985,7 @@ Plans:
 **Pre-planning gate:** Run `/gsd:discuss-phase 54` to lock the kiosk modal-container approach + void-confirmation UX before `/gsd:plan-phase 54`.
 
 Plans: 3 plans across 3 waves
+
 - [x] 54-01-PLAN.md — Backend: add /api/kiosk/gift-card/void to KIOSK_ROUTES (D-54-GC) + flip 2 device→403 tests to not-403 + dual-suite gate
 - [x] 54-02-PLAN.md — Frontend: kgcm- lookup+void panel in kiosk-core.js + settings-gated entry in kiosk.html/kiosk.js + rebuild bundles
 - [x] 54-03-PLAN.md — Frontend regression test: device-token lookup+void path + reason-required void gate
@@ -998,9 +999,11 @@ Plans: 3 plans across 3 waves
 **Plans:** 3/3 plans complete
 
 Plans:
+
 - [x] 67-01-PLAN.md — Middleware (wave 1, deploy first): remove computeTax silent 5% guess (fail-closed 400 naming the item) + pre-charge assertion (client_grand_total vs server grandTotal, ±$0.01) + update 2 pinned 5%-fallback tests + new assertion/compound-tax tests
 - [x] 67-02-PLAN.md — Frontend (wave 2, deploy after middleware): remove client 5% fallback + flag-and-block missing-tax item by name + reconcile kioskItemTax + send client_grand_total/client_tax_total + cart-lifecycle catalog refresh + rebuild kiosk-core.min.js + frontend tests
 - [x] 67-03-PLAN.md — Live verification (wave 3, checkpoint): real compound-tax kiosk sale proves quote == charge == Zoho invoice; assertion rejects a divergent total
+
 ### Phase 68: Kiosk terminal-push latency + cancel double-charge safety — instrument the sale pipeline, guard the cancel/orphan window
 
 **Goal:** [To be planned]
@@ -1009,6 +1012,7 @@ Plans:
 **Plans:** 2/3 plans executed
 
 Plans:
+
 - [ ] TBD (run /gsd-plan-phase 68 to break down)
 
 ### Phase 69: BrewPad batch-view UX — mark-bottled reflects without refresh (gds cache bust + dashboard refetch) and a Ready-to-Bottle filter on the batch view
@@ -1019,6 +1023,7 @@ Plans:
 **Plans:** 2/2 plans complete
 
 Plans:
+
 - [x] 69-01-PLAN.md — Mark-bottled freshness: refetch dashboard (loadDashboard) after task writes in all three checkbox handlers
 - [x] 69-02-PLAN.md — Ready-to-Bottle filter on the batch view, reusing _dashSummary.readyToBottle as the source of truth
 
@@ -1030,6 +1035,7 @@ Plans:
 **Plans:** 2/3 plans executed
 
 Plans:
+
 - [x] 70-01-PLAN.md — Cash tender: server `tender:'cash'` branch (skip terminal, book payment_mode:'cash', idempotent, gift+cash split) + kiosk Cash button & change-due UI
 - [x] 70-02-PLAN.md — MOTO via HelcimPay: server init + captured-amount verify before booking + kiosk phone-order button/iframe + kiosk.html first CSP
 - [ ] 70-03-PLAN.md — Live-verify checkpoint (autonomous:false): real cash sale + real HelcimPay charge (refunded) + CSP live-verified on staging before prod
@@ -1043,6 +1049,7 @@ Plans:
 **Plans:** 3/3 plans executed
 
 Plans:
+
 - [x] 71-01-PLAN.md — Core fix: webhooks collect APPROVED path convert/reuse+submit+apply-to-invoice, dedup finalize helper, fail-closed reconcile writer, tests
 - [x] 71-02-PLAN.md — Dead-code cleanup: remove the unreachable salesorders_to_apply else-branch at checkout.js:693 (dead since f6d6e52dc) + invariant guard + regression lock (NOT a money-path fix)
 - [x] 71-03-PLAN.md — Live-verify checkpoint: verified on staging 2026-08-22 via replay helper against the deployed fix — SO-000079 collect booked a single finalized paid invoice (INV-000180, balance 0) with the payment applied (unused_amount 0); owner-approved. See 71-03-SUMMARY.md
@@ -1056,12 +1063,15 @@ Plans:
 
 Plans:
 **Wave 1**
+
 - [x] 72-01-PLAN.md — Author beer.html + cider.html (about.html shell + index.html primitives, placeholder content, booking CTA, cross-links, head/CSP/OG); register in sitemap.xml + package.json stamp:pages; build/lint/test
 
 **Wave 2**
+
 - [x] 72-02-PLAN.md — Site-wide Beer/Cider nav across all 17 public pages + homepage launch banners + reconcile stale "Beer Is Coming" waitlist banner; rebuild/stamp
 
 **Wave 3**
+
 - [x] 72-03-PLAN.md — Promote-steps runbook + owner human-verify checkpoint (placeholder-fill + banner disposition); feature branch handoff, no prod deploy
 
 ### Phase 73: Recipe dynamic pricing unit-conversion correctness — unit-aware ingredient cost helper + pack-granularity, quote=displayed=sale invoice=stock draw-down
@@ -1072,10 +1082,21 @@ Plans:
 **Plans:** 5 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 73-01-PLAN.md — Unit-conversion helper foundation (ingredientLineCost/classifyUnit + in-file sums + imperial audit)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 73-02-PLAN.md — Wire read-path computed_price (recipes.js detail+list) + SV-R-000004 regression
 - [ ] 73-03-PLAN.md — Wire sale/stock path (pos-recipe.js) — quote==sale==stock draw-down + tiered fail-closed/void
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 73-04-PLAN.md — D-03 save-time unit validation (POST/PUT /api/recipes) + machine-readable code/cause
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 73-05-PLAN.md — D-05 recipe-editor save resilience (draft-preserve, non-2xx detection, retry) + rebuild brewpad.min.js
 
 ### Phase 74: Beer/Cider/Wine catalogue pages under Ferment-in-Store — split wine to its own page, ferment-in-store becomes informational landing hub, category-scoped kit/recipe catalogue infrastructure
@@ -1086,6 +1107,7 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD (run /gsd-plan-phase 74 to break down)
 
 ### Phase 75: BrewPad invoice→pending-batch quantity expansion — multi-qty kit lines create N pending batches, not 1
@@ -1096,6 +1118,7 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD (run /gsd-plan-phase 75 to break down)
 
 ---
@@ -1245,6 +1268,7 @@ Plans:
 **Plans**: 5 plans (3 waves; 4 carry blocking live-verification checkpoints — the middleware has no staging instance)
 
 **Planning notes (2026-07-13):** Scoped against `.planning/AUDIT-STATUS-2026-07-13.md` (every finding re-verified against current source), not the stale original audit.
+
 - M13 (sweep clears/marks pending records to end the alert storm) was verified **ALREADY FIXED** on 2026-07-02 — `lib/reconcile.js:397-436` `manual_review_alerted` marker, covered by `reconcile.test.js` T6b/T6c. No work planned; SC#5 therefore reduces to M12 (`pos-recipe.js`).
 - **M-B1 folded in** (plan 50-04): the client mints a fresh `KIOSK-<Date.now()>` per tap and never disables the money-path buttons, so a double-tap produces two DIFFERENT idempotency keys and the Phase 45 server lock never sees a duplicate. It is the client half of SC#4.
 - **Deferred, explicitly NOT planned:** M-D1 (brewpad retry sweeps use blocking `KEYS PREFIX*` with no distributed lock — `lib/brewpad-integration.js:421`, `:557`, `server.js:682-690`). It is a Resilience finding on the brewpad batch path, not the kiosk money path, and does not serve any MONEY-02 success criterion. → backlog / a future RESIL phase.
@@ -1510,7 +1534,6 @@ Plans:
 **Wave 3**
 
 - [x] 64-03-PLAN.md — adminApiGet moves the Google OAuth token out of the URL into the POST body (brewpad.js + admin.js) + adminApi.gs doPost read-routing (owner redeploy first) (OPS-03)
-
 
 ### Phase 65: Staff Tooling Reliability & Backfill
 
