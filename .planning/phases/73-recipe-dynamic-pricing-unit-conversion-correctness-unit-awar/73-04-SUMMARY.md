@@ -87,3 +87,12 @@ None - no external service configuration required.
 ---
 *Phase: 73-recipe-dynamic-pricing-unit-conversion-correctness-unit-awar*
 *Completed: 2026-08-25*
+
+## Self-Check: PASSED
+
+- FOUND: zoho-middleware/routes/recipes.js
+- FOUND: zoho-middleware/__tests__/recipes.test.js
+- FOUND: .planning/phases/73-recipe-dynamic-pricing-unit-conversion-correctness-unit-awar/73-04-SUMMARY.md
+- FOUND commit: 991087f2 (test)
+- FOUND commit: 88d34a61 (feat)
+- FOUND commit: f0ede411 (docs)
