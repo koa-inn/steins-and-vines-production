@@ -754,6 +754,77 @@ function bpScaleIngredients(list, factor) {
   });
 }
 
+// =============================================================================
+// Phase 73-07: bpIngredientLineCost — unit-aware editor cost helper (CR-02).
+// Mirrors zoho-middleware/lib/recipe-scaling.js classifyUnit/ingredientLineCost
+// EXACTLY (same conversion table, same 4dp intermediate rounding, same
+// fail-closed shape on cross-family/unrecognised units). This is the ONE
+// helper the editor's per-row Cost/Retail columns + Totals footer route
+// through instead of hand-rolling `qty * rate` — that raw math silently
+// produced a ~20x-1000x-wrong preview for mixed-unit lines (e.g. a 12 g
+// line against a $54/kg catalog item showed $648 instead of $0.65), and
+// that preview is what staff read when setting a recipe's locked_price.
+//
+// IMPORTANT: `item` here must carry the CATALOG unit (e.g. ing.catalog_unit),
+// NOT the recipe-line unit — see enrichIngredientsWithCatalogRates and
+// selectIngredientFromAutocompleteBp, which record catalog_unit as a field
+// DISTINCT from the line's own `unit` so a g-line against a kg catalog item
+// actually converts (passing the same object as both item and line no-ops
+// the conversion, since itemUnit === lineUnit collapses to a no-op factor).
+// =============================================================================
+var BP_MASS_FACTORS = { kg: 1, g: 0.001 };
+var BP_VOLUME_FACTORS = { l: 1, ml: 0.001 };
+var BP_COUNT_UNITS = ['pcs', 'ea', 'each', 'unit', 'pkg', 'pack'];
+
+function bpClassifyUnit(raw) {
+  var norm = (raw || '').toLowerCase().trim();
+  var family = null;
+
+  if (Object.prototype.hasOwnProperty.call(BP_MASS_FACTORS, norm)) {
+    family = 'mass';
+  } else if (Object.prototype.hasOwnProperty.call(BP_VOLUME_FACTORS, norm)) {
+    family = 'volume';
+  } else if (BP_COUNT_UNITS.indexOf(norm) !== -1) {
+    family = 'count';
+  }
+
+  return { family: family, norm: norm };
+}
+
+// @param {Object} item - catalog view { unit, rate } — unit MUST be the catalog unit.
+// @param {Object} line - recipe-line view { unit, quantity } — unit MUST be the line unit.
+// @returns {{ ok: true, convertedQty: number, cost: number } | { ok: false, error: string }}
+function bpIngredientLineCost(item, line) {
+  var itemUnit = bpClassifyUnit(item && item.unit);
+  var lineUnit = bpClassifyUnit(line && line.unit);
+  var rate = Number(item && item.rate) || 0;
+  var qty = Number(line && line.quantity) || 0;
+
+  var convertible = itemUnit.family !== null && itemUnit.family === lineUnit.family;
+
+  if (!convertible) {
+    var label = (item && (item.name || item.item_name || item.item_id)) || 'item';
+    return {
+      ok: false,
+      error: 'Cannot price "' + label + '": recipe unit "' + (line && line.unit) +
+        '" is not convertible to item unit "' + (item && item.unit) + '"'
+    };
+  }
+
+  var convertedQty;
+  if (itemUnit.family === 'count') {
+    convertedQty = qty;
+  } else {
+    var factors = itemUnit.family === 'mass' ? BP_MASS_FACTORS : BP_VOLUME_FACTORS;
+    convertedQty = qty * (factors[lineUnit.norm] / factors[itemUnit.norm]);
+    convertedQty = Math.round(convertedQty * 10000) / 10000; // 4dp, prevents float drift
+  }
+
+  var cost = Math.round(convertedQty * rate * 10000) / 10000;
+
+  return { ok: true, convertedQty: convertedQty, cost: cost };
+}
+
 (function () {
   'use strict';
 
@@ -9220,7 +9291,10 @@ if (typeof module !== 'undefined' && module.exports) {
     buildRecipePayload: buildRecipePayload,
     recipeDeleteConfirmMessage: recipeDeleteConfirmMessage,
     // Phase 36: pure top-level scaling helper (mirrors lib/recipe-scaling.js)
-    bpScaleIngredients: bpScaleIngredients
+    bpScaleIngredients: bpScaleIngredients,
+    // Phase 73-07: unit-aware editor cost helper (mirrors lib/recipe-scaling.js, CR-02)
+    bpIngredientLineCost: bpIngredientLineCost,
+    bpClassifyUnit: bpClassifyUnit
     // Plan 36-19: renderRecipeListHtml + bpCloneRecipePayload exported by the IIFE inner block above
     // Plan 36-22: afterBatchWrite + getStateForTest exported by the IIFE inner block above
     // State-dependent attach-flow exports are merged by Object.assign inside the IIFE above
