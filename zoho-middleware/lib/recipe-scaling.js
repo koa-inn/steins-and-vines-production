@@ -16,6 +16,8 @@
  *   computeScaledRecipeTotal(recipe, scaledIngredients,
  *                             catalogMap, saleType)              → grand total (2 dp)
  *   checkScaledStock(scaledIngredients, catalogMap)              → { ok, conflicts }
+ *   ingredientLineCost(item, line)                               → unit-aware per-line cost (D-01/D-02)
+ *   classifyUnit(raw)                                            → { family, norm }
  *   CONTINUOUS_UNITS                                             → string[]
  *   DISCRETE_UNITS                                               → string[]
  */
@@ -276,6 +278,103 @@ function computeModifiedRecipeTotal(recipe, originalIngredients, modifiedBaseIng
 }
 
 // ---------------------------------------------------------------------------
+// classifyUnit / ingredientLineCost (D-01/D-02)
+// ---------------------------------------------------------------------------
+
+// Cost-conversion families — SEPARATE from CONTINUOUS_UNITS/DISCRETE_UNITS
+// above. Those constants govern scale-ROUNDING behavior (a different axis)
+// and DISCRETE_UNITS includes 'ft' (a length unit), which is not a count
+// unit for cost purposes. Do not reuse them here.
+//
+// Factors are expressed as "canonical units per raw unit": MASS canonical
+// is kg, VOLUME canonical is L. D-06: imperial units (oz/lb/tsp/tbsp/cup/
+// pt/qt/gal/floz) are intentionally NOT included — the 2026-08-25 live-
+// recipe audit (73-01-SUMMARY.md Task 1: all 8 recipes / 91 ingredient
+// lines) found zero imperial units on any recipe cost line. An imperial
+// (or any other unrecognised) unit therefore classifies with family: null
+// and ingredientLineCost fails closed, naming the line, rather than
+// guessing a conversion factor.
+var MASS_FACTORS = { kg: 1, g: 0.001 };
+var VOLUME_FACTORS = { l: 1, ml: 0.001 };
+var COUNT_UNITS = ['pcs', 'ea', 'each', 'unit', 'pkg', 'pack'];
+
+/**
+ * Classify a raw unit string into a cost-conversion family.
+ *
+ * @param {string} raw - unit token (e.g. 'kg', ' G ', 'pcs')
+ * @returns {{ family: ('mass'|'volume'|'count'|null), norm: string }}
+ */
+function classifyUnit(raw) {
+  var norm = (raw || '').toLowerCase().trim();
+  var family = null;
+
+  if (Object.prototype.hasOwnProperty.call(MASS_FACTORS, norm)) {
+    family = 'mass';
+  } else if (Object.prototype.hasOwnProperty.call(VOLUME_FACTORS, norm)) {
+    family = 'volume';
+  } else if (COUNT_UNITS.indexOf(norm) !== -1) {
+    family = 'count';
+  }
+
+  return { family: family, norm: norm };
+}
+
+/**
+ * Compute the unit-converted cost of a single recipe ingredient line against
+ * its server catalog entry (D-01/D-02) — the ONE shared helper every
+ * aggregate sum-site must call instead of hand-rolling `qty * rate`.
+ *
+ * Security (T-36-01): rate is ALWAYS read from item.rate (server catalog
+ * entry) — any rate field on the client/recipe-supplied `line` is ignored.
+ *
+ * Fails closed (ok:false, named error) when line.unit cannot convert to
+ * item.unit — cross-family (e.g. count vs volume) or unrecognised/imperial
+ * family (D-06) on either side. Never silently substitutes/multiplies raw
+ * mismatched units.
+ *
+ * Pure: no I/O, no requires — callers pass in the already-fetched item/line.
+ *
+ * @param {Object} item - catalog entry { unit, rate, item_name|item_id, ... }
+ * @param {Object} line - recipe ingredient line { unit, quantity, ... }
+ * @returns {{ ok: true, convertedQty: number, cost: number }
+ *          | { ok: false, error: string }}
+ */
+function ingredientLineCost(item, line) {
+  var itemUnit = classifyUnit(item && item.unit);
+  var lineUnit = classifyUnit(line && line.unit);
+  var rate = Number(item && item.rate) || 0;
+  var qty  = Number(line && line.quantity) || 0;
+
+  var convertible = itemUnit.family !== null && itemUnit.family === lineUnit.family;
+
+  if (!convertible) {
+    var label = (item && (item.item_name || item.item_id)) || 'item';
+    return {
+      ok: false,
+      error: 'Cannot price "' + label + '": recipe unit "' + (line && line.unit) +
+        '" is not convertible to item unit "' + (item && item.unit) + '"'
+    };
+  }
+
+  var convertedQty;
+  if (itemUnit.family === 'count') {
+    // Count family: pass-through, no numeric conversion between tokens
+    // (e.g. pcs vs pack — D-02 scope does not attempt pack-size math).
+    convertedQty = qty;
+  } else {
+    var factors = itemUnit.family === 'mass' ? MASS_FACTORS : VOLUME_FACTORS;
+    convertedQty = qty * (factors[lineUnit.norm] / factors[itemUnit.norm]);
+    convertedQty = Math.round(convertedQty * 10000) / 10000; // 4dp, prevents float drift
+  }
+
+  // 4dp intermediate rounding avoids double-rounding before the final 2dp
+  // aggregate sum at each call site (Math.round(total * 100) / 100).
+  var cost = Math.round(convertedQty * rate * 10000) / 10000;
+
+  return { ok: true, convertedQty: convertedQty, cost: cost };
+}
+
+// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
@@ -285,6 +384,8 @@ module.exports = {
   computeScaledRecipeTotal:     computeScaledRecipeTotal,
   computeModifiedRecipeTotal:   computeModifiedRecipeTotal,
   checkScaledStock:             checkScaledStock,
+  ingredientLineCost:           ingredientLineCost,
+  classifyUnit:                 classifyUnit,
   CONTINUOUS_UNITS:             CONTINUOUS_UNITS,
   DISCRETE_UNITS:               DISCRETE_UNITS
 };
