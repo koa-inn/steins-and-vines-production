@@ -1069,10 +1069,14 @@ Plans:
 **Goal:** Fix the High-priority money-path bug where recipe dynamic pricing multiplies `item.rate × recipe_line.quantity` with NO unit conversion, so a per-kg/per-L bulk item consumed in g/ml is charged ~1000× too high (recipe `SV-R-000004` computes $1,896.98 vs expected ~$88–95). Introduce ONE shared unit-aware `ingredientLineCost(item, line)` helper (mass g↔kg, volume ml↔L, count pcs/ea/pack pass-through; reject non-convertible pairs instead of silently multiplying) and call it from EVERY ingredient-cost sum-site so they can never diverge: recipe `computed_price` (list+detail, `routes/recipes.js`), `GET /api/kiosk/recipe-quote`, and the pos-recipe sale path that builds Zoho invoice lines + draws down stock (`routes/pos-recipe.js`) — same conversion for the stock decrement. Resolve pack-granularity for multi-unit pack items (Whirlfloc 25-tablet pack) and fix the invalid `L` unit on that recipe line. Add unit validation/normalization on recipe save (`apps-script` create/update). Acceptance: `SV-R-000004` ≈ $88–95; kiosk quote == displayed price == actual sale invoice + stock draw-down; recipes can't be saved with an un-convertible unit/rate mismatch. Full diagnosis + evidence in `73-PRICING-BUG-HANDOFF.md`.
 **Requirements**: Owner bug report 2026-08-25 (money-path correctness; on-theme for v4.5 money-path milestone). Source: `73-PRICING-BUG-HANDOFF.md` (+ staging `feedback-log.md`).
 **Depends on:** Phase 72 (chronological only). Touches `zoho-middleware/` (recipes/pos-recipe routes, `lib/recipe-scaling.js`) + `apps-script/`.
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 73 to break down)
+- [ ] 73-01-PLAN.md — Unit-conversion helper foundation (ingredientLineCost/classifyUnit + in-file sums + imperial audit)
+- [ ] 73-02-PLAN.md — Wire read-path computed_price (recipes.js detail+list) + SV-R-000004 regression
+- [ ] 73-03-PLAN.md — Wire sale/stock path (pos-recipe.js) — quote==sale==stock draw-down + tiered fail-closed/void
+- [ ] 73-04-PLAN.md — D-03 save-time unit validation (POST/PUT /api/recipes) + machine-readable code/cause
+- [ ] 73-05-PLAN.md — D-05 recipe-editor save resilience (draft-preserve, non-2xx detection, retry) + rebuild brewpad.min.js
 
 ### Phase 74: Beer/Cider/Wine catalogue pages under Ferment-in-Store — split wine to its own page, ferment-in-store becomes informational landing hub, category-scoped kit/recipe catalogue infrastructure
 
