@@ -6,6 +6,8 @@ var scaleIngredients            = scaling.scaleIngredients;
 var computeScaledRecipeTotal    = scaling.computeScaledRecipeTotal;
 var computeModifiedRecipeTotal  = scaling.computeModifiedRecipeTotal;
 var checkScaledStock            = scaling.checkScaledStock;
+var ingredientLineCost          = scaling.ingredientLineCost;
+var classifyUnit                = scaling.classifyUnit;
 
 // ---------------------------------------------------------------------------
 // scaleIngredient — continuous units (kg, g, l, ml)
@@ -620,6 +622,116 @@ describe('computeModifiedRecipeTotal', function () {
     expect(result).toBe(99);
   });
 
+});
+
+// ---------------------------------------------------------------------------
+// classifyUnit (D-01/D-02) — pure unit-family classifier, SEPARATE from
+// CONTINUOUS_UNITS/DISCRETE_UNITS above (those govern scale-rounding, not
+// cost convertibility).
+// ---------------------------------------------------------------------------
+describe('classifyUnit', function () {
+  test('is case-insensitive and trims whitespace', function () {
+    expect(classifyUnit('  KG ').family).toBe('mass');
+  });
+
+  test('norm is lowercased and trimmed', function () {
+    expect(classifyUnit('  KG ').norm).toBe('kg');
+  });
+
+  test('classifies mass family: kg, g', function () {
+    expect(classifyUnit('kg').family).toBe('mass');
+    expect(classifyUnit('g').family).toBe('mass');
+  });
+
+  test('classifies volume family: l, ml', function () {
+    expect(classifyUnit('l').family).toBe('volume');
+    expect(classifyUnit('ml').family).toBe('volume');
+  });
+
+  test('classifies count family: pcs, ea, each, unit, pkg, pack', function () {
+    expect(classifyUnit('pcs').family).toBe('count');
+    expect(classifyUnit('ea').family).toBe('count');
+    expect(classifyUnit('each').family).toBe('count');
+    expect(classifyUnit('unit').family).toBe('count');
+    expect(classifyUnit('pkg').family).toBe('count');
+    expect(classifyUnit('pack').family).toBe('count');
+  });
+
+  test('unknown/imperial unit (D-06 — not in scope, no live recipe uses it) classifies as null family', function () {
+    expect(classifyUnit('oz').family).toBe(null);
+    expect(classifyUnit('lb').family).toBe(null);
+    expect(classifyUnit('tsp').family).toBe(null);
+  });
+
+  test('blank/undefined unit classifies as null family', function () {
+    expect(classifyUnit('').family).toBe(null);
+    expect(classifyUnit(undefined).family).toBe(null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ingredientLineCost (D-01/D-02) — the shared unit-aware per-line cost
+// helper every aggregate sum-site in this module (and, in later Phase 73
+// plans, routes/recipes.js + routes/pos-recipe.js) must consume.
+// ---------------------------------------------------------------------------
+describe('ingredientLineCost', function () {
+  test('mass conversion: per-kg item priced in grams (Magnum Bulk case, PRICING-BUG-HANDOFF)', function () {
+    var result = ingredientLineCost({ unit: 'kg', rate: 54 }, { unit: 'g', quantity: 12 });
+    expect(result).toEqual({ ok: true, convertedQty: 0.012, cost: 0.648 });
+  });
+
+  test('volume conversion: per-L item priced in millilitres', function () {
+    var result = ingredientLineCost({ unit: 'l', rate: 25 }, { unit: 'ml', quantity: 20 });
+    expect(result.ok).toBe(true);
+    expect(result.cost).toBe(0.50);
+  });
+
+  test('count pass-through: pcs item priced in pcs, no numeric conversion', function () {
+    var result = ingredientLineCost({ unit: 'pcs', rate: 10 }, { unit: 'pcs', quantity: 2 });
+    expect(result.ok).toBe(true);
+    expect(result.convertedQty).toBe(2);
+    expect(result.cost).toBe(20);
+  });
+
+  test('same-unit pass-through (mass): kg item priced in kg', function () {
+    var result = ingredientLineCost({ unit: 'kg', rate: 54 }, { unit: 'kg', quantity: 4.1 });
+    expect(result.ok).toBe(true);
+    expect(result.cost).toBe(221.4);
+  });
+
+  test('cross-family fails closed, naming the item and both units (Whirlfloc L-on-count case)', function () {
+    var item = { item_id: 'WHIRL1', item_name: 'Whirlfloc Tablets (25 pack)', unit: 'pcs', rate: 8 };
+    var line = { item_id: 'WHIRL1', unit: 'L', quantity: 1 };
+    var result = ingredientLineCost(item, line);
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('Whirlfloc Tablets (25 pack)');
+    expect(result.error).toContain('L');
+    expect(result.error).toContain('pcs');
+  });
+
+  test('imperial unit fails closed (D-06: no live recipe uses imperial on a cost line, per 73-01-SUMMARY.md audit)', function () {
+    var item = { item_id: 'HOP1', item_name: 'Magnum Bulk', unit: 'kg', rate: 54 };
+    var line = { item_id: 'HOP1', unit: 'oz', quantity: 1 };
+    var result = ingredientLineCost(item, line);
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('Magnum Bulk');
+  });
+
+  test('T-36-01: rate is read only from item.rate, never from line.rate', function () {
+    var result = ingredientLineCost(
+      { unit: 'kg', rate: 54 },
+      { unit: 'g', quantity: 12, rate: 9999 }
+    );
+    expect(result.cost).toBe(0.648);
+  });
+
+  test('falls back to item_id in the error message when item_name is absent', function () {
+    var item = { item_id: 'ITEM-999', unit: 'pcs', rate: 5 };
+    var line = { unit: 'l', quantity: 1 };
+    var result = ingredientLineCost(item, line);
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('ITEM-999');
+  });
 });
 
 // ---------------------------------------------------------------------------
