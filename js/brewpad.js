@@ -770,6 +770,7 @@ function bpScaleIngredients(list, factor) {
   var _lastTokenTime = 0;
   var _visibilityListenerAdded = false;
   var _formSavers = [];
+  var RECIPE_DRAFT_KEY = 'sv-brewpad-recipe-draft'; // D-05a: recipe editor draft session key
   var _activeTab = 'dashboard';
 
   // Batches
@@ -899,6 +900,18 @@ function bpScaleIngredients(list, factor) {
     msgSpan.className = 'bp-toast-msg';
     msgSpan.textContent = message;
     toast.appendChild(msgSpan);
+    // D-05d: optional inline action (e.g. "Retry" on a transient save failure).
+    if (opts.actionLabel && typeof opts.onAction === 'function') {
+      var actionBtn = document.createElement('button');
+      actionBtn.className = 'bp-toast-action';
+      actionBtn.type = 'button';
+      actionBtn.textContent = opts.actionLabel;
+      actionBtn.addEventListener('click', function () {
+        removeToast(toast);
+        opts.onAction();
+      });
+      toast.appendChild(actionBtn);
+    }
     var closeBtn = document.createElement('button');
     closeBtn.className = 'bp-toast-close';
     closeBtn.innerHTML = '&times;';
@@ -2641,6 +2654,65 @@ function bpScaleIngredients(list, factor) {
     btn.title = check.ok ? '' : (check.reason || '');
   }
 
+  // ===== D-05: Recipe editor save resilience =====
+  //
+  // The recipe editor is the ONLY major BrewPad form NOT protected by the
+  // _formSavers draft system, and saveRecipe() used to ignore HTTP status
+  // (parsed r.json() without checking r.ok) -- so a 422/502 could be misread
+  // as success and a session-expiry/reload silently lost the edits.
+
+  // D-05a: builds the recipe-draft snapshot. Returns null when there is
+  // nothing worth saving (editor closed / no name entered yet). Registered
+  // as a _formSavers saver AND called directly on save-failure below.
+  function recipeDraftSnapshot() {
+    var detailView = document.getElementById('bp-recipes-detail-view');
+    if (!detailView || detailView.style.display === 'none') return null;
+    var formData = readRecipeFormData();
+    if (!formData.name) return null;
+    return {
+      recipeId: _recipesState.currentRecipeId,
+      formData: formData,
+      ingredients: (_recipesState.currentIngredients || []).slice()
+    };
+  }
+
+  // D-05a: snapshot the recipe draft immediately (not only on the 401
+  // handleUnauthorized path) -- called from saveRecipe's failure branch so
+  // a failed save (network, 422, 502...) never orphans in-progress work.
+  function saveRecipeDraftNow() {
+    try {
+      var data = recipeDraftSnapshot();
+      if (data) sessionStorage.setItem(RECIPE_DRAFT_KEY, JSON.stringify(data));
+    } catch (e) {}
+  }
+
+  function clearRecipeDraft() {
+    try { sessionStorage.removeItem(RECIPE_DRAFT_KEY); } catch (e) {}
+  }
+
+  // D-05c: highlight the ingredient row named by the D-03 `cause` (item_name,
+  // falling back to item_id match) so staff can see exactly which line failed.
+  function highlightIngredientRowByCause(cause) {
+    if (!cause) return;
+    var ingredients = _recipesState.currentIngredients || [];
+    var idx = -1;
+    for (var i = 0; i < ingredients.length; i++) {
+      var ing = ingredients[i];
+      if ((ing.item_name && ing.item_name === cause) || (ing.item_id && String(ing.item_id) === String(cause))) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx === -1) return;
+    var tbody = document.getElementById('bp-recipe-ing-tbody');
+    if (!tbody) return;
+    var row = tbody.querySelector('.bp-recipes-ing-row[data-ing-idx="' + idx + '"]');
+    if (row) {
+      row.className += ' bp-ing-row--error';
+      if (typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'center' });
+    }
+  }
+
   // Save recipe (POST create / PUT update)
   function saveRecipe() {
     var url = mwUrl();
@@ -2671,19 +2743,41 @@ function bpScaleIngredients(list, factor) {
       ? url + '/api/recipes/' + encodeURIComponent(recipeId)
       : url + '/api/recipes';
 
+    return submitRecipeSave(endpoint, method, formData, recipeId);
+  }
+
+  // D-05d: factored out of saveRecipe so a retry can re-submit the EXACT
+  // same already-built payload (formData) without re-reading the form.
+  function submitRecipeSave(endpoint, method, formData, recipeId) {
     var saveBtn = document.getElementById('bp-recipes-save-btn');
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
 
-    fetch(endpoint, {
+    return fetch(endpoint, {
       method: method,
       credentials: 'include',
       headers: getRecipesMwHeaders(),
       body: JSON.stringify(formData)
     })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (data) {
+          return { httpOk: r.ok, status: r.status, data: data };
+        });
+      })
+      .then(function (result) {
+        // D-05b: a non-2xx response is ALWAYS a failure — never rely solely
+        // on the body shape (`!data.ok && data.error`), which let a 422/502
+        // with an unexpected body slip through as "success".
+        if (!result.httpOk) {
+          var httpErr = new Error((result.data && result.data.error) || ('Save failed (HTTP ' + result.status + ')'));
+          httpErr.status = result.status;
+          httpErr.code = result.data && result.data.code;
+          httpErr.cause = result.data && result.data.cause;
+          throw httpErr;
+        }
+        var data = result.data;
         if (!data.ok && data.error) throw new Error(data.error);
         showToast(recipeId ? 'Recipe saved.' : 'Recipe created.', 'success');
+        clearRecipeDraft();
         if (!recipeId && data.recipe_id) {
           _recipesState.currentRecipeId = data.recipe_id;
           openRecipeDetail(data.recipe_id);
@@ -2693,8 +2787,32 @@ function bpScaleIngredients(list, factor) {
         loadRecipeList('all');
       })
       .catch(function (err) {
+        // D-05a: never orphan in-progress work — snapshot the draft on ANY failure.
+        saveRecipeDraftNow();
+
+        var status = err && err.status;
+        var code = err && err.code;
+        var cause = err && err.cause;
         var msg = (err && err.message) ? err.message : 'Please check your connection and try again.';
-        showToast('Could not save recipe. ' + msg, 'error');
+
+        // D-05c: consume the D-03 code/cause contract; fall back to the human
+        // error string when absent (older/other responses may not carry them).
+        if (code === 'unit_mismatch' && cause) {
+          if (msg.indexOf(cause) === -1) {
+            msg = 'Unit mismatch on "' + cause + '": ' + msg;
+          }
+          highlightIngredientRowByCause(cause);
+        }
+
+        // D-05d: transient (network / gateway) failures offer a retry that
+        // re-submits the SAME formData -- no form re-read.
+        var isTransient = !status || status === 502 || status === 503 || status === 504;
+        var toastOpts = isTransient ? {
+          actionLabel: 'Retry',
+          onAction: function () { submitRecipeSave(endpoint, method, formData, recipeId); }
+        } : undefined;
+
+        showToast('Could not save recipe. ' + msg, 'error', toastOpts);
       })
       .finally(function () {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Recipe'; }
@@ -8908,6 +9026,27 @@ function bpScaleIngredients(list, factor) {
     }
   });
 
+  // Saver 6: Recipe editor (D-05a). The recipe editor was previously the
+  // ONLY major BrewPad form NOT draft-protected -- a failed save (D-05b/c) or
+  // a session-expiry/reload could silently lose in-progress recipe edits.
+  // save() is also invoked directly from submitRecipeSave's failure branch
+  // (saveRecipeDraftNow), not only via this registry's saveAllFormDrafts/
+  // handleUnauthorized path.
+  _formSavers.push({
+    key: RECIPE_DRAFT_KEY,
+    save: recipeDraftSnapshot,
+    restore: function (draft) {
+      switchTab('recipes');
+      _recipesState.currentRecipeId = draft.recipeId || null;
+      _recipesState.currentIngredients = draft.ingredients || [];
+      showRecipesDetailView();
+      setTimeout(function () {
+        populateRecipeForm(draft.formData);
+        renderIngredientRows(_recipesState.currentIngredients, null);
+      }, 150);
+    }
+  });
+
   // ===== Bootstrap =====
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -9027,6 +9166,14 @@ function bpScaleIngredients(list, factor) {
         if ('_batchStatusFilter' in patch) _batchStatusFilter = patch._batchStatusFilter;
         if ('_batchesData'       in patch) _batchesData       = patch._batchesData;
         if ('_dashSummary'       in patch) _dashSummary       = patch._dashSummary;
+      },
+      // Phase 73-05 (D-05): recipe editor save-resilience test seams.
+      saveRecipe: saveRecipe,
+      restoreAllFormDrafts: restoreAllFormDrafts,
+      renderIngredientRows: renderIngredientRows,
+      _getRecipesStateForTest: function () { return _recipesState; },
+      _setRecipesStateForTest: function (patch) {
+        Object.keys(patch || {}).forEach(function (k) { _recipesState[k] = patch[k]; });
       }
     });
   }
