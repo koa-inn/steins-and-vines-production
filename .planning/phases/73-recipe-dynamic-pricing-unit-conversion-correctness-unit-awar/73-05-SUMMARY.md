@@ -101,3 +101,7 @@ None - no external service configuration required.
 ---
 *Phase: 73-recipe-dynamic-pricing-unit-conversion-correctness-unit-awar*
 *Completed: 2026-08-25*
+
+## Self-Check: PASSED
+
+All claimed files exist (js/brewpad.js, js/brewpad.min.js, tests/frontend/brewpad-recipe-save-resilience.test.js, this SUMMARY.md) and all claimed commits (9fec242b, 08bc23af, c8204438) are present in git log.
