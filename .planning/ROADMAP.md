@@ -1079,12 +1079,12 @@ Plans:
 **Goal:** Fix the High-priority money-path bug where recipe dynamic pricing multiplies `item.rate × recipe_line.quantity` with NO unit conversion, so a per-kg/per-L bulk item consumed in g/ml is charged ~1000× too high (recipe `SV-R-000004` computes $1,896.98 vs expected ~$88–95). Introduce ONE shared unit-aware `ingredientLineCost(item, line)` helper (mass g↔kg, volume ml↔L, count pcs/ea/pack pass-through; reject non-convertible pairs instead of silently multiplying) and call it from EVERY ingredient-cost sum-site so they can never diverge: recipe `computed_price` (list+detail, `routes/recipes.js`), `GET /api/kiosk/recipe-quote`, and the pos-recipe sale path that builds Zoho invoice lines + draws down stock (`routes/pos-recipe.js`) — same conversion for the stock decrement. Resolve pack-granularity for multi-unit pack items (Whirlfloc 25-tablet pack) and fix the invalid `L` unit on that recipe line. Add unit validation/normalization on recipe save (`apps-script` create/update). Acceptance: `SV-R-000004` ≈ $88–95; kiosk quote == displayed price == actual sale invoice + stock draw-down; recipes can't be saved with an un-convertible unit/rate mismatch. Full diagnosis + evidence in `73-PRICING-BUG-HANDOFF.md`.
 **Requirements**: Owner bug report 2026-08-25 (money-path correctness; on-theme for v4.5 money-path milestone). Source: `73-PRICING-BUG-HANDOFF.md` (+ staging `feedback-log.md`).
 **Depends on:** Phase 72 (chronological only). Touches `zoho-middleware/` (recipes/pos-recipe routes, `lib/recipe-scaling.js`) + `apps-script/`.
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 73-01-PLAN.md — Unit-conversion helper foundation (ingredientLineCost/classifyUnit + in-file sums + imperial audit)
+- [x] 73-01-PLAN.md — Unit-conversion helper foundation (ingredientLineCost/classifyUnit + in-file sums + imperial audit)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
