@@ -217,6 +217,25 @@ function computeRecipeQuote(recipeId, rawTarget, saleType, millGrain, modifiedIn
         // Scale the base ingredient list (modified or original) for stock check + response
         var scaledIngredients = scaling.scaleIngredients(baseIngredients, scaleFactor);
 
+        // D-02 tiered fail-closed (PRE-CHARGE): every catalog-matched line must
+        // convert cleanly to its item's unit BEFORE any terminal charge is
+        // attempted. This runs regardless of pricing_mode — a LOCKED recipe's
+        // grand total never sums ingredient costs, so without this pass a bad
+        // unit on a base ingredient would only surface later at the invoice
+        // build (post-charge). Mirrors the resolveGstTaxId precedent (pos.js):
+        // resolve-or-fail in a separate pass, never inside a downstream .map().
+        // Items absent from the catalog are skipped (T-36-07 — unknown items
+        // are already tolerated elsewhere; this guards UNIT mismatches only).
+        for (var pcI = 0; pcI < scaledIngredients.length; pcI++) {
+          var pcEntry = catalogMap[scaledIngredients[pcI].item_id];
+          if (pcEntry) {
+            var pcCheck = scaling.ingredientLineCost(pcEntry, scaledIngredients[pcI]);
+            if (!pcCheck.ok) {
+              return Promise.reject({ status: 422, body: { error: pcCheck.error } });
+            }
+          }
+        }
+
         // Stock check (D-08) — always run on the scaled (potentially modified) list
         var stockCheck = scaling.checkScaledStock(scaledIngredients, catalogMap);
 
@@ -468,6 +487,10 @@ router.get('/api/kiosk/recipe-quote', function (req, res) {
         var catalogEntry = catalogMap[scaled.item_id];
         var rate = catalogEntry ? (Number(catalogEntry.rate) || 0) : 0;
         var scaledQty = Number(scaled.quantity) || 0;
+        // D-01/D-02: line_total is the unit-converted cost (the pre-charge
+        // validation pass above already guaranteed every catalog-matched line
+        // converts cleanly, so this call cannot ok:false here).
+        var lineTotal = catalogEntry ? scaling.ingredientLineCost(catalogEntry, scaled).cost : 0;
         return {
           item_id: scaled.item_id,
           item_name: scaled.item_name,
@@ -475,7 +498,7 @@ router.get('/api/kiosk/recipe-quote', function (req, res) {
           base_quantity: baseQty,
           quantity: scaledQty,
           rate: rate,
-          line_total: Math.round(scaledQty * rate * 100) / 100
+          line_total: lineTotal
         };
       });
 
@@ -647,23 +670,91 @@ function _runRecipeConfirm(body, confirmIdemKey, req, res) {
           });
         }
 
-        // Build invoice line items — use SCALED quantities for Zoho inventory deduction (SCALE-04, INV-01)
+        // Build invoice line items — use CONVERTED quantities for Zoho inventory
+        // deduction (SCALE-04, INV-01, D-01/D-02). The Zoho invoice payload
+        // carries no per-line unit override, so this converted number IS what
+        // Zoho decrements (12 g hop -> 0.012 kg, not 12 kg).
         var lineItems = [];
+        var unpriceableLine = null; // D-02 tiered fail-closed (POST-CHARGE safety net)
         for (var i = 0; i < scaledIngredients.length; i++) {
           var ing = scaledIngredients[i];
           var catalogEntry = catalogMap[ing.item_id];
-          var ingredientRate = catalogEntry ? (Number(catalogEntry.rate) || 0) : 0;
-          var ingredientQty = Number(ing.quantity) || 0;
-          var li = {
-            item_id: ing.item_id,
-            name: ing.item_name,
-            quantity: ingredientQty,
-            rate: ingredientRate
-          };
-          if (catalogEntry && catalogEntry.tax_id) {
-            li.tax_id = catalogEntry.tax_id;
+          var li;
+          if (catalogEntry) {
+            var ingResult = scaling.ingredientLineCost(catalogEntry, ing);
+            if (!ingResult.ok) {
+              unpriceableLine = ingResult.error;
+              break;
+            }
+            li = {
+              item_id: ing.item_id,
+              name: ing.item_name,
+              quantity: ingResult.convertedQty,
+              rate: Number(catalogEntry.rate) || 0
+            };
+            if (catalogEntry.tax_id) {
+              li.tax_id = catalogEntry.tax_id;
+            }
+          } else {
+            // Unknown item — not in catalog (T-36-07 tolerated elsewhere); push
+            // at face value rather than fail-closed. D-02 guards UNIT
+            // mismatches on items we recognize, not unrecognised item_ids.
+            li = {
+              item_id: ing.item_id,
+              name: ing.item_name,
+              quantity: Number(ing.quantity) || 0,
+              rate: 0
+            };
           }
           lineItems.push(li);
+        }
+
+        if (unpriceableLine) {
+          // POST-CHARGE defense-in-depth (D-02, tiered fail-closed): the
+          // terminal already charged the card by the time /confirm runs — this
+          // should never fire if the PRE-CHARGE check in computeRecipeQuote
+          // (above, shared by GET recipe-quote + POST recipe-sale) did its job.
+          // If it somehow does, never silently mis-charge / mis-decrement
+          // stock: void, mirroring the existing invoice-failure void path
+          // below (Pitfall 1, T-14-09), rather than a bare 400.
+          log.error('[pos-recipe/confirm] Unpriceable ingredient line — voiding txn=' + txnId + ': ' + unpriceableLine);
+
+          eventLog.logEvent('kiosk.recipe_sale_unpriceable_line', {
+            txnId: txnId,
+            recipeId: body.recipe_id,
+            error: unpriceableLine
+          });
+
+          return helcimLib.voidTransaction(txnId)
+            .then(function () {
+              log.info('[pos-recipe/confirm] Voided txn=' + txnId + ' after unpriceable line');
+            })
+            .catch(function (voidErr) {
+              log.error('[pos-recipe/confirm] CRITICAL: Void failed for txn=' + txnId + ': ' + voidErr.message);
+              var failRecord = {
+                txnId: txnId,
+                timestamp: new Date().toISOString(),
+                error: voidErr.message,
+                needs_manual_review: true
+              };
+              cache.set('sv:void-failure:' + Date.now(), failRecord, 60 * 60 * 24 * 30).catch(function () {});
+              mailer.sendVoidFailureAlert({
+                txnId: txnId,
+                error: voidErr.message,
+                timestamp: failRecord.timestamp
+              }).catch(function (mailErr) {
+                log.error('[pos-recipe/confirm] Void failure alert email failed: ' + mailErr.message);
+              });
+            })
+            .then(function () {
+              cache.releaseLock(C.LOCK_KEYS.RECIPE_SALE).catch(function () {});
+              if (!res.headersSent) {
+                res.status(502).json({
+                  error: 'Payment was taken but the sale could not be priced. Payment voided.',
+                  payment_voided: true
+                });
+              }
+            });
         }
 
         // Add applicable fee line items (always added to invoice for record-keeping)

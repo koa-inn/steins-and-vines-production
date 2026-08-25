@@ -1844,8 +1844,13 @@ describe('Unit conversion — sale/stock money path (73-03, D-01/D-02)', functio
 
   // Catalog: hop pellets priced per KG; a cross-family "bad unit" item (count
   // vs mass — non-convertible) used for the tiered fail-closed tests.
+  // stock_on_hand is set generously above the raw (pre-conversion) scaled
+  // quantity too — checkScaledStock compares needed-vs-stock in whatever unit
+  // the recipe line carries (a separate, out-of-scope gap from this plan's
+  // D-01/D-02 pricing/invoice-quantity fix), so a tight stock figure here
+  // would spuriously 409 before we ever reach the code path under test.
   var CONVERSION_CATALOG = [
-    { item_id: 'ing-hop-pellets', name: 'Hop Pellets', rate: 20.00, tax_id: 'tax-gst', stock_on_hand: 5, unit: 'kg' },
+    { item_id: 'ing-hop-pellets', name: 'Hop Pellets', rate: 20.00, tax_id: 'tax-gst', stock_on_hand: 100, unit: 'kg' },
     { item_id: 'ing-badunit-1', name: 'Bad Unit Item', rate: 5.00, tax_id: 'tax-gst', stock_on_hand: 100, unit: 'kg' }
   ];
 

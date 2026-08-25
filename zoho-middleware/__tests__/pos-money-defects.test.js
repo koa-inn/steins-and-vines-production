@@ -133,7 +133,16 @@ jest.mock('../lib/recipe-scaling', function () {
     ]),
     checkScaledStock: jest.fn().mockReturnValue({ ok: true, conflicts: [] }),
     computeScaledRecipeTotal: jest.fn().mockReturnValue(245),
-    computeModifiedRecipeTotal: jest.fn().mockReturnValue(245)
+    computeModifiedRecipeTotal: jest.fn().mockReturnValue(245),
+    // 73-03: pos-recipe.js now routes every invoice line + quote line_total
+    // through ingredientLineCost (D-01/D-02). This mock's fixtures are all
+    // same-unit (kg/kg), so a simple pass-through (no real conversion) keeps
+    // this file's existing (non-conversion) assertions unchanged.
+    ingredientLineCost: jest.fn().mockImplementation(function (item, line) {
+      var qty = Number(line && line.quantity) || 0;
+      var rate = Number(item && item.rate) || 0;
+      return { ok: true, convertedQty: qty, cost: Math.round(qty * rate * 100) / 100 };
+    })
   };
 });
 
@@ -271,7 +280,7 @@ describe('CR-01 — recipe-sale/confirm acquires idempotency lock from transacti
     recipeMocks.cache.del.mockResolvedValue(1);
     recipeMocks.cache.get.mockImplementation(function (key) {
       if (key === 'zoho:ingredients:all') return Promise.resolve([
-        { item_id: 'ing-malt-1', name: 'Pale Malt', rate: 3.50, tax_id: 'tax-gst', stock_on_hand: 50 }
+        { item_id: 'ing-malt-1', name: 'Pale Malt', rate: 3.50, tax_id: 'tax-gst', stock_on_hand: 50, unit: 'kg' }
       ]);
       return Promise.resolve(null);
     });
