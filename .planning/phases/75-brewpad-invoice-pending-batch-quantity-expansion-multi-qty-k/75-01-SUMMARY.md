@@ -97,3 +97,12 @@ Per the plan's locked, revised D-01: after this fix deploys to prod middleware, 
 ---
 *Phase: 75-brewpad-invoice-pending-batch-quantity-expansion-multi-qty-k*
 *Completed: 2026-08-26*
+
+## Self-Check: PASSED
+
+- FOUND: zoho-middleware/routes/pos.js
+- FOUND: zoho-middleware/__tests__/batch-scan-invoices.test.js
+- FOUND: this SUMMARY.md
+- FOUND commit: 8d9e4f29 (Task 1 - test)
+- FOUND commit: 75a91d0c (Task 2 - fix)
+- FOUND commit: 602ce6b4 (docs - this SUMMARY)
