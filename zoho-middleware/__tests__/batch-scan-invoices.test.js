@@ -763,15 +763,21 @@ describe('POST /api/batch/bulk-create', function () {
     });
   });
 
-  // ── duplicate_so_number error from Apps Script surfaces in per-row results ──
-  test('duplicate_so_number error from Apps Script surfaces in per-row results', function () {
+  // ── duplicate_so_number is a benign convergence signal, not a hard failure (WR-01) ──
+  // Updated 2026-08-26 for the WR-01 code-review fix: a duplicate_so_number from the
+  // Apps Script guard means the batch already exists (desired state reached), so the
+  // invoice is reported satisfied (ok:true) and flagged duplicate rather than failed.
+  // Previously this test asserted ok:false / truthy error, which is exactly the
+  // behaviour WR-01 corrects (a spurious failure toast on an idempotent re-run).
+  test('duplicate_so_number from Apps Script surfaces as a benign duplicate, not a failure', function () {
     zohoApi.zohoGet.mockResolvedValue({ invoice: makeDetailInvoice() });
 
     brewpadIntegration.detectKitItems.mockReturnValue([
       { sku: 'WINE-KIT-CAB', name: 'Cabernet Sauvignon Kit' }
     ]);
 
-    // Apps Script D-10.2 idempotency guard returns duplicate_so_number
+    // Apps Script D-10.2 idempotency guard returns duplicate_so_number — the batch
+    // already exists, i.e. the invoice has converged to its desired state.
     brewpadIntegration.callAppsScriptCreateBatch.mockResolvedValue({
       ok: false,
       error: 'duplicate_so_number',
@@ -786,9 +792,11 @@ describe('POST /api/batch/bulk-create', function () {
     return flushPromises().then(function () {
       var results = res._json.results || [];
       expect(results.length).toBe(1);
-      expect(results[0].ok).toBe(false);
-      // error field should be surfaced so client can handle duplicate gracefully
-      expect(results[0].error).toBeTruthy();
+      // Satisfied (converged), not a hard failure.
+      expect(results[0].ok).toBe(true);
+      expect(results[0].duplicate).toBe(true);
+      // No hard error surfaced for a benign, already-existing batch.
+      expect(results[0].error).toBeUndefined();
     });
   });
 
@@ -999,6 +1007,67 @@ describe('POST /api/batch/bulk-create unit_total regression (INV-000171)', funct
       expect(fakeSheet.length).toBe(3); // unchanged — no new rows
       // Response is still 200 (bulk-create never errors the HTTP layer on duplicates)
       expect(res._status).toBeNull();
+    });
+  });
+
+  // ── WR-01: an idempotent re-run reports convergence, not spurious failures ──
+  // Code-review gap-closure: the guard's duplicate_so_number (already-converged) signal
+  // must not surface as a hard failure. Test C above only checks oks.length/sheet size;
+  // this asserts the invoice-level contract the BrewPad toast actually consumes.
+  test('WR-01: re-run of a fully-batched invoice is ok:true with duplicate kit_results, no failures', function () {
+    zohoApi.zohoGet.mockResolvedValue({ invoice: makeInv171Detail() });
+    brewpadIntegration.detectKitItems.mockReturnValue([INV171_KIT]);
+    brewpadIntegration.planKitBatches.mockReturnValue([INV171_KIT, INV171_KIT, INV171_KIT]);
+    installFakeAppsScriptGuard([
+      { zoho_so_number: 'INV-000171', product_sku: '80087352', batch_id: 'SV-B-EXISTING-1' },
+      { zoho_so_number: 'INV-000171', product_sku: '80087352', batch_id: 'SV-B-EXISTING-2' },
+      { zoho_so_number: 'INV-000171', product_sku: '80087352', batch_id: 'SV-B-EXISTING-3' }
+    ]);
+
+    var req = makeReq({ invoice_ids: ['109900000000000001'] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    bulkCreateHandler(req, res);
+
+    return flushPromises().then(function () {
+      var invoice = (res._json.results || [])[0];
+      // Converged: every unit already exists → invoice satisfied, not failed.
+      expect(invoice.ok).toBe(true);
+      expect(invoice.error).toBeUndefined();
+      expect(invoice.duplicate).toBe(true);
+      var kitResults = invoice.kit_results || [];
+      expect(kitResults.length).toBe(3);
+      kitResults.forEach(function (kr) {
+        expect(kr.ok).toBe(false);
+        expect(kr.duplicate).toBe(true);
+        expect(kr.error).toBe('duplicate_so_number');
+      });
+    });
+  });
+
+  // ── WR-01: partial convergence — created units succeed, pre-existing tagged duplicate ──
+  test('WR-01: partial convergence tags the pre-existing unit duplicate and the invoice stays ok', function () {
+    zohoApi.zohoGet.mockResolvedValue({ invoice: makeInv171Detail() });
+    brewpadIntegration.detectKitItems.mockReturnValue([INV171_KIT]);
+    brewpadIntegration.planKitBatches.mockReturnValue([INV171_KIT, INV171_KIT, INV171_KIT]);
+    installFakeAppsScriptGuard([
+      { zoho_so_number: 'INV-000171', product_sku: '80087352', batch_id: 'SV-B-EXISTING-1' }
+    ]);
+
+    var req = makeReq({ invoice_ids: ['109900000000000001'] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    bulkCreateHandler(req, res);
+
+    return flushPromises().then(function () {
+      var invoice = (res._json.results || [])[0];
+      expect(invoice.ok).toBe(true);
+      expect(invoice.error).toBeUndefined();
+      // 2 created + 1 pre-existing → not all-duplicate, so no invoice-level duplicate flag.
+      expect(invoice.duplicate).toBeUndefined();
+      var kitResults = invoice.kit_results || [];
+      var created = kitResults.filter(function (r) { return r.ok; });
+      var dupes = kitResults.filter(function (r) { return r.duplicate; });
+      expect(created.length).toBe(2);
+      expect(dupes.length).toBe(1);
     });
   });
 

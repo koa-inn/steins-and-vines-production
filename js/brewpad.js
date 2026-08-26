@@ -666,6 +666,7 @@ function buildBulkCreatePayload(selectedCandidates) {
 function summarizeBulkResults(results) {
   var okCount = 0;
   var failCount = 0;
+  var dupCount = 0;
   for (var i = 0; i < results.length; i++) {
     var r = results[i];
     // An invoice with multiple kit line items yields multiple batches; the server
@@ -674,8 +675,18 @@ function summarizeBulkResults(results) {
     // invoices as a single batch).
     if (r && Array.isArray(r.kit_results) && r.kit_results.length) {
       for (var k = 0; k < r.kit_results.length; k++) {
-        if (r.kit_results[k] && r.kit_results[k].ok) { okCount++; } else { failCount++; }
+        var kr = r.kit_results[k];
+        if (kr && kr.ok) { okCount++; }
+        // WR-01: a unit the Apps Script guard reports as already-existing (duplicate)
+        // has converged to the desired state — it is NOT a failure, so keep it out of
+        // failCount (otherwise an idempotent re-run showed a spurious "N failed" toast).
+        else if (kr && kr.duplicate) { dupCount++; }
+        else { failCount++; }
       }
+    } else if (r && r.duplicate) {
+      // Invoice-level convergence: ok is true (satisfied) but nothing was newly
+      // created, so count it as a duplicate, not an ok — check this before r.ok.
+      dupCount++;
     } else if (r && r.ok) {
       okCount++;
     } else {
@@ -683,14 +694,17 @@ function summarizeBulkResults(results) {
     }
   }
   var message;
-  if (failCount === 0) {
-    message = 'Created ' + okCount + ' batch(es)';
+  if (failCount === 0 && okCount === 0 && dupCount > 0) {
+    message = dupCount + ' batch(es) already exist — nothing new to create';
+  } else if (failCount === 0) {
+    message = 'Created ' + okCount + ' batch(es)' +
+      (dupCount > 0 ? '; ' + dupCount + ' already existed' : '');
   } else if (okCount === 0) {
     message = 'All ' + failCount + ' failed — check batches list';
   } else {
     message = 'Created ' + okCount + ' batch(es); ' + failCount + ' failed — check batches list';
   }
-  return { okCount: okCount, failCount: failCount, message: message };
+  return { okCount: okCount, failCount: failCount, dupCount: dupCount, message: message };
 }
 
 // Validate a user-typed invoice/SO number for single-import mode (D-09).

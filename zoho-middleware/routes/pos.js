@@ -3301,9 +3301,15 @@ router.post('/api/batch/bulk-create', function (req, res) {
             kitChain = kitChain.then(function () {
               return brewpadIntegration.callAppsScriptCreateBatch(batchPayload)
                 .then(function (result) {
+                  // WR-01: the Apps Script guard returns duplicate_so_number when a
+                  // (zoho_so_number, product_sku) batch already exists — i.e. this unit
+                  // has already converged to its unit_total. That is the desired state,
+                  // not a hard failure, so tag it distinctly and keep it out of failCount.
+                  var isDuplicate = !!(result && !result.ok && result.error === 'duplicate_so_number');
                   invoiceResults.push({
                     sku: sku,
                     ok: !!(result && result.ok),
+                    duplicate: isDuplicate,
                     batch_id: (result && result.batch_id) || undefined,
                     error: (result && !result.ok && result.error) || undefined
                   });
@@ -3312,10 +3318,17 @@ router.post('/api/batch/bulk-create', function (req, res) {
           });
 
           return kitChain.then(function () {
-            // Summarise per-invoice: ok only if every batch (across all units) succeeded
+            // Summarise per-invoice (WR-01). A unit is "satisfied" if it was created
+            // (ok) OR already existed (duplicate — benign convergence). The invoice is
+            // ok when every unit is satisfied; a genuine failure is a unit that is
+            // neither ok nor a duplicate (e.g. Apps Script down, HTTP error).
             var okResults = invoiceResults.filter(function (r) { return r.ok; });
-            var allOk = invoiceResults.length > 0 && okResults.length === invoiceResults.length;
-            var firstError = invoiceResults.find(function (r) { return !r.ok; });
+            var satisfied = invoiceResults.filter(function (r) { return r.ok || r.duplicate; });
+            var allOk = invoiceResults.length > 0 && satisfied.length === invoiceResults.length;
+            var firstError = invoiceResults.find(function (r) { return !r.ok && !r.duplicate; });
+            // Converged with nothing newly created (every unit already existed) — flag it
+            // so the client can say "already up to date" instead of a spurious failure.
+            var allDuplicate = allOk && okResults.length === 0;
             // Sync the invoice's Zoho batch-status field ONCE, with a count when >1
             // (avoids the per-batch last-write-wins overwrite of the single-value field).
             if (inv.invoice_id && okResults.length > 0) {
@@ -3326,6 +3339,7 @@ router.post('/api/batch/bulk-create', function (req, res) {
               invoice_id: invoiceId,
               invoice_number: invoiceNumber,
               ok: allOk,
+              duplicate: allDuplicate || undefined,
               batch_id: allOk && invoiceResults[0] ? invoiceResults[0].batch_id : undefined,
               error: firstError ? firstError.error : undefined,
               kit_results: invoiceResults.length > 1 ? invoiceResults : undefined
