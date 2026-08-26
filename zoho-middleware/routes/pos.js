@@ -3257,39 +3257,58 @@ router.post('/api/batch/bulk-create', function (req, res) {
           var customerName = inv.customer_name || 'Walk-in Customer';
           var customerId = inv.customer_id || '';
           var invoiceNumber = inv.invoice_number || '';
+          var nameParts = brewpadIntegration.splitCustomerName(customerName);
+
+          // Fee-slot-capped unit expansion (D-04) — mirrors createBatchesFromSale
+          // (lib/brewpad-integration.js:345-410). planKitBatches returns one entry
+          // per batch to create, bounded by paid Maker's Fee slots so merchandise
+          // on the invoice cannot inflate the count.
+          var batchUnits = brewpadIntegration.planKitBatches(lineItems);
+          if (batchUnits.length === 0) {
+            results.push({ invoice_id: invoiceId, invoice_number: invoiceNumber || invoiceId, ok: false, error: 'no_kit_items' });
+            return;
+          }
+
+          // How many batches this invoice expects per SKU. The Apps Script dedup
+          // guard keys on exactly that pair (zoho_so_number, product_sku), so without
+          // this it admits the first unit of a kit line and rejects the rest as
+          // duplicates — collapsing a qty-N kit line to a single pending batch
+          // (INV-000171, byte-for-byte the already-fixed INV-000137 sale-path bug).
+          var unitTotalBySku = {};
+          batchUnits.forEach(function (item) {
+            var sku = item.sku || item.item_id || '';
+            unitTotalBySku[sku] = (unitTotalBySku[sku] || 0) + 1;
+          });
 
           // Per-kit-UNIT creates (D-07, quantity-aware) — sequential within this invoice.
-          // A kit line with quantity N yields N batches (one fermentation batch per unit).
           var kitChain = Promise.resolve();
           var invoiceResults = [];
 
-          kitItems.forEach(function (item) {
-            var nameParts = brewpadIntegration.splitCustomerName(customerName);
+          batchUnits.forEach(function (item) {
+            var sku = item.sku || item.item_id || '';
             var batchPayload = {
-              product_sku:        item.sku || item.item_id || '',
+              product_sku:        sku,
               product_name:       item.name || '',
               customer_name:      customerName,
               customer_firstname: nameParts.first || '',
               customer_lastname:  nameParts.last  || '',
               customer_id:        customerId,
               source:             'zoho_scan',
-              zoho_so_number:     invoiceNumber
+              zoho_so_number:     invoiceNumber,
+              unit_total:         unitTotalBySku[sku]
               // customer_email omitted — no PII per D-06/T-29.3-06
             };
-            var qty = brewpadIntegration.kitBatchQuantity(item);
-            for (var u = 0; u < qty; u++) {
-              kitChain = kitChain.then(function () {
-                return brewpadIntegration.callAppsScriptCreateBatch(batchPayload)
-                  .then(function (result) {
-                    invoiceResults.push({
-                      sku: item.sku || '',
-                      ok: !!(result && result.ok),
-                      batch_id: (result && result.batch_id) || undefined,
-                      error: (result && !result.ok && result.error) || undefined
-                    });
+            kitChain = kitChain.then(function () {
+              return brewpadIntegration.callAppsScriptCreateBatch(batchPayload)
+                .then(function (result) {
+                  invoiceResults.push({
+                    sku: sku,
+                    ok: !!(result && result.ok),
+                    batch_id: (result && result.batch_id) || undefined,
+                    error: (result && !result.ok && result.error) || undefined
                   });
-              });
-            }
+                });
+            });
           });
 
           return kitChain.then(function () {

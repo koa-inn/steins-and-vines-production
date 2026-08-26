@@ -34,26 +34,42 @@ jest.mock('../lib/inventory-ledger', function () { return {
   decrementStock: jest.fn().mockResolvedValue()
 }; });
 
-jest.mock('../lib/brewpad-integration', function () { return {
-  detectKitItems: jest.fn(),
-  // Mirrors the real kitBatchQuantity: quantity → batch count, default 1, clamp 100.
-  kitBatchQuantity: jest.fn(function (item) {
-    var q = Math.floor(Number(item && item.quantity));
-    if (!isFinite(q) || q < 1) return 1;
-    return q > 100 ? 100 : q;
-  }),
-  callAppsScriptCreateBatch: jest.fn(),
-  splitCustomerName: jest.fn(function (name) {
-    var parts = (name || '').trim().split(/\s+/);
-    return { first: parts[0] || '', last: parts.slice(1).join(' ') || '' };
-  }),
-  syncBatchToZoho: jest.fn().mockResolvedValue({ ok: true }),
-  createBatchesFromSale: jest.fn(),
-  retryPendingBatches: jest.fn().mockResolvedValue(),
-  detectRecipeSale: jest.fn(),
-  queueSyncForRetry: jest.fn().mockResolvedValue(),
-  retrySyncQueue: jest.fn().mockResolvedValue()
-}; });
+jest.mock('../lib/brewpad-integration', function () {
+  var mockModule = {
+    detectKitItems: jest.fn(),
+    // Mirrors the real kitBatchQuantity: quantity → batch count, default 1, clamp 100.
+    kitBatchQuantity: jest.fn(function (item) {
+      var q = Math.floor(Number(item && item.quantity));
+      if (!isFinite(q) || q < 1) return 1;
+      return q > 100 ? 100 : q;
+    }),
+    // Default expansion mirrors detectKitItems() x kitBatchQuantity() with NO fee-slot
+    // cap — matches pre-existing tests that never set up Maker's Fee slot data. Tests
+    // exercising the D-04 fee-slot cap (Task 1 regression) override this explicitly via
+    // mockReturnValue/mockReturnValueOnce.
+    planKitBatches: jest.fn(function (lineItems) {
+      var kits = mockModule.detectKitItems(lineItems) || [];
+      var units = [];
+      kits.forEach(function (item) {
+        var qty = mockModule.kitBatchQuantity(item);
+        for (var i = 0; i < qty; i++) units.push(item);
+      });
+      return units;
+    }),
+    callAppsScriptCreateBatch: jest.fn(),
+    splitCustomerName: jest.fn(function (name) {
+      var parts = (name || '').trim().split(/\s+/);
+      return { first: parts[0] || '', last: parts.slice(1).join(' ') || '' };
+    }),
+    syncBatchToZoho: jest.fn().mockResolvedValue({ ok: true }),
+    createBatchesFromSale: jest.fn(),
+    retryPendingBatches: jest.fn().mockResolvedValue(),
+    detectRecipeSale: jest.fn(),
+    queueSyncForRetry: jest.fn().mockResolvedValue(),
+    retrySyncQueue: jest.fn().mockResolvedValue()
+  };
+  return mockModule;
+});
 
 jest.mock('axios', function () {
   var axiosMock = jest.fn().mockResolvedValue({ data: {} });
@@ -833,6 +849,184 @@ describe('POST /api/batch/bulk-create', function () {
     return flushPromises().then(function () {
       // Should not be rejected by format guard — zohoGet must have been called
       expect(zohoApi.zohoGet).toHaveBeenCalledWith('/invoices/109900000000000001');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/batch/bulk-create — unit_total regression (INV-000171)
+//
+// Reproduces the bulk-create sibling of the already-fixed INV-000137 sale-path
+// bug: the bulk-create loop sends an identical batchPayload per unit that never
+// sets unit_total, so the Apps Script dedup guard (apps-script/adminApi.gs:1986-
+// 2014) defaults unit_total to 1 and rejects units 2+ as duplicate_so_number —
+// collapsing a qty-3 kit line (INV-000171) to a single pending batch.
+//
+// The fakeAppsScriptGuard below reproduces the REAL guard semantics (count
+// matching (zoho_so_number, product_sku) rows, allow while count < unit_total||1)
+// rather than an unconditional { ok: true } stub, so these tests actually exercise
+// the convergence/idempotency behaviour instead of merely counting calls.
+// ---------------------------------------------------------------------------
+describe('POST /api/batch/bulk-create unit_total regression (INV-000171)', function () {
+  var INV171_KIT = { item_id: 'KIT-001', sku: '80087352', name: 'Italy Nebbiolo Style', quantity: 3 };
+  var INV171_FEE = { item_id: 'FEE-001', sku: 'MAKERS-FEE', name: "Maker's Fee", quantity: 3 };
+
+  beforeEach(function () {
+    jest.clearAllMocks();
+    process.env.MW_API_KEY = 'test-api-key';
+    process.env.APPS_SCRIPT_URL = 'https://script.google.com/test';
+    process.env.APPS_SCRIPT_SERVER_TOKEN = 'test-server-token-abc';
+    process.env.ZOHO_CF_BATCH_STATUS = 'cf_batch_status';
+  });
+
+  // Installs a callAppsScriptCreateBatch mock backed by an in-test fake Batches sheet.
+  // Mirrors apps-script/adminApi.gs createBatch dedup guard (L1986-2014): keys on
+  // (zoho_so_number, product_sku); allowedUnits = Math.floor(Number(unit_total)),
+  // defaulting to 1 when absent/NaN; creates only while matching count < allowedUnits.
+  function installFakeAppsScriptGuard(seedRows) {
+    var fakeSheet = (seedRows || []).slice();
+    brewpadIntegration.callAppsScriptCreateBatch.mockImplementation(function (payload) {
+      var so = payload.zoho_so_number;
+      var sku = payload.product_sku;
+      var allowedUnits = Math.floor(Number(payload.unit_total));
+      if (!isFinite(allowedUnits) || allowedUnits < 1) allowedUnits = 1;
+      var matching = fakeSheet.filter(function (row) {
+        return row.zoho_so_number === so && row.product_sku === sku;
+      });
+      if (matching.length >= allowedUnits) {
+        return Promise.resolve({ ok: false, error: 'duplicate_so_number' });
+      }
+      var batchId = 'SV-B-' + (fakeSheet.length + 1);
+      fakeSheet.push({ zoho_so_number: so, product_sku: sku, batch_id: batchId });
+      return Promise.resolve({ ok: true, batch_id: batchId });
+    });
+    return fakeSheet;
+  }
+
+  function makeInv171Detail() {
+    return makeDetailInvoice({
+      invoice_id: '109900000000171000',
+      invoice_number: 'INV-000171',
+      line_items: [INV171_KIT, INV171_FEE]
+    });
+  }
+
+  // ── Test A: 3-qty kit line, empty sheet → exactly 3 creates, unit_total 3 ──
+  test('Test A: qty-3 kit line on an empty sheet creates exactly 3 batches, each with unit_total 3', function () {
+    zohoApi.zohoGet.mockResolvedValue({ invoice: makeInv171Detail() });
+    brewpadIntegration.detectKitItems.mockReturnValue([INV171_KIT]);
+    brewpadIntegration.planKitBatches.mockReturnValue([INV171_KIT, INV171_KIT, INV171_KIT]);
+    var fakeSheet = installFakeAppsScriptGuard([]);
+
+    var req = makeReq({ invoice_ids: ['109900000000000001'] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    bulkCreateHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(brewpadIntegration.callAppsScriptCreateBatch).toHaveBeenCalledTimes(3);
+      var calls = brewpadIntegration.callAppsScriptCreateBatch.mock.calls;
+      calls.forEach(function (call) {
+        expect(call[0].unit_total).toBe(3);
+        expect(call[0].zoho_so_number).toBe('INV-000171');
+        expect(call[0].product_sku).toBe('80087352');
+      });
+
+      var results = res._json.results || [];
+      expect(results.length).toBe(1);
+      var kitResults = results[0].kit_results || [];
+      var oks = kitResults.filter(function (r) { return r.ok; });
+      expect(oks.length).toBe(3);
+      expect(results[0].ok).toBe(true);
+      expect(fakeSheet.length).toBe(3);
+    });
+  });
+
+  // ── Test B: pre-seeded with 1 existing row → converges by adding 2, not 3 (D-02) ──
+  test('Test B: invoice line with 1 existing batch converges to 3 — adds 2 new, not 3', function () {
+    zohoApi.zohoGet.mockResolvedValue({ invoice: makeInv171Detail() });
+    brewpadIntegration.detectKitItems.mockReturnValue([INV171_KIT]);
+    brewpadIntegration.planKitBatches.mockReturnValue([INV171_KIT, INV171_KIT, INV171_KIT]);
+    var fakeSheet = installFakeAppsScriptGuard([
+      { zoho_so_number: 'INV-000171', product_sku: '80087352', batch_id: 'SV-B-EXISTING-1' }
+    ]);
+
+    var req = makeReq({ invoice_ids: ['109900000000000001'] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    bulkCreateHandler(req, res);
+
+    return flushPromises().then(function () {
+      var calls = brewpadIntegration.callAppsScriptCreateBatch.mock.calls;
+      calls.forEach(function (call) {
+        expect(call[0].unit_total).toBe(3);
+      });
+
+      var results = res._json.results || [];
+      var kitResults = results[0].kit_results || [];
+      var oks = kitResults.filter(function (r) { return r.ok; });
+      // Converges to exactly 3 total (1 pre-existing + 2 new) — never re-adds a 3rd new row.
+      expect(oks.length).toBe(2);
+      expect(fakeSheet.length).toBe(3);
+    });
+  });
+
+  // ── Test C: pre-seeded with all 3 rows → re-run creates 0 new (D-01 idempotency) ──
+  test('Test C: re-running bulk-create for an already-fully-batched invoice creates 0 new rows', function () {
+    zohoApi.zohoGet.mockResolvedValue({ invoice: makeInv171Detail() });
+    brewpadIntegration.detectKitItems.mockReturnValue([INV171_KIT]);
+    brewpadIntegration.planKitBatches.mockReturnValue([INV171_KIT, INV171_KIT, INV171_KIT]);
+    var fakeSheet = installFakeAppsScriptGuard([
+      { zoho_so_number: 'INV-000171', product_sku: '80087352', batch_id: 'SV-B-EXISTING-1' },
+      { zoho_so_number: 'INV-000171', product_sku: '80087352', batch_id: 'SV-B-EXISTING-2' },
+      { zoho_so_number: 'INV-000171', product_sku: '80087352', batch_id: 'SV-B-EXISTING-3' }
+    ]);
+
+    var req = makeReq({ invoice_ids: ['109900000000000001'] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    bulkCreateHandler(req, res);
+
+    return flushPromises().then(function () {
+      var calls = brewpadIntegration.callAppsScriptCreateBatch.mock.calls;
+      // Every call must still carry the correct unit_total — the pre-fix code never
+      // sets it at all, which is what this assertion catches pre-fix.
+      calls.forEach(function (call) {
+        expect(call[0].unit_total).toBe(3);
+      });
+
+      var results = res._json.results || [];
+      var kitResults = results[0].kit_results || [];
+      var oks = kitResults.filter(function (r) { return r.ok; });
+      expect(oks.length).toBe(0);
+      expect(fakeSheet.length).toBe(3); // unchanged — no new rows
+      // Response is still 200 (bulk-create never errors the HTTP layer on duplicates)
+      expect(res._status).toBeNull();
+    });
+  });
+
+  // ── Test D: fee-slot cap (D-04) — kit qty 5, only 3 paid Maker's Fee slots ──
+  test('Test D: kit line quantity 5 with only 3 Makers Fee slots creates exactly 3 batches, not 5', function () {
+    var kitQty5 = { item_id: 'KIT-001', sku: '80087352', name: 'Italy Nebbiolo Style', quantity: 5 };
+    var feeQty3 = { item_id: 'FEE-001', sku: 'MAKERS-FEE', name: "Maker's Fee", quantity: 3 };
+    zohoApi.zohoGet.mockResolvedValue({ invoice: makeDetailInvoice({
+      invoice_id: '109900000000171000',
+      invoice_number: 'INV-000171',
+      line_items: [kitQty5, feeQty3]
+    }) });
+    brewpadIntegration.detectKitItems.mockReturnValue([kitQty5]);
+    // planKitBatches applies the fee-slot cap (D-04) — 3 units, not the raw kit qty of 5.
+    brewpadIntegration.planKitBatches.mockReturnValue([kitQty5, kitQty5, kitQty5]);
+    var fakeSheet = installFakeAppsScriptGuard([]);
+
+    var req = makeReq({ invoice_ids: ['109900000000000001'] }, {}, { 'x-api-key': 'test-api-key' });
+    var res = makeRes();
+    bulkCreateHandler(req, res);
+
+    return flushPromises().then(function () {
+      expect(brewpadIntegration.callAppsScriptCreateBatch).toHaveBeenCalledTimes(3);
+      var calls = brewpadIntegration.callAppsScriptCreateBatch.mock.calls;
+      calls.forEach(function (call) {
+        expect(call[0].unit_total).toBe(3);
+      });
+      expect(fakeSheet.length).toBe(3);
     });
   });
 });
