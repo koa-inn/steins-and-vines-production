@@ -111,3 +111,13 @@ None - no external service configuration required.
 ---
 *Phase: 75-brewpad-invoice-pending-batch-quantity-expansion-multi-qty-k*
 *Completed: 2026-08-26*
+
+## Self-Check: PASSED
+
+- FOUND: tests/frontend/brewpad-unit-label.test.js
+- FOUND: computeUnitLabel in js/brewpad.js
+- FOUND: 'Unit ' label string in js/brewpad.min.js
+- FOUND: SUMMARY.md
+- FOUND commit: 37345b7a (Task 1)
+- FOUND commit: 0ec23ef1 (Task 2)
+- FOUND commit: a062213b (SUMMARY)
