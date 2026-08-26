@@ -4,8 +4,8 @@ milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
 stopped_at: Phase 75 context gathered
-last_updated: "2026-08-26T20:53:08.810Z"
-last_activity: 2026-08-26 -- Phase 75 planning complete
+last_updated: "2026-08-26T20:56:18.279Z"
+last_activity: 2026-08-26 -- Phase 75 execution started
 progress:
   total_phases: 62
   completed_phases: 19
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 74 — beer cider wine catalogue pages under ferment in store split
+**Current focus:** Phase 75 — brewpad-invoice-pending-batch-quantity-expansion-multi-qty-k
 
 ## Current Position
 
-Phase: 74
-Plan: Not started
+Phase: 75 (brewpad-invoice-pending-batch-quantity-expansion-multi-qty-k) — EXECUTING
+Plan: 1 of 2
 Next: **production cutover** — deploy middleware first (`railway up --environment production --service sv_middleware`, verify /health), then `git push production main`. Per CLAUDE.md, prod only after staging approval — now satisfied.
 Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 `milestone_complete` flag was false; corrected 2026-07-10). Done: 46 (SEC-02 ✅), 48 (KIOSK-01 ✅ — de-fork live-verified standalone 2026-07-10, 22/22 threats secured), 52 (RESIL-01 ✅), 53 (OBS-01 ✅), 54 (kiosk gift-card mgmt ✅ — UAT+security closed 2026-07-10). **Open phases:** 47 (SEC-01 — STATE narrative says closed-on-staging but ROADMAP checkbox is still `[ ]`; needs owner reconciliation), 49 (MONEY-01 — 49-01 code merged, 49-02 live-card UAT pending), 50 (MONEY-02) + 51 (MONEY-03) — both now UNBLOCKED (were gated on 48). 50/51 also depend on the money-path-primitive adoption in pos-recipe.js.
-Status: Ready to execute
-Last activity: 2026-08-26 -- Phase 75 planning complete
+Status: Executing Phase 75
+Last activity: 2026-08-26 -- Phase 75 execution started
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed (no staging middleware; rides a prod deploy / Phase 46 cutover): confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
