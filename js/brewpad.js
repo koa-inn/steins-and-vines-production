@@ -574,14 +574,31 @@ function shouldShowKioskBadge(source, status) {
  * @param {Array} allBatches - full unfiltered batch list (sibling search source)
  * @returns {string} e.g. 'Unit 2 of 3', or '' when the batch is not part of a multi-unit group
  */
+// Extract the trailing integer from a batch_id (e.g. 'SV-B-000184' -> 184,
+// 'SV-B-EXISTING-2' -> 2). Returns null when the id has no trailing digits, so
+// callers can fall back to string collation.
+function trailingBatchInt(id) {
+  var m = /(\d+)\s*$/.exec(String(id || ''));
+  return m ? parseInt(m[1], 10) : null;
+}
+
 function computeUnitLabel(batch, allBatches) {
   if (!batch || !batch.zoho_so_number) return '';
   var group = (allBatches || []).filter(function (b) {
     return b && b.zoho_so_number === batch.zoho_so_number && b.product_sku === batch.product_sku;
   });
   if (group.length <= 1) return '';
+  // WR-02: order by creation sequence via the trailing integer of batch_id, so mixed
+  // or non-zero-padded IDs (e.g. legacy 'SV-B-EXISTING-2' vs 'SV-B-000184', or
+  // '...-9' vs '...-10') still sort by unit order. A plain lexicographic sort only
+  // holds for uniform fixed-width zero-padded IDs. Fall back to numeric-aware
+  // collation (then plain string) when a trailing integer is absent or ties.
   group.sort(function (a, b) {
-    return String(a.batch_id).localeCompare(String(b.batch_id));
+    var na = trailingBatchInt(a.batch_id);
+    var nb = trailingBatchInt(b.batch_id);
+    if (na !== null && nb !== null && na !== nb) return na - nb;
+    return String(a.batch_id || '')
+      .localeCompare(String(b.batch_id || ''), undefined, { numeric: true });
   });
   var idx = -1;
   for (var i = 0; i < group.length; i++) {
