@@ -148,6 +148,22 @@ belt-and-braces guard, or collapse the two `no_kit_items` returns.
 
 ---
 
+## Resolution (2026-08-26)
+
+- **WR-01 — FIXED** (`4e34ab24`): `duplicate_so_number` now treated as benign
+  convergence. Per-unit results carry a `duplicate` flag; invoice is `ok` when every
+  unit is satisfied (created OR already-existing); `summarizeBulkResults` counts
+  duplicates into `dupCount`, not `failCount`. +5 frontend + updated/added 3 middleware
+  regression tests.
+- **WR-02 — FIXED** (`581ac245`): `computeUnitLabel` orders by the trailing integer of
+  `batch_id` (numeric-aware fallback), so mixed/legacy/non-padded IDs map to the correct
+  ordinal. +3 regression tests.
+- **IN-01 (`bp-batch-unit` has no CSS) — DEFERRED**: label renders readably via the
+  `— ` separator; dedicated styling not yet added. Low priority.
+- **IN-02 (unreachable secondary early-return) — DEFERRED**: harmless defensive code.
+
+---
+
 _Reviewed: 2026-08-26T21:09:49Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
