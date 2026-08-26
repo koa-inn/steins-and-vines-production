@@ -1120,11 +1120,12 @@ Plans:
 **Goal:** Fix the bug where a Zoho invoice containing quantity > 1 of the same kit produces only ONE pending batch in BrewPad instead of one pending batch per unit. Reported by owner 2026-08-25 with concrete evidence: **INV-000171** (3 × the same kit) surfaced a single pending batch in BrewPad rather than 3. Root cause is in the invoice→pending-batch ingestion/derivation path (line-item quantity is not expanded into per-unit batches; the code likely keys/dedupes pending batches by invoice line or kit SKU without honouring `quantity`). Scope: locate the invoice→pending-batch derivation (BrewPad batch list is fed from Zoho invoices — see the Phase 63 "Batch↔Invoice Reconciliation Model" and Phase 62 inventory-consumption work for the ingestion model), expand multi-qty kit lines into `quantity` distinct pending batches with stable per-unit identity/idempotency (so re-ingestion doesn't duplicate), and add a regression test using an INV-000171-shaped invoice (qty 3 → 3 pending batches). Confirm interaction with any existing batch↔invoice reconciliation/dedup so the fix doesn't create duplicate batches on re-poll.
 **Requirements**: Owner bug report 2026-08-25 (BrewPad batch-ops correctness). Evidence: invoice `INV-000171` (3 × one kit → 1 pending batch observed, 3 expected). Needs diagnosis pass at discuss/research time to pin the exact ingestion site.
 **Depends on:** Chronological only. Related subsystems: Phase 62 (Inventory Consumption Sync), Phase 63 (Batch↔Invoice Reconciliation Model). Independent of Phase 73/74. Touches `zoho-middleware/` batch/invoice ingestion + `brewpad.js` batch list rendering (exact sites TBD in discuss/research).
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 75 to break down)
+- [ ] 75-01-PLAN.md — Fix bulk-create: set unit_total + planKitBatches so multi-qty kit lines create N pending batches (D-01/D-02/D-04), regression-test-first
+- [ ] 75-02-PLAN.md — BrewPad "Unit X of N" per-unit label on multi-unit batch groups (D-03), test-first + bundle rebuild
 
 ### Phase 76: BrewPad session-expiry hardening — decouple the durable 7-day sv_session from the ephemeral Google token so a silent-refresh/Apps-Script 401 no longer forces a full re-login
 
