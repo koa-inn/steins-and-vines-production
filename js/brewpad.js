@@ -560,6 +560,37 @@ function shouldShowKioskBadge(source, status) {
   return source === 'kiosk' && (status || '').toLowerCase() === 'pending';
 }
 
+/**
+ * Derive a per-unit "Unit X of N" label for a batch belonging to a multi-unit
+ * invoice line (D-03). No stored unit_index — the ordinal is derived purely
+ * at render time from the existing sequential batch_id.
+ *
+ * Group key is exactly (zoho_so_number, product_sku) — never batch_id alone.
+ * A non-empty zoho_so_number is required to form a group (an empty/missing
+ * zoho_so_number never groups with another empty one). Groups of size <= 1
+ * render no label.
+ *
+ * @param {Object} batch - the batch to label (needs batch_id, zoho_so_number, product_sku)
+ * @param {Array} allBatches - full unfiltered batch list (sibling search source)
+ * @returns {string} e.g. 'Unit 2 of 3', or '' when the batch is not part of a multi-unit group
+ */
+function computeUnitLabel(batch, allBatches) {
+  if (!batch || !batch.zoho_so_number) return '';
+  var group = (allBatches || []).filter(function (b) {
+    return b && b.zoho_so_number === batch.zoho_so_number && b.product_sku === batch.product_sku;
+  });
+  if (group.length <= 1) return '';
+  group.sort(function (a, b) {
+    return String(a.batch_id).localeCompare(String(b.batch_id));
+  });
+  var idx = -1;
+  for (var i = 0; i < group.length; i++) {
+    if (group[i].batch_id === batch.batch_id) { idx = i; break; }
+  }
+  if (idx === -1) return '';
+  return 'Unit ' + (idx + 1) + ' of ' + group.length;
+}
+
 function buildLifecycleTimeline(batch, soDate) {
   var events = [
     { label: 'Sale & Invoice Created', date: soDate, soRef: batch.zoho_so_number || '' },
@@ -3875,9 +3906,10 @@ function bpIngredientLineCost(item, line) {
         }
         var loc = [b.vessel_id, b.shelf_id && b.bin_id ? b.shelf_id + '-' + b.bin_id : (b.shelf_id || b.bin_id || '')].filter(Boolean).join(' ');
         var rowCls = (isSelected ? 'bp-batch-tr--selected' : '') + (overdueCount > 0 ? ' bp-batch-tr--urgent' : '');
+        var unitLabel = computeUnitLabel(b, _allBatchesData);
         resultsHtml += '<tr class="' + rowCls + '" data-batch-id="' + escapeHTML(b.batch_id) + '">';
         resultsHtml += '<td class="bp-batch-tr-id">' + escapeHTML(b.batch_id) + (overdueCount > 0 ? ' <span class="bp-urgent-dot">\u25cf</span>' : '') + '</td>';
-        resultsHtml += '<td>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</td>';
+        resultsHtml += '<td>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + (unitLabel ? ' <span class="bp-batch-unit">\u2014 ' + escapeHTML(unitLabel) + '</span>' : '') + '</td>';
         resultsHtml += '<td>' + escapeHTML(getCustomerDisplayName(b) || '\u2014') + '</td>';
         resultsHtml += '<td>' + escapeHTML(loc || '\u2014') + '</td>';
         resultsHtml += '<td><span class="bp-status-badge bp-status-badge--' + statusColor + '" style="font-size:0.72rem;padding:1px 6px;">' + escapeHTML(statusLabel) + '</span>';
@@ -3913,6 +3945,7 @@ function bpIngredientLineCost(item, line) {
         var cardCls = 'bp-batch-card' +
           (isSelected ? ' bp-batch-card--selected' : '') +
           (overdueCount > 0 ? ' bp-batch-card--urgent' : '');
+        var cardUnitLabel = computeUnitLabel(b, _allBatchesData);
 
         resultsHtml += '<div class="' + cardCls + '" data-batch-id="' + escapeHTML(b.batch_id) + '">';
         resultsHtml += '<div class="bp-batch-card-header">';
@@ -3922,7 +3955,8 @@ function bpIngredientLineCost(item, line) {
           resultsHtml += ' <span class="bp-kiosk-badge">Kiosk</span>';
         }
         resultsHtml += '</div>';
-        resultsHtml += '<div class="bp-batch-card-name">' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</div>';
+        resultsHtml += '<div class="bp-batch-card-name">' + escapeHTML(b.product_name || b.product_sku || '\u2014') +
+          (cardUnitLabel ? ' <span class="bp-batch-unit">\u2014 ' + escapeHTML(cardUnitLabel) + '</span>' : '') + '</div>';
         if (getCustomerDisplayName(b)) resultsHtml += '<div class="bp-batch-card-customer">' + escapeHTML(getCustomerDisplayName(b)) + '</div>';
         if (isFutureStart(b.start_date)) {
           resultsHtml += '<div class="bp-batch-scheduled"><span class="bp-batch-scheduled-icon" aria-hidden="true">\u25f7</span>Starts ' + escapeHTML(fmtShortDate(b.start_date)) + '</div>';
@@ -9289,6 +9323,7 @@ if (typeof module !== 'undefined' && module.exports) {
     isSessionStale: isSessionStale,
     isSessionExpired: isSessionExpired,
     shouldShowKioskBadge: shouldShowKioskBadge,
+    computeUnitLabel: computeUnitLabel,
     buildLifecycleTimeline: buildLifecycleTimeline,
     isValidZohoNumber: isValidZohoNumber,
     buildRefreshUpdates: buildRefreshUpdates,
