@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: planning
+status: executing
 stopped_at: Phase 76 context gathered
-last_updated: "2026-08-27T12:29:39.777Z"
-last_activity: 2026-08-27
+last_updated: "2026-08-27T14:01:21.001Z"
+last_activity: 2026-08-27 -- Phase 76 planning complete
 progress:
   total_phases: 62
   completed_phases: 20
-  total_plans: 124
+  total_plans: 127
   completed_plans: 121
   percent: 32
 ---
@@ -29,8 +29,8 @@ Phase: 76
 Plan: Not started
 Next: **production cutover** — deploy middleware first (`railway up --environment production --service sv_middleware`, verify /health), then `git push production main`. Per CLAUDE.md, prod only after staging approval — now satisfied.
 Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 `milestone_complete` flag was false; corrected 2026-07-10). Done: 46 (SEC-02 ✅), 48 (KIOSK-01 ✅ — de-fork live-verified standalone 2026-07-10, 22/22 threats secured), 52 (RESIL-01 ✅), 53 (OBS-01 ✅), 54 (kiosk gift-card mgmt ✅ — UAT+security closed 2026-07-10). **Open phases:** 47 (SEC-01 — STATE narrative says closed-on-staging but ROADMAP checkbox is still `[ ]`; needs owner reconciliation), 49 (MONEY-01 — 49-01 code merged, 49-02 live-card UAT pending), 50 (MONEY-02) + 51 (MONEY-03) — both now UNBLOCKED (were gated on 48). 50/51 also depend on the money-path-primitive adoption in pos-recipe.js.
-Status: Ready to plan
-Last activity: 2026-08-27
+Status: Ready to execute
+Last activity: 2026-08-27 -- Phase 76 planning complete
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed and a real card terminal, so it rides a prod deploy / Phase 46 cutover: confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
