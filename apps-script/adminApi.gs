@@ -317,6 +317,51 @@ function doPost(e) {
       if (action === 'get_next_cert_number') {
         return _jsonResponse({ ok: true, suggested: generateNextId(GIFT_CARDS_SHEET_NAME, 'GC-', 6) });
       }
+      // BrewPad write actions (server_token-gated, Phase 76-01)
+      if (action === 'update_batch') {
+        var sUpdateBatchResult = updateBatch(payload, 'middleware');
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(sUpdateBatchResult);
+      }
+      if (action === 'update_batch_schedule') {
+        var sUpdateBatchScheduleResult = updateBatchSchedule(payload, 'middleware');
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(sUpdateBatchScheduleResult);
+      }
+      if (action === 'delete_batch') {
+        var sDeleteBatchResult = deleteBatch(payload, 'middleware');
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(sDeleteBatchResult);
+      }
+      if (action === 'bulk_add_plato_readings') {
+        var sBulkAddPlatoReadingsResult = bulkAddPlatoReadings(payload, 'middleware');
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(sBulkAddPlatoReadingsResult);
+      }
+      if (action === 'bulk_update_batch_tasks') {
+        var sBulkUpdateBatchTasksResult = bulkUpdateBatchTasks(payload, 'middleware');
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(sBulkUpdateBatchTasksResult);
+      }
+      if (action === 'update_plato_reading') {
+        var sUpdatePlatoReadingResult = updatePlatoReading(payload, 'middleware');
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(sUpdatePlatoReadingResult);
+      }
+      if (action === 'delete_plato_reading') {
+        var sDeletePlatoReadingResult = deletePlatoReading(payload);
+        _invalidateBatchCache(payload.batch_id);
+        return _jsonResponse(sDeletePlatoReadingResult);
+      }
+      if (action === 'create_ferm_schedule') {
+        return _jsonResponse(createFermSchedule(payload, 'middleware'));
+      }
+      if (action === 'update_ferm_schedule') {
+        return _jsonResponse(updateFermSchedule(payload, 'middleware'));
+      }
+      if (action === 'delete_ferm_schedule') {
+        return _jsonResponse(deleteFermSchedule(payload));
+      }
       return _jsonResponse({ ok: false, error: 'invalid_action', message: 'Unknown server action: ' + action });
     }
 
