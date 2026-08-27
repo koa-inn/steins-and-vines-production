@@ -171,29 +171,37 @@
         <div class="section-icon">
           <img src="images/Icon_green.svg" alt="" aria-hidden="true" loading="lazy">
         </div>
-
-        <div class="open-hours" id="open-hours"></div>
       </div>
     </section>
 
     <style>
-      .visit-us { max-width: var(--max-width); margin: 0 auto; padding: 0 20px 8px; }
-      .visit-us > h2 { text-align: center; }
-      .visit-us-grid { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: start; }
-      @media (min-width: 720px) { .visit-us-grid { grid-template-columns: 1fr 1.2fr; } }
+      .visit-us { max-width: 940px; margin: 8px auto 0; padding: 0 20px; }
+      .visit-us > h2 { text-align: center; margin: 0 0 22px; }
+      .visit-us-card {
+        display: grid;
+        grid-template-columns: 1fr;
+        background: var(--color-white);
+        border: 1px solid var(--color-cream);
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(55, 14, 19, 0.06);
+      }
+      @media (min-width: 760px) { .visit-us-card { grid-template-columns: 1fr 1fr; } }
+      .visit-us-info { padding: 26px 28px; }
+      .visit-us-info h3 { margin: 0 0 14px; }
       .visit-hours-list { list-style: none; margin: 0 0 16px; padding: 0; }
-      .visit-hours-list li { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--color-cream); }
+      .visit-hours-list li { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--color-cream); }
       .visit-hours-list li:last-child { border-bottom: 0; }
       .visit-hours-list .vh-day { font-weight: 700; color: var(--color-text); }
       .visit-hours-list .vh-time { color: var(--color-muted); }
       .visit-hours-list .vh-time.closed { color: var(--color-error); }
-      .visit-address { margin: 0; }
-      .visit-us-map { border-radius: 12px; overflow: hidden; border: 1px solid var(--color-cream); box-shadow: 0 2px 6px rgba(55, 14, 19, 0.06); line-height: 0; }
-      .visit-us-map iframe { width: 100%; height: 320px; border: 0; display: block; }
+      .visit-address { margin: 0; font-size: 0.95rem; }
+      .visit-us-map { line-height: 0; min-height: 260px; }
+      .visit-us-map iframe { width: 100%; height: 100%; min-height: 260px; border: 0; display: block; }
     </style>
     <section class="visit-us" aria-labelledby="visit-us-title">
       <h2 id="visit-us-title">Visit Us</h2>
-      <div class="visit-us-grid">
+      <div class="visit-us-card">
         <div class="visit-us-info">
           <h3>Store Hours</h3>
           <ul class="visit-hours-list">
