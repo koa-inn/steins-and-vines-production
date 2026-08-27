@@ -1,6 +1,16 @@
 // ===== Steins & Vines BrewPad — iPad Batch Terminal =====
 // Self-contained IIFE — no dependency on admin.js.
 
+// Phase 76-03: module-scope hook the fetch-wrapper IIFE below calls on every
+// MIDDLEWARE_URL response. Assigned to the real implementation once the main
+// auth IIFE below runs (it needs closure access to clearSession/accessToken/
+// showSessionExpiredOverlay). Declared here, at the top level, so it is
+// reachable both from the wrapped window.fetch (production) and from the
+// module.exports test seam at the bottom of this file (Jest) -- see
+// _handleMiddlewareResponse's assignment further down for why this can't
+// simply live inside either IIFE.
+var _handleMiddlewareResponse = null;
+
 // Attach the session token to every middleware request as an x-session-token
 // header. The httpOnly sv_session cookie is set at login but modern browsers do
 // NOT send it to the cross-site Railway origin, so staff surfaces carry the same
@@ -33,7 +43,12 @@
         }
       }
     } catch (e) { /* never break a fetch over telemetry */ }
-    return origFetch.call(this, input, init);
+    return origFetch.call(this, input, init).then(function (response) {
+      // Phase 76-03 (D-03): the SOLE full-re-login trigger is a real
+      // middleware HTTP 401 -- never a Google/Apps-Script body substring.
+      try { if (typeof _handleMiddlewareResponse === 'function') _handleMiddlewareResponse(url, response); } catch (e) {}
+      return response;
+    });
   };
 })();
 
@@ -904,6 +919,10 @@ function bpIngredientLineCost(item, line) {
   var _tokenWarnTimer = null;
   var _silentRefreshTimer = null;
   var _handlingUnauthorized = false;
+  // Phase 76-03 (D-03): guards the SOLE full-re-login trigger (a real
+  // middleware HTTP 401, or another tab explicitly signing out) so it fires
+  // exactly once. Reset on a fresh successful checkAuthorization() (login).
+  var _sessionLoggedOut = false;
   var _refreshInFlight = false;
   var _lastTokenTime = 0;
   var _visibilityListenerAdded = false;
@@ -1011,10 +1030,11 @@ function bpIngredientLineCost(item, line) {
       var raw = localStorage.getItem(SESSION_KEY);
       if (!raw) return null;
       var data = JSON.parse(raw);
-      if (data.login_at && isSessionExpired(data.login_at, 7 * 24 * 60 * 60 * 1000)) {
-        localStorage.removeItem(SESSION_KEY);
-        return null;
-      }
+      // Phase 76-03 (D-01/RESEARCH.md Pitfall 2): the client-side 7-day
+      // login_at cliff is dropped -- it was a hard, un-renewed cutoff
+      // independent of (and shorter-lived than) the server's sliding
+      // sv_session expiry (touchSession, Plan 76-02). Trust the server 401
+      // as the single source of truth for session validity.
       var tokenValid = data.expires_at > Date.now() + 5 * 60 * 1000;
       return { email: data.email, token: tokenValid ? data.token : null, expires_at: data.expires_at, tokenValid: tokenValid, login_at: data.login_at };
     } catch (e) { return null; }
@@ -1263,6 +1283,9 @@ function bpIngredientLineCost(item, line) {
           // sv_session cookie is also set, but browsers don't send it to the
           // cross-site Railway origin — the header carries the same opaque id.
           try { if (result.token) { localStorage.setItem('sv_session_token', result.token); } } catch (e) {}
+          // A fresh, successful login re-arms the once-only logout guard so a
+          // later real middleware 401 (D-03) can still trigger it.
+          _sessionLoggedOut = false;
           showApp();
         } else { showDenied(); }
       })
@@ -1337,11 +1360,13 @@ function bpIngredientLineCost(item, line) {
       _visibilityListenerAdded = true;
     }
 
-    // Multi-tab session sync: if another tab signs out, sign out this tab too
+    // Multi-tab session sync: if another tab signs out, sign out this tab too.
+    // Phase 76-03: re-routed to the single "session ended" transition
+    // (_enterLoggedOutState) shared with the real-middleware-401 interceptor
+    // -- not the deleted Apps-Script-401 handleUnauthorized() path.
     window.addEventListener('storage', function (e) {
       if (e.key === SESSION_KEY && !e.newValue && accessToken) {
-        accessToken = null; userEmail = null;
-        handleUnauthorized();
+        _enterLoggedOutState();
       }
     });
 
@@ -1419,6 +1444,38 @@ function bpIngredientLineCost(item, line) {
     showSessionExpiredOverlay();
   }
 
+  // Phase 76-03 (D-01/D-02/D-03): the SOLE "full re-login" transition. Reached
+  // either by a real middleware HTTP 401 (_handleMiddlewareResponse below,
+  // driven by the fetch-wrapper IIFE's response path) or by another tab
+  // explicitly signing out (the multi-tab storage listener above). Never
+  // reached by a Google/Apps-Script body substring.
+  function _enterLoggedOutState() {
+    if (_sessionLoggedOut) return;
+    _sessionLoggedOut = true;
+    saveAllFormDrafts();
+    clearSession();
+    accessToken = null;
+    userEmail = null;
+    var dot = document.getElementById('bp-auth-dot');
+    if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--offline'; dot.title = 'Not signed in'; }
+    showSessionExpiredOverlay();
+  }
+
+  // Module-scope hook (declared at the top of the file) assigned here so the
+  // fetch-wrapper IIFE (which runs before this closure exists, and is a no-op
+  // under Jest/CommonJS) can still reach this logic at actual fetch-call time,
+  // AND so the bottom-of-file module.exports block can export the SAME
+  // function Task 1's regression tests drive directly.
+  _handleMiddlewareResponse = function (url, response) {
+    try {
+      var base = mwUrl();
+      if (base && (url || '').indexOf(base) === 0 && response && response.status === 401) {
+        _enterLoggedOutState();
+      }
+    } catch (e) { /* never break a fetch over telemetry */ }
+    return response;
+  };
+
   // ===== API Helpers =====
 
   function fetchWithRetry(url, options, retries) {
@@ -1440,50 +1497,53 @@ function bpIngredientLineCost(item, line) {
     return msg.indexOf('unauthorized') !== -1 || msg.indexOf('not authorized') !== -1;
   }
 
+  // Phase 76-03 (D-01): both helpers now hit the middleware's allow-listed
+  // Apps-Script proxy (Plan 76-02) instead of SHEETS_CONFIG.ADMIN_API_URL
+  // directly. No Google token is sent -- identity is proven solely by the
+  // x-session-token header the fetch-wrapper IIFE (top of file) attaches to
+  // every MIDDLEWARE_URL request. Errors are handled by REAL HTTP status
+  // (mirrors postBottlingInvite/bpSaveAsNewRecipe), never a body substring --
+  // a real 401 is caught by the SAME status check and routed to the single
+  // global _handleMiddlewareResponse interceptor (D-03), not handled here.
   function adminApiGet(action, params) {
-    if (!SHEETS_CONFIG.ADMIN_API_URL) return Promise.reject(new Error('Admin API not configured'));
-    // 64-03 (OPS-03 SC#3): reads POST the OAuth token in the JSON body -- the
-    // token no longer appears in the URL where intermediary/proxy/access logs
-    // capture it. Same transport as adminApiPost (text/plain avoids the CORS
-    // preflight Apps Script can't answer); adminApi.gs doPost routes read
-    // actions through the same handlers as doGet (handleReadAction).
-    var body = { action: action, token: accessToken };
+    var body = { action: action };
     if (params) {
       Object.keys(params).forEach(function (key) {
         body[key] = params[key];
       });
     }
-    return fetchWithRetry(SHEETS_CONFIG.ADMIN_API_URL, {
+    return fetchWithRetry(mwUrl() + '/api/batch/admin-proxy', {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        if (!data.ok) {
-          if (isUnauthorizedError(data)) handleUnauthorized();
-          throw new Error(data.message || data.error || 'API error');
-        }
-        return data;
+      .then(function (r) {
+        return r.json().then(function (data) {
+          if (!r.ok || !data || !data.ok) {
+            throw new Error((data && (data.message || data.error)) || ('HTTP ' + r.status));
+          }
+          return data;
+        });
       });
   }
 
   function adminApiPost(action, payload) {
-    if (!SHEETS_CONFIG.ADMIN_API_URL) return Promise.reject(new Error('Admin API not configured'));
+    payload = payload || {};
     payload.action = action;
-    payload.token = accessToken;
-    return fetchWithRetry(SHEETS_CONFIG.ADMIN_API_URL, {
+    return fetchWithRetry(mwUrl() + '/api/batch/admin-proxy', {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        if (!data.ok) {
-          if (isUnauthorizedError(data)) handleUnauthorized();
-          throw new Error(data.message || data.error || 'API error');
-        }
-        return data;
+      .then(function (r) {
+        return r.json().then(function (data) {
+          if (!r.ok || !data || !data.ok) {
+            throw new Error((data && (data.message || data.error)) || ('HTTP ' + r.status));
+          }
+          return data;
+        });
       });
   }
 
@@ -9253,6 +9313,13 @@ function bpIngredientLineCost(item, line) {
       // 64-03: test seam for the adminApiGet token-transport regression test --
       // adminApiGet has no other public caller that isolates a single call/response.
       _adminApiGetForTest: adminApiGet,
+      // Phase 76-03: parallel seam for adminApiPost (mirrors _adminApiGetForTest).
+      _adminApiPostForTest: adminApiPost,
+      // Phase 76-03 (D-03): exported so Task 1's regression tests can drive the
+      // single global middleware-401 interceptor directly -- under Jest the
+      // fetch-wrapper IIFE at the top of this file never runs (module !==
+      // undefined guard), so this is the only reachable path to it in tests.
+      _handleMiddlewareResponse: _handleMiddlewareResponse,
       // Allow tests to reset IIFE-scoped auth state between runs.
       _resetAuthStateForTest: function () {
         accessToken = null;
@@ -9261,6 +9328,7 @@ function bpIngredientLineCost(item, line) {
         _silentRefreshTimer = null;
         _refreshInFlight = false;
         _handlingUnauthorized = false;
+        _sessionLoggedOut = false;
         _lastTokenTime = 0;
       }
     });

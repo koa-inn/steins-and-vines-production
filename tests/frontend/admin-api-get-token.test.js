@@ -11,11 +11,21 @@
 // and the exact return contract (resolve `data` unchanged on ok:true;
 // handleUnauthorized()-then-reject on ok:false unauthorized) is preserved.
 //
-// RED until js/brewpad.js and js/admin.js's adminApiGet are rewritten
-// (Task 4 of this plan). Exercised via the same test-only export seam already
-// used by every other IIFE-scoped helper in these files (mirrors
-// _setAccessTokenForTest / checkAuthorization in the same exports blocks) --
-// adminApiGet has no public caller that isolates a single call/response.
+// Exercised via the same test-only export seam already used by every other
+// IIFE-scoped helper in these files (mirrors _setAccessTokenForTest /
+// checkAuthorization in the same exports blocks) -- adminApiGet has no
+// public caller that isolates a single call/response.
+//
+// Phase 76-03 amendment (D-01): brewpad.js's adminApiGet/adminApiPost were
+// migrated wholesale to the middleware's allow-listed admin-proxy
+// (mwUrl()+'/api/batch/admin-proxy') and no longer send a Google token at
+// all -- the 64-03 "token moved from URL to body" concern is now moot for
+// that surface (there is no token in the request whatsoever; identity is
+// proven by the x-session-token header instead). admin.js is untouched by
+// Phase 76 (Pitfall 4: BrewPad-only scope) and keeps the original 64-03
+// contract unchanged. The `surface` objects below now carry the per-surface
+// transport/unauthorized-outcome expectations so this one shared suite can
+// assert the correct (and now divergent) contract for each.
 
 function flushPromises() {
   return new Promise(function (resolve) { setTimeout(resolve, 0); });
@@ -74,19 +84,19 @@ function runAdminApiGetTokenSuite(surface) {
       surface.setAccessToken(mod, 'test-access-token');
     });
 
-    test('issues a fetch whose URL carries no token= and no ?action= query string', function () {
+    test(surface.urlTestTitle, function () {
       mockFetchOnce({ ok: true, data: { vessels: [] } });
 
       mod._adminApiGetForTest('get_vessels');
 
       expect(global.fetch).toHaveBeenCalledTimes(1);
       var url = String(global.fetch.mock.calls[0][0]);
-      expect(url).toBe(global.SHEETS_CONFIG.ADMIN_API_URL);
+      expect(url).toBe(surface.expectedUrl(global.SHEETS_CONFIG));
       expect(url.indexOf('token=')).toBe(-1);
       expect(url.indexOf('?action=')).toBe(-1);
     });
 
-    test('POSTs method with token + action + params in the JSON body', function () {
+    test(surface.bodyTestTitle, function () {
       mockFetchOnce({ ok: true, data: { batch_id: 'X' } });
 
       mod._adminApiGetForTest('get_batch', { batch_id: 'X' });
@@ -95,7 +105,11 @@ function runAdminApiGetTokenSuite(surface) {
       var opts = call[1];
       expect(opts.method).toBe('POST');
       var body = JSON.parse(opts.body);
-      expect(body.token).toBe('test-access-token');
+      if (surface.expectTokenField) {
+        expect(body.token).toBe('test-access-token');
+      } else {
+        expect(body).not.toHaveProperty('token');
+      }
       expect(body.action).toBe('get_batch');
       expect(body.batch_id).toBe('X');
     });
@@ -108,7 +122,7 @@ function runAdminApiGetTokenSuite(surface) {
       });
     });
 
-    test('{ ok:false, message: "unauthorized" } triggers handleUnauthorized and rejects', function () {
+    test(surface.unauthorizedTestTitle, function () {
       mockFetchOnce({ ok: false, message: 'unauthorized' });
 
       var rejected = mod._adminApiGetForTest('get_vessels').then(
@@ -120,7 +134,7 @@ function runAdminApiGetTokenSuite(surface) {
         return rejected;
       }).then(function (err) {
         expect(err).toBeInstanceOf(Error);
-        surface.assertUnauthorizedSideEffect();
+        surface.assertUnauthorizedOutcome();
       });
     });
   });
@@ -131,10 +145,21 @@ runAdminApiGetTokenSuite({
   modulePath: '../../js/brewpad',
   domFixture: '<div id="bp-toast-container"></div>',
   setAccessToken: function (mod, token) { mod._setAccessTokenForTest(token); },
-  assertUnauthorizedSideEffect: function () {
-    // handleUnauthorized() shows the session-expired overlay -- a visible,
-    // implementation-stable side effect (js/brewpad.js:showSessionExpiredOverlay).
-    expect(document.getElementById('bp-session-overlay')).not.toBeNull();
+  // Phase 76-03 (D-01): brewpad.js's adminApiGet/adminApiPost were migrated
+  // wholesale to the middleware admin-proxy -- no Google token anywhere in
+  // the request, target URL is mwUrl()+'/api/batch/admin-proxy' rather than
+  // ADMIN_API_URL.
+  urlTestTitle: 'issues a fetch to the middleware admin-proxy (no ADMIN_API_URL, no query string) -- Phase 76-03 D-01',
+  expectedUrl: function (cfg) { return cfg.MIDDLEWARE_URL + '/api/batch/admin-proxy'; },
+  bodyTestTitle: 'POSTs method with action + params in the JSON body, no token field -- Phase 76-03 D-01',
+  expectTokenField: false,
+  unauthorizedTestTitle: '{ ok:false, message: "unauthorized" } rejects WITHOUT clearing sv_session (D-02/D-03: no more per-call isUnauthorizedError/handleUnauthorized)',
+  assertUnauthorizedOutcome: function () {
+    // D-03: a body-level "unauthorized" message from the upstream admin-proxy
+    // response is NOT a real middleware HTTP 401 -- it must never show the
+    // session-expired overlay (that is now the sole job of the global
+    // _handleMiddlewareResponse interceptor, keyed on res.status === 401).
+    expect(document.getElementById('bp-session-overlay')).toBeNull();
   }
 });
 
@@ -148,7 +173,15 @@ runAdminApiGetTokenSuite({
     '<span id="admin-user-email">staff@example.com</span>' +
     '<button id="admin-signout"></button>',
   setAccessToken: function (mod, token) { mod._setAccessToken(token); },
-  assertUnauthorizedSideEffect: function () {
+  // admin.js is untouched by Phase 76 (Pitfall 4: BrewPad-only scope) -- the
+  // original 64-03 contract (token in body, ADMIN_API_URL target,
+  // handleUnauthorized on an "unauthorized" body) is unchanged.
+  urlTestTitle: 'issues a fetch whose URL carries no token= and no ?action= query string',
+  expectedUrl: function (cfg) { return cfg.ADMIN_API_URL; },
+  bodyTestTitle: 'POSTs method with token + action + params in the JSON body',
+  expectTokenField: true,
+  unauthorizedTestTitle: '{ ok:false, message: "unauthorized" } triggers handleUnauthorized and rejects',
+  assertUnauthorizedOutcome: function () {
     // handleUnauthorized() re-shows the sign-in screen and hides the dashboard
     // (js/admin.js:handleUnauthorized).
     expect(document.getElementById('admin-signin').style.display).toBe('');

@@ -71,8 +71,10 @@ function mockFetch(opts) {
       });
     }
 
-    // Apps Script admin API (delete_batch POST, get_batches preload GET, etc.)
-    if (u.indexOf(global.SHEETS_CONFIG.ADMIN_API_URL) === 0) {
+    // Middleware admin-proxy (delete_batch POST, get_batches preload GET, etc.)
+    // -- Phase 76-03: adminApiGet/adminApiPost now hit mwUrl()+'/api/batch/
+    // admin-proxy' instead of SHEETS_CONFIG.ADMIN_API_URL directly (D-01).
+    if (u.indexOf('/api/batch/admin-proxy') !== -1) {
       if (options && options.method === 'POST') {
         var body = JSON.parse((options && options.body) || '{}');
         if (body.action === 'delete_batch') {
