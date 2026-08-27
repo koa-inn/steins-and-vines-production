@@ -142,9 +142,19 @@
     }
     .lb-social a:focus-visible { outline: 3px solid var(--color-gold); outline-offset: 2px; }
     .lb-social svg { width: 22px; height: 22px; fill: currentColor; }
+    .lb-map {
+      width: 100%;
+      margin-top: 6px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--color-cream);
+      box-shadow: 0 2px 6px rgba(55, 14, 19, 0.06);
+      line-height: 0;
+    }
+    .lb-map iframe { width: 100%; height: 180px; border: 0; display: block; }
     .lb-foot {
-      margin-top: auto;
-      padding-top: 26px;
+      margin-top: 20px;
+      padding-top: 22px;
       font-family: var(--font-body);
       font-size: 0.85rem;
       line-height: 1.6;
@@ -186,6 +196,9 @@
       </a>
     </div>
 
+    <div class="lb-map">
+      <iframe title="Map to Steins &amp; Vines, 11-38918 Progress Way, Squamish" src="https://www.google.com/maps?q=Steins+and+Vines,+11-38918+Progress+Way,+Squamish,+BC+V8B+0K7&amp;z=16&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+    </div>
     <footer class="lb-foot">
       <a href="https://maps.app.goo.gl/ZXnczQAtsWeiYTqW7" target="_blank" rel="noopener">11-38918 Progress Way, Squamish, BC V8B 0K7</a>
       <div class="lb-hours">Tue&ndash;Sat 10AM&ndash;4PM &middot; Thu until 7PM &middot; Sun &amp; Mon closed</div>
