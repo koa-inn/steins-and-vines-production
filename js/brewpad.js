@@ -915,10 +915,17 @@ function bpIngredientLineCost(item, line) {
   var accessToken = null;
   var userEmail = null;
   var tokenClient = null;
-  var _tokenRefreshTimer = null;
-  var _tokenWarnTimer = null;
-  var _silentRefreshTimer = null;
-  var _handlingUnauthorized = false;
+  // Phase 76-03 (D-02): the ~1hr proactive Google-token refresh timers
+  // (a periodic refresh interval + a warn-before-expiry timeout) and the Apps-Script-401
+  // "wipe sv_session on any auth-shaped failure" machinery they fed are
+  // DELETED, not hardened -- runtime traffic no longer depends on a live
+  // Google token (D-01), so nothing needs to keep one warm while the app is
+  // open. _googleResumeTimer (below, formerly a differently-named timer) is
+  // the one piece that survives: the login-time "get a fresh Google token
+  // silently so the mandatory per-page-load /auth/google exchange doesn't
+  // need a popup" flow (doSilentRefreshOnLoad) is unrelated to that bug --
+  // see RESEARCH.md Open Question #1 / 76-03-SUMMARY.md.
+  var _googleResumeTimer = null;
   // Phase 76-03 (D-03): guards the SOLE full-re-login trigger (a real
   // middleware HTTP 401, or another tab explicitly signing out) so it fires
   // exactly once. Reset on a fresh successful checkAuthorization() (login).
@@ -1102,9 +1109,11 @@ function bpIngredientLineCost(item, line) {
         _refreshInFlight = false;
         var dot = document.getElementById('bp-auth-dot');
         if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--offline'; dot.title = 'Not signed in'; }
-        if (accessToken) {
-          handleUnauthorized();
-        }
+        // Phase 76-03 (D-02/D-03): a failed/cancelled Google-token mint no
+        // longer forces a full sv_session logout -- it only means "not
+        // currently holding a fresh Google token". A still-valid sv_session
+        // (if any) is untouched; only a real middleware 401 logs out.
+        showSignInButton();
       }
     });
 
@@ -1127,8 +1136,8 @@ function bpIngredientLineCost(item, line) {
       }
       // Fallback: if no response in 15s, just show the signin button.
       // Do NOT clear session here — the token may still arrive.
-      _silentRefreshTimer = setTimeout(function () {
-        _silentRefreshTimer = null;
+      _googleResumeTimer = setTimeout(function () {
+        _googleResumeTimer = null;
         showSignInButton();
       }, 15000);
       var _refreshAttempts = 0;
@@ -1140,9 +1149,12 @@ function bpIngredientLineCost(item, line) {
           if (_refreshAttempts < 3) {
             setTimeout(attemptSilentRefresh, 1000 * _refreshAttempts);
           } else {
-            clearTimeout(_silentRefreshTimer);
-            _silentRefreshTimer = null;
-            clearSession();
+            clearTimeout(_googleResumeTimer);
+            _googleResumeTimer = null;
+            // Phase 76-03 (D-03): exhausting the silent-Google-refresh
+            // retries does NOT clear sv_session -- a still-valid session
+            // (from a prior page load) must survive a Google-side hiccup.
+            // Just fall back to showing the manual sign-in button.
             showSignInButton();
           }
         }
@@ -1215,7 +1227,7 @@ function bpIngredientLineCost(item, line) {
   }
 
   function tryRefreshToken() {
-    if (_refreshInFlight || _handlingUnauthorized) return;
+    if (_refreshInFlight) return;
     var session = loadSession();
     var email = (session && session.email) || userEmail || '';
     if (!tokenClient) return;
@@ -1227,18 +1239,22 @@ function bpIngredientLineCost(item, line) {
     } catch (err) {
       _refreshInFlight = false;
       if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--offline'; dot.title = 'Not signed in'; }
-      handleUnauthorized();
+      // Phase 76-03 (D-02/D-03): a failed Google-token refresh no longer
+      // forces a full sv_session logout -- see error_callback above.
     }
   }
 
   function onTokenResponse(response) {
-    if (_silentRefreshTimer) { clearTimeout(_silentRefreshTimer); _silentRefreshTimer = null; }
+    if (_googleResumeTimer) { clearTimeout(_googleResumeTimer); _googleResumeTimer = null; }
     _refreshInFlight = false;
-    _handlingUnauthorized = false;
     if (response.error) {
       if (accessToken) {
-        // Refresh failed while app was active — show sign-in screen so user can re-authenticate.
-        handleUnauthorized();
+        // Refresh failed while app was active. The Google token is
+        // login-only now (D-01/D-02) -- runtime traffic uses
+        // sv_session_token, so this does NOT clear a still-valid session
+        // (D-03); just reflect "not refreshed" in the UI.
+        var dot = document.getElementById('bp-auth-dot');
+        if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--offline'; dot.title = 'Not signed in'; }
       } else {
         // Initial auth attempt failed (e.g. user closed popup) — stay on sign-in screen.
         clearSession();
@@ -1331,22 +1347,11 @@ function bpIngredientLineCost(item, line) {
       });
     }
 
-    if (_tokenRefreshTimer) clearInterval(_tokenRefreshTimer);
-    _tokenRefreshTimer = setInterval(function () {
-      tryRefreshToken();
-    }, 50 * 60 * 1000);
-
-    // Auto-refresh 5 minutes before token expiry (D-07: silent refresh, no toast on success)
-    if (_tokenWarnTimer) clearTimeout(_tokenWarnTimer);
-    var sessionData = null;
-    try { var raw = localStorage.getItem(SESSION_KEY); if (raw) sessionData = JSON.parse(raw); } catch (e) {}
-    if (sessionData && sessionData.expires_at) {
-      var remainMs = sessionData.expires_at - Date.now();
-      var warnMs = Math.max(0, remainMs - 300000); // 5 minutes before expiry
-      _tokenWarnTimer = setTimeout(function () {
-        tryRefreshToken();
-      }, warnMs);
-    }
+    // Phase 76-03 (D-01/D-02): the ~1hr proactive refresh interval and the
+    // 5-min-before-expiry warn timer are DELETED -- both existed solely to
+    // keep a runtime Google token alive for adminApiGet/Post, which no
+    // longer send one at all. tryRefreshToken() survives only for the
+    // visibility-wake path below.
 
     // Visibility-based wake detection (D-01): on iPad wake from sleep, refresh if stale
     if (!_visibilityListenerAdded) {
@@ -1363,7 +1368,7 @@ function bpIngredientLineCost(item, line) {
     // Multi-tab session sync: if another tab signs out, sign out this tab too.
     // Phase 76-03: re-routed to the single "session ended" transition
     // (_enterLoggedOutState) shared with the real-middleware-401 interceptor
-    // -- not the deleted Apps-Script-401 handleUnauthorized() path.
+    // -- not the deleted per-call Apps-Script-401 auth-clearing path.
     window.addEventListener('storage', function (e) {
       if (e.key === SESSION_KEY && !e.newValue && accessToken) {
         _enterLoggedOutState();
@@ -1387,8 +1392,6 @@ function bpIngredientLineCost(item, line) {
   }
 
   function bpSignOut() {
-    if (_tokenRefreshTimer) { clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null; }
-    if (_tokenWarnTimer) { clearTimeout(_tokenWarnTimer); _tokenWarnTimer = null; }
     if (_dashAutoRefreshTimer) { clearInterval(_dashAutoRefreshTimer); _dashAutoRefreshTimer = null; }
     if (accessToken) google.accounts.oauth2.revoke(accessToken);
     accessToken = null;
@@ -1426,22 +1429,6 @@ function bpIngredientLineCost(item, line) {
       } catch (e) {}
     });
     return restored;
-  }
-
-  function handleUnauthorized() {
-    if (_handlingUnauthorized) return;
-    _handlingUnauthorized = true;
-    if (_tokenRefreshTimer) { clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null; }
-    if (_tokenWarnTimer) { clearTimeout(_tokenWarnTimer); _tokenWarnTimer = null; }
-
-    saveAllFormDrafts();
-
-    clearSession();
-    accessToken = null;
-    userEmail = null;
-    var dot = document.getElementById('bp-auth-dot');
-    if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--offline'; dot.title = 'Not signed in'; }
-    showSessionExpiredOverlay();
   }
 
   // Phase 76-03 (D-01/D-02/D-03): the SOLE "full re-login" transition. Reached
@@ -1490,11 +1477,6 @@ function bpIngredientLineCost(item, line) {
       }
       throw err;
     });
-  }
-
-  function isUnauthorizedError(data) {
-    var msg = ((data.message || data.error || '') + '').toLowerCase();
-    return msg.indexOf('unauthorized') !== -1 || msg.indexOf('not authorized') !== -1;
   }
 
   // Phase 76-03 (D-01): both helpers now hit the middleware's allow-listed
@@ -2895,8 +2877,8 @@ function bpIngredientLineCost(item, line) {
     };
   }
 
-  // D-05a: snapshot the recipe draft immediately (not only on the 401
-  // handleUnauthorized path) -- called from saveRecipe's failure branch so
+  // D-05a: snapshot the recipe draft immediately (not only on the
+  // session-logout path) -- called from saveRecipe's failure branch so
   // a failed save (network, 422, 502...) never orphans in-progress work.
   function saveRecipeDraftNow() {
     try {
@@ -9253,7 +9235,7 @@ function bpIngredientLineCost(item, line) {
   // a session-expiry/reload could silently lose in-progress recipe edits.
   // save() is also invoked directly from submitRecipeSave's failure branch
   // (saveRecipeDraftNow), not only via this registry's saveAllFormDrafts/
-  // handleUnauthorized path.
+  // session-logout (_enterLoggedOutState) path.
   _formSavers.push({
     key: RECIPE_DRAFT_KEY,
     save: recipeDraftSnapshot,
@@ -9325,9 +9307,8 @@ function bpIngredientLineCost(item, line) {
         accessToken = null;
         userEmail = null;
         tokenClient = null;
-        _silentRefreshTimer = null;
+        _googleResumeTimer = null;
         _refreshInFlight = false;
-        _handlingUnauthorized = false;
         _sessionLoggedOut = false;
         _lastTokenTime = 0;
       }
