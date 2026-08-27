@@ -1134,15 +1134,17 @@ Plans:
 **Depends on:** Chronological only. Independent of Phase 73/74/75. Related: Phase 46 (Auth Re-Architecture — introduced the `sv_session`/`x-session-token` model). Touches `js/brewpad.js` (+ `js/brewpad.min.js` rebuild), possibly `js/lib/auth.js`; frontend-only unless fix #4 is folded in (then `zoho-middleware/`). Vanilla ES5; `npm test` + `npm run lint` before commit.
 **Plans:** 3 plans across 3 waves
 
+**Status:** Implementation COMPLETE + verified (2026-08-27) — all 3 plans executed, 11/11 must-haves verified, frontend 1151/1151 + middleware 1459/1459 green, lint clean. Verifier found + closed one D-03 gap (residual `clearSession()` in `onTokenResponse` GIS-error path, fix `d79084b3`). Verdict `human_needed`: two live carry-forwards remain — (a) iPad Safari session-survival UAT, (b) staging→prod deploy (Apps-Script already owner-redeployed + live-probed; middleware + frontend not yet pushed). See `76-VERIFICATION.md`.
+
 Plans:
 **Wave 1**
-- [ ] 76-01-PLAN.md — Apps-Script write-allowlist extension (9 actions) + owner redeploy checkpoint + live read-probe (A2) [autonomous:false]
+- [x] 76-01-PLAN.md — Apps-Script write-allowlist extension (10 actions) + owner redeploy checkpoint + live read-probe (A2) [autonomous:false] ✅ owner-redeployed + live-verified
 
 **Wave 2**
-- [ ] 76-02-PLAN.md — Middleware /api/batch/admin-proxy (allow-listed server_token proxy) + touchSession sliding-expiry wiring + middleware tests
+- [x] 76-02-PLAN.md — Middleware /api/batch/admin-proxy (allow-listed server_token proxy) + touchSession sliding-expiry wiring + middleware tests ✅
 
 **Wave 3**
-- [ ] 76-03-PLAN.md — Frontend single-credential migration: repoint adminApiGet/adminApiPost, global middleware-401 interceptor, DELETE dual-token machinery + regression tests + build/lint/test gate
+- [x] 76-03-PLAN.md — Frontend single-credential migration: repoint adminApiGet/adminApiPost, global middleware-401 interceptor, DELETE dual-token machinery + regression tests + build/lint/test gate ✅
 
 ---
 

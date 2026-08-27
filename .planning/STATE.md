@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
-stopped_at: Phase 76 context gathered
+stopped_at: Phase 76 executed + verified (human_needed — UAT + prod deploy carry-forward)
 last_updated: "2026-08-27T14:01:21.001Z"
-last_activity: 2026-08-27 -- Phase 76 planning complete
+last_activity: 2026-08-27 -- Phase 76 executed + verified (D-03 gap found & closed)
 progress:
   total_phases: 62
   completed_phases: 20
   total_plans: 127
-  completed_plans: 121
-  percent: 32
+  completed_plans: 124
+  percent: 33
 ---
 
 # Project State
@@ -26,11 +26,14 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 76
-Plan: Not started
-Next: **production cutover** — deploy middleware first (`railway up --environment production --service sv_middleware`, verify /health), then `git push production main`. Per CLAUDE.md, prod only after staging approval — now satisfied.
+Plan: 76-01 / 76-02 / 76-03 all COMPLETE + verified (2026-08-27)
+Next: **staging deploy + BrewPad UAT, then prod cutover.** Apps-Script leg already owner-redeployed + live-probed (get_batches ok:true; update_batch + update_batch_schedule recognized on SV-B-000203). Remaining: (1) `git push origin main` → staging middleware auto-deploys + staging frontend; (2) live BrewPad UAT — confirm a GIS silent-refresh / Apps-Script "unauthorized" no longer forces a full re-login, and batch/dashboard/reading/schedule reads+writes flow via `/api/batch/admin-proxy` on `x-session-token`; **specifically re-test the iPad Safari third-party-cookie path** (the diagnosed root cause); (3) prod cutover — deploy middleware then `git push production main`. Verdict `human_needed` (all 11 must-haves + all automated gates green; only live checks remain). See `.planning/phases/76-.../76-VERIFICATION.md`.
+
+**Phase 76 / STAFF-AUTH (BrewPad session-expiry hardening) — ✅ CODE COMPLETE + verified 2026-08-27.** Full single-credential migration (decisions D-01..D-05): BrewPad now authenticates every batch/dashboard/reading/schedule call via middleware `POST /api/batch/admin-proxy` on `x-session-token` only; Google token used solely at login. Dual-token machinery DELETED (not hardened) — `_tokenRefreshTimer`, `_silentRefreshTimer`, `handleUnauthorized`-on-Apps-Script-401, `isUnauthorizedError` all gone (grep 0). Full re-login fires ONLY on a real middleware `res.status===401` (single global `_handleMiddlewareResponse` interceptor), never a body substring. `sv_session` TTL now slides on use (`touchSession` fire-and-forget in `resolveTier`) — no hard 7-day cliff. Apps-Script `doPost` server_token allowlist extended with BrewPad's 10 write actions (owner-redeployed + live-probed). Verifier caught + closed a D-03 gap missed by SUMMARY/tests/lint: a residual `clearSession()` in `onTokenResponse`'s GIS-error else branch (reachable from `doSilentRefreshOnLoad` on iPad-Safari 3p-cookie GIS errors) — reproduced RED then fixed (`fix(76) d79084b3`), min artifact rebuilt via terser. Commits: 76-01 `9a6dc31b`/`a26a9d72`, 76-02 `d202f4a1`/`85ce6a93`/`2f3f6404`/`16c5ffd3`, 76-03 `c739f92d`/`a572275b`/`2e899904`/`d9bb07aa`, gap `fd5048c9`/`d79084b3`. Frontend 1151/1151, middleware 1459/1459, lint clean. Non-code owner sibling still open: review Cloudflare Access session-duration policy for `staging.steinsandvines.ca`.
+
 Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 `milestone_complete` flag was false; corrected 2026-07-10). Done: 46 (SEC-02 ✅), 48 (KIOSK-01 ✅ — de-fork live-verified standalone 2026-07-10, 22/22 threats secured), 52 (RESIL-01 ✅), 53 (OBS-01 ✅), 54 (kiosk gift-card mgmt ✅ — UAT+security closed 2026-07-10). **Open phases:** 47 (SEC-01 — STATE narrative says closed-on-staging but ROADMAP checkbox is still `[ ]`; needs owner reconciliation), 49 (MONEY-01 — 49-01 code merged, 49-02 live-card UAT pending), 50 (MONEY-02) + 51 (MONEY-03) — both now UNBLOCKED (were gated on 48). 50/51 also depend on the money-path-primitive adoption in pos-recipe.js.
-Status: Ready to execute
-Last activity: 2026-08-27 -- Phase 76 planning complete
+Status: Phase 76 executed + verified — awaiting staging deploy + BrewPad UAT (incl. iPad Safari) + prod cutover
+Last activity: 2026-08-27 -- Phase 76 executed + verified (human_needed; D-03 gap found & closed)
 
 **Phase 49 / MONEY-01 (H2) — 49-01 code done, merged to main.** `/api/checkout` now reads back the captured amount (`helcimLib.getCardTransactionById`) and verifies it covers the invoice total (±$0.01) BEFORE side-effects/customerpayments; short/unverifiable → tagged throw routed through the existing `moneyPath.voidWithTimeout` (single void path) → 402. RED→GREEN commits + 13-test regression `checkout-captured-amount.test.js`; full middleware suite 62/1187 green; lint clean. **Pending: 49-02** live-card UAT (checkpoint) — needs the new code deployed and a real card terminal, so it rides a prod deploy / Phase 46 cutover: confirm a legit order still books paid (no false-void) + a tamper attempt is voided.
 
