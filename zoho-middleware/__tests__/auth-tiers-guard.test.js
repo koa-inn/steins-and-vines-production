@@ -221,4 +221,18 @@ describe('3-tier /api guard — dual-accept (legacy / device / session)', functi
         expect(res.status).toBe(403);
       });
   });
+
+  // 76-02: sliding expiry — resolving a valid session must touch it so
+  // sv_session's 7-day TTL doesn't hard-cliff (RESEARCH.md Pitfall 2).
+  test('(12) a valid session resolution fire-and-forget touches the resolved sid (sliding expiry)', function () {
+    session.getSession.mockResolvedValueOnce({ email: 'staff@steinsandvines.ca' });
+    return request(app)
+      .get('/api/contacts')
+      .query({ email: 'a@b.com' })
+      .set('x-session-token', 'valid-sid')
+      .then(function (res) {
+        expect(res.status).not.toBe(403);
+        expect(session.touchSession).toHaveBeenCalledWith('valid-sid');
+      });
+  });
 });

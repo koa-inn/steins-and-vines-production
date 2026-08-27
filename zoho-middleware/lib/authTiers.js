@@ -129,6 +129,11 @@ async function resolveTier(req) {
     var payload = await session.getSession(sid);
     if (payload) {
       req.staffEmail = payload.email;
+      // Sliding expiry (RESEARCH.md Pitfall 2): fire-and-forget — the
+      // request must not block on (or fail because of) this Redis write.
+      // touchSession is self-throttling (only re-writes when stale by
+      // TOUCH_MIN_INTERVAL_MS), so calling it on every session hit is safe.
+      session.touchSession(sid).catch(function () {});
       return 'session';
     }
   }
