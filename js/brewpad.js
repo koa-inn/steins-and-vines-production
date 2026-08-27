@@ -1256,8 +1256,13 @@ function bpIngredientLineCost(item, line) {
         var dot = document.getElementById('bp-auth-dot');
         if (dot) { dot.className = 'bp-auth-dot bp-auth-dot--offline'; dot.title = 'Not signed in'; }
       } else {
-        // Initial auth attempt failed (e.g. user closed popup) — stay on sign-in screen.
-        clearSession();
+        // Initial/silent auth attempt failed (e.g. user closed popup, or GIS
+        // reports an error during the page-load silent refresh -- iPad
+        // Safari's third-party-cookie restriction is the common case). This
+        // is a Google-side failure, not evidence that sv_session_token is
+        // invalid, so it does NOT clear a still-valid session (D-03) -- see
+        // the matching fixes above (error_callback, exhausted-retries
+        // branch). Just fall back to the manual sign-in screen.
         showSignInButton();
       }
       return;
