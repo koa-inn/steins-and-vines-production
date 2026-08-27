@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: ready_to_plan
-stopped_at: Phase 75 complete (2/2) — ready to discuss Phase 76
-last_updated: 2026-08-27T12:21:55.220Z
-last_activity: 2026-08-26 -- Phase 75 execution started
+status: planning
+stopped_at: Phase 76 context gathered
+last_updated: "2026-08-27T12:29:39.777Z"
+last_activity: 2026-08-27
 progress:
   total_phases: 62
-  completed_phases: 19
+  completed_phases: 20
   total_plans: 124
   completed_plans: 121
-  percent: 31
+  percent: 32
 ---
 
 # Project State
@@ -142,8 +142,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-08-26T19:20:42.212Z
-Stopped at: Phase 75 context gathered
+Last session: 2026-08-27T12:29:39.770Z
+Stopped at: Phase 76 context gathered
 **INV-000137 backfilled** — `SV-B-000183` + `SV-B-000184`; guard now reports "3 of 3" and rejects a 4th. Owner redeployed Apps Script twice. Middleware suite 1283 / frontend 986 / lint clean.
 **⚠️ Anti-patterns discovered (see `.planning/.continue-here.md`):** (1) *green tests ≠ working system* — `fda6e40` passed its suite for 4 days while dead in prod, because the contradicting logic lived in Apps Script (no CI deploy, no Jest); exercise Apps-Script-crossing changes against the live system. (2) *`curl` against prod lies* — Cloudflare returns a 403 bot-challenge page, which made me wrongly conclude prod had no GTM/CSP; verify prod **through the browser**. (3) `apps-script/*.gs` needs a MANUAL redeploy.
 **Open (owner-only, non-blocking):** iPad UAT of the kiosk recovery fix (the one fix inferred from symptoms, never reproduced); watch the next multi-kit sale in BrewPad; Phase 56 leftovers (2nd GTM admin + `purchase` UAT); optional repair of historical mangled customer names.
@@ -161,7 +161,7 @@ GA4 IDs: account `a391385411`, property `p533046537`.
 
 Stopped at: **PROD STAGE-3 CUTOVER SHIPPED** (tag prod-20260710-2, blessed gated-deploy run 29127742148) — Phases 48 + 54 + kiosk fixes + brewpad + Metricool CSP + v4.6 GA4 events all live on production; middleware redeployed (uptime reset, redis ✅); frontend verified (kiosk-core, Metricool CSP, GA4 in bundle). Earlier this session: iPad UAT (48/54 standalone), Fix 1 break-glass (prod-20260710-1), 9 test invoices+11 payments deleted from Zoho, Phase 48 secured (22/22), v4.6 milestone + Phase 55/56 scaffolded, GA4 reviewed + shipped + staging-verified (site half proven; GA4 collect 503s from this browser only), milestone state reconciled.
 Open threads: (1) **watch Sentry** on the 48/54 money-path/auth changes now live; (2) **GA4 Realtime** confirm on a real prod order (Option A — the staging DebugView 503 was environment-local); (3) delete test order INV-000145 from Zoho (Helcim already voided by owner); (4) v4.5 Phase 47 SEC-01 checkbox vs narrative mismatch — owner reconcile; (5) Phases 49/50/51 remain in v4.5; (6) Phase 56 GTM remaining (Conversion Linker, Ads tag AW-18091171314, mark purchase key event, 2nd admin) + staging internal-traffic filter (todo); (7) GiftCards sheet tidy for GC-000001.
-Resume file: .planning/phases/75-brewpad-invoice-pending-batch-quantity-expansion-multi-qty-k/75-CONTEXT.md
+Resume file: .planning/phases/76-brewpad-session-expiry-hardening-decouple-the-durable-7-day-/76-CONTEXT.md
 
 ### Prior session (2026-07-08T21:04:01.660Z)
 
