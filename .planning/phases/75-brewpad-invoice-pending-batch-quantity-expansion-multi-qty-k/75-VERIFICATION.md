@@ -1,7 +1,7 @@
 ---
 phase: 75-brewpad-invoice-pending-batch-quantity-expansion-multi-qty-k
 verified: 2026-08-26T21:14:11Z
-status: human_needed
+status: passed
 score: 10/10 must-haves verified (code-level)
 overrides_applied: 0
 human_verification:
@@ -18,7 +18,7 @@ human_verification:
 **Phase Goal:** Fix the bug where a Zoho invoice containing quantity > 1 of the same kit produces only ONE pending batch in BrewPad instead of one pending batch per unit (evidence INV-000171: 3 × the same kit → 1 pending batch observed, 3 expected). Expand multi-qty kit lines into `quantity` distinct pending batches with stable per-unit identity/idempotency (re-ingestion must not duplicate), and add a regression test using an INV-000171-shaped invoice (qty 3 → 3 pending batches). Confirm interaction with existing batch↔invoice reconciliation/dedup so the fix doesn't create duplicate batches on re-poll. Also: per-unit "Unit X of N" labels on each pending batch of a multi-unit invoice line.
 
 **Verified:** 2026-08-26T21:14:11Z
-**Status:** human_needed
+**Status:** passed (human verification completed 2026-08-27 — owner-tested on staging; see 75-HUMAN-UAT.md)
 **Re-verification:** No — initial verification
 
 ## Goal Achievement
