@@ -3768,6 +3768,70 @@ router.post('/api/batch/bottling-invite', function (req, res) {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Phase 76-02: single allow-listed Apps-Script proxy for BrewPad's batch/
+// dashboard/reading/schedule reads AND writes (D-76). Session/legacy tier
+// only (device excluded — BrewPad is session-scoped, not kiosk-scoped).
+//
+// Hardcoded allow-list — NEVER a free-form req.body.action passthrough
+// (T-76-02-01). Any action not a key here is rejected 400 invalid_action
+// before Apps Script is ever called. create_batch/update_batch_schedule are
+// live BrewPad write flows (js/brewpad.js) and MUST stay present.
+// ---------------------------------------------------------------------------
+var ADMIN_PROXY_ACTIONS = {
+  // reads
+  get_batch: true,
+  get_batches: true,
+  get_batch_dashboard_summary: true,
+  get_vessels: true,
+  get_ferm_schedules: true,
+  get_tasks_upcoming: true,
+  // writes
+  create_batch: true,
+  update_batch: true,
+  update_batch_schedule: true,
+  delete_batch: true,
+  bulk_add_plato_readings: true,
+  bulk_update_batch_tasks: true,
+  update_plato_reading: true,
+  delete_plato_reading: true,
+  create_ferm_schedule: true,
+  update_ferm_schedule: true,
+  delete_ferm_schedule: true
+};
+
+router.post('/api/batch/admin-proxy', function (req, res) {
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
+  // BrewPad/session-scoped (device rejected) — T-76-02-03.
+  var body = req.body || {};
+  var action = (body.action || '').toLowerCase();
+  if (!ADMIN_PROXY_ACTIONS[action]) {
+    return res.status(400).json({ ok: false, error: 'invalid_action' });
+  }
+
+  // T-76-02-02: identity is proven solely by requireTiers above — never
+  // accept a client-supplied Google token as a fallback identity.
+  var payload = Object.assign({}, body, {
+    action: action,
+    server_token: process.env.APPS_SCRIPT_SERVER_TOKEN
+  });
+  delete payload.token;
+
+  axios.post(process.env.APPS_SCRIPT_URL, JSON.stringify(payload), {
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 15000,
+    maxRedirects: 5
+  })
+    .then(function (resp) {
+      res.json(resp.data);
+    })
+    .catch(function (err) {
+      log.error('[batch/admin-proxy] ' + action + ' failed: ' + (err && err.message));
+      res.status(502).json({ ok: false, error: 'server_error' });
+    });
+  });
+});
+
 /**
  * GET /api/kiosk/salesorder/:id
  * Fetch a single Sales Order detail from Zoho, including line_items.
