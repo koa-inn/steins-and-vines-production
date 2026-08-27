@@ -370,3 +370,54 @@ describe('initGoogleAuth — graceful fallback on stale stored token', function 
     });
   });
 });
+
+// ============================================================
+// Suite (e): Phase 76 gap closure — GIS silent-refresh-on-load error must
+// NOT clear sv_session (D-03).
+//
+// onTokenResponse's else branch (response.error with no in-memory
+// accessToken) is reachable from doSilentRefreshOnLoad on page load -- e.g.
+// iPad Safari's third-party-cookie restriction causes GIS to report an
+// error to the silent, no-popup token request. That is a Google-side
+// hiccup, not evidence the durable middleware session (sv_session_token)
+// is invalid, so it must survive exactly like the two adjacent branches in
+// the same function already fixed in 76-03 (error_callback and the
+// exhausted-retries branch above).
+// ============================================================
+
+describe('initGoogleAuth — GIS silent-refresh-on-load error (D-03 gap closure)', function () {
+  var capturedCallback;
+
+  beforeEach(function () {
+    localStorage.clear();
+    bp._resetAuthStateForTest();
+    capturedCallback = null;
+    global.google.accounts.oauth2.initTokenClient = jest.fn(function (opts) {
+      capturedCallback = opts.callback;
+      return {
+        requestAccessToken: function () {
+          // Simulate GIS asynchronously reporting an error during the
+          // page-load silent refresh (no popup was ever shown, and no
+          // in-memory accessToken is held yet).
+          capturedCallback({ error: 'popup_closed_by_user' });
+        }
+      };
+    });
+    global.document = makeDom();
+  });
+
+  afterEach(function () {
+    jest.clearAllMocks();
+    localStorage.clear();
+  });
+
+  test('(e) GIS error during silent-refresh-on-load does NOT clear sv_session_token', function () {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(makeExpiredSession()));
+    localStorage.setItem('sv_session_token', 'still-valid-session-id');
+    global.fetch = jest.fn();
+
+    bp._initGoogleAuth();
+
+    expect(localStorage.getItem('sv_session_token')).toBe('still-valid-session-id');
+  });
+});
