@@ -1132,10 +1132,17 @@ Plans:
 **Goal:** Stop BrewPad from spuriously showing "Session expired" and forcing a full Google re-login while the durable 7-day server session is still valid. Diagnosed during Phase 73 staging verification (2026-08-26). Root cause: BrewPad runs TWO credentials — a durable 7-day `sv_session` (in `localStorage` as `sv_session_token`, sent as `x-session-token`, authorizes the **middleware**: recipes/ingredients) and an ephemeral ~1 hr **Google OAuth access token** kept alive by GIS silent refresh (`brewpad.js:1250`, ~50 min) that authorizes the **Apps-Script "admin API"** (batches/dashboard/readings, posts the Google token in-body, `adminApiGet` `brewpad.js:1388`). When GIS silent refresh fails (third-party-cookie restrictions, embedded/automated contexts) OR an Apps-Script response merely contains the substring "unauthorized"/"not authorized" (`isUnauthorizedError`, `brewpad.js:1376-1378`), `handleUnauthorized()` (`brewpad.js:1344`) calls `clearSession()` which **deletes the still-valid `sv_session_token`** (`brewpad.js:1352,961`) → full re-login, and subsequent middleware calls also 401 ("Could not load recipes"). Scope (regression-test-first per CLAUDE.md #3): (1) don't wipe `sv_session` on a Google-token/Apps-Script 401 — only `clearSession()` when the **middleware** rejects `x-session-token`; for an Apps-Script "unauthorized," attempt a silent Google refresh and keep the app usable via middleware endpoints; (2) tighten `isUnauthorizedError` to an explicit status/flag instead of a loose error-text substring match; (3) graceful GIS-refresh-failure UX — if silent refresh fails but `sv_session` is valid, show a non-blocking "reconnect" affordance, not the full-login modal. Stretch/decision (defer or fold): (4) unify BrewPad onto the single `x-session-token` credential by moving the remaining Apps-Script admin reads behind the middleware. Non-code sibling for owner: review the **Cloudflare Access** session-duration policy for `staging.steinsandvines.ca` (dashboard setting) if staff also re-hit the CF login often.
 **Requirements**: STAFF-AUTH (BrewPad session resilience). Source: Phase 73 staging-verification diagnosis 2026-08-26.
 **Depends on:** Chronological only. Independent of Phase 73/74/75. Related: Phase 46 (Auth Re-Architecture — introduced the `sv_session`/`x-session-token` model). Touches `js/brewpad.js` (+ `js/brewpad.min.js` rebuild), possibly `js/lib/auth.js`; frontend-only unless fix #4 is folded in (then `zoho-middleware/`). Vanilla ES5; `npm test` + `npm run lint` before commit.
-**Plans:** 0 plans
+**Plans:** 3 plans across 3 waves
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 76 to break down)
+**Wave 1**
+- [ ] 76-01-PLAN.md — Apps-Script write-allowlist extension (9 actions) + owner redeploy checkpoint + live read-probe (A2) [autonomous:false]
+
+**Wave 2**
+- [ ] 76-02-PLAN.md — Middleware /api/batch/admin-proxy (allow-listed server_token proxy) + touchSession sliding-expiry wiring + middleware tests
+
+**Wave 3**
+- [ ] 76-03-PLAN.md — Frontend single-credential migration: repoint adminApiGet/adminApiPost, global middleware-401 interceptor, DELETE dual-token machinery + regression tests + build/lint/test gate
 
 ---
 
