@@ -57,14 +57,8 @@
       align-items: center;
       text-align: center;
     }
-    .lb-logo { width: 104px; height: 104px; margin-bottom: 14px; }
-    .lb-name {
-      font-family: var(--font-display);
-      font-size: 1.95rem;
-      line-height: 1.12;
-      color: var(--color-burgundy);
-      margin: 0 0 8px;
-    }
+    .lb-logo-heading { margin: 0 0 12px; line-height: 0; }
+    .lb-logo { width: 100%; max-width: 260px; height: auto; }
     .lb-tagline {
       font-family: var(--font-body);
       font-size: 1rem;
@@ -160,7 +154,7 @@
     .lb-foot a:hover, .lb-foot a:focus-visible { text-decoration: underline; }
     .lb-hours { margin-top: 6px; font-size: 0.8rem; color: var(--color-muted); }
     @media (min-width: 600px) {
-      .lb-name { font-size: 2.15rem; }
+      .lb-logo { max-width: 300px; }
     }
   </style>
 </head>
@@ -171,8 +165,7 @@
   <!-- End Google Tag Manager (noscript) -->
 
   <main class="lb-wrap">
-    <img src="images/SV_Logo_PrimaryCircle_green.svg" alt="Steins &amp; Vines" class="lb-logo" width="104" height="104">
-    <h1 class="lb-name">Steins &amp; Vines</h1>
+    <h1 class="lb-logo-heading"><img src="images/SV_Logo_Wordmark_green.svg" alt="Steins &amp; Vines" class="lb-logo"></h1>
     <p class="lb-tagline">Squamish's ferment-on-premise wine, beer &amp; cider &mdash; crafted by you.</p>
 
     <nav class="lb-links" aria-label="Steins &amp; Vines links">
