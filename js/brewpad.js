@@ -1470,16 +1470,32 @@ function bpIngredientLineCost(item, line) {
 
   // ===== API Helpers =====
 
-  function fetchWithRetry(url, options, retries) {
+  // retryStatuses (optional) — HTTP status codes that should be retried even
+  // though the fetch RESOLVED (fetch only rejects on network failure, never on
+  // an HTTP error). Pass this ONLY for idempotent reads: the middleware proxy
+  // collapses a transient Apps-Script timeout/slow cold-start into a 502
+  // (pos.js /api/batch/admin-proxy), and without a status-level retry the
+  // heaviest read (get_batches?status=all) silently drops, leaving a
+  // false-empty dashboard. Writes MUST NOT pass retryStatuses — re-sending a
+  // non-idempotent write on a 502 could double-apply it if Apps Script already
+  // processed it before the proxy's 15s timeout fired.
+  function fetchWithRetry(url, options, retries, retryStatuses) {
     if (retries === undefined) retries = 1;
-    return fetch(url, options).catch(function (err) {
-      if (retries > 0) {
-        return new Promise(function (resolve) {
-          setTimeout(resolve, 1000);
-        }).then(function () {
-          return fetchWithRetry(url, options, retries - 1);
-        });
+    function backoffRetry() {
+      return new Promise(function (resolve) {
+        setTimeout(resolve, 1000);
+      }).then(function () {
+        return fetchWithRetry(url, options, retries - 1, retryStatuses);
+      });
+    }
+    return fetch(url, options).then(function (r) {
+      if (retryStatuses && retries > 0 && retryStatuses.indexOf(r.status) !== -1) {
+        return backoffRetry();
       }
+      return r;
+    }, function (err) {
+      // Network-level rejection (offline, DNS, dropped connection) — always retryable.
+      if (retries > 0) return backoffRetry();
       throw err;
     });
   }
@@ -1499,12 +1515,14 @@ function bpIngredientLineCost(item, line) {
         body[key] = params[key];
       });
     }
+    // Reads are idempotent: retry twice on the proxy's transient 502/503/504
+    // (usually an Apps-Script cold-start timeout that succeeds warm on retry).
     return fetchWithRetry(mwUrl() + '/api/batch/admin-proxy', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
-    })
+    }, 2, [502, 503, 504])
       .then(function (r) {
         return r.json().then(function (data) {
           if (!r.ok || !data || !data.ok) {
@@ -9311,6 +9329,9 @@ function bpIngredientLineCost(item, line) {
       _adminApiGetForTest: adminApiGet,
       // Phase 76-03: parallel seam for adminApiPost (mirrors _adminApiGetForTest).
       _adminApiPostForTest: adminApiPost,
+      // Read-retry regression seam: fetchWithRetry retries transient 502/503/504
+      // for reads (retryStatuses) but never for writes.
+      _fetchWithRetryForTest: fetchWithRetry,
       // Phase 76-03 (D-03): exported so Task 1's regression tests can drive the
       // single global middleware-401 interceptor directly -- under Jest the
       // fetch-wrapper IIFE at the top of this file never runs (module !==
