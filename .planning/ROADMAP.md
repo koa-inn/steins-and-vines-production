@@ -1161,10 +1161,10 @@ Plans:
 
 **Requirements**: UX-CATALOG-FILTERS (catalog filter panel usability). Source: owner UI report 2026-08-28.
 **Depends on:** Phase 76 (none functionally — independent frontend polish)
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 77 to break down)
+- [ ] 77-01-PLAN.md — Cap desktop catalog filter panel at ~60vh w/ internal scroll + reclaim full-width chip rows (CSS-led, styles.css base rules) + build + responsive UAT
 
 ---
 
