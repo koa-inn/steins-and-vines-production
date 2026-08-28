@@ -2009,12 +2009,15 @@ behold-widget {
   display: none;
   flex-basis: 100%;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 0.5rem;
 }
 
 .catalog-collapsible.open {
   display: flex;
+  max-height: 60vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .catalog-filter-row {
@@ -2024,7 +2027,7 @@ behold-widget {
   align-items: baseline;
   gap: 0.5rem;
   margin-bottom: 0.25rem;
-  width: 40rem;
+  width: 100%;
   max-width: 100%;
   padding-left: 8.5rem;
 }
