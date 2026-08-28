@@ -1146,7 +1146,7 @@ Plans:
 **Wave 3**
 - [x] 76-03-PLAN.md — Frontend single-credential migration: repoint adminApiGet/adminApiPost, global middleware-401 interceptor, DELETE dual-token machinery + regression tests + build/lint/test gate ✅
 
-### Phase 77: Ferment-in-store catalog filter panel UX: scrollable compact filters, reclaim wasted width, mobile-friendly
+### Phase 77: Ferment-in-store catalog filter panel UX: scrollable compact filters, reclaim wasted width, mobile-friendly ✅ COMPLETE 2026-08-28
 
 **Goal:** Make the "Filters & Sort" panel on the Ferment-in-Store catalog (`products/ferment-in-store.html`) usable and compact instead of an overwhelming, page-dominating wall of chips. Owner UI report 2026-08-28 (with screenshot): on the Wine catalogue (238 kits → dozens of Brand/Style/Producer chips) the opened panel expands to an enormous inline height you can't scroll independently, while wasting most of the horizontal width.
 
@@ -1164,7 +1164,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 77-01-PLAN.md — Cap desktop catalog filter panel at ~60vh w/ internal scroll + reclaim full-width chip rows (CSS-led, styles.css base rules) + build + responsive UAT
+- [x] 77-01-PLAN.md — Cap desktop catalog filter panel at ~60vh w/ internal scroll + reclaim full-width chip rows (CSS-led, styles.css base rules) + build + responsive UAT ✅ 2026-08-28 (UAT approved, deployed staging + prod)
 
 ---
 

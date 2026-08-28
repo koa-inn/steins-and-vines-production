@@ -32,19 +32,20 @@ key-decisions:
 requirements-completed: [UX-CATALOG-FILTERS]
 
 # Metrics
-duration: ~20min (Tasks 1-2 only; Task 3 is an open human-verify checkpoint)
+duration: ~20min
 completed: 2026-08-28
+status: complete
 ---
 
 # Phase 77 Plan 01: Ferment-in-Store Catalog Filter Panel UX Summary
 
-**Desktop "Filters & Sort" panel now caps at 60vh with internal scroll and filter chips fill full container width — two targeted base-rule CSS edits, rebuilt into the served `styles.min.css`. STATUS: Tasks 1-2 complete and gate-verified; Task 3 (manual responsive UAT) is an OPEN blocking checkpoint awaiting owner sign-off.**
+**Desktop "Filters & Sort" panel now caps at 60vh with internal scroll and filter chips fill full container width — two targeted base-rule CSS edits, rebuilt into the served `styles.min.css`. STATUS: COMPLETE — all 3 tasks done. Task 3 responsive UAT approved by owner 2026-08-28 and deployed to staging + production.**
 
 ## Performance
 
-- **Duration:** ~20 min (Tasks 1-2)
+- **Duration:** ~20 min
 - **Completed:** 2026-08-28
-- **Tasks:** 2 of 3 complete (Task 3 is a blocking human-verify checkpoint, not yet performed)
+- **Tasks:** 3 of 3 complete (Task 3 human-verify UAT approved by owner 2026-08-28)
 - **Files modified:** 2 substantive (`css/styles.css`, `css/styles.min.css`) + 19 collateral cache-stamp files (documented build side effect)
 
 ## Accomplishments
@@ -60,9 +61,9 @@ Each task was committed atomically:
 
 1. **Task 1: Cap panel height + reclaim width in desktop catalog filter base rules** - `2e989838` (fix)
 2. **Task 2: Rebuild served assets and run the commit gates** - `79211e92` (chore)
-3. **Task 3: Manual responsive UAT** - NOT YET PERFORMED (blocking human-verify checkpoint, requires real browser against Wine catalogue on desktop + mobile)
+3. **Task 3: Manual responsive UAT** - APPROVED by owner 2026-08-28 ("that looks better"). Verified on staging (`styles.min.css?v=mtdcrom4`); owner confirmed the desktop panel now caps with internal scroll instead of pushing the grid down.
 
-_Plan metadata commit (this SUMMARY.md + STATE.md) is issued separately, but the plan is NOT marked fully complete pending Task 3 approval._
+_Plan metadata commit (this SUMMARY.md + STATE.md) issued after UAT approval._
 
 ## Files Created/Modified
 - `css/styles.css` - Three desktop base-rule edits (align-items, max-height/overflow-y, width) per plan orientation
@@ -85,11 +86,13 @@ None. Both automated gates specified in the plan's `<verify>` blocks passed on f
 
 None — no external service configuration required.
 
-## Next Phase Readiness — BLOCKED ON TASK 3
+## Next Phase Readiness — COMPLETE + DEPLOYED
 
-**This plan is NOT complete.** Task 3 is a `checkpoint:human-verify` with `gate="blocking"` — a manual responsive UAT that requires a human with a real browser (the executor cannot perform this). See the CHECKPOINT REACHED report accompanying this summary for the exact verification matrix (desktop/mobile x products.html/products/ferment-in-store.html on the 238-kit Wine catalogue) and resume signal.
+**Plan complete.** Task 3 human-verify UAT approved by owner 2026-08-28. Deployed:
+- **Staging** (`origin/main` → `staging.steinsandvines.ca`): pushed `fc446628..fe681764` — owner UAT-approved here.
+- **Production** (`production/main` --force → `steinsandvines.ca`): pushed `fc446628..fe681764`. Divergence was Phase-77-only (verified: no unrelated code rode along; the 3 planning-doc commits are stripped from prod on deploy).
 
-STATE.md / ROADMAP.md plan-advance and the final metadata commit are intentionally deferred until Task 3 is approved, per the orchestrator's instructions for this run.
+No follow-up work outstanding. Phase 77 delivers UX-CATALOG-FILTERS in full.
 
 ## Self-Check: PASSED
 
@@ -102,4 +105,4 @@ STATE.md / ROADMAP.md plan-advance and the final metadata commit are intentional
 
 ---
 *Phase: 77-ferment-in-store-catalog-filter-panel-ux-scrollable-compact-*
-*Tasks 1-2 completed: 2026-08-28 — Task 3 OPEN (blocking human-verify checkpoint)*
+*All tasks completed: 2026-08-28 — Task 3 UAT approved + deployed to staging + production*

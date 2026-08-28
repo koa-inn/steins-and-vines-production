@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
-stopped_at: Phase 76 executed + verified (human_needed — UAT + prod deploy carry-forward)
-last_updated: "2026-08-27T14:01:21.001Z"
-last_activity: 2026-08-27 -- Phase 76 executed + verified (D-03 gap found & closed)
+stopped_at: Phase 77 COMPLETE — UAT approved + deployed to staging AND production (2026-08-28)
+last_updated: "2026-08-28T00:00:00.000Z"
+last_activity: 2026-08-28 -- Phase 77 executed, UAT-approved, shipped to staging + prod
 progress:
   total_phases: 62
-  completed_phases: 20
-  total_plans: 127
-  completed_plans: 124
-  percent: 33
+  completed_phases: 21
+  total_plans: 128
+  completed_plans: 125
+  percent: 34
 ---
 
 # Project State
@@ -24,6 +24,8 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 **Current focus:** Phase 76 — brewpad session expiry hardening decouple the durable 7 day 
 
 ## Current Position
+
+Phase: 77 — ✅ COMPLETE + shipped (2026-08-28). Ferment-in-store catalog filter panel UX. Plan 77-01 (CSS-only): `.catalog-collapsible.open` capped at `max-height:60vh; overflow-y:auto`, `.catalog-collapsible` → `align-items:stretch`, `.catalog-filter-row` `width:40rem`→`100%`. Rebuilt `styles.min.css` (served `?v=mtdcrom4`). Owner UAT approved on staging ("that looks better"). Deployed BOTH staging (`origin/main`) AND production (`production/main` --force) — `fc446628..fe681764`; divergence was Phase-77-only, no unrelated code rode along. Commits: 2e989838 (fix), 79211e92 (build), fe681764 (SUMMARY). Gates green: FE 1149, MW 1461, lint clean. Note: this is the one v4.5-era phase fully closed end-to-end (code→UAT→prod) without a pending prod-cutover tail.
 
 Phase: 76
 Plan: 76-01 / 76-02 / 76-03 all COMPLETE + verified (2026-08-27)
