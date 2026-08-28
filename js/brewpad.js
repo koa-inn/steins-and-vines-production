@@ -8545,7 +8545,10 @@ function bpIngredientLineCost(item, line) {
         clearTimeout(_taskSaveTimers[taskId]);
         _taskSaveTimers[taskId] = setTimeout(function () {
           delete _taskSaveTimers[taskId];
-          adminApiPost('bulk_update_batch_tasks', { tasks: [{ task_id: taskId, updates: { completed: checked } }] })
+          // batch_id MUST be sent so the server can bust the per-batch detail cache
+          // (gb:<batchId>); without it the get_batch refetch returns the stale batch
+          // and the checkbox reverts until the 5-min TTL / next login.
+          adminApiPost('bulk_update_batch_tasks', { batch_id: task ? task.batch_id : _selectedBatchId, tasks: [{ task_id: taskId, updates: { completed: checked } }] })
             .then(function () {
               for (var i = 0; i < _upcomingTasks.length; i++) {
                 if (_upcomingTasks[i].task_id === taskId) {
@@ -8736,7 +8739,10 @@ function bpIngredientLineCost(item, line) {
         clearTimeout(_taskSaveTimers[taskId]);
         _taskSaveTimers[taskId] = setTimeout(function () {
           delete _taskSaveTimers[taskId];
-          adminApiPost('bulk_update_batch_tasks', { tasks: [{ task_id: taskId, updates: { completed: checked } }] })
+          // batch_id MUST be sent so the server can bust the per-batch detail cache
+          // (gb:<batchId>); without it the get_batch refetch returns the stale batch
+          // and the checkbox reverts until the 5-min TTL / next login.
+          adminApiPost('bulk_update_batch_tasks', { batch_id: task ? task.batch_id : _selectedBatchId, tasks: [{ task_id: taskId, updates: { completed: checked } }] })
             .then(function () {
               for (var i = 0; i < _upcomingTasks.length; i++) {
                 if (_upcomingTasks[i].task_id === taskId) {
@@ -8840,7 +8846,10 @@ function bpIngredientLineCost(item, line) {
         clearTimeout(_taskSaveTimers[taskId]);
         _taskSaveTimers[taskId] = setTimeout(function () {
           delete _taskSaveTimers[taskId];
-          adminApiPost('bulk_update_batch_tasks', { tasks: [{ task_id: taskId, updates: { completed: checked } }] })
+          // batch_id MUST be sent so the server can bust the per-batch detail cache
+          // (gb:<batchId>); without it the get_batch refetch returns the stale batch
+          // and the checkbox reverts until the 5-min TTL / next login.
+          adminApiPost('bulk_update_batch_tasks', { batch_id: _selectedBatchId, tasks: [{ task_id: taskId, updates: { completed: checked } }] })
             .then(function () {
               for (var i = 0; i < _upcomingTasks.length; i++) {
                 if (_upcomingTasks[i].task_id === taskId) {
