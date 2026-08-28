@@ -138,6 +138,7 @@ beforeEach(function () {
   session.getSession.mockReset();
   session.getSession.mockResolvedValue(null);
   axios.post.mockReset();
+  axios.get.mockReset();
 });
 
 afterEach(function () {
@@ -151,21 +152,53 @@ var DEVICE_HEADERS = { 'x-device-token': 'test-device-token' };
 
 describe('POST /api/batch/admin-proxy — auth + allow-list + token-strip (Phase 76-02)', function () {
 
-  test('Test 1: valid session credential + get_batches forwards server_token, strips client token', function () {
+  test('Test 1: valid session + get_batches (READ) forwards via axios.GET (doGet), strips client token', function () {
+    // Reads MUST go to Apps Script doGet (GET) — doPost's server_token allow-list
+    // is write-only, so POSTing a read returns "Unknown server action" (the prod
+    // dashboard outage). Reflects the fixed read/write split, not the old POST-all.
     session.getSession.mockResolvedValue({ email: 'staff@steinsandvines.ca' });
-    axios.post.mockResolvedValue({ data: { ok: true, batches: [] } });
+    axios.get.mockResolvedValue({ data: { ok: true, batches: [] } });
 
     var req = { headers: SESSION_HEADERS, body: { action: 'get_batches', token: 'client-google-token' } };
     return callHandler('POST', '/api/batch/admin-proxy', req).then(function (res) {
-      expect(axios.post).toHaveBeenCalledTimes(1);
-      var forwardedUrl = axios.post.mock.calls[0][0];
+      expect(axios.get).toHaveBeenCalledTimes(1);
+      expect(axios.post).not.toHaveBeenCalled();
+      var forwardedUrl = axios.get.mock.calls[0][0];
       expect(forwardedUrl).toBe(process.env.APPS_SCRIPT_URL);
-      var forwardedBody = axios.post.mock.calls[0][1];
-      var payload = typeof forwardedBody === 'string' ? JSON.parse(forwardedBody) : forwardedBody;
+      var cfg = axios.get.mock.calls[0][1];
+      expect(cfg.params.action).toBe('get_batches');
+      expect(cfg.params.server_token).toBe(process.env.APPS_SCRIPT_SERVER_TOKEN);
+      expect(cfg.params.token).toBeUndefined();
+      expect(res._status).not.toBe(400);
+      expect(res._status).not.toBe(401);
+    });
+  });
+
+  test('Test 1b: get_batch_dashboard_summary (READ) routes via axios.GET — the exact prod-outage regression', function () {
+    session.getSession.mockResolvedValue({ email: 'staff@steinsandvines.ca' });
+    axios.get.mockResolvedValue({ data: { ok: true } });
+
+    var req = { headers: SESSION_HEADERS, body: { action: 'get_batch_dashboard_summary' } };
+    return callHandler('POST', '/api/batch/admin-proxy', req).then(function (res) {
+      expect(axios.get).toHaveBeenCalledTimes(1);
+      expect(axios.post).not.toHaveBeenCalled();
+      expect(res._status).not.toBe(400);
+      expect(res._status).not.toBe(401);
+    });
+  });
+
+  test('Test 1c: a WRITE action (update_batch) still forwards via axios.POST (doPost), strips client token', function () {
+    session.getSession.mockResolvedValue({ email: 'staff@steinsandvines.ca' });
+    axios.post.mockResolvedValue({ data: { ok: true } });
+
+    var req = { headers: SESSION_HEADERS, body: { action: 'update_batch', batch_id: 'B-1', updates: {}, token: 'client-google-token' } };
+    return callHandler('POST', '/api/batch/admin-proxy', req).then(function (res) {
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      expect(axios.get).not.toHaveBeenCalled();
+      var payload = JSON.parse(axios.post.mock.calls[0][1]);
       expect(payload.server_token).toBe(process.env.APPS_SCRIPT_SERVER_TOKEN);
       expect(payload.token).toBeUndefined();
       expect(res._status).not.toBe(400);
-      expect(res._status).not.toBe(401);
     });
   });
 

@@ -3800,6 +3800,20 @@ var ADMIN_PROXY_ACTIONS = {
   delete_ferm_schedule: true
 };
 
+// Reads must be forwarded to Apps Script as GET (doGet has a generic server_token
+// bypass that dispatches every read via handleReadAction). Forwarding a read as
+// POST hits doPost's server_token if-chain, which only allow-lists WRITE actions,
+// so the read falls through to invalid_action ("Unknown server action: get_...").
+// (Phase 76 hotfix — the original proxy POSTed every action.)
+var ADMIN_PROXY_READS = {
+  get_batch: true,
+  get_batches: true,
+  get_batch_dashboard_summary: true,
+  get_vessels: true,
+  get_ferm_schedules: true,
+  get_tasks_upcoming: true
+};
+
 router.post('/api/batch/admin-proxy', function (req, res) {
   authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
   // BrewPad/session-scoped (device rejected) — T-76-02-03.
@@ -3817,11 +3831,19 @@ router.post('/api/batch/admin-proxy', function (req, res) {
   });
   delete payload.token;
 
-  axios.post(process.env.APPS_SCRIPT_URL, JSON.stringify(payload), {
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 15000,
-    maxRedirects: 5
-  })
+  var upstream = ADMIN_PROXY_READS[action]
+    ? axios.get(process.env.APPS_SCRIPT_URL, {
+        params: payload,
+        timeout: 15000,
+        maxRedirects: 5
+      })
+    : axios.post(process.env.APPS_SCRIPT_URL, JSON.stringify(payload), {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 15000,
+        maxRedirects: 5
+      });
+
+  upstream
     .then(function (resp) {
       res.json(resp.data);
     })
