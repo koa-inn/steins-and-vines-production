@@ -1146,6 +1146,26 @@ Plans:
 **Wave 3**
 - [x] 76-03-PLAN.md — Frontend single-credential migration: repoint adminApiGet/adminApiPost, global middleware-401 interceptor, DELETE dual-token machinery + regression tests + build/lint/test gate ✅
 
+### Phase 77: Ferment-in-store catalog filter panel UX: scrollable compact filters, reclaim wasted width, mobile-friendly
+
+**Goal:** Make the "Filters & Sort" panel on the Ferment-in-Store catalog (`products/ferment-in-store.html`) usable and compact instead of an overwhelming, page-dominating wall of chips. Owner UI report 2026-08-28 (with screenshot): on the Wine catalogue (238 kits → dozens of Brand/Style/Producer chips) the opened panel expands to an enormous inline height you can't scroll independently, while wasting most of the horizontal width.
+
+**Root causes (found during triage, pre-planning):**
+- `.catalog-filter-row` is hard-coded `width: 40rem` with `padding-left: 8.5rem`, and `.catalog-collapsible.open` centers rows (`align-items: center`). On wide screens this leaves ~380px empty on each side and forces long chip groups (e.g. 20 Brand chips) to wrap into ~7 stacked rows → the panel becomes very tall. (`css/styles.css:2008-2041`)
+- `.catalog-collapsible.open` has **no `max-height` and no `overflow`** — it expands to the full natural height of all filter groups with no self-contained scroll region, pushing the product grid far down. (`css/styles.css:2016`)
+- Shared component caveat: the `.catalog-*` panel styles live in `css/styles.css` and are ALSO used by `products.html`; there is a separate `#mobile-catalog-bar` mobile variant (`css/styles.css:6636+`) plus `@media` overrides (`~2897`, `~6818`). The fix MUST verify desktop + mobile on BOTH the ferment-in-store subpage and products.html, and the mobile sticky filter bar. Markup: `products/ferment-in-store.html:180-219`; filter render logic: `js/modules/16-catalog-subpage.js` (+ the shared catalog module that renders `products.html`).
+
+**Scope:** Frontend-only (CSS-led; JS only if the interaction model changes). No middleware. Likely `css/styles.css` (+ `css/catalog-subpage.css`), possibly `js/modules/16-catalog-subpage.js`.
+
+**Design direction — LOCKED (owner, 2026-08-28): "Compact + scrollable (CSS-led)."** Do NOT redesign the interaction model (no collapsible sub-groups, no off-canvas drawer). Two targeted CSS changes: (1) let filter rows fill the full available container width so chips flow into many columns instead of a fixed 640px centered strip (remove/relax `.catalog-filter-row { width: 40rem }` + the centered `align-items` — keep the right-aligned label affordance but stop wasting side space); (2) give `.catalog-collapsible.open` a capped height (~60vh, tune) with `overflow-y: auto` so the panel becomes an internal scroll region instead of expanding to full natural height. Must hold up on desktop + mobile, on BOTH `ferment-in-store.html` and `products.html`, and respect the `#mobile-catalog-bar` sticky variant. Prefer no JS change unless the label/column layout needs it. Verify with the real Wine catalogue (238 kits, the worst case).
+
+**Requirements**: UX-CATALOG-FILTERS (catalog filter panel usability). Source: owner UI report 2026-08-28.
+**Depends on:** Phase 76 (none functionally — independent frontend polish)
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 77 to break down)
+
 ---
 
 ### Phase 46: Auth Re-Architecture (CRITICAL — split from Phase 45)
