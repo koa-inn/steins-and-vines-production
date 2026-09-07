@@ -1,8 +1,8 @@
 ---
 phase: 81-recipe-fermentation-timeline-give-customers-an-expected-read
 verified: 2026-09-06T05:20:00Z
-status: gaps_found
-score: 10/11 release-gate verification points passed; 1 defect blocks the production cutover
+status: passed
+score: 11/11 release-gate verification points passed; GAP-01 closed by plan 81-10 and re-verified on staging 2026-09-07
 source: plan 81-08 Task 3 (operator release-gate verification on staging)
 note: >
   This report was NOT produced by the gsd-verifier agent. Phase-level verification cannot run
@@ -22,7 +22,9 @@ gaps:
     decision_ref: D-15
     title: "D-15 blast-radius note silently fails to render on a natural navigation path"
     where: "js/admin.js:7686-7693 (renderScheduleForm) and countRecipesUsingSchedule"
-    status: OPEN
+    status: RESOLVED
+    resolved_by: 81-10
+    resolved: 2026-09-07
 human_verification:
   - test: "D-04 positive leg — activate a batch whose recipe has a schedule attached"
     expected: "#sa-schedule-select opens with that recipe's template pre-selected"
@@ -38,8 +40,9 @@ human_verification:
 **Phase Goal:** Give customers an expected ready-date on the public beer recipe cards, derived
 from the fermentation schedule template a recipe is linked to.
 
-**Status:** GAPS FOUND — the customer-facing goal is delivered and verified; one staff-facing
-safeguard fails.
+**Status:** PASSED — the customer-facing goal is delivered and verified. The one staff-facing
+safeguard that failed (GAP-01) was closed by plan 81-10 and re-verified on staging via the
+original failure path.
 
 ## The release gate is met
 
@@ -60,7 +63,32 @@ ids. D-16 / T-74-04 hold.
 
 Full evidence: `81-SCHEDULES-INVENTORY.md` § "Release-gate verification".
 
-## GAP-01 (blocking) — D-15 note silently fails to render
+## GAP-01 — RESOLVED by plan 81-10 (2026-09-07)
+
+Re-verified on staging via the **original failure path**, on build `admin.min.js?v=mtpx01mn`,
+with the Recipes tab never opened (`tr[data-recipe-id]` count 0 throughout):
+
+| Step | Check | Result |
+|------|-------|--------|
+| 3 | Straight to Batches → Schedule Templates, edit FS-0010 | **"Used by 2 public recipes. Changing day offsets will change what customers are told."** |
+| 4 | Edit FS-0008 (1 attached) | "Used by 1 public recipe" — correct singular |
+| 5 | New Template form | no note |
+| 6 | Edit FS-0001 (0 attached) | no note |
+| 7 | Note colour + save still works | amber `rgb(184,122,26)`; Update Template saved, modal closed, data unchanged (21/21/35) |
+
+Supporting evidence: the scoped fetch fired exactly once (`/api/recipes?status=all`) and stayed
+at one call across four subsequent modal opens — the idempotence property holds. `#recipes-tbody`
+was never populated, confirming the load does not leak into the Recipes tab render.
+
+**One process note.** The first attempt at this verification appeared to fail — the note was
+absent. The cause was operator error, not the fix: the page had been loaded *before* GitHub Pages
+finished publishing, so it was still executing `admin.min.js?v=mtpc0zmt` (the previous build).
+The server-side check had reported "published" correctly, but a running page does not reload
+itself. Confirmed by reading `performance.getEntriesByType('resource')` for the actually-loaded
+asset. After a reload onto `?v=mtpx01mn`, the fix worked first time. Worth remembering: when
+verifying a frontend fix on staging, assert the *executing* bundle, not just the published one.
+
+## GAP-01 as originally reported (blocking) — D-15 note silently fails to render
 
 **What is wrong.** `countRecipesUsingSchedule` counts over `_recipesState.list`. That array is
 populated only by `loadRecipeList()`, called from `initRecipesTab()` — i.e. only once the
@@ -95,7 +123,7 @@ applies.
 
 ## What passed
 
-10 of 11 release-gate points. Highlights:
+All 11 release-gate points (10 on first pass, GAP-01 after the 81-10 fix). Highlights:
 
 - **D-09 proven, not assumed.** Cleared a schedule, confirmed the card degrades to a clean
   316px single-column footer with no `TBD` / em-dash / `0 weeks` / `null`, then re-attached and
@@ -111,5 +139,12 @@ applies.
 
 ## Next step
 
-`/gsd:plan-phase 81 --gaps` → close GAP-01 → re-verify D-15 → then plan 81-09 (production
-cutover) is unblocked.
+GAP-01 is closed and re-verified. **Plan 81-09 (production cutover) is unblocked.**
+
+Still open, neither caused by nor in scope for this phase:
+- D-04 positive leg — unverifiable, no batch carries a `recipe_id` with a schedule (see
+  `human_verification` above and 81-06's create-batch finding).
+- Apps Script deployment-config drift (`Execute as: Me` + `Anyone`) — see 81-07 and
+  `docs/RUNBOOK.md`.
+- `js/admin.js:7677-7678` interpolates `existing.name`/`existing.description` unescaped —
+  pre-existing, recorded as `T-81-10-02` with disposition `accept`.

@@ -166,3 +166,33 @@ None for Tasks 1-2 — no external service configuration required.
 - FOUND: tests/frontend/admin-schedule-blast-radius.test.js
 - FOUND: .planning/phases/81-recipe-fermentation-timeline-give-customers-an-expected-read/81-10-SUMMARY.md
 - FOUND (git log): b732b235, cc5637b3
+
+
+---
+
+## Task 3 — COMPLETE (orchestrator-piloted, 2026-09-07)
+
+Re-verified on staging via the original failure path, on build `admin.min.js?v=mtpx01mn`, with
+the Recipes tab never opened (`tr[data-recipe-id]` count 0 throughout).
+
+| Step | Result |
+|------|--------|
+| 3 — edit FS-0010 on the direct path | **"Used by 2 public recipes. Changing day offsets will change what customers are told."** |
+| 4 — edit FS-0008 (1 attached) | "Used by 1 public recipe" — correct singular |
+| 5 — New Template form | no note |
+| 6 — edit FS-0001 (0 attached) | no note |
+| 7 — colour + save | amber `rgb(184,122,26)`; Update Template saved, modal closed, data unchanged (21/21/35) |
+
+The scoped fetch fired exactly once (`/api/recipes?status=all`) and stayed at one call across
+four subsequent modal opens — idempotence holds. `#recipes-tbody` was never populated, so the
+load does not leak into the Recipes tab render.
+
+**Process note.** The first verification attempt appeared to fail. Cause was operator error, not
+the fix: the page had been loaded before GitHub Pages finished publishing and was still executing
+`admin.min.js?v=mtpc0zmt`. The server-side "published" check was correct but a running page does
+not reload itself. Diagnosed via `performance.getEntriesByType('resource')`. After reloading onto
+the new bundle the fix worked first time. Lesson for future frontend staging checks: assert the
+*executing* bundle, not just the published one.
+
+**GAP-01 is closed.** `81-VERIFICATION.md` updated to `status: passed`, 11/11.
+Plan 81-09 (production cutover) is unblocked.
