@@ -1362,7 +1362,7 @@ template, and the public figure is DERIVED as the largest `day_offset` among tha
 non-packaging steps. There is no standalone `ferment_days` column on `Recipes`. Do not resurrect
 the sketched approach.
 
-**Plans:** 8/9 plans executed
+**Plans:** 9/10 plans executed
 
 Plans:
 **Wave 1** (parallel — disjoint files)
