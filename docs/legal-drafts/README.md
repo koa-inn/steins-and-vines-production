@@ -29,6 +29,10 @@ The review copy for the owner and lawyer is the artifact at https://claude.ai/ar
 9. **Guarantee:** at least **75%** of the bottles must come back; **wine kits only**, beer not covered for now.
 10. **Equipment returns:** allowed if unused and in as-new condition, with receipt.
 11. **Finished-batch storage:** wine up to **1 month**, beer up to **2 weeks**, from the confirmed packaging date.
+12. **Gift cards / custom labels:** standard wording accepted.
+13. **Guarantee replacement:** same kit or a different kit of equal or lower price; no refund of the difference.
+14. **Windows:** 30 days for equipment returns, quality-issue claims, and warranty claims; refunds within 10 business days to the original method, cash in cash; uncollected orders held 30 days.
+15. **Tax display:** prices shown before tax; GST/PST added at checkout.
 
 ## Facts closed from the code on 2026-09-16
 - Checkout collects name, email, phone, and notes only. No address, no date of birth.
@@ -38,14 +42,8 @@ The review copy for the owner and lawyer is the artifact at https://claude.ai/ar
 - Not present on the site today: any age gate, any cookie-consent notice.
 
 ## Still open — owner decisions
-- Satisfaction Guarantee: whether a different kit may be chosen for the replacement.
-- Equipment returns: the window (30 days proposed); condition is decided (unused, as new, original packaging).
 - What happens after the finished-batch storage window (disposal after a further 14 days' notice proposed).
-- Return/claim window for quality issues (30 days proposed) and whether refunds carry a restocking fee (none proposed).
-- Gift-card and custom-label terms (standard wording proposed).
-- Refund method and timing (original payment method within 10 business days proposed; cash refunded in cash).
-- Uncollected-order hold period.
-- Tax display: inclusive prices or tax added at checkout.
+- Whether refunds ever carry a restocking fee (none proposed; owner asked what it is).
 - Data retention periods (defaults proposed) and the named privacy contact.
 - Whether a general customer newsletter exists beyond the waitlist list.
 - Whether the checkout should carry a 19+ checkbox as well as the in-store ID check (recommended).

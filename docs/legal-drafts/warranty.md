@@ -7,7 +7,7 @@
 This warranty is given by 1571221 B.C. Ltd., doing business as Steins & Vines.
 
 ## 1. Defective or misdescribed goods
-If a product you buy from Steins & Vines is defective, damaged when you collect it, expired, or materially different from how it was described, contact us within `[CONFIRM: 30 days — align with the Refund Policy]` at **hello@steinsandvines.ca / 604-567-4565** and we will replace or refund it — see the Refund, Return & Cancellation Policy for how this works.
+If a product you buy from Steins & Vines is defective, damaged when you collect it, expired, or materially different from how it was described, contact us within **30 days** at **hello@steinsandvines.ca / 604-567-4565** and we will replace or refund it — see the Refund, Return & Cancellation Policy for how this works.
 
 ## 2. Equipment
 We do not offer a Steins & Vines warranty on equipment beyond §1 (defects present when you collect it). Where a manufacturer provides its own warranty, that warranty is yours to use and we will help you make a claim. `[CONFIRM: the owner believes no equipment currently sold carries a manufacturer warranty — verify with suppliers before publishing, since a "we'll help you claim" line implies some do.]`

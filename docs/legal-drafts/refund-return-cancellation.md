@@ -19,29 +19,29 @@ A reservation books time, equipment, and staff for you to start and later packag
 If you are not happy with how your batch turned out, we will **replace the kit and run the batch again at no cost**, once per batch. To use the guarantee:
 - Tell us within **30 days of your packaging day**. We may extend this at our discretion.
 - Bring back the unused product. You must return at least **75% of the bottles** from the batch.
-- The replacement is the **same kit or recipe** at the same price tier. You may choose a different one and pay any difference. `[CONFIRM]`
+- The replacement is the **same kit, or a different kit of equal or lower price**. We do not refund any difference in price.
 - **One replacement per batch.** The replacement batch is not itself covered by a further guarantee.
 - The guarantee applies to **wine kits** made on our premises. **Beer batches are not covered** by the guarantee at this time.
 - The guarantee is about the outcome of the batch. Product that is defective, damaged, or expired is covered separately by the Warranty.
 
 ## C. Physical products (collected in store)
 - **Kits bought for fermenting on our premises** are **not returnable** — they are allocated to your session and covered by the Satisfaction Guarantee instead.
-- **Consumables** (take-home kits, ingredients, additives, grains, hops, yeast, packaging) can be returned **only for a quality issue**: defective, damaged, expired, or not what you ordered. Contact us within `[CONFIRM: 30 days]` of purchase and we will replace or refund the item at no cost. We do not accept change-of-mind returns on consumables, for health, safety, and quality reasons.
-- **Equipment** can be returned within `[CONFIRM: 30 days]` of purchase with your receipt, provided it is **unused and in as-new condition**, in its original packaging.
+- **Consumables** (take-home kits, ingredients, additives, grains, hops, yeast, packaging) can be returned **only for a quality issue**: defective, damaged, expired, or not what you ordered. Contact us within **30 days** of purchase and we will replace or refund the item at no cost. We do not accept change-of-mind returns on consumables, for health, safety, and quality reasons.
+- **Equipment** can be returned within **30 days** of purchase with your receipt, provided it is **unused and in as-new condition**, in its original packaging.
 - **Restocking fee:** `[CONFIRM: none?]`
 - **Returns are in store** at 11-38918 Progress Way, Squamish, during opening hours. Bring your receipt or order reference.
 
 ## D. Gift cards / gift certificates
-`[CONFIRM: proposed — gift cards are non-refundable, are not redeemable for cash, are redeemable only toward our products and services, and do not expire (BC law prohibits expiry dates on gift cards).]`
+Gift cards are non-refundable, are not redeemable for cash, and are redeemable only toward our products and services. They do not expire.
 
 ## E. Custom labels / personalized items
-`[CONFIRM: proposed — personalized/custom-label orders are not returnable once produced, unless defective or not as ordered.]`
+Personalized and custom-label orders are not returnable once produced, unless defective or not as ordered.
 
 ## F. How to request a refund or return
 Contact **hello@steinsandvines.ca** or **604-567-4565** with your name, order/booking reference, and the reason. We will confirm eligibility and next steps.
 
 ## G. How refunds are issued
-Approved refunds are returned to the original payment method within `[CONFIRM: 10 business days]` of approval. Cash sales are refunded `[CONFIRM: in cash, in store]`.
+Approved refunds are returned to the original payment method within **10 business days** of approval. Cash sales are refunded in cash, in store.
 
 ## H. Your statutory rights
 Nothing in this policy limits any rights you have under the BC **Business Practices and Consumer Protection Act** (BPCPA) or other applicable law. In particular:

@@ -15,7 +15,7 @@ Under our BC ferment-on-premises licence:
 - **You must personally start your batch** by adding the yeast, and **you must personally package it** (bottling or canning) at the end. We prepare, monitor, and look after everything in between. `[CONFIRM (licence): match this wording to the participation requirements in your UBrew/UVin licence terms.]`
 
 ## 3. Ordering, pricing, and availability
-- Prices are in **Canadian dollars**. `[CONFIRM: taxes — are displayed prices tax-inclusive or is GST/PST added at checkout? State which.]`
+- Prices are in **Canadian dollars** and are shown **before tax**. GST and PST are added at checkout and shown before you pay.
 - Fees are itemised at checkout. A ferment-on-premises session is priced as the kit or recipe plus a **maker's fee** and a **materials fee**, each shown as its own line before you pay. Nothing further is added on packaging day.
 - **Promotional codes** (for example a first-batch discount) are subject to the conditions stated with the offer, may be withdrawn at any time, and cannot be combined unless the offer says so.
 - We may correct errors in pricing or descriptions and decline or cancel an order affected by an obvious error, refunding any amount paid.
@@ -30,10 +30,10 @@ Your batch will be ready to package at roughly the time shown for the kit or rec
 Payments are processed by **Helcim**. By paying, you authorize the charge for the amounts shown. Card details are handled by Helcim, not stored by us (see the Privacy Policy). For phone or card-not-present orders, you confirm you are authorized to use the card. Our checkout is protected by Google reCAPTCHA; the Google Privacy Policy and Terms of Service apply to that service.
 
 ## 6. Pickup — we do not ship
-All goods are **collected in store** at 11-38918 Progress Way, Squamish, BC, during opening hours. We do not ship. Risk in goods passes to you when you collect them. `[CONFIRM: how long an uncollected order is held before it is cancelled and refunded, e.g. 30 days.]`
+All goods are **collected in store** at 11-38918 Progress Way, Squamish, BC, during opening hours. We do not ship. Risk in goods passes to you when you collect them. We hold paid orders for **30 days**; if an order is not collected within 30 days we may cancel it and refund it to the original payment method.
 
 ## 7. Gift cards
-Gift cards are redeemable toward our products and services and are subject to the terms in the Refund, Return & Cancellation Policy. `[CONFIRM: non-refundable, no cash value, no expiry — mirror the Refund Policy.]`
+Gift cards are redeemable toward our products and services, are non-refundable, have no cash value, and do not expire, as set out in the Refund, Return & Cancellation Policy.
 
 ## 8. Beer waitlist
 Joining the beer waitlist is **not a booking** and does not reserve a session or a price. When your turn comes we will contact you to arrange a consult and a booking. By joining you agree to receive emails from us about the beer programme; every message includes a way to unsubscribe (see the Privacy Policy).
