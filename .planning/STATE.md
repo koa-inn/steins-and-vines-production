@@ -226,6 +226,6 @@ Last activity: 2026-09-05 -- Phase 81 execution started
 
 ## Session Continuity
 
-Last session: 2026-09-16
-Stopped at: Session resumed; staging walkthrough before 81-09 production cutover (batched push: phases 50/51/73-76/78-81)
+Last session: 2026-09-16 21:11 UTC
+Stopped at: Phase 81 plan 81-09 (production cutover) PARKED at the dispatch step by owner choice; pre-flight complete. 13 pre-cutover fixes shipped to staging; legal drafts at 8 lawyer-only markers. See .planning/HANDOFF.json.
 Resume file: .planning/phases/81-recipe-fermentation-timeline-give-customers-an-expected-read/.continue-here.md
