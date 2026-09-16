@@ -873,6 +873,12 @@ small, .text-small {
   gap: 2rem;
 }
 
+/* The global `p` rule caps width at 75ch; re-centre the box, not just the text. */
+.page-header p {
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .title-icon {
   height: 48px;
   width: 48px;
