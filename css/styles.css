@@ -1469,6 +1469,23 @@ behold-widget {
   margin: 0;
 }
 
+/* Phones: the email field, submit and the "or call" link all fill the column, matching the
+   stacked full-width hero CTAs, instead of three different widths. */
+@media (max-width: 480px) {
+  .beer-waitlist-form input[type="email"] {
+    width: 100%;
+    min-width: 0;
+    flex-basis: 100%;
+  }
+  .beer-waitlist-form .beer-waitlist-btn {
+    width: 100%;
+  }
+  #waitlist .btn-secondary {
+    width: 100%;
+    max-width: 400px;
+  }
+}
+
 /* ===== Beer Banner Option A: Green Garden ===== */
 .beer-banner--green {
   background: linear-gradient(135deg, var(--color-green) 0%, #3a5a3b 100%);
