@@ -22,6 +22,7 @@ If you are not happy with how your batch turned out, we will **replace the kit a
 - The replacement is the **same kit, or a different kit of equal or lower price**. We do not refund any difference in price.
 - **One replacement per batch.** The replacement batch is not itself covered by a further guarantee.
 - The guarantee applies to **wine kits** made on our premises. **Beer batches are not covered** by the guarantee at this time.
+- The replacement is a **new batch that you start again**: our liquor licence requires you to repeat the first-visit steps and sign a new declaration, and it requires us to destroy the product you bring back. We cannot hand you finished product you did not make yourself.
 - The guarantee is about the outcome of the batch. Product that is defective, damaged, or expired is covered separately by the Warranty.
 
 ## C. Physical products (collected in store)

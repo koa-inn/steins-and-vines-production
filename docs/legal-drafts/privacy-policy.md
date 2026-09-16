@@ -9,9 +9,10 @@
 
 ## 1. Information we collect
 - **When you book a session or order:** your name, email address, phone number, and any notes you add to the booking. We do not ask for a mailing address (everything is collected in store) or a date of birth; age is checked in store with photo ID.
+- **When you start a batch:** our liquor licence requires your name and phone number on the batch invoice, and your signed declaration that the product is for your own personal use or for use by others at no charge. We must keep both for six years.
 - **When you join the beer waitlist:** your email address, and later, if you ask us to, the recipe you are interested in.
 - **When you buy or redeem a gift card, or contact us:** your name and contact details as you give them.
-- **Payment information:** card payments are processed by our payment provider, **Helcim**. Your full card number is entered on Helcim’s systems, not ours; we do **not** store full card numbers. We keep the transaction reference, amount, card brand, and last four digits to record the sale. `[CONFIRM: exactly which Helcim fields are retained in your records.]`
+- **Payment information:** card payments are processed by our payment provider, **Helcim**. Your full card number is entered on Helcim’s systems, not ours; we do **not** store full card numbers. We keep the transaction record Helcim returns to us (transaction reference, amount, card brand, and last four digits) to record the sale.
 - **Automatically, when you use the site:** device/browser information, IP address, pages viewed, and similar analytics data, collected through cookies and similar technologies (see §4).
 - **Bot protection:** our checkout uses **Google reCAPTCHA**, which collects device and interaction data to tell people from bots. Google's Privacy Policy and Terms of Service apply to that data.
 - **Error/diagnostic data:** we use **Sentry** to capture technical error reports. Our error reporting is configured to remove email addresses, amounts, and other personal details before anything is sent.
@@ -20,7 +21,8 @@
 - To take and fulfil your reservations and orders, and to process payments.
 - To contact you about your booking, order, batch, or enquiry — including when your batch is ready to package.
 - To run the beer waitlist and contact you when your turn comes.
-- **Marketing email, with your consent.** When you join the waitlist we add you to our mailing list (run on **MailerLite**) to keep you informed about the beer programme. Every email includes an unsubscribe link, and you can unsubscribe at any time. `[CONFIRM: whether you also send a general newsletter to customers, and if so where consent is collected.]`
+- **Marketing email, with your consent.** When you join the waitlist we add you to our mailing list (run on **MailerLite**) to keep you informed about the beer programme. Every email includes an unsubscribe link, and you can unsubscribe at any time.
+- **Our newsletter, with your consent.** At checkout you can tick a box to join our general newsletter. It is unticked by default, joining is never a condition of ordering, and every email includes an unsubscribe link.
 - To manage inventory, accounting, and batch tracking (via Zoho).
 - To operate, secure, and improve the website.
 - For advertising and analytics measurement (see §4).
@@ -54,7 +56,7 @@ When you first visit, a small notice lets you accept or decline non-essential co
 ## 5. How long we keep it
 We keep personal information only as long as needed for the purposes above and to meet legal and tax requirements:
 - **Order and payment records:** 6 years from the end of the tax year, as the Canada Revenue Agency requires.
-- **Batch records and the customer slip you sign when you start a batch:** for the period our liquor licence requires. `[CONFIRM: the exact record-keeping period under the UBrew/UVin licence — the owner knows it is several years; confirm the figure with the LCRB terms and conditions.]`
+- **Batch invoices and the declaration you sign when you start a batch:** at least **6 years**, as our liquor licence requires (UBrew/UVin Terms and Conditions, “Keeping Records”).
 - **Other booking details:** 2 years after your batch is packaged.
 - **Waitlist and marketing contacts:** until you unsubscribe or ask us to remove you.
 - **Error reports:** 90 days.

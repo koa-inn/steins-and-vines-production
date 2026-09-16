@@ -36,6 +36,22 @@ The review copy for the owner and lawyer is the artifact at https://claude.ai/ar
 16. **No restocking fee.**
 17. **Retention:** 6-year tax records, licence period for customer slips and batch records (figure to confirm), 2 years other booking details, marketing until unsubscribe, error reports 90 days.
 18. **Privacy Officer:** the owner, via hello@steinsandvines.ca.
+19. **Storage window consequence:** reasonable efforts to contact, then after a further 14 days the batch may be destroyed (the handbook's "Unclaimed Product" rule), no refund.
+20. **19+ checkbox at checkout:** yes.
+21. **Newsletter:** exists; an unticked opt-in checkbox is added at checkout (CASL express consent).
+22. **Checkout acknowledgement wording:** accepted.
+23. **Equipment warranty line:** accepted.
+24. **Helcim fields:** whatever Helcim returns by default.
+25. **Effective date:** the publish date.
+
+## Facts taken from the UBrew/UVin Terms and Conditions Handbook (LCRB, revised June 2020)
+- Records — ingredient purchases, all sales, invoices, customer declarations, and disposal of spoiled/unclaimed/returned liquor — must be available for inspection for **at least six years** (p.9).
+- Each customer must pay for ingredients before starting, **sign a personal-use declaration** (kept for audit), and **add the ingredients that start fermentation** themselves (p.10). On the return visit they must sterilise, bottle, seal, and label, and **remove bottled product immediately**; bottled product cannot be left on the premises and cannot be delivered (p.10).
+- The batch invoice must carry the customer's name and phone number, product and quantity, date and amount, and be retained (p.12).
+- Unclaimed product: make a reasonable attempt to contact the customer; after a reasonable interval it may be destroyed (p.14).
+- Customer returns: a free or discounted replacement batch is allowed only if the customer repeats all production steps, signs a new declaration, and the unsatisfactory product is destroyed; finished product the customer did not make can never be handed over (p.14). The Satisfaction Guarantee is written to fit this.
+- Customers may sample their own product before bottling, up to two samples of 100 ml (p.13).
+- Minors may not manufacture liquor; ID is judged case by case (pp.5–6).
 
 ## Facts closed from the code on 2026-09-16
 - Checkout collects name, email, phone, and notes only. No address, no date of birth.
@@ -45,17 +61,15 @@ The review copy for the owner and lawyer is the artifact at https://claude.ai/ar
 - Not present on the site today: any age gate, any cookie-consent notice.
 
 ## Still open — owner decisions
-- What happens after the finished-batch storage window (disposal after a further 14 days' notice proposed).
-- The exact licence record-keeping period for customer slips and batch records (owner: several years).
-- Whether a general customer newsletter exists beyond the waitlist list.
-- Whether the checkout should carry a 19+ checkbox as well as the in-store ID check (recommended).
+- **Beer programme vs the licence handbook.** The handbook ("Customer Responsibilities", p.10) says a customer brewing beer in a kettle must add the malt and hops, cook the wort, and add the yeast; staff may prepare the wort only under a Federal Wort Licence, with the customer adding the yeast. beer.html says staff run the brew day and the customer only pitches yeast. Confirm which arrangement the licence covers before the Terms are published, and ideally before the beer page ships.
+- The effective date, filled in when the pages go live.
 
 ## Still open — lawyer or licence checks
 - BPCPA Part 4: the pre-purchase disclosure list for future-performance (reservation) and distance-sales (order) contracts, the $10 cancellation fee, and the started-batch rule.
 - Limitation-of-liability wording in Terms §10 and Warranty §5.
 - PIPA cross-border storage wording.
 - Governing-law clause.
-- Licence wording for personal use, no resale, and the customer's own participation (pitching yeast, packaging).
+- Age-check wording in Terms §1 (refusing a session for missing ID and treating it as a cancellation).
 
 ## Business facts these drafts are built on (verified 2026-09-16)
 - **Address:** 11-38918 Progress Way, Squamish, BC V8B 0K7 · **Contact:** hello@steinsandvines.ca · 604-567-4565
