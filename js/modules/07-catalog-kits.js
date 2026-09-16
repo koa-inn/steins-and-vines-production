@@ -613,9 +613,13 @@ function loadProducts(categoryFilter) {
           // Exclude items with Type = Ingredient or Service
           var t = (obj.type || '').toLowerCase();
           if (t === 'ingredient' || t === 'service') return false;
-          // Only keep kit categories (wine, beer, cider, seltzer), optionally
-          // scoped to a single category via _categoryFilter.
-          return matchesKitCategory(obj, _categoryFilter);
+          // Keep every kit category (wine, beer, cider, seltzer). This list is
+          // what setCachedMW() writes to the shared `sv-products-mw` key, so it
+          // must NOT be scoped to _categoryFilter: a beer-only cache written by
+          // beer.html would leave wine.html (and every other reader) with no
+          // kits for the 30-minute TTL. The page-level scope is applied once,
+          // after loadFromMiddleware()/loadFromSnapshot() resolve, below.
+          return matchesKitCategory(obj, '');
         });
       });
   }
@@ -1929,5 +1933,5 @@ function renderKitBuyControl(wrap, product) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { appendSvLogo: appendSvLogo, buildBeerCard: buildBeerCard, flattenCustomFields: flattenCustomFields, matchesKitCategory: matchesKitCategory, buildWaitlistCtaLink: buildWaitlistCtaLink, sortFilterValues: sortFilterValues, recipeDisplayPrice: recipeDisplayPrice, fermentTimeDisplay: fermentTimeDisplay, buildRecipeCard: buildRecipeCard, fetchActiveRecipes: fetchActiveRecipes, renderRecipeBlock: renderRecipeBlock, orderCatalogBlocks: orderCatalogBlocks };
+  module.exports = { loadProducts: loadProducts, appendSvLogo: appendSvLogo, buildBeerCard: buildBeerCard, flattenCustomFields: flattenCustomFields, matchesKitCategory: matchesKitCategory, buildWaitlistCtaLink: buildWaitlistCtaLink, sortFilterValues: sortFilterValues, recipeDisplayPrice: recipeDisplayPrice, fermentTimeDisplay: fermentTimeDisplay, buildRecipeCard: buildRecipeCard, fetchActiveRecipes: fetchActiveRecipes, renderRecipeBlock: renderRecipeBlock, orderCatalogBlocks: orderCatalogBlocks };
 }
