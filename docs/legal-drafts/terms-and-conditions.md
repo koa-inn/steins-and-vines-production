@@ -12,11 +12,10 @@ U-Brew / U-Vin involves producing alcohol for personal consumption. You must be 
 ## 2. Personal use, no resale, and your part in making the batch
 Under our BC UBrew/UVin licence:
 - Product made on our premises is **for your own personal use or for use by others at no charge**. It may not be sold. You sign a declaration to that effect when you start your batch, and we keep it for six years.
-- **You must start your batch yourself** by adding the ingredients that begin fermentation (for a kit, that means the yeast and the other ingredients we set out for you). We look after fermentation, racking, filtering, and ageing, and prepare the batch for packaging.
+- **You must start your batch yourself** by adding the ingredients that begin fermentation. For a wine kit, that means the yeast and the other ingredients we set out for you. For beer, we prepare the wort under our **Federal Wort Licence** and you add the yeast. We look after fermentation, racking, filtering, and ageing, and prepare the batch for packaging.
 - **You must package it yourself** on your return visit: wash and sterilise your bottles or cans if you bring your own, fill and seal them, and label them if you wish. We show you how and help with the handling.
 - **Bottled product leaves with you the same day.** The licence does not allow us to store bottled product on the premises or deliver it.
 
-`[CONFIRM (beer programme): the handbook says that for beer brewed in a kettle the customer must add the malt and hops, cook the wort, and then add the yeast; only wort made under a Federal Wort Licence can be prepared by staff with the customer adding yeast alone. The beer page currently says staff run the brew day and the customer only pitches the yeast — confirm which arrangement the licence covers before publishing.]`
 
 ## 3. Ordering, pricing, and availability
 - Prices are in **Canadian dollars** and are shown **before tax**. GST and PST are added at checkout and shown before you pay.

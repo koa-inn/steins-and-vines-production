@@ -43,6 +43,7 @@ The review copy for the owner and lawyer is the artifact at https://claude.ai/ar
 23. **Equipment warranty line:** accepted.
 24. **Helcim fields:** whatever Helcim returns by default.
 25. **Effective date:** the publish date.
+26. **Beer programme:** Steins & Vines holds a **Federal Wort Licence**, so staff prepare the wort and the customer adds the yeast — the arrangement the handbook permits (p.10). Terms §2 now says so.
 
 ## Facts taken from the UBrew/UVin Terms and Conditions Handbook (LCRB, revised June 2020)
 - Records — ingredient purchases, all sales, invoices, customer declarations, and disposal of spoiled/unclaimed/returned liquor — must be available for inspection for **at least six years** (p.9).
@@ -61,7 +62,6 @@ The review copy for the owner and lawyer is the artifact at https://claude.ai/ar
 - Not present on the site today: any age gate, any cookie-consent notice.
 
 ## Still open — owner decisions
-- **Beer programme vs the licence handbook.** The handbook ("Customer Responsibilities", p.10) says a customer brewing beer in a kettle must add the malt and hops, cook the wort, and add the yeast; staff may prepare the wort only under a Federal Wort Licence, with the customer adding the yeast. beer.html says staff run the brew day and the customer only pitches yeast. Confirm which arrangement the licence covers before the Terms are published, and ideally before the beer page ships.
 - The effective date, filled in when the pages go live.
 
 ## Still open — lawyer or licence checks
