@@ -4,7 +4,7 @@
 
 **Last updated:** 2026-09-16 (draft, second pass — owner decisions of 2026-09-16 applied)
 
-These Terms govern your use of steinsandvines.ca and your purchases and reservations with Steins & Vines (“we,” “us”), 11-38918 Progress Way, Squamish, BC V8B 0K7. By placing an order or booking, you agree to these Terms, our Privacy Policy, our Refund, Return & Cancellation Policy, and our Warranty. `[CONFIRM: exact registered legal entity name, e.g. "Steins & Vines Ltd." or the sole-proprietor name, to appear here and in every policy.]`
+These Terms govern your use of steinsandvines.ca and your purchases and reservations with **1571221 B.C. Ltd., doing business as Steins & Vines** (“we,” “us”), 11-38918 Progress Way, Squamish, BC V8B 0K7. By placing an order or booking, you agree to these Terms, our Privacy Policy, our Refund, Return & Cancellation Policy, and our Warranty.
 
 ## 1. Who can order — age restriction
 U-Brew / U-Vin involves producing alcohol for personal consumption. You must be **19 years of age or older** to book a session or make alcohol on our premises. By booking online you confirm that you are 19 or older. **We check government-issued photo ID in store** before you start your batch — when you sign your batch slip and pitch the yeast — and we will refuse the session, and treat the booking as cancelled under the Refund Policy, if ID cannot be shown. `[CONFIRM: whether the checkout should also carry a 19+ checkbox (recommended, cheap to build, and it documents the online declaration).]`
@@ -24,7 +24,7 @@ Under our BC ferment-on-premises licence:
 ## 4. Reservations
 Booking a session reserves time, equipment, and staff, and is **paid in full at booking**. Before you pay, the checkout shows the kit or recipe, all fees, the total, your start appointment, and a link to the Refund, Return & Cancellation Policy, which governs rescheduling, cancellation, no-shows, and our Satisfaction Guarantee.
 
-Your batch will be ready to package at roughly the time shown for the kit or recipe, counted from your start day; we confirm the exact packaging day as it approaches. You agree to come in and package your batch within `[CONFIRM: e.g. 14 days]` of the date we confirm. `[CONFIRM: what happens to batches not packaged in time — storage fee, or disposal after X days with notice?]`
+Your batch will be ready to package at roughly the time shown for the kit or recipe, counted from your start day; we confirm the exact packaging day as it approaches. Once your batch is finished we store it for you at no charge for **up to one month for wine** and **up to two weeks for beer**, counted from the packaging date we confirm; you agree to come in and package it within that time. `[CONFIRM: what happens after the storage window — proposed: we make reasonable efforts to contact you, and after a further 14 days without a response the batch may be disposed of with no refund.]`
 
 ## 5. Payment
 Payments are processed by **Helcim**. By paying, you authorize the charge for the amounts shown. Card details are handled by Helcim, not stored by us (see the Privacy Policy). For phone or card-not-present orders, you confirm you are authorized to use the card. Our checkout is protected by Google reCAPTCHA; the Google Privacy Policy and Terms of Service apply to that service.

@@ -23,6 +23,13 @@ The review copy for the owner and lawyer is the artifact at https://claude.ai/ar
 5. **19+.** Verified **in store with photo ID** when the customer signs the batch slip and pitches the yeast. Online booking carries a declaration.
 6. **Cookie consent.** Yes, **unobtrusive**. Written into Privacy §4 as a build requirement.
 
+## Owner decisions applied on 2026-09-16 (third pass)
+7. **Legal entity:** 1571221 B.C. Ltd., doing business as Steins & Vines — in every preamble.
+8. **No-shows:** treated as a cancellation (refund less $10) if not started within 30 days of the missed appointment and not rebooked.
+9. **Guarantee:** at least **75%** of the bottles must come back; **wine kits only**, beer not covered for now.
+10. **Equipment returns:** allowed if unused and in as-new condition, with receipt.
+11. **Finished-batch storage:** wine up to **1 month**, beer up to **2 weeks**, from the confirmed packaging date.
+
 ## Facts closed from the code on 2026-09-16
 - Checkout collects name, email, phone, and notes only. No address, no date of birth.
 - Sentry scrubs personal data before sending (`zoho-middleware/lib/sentry-scrub.js`).
@@ -31,14 +38,12 @@ The review copy for the owner and lawyer is the artifact at https://claude.ai/ar
 - Not present on the site today: any age gate, any cookie-consent notice.
 
 ## Still open — owner decisions
-- Registered legal entity name (Terms preamble; every policy).
-- No-show handling for sessions never started.
-- Satisfaction Guarantee: the fraction of product that must be returned; whether beer recipes are covered as well as wine kits; whether a different kit may be chosen for the replacement.
-- Equipment returns: change-of-mind within a window, or quality-issue only.
+- Satisfaction Guarantee: whether a different kit may be chosen for the replacement.
+- Equipment returns: the window (30 days proposed); condition is decided (unused, as new, original packaging).
+- What happens after the finished-batch storage window (disposal after a further 14 days' notice proposed).
 - Return/claim window for quality issues (30 days proposed) and whether refunds carry a restocking fee (none proposed).
 - Gift-card and custom-label terms (standard wording proposed).
 - Refund method and timing (original payment method within 10 business days proposed; cash refunded in cash).
-- Packaging window after the batch is ready, and what happens to batches not packaged in time.
 - Uncollected-order hold period.
 - Tax display: inclusive prices or tax added at checkout.
 - Data retention periods (defaults proposed) and the named privacy contact.

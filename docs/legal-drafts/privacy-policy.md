@@ -5,7 +5,7 @@
 **Effective date:** `[CONFIRM: publish date]`
 **Last updated:** 2026-09-16 (draft, second pass — verified against the code as of 2026-09-16)
 
-Steins & Vines (“we,” “us,” “our”) operates steinsandvines.ca and a ferment-on-premises shop at 11-38918 Progress Way, Squamish, BC V8B 0K7. This policy explains what personal information we collect, why, who we share it with, and your choices. Questions: **hello@steinsandvines.ca** · **604-567-4565**.
+1571221 B.C. Ltd., doing business as Steins & Vines (“we,” “us,” “our”) operates steinsandvines.ca and a ferment-on-premises shop at 11-38918 Progress Way, Squamish, BC V8B 0K7. This policy explains what personal information we collect, why, who we share it with, and your choices. Questions: **hello@steinsandvines.ca** · **604-567-4565**.
 
 ## 1. Information we collect
 - **When you book a session or order:** your name, email address, phone number, and any notes you add to the booking. We do not ask for a mailing address (everything is collected in store) or a date of birth; age is checked in store with photo ID.
