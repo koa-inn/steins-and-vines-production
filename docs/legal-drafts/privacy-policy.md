@@ -1,66 +1,70 @@
-# Privacy Policy — DRAFT (review before publishing)
+# Privacy Policy — DRAFT (second pass, review before publishing)
 
 > DRAFT for owner/legal review — not legal advice, not live. Resolve every `[CONFIRM: …]` before publishing.
 
 **Effective date:** `[CONFIRM: publish date]`
-**Last updated:** 2026-08-13 (draft)
+**Last updated:** 2026-09-16 (draft, second pass — verified against the code as of 2026-09-16)
 
 Steins & Vines (“we,” “us,” “our”) operates steinsandvines.ca and a ferment-on-premises shop at 11-38918 Progress Way, Squamish, BC V8B 0K7. This policy explains what personal information we collect, why, who we share it with, and your choices. Questions: **hello@steinsandvines.ca** · **604-567-4565**.
 
 ## 1. Information we collect
-- **You give us directly:** your name, email address, and phone number when you book a U-Brew/U-Vin session, place an order, buy or redeem a gift card, or contact us. `[CONFIRM: any other fields — mailing address for shipping? date of birth / age confirmation for the 19+ requirement?]`
-- **Payment information:** card payments are processed by our payment provider, **Helcim**. Your full card number is entered on Helcim’s systems, not ours; we do **not** store full card numbers on our servers. We receive a transaction confirmation and limited details (e.g. amount, card type, last digits) to record the sale. `[CONFIRM: exactly which fields Helcim returns that you retain.]`
+- **When you book a session or order:** your name, email address, phone number, and any notes you add to the booking. We do not ask for a mailing address (everything is collected in store) or a date of birth; age is checked in store with photo ID.
+- **When you join the beer waitlist:** your email address, and later, if you ask us to, the recipe you are interested in.
+- **When you buy or redeem a gift card, or contact us:** your name and contact details as you give them.
+- **Payment information:** card payments are processed by our payment provider, **Helcim**. Your full card number is entered on Helcim’s systems, not ours; we do **not** store full card numbers. We keep the transaction reference, amount, card brand, and last four digits to record the sale. `[CONFIRM: exactly which Helcim fields are retained in your records.]`
 - **Automatically, when you use the site:** device/browser information, IP address, pages viewed, and similar analytics data, collected through cookies and similar technologies (see §4).
-- **Error/diagnostic data:** we use **Sentry** to capture technical error reports to keep the site working; these may include limited technical context. `[CONFIRM: Sentry is configured to scrub personal data — the codebase does redact emails/amounts; confirm this statement is accurate.]`
+- **Bot protection:** our checkout uses **Google reCAPTCHA**, which collects device and interaction data to tell people from bots. Google's Privacy Policy and Terms of Service apply to that data.
+- **Error/diagnostic data:** we use **Sentry** to capture technical error reports. Our error reporting is configured to remove email addresses, amounts, and other personal details before anything is sent.
 
 ## 2. How we use your information
 - To take and fulfil your reservations and orders, and to process payments.
-- To contact you about your booking, order, or enquiry.
+- To contact you about your booking, order, batch, or enquiry — including when your batch is ready to package.
+- To run the beer waitlist and contact you when your turn comes.
+- **Marketing email, with your consent.** When you join the waitlist we add you to our mailing list (run on **MailerLite**) to keep you informed about the beer programme. Every email includes an unsubscribe link, and you can unsubscribe at any time. `[CONFIRM: whether you also send a general newsletter to customers, and if so where consent is collected.]`
 - To manage inventory, accounting, and batch tracking (via Zoho).
 - To operate, secure, and improve the website.
-- For marketing and advertising measurement (see §4) — `[CONFIRM: do you email customers marketing/newsletters? If yes, add that use + an unsubscribe commitment.]`
+- For advertising and analytics measurement (see §4).
 - To meet legal, tax, and regulatory obligations.
 
-We rely on your consent and/or the necessity of performing our contract with you and our legitimate business interests as the basis for these uses.
+We rely on your consent and on the necessity of performing our contract with you as the basis for these uses.
 
 ## 3. Who we share it with (service providers / processors)
 We do **not sell** your personal information. We share it only with providers that help us run the business, under their terms:
-- **Google** — website backend (Apps Script / Sheets), fonts, and analytics/ads (see §4).
-- **Zoho** — bookings, invoicing, inventory, and customer records (Zoho Books/Inventory/Bookings).
+- **Google** — website backend (Apps Script / Sheets), fonts, reCAPTCHA, and analytics/ads (see §4).
+- **Zoho** — bookings, invoicing, inventory, and customer records (Zoho Books / Inventory / Bookings).
 - **Helcim** — payment processing.
+- **MailerLite** — the beer waitlist mailing list.
 - **Railway** — hosting for our middleware.
 - **Sentry** — error monitoring.
 - **Meta, Google Ads, Metricool, Behold** — advertising, analytics, and social-feed features (see §4).
 - Government or law enforcement where required by law.
 
-`[CONFIRM: whether any data leaves Canada — several of these providers process data in the US/EU; BC/PIPA disclosure often notes cross-border storage. A lawyer should confirm the exact wording.]`
+Several of these providers store data outside Canada (in the United States or the EU), so your information may be subject to the laws of those countries. `[CONFIRM (lawyer): PIPA cross-border wording.]`
 
 ## 4. Cookies, analytics, and advertising
-We use cookies and similar technologies for essential site functions and, with the appropriate basis, for analytics and advertising. Current tools:
+We use cookies and similar technologies for essential site functions and, **only after you accept them**, for analytics and advertising. Current tools:
 - **Google Analytics 4** — site usage analytics.
 - **Google Ads / DoubleClick** — advertising and conversion measurement.
 - **Meta (Facebook) Pixel** — advertising and conversion measurement.
 - **Metricool** — analytics.
 - **Behold** — displays our Instagram feed.
 
-`[CONFIRM: whether you want a cookie-consent banner. BC/PIPA is consent-based; running ad pixels (Meta/Google Ads) generally makes a consent mechanism advisable. This is both a legal and a build decision — flag it for the build phase if you want one.]`
-You can control cookies through your browser settings and opt out of some advertising via the providers’ own tools (e.g. Google Ads Settings, Meta ad preferences).
+When you first visit, a small notice lets you accept or decline non-essential cookies; analytics and advertising tags do not load until you accept. You can change your choice at any time using the **Cookie settings** link in the footer, through your browser settings, and through the providers’ own tools (Google Ads Settings, Meta ad preferences). *(Build note: the consent notice does not exist yet; the build phase adds it, unobtrusive by owner decision, and gates the GTM tags on it.)*
 
 ## 5. How long we keep it
-We keep personal information only as long as needed for the purposes above and to meet legal/tax requirements. `[CONFIRM: retention periods — e.g. order/tax records kept 6 years per CRA norms; booking contact data kept X; marketing contacts until unsubscribe.]`
+We keep personal information only as long as needed for the purposes above and to meet legal and tax requirements. `[CONFIRM: proposed — order and payment records 6 years (CRA); booking and batch records 2 years after the batch is packaged; waitlist and marketing contacts until you unsubscribe or ask us to remove you; error reports 90 days.]`
 
 ## 6. Your rights
-Under BC’s Personal Information Protection Act (PIPA) you may request access to, or correction of, the personal information we hold about you. Contact **hello@steinsandvines.ca**. `[CONFIRM: name a privacy contact / position responsible for privacy — PIPA expects a designated contact.]`
+Under BC’s Personal Information Protection Act (PIPA) you may request access to, or correction of, the personal information we hold about you, and withdraw consent to marketing at any time. Contact our privacy contact at **hello@steinsandvines.ca**. `[CONFIRM: name the person or position responsible for privacy — PIPA expects a designated contact.]` If you are not satisfied with our response, you may contact the **Office of the Information and Privacy Commissioner for British Columbia** (oipc.bc.ca).
 
 ## 7. Security
-We use reasonable safeguards to protect your information (including keeping card entry on our payment provider’s systems rather than ours). No method of transmission or storage is completely secure.
+We use reasonable safeguards to protect your information, including keeping card entry on our payment provider’s systems rather than ours and restricting staff access to booking records. No method of transmission or storage is completely secure.
 
 ## 8. Children
-The site and our services are intended for adults. U-Brew/U-Vin and related products involve the production of alcohol and are restricted to persons **19 or older** (see the Terms & Conditions). We do not knowingly collect information from children.
+The site and our services are intended for adults. U-Brew/U-Vin involves the production of alcohol and is restricted to persons **19 or older** (see the Terms & Conditions). We do not knowingly collect information from children.
 
 ## 9. Changes
 We may update this policy; the “last updated” date will change and material changes will be posted here.
 
 ## 10. Contact
 Steins & Vines · 11-38918 Progress Way, Squamish, BC V8B 0K7 · hello@steinsandvines.ca · 604-567-4565.
-`[CONFIRM: If PIPA requires it, add a named Privacy Officer and a complaints escalation path (Office of the Information & Privacy Commissioner for BC).]`

@@ -1,42 +1,49 @@
-# Refund, Return & Cancellation Policy — DRAFT (review before publishing)
+# Refund, Return & Cancellation Policy — DRAFT (second pass, review before publishing)
 
 > DRAFT for owner/legal review — not legal advice, not live. Resolve every `[CONFIRM: …]` before publishing. This is the policy Consumer Protection BC most wants clearly disclosed *before* purchase, so it must be linked at checkout, not just in the footer.
 
-**Last updated:** 2026-08-13 (draft)
+**Last updated:** 2026-09-16 (draft, second pass — owner decisions of 2026-09-16 applied)
 
-Because Steins & Vines sells two very different things — **ferment-on-premises sessions (a service)** and **physical goods** — this policy has separate sections. Contact us any time: **hello@steinsandvines.ca · 604-567-4565**.
+Because Steins & Vines sells two very different things — **ferment-on-premises sessions (a service)** and **physical goods** — this policy has separate sections. Everything we sell is **collected in store**; we do not ship. Contact us any time: **hello@steinsandvines.ca · 604-567-4565**.
 
 ## A. U-Brew / U-Vin session reservations (service)
-A reservation books time, equipment, and staff for you to start and later bottle a batch on our premises.
-- **Rescheduling:** `[CONFIRM: how far in advance can a customer reschedule at no charge? e.g. 48 hours.]`
-- **Cancellation & refunds:** `[CONFIRM: your cancellation window and what is refundable. e.g. "Cancel 48+ hours before your start appointment for a full refund; within 48 hours, the deposit is non-refundable."]`
-- **Deposits:** `[CONFIRM: do you take a deposit at booking? Is it refundable, and under what conditions?]`
-- **No-shows:** `[CONFIRM: what happens on a no-show — forfeit deposit / full charge?]`
-- **Batches already started:** Once fermentation has begun, the kit and materials are in use and the service is substantially underway, so a started batch is `[CONFIRM: non-refundable? partially?]`. This should be stated plainly because it is the most common dispute point.
-- **Our cancellations:** If we must cancel or reschedule your session (equipment, staffing, etc.), you may rebook or receive a full refund of amounts paid for that session.
+A reservation books time, equipment, and staff for you to start and later package a batch on our premises. Your session is **paid in full when you book**; we do not take a separate deposit.
 
-## B. Physical products (kits, ingredients, additives, grains, hops, yeast, packaging, equipment)
-- **Return window:** `[CONFIRM: e.g. 14 or 30 days from purchase/pickup.]`
-- **Condition:** Items must be `[CONFIRM: unopened / unused / in original packaging]` to be returned.
-- **Non-returnable items:** For health, safety, and quality reasons, we `[CONFIRM]` cannot accept returns of **opened or used consumables** — ingredients, additives, grains, hops, yeast, and started kits. `[CONFIRM: confirm this list.]`
-- **Defective or incorrect items:** If an item arrives/leaves defective or we sent the wrong item, we will replace it or refund it at no cost to you — see also the Warranty page. Please contact us within `[CONFIRM: e.g. 7 days]` of receipt.
-- **Restocking fee:** `[CONFIRM: none, or a % on certain returns.]`
-- **Return method / shipping:** `[CONFIRM: are returns done in-store only? If products ship, who pays return shipping — customer unless the item was defective/wrong?]` — this depends on the open question of whether you ship at all or are pickup-only.
+- **Rescheduling:** You can reschedule your start appointment at no charge. Contact us as early as you can so the slot can be offered to someone else.
+- **Cancelling before your batch is started:** You can cancel any time before your start appointment for a refund of what you paid, **less a $10 administrative fee**. `[CONFIRM (lawyer): a cancellation fee on a future-performance contract is permitted only if it was disclosed before purchase and is a genuine pre-estimate of cost; confirm the amount and that the checkout shows it before payment.]`
+- **No-shows:** If you miss your start appointment without contacting us, we will reach out to rebook. `[CONFIRM: what happens if a batch is never started — e.g. treated as a cancellation (refund less the $10 fee) after 30 days with no rebooking?]`
+- **Batches already started:** Once you have pitched the yeast, fermentation has begun, the kit and materials are in use, and the service is substantially underway. **A started batch is not refundable.** Instead it is covered by our Satisfaction Guarantee below.
+- **Our cancellations:** If we must cancel or reschedule your session (equipment, staffing, etc.), you may rebook or receive a full refund of amounts paid for that session, with no fee.
 
-## C. Gift cards / gift certificates
-`[CONFIRM: gift cards are typically non-refundable and non-redeemable for cash, redeemable only toward products/services, and do not expire (BC generally prohibits expiry on gift cards). Confirm your terms.]`
+## B. Satisfaction Guarantee for batches made on our premises
+If you are not happy with how your batch turned out, we will **replace the kit and run the batch again at no cost**, once per batch. To use the guarantee:
+- Tell us within **30 days of your packaging day**. We may extend this at our discretion.
+- Bring back the unused product. You must return at least `[CONFIRM: three-quarters of the bottles/cans — pick the fraction; the intent is "you can't drink most of it and then ask for a new one"]`.
+- The replacement is the **same kit or recipe** at the same price tier. You may choose a different one and pay any difference. `[CONFIRM]`
+- **One replacement per batch.** The replacement batch is not itself covered by a further guarantee.
+- The guarantee applies to wine kits and `[CONFIRM: also to beer recipes brewed on premises? The beer programme is recipe-based rather than kit-based, so say whether the same guarantee applies.]`
+- The guarantee is about the outcome of the batch. Product that is defective, damaged, or expired is covered separately by the Warranty.
 
-## D. Custom labels / personalized items
-`[CONFIRM: personalized/custom-label orders are commonly non-returnable once produced unless defective. Confirm.]`
+## C. Physical products (collected in store)
+- **Kits bought for fermenting on our premises** are **not returnable** — they are allocated to your session and covered by the Satisfaction Guarantee instead.
+- **Consumables** (take-home kits, ingredients, additives, grains, hops, yeast, packaging) can be returned **only for a quality issue**: defective, damaged, expired, or not what you ordered. Contact us within `[CONFIRM: 30 days]` of purchase and we will replace or refund the item at no cost. We do not accept change-of-mind returns on consumables, for health, safety, and quality reasons.
+- **Equipment:** `[CONFIRM: not answered yet — change-of-mind returns on unopened equipment within 30 days with receipt, or quality-issue only like consumables?]`
+- **Restocking fee:** `[CONFIRM: none?]`
+- **Returns are in store** at 11-38918 Progress Way, Squamish, during opening hours. Bring your receipt or order reference.
 
-## E. How to request a refund or return
+## D. Gift cards / gift certificates
+`[CONFIRM: proposed — gift cards are non-refundable, are not redeemable for cash, are redeemable only toward our products and services, and do not expire (BC law prohibits expiry dates on gift cards).]`
+
+## E. Custom labels / personalized items
+`[CONFIRM: proposed — personalized/custom-label orders are not returnable once produced, unless defective or not as ordered.]`
+
+## F. How to request a refund or return
 Contact **hello@steinsandvines.ca** or **604-567-4565** with your name, order/booking reference, and the reason. We will confirm eligibility and next steps.
 
-## F. How refunds are issued
-Approved refunds are returned to the original payment method within `[CONFIRM: e.g. 5–10 business days]` of approval. Cash sales are refunded `[CONFIRM: as cash in-store / by other method]`.
+## G. How refunds are issued
+Approved refunds are returned to the original payment method within `[CONFIRM: 10 business days]` of approval. Cash sales are refunded `[CONFIRM: in cash, in store]`.
 
-## G. Your statutory rights
-Nothing in this policy limits any rights you have under the BC **Business Practices and Consumer Protection Act** or other applicable law.
-
----
-`[CONFIRM overall: this section structure assumes in-store pickup is the norm and shipping is limited or absent. If you ship provincially/nationally, a fuller shipping + delivery-timeframe + damaged-in-transit section is needed.]`
+## H. Your statutory rights
+Nothing in this policy limits any rights you have under the BC **Business Practices and Consumer Protection Act** (BPCPA) or other applicable law. In particular:
+- An online reservation is a **future performance contract** and an online order is a **distance sales contract** under the BPCPA. The Act requires us to give you certain information before you commit (see the Terms & Conditions, §3–4) and gives you cancellation rights if we have not. `[CONFIRM (lawyer): confirm the disclosure list in the Terms satisfies BPCPA Part 4, and that the $10 fee and the "started batch" rule are consistent with the Act's cancellation and refund provisions.]`
+- Where the Act entitles you to a refund on cancellation, we issue it within **15 days** as the Act requires.

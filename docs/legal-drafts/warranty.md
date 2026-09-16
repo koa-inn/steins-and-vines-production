@@ -1,23 +1,22 @@
-# Warranty / Product Guarantee — DRAFT (review before publishing)
+# Warranty / Product Guarantee — DRAFT (second pass, review before publishing)
 
 > DRAFT for owner/legal review — not legal advice, not live. Resolve every `[CONFIRM: …]` before publishing. Consumer Protection BC expects warranties to be addressed even if you offer none — and if there are limitations, they must be disclosed in full.
 
-**Last updated:** 2026-08-13 (draft)
+**Last updated:** 2026-09-16 (draft, second pass — owner decisions of 2026-09-16 applied)
 
 ## 1. Defective or misdescribed goods
-If a product you buy from Steins & Vines is defective, damaged on receipt, or materially different from how it was described, contact us within `[CONFIRM: e.g. 7 days]` at **hello@steinsandvines.ca / 604-567-4565** and we will repair, replace, or refund it — see the Refund, Return & Cancellation Policy for how this works.
+If a product you buy from Steins & Vines is defective, damaged when you collect it, expired, or materially different from how it was described, contact us within `[CONFIRM: 30 days — align with the Refund Policy]` at **hello@steinsandvines.ca / 604-567-4565** and we will replace or refund it — see the Refund, Return & Cancellation Policy for how this works.
 
 ## 2. Equipment
-`[CONFIRM: your stance on equipment (e.g. bottling tools, small appliances). Options:
- - "Equipment carries the manufacturer’s warranty, if any; we will help you make a manufacturer claim." (state typical duration if known)
- - "Equipment is sold as-is with no additional Steins & Vines warranty beyond defects on arrival."
- Pick one and state any duration/limits.]`
+We do not offer a Steins & Vines warranty on equipment beyond §1 (defects present when you collect it). Where a manufacturer provides its own warranty, that warranty is yours to use and we will help you make a claim. `[CONFIRM: the owner believes no equipment currently sold carries a manufacturer warranty — verify with suppliers before publishing, since a "we'll help you claim" line implies some do.]`
 
 ## 3. Consumables (ingredients, kits, additives, grains, hops, yeast)
-`[CONFIRM: consumables are typically sold without a performance warranty because fermentation outcomes depend on handling, temperature, timing, and technique outside our control — but defective/expired stock is covered under §1. Confirm this framing.]`
+Consumables are sold without a performance warranty. Fermentation outcomes depend on handling, temperature, timing, and technique outside our control once the product leaves the store. Defective, damaged, or expired stock is covered under §1.
 
-## 4. Fermentation results / U-Brew & U-Vin outcomes
-The quality of a finished batch depends significantly on choices and conditions during and after fermentation. `[CONFIRM: we do not warrant a specific taste, yield, alcohol level, or outcome of any batch; we do warrant that we provide the agreed equipment, materials, and guidance. Confirm — this is important to state given the service nature.]`
+## 4. Batches made on our premises
+The quality of a finished batch depends on many factors during and after fermentation. We do **not** warrant a specific taste, yield, alcohol level, or other outcome of any batch. We **do** warrant that we provide the agreed kit or recipe, equipment, materials, and guidance, and that we monitor and look after your batch while it ferments.
+
+Separately from any warranty, batches made on our premises are covered by our **Satisfaction Guarantee**: if you are not happy with how your batch turned out, we will replace the kit and run the batch again at no cost, once per batch, on the conditions set out in the Refund, Return & Cancellation Policy (§B).
 
 ## 5. Limitations
 To the extent permitted by law, and except as required by the BC **Business Practices and Consumer Protection Act** and the **Sale of Goods Act**, `[CONFIRM: any limitation of liability language — a lawyer should draft/approve this clause. Do not overstate limitations; BC consumer law voids attempts to waive statutory warranties for consumer goods.]`
