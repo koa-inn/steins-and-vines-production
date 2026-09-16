@@ -1,0 +1,97 @@
+{
+  "context": "phase",
+  "phase": "81-recipe-fermentation-timeline-give-customers-an-expected-read",
+  "phase_number": "81",
+  "status": "in_progress",
+  "last_updated": "2026-09-16",
+  "handoff_path": ".planning/phases/81-recipe-fermentation-timeline-give-customers-an-expected-read/.continue-here.md",
+  "summary": "Phase 81 functionally complete and verified on staging (VERIFICATION status: passed, 11/11). Only plan 81-09 (production cutover) remains, and it is unblocked. Nothing customer-facing has shipped. A display-only 1000x cost bug in the admin recipe editor was found at the end of the session and is unresolved.",
+  "plans_total": 10,
+  "plans_complete": 9,
+  "plans_remaining": ["81-09"],
+  "completed_plans": ["81-01", "81-02", "81-03", "81-04", "81-05", "81-06", "81-07", "81-08", "81-10"],
+  "release_gate": {
+    "id": "D-10",
+    "status": "MET",
+    "evidence": "All 3 active recipes render on staging: SV-R-000011 and SV-R-000003 'about 3 weeks from brew day', SV-R-000002 'about 5 weeks from brew day'."
+  },
+  "next_action": "Read 81-09-PLAN.md, then ask the user whether to run the production cutover or plan the js/admin.js unit-conversion display fix first. Do NOT start the cutover without explicit go-ahead (autonomous: false; git push production main --force).",
+  "blockers": [
+    {
+      "id": "ADMIN-COST-1000X",
+      "severity": "open-unplanned",
+      "title": "Admin recipe editor shows 1000x costs when recipe unit differs from catalog unit",
+      "where": "js/admin.js:9017 (renderIngredientRows), js/admin.js:9191 (updateIngredientTotals)",
+      "detail": "Both compute qty * rate with no unit conversion. qty is in the recipe unit (g), rate is per catalog unit (kg). West Coast IPA editor shows Totals $6,059.66/$13,809.97 for a recipe selling at $93.73. Correct math gives $23.32/$43.75 -> +$45 service +$5 materials = $93.75 vs $93.73 charged.",
+      "customer_impact": "NONE - middleware converts correctly, customers are not overcharged. Display-only.",
+      "scope": "20 hop rows stored in g across 7 recipes, plus gypsum and calcium chloride. Grain is kg in both places so grain rows look correct.",
+      "recommendation": "Fix the code, leave the data. Normalising hops to kg would make the editor appear correct while hiding the bug. Needs its own plan plus regression test.",
+      "changed_anything": false
+    },
+    {
+      "id": "APPS-SCRIPT-CONFIG-DRIFT",
+      "severity": "pre-existing",
+      "title": "Deployment config contradicts documentation",
+      "detail": "Live is 'Execute as: Me' + 'Who has access: Anyone'; docs/APPS_SCRIPT.md and adminApi.gs's own header say it MUST be 'User accessing the web app' + 'Anyone with Google Account'. Session.getActiveUser().getEmail() returns empty, making that limb of checkAuthorization dead code in production. NOT an open endpoint - the OAuth-token path and server-token bypass both work.",
+      "changed_anything": false
+    },
+    {
+      "id": "D-04-POSITIVE-LEG",
+      "severity": "open",
+      "title": "D-04 activation pre-select positive case unverifiable",
+      "detail": "No batch carries a recipe_id with a schedule attached; the three pending batches are Zoho-SKU wine products. 81-06 separately recorded that the create-batch modal has no recipe identity to default from. Verified in the negative case only. Recorded as OPEN in 81-VERIFICATION.md human_verification.",
+      "changed_anything": false
+    },
+    {
+      "id": "UNIT-MISMATCH-UX",
+      "severity": "advisory",
+      "title": "Admin swallows the unit_mismatch error and the unit is not editable",
+      "detail": "Middleware returns a precise 422 (code: unit_mismatch, cause: the ingredient name); the UI shows only 'Could not save recipe. Please try again', which invites a retry that can never work. The unit renders as plain text (td.ing-unit), not an input - the only repair path is re-picking the ingredient from the autocomplete, which silently resyncs the unit from the catalog.",
+      "changed_anything": false
+    },
+    {
+      "id": "T-81-10-02",
+      "severity": "accepted",
+      "title": "Unescaped interpolation in the schedule form",
+      "where": "js/admin.js:7677-7678",
+      "detail": "existing.name and existing.description interpolated unescaped. Pre-existing, staff-authored input. Neighbouring buildScheduleOptionsHtml does escape.",
+      "changed_anything": false
+    }
+  ],
+  "infrastructure": {
+    "apps_script": {
+      "project_id": "1uD14PTT2lMWV06FAKcEs6Z_YKsEvnUuk9fOFycu7emiOPyh9jC0KTvUH",
+      "note": "TWO projects are named 'SV Website'; the correct one contains Code.gs, trackEvent.gs, adminApi.gs, backup.gs",
+      "live_version": 56,
+      "rollback_target": 55
+    },
+    "staging": {
+      "origin_main": "71d3d3d5+",
+      "admin_bundle": "admin.min.js?v=mtpx01mn",
+      "note": "curl gets HTTP 403 from staging.steinsandvines.ca (bot protection); the Railway API host does not. Verify frontend in a browser."
+    },
+    "production": "Still on the OLD middleware and frontend. Untouched this session.",
+    "google_sheet": {
+      "id": "10BzcANc_-dyS-Is_C4He7mMYHfJ2OSJS9V4p7D-1JrM",
+      "note": "Shared by staging AND production. No rehearsal environment. schedule_id is column R.",
+      "recipes": "3 active (SV-R-000011, SV-R-000003, SV-R-000002), 7 draft"
+    },
+    "admin_session": "Does not survive a page reload (GIS token is in-memory). Expect a fresh user sign-in after every navigation. Never attempt OAuth grants on the user's behalf."
+  },
+  "live_data_changes_this_session": {
+    "note": "Ad-hoc work outside any plan. All verified at the source. No SUMMARY exists for it.",
+    "descriptions": "All 10 recipe descriptions rewritten to one house pattern (190-253 chars). Hazy Pale Ale's had been brewer's spec on a public page.",
+    "lactic_acid": "9 rows L->kg at x1.2 across 6 recipes; SV-R-000002 0.01->0.012 and SV-R-000011 0.0035->0.0042 as mislabeled volumes. SV-R-000001 (0.0072) and SV-R-000003 (0.012) deliberately left alone - they divide cleanly by 1.2 so were already converted. All 13 rows now yield clean mL equivalents.",
+    "whirlfloc": "6 rows Whirlfloc Tablets L->pcs (second blocker behind the 422)",
+    "style": "SV-R-000001 style ESB -> Mild",
+    "result": "0 un-saveable recipes (was 6). All edited recipes returned {\"ok\":true}."
+  },
+  "uncommitted_files": [
+    {
+      "path": "links.html",
+      "owner": "user",
+      "detail": "Pre-existing before this session. Link-in-bio click tracking: data-track attributes on 9 links plus an inline dataLayer push for GTM/GA4. CSP already allows it ('unsafe-inline' present, GTM already on the page) so no CSP change is needed. Still needs a GTM trigger + GA4 tag configured outside the repo. Deliberately excluded from all 14 commits this session."
+    }
+  ],
+  "context_notes": "The throughline was verifying against the live system rather than trusting tests - unit tests passed while a fake Sheets runtime hid whether the migration worked, GAP-01 was found by clicking the real UI, and the 1000x display bug surfaced only because the user remembered seeing hops in grams. Two self-corrections to carry forward: a save was reported successful without confirming it persisted, and a normalisation rule was generalised from a subset before being tested per-row. Both are in the .continue-here.md anti-pattern table as blocking."
+}
