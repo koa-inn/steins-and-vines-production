@@ -1587,7 +1587,8 @@ behold-widget {
    auto-fit/1fr stretch from blowing a 1-2-card grid up to full width. */
 .product-grid--compact {
   grid-template-columns: repeat(auto-fit, minmax(280px, 320px));
-  justify-content: start;
+  /* A lone 320px column (481-640px viewports) sits centred, not pinned left. */
+  justify-content: center;
 }
 
 @media (max-width: 480px) {
