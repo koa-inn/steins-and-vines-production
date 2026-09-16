@@ -33,6 +33,9 @@ The review copy for the owner and lawyer is the artifact at https://claude.ai/ar
 13. **Guarantee replacement:** same kit or a different kit of equal or lower price; no refund of the difference.
 14. **Windows:** 30 days for equipment returns, quality-issue claims, and warranty claims; refunds within 10 business days to the original method, cash in cash; uncollected orders held 30 days.
 15. **Tax display:** prices shown before tax; GST/PST added at checkout.
+16. **No restocking fee.**
+17. **Retention:** 6-year tax records, licence period for customer slips and batch records (figure to confirm), 2 years other booking details, marketing until unsubscribe, error reports 90 days.
+18. **Privacy Officer:** the owner, via hello@steinsandvines.ca.
 
 ## Facts closed from the code on 2026-09-16
 - Checkout collects name, email, phone, and notes only. No address, no date of birth.
@@ -43,8 +46,7 @@ The review copy for the owner and lawyer is the artifact at https://claude.ai/ar
 
 ## Still open — owner decisions
 - What happens after the finished-batch storage window (disposal after a further 14 days' notice proposed).
-- Whether refunds ever carry a restocking fee (none proposed; owner asked what it is).
-- Data retention periods (defaults proposed) and the named privacy contact.
+- The exact licence record-keeping period for customer slips and batch records (owner: several years).
 - Whether a general customer newsletter exists beyond the waitlist list.
 - Whether the checkout should carry a 19+ checkbox as well as the in-store ID check (recommended).
 

@@ -28,7 +28,7 @@ If you are not happy with how your batch turned out, we will **replace the kit a
 - **Kits bought for fermenting on our premises** are **not returnable** — they are allocated to your session and covered by the Satisfaction Guarantee instead.
 - **Consumables** (take-home kits, ingredients, additives, grains, hops, yeast, packaging) can be returned **only for a quality issue**: defective, damaged, expired, or not what you ordered. Contact us within **30 days** of purchase and we will replace or refund the item at no cost. We do not accept change-of-mind returns on consumables, for health, safety, and quality reasons.
 - **Equipment** can be returned within **30 days** of purchase with your receipt, provided it is **unused and in as-new condition**, in its original packaging.
-- **Restocking fee:** `[CONFIRM: none?]`
+- **Restocking fee:** none.
 - **Returns are in store** at 11-38918 Progress Way, Squamish, during opening hours. Bring your receipt or order reference.
 
 ## D. Gift cards / gift certificates

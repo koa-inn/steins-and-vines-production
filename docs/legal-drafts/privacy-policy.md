@@ -52,10 +52,15 @@ We use cookies and similar technologies for essential site functions and, **only
 When you first visit, a small notice lets you accept or decline non-essential cookies; analytics and advertising tags do not load until you accept. You can change your choice at any time using the **Cookie settings** link in the footer, through your browser settings, and through the providers’ own tools (Google Ads Settings, Meta ad preferences). *(Build note: the consent notice does not exist yet; the build phase adds it, unobtrusive by owner decision, and gates the GTM tags on it.)*
 
 ## 5. How long we keep it
-We keep personal information only as long as needed for the purposes above and to meet legal and tax requirements. `[CONFIRM: proposed — order and payment records 6 years (CRA); booking and batch records 2 years after the batch is packaged; waitlist and marketing contacts until you unsubscribe or ask us to remove you; error reports 90 days.]`
+We keep personal information only as long as needed for the purposes above and to meet legal and tax requirements:
+- **Order and payment records:** 6 years from the end of the tax year, as the Canada Revenue Agency requires.
+- **Batch records and the customer slip you sign when you start a batch:** for the period our liquor licence requires. `[CONFIRM: the exact record-keeping period under the UBrew/UVin licence — the owner knows it is several years; confirm the figure with the LCRB terms and conditions.]`
+- **Other booking details:** 2 years after your batch is packaged.
+- **Waitlist and marketing contacts:** until you unsubscribe or ask us to remove you.
+- **Error reports:** 90 days.
 
 ## 6. Your rights
-Under BC’s Personal Information Protection Act (PIPA) you may request access to, or correction of, the personal information we hold about you, and withdraw consent to marketing at any time. Contact our privacy contact at **hello@steinsandvines.ca**. `[CONFIRM: name the person or position responsible for privacy — PIPA expects a designated contact.]` If you are not satisfied with our response, you may contact the **Office of the Information and Privacy Commissioner for British Columbia** (oipc.bc.ca).
+Under BC’s Personal Information Protection Act (PIPA) you may request access to, or correction of, the personal information we hold about you, and withdraw consent to marketing at any time. Our **Privacy Officer is the owner**, reachable at **hello@steinsandvines.ca** or 604-567-4565. If you are not satisfied with our response, you may contact the **Office of the Information and Privacy Commissioner for British Columbia** (oipc.bc.ca).
 
 ## 7. Security
 We use reasonable safeguards to protect your information, including keeping card entry on our payment provider’s systems rather than ours and restricting staff access to booking records. No method of transmission or storage is completely secure.
