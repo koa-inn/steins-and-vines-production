@@ -226,57 +226,6 @@ Last activity: 2026-09-05 -- Phase 81 execution started
 
 ## Session Continuity
 
-Last session: 2026-09-05T16:06:48.794Z
-Stopped at: Phase 81 planned -- 9 plans, verification passed
-`HANDOFF.json` (now retired). Confirmed the staging redeploy of the double-encoding fix `8a3d7868`
-landed by calling `/api/bookings/services` twice — the second, cache-hit call returned a parsed
-object containing slug `beer-consult`, which is exactly how the bug previously hid. Then drove leg 7
-in Chrome and recorded the result in `80-CUTOVER.md` (`ad0d6c00`).
-**Next:** owner performs leg 13 cleanup (2 probe rows + MailerLite + Zoho contact), then Phase 80
-closeout (verification + ROADMAP). Leg 4 remains PARTIAL pending a second active recipe.
-**Note:** `links.html` is a pre-existing owner edit in the working tree — NOT part of phase 80,
-never stage it.
-
-### Prior session (2026-09-04)
-
-Stopped at: Phase 80 UI-SPEC approved
-**INV-000137 backfilled** — `SV-B-000183` + `SV-B-000184`; guard now reports "3 of 3" and rejects a 4th. Owner redeployed Apps Script twice. Middleware suite 1283 / frontend 986 / lint clean.
-**⚠️ Anti-patterns discovered (see `.planning/.continue-here.md`):** (1) *green tests ≠ working system* — `fda6e40` passed its suite for 4 days while dead in prod, because the contradicting logic lived in Apps Script (no CI deploy, no Jest); exercise Apps-Script-crossing changes against the live system. (2) *`curl` against prod lies* — Cloudflare returns a 403 bot-challenge page, which made me wrongly conclude prod had no GTM/CSP; verify prod **through the browser**. (3) `apps-script/*.gs` needs a MANUAL redeploy.
-**Open (owner-only, non-blocking):** iPad UAT of the kiosk recovery fix (the one fix inferred from symptoms, never reproduced); watch the next multi-kit sale in BrewPad; Phase 56 leftovers (2nd GTM admin + `purchase` UAT); optional repair of historical mangled customer names.
-
-### Prior session (2026-07-11)
-
-Stopped at: **Phase 56 (GTM/GA4) audited live — most of it was already done.** Verified against the live prod page + the published GTM-NHRCGLC5 container (NOT from notes): T1 ✅ (GA4 data filter "Exclude Staging Hostname", Web Hostname Traffic / Exclude / Active — the hostname variant, not the internal-traffic variant the run-sheet recommended); T2 ✅ (add_to_cart/begin_checkout/purchase GA4 event tags present, all `sendEcommerceData` from Data Layer — so the missing `ecommerce.currency`/`transaction_id` DLVs are a non-issue); T3 ✅ (Conversion Linker `__gclidw` published); T4 ✅ (`AW-18091171314` + an `awct` conversion tag loading on prod); T5/T6 ✅ (Metricool CSP live on prod, tag published); T7a ✅ (`purchase` is a permanent GA4 key event — star is disabled, tooltip "Key event can't be unmarked"; nothing to do, nothing changed).
-**Phase 56 remaining (both owner-only):** (a) T7b add a 2nd GTM admin (permissions change); (b) T8 purchase UAT — ONE real test order on staging → confirm ONE `purchase` in GA4 DebugView + no duplicate on replay. Phase 55 code (c86b5b3) is ALREADY on prod, so T8's "promote" step is moot.
-**⚠️ Pre-UAT risk flagged:** `purchase` is a key event AND an Ads conversion tag (`awct`) is in the shared container, so a staging test order may register a real conversion in **Google Ads** — the GA4 hostname data filter does NOT protect Ads. Consider a GTM hostname trigger-exception on the Ads conversion tag before charging a card.
-**Gotcha (cost me a wrong conclusion):** prod `steinsandvines.ca` is behind Cloudflare and returns **403 bot-challenge to curl** — CLI checks of prod HTML are worthless (they show 0 hits for GTM/CSP). Verify prod through the browser only. Staging is not behind Cloudflare.
-**Cosmetic defect (not fixed):** existing GA4 key event + GTM tag is misspelled `resrvation_page_view` (missing "e"). Renaming breaks historical continuity — owner's call.
-GA4 IDs: account `a391385411`, property `p533046537`.
-
-### Prior session (2026-07-10)
-
-Stopped at: **PROD STAGE-3 CUTOVER SHIPPED** (tag prod-20260710-2, blessed gated-deploy run 29127742148) — Phases 48 + 54 + kiosk fixes + brewpad + Metricool CSP + v4.6 GA4 events all live on production; middleware redeployed (uptime reset, redis ✅); frontend verified (kiosk-core, Metricool CSP, GA4 in bundle). Earlier this session: iPad UAT (48/54 standalone), Fix 1 break-glass (prod-20260710-1), 9 test invoices+11 payments deleted from Zoho, Phase 48 secured (22/22), v4.6 milestone + Phase 55/56 scaffolded, GA4 reviewed + shipped + staging-verified (site half proven; GA4 collect 503s from this browser only), milestone state reconciled.
-Open threads: (1) **watch Sentry** on the 48/54 money-path/auth changes now live; (2) **GA4 Realtime** confirm on a real prod order (Option A — the staging DebugView 503 was environment-local); (3) delete test order INV-000145 from Zoho (Helcim already voided by owner); (4) v4.5 Phase 47 SEC-01 checkbox vs narrative mismatch — owner reconcile; (5) Phases 49/50/51 remain in v4.5; (6) Phase 56 GTM remaining (Conversion Linker, Ads tag AW-18091171314, mark purchase key event, 2nd admin) + staging internal-traffic filter (todo); (7) GiftCards sheet tidy for GC-000001.
-Resume file: .planning/phases/81-recipe-fermentation-timeline-give-customers-an-expected-read/81-01-PLAN.md
-
-### Prior session (2026-07-08T21:04:01.660Z)
-
-Stopped at: Completed 54-03-PLAN.md (Phase 54 complete)
-
-### Prior session (2026-07-03T19:12:01.492Z)
-
-Stopped at: Phase 48 context gathered
-Session summary:
-
-  - Deployed F2 (d8bf965+e029108) via staging push 211ad6e + prod force-push; Railway auto-deployed (NOTE: Railway watches koa-inn/steins-and-vines-production zoho-middleware/** — a prod force-push IS a middleware deploy; `railway up` redundant).
-  - F2 LIVE-VERIFIED all 3 paths: auto-confirm ~12s real id (INV-000131); no-charge manual-confirm → 409 nothing booked; slow-customer manual-confirm → server verified via pollTerminalResult, booked real id 50915774 (INV-000134).
-  - F3 LIVE-VERIFIED: INV-000131 exempt custom line booked Zero Rate tax_id, tax_total:0.
-  - Steps 4b/6/8 PASS (gift_card_only skip-terminal; $20→$8 server clamp + $2 card split; idempotent replay in 15ms on same-key duplicate POST).
-  - **F7 found + FIXED f057094 + live-verified:** admin gift-card mgmt modal was dead (SHEETS_CONFIG.MW_URL nonexistent → relative fetch; response read too shallow; `balance` vs `current_balance`). Regression tests/frontend/admin-gift-card-mgmt.test.js; fe suite 931 green. Step 5 void then PASSED (GC-000001 voided).
-  - F5 (observability): Helcim refund webhooks look identical to purchases in logs — owner's dashboard refunds caused a false orphan-charge scare. F6 (UX): double-tap falls through to control underneath → issue #109.
-  - Accounting spot-check consistent with D-04 manual-deferral design (Gift Card Sales income $15; Gift Card Redemptions clearing $15).
-
-Cleanup owed (owner): refund $3 remaining card charges (txn 50914850 $2, txn 50915774 $1; June-30 $20 + Test-1 $1 already refunded); Zoho reverse INV-000127/128/129/131/132/133/134 + their payments; dismiss reconcile needs_manual_review flag for KIOSK-1783016597951 (false alarm); remove stale GH_TOKEN ~/.zshrc:16.
-Follow-ups (non-blocking, in findings §Follow-ups): F6 tap-shield (#109), webhook type logging, invoice-note wording, gift-card-only txnId label, void 409 mapping, cancel-aware reconcile sweep.
-Next: mark 45-09 UAT-approved in the phase flow (executor resume-signal was "approved") → 45-09 SUMMARY + phase-45 verification/wrap-up. Build churn from `npm run build` still in working tree (about.html/brewpad/products/* + zoho-middleware/ingredients-cache.json); stash@{0}/stash@{1} still pending reconcile.
-Resume file: None
+Last session: 2026-09-16
+Stopped at: Session resumed; staging walkthrough before 81-09 production cutover (batched push: phases 50/51/73-76/78-81)
+Resume file: .planning/phases/81-recipe-fermentation-timeline-give-customers-an-expected-read/.continue-here.md
