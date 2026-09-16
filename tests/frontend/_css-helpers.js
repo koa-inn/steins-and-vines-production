@@ -15,11 +15,13 @@ function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function blocks(selector) {
   var s = src();
   var out = [];
-  var re = new RegExp('(?:^|[}{;\\s])' + esc(selector) + '\\s*\\{([^}]*)\\}', 'g');
+  // Anchor on a rule boundary (start, `{` or `}`) so `body.nav-open #bar` never matches `#bar`.
+  var re = new RegExp('(^|[}{;])\\s*' + esc(selector) + '\\s*\\{([^}]*)\\}', 'g');
   var m;
   while ((m = re.exec(s)) !== null) {
-    // Find the nearest enclosing @media by scanning backwards for an unclosed @media {
-    var before = s.slice(0, m.index);
+    // Find the nearest enclosing @media by scanning backwards for an unclosed @media {.
+    // The boundary character (m[1]) belongs to the text before the rule, so keep it.
+    var before = s.slice(0, m.index + m[1].length);
     var depth = 0, media = null;
     for (var i = before.length - 1; i >= 0; i--) {
       if (before[i] === '}') depth++;
@@ -32,7 +34,7 @@ function blocks(selector) {
         depth--;
       }
     }
-    out.push({ media: media, body: m[1] });
+    out.push({ media: media, body: m[2] });
   }
   return out;
 }

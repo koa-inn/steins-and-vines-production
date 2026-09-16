@@ -6760,6 +6760,24 @@ footer {
   z-index: 999;
   background-color: var(--color-cream);
   box-shadow: 0 -2px 6px rgba(0,0,0,0.1);
+  /* Off-screen until initMobileBottomControls() marks the catalogue as in view */
+  transform: translateY(120%);
+  transition: transform 0.25s ease;
+}
+
+#mobile-catalog-bar.is-visible {
+  transform: none;
+}
+
+/* Never paint over the open mobile nav menu */
+body.nav-open #mobile-catalog-bar {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #mobile-catalog-bar {
+    transition: none;
+  }
 }
 
 /* Reset controls positioning — the bar wrapper handles placement */

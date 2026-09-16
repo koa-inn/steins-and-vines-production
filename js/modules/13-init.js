@@ -446,8 +446,20 @@ function initCategoryCatalogPage(page) {
 // ===== Mobile Bottom Controls =====
 // Moves .catalog-controls elements to a direct body child so position:fixed
 // works reliably on iOS Safari regardless of DOM nesting depth.
+//
+// Lifecycle (2026-09-16 mobile audit):
+//  - The bar is only .is-visible while the catalogue it controls is inside
+//    the viewport. beer.html and wine.html carry two thousand pixels of
+//    copy above the catalogue and a waitlist/FAQ/footer below it; a bar
+//    pinned over all of that hid ~14% of a phone screen and the footer's end.
+//  - It tears down (controls restored to their original slots) when the
+//    viewport grows to >= 1024px, e.g. a tablet rotated to landscape, and
+//    rebuilds if it shrinks again.
+var _mobileBar = null;
+
 function initMobileBottomControls() {
   if (window.innerWidth >= 1024) return;
+  if (_mobileBar) return;
   var controls = Array.prototype.slice.call(document.querySelectorAll('.catalog-controls'));
   if (controls.length === 0) return;
 
@@ -459,10 +471,14 @@ function initMobileBottomControls() {
   } else {
     wrap.innerHTML = '';
   }
-  controls.forEach(function(ctrl) { wrap.appendChild(ctrl); });
+  // Remember where each control came from so teardown can put it back.
+  var homes = controls.map(function (ctrl) {
+    return { el: ctrl, parent: ctrl.parentNode, next: ctrl.nextSibling };
+  });
+  controls.forEach(function (ctrl) { wrap.appendChild(ctrl); });
 
   // Measure heights after first paint so CSS vars reflect actual layout
-  requestAnimationFrame(function() {
+  requestAnimationFrame(function () {
     var catH = wrap.offsetHeight || 56;
     document.documentElement.style.setProperty('--catalog-bar-height', catH + 'px');
     var fixedBar = document.getElementById('reservation-bar');
@@ -470,6 +486,59 @@ function initMobileBottomControls() {
       document.documentElement.style.setProperty('--reservation-bar-height', fixedBar.offsetHeight + 'px');
     }
   });
+
+  // Visibility: only while the catalogue block is in the viewport.
+  var target = document.getElementById('catalog-blocks') || document.getElementById('product-catalog');
+  function update() {
+    if (!target) { wrap.classList.add('is-visible'); return; }
+    var r = target.getBoundingClientRect();
+    var inView = r.top < window.innerHeight && r.bottom > 0;
+    if (inView) wrap.classList.add('is-visible'); else wrap.classList.remove('is-visible');
+  }
+  var ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function () { ticking = false; update(); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  update();
+
+  _mobileBar = { wrap: wrap, homes: homes, onScroll: onScroll, mql: null, onChange: null };
+
+  // Tear down when the viewport crosses into the desktop layout.
+  if (typeof window.matchMedia === 'function') {
+    var mql = window.matchMedia('(min-width: 1024px)');
+    var onChange = function (e) {
+      if (e.matches) {
+        teardownMobileBottomControls();
+      } else {
+        initMobileBottomControls();
+      }
+    };
+    if (mql.addEventListener) mql.addEventListener('change', onChange);
+    else if (mql.addListener) mql.addListener(onChange);
+    _mobileBar.mql = mql;
+    _mobileBar.onChange = onChange;
+  }
+}
+
+function teardownMobileBottomControls() {
+  if (!_mobileBar) return;
+  var state = _mobileBar;
+  _mobileBar = null;
+  window.removeEventListener('scroll', state.onScroll);
+  window.removeEventListener('resize', state.onScroll);
+  if (state.mql) {
+    if (state.mql.removeEventListener) state.mql.removeEventListener('change', state.onChange);
+    else if (state.mql.removeListener) state.mql.removeListener(state.onChange);
+  }
+  state.homes.forEach(function (h) {
+    if (h.parent) h.parent.insertBefore(h.el, h.next && h.next.parentNode === h.parent ? h.next : null);
+  });
+  if (state.wrap.parentNode) state.wrap.parentNode.removeChild(state.wrap);
+  document.documentElement.style.removeProperty('--catalog-bar-height');
 }
 
 // ===== Kiosk Mode =====
@@ -1030,6 +1099,9 @@ if (typeof module !== 'undefined' && module.exports) {
     // REVIEW-03: lazy content-image placeholder load-state helper
     initFacilityPhotoPlaceholders: initFacilityPhotoPlaceholders,
     // D-09/D-11: /wine and /beer category-catalogue dispatch + beer waitlist wiring
-    initCategoryCatalogPage: initCategoryCatalogPage
+    initCategoryCatalogPage: initCategoryCatalogPage,
+    // Mobile bottom catalogue bar lifecycle (2026-09-16 audit)
+    initMobileBottomControls: initMobileBottomControls,
+    teardownMobileBottomControls: teardownMobileBottomControls
   };
 }
