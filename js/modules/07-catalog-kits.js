@@ -690,7 +690,14 @@ function loadProducts(categoryFilter) {
         buildFilterRow('filter-subcategory', 'subcategory', 'Style:');
         buildFilterRow('filter-abv', 'abv', 'ABV:');
       } else {
-        buildFilterRow('filter-type', 'type', 'Type:');
+        if (_categoryFilter === 'wine') {
+          // The page is already wine-scoped, so a Type row could only ever
+          // offer "All" and "Wine" — hide it rather than spend a row on it.
+          var typeRow = document.getElementById('filter-type');
+          if (typeRow) typeRow.classList.add('hidden');
+        } else {
+          buildFilterRow('filter-type', 'type', 'Type:');
+        }
         buildFilterRow('filter-brand', 'brand', 'Brand:');
         buildFilterRow('filter-manufacturer', 'manufacturer', 'Producer:');
         buildFilterRow('filter-subcategory', 'subcategory', 'Style:');
