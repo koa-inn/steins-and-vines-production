@@ -1709,8 +1709,14 @@ behold-widget {
 
 .product-link-btn {
   position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
+  top: 0;
+  right: 0;
+  /* 44px hit area (WCAG 2.5.8 / phone target size); the icon stays ~12px in from the corner */
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   cursor: pointer;
@@ -4619,7 +4625,7 @@ behold-widget {
 }
 .label-wine .price-col { flex: 1; padding: 0.6rem 0.5rem; text-align: center; }
 .label-wine .price-col + .price-col { border-left: 1px solid var(--color-brown); }
-.label-wine .price-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-brown); font-weight: 700; }
+.label-wine .price-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-brown); font-weight: 700; }
 .label-wine .price-value { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--color-burgundy); }
 .label-wine .reserve-link {
   display: block; width: 100%;
@@ -4710,8 +4716,8 @@ behold-widget {
   font-family: var(--font-condensed); font-size: 1.6rem; font-weight: 700;
   text-transform: uppercase; color: var(--color-burgundy); line-height: 1.1; margin-bottom: 0.2rem;
 }
-.label-beer .brand { font-size: 0.6875rem; font-weight: 700; color: var(--color-gold-dark); letter-spacing: 0.1em; margin-bottom: 0.25rem; }
-.label-beer .time { font-size: 0.6875rem; color: var(--color-muted-dark); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.35rem; }
+.label-beer .brand { font-size: 0.75rem; font-weight: 700; color: var(--color-gold-dark); letter-spacing: 0.1em; margin-bottom: 0.25rem; }
+.label-beer .time { font-size: 0.75rem; color: var(--color-muted-dark); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.35rem; }
 .label-beer .gold-rule { width: 50%; height: 0; border-top: 1px solid var(--color-gold); opacity: 0.4; margin: 0.1rem auto 0.35rem; }
 .label-beer .notes-toggle { font-size: 0.8rem; font-weight: 600; color: var(--color-gold-dark); opacity: 0.9; font-family: var(--font-body); }
 .label-beer .notes-toggle .chevron { color: var(--color-gold-dark); }
@@ -4720,7 +4726,7 @@ behold-widget {
 .label-beer .price-footer { width: 100%; display: flex; border-top: 1px solid var(--color-gold); background: rgba(184,150,62,0.06); }
 .label-beer .price-col { flex: 1; padding: 0.6rem 0.5rem; text-align: center; }
 .label-beer .price-col + .price-col { border-left: 1px solid rgba(184,150,62,0.3); }
-.label-beer .price-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-gold-dark); font-weight: 700; }
+.label-beer .price-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-gold-dark); font-weight: 700; }
 .label-beer .price-value { font-family: var(--font-condensed); font-size: 1.1rem; font-weight: 600; color: var(--color-burgundy); }
 .label-beer .price-value.ferment-time-value { font-family: var(--font-body); font-size: 0.8125rem; font-weight: 600; color: var(--color-muted-dark); line-height: 1.3; }
 .label-beer .ferment-time-weeks, .label-beer .ferment-time-start { display: block; }
@@ -5185,7 +5191,7 @@ behold-widget {
   .trait-label,
   .label-wine .price-label,
   .label-beer .price-label {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
   }
 
   .label-wine .brand {
@@ -6799,6 +6805,17 @@ footer {
 #mobile-catalog-bar .catalog-sort {
   max-width: none;
   width: 100%;
+}
+
+/* Phone/tablet touch targets — 44px minimum for the catalogue controls */
+@media (max-width: 1023px) {
+  .catalog-refresh-btn {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  .catalog-toggle {
+    min-height: 44px;
+  }
 }
 
 /* Product catalog bottom padding — room for both fixed bottom bars */
