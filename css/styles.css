@@ -2460,6 +2460,21 @@ behold-widget {
   border-bottom: none;
 }
 
+/* Static accordions wrap each question button in an <h3> for document outline */
+.faq-item h3 {
+  margin: 0;
+  font-size: inherit;
+}
+
+.faq-list {
+  text-align: left;
+}
+
+.faq-item .faq-answer p {
+  margin-left: 0;
+  margin-right: 0;
+}
+
 .faq-item .faq-question {
   display: block;
   width: 100%;

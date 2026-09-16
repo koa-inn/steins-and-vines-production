@@ -438,9 +438,29 @@ function initCategoryCatalogPage(page) {
 
   if (page === 'beer') {
     setupBeerWaitlistForm();
+    initFaqToggles();
   }
 
   return true;
+}
+
+// ===== Static FAQ accordions =====
+// Binds any .faq-item/.faq-question markup that ships in the HTML (beer.html)
+// the same way loadFAQ() binds the items it renders from about.json. Safe to
+// call more than once: a bound button is marked and skipped.
+function initFaqToggles(root) {
+  var scope = root || document;
+  var buttons = scope.querySelectorAll('.faq-item .faq-question');
+  Array.prototype.forEach.call(buttons, function (btn) {
+    if (btn.getAttribute('data-faq-bound') === '1') return;
+    btn.setAttribute('data-faq-bound', '1');
+    btn.addEventListener('click', function () {
+      var item = btn.closest ? btn.closest('.faq-item') : btn.parentElement.parentElement;
+      if (!item) return;
+      var open = item.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  });
 }
 
 // ===== Mobile Bottom Controls =====
@@ -1102,6 +1122,8 @@ if (typeof module !== 'undefined' && module.exports) {
     initCategoryCatalogPage: initCategoryCatalogPage,
     // Mobile bottom catalogue bar lifecycle (2026-09-16 audit)
     initMobileBottomControls: initMobileBottomControls,
-    teardownMobileBottomControls: teardownMobileBottomControls
+    teardownMobileBottomControls: teardownMobileBottomControls,
+    // Static FAQ accordion binder (beer.html)
+    initFaqToggles: initFaqToggles
   };
 }
