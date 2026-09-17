@@ -25,6 +25,7 @@ var findMaterialsFeeItem = helpers.findMaterialsFeeItem;
 var zohoPost = zohoApi.zohoPost;
 var zohoGet = zohoApi.zohoGet;
 var mailer = require('../lib/mailer');
+var mailerlite = require('../lib/mailerlite');
 
 // #6: Warn at startup when reCAPTCHA is not configured — bot protection bypassed on /api/checkout
 if (!process.env.RECAPTCHA_SECRET_KEY) {
@@ -805,9 +806,35 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
         cartKey: body.cart_key || '',
         itemCount: lineItems.length,
         grandTotal: orderTotal,
-        txnId: transactionId || ''
+        txnId: transactionId || '',
+        // The customer's checkout acknowledgement of the Terms (BPCPA s.18.3).
+        // Recorded as sent, never assumed: a missing field is false.
+        termsAccepted: body.terms_accepted === true
       });
       res.status(201).json(responseBody);
+
+      // Newsletter opt-in: the unticked-by-default box at checkout. Only a
+      // strict boolean true counts as consent. Fire-and-forget after the
+      // response — a MailerLite failure never affects the order. The event is
+      // the CASL consent record (who, when, where).
+      if (body.newsletter_opt_in === true && customerEmail) {
+        var newsletterEmail = customerEmail.toLowerCase();
+        eventLog.logEvent('checkout.newsletter_opt_in', {
+          orderNumber: soNumber || '',
+          email: redact.maskEmail(newsletterEmail),
+          source: 'checkout'
+        });
+        if (mailerlite.isConfigured()) {
+          var newsletterGroup = (process.env.MAILERLITE_NEWSLETTER_GROUP_ID || '').trim();
+          mailerlite.addSubscriber(newsletterEmail, newsletterGroup ? [newsletterGroup] : []).catch(function (mlErr) {
+            log.error('[checkout] Newsletter subscribe failed (non-fatal) for ' +
+              redact.maskEmail(newsletterEmail) + ': ' + mlErr.message);
+          });
+        } else {
+          log.warn('[checkout] MAILERLITE_API_KEY not set — newsletter opt-in recorded but not synced for ' +
+            redact.maskEmail(newsletterEmail));
+        }
+      }
 
     } catch (err) {
       if (responseSent) {
