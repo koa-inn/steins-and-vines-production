@@ -118,6 +118,7 @@ function clearCheckoutFormDraft() {
     // Bring extracted functions into scope for the module.exports block below
     if (typeof getRecaptchaToken === 'undefined') { getRecaptchaToken = _valMod.getRecaptchaToken; }
     if (typeof validateCheckoutForm === 'undefined') { validateCheckoutForm = _valMod.validateCheckoutForm; }
+    if (typeof getCheckoutConsent === 'undefined') { getCheckoutConsent = _valMod.getCheckoutConsent; }
     if (typeof renumberVisibleSteps === 'undefined') { renumberVisibleSteps = _valMod.renumberVisibleSteps; }
     if (typeof formatPhoneInput === 'undefined') { formatPhoneInput = _valMod.formatPhoneInput; }
     if (typeof isValidEmail === 'undefined') { isValidEmail = _valMod.isValidEmail; }
@@ -1547,6 +1548,8 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError, transactio
         cart_key: FERMENT_CART_KEY,
         promo_code: _promoApplied ? _promoApplied.code : undefined,
         ready_estimate: getReadyEstimateForCheckout(),
+        terms_accepted: getCheckoutConsent().terms_accepted,
+        newsletter_opt_in: getCheckoutConsent().newsletter_opt_in,
         idempotency_key: _checkoutIdempotencyKey
       })
     }).then(function (r) { return r.json(); })
@@ -1574,6 +1577,8 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError, transactio
             honeypot: honeypotVal,
             recaptcha_token: ingToken,
             cart_key: INGREDIENT_CART_KEY,
+            terms_accepted: getCheckoutConsent().terms_accepted,
+            newsletter_opt_in: false, // consent already sent with the ferment leg above
             idempotency_key: _checkoutIdempotencyKey ? _checkoutIdempotencyKey + '-ing' : undefined
           })
         }).then(function (r) { return r.json(); });
@@ -2140,6 +2145,8 @@ function setupReservationForm() {
                 recaptcha_token: recaptchaToken,
                 promo_code: _promoApplied ? _promoApplied.code : undefined,
                 ready_estimate: getReadyEstimateForCheckout(),
+                terms_accepted: getCheckoutConsent().terms_accepted,
+                newsletter_opt_in: getCheckoutConsent().newsletter_opt_in,
                 idempotency_key: _checkoutIdempotencyKey
               })
             }).then(function (r) { return r.json(); });

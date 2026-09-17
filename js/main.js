@@ -6470,12 +6470,30 @@ function validateCheckoutForm() {
   if (!name || !name.value.trim()) errors.push('Name is required');
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) errors.push('Valid email is required');
   if (!phone || !phone.value.trim()) errors.push('Phone number is required');
+  // Terms acknowledgement (BPCPA s.18.3): required whenever the page carries
+  // the box, except staff-run kiosk checkouts (ID checked and slip signed in
+  // store; simplifyKioskCheckout hides the box there).
+  var terms = document.getElementById('res-terms');
+  if (terms && !terms.checked && !document.body.classList.contains('kiosk-mode')) {
+    errors.push('Please tick the box to accept the Terms & Conditions');
+  }
   var errorContainer = document.getElementById('form-error-announce') || document.querySelector('[role="alert"]');
   if (errorContainer) {
     errorContainer.textContent = errors.join('. ');
     errorContainer.style.display = errors.length ? '' : 'none';
   }
   return errors.length === 0;
+}
+
+// What the customer consented to at checkout; travels with the order as
+// terms_accepted / newsletter_opt_in. Missing controls read as false.
+function getCheckoutConsent() {
+  var terms = document.getElementById('res-terms');
+  var news = document.getElementById('res-newsletter');
+  return {
+    terms_accepted: !!(terms && terms.checked),
+    newsletter_opt_in: !!(news && news.checked)
+  };
 }
 
 // #10/#21: renumber visible stepper digits after hiding steps
@@ -6530,7 +6548,8 @@ function applyKitSpecificVisibility(hasKits) {
     'reservation-intro-strip',
     'reservation-guarantee-note',
     'reservation-dropin-note',
-    'kit-instore-reminder'
+    'kit-instore-reminder',
+    'res-terms-age'
   ];
   kitOnlyIds.forEach(function (id) {
     var el = document.getElementById(id);
@@ -6555,6 +6574,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     getRecaptchaToken: getRecaptchaToken,
     validateCheckoutForm: validateCheckoutForm,
+    getCheckoutConsent: getCheckoutConsent,
     renumberVisibleSteps: renumberVisibleSteps,
     formatPhoneInput: formatPhoneInput,
     isValidEmail: isValidEmail,
@@ -6874,6 +6894,7 @@ function clearCheckoutFormDraft() {
     // Bring extracted functions into scope for the module.exports block below
     if (typeof getRecaptchaToken === 'undefined') { getRecaptchaToken = _valMod.getRecaptchaToken; }
     if (typeof validateCheckoutForm === 'undefined') { validateCheckoutForm = _valMod.validateCheckoutForm; }
+    if (typeof getCheckoutConsent === 'undefined') { getCheckoutConsent = _valMod.getCheckoutConsent; }
     if (typeof renumberVisibleSteps === 'undefined') { renumberVisibleSteps = _valMod.renumberVisibleSteps; }
     if (typeof formatPhoneInput === 'undefined') { formatPhoneInput = _valMod.formatPhoneInput; }
     if (typeof isValidEmail === 'undefined') { isValidEmail = _valMod.isValidEmail; }
@@ -8303,6 +8324,8 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError, transactio
         cart_key: FERMENT_CART_KEY,
         promo_code: _promoApplied ? _promoApplied.code : undefined,
         ready_estimate: getReadyEstimateForCheckout(),
+        terms_accepted: getCheckoutConsent().terms_accepted,
+        newsletter_opt_in: getCheckoutConsent().newsletter_opt_in,
         idempotency_key: _checkoutIdempotencyKey
       })
     }).then(function (r) { return r.json(); })
@@ -8330,6 +8353,8 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError, transactio
             honeypot: honeypotVal,
             recaptcha_token: ingToken,
             cart_key: INGREDIENT_CART_KEY,
+            terms_accepted: getCheckoutConsent().terms_accepted,
+            newsletter_opt_in: false, // consent already sent with the ferment leg above
             idempotency_key: _checkoutIdempotencyKey ? _checkoutIdempotencyKey + '-ing' : undefined
           })
         }).then(function (r) { return r.json(); });
@@ -8896,6 +8921,8 @@ function setupReservationForm() {
                 recaptcha_token: recaptchaToken,
                 promo_code: _promoApplied ? _promoApplied.code : undefined,
                 ready_estimate: getReadyEstimateForCheckout(),
+                terms_accepted: getCheckoutConsent().terms_accepted,
+                newsletter_opt_in: getCheckoutConsent().newsletter_opt_in,
                 idempotency_key: _checkoutIdempotencyKey
               })
             }).then(function (r) { return r.json(); });
@@ -9734,6 +9761,15 @@ function simplifyKioskCheckout() {
   // On reservation page in kiosk mode: hide email and phone, simplify to name-only
   var page = document.body.getAttribute('data-page');
   if (page !== 'reservation') return;
+
+  // Staff-run kiosk checkout: the customer checks ID and signs the batch slip
+  // in store, so the online acknowledgement box is hidden and not required.
+  var consentBlock = document.getElementById('checkout-consent');
+  if (consentBlock) {
+    consentBlock.classList.add('kiosk-hide');
+    var termsBox = document.getElementById('res-terms');
+    if (termsBox) termsBox.removeAttribute('required');
+  }
 
   var emailGroup = document.getElementById('res-email');
   var phoneGroup = document.getElementById('res-phone');

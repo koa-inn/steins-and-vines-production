@@ -69,8 +69,8 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mu4s18ci">
-  <link rel="stylesheet" href="css/search-overlay.min.css?v=mu4s18ci">
+  <link rel="stylesheet" href="css/styles.min.css?v=mu6423eb">
+  <link rel="stylesheet" href="css/search-overlay.min.css?v=mu6423eb">
 </head>
 <body data-page="reservation">
   <!-- Google Tag Manager (noscript) -->
@@ -238,6 +238,16 @@
             <div id="payment-offline-notice" class="payment-offline-notice">
               <p>No online payment required &mdash; payment is collected when you visit the store. Submitting puts your items on hold and we&rsquo;ll confirm the details with you directly.</p>
             </div>
+            <div class="checkout-consent" id="checkout-consent">
+              <label class="checkout-consent-row" for="res-terms">
+                <input type="checkbox" id="res-terms" name="terms" required>
+                <span><span id="res-terms-age" class="hidden">I confirm I am 19 or older and </span>I agree to the <a href="terms.html" target="_blank" rel="noopener">Terms &amp; Conditions</a>, the <a href="refunds.html" target="_blank" rel="noopener">Refund, Return &amp; Cancellation Policy</a>, and the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+              </label>
+              <label class="checkout-consent-row" for="res-newsletter">
+                <input type="checkbox" id="res-newsletter" name="newsletter">
+                <span>Email me news and offers from Steins &amp; Vines. Unsubscribe any time.</span>
+              </label>
+            </div>
             <button type="submit" class="btn" data-content="submit-btn">Submit Payment</button>
             <p class="form-note" data-content="form-note">A confirmation email will be sent to the address provided above.</p>
           </form>
@@ -301,6 +311,12 @@
       </div>
       <div class="footer-hours" id="footer-hours"><span class="footer-hours-day closed"><span class="footer-hours-abbr">Sun</span> Closed</span><span class="footer-hours-day closed"><span class="footer-hours-abbr">Mon</span> Closed</span><span class="footer-hours-day"><span class="footer-hours-abbr">Tue</span> 10AM–4PM</span><span class="footer-hours-day"><span class="footer-hours-abbr">Wed</span> 10AM–4PM</span><span class="footer-hours-day"><span class="footer-hours-abbr">Thu</span> 12PM–7PM</span><span class="footer-hours-day"><span class="footer-hours-abbr">Fri</span> 10AM–4PM</span><span class="footer-hours-day"><span class="footer-hours-abbr">Sat</span> 10AM–4PM</span></div>
       <p class="land-acknowledgement-footer" data-content="land-acknowledgement">Steins &amp; Vines is located on the unceded traditional territory of the S&#x1E35;wx&#x331;w&uacute;7mesh (Squamish) Nation. We are grateful to live, work, and craft on these lands, and we honour the enduring relationship the Squamish people hold with this territory&mdash;its waters, forests, and mountains.</p>
+      <nav class="footer-legal" aria-label="Policies">
+        <a href="terms.html">Terms &amp; Conditions</a>
+        <a href="refunds.html">Refunds &amp; Cancellations</a>
+        <a href="warranty.html">Warranty</a>
+        <a href="privacy.html">Privacy</a>
+      </nav>
       <p data-content="footer-copy">&copy; 2026 Steins &amp; Vines. All rights reserved.</p>
     </div>
   </footer>
@@ -310,9 +326,9 @@
   <script src="https://secure.helcim.app/helcim-pay/services/start.js"></script>
   <script src="https://www.google.com/recaptcha/api.js?render=6LerSH0sAAAAAGKtltFqN5fu2w8opPV5BStdzNDu" async></script>
   <script src="js/sheets-config.js" defer></script>
-  <script src="js/main.min.js?v=mu4s18ci" defer></script>
+  <script src="js/main.min.js?v=mu6423eb" defer></script>
   <script src="js/vendor/fuse.min.js" defer></script>
-  <script src="js/modules/17-search-overlay.min.js?v=mu4s18ci" defer></script>
+  <script src="js/modules/17-search-overlay.min.js?v=mu6423eb" defer></script>
 
 </body>
 </html>

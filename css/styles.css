@@ -7428,3 +7428,94 @@ body.nav-open #mobile-catalog-bar {
 @media (prefers-reduced-motion: reduce) {
   .facility-photo-img:not(.is-loaded) { animation: none; }
 }
+
+/* ===== Checkout consent (terms acknowledgement + newsletter opt-in) ===== */
+.checkout-consent {
+  margin: 1.25rem 0 1rem;
+  display: grid;
+  gap: 0.6rem;
+  text-align: left;
+}
+.checkout-consent-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.checkout-consent-row input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0.1rem 0 0;
+  accent-color: var(--color-green);
+}
+.checkout-consent-row a {
+  color: var(--color-green);
+  text-decoration: underline;
+}
+
+/* ===== Footer policy links ===== */
+.footer-legal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem 1.25rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+}
+.footer-legal a {
+  color: var(--color-cream);
+  opacity: 0.85;
+  text-decoration: none;
+}
+.footer-legal a:hover,
+.footer-legal a:focus-visible {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* ===== Policy pages (terms / refunds / warranty / privacy) ===== */
+.legal-page .container { max-width: 760px; }
+.legal-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.legal-nav a {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--color-green);
+  border-radius: 999px;
+  color: var(--color-green);
+  text-decoration: none;
+}
+.legal-nav a[aria-current="page"] {
+  background: var(--color-green);
+  color: var(--color-cream);
+}
+.legal-meta {
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+  margin-bottom: 1.5rem;
+}
+.legal-lede { font-size: 1.05rem; }
+.legal-page h2 {
+  font-size: 1.25rem;
+  margin: 2rem 0 0.6rem;
+  text-align: left;
+}
+.legal-page ul { padding-left: 1.25rem; }
+.legal-page li { margin-bottom: 0.5rem; }
+/* The global `p` rule centres the box (margin auto); policy text sits flush left. */
+.legal-page p,
+.legal-page li { max-width: 70ch; }
+.legal-page p,
+.legal-page .legal-meta {
+  margin-left: 0;
+  margin-right: 0;
+  text-align: left;
+}

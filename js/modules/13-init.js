@@ -709,6 +709,15 @@ function simplifyKioskCheckout() {
   var page = document.body.getAttribute('data-page');
   if (page !== 'reservation') return;
 
+  // Staff-run kiosk checkout: the customer checks ID and signs the batch slip
+  // in store, so the online acknowledgement box is hidden and not required.
+  var consentBlock = document.getElementById('checkout-consent');
+  if (consentBlock) {
+    consentBlock.classList.add('kiosk-hide');
+    var termsBox = document.getElementById('res-terms');
+    if (termsBox) termsBox.removeAttribute('required');
+  }
+
   var emailGroup = document.getElementById('res-email');
   var phoneGroup = document.getElementById('res-phone');
   if (emailGroup && emailGroup.parentElement) {
