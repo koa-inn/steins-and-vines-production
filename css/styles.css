@@ -7556,7 +7556,7 @@ body.nav-open #mobile-catalog-bar {
   justify-content: flex-end;
 }
 .cookie-notice-btn {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0.45rem 1rem;
   border-radius: 4px;
   border: 1px solid var(--color-green);
@@ -7588,4 +7588,28 @@ body.nav-open #mobile-catalog-bar {
 .footer-legal-btn:focus-visible {
   opacity: 1;
   text-decoration: underline;
+}
+
+/* Phone width: the fixed notice spans the viewport, so keep the page end reachable
+   while it is open, and give the footer policy links and policy-nav pills real
+   44px tap targets. */
+@media (max-width: 639px) {
+  html.cookie-notice-open body { padding-bottom: 11rem; }
+}
+@media (max-width: 767px) {
+  .footer-legal { gap: 0 0.75rem; }
+  .footer-legal a,
+  .footer-legal-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 0.4rem;
+  }
+  .legal-page p,
+  .legal-page li { font-size: 0.9375rem; line-height: 1.6; }
+}
+.legal-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }

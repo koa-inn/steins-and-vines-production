@@ -75,6 +75,25 @@ describe('first visit', function () {
   });
 });
 
+describe('room for the notice', function () {
+  test('flags <html> while the notice is open and clears it on any choice', function () {
+    load();
+    expect(document.documentElement.classList.contains('cookie-notice-open')).toBe(true);
+    document.getElementById('cookie-decline').click();
+    expect(document.documentElement.classList.contains('cookie-notice-open')).toBe(false);
+    document.querySelector('[data-cookie-settings]').click();
+    expect(document.documentElement.classList.contains('cookie-notice-open')).toBe(true);
+    document.getElementById('cookie-accept').click();
+    expect(document.documentElement.classList.contains('cookie-notice-open')).toBe(false);
+  });
+
+  test('a stored choice never flags the page', function () {
+    localStorage.setItem(KEY, JSON.stringify({ choice: 'accepted', at: Date.now(), v: 1 }));
+    load();
+    expect(document.documentElement.classList.contains('cookie-notice-open')).toBe(false);
+  });
+});
+
 describe('accepting', function () {
   test('stores the choice, updates consent to granted, loads GTM once, removes the notice', function () {
     load();

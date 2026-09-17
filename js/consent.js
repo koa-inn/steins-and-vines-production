@@ -88,6 +88,7 @@
   function removeNotice() {
     if (notice && notice.parentNode) notice.parentNode.removeChild(notice);
     notice = null;
+    document.documentElement.classList.remove('cookie-notice-open');
   }
 
   function buildNotice(current) {
@@ -133,6 +134,8 @@
     notice.appendChild(actions);
 
     document.body.appendChild(notice);
+    // Lets CSS reserve room at the page end while the notice covers it (phones).
+    document.documentElement.classList.add('cookie-notice-open');
   }
 
   function acceptCookies() {
@@ -154,19 +157,25 @@
   // Returning visitor who already accepted: load tags as early as possible.
   if (readChoice() === 'accepted') loadGtm();
 
+  function onDocumentClick(e) {
+    var t = e.target;
+    while (t && t !== document) {
+      if (t.getAttribute && t.hasAttribute('data-cookie-settings')) {
+        e.preventDefault();
+        openSettings();
+        return;
+      }
+      t = t.parentNode;
+    }
+  }
+
   function init() {
     if (readChoice() === null && !noticeSuppressed()) buildNotice(null);
-    document.addEventListener('click', function (e) {
-      var t = e.target;
-      while (t && t !== document) {
-        if (t.getAttribute && t.hasAttribute('data-cookie-settings')) {
-          e.preventDefault();
-          openSettings();
-          return;
-        }
-        t = t.parentNode;
-      }
-    });
+    // If the script is included twice, the latest instance owns the footer
+    // control; the earlier listener is dropped rather than doubled.
+    if (window.__svConsentClick) document.removeEventListener('click', window.__svConsentClick);
+    window.__svConsentClick = onDocumentClick;
+    document.addEventListener('click', onDocumentClick);
   }
 
   window.svConsent = {
