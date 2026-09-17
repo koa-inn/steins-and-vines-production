@@ -44,6 +44,17 @@ var router = express.Router();
 // the same module-scope instances (and Jest mocks) as the rest of this route.
 // Docs: see lib/money-path.js#rejectWithVoid for the orphan-charge rationale
 // (Jun 2026 incident, Helcim 50641064 / INV-000118).
+// One line of customer-supplied text for the confirmation email: non-strings
+// dropped, line breaks flattened (no header/body injection), length capped.
+// Used for `timeslot` and `ready_estimate` — the "Estimated ready the week
+// of ..." line the customer saw before paying. These only feed the customer's
+// copy of the contract (BPCPA s.18.2 (f)), so they are sanitised, never a
+// reason to reject an order or void a charge.
+function emailLine(value, maxLen) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[\r\n]+/g, ' ').trim().substring(0, maxLen);
+}
+
 function rejectWithVoid(res, body, status, errorMsg, reqId) {
   return moneyPath.rejectWithVoid(res, body, status, errorMsg, {
     helcim: helcimLib,
@@ -731,10 +742,24 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
         var emailEndpoint = useInvoice
           ? '/invoices/' + soId + '/email'
           : '/salesorders/' + soId + '/email';
+        // This email is the customer's copy of the contract (BPCPA s.23 (3) /
+        // s.48), so it carries the supply date, the estimated completion date
+        // and the delivery arrangement alongside the attached invoice.
+        var timeslotLine = emailLine(body.timeslot, 100);
+        var readyEstimateVal = emailLine(body.ready_estimate, 200);
+        var confirmationBody = [
+          'Thank you for your order! Please find your order confirmation attached.',
+          '',
+          timeslotLine ? 'Start appointment: ' + timeslotLine : '',
+          readyEstimateVal,
+          'Everything is collected in store at 11-38918 Progress Way, Squamish, BC V8B 0K7. We do not ship.',
+          '',
+          'If you have any questions, reply to this email or call us at (604) 567-4565.'
+        ].filter(function (line) { return line !== ''; }).join('\n');
         zohoPost(emailEndpoint, {
           to_mail_ids: [customerEmail],
           subject: 'Steins & Vines — Order Confirmation ' + (soNumber || ''),
-          body: 'Thank you for your order! Please find your order confirmation attached.\n\nIf you have any questions, reply to this email or call us at (604) 567-4565.'
+          body: confirmationBody
         }).then(function () {
           log.info('[checkout] Order confirmation email sent to customer for ' + soNumber);
         }).catch(function (emailErr) {
@@ -743,7 +768,8 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
             email: customerEmail,
             orderNumber: soNumber || '',
             items: lineItems,
-            timeslot: body.timeslot || ''
+            timeslot: timeslotLine,
+            readyEstimate: readyEstimateVal
           }).then(function () {
             log.info('[checkout] Fallback SMTP confirmation sent for ' + soNumber);
           }).catch(function (fallbackErr) {

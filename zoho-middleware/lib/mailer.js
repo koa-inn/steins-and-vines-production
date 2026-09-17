@@ -15,6 +15,10 @@ var axios = require('axios');
 
 var RESEND_API = 'https://api.resend.com';
 
+// Store address as printed in customer-facing mail. The old Cleveland Ave line
+// survived here until 2026-09-16; keep this the single source in this module.
+var STORE_ADDRESS = '11-38918 Progress Way, Squamish, BC V8B 0K7';
+
 function fromAddress() {
   return process.env.MAIL_FROM || 'Steins & Vines <hello@steinsandvines.ca>';
 }
@@ -243,6 +247,9 @@ function sendVoidFailureAlert(data) {
  * @param {string} data.orderNumber  - Zoho Sales Order number (e.g. SO-001234)
  * @param {Array}  data.items        - [{ name, quantity, rate }]
  * @param {string} data.timeslot     - Human-readable timeslot string
+ * @param {string} [data.readyEstimate] - "Estimated ready the week of ..." line
+ *   shown to the customer before payment; the confirmation is the customer's
+ *   copy of the contract (BPCPA s.18.2 (f)), so it must carry the same date.
  */
 function sendCustomerConfirmation(data) {
   if (!data.email) return Promise.reject(new Error('No customer email provided'));
@@ -250,6 +257,7 @@ function sendCustomerConfirmation(data) {
   var orderNumber = data.orderNumber || '';
   var items = data.items || [];
   var timeslot = data.timeslot || '';
+  var readyEstimate = data.readyEstimate || '';
 
   var subject = 'Steins & Vines — Order Confirmation ' + orderNumber;
 
@@ -261,15 +269,18 @@ function sendCustomerConfirmation(data) {
     'Thank you for your order with Steins & Vines!',
     '',
     'Order Number: ' + orderNumber,
-    timeslot ? 'Timeslot: ' + timeslot : '',
+    timeslot ? 'Start appointment: ' + timeslot : '',
+    readyEstimate,
     '',
     'Items:',
     itemLines || '  (none)',
     '',
+    'Everything is collected in store at ' + STORE_ADDRESS + '. We do not ship.',
+    '',
     'If you have any questions, reply to this email or call us at (604) 567-4565.',
     '',
     'Steins & Vines',
-    '38021 Cleveland Ave, Squamish, BC'
+    STORE_ADDRESS
   ].filter(function (line) { return line !== ''; }).join('\n');
 
   return sendViaResend({
