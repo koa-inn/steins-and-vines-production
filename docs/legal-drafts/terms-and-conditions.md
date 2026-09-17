@@ -2,7 +2,7 @@
 
 > DRAFT for owner/legal review — not legal advice, not live. Resolve every `[CONFIRM: …]` before publishing. Consumer Protection BC expects these to be clear to the customer *before* they place an online order, so this must be linked (and acknowledged) at checkout.
 
-**Last updated:** 2026-09-16 (draft, second pass — owner decisions of 2026-09-16 applied)
+**Last updated:** 2026-09-16 (draft, third pass — owner decisions applied; §4, §10 and §11 rewritten against BPCPA ss. 18.2–18.4 as consolidated in 2026)
 
 These Terms govern your use of steinsandvines.ca and your purchases and reservations with **1571221 B.C. Ltd., doing business as Steins & Vines** (“we,” “us”), 11-38918 Progress Way, Squamish, BC V8B 0K7. By placing an order or booking, you agree to these Terms, our Privacy Policy, our Refund, Return & Cancellation Policy, and our Warranty.
 
@@ -25,7 +25,7 @@ Under our BC UBrew/UVin licence:
 - Products and session availability are subject to stock and scheduling.
 
 ## 4. Reservations
-Booking a session reserves time, equipment, and staff, and is **paid in full at booking**. Before you pay, the checkout shows the kit or recipe, all fees, the total, your start appointment, and a link to the Refund, Return & Cancellation Policy, which governs rescheduling, cancellation, no-shows, and our Satisfaction Guarantee.
+Booking a session reserves time, equipment, and staff, and is **paid in full at booking**. Before you pay, the checkout shows the kit or recipe, all fees, the taxes, the total, your start appointment, the estimated packaging date, and a link to these Terms and to the Refund, Return & Cancellation Policy, which governs rescheduling, cancellation, the $10 administrative fee, no-shows, and our Satisfaction Guarantee. Your emailed order confirmation lists what you booked, the fees, the total, and your start appointment; keep it as your copy of the contract.
 
 Your batch will be ready to package at roughly the time shown for the kit or recipe, counted from your start day; we confirm the exact packaging day as it approaches. Once your batch is finished we hold it for you, unbottled, at no charge for **up to one month for wine** and **up to two weeks for beer**, counted from the packaging date we confirm; you agree to come in and package it within that time. If you do not, we will make reasonable efforts to contact you; if we cannot reach you within a further **14 days**, the licence permits us to destroy the batch, and no refund is owed.
 
@@ -45,10 +45,10 @@ Joining the beer waitlist is **not a booking** and does not reserve a session or
 You agree not to misuse the site, interfere with its operation, or attempt unauthorized access. Content on the site is our property or used with permission and may not be copied without consent.
 
 ## 10. Warranties and liability
-Our product and service warranties are described in the **Warranty** page. To the extent permitted by law, our liability is `[CONFIRM: limitation clause — lawyer to draft; must not exclude non-waivable statutory rights under BC consumer law]`. Nothing here limits liability for death or personal injury caused by negligence, fraud, or anything that cannot lawfully be excluded.
+Our product and service warranties are described in the **Warranty** page. To the extent permitted by law, our total liability to you in connection with any order, reservation, or batch is limited to the amount you paid us for that order, reservation, or batch, and we are not liable for indirect or consequential loss, including loss of ingredients or equipment you supply, the value of product you were unable to make, or the cost of substitute product. This limit does not apply to death or personal injury caused by our negligence, to fraud, to any condition or warranty implied by the *Sale of Goods Act* or the *Business Practices and Consumer Protection Act* that cannot be excluded in a consumer sale, or to anything else that cannot lawfully be limited. `[CONFIRM (lawyer): approve or redraft this proposed clause. Sale of Goods Act s.20 voids exclusion of the implied conditions in a retail sale, and BPCPA s.3 voids any waiver of the Act; the clause is written to sit inside those limits.]`
 
 ## 11. Your consumer rights
-These Terms do not affect your statutory rights under the BC **Business Practices and Consumer Protection Act**, the **Sale of Goods Act**, or other applicable law. Online reservations and orders are future performance and distance sales contracts under the Act; §3 and §4 above set out the information the Act requires before you commit. `[CONFIRM (lawyer): review §3–4 against BPCPA Part 4 disclosure requirements.]`
+These Terms do not affect your statutory rights under the BC **Business Practices and Consumer Protection Act**, the **Sale of Goods Act**, or other applicable law. An online reservation is a **future performance contract** and an online order for goods is a **distance sales contract** under the Act. Before you pay, the checkout shows you the information the Act requires (see §3 and §4), and your emailed order confirmation is your copy of the contract. If you cancel under a right the Act gives you, we refund everything you paid, in full and without any administrative fee, within 15 days. `[CONFIRM (lawyer): the contract-contents and pre-contract disclosure rules are now BPCPA ss. 18.2–18.4 (Division 1.1, added by the 2025 amendments; the former ss. 19 and 46 are repealed). Review §3–4, the checkout, and the confirmation email against s.18.2 (a) and (d)–(t) and s.18.3; the item-by-item check is in docs/legal-drafts/README.md.]`
 
 ## 12. Governing law
 These Terms are governed by the laws of British Columbia and the applicable laws of Canada, and disputes are subject to the courts of British Columbia. `[CONFIRM.]`

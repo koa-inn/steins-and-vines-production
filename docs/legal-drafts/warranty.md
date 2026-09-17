@@ -2,7 +2,7 @@
 
 > DRAFT for owner/legal review — not legal advice, not live. Resolve every `[CONFIRM: …]` before publishing. Consumer Protection BC expects warranties to be addressed even if you offer none — and if there are limitations, they must be disclosed in full.
 
-**Last updated:** 2026-09-16 (draft, second pass — owner decisions of 2026-09-16 applied)
+**Last updated:** 2026-09-16 (draft, third pass — owner decisions applied; §5 now carries a proposed clause for the lawyer to approve)
 
 This warranty is given by 1571221 B.C. Ltd., doing business as Steins & Vines.
 
@@ -21,7 +21,7 @@ The quality of a finished batch depends on many factors during and after ferment
 Separately from any warranty, batches made on our premises are covered by our **Satisfaction Guarantee**: if you are not happy with how your batch turned out, we will replace the kit and run the batch again at no cost, once per batch, on the conditions set out in the Refund, Return & Cancellation Policy (§B).
 
 ## 5. Limitations
-To the extent permitted by law, and except as required by the BC **Business Practices and Consumer Protection Act** and the **Sale of Goods Act**, `[CONFIRM: any limitation of liability language — a lawyer should draft/approve this clause. Do not overstate limitations; BC consumer law voids attempts to waive statutory warranties for consumer goods.]`
+To the extent permitted by law, and except as required by the BC **Business Practices and Consumer Protection Act** and the **Sale of Goods Act**: our liability for a defective, damaged, expired, or misdescribed product is limited to replacing it or refunding its price; our liability in respect of a batch made on our premises is limited to the Satisfaction Guarantee and, where the guarantee does not apply, to the amount you paid for that batch; and we are not liable for indirect or consequential loss. This does not limit any condition or warranty implied by law in a consumer sale, which cannot be excluded, or liability for death or personal injury caused by our negligence. `[CONFIRM (lawyer): approve or redraft this proposed clause. Do not overstate: Sale of Goods Act s.20 voids attempts to exclude the implied conditions in a retail sale of consumer goods.]`
 
 ## 6. Your statutory rights
 This warranty is **in addition to** the rights and remedies you have under BC consumer-protection legislation, which cannot be excluded. Where our stated warranty is narrower than your statutory rights, your statutory rights prevail.
