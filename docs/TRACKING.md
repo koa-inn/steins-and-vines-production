@@ -1,18 +1,31 @@
 # TRACKING.md — Analytics & Ads Measurement
 
-_Last updated: 2026-07-22 (CSP fix for Meta pixel / Google Ads)_
+_Last updated: 2026-09-17 (cookie consent gate for GTM)_
 
 ## Stack
 
 | Layer | ID | Where configured |
 |---|---|---|
-| Google Tag Manager | `GTM-NHRCGLC5` | Inline snippet in every public page `<head>` |
+| Google Tag Manager | `GTM-NHRCGLC5` | Injected by `js/consent.js` (loaded in every public page `<head>`) **only after cookie consent** — see "Cookie consent" below |
 | GA4 | `G-WDYSXCM703` (stream 14369980301) | Via GTM (Google tag "GA4 - Steins and Vines") |
 | Google Ads | `AW-18091171314` | Via GTM (Google tag + Conversion Linker) |
 | Meta pixel | `2247679639387941` | Via GTM Custom HTML tags ("Meta Pixel - Base" + per-event tags) |
 | Metricool | tracker script | Via GTM Custom HTML |
 
 There is a second, **unused** Meta pixel in the Business Manager ("Wine and Brew's Pixel", `1410160679750490`). Ignore it.
+
+## Cookie consent (added 2026-09-17)
+
+`js/consent.js` replaces the inline GTM snippet on every public page (not `404.html`, not the staff surfaces, and not `links.html`, which still carries the inline snippet pending the owner's uncommitted edit).
+
+- On first visit it pushes Google Consent Mode v2 defaults (`analytics_storage`, `ad_storage`, `ad_user_data`, `ad_personalization` = `denied`) and shows a small bottom-left notice with equal **Decline** / **Accept** buttons and a link to `privacy.html#cookies`. **GTM is not loaded** until Accept.
+- Accept: stores `sv-cookie-consent` = `{choice:"accepted", at, v:1}` in localStorage, pushes `consent update` (granted), pushes `gtm.js` and injects the GTM script. Later visits load GTM immediately. Decline stores `declined`; nothing loads. Both are asked again after 365 days.
+- The footer **Cookie settings** control (`[data-cookie-settings]`) reopens the notice and shows the current choice.
+- The notice is suppressed for the kiosk (`?kiosk=1` / home-screen launch) and for automation (`navigator.webdriver`), so Playwright runs never see it.
+- Site JS keeps pushing `dataLayer` events regardless; GTM processes the queue when it loads, so a visitor who accepts mid-session still gets their earlier events.
+- Not gated: Sentry, reCAPTCHA on checkout, the first-party event beacon to Apps Script (`trackEvent`, no cookie), and the Behold Instagram embed on the home page.
+- Consequence for reporting: GA4 / Meta / Metricool now see **consenting visitors only**. Expect a step change in sessions and conversions from the deploy date. Consent Mode defaults are pushed so Google's modelled conversions can fill part of the gap if that is enabled in GA4/Ads.
+- Tests: `tests/frontend/cookie-consent.test.js` (behaviour + page markup).
 
 ## How events flow
 

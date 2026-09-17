@@ -68,10 +68,10 @@ describe('policy pages', function () {
     });
   });
 
-  test('the privacy page does not promise a cookie-consent notice that does not exist yet', function () {
+  test('the privacy page describes the cookie-consent gate that js/consent.js provides', function () {
     var html = read('privacy.html');
-    expect(html).not.toMatch(/only after you accept/i);
-    expect(html).not.toMatch(/Cookie settings/);
+    expect(html).toMatch(/only after you accept/i);
+    expect(html).toMatch(/Cookie settings/);
   });
 
   test('the terms page reflects the checkout acknowledgement rather than describing it as a build item', function () {
