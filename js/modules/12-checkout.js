@@ -433,6 +433,16 @@ function applyPromoCode() {
   });
 }
 
+// The "Estimated ready the week of ..." line the customer saw before paying.
+// Sent with the ferment order so the confirmation email (the customer's copy of
+// the contract) carries the same completion date. Empty when nothing is shown.
+function getReadyEstimateForCheckout() {
+  var wrap = document.getElementById('completion-estimate');
+  var textEl = document.getElementById('completion-estimate-text');
+  if (!wrap || !textEl || wrap.classList.contains('hidden')) return '';
+  return (textEl.textContent || '').trim().substring(0, 200);
+}
+
 function renderPromoWidget(container) {
   // Only render for ferment cart (not ingredient-only checkout)
   var cartKey = (typeof URLSearchParams !== 'undefined')
@@ -469,6 +479,7 @@ function renderPromoWidget(container) {
     row.innerHTML =
       '<div class="promo-code-field">' +
         '<label class="promo-code-label">Have a promo code?</label>' +
+        '<span id="promo-code-hint" class="promo-code-hint">FIRSTBATCH takes 20% off kits and fees on your first batch. One use per email address; can\u2019t be combined with other offers.</span>' +
         '<div class="promo-code-input-wrap">' +
           '<input type="email" id="promo-email-input" class="promo-code-input promo-code-email"' +
           ' placeholder="Your email" autocomplete="email" inputmode="email"' +
@@ -980,7 +991,7 @@ function renderReservationItems() {
   var grandTotal = sub + taxTotal;
   var totalRow = document.createElement('div');
   totalRow.className = 'reservation-subtotal reservation-subtotal--total';
-  totalRow.innerHTML = '<span>Total</span><span>' + formatCurrency(grandTotal) + '</span>';
+  totalRow.innerHTML = '<span>Total (CAD)</span><span>' + formatCurrency(grandTotal) + '</span>';
   sWrap.appendChild(totalRow);
 
   container.appendChild(sWrap);
@@ -1389,7 +1400,7 @@ function renderCheckoutIngredientSection() {
 
   var totalRow = document.createElement('div');
   totalRow.className = 'reservation-subtotal reservation-subtotal--total';
-  totalRow.innerHTML = '<span>Total</span><span>' + formatCurrency(subtotal + taxTotal) + '</span>';
+  totalRow.innerHTML = '<span>Total (CAD)</span><span>' + formatCurrency(subtotal + taxTotal) + '</span>';
   sWrap.appendChild(totalRow);
 
   itemsContainer.appendChild(sWrap);
@@ -1535,6 +1546,7 @@ function submitDualCart(contactData, recaptchaToken, onDone, onError, transactio
         recaptcha_token: recaptchaToken,
         cart_key: FERMENT_CART_KEY,
         promo_code: _promoApplied ? _promoApplied.code : undefined,
+        ready_estimate: getReadyEstimateForCheckout(),
         idempotency_key: _checkoutIdempotencyKey
       })
     }).then(function (r) { return r.json(); })
@@ -2127,6 +2139,7 @@ function setupReservationForm() {
                 honeypot: honeypotVal,
                 recaptcha_token: recaptchaToken,
                 promo_code: _promoApplied ? _promoApplied.code : undefined,
+                ready_estimate: getReadyEstimateForCheckout(),
                 idempotency_key: _checkoutIdempotencyKey
               })
             }).then(function (r) { return r.json(); });
@@ -2237,7 +2250,7 @@ function setupContactSubmit() {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { formatTimeslot: formatTimeslot, formatPhoneInput: formatPhoneInput, isValidEmail: isValidEmail, isValidPhone: isValidPhone, calcCompletionRange: calcCompletionRange, applyPromoCode: applyPromoCode, renderCheckoutIngredientSection: renderCheckoutIngredientSection,
+  module.exports = { formatTimeslot: formatTimeslot, renderReservationItems: renderReservationItems, getReadyEstimateForCheckout: getReadyEstimateForCheckout, formatPhoneInput: formatPhoneInput, isValidEmail: isValidEmail, isValidPhone: isValidPhone, calcCompletionRange: calcCompletionRange, applyPromoCode: applyPromoCode, renderCheckoutIngredientSection: renderCheckoutIngredientSection,
     saveCheckoutFormDraft: saveCheckoutFormDraft,
     restoreCheckoutFormDraft: restoreCheckoutFormDraft,
     clearCheckoutFormDraft: clearCheckoutFormDraft,

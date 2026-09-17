@@ -7181,6 +7181,13 @@ body.nav-open #mobile-catalog-bar {
   color: var(--color-green);
   margin-bottom: 0.5rem;
 }
+.promo-code-hint {
+  display: block;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--color-brown);
+  margin: -0.25rem 0 0.6rem;
+}
 .promo-code-input-wrap {
   display: flex;
   gap: 0.5rem;
