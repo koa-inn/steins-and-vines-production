@@ -48,7 +48,7 @@
   }
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-09-17T23:54:25.647Z';
+  var BUILD_TIMESTAMP = '2026-09-18T00:19:11.759Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP); // eslint-disable-line no-console -- deploy build-verification log
 
   var accessToken = null;
@@ -7626,6 +7626,11 @@
   function openEditScheduleModal(schedId) {
     var sched = fermSchedulesData.find(function (s) { return s.schedule_id === schedId; });
     if (!sched) { showToast('Schedule not found', 'error'); return; }
+    // First open of a session waits on the staff /api/recipes call (seen at
+    // ~8 s cold on staging); say so instead of appearing to ignore the click.
+    if (_recipesState.list.length === 0 && getRecipesMwUrl()) {
+      showToast('Loading recipes to check which ones use this schedule\u2026', 'info');
+    }
     ensureRecipeListForBlastRadius(function () { renderScheduleForm(sched); });
   }
 
@@ -8539,12 +8544,18 @@
       items.push({ text: summary.readyForPackaging + ' batch' + (summary.readyForPackaging !== 1 ? 'es' : '') + ' ready for packaging', dot: 'success', tab: 'batches' });
     }
 
+    // The dashboard summary is re-fetched on every Batches/Dashboard tab
+    // switch; replace the batch chips rather than appending a second set.
+    Array.prototype.slice.call(listEl.querySelectorAll('[data-source="batch"]')).forEach(function (old) {
+      old.parentNode.removeChild(old);
+    });
     if (items.length === 0) return;
 
     items.forEach(function (item) {
       var div = document.createElement('div');
       div.className = 'attention-item';
       div.setAttribute('data-tab', item.tab);
+      div.setAttribute('data-source', 'batch');
       div.innerHTML = '<span class="attention-dot attention-dot--' + item.dot + '"></span>' + item.text;
       div.addEventListener('click', function () {
         document.querySelector('[data-tab="' + item.tab + '"]').click();
@@ -8820,6 +8831,7 @@
       if (match) {
         ing.purchase_rate = parseFloat(match.purchase_rate) || 0;
         ing.rate = parseFloat(match.rate || match.price_per_unit) || 0;
+        ing.item_unit = match.unit || '';
         if (!ing.unit && match.unit) ing.unit = match.unit;
       }
     });
@@ -8974,6 +8986,55 @@
   }
 
   // Ingredient rows rendering with availability status dots (D-07, D-08)
+  // Unit-converted cost of one recipe ingredient line — a client-side port of
+  // zoho-middleware/lib/recipe-scaling.js ingredientLineCost (D-01/D-02).
+  // Rates come from the catalog per its own stocking unit (kg, L, pcs ...);
+  // recipe lines are often written in g or ml. Multiplying qty by rate with no
+  // conversion showed Gypsum 10 g at $2.26/kg as $22.60 and West Coast IPA
+  // totals of $6,059 (ADMIN-COST-1000X). Middleware pricing was always right;
+  // this is the display-side fix. Fails closed (ok:false) on a cross-family or
+  // unrecognised unit pair rather than guessing, matching the server.
+  var COST_MASS_FACTORS = { kg: 1, g: 0.001 };
+  var COST_VOLUME_FACTORS = { l: 1, ml: 0.001 };
+  var COST_COUNT_UNITS = ['pcs', 'ea', 'each', 'unit', 'pkg', 'pack'];
+  function classifyCostUnit(raw) {
+    var norm = (raw || '').toLowerCase().trim();
+    var family = null;
+    if (Object.prototype.hasOwnProperty.call(COST_MASS_FACTORS, norm)) family = 'mass';
+    else if (Object.prototype.hasOwnProperty.call(COST_VOLUME_FACTORS, norm)) family = 'volume';
+    else if (COST_COUNT_UNITS.indexOf(norm) !== -1) family = 'count';
+    return { family: family, norm: norm };
+  }
+  function recipeLineCost(ing, rateField) {
+    var qty = parseFloat(ing && ing.quantity) || 0;
+    var rate = parseFloat(ing && ing[rateField]) || 0;
+    var lineUnit = (ing && ing.unit) || '';
+    // A line without a recorded catalog unit (legacy rows, or a catalog that
+    // has not loaded yet) is priced as-is: same unit on both sides.
+    var itemUnit = (ing && ing.item_unit) || lineUnit;
+    var iu = classifyCostUnit(itemUnit);
+    var lu = classifyCostUnit(lineUnit);
+    if (iu.norm === lu.norm) {
+      return { ok: true, cost: Math.round(qty * rate * 10000) / 10000 };
+    }
+    if (iu.family === null || iu.family !== lu.family) {
+      return { ok: false, cost: 0, error: 'recipe unit "' + lineUnit + '" is not convertible to item unit "' + itemUnit + '"' };
+    }
+    var convertedQty = qty;
+    if (iu.family !== 'count') {
+      var factors = iu.family === 'mass' ? COST_MASS_FACTORS : COST_VOLUME_FACTORS;
+      convertedQty = Math.round(qty * (factors[lu.norm] / factors[iu.norm]) * 10000) / 10000;
+    }
+    return { ok: true, cost: Math.round(convertedQty * rate * 10000) / 10000 };
+  }
+  function formatLineCost(ing, rateField) {
+    var rate = parseFloat(ing && ing[rateField]) || 0;
+    if (rate <= 0) return { text: '\u2014', title: '' };
+    var r = recipeLineCost(ing, rateField);
+    if (!r.ok) return { text: '?', title: r.error };
+    return { text: '$' + r.cost.toFixed(2), title: '' };
+  }
+
   function renderIngredientRows(ingredients, availability) {
     var tbody = document.getElementById('recipes-ingredients-body');
     var emptyEl = document.getElementById('recipes-ingredients-empty');
@@ -9012,13 +9073,12 @@
         var dotClass = 'ing-status-dot ing-status-dot--' + escapeHTML(avail.status || 'unknown');
         var stockText = avail.stock_on_hand != null ? avail.stock_on_hand + ' ' + (ing.unit || '') + ' available' : ''; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
         var dotTitle = avail.status === 'unknown' ? 'Stock data loading -- try again shortly' : (avail.batches_possible != null ? avail.batches_possible + ' batch(es) possible' : ''); // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
-        var qty = parseFloat(ing.quantity) || 0;
-        var costEach = parseFloat(ing.purchase_rate) || 0;
-        var retailEach = parseFloat(ing.rate) || 0;
-        var lineCost = qty * costEach;
-        var lineRetail = qty * retailEach;
-        totalCost += lineCost;
-        totalRetail += lineRetail;
+        var costCell = formatLineCost(ing, 'purchase_rate');
+        var retailCell = formatLineCost(ing, 'rate');
+        var costLine = recipeLineCost(ing, 'purchase_rate');
+        var retailLine = recipeLineCost(ing, 'rate');
+        if (costLine.ok) totalCost += costLine.cost;
+        if (retailLine.ok) totalRetail += retailLine.cost;
 
         html += '<tr class="recipes-ing-row" data-ing-idx="' + idx + '" data-item-id="' + escapeHTML(String(ing.item_id || '')) + '">';
         html += '<td class="ing-autocomplete-wrap">';
@@ -9026,8 +9086,8 @@
         html += '</td>';
         html += '<td><input type="number" class="admin-input ing-qty" value="' + escapeHTML(String(ing.quantity || '')) + '" step="0.01" min="0" inputmode="decimal" /></td>';
         html += '<td class="ing-unit">' + escapeHTML(ing.unit || '') + '</td>';
-        html += '<td class="ing-cost">' + (costEach > 0 ? '$' + lineCost.toFixed(2) : '—') + '</td>';
-        html += '<td class="ing-retail">' + (retailEach > 0 ? '$' + lineRetail.toFixed(2) : '—') + '</td>';
+        html += '<td class="ing-cost" title="' + escapeHTML(costCell.title) + '">' + costCell.text + '</td>';
+        html += '<td class="ing-retail" title="' + escapeHTML(retailCell.title) + '">' + retailCell.text + '</td>';
         html += '<td><span class="ing-stock-hint">' + escapeHTML(stockText) + '</span></td>';
         html += '<td><span class="' + dotClass + '" title="' + escapeHTML(dotTitle) + '"></span></td>';
         html += '<td><button type="button" class="btn-secondary ing-remove" aria-label="Remove ' + escapeHTML(ing.item_name || 'ingredient') + '">&#10005;</button></td>';
@@ -9145,6 +9205,7 @@
       _recipesState.currentIngredients[idx].item_name = item.name || '';
       _recipesState.currentIngredients[idx].sku = item.sku || '';
       _recipesState.currentIngredients[idx].unit = item.unit || '';
+      _recipesState.currentIngredients[idx].item_unit = item.unit || '';
       _recipesState.currentIngredients[idx].purchase_rate = parseFloat(item.purchase_rate) || 0;
       _recipesState.currentIngredients[idx].rate = parseFloat(item.rate || item.price_per_unit) || 0;
     }
@@ -9185,18 +9246,17 @@
     var totalRetail = 0;
     var rows = document.querySelectorAll('.recipes-ing-row');
     ingredients.forEach(function (ing, idx) {
-      var qty = parseFloat(ing.quantity) || 0;
-      var costEach = parseFloat(ing.purchase_rate) || 0;
-      var retailEach = parseFloat(ing.rate) || 0;
-      var lineCost = qty * costEach;
-      var lineRetail = qty * retailEach;
-      totalCost += lineCost;
-      totalRetail += lineRetail;
+      var costLine = recipeLineCost(ing, 'purchase_rate');
+      var retailLine = recipeLineCost(ing, 'rate');
+      if (costLine.ok) totalCost += costLine.cost;
+      if (retailLine.ok) totalRetail += retailLine.cost;
       if (rows[idx]) {
         var costTd = rows[idx].querySelector('.ing-cost');
         var retailTd = rows[idx].querySelector('.ing-retail');
-        if (costTd) costTd.textContent = costEach > 0 ? '$' + lineCost.toFixed(2) : '—';
-        if (retailTd) retailTd.textContent = retailEach > 0 ? '$' + lineRetail.toFixed(2) : '—';
+        var costCell = formatLineCost(ing, 'purchase_rate');
+        var retailCell = formatLineCost(ing, 'rate');
+        if (costTd) { costTd.textContent = costCell.text; costTd.title = costCell.title; }
+        if (retailTd) { retailTd.textContent = retailCell.text; retailTd.title = retailCell.title; }
       }
     });
     var tfoot = document.getElementById('recipes-ingredients-foot');
@@ -10088,6 +10148,9 @@
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = Object.assign(module.exports || {}, {
       canActivateRecipe: canActivateRecipe,
+      recipeLineCost: recipeLineCost,
+      formatLineCost: formatLineCost,
+      addBatchAttentionItems: addBatchAttentionItems,
       filterIngredientCatalog: filterIngredientCatalog,
       _recipesState: _recipesState,
       parseBeerXML: parseBeerXML,
