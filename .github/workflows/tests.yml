@@ -80,6 +80,11 @@ jobs:
         run: npm run test:e2e
         env:
           BASE_URL: https://staging.steinsandvines.ca
+          # Cloudflare Access service token for the staging front door — see
+          # playwright.config.js. Without these secrets the runner only ever
+          # sees the Access sign-in page and every spec fails on "element not found".
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
       - uses: actions/upload-artifact@v4
         if: failure()

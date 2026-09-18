@@ -16,6 +16,17 @@ module.exports = defineConfig({
 
   use: {
     baseURL: process.env.BASE_URL || 'https://staging.steinsandvines.ca',
+    // staging.steinsandvines.ca sits behind Cloudflare Access. A headless
+    // runner cannot sign in, so CI presents an Access *service token* as
+    // headers (Cloudflare Zero Trust -> Access -> Service Auth; the Access
+    // policy for the staging app needs a Service Auth rule for it). Locally,
+    // leave the env unset and sign in once in the browser instead.
+    extraHTTPHeaders: (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET)
+      ? {
+          'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID,
+          'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET,
+        }
+      : {},
     headless: true,
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

@@ -196,6 +196,8 @@ npm run test:e2e:headed
 
 CI runs automatically on push to `main` — two parallel unit test jobs followed by E2E against staging. See `.github/workflows/tests.yml`.
 
+Staging is behind Cloudflare Access, so the E2E job authenticates with an Access **service token** sent as `CF-Access-Client-Id` / `CF-Access-Client-Secret` headers (`playwright.config.js`). One-time setup: in Cloudflare Zero Trust create a service token (Access → Service Auth), add a **Service Auth** rule for it to the staging application's Access policy, then add the two values as repository secrets `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET`. Running `npm run test:e2e` locally needs either the same two env vars or a browser that is already signed in.
+
 For the full testing SOP, campaign progress, and pattern reference, see [TESTING.md](TESTING.md).
 
 ## Deployment
