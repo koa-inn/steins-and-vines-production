@@ -9495,13 +9495,35 @@ function parseWaitlistRecipeIds(value) {
     setTimeout(function () { sheet.style.display = 'none'; }, 180);
   }
 
+  // How many recipes point at a schedule template (mirrors admin D-15). Counts
+  // against the recipe list this session has loaded; ensureRecipeListForSched
+  // fetches it once when the Recipes tab has not been opened yet.
+  function countRecipesUsingSchedule(scheduleId) {
+    if (!scheduleId) return 0;
+    return (_recipesState.list || []).filter(function (r) {
+      return r && String(r.schedule_id || '') === String(scheduleId);
+    }).length;
+  }
+  function ensureRecipeListForSched(cb) {
+    if ((_recipesState.list || []).length > 0) { cb(); return; }
+    var url = mwUrl();
+    if (!url) { cb(); return; }
+    fetch(url + '/api/recipes?status=all', { credentials: 'include', headers: getRecipesMwHeaders() })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+      .then(function (data) {
+        if ((_recipesState.list || []).length === 0) { _recipesState.list = data.recipes || []; }
+        cb();
+      })
+      .catch(function () { cb(); });
+  }
+
   function openEditSchedSheet(schedId) {
     var sched = null;
     for (var i = 0; i < _fermSchedules.length; i++) {
       if (_fermSchedules[i].schedule_id === schedId) { sched = _fermSchedules[i]; break; }
     }
     if (!sched) { showToast('Schedule not found', 'error'); return; }
-    openSchedSheet(sched);
+    ensureRecipeListForSched(function () { openSchedSheet(sched); });
   }
 
   function buildSchedForm(container, existing) {
@@ -9532,6 +9554,14 @@ function parseWaitlistRecipeIds(value) {
     html += '<span class="bp-sched-form-title">' + (isEdit ? 'Edit' : 'New') + ' Schedule Template</span>';
     html += '<button type="button" class="bp-create-close" id="bp-sched-close">&times;</button>';
     html += '</div>';
+
+    if (isEdit) {
+      var usedByCount = countRecipesUsingSchedule(existing.schedule_id);
+      if (usedByCount > 0) {
+        html += '<p class="bp-sched-blast-radius" id="bp-sched-blast-radius">Used by ' + usedByCount + ' public recipe' + (usedByCount === 1 ? '' : 's') +
+          '. Changing day offsets will change what customers are told.</p>';
+      }
+    }
 
     // Name
     html += '<div class="bp-sched-form-group"><label>Template Name</label>';
@@ -10807,6 +10837,9 @@ function parseWaitlistRecipeIds(value) {
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = Object.assign(module.exports || {}, {
       _initGoogleAuth: initGoogleAuth,
+      _countRecipesUsingScheduleForTest: countRecipesUsingSchedule,
+      _buildSchedFormForTest: buildSchedForm,
+      _setRecipesListForTest: function (list) { _recipesState.list = list; },
       _getAccessToken: function () { return accessToken; },
       _setAccessTokenForTest: function (v) { accessToken = v; },
       _getUserEmail:   function () { return userEmail; },

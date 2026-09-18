@@ -2732,3 +2732,12 @@ textarea.bp-input {
   color: var(--batch-info);
 }
 .bp-sync-badge--warning { background: var(--batch-warning-bg); color: var(--batch-warning); }
+
+/* Schedule editor: how many public recipes a template feeds (mirrors admin D-15) */
+.bp-sched-blast-radius {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid #b8963e;
+  background: rgba(184, 150, 62, 0.12);
+  font-size: 0.875rem;
+}
