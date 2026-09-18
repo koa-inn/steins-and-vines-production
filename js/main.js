@@ -8486,10 +8486,14 @@ function setupBeerWaitlistForm() {
     var em = document.getElementById('beer-waitlist-email').value.trim(); if (!em) return;
     var btn = f.querySelector('[type="submit"]'); if (btn) { btn.disabled = true; btn.textContent = 'Joining...'; }
     var mw = (typeof SHEETS_CONFIG !== 'undefined') ? (SHEETS_CONFIG.MIDDLEWARE_URL || '') : '';
+    // CASL express consent: the statement shown beside the form travels with
+    // the signup so the middleware can record exactly what was agreed to.
+    var consentEl = document.getElementById('beer-waitlist-consent');
+    var consentText = consentEl ? (consentEl.textContent || '').replace(/\s+/g, ' ').trim() : '';
     fetch(mw + '/api/waitlist', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: em })
+      body: JSON.stringify({ email: em, consent: true, consent_text: consentText })
     }).then(function (r) { return r.json(); }).then(function (d) {
       if (d.success) {
         f.classList.add('hidden');

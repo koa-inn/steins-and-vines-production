@@ -36,6 +36,8 @@ var brewpadIntegration = require('./lib/brewpad-integration');
 
 var mailer = require('./lib/mailer');
 var mailerlite = require('./lib/mailerlite');
+var eventLog = require('./lib/eventLog');
+var redact = require('./lib/redact');
 var reconcile = require('./lib/reconcile');
 var cookieParser = require('cookie-parser');
 var authTiers = require('./lib/authTiers');
@@ -254,6 +256,17 @@ app.post('/api/waitlist', waitlistLimiter, async function (req, res) {
     }
 
     var entryId = (sheetResult && sheetResult.id) || null;
+
+    // CASL consent record: who, when, where, and the exact statement they
+    // agreed to (the form sends the text it displayed). The sheet row itself
+    // is the address; this event is the durable proof of express consent.
+    eventLog.logEvent('waitlist.consent', {
+      email: redact.maskEmail(email),
+      entryId: entryId || '',
+      source: 'beer-waitlist',
+      consent: req.body.consent === true,
+      consentText: (typeof req.body.consent_text === 'string') ? req.body.consent_text.substring(0, 400) : ''
+    });
 
     // MailerLite is best-effort from here on — its outcome never changes
     // the HTTP status (D-03). A failure/misconfiguration leaves the row's
