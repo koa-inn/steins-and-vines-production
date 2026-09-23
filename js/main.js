@@ -101,6 +101,10 @@ window.RECAPTCHA_SITE_KEY = (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONF
 
 // ===== Payment flag =====
 var PAYMENT_DISABLED = false;
+// HOLD-BACK (2026-09-23): beer.html is deployed but unlinked and unindexed until
+// the beer programme launches. Flip to true (and remove the nav/hub/sitemap
+// hold-back) with the launch commit.
+var BEER_PAGE_LIVE = false;
 // ===== Deep-link (?item=SKU) =====
 // Note: escapeHTML is defined in js/lib/utils.js (loaded first in the concat pipeline).
 // In Node test environments, fall back to requiring the canonical implementation.
@@ -1771,7 +1775,9 @@ function buildWaitlistCtaLink(doc) {
 
   var link = d.createElement('a');
   link.className = 'btn';
-  link.href = isBeerPage ? '#waitlist' : 'beer.html#waitlist';
+  // While the beer page is held back, a beer card elsewhere must not link to it.
+  var beerLive = (typeof BEER_PAGE_LIVE === 'undefined') ? true : !!BEER_PAGE_LIVE;
+  link.href = isBeerPage ? '#waitlist' : (beerLive ? 'beer.html#waitlist' : 'contact.html');
   link.textContent = 'Join the Waitlist';
 
   wrap.appendChild(link);
