@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
-stopped_at: Phase 81 planned -- 9 plans, verification passed
+stopped_at: Phase 81 shipped to production 2026-09-23 (81-09 complete; beer page held back)
 last_updated: "2026-09-05T17:23:26.543Z"
-last_activity: 2026-09-05 -- Phase 81 execution started
+last_activity: 2026-09-23 -- production cutover executed via gated-deploy; Zoho re-auth incident resolved
 progress:
   total_phases: 67
   completed_phases: 27
