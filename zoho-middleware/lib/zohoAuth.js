@@ -214,12 +214,19 @@ function refreshAccessToken() {
     }).then(function (data) {
       tokens.accessToken = data.access_token;
       tokens.expiresAt = Date.now() + (data.expires_in * 1000);
+      // Zoho normally returns the same refresh token; honour a rotated one.
+      if (data.refresh_token) tokens.refreshToken = data.refresh_token;
 
-      // Persist access token + expiry to Redis so other instances can use it
+      // Persist access token + expiry to Redis so other instances can use it,
+      // and RE-PERSIST the refresh token with a fresh 90-day TTL. Until
+      // 2026-09-23 it was written only at /auth/zoho connect time, so a process
+      // that ran longer than 90 days outlived its saved token and the next
+      // restart came up unauthenticated (production incident, see 81-09-SUMMARY).
       var ttl = data.expires_in - 60;
       try {
         cache.set(C.CACHE_KEYS.ACCESS_TOKEN, data.access_token, ttl);
         cache.set(C.CACHE_KEYS.TOKEN_EXPIRY, String(Date.now() + ttl * 1000), ttl);
+        cache.set(REFRESH_TOKEN_CACHE_KEY, encrypt(tokens.refreshToken), REFRESH_TOKEN_TTL);
       } catch {
         // Redis unavailable — in-memory only is fine
       }
