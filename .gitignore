@@ -55,3 +55,8 @@ AUDIT-*.md
 # Redis dump files — may contain cached PII/tokens (D-15)
 *.rdb
 zoho-middleware/dump.rdb
+
+# Backfill snapshots + rejects — customer PII, never commit (Phase 83 D-13)
+*.xlsx
+zoho-middleware/backfill-output/
+rejects-*.json
