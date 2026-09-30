@@ -12,6 +12,11 @@
  * block below.
  */
 
+var fs = require('fs');
+var os = require('os');
+var path = require('path');
+var ExcelJS = require('exceljs');
+
 var pgHarness = require('./helpers/pg-harness');
 var describeDb = pgHarness.describeDb;
 var startPostgres = pgHarness.startPostgres;
@@ -21,8 +26,43 @@ var load = require('../../scripts/backfill/load');
 var normalizeRow = require('../../scripts/backfill/normalize').normalizeRow;
 var platoReadingsSpec = require('../../scripts/backfill/specs/plato-readings');
 var fermSchedulesSpec = require('../../scripts/backfill/specs/ferm-schedules');
+var backfill = require('../../scripts/backfill/backfill');
 
 var TIMEZONE = 'America/Vancouver';
+
+// Writes a throwaway .xlsx into os.tmpdir() (no Sheets API, matching D-09) with a
+// PlatoReadings sheet built from raw (pre-normalisation) row objects keyed by header.
+function buildPlatoReadingsXlsx(rows) {
+  var workbook = new ExcelJS.Workbook();
+  var worksheet = workbook.addWorksheet('PlatoReadings');
+  var headers = platoReadingsSpec.columns.map(function (c) {
+    return c.header;
+  });
+  worksheet.addRow(headers);
+  rows.forEach(function (row) {
+    worksheet.addRow(
+      headers.map(function (h) {
+        return row[h] !== undefined ? row[h] : '';
+      })
+    );
+  });
+  var filePath = path.join(
+    os.tmpdir(),
+    'backfill-fixture-' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.xlsx'
+  );
+  return workbook.xlsx.writeFile(filePath).then(function () {
+    return filePath;
+  });
+}
+
+function captureLog() {
+  var lines = [];
+  var log = function (msg) {
+    lines.push(String(msg));
+  };
+  log.lines = lines;
+  return log;
+}
 
 // Builds a normalised row object from raw fixture values via the real normalizeRow
 // pipeline (no .xlsx needed for this task — Task 2 adds the real-file round trip).
@@ -300,5 +340,292 @@ describeDb('backfill pipeline against real Postgres', function () {
         expect(['app_meta', 'pgmigrations'].indexOf(n)).not.toBe(-1);
       });
     });
+  });
+});
+
+describeDb('backfill CLI end-to-end (runBackfill)', function () {
+  var container;
+  var connectionString;
+  var db;
+  var pool;
+
+  beforeAll(async function () {
+    var started = await startPostgres();
+    container = started.container;
+    connectionString = started.connectionString;
+
+    var migrateResult = applyMigrations(connectionString);
+    if (migrateResult.code !== 0) {
+      throw new Error(
+        'applyMigrations failed (code ' + migrateResult.code + '): ' + migrateResult.stderr
+      );
+    }
+
+    jest.resetModules();
+    db = require('../../lib/db');
+    pool = db.createPool(connectionString);
+    process.env.BACKFILL_DATABASE_URL = connectionString;
+  }, 120000);
+
+  afterAll(async function () {
+    delete process.env.BACKFILL_DATABASE_URL;
+    if (pool) await pool.end();
+    if (container) await container.stop();
+  }, 60000);
+
+  afterEach(async function () {
+    var cleanupClient = await pool.connect();
+    try {
+      await cleanupClient.query('drop schema if exists scratch_backfill cascade');
+      await cleanupClient.query('drop table if exists public.plato_readings');
+    } finally {
+      cleanupClient.release();
+    }
+  });
+
+  // One fixture used by every end-to-end test: 4 rows, one with an unparseable
+  // timestamp (rejected) and one with a '' optional temperature (accepted, becomes null).
+  function buildFixture() {
+    var rows = [
+      {
+        reading_id: 'PR-000001',
+        batch_id: 'SV-B-000001',
+        timestamp: '2026-01-15T08:00:00Z',
+        plato: 12.5,
+        notes: 'fixture-note-alpha',
+        recorded_by: 'staff',
+        created_at: '2026-01-15T08:05:00Z',
+        temperature: 18.5,
+        ph: 4.2
+      },
+      {
+        reading_id: 'PR-000002',
+        batch_id: 'SV-B-000001',
+        timestamp: '2026-01-16T08:00:00Z',
+        plato: 11.0,
+        notes: 'fixture-note-beta',
+        recorded_by: 'staff',
+        created_at: '2026-01-16T08:05:00Z',
+        temperature: '',
+        ph: 4.1
+      },
+      {
+        reading_id: 'PR-000003',
+        batch_id: 'SV-B-000001',
+        timestamp: '2026-01-17T08:00:00Z',
+        plato: 10.5,
+        notes: 'fixture-note-gamma',
+        recorded_by: 'staff',
+        created_at: '2026-01-17T08:05:00Z',
+        temperature: 17.0,
+        ph: ''
+      },
+      {
+        reading_id: 'PR-000004',
+        batch_id: 'SV-B-000001',
+        timestamp: 'not-a-real-date',
+        plato: 9.0,
+        notes: 'fixture-note-delta',
+        recorded_by: 'staff',
+        created_at: '2026-01-18T08:05:00Z',
+        temperature: 16.0,
+        ph: 4.0
+      }
+    ];
+    return buildPlatoReadingsXlsx(rows);
+  }
+
+  function createEmptyPublicTarget(pool) {
+    return pool.connect().then(function (setupClient) {
+      return setupClient
+        .query(
+          'create table public.plato_readings (' +
+            'reading_id text primary key, batch_id text, "timestamp" timestamptz, ' +
+            'plato numeric(5,2), notes text, recorded_by text, created_at timestamptz, ' +
+            'temperature numeric(5,2), ph numeric(4,2))'
+        )
+        .then(function () {
+          setupClient.release();
+        });
+    });
+  }
+
+  it('runs end-to-end without --promote: exitCode 0, scratch has 3 rows, rejects file has count 1', async function () {
+    var filePath = await buildFixture();
+    var outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sv-backfill-out-'));
+    var log = captureLog();
+
+    try {
+      var result = await backfill.runBackfill(
+        {
+          file: filePath,
+          sheet: 'PlatoReadings',
+          schema: 'scratch_backfill',
+          timezone: TIMEZONE,
+          outDir: outDir,
+          promote: false,
+          acceptRejects: false,
+          status: false,
+          dryRun: false,
+          yes: true
+        },
+        { pool: pool, log: log }
+      );
+
+      expect(result.exitCode).toBe(backfill.EXIT.OK);
+      expect(result.counts).toEqual({ read: 4, accepted: 3, rejected: 1 });
+      expect(result.rejectsPath.indexOf(outDir)).toBe(0);
+
+      var rejectsReport = JSON.parse(fs.readFileSync(result.rejectsPath, 'utf8'));
+      expect(rejectsReport.count).toBe(1);
+
+      var checkClient = await pool.connect();
+      try {
+        var countCheck = await checkClient.query(
+          'select count(*)::int as count from scratch_backfill.plato_readings'
+        );
+        expect(countCheck.rows[0].count).toBe(3);
+      } finally {
+        checkClient.release();
+      }
+
+      log.lines.forEach(function (line) {
+        expect(line).not.toMatch(/fixture-note-/);
+      });
+    } finally {
+      fs.unlinkSync(filePath);
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it('promote:true without --accept-rejects -> exitCode 2 (REJECTS_BLOCK), target untouched', async function () {
+    var filePath = await buildFixture();
+    var outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sv-backfill-out-'));
+    var log = captureLog();
+
+    await createEmptyPublicTarget(pool);
+
+    try {
+      var result = await backfill.runBackfill(
+        {
+          file: filePath,
+          sheet: 'PlatoReadings',
+          schema: 'scratch_backfill',
+          timezone: TIMEZONE,
+          outDir: outDir,
+          promote: true,
+          acceptRejects: false,
+          status: false,
+          dryRun: false,
+          yes: true
+        },
+        { pool: pool, log: log }
+      );
+
+      expect(result.exitCode).toBe(backfill.EXIT.REJECTS_BLOCK);
+
+      var checkClient = await pool.connect();
+      try {
+        var countCheck = await checkClient.query('select count(*)::int as count from public.plato_readings');
+        expect(countCheck.rows[0].count).toBe(0);
+      } finally {
+        checkClient.release();
+      }
+    } finally {
+      fs.unlinkSync(filePath);
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it('promote:true + --accept-rejects + empty target -> exitCode 0, target has 3 rows', async function () {
+    var filePath = await buildFixture();
+    var outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sv-backfill-out-'));
+    var log = captureLog();
+
+    await createEmptyPublicTarget(pool);
+
+    try {
+      var result = await backfill.runBackfill(
+        {
+          file: filePath,
+          sheet: 'PlatoReadings',
+          schema: 'scratch_backfill',
+          timezone: TIMEZONE,
+          outDir: outDir,
+          promote: true,
+          acceptRejects: true,
+          status: false,
+          dryRun: false,
+          yes: true
+        },
+        { pool: pool, log: log }
+      );
+
+      expect(result.exitCode).toBe(backfill.EXIT.OK);
+
+      var checkClient = await pool.connect();
+      try {
+        var countCheck = await checkClient.query('select count(*)::int as count from public.plato_readings');
+        expect(countCheck.rows[0].count).toBe(3);
+      } finally {
+        checkClient.release();
+      }
+    } finally {
+      fs.unlinkSync(filePath);
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it('dryRun:true never calls pool.connect(); still writes the rejects report and prints counts', async function () {
+    var filePath = await buildFixture();
+    var outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sv-backfill-out-'));
+    var log = captureLog();
+    var throwingPool = {
+      connect: function () {
+        throw new Error('pool.connect() must never be called in --dry-run');
+      }
+    };
+
+    try {
+      var result = await backfill.runBackfill(
+        {
+          file: filePath,
+          sheet: 'PlatoReadings',
+          schema: 'scratch_backfill',
+          timezone: TIMEZONE,
+          outDir: outDir,
+          promote: false,
+          acceptRejects: false,
+          status: false,
+          dryRun: true,
+          yes: true
+        },
+        { pool: throwingPool, log: log }
+      );
+
+      expect(result.exitCode).toBe(backfill.EXIT.OK);
+      expect(result.counts).toEqual({ read: 4, accepted: 3, rejected: 1 });
+      expect(fs.existsSync(result.rejectsPath)).toBe(true);
+      expect(
+        log.lines.some(function (l) {
+          return /Read 4, accepted 3, rejected 1/.test(l);
+        })
+      ).toBe(true);
+    } finally {
+      fs.unlinkSync(filePath);
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it('status:true prints migrations and scratch schemas, exitCode 0', async function () {
+    var log = captureLog();
+    var result = await backfill.runBackfill({ status: true }, { pool: pool, log: log });
+
+    expect(result.exitCode).toBe(backfill.EXIT.OK);
+    expect(
+      log.lines.some(function (l) {
+        return /Migrations: .*0001_init/.test(l);
+      })
+    ).toBe(true);
   });
 });
