@@ -292,6 +292,95 @@ Verify these are set in the Railway `svmiddleware-production` service before the
 
 A healthy post-deploy `/health` response (HTTP 200, `redis:true`) confirms the app booted successfully through `validateEnv.js`, which means all `REQUIRED_IN_PROD` vars are present.
 
+### Railway Postgres (staging + production)
+
+D-01 makes `DATABASE_URL` required in production (staging also runs `NODE_ENV=production`, same as
+every other `REQUIRED_IN_PROD` var on this page), and Railway's `preDeployCommand` runs
+`node-pg-migrate up` against `DATABASE_URL` on every deploy — so **both Postgres databases must
+exist and be linked into their middleware service before any Phase 83 middleware commit is pushed
+to either repo**, or the deploy will fail closed.
+
+**Provisioning steps — once per environment (staging, then production):**
+
+- [ ] Railway dashboard → `sv-middleware` project → switch the environment selector to **staging**
+- [ ] `+ Create` → `Database` → `PostgreSQL`
+- [ ] Name the new service `Postgres` (so the auto-generated reference variable is
+      `${{Postgres.DATABASE_URL}}`)
+- [ ] In the `svmiddleware-staging` service → Variables tab → `New Variable` → `Add Reference` →
+      select the `Postgres` service's `DATABASE_URL` → confirm the variable name landed in
+      `svmiddleware-staging` as exactly `DATABASE_URL` (rename it if Railway suggests a different
+      default) — this must be the **PRIVATE** URL (host `*.railway.internal`), **not**
+      `DATABASE_PUBLIC_URL`
+- [ ] If Railway offers to redeploy `svmiddleware-staging` now, you may decline — the current code
+      doesn't read `DATABASE_URL` yet, so a redeploy of the current code with an extra unused
+      variable is harmless either way, just unnecessary
+- [ ] Repeat all of the above for **production**: switch the environment selector to `production`,
+      `+ Create` → `Database` → `PostgreSQL` named `Postgres`, link `DATABASE_URL` into
+      `svmiddleware-production`'s Variables tab
+
+> **Pitfall:** the variable must be named literally `DATABASE_URL` in the middleware service's
+> Variables tab — `zoho-middleware/lib/validateEnv.js` and `zoho-middleware/lib/db.js` both hardcode
+> that exact name. A differently-named reference (e.g. `POSTGRES_URL`) leaves `DATABASE_URL` unset
+> and the app fails closed in production.
+
+**Environment-name check (D-07)** — the Sheet-mirror hard-off-on-staging gate depends on this:
+
+- [ ] Staging: Railway → `svmiddleware-staging` → Variables → "Railway provided variables" (or the
+      environment switcher label) → read and record the exact value of `RAILWAY_ENVIRONMENT_NAME`
+- [ ] Production: same for `svmiddleware-production`
+
+> **Pitfall:** service name (`svmiddleware-production`) and environment name
+> (`RAILWAY_ENVIRONMENT_NAME`) are different Railway concepts — do not assume they match. The
+> Sheet-mirror gate compares against the ENVIRONMENT name, not the service name.
+
+**Config-file check (D-03)** — determines where the `preDeployCommand` migration step must live:
+
+- [ ] For each of `svmiddleware-staging` and `svmiddleware-production`: Settings → "Config-as-code" /
+      Railway config file path → record whether it is `/railway.toml` (repo root) or
+      `/zoho-middleware/railway.toml`
+- [ ] Also record each service's Root Directory setting
+
+**Backups (D-16):**
+
+- [ ] For each Postgres service: open the Backups tab
+- [ ] Enable a daily backup schedule if the option is available
+- [ ] Record the schedule, retention period, and whether point-in-time recovery (PITR) is offered on
+      the current plan (confirmed Hobby as of `82-01-SUMMARY.md`)
+
+> **Pitfall:** if the Backups tab is unavailable on the Hobby plan, record "NOT AVAILABLE" rather
+> than leaving it blank — Phase 84 must not load real balances into Postgres until this is resolved
+> (upgrade the plan, or stand up a scheduled `pg_dump`). The restore drill itself stays in Phase 88.
+
+**Public proxy (D-10)** — needed by the owner's backfill CLI in a later plan:
+
+- [ ] Confirm each Postgres service exposes a `DATABASE_PUBLIC_URL` (TCP proxy, host
+      `*.proxy.rlwy.net`) — the owner will copy this into their own terminal for the backfill
+      pipeline later. **Never paste it into chat, a file in the repo, or a commit.**
+
+**Workbook timezone** — used by the backfill to interpret Date cells correctly:
+
+- [ ] Google Sheet "STEINS AND VINES" → File → Settings → Time zone → record the IANA zone (e.g.
+      `America/Vancouver`)
+
+#### Provisioning record (fill in on completion)
+
+| Field | Value |
+|-------|-------|
+| Staging Postgres provisioned (date) | _pending_ |
+| Staging DATABASE_URL linked (y/n) | _pending_ |
+| Production Postgres provisioned (date) | _pending_ |
+| Production DATABASE_URL linked (y/n) | _pending_ |
+| RAILWAY_ENVIRONMENT_NAME staging | _pending_ |
+| RAILWAY_ENVIRONMENT_NAME production | _pending_ |
+| Config file path (staging / production) | _pending_ |
+| Backups staging (schedule/retention) | _pending_ |
+| Backups production (schedule/retention) | _pending_ |
+| PITR available (y/n) | _pending_ |
+| Workbook timezone | _pending_ |
+| Recorded by / date | _pending_ |
+
+> Never record any URL, host, port or password in this table — names, dates and yes/no values only.
+
 ---
 
 ## Phase 46 Auth Cutover (CRITICAL — leaked-key neutralization)
