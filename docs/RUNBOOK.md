@@ -366,20 +366,49 @@ to either repo**, or the deploy will fail closed.
 
 | Field | Value |
 |-------|-------|
-| Staging Postgres provisioned (date) | _pending_ |
-| Staging DATABASE_URL linked (y/n) | _pending_ |
-| Production Postgres provisioned (date) | _pending_ |
-| Production DATABASE_URL linked (y/n) | _pending_ |
-| RAILWAY_ENVIRONMENT_NAME staging | _pending_ |
-| RAILWAY_ENVIRONMENT_NAME production | _pending_ |
-| Config file path (staging / production) | _pending_ |
-| Backups staging (schedule/retention) | _pending_ |
-| Backups production (schedule/retention) | _pending_ |
-| PITR available (y/n) | _pending_ |
-| Workbook timezone | _pending_ |
-| Recorded by / date | _pending_ |
+| Staging Postgres provisioned (date) | 2026-09-30 |
+| Staging DATABASE_URL linked (y/n) | yes — reference `${{Postgres.DATABASE_URL}}` (private URL) |
+| Production Postgres provisioned (date) | 2026-09-30 |
+| Production DATABASE_URL linked (y/n) | yes — reference `${{Postgres-EMVk.DATABASE_URL}}` (private URL) |
+| RAILWAY_ENVIRONMENT_NAME staging | `staging` |
+| RAILWAY_ENVIRONMENT_NAME production | `production` |
+| Config file path (staging / production) | `/railway.toml` (repo root) for both; neither service has a Root Directory set |
+| Backups staging (schedule/retention) | NOT AVAILABLE — Backups tab requires Railway Pro plan (workspace is Hobby) |
+| Backups production (schedule/retention) | NOT AVAILABLE — Backups tab requires Railway Pro plan (workspace is Hobby) |
+| PITR available (y/n) | no — Pro-plan only |
+| Workbook timezone | `America/Vancouver` |
+| Recorded by / date | Claude, in owner's Railway session with owner approval — 2026-09-30 |
 
 > Never record any URL, host, port or password in this table — names, dates and yes/no values only.
+
+> **Note — actual Railway names differ from the checklist's assumed names:** Railway
+> auto-suffixed the production Postgres service to `Postgres-EMVk` (service names are
+> project-unique and staging already claimed `Postgres`), so the production reference is
+> `${{Postgres-EMVk.DATABASE_URL}}`, not `${{Postgres.DATABASE_URL}}`. Both middleware services
+> are actually named `sv_middleware` in Railway — `svmiddleware-staging` / `svmiddleware-production`
+> above are only the `*.up.railway.app` public domains, not the service names. Staging source repo
+> is `koa-inn/steins-and-vines-staging@main`; production is `koa-inn/steins-and-vines-production@main`.
+> Neither Postgres service exposes `DATABASE_PUBLIC_URL` (no TCP proxy enabled on either) — Plan
+> 83-07/83-08's backfill rehearsal from a laptop will need either a temporarily-enabled TCP proxy
+> (disabled again afterward) or running the migration/backfill from inside Railway (`railway run` /
+> SSH); decide which in Plan 83-08.
+
+> **Consequences for Phase 83 code:**
+> - `PRODUCTION_ENVIRONMENT_NAME` for `lib/sheet-mirror.js` (Plan 83-04) = `production`; it must
+>   NOT equal the staging value `staging`.
+> - `preDeployCommand` belongs in the repo-root `/railway.toml` (matches Plan 83-03 as written — no
+>   file move needed). However, Railway's dashboard flags **"Config as Code is deprecated. Prefer
+>   Infrastructure as Code. Existing config files keep working until 2026-12-01."** on both
+>   services — before that date, the build/watch/start/`preDeployCommand` settings must move to
+>   dashboard settings or Railway IaC, or the migration step will silently stop running on deploy.
+>   Flag for Plan 83-03/83-08.
+> - Backfill default timezone = `America/Vancouver`, matching Plan 83-06's default — no change
+>   needed there.
+
+> **Blocker for Phase 84 (D-16):** Backups and PITR are unavailable on both Postgres databases
+> (Hobby plan). Real balances must not be loaded into Postgres until the workspace is upgraded to
+> Pro (with backups enabled) or a scheduled `pg_dump` exists. This does not block shipping Phase
+> 83's empty database (D-17).
 
 ---
 
