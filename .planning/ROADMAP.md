@@ -1955,7 +1955,7 @@ Plans:
   3. The Jest harness runs a real Postgres (Testcontainers) per test process with per-test rollback; CI runs it; a round-trip test is green on CI
   4. The store-flag helper resolves `<STORE>_STORE` to `sheets` | `dual` | `postgres` per store with `sheets` as the default and the mirror hard-disabled on staging; the backfill pipeline runs end-to-end on a workbook snapshot into a scratch schema and produces a rejects report — zero rows loaded to real tables yet
 
-**Plans:** 6/9 plans executed
+**Plans:** 7/9 plans executed
 
 Plans:
 **Wave 1**
@@ -1975,7 +1975,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 83-07-PLAN.md — Backfill CLI: scratch-schema load, source-vs-scratch checks, gated promote, status; end-to-end real-Postgres test (D-10, D-12)
+- [x] 83-07-PLAN.md — Backfill CLI: scratch-schema load, source-vs-scratch checks, gated promote, status; end-to-end real-Postgres test (D-10, D-12)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
