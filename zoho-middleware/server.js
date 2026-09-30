@@ -5,6 +5,15 @@ var checkRedis = require('./lib/checkRedis');
 var checkMailer = require('./lib/checkMailer');
 validateEnv();
 
+// Phase 83 (DB-02): resolve + validate every store's sheets|dual|postgres
+// flag and log the production-only Sheet mirror's boot state. Both are
+// boot-time (not per-request) so a misconfiguration fails the deploy, not
+// the first sale (D-05/D-06/D-07). `log` is not required yet at this point
+// in the boot sequence, so require it locally here.
+var storeModes = require('./lib/store-flag').validateStoreFlags();
+require('./lib/sheet-mirror').logMirrorStatus();
+require('./lib/logger').info('[startup] store modes: ' + JSON.stringify(storeModes));
+
 var Sentry = require('@sentry/node');
 var scrub = require('./lib/sentry-scrub');
 if (process.env.SENTRY_DSN) {
