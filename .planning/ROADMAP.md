@@ -1955,6 +1955,36 @@ Plans:
   3. The Jest harness runs a real Postgres (Testcontainers) per test process with per-test rollback; CI runs it; a round-trip test is green on CI
   4. The store-flag helper resolves `<STORE>_STORE` to `sheets` | `dual` | `postgres` per store with `sheets` as the default and the mirror hard-disabled on staging; the backfill pipeline runs end-to-end on a workbook snapshot into a scratch schema and produces a rejects report — zero rows loaded to real tables yet
 
+**Plans:** 9 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 83-01-PLAN.md — Owner provisions staging + production Railway Postgres, links DATABASE_URL, records env names / config path / backups / workbook timezone (D-15, D-16) [checkpoint]
+- [ ] 83-02-PLAN.md — pg + node-pg-migrate + pinned testcontainers; lib/db.js (pool/query/withTransaction); DATABASE_URL required in prod; /health `database` field (D-01, D-02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 83-03-PLAN.md — migrations/0001_init.sql, additive-only migration guard, `npm run migrate` as Railway preDeployCommand (D-03, D-04)
+- [ ] 83-04-PLAN.md — store-flag helper (sheets|dual|postgres, fail-closed), production-only Sheet mirror gate, dual-write comparator (D-05..D-08)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 83-05-PLAN.md — Testcontainers Jest harness (isolated config, local skip / CI never skips), db + migration tests, CI steps (D-14)
+- [ ] 83-06-PLAN.md — Backfill core: exceljs [legitimacy checkpoint], rehearsal specs, trap-by-trap normaliser, PII-safe rejects writer, .gitignore (D-09, D-12, D-13)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 83-07-PLAN.md — Backfill CLI: scratch-schema load, source-vs-scratch checks, gated promote, status; end-to-end real-Postgres test (D-10, D-12)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 83-08-PLAN.md — Staging deploy + verification + owner backfill rehearsal on a real snapshot [checkpoint]
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 83-09-PLAN.md — Gated production deploy + verification (D-17) [checkpoint]
+
 ### Phase 84: GiftCards → Postgres
 
 **Goal**: Gift-card balances live in Postgres with an atomic redeem/reload — the money-path defect that first justified this milestone is closed structurally, with a rollback path that loses nothing.
