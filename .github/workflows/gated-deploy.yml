@@ -122,16 +122,36 @@ jobs:
       # land in the repo but never publish to the live site (silent stale-frontend bug).
       # The redundant production-side Tests/Enforce-CNAME runs this push also triggers
       # are expected and harmless.
+      #
+      # Outputs (consumed by the Railway deploy-ID capture and the /health gate):
+      #   prod_sha           -- the CNAME-swap commit; this is the commit Railway builds
+      #   middleware_changed -- whether zoho-middleware/** or railway.toml differ from the
+      #                         previous production head (Railway's watchPatterns only
+      #                         redeploy when they do, so there is nothing to wait for otherwise)
       - name: Force-push to production repo
+        id: push
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           STAGING_SHA=$(git rev-parse HEAD)
+          PROD_URL="https://x-access-token:${{ secrets.PROD_DEPLOY_TOKEN }}@github.com/koa-inn/steins-and-vines-production.git"
+          MIDDLEWARE_CHANGED=true
+          if git fetch --quiet "${PROD_URL}" main; then
+            if git diff --quiet FETCH_HEAD HEAD -- zoho-middleware railway.toml; then
+              MIDDLEWARE_CHANGED=false
+            fi
+          else
+            echo "WARNING: could not fetch production main -- assuming the middleware changed"
+          fi
+          echo "Middleware changed since previous production head: ${MIDDLEWARE_CHANGED}"
           echo "steinsandvines.ca" > CNAME
           git add CNAME
           git commit -m "chore: set CNAME to steinsandvines.ca for production deploy"
-          git push https://x-access-token:${{ secrets.PROD_DEPLOY_TOKEN }}@github.com/koa-inn/steins-and-vines-production.git HEAD:main --force
-          echo "Force-push to production complete"
+          PROD_SHA=$(git rev-parse HEAD)
+          git push "${PROD_URL}" HEAD:main --force
+          echo "Force-push to production complete (production commit ${PROD_SHA})"
+          echo "prod_sha=${PROD_SHA}" >> "$GITHUB_OUTPUT"
+          echo "middleware_changed=${MIDDLEWARE_CHANGED}" >> "$GITHUB_OUTPUT"
           git reset --hard "${STAGING_SHA}"
           echo "Local tree reset to staging HEAD (${STAGING_SHA}) -- origin unaffected by the CNAME swap"
 
@@ -162,26 +182,59 @@ jobs:
       # -----------------------------------------------------------------------
 
       # f. Capture Railway deploy ID (SHA was captured pre-swap in step c)
+      # Wait for the deployment of THIS deploy's production commit (meta.commitHash ==
+      # steps.push.outputs.prod_sha) to reach a terminal status. Taking the newest
+      # deployment right after the push recorded the PREVIOUS one (Railway had not created
+      # the new deployment yet) -- 2026-09-30, run 36753725754. Never fails the job itself:
+      # the RUNBOOK row must still be written; the /health gate (step i) enforces SUCCESS.
       - name: Capture Railway deploy ID
         id: railway
         if: success()
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          PROD_SHA: ${{ steps.push.outputs.prod_sha }}
+          MIDDLEWARE_CHANGED: ${{ steps.push.outputs.middleware_changed }}
         run: |
           DEPLOY_ID="unknown"
-          if [ -n "${RAILWAY_TOKEN}" ]; then
-            if command -v railway &>/dev/null; then
-              DEPLOY_ID=$(railway deployment list --service sv_middleware --json --limit 1 2>/dev/null | jq -r '.[0].id // "unknown"' 2>/dev/null || echo "unknown")
-            else
-              echo "WARNING: railway CLI not found -- installing..."
-              npm install -g @railway/cli 2>/dev/null || true
-              DEPLOY_ID=$(railway deployment list --service sv_middleware --json --limit 1 2>/dev/null | jq -r '.[0].id // "unknown"' 2>/dev/null || echo "unknown")
-            fi
-          else
+          DEPLOY_STATUS="UNKNOWN"
+          if [ "${MIDDLEWARE_CHANGED}" = "false" ]; then
+            DEPLOY_ID="none"
+            DEPLOY_STATUS="UNCHANGED"
+            echo "Middleware unchanged -- Railway will not redeploy; nothing to capture."
+          elif [ -z "${RAILWAY_TOKEN}" ]; then
             echo "WARNING: RAILWAY_TOKEN secret is not set. Set it in repo secrets to capture deploy IDs."
+          else
+            if ! command -v railway &>/dev/null; then
+              echo "railway CLI not found -- installing..."
+              npm install -g @railway/cli 2>/dev/null || true
+            fi
+            # Up to 20 min: Railway's "Wait for CI" holds the build until the production
+            # repo's checks pass, then builds and deploys.
+            for i in $(seq 1 80); do
+              MATCH=$(railway deployment list --service sv_middleware --json --limit 20 2>/dev/null \
+                | jq -r --arg sha "${PROD_SHA}" \
+                    '[.[] | select((.meta.commitHash // "") == $sha)] | first | if . == null then "" else "\(.id) \(.status)" end' \
+                    2>/dev/null || echo "")
+              if [ -n "${MATCH}" ]; then
+                DEPLOY_ID="${MATCH%% *}"
+                DEPLOY_STATUS="${MATCH##* }"
+                echo "Attempt ${i}: deployment ${DEPLOY_ID} for ${PROD_SHA} is ${DEPLOY_STATUS}"
+                case "${DEPLOY_STATUS}" in
+                  SUCCESS|FAILED|CRASHED|SKIPPED|REMOVED) break ;;
+                esac
+              else
+                echo "Attempt ${i}: no Railway deployment for ${PROD_SHA} yet"
+              fi
+              sleep 15
+            done
+            case "${DEPLOY_STATUS}" in
+              SUCCESS|FAILED|CRASHED|SKIPPED|REMOVED) ;;
+              *) DEPLOY_STATUS="TIMEOUT-${DEPLOY_STATUS}" ;;
+            esac
           fi
           echo "deploy_id=${DEPLOY_ID}" >> "$GITHUB_OUTPUT"
-          echo "Railway Deploy ID: ${DEPLOY_ID}"
+          echo "deploy_status=${DEPLOY_STATUS}" >> "$GITHUB_OUTPUT"
+          echo "Railway Deploy ID: ${DEPLOY_ID} (${DEPLOY_STATUS})"
 
       # g. Tag: prod-YYYYMMDD-N (only after a successful force-push)
       - name: Create prod tag
@@ -216,6 +269,12 @@ jobs:
           UTC_DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
           SHORT_SHA="${{ steps.meta.outputs.short_sha }}"
           DEPLOY_ID="${{ steps.railway.outputs.deploy_id }}"
+          DEPLOY_STATUS="${{ steps.railway.outputs.deploy_status }}"
+          if [ "${DEPLOY_STATUS}" = "UNCHANGED" ]; then
+            DEPLOY_ID="none -- middleware unchanged"
+          elif [ "${DEPLOY_STATUS}" != "SUCCESS" ]; then
+            DEPLOY_ID="${DEPLOY_ID} (${DEPLOY_STATUS})"
+          fi
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           REASON=$(printf '%s' "$REASON_RAW" | tr -d '\r\n' | tr '|' '/')
           REASON="${REASON:-manual deploy via gated-deploy.yml}"
@@ -248,7 +307,18 @@ jobs:
       # Soft-warn: authenticated:false (expected on Railway restart -- log only)
       # Grace window: 5 retries x 20s = max 100s for Railway cold-start
       - name: Smoke-check /health
+        env:
+          MIDDLEWARE_CHANGED: ${{ steps.push.outputs.middleware_changed }}
+          DEPLOY_STATUS: ${{ steps.railway.outputs.deploy_status }}
+          DEPLOY_ID: ${{ steps.railway.outputs.deploy_id }}
         run: |
+          # A healthy /health proves nothing if it is still the OLD instance answering:
+          # when the middleware changed, require the new deployment to have reached SUCCESS.
+          if [ "${MIDDLEWARE_CHANGED}" != "false" ] && [ "${DEPLOY_STATUS}" != "SUCCESS" ]; then
+            echo "SMOKE CHECK FAILED: the Railway deployment for this deploy is ${DEPLOY_STATUS} (id ${DEPLOY_ID})."
+            echo "Production may still be serving the previous middleware. Check Railway -> sv_middleware -> Deployments."
+            exit 1
+          fi
           HEALTH_URL="https://svmiddleware-production.up.railway.app/health"
           echo "Smoke-checking: ${HEALTH_URL}"
           echo "Grace window: 5 retries x 20s = up to 100s for Railway cold-start"
