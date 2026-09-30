@@ -22,6 +22,7 @@ var REQUIRED_IN_PROD = [
   { name: 'STAFF_EMAILS',          desc: 'Comma-separated staff Google email allowlist (D-46-07)' },
   { name: 'KIOSK_DEVICE_TOKEN',    desc: 'Kiosk device token, constant-time compared (D-46-01)' },
   { name: 'SHEETS_CLIENT_ID',      desc: 'Google OAuth client ID for server-side aud check (D-46-05)' },
+  { name: 'DATABASE_URL',          desc: 'Postgres connection string (private Railway network) — required in prod (D-01, DB-02)' },
 ];
 
 // Optional vars — missing any logs a warning but startup continues.

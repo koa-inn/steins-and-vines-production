@@ -30,6 +30,7 @@ describe('validateEnv', () => {
     'STAFF_EMAILS',
     'KIOSK_DEVICE_TOKEN',
     'SHEETS_CLIENT_ID',
+    'DATABASE_URL',
   ];
 
   // Minimum required vars so the REQUIRED check passes
@@ -125,7 +126,8 @@ describe('validateEnv', () => {
     beforeEach(() => {
       process.env.NODE_ENV = 'production';
       // Set all prod secrets (full SC#5 set: MONITOR-02 / phase 33, plus
-      // Phase 46's STAFF_EMAILS/KIOSK_DEVICE_TOKEN/SHEETS_CLIENT_ID)
+      // Phase 46's STAFF_EMAILS/KIOSK_DEVICE_TOKEN/SHEETS_CLIENT_ID, plus
+      // Phase 83's DATABASE_URL — D-01/DB-02)
       setEnv({
         RECAPTCHA_SECRET_KEY: 'rcaptcha-secret',
         HELCIM_WEBHOOK_SECRET: 'helcim-secret',
@@ -136,6 +138,7 @@ describe('validateEnv', () => {
         STAFF_EMAILS: 'staff@example.com',
         KIOSK_DEVICE_TOKEN: 'test-device-token',
         SHEETS_CLIENT_ID: 'test-client-id.apps.googleusercontent.com',
+        DATABASE_URL: 'postgresql://test:test@localhost:5432/testdb',
       });
     });
 
@@ -216,6 +219,14 @@ describe('validateEnv', () => {
       validateEnv();
       expect(process.exit).toHaveBeenCalledWith(1);
     });
+
+    // ── Phase 83 Postgres infrastructure (D-01, DB-02) ──────────────────────
+    test('calls process.exit(1) when DATABASE_URL is missing in production (D-01)', () => {
+      delete process.env.DATABASE_URL;
+      validateEnv = require('../lib/validateEnv');
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
   });
 
   // ─── 2b. Non-prod gate — SENTRY_DSN + HELCIM_API_TOKEN not enforced outside prod ──
@@ -232,6 +243,15 @@ describe('validateEnv', () => {
     test('does NOT exit on HELCIM_API_TOKEN absence when NODE_ENV is not production', () => {
       process.env.NODE_ENV = 'test';
       // HELCIM_API_TOKEN not set (cleared in outer beforeEach via PROD_SECRETS clearance)
+      validateEnv = require('../lib/validateEnv');
+      validateEnv();
+      expect(process.exit).not.toHaveBeenCalled();
+    });
+
+    test('does NOT exit on DATABASE_URL absence when NODE_ENV is not production (D-01)', () => {
+      process.env.NODE_ENV = 'test';
+      // DATABASE_URL not set (cleared in outer beforeEach via PROD_SECRETS clearance) —
+      // local dev and CI may run without it (D-01)
       validateEnv = require('../lib/validateEnv');
       validateEnv();
       expect(process.exit).not.toHaveBeenCalled();
@@ -260,8 +280,8 @@ describe('validateEnv', () => {
     test('does NOT exit when RAILWAY_ENVIRONMENT is set and NODE_ENV=production (with all prod secrets)', () => {
       process.env.RAILWAY_ENVIRONMENT = 'production';
       process.env.NODE_ENV = 'production';
-      // Provide all prod secrets (full SC#5 set, plus Phase 46 additions) so
-      // REQUIRED_IN_PROD check also passes
+      // Provide all prod secrets (full SC#5 set, plus Phase 46 and Phase 83
+      // additions) so REQUIRED_IN_PROD check also passes
       setEnv({
         RECAPTCHA_SECRET_KEY: 'rcaptcha-secret',
         HELCIM_WEBHOOK_SECRET: 'helcim-secret',
@@ -272,6 +292,7 @@ describe('validateEnv', () => {
         STAFF_EMAILS: 'staff@example.com',
         KIOSK_DEVICE_TOKEN: 'test-device-token',
         SHEETS_CLIENT_ID: 'test-client-id.apps.googleusercontent.com',
+        DATABASE_URL: 'postgresql://test:test@localhost:5432/testdb',
       });
       validateEnv = require('../lib/validateEnv');
       validateEnv();

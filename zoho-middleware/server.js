@@ -28,6 +28,7 @@ var rateLimit = require('express-rate-limit');
 var helmet = require('helmet');
 var zohoAuth = require('./lib/zohoAuth');
 var cache = require('./lib/cache');
+var db = require('./lib/db');
 var log = require('./lib/logger');
 var C = require('./lib/constants');
 var helcimLib = require('./lib/helcim');
@@ -123,6 +124,38 @@ app.use(function (req, res, next) {
 // Health check (used by Railway)
 // ---------------------------------------------------------------------------
 
+// D-02: a database outage or absence at runtime is reported, not fatal — a
+// failed/never-settling probe resolves to false rather than rejecting, so it
+// never blocks the /health response or flips `status`. Raced against a 3s
+// timeout (cleared once the query settles) so a hung connection can't hang
+// the health check itself. Making /health fail (and gating deploys) on a
+// database outage is deferred to Phase 84, once a real store reads from
+// Postgres.
+function checkDatabase() {
+  if (!db.isConfigured()) return Promise.resolve(false);
+
+  return new Promise(function (resolve) {
+    var settled = false;
+    var timer = setTimeout(function () {
+      if (settled) return;
+      settled = true;
+      resolve(false);
+    }, 3000);
+
+    db.query('select 1').then(function () {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(true);
+    }, function () {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+}
+
 app.get('/health', function (req, res) {
   var redisOk = cache.isConnected();
   var redisCheck = redisOk
@@ -132,11 +165,14 @@ app.get('/health', function (req, res) {
       }).catch(function () { return false; })
     : Promise.resolve(false);
 
-  redisCheck.then(function (redisPong) {
+  var dbCheck = checkDatabase();
+
+  Promise.all([redisCheck, dbCheck]).then(function (results) {
     res.json({
-      status: 'ok',
+      status: 'ok', // D-02: NEVER flips on database:false this phase
       authenticated: zohoAuth.isAuthenticated(),
-      redis: redisPong,
+      redis: results[0],
+      database: results[1],
       uptime: process.uptime()
     });
   });
