@@ -65,8 +65,12 @@ function describeDb(name, fn) {
 
   if (shouldSkipDbTests({ docker: docker, ci: ci })) {
     var message = name + ' (Docker not running — skipped locally, runs on CI; D-14)';
-    // eslint-disable-next-line no-console
-    console.warn('[pg-harness] ' + message);
+    // Jest's default (non-verbose) reporter only surfaces console.* output captured during
+    // a running test — describeDb() runs at collection time, outside any it()/test() block,
+    // so console.warn here is silently swallowed unless --verbose is passed. Write directly
+    // to stderr instead so the "skipped locally" message is always visible in plain
+    // `npm run test:db` output, matching the plan's verification command.
+    process.stderr.write('[pg-harness] ' + message + '\n');
     return describe.skip(message, fn);
   }
 
