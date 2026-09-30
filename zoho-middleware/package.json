@@ -15,7 +15,8 @@
     "test:coverage": "jest --coverage",
     "test:db": "jest --config jest.db.config.js",
     "migrate": "node scripts/migration-guard.js && node-pg-migrate up",
-    "migrate:guard": "node scripts/migration-guard.js"
+    "migrate:guard": "node scripts/migration-guard.js",
+    "backfill": "node scripts/backfill/backfill.js"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "12.0.4",
