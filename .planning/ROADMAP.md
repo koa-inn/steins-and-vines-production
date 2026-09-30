@@ -1955,7 +1955,7 @@ Plans:
   3. The Jest harness runs a real Postgres (Testcontainers) per test process with per-test rollback; CI runs it; a round-trip test is green on CI
   4. The store-flag helper resolves `<STORE>_STORE` to `sheets` | `dual` | `postgres` per store with `sheets` as the default and the mirror hard-disabled on staging; the backfill pipeline runs end-to-end on a workbook snapshot into a scratch schema and produces a rejects report — zero rows loaded to real tables yet
 
-**Plans:** 2/9 plans executed
+**Plans:** 4/9 plans executed
 
 Plans:
 **Wave 1**
@@ -1965,8 +1965,8 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 83-03-PLAN.md — migrations/0001_init.sql, additive-only migration guard, `npm run migrate` as Railway preDeployCommand (D-03, D-04)
-- [ ] 83-04-PLAN.md — store-flag helper (sheets|dual|postgres, fail-closed), production-only Sheet mirror gate, dual-write comparator (D-05..D-08)
+- [x] 83-03-PLAN.md — migrations/0001_init.sql, additive-only migration guard, `npm run migrate` as Railway preDeployCommand (D-03, D-04)
+- [x] 83-04-PLAN.md — store-flag helper (sheets|dual|postgres, fail-closed), production-only Sheet mirror gate, dual-write comparator (D-05..D-08)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
