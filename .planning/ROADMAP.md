@@ -1955,7 +1955,7 @@ Plans:
   3. The Jest harness runs a real Postgres (Testcontainers) per test process with per-test rollback; CI runs it; a round-trip test is green on CI
   4. The store-flag helper resolves `<STORE>_STORE` to `sheets` | `dual` | `postgres` per store with `sheets` as the default and the mirror hard-disabled on staging; the backfill pipeline runs end-to-end on a workbook snapshot into a scratch schema and produces a rejects report — zero rows loaded to real tables yet
 
-**Plans:** 5/9 plans executed
+**Plans:** 6/9 plans executed
 
 Plans:
 **Wave 1**
@@ -1971,7 +1971,7 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [x] 83-05-PLAN.md — Testcontainers Jest harness (isolated config, local skip / CI never skips), db + migration tests, CI steps (D-14)
-- [ ] 83-06-PLAN.md — Backfill core: exceljs [legitimacy checkpoint], rehearsal specs, trap-by-trap normaliser, PII-safe rejects writer, .gitignore (D-09, D-12, D-13)
+- [x] 83-06-PLAN.md — Backfill core: exceljs [legitimacy checkpoint], rehearsal specs, trap-by-trap normaliser, PII-safe rejects writer, .gitignore (D-09, D-12, D-13)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
