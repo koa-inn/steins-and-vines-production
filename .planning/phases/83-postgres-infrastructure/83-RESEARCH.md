@@ -561,22 +561,25 @@ select 1;
 | A3 | `node-pg-migrate`'s SQL-file support accepts an arbitrary sortable filename like `0001_init.sql` (not strictly requiring its own `create`-generated timestamp prefix) | Architecture Patterns (Pattern 2), Code Examples | Low-Medium — if node-pg-migrate's file-discovery regex requires a specific prefix format, `0001_init.sql` (already named in CONTEXT.md's locked decisions) may need renaming or a `--migration-filename-format` config flag; verify against the installed version's actual CLI help output (`node-pg-migrate --help`) during implementation, since the docs site returned a 404 for the specific configuration page fetched this session |
 | A4 | Railway's `preDeployCommand` has access to the service's own `DATABASE_URL` and other environment variables at the environment-specific values (i.e., staging's pre-deploy sees staging's `DATABASE_URL`, not a project-wide shared value) | Architecture Patterns (Pattern 2) | Low — this matches Railway's documented per-environment variable scoping (already relied upon elsewhere in this repo, e.g. `STAFF_EMAILS` differing between `svmiddleware-production` and other environments per `docs/RUNBOOK.md`), and Railway's own docs state pre-deploy commands "have access to your application's environment variables" — but this specific claim (pre-deploy sees the *correct environment's* values, not some build-time snapshot) was not tested live this session |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Exact Railway environment names for `RAILWAY_ENVIRONMENT_NAME`**
    - What we know: service names are `svmiddleware-production`/`svmiddleware-staging` (confirmed in `docs/RUNBOOK.md`); Railway documents `RAILWAY_ENVIRONMENT_NAME` as "the environment name of the service instance," a distinct concept from service name.
    - What's unclear: whether the environments themselves (as opposed to the services) are named exactly `production`/`staging`, or something else (e.g. matching the Railway default of `production` for the first environment, with a custom-named second environment).
    - Recommendation: add a one-line dashboard check to the D-15 provisioning checklist — read the value directly (e.g., a throwaway `console.log(process.env.RAILWAY_ENVIRONMENT_NAME)` in a one-off deploy, or the Railway dashboard's Environments list) before hardcoding Pattern 4's string comparison.
+   - RESOLVED: 83-01 Task 1 adds the environment-name check (D-07) to the RUNBOOK provisioning checklist; the owner reads both values from the dashboard in Task 2, and Task 3 records them and stops if they are equal. Nothing is assumed from service names.
 
 2. **Whether `DATABASE_URL` (private) or a Railway "internal" reference variable is what actually gets linked into each middleware service's Variables tab**
    - What we know: Railway auto-populates `DATABASE_URL` when a Postgres plugin is referenced from a service in the same environment (standard Railway variable-reference behaviour, e.g. `${{Postgres.DATABASE_URL}}`); D-15 assigns this linking to the owner as a dashboard checklist step.
    - What's unclear: the exact reference variable name Railway generates for a Postgres service added to this specific project (it depends on what the Postgres service is named when provisioned, e.g. if the owner names it `Postgres` vs `postgres-staging`).
    - Recommendation: the plan's D-15 checklist step should have the owner confirm the generated variable name matches a literal `DATABASE_URL` in each middleware service's Variables tab (renaming the reference if Railway defaults to something like `POSTGRES_URL`), since `validateEnv.js` and `lib/db.js` both hardcode the name `DATABASE_URL`.
+   - RESOLVED: 83-01 Task 1 writes the RUNBOOK provisioning checklist with the literal `${{Postgres.DATABASE_URL}}` reference step, requiring each middleware service's variable to be named exactly `DATABASE_URL`; Tasks 2-3 record the owner's confirmation.
 
 3. **`node-pg-migrate`'s exact CLI flags for pointing at a non-default migrations directory / scratch schema for the backfill pipeline's schema checks**
    - What we know: `--schema`/`-s` sets the schema migrations SQL runs against (default `public`); `--migrations-schema` sets where the tracking table lives.
    - What's unclear: whether the backfill pipeline's scratch-schema promotion step should also go through `node-pg-migrate` (schema-scoped) or be a separate raw-SQL step outside the migration-tracking system (since scratch-schema work is explicitly not "real" migrations, D-04's additive-only constraint may not even apply to it).
    - Recommendation: treat the scratch-schema DDL as ad-hoc SQL run by the backfill CLI itself (via `lib/db.js`'s `query()`), not as `node-pg-migrate` migrations — keeps the migrations table's history meaningful (only real, promoted schema changes) and avoids entangling the backfill pipeline's experimentation with the deploy-gating migration mechanism.
+   - RESOLVED: 83-07 Task 1 implements scratch-schema DDL as ad-hoc SQL in `load.js` (`loadScratch`, restricted to `scratch_*` by `assertScratchSchema`), outside `node-pg-migrate`; no scratch-schema CLI flags are needed.
 
 ## Environment Availability
 
