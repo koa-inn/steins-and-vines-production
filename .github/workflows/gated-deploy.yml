@@ -26,6 +26,9 @@ jobs:
         working-directory: zoho-middleware
       - run: npm test
         working-directory: zoho-middleware
+      - name: Postgres integration tests (Testcontainers, D-14)
+        run: npm run test:db
+        working-directory: zoho-middleware
       - name: Lint middleware
         run: npm run lint
         working-directory: zoho-middleware
