@@ -1,6 +1,10 @@
 module.exports = {
   testEnvironment: 'node',
   testMatch: ['**/__tests__/**/*.test.js'],
+  // Real-Postgres tests live under __tests__/db/ and run only via `npm run test:db`
+  // (jest.db.config.js, Testcontainers-backed) — never as part of the default npm test run
+  // (D-14: no Docker requirement for the local pre-commit gate).
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/__tests__/db/'],
   // Per-file env isolation (clears the shared API key vars). See jest.setup.js.
   setupFiles: ['<rootDir>/jest.setup.js'],
   collectCoverage: true,
