@@ -178,6 +178,11 @@ describe('migration-guard', () => {
       writeFile(dir, 'README.md', 'drop table x — not a migration file, must be ignored');
       expect(checkMigrationsDir(dir)).toEqual([]);
     });
+
+    it('returns [] for the real migrations/ directory (0001_init.sql)', () => {
+      var realMigrationsDir = path.join(__dirname, '..', 'migrations');
+      expect(checkMigrationsDir(realMigrationsDir)).toEqual([]);
+    });
   });
 
   // ─── 7. CLI exit code contract ──────────────────────────────────────────
