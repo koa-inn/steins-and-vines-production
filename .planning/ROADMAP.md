@@ -1955,12 +1955,12 @@ Plans:
   3. The Jest harness runs a real Postgres (Testcontainers) per test process with per-test rollback; CI runs it; a round-trip test is green on CI
   4. The store-flag helper resolves `<STORE>_STORE` to `sheets` | `dual` | `postgres` per store with `sheets` as the default and the mirror hard-disabled on staging; the backfill pipeline runs end-to-end on a workbook snapshot into a scratch schema and produces a rejects report — zero rows loaded to real tables yet
 
-**Plans:** 1/9 plans executed
+**Plans:** 2/9 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 83-01-PLAN.md — Owner provisions staging + production Railway Postgres, links DATABASE_URL, records env names / config path / backups / workbook timezone (D-15, D-16) [checkpoint]
+- [x] 83-01-PLAN.md — Owner provisions staging + production Railway Postgres, links DATABASE_URL, records env names / config path / backups / workbook timezone (D-15, D-16) [checkpoint]
 - [x] 83-02-PLAN.md — pg + node-pg-migrate + pinned testcontainers; lib/db.js (pool/query/withTransaction); DATABASE_URL required in prod; /health `database` field (D-01, D-02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
