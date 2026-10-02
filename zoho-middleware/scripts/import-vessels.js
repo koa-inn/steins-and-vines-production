@@ -153,7 +153,7 @@ async function main() {
         process.exit(1);
       }
       console.log('Middleware is running and authenticated.\n');
-    } catch (e) {
+    } catch {
       console.error('Cannot reach middleware at ' + MIDDLEWARE_URL + '. Is the server running?');
       process.exit(1);
     }

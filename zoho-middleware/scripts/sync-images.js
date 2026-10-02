@@ -81,7 +81,7 @@ async function main() {
       process.exit(1);
     }
     log('Middleware is running and authenticated.');
-  } catch (e) {
+  } catch {
     console.error('[sync-images] Cannot reach middleware at ' + MIDDLEWARE_URL +
       '. Is the server running?');
     process.exit(1);

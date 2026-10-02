@@ -41,6 +41,11 @@
  * violation. A parse error is a violation. A WASM load failure in ready()
  * propagates to the CLI's catch block, which exits 1 (see bottom).
  *
+ * Review follow-up (83-REVIEW WR-01, not an owner decision): any NUL byte
+ * anywhere in the raw Up section is rejected before parsing, same as the
+ * backslash gate — libpg_query's C parser is NUL-terminated and would
+ * otherwise silently stop scanning there.
+ *
  * Version pinning: the parser's major grammar version must track Railway's
  * Postgres major version. `libpg-query@16.7.3` reports AST `version:
  * 160001` (PG16). If Railway moves to PG17+, new syntax fails to parse and
@@ -288,6 +293,19 @@ function checkSql(fileText) {
   var upSection = extractUpSection(fileText);
   if (upSection === null) {
     return [{ statement: '(no -- Up Migration marker found)', rule: 'missing-up-marker' }];
+  }
+
+  // Pre-parse gate (83-REVIEW WR-01 follow-up): any NUL byte anywhere in the
+  // raw Up section. libpg-query's C parser is NUL-terminated, so
+  // `CREATE TABLE ok (a int);\0DROP TABLE gift_cards;` would otherwise parse
+  // as a lone CreateStmt and everything after the NUL would go unscanned —
+  // this runs before the backslash gate and before pg.parseSync.
+  if (upSection.indexOf('\0') >= 0) {
+    return [{
+      statement: 'a NUL (\\0) byte was found in the Up section — the parser is NUL-terminated and ' +
+        'stops reading there, so any statement after it would be invisible to this guard.',
+      rule: 'nul-byte'
+    }];
   }
 
   // Pre-parse gate: any backslash anywhere in the raw Up section (owner

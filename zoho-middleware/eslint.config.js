@@ -2,7 +2,7 @@ const globals = require('globals');
 
 module.exports = [
   {
-    files: ['routes/**/*.js', 'lib/**/*.js', 'server.js'],
+    files: ['routes/**/*.js', 'lib/**/*.js', 'scripts/**/*.js', 'server.js'],
     languageOptions: {
       ecmaVersion: 2020,
       sourceType: 'commonjs',
