@@ -500,6 +500,12 @@ to either repo**, or the deploy will fail closed.
 > (Hobby plan). Real balances must not be loaded into Postgres until the workspace is upgraded to
 > Pro (with backups enabled) or a scheduled `pg_dump` exists. This does not block shipping Phase
 > 83's empty database (D-17).
+>
+> **2026-10-02:** the owner chose a scheduled `pg_dump`: a Railway cron service, production only,
+> nightly, age-encrypted, uploaded to Cloudflare R2 with 30-day retention. Code, setup steps and
+> the restore drill are in `infra/pg-backup/README.md`. The blocker clears only once that service
+> is live in production AND a restore drill against a real backup has passed (tracked as
+> 83-HUMAN-UAT test 2).
 
 ---
 
