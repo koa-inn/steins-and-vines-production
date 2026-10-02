@@ -9,8 +9,16 @@
  * cases, it never edits the old ones.
  */
 
+var fs = require('fs');
+var os = require('os');
+var path = require('path');
+var childProcess = require('child_process');
+
 var migrationGuard = require('../scripts/migration-guard');
 var findDestructiveStatements = migrationGuard.findDestructiveStatements;
+var findUnguardedFiles = migrationGuard.findUnguardedFiles;
+
+var GUARD_SCRIPT = path.join(__dirname, '..', 'scripts', 'migration-guard.js');
 
 /**
  * Wraps a statement body in a standard Up/Down migration file, matching
@@ -20,6 +28,16 @@ var findDestructiveStatements = migrationGuard.findDestructiveStatements;
  */
 function wrapUp(body) {
   return '-- Up Migration\n' + body + '\n-- Down Migration\nselect 1;\n';
+}
+
+function makeTmpDir() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'migration-guard-hardening-test-'));
+}
+
+function writeFile(dir, name, contents) {
+  var fullPath = path.join(dir, name);
+  fs.writeFileSync(fullPath, contents, 'utf8');
+  return fullPath;
 }
 
 describe('migration-guard hardening — parse bypasses (CR-01)', () => {
@@ -155,6 +173,90 @@ describe('migration-guard hardening — rule coverage (CR-01, IN-01)', () => {
         var sql = wrapUp(stmt + ';');
         expect(findDestructiveStatements(sql)).toEqual([]);
       });
+    });
+  });
+});
+
+describe('migration-guard hardening — non-SQL migration files (CR-02)', () => {
+  var tmpDirs = [];
+
+  afterEach(() => {
+    tmpDirs.forEach(function (dir) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+    tmpDirs = [];
+  });
+
+  function tmpDir() {
+    var dir = makeTmpDir();
+    tmpDirs.push(dir);
+    return dir;
+  }
+
+  describe('findUnguardedFiles', () => {
+    it('flags a .js migration file that node-pg-migrate would execute without the guard', () => {
+      var dir = tmpDir();
+      writeFile(dir, '0001_init.sql', '-- Up Migration\ncreate table x (id int);\n-- Down Migration\ndrop table x;\n');
+      writeFile(dir, '0002_x.js', "exports.up = (pgm) => pgm.dropTable('gift_cards');\n");
+
+      var violations = findUnguardedFiles(dir);
+      expect(violations.length).toBe(1);
+      expect(violations[0].file).toBe('0002_x.js');
+      expect(violations[0].rule).toBe('non-sql-file');
+      expect(typeof violations[0].statement).toBe('string');
+    });
+
+    it('ignores dotfiles, matching node-pg-migrate\'s default ignore pattern', () => {
+      var dir = tmpDir();
+      writeFile(dir, '0001_init.sql', '-- Up Migration\ncreate table x (id int);\n-- Down Migration\ndrop table x;\n');
+      writeFile(dir, '.gitkeep', '');
+
+      expect(findUnguardedFiles(dir)).toEqual([]);
+    });
+
+    it('flags a non-.sql README left in the migrations directory', () => {
+      var dir = tmpDir();
+      writeFile(dir, 'README.md', 'notes');
+
+      var violations = findUnguardedFiles(dir);
+      expect(violations.length).toBe(1);
+      expect(violations[0].rule).toBe('non-sql-file');
+    });
+
+    it('flags a subdirectory entry', () => {
+      var dir = tmpDir();
+      fs.mkdirSync(path.join(dir, 'subdir'));
+
+      var violations = findUnguardedFiles(dir);
+      expect(violations.length).toBe(1);
+      expect(violations[0].file).toBe('subdir');
+      expect(violations[0].rule).toBe('non-sql-file');
+    });
+
+    it('returns [] for the real migrations/ directory', () => {
+      var realMigrationsDir = path.join(__dirname, '..', 'migrations');
+      expect(findUnguardedFiles(realMigrationsDir)).toEqual([]);
+    });
+  });
+
+  describe('CLI', () => {
+    it('exits 1 with a non-sql-file stderr line for a .js migration', () => {
+      var dir = tmpDir();
+      writeFile(dir, '0002_x.js', "exports.up = (pgm) => pgm.dropTable('gift_cards');\n");
+
+      var result = childProcess.spawnSync('node', [GUARD_SCRIPT, dir], { encoding: 'utf8' });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/0002_x\.js: non-sql-file/);
+    });
+
+    it('exits 0 and prints "1 file(s) additive-only OK" for a dir with one .sql file and a dotfile', () => {
+      var dir = tmpDir();
+      writeFile(dir, '0001_init.sql', '-- Up Migration\ncreate table x (id int);\n-- Down Migration\ndrop table x;\n');
+      writeFile(dir, '.gitkeep', '');
+
+      var result = childProcess.spawnSync('node', [GUARD_SCRIPT, dir], { encoding: 'utf8' });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toMatch(/migration-guard: 1 file\(s\) additive-only OK/);
     });
   });
 });
