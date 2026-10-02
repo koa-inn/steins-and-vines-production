@@ -105,7 +105,7 @@ function main() {
     var so = (data && data.salesorder) || {};
     soNumber = so.salesorder_number;
     customerId = so.customer_id;
-    balance = parseFloat(so.balance != null ? so.balance : so.total);
+    balance = parseFloat((so.balance !== null && so.balance !== undefined) ? so.balance : so.total);
     if (!soNumber || !customerId) die('SO ' + SO_ID + ' missing salesorder_number/customer_id.');
     if (!(balance > 0)) die('SO ' + SO_ID + ' has no positive balance (balance=' + balance + '). Use an unpaid test SO.');
     console.log('  SO ' + soNumber + '  customer=' + customerId + '  balance=$' + balance);

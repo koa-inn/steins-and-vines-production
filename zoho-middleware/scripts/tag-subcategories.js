@@ -40,9 +40,6 @@ var DRY_RUN = args.indexOf('--dry-run') !== -1;
 // Valid subcategory values — validate every write against this list (T-20-01)
 var VALID_SUBCATEGORIES = ['Grain', 'Yeast', 'Additive', 'Packaging', 'Equipment', 'Cleaning', 'Hops'];
 
-// Exclude kit categories (same filter used in middleware routes/catalog.js)
-var KIT_CATEGORIES = ['wine', 'beer', 'cider', 'seltzer'];
-
 // Zoho API rate limit: 100 requests per minute — add delay between calls
 var DELAY_MS = 700;
 

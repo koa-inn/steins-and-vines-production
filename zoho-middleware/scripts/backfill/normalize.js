@@ -189,7 +189,7 @@ var NUMERIC_EPSILON = 1e-9;
 function normalizeNumeric(raw, opts) {
   opts = opts || {};
   var precision = opts.precision;
-  var scale = opts.scale != null ? opts.scale : 2;
+  var scale = (opts.scale !== null && opts.scale !== undefined) ? opts.scale : 2;
 
   var num;
   if (typeof raw === 'number') {
@@ -218,7 +218,7 @@ function normalizeNumeric(raw, opts) {
 
   var formatted = formatFixed(roundedMinor, scale);
 
-  if (precision != null) {
+  if (precision !== null && precision !== undefined) {
     var totalDigits = formatted.replace('-', '').replace('.', '').length;
     if (totalDigits > precision) {
       return { ok: false, reason: 'exceeds precision ' + precision + ' (scale ' + scale + ')' };

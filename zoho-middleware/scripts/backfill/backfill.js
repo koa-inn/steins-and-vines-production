@@ -115,7 +115,7 @@ function parseArgs(argv) {
   if (opts.sheet !== undefined) {
     try {
       specs.getSpec(opts.sheet);
-    } catch (e) {
+    } catch {
       throw new Error(
         'unknown sheet "' + opts.sheet + '" — valid sheets: ' + specs.listSpecs().join(', ')
       );
