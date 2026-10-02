@@ -189,6 +189,36 @@ Pass the Railway deploy ID from the Deploy History table above. Requires a proje
   regression but could still block an automated deploy gate that waits on the `Tests` workflow's
   overall conclusion.
 
+**Production cutover (2026-10-02):**
+
+- **Owner approval:** owner replied "approved" in chat on 2026-10-02, confirming the staging
+  evidence above and that production `DATABASE_URL` still references the production Postgres
+  (reference `${{Postgres-EMVk.DATABASE_URL}}`, set 2026-09-30 — Railway references cannot cross
+  environments, so this cannot silently point at staging).
+- **Rollback target recorded before dispatch:** Railway deployment id
+  `14b8afd4-a673-4b64-a922-ca3f22adfea2` — the ACTIVE `svmiddleware-production` deployment
+  immediately prior to this cutover.
+- **Backups (D-16):** unchanged — still NOT AVAILABLE (Hobby plan). Remains a Phase 84 blocker;
+  this deploy ships only the empty schema (D-17), so no real balances are at risk yet.
+- **Dispatch:** `gh` CLI was unauthenticated in this session, so the gated workflow was dispatched
+  via the GitHub Actions web UI instead of `gh workflow run` — **Gated Production Deploy #23**,
+  run id `37049773828` (see the Deploy History row above), targeting staging `main` at `d47dab8`,
+  reason: "Phase 83 Postgres infrastructure (DB-02): lib/db.js, migrations on deploy, /health
+  database field, store-flag + mirror gate; empty schema".
+- **Workflow result:** `test-middleware` success (including the `test:db` Postgres integration
+  suite), `test-frontend` success, `deploy` job success. New production Railway deployment id
+  `f104c500-2ae4-4550-813e-3f3c79825ebc`.
+- **Production `/health` verified:** `{"status":"ok","authenticated":true,"redis":true,
+  "database":true}`, fresh uptime (~78 s at check time). `/api/products` returned 200.
+- **Production logs confirmed (Task 3):** pre-deploy logs show
+  `migration-guard: 1 file(s) additive-only OK` followed by `node-pg-migrate` applying `0001_init`
+  with exit 0; deploy logs show `[sheet-mirror] mirror ENABLED (environment=production)` with
+  store modes `GIFT_CARDS_STORE: sheets`, `RECIPES_STORE: sheets` — nothing reads or writes
+  Postgres for customer data yet, matching the D-07/phase-boundary expectation.
+- **Result:** Phase 83 (DB-02) is now live in both staging and production, each on its own
+  Postgres database, with migrations applying on deploy and the Sheet mirror correctly gated per
+  environment.
+
 ### Apps Script (`adminApi.gs`)
 
 Apps Script is **entirely outside `gated-deploy.yml`**. There is no CI path, no smoke check,
