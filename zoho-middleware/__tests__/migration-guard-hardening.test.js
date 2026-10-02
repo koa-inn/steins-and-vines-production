@@ -110,3 +110,51 @@ describe('migration-guard hardening — parse bypasses (CR-01)', () => {
     expect(findDestructiveStatements(sql)).toEqual([]);
   });
 });
+
+describe('migration-guard hardening — rule coverage (CR-01, IN-01)', () => {
+  describe('rejected statements', () => {
+    var REJECTED_CASES = [
+      { stmt: 'ALTER TABLE gift_cards ALTER balance TYPE integer', rule: 'alter-type' },
+      { stmt: 'ALTER TABLE t ALTER c SET DATA TYPE int', rule: 'alter-type' },
+      { stmt: 'alter table t alter type type int', rule: 'alter-type' },
+      { stmt: 'UPDATE gift_cards AS g SET balance = 0', rule: 'update' },
+      { stmt: 'UPDATE ONLY gift_cards SET balance = 0', rule: 'update' },
+      { stmt: 'WITH d AS (DELETE FROM gift_cards RETURNING 1) SELECT count(*) FROM d', rule: 'delete' },
+      { stmt: 'DO $$ BEGIN DELETE FROM gift_cards; END $$', rule: 'do-block' },
+      { stmt: "DO $$ BEGIN EXECUTE 'truncate gift_cards'; END $$", rule: 'do-block' },
+      { stmt: 'EXECUTE purge_stmt', rule: 'execute' },
+      { stmt: 'MERGE INTO gift_cards g USING src s ON g.code = s.code WHEN MATCHED THEN DELETE', rule: 'merge' },
+      { stmt: "INSERT INTO gift_cards (code, balance) VALUES ('a', 1) ON CONFLICT (code) DO UPDATE SET balance = 0", rule: 'upsert' },
+      { stmt: 'ALTER SEQUENCE gift_cards_id_seq RESTART WITH 1', rule: 'sequence-reset' },
+      { stmt: 'ALTER TABLE t ALTER COLUMN id RESTART WITH 1', rule: 'sequence-reset' },
+      { stmt: "SELECT setval('gift_cards_id_seq', 1)", rule: 'sequence-reset' }
+    ];
+
+    REJECTED_CASES.forEach(function (c) {
+      it('includes a "' + c.rule + '" violation for: ' + c.stmt, () => {
+        var sql = wrapUp(c.stmt + ';');
+        var violations = findDestructiveStatements(sql);
+        expect(violations.some(function (v) { return v.rule === c.rule; })).toBe(true);
+      });
+    });
+  });
+
+  describe('accepted statements', () => {
+    var ACCEPTED_CASES = [
+      'ALTER TABLE t ADD COLUMN type text',
+      'ALTER TABLE t ADD COLUMN "type" text',
+      'ALTER TABLE x ALTER COLUMN y SET DEFAULT 0',
+      "ALTER TYPE mood ADD VALUE 'meh'",
+      'CREATE TABLE c (id int primary key, p int references p(id) on update set null on delete set null)',
+      "INSERT INTO app_meta (key, value) VALUES ('k','v') ON CONFLICT (key) DO NOTHING",
+      'CREATE TRIGGER trg BEFORE UPDATE ON x FOR EACH ROW EXECUTE FUNCTION set_updated_at()'
+    ];
+
+    ACCEPTED_CASES.forEach(function (stmt) {
+      it('reports no violations for: ' + stmt, () => {
+        var sql = wrapUp(stmt + ';');
+        expect(findDestructiveStatements(sql)).toEqual([]);
+      });
+    });
+  });
+});
