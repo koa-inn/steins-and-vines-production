@@ -134,6 +134,38 @@ function assertSnapshotSafePath(filePath) {
   rejectsLib.assertSafePath(filePath);
 }
 
+/**
+ * checkHeaders(spec, sheetHeaders) -> { missing: string[], unmapped: string[] }
+ *
+ * Exact, case-sensitive comparison of spec.columns[].header (required or optional)
+ * against the sheet's actual row-1 headers (already trimmed by readSheet). `missing`
+ * is every spec header absent from the sheet; `unmapped` is every sheet header that
+ * doesn't map to any spec column (CR-04 / VERIFICATION gap 3) — a renamed or deleted
+ * OPTIONAL column previously loaded as all-NULL and passed every check silently.
+ */
+function checkHeaders(spec, sheetHeaders) {
+  var specHeaders = spec.columns.map(function (col) {
+    return col.header;
+  });
+  var sheetSet = {};
+  sheetHeaders.forEach(function (h) {
+    sheetSet[h] = true;
+  });
+  var specSet = {};
+  specHeaders.forEach(function (h) {
+    specSet[h] = true;
+  });
+
+  return {
+    missing: specHeaders.filter(function (h) {
+      return !sheetSet[h];
+    }),
+    unmapped: sheetHeaders.filter(function (h) {
+      return !specSet[h];
+    })
+  };
+}
+
 function promptTypeDatabaseName(expectedName) {
   return new Promise(function (resolve, reject) {
     var rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -214,6 +246,24 @@ function runBackfill(opts, deps) {
   return readXlsx
     .readSheet(opts.file, spec.sheet)
     .then(function (sheetResult) {
+      // Header names are column labels, not row contents, so logging them is
+      // consistent with D-13 (only counts/paths/column-and-check-names go to the
+      // terminal — never cell values).
+      var headerCheck = checkHeaders(spec, sheetResult.headers);
+      if (headerCheck.unmapped.length) {
+        log('Unmapped sheet header(s): ' + headerCheck.unmapped.join(', '));
+      }
+      if (headerCheck.missing.length) {
+        log(
+          'Error: sheet "' +
+            spec.sheet +
+            '" is missing spec header(s): ' +
+            headerCheck.missing.join(', ') +
+            ' — the spec and the sheet have drifted; fix the sheet or the spec before loading'
+        );
+        return { exitCode: EXIT.ERROR, rejectsPath: null, counts: null };
+      }
+
       log('[2/6] Normalise');
       var accepted = [];
       var rejects = [];
