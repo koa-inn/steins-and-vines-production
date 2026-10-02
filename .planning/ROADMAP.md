@@ -1955,7 +1955,7 @@ Plans:
   3. The Jest harness runs a real Postgres (Testcontainers) per test process with per-test rollback; CI runs it; a round-trip test is green on CI
   4. The store-flag helper resolves `<STORE>_STORE` to `sheets` | `dual` | `postgres` per store with `sheets` as the default and the mirror hard-disabled on staging; the backfill pipeline runs end-to-end on a workbook snapshot into a scratch schema and produces a rejects report — zero rows loaded to real tables yet
 
-**Plans:** 7/9 plans executed
+**Plans:** 8/9 plans executed
 
 Plans:
 **Wave 1**
@@ -1979,7 +1979,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 83-08-PLAN.md — Staging deploy + verification + owner backfill rehearsal on a real snapshot [checkpoint]
+- [x] 83-08-PLAN.md — Staging deploy + verification + owner backfill rehearsal on a real snapshot [checkpoint]
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
