@@ -106,6 +106,14 @@ None - no external service configuration required.
 - `node scripts/migration-guard.js` against the real `migrations/` directory exits 0 — the next staging pre-deploy is unaffected
 - Phase 84 (gift-card Postgres cutover) can now add migration `0002` behind a guard that mirrors node-pg-migrate's own parsing and rejects DO blocks, dynamic EXECUTE, MERGE, upserts, sequence resets, and non-SQL migration files, in addition to the original DROP/TRUNCATE/RENAME/ALTER-TYPE/DELETE/UPDATE set
 
+## Self-Check: PASSED
+
+- FOUND: `zoho-middleware/__tests__/migration-guard-hardening.test.js`
+- FOUND: `zoho-middleware/scripts/migration-guard.js`
+- FOUND: `zoho-middleware/migrations-manual/README.md`
+- FOUND: `.planning/phases/83-postgres-infrastructure/83-10-SUMMARY.md`
+- FOUND commits: `3fb252c8`, `bc5f5b29`, `8d58147d`, `2014cd73`, `10e1bdf3`, `595b5919`
+
 ---
 *Phase: 83-postgres-infrastructure*
 *Completed: 2026-10-02*
