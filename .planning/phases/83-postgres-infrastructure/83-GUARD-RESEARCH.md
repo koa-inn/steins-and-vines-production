@@ -231,7 +231,9 @@ No postinstall/install/preinstall scripts on libpg-query 16.7.3 or @pgsql/types 
 | A4 | The app connects as a superuser `postgres` role | Affects the schema-shadowing severity and the event-trigger feasibility only |
 | A5 | About 1 day of effort | Planning only |
 
-## Open Questions for the Owner
+## Open Questions for the Owner (RESOLVED)
+
+Q1, Q2, Q4 and Q5 are answered by the Owner Decisions below. Q3 was not asked explicitly. Default until the owner says otherwise: CREATE VIEW, GRANT and CREATE EXTENSION stay manual (the fail-closed default). Widening the allowlist later needs an explicit owner decision.
 
 1. **Retire the old guard?** Do you want to keep `migration-guard.js` and its 67 tests as a redundant first pass (approach A, no test edits)? Or authorise replacing it, which means editing or deleting 4 tests that encode the old policy?
 2. **Functions and triggers.** Is an `updated_at` trigger needed in Phase 84+? If so: always use the manual path? Or add an "exact-statement SHA-256 allowlist" that you approve per function?

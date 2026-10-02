@@ -1955,7 +1955,7 @@ Plans:
   3. The Jest harness runs a real Postgres (Testcontainers) per test process with per-test rollback; CI runs it; a round-trip test is green on CI
   4. The store-flag helper resolves `<STORE>_STORE` to `sheets` | `dual` | `postgres` per store with `sheets` as the default and the mirror hard-disabled on staging; the backfill pipeline runs end-to-end on a workbook snapshot into a scratch schema and produces a rejects report — zero rows loaded to real tables yet
 
-**Plans:** 12/12 plans complete
+**Plans:** 12/14 plans complete
 
 Plans:
 **Wave 1**
@@ -1990,6 +1990,11 @@ Plans:
 - [x] 83-10-PLAN.md — Harden the additive-only migration guard: tokenizer, node-pg-migrate-identical markers, unanchored/extended rules, fail closed on non-SQL migration files (gap 1: CR-01, CR-02, IN-01; D-04)
 - [x] 83-11-PLAN.md — Backfill normaliser and reader never coerce: text columns reject cell errors/Date/boolean/object; unknown exceljs shapes become cellError, not NULL (gap 2: CR-03; D-12)
 - [x] 83-12-PLAN.md — Backfill gates can fail: spec-header drift aborts, read_vs_accepted check, promote refuses empty scratch (gap 3: CR-04; D-12)
+
+**Wave 8 — gap closure** *(from 83-VERIFICATION.md re-verification + 83-GUARD-RESEARCH.md Owner Decisions; gap 1 only)*
+
+- [ ] 83-13-PLAN.md — Fail-closed parser allowlist guard: `scripts/migration-allowlist.js` on libpg-query 16.7.3 (pg16, production dep), no functions/triggers/DO/CALL, backslash ban, public-only schema; ported research corpus (REVIEW CR-01..04, WR-01/02, extra attacks) as tests (gap 1; D-04)
+- [ ] 83-14-PLAN.md — Chain the allowlist into `npm run migrate` (Railway pre-deploy) after the untouched old guard, wiring test, real-PG16 apply + end-to-end bypass-block test, README rewrite of what is enforced (gap 1; D-04, REVIEW WR-02) *(depends on 83-13)*
 
 ### Phase 84: GiftCards → Postgres
 
