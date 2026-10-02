@@ -37,6 +37,7 @@
     "globalpayments-api": "^3.10.10",
     "google-auth-library": "^10.9.0",
     "helmet": "^8.1.0",
+    "libpg-query": "16.7.3",
     "node-cron": "^4.2.1",
     "node-pg-migrate": "^9.0.0",
     "pg": "^8.23.1",
