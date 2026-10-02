@@ -157,6 +157,37 @@ Pass the Railway deploy ID from the Deploy History table above. Requires a proje
   deploy: set that store's `<STORE>_STORE` environment variable to `sheets` (D-05). Not applicable
   yet in Phase 83 — no store reads from Postgres.
 
+**Staging verification (2026-10-02):**
+
+- `/health` on staging: `status: ok`, `authenticated: true`, `redis: true`, `database: true`.
+- Pre-deploy migration confirmed: **yes** — pre-deploy logs show `migration-guard: 1 file(s)
+  additive-only OK`, then `node-pg-migrate` applying `0001_init`, deploy successful.
+- Mirror DISABLED on staging confirmed: **yes** — deploy logs show
+  `[sheet-mirror] mirror DISABLED (environment=staging)`, with store modes
+  `GIFT_CARDS_STORE: sheets`, `RECIPES_STORE: sheets`.
+- Backfill rehearsal (schema `scratch_83_rehearsal`, no `--promote`, connected via the private
+  tunnel, not the public proxy):
+  | Sheet | Read | Accepted | Rejected | Checks | Exit code |
+  |-------|------|----------|----------|--------|-----------|
+  | VesselHistory | 401 | 401 | 0 | PASS (25 checks) | 0 |
+  | PlatoReadings | 68 | 68 | 0 | PASS (26 checks) | 0 |
+  | FermSchedules | 11 | 11 | 0 | PASS (25 checks) | 0 |
+  First rehearsal attempt rejected 100% of rows (reason category: spec `header` values did not
+  match the real sheet row 1). While diagnosing, also found a live data bug unrelated to the
+  rehearsal spec itself: the VesselHistory sheet's header row was missing a `bin_id` column that
+  Apps Script had been appending since Feb 2026, shifting data one column right of its headers
+  (owner-approved fix: inserted the missing header in the live sheet). After the spec and sheet
+  fixes, the second rehearsal run (table above) passed with zero rejects on all three sheets.
+  `scratch_83_rehearsal` was dropped (`DROP SCHEMA ... CASCADE`) after the rehearsal — staging
+  Postgres holds a full real copy by design (D-11), but no real tables exist yet for these three
+  sheets, so nothing was promoted or loaded outside the scratch schema.
+- **Go/no-go for Plan 83-09: GO for code.** All DB-02 success criteria (SC1-SC4) are verified live
+  on staging; the backfill pipeline is proven end-to-end against real data. One pre-existing,
+  unrelated CI failure (`test-e2e`, failing on staging `main` since at least 2026-09-23) should be
+  checked against any gated-deploy workflow gate before 83-09, since it is not a Phase 83
+  regression but could still block an automated deploy gate that waits on the `Tests` workflow's
+  overall conclusion.
+
 ### Apps Script (`adminApi.gs`)
 
 Apps Script is **entirely outside `gated-deploy.yml`**. There is no CI path, no smoke check,
@@ -413,10 +444,14 @@ to either repo**, or the deploy will fail closed.
 > are actually named `sv_middleware` in Railway — `svmiddleware-staging` / `svmiddleware-production`
 > above are only the `*.up.railway.app` public domains, not the service names. Staging source repo
 > is `koa-inn/steins-and-vines-staging@main`; production is `koa-inn/steins-and-vines-production@main`.
-> Neither Postgres service exposes `DATABASE_PUBLIC_URL` (no TCP proxy enabled on either) — Plan
-> 83-07/83-08's backfill rehearsal from a laptop will need either a temporarily-enabled TCP proxy
-> (disabled again afterward) or running the migration/backfill from inside Railway (`railway run` /
-> SSH); decide which in Plan 83-08.
+> Neither Postgres service exposes `DATABASE_PUBLIC_URL` (no TCP proxy enabled on either). Plan
+> 83-08 resolved this: use Railway's private tunnel (`railway connect Postgres --tunnel-only
+> --environment <staging|production>`, Railway CLI 5.x+, with an SSH key registered via
+> `railway ssh keys add`) — see `zoho-middleware/scripts/backfill/README.md` step 3 for the full
+> procedure. `railway run` does **not** work for this: it runs the command on the laptop itself
+> against the service's private `*.railway.internal` URL, which a laptop cannot reach. The public
+> TCP proxy fallback documented in the README remains available but was never needed for the
+> Plan 83-08 rehearsal.
 
 > **Consequences for Phase 83 code:**
 > - `PRODUCTION_ENVIRONMENT_NAME` for `lib/sheet-mirror.js` (Plan 83-04) = `production`; it must
