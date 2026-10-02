@@ -115,34 +115,43 @@ function applyMigrations(connectionString, opts) {
 }
 
 /**
- * Registers beforeAll/beforeEach/afterEach/afterAll hooks that check out ONE client from the
- * given pool, BEGIN in beforeEach, ROLLBACK in afterEach, and release in afterAll — giving
- * every test in the describe block a clean slate without paying container-startup cost per
- * test. getPool is a function (not a pool) so it can be called lazily, after beforeAll has
+ * Registers beforeEach/afterEach hooks that check out a client from the given pool and BEGIN
+ * before every test, then ROLLBACK and release it after every test — giving each test in the
+ * describe block a clean slate without paying container-startup cost per test (the pool
+ * normally hands the same idle connection straight back, so per-test checkout is cheap).
+ * getPool is a function (not a pool) so it can be called lazily, after beforeAll has
  * constructed the pool for the container under test.
+ *
+ * The client is never held across tests or into afterAll: Jest 29 (jest-circus) runs
+ * afterAll hooks in DECLARATION order, so a caller's `pool.end()` afterAll declared before
+ * this helper would otherwise run while the client is still checked out — pg-pool's end()
+ * only resolves once every client is returned, so it would hang until the hook timeout.
  */
 function rollbackEachTest(getPool) {
   var checkedOutClient = null;
 
-  beforeAll(function () {
+  beforeEach(function () {
     return getPool().connect().then(function (client) {
       checkedOutClient = client;
+      return client.query('BEGIN');
     });
   });
 
-  beforeEach(function () {
-    return checkedOutClient.query('BEGIN');
-  });
-
   afterEach(function () {
-    return checkedOutClient.query('ROLLBACK');
-  });
-
-  afterAll(function () {
-    if (checkedOutClient) {
-      checkedOutClient.release();
-      checkedOutClient = null;
-    }
+    var client = checkedOutClient;
+    checkedOutClient = null;
+    if (!client) return undefined;
+    return client.query('ROLLBACK').then(
+      function () {
+        client.release();
+      },
+      function (err) {
+        // Destroy (not return) a connection whose ROLLBACK failed — its transaction state
+        // is unknown, so it must never be handed to the next test.
+        client.release(err);
+        throw err;
+      }
+    );
   });
 
   return {
