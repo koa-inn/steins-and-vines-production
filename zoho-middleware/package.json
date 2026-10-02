@@ -14,8 +14,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:db": "jest --config jest.db.config.js",
-    "migrate": "node scripts/migration-guard.js && node-pg-migrate up",
-    "migrate:guard": "node scripts/migration-guard.js",
+    "migrate": "node scripts/migration-guard.js && node scripts/migration-allowlist.js && node-pg-migrate up",
+    "migrate:guard": "node scripts/migration-guard.js && node scripts/migration-allowlist.js",
     "backfill": "node scripts/backfill/backfill.js"
   },
   "devDependencies": {
