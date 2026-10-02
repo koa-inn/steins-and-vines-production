@@ -130,3 +130,7 @@ None - no external service configuration required.
 ---
 *Phase: 83-postgres-infrastructure*
 *Completed: 2026-10-02*
+
+## Self-Check: PASSED
+
+All created/modified files verified present: `zoho-middleware/scripts/backfill/backfill.js`, `zoho-middleware/scripts/backfill/load.js`, `zoho-middleware/scripts/backfill/README.md`, `zoho-middleware/__tests__/backfill/backfill-gates.test.js`, `zoho-middleware/__tests__/db/backfill-gates.test.js`, this SUMMARY.md. All 5 task/doc commits (`9c25920f`, `5283bf67`, `69d11b65`, `69cb7d63`, `f8441905`) confirmed present in `git log --oneline` on the worktree branch.
