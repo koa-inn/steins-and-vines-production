@@ -7,11 +7,15 @@ startCommand = "cd zoho-middleware && node server.js"
 # Runs in a SEPARATE, ephemeral container (Railway docs: filesystem changes don't
 # persist here, and volumes aren't mounted — migrations must be fully self-contained
 # SQL, see Pitfall 6) after the build above, using the deploying environment's own
-# private-network DATABASE_URL. `migrate` = migration-guard.js (rejects any
-# DROP/TRUNCATE/RENAME/ALTER...TYPE/DELETE/UPDATE in an Up section, D-04) then
-# node-pg-migrate up. A non-zero exit here aborts the deploy entirely — Railway keeps
-# the previous release running and does not retry (D-03). Note: Railway's config-as-code
-# is deprecated and this file stops applying 2026-12-01 per the dashboard notice
+# private-network DATABASE_URL. `migrate` now chains TWO guards before node-pg-migrate
+# up: first migration-guard.js (first-pass regex/tokenizer denylist, rejects any
+# DROP/TRUNCATE/RENAME/ALTER...TYPE/DELETE/UPDATE in an Up section), then
+# migration-allowlist.js (the authoritative fail-closed allowlist built on the real
+# Postgres 16 grammar via libpg-query, D-04, 83-13/83-14). The allowlist needs
+# libpg-query from `dependencies`, installed by the buildCommand above. A non-zero
+# exit from EITHER guard aborts the deploy entirely — Railway keeps the previous
+# release running and does not retry (D-03). Note: Railway's config-as-code is
+# deprecated and this file stops applying 2026-12-01 per the dashboard notice
 # (docs/RUNBOOK.md § Railway Postgres) — settings must move to the dashboard/IaC before
 # that date.
 preDeployCommand = "cd zoho-middleware && npm run migrate"
