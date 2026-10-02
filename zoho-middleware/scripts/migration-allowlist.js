@@ -48,10 +48,10 @@
  *
  * Version pinning: the parser's major grammar version must track Railway's
  * Postgres major version. `libpg-query@16.7.3` reports AST `version:
- * 160001` (PG16). If Railway moves to PG17+, new syntax fails to parse and
- * is rejected (fails closed) until this package is bumped to the matching
- * `pgNN` dist-tag — see __tests__/migration-allowlist.test.js's parser
- * version assertion.
+ * 160001` (PG16), while Railway already runs PostgreSQL 18.x (checked
+ * 2026-10-02): PG17/18-only syntax fails to parse and is rejected (fails
+ * closed) until this package is bumped to the `pg18` dist-tag — see
+ * __tests__/migration-allowlist.test.js's parser version assertion.
  *
  * CLI: `node scripts/migration-allowlist.js [dir]` (default: ../migrations)
  *   success: exit 0, stdout "migration-allowlist: N file(s) additive-only OK"

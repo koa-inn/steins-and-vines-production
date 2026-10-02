@@ -109,8 +109,9 @@ it does not make every migration in `migrations/` consequence-free:
   `INSERT` — the allowlist only judges the statement actually present in `migrations/`, not every
   side effect the database might run in response to it.
 - **The parser's major version must track Railway's Postgres major version.** `libpg-query@16.7.3`
-  understands PG16 grammar; if Railway moves to PG17+, genuinely new syntax simply fails to parse
-  and is rejected (fails closed) until this package is bumped to the matching `pgNN` dist-tag.
+  understands PG16 grammar, but Railway already runs **PostgreSQL 18.x** (checked 2026-10-02).
+  PG17/18-only syntax therefore fails to parse and is rejected (fails closed) until this package
+  is bumped to the `pg18` dist-tag. The real-Postgres test harness runs `postgres:18-alpine`.
 - **Backups are the only control that covers everything, including this manual path.** Neither
   guard — nor this directory's own manual procedure below — is a substitute for a tested restore.
 

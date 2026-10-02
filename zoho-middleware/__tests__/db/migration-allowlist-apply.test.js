@@ -6,7 +6,7 @@
  * Runs ONLY via `npm run test:db` (jest.db.config.js), gated by describeDb()'s D-14 rule:
  * skipped locally without Docker, never skipped on CI.
  *
- * Proves, against a real Postgres 16 container:
+ * Proves, against a real Postgres container (the harness's major version, 18 — matching Railway):
  *   (a) the 5 allowlist-accepted `apply: true` fixtures (in their array order) apply
  *       cleanly through BOTH guards and node-pg-migrate, and the resulting schema/data
  *       are correct;
@@ -66,7 +66,7 @@ function createDatabase(baseConnectionString, databaseName) {
     });
 }
 
-describeDb('migration-allowlist chain against real Postgres 16 (D-04, 83-14)', function () {
+describeDb('migration-allowlist chain against real Postgres (D-04, 83-14)', function () {
   var container;
   var baseConnectionString;
 
@@ -80,7 +80,7 @@ describeDb('migration-allowlist chain against real Postgres 16 (D-04, 83-14)', f
     if (container) await container.stop();
   }, 60000);
 
-  it('allowlist-accepted fixtures apply cleanly to PG16', async function () {
+  it('allowlist-accepted fixtures apply cleanly to real Postgres', async function () {
     var applyCases = allCases.filter(function (c) {
       return c.apply === true;
     });

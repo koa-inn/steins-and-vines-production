@@ -78,13 +78,14 @@ function describeDb(name, fn) {
 }
 
 /**
- * Starts a throwaway postgres:16-alpine container via Testcontainers. Only ever called from
- * inside a describeDb() block that has already decided not to skip — lazy require keeps the
- * package out of the main suite's module graph entirely.
+ * Starts a throwaway postgres:18-alpine container via Testcontainers — the same major version
+ * as the Railway staging/production databases (18.x). Only ever called from inside a
+ * describeDb() block that has already decided not to skip — lazy require keeps the package
+ * out of the main suite's module graph entirely.
  */
 function startPostgres() {
   var PostgreSqlContainer = require('@testcontainers/postgresql').PostgreSqlContainer;
-  return new PostgreSqlContainer('postgres:16-alpine').start().then(function (container) {
+  return new PostgreSqlContainer('postgres:18-alpine').start().then(function (container) {
     return {
       container: container,
       connectionString: container.getConnectionUri()
