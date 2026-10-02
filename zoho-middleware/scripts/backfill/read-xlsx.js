@@ -5,7 +5,6 @@
 'use strict';
 
 var fs = require('fs');
-var ExcelJS = require('exceljs');
 
 function richTextToString(val) {
   return val.richText.map(function (part) { return part.text || ''; }).join('');
@@ -46,6 +45,12 @@ function readSheet(filePath, sheetName) {
     return Promise.reject(new Error('snapshot not found: ' + filePath));
   }
 
+  // exceljs is resolved at call time, not module load: its bundled readable-stream@3
+  // lazily require()s ./_stream_duplex on the first stream it builds. Binding exceljs at
+  // load time and then calling readSheet() after a module-registry reset (jest.resetModules()
+  // in the DB tests) splits Writable and Duplex across registries -> PassThrough gets no
+  // _writableState -> "Cannot read properties of undefined (reading 'objectMode')".
+  var ExcelJS = require('exceljs');
   var workbook = new ExcelJS.Workbook();
   return workbook.xlsx.readFile(filePath).then(function () {
     var worksheet = workbook.getWorksheet(sheetName);
