@@ -1,12 +1,35 @@
 # Destructive (manual) migrations — D-04
 
 `migrations/` is **additive only**. Every file in that directory runs automatically on every
-deploy (staging and production), guarded by `scripts/migration-guard.js`: any `DROP`, `TRUNCATE`,
-`RENAME`, `ALTER … TYPE` / `SET DATA TYPE`, `DELETE`, or `UPDATE` statement in a file's
+deploy (staging and production), guarded by `scripts/migration-guard.js`. A file's
 `-- Up Migration` section fails `npm test` **and** aborts the Railway pre-deploy step (the guard
 runs as the first half of `npm run migrate` — see `package.json` and the root `railway.toml`'s
-`preDeployCommand`). A destructive change pushed to `migrations/`, even on a break-glass push that
-skipped CI, is rejected before `node-pg-migrate` ever touches the database.
+`preDeployCommand`) if it contains:
+
+- `drop`, `truncate`, `rename` — any `DROP`, `TRUNCATE`, or `RENAME` statement
+- `alter-type` — `ALTER [COLUMN] col [SET DATA] TYPE ...` on an existing column
+- `delete`, `update` — any `DELETE FROM` or `UPDATE ... SET`, anywhere in the statement (not just
+  at the start — `WITH ... AS (DELETE FROM ...)` and `UPDATE ONLY t SET ...` are both caught).
+  Foreign-key referential actions (`ON UPDATE|DELETE SET NULL` etc.) are not flagged — they are
+  additive constraint clauses, not DML
+- `merge` — `MERGE INTO`
+- `upsert` — `INSERT ... ON CONFLICT ... DO UPDATE` (an `ON CONFLICT ... DO NOTHING` is fine)
+- `sequence-reset` — `ALTER SEQUENCE ... RESTART`, `ALTER TABLE ... ALTER COLUMN ... RESTART`, or
+  `setval(...)`
+- `do-block` — any `DO $$ ... $$` block. The guard cannot reason about what runs inside one
+- `execute` — dynamic `EXECUTE ...`, except the trigger clause `EXECUTE FUNCTION|PROCEDURE`
+- `unterminated-token` — an unclosed string, quoted identifier, block comment, or dollar-quoted
+  string. The guard fails closed rather than guessing where the Up section actually ends
+- `non-sql-file` — any non-dotfile in `migrations/` that is not a `.sql` file. node-pg-migrate
+  executes `.js`/`.ts`/`.cjs` files too (via `jiti`), so a non-`.sql` file would otherwise bypass
+  every rule above entirely
+
+A destructive change pushed to `migrations/`, even on a break-glass push that skipped CI, is
+rejected before `node-pg-migrate` ever touches the database.
+
+DO blocks, dynamic `EXECUTE`, and sequence resets are rejected outright with no attempt to parse
+further — all three need a human to read and run them deliberately, so they go through the manual
+procedure below instead of ever landing in `migrations/`.
 
 Anything that drops, renames, or rewrites existing data belongs **here** instead — a separate,
 manually triggered procedure, never run automatically by a deploy.
