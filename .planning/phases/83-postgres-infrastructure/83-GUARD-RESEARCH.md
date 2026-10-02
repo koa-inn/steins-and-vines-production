@@ -364,3 +364,12 @@ Production version must-dos not in the prototype:
 - Reuse and fix (IN-02) `findUnguardedFiles`.
 - Add the parser-major-version assertion test.
 - For InsertStmt, walk the whole body after the key check, rather than the hand-picked field list still visible in `checkStmt`. The key allowlist makes the subset safe today, but walking everything is the robust form.
+
+## Owner Decisions (2026-10-02)
+
+Locked by the owner after reviewing this research — the gap-closure planner must honour these:
+
+1. **Old guard stays as a first pass.** Add a new `zoho-middleware/scripts/migration-allowlist.js` (libpg-query `pg16` parser allowlist) chained after `migration-guard.js` in the migrate/pre-deploy step. Existing `__tests__/migration-guard*.test.js` stay unedited (project rule 10). `libpg-query` goes in `dependencies`, not devDependencies.
+2. **No triggers or functions in automated migrations.** CREATE FUNCTION/PROCEDURE/TRIGGER, DO, CALL etc. always route to `migrations-manual/`. No hash-allowlist exception mechanism.
+3. **Backslash ban accepted.** Any `\` in an Up section is rejected (closes the `standard_conforming_strings` class). Regex CHECKs use `[0-9]`-style classes or go manual.
+4. **Backups are a hard prerequisite for Phase 84.** Phase 84 must not start until scheduled `pg_dump` backups (or a Railway plan with backups) are running for production and a restore has been tested.
