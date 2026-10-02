@@ -104,3 +104,14 @@ None - no external service configuration required.
 ---
 *Phase: 83-postgres-infrastructure*
 *Completed: 2026-10-02*
+
+## Self-Check: PASSED
+
+- FOUND: zoho-middleware/__tests__/backfill/normalize-no-coercion.test.js
+- FOUND: zoho-middleware/__tests__/backfill/read-xlsx-cell-shapes.test.js
+- FOUND: zoho-middleware/scripts/backfill/normalize.js
+- FOUND: zoho-middleware/scripts/backfill/read-xlsx.js
+- FOUND commit: 6d99f226 (test RED, Task 1)
+- FOUND commit: e1bcc63a (fix GREEN, Task 1)
+- FOUND commit: 11e0a84b (test RED, Task 2)
+- FOUND commit: 43a71f37 (fix GREEN, Task 2)
