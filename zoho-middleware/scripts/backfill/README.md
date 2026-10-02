@@ -109,12 +109,21 @@ here). Phase 84+ reuses this CLI unchanged with each store's own spec.
    npm run backfill -- --file="$HOME/sv-backfill/snapshot.xlsx" --sheet=FermSchedules
    ```
 
+   Before step `[2/6] Normalise`, the CLI compares the sheet's row-1 headers against the
+   spec's column headers. If any spec header — required or optional — is missing from the
+   sheet (renamed or deleted), the CLI stops immediately with exit code 1, naming the
+   missing header(s); nothing is normalised, written to a rejects report, or loaded. Any
+   sheet column the spec doesn't map to is printed as `Unmapped sheet header(s): ...` —
+   informational only, it never blocks the run.
+
    Each run prints its six steps (`[1/6]` .. `[6/6]`), a one-line summary of counts
    (read/accepted/rejected) and the rejects file's path, and — right after `[5/6] Checks`
    — a result line: `Checks: PASS (<n> checks)` or `Checks: FAIL — <failed checks> (<x> of
-   <n> checks failed)`, where each failed check is `row_count` or `<column>.<check>`
-   (`null_count`, `min`, `max`, `true_count`). A FAIL exits with code 3. Without `--promote`, step 6 is
-   skipped and nothing beyond the scratch schema is touched.
+   <n> checks failed)`, where each failed check is `row_count`, `read_vs_accepted` (fails
+   when rows were read but none were accepted — a sheet that loaded nothing can no longer
+   report PASS) or `<column>.<check>` (`null_count`, `min`, `max`, `true_count`). A FAIL
+   exits with code 3. Without `--promote`, step 6 is skipped and nothing beyond the
+   scratch schema is touched.
 
    Unless `--yes` is passed, the CLI prints `Target: <redacted connection string>
    database=<name>` and asks you to type the database name back before it writes
@@ -135,8 +144,8 @@ here). Phase 84+ reuses this CLI unchanged with each store's own spec.
    npm run backfill -- --file="$HOME/sv-backfill/snapshot.xlsx" --sheet=<Sheet> --promote --accept-rejects
    ```
 
-   Promotion also refuses to run if the last checks step failed, or if the target table
-   is missing or already has rows in it.
+   Promotion also refuses to run if the last checks step failed, if the scratch table is
+   empty, or if the target table is missing or already has rows in it.
 
 8. **Clean up.** When you're done for the session:
 
@@ -153,7 +162,7 @@ here). Phase 84+ reuses this CLI unchanged with each store's own spec.
 | Code | Meaning |
 |------|---------|
 | 0 | Success (or a step was intentionally skipped — no `--promote`, or `--dry-run`) |
-| 1 | Error — bad arguments, snapshot not found, database unreachable, etc. |
+| 1 | Error — bad arguments, snapshot not found, a spec header is missing from the sheet, database unreachable, etc. |
 | 2 | Promotion blocked — rejects exist and `--accept-rejects` was not passed |
 | 3 | The post-load checks failed (`Checks: FAIL — ...`) — returned with or without `--promote`; promotion never runs |
 
