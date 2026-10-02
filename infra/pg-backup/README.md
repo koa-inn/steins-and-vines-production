@@ -25,14 +25,13 @@ Files:
 | `Dockerfile` | `postgres:18-alpine` (pg_dump must be ≥ the server's major version; prod is 18.x) + `age`, `rclone`, `curl` |
 | `backup.sh` | The nightly job (container entrypoint) |
 | `restore-drill.sh` | Fetch → decrypt → restore into a scratch DB → print row counts |
-| `railway.toml` | Build + cron settings for this service only |
 
 ## One-time setup
 
 ### 1. Generate the age key pair (on your Mac)
 
 ```bash
-docker build -t sv-pg-backup -f infra/pg-backup/Dockerfile .
+docker build -t sv-pg-backup infra/pg-backup
 mkdir -p ~/sv-backup-key && docker run --rm --entrypoint age-keygen \
   -v ~/sv-backup-key:/k sv-pg-backup -o /k/id.txt
 ```
@@ -53,31 +52,42 @@ mkdir -p ~/sv-backup-key && docker run --rm --entrypoint age-keygen \
 
 ### 3. Railway service (production environment)
 
-1. In `sv-middleware`, switch to the **production** environment → New → GitHub Repo →
-   `steins-and-vines-production`. Name the service `pg-backup`.
-2. Service Settings → **Config-as-code file path:** `/infra/pg-backup/railway.toml`.
-   Railway does not follow the root directory for this file; without this setting the
-   service would load the middleware's `/railway.toml` (and its `preDeployCommand`).
-3. Check that Settings now shows builder Dockerfile, cron schedule `0 10 * * *` and
-   restart policy Never. If not, set them by hand.
-4. Variables:
+Live since 2026-10-02 as `pg-backup` in `sv-middleware`, **production environment only**
+(service id `cc758a22-eec3-4e49-bbab-b1d5e04e22bc`). It is deployed from this folder with
+the Railway CLI, not from GitHub, so backups do not depend on a production git push:
 
-   | Variable | Value |
-   |---|---|
-   | `DATABASE_URL` | `${{Postgres-EMVk.DATABASE_URL}}` (reference variable, private network) |
-   | `AGE_RECIPIENT` | `age1...` from step 1 |
-   | `R2_ACCOUNT_ID` | Cloudflare account ID |
-   | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | from the R2 token |
-   | `R2_BUCKET` | `sv-pg-backups` |
-   | `HEARTBEAT_URL` | optional, e.g. a healthchecks.io check (daily, 2h grace) |
+```bash
+railway up infra/pg-backup --path-as-root --service pg-backup --environment production --ci
+```
 
-5. Do **not** add the service to the staging environment; staging never holds real data.
-6. Deploy, then trigger one run now (Deployments → the latest → Run now, or temporarily
-   set the cron to a few minutes ahead) and confirm the log ends with
-   `[pg-backup] uploaded production/...`.
+Re-run that after changing anything in this folder. Settings live in the **dashboard**,
+not a `railway.toml`: Railway stopped letting new services opt in to config-as-code on
+2026-08-28, so a config file here would be silently ignored.
 
-Before 2026-12-01 (Railway config-as-code end of life), copy the build and cron settings
-above into the dashboard or the IaC replacement, same as the middleware's `railway.toml`.
+| Setting | Value |
+|---|---|
+| Builder | Dockerfile (auto-detected) |
+| Cron Schedule | `0 10 * * *` (10:00 UTC) |
+| Restart Policy | Never (implied by the cron schedule) |
+
+Variables:
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | `${{Postgres-EMVk.DATABASE_URL}}` (reference variable, private network) |
+| `AGE_RECIPIENT` | `age1sz33kf69xvfwudkr7jnxgvh4atcu2edmg4cxj9ygkmerkt8hl3rs8fcvf3` |
+| `R2_ACCOUNT_ID` | `5a4eea499a354cbb6e550cc9e8b2da8d` |
+| `R2_BUCKET` | `sv-pg-backups` |
+| `BACKUP_PREFIX` | `production` |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | R2 token `sv-pg-backup-railway-2` (Object Read & Write, this bucket only); values in the owner's password manager |
+| `HEARTBEAT_URL` | optional, not set |
+
+R2 bucket `sv-pg-backups`: lifecycle rule deletes `production/` after 30 days; bucket
+lock keeps `production/` objects undeletable for their first 7 days.
+
+To check a run: Railway → `pg-backup` → Cron Runs, or
+`railway logs -s pg-backup -e production -d`. A good run ends with
+`[pg-backup] uploaded production/...`.
 
 ## Restore drill
 
@@ -85,12 +95,15 @@ Run from your Mac against a throwaway local Postgres 18 — never a real databas
 
 ```bash
 docker network create drill
+docker build -t sv-pg-backup infra/pg-backup
 docker run -d --rm --name drill-db --network drill -e POSTGRES_PASSWORD=pw postgres:18-alpine
 # put the AGE-SECRET-KEY line from your password manager into ~/sv-backup-key/id.txt
-docker run --rm --network drill -v ~/sv-backup-key:/k:ro --entrypoint restore-drill.sh \
-  -e RESTORE_URL=postgresql://postgres:pw@drill-db:5432/postgres \
-  -e AGE_IDENTITY_FILE=/k/id.txt \
-  -e R2_ACCOUNT_ID=... -e R2_ACCESS_KEY_ID=... -e R2_SECRET_ACCESS_KEY=... -e R2_BUCKET=sv-pg-backups \
+# railway run injects the service's R2 variables; -e NAME passes them through
+# without the values ever being typed or printed.
+railway run -s pg-backup -e production -- docker run --rm --network drill \
+  -v ~/sv-backup-key:/k:ro --entrypoint restore-drill.sh \
+  -e RESTORE_URL=postgresql://postgres:pw@drill-db:5432/postgres -e AGE_IDENTITY_FILE=/k/id.txt \
+  -e R2_ACCOUNT_ID -e R2_ACCESS_KEY_ID -e R2_SECRET_ACCESS_KEY -e R2_BUCKET -e BACKUP_PREFIX \
   sv-pg-backup
 docker rm -f drill-db && docker network rm drill && rm -P ~/sv-backup-key/id.txt
 ```
@@ -98,3 +111,9 @@ docker rm -f drill-db && docker network rm drill && rm -P ~/sv-backup-key/id.txt
 Pass: the log ends with `[restore-drill] drill complete` and the row counts match
 production. Set `BACKUP_OBJECT=production-<timestamp>.pgcustom.age` to restore a specific
 day instead of the latest.
+
+Drill history:
+
+| Date | Backup | Result |
+|---|---|---|
+| 2026-10-02 | `production-20261002T223253Z.pgcustom.age` (first real backup) | pass — `app_meta` 1, `pgmigrations` 1, matches production |

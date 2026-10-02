@@ -1,14 +1,14 @@
 ---
-status: partial
+status: complete
 phase: 83-postgres-infrastructure
 source: [83-VERIFICATION.md]
 started: 2026-10-02T21:45:32Z
-updated: 2026-10-02T22:11:59Z
+updated: 2026-10-02T22:34:57Z
 ---
 
 ## Current Test
 
-Test 2 — production backups + tested restore (Phase 84 hard gate)
+[testing complete]
 
 ## Tests
 
@@ -18,14 +18,14 @@ result: pass — 2026-10-02 staging deploy fe40a4c2 (commit d68fd4df) SUCCESS; p
 
 ### 2. Production Postgres backups + tested restore (hard prerequisite for Phase 84)
 expected: Scheduled off-box pg_dump (or a Railway plan with backups) is running for production Postgres (Postgres-EMVk), and one restore into a scratch database has been performed successfully. Phase 84 must not start until this passes (owner decision 4, 2026-10-02).
-result: [pending]
+result: pass — 2026-10-02. Railway cron service `pg-backup` (production only, `0 10 * * *`) dumps Postgres-EMVk with pg_dump 18, age-encrypts and uploads to Cloudflare R2 `sv-pg-backups` (30-day lifecycle, 7-day bucket lock). First backup `production/production-20261002T223253Z.pgcustom.age` uploaded; restore drill (infra/pg-backup/restore-drill.sh) restored it into a scratch postgres:18 — `app_meta` 1, `pgmigrations` 1, identical to production.
 
 ## Summary
 
 total: 2
-passed: 1
+passed: 2
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 

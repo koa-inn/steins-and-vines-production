@@ -506,6 +506,10 @@ to either repo**, or the deploy will fail closed.
 > the restore drill are in `infra/pg-backup/README.md`. The blocker clears only once that service
 > is live in production AND a restore drill against a real backup has passed (tracked as
 > 83-HUMAN-UAT test 2).
+>
+> **2026-10-02 — CLEARED.** `pg-backup` is live in production (cron `0 10 * * *`), first backup
+> `production/production-20261002T223253Z.pgcustom.age` uploaded to R2 `sv-pg-backups`, and a
+> restore drill of that file into a scratch Postgres 18 matched production row counts.
 
 ---
 
