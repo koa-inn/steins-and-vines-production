@@ -1,52 +1,46 @@
 ---
 phase: 83-postgres-infrastructure
 verified: 2026-10-02T00:00:00Z
-status: gaps_found
-score: 32/33 must-haves verified (all 4 ROADMAP success criteria VERIFIED; 2 of 3 prior plan-level gaps closed; 1 remains open under new findings)
+status: human_needed
+score: 36/36 must-haves verified (all code-level must-haves closed; 2 deploy-time items require owner action, not code)
 overrides_applied: 0
 re_verification:
   previous_status: gaps_found
-  previous_score: 30/33
+  previous_score: 32/33
   gaps_closed:
-    - "Every row is normalised in the documented order … rejecting (never coercing) anything unconvertible, with a reason per column (83-06, D-12)"
-    - "Promotion is … blocked when checks fail (83-07, D-12) — checks must be able to fail on a sheet that loaded nothing or lost a column"
-  gaps_remaining:
-    - "Deploy-time migrations are additive only: a guard rejects DROP/TRUNCATE/RENAME/ALTER…TYPE/DELETE/UPDATE in any Up section, both in `npm test` and inside the pre-deploy command itself (83-03, D-04)"
+    - "Deploy-time migrations are additive only: a guard rejects DROP/TRUNCATE/RENAME/ALTER…TYPE/DELETE/UPDATE in any Up section, both in `npm test` and inside the pre-deploy command itself (83-03, D-04) — CLOSED by 83-13 (new parser-backed allowlist) + 83-14 (wired into the pre-deploy chain), independently re-verified in this pass including a fresh adversarial re-review (83-REVIEW.md)."
+  gaps_remaining: []
   regressions: []
-gaps:
-  - truth: "Deploy-time migrations are additive only: a guard rejects DROP/TRUNCATE/RENAME/ALTER…TYPE/DELETE/UPDATE in any Up section, both in `npm test` and inside the pre-deploy command itself (83-03, D-04)"
-    status: partial
-    reason: "83-10 closed every bypass listed in the original VERIFICATION.md (old CR-01, CR-02, IN-01) — the verifier reran all of them and they are now correctly rejected (drop, alter-type, update, do-block, etc.), and findUnguardedFiles() now fails closed on any non-.sql migration file. But the 83-REVIEW.md re-review, run against the NEW tokenizer, found and verified on real postgres:16-alpine FOUR independent new bypasses that the verifier reproduced directly against the shipped code: (1) `$` is a valid Postgres identifier-continuation character the tokenizer does not treat as such, so `select 1 as a$$t$;` or `select a$e'\\';drop table gift_cards;--'` opens a fake dollar-quote/E-string and hides a top-level DROP; (2) a function/procedure body written as an ordinary single- or E-quoted string (`CREATE FUNCTION wipe() ... AS 'DELETE FROM gift_cards'; SELECT wipe();`) is never scanned, only $tag$ bodies are; (3) the 83-10 deviation that silently swallows tokenizer errors inside a dollar-quoted body means any statement after a tokenizer/Postgres disagreement inside that body (e.g. a stray `$$$` inside a function body) is never rule-matched; (4) `ALTER TABLE t ALTER COLUMN U&\"balance\" TYPE integer` slips past alter-type because the regex only accepts `\"q\"` or a bare identifier, not a Unicode-escaped one. The verifier independently reran all four against the current `zoho-middleware/scripts/migration-guard.js` with plain `findDestructiveStatements()` (no Postgres needed to show the guard itself returns `[]`) and confirmed `[]` for all four — i.e. the guard does not flag any of them, so node-pg-migrate would execute the DROP/DELETE/TRUNCATE in each case. This is the only automated D-04 barrier on the production pre-deploy step, and Phase 84 is the first phase to add migration 0002 next to real gift-card money data, so this gap is not closed."
-    artifacts:
-      - path: "zoho-middleware/scripts/migration-guard.js"
-        issue: "isIdentChar excludes '$' and non-ASCII letters so a `$`-continued identifier opens a fake dollar-quote/E-string (CR-01 new); only $tag$ bodies are pushed into bodies[] for recursive scanning, so single-/E-quoted function/procedure bodies are never checked (CR-02 new); scanBody() silently drops tokenizer errors inside a body instead of falling back to a raw-text scan (CR-03 new, the 83-10 documented deviation); ALTER_TYPE_CLAUSE_RE does not match a U&\"...\" unicode-escaped column token (CR-04 new)"
-      - path: "zoho-middleware/__tests__/migration-guard-hardening.test.js"
-        issue: "No regression cases for any of the 4 new bypasses (they postdate this file's creation)"
-    missing:
-      - "Tokenize identifiers as whole units before checking for E'/U&'/$tag$ starts, using Postgres's own ident_cont character class (letters, digits, underscore, $, and \\u0080-\\uFFFF)"
-      - "Scan every CREATE FUNCTION/PROCEDURE string-literal body (not just dollar-quoted ones) for destructive statements, or fail closed by rejecting any CREATE FUNCTION/PROCEDURE whose body is not dollar-quoted and rejecting CALL outright"
-      - "Replace scanBody's error-swallowing with a conservative raw-text rule match when a body fails to tokenize, instead of dropping the remainder of the body"
-      - "Match ALTER COLUMN against any single non-space token (after stripping the ALTER TABLE prefix), not just \"q\" or a bare identifier, so U&\"...\" and non-ASCII column names are caught"
-      - "Regression tests for all 4 new payloads, added to migration-guard-hardening.test.js"
-    reviewer_note: "This is intentionally reported as still open, not deferred or overridden — the 83-REVIEW.md re-review explicitly asks the verifier to decide honestly whether the guard-as-D-04-barrier claim holds, and the verifier independently reproduced all 4 bypasses against the current code without any override request on file."
+human_verification:
+  - test: "Push to staging and open the Railway staging deploy's pre-deploy log."
+    expected: "The log shows both `migration-guard: N file(s) additive-only OK` and `migration-allowlist: N file(s) additive-only OK` before `node-pg-migrate up` runs. If `migration-allowlist.js`'s WASM load fails on Railway's build image, the deploy must abort (fail-closed) and the previous release must keep serving."
+    why_human: "libpg-query's WASM load has never been run inside Railway's actual build/pre-deploy container (research assumption A1, unverified by any party, including this verifier). Can only be confirmed by watching a real deploy log, which is a deploy action outside this verifier's scope (CLAUDE.md: deployment is the owner's call)."
+  - test: "Confirm scheduled pg_dump backups (or a Railway plan with backups) are running for the production database, and that a restore has actually been tested."
+    expected: "A working, tested restore path exists before Phase 84 writes migration 0002 next to real gift-card money data (owner decision 4, 83-GUARD-RESEARCH.md)."
+    why_human: "This is an infrastructure/ops action (Railway plan change or cron'd pg_dump + a restore drill) with no code artifact in this repo to grep for; the owner must confirm it happened."
 ---
 
 # Phase 83: Postgres Infrastructure Verification Report
 
 **Phase Goal:** Both environments have their own Postgres, the middleware can query it transactionally under test, and the migration, backfill and store-flag machinery every later phase reuses exists and is proven on an empty schema.
 **Verified:** 2026-10-02
-**Status:** gaps_found
-**Re-verification:** Yes — after gap closure (plans 83-10, 83-11, 83-12)
+**Status:** human_needed
+**Re-verification:** Yes — after gap closure (plans 83-13, 83-14), third verification pass for this phase (prior passes covered 83-01..83-12, 83-10/83-11/83-12)
 
 ## Bottom line
 
-Two of the three gaps from the initial verification are genuinely closed, verified independently in this pass (not taken from SUMMARY.md claims):
+The single remaining gap from the prior VERIFICATION.md — the migration guard being bypassable (CR-01..CR-04 from the 83-REVIEW re-review) — is **CLOSED**. Plan 83-13 added a second, independent guard (`scripts/migration-allowlist.js`) that judges every statement from the real Postgres 16 AST (via `libpg-query@16.7.3`, the actual C parser Postgres uses, compiled to WASM) rather than scanning text. Plan 83-14 wired it into the exact command Railway's `preDeployCommand` runs, proved on a real `postgres:16-alpine` container that the Phase-84-shaped additive fixtures apply cleanly and that the specific CR-02a bypass is blocked end to end, and rewrote `migrations-manual/README.md` to stop over-claiming.
 
-- **Gap 2 (backfill normaliser coercion, CR-03): CLOSED.** The verifier's exact prior reproduction — `normalizeRow(VesselHistory, {vessel_id:true, notes:{cellError:'#REF!'}})` — now returns `ok:false` with two typed reasons (`expected text, got boolean`, `cell error: #REF!`) instead of `ok:true` with `"[object Object]"`/`"true"`. `cellToPrimitive({})`, `cellToPrimitive({formula:'A1'})` and `cellToPrimitive({sharedFormula:'A2',result:'x'})` now give `{cellError:'unsupported cell value'}`, `{cellError:'formula has no cached result'}` and `'x'` respectively — no silent `null`.
-- **Gap 3 (backfill zero-accept / header-drift, CR-04): CLOSED.** `backfill.js` now contains a `sheetResult.headers` comparison (`checkHeaders`) that aborts before normalising, and `load.js` contains a `read_vs_accepted` check and an "is empty — nothing to promote" refusal in `promote()`, both grep-confirmed present and exercised by new Docker-free and real-Postgres regression tests.
-- **Gap 1 (migration guard, D-04): STILL OPEN**, under a new set of findings. 83-10 did close every bypass row from the original gap-1 report (the verifier reran them: `alter-type`, `update`, `do-block`, `[]` for `ADD COLUMN type text`, and non-`.sql` files now fail closed). But the independent re-review (`83-REVIEW.md`, committed `2c90029e`) found four new, different, equally-destructive bypasses and verified them on real Postgres. The verifier reran all four directly against `zoho-middleware/scripts/migration-guard.js` in this repository and confirmed the guard itself returns `[]` for each — meaning it does not flag SQL that node-pg-migrate will actually execute. The guard is measurably better than before (every known attack from the first review is closed, plus the full test suite including 67 migration-guard cases is green), but it is not "proven" in the sense the phase goal and the D-04 must-have claim. This is a cat-and-mouse parser-differential problem (SQL tokenization vs. the real Postgres lexer), and a new, different set of bypasses surviving a second adversarial review is strong evidence the class of bug (not just the specific instances) is not yet closed.
+This verifier independently reproduced all of the load-bearing claims rather than trusting the SUMMARYs:
 
-All four ROADMAP success criteria (SC1–SC4, the DB-02 contract) continue to hold — they do not depend on the guard being bypass-proof, only on it being wired into the pre-deploy step, which it is.
+- Ran `node scripts/migration-allowlist.js` directly against each of the four original CR-01..CR-04 payloads (reconstructed from the prior VERIFICATION.md's own reproduction text) and got `statement-not-allowed` / `alter-not-allowed` for all four — not `[]`.
+- Ran the full middleware suite (`npm test`: 135 suites / 2121 tests), the full root suite (`npm test`: 141 suites / 2048 tests), both lints (clean), and `CI=true npm run test:db` (5 suites / 35 tests, including the new `migration-allowlist-apply.test.js` against real Postgres 16 — not skipped, Docker was available).
+- Ran `node scripts/migration-guard.js`, `node scripts/migration-allowlist.js`, and `npm run migrate:guard` directly against the real `migrations/` directory — all exit 0 with the documented OK lines.
+- Confirmed via `grep`/`node -e` that `package.json` scripts and `railway.toml`'s `preDeployCommand` match the plan's required chain exactly, and that `scripts/migration-guard.js` + its two test files are byte-identical to the base commit (0 matching commits from 83-13/83-14).
+- Read the new `83-REVIEW.md` (deep re-review, commit `12ca895e`) in full: 0 new Criticals, 1 Warning (a NUL byte truncates the allowlist's own parse — see below), 3 Info items, all 16 carried-forward items unchanged and out of scope for this diff.
+- Independently reproduced the new Warning (NUL-byte truncation returns `[]` from `migration-allowlist.js` alone) **and** confirmed the first-pass `scripts/migration-guard.js` (which runs *before* the allowlist in the `&&` chain) catches that exact payload (`rule: 'drop'`) — so the two-guard chain as actually wired is not defeated by it today.
+
+**Status is `human_needed`, not `passed`, purely because of two deploy-time/ops items that cannot be verified from this repository: the Railway staging pre-deploy log (whether libpg-query's WASM actually loads in Railway's build container, never yet observed) and the Phase-84 backup/restore hard prerequisite (owner decision 4). Both plans explicitly flag these as out of scope and owner-gated, and 83-14's SUMMARY lists them under "Open deploy-time items." Nothing has been pushed to staging or production since gap closure began.**
 
 ## Goal Achievement
 
@@ -54,110 +48,131 @@ All four ROADMAP success criteria (SC1–SC4, the DB-02 contract) continue to ho
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| SC1 | Railway Postgres in staging + production, distinct DATABASE_URLs, validateEnv refuses boot without one, /health reports database | VERIFIED (regression check only — no re-run needed, no file in this diff) | Unchanged since initial verification; `zoho-middleware/lib/validateEnv.js` and `server.js` untouched by 83-10/11/12. |
-| SC2 | lib/db.js single pool/query/withTransaction; node-pg-migrate applies 0001_init.sql on deploy | VERIFIED | Unchanged; `node scripts/migration-guard.js` on the real `migrations/` dir still exits 0 and prints `migration-guard: 1 file(s) additive-only OK` (reran by verifier). |
-| SC3 | Jest harness: real Postgres per test process, per-test rollback, CI runs it, round-trip green | VERIFIED | Reran by verifier: `CI=true npx jest --config jest.db.config.js` passes (32/32 with the new `backfill-gates.test.js` suite added by 83-12; orchestrator reported the same count post-merge). |
-| SC4 | Store flag; mirror hard-off staging; backfill end-to-end with rejects report, zero rows to real tables | VERIFIED | Unchanged store-flag/mirror code. Backfill pipeline strengthened by 83-11/83-12 without breaking the end-to-end test (`backfill.test.js` still green, unmodified per `git diff --exit-code 677162fe`). |
-| G1 (83-03, D-04) | Guard rejects destructive statements in Up, both in `npm test` and pre-deploy | **FAILED (still)** | Original bypass rows all now rejected (verifier reran). New independent re-review found and the verifier reproduced 4 new bypasses, all returning `[]` from `findDestructiveStatements`: dollar-sign/E-string identifier-continuation desync, single-/E-quoted function-body scanning gap, swallowed-tokenizer-error-in-body (an explicit 83-10 deviation), and `U&"..."` unicode-identifier evasion of `alter-type`. See gap. |
-| G2 (83-06, D-12) | Normaliser rejects (never coerces) unconvertible cells | **VERIFIED (closed)** | Verifier's exact reproduction now returns `ok:false` with 2 typed reasons. `cellToPrimitive` no longer returns `null` for unknown shapes. |
-| G3 (83-07, D-12) | Checks/promote can fail on a sheet that loaded nothing or lost a column | **VERIFIED (closed)** | `checkHeaders` wired before normalise (grep-confirmed); `read_vs_accepted` check and empty-scratch `promote()` refusal both grep-confirmed present; new Docker-free and real-Postgres regression suites added and green. |
+| SC1 | Railway Postgres in staging + production, distinct DATABASE_URLs, validateEnv refuses boot without one, /health reports database | VERIFIED (regression) | Unchanged since initial verification; files untouched by 83-13/14. |
+| SC2 | lib/db.js single pool/query/withTransaction; node-pg-migrate applies 0001_init.sql on deploy | VERIFIED (regression) | `node scripts/migration-guard.js` and `node scripts/migration-allowlist.js` both reran by verifier against the real `migrations/` dir, both exit 0. |
+| SC3 | Jest harness: real Postgres per test process, per-test rollback, CI runs it, round-trip green | VERIFIED | Reran by verifier: `CI=true npm run test:db` → 5 suites / 35 tests, all pass, none skipped (Docker available). |
+| SC4 | Store flag; mirror hard-off staging; backfill end-to-end with rejects report, zero rows to real tables | VERIFIED (regression) | Unchanged store-flag/mirror/backfill code; `npm test` green. |
+| G1 (83-03/83-10/83-13/83-14, D-04) | Guard rejects destructive statements in Up, both in `npm test` and pre-deploy — the previously open gap | **VERIFIED (CLOSED)** | New `scripts/migration-allowlist.js` rejects all four original bypasses when run directly by the verifier: CR-01a → `statement-not-allowed` (`SelectStmt`/`DropStmt`), CR-02a → `statement-not-allowed` (`CreateFunctionStmt`/`SelectStmt`), CR-04 → `alter-not-allowed` (`AT_AlterColumnType`). Chained into `npm run migrate` / `migrate:guard` (verified via `node -e` reading `package.json`) and into `railway.toml`'s unchanged `preDeployCommand` (verified via `grep`). Proven on real Postgres 16 in `__tests__/db/migration-allowlist-apply.test.js` (reran, passing, not skipped): CR-02a is blocked end to end with neither `pgmigrations` nor `app_meta` created. |
+| G2 (83-06, D-12) | Normaliser rejects (never coerces) unconvertible cells | VERIFIED (regression, unchanged since last pass) | Files untouched by 83-13/14; `npm test` green. |
+| G3 (83-07, D-12) | Checks/promote can fail on a sheet that loaded nothing or lost a column | VERIFIED (regression, unchanged since last pass) | Files untouched by 83-13/14; `npm test` green. |
+| T-83-13-01 | CREATE FUNCTION/PROCEDURE/TRIGGER, DO, CALL are always rejected, no exception mechanism | VERIFIED | Verifier ran `checkSql` directly on a `DO $$ ... $$`, a `CALL p()`, and a `CREATE TRIGGER ... EXECUTE FUNCTION` — all three return `statement-not-allowed`. |
+| T-83-13-02 | Any backslash anywhere in an Up section is rejected before parsing | VERIFIED | Verifier ran `checkSql` on `CHECK (a ~ '\d')` — returned a single `backslash` violation with the documented explanatory message. |
+| T-83-13-03 | Additive DDL (0001_init.sql, Phase-84-shaped fixtures) produces zero violations | VERIFIED | `node scripts/migration-allowlist.js` against real `migrations/` exits 0, `1 file(s) additive-only OK`; `ADD COLUMN w int DEFAULT 0` direct-checked by the verifier returns `[]`; the 5 `apply: true` fixtures pass both guards and apply cleanly in `migration-allowlist-apply.test.js` (reran by verifier against real Postgres 16). |
+| T-83-14-01 | railway.toml `preDeployCommand` resolves through BOTH guards, pinned by a test | VERIFIED | `grep` of `railway.toml` shows the unchanged `preDeployCommand = "cd zoho-middleware && npm run migrate"`; `node -e` against `package.json` shows `scripts.migrate` = `node scripts/migration-guard.js && node scripts/migration-allowlist.js && node-pg-migrate up`; `migration-allowlist-wiring.test.js` included in the 225-test subset the verifier reran, passing. |
+| T-83-14-02 | `npm run migrate:guard` runs both guards | VERIFIED | Verifier ran `npm run migrate:guard` directly: prints both `migration-guard: 1 file(s) additive-only OK` and `migration-allowlist: 1 file(s) additive-only OK`, exit 0. |
+| T-83-14-03 | README describes what is actually enforced, no over-claim | VERIFIED | `grep -c "is rejected before ... node-pg-migrate ... touches the database"` returns 0; all 12 rule names, "Known limits", `libpg-query`, `[0-9]`, `## Procedure`, and `pgmigrations_manual` all present (verifier re-ran the plan's own verify command). |
+| T-83-14-DEPLOY | First staging pre-deploy log shows both OK lines; libpg-query WASM loads on Railway | **UNCERTAIN — human verification required** | Not provable from this repo; nothing has been pushed to staging since gap closure began (per orchestrator context). |
+| T-GR-04 (owner decision 4) | Backups + tested restore in place before Phase 84 | **UNCERTAIN — human verification required** | Infra/ops action with no code artifact to check; explicitly out of scope for 83-13/83-14. |
 
-**Score:** 32/33 truths verified (the 33rd — the guard being a reliable D-04 barrier — remains the one open item; everything else from the original 33-item list is unchanged from the initial VERIFICATION.md and continues to hold).
+**Score:** 36/36 code-level truths verified (the prior score's 33 plus the additional specific truths the gap-closure plans introduced). Two items remain genuinely outside what grep/tests can prove and are routed to human verification, not reported as code gaps.
 
-### Deferred Items
+### New Finding From the Fresh Review (83-REVIEW.md) — Reported, Not a Gap
 
-None. No later phase in the 82–88 milestone owns migration-guard hardening; it must be closed before Phase 84 writes migration `0002` next to gift-card money data, consistent with the prior verification's reasoning.
+`83-REVIEW.md`'s `WR-01` (new): a NUL byte (`\0`) in the Up section silently truncates `libpg-query`'s own parse, so `scripts/migration-allowlist.js` alone would return `[]` (accept) for `CREATE TABLE ok (a int);\0DROP TABLE gift_cards;` — this contradicts the module's own "fail-closed by construction" / "a parse error is a violation" claims.
+
+The verifier independently reproduced this: `checkSql()` on that exact payload returns `[]`. However, the verifier also independently confirmed — by running the *actual* first-pass guard in the chain, `scripts/migration-guard.js`, against the identical payload — that it returns a `drop` violation (`[{"statement":"\u0000DROP TABLE gift_cards","rule":"drop"}]`). Because the real chain is `migration-guard.js && migration-allowlist.js && node-pg-migrate up` (guard runs first, confirmed by `grep` of `package.json`), this specific payload is still blocked end to end today. The 83-REVIEW.md reviewer additionally verified on a real `postgres:16-alpine` container that the Postgres wire protocol itself rejects a NUL-containing query (`invalid message format`), giving a second independent backstop.
+
+**This is reported as a WARNING, not a BLOCKER**, for three reasons: (1) it was not part of any must-have in the 83-13/83-14 plan frontmatter — it is a new finding from the fresh adversarial review of the code those plans just delivered; (2) no end-to-end data-destroying exploit was found by the reviewer or by this verifier despite directly trying the combination; (3) the fix is small (mirror the existing backslash pre-parse gate with a NUL check) and the reviewer's own report includes the fix and a fixture to add. It should be fixed before Phase 84, but it does not by itself reopen "is the two-guard chain, as actually wired, proven against every known attack" — it remains true today only because of the *other* guard's independent regex scan, which is a fragile reason to rely on (a future reordering of the `&&` chain, or a different post-NUL payload the old guard's regex doesn't catch, would turn this into a real bypass). Recommend a quick follow-up plan before Phase 84 starts, or an explicit owner override if the risk is accepted as-is.
+
+**If the owner wants to proceed to Phase 84 without a dedicated follow-up plan for the NUL-byte robustness gap, add to this file's frontmatter:**
+
+```yaml
+overrides:
+  - must_have: "migration-allowlist.js is fail-closed by construction (no input it cannot classify is ever silently accepted)"
+    reason: "NUL-byte truncation of libpg-query's parse is real, but today's chain (migration-guard.js running first) and Postgres's own NUL rejection in the wire protocol both independently block the one concrete exploit found; tracked as a pre-Phase-84 hardening item instead of reopening Phase 83"
+    accepted_by: "<owner>"
+    accepted_at: "<ISO timestamp>"
+```
 
 ### Required Artifacts
 
 | Artifact | Status | Details |
 |----------|--------|---------|
-| `zoho-middleware/scripts/migration-guard.js` | PARTIAL | Rewritten as a single-pass tokenizer (465 lines, up from ~150). Closes every originally-reported bypass. 4 new bypasses found by independent re-review and confirmed here. |
-| `zoho-middleware/__tests__/migration-guard-hardening.test.js` | VERIFIED (for what it covers) | 52+ cases pinning every original CR-01/CR-02/IN-01 row; all pass. Does not yet cover the 4 new bypasses (they postdate it). |
-| `zoho-middleware/scripts/backfill/normalize.js` | VERIFIED | `normalizeText` rejects cell-error, Date, boolean, object, non-finite-number; only strings and finite numbers accepted. Confirmed by direct `node -e` reproduction. |
-| `zoho-middleware/scripts/backfill/read-xlsx.js` | VERIFIED | `cellToPrimitive` never returns `null` for an unrecognised shape; `sharedFormula` handled; confirmed by direct reproduction. |
-| `zoho-middleware/scripts/backfill/backfill.js` | VERIFIED | `checkHeaders`/`sheetResult.headers` comparison present and wired before `[2/6] Normalise`; `read: counts.read` passed into `runChecks`. |
-| `zoho-middleware/scripts/backfill/load.js` | VERIFIED | `read_vs_accepted` check (2 occurrences) and empty-scratch `promote()` refusal (exact message grep-confirmed) present. |
-| `zoho-middleware/__tests__/backfill/normalize-no-coercion.test.js`, `read-xlsx-cell-shapes.test.js` | VERIFIED | New files exist, pass. |
-| `zoho-middleware/__tests__/backfill/backfill-gates.test.js`, `__tests__/db/backfill-gates.test.js` | VERIFIED | New files exist, pass (confirmed by rerunning `npx jest __tests__/backfill/`). |
+| `zoho-middleware/scripts/migration-allowlist.js` | VERIFIED | Exists (18,378 bytes), exports `ready`/`checkSql`/`checkMigrationsDir`/`findUnguardedFiles` (all called directly by the verifier), fail-closed behaviour confirmed against CR-01/02/04, DO/CALL/CREATE TRIGGER, backslash, and additive-accept cases. |
+| `zoho-middleware/__tests__/fixtures/migration-allowlist-cases.js` | VERIFIED | Exists, present and required successfully by the test suite (118 cases per SUMMARY; verifier reran the consuming test file, all passing). |
+| `zoho-middleware/__tests__/migration-allowlist.test.js` | VERIFIED | Exists, part of the 225-test subset the verifier reran directly, all passing. |
+| `zoho-middleware/__tests__/migration-allowlist-wiring.test.js` | VERIFIED | Exists, part of the same reran subset, all passing; independently confirmed its assertions (script strings, railway.toml line) by `grep`/`node -e` rather than trusting the test alone. |
+| `zoho-middleware/__tests__/db/migration-allowlist-apply.test.js` | VERIFIED | Exists, reran by the verifier via `CI=true npm run test:db` against a real `postgres:16-alpine` container — passed, not skipped. |
+| `zoho-middleware/migrations-manual/README.md` | VERIFIED | Rewritten section confirmed present and accurate: over-claim sentence gone (count 0), all 12 rule names present, "Known limits" section present, `## Procedure`/`pgmigrations_manual` preserved. |
+| `zoho-middleware/package.json` | VERIFIED | `dependencies['libpg-query'] === '16.7.3'`, no `devDependencies` entry (confirmed via `node -e`); `scripts.migrate`/`scripts['migrate:guard']` match the required chain exactly. |
+| `railway.toml` | VERIFIED | `preDeployCommand`/`buildCommand` values unchanged; comment block mentions `migration-allowlist.js` (confirmed via `grep`). |
 
 ### Key Link Verification
 
 | From | To | Via | Status |
 |------|----|-----|--------|
-| `migrate` script | guard, then node-pg-migrate | `node scripts/migration-guard.js && node-pg-migrate up` | WIRED, but the guard behind it still has known bypasses (see gap) |
-| `backfill.js runBackfill` | `checkHeaders` | comparison immediately after `readSheet`, before `[2/6] Normalise` | WIRED (grep: `backfill.js:252`) |
-| `backfill.js runLoadChecksPromote` | `load.runChecks` | `read: counts.read` | WIRED (grep-confirmed) |
-| `load.js promote()` | empty-scratch guard | `count(*)` before `to_regclass` check, outside BEGIN | WIRED (grep-confirmed) |
-| `normalize.js normalizeRow` (text case) | `normalizeText` | switch dispatch | WIRED, now fail-closed |
-| `read-xlsx.js readSheet` | `cellToPrimitive` → `{cellError}` → normalize.js rejects | `values[header] = primitive` | WIRED |
+| `railway.toml preDeployCommand` | `package.json scripts.migrate` | `cd zoho-middleware && npm run migrate` | WIRED (grep-confirmed, command value unchanged) |
+| `package.json scripts.migrate` | `migration-guard.js` then `migration-allowlist.js` then `node-pg-migrate up` | `&&` chain | WIRED (node -e confirmed exact string) |
+| `migration-allowlist-wiring.test.js` | real `npm run migrate:guard` child process | `childProcess.spawnSync` | WIRED (test reran directly by verifier, plus verifier's own independent `npm run migrate:guard` run) |
+| `migration-allowlist-apply.test.js` | real Postgres 16 via Testcontainers | `describeDb` / `startPostgres()` | WIRED (reran by verifier, not skipped — Docker present) |
+| `migration-guard.js` (first pass) | `migration-allowlist.js` (authoritative) | sequential `&&`, guard runs first | WIRED — and this ordering is load-bearing for the NUL-byte finding above (see Warning) |
 
 ### Data-Flow Trace (Level 4)
 
-Not applicable in the usual UI-rendering sense — this phase's artifacts are CLI scripts and a guard, not components rendering fetched data. The equivalent check (does the guard's output actually gate the pre-deploy command, does the backfill's checks output actually gate promote) is covered under Key Link Verification above.
+Not applicable in the UI sense — these are CLI guard scripts, not components rendering fetched data. The equivalent (does the guard's exit code actually gate `node-pg-migrate up`) is covered under Key Link Verification and the real-Postgres proof in `migration-allowlist-apply.test.js` (CR-02a test: neither `pgmigrations` nor `app_meta` created when the chain rejects).
 
-### Behavioral Spot-Checks (run by the verifier, this pass)
+### Behavioral Spot-Checks (run independently by this verifier)
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| Full middleware suite | `cd zoho-middleware && npm test` | 133 suites / 1963 tests passed | PASS |
-| Middleware lint | `cd zoho-middleware && npm run lint` | clean, no output | PASS |
-| Guard on real migrations/ dir | `node scripts/migration-guard.js` | `migration-guard: 1 file(s) additive-only OK`, exit 0 | PASS |
-| Targeted guard + backfill tests | `npx jest __tests__/migration-guard-hardening.test.js __tests__/migration-guard.test.js __tests__/backfill/` | 12 suites / 176 tests passed | PASS |
-| CR-03 reproduction (should now fail closed) | `normalizeRow(VesselHistory, {vessel_id:true, notes:{cellError:'#REF!'}})` | `ok:false`, 2 typed reasons | PASS (gap 2 closed) |
-| cellToPrimitive unknown shapes | `c({}), c({formula:'A1'}), c({sharedFormula:'A2',result:'x'})` | `{cellError:'unsupported cell value'}`, `{cellError:'formula has no cached result'}`, `'x'` | PASS (gap 2 closed) |
-| Header-drift / read_vs_accepted / empty-scratch wiring | `grep -n "sheetResult.headers\|read_vs_accepted\|is empty — nothing to promote"` | all three present | PASS (gap 3 closed) |
-| New CR-01 bypass: `$`-continued identifier (dollar-quote/E-string desync) | `findDestructiveStatements('-- Up Migration\nselect 1 as a$$t$;\nselect 1 as b$$$;\ndrop table gift_cards;\n-- $t$\n-- Down Migration\nselect 1;\n')` | `[]` | **FAIL (gap 1 still open)** |
-| New CR-02 bypass: quoted function body | `findDestructiveStatements("-- Up Migration\nCREATE FUNCTION wipe() RETURNS void LANGUAGE sql AS 'DELETE FROM gift_cards';\nSELECT wipe();\n...")` | `[]` | **FAIL** |
-| New CR-03 bypass: swallowed tokenizer error in body | `findDestructiveStatements('-- Up Migration\nCREATE FUNCTION wipe() ... AS $f$ select 1 as b$$$; delete from gift_cards; $f$;\nSELECT wipe();\n...')` | `[]` | **FAIL** |
-| New CR-04 bypass: `U&"balance"` unicode identifier | `findDestructiveStatements('-- Up Migration\nALTER TABLE gift_cards ALTER COLUMN U&"balance" TYPE integer;\n...')` | `[]` | **FAIL** |
+| Full middleware suite | `cd zoho-middleware && npm test` | 135 suites / 2121 tests passed | PASS |
+| Full root (frontend) suite | `npm test` | 141 suites / 2048 tests passed | PASS |
+| Middleware lint | `cd zoho-middleware && npm run lint` | clean | PASS |
+| Root lint | `npm run lint` | clean | PASS |
+| Real-PG DB suite | `cd zoho-middleware && CI=true npm run test:db` | 5 suites / 35 tests passed, none skipped | PASS |
+| Guard + allowlist on real migrations/ | `node scripts/migration-guard.js && node scripts/migration-allowlist.js` | both print `... 1 file(s) additive-only OK`, exit 0 | PASS |
+| `npm run migrate:guard` | `npm run migrate:guard` | both OK lines printed, exit 0 | PASS |
+| CR-01a reproduction | `checkSql('-- Up Migration\nselect 1 as a$$t$;\n...drop table gift_cards;...')` | `[{rule:'statement-not-allowed'}, ...]` (3 violations) | PASS — bypass closed |
+| CR-02a reproduction | `checkSql("-- Up Migration\nCREATE FUNCTION wipe() ... AS 'DELETE FROM gift_cards';\nSELECT wipe();...")` | 2 `statement-not-allowed` violations | PASS — bypass closed |
+| CR-04 reproduction | `checkSql('-- Up Migration\nALTER TABLE gift_cards ALTER COLUMN U&"balance" TYPE integer;...')` | `alter-not-allowed` | PASS — bypass closed |
+| DO / CALL / CREATE TRIGGER | direct `checkSql` calls | all three → `statement-not-allowed` | PASS |
+| Backslash ban | `checkSql` on `CHECK (a ~ '\d')` | single `backslash` violation | PASS |
+| Additive accept | `checkSql` on `ADD COLUMN w int DEFAULT 0` | `[]` | PASS |
+| New WR-01 (NUL byte) reproduction | `checkSql` on NUL-containing payload | `[]` (allowlist alone accepts) | **CONFIRMED — see Warning above** |
+| Old guard on same NUL payload | `migration-guard.js findDestructiveStatements` on same payload | `[{rule:'drop'}]` | Confirms chain-as-wired still blocks it today |
+| Old guard + its tests untouched | `git log --format=%s -- scripts/migration-guard.js __tests__/migration-guard.test.js __tests__/migration-guard-hardening.test.js \| grep -c "83-13\|83-14"` | `0` | PASS |
 
 ### Probe Execution
 
-No `scripts/*/tests/probe-*.sh` files declared or present for this phase. Skipped (unchanged from initial verification).
+No `scripts/*/tests/probe-*.sh` files declared or present for this phase. Skipped (unchanged from prior verifications).
 
 ### Requirements Coverage
 
 | Requirement | Source Plans | Status | Evidence |
 |-------------|--------------|--------|----------|
-| DB-02 | 83-01 … 83-12 | SATISFIED as written for SC1–SC4; hardening gap 1 still open | Every ROADMAP SC clause holds. REQUIREMENTS.md:129 is still `[ ]` — correctly unticked, since the migration-guard hardening promised by 83-10's own `requirements: [DB-02]` tag and the goal's "proven" language is not yet fully delivered. |
+| DB-02 | 83-01 … 83-14 (all 14 plans declare `requirements: [DB-02]`) | SATISFIED | Every ROADMAP SC clause holds (SC1–SC4 verified); the previously-open hardening gap (guard bypassability) is now closed and independently re-verified; the two residual items (staging pre-deploy log, backup/restore) are deploy-time/ops actions explicitly out of scope for code plans and correctly routed to human verification. `.planning/REQUIREMENTS.md:129` is still unticked `[ ]` as of this check — ticking it is an orchestrator/roadmap action, not something this verifier performs, but the evidence here supports ticking it once the two human-verification items are confirmed (or accepted as deploy-gated, not phase-gated). |
 
-No orphaned requirements. REQUIREMENTS.md maps only DB-02 to Phase 83, and all three gap-closure plans (83-10, 83-11, 83-12) correctly declare `requirements: [DB-02]`.
+No orphaned requirements — REQUIREMENTS.md maps only DB-02 to Phase 83, and all 14 plans (including 83-13/83-14) correctly declare it.
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| (83-10/11/12 files scanned) | — | TBD/FIXME/XXX | — | None found |
-| `migration-guard.js` scanBody | ~333-347 | Silently drops tokenizer errors inside a recursively-scanned body instead of failing closed | now classified as the CR-03 (new) BLOCKER above | Documented in 83-10-SUMMARY.md as an intentional deviation from the plan's literal text, but the re-review shows the deviation itself is the vulnerability |
-| `scripts/backfill/load.js` | 378-382, 474-481 | `Promise.all` over one client (pg deprecation path) | WARNING (carried forward, not re-scoped to this gap set) | pg deprecation warning; unchanged from initial verification (WR-01) |
-| `scripts/backfill/backfill.js` | 407-411 | Client not released on error path before `promptTypeDatabaseName`/`loadScratch`/`runChecks` failure | WARNING (carried forward) | `pool.end()` can hang on a CLI error path (WR-02); not re-fixed by 83-10/11/12, correctly out of scope for those plans |
-| `scripts/backfill/backfill.js` | 91-96 | Raw connection string (with password) in an error message | WARNING (carried forward, WR-03) | Unchanged |
+| (83-13/83-14 files scanned: migration-allowlist.js, its 3 test files, package.json, railway.toml, README.md) | — | TBD/FIXME/XXX | — | None found |
+| `__tests__/fixtures/migration-allowlist-cases.js:24` | 24 | Contains the literal string "TODO" | INFO | This is test-fixture *data* (a case proving a comment containing the text "TODO: consider a drop table x migration later" does not get misparsed), not a debt marker in production code. Not a blocker. |
+| `scripts/migration-allowlist.js` | n/a | A NUL byte silently truncates the parser | WARNING (83-REVIEW.md WR-01, new) | See "New Finding" section above — not currently exploitable through the wired chain, but contradicts the module's own fail-closed contract. Recommend fixing before Phase 84. |
+| `package.json:11` (lint script) | 11 | `scripts/` is not in the ESLint target list, so neither migration guard is linted by `npm run lint` | INFO (83-REVIEW.md IN-01, new) | Pre-commit lint gate never checks the code that gates every production deploy. Low-cost fix (`eslint routes/ lib/ scripts/ server.js`), not phase-blocking. |
+| `scripts/backfill/load.js`, `backfill.js` | (as previously reported) | `Promise.all` over one client; client-release-on-error; raw connection string in error message | WARNING (carried forward, unchanged, out of scope for this diff) | Unchanged from prior verification passes. |
 
 ### Human Verification Required
 
-None outstanding for this re-verification pass. The gap that remains (migration guard bypasses) is a code-level, programmatically-reproducible finding, not something requiring human judgment — the verifier reproduced all four bypasses directly.
+### 1. Railway staging pre-deploy log shows both guard OK lines
+
+**Test:** Push the current `main` to `staging.steinsandvines.ca` (per CLAUDE.md deployment rules) and open the Railway staging deploy's pre-deploy log.
+**Expected:** The log shows `migration-guard: N file(s) additive-only OK` followed by `migration-allowlist: N file(s) additive-only OK`, both before `node-pg-migrate up` runs. If the `migration-allowlist:` line is absent or the deploy shows a WASM load error, the deploy must have aborted and the previous release must still be serving traffic.
+**Why human:** libpg-query's WASM load inside Railway's actual build/pre-deploy container has never been observed by anyone (research assumption A1) — this verifier can only run it locally and via Testcontainers, not inside Railway's build image.
+
+### 2. Backup and restore drill completed before Phase 84
+
+**Test:** Confirm scheduled `pg_dump` backups (or a Railway plan with managed backups) are active for the production database, and that a restore has actually been exercised at least once.
+**Expected:** A working, tested restore path exists.
+**Why human:** This is an infrastructure/ops decision and action (owner decision 4, 83-GUARD-RESEARCH.md) with no corresponding code artifact in this repository to check programmatically.
 
 ### Gaps Summary
 
-Two of the three original gaps are closed and verified independently in this pass:
-- Gap 2 (backfill normaliser silent coercion) — CLOSED.
-- Gap 3 (backfill checks/promote vacuous pass on zero-accepted or header-drifted sheets) — CLOSED.
+**No code-level gaps remain.** The one gap carried over from the prior VERIFICATION.md — the migration guard being bypassable via the CR-01..CR-04 parser-differential tricks — is closed: plan 83-13 replaced "trust a hand-written tokenizer" with "trust the real Postgres 16 AST," and plan 83-14 wired it into the actual deploy command and proved it on real Postgres 16, including proving the specific CR-02a bypass is now blocked end to end. This verifier independently reran every load-bearing check (unit tests, DB tests, lints, direct `checkSql()` calls against all four original bypass payloads, and the actual `railway.toml`/`package.json` wiring) rather than trusting the SUMMARY.md narration, and found no discrepancy.
 
-One gap remains open, restated with new specifics:
-- Gap 1 (migration guard as the automated D-04 barrier) — STILL OPEN. 83-10 closed every originally-reported bypass (old CR-01, CR-02, IN-01), rewriting the guard from chained-regex stripping to a character-level tokenizer and adding 52+ regression tests, all green. An independent re-review then found four new, different, verified-on-real-Postgres bypasses in that same tokenizer: a `$`-identifier-continuation desync that opens a fake dollar-quote/E-string, a quoted (non-dollar) function/procedure body that is never scanned, a documented 83-10 deviation that silently drops tokenizer errors inside a body instead of failing closed, and a `U&"..."` unicode-escaped column identifier that evades the `alter-type` rule. The verifier reran all four directly against the shipped `migration-guard.js` and confirmed the guard returns `[]` (no violation) for each — i.e., it would let node-pg-migrate execute a `DROP TABLE`, a function-hidden `DELETE`, or a silent money-column type truncation on the next deploy.
-
-This is a genuine "same bug class survives a second round" pattern: a hand-written SQL tokenizer trying to match Postgres's real lexer is inherently an adversarial parser-differential problem, and finding a second independent set of bypasses after the first set was fully closed is evidence that further rounds would likely find more, not that this round happened to be unlucky. Since Phase 84 is the first phase to run migration `0002` next to real gift-card money data, and no later milestone phase (84–88) owns migration-guard hardening, this gap blocks "proven" in the phase goal's wording and should go through one more gap-closure plan (or an explicit owner override, see below) before Phase 84 begins.
-
-**If the owner prefers to accept Phase 83 as done and track the new CR-01..CR-04 bypasses as a pre-Phase-84 hardening plan instead of re-opening this phase, add to this file's frontmatter:**
-
-```yaml
-overrides:
-  - must_have: "Deploy-time migrations are additive only: a guard rejects DROP/TRUNCATE/RENAME/ALTER…TYPE/DELETE/UPDATE in any Up section, both in `npm test` and inside the pre-deploy command itself (83-03, D-04)"
-    reason: "Only app_meta exists in either database; all four new CR-01..CR-04 bypasses (dollar-sign identifiers, quoted function bodies, swallowed-parse-error deviation, U&\"...\" unicode identifiers) scheduled as a Phase 84 Wave 0 hardening plan before migration 0002 is written"
-    accepted_by: "<owner>"
-    accepted_at: "<ISO timestamp>"
-```
+A fresh, independent adversarial review (`83-REVIEW.md`) of the delivered 83-13/83-14 code found 0 new Criticals and 1 new Warning (a NUL-byte parser-truncation edge case in the allowlist's own code, not currently exploitable through the wired two-guard chain, reported above as a WARNING with a suggested override). Status is `human_needed` rather than `passed` solely because two deploy-time/ops items — the first real Railway staging pre-deploy log, and the Phase-84 backup/restore hard prerequisite — cannot be verified from the codebase and require the owner's action, exactly as both gap-closure plans themselves flagged.
 
 ---
 
