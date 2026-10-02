@@ -63,6 +63,8 @@ A few of these are deliberate, no-exception policy choices, not just gaps in the
   move is to ban the character outright. Write regex character classes as `[0-9]` instead of
   `\d`; `E'...'` escape strings are unnecessary for additive DDL. If you genuinely need a
   backslash, run the migration here instead.
+- **Any NUL byte in the Up section is rejected before parsing** — the parser stops at NUL, so
+  anything after it would be invisible to the guard.
 - **A parse error rejects the whole file.** The allowlist never tries to recover or skip a
   statement it cannot parse.
 - **A non-`.sql` file in `migrations/` rejects the deploy.** `node-pg-migrate` will happily load a
@@ -81,6 +83,7 @@ guard) uses:
 |---|---|
 | `missing-up-marker` | no `-- Up Migration` marker found in the file at all |
 | `backslash` | a backslash was found anywhere in the raw Up section |
+| `nul-byte` | a NUL (`\0`) byte was found anywhere in the raw Up section |
 | `parse-error` | the Up section did not parse as valid SQL under the real PG16 grammar |
 | `statement-not-allowed` | the statement's top-level type is not on the allowlist |
 | `alter-not-allowed` | the `ALTER TABLE` subcommand, or the object type being altered, is not allowed |
