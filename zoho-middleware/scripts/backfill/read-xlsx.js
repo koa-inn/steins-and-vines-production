@@ -11,8 +11,14 @@ function richTextToString(val) {
 }
 
 // Unwraps a raw exceljs cell.value into a plain primitive: string | number |
-// boolean | Date | null | { cellError: '#REF!' }. Formulas contribute only
-// their cached result — never re-evaluated.
+// boolean | Date | null | { cellError: '...' }. Formulas (and sharedFormula)
+// contribute only their cached result — never re-evaluated.
+//
+// Fails closed (D-12, CR-03): a formula with no cached result, a hyperlink
+// with no display text, and any other unrecognised shape (including bigint,
+// symbol, function) become { cellError: 'unsupported cell value' } rather
+// than null. null/undefined is reserved for genuinely empty cells — the
+// empty-row skip in readSheet depends on that distinction.
 function cellToPrimitive(cellValue) {
   if (cellValue === null || cellValue === undefined) return null;
   if (cellValue instanceof Date) return cellValue;
@@ -26,14 +32,18 @@ function cellToPrimitive(cellValue) {
     if (Array.isArray(cellValue.richText)) {
       return richTextToString(cellValue);
     }
-    if (cellValue.formula !== undefined) {
-      return cellValue.result !== undefined ? cellToPrimitive(cellValue.result) : null;
+    if (cellValue.formula !== undefined || cellValue.sharedFormula !== undefined) {
+      return cellValue.result !== undefined
+        ? cellToPrimitive(cellValue.result)
+        : { cellError: 'formula has no cached result' };
     }
     if (cellValue.hyperlink !== undefined) {
-      return cellValue.text !== undefined ? cellValue.text : null;
+      return cellValue.text !== undefined
+        ? cellToPrimitive(cellValue.text)
+        : { cellError: 'hyperlink has no display text' };
     }
   }
-  return null;
+  return { cellError: 'unsupported cell value' };
 }
 
 function isEmptyPrimitive(primitive) {
@@ -68,6 +78,13 @@ function readSheet(filePath, sheetName) {
     var maxCol = 0;
     headerRow.eachCell({ includeEmpty: false }, function (cell, colNumber) {
       var raw = cellToPrimitive(cell.value);
+      var unreadable = (raw !== null && typeof raw === 'object') || typeof raw === 'boolean';
+      if (unreadable) {
+        throw new Error(
+          'unreadable header in column ' + colNumber + ' of sheet "' + sheetName +
+          '" — header cells must be text'
+        );
+      }
       var text = raw === null || raw === undefined ? '' : String(raw).trim();
       headersByCol[colNumber] = text;
       if (colNumber > maxCol) maxCol = colNumber;
