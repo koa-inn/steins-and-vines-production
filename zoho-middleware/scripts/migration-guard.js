@@ -249,17 +249,54 @@ function tokenize(sql) {
   return { statements: statements, bodies: bodies, errors: errors };
 }
 
+// Policy (83-10, CR-01 rule gaps): DO blocks and dynamic EXECUTE are
+// rejected outright, with no attempt to look inside a dynamically-built
+// string — the guard cannot reason about SQL assembled at runtime, and
+// that kind of change belongs in migrations-manual/ with a human present.
+// MERGE, upsert (ON CONFLICT ... DO UPDATE) and sequence resets are also
+// rejected outright: all three can silently discard or renumber existing
+// rows, and node-pg-migrate would execute any of them on deploy exactly
+// like a DROP or DELETE.
+//
 // Order matters: first matching rule wins, so a statement that happens to
 // contain more than one destructive keyword (e.g. "ALTER TABLE x DROP
 // COLUMN y" — both "alter" and "drop") is reported once, under its
-// most-specific applicable rule.
+// most-specific applicable rule. `drop` stays ahead of `alter-type`/
+// `update` so "alter table x drop column y" still reports `drop`.
+var ALTER_TABLE_RE = /\balter\s+table\b/i;
+var ALTER_TYPE_CLAUSE_RE = /\balter\s+(?:column\s+)?(?:"q"|[A-Za-z_]\w*)\s+(?:set\s+data\s+)?type\b/i;
+var FK_REFERENTIAL_ACTION_RE = /\bon\s+(?:update|delete)\s+(?:set\s+null|set\s+default|cascade|restrict|no\s+action)\b/gi;
+
 var RULES = [
+  { name: 'do-block', test: /^do\b/i },
+  { name: 'execute', test: /\bexecute\b(?!\s+(?:function|procedure)\b)/i },
   { name: 'drop', test: /\bdrop\b/i },
   { name: 'truncate', test: /\btruncate\b/i },
   { name: 'rename', test: /\brename\b/i },
-  { name: 'alter-type', test: /\balter\b[\s\S]*\bcolumn\b[\s\S]*\btype\b/i },
-  { name: 'delete', test: /^\s*delete\s+from\b/i },
-  { name: 'update', test: /^\s*update\s+\S+\s+set\b/i }
+  {
+    name: 'alter-type',
+    test: {
+      test: function (statement) {
+        return ALTER_TABLE_RE.test(statement) && ALTER_TYPE_CLAUSE_RE.test(statement);
+      }
+    }
+  },
+  { name: 'sequence-reset', test: /\brestart\b|\bsetval\s*\(/i },
+  { name: 'merge', test: /\bmerge\s+into\b/i },
+  { name: 'upsert', test: /\bon\s+conflict\b[\s\S]*\bdo\s+update\b/i },
+  { name: 'delete', test: /\bdelete\s+from\b/i },
+  {
+    name: 'update',
+    test: {
+      test: function (statement) {
+        // Ignore FK referential actions (ON UPDATE/DELETE SET NULL, etc.)
+        // for this rule only — they are additive constraint clauses, not
+        // a DML UPDATE, but they do contain the words "update" and "set".
+        var withoutFkActions = statement.replace(FK_REFERENTIAL_ACTION_RE, '');
+        return /\bupdate\b[\s\S]*\bset\b/i.test(withoutFkActions);
+      }
+    }
+  }
 ];
 
 /**
