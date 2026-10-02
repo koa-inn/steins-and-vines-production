@@ -1,8 +1,8 @@
 ---
 phase: 83-postgres-infrastructure
 verified: 2026-10-02T00:00:00Z
-status: human_needed
-score: 36/36 must-haves verified (all code-level must-haves closed; 2 deploy-time items require owner action, not code)
+status: passed
+score: 36/36 must-haves verified; both human-verification items passed 2026-10-02 (83-HUMAN-UAT.md tests 1-2)
 overrides_applied: 0
 re_verification:
   previous_status: gaps_found
@@ -11,6 +11,7 @@ re_verification:
     - "Deploy-time migrations are additive only: a guard rejects DROP/TRUNCATE/RENAME/ALTER…TYPE/DELETE/UPDATE in any Up section, both in `npm test` and inside the pre-deploy command itself (83-03, D-04) — CLOSED by 83-13 (new parser-backed allowlist) + 83-14 (wired into the pre-deploy chain), independently re-verified in this pass including a fresh adversarial re-review (83-REVIEW.md)."
   gaps_remaining: []
   regressions: []
+human_verification_resolved: "2026-10-02 — both items below PASSED: (1) both guards verified inside the deployed staging container (fe40a4c2 / d68fd4df); (2) pg-backup cron live in production, first backup restored in a drill with matching row counts. Evidence: 83-HUMAN-UAT.md (status complete, 2/2), 83-UAT.md (4/4), 83-SECURITY.md (threats_open 0)."
 human_verification:
   - test: "Push to staging and open the Railway staging deploy's pre-deploy log."
     expected: "The log shows both `migration-guard: N file(s) additive-only OK` and `migration-allowlist: N file(s) additive-only OK` before `node-pg-migrate up` runs. If `migration-allowlist.js`'s WASM load fails on Railway's build image, the deploy must abort (fail-closed) and the previous release must keep serving."
