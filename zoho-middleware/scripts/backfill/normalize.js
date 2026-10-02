@@ -264,11 +264,27 @@ function normalizeId(raw, opts) {
 // ---------------------------------------------------------------------------
 // normalizeText — internal only (not part of the public interface), used by
 // normalizeRow for plain 'text' columns.
+//
+// REJECTS anything it cannot confidently render as text (D-12, CR-03). Only
+// strings and finite numbers are accepted; a cell-error object, a Date, a
+// boolean or any other object/type is a typed reject, never a String()
+// coercion — a silent "[object Object]"/"true"/locale-string is worse than a
+// failed row.
 // ---------------------------------------------------------------------------
 
 function normalizeText(raw) {
   if (typeof raw === 'string') return { ok: true, value: raw.trim() };
-  return { ok: true, value: String(raw) };
+  if (typeof raw === 'number') {
+    if (isFinite(raw)) return { ok: true, value: String(raw) };
+    return { ok: false, reason: 'expected text, got non-finite number' };
+  }
+  if (raw && typeof raw === 'object' && raw.cellError) {
+    return { ok: false, reason: 'cell error: ' + raw.cellError };
+  }
+  if (raw instanceof Date) {
+    return { ok: false, reason: 'expected text, got date' };
+  }
+  return { ok: false, reason: 'expected text, got ' + typeof raw };
 }
 
 // ---------------------------------------------------------------------------
