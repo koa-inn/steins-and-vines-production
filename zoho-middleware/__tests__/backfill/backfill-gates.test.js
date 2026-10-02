@@ -198,3 +198,19 @@ describe('backfill header drift (CR-04)', function () {
     ).toBe(false);
   });
 });
+
+describe('backfill passes the read count into runChecks (CR-04)', function () {
+  it('calls load.runChecks with read equal to the number of rows read from the sheet', async function () {
+    var filePath = await writeWorkbook(SPEC_HEADERS, [VALID_ROW]);
+    var log = captureLog();
+
+    var result = await backfill.runBackfill(opts(filePath, { dryRun: false }), {
+      pool: fakePool(),
+      log: log
+    });
+
+    expect(result.exitCode).toBe(backfill.EXIT.OK);
+    expect(load.runChecks).toHaveBeenCalledTimes(1);
+    expect(load.runChecks.mock.calls[0][1].read).toBe(1);
+  });
+});
