@@ -59,6 +59,7 @@ error + no tracking, but avoid it):
 
 | Date | Git SHA | Railway Deploy ID | Deploy URL | Notes |
 |------|---------|-------------------|------------|-------|
+| 2026-10-02 18:51 UTC | `d47dab85` | `f104c500-2ae4-4550-813e-3f3c79825ebc` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/37049773828) | Phase 83 Postgres infrastructure (DB-02): lib/db.js, migrations on deploy, /health database field, store-flag + mirror gate; empty schema |
 | 2026-09-30 17:47 UTC | `d581eb89` | unknown — workflow recorded the *previous* deployment `1d502419…` (capture race, fixed in `ff5515e8`); read the real id from Railway → Deployments | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/36753725754) | Phase 82 store-agnostic prerequisites |
 | 2026-09-23 18:59 UTC | `b404d061` | `1d502419-0741-4709-8f72-4686627512db` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/35906086255) | zoho-auth refresh-token re-persistence (aaf6112a); beer page stays held back |
 | 2026-09-23 18:08 UTC | `6e05a60d` | `5b0fe0d2-64ec-4a5d-854b-5c4781c869ce` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/35900308822) | Cutover batch 2026-09-23: Phase 81 ferment timeline; 74 catalogue pages (wine live, beer page held back unlinked+noindex); 78/80 waitlist; 79 recipe save perf; 73/75/76; 50/51 kiosk money-path; policy pages + checkout acknowledgement + cookie consent + confirmation-email and admin cost fixes; 2026-09-16 pre-cutover fixes |
