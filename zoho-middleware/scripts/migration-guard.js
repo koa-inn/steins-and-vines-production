@@ -403,9 +403,40 @@ function checkMigrationsDir(dir) {
   return violations;
 }
 
+/**
+ * findUnguardedFiles(dir) -> Array<{ file: string, statement: string, rule: string }>
+ *
+ * node-pg-migrate 9's getMigrationFilePaths loads every non-dotfile entry
+ * in the migrations directory (.js/.cjs/.mjs/.ts via jiti, in addition to
+ * .sql), but checkMigrationsDir() above only ever scans `.sql` files — by
+ * design, since the existing "ignores non-.sql files" test in
+ * __tests__/migration-guard.test.js pins that behaviour (CLAUDE.md rule 10
+ * forbids editing it). This is the CR-02 fail-closed check instead: it
+ * flags every non-dotfile entry that is NOT `.sql` as its own violation, so
+ * the CLI (which combines both checks below) rejects a `.js` migration —
+ * which could run `pgm.dropTable(...)` with no guard at all — before
+ * node-pg-migrate ever loads it.
+ */
+function findUnguardedFiles(dir) {
+  var violations = fs.readdirSync(dir)
+    .filter(function (entry) { return !/^\./.test(entry); })
+    .filter(function (entry) { return !/\.sql$/i.test(entry); })
+    .map(function (entry) {
+      return {
+        file: entry,
+        rule: 'non-sql-file',
+        statement: '(non-SQL migration file — node-pg-migrate would execute it without the guard; use .sql or migrations-manual/)'
+      };
+    })
+    .sort(function (a, b) { return a.file < b.file ? -1 : a.file > b.file ? 1 : 0; });
+
+  return violations;
+}
+
 module.exports = {
   findDestructiveStatements: findDestructiveStatements,
-  checkMigrationsDir: checkMigrationsDir
+  checkMigrationsDir: checkMigrationsDir,
+  findUnguardedFiles: findUnguardedFiles
 };
 
 if (require.main === module) {
@@ -413,13 +444,13 @@ if (require.main === module) {
   var fileCount;
 
   try {
-    fileCount = fs.readdirSync(targetDir).filter(function (f) { return /\.sql$/i.test(f); }).length;
+    fileCount = fs.readdirSync(targetDir).filter(function (f) { return !/^\./.test(f); }).length;
   } catch (e) {
     console.error('migration-guard: could not read migrations dir ' + targetDir + ': ' + e.message);
     process.exit(1);
   }
 
-  var violations = checkMigrationsDir(targetDir);
+  var violations = findUnguardedFiles(targetDir).concat(checkMigrationsDir(targetDir));
 
   if (violations.length) {
     violations.forEach(function (v) {
