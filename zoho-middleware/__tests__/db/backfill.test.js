@@ -79,7 +79,7 @@ function platoRow(overrides) {
     reading_id: 'PR-000001',
     batch_id: 'SV-B-000001',
     timestamp: '2026-01-15T08:00:00Z',
-    plato: '12.50',
+    degrees_plato: '12.50',
     notes: '',
     recorded_by: 'staff',
     created_at: '2026-01-15T08:05:00Z',
@@ -97,10 +97,10 @@ function fermRow(overrides) {
     description: '',
     category: 'ale',
     steps: '[{"day":1,"action":"pitch"}]',
-    active: 'TRUE',
+    is_active: 'TRUE',
     created_at: '2026-01-01T00:00:00Z',
     created_by: 'staff',
-    updated_at: '2026-01-01T00:00:00Z'
+    last_updated: '2026-01-01T00:00:00Z'
   };
   Object.assign(base, overrides || {});
   return normalize(fermSchedulesSpec, base);
@@ -222,8 +222,8 @@ describeDb('backfill pipeline against real Postgres', function () {
   describe('runChecks', function () {
     it('returns ok:true after a clean load', async function () {
       var rows = [
-        platoRow({ reading_id: 'PR-000001', plato: '12.50' }),
-        platoRow({ reading_id: 'PR-000002', plato: '11.00' })
+        platoRow({ reading_id: 'PR-000001', degrees_plato: '12.50' }),
+        platoRow({ reading_id: 'PR-000002', degrees_plato: '11.00' })
       ];
       await load.loadScratch(client, { schema: 'scratch_test', spec: platoReadingsSpec, rows: rows });
 
@@ -236,7 +236,7 @@ describeDb('backfill pipeline against real Postgres', function () {
     });
 
     it('returns ok:false naming the column and check after a tampered value', async function () {
-      var rows = [platoRow({ reading_id: 'PR-000001', plato: '12.50' })];
+      var rows = [platoRow({ reading_id: 'PR-000001', degrees_plato: '12.50' })];
       await load.loadScratch(client, { schema: 'scratch_test', spec: platoReadingsSpec, rows: rows });
 
       await client.query("update scratch_test.plato_readings set plato = '99.00' where reading_id = 'PR-000001'");
@@ -391,7 +391,7 @@ describeDb('backfill CLI end-to-end (runBackfill)', function () {
         reading_id: 'PR-000001',
         batch_id: 'SV-B-000001',
         timestamp: '2026-01-15T08:00:00Z',
-        plato: 12.5,
+        degrees_plato: 12.5,
         notes: 'fixture-note-alpha',
         recorded_by: 'staff',
         created_at: '2026-01-15T08:05:00Z',
@@ -402,7 +402,7 @@ describeDb('backfill CLI end-to-end (runBackfill)', function () {
         reading_id: 'PR-000002',
         batch_id: 'SV-B-000001',
         timestamp: '2026-01-16T08:00:00Z',
-        plato: 11.0,
+        degrees_plato: 11.0,
         notes: 'fixture-note-beta',
         recorded_by: 'staff',
         created_at: '2026-01-16T08:05:00Z',
@@ -413,7 +413,7 @@ describeDb('backfill CLI end-to-end (runBackfill)', function () {
         reading_id: 'PR-000003',
         batch_id: 'SV-B-000001',
         timestamp: '2026-01-17T08:00:00Z',
-        plato: 10.5,
+        degrees_plato: 10.5,
         notes: 'fixture-note-gamma',
         recorded_by: 'staff',
         created_at: '2026-01-17T08:05:00Z',
@@ -424,7 +424,7 @@ describeDb('backfill CLI end-to-end (runBackfill)', function () {
         reading_id: 'PR-000004',
         batch_id: 'SV-B-000001',
         timestamp: 'not-a-real-date',
-        plato: 9.0,
+        degrees_plato: 9.0,
         notes: 'fixture-note-delta',
         recorded_by: 'staff',
         created_at: '2026-01-18T08:05:00Z',

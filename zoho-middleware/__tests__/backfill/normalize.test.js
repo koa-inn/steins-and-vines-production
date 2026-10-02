@@ -177,11 +177,11 @@ describe('normalizeRow', function () {
 
   test('required column empty -> reject with reason "required"', function () {
     var result = normalize.normalizeRow(vesselHistorySpec, {
-      vh_id: '',
+      history_id: '',
       batch_id: 'SV-B-000001',
       vessel_id: '', shelf_id: '', bin_id: '',
-      moved_at: '2026-09-02T21:03:00.000Z',
-      moved_by: '', note: ''
+      transferred_at: '2026-09-02T21:03:00.000Z',
+      transferred_by: '', notes: ''
     }, { timezone: TZ });
     expect(result.ok).toBe(false);
     expect(result.reasons).toEqual(
@@ -191,11 +191,11 @@ describe('normalizeRow', function () {
 
   test('optional empty column becomes null', function () {
     var result = normalize.normalizeRow(vesselHistorySpec, {
-      vh_id: 'V1',
+      history_id: 'V1',
       batch_id: 'SV-B-000001',
       vessel_id: '', shelf_id: '', bin_id: '',
-      moved_at: '2026-09-02T21:03:00.000Z',
-      moved_by: '', note: ''
+      transferred_at: '2026-09-02T21:03:00.000Z',
+      transferred_by: '', notes: ''
     }, { timezone: TZ });
     expect(result.ok).toBe(true);
     expect(result.values.vessel_id).toBeNull();
@@ -204,11 +204,11 @@ describe('normalizeRow', function () {
 
   test('multiple failing columns -> all reasons listed', function () {
     var result = normalize.normalizeRow(vesselHistorySpec, {
-      vh_id: '',
+      history_id: '',
       batch_id: 'SV-B-42', // bad padding
       vessel_id: '', shelf_id: '', bin_id: '',
-      moved_at: 'yesterday', // unparseable
-      moved_by: '', note: ''
+      transferred_at: 'yesterday', // unparseable
+      transferred_by: '', notes: ''
     }, { timezone: TZ });
     expect(result.ok).toBe(false);
     var columns = result.reasons.map(function (r) { return r.column; });
@@ -222,7 +222,7 @@ describe('normalizeRow', function () {
       reading_id: 'PR-000001',
       batch_id: 'SV-B-000001',
       timestamp: '2026-09-02T21:03:00.000Z',
-      plato: '12.50',
+      degrees_plato: '12.50',
       notes: '', recorded_by: '',
       created_at: '2026-09-02T21:03:00.000Z',
       temperature: '', ph: ''
@@ -239,10 +239,10 @@ describe('normalizeRow', function () {
       name: 'Standard Ale',
       description: '', category: '',
       steps: '[{"day":1}]',
-      active: 'TRUE',
+      is_active: 'TRUE',
       created_at: '2026-09-02T21:03:00.000Z',
       created_by: '',
-      updated_at: '2026-09-02T21:03:00.000Z'
+      last_updated: '2026-09-02T21:03:00.000Z'
     }, { timezone: TZ });
     expect(result.ok).toBe(true);
     expect(result.values).toEqual({
