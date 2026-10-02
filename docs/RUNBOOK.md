@@ -132,6 +132,31 @@ Pass the Railway deploy ID from the Deploy History table above. Requires a proje
 
 > **Note:** `railway deployment redeploy` only re-runs the CURRENT latest deployment — it is NOT a rollback to a previous version. Use the dashboard or GraphQL mutation to roll back.
 
+#### Postgres (Phase 83)
+
+- **App rollback is safe.** Rolling the middleware back to a pre-Phase-83 deployment (either
+  Railway dashboard rollback above, or a code revert) is safe: the old code never reads
+  `DATABASE_URL`, and the schema Phase 83 adds is additive-only — nothing pre-83 depends on it.
+- **A failed pre-deploy migration aborts the deploy.** `preDeployCommand` (`npm run migrate`,
+  repo-root `/railway.toml`) runs `migration-guard.js` then `node-pg-migrate up` in a separate,
+  ephemeral container before the new release goes live. A non-zero exit there aborts the deploy
+  entirely — Railway keeps the previous release running and does not retry (D-03). **Fix forward**
+  with a new migration file; never edit an already-applied one.
+- **Destructive changes go through the manual path only.** Any `DROP`/`TRUNCATE`/`RENAME`/
+  `ALTER ... TYPE`/`DELETE`/`UPDATE` is rejected by `migration-guard.js` inside a normal
+  `node-pg-migrate` migration. Such changes are only made via
+  `zoho-middleware/migrations-manual/README.md` (D-04), run by hand, never as part of an automated
+  deploy.
+- **Database rollback in this phase = delete the Postgres service.** Nothing reads from either
+  Postgres database yet — Phase 84 is the first consumer — so there is no in-place DB rollback
+  procedure to maintain this phase; if the Postgres service itself needs to be undone, delete it
+  (staging or production) and re-provision per the "Railway Postgres (staging + production)" steps
+  above.
+- **Store rollback from Phase 84 onward = `<STORE>_STORE=sheets`.** Once a store is reading from
+  Postgres (Phase 84+), rolling that store back to the Sheet-only path is a config change, not a
+  deploy: set that store's `<STORE>_STORE` environment variable to `sheets` (D-05). Not applicable
+  yet in Phase 83 — no store reads from Postgres.
+
 ### Apps Script (`adminApi.gs`)
 
 Apps Script is **entirely outside `gated-deploy.yml`**. There is no CI path, no smoke check,
