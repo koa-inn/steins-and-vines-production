@@ -269,6 +269,36 @@ function runBackfill(opts, deps) {
     });
 }
 
+/**
+ * summarizeChecks(checksResult) -> { ok, line }
+ *
+ * The step [5/6] result line — always printed, PASS or FAIL. Names failed checks as
+ * `row_count` or `<column>.<check>` only; never expected/actual values, which can be
+ * row contents (D-13). Fails closed: a missing/empty result set or any failed entry is
+ * a FAIL even if `ok` claims otherwise.
+ */
+function summarizeChecks(checksResult) {
+  var results = (checksResult && checksResult.results) || [];
+  var failed = results.filter(function (r) {
+    return !r.ok;
+  });
+  var ok = Boolean(checksResult && checksResult.ok) && results.length > 0 && failed.length === 0;
+
+  if (ok) {
+    return { ok: true, line: 'Checks: PASS (' + results.length + ' checks)' };
+  }
+
+  var names = failed.map(function (r) {
+    return r.column ? r.column + '.' + r.check : r.check;
+  });
+  var detail = names.length > 0 ? names.join(', ') : 'no check results';
+  return {
+    ok: false,
+    line:
+      'Checks: FAIL — ' + detail + ' (' + failed.length + ' of ' + results.length + ' checks failed)'
+  };
+}
+
 function runLoadChecksPromote(client, opts, spec, accepted, rejects, rejectsPath, counts, log) {
   return client
     .query('select current_database() as database')
@@ -286,7 +316,9 @@ function runLoadChecksPromote(client, opts, spec, accepted, rejects, rejectsPath
       return load.runChecks(client, { schema: opts.schema, spec: spec, rows: accepted });
     })
     .then(function (checksResult) {
-      if (!checksResult.ok) {
+      var summary = summarizeChecks(checksResult);
+      log(summary.line);
+      if (!summary.ok) {
         log('[6/6] Promote — skipped (checks failed)');
         client.release();
         return { exitCode: EXIT.CHECKS_FAILED, rejectsPath: rejectsPath, counts: counts };

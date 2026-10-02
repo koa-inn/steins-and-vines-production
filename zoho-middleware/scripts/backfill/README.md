@@ -72,8 +72,11 @@ here). Phase 84+ reuses this CLI unchanged with each store's own spec.
    npm run backfill -- --file=~/sv-backfill/snapshot.xlsx --sheet=FermSchedules
    ```
 
-   Each run prints its six steps (`[1/6]` .. `[6/6]`), then a one-line summary of counts
-   (read/accepted/rejected) and the rejects file's path. Without `--promote`, step 6 is
+   Each run prints its six steps (`[1/6]` .. `[6/6]`), a one-line summary of counts
+   (read/accepted/rejected) and the rejects file's path, and — right after `[5/6] Checks`
+   — a result line: `Checks: PASS (<n> checks)` or `Checks: FAIL — <failed checks> (<x> of
+   <n> checks failed)`, where each failed check is `row_count` or `<column>.<check>`
+   (`null_count`, `min`, `max`, `true_count`). A FAIL exits with code 3. Without `--promote`, step 6 is
    skipped and nothing beyond the scratch schema is touched.
 
    Unless `--yes` is passed, the CLI prints `Target: <redacted connection string>
@@ -115,7 +118,7 @@ here). Phase 84+ reuses this CLI unchanged with each store's own spec.
 | 0 | Success (or a step was intentionally skipped — no `--promote`, or `--dry-run`) |
 | 1 | Error — bad arguments, snapshot not found, database unreachable, etc. |
 | 2 | Promotion blocked — rejects exist and `--accept-rejects` was not passed |
-| 3 | Promotion blocked — the post-load checks failed |
+| 3 | The post-load checks failed (`Checks: FAIL — ...`) — returned with or without `--promote`; promotion never runs |
 
 ## Flags
 
