@@ -363,7 +363,7 @@ function runLoadChecksPromote(client, opts, spec, accepted, rejects, rejectsPath
     })
     .then(function () {
       log('[5/6] Checks');
-      return load.runChecks(client, { schema: opts.schema, spec: spec, rows: accepted });
+      return load.runChecks(client, { schema: opts.schema, spec: spec, rows: accepted, read: counts.read });
     })
     .then(function (checksResult) {
       var summary = summarizeChecks(checksResult);

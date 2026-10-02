@@ -333,7 +333,15 @@ function runColumnChecks(client, qualifiedTable, col, colExpected) {
 }
 
 /**
- * runChecks(client, { schema, spec, rows }) -> { ok, results: [{ check, column?, expected, actual, ok }] }
+ * runChecks(client, { schema, spec, rows, read }) -> { ok, results: [{ check, column?, expected, actual, ok }] }
+ *
+ * `read_vs_accepted` (first result, no query needed): fails when `read` is a finite
+ * number greater than 0 and `rows.length` (accepted) is 0 — a sheet that loaded
+ * nothing must never report Checks: PASS (CR-04 / VERIFICATION gap 3). An empty sheet
+ * (`read` is 0) is not itself a drift signal here — promote() separately refuses an
+ * empty scratch table. `read` defaults to `rows.length` when omitted, for back-compat
+ * with direct callers that don't pass it (the only production caller, backfill.js,
+ * always passes counts.read).
  *
  * count(*); per-column null count; min/max for id/text (COLLATE "C") and timestamptz and
  * numeric; true-count for boolean; count only for jsonb. Expected side computed in JS from
@@ -344,9 +352,17 @@ function runChecks(client, opts) {
   var schema = assertScratchSchema(opts.schema);
   var spec = opts.spec;
   var rows = opts.rows || [];
+  var read = typeof opts.read === 'number' && isFinite(opts.read) ? opts.read : rows.length;
   var qualifiedTable = qualify(client, schema, spec.table);
   var expected = computeExpected(spec, rows);
-  var results = [];
+  var results = [
+    {
+      check: 'read_vs_accepted',
+      expected: read,
+      actual: rows.length,
+      ok: !(read > 0 && rows.length === 0)
+    }
+  ];
 
   return client
     .query('select count(*)::int as count from ' + qualifiedTable)
@@ -379,11 +395,13 @@ function runChecks(client, opts) {
 /**
  * promote(client, { schema, spec, targetSchema = 'public' }) -> { promoted }
  *
- * Target must EXIST (to_regclass) AND be EMPTY (count(*) = 0) before anything runs —
- * `insert into target (cols) select cols from scratch` happens inside one transaction.
- * Never creates or alters the target table (real tables come from migrations in
- * Phases 84+). Preconditions are checked OUTSIDE the transaction so a precondition
- * failure never triggers a ROLLBACK-without-BEGIN and never touches the target.
+ * Scratch table must NOT be empty (count(*) > 0) — a sheet that loaded nothing must
+ * never "successfully" promote 0 rows (CR-04 / VERIFICATION gap 3). Target must EXIST
+ * (to_regclass) AND be EMPTY (count(*) = 0) before anything runs — `insert into target
+ * (cols) select cols from scratch` happens inside one transaction. Never creates or
+ * alters the target table (real tables come from migrations in Phases 84+).
+ * Preconditions are checked OUTSIDE the transaction so a precondition failure never
+ * triggers a ROLLBACK-without-BEGIN and never touches the target.
  */
 function promote(client, opts) {
   opts = opts || {};
@@ -399,7 +417,13 @@ function promote(client, opts) {
     .join(', ');
 
   return client
-    .query('select to_regclass($1) as reg', [targetSchema + '.' + spec.table])
+    .query('select count(*)::int as count from ' + sourceQualified)
+    .then(function (sourceCountResult) {
+      if (sourceCountResult.rows[0].count === 0) {
+        throw new Error('scratch table ' + schema + '.' + spec.table + ' is empty — nothing to promote');
+      }
+      return client.query('select to_regclass($1) as reg', [targetSchema + '.' + spec.table]);
+    })
     .then(function (r) {
       if (!r.rows[0].reg) {
         throw new Error('target table ' + targetSchema + '.' + spec.table + ' does not exist');
