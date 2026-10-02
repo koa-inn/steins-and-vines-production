@@ -1,240 +1,231 @@
 ---
 phase: 83-postgres-infrastructure
-reviewed: 2026-10-02T19:47:27Z
-depth: standard
-review_type: re-review (gap closure 83-10 / 83-11 / 83-12, diff 8c90a03a..HEAD)
-files_reviewed: 7
+reviewed: 2026-10-02T21:35:00Z
+depth: deep
+review_type: re-review (gap closure 83-13 / 83-14, diff a791be59..HEAD)
+files_reviewed: 6
 files_reviewed_list:
-  - zoho-middleware/scripts/migration-guard.js
+  - zoho-middleware/scripts/migration-allowlist.js
+  - zoho-middleware/package.json
+  - railway.toml
   - zoho-middleware/migrations-manual/README.md
-  - zoho-middleware/scripts/backfill/normalize.js
-  - zoho-middleware/scripts/backfill/read-xlsx.js
-  - zoho-middleware/scripts/backfill/backfill.js
-  - zoho-middleware/scripts/backfill/load.js
-  - zoho-middleware/scripts/backfill/README.md
+  - zoho-middleware/__tests__/migration-allowlist-wiring.test.js
+  - zoho-middleware/__tests__/db/migration-allowlist-apply.test.js
 findings:
-  critical: 4
-  warning: 3
-  info: 5
-  total: 12
+  critical: 0
+  warning: 1
+  info: 3
+  total: 4
 carried_forward_open: 16
 status: issues_found
 ---
 
-# Phase 83: Code Review Report (re-review after gap closure)
+# Phase 83: Code Review Report (re-review after gap closure 83-13 / 83-14)
 
-**Reviewed:** 2026-10-02T19:47:27Z
-**Depth:** standard
-**Files Reviewed:** 7
+**Reviewed:** 2026-10-02T21:35:00Z
+**Depth:** deep
+**Files Reviewed:** 6
 **Status:** issues_found
 
 ## Narrative Findings (AI reviewer)
 
 ## Summary
 
-This review covers the gap-closure changes from plans 83-10 (migration guard), 83-11 (normaliser and xlsx reader) and 83-12 (header check, `read_vs_accepted`, promoting from an empty scratch table). For each prior finding I re-ran its exact inputs. I then attacked the new guard tokenizer directly.
+This review re-examines the migration safety chain after 83-13 (the new
+`scripts/migration-allowlist.js`, a fail-closed allowlist over libpg-query's
+real PG16 AST) and 83-14 (wiring it into `npm run migrate` after the old
+regex guard, plus the real-Postgres apply test). The prior review had found
+four Critical tokenizer bypasses (CR-01..CR-04) and two Warnings (WR-01 scs
+desync, WR-02 destructive-DDL gap) in the old hand-written guard. The owner's
+answer was not to patch the tokenizer but to **add a second, authoritative,
+parser-backed allowlist** and keep the old regex guard as a first pass.
 
-Every "bypass" marked as verified below was run against a real `postgres:16-alpine` container. Each payload was sent as a single simple-protocol query, which is how node-pg-migrate's `pgm.sql(upSql)` sends it. In every case `findDestructiveStatements()` returned `[]`. I also checked node-pg-migrate 9.0.0 itself (`dist/legacy/sqlMigration.js`, `migration.js`, `migrationLoader.js`). The markers and slicing really are byte-identical. The default loader strategy really is `.sql` → legacySql and `.js/.ts/.cjs/.mjs/.cts/.mts` → jiti. Each Up section is sent as one query string.
+I attacked the new allowlist hard, trying to find a single file that passes
+**both** `migration-guard.js` and `migration-allowlist.js` yet destroys or
+rewrites existing data or alters an existing column's type. I ran candidates
+through both guards' module APIs and the full 118-case fixture corpus (0
+mismatches), ran the allowlist unit + wiring suites (158 tests pass), and
+stood up a real `postgres:16-alpine` container to verify the one parser
+differential I found (NUL truncation) end-to-end through node-postgres /
+node-pg-migrate. The container was stopped and removed after the probe.
 
-**What 83-10/11/12 fixed:** all 12 bypass rows in the old CR-01 table are now rejected; IN-01 is accepted; non-SQL files fail closed; error, Date and boolean cells are now rejected; and missing headers or a run that accepts zero rows can no longer report PASS or promote.
+**Result: I could not find a data-destroying bypass.** The allowlist is
+genuinely fail-closed. Every attack class the prior review and
+83-GUARD-RESEARCH.md identified now rejects, because the allowlist judges the
+**statement/node/function type from the real AST** rather than scanning text:
 
-**What is still wrong:** the migration guard can still be bypassed. I found four independent ways to do it that run without any guard violation and destroy data. All four are verified on real Postgres:
-1. The tokenizer does not treat `$` as an identifier character, so it opens a fake dollar quote or a fake `E''` string.
-2. Function and procedure bodies written as single-quoted strings are never scanned.
-3. The 83-10 deviation: when the tokenizer hits an error inside a body, it swallows the error and drops the rest of the body.
-4. Writing the column as `U&"…"` slips past `alter-type`.
+- Fake dollar-quote / fake `E''` (CR-01): the payloads parse as real
+  statements; the hidden `DROP`/etc. is a `DropStmt`/`SelectStmt` →
+  `statement-not-allowed`. The `E''`/backslash variant also hits the
+  backslash pre-parse gate.
+- Function/procedure bodies as string literals (CR-02) and swallowed body
+  tokenizer errors (CR-03): `CreateFunctionStmt`/`CreateFunctionStmt` +
+  `CallStmt` are rejected wholesale (owner decision 2). There is no body
+  scanning to desync.
+- `U&"balance" TYPE integer` and non-ASCII column names (CR-04): the AST
+  subcommand is `AT_AlterColumnType`, which is not in `ALTER_CMDS`, regardless
+  of how the identifier is spelled → `alter-not-allowed`.
+- `standard_conforming_strings` / backslash lexing (WR-01): any backslash in
+  the Up section is rejected pre-parse, and `VariableSetStmt` /
+  `AlterDatabaseSetStmt` are `statement-not-allowed`.
+- Destructive-but-not-DML DDL (WR-02): `DETACH PARTITION`, `SET SCHEMA`,
+  `CREATE OR REPLACE FUNCTION/VIEW`, `CREATE RULE`, `DISABLE/ENABLE TRIGGER`,
+  RLS, `CREATE POLICY`, `dblink_exec(...)`, `CALL` all reject.
 
-## Status of prior findings
+Additive-but-tricky inputs I tried that (correctly) stay accepted and are not
+destructive: `CREATE TABLE … (LIKE …)`, `… PARTITION OF`, `… INHERITS`,
+`ADD CONSTRAINT … USING INDEX`, `SET NOT NULL`, `ADD COLUMN … DEFAULT now()`
+and `ADD COLUMN serial`. Clever evasions that reject: `INSERT … SELECT`,
+`INSERT … VALUES ((SELECT …))`, CTE-wrapped INSERT, `ON CONFLICT DO UPDATE`,
+`ALTER TYPE … RENAME VALUE`, a disallowed function nested inside an allowed
+one (`lower(wipe())`), and a schema-qualified allowlisted name (`public.now()`).
+
+**What is still worth fixing:** one robustness Warning (a NUL byte silently
+truncates the allowlist's parse, so its own fail-closed guarantee has a hole —
+non-exploitable today only because node-postgres refuses NUL queries), plus
+three Info items (lint scope, an operator/cast defense-in-depth asymmetry, and
+a conservative `DEFAULT VALUES` false-reject). The prior guard criticals and
+warnings are **RESOLVED**. All non-guard findings from the prior review
+(backfill client release, numeric→text IDs, etc.) are carried forward
+unchanged — those files are outside this diff.
+
+## Status of prior findings (both guards taken together)
 
 | Prior ID | Status | Evidence |
 |---|---|---|
-| **CR-01** (guard bypasses) | **RESOLVED as scoped. Superseded by new CR-01..CR-04.** | I re-ran all 12 rows of the prior table. Each one now returns its expected rule (`alter-type`, `update`, `delete`, `do-block`+`delete`, `do-block`+`execute`, `merge`, `upsert`, `sequence-reset`, `drop` ×3). The markers match node-pg-migrate's `createMigrationCommentRegex` and the `getActions` slicing exactly. However, the guard's goal (nothing destructive runs on deploy) is still **not met**: see the new Critical issues. |
-| **CR-02** (non-`.sql` files) | **RESOLVED** | `findUnguardedFiles()` flags every non-dotfile, non-`.sql` entry, and the CLI combines it with `checkMigrationsDir`. This matches node-pg-migrate's `^\..*` ignore pattern and its case-insensitive extension check. There are small edge cases with directories; see IN-02. |
-| **CR-03** (normaliser coercion) | **RESOLVED** | `normalizeText` rejects cell errors, Dates, booleans, other objects and non-finite numbers. `cellToPrimitive` handles `sharedFormula`, calls itself on `hyperlink.text`, and returns `{cellError}` instead of `null` for unknown shapes and for formulas with no cached value. Header cells that are not text now raise an error. One related gap remains: numbers in text columns are still converted to text silently (WR-03). |
-| **CR-04** (empty/partial data passes) | **RESOLVED** | `checkHeaders` runs before normalising and exits with `EXIT.ERROR` on any missing spec header, before `pool.connect()`, so no client is leaked. `read_vs_accepted` fails when `read > 0 && accepted === 0`. `promote()` refuses an empty scratch table, and its rejection path releases the client. |
-| **IN-01** (`ADD COLUMN type` false positive) | **RESOLVED** | `ALTER TABLE t ADD COLUMN type text;` now returns `[]`. A new, smaller false positive was introduced: a table named `type` (IN-01 below). |
+| **CR-01** (`$`/`E''` tokenizer desync hides a top-level DROP) | **RESOLVED** | Fixture `CR-01a` (`a$$t$` fake dollar quote) and `CR-01b` (`a$e'…'` fake E-string) both reject under the allowlist. The real AST exposes the hidden `drop table gift_cards` as a `DropStmt` → `statement-not-allowed`; `CR-01b` additionally trips the backslash gate. Verified via the corpus run (0 mismatches). |
+| **CR-02** (fn/proc body as `'…'` string, then `SELECT`/`CALL`) | **RESOLVED** | `CreateFunctionStmt` and `CallStmt` are not in `STMTS` → rejected outright (owner decision 2). Fixtures `CR-02a`/`CR-02b` reject. There is no body-string scan left to bypass. |
+| **CR-03** (swallowed tokenizer error drops the rest of a body) | **RESOLVED / moot** | The allowlist never tokenizes bodies; `CREATE FUNCTION` is rejected whole. Fixture `CR-03` rejects. |
+| **CR-04** (`U&"balance" TYPE integer` / non-ASCII column slips past `alter-type`) | **RESOLVED** | Column-type change is `AT_AlterColumnType` in the AST, absent from `ALTER_CMDS` → `alter-not-allowed`, independent of identifier spelling. Fixture `CR-04` and the `café` case reject. |
+| **WR-01** (changing `standard_conforming_strings` desyncs string lexing) | **RESOLVED** | Backslash pre-parse gate (owner decision 3) rejects any `\` in the Up section; `SET …` (`VariableSetStmt`) and `ALTER DATABASE … SET` (`AlterDatabaseSetStmt`) are `statement-not-allowed`. Fixtures `WR-01-scs-set`, `WR-01-backslash`, `ALTER DATABASE … SET scs off` all reject. |
+| **WR-02** (destructive/redefining DDL that is not DML) | **RESOLVED** | Every item the prior review listed rejects: `DETACH PARTITION`/`DISABLE TRIGGER`/RLS → `alter-not-allowed`; `SET SCHEMA`/`CREATE OR REPLACE FUNCTION`/`VIEW`/`RULE`/`POLICY`/`CALL`/`dblink_exec` (a `SelectStmt`) → `statement-not-allowed`. All present in the fixture corpus and rejecting. |
 
-**Carried forward, re-checked in files in scope and still open (not fixed by 83-10/11/12):**
-- **WR-01**: the `Promise.all` calls over one client are still there: `load.js:378-382` (`runChecks`) and `load.js:474-481` (`dbStatus`).
-- **WR-02**: `backfill.js:407-411` still never releases the client when `promptTypeDatabaseName`, `loadScratch` or `runChecks` fails. The comment there talks about guarding against a double release, but no release happens at all, so `pool.end()` hangs. There is still no detection of duplicate primary keys.
-- **WR-03**: `backfill.js:91-96` still puts the raw connection string, including its password, into the error message.
-- **WR-09**: the empty-target check in `promote()` still runs outside the transaction (`load.js:427-437`).
-- **IN-03**: `--promote=false` still turns promote on (`backfill.js:107-110`).
-- **IN-08**: `to_regclass` is still given an unquoted, concatenated name (`load.js:425`).
+Prior Info items on the **old guard** (IN-01 `alter-type` false-positive on a
+table named `type`; IN-02 directories / `x.sql` dirent handling) are not
+re-adjudicated: the old guard is unchanged by owner decision 1 / CLAUDE.md
+rule 10. The **allowlist** does not reproduce either bug — it keys off the AST
+subcommand (no `type`-name confusion) and uses `withFileTypes` dirents
+(directories, including one named `x.sql`, are ignored, matching
+node-pg-migrate).
 
-**Carried forward, not re-reviewed (files outside this scope):** WR-04, WR-05, WR-06, WR-07, WR-08 and IN-02, IN-04, IN-05, IN-06, IN-07 (in `lib/db.js`, `server.js`, `lib/dual-write-compare.js`, `lib/sheet-mirror.js`, `rejects.js`, `normalize.js` timestamp handling and the `load.js` collation compare).
+## Carried forward, NOT re-reviewed (outside this diff; still open)
 
-**WR-10** (test gaps) is partly closed. Tests now exist for CR-01..CR-04. There is still no test for WR-02 (a CLI error path followed by `pool.end()`), and none for the new bypasses below.
+Unchanged from the prior review — these live in files not touched by 83-13/14
+(`scripts/backfill/*.js`, `scripts/backfill/load.js`, `lib/db.js`, `server.js`,
+`lib/dual-write-compare.js`, `lib/sheet-mirror.js`, `rejects.js`):
 
-## Critical Issues
-
-### CR-01: Tokenizer desync — `$` is a Postgres identifier character, so a fake dollar quote or fake `E''` string hides a top-level `DROP TABLE`
-
-**File:** `zoho-middleware/scripts/migration-guard.js:76-78` (`isIdentChar`), `:139` (E-string check), `:223-224` (dollar-quote check)
-**Issue:** In Postgres, identifiers continue with `[A-Za-z0-9_$\200-\377]` (`scan.l` `ident_cont`), so `a$$t$` and `a$e` are each a single identifier. `isIdentChar` leaves out `$` and non-ASCII letters. As a result, a `$` that follows a `$` (or a non-ASCII letter) is treated as the start of a new token, which Postgres never does. I found two single-file exploits. In both, the guard returns `[]` and Postgres drops the table:
-
-```sql
--- Up Migration
-select 1 as a$$t$;          -- PG: identifier a$$t$.  Guard: opens dollar quote $t$
-select 1 as b$$$;           -- PG: identifier b$$$.   Guard (inside "body"): opens $$, never closed -> error swallowed (CR-03)
-drop table gift_cards;      -- PG: EXECUTES.          Guard: discarded with the rest of the "body"
--- $t$
-```
-
-```sql
--- Up Migration
-CREATE DOMAIN a$e AS text;
-select a$e'\';drop table gift_cards;--';   -- PG: type a$e + plain string '\'; DROP EXECUTES.
-                                           -- Guard: prev char '$' is not an ident char -> reads e'...' as an E-string, \' escapes, DROP is "inside the literal"
-```
-
-The second exploit does not depend on CR-03 at all.
-
-**Fix:** Tokenize identifiers as whole units, the way Postgres's lexer does. When `ch` is an identifier-start character, consume the whole identifier before checking for `E'`, `U&'`, `$tag$` or anything else:
-
-```js
-var IDENT_START_RE = /[A-Za-z_\u0080-\uFFFF]/;
-var IDENT_CONT_RE  = /[A-Za-z0-9_$\u0080-\uFFFF]/;
-// at top of loop, before the E'' branch:
-if (IDENT_START_RE.test(ch) && !((ch === 'E' || ch === 'e') && next === "'") &&
-    !((ch === 'U' || ch === 'u') && next === '&')) {
-  var k = i + 1;
-  while (k < n && IDENT_CONT_RE.test(sql[k])) k++;
-  // E'..' is only an escape string when the identifier is exactly "E"
-  cleaned += sql.slice(i, k); i = k; continue;
-}
-```
-
-With this change, `isIdentChar(prev)` is no longer needed for the E-string and dollar-quote branches. Add both payloads above as regression cases in `__tests__/migration-guard-hardening.test.js`.
-
-### CR-02: Function and procedure bodies written as single-quoted strings are never scanned — `CREATE FUNCTION … AS 'DELETE …'; SELECT f();` passes
-
-**File:** `zoho-middleware/scripts/migration-guard.js:168-192` (plain string), `:138-166` (E-string), `:376-378` (only dollar bodies are recursed)
-**Issue:** Only `$tag$` bodies go into `bodies[]` for the recursive scan. Postgres also accepts a function or procedure body as an ordinary `'…'` or `E'…'` literal. The tokenizer replaces those literals with `''`, so their contents are never checked. Both of these were verified on real Postgres (guard returns `[]`, data destroyed):
-
-```sql
--- Up Migration
-CREATE FUNCTION wipe() RETURNS void LANGUAGE sql AS 'DELETE FROM gift_cards';
-SELECT wipe();                              -- gift_cards: 1 row -> 0 rows
-```
-```sql
--- Up Migration
-CREATE PROCEDURE p() LANGUAGE sql AS 'TRUNCATE gift_cards';
-CALL p();                                   -- gift_cards emptied
-```
-
-The comment in the header says recursion "catches a destructive statement hidden inside a `LANGUAGE sql` function body". That is only true for dollar-quoted bodies.
-**Fix:** In any statement matching `/\bcreate\s+(?:or\s+replace\s+)?(?:function|procedure)\b/i`, push the decoded payload of every string literal into `bodies` as well as every dollar body. To do this, have the string and E-string branches record their raw payload alongside `cleaned`. Undo `''` doubling, and for E-strings undo `\'` and `\\`. Then check the payloads once the statement boundary is known. Alternatively, as a simpler policy that fails closed, reject `CREATE [OR REPLACE] FUNCTION|PROCEDURE` whose body is not dollar-quoted, and reject `CALL` outright.
-
-### CR-03: 83-10 deviation — swallowing tokenizer errors inside a body means the rest of the body is never scanned
-
-**File:** `zoho-middleware/scripts/migration-guard.js:58-66` (header rationale), `:333-347` (`scanBody`)
-**Issue:** The deviation is justified on the grounds that "the outer scan already knows exactly where that body starts and ends". Knowing the body's **bounds** is not the problem. When `tokenize(body)` hits an unterminated construct, it sets `i = n` and **throws away everything after that point in the body**. Any statement after the error inside a code body is therefore never matched against `RULES`. The guard cannot tell a string-literal body (`$$it's$$`) from a code body (a function or DO body), so swallowing the error turns every tokenizer/Postgres disagreement inside a code body into a silent pass. A safe design would fail closed in that case.
-
-Verified on real Postgres (guard returns `[]`, rows deleted):
-```sql
--- Up Migration
-CREATE FUNCTION wipe() RETURNS void LANGUAGE sql AS $f$ select 1 as b$$$; delete from gift_cards; $f$;
-SELECT wipe();
-```
-This exploit, and the first payload in CR-01, both depend on this behaviour. Fixing CR-01 removes today's trigger, but the next tokenizer gap would become silent again. The `$$'$$` test case the deviation was built to satisfy can be met without swallowing errors.
-**Fix:** When a body fails to tokenize, fall back to a conservative scan of the body's raw text instead of dropping it:
-```js
-function scanBody(body) {
-  var tokenized = tokenize(body);
-  var violations = [];
-  if (tokenized.errors.length) {
-    // Cannot parse the body reliably: rule-match the RAW text (literals not stripped).
-    var raw = body.replace(/\s+/g, ' ');
-    var rule = matchRule(raw);
-    if (rule) violations.push({ statement: '(unparseable body) ' + raw.slice(0, 200), rule: rule });
-    return violations;
-  }
-  /* existing statement + nested-body scan */
-}
-```
-`$$'$$` and `$$it's$$` still produce no violation, because the raw text contains no destructive keyword. `b$$$; delete from gift_cards;` is flagged as `delete`.
-
-### CR-04: `alter-type` misses a Unicode-escaped column identifier — `ALTER COLUMN U&"balance" TYPE integer` silently truncates money
-
-**File:** `zoho-middleware/scripts/migration-guard.js:267`
-**Issue:** `ALTER_TYPE_CLAUSE_RE` only accepts `"q"` or `[A-Za-z_]\w*` as the column token. The tokenizer turns `U&"balance"` into `U&"q"`, and that matches neither pattern. Verified on Postgres: `ALTER TABLE gift_cards ALTER COLUMN U&"balance" TYPE integer;` passes the guard and changes `balance` from `numeric` to `integer`, rounding away every cent. That is exactly the data loss D-04 exists to stop. Non-ASCII column names (`café`) slip through the same way.
-**Fix:** Remove the `ALTER TABLE [IF EXISTS] [ONLY] <name> [*]` prefix first, then match any single non-space token as the column. This also fixes IN-01 below:
-```js
-function hasAlterType(stmt) {
-  var m = /^\s*alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?\S+\s*\*?\s*([\s\S]*)$/i.exec(stmt);
-  if (!m) return false;
-  return /(?:^|,)\s*alter\s+(?:column\s+)?\S+\s+(?:set\s+data\s+)?type\b/i.test(m[1]);
-}
-```
-Alternatively, have the tokenizer replace `U&"…"` (and its optional `UESCAPE '…'`) with `"q"`.
+- **WR-01 (backfill):** `Promise.all` over one shared client — `load.js:378-382`
+  (`runChecks`), `load.js:474-481` (`dbStatus`).
+- **WR-02 (backfill):** `backfill.js:407-411` never releases the client when
+  `promptTypeDatabaseName` / `loadScratch` / `runChecks` fails, so `pool.end()`
+  hangs; no duplicate-primary-key detection.
+- **WR-03 (backfill):** `backfill.js:91-96` puts the raw connection string
+  (including password) into the error message.
+- **WR-03 (normaliser, numeric→text IDs):** `normalize.js:277-280` still coerces
+  finite numbers to `String(raw)`, so zero-padded text IDs (`007`) lose padding
+  (Trap 3, D-12). Any new text-column backfill remains exposed.
+- **WR-09 (backfill):** empty-target check in `promote()` runs outside the
+  transaction (`load.js:427-437`).
+- **IN-03 (backfill):** `--promote=false` still enables promote (`backfill.js:107-110`).
+- **IN-08 (backfill):** `to_regclass` given an unquoted, concatenated name
+  (`load.js:425`).
+- Plus the remaining prior carried-forward set (WR-04..WR-08, IN-02, IN-04..IN-07)
+  in `lib/*`, `server.js`, `rejects.js`, and the `load.js` collation compare.
 
 ## Warnings
 
-### WR-01: Changing the lexer setting `standard_conforming_strings` in one migration desyncs the guard for later migrations
+### WR-01: A NUL byte silently truncates the allowlist's parse — its own fail-closed guarantee has a hole (non-exploitable today, but only by luck)
 
-**File:** `zoho-middleware/scripts/migration-guard.js:168-192`
-**Issue:** The tokenizer assumes `standard_conforming_strings = on`, so a backslash inside a plain `'…'` string is an ordinary character. node-pg-migrate runs every migration in a single `up` on **one** client (`runner.js`), and a session-level `SET` made inside a migration's transaction stays in force after `COMMIT`. `ALTER DATABASE … SET` / `ALTER ROLE … SET` make the change permanent. Verified on Postgres. Each of these files passes the guard on its own:
-```sql
--- 0002: Up Migration
-SET standard_conforming_strings = off;
--- 0003: Up Migration
-select '\'';
-drop table gift_cards;        -- executed (with scs=off, '\'' is a closed one-char string)
--- '
+**File:** `zoho-middleware/scripts/migration-allowlist.js:297-320` (pre-parse gate + `pg.parseSync`)
+**Issue:** `libpg-query` compiles the libpg_query C parser to WASM, and the C
+parser treats the input as a NUL-terminated string. Everything after the
+**first `\0`** in the Up section is never parsed. The allowlist's only
+pre-parse gate is the backslash check; it does not reject NUL. So a file like:
+
 ```
-The two must be separate files, because a SET inside the same query string does not affect how that string is lexed. This needs two files (or one existing DB/role setting), so it is a Warning rather than a Blocker. `ALTER DATABASE … SET standard_conforming_strings = off` would also change string handling for the live app, and the guard does not flag it.
-**Fix:** Add a rule rejecting `/\b(standard_conforming_strings|backslash_quote|escape_string_warning)\b/i`, and reject `ALTER (DATABASE|ROLE|USER|SYSTEM) … SET|RESET` outright. A more defensive option: treat `\'` inside a plain string as ambiguous and fail closed.
+-- Up Migration
+CREATE TABLE ok (a int);<NUL>CREATE OR REPLACE FUNCTION existing_trigger_fn() RETURNS trigger LANGUAGE plpgsql AS '...';
+```
 
-### WR-02: The rules still miss destructive or redefining DDL that is not DML
+parses as a single `CreateStmt` and the allowlist returns `[]` (accept) — the
+`CREATE OR REPLACE FUNCTION` after the NUL is invisible to it. I confirmed the
+truncation directly: `pg.parseSync('CREATE TABLE ok (a int);\0DROP TABLE gift_cards;')`
+returns only `CreateStmt`, and `checkSql()` on the NUL file returns `[]`.
 
-**File:** `zoho-middleware/scripts/migration-guard.js:270-300`; `zoho-middleware/migrations-manual/README.md:28`
-**Issue:** Each of these passes the guard (I probed every one). Each one makes existing data unreachable, or silently changes behaviour for existing rows or future writes:
-- `ALTER TABLE gift_cards DETACH PARTITION gc_2026;` — the rows disappear from the parent table.
-- `ALTER TABLE gift_cards SET SCHEMA archive;` — the table disappears from the app's `search_path`. This is a rename in all but name.
-- `CREATE OR REPLACE FUNCTION existing_trigger_fn() … RETURN NULL …` — redefines an existing trigger, so every future insert is silently dropped. The same applies to `CREATE OR REPLACE VIEW|RULE|TRIGGER`.
-- `CREATE RULE r AS ON INSERT TO gift_cards DO INSTEAD NOTHING;` — silently discards every future write.
-- `ALTER TABLE … DISABLE TRIGGER …`, `CREATE POLICY … ; ALTER TABLE … ENABLE ROW LEVEL SECURITY` — existing rows become invisible to the app role.
-- `SELECT dblink_exec('…', 'delete from gift_cards')` and `CALL some_existing_proc()` — dynamic SQL hidden inside string arguments.
+This directly contradicts the module's own stated contract ("Fail-closed by
+construction", "A parse error is a violation") and the README's "A parse error
+rejects the whole file" — a NUL is not a parse error, it is a silent cut.
 
-The README (line 28) says a destructive change "is rejected before `node-pg-migrate` ever touches the database". That overstates what the guard does.
-**Fix:** Add rules for `\bdetach\s+partition\b`, `\bset\s+schema\b`, `\bor\s+replace\b`, `\bcreate\s+rule\b`, `\b(disable|enable)\s+(trigger|rule|row\s+level\s+security)\b`, `\bcall\b`, and `\bdblink(_exec)?\s*\(`. Each of these sends the change to `migrations-manual/`. Reword README line 28 to describe the guard as a safety net with a list of known limits, not a guarantee.
-
-### WR-03: `normalizeText` still converts numbers silently, so zero-padded IDs lose their padding (Trap 3)
-
-**File:** `zoho-middleware/scripts/backfill/normalize.js:277-280`
-**Issue:** Any finite number is accepted as `String(raw)`. VesselHistory's `vessel_id`, `shelf_id` and `bin_id` are `type: 'text'` columns. If an ID such as `007` or `01` was typed into a Sheets cell with automatic formatting, it is stored as the number `7` or `1` and loaded as `"7"`. That is exactly Trap 3, the leading-zero loss which D-12 says must be rejected, not converted. A formula result such as `0.1+0.2` becomes `"0.30000000000000004"`, and large values become `"1e+21"`. (The prior review's suggested fix allowed numbers. That was too loose for ID-like text columns.)
-**Fix:** Let each spec column choose (`acceptNumber: true` only for columns where a number is legitimate). By default, reject numbers in `text` columns with `'expected text, got number'`. At minimum, reject non-integers and anything whose `String()` contains `e`.
+I verified on a real `postgres:16-alpine` container that this does **not**
+cause data loss **through the current pipeline**: replicating node-pg-migrate's
+`getActions` → `pgm.sql` and running the resulting Up string through
+node-postgres, the driver rejects the query with `invalid message format`
+(the PG wire protocol's Query message is itself NUL-terminated), so the whole
+migration errors and the deploy aborts; `gift_cards` and its row survived.
+The old regex guard also scans the full JS string (past the NUL) and would
+flag a `DROP`/`DELETE`/etc. So today the NUL case is contained by two
+incidental backstops — **neither of which is the allowlist's own doing**, and
+the allowlist is explicitly the *authoritative* guard (README). A future
+driver swap, a `psql \i`/`COPY`-based runner, or a post-NUL payload the old
+regex guard does not recognise (exactly the class the allowlist exists to
+catch) would turn this into a real bypass.
+**Fix:** Mirror the backslash gate — reject NUL (and ideally validate the
+bytes are UTF-8) before parsing:
+```js
+if (upSection.indexOf('\0') >= 0) {
+  return [{ statement: 'a NUL byte was found in the Up section — the parser '
+    + 'truncates at NUL, so anything after it would be unscanned', rule: 'nul-byte' }];
+}
+```
+Add a reject fixture (`CREATE TABLE ok (a int);\0DROP TABLE gift_cards;`) to
+`__tests__/fixtures/migration-allowlist-cases.js`.
 
 ## Info
 
-### IN-01: `alter-type` wrongly flags a table named `type`
-**File:** `zoho-middleware/scripts/migration-guard.js:267`
-**Issue:** `ALTER TABLE type ADD COLUMN x int;` is reported as `alter-type`. The regex treats `table` as the column and the table name `type` as the TYPE keyword. This blocks a legitimate additive migration.
-**Fix:** The CR-04 fix (removing the `ALTER TABLE <name>` prefix first) fixes this as well.
+### IN-01: `npm run lint` does not cover `scripts/`, so neither migration guard is linted
+**File:** `zoho-middleware/package.json:11`
+**Issue:** `"lint": "eslint routes/ lib/ server.js --max-warnings 0"`. The new
+`scripts/migration-allowlist.js` (and `scripts/migration-guard.js`) live under
+`scripts/`, which is not in the lint target list, so the pre-commit lint gate
+(CLAUDE.md "Run `npm run lint` before committing") never checks the very code
+that gates every production deploy. A lint error or an unused var here ships
+unflagged.
+**Fix:** Add `scripts/` to the lint target: `eslint routes/ lib/ scripts/ server.js --max-warnings 0` (and confirm the existing scripts pass, or scope to `scripts/migration-*.js` if the other scripts are intentionally excluded).
 
-### IN-02: `findUnguardedFiles` flags directories, which node-pg-migrate ignores, and a directory ending in `.sql` crashes the guard
-**File:** `zoho-middleware/scripts/migration-guard.js:388-397, 420-434`
-**Issue:** node-pg-migrate only loads `dirent.isFile() || dirent.isSymbolicLink()`. The guard flags any directory, such as `migrations/archive/`, as `non-sql-file`. That is a harmless false positive. A directory named `x.sql` makes `readFileSync` throw `EISDIR`, which the CLI does not catch, so it prints a stack trace and exits 1. That still fails closed, but the output is confusing.
-**Fix:** Use `readdirSync(dir, { withFileTypes: true })`, and filter both functions to `isFile() || isSymbolicLink()`, as node-pg-migrate does.
+### IN-02: `A_Expr` operators and `TypeCast` cast functions are not name-checked the way `FuncCall` is (defense-in-depth asymmetry; not exploitable in the current threat model)
+**File:** `zoho-middleware/scripts/migration-allowlist.js:128-144, 194-203`
+**Issue:** The walk checks `FuncCall` names against `FUNCS`, but `A_Expr`
+(operators, e.g. `'a' OPERATOR(pg_catalog.||) 'b'`) and `TypeCast` (which can
+invoke a cast function) are allowed node types whose underlying
+function/operator name is never checked. Likewise, unqualified `FuncCall`
+names are matched by last-name-part only, so an unqualified `lower(...)` is
+accepted regardless of which `lower` overload `search_path` resolves to. This
+is **not** a reachable bypass: installing a destructive operator
+(`CREATE OPERATOR`/`DefineStmt`), cast (`CreateCastStmt`), or shadowing
+function (`CreateFunctionStmt`) all require statements the allowlist rejects,
+so the malicious callable can only pre-exist via the manual
+`migrations-manual/` path or direct DB access — the same accepted residual as
+owner decision 2's "a pre-existing trigger fired by an allowed INSERT". Worth
+recording so a future allowlist widening (e.g. admitting more node types)
+doesn't quietly open it.
+**Fix:** None required now; if `A_Expr`/`TypeCast` coverage is ever tightened,
+name-check the operator (`A_Expr.name`) and cast target the same way `FuncCall`
+is checked. Otherwise, note the residual next to owner decision 2 in the module
+header / README "Known limits".
 
-### IN-03: The header sets are plain objects, so `Object.prototype` names give wrong results
-**File:** `zoho-middleware/scripts/backfill/backfill.js:150-166`; `zoho-middleware/scripts/backfill/read-xlsx.js:93-104` (unchanged in this diff, same pattern)
-**Issue:** `sheetSet['constructor']` and `specSet['toString']` are truthy through the prototype. A spec header named `constructor` would never be reported missing, a sheet header named `toString` would never be reported unmapped, and `readSheet` would wrongly reject a `constructor` header as a duplicate. No current spec uses such names.
-**Fix:** Use `Object.create(null)` or a `Set`.
-
-### IN-04: `read_vs_accepted` only catches 100% loss
-**File:** `zoho-middleware/scripts/backfill/load.js:358-365`
-**Issue:** With 1 row accepted out of 1000 read, checks PASS. `--accept-rejects` then promotes the single row. This is by design (rejects are gated by a flag), but the operator only sees counts at step 3, and nothing says "99.9% rejected".
-**Fix:** Optionally print the reject percentage, and require `--accept-rejects` to be confirmed again when more than N% of rows were rejected.
-
-### IN-05: The migrations-manual README's closing summary contradicts its own rule list
-**File:** `zoho-middleware/migrations-manual/README.md:30-32`
-**Issue:** The closing summary says that "DO blocks, dynamic `EXECUTE`, and sequence resets" are rejected outright. It leaves out MERGE and upsert, which the guard's code comment (`migration-guard.js:252-259`) and the rule list above it both treat the same way.
-**Fix:** Add MERGE and upsert to that sentence.
+### IN-03: `INSERT … DEFAULT VALUES` is rejected as `insert-shape` (conservative false-reject)
+**File:** `zoho-middleware/scripts/migration-allowlist.js:99-100`
+**Issue:** `InsertStmt` requires `body.selectStmt.SelectStmt.valuesLists`;
+`INSERT INTO app_meta DEFAULT VALUES` has no `selectStmt`, so it rejects with
+`insert-shape` even though it is purely additive (inserts one all-defaults
+row). This is a safe, fail-closed direction, not a bug — but it will route a
+legitimate additive seed to `migrations-manual/` with a confusing rule name.
+**Fix:** Optional. If `DEFAULT VALUES` seeds are wanted, allow the case where
+`body.selectStmt` is absent entirely (no `onConflictClause` issue), or document
+it as a deliberate non-support in the README's accept list.
 
 ---
 
-_Reviewed: 2026-10-02T19:47:27Z_
+_Reviewed: 2026-10-02T21:35:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
-_Depth: standard_
+_Depth: deep_
