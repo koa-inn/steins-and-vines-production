@@ -89,12 +89,19 @@ function callAppsScript(action, fields) {
   var token = process.env.APPS_SCRIPT_SERVER_TOKEN;
   var body = Object.assign({ action: action, server_token: token }, fields);
 
-  return axios.post(url, JSON.stringify(body), {
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 12000,
-    maxRedirects: 5
-  }).then(function (resp) {
-    return resp.data || {};
+  // D-12 (45-07) parity: wrap in Promise.resolve() so a falsy/non-thenable
+  // return from axios.post (e.g. an un-mocked jest.fn() in a caller's test)
+  // rejects/resolves through the promise chain instead of throwing
+  // synchronously — matches the defensive pattern the pre-84-05 pos.js
+  // gift-card lookups relied on.
+  return Promise.resolve(
+    axios.post(url, JSON.stringify(body), {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 12000,
+      maxRedirects: 5
+    })
+  ).then(function (resp) {
+    return (resp && resp.data) || {};
   });
 }
 
