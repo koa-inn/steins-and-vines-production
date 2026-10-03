@@ -2011,17 +2011,34 @@ Plans:
 **Plans:** 12 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 84-01-PLAN.md — Migration 0002 (gift_cards, gift_card_transactions tx_ref UNIQUE) + atomic lib/gift-card-pg.js, proven on real Postgres
 - [ ] 84-02-PLAN.md — Apps Script: ensureGiftCardLedgerSheet empty-tab fix (regression first) + mirror_gift_card_state copy-state action
 - [ ] 84-03-PLAN.md — Kiosk Gift Card Management adjust view (signed delta, reason pick-list, actor name, idempotent key) + build
+- [ ] 84-06-PLAN.md — D-11 durable pending record + replay sweep; D-10 /health database_required + deploy smoke gate
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 84-04-PLAN.md — GiftCards backfill: spec + two-table orchestration CLI (opening_balance, imported history, TEST-* exclusion, seq seed)
 - [ ] 84-05-PLAN.md — lib/gift-card-store.js facade: sheets/dual/postgres dispatch, composite tx_ref, dual compare, copy-state mirror, D-11 hook
-- [ ] 84-06-PLAN.md — D-11 durable pending record + replay sweep; D-10 /health database_required + deploy smoke gate
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 84-07-PLAN.md — routes/gift-cards.js via facade (+store_mode) and POST /api/kiosk/gift-card/adjust
 - [ ] 84-08-PLAN.md — pos.js six gift-card call sites via facade; Pitfall 1 / D-09 / D-11 regressions
 - [ ] 84-09-PLAN.md — Read-only verify + ledger-replay scripts, RUNBOOK section ($1 runsheet, flip, rollbacks), dual-window log
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 84-10-PLAN.md — Full gate, staging push, Apps Script redeploy, staging backfill/dual rehearsal, iPad UAT (checkpoints)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 84-11-PLAN.md — Production deploy approval + after-hours cutover to dual with to-the-cent verify (checkpoints)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 84-12-PLAN.md — ≥7-day dual window, owner flip decision, flip to postgres + live production sale/lookup/void (checkpoints)
 
 ### Phase 85: Recipes + RecipeIngredients → Postgres
