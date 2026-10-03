@@ -10,7 +10,8 @@ validateEnv();
 // boot-time (not per-request) so a misconfiguration fails the deploy, not
 // the first sale (D-05/D-06/D-07). `log` is not required yet at this point
 // in the boot sequence, so require it locally here.
-var storeModes = require('./lib/store-flag').validateStoreFlags();
+var storeFlag = require('./lib/store-flag');
+var storeModes = storeFlag.validateStoreFlags();
 require('./lib/sheet-mirror').logMirrorStatus();
 require('./lib/logger').info('[startup] store modes: ' + JSON.stringify(storeModes));
 
@@ -49,6 +50,7 @@ var mailerlite = require('./lib/mailerlite');
 var eventLog = require('./lib/eventLog');
 var redact = require('./lib/redact');
 var reconcile = require('./lib/reconcile');
+var sentryCapture = require('./lib/sentry-capture');
 var cookieParser = require('cookie-parser');
 var authTiers = require('./lib/authTiers');
 var closedOnRedisError = require('./lib/redis-guard').closedOnRedisError;
@@ -137,9 +139,12 @@ app.use(function (req, res, next) {
 // failed/never-settling probe resolves to false rather than rejecting, so it
 // never blocks the /health response or flips `status`. Raced against a 3s
 // timeout (cleared once the query settles) so a hung connection can't hang
-// the health check itself. Making /health fail (and gating deploys) on a
-// database outage is deferred to Phase 84, once a real store reads from
-// Postgres.
+// the health check itself. Phase 84 D-10 now GATES THE DEPLOY on this signal
+// (gated-deploy.yml's smoke check fails when database_required is true and
+// database is not) instead of flipping /health's own `status` — flipping
+// `status` here would make Railway treat the instance as unhealthy and
+// restart it, which cannot fix a Postgres outage and only adds a restart
+// loop on top of it.
 function checkDatabase() {
   if (!db.isConfigured()) return Promise.resolve(false);
 
@@ -165,6 +170,24 @@ function checkDatabase() {
   });
 }
 
+// Phase 84 D-10: true when any store (GIFT_CARDS_STORE/RECIPES_STORE, see
+// lib/store-flag.js STORE_ENV_NAMES) is in 'dual' or 'postgres' mode — i.e.
+// Postgres is authoritative for at least one store and a DB outage is no
+// longer a no-op.
+function isDatabaseRequired() {
+  return storeFlag.STORE_ENV_NAMES.some(function (name) {
+    var mode = storeFlag.resolveStoreMode(name);
+    return mode === 'dual' || mode === 'postgres';
+  });
+}
+
+// In-process throttle (module-level, D-10): a down database must not flood
+// Sentry on every /health probe (uptime monitors typically poll every 1-5
+// min). One alert per 10-minute window is enough to page a human without
+// spamming the error tracker.
+var DB_DOWN_ALERT_THROTTLE_MS = 10 * 60 * 1000;
+var lastDbDownAlertAt = 0;
+
 app.get('/health', function (req, res) {
   var redisOk = cache.isConnected();
   var redisCheck = redisOk
@@ -177,11 +200,27 @@ app.get('/health', function (req, res) {
   var dbCheck = checkDatabase();
 
   Promise.all([redisCheck, dbCheck]).then(function (results) {
+    var databaseOk = results[1];
+    var databaseRequired = isDatabaseRequired();
+
+    if (databaseRequired && databaseOk === false) {
+      var now = Date.now();
+      if (now - lastDbDownAlertAt >= DB_DOWN_ALERT_THROTTLE_MS) {
+        lastDbDownAlertAt = now;
+        log.error('[health] CRITICAL: database unreachable while a store requires it (D-10)');
+        sentryCapture.captureExceptionSafe(
+          new Error('database unreachable while store requires it'),
+          { level: 'error', tags: { component: 'database' }, fingerprint: ['health', 'database-down'] }
+        );
+      }
+    }
+
     res.json({
-      status: 'ok', // D-02: NEVER flips on database:false this phase
+      status: 'ok', // D-02: NEVER flips on database:false this phase; Phase 84 D-10 gates the DEPLOY (smoke check) instead
       authenticated: zohoAuth.isAuthenticated(),
       redis: results[0],
-      database: results[1],
+      database: databaseOk,
+      database_required: databaseRequired,
       uptime: process.uptime()
     });
   });
@@ -865,6 +904,18 @@ if (require.main === module) {
         });
       }, 5 * 60 * 1000);
       log.info('[reconcile] Kiosk pending-charge sweep registered: every 5 minutes');
+
+      // Phase 84 D-11: Gift-card pending-write reconciliation sweep.
+      // Catches a gift-card write (redeem/issue/reload) that failed AFTER
+      // the customer was already charged — replays each giftcard:pending:*
+      // record through the gift-card store via its stored tx_ref.
+      // No-ops cleanly when Redis is disconnected.
+      setInterval(function () {
+        reconcile.sweepGiftCardPending().catch(function (err) {
+          log.error('[reconcile] Gift-card pending sweep failed: ' + err.message);
+        });
+      }, 5 * 60 * 1000);
+      log.info('[reconcile] Gift-card pending sweep registered: every 5 minutes');
     });
 
     process.on('SIGTERM', function () {
