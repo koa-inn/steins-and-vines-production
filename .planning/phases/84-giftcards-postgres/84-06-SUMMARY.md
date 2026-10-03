@@ -119,6 +119,16 @@ None — no external service configuration required. `docs/RUNBOOK.md`'s "Gift c
 - D-10's deploy gate is live in `gated-deploy.yml`; once any store flips to `dual`/`postgres` in production, a DB outage will correctly block the next deploy instead of silently succeeding.
 - No blockers for sibling/downstream plans in Phase 84.
 
+## Self-Check: PASSED
+
+- FOUND: zoho-middleware/lib/reconcile.js
+- FOUND: zoho-middleware/__tests__/reconcile-giftcard-pending.test.js
+- FOUND: zoho-middleware/server.js
+- FOUND: zoho-middleware/__tests__/health-database-required.test.js
+- FOUND: .github/workflows/gated-deploy.yml
+- FOUND commit: a47326f0 (feat(84-06): add gift-card pending-write durable record + replay sweep)
+- FOUND commit: 273d9b11 (feat(84-06): gate deploy smoke check on database_required)
+
 ---
 *Phase: 84-giftcards-postgres*
 *Completed: 2026-10-03*
