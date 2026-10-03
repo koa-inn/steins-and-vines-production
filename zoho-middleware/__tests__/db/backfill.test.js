@@ -326,7 +326,25 @@ describeDb('backfill pipeline against real Postgres', function () {
   });
 
   describe('table hygiene', function () {
-    it('no table other than the test-created target exists in public except app_meta and pgmigrations', async function () {
+    // Allowed set is derived from the committed migrations so each new additive migration
+    // (Phase 84+) doesn't need a matching edit here; pgmigrations is the runner's own table.
+    function migrationTables() {
+      var dir = path.join(__dirname, '..', '..', 'migrations');
+      var re = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?"?([a-z_][a-z0-9_]*)"?/gi;
+      var found = ['pgmigrations'];
+      fs.readdirSync(dir)
+        .filter(function (f) {
+          return /\.sql$/.test(f);
+        })
+        .forEach(function (f) {
+          var sql = fs.readFileSync(path.join(dir, f), 'utf8');
+          var m;
+          while ((m = re.exec(sql)) !== null) found.push(m[1].toLowerCase());
+        });
+      return found;
+    }
+
+    it('no table other than the test-created target exists in public except migration-created tables and pgmigrations', async function () {
       var rows = [platoRow({ reading_id: 'PR-000001' })];
       await load.loadScratch(client, { schema: 'scratch_test', spec: platoReadingsSpec, rows: rows });
 
@@ -336,8 +354,10 @@ describeDb('backfill pipeline against real Postgres', function () {
       var names = tables.rows.map(function (r) {
         return r.table_name;
       });
+      var allowed = migrationTables();
+      expect(allowed).toContain('app_meta');
       names.forEach(function (n) {
-        expect(['app_meta', 'pgmigrations'].indexOf(n)).not.toBe(-1);
+        expect(allowed.indexOf(n)).not.toBe(-1);
       });
     });
   });
