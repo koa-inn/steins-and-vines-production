@@ -10,6 +10,33 @@ var giftCardStore = require('../lib/gift-card-store');
 
 var router = express.Router();
 
+// ---------------------------------------------------------------------------
+// POST /api/kiosk/gift-card/adjust (Phase 84, DB-03) — maps a facade-
+// returned business error code to its HTTP status + body. 'tx_ref_conflict'
+// (idempotency key reused for a different cert/kind) gets its own explicit
+// 409 rather than falling into the generic-500 default — the kiosk must
+// mint a fresh adjust_key and retry, not treat it as a server crash.
+// ---------------------------------------------------------------------------
+var ADJUST_ERROR_STATUS = {
+  not_found: 404,
+  invalid_status: 409,
+  negative_balance: 409,
+  invalid_amount: 400,
+  adjust_unavailable: 403,
+  tx_ref_conflict: 409
+};
+
+function mapAdjustError(result) {
+  var status = ADJUST_ERROR_STATUS[result.error] || 500;
+  var body = { ok: false, error: result.error === 'not_found' ? 'Certificate not found' : result.error };
+  if (result.error === 'invalid_status') body.status = result.status;
+  if (result.error === 'negative_balance') body.balance = result.balance;
+  return { status: status, body: body };
+}
+
+var ADJUST_VALID_REASONS = ['correction', 'goodwill', 'refund-to-card', 'other'];
+var ADJUST_MAX_AMOUNT = 99999999.99;
+
 // M8 (Phase 52-05): next-number is a suggestion only — the server still
 // enforces uniqueness on issue — so a short cache is safe (reduces repeat
 // Apps Script calls from a busy kiosk without risking a stale money value).
@@ -170,6 +197,110 @@ router.post('/api/kiosk/gift-card/void', function (req, res) {
       return res.status(503).json({ error: 'Gift card service temporarily unavailable' });
     }
     return res.status(502).json({ error: 'Failed to void gift certificate. Please try again.' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/kiosk/gift-card/adjust
+// Ledgered balance-adjust control (D-05/D-06/D-07). Every field is
+// validated server-side — the kiosk UI's client-side checks (84-03) are
+// UX-only, never trusted. No Zoho Books write of any kind happens here
+// (D-08) — the Postgres ledger row (plus its sheet mirror in dual mode) IS
+// the record.
+// ---------------------------------------------------------------------------
+router.post('/api/kiosk/gift-card/adjust', function (req, res) {
+  var body = req.body || {};
+
+  // D-07: server-side mode gate, checked before any other work — sheets
+  // mode has no dedicated adjust action.
+  if (giftCardStore.getMode() === 'sheets') {
+    return res.status(403).json({ ok: false, error: 'adjust_unavailable', store_mode: 'sheets' });
+  }
+
+  var cert_number = String(body.cert_number || '').trim().toUpperCase();
+  if (!cert_number || !/^GC-\d{6}$/.test(cert_number)) {
+    return res.status(400).json({ error: 'cert_number must match GC-NNNNNN (e.g. GC-000042)' });
+  }
+
+  // T-84-37: finite, non-zero, at most 2 decimal places, within the
+  // numeric(10,2) column bound. No cap beyond that bound (D-06 "No cap").
+  var delta = Number(body.delta);
+  if (!isFinite(delta) || delta === 0 || Math.abs(delta) > ADJUST_MAX_AMOUNT ||
+      Math.abs(Math.round(delta * 100) - delta * 100) >= 1e-6) {
+    return res.status(400).json({ error: 'delta must be a non-zero number with at most 2 decimal places' });
+  }
+
+  var reason = String(body.reason || '');
+  if (ADJUST_VALID_REASONS.indexOf(reason) === -1) {
+    return res.status(400).json({ error: 'reason must be one of: ' + ADJUST_VALID_REASONS.join(', ') });
+  }
+
+  var note = String(body.note || '').trim().slice(0, 512);
+  if (reason === 'other' && !note) {
+    return res.status(400).json({ error: 'note is required when reason is "other"' });
+  }
+
+  // D-05: self-reported actor name — control characters stripped, must
+  // contain at least one letter (rejects a bare numeric "signature").
+  var actorName = String(body.actor_name || '').replace(/[\x00-\x1F\x7F]/g, '').trim();
+  if (!actorName || actorName.length > 60 || !/[A-Za-z]/.test(actorName)) {
+    return res.status(400).json({ error: 'actor_name must be 1-60 characters and contain a letter' });
+  }
+
+  // ASSUMPTION (orchestrator note, owner not yet confirmed): D-05's "device
+  // ID" requirement is satisfied by this self-reported device_label because
+  // kiosk auth is one shared KIOSK_DEVICE_TOKEN with no per-device identity
+  // (RESEARCH Open Question 1) — there is no server-issued device ID to
+  // validate against instead.
+  var deviceLabel = String(body.device_label || '').trim();
+  if (!/^[A-Za-z0-9 _.-]{1,40}$/.test(deviceLabel)) {
+    return res.status(400).json({ error: 'device_label must be 1-40 characters (letters, digits, space, _.-)' });
+  }
+
+  // T-84-41: adjust_key mints the deterministic tx_ref that makes a
+  // double-submitted adjust idempotent server-side.
+  var adjustKey = String(body.adjust_key || '').trim();
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(adjustKey)) {
+    return res.status(400).json({ error: 'adjust_key must be 8-64 characters (letters, digits, -)' });
+  }
+
+  // T-84-40: required actor_name + device_label + reason (+ note for
+  // "other") on every ledger row removes anonymous adjustment.
+  return giftCardStore.adjust({
+    certNumber: cert_number,
+    delta: delta,
+    reason: reason,
+    note: note || null,
+    actorName: actorName,
+    deviceLabel: deviceLabel,
+    adjustKey: adjustKey,
+    actor: giftCardStore.actorFromRequest(req, 'kiosk-adjust')
+  }).then(function (result) {
+    if (!result.ok) {
+      var mapped = mapAdjustError(result);
+      return res.status(mapped.status).json(mapped.body);
+    }
+
+    eventLog.logEvent('kiosk.gift_card_adjusted', {
+      certNumber: cert_number,
+      delta: delta,
+      reason: reason,
+      actorName: actorName,
+      deviceLabel: deviceLabel
+    });
+
+    return res.status(200).json({
+      ok: true,
+      data: {
+        cert_number: cert_number,
+        current_balance: result.new_balance,
+        status: result.status,
+        idempotent: !!result.idempotent
+      }
+    });
+  }).catch(function (err) {
+    log.error('[gift-cards/adjust] Unexpected error: ' + err.message);
+    return res.status(503).json({ error: 'Gift card service temporarily unavailable' });
   });
 });
 
