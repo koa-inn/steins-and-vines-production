@@ -58,7 +58,7 @@ unexplained discrepancies) is met and the owner decides to flip to `postgres`.
 | Step | Date | Outcome |
 |------|------|---------|
 | 1. Staging push | 2026-10-03 | Owner-approved `git push origin main` → `4e8432df`. Railway staging deploy `15ed5589` SUCCESS; pre-deploy log shows `0002_gift_cards` applied ("Migrations complete!") — `npm run migrate` chains migration-guard → migration-allowlist → node-pg-migrate with `&&`, so both guards passed (closes Phase 83's "first observed guard-chain log" item). `/health`: status ok, database:true, database_required:false (store mode `sheets`, expected before step 4). Startup log: `store modes: {"GIFT_CARDS_STORE":"sheets"}`, gift-card pending sweep registered. CI: test-frontend, test-middleware, artifact-drift pass; test-e2e fails (pre-existing since ≥2026-09-23, not part of the gated deploy). |
-| 2. Apps Script redeploy | — | pending (owner) |
+| 2. Apps Script redeploy | 2026-10-03 | Owner pasted `apps-script/adminApi.gs` @ `2881c74c` into the live project ("SV Website", the Sep-24 project `1uD14PTT…`; the Oct-1 same-named project has no deployment). Pre-paste editor copy was byte-identical to the repo's pre-84-02 file (sha256 `dd32ba55…`); post-paste matches HEAD (`344966b3…`). Deployment `AKfycb…DI968g` (shared by staging + production middleware) updated **58 → 59** at 14:08. Rollback = 58. Production `/health` ok after deploy. Pending: `setupGiftCardLedger` editor run + a production kiosk lookup (owner). |
 | 3. Staging backfill (dry-run → promote) | — | pending (owner) |
 | 4. GIFT_CARDS_STORE=dual on staging | — | pending (owner) |
 | 5. gift-cards-verify (0 mismatches) | — | pending (owner) |

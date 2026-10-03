@@ -614,8 +614,8 @@ target) here before flipping:
 
 | Field | Value |
 |-------|-------|
-| Apps Script version with `mirror_gift_card_state` ACTIVE at flip time | _(fill in at flip time)_ |
-| Rollback version (immediately prior) | _(fill in at flip time)_ |
+| Apps Script version with `mirror_gift_card_state` ACTIVE at flip time | **59** (deployed 2026-10-03 14:08 on deployment `AKfycb…DI968g`, project "SV Website" `1uD14PTT…` — re-confirm still active at flip time) |
+| Rollback version (immediately prior) | **58** (2026-09-24) |
 | Flip date/time | _(fill in at flip time)_ |
 
 After hours, once the §4 flip bar is met:
