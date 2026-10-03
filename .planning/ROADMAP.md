@@ -2008,7 +2008,7 @@ Plans:
   3. `dual` ran ≥1 week on production with the sheet mirrored fire-and-forget and zero unexplained Sentry discrepancies before the flip; after the flip the sheet remains a read-only mirror and a documented flag-flip rollback exists
   4. Staff can adjust a balance from the kiosk Gift Card Management screen (ledgered, audited) so the hand-edit-the-sheet path is no longer needed; a real kiosk sale with a gift card, a lookup and a void are verified live on production
 
-**Plans:** 6/12 plans executed
+**Plans:** 9/12 plans executed
 
 Plans:
 **Wave 1**
@@ -2025,9 +2025,9 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 84-07-PLAN.md — routes/gift-cards.js via facade (+store_mode) and POST /api/kiosk/gift-card/adjust
-- [ ] 84-08-PLAN.md — pos.js six gift-card call sites via facade; Pitfall 1 / D-09 / D-11 regressions
-- [ ] 84-09-PLAN.md — Read-only verify + ledger-replay scripts, RUNBOOK section ($1 runsheet, flip, rollbacks), dual-window log
+- [x] 84-07-PLAN.md — routes/gift-cards.js via facade (+store_mode) and POST /api/kiosk/gift-card/adjust
+- [x] 84-08-PLAN.md — pos.js six gift-card call sites via facade; Pitfall 1 / D-09 / D-11 regressions
+- [x] 84-09-PLAN.md — Read-only verify + ledger-replay scripts, RUNBOOK section ($1 runsheet, flip, rollbacks), dual-window log
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
