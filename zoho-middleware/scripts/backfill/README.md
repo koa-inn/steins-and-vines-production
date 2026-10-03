@@ -186,3 +186,41 @@ does not expand `~` after `=` in `--file=~/...`, so the CLI would get a literal 
 
 Never pass a database connection string as an argument — the CLI refuses to start if any
 argv value looks like `postgres://` or `postgresql://`.
+
+## GiftCards (Phase 84)
+
+GiftCards does NOT go through the generic `backfill.js` CLI above — the generic single-table
+path would promote `gift_cards` rows with no matching `opening_balance` ledger rows and break
+the D-12 invariant (`current_balance = sum(non-imported ledger amounts)`). Use the dedicated
+`gift-cards-backfill.js` CLI instead, which reads BOTH the `GiftCards` and
+`GiftCardTransactions` sheets from the same snapshot and promotes both tables in one
+transaction:
+
+```bash
+# 1. Dry run first — zero rejects required before promotion is even attempted.
+node scripts/backfill/gift-cards-backfill.js --file="$HOME/sv-backfill/snapshot.xlsx" --dry-run
+
+# 2. Review the two rejects files it prints (GiftCards + GiftCardTransactions). Any reject
+#    blocks promotion unconditionally — there is no --accept-rejects override for GiftCards
+#    (D-13). Fix the sheet (including deleting TEST-* rows, see below) and re-download.
+
+# 3. Promote once rejects are zero.
+node scripts/backfill/gift-cards-backfill.js --file="$HOME/sv-backfill/snapshot.xlsx" --promote
+```
+
+- Same `BACKFILL_DATABASE_URL`-only connection rule as above (no `--target`, no connection
+  string on argv).
+- `--out-dir`, `--timezone` behave the same as the generic CLI (defaults: `$HOME/sv-backfill`,
+  `America/Vancouver`).
+- `TEST-LEDGER-01` and any other `TEST-*` cert are excluded automatically (counted in the
+  summary, not promoted) — the owner deletes them from the live sheet separately; this CLI
+  never writes back to the sheet.
+- Every real certificate is loaded, including voided and $0-balance ones; each gets one
+  `opening_balance` ledger row equal to its snapshot balance. Existing Phase 51
+  `GiftCardTransactions` rows import as historical (`imported=true`, excluded from the
+  balance sum) with their `tx_ref`s reserved so an old ref can never replay.
+- Promotion refuses to run unless both `gift_cards` and `gift_card_transactions` are empty,
+  and runs invariant checks (card count, balance sum, the per-card ledger-sum invariant,
+  imported-row count) INSIDE the same transaction before committing — any failed check rolls
+  back everything.
+- Output files under `backfill-output/` are gitignored and must never be committed.

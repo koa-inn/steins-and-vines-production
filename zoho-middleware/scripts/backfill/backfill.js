@@ -454,4 +454,10 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { parseArgs: parseArgs, runBackfill: runBackfill, EXIT: EXIT };
+module.exports = {
+  parseArgs: parseArgs,
+  runBackfill: runBackfill,
+  EXIT: EXIT,
+  assertSnapshotSafePath: assertSnapshotSafePath,
+  checkHeaders: checkHeaders
+};
