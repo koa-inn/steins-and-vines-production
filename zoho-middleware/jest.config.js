@@ -29,7 +29,9 @@ module.exports = {
     './routes/pos.js':       { lines: 80 },
     // Existing utility floors (restored — both measured at 100%):
     './lib/validate.js': { lines: 98 },
-    './lib/logger.js':   { lines: 98 }
+    './lib/logger.js':   { lines: 98 },
+    // Phase 84 money-path floor (D-07 convention): measured 97.64% lines.
+    './lib/gift-card-store.js': { lines: 90 }
   },
   coverageReporters: ['text', 'lcov']
 };
