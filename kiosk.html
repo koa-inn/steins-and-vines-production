@@ -517,6 +517,8 @@
           <div id="kgcm-result-info" style="font-size:0.95rem;"></div>
           <div style="margin-top:0.75rem;">
             <button type="button" class="btn" id="kgcm-void-btn" style="min-height:44px;background:#c00;border-color:#c00;">Void Certificate</button>
+            <button type="button" class="btn" id="kgcm-adjust-btn" style="display:none;min-height:44px;">Adjust Balance</button>
+            <div id="kgcm-adjust-sheets-note" style="display:none;font-size:0.85rem;">Balance changes are made in the GiftCards sheet while the gift-card store is in sheets mode.</div>
           </div>
         </div>
       </div>
@@ -528,6 +530,34 @@
         <div style="display:flex;gap:0.5rem;">
           <button type="button" class="btn" id="kgcm-void-confirm-btn" style="flex:1;min-height:44px;background:#c00;border-color:#c00;">Confirm Void</button>
           <button type="button" class="btn-secondary" id="kgcm-void-cancel-btn" style="flex:1;min-height:44px;">Cancel</button>
+        </div>
+      </div>
+      <div id="kgcm-adjust-view" style="display:none;">
+        <div id="kgcm-adjust-title" style="font-weight:600;margin-bottom:0.25rem;"></div>
+        <div id="kgcm-adjust-current" style="font-size:0.9rem;margin-bottom:0.75rem;"></div>
+        <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">
+          <button type="button" class="btn" id="kgcm-adjust-dir-add" style="flex:1;min-height:44px;">Add credit</button>
+          <button type="button" class="btn-secondary" id="kgcm-adjust-dir-remove" style="flex:1;min-height:44px;">Remove credit</button>
+        </div>
+        <label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kgcm-adjust-amount">Amount</label>
+        <input type="text" id="kgcm-adjust-amount" class="kiosk-search-input" inputmode="decimal" maxlength="10" placeholder="0.00" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:0.5rem;">
+        <label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kgcm-adjust-reason">Reason (required)</label>
+        <select id="kgcm-adjust-reason" class="kiosk-search-input" style="width:100%;box-sizing:border-box;margin-bottom:0.5rem;">
+          <option value="">Choose a reason</option>
+          <option value="correction">Correction</option>
+          <option value="goodwill">Goodwill</option>
+          <option value="refund-to-card">Refund to card</option>
+          <option value="other">Other</option>
+        </select>
+        <label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kgcm-adjust-note">Note (required for Other)</label>
+        <input type="text" id="kgcm-adjust-note" class="kiosk-search-input" maxlength="512" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:0.5rem;">
+        <label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kgcm-adjust-actor">Your name or initials (required)</label>
+        <input type="text" id="kgcm-adjust-actor" class="kiosk-search-input" maxlength="60" autocomplete="off" style="width:100%;box-sizing:border-box;margin-bottom:0.5rem;">
+        <div id="kgcm-adjust-preview" style="font-size:0.9rem;margin-bottom:0.5rem;"></div>
+        <div id="kgcm-adjust-error" style="color:#c00;font-size:0.9rem;margin-bottom:0.75rem;display:none;"></div>
+        <div style="display:flex;gap:0.5rem;">
+          <button type="button" class="btn" id="kgcm-adjust-confirm-btn" style="flex:1;min-height:44px;">Apply Adjustment</button>
+          <button type="button" class="btn-secondary" id="kgcm-adjust-cancel-btn" style="flex:1;min-height:44px;">Cancel</button>
         </div>
       </div>
     </div>
