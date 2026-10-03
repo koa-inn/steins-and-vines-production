@@ -5290,15 +5290,108 @@
     var voidCancelBtn = document.getElementById('kgcm-void-cancel-btn');
     var voidConfirmBtn = document.getElementById('kgcm-void-confirm-btn');
 
+    // Balance-adjust view (Phase 84 D-05/D-06/D-07).
+    var adjustBtn = document.getElementById('kgcm-adjust-btn');
+    var adjustSheetsNoteEl = document.getElementById('kgcm-adjust-sheets-note');
+    var adjustView = document.getElementById('kgcm-adjust-view');
+    var adjustTitleEl = document.getElementById('kgcm-adjust-title');
+    var adjustCurrentEl = document.getElementById('kgcm-adjust-current');
+    var adjustDirAddBtn = document.getElementById('kgcm-adjust-dir-add');
+    var adjustDirRemoveBtn = document.getElementById('kgcm-adjust-dir-remove');
+    var adjustAmountEl = document.getElementById('kgcm-adjust-amount');
+    var adjustReasonEl = document.getElementById('kgcm-adjust-reason');
+    var adjustNoteEl = document.getElementById('kgcm-adjust-note');
+    var adjustActorEl = document.getElementById('kgcm-adjust-actor');
+    var adjustPreviewEl = document.getElementById('kgcm-adjust-preview');
+    var adjustErrEl = document.getElementById('kgcm-adjust-error');
+    var adjustConfirmBtn = document.getElementById('kgcm-adjust-confirm-btn');
+    var adjustCancelBtn = document.getElementById('kgcm-adjust-cancel-btn');
+
     // Reset to the lookup view every time the panel is (re)opened.
     if (lookupView) lookupView.style.display = '';
     if (voidView) voidView.style.display = 'none';
+    if (adjustView) adjustView.style.display = 'none';
+    if (adjustBtn) adjustBtn.style.display = 'none';
+    if (adjustSheetsNoteEl) adjustSheetsNoteEl.style.display = 'none';
     if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
     if (resultEl) resultEl.style.display = 'none';
     if (certEl) { certEl.value = ''; certEl.focus(); }
 
-    // Tracks the last looked-up cert for void.
+    // Tracks the last looked-up cert for void/adjust.
     var _mgmtCert = null;
+    var _mgmtBalance = 0;
+    var _mgmtStatus = 'active';
+    var _mgmtStoreMode = 'sheets';
+    var _mgmtDirection = 'add';
+    var _adjustKey = null;
+
+    // D-05: self-reported device label, since kiosk auth is a shared device
+    // token with no staff identity. Wraps localStorage in try/catch (Safari
+    // private mode / storage-disabled) and falls back to 'kiosk-unknown'.
+    function _kcDeviceLabel() {
+      try {
+        var existing = localStorage.getItem('sv-kiosk-device-label');
+        if (existing) return existing;
+        var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        var label = 'kiosk-';
+        for (var i = 0; i < 6; i++) {
+          label += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        localStorage.setItem('sv-kiosk-device-label', label);
+        return label;
+      } catch (e) {
+        return 'kiosk-unknown';
+      }
+    }
+
+    function mintAdjustKey() {
+      return 'adj-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    }
+
+    function showAdjustErr(msg) {
+      if (adjustErrEl) { adjustErrEl.textContent = msg; adjustErrEl.style.display = 'block'; }
+    }
+    function hideAdjustErr() {
+      if (adjustErrEl) { adjustErrEl.style.display = 'none'; adjustErrEl.textContent = ''; }
+    }
+
+    function updateAdjustDirectionButtons() {
+      if (adjustDirAddBtn) {
+        if (_mgmtDirection === 'add') {
+          adjustDirAddBtn.classList.remove('btn-secondary');
+          adjustDirAddBtn.classList.add('btn');
+        } else {
+          adjustDirAddBtn.classList.remove('btn');
+          adjustDirAddBtn.classList.add('btn-secondary');
+        }
+      }
+      if (adjustDirRemoveBtn) {
+        if (_mgmtDirection === 'remove') {
+          adjustDirRemoveBtn.classList.remove('btn-secondary');
+          adjustDirRemoveBtn.classList.add('btn');
+        } else {
+          adjustDirRemoveBtn.classList.remove('btn');
+          adjustDirRemoveBtn.classList.add('btn-secondary');
+        }
+      }
+    }
+
+    function updateAdjustPreview() {
+      if (!adjustPreviewEl) return;
+      var raw = adjustAmountEl ? adjustAmountEl.value.trim() : '';
+      if (!/^[0-9]+(\.[0-9]{1,2})?$/.test(raw)) {
+        adjustPreviewEl.textContent = '';
+        return;
+      }
+      var amount = parseFloat(raw);
+      var delta = (_mgmtDirection === 'remove') ? -amount : amount;
+      var newBalance = Math.round((_mgmtBalance + delta) * 100) / 100;
+      if (newBalance < 0) {
+        adjustPreviewEl.textContent = 'Cannot go below $0.00';
+      } else {
+        adjustPreviewEl.textContent = 'New balance: ' + kioskFmt(newBalance);
+      }
+    }
 
     function showMgmtErr(msg) {
       if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
@@ -5334,6 +5427,9 @@
             _mgmtCert = d.cert_number || cert;
             var statusStr = d.status || 'active';
             var statusColor = (statusStr === 'active') ? '#2e7d32' : '#c00';
+            _mgmtBalance = Number(d.current_balance) || 0;
+            _mgmtStatus = statusStr;
+            _mgmtStoreMode = d.store_mode || 'sheets';
             if (resultInfoEl) {
               resultInfoEl.innerHTML =
                 '<strong>Cert #:</strong> ' + escapeHTML(_mgmtCert) + '<br>' +
@@ -5342,6 +5438,12 @@
                 '<strong>Current Balance:</strong> ' + kioskFmt(d.current_balance || 0);
             }
             if (voidBtn) voidBtn.style.display = (statusStr === 'voided') ? 'none' : '';
+            // D-07: UX-only gate (server-side gate is authoritative in 84-07)
+            // — Adjust Balance only offered when the store is dual/postgres
+            // AND the certificate is active; sheets mode shows a note instead.
+            var canAdjust = (_mgmtStoreMode === 'dual' || _mgmtStoreMode === 'postgres') && statusStr === 'active';
+            if (adjustBtn) adjustBtn.style.display = canAdjust ? '' : 'none';
+            if (adjustSheetsNoteEl) adjustSheetsNoteEl.style.display = (_mgmtStoreMode === 'sheets' && !canAdjust) ? 'block' : 'none';
             if (resultEl) resultEl.style.display = 'block';
           } else if (result.status === 404) {
             showMgmtErr('Certificate not found. Check the number and try again.');
@@ -5417,6 +5519,148 @@
           voidConfirmBtn.disabled = false;
           voidConfirmBtn.textContent = 'Confirm Void';
           if (voidErrEl) { voidErrEl.textContent = 'Connection error. Please try again.'; voidErrEl.style.display = 'block'; }
+        });
+      };
+    }
+
+    if (adjustBtn) {
+      adjustBtn.onclick = function () {
+        if (!_mgmtCert) return;
+        if (lookupView) lookupView.style.display = 'none';
+        if (adjustView) adjustView.style.display = 'block';
+        _mgmtDirection = 'add';
+        updateAdjustDirectionButtons();
+        if (adjustTitleEl) adjustTitleEl.textContent = 'Adjust ' + _mgmtCert;
+        if (adjustCurrentEl) adjustCurrentEl.textContent = 'Current balance: ' + kioskFmt(_mgmtBalance);
+        if (adjustAmountEl) adjustAmountEl.value = '';
+        if (adjustReasonEl) adjustReasonEl.value = '';
+        if (adjustNoteEl) adjustNoteEl.value = '';
+        if (adjustActorEl) { adjustActorEl.value = ''; adjustActorEl.focus(); }
+        if (adjustPreviewEl) adjustPreviewEl.textContent = '';
+        hideAdjustErr();
+        // D-06: one adjust_key per view opening, reused on retry so a
+        // double-tap or network-error retry is idempotent server-side.
+        _adjustKey = mintAdjustKey();
+      };
+    }
+
+    if (adjustDirAddBtn) {
+      adjustDirAddBtn.onclick = function () {
+        _mgmtDirection = 'add';
+        updateAdjustDirectionButtons();
+        updateAdjustPreview();
+      };
+    }
+
+    if (adjustDirRemoveBtn) {
+      adjustDirRemoveBtn.onclick = function () {
+        _mgmtDirection = 'remove';
+        updateAdjustDirectionButtons();
+        updateAdjustPreview();
+      };
+    }
+
+    if (adjustAmountEl) {
+      adjustAmountEl.oninput = function () { updateAdjustPreview(); };
+    }
+
+    if (adjustCancelBtn) {
+      adjustCancelBtn.onclick = function () {
+        if (adjustView) adjustView.style.display = 'none';
+        if (lookupView) lookupView.style.display = 'block';
+        _adjustKey = null;
+      };
+    }
+
+    if (adjustConfirmBtn) {
+      adjustConfirmBtn.onclick = function () {
+        if (!_mgmtCert) return;
+        hideAdjustErr();
+
+        var rawAmount = adjustAmountEl ? adjustAmountEl.value.trim() : '';
+        if (!/^[0-9]+(\.[0-9]{1,2})?$/.test(rawAmount) || parseFloat(rawAmount) <= 0) {
+          showAdjustErr('Please enter a valid amount greater than $0.00.');
+          return;
+        }
+        var amount = parseFloat(rawAmount);
+
+        var reason = adjustReasonEl ? adjustReasonEl.value : '';
+        if (!reason) {
+          showAdjustErr('Please choose a reason.');
+          return;
+        }
+
+        var note = adjustNoteEl ? adjustNoteEl.value.trim() : '';
+        if (reason === 'other' && !note) {
+          showAdjustErr('Please enter a note for "Other".');
+          return;
+        }
+
+        var actorName = adjustActorEl ? adjustActorEl.value.trim() : '';
+        if (!actorName) {
+          showAdjustErr('Please enter your name or initials.');
+          return;
+        }
+
+        var delta = Math.round(((_mgmtDirection === 'remove') ? -amount : amount) * 100) / 100;
+        var newBalance = Math.round((_mgmtBalance + delta) * 100) / 100;
+        if (newBalance < 0) {
+          showAdjustErr('Adjustment would take the balance below $0.00.');
+          return;
+        }
+
+        if (!_adjustKey) _adjustKey = mintAdjustKey();
+
+        adjustConfirmBtn.disabled = true;
+        adjustConfirmBtn.textContent = 'Applying…';
+
+        fetch(mwUrl + '/api/kiosk/gift-card/adjust', _kcMergeAuth({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cert_number: _mgmtCert,
+            delta: delta,
+            reason: reason,
+            note: note,
+            actor_name: actorName,
+            device_label: _kcDeviceLabel(),
+            adjust_key: _adjustKey
+          })
+        }))
+        .then(function (r) {
+          return r.json().then(function (d) { return { status: r.status, data: d }; });
+        })
+        .then(function (result) {
+          adjustConfirmBtn.disabled = false;
+          adjustConfirmBtn.textContent = 'Apply Adjustment';
+          if (result.status === 200 && result.data && result.data.ok) {
+            var resultData = result.data.data || {};
+            var newBal = (typeof resultData.current_balance !== 'undefined') ? resultData.current_balance : newBalance;
+            _adjustKey = null;
+            showToast('Gift Certificate ' + _mgmtCert + ' balance is now ' + kioskFmt(newBal), 'success');
+            if (adjustView) adjustView.style.display = 'none';
+            if (lookupView) lookupView.style.display = 'block';
+            if (certEl) certEl.value = _mgmtCert;
+            if (lookupBtn) lookupBtn.onclick();
+          } else if (result.status === 409 && result.data && result.data.error === 'negative_balance') {
+            showAdjustErr('Adjustment would take the balance below $0.00.');
+          } else if (result.status === 409 && result.data && result.data.error === 'invalid_status') {
+            showAdjustErr('Only active certificates can be adjusted.');
+          } else if (result.status === 403) {
+            showAdjustErr('Adjustments are unavailable while the gift-card store is in sheets mode.');
+          } else if (result.status === 404) {
+            showAdjustErr('Certificate not found.');
+          } else if (result.status === 400) {
+            showAdjustErr((result.data && result.data.error) || 'Please check the form and try again.');
+          } else {
+            showAdjustErr('Gift card service unavailable — try again.');
+          }
+        })
+        .catch(function () {
+          adjustConfirmBtn.disabled = false;
+          adjustConfirmBtn.textContent = 'Apply Adjustment';
+          // Keep _adjustKey so a retry reuses the same key (D-06 idempotency).
+          showAdjustErr('Connection error — try again.');
         });
       };
     }
