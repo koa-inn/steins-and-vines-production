@@ -686,6 +686,7 @@ them, not this plan):
   and middleware `npm test`/`lint`/`migrate:guard`/`test:db` all green on this commit; the
   structural grep invariants below also hold at this SHA). Executed in an isolated worktree —
   the orchestrator's merge commit into `main` is the actual SHA pushed to staging in Task 2.
+- **Pushed to staging:** `4e8432df` (2026-10-03, owner-approved; `092b0a4f..4e8432df`).
 - Grep invariants confirmed clean at the staging-candidate commit: no direct gift-card Apps
   Script actions outside `lib/gift-card-store.js`
   (`grep -rnE "'(lookup|redeem|issue|reload|void|update)_gift_card(_invoice)?'"

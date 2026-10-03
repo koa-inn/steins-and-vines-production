@@ -52,3 +52,13 @@ unexplained discrepancies) is met and the owner decides to flip to `postgres`.
 ---
 *Phase: 84-giftcards-postgres*
 *Template created: 2026-10-03 (Plan 84-09)*
+
+## Staging rehearsal
+
+| Step | Date | Outcome |
+|------|------|---------|
+| 1. Staging push | 2026-10-03 | Owner-approved `git push origin main` → `4e8432df`. Railway staging deploy `15ed5589` SUCCESS; pre-deploy log shows `0002_gift_cards` applied ("Migrations complete!") — `npm run migrate` chains migration-guard → migration-allowlist → node-pg-migrate with `&&`, so both guards passed (closes Phase 83's "first observed guard-chain log" item). `/health`: status ok, database:true, database_required:false (store mode `sheets`, expected before step 4). Startup log: `store modes: {"GIFT_CARDS_STORE":"sheets"}`, gift-card pending sweep registered. CI: test-frontend, test-middleware, artifact-drift pass; test-e2e fails (pre-existing since ≥2026-09-23, not part of the gated deploy). |
+| 2. Apps Script redeploy | — | pending (owner) |
+| 3. Staging backfill (dry-run → promote) | — | pending (owner) |
+| 4. GIFT_CARDS_STORE=dual on staging | — | pending (owner) |
+| 5. gift-cards-verify (0 mismatches) | — | pending (owner) |
