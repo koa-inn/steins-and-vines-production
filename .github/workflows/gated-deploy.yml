@@ -306,9 +306,17 @@ jobs:
           echo "RUNBOOK.md updated and pushed to staging"
 
       # i. Smoke-check /health (runs AFTER tag + runbook are committed)
-      # Hard-fail: non-200 HTTP OR redis:false
+      # Hard-fail: non-200 HTTP OR redis:false OR (database_required AND database:false)
       # Soft-warn: authenticated:false (expected on Railway restart -- log only)
       # Grace window: 5 retries x 20s = max 100s for Railway cold-start
+      #
+      # Phase 84 D-10: database_required is the gift-card/recipe store flag's
+      # own signal (see server.js isDatabaseRequired()) that Postgres is
+      # authoritative for at least one store. /health's own `status` NEVER
+      # flips on a DB outage (would cause a Railway restart loop) -- this
+      # smoke check is where a DB-down state actually blocks a deploy. An
+      # older middleware response with no database_required field yields jq
+      # "null" here, which must PASS (backward compatible).
       - name: Smoke-check /health
         env:
           MIDDLEWARE_CHANGED: ${{ steps.push.outputs.middleware_changed }}
@@ -342,15 +350,23 @@ jobs:
             REDIS=$(jq -r '.redis' /tmp/health_body.json 2>/dev/null || echo "null")
             AUTH=$(jq -r '.authenticated' /tmp/health_body.json 2>/dev/null || echo "null")
             UPTIME=$(jq -r '.uptime' /tmp/health_body.json 2>/dev/null || echo "null")
-            echo "redis=${REDIS}, authenticated=${AUTH}, uptime=${UPTIME}"
+            DB=$(jq -r '.database' /tmp/health_body.json 2>/dev/null || echo "null")
+            DBREQ=$(jq -r '.database_required' /tmp/health_body.json 2>/dev/null || echo "null")
+            echo "redis=${REDIS}, authenticated=${AUTH}, uptime=${UPTIME}, database=${DB}, database_required=${DBREQ}"
 
-            if [ "$REDIS" = "true" ]; then
-              echo "SMOKE CHECK PASSED on attempt ${i}: HTTP 200, redis=true"
-              PASSED=true
-              break
-            else
+            if [ "$REDIS" != "true" ]; then
               echo "Attempt ${i}/5: redis=${REDIS} -- Redis not connected yet"
+              continue
             fi
+
+            if [ "$DBREQ" = "true" ] && [ "$DB" != "true" ]; then
+              echo "Attempt ${i}/5: database_required=true but database=${DB} -- Postgres not reachable yet"
+              continue
+            fi
+
+            echo "SMOKE CHECK PASSED on attempt ${i}: HTTP 200, redis=true, database_required=${DBREQ}, database=${DB}"
+            PASSED=true
+            break
           done
 
           if [ "$PASSED" != "true" ]; then
@@ -363,6 +379,7 @@ jobs:
             echo "  - Railway middleware did not redeploy (check Wait for CI toggle)"
             echo "  - Redis connection failed (check Railway Redis service)"
             echo "  - HTTP != 200 after all retries (check Railway logs)"
+            echo "  - Postgres unreachable while GIFT_CARDS_STORE (or another store) is dual/postgres -- see docs/RUNBOOK.md Gift cards rollback"
             echo ""
             echo "RUNBOOK entry and git tag were already written (DEPLOY-02 -- record persists)."
             echo "The deploy reached production but the health gate failed."
