@@ -329,6 +329,11 @@ function doPost(e) {
       if (action === 'get_next_cert_number') {
         return _jsonResponse({ ok: true, suggested: generateNextId(GIFT_CARDS_SHEET_NAME, 'GC-', 6) });
       }
+      // Phase 84 D-04: post-flip copy-state mirror. Postgres is authoritative; this runs no
+      // Phase 51 business logic, only a row upsert + idempotent ledger append.
+      if (action === 'mirror_gift_card_state') {
+        return _jsonResponse(mirrorGiftCardState(payload));
+      }
       // Waitlist actions (server_token-gated, Phase 78)
       if (action === 'add_waitlist_entry') {
         return _jsonResponse(addWaitlistEntry(payload));
@@ -5315,6 +5320,137 @@ function updateGiftCardInvoice(payload) {
 
     invalidateSheetCache(GIFT_CARDS_SHEET_NAME);
     return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Phase 84 D-04: post-flip copy-state mirror. Once GIFT_CARDS_STORE flips to 'postgres',
+ * Postgres is authoritative for every gift-card decision and this function is the ONLY thing
+ * that still writes the production GiftCards/GiftCardTransactions sheets — a pure row upsert
+ * (balance, status, last_updated, invoice number, last_tx_ref) plus one idempotent read-only
+ * ledger-row append per transaction. It runs NO Phase 51 business logic: no claim/settle, no
+ * balance arithmetic, no status rules, no lock contention with redeem/reload/issue/void. Those
+ * functions are unchanged by this phase and stop being called once the flip happens.
+ *
+ * Registered as the mirror_gift_card_state server_token action. NOTE FOR 84-10: this function
+ * does not exist in production until the Apps Script project is redeployed — record the new
+ * version number and the rollback version (the pre-84-02 version) in docs/RUNBOOK.md at deploy
+ * time.
+ *
+ * @param {Object} payload - {
+ *   cert_number, face_value, current_balance, status: 'active'|'depleted'|'void',
+ *   issued_date, issued_by, zoho_invoice_number, notes, last_updated,
+ *   ledger_entry: null | { tx_ref, kind, amount, balance_before, balance_after, created_at, actor }
+ * }
+ * @returns {{ok:true, row_action:'inserted'|'updated', ledger_action:'appended'|'skipped_duplicate'|'none'}
+ *          |{ok:false, error:'missing_fields'|'invalid_amount'|'invalid_status'|'sheet_not_found'|'ledger_unavailable'}}
+ */
+function mirrorGiftCardState(payload) {
+  var certNum = normalizeCertNumber(payload.cert_number);
+  if (!certNum || !/^GC-[0-9]{6}$/.test(certNum)) {
+    return { ok: false, error: 'missing_fields' };
+  }
+
+  var faceValue = parseFloat(payload.face_value);
+  var currentBalance = parseFloat(payload.current_balance);
+  if (isNaN(faceValue) || isNaN(currentBalance)) {
+    return { ok: false, error: 'invalid_amount' };
+  }
+
+  var status = String(payload.status || '');
+  if (['active', 'depleted', 'void'].indexOf(status) === -1) {
+    return { ok: false, error: 'invalid_status' };
+  }
+
+  var issuedDate = sanitizeInput(payload.issued_date || '');
+  var issuedBy = sanitizeInput(payload.issued_by || '');
+  var zohoInvoiceNumber = sanitizeInput(payload.zoho_invoice_number || '');
+  var notes = sanitizeInput(payload.notes || '');
+  var lastUpdated = payload.last_updated ? String(payload.last_updated) : new Date().toISOString();
+  var ledgerEntry = payload.ledger_entry || null;
+  var lastTxRef = ledgerEntry ? sanitizeInput(ledgerEntry.tx_ref || '') : '';
+
+  var lock = acquireScriptLock(15000);
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(GIFT_CARDS_SHEET_NAME);
+    if (!sheet) return { ok: false, error: 'sheet_not_found' };
+
+    var existing = findRowById(GIFT_CARDS_SHEET_NAME, certNum);
+    var rowAction;
+
+    if (existing.row === -1) {
+      // 10-column schema, same order as issueGiftCard: cert_number | face_value | current_balance
+      //   | status | issued_date | issued_by | zoho_invoice_number | notes | last_updated | last_tx_ref
+      sheet.appendRow([
+        certNum, faceValue, currentBalance, status, issuedDate, issuedBy,
+        zohoInvoiceNumber, notes, lastUpdated, lastTxRef
+      ]);
+      rowAction = 'inserted';
+    } else {
+      var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      var balCol = headers.indexOf('current_balance') + 1;
+      var statusCol = headers.indexOf('status') + 1;
+      var updatedCol = headers.indexOf('last_updated') + 1;
+      var invoiceCol = headers.indexOf('zoho_invoice_number') + 1;
+      var txRefCol = headers.indexOf('last_tx_ref') + 1;
+
+      // Only the copy-state columns move. face_value/issued_date/issued_by are set once at issue
+      // and never revisited here — Postgres owns the authoritative value for everything else.
+      if (balCol > 0) sheet.getRange(existing.row, balCol).setValue(currentBalance);
+      if (statusCol > 0) sheet.getRange(existing.row, statusCol).setValue(status);
+      if (updatedCol > 0) sheet.getRange(existing.row, updatedCol).setValue(lastUpdated);
+      if (invoiceCol > 0) sheet.getRange(existing.row, invoiceCol).setValue(zohoInvoiceNumber);
+      if (ledgerEntry && txRefCol > 0) sheet.getRange(existing.row, txRefCol).setValue(lastTxRef);
+      rowAction = 'updated';
+    }
+
+    invalidateSheetCache(GIFT_CARDS_SHEET_NAME);
+
+    var ledgerAction = 'none';
+    if (ledgerEntry) {
+      var ledger = ensureGiftCardLedgerSheet();
+      if (!ledger.ok) return { ok: false, error: 'ledger_unavailable' };
+
+      var txRef = sanitizeInput(String(ledgerEntry.tx_ref || ''));
+      var existingLedgerRows = sheetToObjects(GIFT_CARD_TRANSACTIONS_SHEET_NAME, true);
+      var isDuplicate = existingLedgerRows.some(function (row) {
+        return normalizeCertNumber(row.cert_number) === certNum && String(row.tx_ref) === txRef;
+      });
+
+      if (isDuplicate) {
+        ledgerAction = 'skipped_duplicate';
+      } else {
+        var kind = sanitizeInput(String(ledgerEntry.kind || ''));
+        var amount = roundGiftCardAmount(parseFloat(ledgerEntry.amount));
+        var balanceBefore = (ledgerEntry.balance_before === null || ledgerEntry.balance_before === undefined)
+          ? '' : roundGiftCardAmount(parseFloat(ledgerEntry.balance_before));
+        var balanceAfter = (ledgerEntry.balance_after === null || ledgerEntry.balance_after === undefined)
+          ? '' : roundGiftCardAmount(parseFloat(ledgerEntry.balance_after));
+        var createdAt = ledgerEntry.created_at ? String(ledgerEntry.created_at) : lastUpdated;
+        var actor = sanitizeInput(String(ledgerEntry.actor || ''));
+
+        ledger.sheet.appendRow([
+          Utilities.getUuid(),
+          certNum,
+          txRef,
+          kind,
+          amount,
+          balanceBefore,
+          balanceAfter,
+          'settled',
+          false,
+          createdAt,
+          createdAt,
+          sanitizeInput('mirror:postgres actor=' + actor)
+        ]);
+        invalidateSheetCache(GIFT_CARD_TRANSACTIONS_SHEET_NAME);
+        ledgerAction = 'appended';
+      }
+    }
+
+    return { ok: true, row_action: rowAction, ledger_action: ledgerAction };
   } finally {
     lock.releaseLock();
   }
