@@ -15,6 +15,7 @@ var discountMatch = require('../lib/discount-match');
 var buildContactPayload = require('../lib/checkout-helpers').buildContactPayload;
 var moneyPath = require('../lib/money-path');
 var captureExceptionSafe = require('../lib/sentry-capture').captureExceptionSafe;
+var giftCardStore = require('../lib/gift-card-store');
 // 57-04: reuse routes/catalog.js's rebuildKioskCatalog() for the sale-time
 // auto-reconcile (bounded one-shot rebuild on a catalog-miss). No require
 // cycle — catalog.js never requires pos.js.
@@ -731,26 +732,18 @@ function processSaleWithPrices(body, idempotencyKey, req, res,
   //   { state: 'invalid' }        — Apps Script reports ok:false → hard reject (400)
   //   { state: 'unavailable' }    — network/timeout error → 503 in prod, fail-open in non-prod
   //   null                        — no lookup needed (no gift card or Apps Script not configured)
-  var _gcAsUrl   = process.env.APPS_SCRIPT_URL;
-  var _gcAsToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
   var _gcLookupStart = Date.now(); // 68-01: only meaningful when a lookup actually runs below
   var gcRealBalanceLookup = Promise.resolve(null);
-  if (gift_amount_submitted > 0 && gift_cert_number && _gcAsUrl && _gcAsToken) {
-    gcRealBalanceLookup = Promise.resolve(
-      axios.post(_gcAsUrl, JSON.stringify({
-        action:       'lookup_gift_card',
-        server_token: _gcAsToken,
-        cert_number:  gift_cert_number
-      }), { headers: { 'Content-Type': 'application/json' }, timeout: 12000, maxRedirects: 5 })
-    )
-    .then(function (resp) {
-      var r = (resp && resp.data) || {};
+  if (gift_amount_submitted > 0 && gift_cert_number && giftCardStore.isConfigured()) {
+    gcRealBalanceLookup = giftCardStore.lookup(gift_cert_number)
+    .then(function (r) {
+      r = r || {};
       if (r.ok === true && r.data && typeof r.data.current_balance === 'number') {
         return { state: 'ok', balance: r.data.current_balance };
       }
-      // Apps Script explicitly reported ok:false → cert invalid or not found
+      // store explicitly reported ok:false → cert invalid or not found
       if (r.ok === false) { return { state: 'invalid' }; }
-      // ok:true but no balance data (Apps Script misconfigured or returned partial response)
+      // ok:true but no balance data (misconfigured or partial response)
       return { state: 'unavailable' };
     })
     .catch(function (lookupErr) {
@@ -1394,23 +1387,15 @@ function runConfirm(body, confirmIdemKey, req, res) {
     // CR-02 (45): look up real balance before recording gift card payment in Zoho.
     // Discriminated result (same contract as sale path):
     //   { state: 'ok', balance: N } | { state: 'invalid' } | { state: 'unavailable' } | null
-    var _cfAsUrl   = process.env.APPS_SCRIPT_URL;
-    var _cfAsToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
     var gcConfirmBalanceLookup = Promise.resolve(null);
-    if (gcSubmittedConfirm > 0 && gcCertNum && _cfAsUrl && _cfAsToken) {
-      gcConfirmBalanceLookup = Promise.resolve(
-        axios.post(_cfAsUrl, JSON.stringify({
-          action:       'lookup_gift_card',
-          server_token: _cfAsToken,
-          cert_number:  gcCertNum
-        }), { headers: { 'Content-Type': 'application/json' }, timeout: 12000, maxRedirects: 5 })
-      )
-      .then(function (resp) {
-        var r = (resp && resp.data) || {};
+    if (gcSubmittedConfirm > 0 && gcCertNum && giftCardStore.isConfigured()) {
+      gcConfirmBalanceLookup = giftCardStore.lookup(gcCertNum)
+      .then(function (r) {
+        r = r || {};
         if (r.ok === true && r.data && typeof r.data.current_balance === 'number') {
           return { state: 'ok', balance: r.data.current_balance };
         }
-        // Apps Script explicitly reported ok:false → cert invalid or not found.
+        // Store explicitly reported ok:false → cert invalid or not found.
         // In production this is a hard reject; in non-prod treat as unavailable
         // (fail-open) so existing tests that mock all axios.post as ok:false
         // for redeem-failure scenarios still reach the redemption step (T-44-G9).
@@ -1696,25 +1681,25 @@ function runConfirm(body, confirmIdemKey, req, res) {
             }
           })
           .then(function () {
-            // LAST STEP: all Apps Script balance/activation calls (Pitfall 1 — MUST be after all Zoho calls).
+            // LAST STEP: all gift-card store balance/activation calls (Pitfall 1 — MUST be after all Zoho calls).
             // On failure: log CRITICAL but resolve (invoice already paid — Pitfall 1 accepted failure mode).
-            var asUrl = process.env.APPS_SCRIPT_URL;
-            var asToken = process.env.APPS_SCRIPT_SERVER_TOKEN;
+            var gcConfigured = giftCardStore.isConfigured();
+            var gcActor = giftCardStore.actorFromRequest(req, 'kiosk-sale');
 
             var lastStep = Promise.resolve();
 
             // Step A: Redeem gift card balance (existing 44-04 path)
-            if (gcApplied > 0 && gcCertNum && asUrl && asToken) {
+            if (gcApplied > 0 && gcCertNum && gcConfigured) {
               lastStep = lastStep.then(function () {
-                return axios.post(asUrl, JSON.stringify({
-                  action: 'redeem_gift_card',
-                  server_token: asToken,
-                  cert_number: gcCertNum,
+                return giftCardStore.redeem({
+                  certNumber: gcCertNum,
                   amount: gcApplied,
-                  transaction_ref: refNumber
-                }), { headers: { 'Content-Type': 'application/json' }, timeout: 12000, maxRedirects: 5 })
-                .then(function (asResp) {
-                  var r = asResp.data || {};
+                  saleRef: refNumber,
+                  actor: gcActor,
+                  postCharge: true
+                })
+                .then(function (r) {
+                  r = r || {};
                   if (!r.ok) {
                     log.error('[pos/kiosk/sale/confirm] CRITICAL: Gift card balance decrement failed for ' +
                       gcCertNum + ': ' + (r.error || 'unknown'));
@@ -1738,7 +1723,7 @@ function runConfirm(body, confirmIdemKey, req, res) {
             // Step B: Activate gift cert lines (issue/reload) — 44-09 (D-05, T-44-G3)
             // Runs AFTER Step A so both are post-payment; ordering within last-step doesn't matter
             // since they operate on different certs, but sequential chaining keeps the code clean.
-            if (asUrl && asToken) {
+            if (gcConfigured) {
               lineItems.forEach(function (gcLine) {
                 if (!gcLine.gift_cert) return;
                 var certNum = gcLine.cert_number;
@@ -1747,16 +1732,17 @@ function runConfirm(body, confirmIdemKey, req, res) {
 
                 if (certAction === 'issue') {
                   lastStep = lastStep.then(function () {
-                    return axios.post(asUrl, JSON.stringify({
-                      action: 'issue_gift_card',
-                      server_token: asToken,
-                      cert_number: certNum,
-                      face_value: certRate,
-                      issued_by: 'kiosk',
-                      notes: 'Issued via kiosk cart. Ref: ' + refNumber
-                    }), { headers: { 'Content-Type': 'application/json' }, timeout: 12000, maxRedirects: 5 })
-                    .then(function (issueResp) {
-                      var r = issueResp.data || {};
+                    return giftCardStore.issue({
+                      certNumber: certNum,
+                      faceValue: certRate,
+                      issuedBy: 'kiosk',
+                      notes: 'Issued via kiosk cart. Ref: ' + refNumber,
+                      saleRef: refNumber,
+                      actor: gcActor,
+                      postCharge: true
+                    })
+                    .then(function (r) {
+                      r = r || {};
                       if (!r.ok) {
                         log.error('[pos/kiosk/sale/confirm] CRITICAL: gift card activation failed for ' +
                           certNum + ': ' + (r.error || 'unknown'));
@@ -1766,13 +1752,10 @@ function runConfirm(body, confirmIdemKey, req, res) {
                       eventLog.logEvent('kiosk.gift_card_issued', {
                         certNumber: certNum, faceValue: certRate, invoiceNumber: invoiceNumber
                       });
-                      // update_gift_card_invoice only on success (links Sheets row to cart invoice)
-                      return axios.post(asUrl, JSON.stringify({
-                        action: 'update_gift_card_invoice',
-                        server_token: asToken,
-                        cert_number: certNum,
-                        zoho_invoice_number: invoiceNumber
-                      }), { headers: { 'Content-Type': 'application/json' }, timeout: 12000, maxRedirects: 5 })
+                      // updateInvoice only on success (links Sheets row to cart invoice)
+                      return giftCardStore.updateInvoice({
+                        certNumber: certNum, invoiceNumber: invoiceNumber
+                      })
                       .catch(function (updErr) {
                         log.error('[pos/kiosk/sale/confirm] update_gift_card_invoice failed for ' +
                           certNum + ': ' + updErr.message);
@@ -1786,15 +1769,15 @@ function runConfirm(body, confirmIdemKey, req, res) {
                   });
                 } else if (certAction === 'reload') {
                   lastStep = lastStep.then(function () {
-                    return axios.post(asUrl, JSON.stringify({
-                      action: 'reload_gift_card',
-                      server_token: asToken,
-                      cert_number: certNum,
+                    return giftCardStore.reload({
+                      certNumber: certNum,
                       amount: certRate,
-                      transaction_ref: refNumber
-                    }), { headers: { 'Content-Type': 'application/json' }, timeout: 12000, maxRedirects: 5 })
-                    .then(function (relResp) {
-                      var r = relResp.data || {};
+                      saleRef: refNumber,
+                      actor: gcActor,
+                      postCharge: true
+                    })
+                    .then(function (r) {
+                      r = r || {};
                       if (!r.ok) {
                         log.error('[pos/kiosk/sale/confirm] CRITICAL: gift card reload activation failed for ' +
                           certNum + ': ' + (r.error || 'unknown'));
