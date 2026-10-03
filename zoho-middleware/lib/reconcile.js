@@ -35,16 +35,22 @@
 // Threat: T-45-08-ORPHAN (Repudiation / Integrity)
 // ---------------------------------------------------------------------------
 
-var log      = require('./logger');
-var cache    = require('./cache');
-var C        = require('./constants');
-var eventLog = require('./eventLog');
-var zohoApi  = require('./zoho-api');
+var log           = require('./logger');
+var cache         = require('./cache');
+var C             = require('./constants');
+var eventLog      = require('./eventLog');
+var zohoApi       = require('./zoho-api');
+var sentryCapture = require('./sentry-capture');
 var zohoGet  = zohoApi.zohoGet;
 
 var PENDING_PREFIX                  = C.CACHE_KEYS.KIOSK_PENDING_CHARGE_PREFIX;
 var TERMINAL_RESULT_PREFIX          = 'helcim:terminal:result:';
 var COLLECT_RECONCILE_FAILURE_PREFIX = C.CACHE_KEYS.COLLECT_RECONCILE_FAILURE_PREFIX;
+// Phase 84 D-11: durable pending record for a gift-card write that fails
+// AFTER the customer has already been charged. Keyed by tx_ref (NOT
+// Date.now()) so the sweep targets the exact failed write and replays it
+// idempotically via the gift-card store's tx_ref UNIQUE constraint (84-01).
+var GIFT_CARD_PENDING_PREFIX = 'giftcard:pending:';
 // 30-day TTL for void-failure sentinel records (matches pos.js:1007/1664 convention)
 var VOID_FAILURE_TTL = 30 * 24 * 60 * 60;
 // 7-day TTL for the pending-charge record when re-written with the
@@ -611,6 +617,218 @@ function recordCollectReconcileFailure(ctx, transactionId, err) {
     });
 }
 
+/**
+ * Record a durable sentinel for a gift-card write (redeem/issue/reload) that
+ * failed AFTER the customer has already been charged — Phase 84 D-11.
+ *
+ * Mirrors recordCollectReconcileFailure's shape: a cache-key record with the
+ * existing 30-day VOID_FAILURE_TTL plus a staff alert, so the 5-minute
+ * sweepGiftCardPending backstop (or a human) can recover the write. NEVER
+ * rejects — a Redis outage at write time must not propagate back into the
+ * already-settled sale (same invariant as every post-payment gift-card step
+ * in routes/pos.js).
+ *
+ * Keyed by GIFT_CARD_PENDING_PREFIX + tx_ref (NOT Date.now()) so the sweep
+ * targets the exact failed write and can replay it idempotently via the
+ * gift-card store's tx_ref UNIQUE constraint (84-01).
+ *
+ * SECURITY (T-84-35): never log the full params object — it may carry a
+ * staff email in `actor` (D-05 kiosk adjust). Only tx_ref/cert_number/
+ * amount/op are logged; the full params object is only ever written to
+ * Redis.
+ *
+ * @param {Object} record
+ * @param {string} record.op            - 'redeem' | 'issue' | 'reload'
+ * @param {Object} [record.params]      - the original call params (incl. txRef); Redis-only, never logged
+ * @param {string} record.tx_ref        - composite tx_ref (84-01 mintTxRef)
+ * @param {string} [record.cert_number] - gift-card certificate number
+ * @param {number} [record.amount]      - amount involved in the write
+ * @param {string} [record.error]       - the error message that triggered this record
+ * @returns {Promise<void>} never rejects
+ */
+function recordGiftCardReconcileFailure(record) {
+  var mailer = require('./mailer');
+  var safeRecord = record || {};
+  var txRef      = safeRecord.tx_ref;
+  var certNumber = safeRecord.cert_number;
+  var amount     = safeRecord.amount || 0;
+  var op         = safeRecord.op;
+  var errMessage = safeRecord.error || 'unknown';
+
+  var fullRecord = {
+    op: op,
+    params: safeRecord.params || {},
+    tx_ref: txRef,
+    cert_number: certNumber,
+    amount: amount,
+    error: errMessage,
+    needs_manual_review: true,
+    attempts: 0,
+    created_at: new Date().toISOString()
+  };
+
+  var key = GIFT_CARD_PENDING_PREFIX + txRef;
+
+  log.error('[reconcile] CRITICAL: gift-card write failed post-charge — op=' + op +
+    ' cert=' + certNumber + ' txRef=' + txRef + ' amount=$' + amount + ' error=' + errMessage);
+
+  eventLog.logEvent('giftcard.reconcile_failed', {
+    txRef: txRef, certNumber: certNumber, amount: amount, op: op
+  });
+
+  sentryCapture.captureExceptionSafe(
+    new Error('Gift-card reconcile failed post-charge: ' + errMessage),
+    { level: 'error', tags: { component: 'giftcards' }, extra: { txRef: txRef, certNumber: certNumber, amount: amount, op: op } }
+  );
+
+  return cache.set(key, fullRecord, VOID_FAILURE_TTL)
+    .catch(function (setErr) {
+      var setErrMessage = (setErr && setErr.message) || String(setErr);
+      log.error('[reconcile] CRITICAL: gift-card pending record NOT written — txRef=' + txRef +
+        ' cert=' + certNumber + ' op=' + op + ' error=' + setErrMessage);
+      sentryCapture.captureExceptionSafe(
+        new Error('Gift-card pending record write failed: ' + setErrMessage),
+        { level: 'error', tags: { component: 'giftcards' }, extra: { txRef: txRef, certNumber: certNumber } }
+      );
+    })
+    .then(function () {
+      return mailer.sendVoidFailureAlert({
+        txnId: txRef,
+        amount: amount,
+        error: 'Gift-card reconcile failed post-charge (op=' + op + '): ' + errMessage,
+        timestamp: fullRecord.created_at
+      }).catch(function (mailErr) {
+        log.error('[reconcile] Gift-card reconcile-failure alert email failed: ' + mailErr.message);
+      });
+    });
+}
+
+/**
+ * Sweep every giftcard:pending:* record and replay it through the gift-card
+ * store (Phase 84 D-11 backstop for recordGiftCardReconcileFailure).
+ *
+ * For each pending record:
+ *   - Missing tx_ref/op (malformed) → logged and left in place for manual
+ *     inspection (never silently deleted).
+ *   - Already manual_review_required → skipped (a human must resolve it;
+ *     repeated replay of a proven business rejection would just spam alerts).
+ *   - store.replayPending(record) resolves {ok:true} → cache.del(key),
+ *     eventLog 'giftcard.pending_replayed'.
+ *   - store.replayPending(record) resolves {ok:false, error} → a business
+ *     rejection (e.g. insufficient balance): record re-set with
+ *     manual_review_required:true + last_error, Sentry error + staff alert.
+ *   - store.replayPending(record) rejects → an infrastructure failure:
+ *     attempts incremented, record re-set, key kept for the next sweep. No
+ *     Sentry spam beyond a warning log (this is expected to retry).
+ *
+ * No-ops cleanly when Redis is disconnected. The gift-card store (84-05) is
+ * lazy-required ONLY once there is at least one key to process, so this
+ * function does not hard-depend on lib/gift-card-store.js existing when no
+ * pending records are present — deps.giftCardStore is always used when
+ * provided (test injection).
+ *
+ * @param {Object} [deps]               - { giftCardStore } injected for testing
+ * @param {Object} [deps.giftCardStore] - object exposing replayPending(record)
+ * @returns {Promise<{replayed: number, manualReview: number, deferred: number}>}
+ */
+function sweepGiftCardPending(deps) {
+  var mailer = require('./mailer');
+  var emptyCounts = { replayed: 0, manualReview: 0, deferred: 0 };
+
+  if (!cache.isConnected()) {
+    log.info('[reconcile/giftcard-sweep] Redis not connected — skipping sweep');
+    return Promise.resolve(emptyCounts);
+  }
+
+  return cache.getClient().then(function (c) {
+    if (!c) return null;
+    return c.keys(GIFT_CARD_PENDING_PREFIX + '*');
+  }).then(function (keys) {
+    if (!keys || keys.length === 0) return emptyCounts;
+
+    var store = (deps && deps.giftCardStore) || require('./gift-card-store');
+    var counts = { replayed: 0, manualReview: 0, deferred: 0 };
+
+    log.info('[reconcile/giftcard-sweep] Found ' + keys.length + ' gift-card pending record(s) — checking each');
+
+    var chain = Promise.resolve();
+    keys.forEach(function (key) {
+      chain = chain.then(function () {
+        return cache.get(key).then(function (record) {
+          if (!record || !record.tx_ref || !record.op) {
+            log.warn('[reconcile/giftcard-sweep] Malformed record at key=' + key +
+              ' — leaving in place for manual inspection');
+            return;
+          }
+
+          if (record.manual_review_required) {
+            log.info('[reconcile/giftcard-sweep] txRef=' + record.tx_ref +
+              ' already flagged manual_review_required — skipping');
+            counts.deferred++;
+            return;
+          }
+
+          return store.replayPending(record).then(function (result) {
+            if (result && result.ok) {
+              counts.replayed++;
+              return cache.del(key).then(function () {
+                eventLog.logEvent('giftcard.pending_replayed', {
+                  txRef: record.tx_ref, certNumber: record.cert_number, op: record.op
+                });
+              });
+            }
+
+            // Business rejection (e.g. insufficient_balance) — stop retrying,
+            // flag for a human, alert.
+            counts.manualReview++;
+            var lastError = (result && result.error) || 'unknown';
+            var updated = Object.assign({}, record, {
+              manual_review_required: true,
+              last_error: lastError
+            });
+
+            log.error('[reconcile/giftcard-sweep] CRITICAL: gift-card replay rejected — txRef=' +
+              record.tx_ref + ' cert=' + record.cert_number + ' op=' + record.op + ' error=' + lastError);
+
+            sentryCapture.captureExceptionSafe(
+              new Error('Gift-card pending replay rejected: ' + lastError),
+              { level: 'error', tags: { component: 'giftcards' }, extra: { txRef: record.tx_ref, certNumber: record.cert_number, op: record.op } }
+            );
+
+            return cache.set(key, updated, VOID_FAILURE_TTL).catch(function () {}).then(function () {
+              return mailer.sendVoidFailureAlert({
+                txnId: record.tx_ref,
+                amount: record.amount || 0,
+                error: 'Gift-card pending replay rejected (op=' + record.op + '): ' + lastError,
+                timestamp: new Date().toISOString()
+              }).catch(function (mailErr) {
+                log.error('[reconcile/giftcard-sweep] Alert email failed: ' + mailErr.message);
+              });
+            });
+          }).catch(function (err) {
+            // Infrastructure failure (e.g. DB still down) — keep the record,
+            // increment attempts, retry on the next sweep. No Sentry spam.
+            counts.deferred++;
+            var attempts = (record.attempts || 0) + 1;
+            var updated = Object.assign({}, record, { attempts: attempts });
+            log.warn('[reconcile/giftcard-sweep] replayPending infra failure for txRef=' +
+              record.tx_ref + ' (attempt ' + attempts + '): ' + ((err && err.message) || err));
+            return cache.set(key, updated, VOID_FAILURE_TTL).catch(function () {});
+          });
+        }).catch(function (err) {
+          log.warn('[reconcile/giftcard-sweep] Error processing key=' + key +
+            ': ' + ((err && err.message) || err));
+        });
+      });
+    });
+
+    return chain.then(function () { return counts; });
+  }).catch(function (err) {
+    log.warn('[reconcile/giftcard-sweep] Sweep failed: ' + ((err && err.message) || err));
+    return emptyCounts;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Module exports
 // ---------------------------------------------------------------------------
@@ -619,6 +837,8 @@ module.exports = {
   reconcilePendingCharge:        reconcilePendingCharge,
   sweepPendingCharges:           sweepPendingCharges,
   recordCollectReconcileFailure: recordCollectReconcileFailure,
+  recordGiftCardReconcileFailure: recordGiftCardReconcileFailure,
+  sweepGiftCardPending:          sweepGiftCardPending,
   // Exported for direct testing of the D-50-02b cross-module guard: an
   // unconfirmed-void error's message must not collide with the substrings
   // this function treats as an already-voided SUCCESS signal (see
