@@ -513,6 +513,175 @@ to either repo**, or the deploy will fail closed.
 
 ---
 
+## Gift cards → Postgres (Phase 84)
+
+Owner-run cutover, dual window, flip and rollback procedure for the GiftCards store (DB-03).
+No secrets, no balances, no customer names appear below or in any terminal output this section
+references — every script in this flow prints cert numbers, field names and counts only.
+
+### 1. Store flag
+
+`GIFT_CARDS_STORE` is a Railway environment variable, set per-environment (staging,
+production) on the middleware service — never a runtime/admin toggle. Valid values:
+`sheets` | `dual` | `postgres`. Unset means `sheets` (today's behavior, zero-config). Any other
+value refuses to boot with a clear error naming the variable (D-06) — the app never starts in
+an ambiguous mode. Flipping the value requires a Railway redeploy (~1 min restart), same as
+every other store flag on this page.
+
+**Staging has no sheet leg in `dual` mode** — the mirror (`mirror_gift_card_state`) is
+production-only (D-07's sheet-mirror hard-off-on-staging gate, re-used unchanged by this
+phase). Staging's `dual` therefore only proves the Postgres leg; the dual-window discrepancy
+comparison described in §4 only has real meaning in production.
+
+### 2. Staging rehearsal
+
+Run the exact production cutover steps below (§3) against staging's own Postgres database
+first, using a full real copy of the live data (Phase 83 D-11) — not synthetic fixtures. This
+is a rehearsal only: staging never mirrors to the shared Google Sheet (owner decision,
+2026-09-23), so staging's `gift-cards-verify.js` run compares against the SAME shared sheet
+that production reads, which will disagree on balances staging itself never wrote — expect
+and accept sheet-side mismatches that are purely informational on staging. The goal of the
+staging rehearsal is proving the backfill → verify → flip sequence runs clean against a
+real-sized dataset, not proving staging's own sheet parity.
+
+### 3. After-hours production cutover (D-15)
+
+Run only when the store is closed and the kiosk is idle. Numbered checklist:
+
+1. Download a fresh `.xlsx` snapshot of the live "STEINS AND VINES" sheet (File → Download →
+   Microsoft Excel).
+2. Open the owner's private Railway tunnel to production Postgres (see
+   `zoho-middleware/scripts/backfill/README.md`).
+3. `gift-cards-backfill.js --dry-run --file <snapshot>` — **zero rejects required.** If any
+   row rejects (`needs_manual_review`, an unsettled claim, a malformed cell), resolve it in the
+   live sheet first and re-run the dry run; do not proceed with any reject outstanding (D-13,
+   unconditional — no `--accept-rejects` escape hatch exists for this CLI).
+4. `gift-cards-backfill.js --promote --file <snapshot>` once the dry run is clean.
+5. Set `GIFT_CARDS_STORE=dual` in Railway (production). Wait for the redeploy to finish, then
+   confirm `/health` reports `database:true` and `database_required:true`.
+6. Download a SECOND, FRESH `.xlsx` (the live sheet may have moved since step 1).
+7. `gift-cards-verify.js --file <fresh snapshot>` must report 0 mismatches before the store
+   reopens.
+8. **If any mismatch is reported:** set `GIFT_CARDS_STORE=sheets` immediately, investigate the
+   named cert(s) + field(s), and do not re-promote into the same tables. Truncate nothing by
+   hand — the owner's decision point is whether to restore the target database from the
+   Railway/R2 backup or stand up a fresh empty database before redoing steps 3–7. Document
+   which path was chosen and why in `84-DUAL-LOG.md`.
+
+### 4. Dual window (D-01/D-02/D-03)
+
+While `GIFT_CARDS_STORE=dual`, Postgres is authoritative for every decision and the sheet leg
+re-runs the same operation fire-and-forget as a parity check — never the other way around. A
+mismatch between the two raises a Sentry event titled `dual-write giftcards.<op> discrepancy`.
+
+Every discrepancy, whether caught by Sentry or found manually, is logged in `84-DUAL-LOG.md`
+and classified **explained** or **bug**:
+- A **bug** fix restarts the 7-consecutive-day window from day 1.
+- An **explained** discrepancy (e.g. a known timing artifact, a field the sheet leg doesn't
+  carry) does not restart the window.
+
+There is no automatic rollback on a discrepancy — the owner decides case by case. The flip bar
+(§6) requires **at least 7 consecutive days** with every one of the six ops — issue, redeem,
+reload, lookup, void, adjust — observed at least once, with zero unexplained (i.e. still
+unclassified or classified-bug-without-a-fix) discrepancies across the whole window.
+
+### 5. Scripted $1 test-card runsheet (D-02)
+
+Real kiosk traffic during the dual window may not exercise every op. This runsheet forces all
+six during opening hours on PRODUCTION, using **CASH tender only** so no card refund is ever
+needed. Use the kiosk's suggested next cert number — never a `TEST-*` or a hand-picked high
+number (an override above the sequence moves the sequence, D-14).
+
+1. **issue** — add a $1 gift certificate to the kiosk cart with the suggested next number, pay
+   cash.
+2. **lookup** — look the new cert up via Gift Card Management.
+3. **redeem** — sell any small item paying $0.50 with the test card.
+4. **reload** — sell a $1 reload on the same card, pay cash.
+5. **adjust** — Adjust +$0.25 reason "goodwill", then −$0.25 reason "correction" (nets back to
+   the pre-adjust balance).
+6. **void** — void the card with reason "Phase 84 dual-window test".
+
+Record each op + the time it ran in `84-DUAL-LOG.md`'s op-coverage table, then check Sentry for
+any discrepancy on that cert. **Note:** the cash amounts in steps 1/3/4 are real revenue booked
+in Zoho — the owner decides whether to reverse those invoices by the normal process; this
+runsheet does not do that automatically.
+
+### 6. Flip to postgres (D-04)
+
+**Prerequisite:** the Apps Script deployment containing `mirror_gift_card_state` must be the
+ACTIVE deployment. Record its version number and the immediately-prior version (the rollback
+target) here before flipping:
+
+| Field | Value |
+|-------|-------|
+| Apps Script version with `mirror_gift_card_state` ACTIVE at flip time | _(fill in at flip time)_ |
+| Rollback version (immediately prior) | _(fill in at flip time)_ |
+| Flip date/time | _(fill in at flip time)_ |
+
+After hours, once the §4 flip bar is met:
+
+1. Set `GIFT_CARDS_STORE=postgres` in Railway (production).
+2. Run `gift-cards-verify.js` against a fresh `.xlsx` — must report 0 mismatches.
+3. Confirm one real sale's copy-state row and ledger row appear correctly in the live sheet
+   (proves `mirror_gift_card_state` is actually firing, not just configured).
+
+Once flipped, no Phase 51 Apps Script gift-card action (`redeem_gift_card` etc.) runs again —
+`mirror_gift_card_state` is the only function still touching the GiftCards/GiftCardTransactions
+sheets.
+
+### 7. Rollback dual → sheets
+
+1. Set `GIFT_CARDS_STORE=sheets`.
+2. Download a fresh `.xlsx`.
+3. Run `gift-cards-verify.js`. A mismatch means the sheet leg missed one or more writes while
+   in `dual` mode (the sheet leg is fire-and-forget, so a transient failure is possible).
+4. If mismatches are found: run `gift-cards-replay-to-sheet.js` (dry run first, inspect the
+   counts, then `--apply`) BEFORE reopening the store.
+5. Run `gift-cards-verify.js` again — it must report 0 mismatches before the store reopens.
+
+### 8. Rollback postgres → sheets (ledger replay, D-04)
+
+Used after a `postgres`-mode flip needs to come back to `sheets` with no data loss.
+
+1. Store closed.
+2. `gift-cards-replay-to-sheet.js --since <flip time from §6>` dry run first, review the
+   payload count, then re-run with `--apply`.
+3. `gift-cards-verify.js` must report 0 mismatches.
+4. Set `GIFT_CARDS_STORE=sheets`.
+
+The Phase 51 Apps Script logic resumes immediately — mirrored ledger rows were written with
+status `settled` and composite `tx_ref`s, so they never block a future claim.
+
+### 9. D-10 deploy gate
+
+With any store at `dual` or `postgres`, the gated-deploy smoke check fails the deploy when
+`/health`'s `database` field is not `true` (`/health`'s top-level `status` stays `ok`
+regardless — this is a deploy gate, not an uptime alarm). If this happens: check the Railway
+Postgres service's own status first; if the outage is more than transient, consider a
+temporary rollback to `GIFT_CARDS_STORE=sheets` (§7/§8 as appropriate) while it's investigated.
+
+### 10. D-11 pending records
+
+A post-charge infrastructure failure (Postgres unreachable after a card was already charged)
+writes a durable `giftcard:pending:*` key in Railway Redis rather than losing the write. List
+them with the Redis CLI key pattern `giftcard:pending:*`. A record with
+`manual_review_required:true` means an automatic replay already tried and got a genuine
+business rejection (e.g. insufficient balance) — resolve it with a corrective `adjust` (reason
+`correction`, note referencing the original `tx_ref`), then delete the key. The automatic
+sweep re-attempts every un-flagged pending record every 5 minutes; most clear themselves before
+a human ever needs to look.
+
+### 11. Known open items carried from Phase 83
+
+The production cutover above assumes both of the following are already true (84-11 verifies
+them, not this plan):
+- Railway Postgres backup/restore is confirmed live in production (§ "Railway Postgres
+  (staging + production)" above — cleared 2026-10-02).
+- The first observed pre-deploy migration-guard-chain log line has been confirmed on a real
+  deploy (carried from Phase 83's gap closure).
+
+---
+
 ## Phase 46 Auth Cutover (CRITICAL — leaked-key neutralization)
 
 Closes the audit CRITICAL: the storefront previously shipped `MW_API_KEY` in client JS, so the
