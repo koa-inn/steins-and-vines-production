@@ -1,42 +1,21 @@
 'use strict';
 
 var express = require('express');
-var axios = require('axios');
 var log = require('../lib/logger');
 var eventLog = require('../lib/eventLog');
 var cache = require('../lib/cache');
 var C = require('../lib/constants');
 var authTiers = require('../lib/authTiers');
+var giftCardStore = require('../lib/gift-card-store');
 
 var router = express.Router();
 
 // M8 (Phase 52-05): next-number is a suggestion only — the server still
 // enforces uniqueness on issue — so a short cache is safe (reduces repeat
 // Apps Script calls from a busy kiosk without risking a stale money value).
+// D-14 (Phase 84): this cache is sheets-mode-only — dual/postgres never
+// serve a suggestion from it (see the next-number handler below).
 var GC_NEXT_NUMBER_CACHE_TTL = 30; // seconds
-
-// ---------------------------------------------------------------------------
-// Internal helper: call Apps Script via POST.
-// All 7 gift-card actions live in the doPost server_token dispatch block.
-// CRITICAL: send action + server_token in the JSON body (not query params).
-// ---------------------------------------------------------------------------
-function callAppsScript(action, payload) {
-  var url = process.env.APPS_SCRIPT_URL;
-  var token = process.env.APPS_SCRIPT_SERVER_TOKEN;
-
-  var body = Object.assign({}, payload, {
-    action: action,
-    server_token: token
-  });
-
-  return axios.post(url, JSON.stringify(body), {
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 12000,
-    maxRedirects: 5
-  }).then(function (resp) {
-    return resp.data || {};
-  });
-}
 
 // ---------------------------------------------------------------------------
 // GET /api/kiosk/gift-card/next-number
@@ -49,13 +28,30 @@ function callAppsScript(action, payload) {
 // ---------------------------------------------------------------------------
 router.get('/api/kiosk/gift-card/next-number', function (req, res) {
   return authTiers.requireTiers(['legacy', 'device', 'session'])(req, res, function () {
+    var mode = giftCardStore.getMode();
+
+    // D-14: dual/postgres never serve a suggestion from the 30s cache — a
+    // sequence value must never be handed out twice.
+    if (mode !== 'sheets') {
+      return giftCardStore.nextCertNumber().then(function (result) {
+        if (!result.ok) {
+          log.warn('[gift-cards/next-number] error: ' + (result.error || 'unknown'));
+          return res.status(500).json({ error: 'Failed to get next cert number' });
+        }
+        return res.status(200).json({ ok: true, suggested: result.suggested });
+      }).catch(function (err) {
+        log.error('[gift-cards/next-number] call failed: ' + err.message);
+        return res.status(502).json({ error: 'Failed to reach Apps Script' });
+      });
+    }
+
     var cacheKey = C.CACHE_KEYS.GIFT_CARD_NEXT_NUMBER;
 
     return cache.get(cacheKey).then(function (cached) {
       if (cached) {
         return res.status(200).json(cached);
       }
-      return callAppsScript('get_next_cert_number', {}).then(function (result) {
+      return giftCardStore.nextCertNumber().then(function (result) {
         if (!result.ok) {
           log.warn('[gift-cards/next-number] Apps Script error: ' + (result.error || 'unknown'));
           return res.status(500).json({ error: 'Failed to get next cert number' });
@@ -90,18 +86,31 @@ router.get('/api/kiosk/gift-card/lookup', function (req, res) {
       return res.status(400).json({ error: 'cert_number must match GC-NNNNNN format (e.g. GC-000042)' });
     }
 
-    return callAppsScript('lookup_gift_card', { cert_number: certNumber }).then(function (result) {
+    var mode = giftCardStore.getMode();
+
+    // 84-05 Claude's-Discretion: the staff lookup is the one read that
+    // opts into the dual-mode sheet-compare leg ({compare: true}).
+    return giftCardStore.lookup(certNumber, { compare: true }).then(function (result) {
       if (!result.ok) {
         if (result.error === 'not_found') {
           return res.status(404).json({ ok: false, error: 'Certificate not found' });
         }
-        log.warn('[gift-cards/lookup] Apps Script error for ' + certNumber + ': ' + (result.error || 'unknown'));
+        log.warn('[gift-cards/lookup] error for ' + certNumber + ': ' + (result.error || 'unknown'));
         return res.status(500).json({ error: 'Failed to look up certificate' });
       }
-      // D-05: return server-authoritative data; never expose internal Zoho IDs
-      return res.status(200).json({ ok: true, data: result.data });
+      // D-05: return server-authoritative data; never expose internal Zoho IDs.
+      // D-07: data.store_mode lets the kiosk learn the mode.
+      return res.status(200).json({
+        ok: true,
+        data: Object.assign({}, result.data, { store_mode: mode })
+      });
     }).catch(function (err) {
-      log.error('[gift-cards/lookup] Apps Script call failed: ' + err.message);
+      log.error('[gift-cards/lookup] call failed: ' + err.message);
+      // D-09: dual/postgres never falls back to a sheet read on a DB
+      // failure — surface as a clean 503, never the sheets-mode 502.
+      if (mode !== 'sheets') {
+        return res.status(503).json({ error: 'Gift card lookup temporarily unavailable' });
+      }
       return res.status(502).json({ error: 'Failed to reach Apps Script' });
     });
   });
@@ -134,15 +143,18 @@ router.post('/api/kiosk/gift-card/void', function (req, res) {
     return res.status(400).json({ error: 'reason is required to void a certificate' });
   }
 
-  return callAppsScript('void_gift_card', {
-    cert_number: cert_number,
-    reason: reason
+  var mode = giftCardStore.getMode();
+
+  return giftCardStore.voidCard({
+    certNumber: cert_number,
+    reason: reason,
+    actor: giftCardStore.actorFromRequest(req, 'kiosk-void')
   }).then(function (gsResult) {
     if (!gsResult.ok) {
       if (gsResult.error === 'not_found') {
         return res.status(404).json({ ok: false, error: 'Certificate not found' });
       }
-      log.error('[gift-cards/void] void_gift_card failed: ' + (gsResult.error || 'unknown'));
+      log.error('[gift-cards/void] voidCard failed: ' + (gsResult.error || 'unknown'));
       return res.status(500).json({ error: 'Failed to void certificate' });
     }
 
@@ -154,6 +166,9 @@ router.post('/api/kiosk/gift-card/void', function (req, res) {
     return res.status(200).json({ ok: true });
   }).catch(function (err) {
     log.error('[gift-cards/void] Unexpected error: ' + err.message);
+    if (mode !== 'sheets') {
+      return res.status(503).json({ error: 'Gift card service temporarily unavailable' });
+    }
     return res.status(502).json({ error: 'Failed to void gift certificate. Please try again.' });
   });
 });
