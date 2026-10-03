@@ -25,16 +25,48 @@
  * locate affected cards — this does not violate the rule.
  */
 
+var fs = require('fs');
+var readline = require('readline');
+
+var db = require('../../lib/db');
+var readXlsx = require('./read-xlsx');
 var normalizeLib = require('./normalize');
 var normalizeRow = normalizeLib.normalizeRow;
 var normalizeNumeric = normalizeLib.normalizeNumeric;
+var rejectsLib = require('./rejects');
 var cardSpec = require('./specs/gift-cards');
+var backfillCli = require('./backfill');
+
+var EXIT = backfillCli.EXIT;
+var assertSnapshotSafePath = backfillCli.assertSnapshotSafePath;
+var checkHeaders = backfillCli.checkHeaders;
 
 var DEFAULT_TIMEZONE = 'America/Vancouver';
 var DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 var VALID_STATUSES = ['active', 'depleted', 'void'];
 var VALID_KINDS = ['redeem', 'reload'];
 var CERT_SUFFIX_RE = /^GC-([0-9]{6})$/;
+var POSTGRES_URL_RE = /postgres(ql)?:\/\//;
+
+// GiftCardTransactions has no spec file (Pitfall 3 — a bespoke two-table job, not a
+// single-sheet-to-single-table one) — its exact header order is pinned by 51-03-SUMMARY.md's
+// live-verified sheet (Phase 51 setupGiftCardLedger): tx_id | cert_number | tx_ref | kind |
+// amount | balance_before | balance_after | status | needs_manual_review | created_at |
+// settled_at | notes.
+var LEDGER_SHEET_HEADERS = [
+  'tx_id', 'cert_number', 'tx_ref', 'kind', 'amount', 'balance_before', 'balance_after',
+  'status', 'needs_manual_review', 'created_at', 'settled_at', 'notes'
+];
+
+var CARD_INSERT_COLUMNS = [
+  'cert_number', 'face_value', 'current_balance', 'status', 'issued_date', 'issued_by',
+  'zoho_invoice_number', 'notes'
+];
+var LEDGER_INSERT_COLUMNS = [
+  'cert_number', 'tx_ref', 'kind', 'amount', 'balance_before', 'balance_after', 'imported',
+  'actor', 'source_tx_id'
+];
+var INSERT_BATCH_SIZE = 500;
 
 // ─── Small pure helpers ──────────────────────────────────────────────────
 
@@ -326,6 +358,444 @@ function buildGiftCardBackfillPlan(cardSheet, ledgerSheet, opts) {
   };
 }
 
+// ─── GiftCardTransactions header check (no spec file — Pitfall 3) ─────────
+
+function checkLedgerHeaders(sheetHeaders) {
+  var sheetSet = {};
+  sheetHeaders.forEach(function (h) { sheetSet[h] = true; });
+  var specSet = {};
+  LEDGER_SHEET_HEADERS.forEach(function (h) { specSet[h] = true; });
+
+  return {
+    missing: LEDGER_SHEET_HEADERS.filter(function (h) { return !sheetSet[h]; }),
+    unmapped: sheetHeaders.filter(function (h) { return !specSet[h]; })
+  };
+}
+
+// ─── Promote: batched parameterised inserts, in one transaction ──────────
+
+/**
+ * Table/column names below are fixed string literals owned by this module (never derived
+ * from sheet data or argv) — safe to inline, matching lib/gift-card-pg.js's module-level SQL
+ * constant convention. Only VALUES ever go through $n placeholders (ASVS V5).
+ */
+function buildInsertSql(table, columns, batch) {
+  var params = [];
+  var valueGroups = batch.map(function (row) {
+    var placeholders = columns.map(function (col) {
+      var v = row[col];
+      if (v === undefined) v = null;
+      params.push(v);
+      return '$' + params.length;
+    });
+    return '(' + placeholders.join(', ') + ')';
+  });
+  var sql = 'insert into ' + table + ' (' + columns.join(', ') + ') values ' + valueGroups.join(', ');
+  return { sql: sql, params: params };
+}
+
+function insertBatched(client, table, columns, rows) {
+  if (rows.length === 0) return Promise.resolve();
+  var batches = [];
+  for (var i = 0; i < rows.length; i += INSERT_BATCH_SIZE) {
+    batches.push(rows.slice(i, i + INSERT_BATCH_SIZE));
+  }
+  return batches.reduce(function (chain, batch) {
+    return chain.then(function () {
+      var built = buildInsertSql(table, columns, batch);
+      return client.query(built.sql, built.params);
+    });
+  }, Promise.resolve());
+}
+
+/**
+ * In-transaction invariant checks (84-04-PLAN.md Task 2 step 5), run AFTER every insert and
+ * the sequence setval, BEFORE commit. Names the failed check only — never row contents (D-13).
+ */
+function runPromoteChecks(client, plan) {
+  return client.query('select count(*)::int as count from gift_cards').then(function (r) {
+    if (r.rows[0].count !== plan.totals.cards) {
+      return { ok: false, failedCheck: 'card_count' };
+    }
+
+    return client.query('select coalesce(sum(current_balance), 0) as total from gift_cards').then(function (r2) {
+      var totalMinor = Math.round(Number(r2.rows[0].total) * 100);
+      if (totalMinor !== plan.totals.balanceMinorUnits) {
+        return { ok: false, failedCheck: 'balance_sum' };
+      }
+
+      return client
+        .query(
+          'select count(*)::int as bad from gift_cards gc where gc.current_balance <> coalesce(' +
+            '(select sum(amount) from gift_card_transactions t ' +
+            'where t.cert_number = gc.cert_number and t.imported = false), 0)'
+        )
+        .then(function (r3) {
+          if (r3.rows[0].bad !== 0) {
+            return { ok: false, failedCheck: 'balance_invariant' };
+          }
+
+          return client
+            .query('select count(*)::int as count from gift_card_transactions where imported = true')
+            .then(function (r4) {
+              if (r4.rows[0].count !== plan.totals.importedRows) {
+                return { ok: false, failedCheck: 'imported_row_count' };
+              }
+              return { ok: true };
+            });
+        });
+    });
+  });
+}
+
+function defaultPromptTypeDatabaseName(expectedName) {
+  return new Promise(function (resolve, reject) {
+    var rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question('Type the database name (' + expectedName + ') to continue: ', function (answer) {
+      rl.close();
+      if (answer.trim() === expectedName) {
+        resolve();
+      } else {
+        reject(new Error('database name confirmation did not match — aborting, nothing written'));
+      }
+    });
+  });
+}
+
+/**
+ * runPromote(client, plan, opts, deps, log) -> { exitCode, counts }
+ *
+ * Preconditions (both tables exist AND are empty) are checked OUTSIDE the transaction, like
+ * load.js's promote() — a precondition failure never issues a ROLLBACK-without-BEGIN and
+ * never touches either table. Inside the one transaction: cards, then opening rows, then
+ * imported rows (both batched/parameterised), then the sequence setval (only when
+ * plan.seqSeed > 0 — D-14 never regresses the sequence for an empty backfill), then the
+ * in-transaction invariant checks. Any check failure rolls back and returns CHECKS_FAILED;
+ * any precondition/SQL failure (table missing/non-empty, a genuine constraint violation)
+ * returns ERROR. The client is always released exactly once.
+ */
+function runPromote(client, plan, opts, deps, log) {
+  var promptFn = (deps && deps.promptTypeDatabaseName) || defaultPromptTypeDatabaseName;
+
+  return client
+    .query('select current_database() as database')
+    .then(function (r) {
+      var databaseName = r.rows[0].database;
+      log(
+        'Target: ' +
+          db.redactConnectionString(process.env.BACKFILL_DATABASE_URL || '') +
+          ' database=' +
+          databaseName
+      );
+      return promptFn(databaseName);
+    })
+    .then(function () {
+      return Promise.all([
+        client.query("select to_regclass('public.gift_cards') as reg"),
+        client.query("select to_regclass('public.gift_card_transactions') as reg")
+      ]);
+    })
+    .then(function (regResults) {
+      if (!regResults[0].rows[0].reg) throw new Error('target table public.gift_cards does not exist');
+      if (!regResults[1].rows[0].reg) throw new Error('target table public.gift_card_transactions does not exist');
+
+      return Promise.all([
+        client.query('select count(*)::int as count from gift_cards'),
+        client.query('select count(*)::int as count from gift_card_transactions')
+      ]);
+    })
+    .then(function (countResults) {
+      if (countResults[0].rows[0].count > 0) throw new Error('target table public.gift_cards is not empty');
+      if (countResults[1].rows[0].count > 0) {
+        throw new Error('target table public.gift_card_transactions is not empty');
+      }
+
+      return client.query('BEGIN');
+    })
+    .then(function () {
+      return insertBatched(client, 'gift_cards', CARD_INSERT_COLUMNS, plan.cards);
+    })
+    .then(function () {
+      return insertBatched(client, 'gift_card_transactions', LEDGER_INSERT_COLUMNS, plan.ledger);
+    })
+    .then(function () {
+      if (plan.seqSeed > 0) {
+        return client.query("select setval('gift_card_cert_seq', $1)", [plan.seqSeed]);
+      }
+    })
+    .then(function () {
+      return runPromoteChecks(client, plan);
+    })
+    .then(function (checkResult) {
+      if (!checkResult.ok) {
+        log('Checks: FAIL — ' + checkResult.failedCheck);
+        return client.query('ROLLBACK').then(function () {
+          client.release();
+          return { exitCode: EXIT.CHECKS_FAILED };
+        });
+      }
+
+      return client.query('COMMIT').then(function () {
+        log('Promoted ' + plan.totals.cards + ' cards, ' + plan.ledger.length + ' ledger rows; sequence at ' + plan.seqSeed);
+        client.release();
+        return { exitCode: EXIT.OK };
+      });
+    })
+    .catch(function (err) {
+      log('Error: ' + err.message);
+      return client.query('ROLLBACK').then(
+        function () {
+          client.release();
+          return { exitCode: EXIT.ERROR };
+        },
+        function () {
+          client.release();
+          return { exitCode: EXIT.ERROR };
+        }
+      );
+    });
+}
+
+// ─── CLI ───────────────────────────────────────────────────────────────────
+
+var VALID_FLAGS = ['--file', '--out-dir', '--timezone', '--dry-run', '--promote'];
+var BOOLEAN_FLAGS = { '--dry-run': 'dryRun', '--promote': 'promote' };
+var VALUE_FLAGS = { '--file': 'file', '--out-dir': 'outDir', '--timezone': 'timezone' };
+
+/**
+ * parseArgs(argv) -> { file, outDir, timezone, dryRun, promote }
+ *
+ * No --accept-rejects flag exists here (unlike the generic backfill.js CLI) — D-13 for
+ * GiftCards is unconditional: any reject blocks promotion, full stop; the owner resolves it
+ * in the sheet and re-runs. No --sheet/--schema flags either (fixed to GiftCards +
+ * GiftCardTransactions -> public, no scratch-schema rehearsal step for this phase).
+ */
+function parseArgs(argv) {
+  var opts = {
+    file: undefined,
+    outDir: rejectsLib.DEFAULT_OUT_DIR,
+    timezone: DEFAULT_TIMEZONE,
+    dryRun: false,
+    promote: false
+  };
+
+  argv.forEach(function (arg) {
+    if (POSTGRES_URL_RE.test(arg)) {
+      throw new Error(
+        'pass the database via BACKFILL_DATABASE_URL, never on the command line (got "' + arg + '")'
+      );
+    }
+
+    var eqIdx = arg.indexOf('=');
+    var flag = eqIdx === -1 ? arg : arg.slice(0, eqIdx);
+    var value = eqIdx === -1 ? undefined : arg.slice(eqIdx + 1);
+
+    if (VALID_FLAGS.indexOf(flag) === -1) {
+      throw new Error('unknown flag "' + flag + '" — valid flags: ' + VALID_FLAGS.join(', '));
+    }
+
+    if (BOOLEAN_FLAGS[flag]) {
+      opts[BOOLEAN_FLAGS[flag]] = true;
+      return;
+    }
+
+    opts[VALUE_FLAGS[flag]] = value;
+  });
+
+  return opts;
+}
+
+/**
+ * runGiftCardBackfill(opts, deps) -> Promise<{ exitCode, rejectsPath, counts }>
+ *
+ * deps: { pool, log, promptTypeDatabaseName? }. Steps print as [1/5]..[5/5]; terminal output
+ * is counts/paths/check-names only (D-13). dryRun and a no-promote run both skip step 5
+ * without ever calling pool.connect() for dryRun specifically (opts.promote without dryRun
+ * still only reaches pool.connect() inside step 5's own branch).
+ */
+function runGiftCardBackfill(opts, deps) {
+  deps = deps || {};
+  var log = deps.log || console.log;
+  var pool = deps.pool;
+
+  try {
+    assertSnapshotSafePath(opts.file);
+  } catch (err) {
+    log('Error: ' + err.message);
+    return Promise.resolve({ exitCode: EXIT.ERROR, rejectsPath: null, counts: null });
+  }
+
+  if (!opts.file || !fs.existsSync(opts.file)) {
+    log('Error: snapshot not found: ' + opts.file);
+    return Promise.resolve({ exitCode: EXIT.ERROR, rejectsPath: null, counts: null });
+  }
+
+  var effectiveTimezone = opts.timezone || DEFAULT_TIMEZONE;
+
+  log('[1/5] Read snapshot');
+  return Promise.all([
+    readXlsx.readSheet(opts.file, 'GiftCards'),
+    readXlsx.readSheet(opts.file, 'GiftCardTransactions')
+  ])
+    .then(function (sheets) {
+      var cardSheet = sheets[0];
+      var ledgerSheet = sheets[1];
+
+      var cardHeaderCheck = checkHeaders(cardSpec, cardSheet.headers);
+      if (cardHeaderCheck.unmapped.length) {
+        log('Unmapped GiftCards header(s): ' + cardHeaderCheck.unmapped.join(', '));
+      }
+      if (cardHeaderCheck.missing.length) {
+        log('Error: sheet "GiftCards" is missing spec header(s): ' + cardHeaderCheck.missing.join(', '));
+        return { exitCode: EXIT.ERROR, rejectsPath: null, counts: null };
+      }
+
+      var ledgerHeaderCheck = checkLedgerHeaders(ledgerSheet.headers);
+      if (ledgerHeaderCheck.unmapped.length) {
+        log('Unmapped GiftCardTransactions header(s): ' + ledgerHeaderCheck.unmapped.join(', '));
+      }
+      if (ledgerHeaderCheck.missing.length) {
+        log(
+          'Error: sheet "GiftCardTransactions" is missing header(s): ' + ledgerHeaderCheck.missing.join(', ')
+        );
+        return { exitCode: EXIT.ERROR, rejectsPath: null, counts: null };
+      }
+
+      log('[2/5] Build plan');
+      var plan = buildGiftCardBackfillPlan(cardSheet, ledgerSheet, { timezone: effectiveTimezone });
+
+      log('[3/5] Rejects report');
+      return Promise.all([
+        rejectsLib.writeRejectsReport({
+          sheet: 'GiftCards',
+          sourceFile: opts.file,
+          rejects: plan.rejects.cards,
+          outDir: opts.outDir
+        }),
+        rejectsLib.writeRejectsReport({
+          sheet: 'GiftCardTransactions',
+          sourceFile: opts.file,
+          rejects: plan.rejects.ledger,
+          outDir: opts.outDir
+        })
+      ]).then(function (paths) {
+        var cardsRejectsPath = paths[0];
+        var ledgerRejectsPath = paths[1];
+        var totalRejects = plan.rejects.cards.length + plan.rejects.ledger.length;
+
+        var counts = {
+          cardsRead: cardSheet.rows.length,
+          cardsAccepted: plan.totals.cards,
+          cardsRejected: plan.rejects.cards.length,
+          cardsExcluded: plan.excluded.cards,
+          ledgerRead: ledgerSheet.rows.length,
+          ledgerAccepted: plan.totals.importedRows,
+          ledgerRejected: plan.rejects.ledger.length,
+          ledgerExcluded: plan.excluded.ledgerRows,
+          openingRows: plan.totals.openingRows,
+          balanceMinorUnits: plan.totals.balanceMinorUnits,
+          seqSeed: plan.seqSeed
+        };
+
+        log('Read: ' + counts.cardsRead + ' cards, ' + counts.ledgerRead + ' ledger rows');
+        log(
+          'Excluded TEST-* (cert_number starts with TEST-): ' +
+            counts.cardsExcluded +
+            ' cards, ' +
+            counts.ledgerExcluded +
+            ' ledger rows'
+        );
+        log('Cards — accepted: ' + counts.cardsAccepted + ', rejected: ' + counts.cardsRejected);
+        log('Ledger — accepted (imported): ' + counts.ledgerAccepted + ', rejected: ' + counts.ledgerRejected);
+        log('Opening rows: ' + counts.openingRows);
+        log('Total balance: $' + (counts.balanceMinorUnits / 100).toFixed(2));
+        log('Seq seed: ' + counts.seqSeed);
+        log('Rejects: ' + cardsRejectsPath + ', ' + ledgerRejectsPath);
+
+        var rejectsPaths = { cards: cardsRejectsPath, ledger: ledgerRejectsPath };
+
+        if (totalRejects > 0) {
+          log('[4/5] Rejects present — promotion blocked (D-13). Resolve in the sheet and re-run.');
+          return { exitCode: EXIT.REJECTS_BLOCK, rejectsPath: rejectsPaths, counts: counts };
+        }
+
+        if (opts.dryRun) {
+          log('[4/5] Promote — skipped (--dry-run)');
+          log('[5/5] Promote — skipped (--dry-run)');
+          return { exitCode: EXIT.OK, rejectsPath: rejectsPaths, counts: counts };
+        }
+
+        if (!opts.promote) {
+          log('[4/5] Promote — skipped — pass --promote');
+          return { exitCode: EXIT.OK, rejectsPath: rejectsPaths, counts: counts };
+        }
+
+        log('[5/5] Promote');
+        return pool.connect().then(function (client) {
+          return runPromote(client, plan, opts, deps, log).then(function (promoteResult) {
+            return { exitCode: promoteResult.exitCode, rejectsPath: rejectsPaths, counts: counts };
+          });
+        });
+      });
+    })
+    .catch(function (err) {
+      log('Error: ' + err.message);
+      return { exitCode: EXIT.ERROR, rejectsPath: null, counts: null };
+    });
+}
+
+function main() {
+  var opts;
+  try {
+    opts = parseArgs(process.argv.slice(2));
+  } catch (err) {
+    console.error('Error: ' + err.message);
+    process.exit(EXIT.ERROR);
+    return;
+  }
+
+  if (!opts.file) {
+    console.error('Error: --file is required');
+    process.exit(EXIT.ERROR);
+    return;
+  }
+
+  var pool = null;
+  if (!opts.dryRun) {
+    if (!process.env.BACKFILL_DATABASE_URL) {
+      console.error('Error: BACKFILL_DATABASE_URL must be set (unless --dry-run)');
+      process.exit(EXIT.ERROR);
+      return;
+    }
+    pool = db.createPool(process.env.BACKFILL_DATABASE_URL, { max: 2 });
+  }
+
+  runGiftCardBackfill(opts, { pool: pool, log: console.log })
+    .then(function (result) {
+      var finish = pool ? pool.end() : Promise.resolve();
+      return finish.then(function () {
+        return result;
+      });
+    })
+    .then(function (result) {
+      process.exit(result.exitCode);
+    })
+    .catch(function (err) {
+      console.error('Fatal: ' + err.message);
+      var finish = pool ? pool.end().catch(function () {}) : Promise.resolve();
+      finish.then(function () {
+        process.exit(EXIT.ERROR);
+      });
+    });
+}
+
+if (require.main === module) {
+  main();
+}
+
 module.exports = {
-  buildGiftCardBackfillPlan: buildGiftCardBackfillPlan
+  buildGiftCardBackfillPlan: buildGiftCardBackfillPlan,
+  runGiftCardBackfill: runGiftCardBackfill,
+  parseArgs: parseArgs,
+  EXIT: EXIT
 };
