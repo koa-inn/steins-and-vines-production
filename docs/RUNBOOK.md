@@ -680,6 +680,18 @@ them, not this plan):
 - The first observed pre-deploy migration-guard-chain log line has been confirmed on a real
   deploy (carried from Phase 83's gap closure).
 
+### 12. Release checklist
+
+- **Staging candidate commit SHA:** `ec518dec` (84-10 Task 1 — root `npm test`/`lint`/`build`
+  and middleware `npm test`/`lint`/`migrate:guard`/`test:db` all green on this commit; the
+  structural grep invariants below also hold at this SHA). Executed in an isolated worktree —
+  the orchestrator's merge commit into `main` is the actual SHA pushed to staging in Task 2.
+- Grep invariants confirmed clean at the staging-candidate commit: no direct gift-card Apps
+  Script actions outside `lib/gift-card-store.js`
+  (`grep -rnE "'(lookup|redeem|issue|reload|void|update)_gift_card(_invoice)?'"
+  zoho-middleware/routes` → no matches) and no `adjust_gift_card` references anywhere in
+  `apps-script`/`zoho-middleware`/`js` (adjust is HTTP-only, D-07/84-07).
+
 ---
 
 ## Phase 46 Auth Cutover (CRITICAL — leaked-key neutralization)
