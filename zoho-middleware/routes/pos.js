@@ -206,9 +206,21 @@ function resolveDiscount(body, lineItems, subtotal, catalogMap) {
 // A resolved 0% (explicit tax_percentage: 0, a real zero-rate rule, or a
 // tax_id-tagged line with no rule match) is NOT an error — only a value that
 // is still NaN after both lookups AND has no tax_id is unresolved.
+//
+// Rounding mirrors the Zoho org's tax_rounding: "entity_level": taxable
+// amounts are grouped by rate, each group's tax is rounded on its own, and the
+// rounded groups are summed. Rounding the grand sum once instead drifted a
+// cent from the Zoho invoice on discounted multi-rate sales (INV-000226:
+// charged 247.59, invoiced 247.58, payment then 400'd). js/kiosk-core.js
+// kioskCalcTotals mirrors this so displayed == charged == invoiced.
 function computeTax(lineItems, catalogMap) {
-  var taxTotal = 0;
+  var taxByRate = {};
   var unresolved = null;
+  function addTax(pct, amount) {
+    var rate = Number(pct) || 0;
+    var key = String(rate);
+    taxByRate[key] = (taxByRate[key] || 0) + amount * (rate / 100);
+  }
   lineItems.forEach(function (li) {
     if (unresolved) return; // short-circuit once an unresolved line is found
     // Gift cert lines are zero-tax (D-03) — item's own EXEMPT setting; no catalog lookup.
@@ -217,7 +229,7 @@ function computeTax(lineItems, catalogMap) {
     // CR-01: discountedLineTotal applies the client-mirrored per-line
     // discount rounding, so the tax base matches the kiosk's to the cent.
     if (li.custom) {
-      taxTotal += discountedLineTotal(li) * ((li.tax_percentage || 0) / 100);
+      addTax(li.tax_percentage || 0, discountedLineTotal(li));
       return;
     }
     var catalogItem = catalogMap[li.item_id];
@@ -236,9 +248,13 @@ function computeTax(lineItems, catalogMap) {
     }
     // Every remaining path resolves to a real number (incl. tax_id-present
     // NaN, which computes as 0% — unchanged Zoho-side tax_id tagging).
-    taxTotal += lineTotal * ((isNaN(pct) ? 0 : pct) / 100);
+    addTax(isNaN(pct) ? 0 : pct, lineTotal);
   });
   if (unresolved) return unresolved;
+  var taxTotal = 0;
+  Object.keys(taxByRate).forEach(function (key) {
+    taxTotal += Math.round(taxByRate[key] * 100) / 100;
+  });
   return { taxTotal: Math.round(taxTotal * 100) / 100 };
 }
 

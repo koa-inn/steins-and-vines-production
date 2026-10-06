@@ -877,8 +877,13 @@
       }
     }
 
-    // Per-item tax using catalog tax_percentage (matches server-side calculation)
-    var taxTotal = 0;
+    // Per-item tax using catalog tax_percentage, rounded like the Zoho org's
+    // tax_rounding "entity_level": taxable amounts are grouped by rate, each
+    // group's tax is rounded, then the groups are summed. Mirrors
+    // zoho-middleware/routes/pos.js computeTax — rounding the grand sum once
+    // drifted a cent from the invoice on discounted multi-rate sales
+    // (INV-000226: charged 247.59, invoiced 247.58).
+    var taxByRate = {};
     var missingTaxItem = null;
     ids.forEach(function (id) {
       var entry = cart[id];
@@ -902,7 +907,11 @@
         if (!missingTaxItem) missingTaxItem = entry.item.name || entry.item.item_id || id;
         return;
       }
-      taxTotal += taxable * (pct / 100);
+      taxByRate[String(pct)] = (taxByRate[String(pct)] || 0) + taxable * (pct / 100);
+    });
+    var taxTotal = 0;
+    Object.keys(taxByRate).forEach(function (rateKey) {
+      taxTotal += kioskR2(taxByRate[rateKey]);
     });
     taxTotal = kioskR2(taxTotal);
 
