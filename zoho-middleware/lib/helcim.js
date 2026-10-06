@@ -164,6 +164,18 @@ function isReversalConfirmed(data) {
   return false;
 }
 
+// Helcim v2 requires an ipAddress on reverse/refund ("IP address of the
+// customer making the transaction, used as part of fraud detection"). These
+// calls are server-initiated with no customer present; Helcim accepted
+// 127.0.0.1 on a live reverse (txn 56129497 -> reversal 56129650, 2026-10-06).
+var SERVER_IP_ADDRESS = '127.0.0.1';
+
+// Helcim's transaction ids are integers; ids reach us as strings from webhooks,
+// Redis and request bodies. Send an integer when the id is all digits.
+function helcimTxnIdParam(transactionId) {
+  return /^\d+$/.test(String(transactionId)) ? Number(transactionId) : transactionId;
+}
+
 /**
  * Void a transaction (same-day / open batch).
  * Use for ghost-charge recovery when Zoho order creation fails after payment.
@@ -187,8 +199,11 @@ function voidTransaction(transactionId) {
   if (!HELCIM_API_TOKEN) {
     return Promise.reject(new Error('Helcim not configured'));
   }
+  // Field names per Helcim v2 (/payment/reverse): sending { transactionId }
+  // made every void 400 "Missing required data card Transaction Id".
   return axios.post(HELCIM_BASE_URL + '/payment/reverse', {
-    transactionId: transactionId
+    cardTransactionId: helcimTxnIdParam(transactionId),
+    ipAddress: SERVER_IP_ADDRESS
   }, {
     headers: helcimHeaders(generateIdempotencyKey()),
     timeout: 10000
@@ -221,9 +236,11 @@ function refundTransaction(transactionId, amount) {
   if (!HELCIM_API_TOKEN) {
     return Promise.reject(new Error('Helcim not configured'));
   }
+  // Field names per Helcim v2 (/payment/refund).
   return axios.post(HELCIM_BASE_URL + '/payment/refund', {
-    transactionId: transactionId,
-    amount: amount
+    originalTransactionId: helcimTxnIdParam(transactionId),
+    amount: amount,
+    ipAddress: SERVER_IP_ADDRESS
   }, {
     headers: helcimHeaders(generateIdempotencyKey()),
     timeout: 10000
