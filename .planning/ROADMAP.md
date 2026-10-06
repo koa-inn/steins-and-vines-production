@@ -2031,7 +2031,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 84-10-PLAN.md — Full gate, staging push, Apps Script redeploy, staging backfill/dual rehearsal, iPad UAT (checkpoints)
+- [x] 84-10-PLAN.md — Full gate, staging push, Apps Script redeploy, staging backfill/dual rehearsal, iPad UAT (checkpoints)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 

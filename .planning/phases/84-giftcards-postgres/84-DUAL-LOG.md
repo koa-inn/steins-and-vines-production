@@ -62,3 +62,29 @@ unexplained discrepancies) is met and the owner decides to flip to `postgres`.
 | 3. Staging backfill (dry-run → promote) | 2026-10-03 | Snapshot: workbook "STEINS AND VINES" (`10BzcANc…`, bound to the live `1uD14PTT…` project) exported 14:11, kept outside the repo in `~/sv-backfill/`. Over the Railway SSH tunnel: dry-run → 0 rejects; read 1 card / 0 ledger rows; 0 TEST-* excluded; total balance $0.00; seq seed 1; unmapped headers `issued_date`, `last_tx_ref` (not needed). The live sheet genuinely holds a single `void` $0 card and an empty `GiftCardTransactions` tab. Owner approved promote → "Promoted 1 cards, 1 ledger rows; sequence at 1" (in-transaction invariants passed). |
 | 4. GIFT_CARDS_STORE=dual on staging | 2026-10-03 | Set via Railway CLI (staging `sv_middleware` only). After redeploy `/health`: status ok, database:true, database_required:true. Production unchanged (no GIFT_CARDS_STORE → sheets). |
 | 5. gift-cards-verify (0 mismatches) | 2026-10-03 | Fresh export 14:20 → `gift-cards-verify.js`: "Verified 1 cards: 0 mismatches". Tunnel closed afterwards. Note: the staging Postgres password was printed once in the session transcript during tunnel setup — rotate it after the rehearsal. |
+| 6. iPad Safari UAT (84-10 Task 3) | 2026-10-03 run, 2026-10-06 closed | **Owner-approved with gaps** — partial run on the kiosk iPad (`kiosk-raku6d`) 15:57–16:02 PDT 10-03; owner elected on 2026-10-06 to skip the remaining steps. Per-step record below, reconstructed from the staging Postgres ledger and the complete staging deploy log for the window (`c5ca0e16`, 73 lines 21:30–23:05Z). |
+| 7. Staging restored to dual | 2026-10-06 | The step-9 toggle had left staging in `sheets` since 10-03 16:02 PDT (deploy `7f6abd42`); no gift-card traffic reached it in that mode (log-checked 10-03 23:03Z → 10-06). Reset to `GIFT_CARDS_STORE=dual` via Railway CLI (staging `sv_middleware` only). Production still has no `GIFT_CARDS_STORE` (→ `sheets`). |
+
+### iPad UAT — per-step record
+
+Evidence key: **server** = staging ledger row and/or deploy-log line; **client-side** = the kiosk refuses this before any request, so no server trace can exist either way.
+
+| # | Step | Result | Evidence |
+|---|------|--------|----------|
+| 1 | Look up a backfilled active card; Adjust visible | **Not runnable on staging** | The only backfilled card (GC-000001) is void. Real test happens at 84-11 against the production sheet backfill. A lookup at 22:57:55Z (status 200) is consistent with GC-000001. |
+| 2 | Add credit $0.25, Goodwill | **PASS** | server: GC-000002 `adjust +0.25 goodwill`, 1.00→1.25, actor "Koa", device `kiosk-raku6d`, 22:59:27Z. |
+| 3 | Remove more than the balance → refused | Owner-attested / not evidenced | client-side ("Cannot go below $0.00" preview). No remove request ever reached the server. |
+| 4 | Other needs a note; then remove $0.25 as Correction | **NOT RUN** (owner skipped) | No `other` adjustment and no removal in the ledger. An unscripted `+5.00 goodwill` (no note) ran at 23:01:31Z instead. Note-required rule is unit-tested (84-06/84-07). |
+| 5 | Double-tap Apply → one change | Owner-attested / not evidenced | Each adjust appears exactly once (consistent with a pass, not proof). Idempotency is covered by the `adjust_key`/`tx_ref UNIQUE` tests. |
+| 6 | Voided card → no Adjust button | Owner-attested / not evidenced | UI-only. |
+| 7 | Sell a $1 cert **and** pay part of the sale with an existing card | **HALF RUN** | server: cash sale issued GC-000002 $1, invoice **INV-000228** (live Zoho org — staging and production share org `110002406307`), no activation warning. The redeem half (Pitfall 1 live check) **never ran** — zero `redeem` rows. Covered by 84-08 regressions; first real redeem will be observed in the 84-12 dual window (flip bar requires all six ops). |
+| 8 | Void the new cert with a reason | **PASS** | server: GC-000002 void, reason "Test", 23:02:01Z. |
+| 9 | `GIFT_CARDS_STORE=sheets` → note + no Adjust; then back to dual | **HALF RUN** | Switched to sheets 23:02:04Z (deploy `7f6abd42`) but no lookup followed and it was never switched back (restored 2026-10-06, row 7 above). |
+
+**Carried to 84-11 (owner decisions):**
+- Sale-path attribution: the `issue` row for GC-000002 has `actor_name`/`device_label` null while adjustments carry both (84-07 D-05 assumption — needs owner sign-off).
+- GC-000002 shows `current_balance 6.25` with `status void` — confirm a void keeping its balance is intended.
+- Live-books cleanup: INV-000228 ($1 gift cert, cash) is a test invoice in the real Zoho org.
+- Cash-sale confirm logs `txnId="manual-confirm"` — same literal as `HANDOFF-kiosk-manual-confirm-void-txnid.md`.
+
+**Owner decision (2026-10-06):** "can we just skip the remaining tests?" — approved to proceed to 84-11 with steps 4, 7 (redeem half) and 9 unverified live.
