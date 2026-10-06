@@ -1869,6 +1869,19 @@ function runConfirm(body, confirmIdemKey, req, res) {
       });
     }); // end zohoPost.then (inside gcConfirmBalanceLookup.then)
     }); // end captureVerify.then (M-A3 / 50-03 captured-amount verification)
+    }).catch(function (postChargeErr) {
+      // Manual confirm: body.transaction_id is still the literal
+      // 'manual-confirm'; the real Helcim id resolved by verifyManualCharge
+      // lives only in this closure's txnId. Tag EVERY error escaping the
+      // post-verification chain (invoice creation, payment recording, ...),
+      // not just the captured-amount mismatch, so the outer catch voids the
+      // real charge instead of an id that can never resolve
+      // (HANDOFF-kiosk-manual-confirm-void-txnid.md).
+      if (postChargeErr && !postChargeErr.__capturedTxnId &&
+          txnId && txnId !== 'manual-confirm') {
+        postChargeErr.__capturedTxnId = txnId;
+      }
+      throw postChargeErr;
     }); // end Promise.all([verifyManualCharge, verifyMotoCharge]).then (F2 45-09 / 70-02 MONEY-01/H2 verification)
     }); // end gcConfirmBalanceLookup.then (D-12 balance validation)
     }); // end resolveDiscount.then
