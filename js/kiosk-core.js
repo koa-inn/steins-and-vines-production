@@ -3416,7 +3416,7 @@
           '</div>',
           '<div id="kgcr-form" style="display:none;margin-top:0.5rem;">',
           '<div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">',
-          '<input type="text" id="kgcr-cert" placeholder="GC-000000" autocomplete="off" ',
+          '<input type="text" id="kgcr-cert" inputmode="numeric" placeholder="Cert # e.g. 42" autocomplete="off" ',
           'style="flex:1;padding:0.4rem 0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:4px;text-transform:uppercase;" />',
           '<button type="button" id="kgcr-lookup-btn" style="padding:0.4rem 0.8rem;background:#fff;border:1px solid #bbb;border-radius:4px;cursor:pointer;font-size:0.9rem;">Look Up</button>',
           '</div>',
@@ -3572,6 +3572,7 @@
             if (gcAmountWrap) gcAmountWrap.style.display = 'none';
             if (gcForm) gcForm.style.display = '';
             var ci = document.getElementById('kgcr-cert');
+            kioskWireCertInput(ci);
             if (ci) ci.focus();
           };
         }
@@ -3592,7 +3593,8 @@
         if (gcLookupBtn) {
           gcLookupBtn.onclick = function () {
             var ci = document.getElementById('kgcr-cert');
-            var cert2 = ci ? ci.value.trim().toUpperCase() : '';
+            var cert2 = ci ? kioskNormalizeCertNumber(ci.value) : '';
+            if (ci) ci.value = cert2;
             if (!cert2) {
               if (gcErrorEl) { gcErrorEl.textContent = 'Enter a certificate number.'; gcErrorEl.style.display = ''; }
               return;
@@ -3640,7 +3642,7 @@
           gcConfirmBtn.onclick = function () {
             var ci = document.getElementById('kgcr-cert');
             var ai = document.getElementById('kgcr-amount');
-            var cert2 = ci ? ci.value.trim().toUpperCase() : '';
+            var cert2 = ci ? kioskNormalizeCertNumber(ci.value) : '';
             var applied2 = parseFloat(ai ? ai.value : 0) || 0;
             // D-05: clamp to min(balance, total) client-side; server re-clamps
             applied2 = Math.round(Math.min(applied2, _gcLookedUpBalance, totals.total) * 100) / 100;
@@ -5261,6 +5263,31 @@
       });
   }
 
+  // ===== Gift-cert number entry (iPad typing aid) =====
+  // Staff may type just the digits ("42") and get the canonical GC-000042,
+  // so cert fields can open the number pad (inputmode="numeric") instead of
+  // making staff hop keyboards for "GC-". A full GC-000042 (typed, pasted or
+  // scanned) still works. Anything that isn't 1-6 digits, optionally prefixed
+  // GC / GC-, comes back uppercased but otherwise unchanged so the existing
+  // GC-NNNNNN validation still rejects it.
+  function kioskNormalizeCertNumber(raw) {
+    var s = String(raw === null || raw === undefined ? '' : raw).replace(/\s+/g, '').toUpperCase();
+    var m = /^(?:GC-?)?(\d{1,6})$/.exec(s);
+    return m ? 'GC-' + ('000000' + m[1]).slice(-6) : s;
+  }
+
+  // On blur, show the full number staff are about to act on. Only rewrites a
+  // value that normalizes to a valid cert, so placeholder text such as the
+  // issue modal's "Loading…" is never touched. onblur (not addEventListener)
+  // keeps re-wiring a persistent field idempotent.
+  function kioskWireCertInput(el) {
+    if (!el) return;
+    el.onblur = function () {
+      var n = kioskNormalizeCertNumber(el.value);
+      if (/^GC-\d{6}$/.test(n)) el.value = n;
+    };
+  }
+
   // ===== Gift Card Management panel (Phase 54, D-54-01/02/03/05) =====
   // Kiosk-native lookup + void panel authored fresh in the shared module
   // (the kiosk page has no openModal/closeModal, unlike admin.js). Container
@@ -5315,6 +5342,7 @@
     if (adjustSheetsNoteEl) adjustSheetsNoteEl.style.display = 'none';
     if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
     if (resultEl) resultEl.style.display = 'none';
+    kioskWireCertInput(certEl);
     if (certEl) { certEl.value = ''; certEl.focus(); }
 
     // Tracks the last looked-up cert for void/adjust.
@@ -5406,7 +5434,7 @@
 
     if (lookupBtn) {
       lookupBtn.onclick = function () {
-        var cert = certEl ? certEl.value.trim().toUpperCase() : '';
+        var cert = certEl ? kioskNormalizeCertNumber(certEl.value) : '';
         if (!cert) { showMgmtErr('Please enter a certificate number.'); return; }
         hideMgmtErr();
         if (resultEl) resultEl.style.display = 'none';
@@ -5765,6 +5793,8 @@
 
     // gift card management (Phase 54, D-54-03)
     showGiftCardMgmt: kioskShowGiftCardMgmt,
+    normalizeCertNumber: kioskNormalizeCertNumber,
+    wireCertInput: kioskWireCertInput,
 
     // ---- Test-export-style accessors (mirror js/kiosk.js's existing idiom) ----
     _getQuote: function () { return _kioskQuote; },

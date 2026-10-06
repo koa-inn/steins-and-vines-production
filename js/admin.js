@@ -48,7 +48,7 @@
   }
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-10-03T20:06:56.912Z';
+  var BUILD_TIMESTAMP = '2026-10-06T17:23:58.571Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP); // eslint-disable-line no-console -- deploy build-verification log
 
   var accessToken = null;
@@ -10025,7 +10025,7 @@
       '</div>',
       '<div style="margin-bottom:1rem;">',
       '<label style="display:block;font-weight:600;margin-bottom:0.25rem;" for="kgci-cert">Certificate # <span style="color:#c00;">*</span></label>',
-      '<input id="kgci-cert" type="text" maxlength="10" placeholder="GC-000001" autocomplete="off"',
+      '<input id="kgci-cert" type="text" maxlength="10" inputmode="numeric" placeholder="e.g. 42 or GC-000042" autocomplete="off"',
       ' style="width:100%;box-sizing:border-box;padding:0.6rem;font-size:1rem;border:1px solid #ccc;border-radius:4px;">',
       '</div>',
       '<div style="margin-bottom:1.25rem;">',
@@ -10054,6 +10054,8 @@
     var issueBtn = document.getElementById('kgci-issue');
     var modeIssueBtn = document.getElementById('kgci-mode-issue');
     var modeReloadBtn = document.getElementById('kgci-mode-reload');
+
+    KioskCore.wireCertInput(certEl);
 
     function setGcMode(mode) {
       _gcMode = mode;
@@ -10111,7 +10113,7 @@
       if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
     }
 
-    var cert = certEl ? certEl.value.trim().toUpperCase() : '';
+    var cert = certEl ? KioskCore.normalizeCertNumber(certEl.value) : '';
     var val = valueEl ? parseFloat(valueEl.value) : NaN;
     var isIssue = mode === 'issue';
 
