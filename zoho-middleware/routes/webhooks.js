@@ -83,6 +83,10 @@ router.post(['/api/webhooks/terminal', '/webhooks/terminal'], function (req, res
  * Kiosk Zoho invoice creation happens in POST /api/kiosk/sale/confirm — triggered
  * by the frontend after the poll resolves. Double-recording must be avoided.
  */
+// Helcim transaction types that RETURN money. Their webhooks must never be
+// processed as an approved charge (see handleCardTransaction).
+var REVERSING_TXN_TYPES = ['reverse', 'refund', 'void'];
+
 function handleCardTransaction(event) {
   var transactionId = event.id || '';
 
@@ -96,6 +100,22 @@ function handleCardTransaction(event) {
 
     log.info('[webhook/helcim] cardTransaction: status=' + status +
       ' txn=' + transactionId + ' invoice=' + invoiceNumber);
+
+    // A reversal/refund webhook resolves to status APPROVED with the ORIGINAL
+    // sale's invoiceNumber (verified 2026-10-06). Treating it as a charge would
+    // mark the sale approved with the reversal id, book collect/kiosk payments
+    // for money that was returned, or try to void the reversal on a cancelled
+    // ref. Unknown/missing types fall through unchanged so a real charge is
+    // never dropped.
+    var txnType = txnData.type || '';
+    if (REVERSING_TXN_TYPES.indexOf(txnType) !== -1) {
+      log.info('[webhook/helcim] cardTransaction: ignoring ' + txnType + ' txn=' + transactionId +
+        ' invoice=' + invoiceNumber + ' (money returned, not a charge)');
+      eventLog.logEvent('helcim.card_transaction_ignored', {
+        type: txnType, status: status, txnId: transactionId, invoiceNumber: invoiceNumber
+      });
+      return;
+    }
 
     processCardTransactionResult(transactionId, status, invoiceNumber, cardType);
   }).catch(function (apiErr) {

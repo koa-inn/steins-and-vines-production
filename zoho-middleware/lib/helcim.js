@@ -385,7 +385,11 @@ function getCardTransactionById(id) {
       transactionId: txn.transactionId || id,
       invoiceNumber: txn.invoiceNumber || '',
       cardType: txn.cardType || '',
-      amount: txn.amount || 0
+      amount: txn.amount || 0,
+      // 'purchase' | 'preauth' | 'capture' | 'reverse' | 'refund' ... — a
+      // reversal/refund also comes back status APPROVED (verified 2026-10-06,
+      // reversal 56129650), so status alone cannot tell a charge from one.
+      type: String(txn.type || '').toLowerCase()
     };
   }).catch(function (err) {
     // Re-reject so callers can distinguish failure from a successful API response

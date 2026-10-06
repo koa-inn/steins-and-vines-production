@@ -60,6 +60,15 @@ describe('Helcim request bodies match the v2 API', function () {
     });
   });
 
+  test('getCardTransactionById passes Helcim\'s transaction type through (lower-cased)', function () {
+    axios.get.mockResolvedValue({ data: Object.assign({ invoiceNumber: 'KIOSK-1791324387910' }, REAL_REVERSE_RESPONSE) });
+    return helcim.getCardTransactionById('56129650').then(function (t) {
+      expect(t.type).toBe('reverse');
+      expect(t.status).toBe('APPROVED');
+      expect(t.invoiceNumber).toBe('KIOSK-1791324387910');
+    });
+  });
+
   test('refundTransaction posts originalTransactionId (integer) + amount + ipAddress to /payment/refund', function () {
     axios.post.mockResolvedValue({ data: { transactionId: 999, status: 'APPROVED', type: 'refund' } });
     return helcim.refundTransaction('56129497', 12.5).then(function () {
