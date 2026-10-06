@@ -115,6 +115,18 @@ function getEffectiveMax(product) {
   return maxOrder;
 }
 
+// Cart line price. A Buy Kit ('kit-purchase') line is a take-home kit at the
+// kit-only price (retail_kit, = the Zoho catalog rate the server books);
+// every other kit is ferment-in-store (retail_instore = rate + fees). Reading
+// retail_instore first for kit-purchase charged the in-store price for a
+// kit-only sale — $50 over the booked total (reported 2026-10-03).
+function getCartLinePrice(product) {
+  if ((product._item_type || product.item_type) === 'kit-purchase') {
+    return product.retail_kit || product.price || product.retail_instore || '';
+  }
+  return product.retail_instore || product.retail_kit || product.price_per_unit || product.price || '';
+}
+
 function setReservationQty(product, qty) {
   var cartKey = getCartKey(product);
   var items = getReservation(cartKey);
@@ -138,6 +150,8 @@ function setReservationQty(product, qty) {
     }
   } else if (idx !== -1) {
     items[idx].qty = qty;
+    // Reprice a kit-only line stored before the price fix (was $240, not $190).
+    if (items[idx].item_type === 'kit-purchase') items[idx].price = getCartLinePrice(product);
   } else {
     var effectiveStock = (product.available !== undefined && product.available !== '')
       ? parseInt(product.available, 10) || 0
@@ -146,7 +160,7 @@ function setReservationQty(product, qty) {
       name: product.name,
       brand: product.brand || '',
       manufacturer: product.manufacturer || '',
-      price: product.retail_instore || product.retail_kit || product.price_per_unit || product.price || '',
+      price: getCartLinePrice(product),
       discount: product.discount || '',
       stock: effectiveStock,
       time: product.time || '',
