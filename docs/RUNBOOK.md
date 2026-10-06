@@ -59,6 +59,7 @@ error + no tracking, but avoid it):
 
 | Date | Git SHA | Railway Deploy ID | Deploy URL | Notes |
 |------|---------|-------------------|------------|-------|
+| 2026-10-06 17:51 UTC | `af261d83` | `8db27979-f611-4fe3-a8c5-108f36a5fc48` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/37506054882) | Phase 84 code + Phase 83 gap-closure + gift-cert digit entry (11b5c27b) + proxy-addr 2.0.8 (af261d83); GIFT_CARDS_STORE unset = sheets; beer page held back |
 | 2026-10-02 18:51 UTC | `d47dab85` | `f104c500-2ae4-4550-813e-3f3c79825ebc` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/37049773828) | Phase 83 Postgres infrastructure (DB-02): lib/db.js, migrations on deploy, /health database field, store-flag + mirror gate; empty schema |
 | 2026-09-30 17:47 UTC | `d581eb89` | unknown — workflow recorded the *previous* deployment `1d502419…` (capture race, fixed in `ff5515e8`); read the real id from Railway → Deployments | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/36753725754) | Phase 82 store-agnostic prerequisites |
 | 2026-09-23 18:59 UTC | `b404d061` | `1d502419-0741-4709-8f72-4686627512db` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/35906086255) | zoho-auth refresh-token re-persistence (aaf6112a); beer page stays held back |
