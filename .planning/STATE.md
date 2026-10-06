@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
-stopped_at: 84-10 complete — next 84-11
+stopped_at: 84-11 Task 1 done (prod deploy 6c6fc9f9, sheets mode) — next Task 2 after-hours cutover to dual
 last_updated: "2026-10-03T19:09:37.771Z"
-last_activity: 2026-10-06 -- 84-10 closed (UAT approved with gaps); staging back to dual
+last_activity: 2026-10-06 -- 84-11 Task 1: gated deploy 37506054882 to production (sheets mode), beer hold-back verified
 progress:
   total_phases: 74
   completed_phases: 30
@@ -233,5 +233,5 @@ Last activity: 2026-10-03 -- Phase 84 execution started
 ## Session Continuity
 
 Last session: 2026-10-06
-Stopped at: 84-10 complete (owner-approved with gaps 2026-10-06) — next 84-11 production cutover to dual
+Stopped at: 84-11 Task 1 done — production on af261d83 in sheets mode; next Task 2 (owner, after hours): backfill → dual → verify
 Resume file: .planning/phases/84-giftcards-postgres/84-11-PLAN.md

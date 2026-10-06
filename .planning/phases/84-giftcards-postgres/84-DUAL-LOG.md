@@ -88,3 +88,15 @@ Evidence key: **server** = staging ledger row and/or deploy-log line; **client-s
 - Cash-sale confirm logs `txnId="manual-confirm"` — same literal as `HANDOFF-kiosk-manual-confirm-void-txnid.md`.
 
 **Owner decision (2026-10-06):** "can we just skip the remaining tests?" — approved to proceed to 84-11 with steps 4, 7 (redeem half) and 9 unverified live.
+
+## Production prerequisites (84-11 Task 1)
+
+| Item | Date | Outcome |
+|------|------|---------|
+| Owner decisions | 2026-10-06 | (1) D-05 sale-path attribution — **not needed at this time**. (2) Void keeps `current_balance` — **accepted**; checked: the sheet's `voidGiftCard` also leaves the balance untouched (no dual/verify mismatch), void cards reject redeem/reload, nothing sums balances (a future liability report must exclude `void`). (3) Production push must not change customer-facing pages and the beer page must stay hidden — checked: since production's last deploy (`d47dab85`) the public pages differ only in `?v=` cache stamps; no CSS / `main.js` / module / content changes; `BEER_PAGE_LIVE=false`. |
+| Backups | 2026-10-02 | Nightly encrypted `pg_dump` to R2 live in production; restore drill passed (`a41ef8a9`, D-16). |
+| Gated deploy, attempt 1 | 2026-10-06 | Run 37505099171 **blocked at the middleware `npm audit` step** — new critical advisory GHSA-jqcg-44mw-7w3h in `proxy-addr` 2.0.7 (express transitive). Nothing pushed. Exposure likely nil (`trust proxy: 1`, hop-count). Fixed by lockfile-only bump to 2.0.8 (`af261d83`), staging-verified (deploy `a659fb64`, healthy, dual). |
+| Gated deploy, attempt 2 | 2026-10-06 17:47Z | Run 37506054882 green (both test suites incl. Testcontainers, lint, audit). Production repo `b0149bd1` → `6c6fc9f9` (= `af261d83` + CNAME). Railway deploy `8db27979` SUCCESS (previous `f104c500` = rollback target). |
+| Guard chain + migration | 2026-10-06 | Production pre-deploy log: `migration-guard: 2 file(s) additive-only OK`, `migration-allowlist: 2 file(s) additive-only OK`, `0002_gift_cards` applied, "Migrations complete!". |
+| Post-deploy smoke | 2026-10-06 | `/health`: status ok, authenticated:true, redis:true, database:true, **database_required:false**. Startup: `store modes: {"GIFT_CARDS_STORE":"sheets"}`; Zoho refresh token loaded from Redis and refreshed. Site serves the new build (`main.min.js?v=muwy75vy`); `kiosk-core.min.js` carries the gift-cert digit entry. |
+| Beer hold-back | 2026-10-06 | Verified live (browser UA — plain curl gets a Cloudflare 403): `beer.html` `noindex, nofollow`; zero `beer.html` links on index, ferment-in-store hub, products, wine; served `BEER_PAGE_LIVE=!1`. |
