@@ -2215,7 +2215,7 @@ Plans:
 
 **Wave 10**
 
-- [ ] 87-18-PLAN.md — Staging push, v62 deploy, timed window rehearsal, UAT, rollback rehearsal
+- [x] 87-18-PLAN.md — Staging push, v62 deploy, timed window rehearsal, UAT, rollback rehearsal
 
 **Wave 11**
 
