@@ -1064,17 +1064,32 @@ timings.
 
 | Step | Who | Target (min) | Measured in rehearsal |
 |------|-----|--------------|-----------------------|
-| 3 Freeze + restart + check | Claude | 5 | |
-| 4 Snapshot, dry run, promote | Claude | 20 | |
-| 5 Second snapshot + verify | Claude | 10 | |
-| 6 Parity (after cache expiry) | Claude | 10 | |
-| 7 Go/no-go | Owner | 5 | |
-| 8 Flip + health + boot lines | Claude | 5 | |
-| 9 D-12 notices | Claude | 3 | |
+| 3 Freeze + restart + check | Claude | 5 | 5-9 (Railway redeploy 3.5-5 min; run 1 incl. browser checks 9) |
+| 4 Snapshot, dry run, promote | Claude | 20 | 3 (dry run + promote take seconds; rest is the download) |
+| 5 Second snapshot + verify | Claude | 10 | 1-2 |
+| 6 Parity (after cache expiry) | Claude | 10 | 5 (mostly the 300 s cache wait; the run takes ~20 s) |
+| 7 Go/no-go | Owner | 5 | 1 |
+| 8 Flip + health + boot lines | Claude | 5 | 2 redeploy + post-flip proxy parity ~5 (see note) |
+| 9 D-12 notices | Claude | 3 | not rehearsed (shared workbook; production only) |
 | 10 Smoke | Owner + Claude | 20 | |
 | 11 Scan invoices | Staff | 10 | |
-| Total | | 88 | |
+| Total | | 88 | ~30 for steps 3-8 on staging (run 2, 15:04-15:33) |
 | Reserve for rollback (§12) | | 32 | |
+
+Rehearsal notes (87-18, 2026-10-09):
+
+- **Flip needs an explicit redeploy.** `railway variable delete` does not trigger a deploy, and
+  `railway variable set --skip-deploys` obviously does not either. Do the one variable change, then run
+  `railway redeploy -s sv_middleware -e <env> -y` and confirm the startup log line
+  `store modes: {... "BATCHES_STORE":"postgres"}` and that a batch write is no longer refused.
+- **A failed build blocks variable-only redeploys.** While the newest deployment is a FAILED build,
+  Railway's CLI refuses restart/redeploy, so a freeze cannot be lifted from the CLI. Never push code
+  during the window.
+- **BrewPad does not show the maintenance text** (generic "Save failed - try again"); `brewpad.js` is
+  locked, so tell staff about the window beforehand. Admin shows the maintenance message.
+- **Post-flip parity token:** start the terminal command first (it waits on `read -s`), THEN copy the
+  token with `copy(localStorage.getItem('sv_session_token'))` in the admin console, then paste. Copying
+  the command afterwards overwrites the clipboard and gives a 403.
 
 ### 3. Freeze
 

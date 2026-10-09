@@ -45,26 +45,42 @@ dry run/promote -> fresh snapshot + verify -> parity (after the 300 s cache) -> 
 Record the re-run timings separately; the 13:36-13:52 timings above are a valid first measurement of
 steps 3-6.
 
+Rehearsal run 2 (2026-10-09, after a successful staging build of `5935a5b1` at 14:54):
+
+- 15:04 owner snapshot 1 (taken just before the freeze; snapshot 2 + verify cover the gap).
+- 15:04:40 `BATCHES_FREEZE=16:00` set; freeze live 15:09:50 (redeploy ~5 min).
+- 15:04:58 the six staging batch tables emptied (204/1064/70/427 -> 0) inside one transaction.
+- 15:05:04 dry run: tails clean, 0 rejects, 204 / 1064 / 70 / 427, seeds 235 / 1079 / 72 / 429.
+- 15:10:50 promote (owner confirmed DB name): ok, invariants passed.
+- 15:10:57 snapshot 2 (owner, 15:10, after the freeze) + verify: headers match, counts match, 0 orphans,
+  0 mismatches.
+- 15:15:27 parity (after the 300 s cache): **0 differences (5 reads)**. Go.
+- 15:15:44 flip variables set; no redeploy triggered (CLI gotcha); `railway redeploy` 15:26:01; staging
+  live on `BATCHES_STORE=postgres` 15:27:54 (startup log `store modes` line), freeze gone, `/health` ok.
+- ~15:33 post-flip parity via `/api/admin/proxy` against the 15:15 snapshot (owner ran it with the
+  session token): **0 differences (5 reads), EXIT 0**.
+- D-12 notices deliberately not applied on staging: the workbook is shared with production.
+
 | Step | Target (min) | Measured (min) | Result |
 |------|--------------|----------------|--------|
-| 3 Freeze + restart + check | 5 | | |
-| 4 Snapshot, dry run, promote | 20 | | |
-| 5 Second snapshot + verify | 10 | | |
-| 6 Parity (after 300 s cache expiry) | 10 | | |
-| 8 Flip + health + boot lines | 5 | | |
-| 9 D-12 notices | 3 | | |
+| 3 Freeze + restart + check | 5 | 5 | ok |
+| 4 Snapshot, dry run, promote | 20 | 3 | ok, 0 rejects |
+| 5 Second snapshot + verify | 10 | 1 | ok, 0 mismatches |
+| 6 Parity (after 300 s cache expiry) | 10 | 5 | ok, 0 differences (run 1: no-go, sku typing, fixed) |
+| 8 Flip + health + boot lines | 5 | 2 (+11 lost to the redeploy gotcha) | ok; post-flip proxy parity 0 differences |
+| 9 D-12 notices | 3 | n/a | skipped on staging (shared workbook) |
 | 10 Smoke | 20 | | |
 | 11 Scan invoices | 10 | | |
 
 | Check | Result |
 |-------|--------|
-| Row counts (batches / batch_tasks / plato_readings / vessel_history) | |
-| Rejects (must be 0) | |
-| `batches-verify.js` (0 mismatches) | |
-| `batches-parity.js` (parity: 0 differences) | |
+| Row counts (batches / batch_tasks / plato_readings / vessel_history) | 204 / 1064 / 70 / 427 (sheet = Postgres) |
+| Rejects (must be 0) | 0 |
+| `batches-verify.js` (0 mismatches) | 0 mismatches |
+| `batches-parity.js` (parity: 0 differences) | 0 pre-flip; 0 post-flip via proxy |
 | Smoke: create batch, mark task, add reading, vessel transfer | |
 | Rollback rehearsal (replay, verify, notices removed, flag back) | |
-| Fits the 2-hour budget with room for one rollback? | |
+| Fits the 2-hour budget with room for one rollback? | Yes: steps 3-8 took ~30 min; smoke and scan invoices still to measure in Task 3 |
 
 ## Production prerequisites
 
