@@ -61,6 +61,20 @@ Rehearsal run 2 (2026-10-09, after a successful staging build of `5935a5b1` at 1
   session token): **0 differences (5 reads), EXIT 0**.
 - D-12 notices deliberately not applied on staging: the workbook is shared with production.
 
+Task 3 UAT on staging in Postgres mode (2026-10-09 15:30-15:48; Claude drove Chrome, owner signed in):
+
+| # | Check | Result |
+|---|-------|--------|
+| 1 | BrewPad: dashboard; create test batch SV-B-000236 (no customer, no invoice) on CON-001 with the 4 Week Wine template; tick tasks; transfer to COR-001 B/05; add + edit a reading; schedule edit; packaging completes; delete | PASS. Create `[batch-proxy] create_batch ms=54`; CON-001 In-Use then Empty after the move; history VH-000431 recorded the old location; status primary -> secondary on racking -> complete on packaging with COR-001 Empty; reading 22.0 edited to 21.5; `update_batch_schedule` ok (4 updated; keeps flags, recomputes due dates, same as Apps Script); delete cascaded tasks/readings/history, wrote a tombstone, cleared dedup. |
+| 2 | Admin: list, calendar, upcoming, detail, QR, regenerate token | PASS. Old token -> `invalid_token`, new token loads. Dashboard chips (5 overdue, 11 ready to package) correct. |
+| 3 | batch.html with the batch's token: load, tick a task, add a reading; another batch's task refused | PASS. Packaging checkbox disabled for public; BT-001077 (SV-B-000235) refused "Task does not belong to this batch" (Q8). |
+| 4 | Scan invoices twice | SKIPPED on staging: staging and production share the Zoho org (same ZOHO_ORG_ID / CF_BATCH_STATUS), so staging batches for real invoices could write cf_batch_status on real invoices. Covered by code tests; runs for real in the production window (step 11). |
+| 5 | Double submit of a manual create | PASS (UI): BrewPad's Create button locks after the first click, so one request and one batch. Server-side replay protection covered by the 87-07 concurrency tests. |
+| 6 | Rollback rehearsal | PASS. `batches-replay-to-sheet --since=2026-10-09T22:27:54Z` dry run: 1 request (0 state, 1 delete for the test tombstone), no HTTP sent. `BATCHES_STORE` unset + `railway redeploy` 15:44:57 -> `store modes ... "BATCHES_STORE":"sheets"` 15:48:00 (~3 min); BrewPad lists from the sheet again. |
+
+create_batch latency: one sample, 54 ms (SC4 median needs more samples; collect in production smoke).
+Observation (pre-existing, matches Apps Script via parity): BrewPad dashboard "Avg days to complete" shows 165, equal to the completed count.
+
 | Step | Target (min) | Measured (min) | Result |
 |------|--------------|----------------|--------|
 | 3 Freeze + restart + check | 5 | 5 | ok |
@@ -78,8 +92,8 @@ Rehearsal run 2 (2026-10-09, after a successful staging build of `5935a5b1` at 1
 | Rejects (must be 0) | 0 |
 | `batches-verify.js` (0 mismatches) | 0 mismatches |
 | `batches-parity.js` (parity: 0 differences) | 0 pre-flip; 0 post-flip via proxy |
-| Smoke: create batch, mark task, add reading, vessel transfer | |
-| Rollback rehearsal (replay, verify, notices removed, flag back) | |
+| Smoke: create batch, mark task, add reading, vessel transfer | PASS (staging, Task 3 table above) |
+| Rollback rehearsal (replay, verify, notices removed, flag back) | PASS: replay dry run 1 request; flag back to sheets ~3 min; notices n/a on staging |
 | Fits the 2-hour budget with room for one rollback? | Yes: steps 3-8 took ~30 min; smoke and scan invoices still to measure in Task 3 |
 
 ## Production prerequisites
