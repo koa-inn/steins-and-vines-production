@@ -33,6 +33,17 @@ until Claude piloted Chrome):
 - 13:51:58 parity re-run with the fix (Postgres side computed locally): 0 differences (5 reads).
 - 13:51 and 14:04 staging builds of `5935a5b1` FAILED on Railway: Docker Hub `429 Too Many Requests`
   pulling a base image (platform rate limit, not code). Flip held until a build succeeds.
+- 14:10 third build failed the same way. Owner chose to pause: `BATCHES_FREEZE` deleted 14:13, but the
+  running container keeps it until a redeploy (CLI restart/redeploy refused while the newest deployment
+  is a failed build). Staging stays on sheets (`BATCHES_STORE` unset). Background build retries every
+  10 min. Staging Postgres still holds the 13:47 promote and goes stale as production writes the sheet.
+
+**Resume plan (run 1 continued):** once a staging build of `5935a5b1` (or later) succeeds and the
+freeze is gone: set `BATCHES_FREEZE` again -> empty the four staging batch tables -> fresh snapshot ->
+dry run/promote -> fresh snapshot + verify -> parity (after the 300 s cache) -> flip
+(`BATCHES_STORE=postgres`, freeze removed in one change) -> `/health` -> post-flip parity via proxy.
+Record the re-run timings separately; the 13:36-13:52 timings above are a valid first measurement of
+steps 3-6.
 
 | Step | Target (min) | Measured (min) | Result |
 |------|--------------|----------------|--------|
