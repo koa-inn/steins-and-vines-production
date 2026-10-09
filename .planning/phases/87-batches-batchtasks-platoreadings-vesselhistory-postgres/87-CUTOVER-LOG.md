@@ -16,6 +16,24 @@ Apps Script v62 probes (production credentials, read-only, 2026-10-09): `get_bat
 child rows at that time: BatchTasks BT-000567, BT-000568, BT-000569, BT-000570 (all -> SV-B-000108);
 PlatoReadings none; VesselHistory none.
 
+Rehearsal run 1 (2026-10-09, started 13:36 PDT; Claude ran the scripts, owner did browser checks
+until Claude piloted Chrome):
+
+- 13:36 `BATCHES_FREEZE=15:00` set; redeploy live 13:40 (about 3.5 min). Freeze checks: BrewPad task tick
+  refused (503) but BrewPad shows a generic "Save failed - try again" toast, not the maintenance text
+  (brewpad.js is locked, so staff must be told about the window in advance); admin task complete refused
+  with the maintenance message; public batch POST refused 503. Reads loaded normally.
+- 13:46 snapshot 1. Tails check: no blank-id rows holding data in any of the four tabs.
+- 13:47:30 dry run: 0 rejects; 204 / 1064 / 70 / 427; seeds 235 / 1079 / 72 / 429.
+- 13:47:52 promote into staging Postgres (service `Postgres`, via SSH tunnel): ok, 10 invariants passed.
+- 13:48:40 snapshot 2 + `batches-verify`: headers match, counts match, 0 orphans, 0 mismatches.
+- 13:49:10 `batches-parity`: **NO-GO, 175 differences**, all `get_batches data.batches[].product_sku`:
+  Sheets stores all-digit SKUs as number cells (Apps Script emits a JSON number) while `serializeBatch`
+  emitted text. Fixed in `5935a5b1` (regression test first; full suites green).
+- 13:51:58 parity re-run with the fix (Postgres side computed locally): 0 differences (5 reads).
+- 13:51 and 14:04 staging builds of `5935a5b1` FAILED on Railway: Docker Hub `429 Too Many Requests`
+  pulling a base image (platform rate limit, not code). Flip held until a build succeeds.
+
 | Step | Target (min) | Measured (min) | Result |
 |------|--------------|----------------|--------|
 | 3 Freeze + restart + check | 5 | | |
