@@ -15,8 +15,8 @@ here). Phase 84+ reuses this CLI unchanged with each store's own spec.
   `BACKFILL_DATABASE_URL` environment variable — the CLI refuses to start if a connection
   string shows up on the command line instead (`--target=postgres://...` and similar are a
   hard error).
-- **Node 20.20 locally** (`nvm use 20.20`). Anything older than 20.18.1 fails —
-  `undici@7` (pulled in via `testcontainers`) requires it.
+- **Node 24 locally** (`nvm use`, which reads `.nvmrc`). Node 20 is end-of-life and its time zone
+  data treats America/Vancouver as UTC-8 from 2026-11-01, which skews Vancouver dates.
 - **Railway CLI 5.x or newer** (`railway --version`) — 4.30 lacks `--tunnel-only`, which
   the connection procedure below depends on.
 - **Neither Railway Postgres service exposes a public TCP proxy (`DATABASE_PUBLIC_URL`)**

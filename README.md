@@ -130,7 +130,7 @@ steins-and-vines/
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 24 (see `.nvmrc`; Node 20 is end-of-life and its time zone data predates BC permanent UTC-7)
 - Redis (for middleware caching and rate limiting)
 - A Zoho Books/Inventory account with API credentials
 - Helcim sandbox credentials (for payment testing)
