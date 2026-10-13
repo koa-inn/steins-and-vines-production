@@ -914,6 +914,13 @@
       taxTotal += kioskR2(taxByRate[rateKey]);
     });
     taxTotal = kioskR2(taxTotal);
+    // Recipe cart: the server charges pre-tax total + fee tax (2026-10-13) and
+    // the discount-aware quote reports it. A locked recipe is one untaxed
+    // package line, so show the server's tax or the display undercuts the
+    // terminal charge. Older servers send no tax_total: keep the line tax.
+    if (recipeContext && _kioskQuote && typeof _kioskQuote.tax_total === 'number') {
+      taxTotal = kioskR2(_kioskQuote.tax_total);
+    }
 
     return {
       subtotal: subtotal,
