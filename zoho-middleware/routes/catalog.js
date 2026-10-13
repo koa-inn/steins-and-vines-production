@@ -1171,10 +1171,11 @@ router.post('/api/admin/cache-clear', function (req, res) {
     PRODUCTS_CACHE_TS_KEY,
     INGREDIENTS_CACHE_KEY,
     INGREDIENTS_CACHE_TS_KEY,
+    INGREDIENTS_ALL_CACHE_KEY,
     SERVICES_CACHE_KEY
   ];
   // Also delete file caches so stale file data doesn't re-populate Redis
-  [PRODUCTS_FILE_CACHE, INGREDIENTS_FILE_CACHE].forEach(function (f) {
+  [PRODUCTS_FILE_CACHE, INGREDIENTS_FILE_CACHE, INGREDIENTS_ALL_FILE_CACHE].forEach(function (f) {
     try { fs.unlinkSync(f); } catch {}
   });
   // Reset in-memory rate-limit cooldowns so the refresh isn't blocked
