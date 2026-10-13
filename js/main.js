@@ -506,7 +506,12 @@ function ga4AddToCart(product, qty) {
   try {
     if (!product) return;
     var q = parseFloat(qty) || 1;
-    var price = _ga4ParsePrice(product.retail_instore || product.retail_kit || product.price_per_unit || product.price);
+    // A Buy Kit clone keeps retail_instore but sells at its kit-only price
+    // (same rule as getCartLinePrice in 11-cart.js).
+    var rawPrice = (product._item_type || product.item_type) === 'kit-purchase'
+      ? (product.retail_kit || product.price || product.retail_instore)
+      : (product.retail_instore || product.retail_kit || product.price_per_unit || product.price);
+    var price = _ga4ParsePrice(rawPrice);
     pushEcommerce('add_to_cart', {
       currency: 'CAD',
       value: _ga4Round(price * q),
