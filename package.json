@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "private": true,
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "scripts": {
     "minify:css": "cleancss -o css/styles.min.css css/styles.css && cleancss -o css/admin.min.css css/admin.css && cleancss -o css/batch.min.css css/batch.css && cleancss -o css/kiosk.min.css css/kiosk.css && cleancss -o css/brewpad.min.css css/brewpad.css && cleancss -o css/labels.min.css css/labels.css && cleancss -o css/hops.min.css css/hops.css && cleancss -o css/catalog-subpage.min.css css/catalog-subpage.css && cleancss -o css/search-overlay.min.css css/search-overlay.css",
