@@ -26,6 +26,22 @@ var crypto = require('crypto');
 
 var mockRouteHandlers = {};
 
+// Recipe fee tax (2026-10-13): fee tax rates come from the kiosk products
+// catalog; on a cache miss pos-recipe rebuilds it via routes/catalog. Serve the
+// configured fee items at their real Zoho rates (Makers 5% GST, Materials and
+// Milling 12% PST + GST).
+jest.mock('../routes/catalog', function () {
+  return {
+    rebuildKioskCatalog: jest.fn(function () {
+      return Promise.resolve([
+        { item_id: process.env.MAKERS_FEE_ITEM_ID, tax_percentage: 5 },
+        { item_id: process.env.MATERIALS_FEE_ITEM_ID, tax_percentage: 12 },
+        { item_id: process.env.MILLING_FEE_ITEM_ID, tax_percentage: 12 }
+      ]);
+    })
+  };
+});
+
 jest.mock('express', function () {
   var router = {
     get:    jest.fn(function (path, handler) { mockRouteHandlers['GET:' + path] = handler; }),
@@ -367,7 +383,7 @@ describe('POST /api/kiosk/recipe-sale/confirm — hardened void (T-50-28, audit 
   test('7. a failed Zoho invoice creation routes the void through moneyPath.voidWithTimeout (not a raw helcimLib.voidTransaction call from the route)', function () {
     // Recipe confirm captured-amount readback (2026-10-13): the capture equals
     // this test's recomputed total, so the booking proceeds as before.
-    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 247.85 });
     var voidSpy = jest.spyOn(mocks.moneyPath, 'voidWithTimeout');
     mocks.zohoApi.zohoPost.mockImplementation(function (path) {
       if (path === '/invoices') return Promise.reject(new Error('Zoho unavailable'));
