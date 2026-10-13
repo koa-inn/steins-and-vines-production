@@ -30,6 +30,8 @@ test-results/
 
 # Local cache files
 zoho-middleware/products-cache.json
+zoho-middleware/ingredients-cache.json
+zoho-middleware/ingredients-all-cache.json
 .claude/
 
 # Source images (HEIC originals — JPG versions are used)
