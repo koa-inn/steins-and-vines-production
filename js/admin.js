@@ -48,7 +48,7 @@
   }
 
   // Build timestamp - updated on each deploy
-  var BUILD_TIMESTAMP = '2026-10-13T18:53:17.418Z';
+  var BUILD_TIMESTAMP = '2026-10-13T18:54:27.131Z';
   console.log('[Admin] Build: ' + BUILD_TIMESTAMP); // eslint-disable-line no-console -- deploy build-verification log
 
   var accessToken = null;
@@ -8835,7 +8835,7 @@
         html += '<td class="ing-autocomplete-wrap">';
         html += '<input type="text" class="admin-input ing-search" value="' + escapeHTML(ing.item_name || '') + '" placeholder="Search ingredient..." />';
         html += '</td>';
-        html += '<td><input type="number" class="admin-input ing-qty" value="' + escapeHTML(String(ing.quantity || '')) + '" step="0.01" min="0" inputmode="decimal" /></td>';
+        html += '<td><input type="number" class="admin-input ing-qty" value="' + escapeHTML(String(ing.quantity || '')) + '" step="any" min="0" inputmode="decimal" /></td>';
         html += '<td class="ing-unit">' + escapeHTML(ing.unit || '') + '</td>';
         html += '<td class="ing-cost" title="' + escapeHTML(costCell.title) + '">' + costCell.text + '</td>';
         html += '<td class="ing-retail" title="' + escapeHTML(retailCell.title) + '">' + retailCell.text + '</td>';
@@ -11250,7 +11250,7 @@
         html += '<tr class="kiosk-modify-row" data-ing-idx="' + idx + '">';
         html += '<td class="ing-autocomplete-wrap"><input type="text" class="admin-input ing-search" value="' +
           escapeHTML(ing.item_name || '') + '" autocomplete="off" /></td>';
-        html += '<td><input type="number" class="admin-input ing-qty" step="0.01" min="0" inputmode="decimal" value="' +
+        html += '<td><input type="number" class="admin-input ing-qty" step="any" min="0" inputmode="decimal" value="' +
           escapeHTML(String(qtyVal)) + '" /></td>';
         html += '<td class="ing-unit">' + escapeHTML(ing.unit || '') + '</td>';
         html += '<td><button type="button" class="btn-secondary ing-remove" aria-label="Remove ' +

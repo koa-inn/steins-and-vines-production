@@ -1924,7 +1924,7 @@ function parseWaitlistRecipeIds(value) {
         var idx = ingredients.indexOf(ing); // CRITICAL: original array index (PATTERNS #7)
         html += '<tr class="bp-recipe-ing-row" data-ing-idx="' + idx + '">';
         html += '<td><div class="bp-ing-autocomplete-wrap"><input type="text" class="bp-input bp-ing-search" value="' + escapeHTML(ing.item_name || '') + '" autocomplete="off" /></div></td>';
-        html += '<td><input type="number" class="bp-input bp-ing-qty" value="' + escapeHTML(String(ing.quantity || 0)) + '" step="0.01" min="0" inputmode="decimal" style="width:70px;" /></td>';
+        html += '<td><input type="number" class="bp-input bp-ing-qty" value="' + escapeHTML(String(ing.quantity || 0)) + '" step="any" min="0" inputmode="decimal" style="width:70px;" /></td>';
         html += '<td class="bp-ing-unit">' + escapeHTML(ing.unit || '') + '</td>';
         html += '<td><button type="button" class="btn-secondary bp-btn-sm bp-ing-remove" aria-label="Remove ' + escapeHTML(ing.item_name || '') + '">&#10005;</button></td>';
         html += '</tr>';
@@ -2837,7 +2837,7 @@ function parseWaitlistRecipeIds(value) {
         html += '<td class="bp-ing-autocomplete-wrap">';
         html += '<input type="text" class="bp-input bp-ing-search" value="' + escapeHTML(ing.item_name || '') + '" placeholder="Search ingredient…" />';
         html += '</td>';
-        html += '<td><input type="number" class="bp-input bp-ing-qty" value="' + escapeHTML(String(ing.quantity || '')) + '" step="0.01" min="0" inputmode="decimal" /></td>';
+        html += '<td><input type="number" class="bp-input bp-ing-qty" value="' + escapeHTML(String(ing.quantity || '')) + '" step="any" min="0" inputmode="decimal" /></td>';
         var unitOpts = unitOptionsFor(ing.catalog_unit, ing.unit);
         html += '<td class="bp-ing-unit"><select class="bp-input bp-ing-unit-select" aria-label="Unit for ' + escapeHTML(ing.item_name || 'ingredient') + '">';
         unitOpts.forEach(function (u) {
@@ -4956,7 +4956,7 @@ function parseWaitlistRecipeIds(value) {
         html += '<tr>';
         html += '<td>' + escapeHTML(ing.item_name || '') + '</td>';
         if (editable) {
-          html += '<td style="text-align:right;"><input type="number" class="bp-inline-input bp-recipe-qty" data-idx="' + i + '" value="' + escapeHTML(String(ing.quantity || '')) + '" style="width:70px;text-align:right;" step="0.01" min="0"></td>';
+          html += '<td style="text-align:right;"><input type="number" class="bp-inline-input bp-recipe-qty" data-idx="' + i + '" value="' + escapeHTML(String(ing.quantity || '')) + '" style="width:70px;text-align:right;" step="any" min="0"></td>';
         } else {
           html += '<td style="text-align:right;">' + escapeHTML(String(ing.quantity || '')) + '</td>';
         }
