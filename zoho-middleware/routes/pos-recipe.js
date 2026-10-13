@@ -1213,8 +1213,41 @@ function _bookRecipeConfirm(body, confirmIdemKey, req, res) {
           customer_id: body.contact_id || process.env.KIOSK_CONTACT_ID || ''
         };
 
+        // M-A3 parity (mirrors pos.js captureVerify, D-50-04): the amount
+        // actually captured must equal the total we are about to book
+        // (±$0.01) BEFORE any Zoho side-effect. An unreadable capture is a
+        // mismatch — fail closed: void the charge, book nothing. Skipped only
+        // when nothing was charged (grandTotal <= 0).
+        var captureVerify = grandTotal > 0
+          ? helcimLib.getCardTransactionById(txnId).then(function (txn) {
+            return parseFloat(txn && txn.amount);
+          }, function (readErr) {
+            log.error('[pos-recipe/confirm] captured-amount readback failed for txn=' + txnId + ': ' + readErr.message);
+            return NaN;
+          })
+          : Promise.resolve(grandTotal);
+
+        captureVerify.then(function (captured) {
+          if (grandTotal > 0 && (!isFinite(captured) || captured <= 0 || Math.abs(captured - grandTotal) > 0.01)) {
+            log.error('[pos-recipe/confirm] captured amount mismatch — txn=' + txnId +
+              ' captured=' + captured + ' grandTotal=' + grandTotal + ' — voiding');
+            eventLog.logEvent('kiosk.recipe_sale_amount_mismatch', {
+              txnId: txnId, recipeId: body.recipe_id, captured: captured, expected: grandTotal
+            });
+            return _voidRecipeTxnWithTimeout(txnId, grandTotal, req).then(function (voidResult) {
+              cache.releaseLock(C.LOCK_KEYS.RECIPE_SALE).catch(function () {});
+              if (res.headersSent) return;
+              var mismatchBody = {
+                error: 'The amount charged does not match the sale total. The card charge has been voided — please re-ring the sale.',
+                payment_voided: !voidResult.voidFailed
+              };
+              if (voidResult.voidFailed) mismatchBody.needs_manual_review = true;
+              res.status(402).json(mismatchBody);
+            });
+          }
+
         // Create Zoho invoice
-        zohoPost('/invoices', invoicePayload)
+        return zohoPost('/invoices', invoicePayload)
           .then(function (invoiceData) {
             var invoice = invoiceData.invoice || {};
             var invoiceId = invoice.invoice_id || '';
@@ -1337,6 +1370,7 @@ function _bookRecipeConfirm(body, confirmIdemKey, req, res) {
                 res.status(502).json(respBody);
               });
           });
+        }); // end captureVerify.then
       }).catch(function (cacheErr) {
         log.error('[pos-recipe/confirm] Cache error: ' + cacheErr.message);
         cache.releaseLock(C.LOCK_KEYS.RECIPE_SALE).catch(function () {});

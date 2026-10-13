@@ -24,6 +24,9 @@ jest.mock('axios', function () {
 
 jest.mock('../lib/helcim', function () {
   return {
+    // Recipe confirm captured-amount readback (2026-10-13). No default —
+    // set per test below to the total that test's own recipe/cart produces.
+    getCardTransactionById: jest.fn(),
     isTerminalEnabled: jest.fn().mockReturnValue(true),
     terminalPurchase: jest.fn().mockResolvedValue({}),
     voidTransaction: jest.fn().mockResolvedValue({})
@@ -399,6 +402,9 @@ describe('POST /api/kiosk/recipe-sale/confirm', function () {
   });
 
   test('9. confirm creates invoice with per-ingredient line items plus fee', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
         recipe_id: 'RCP-001',
@@ -427,6 +433,9 @@ describe('POST /api/kiosk/recipe-sale/confirm', function () {
   });
 
   test('10. confirm voids transaction on Zoho invoice failure', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
     mocks.zohoApi.zohoPost.mockRejectedValue(new Error('Zoho unavailable'));
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
@@ -443,6 +452,9 @@ describe('POST /api/kiosk/recipe-sale/confirm', function () {
   });
 
   test('11. confirm releases lock after void on Zoho failure', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
     mocks.zohoApi.zohoPost.mockRejectedValue(new Error('Zoho unavailable'));
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
@@ -457,6 +469,9 @@ describe('POST /api/kiosk/recipe-sale/confirm', function () {
   });
 
   test('12. confirm calls detectRecipeSale for in-store sale', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
         recipe_id: 'RCP-001',
@@ -478,6 +493,9 @@ describe('POST /api/kiosk/recipe-sale/confirm', function () {
   });
 
   test('13. confirm does NOT call detectRecipeSale for take-out sale', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 195 });
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
         recipe_id: 'RCP-001',
@@ -493,6 +511,9 @@ describe('POST /api/kiosk/recipe-sale/confirm', function () {
   });
 
   test('14. confirm busts both kiosk products and ingredients caches', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
         recipe_id: 'RCP-001',
@@ -512,6 +533,9 @@ describe('POST /api/kiosk/recipe-sale/confirm', function () {
   });
 
   test('17. confirm uses locked_price as grand total when pricing_mode is locked', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
     // MOCK_RECIPE_RESPONSE has locked_price: 195 and no pricing_mode (defaults to locked)
     // Dynamic total would be: 5.5*3.50 + 0.1*8.00 + 45 + 5 = 70.05
     // But locked mode should charge 195.00
@@ -537,6 +561,9 @@ describe('POST /api/kiosk/recipe-sale/confirm', function () {
   });
 
   test('18. confirm computes from ingredients when pricing_mode is dynamic', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 70.05 });
     var dynamicRecipeResponse = {
       data: {
         ok: true,
@@ -843,6 +870,9 @@ describe('POST /api/kiosk/recipe-sale/confirm — scaling (SCALE-04, SCALE-05)',
   });
 
   test('C1. invoice line items use scaled quantities at 1.5x (SCALE-04)', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 342.5 });
     var capturedInvoicePayload;
     mocks.zohoApi.zohoPost.mockImplementation(function (path, payload) {
       if (path === '/invoices') capturedInvoicePayload = payload;
@@ -874,6 +904,9 @@ describe('POST /api/kiosk/recipe-sale/confirm — scaling (SCALE-04, SCALE-05)',
   });
 
   test('C2. confirm locked at 1.5x grand total matches quote (locked_price * 1.5 + fees)', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 342.5 });
     // locked: 195 * 1.5 + 45 + 5 = 342.50
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
@@ -890,6 +923,9 @@ describe('POST /api/kiosk/recipe-sale/confirm — scaling (SCALE-04, SCALE-05)',
   });
 
   test('C3. recipe_snapshot passed to detectRecipeSale includes target_volume_l and scale_factor (SCALE-04)', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 342.5 });
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
         recipe_id: 'RCP-001',
@@ -948,6 +984,9 @@ describe('POST /api/kiosk/recipe-sale/confirm — scaling (SCALE-04, SCALE-05)',
   });
 
   test('C5. confirm with no target_volume_l defaults to 1.0x against batch_size_l (not silent short-circuit)', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
     // Omitting target_volume_l — handler must default to batch_size_l=20 => factor 1.0
     // locked: 195 * 1.0 + 45 + 5 = 245.00
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
@@ -1089,6 +1128,9 @@ describe('SCALE-05 regression — internal-only ingredient reads INGREDIENTS_ALL
   });
 
   test('SCALE-05b (confirm): internal-only ingredient with sufficient stock returns 201 and invoice includes ingredient line', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 51 });
     var capturedInvoicePayload;
     mocks.zohoApi.zohoPost.mockImplementation(function (path, payload) {
       if (path === '/invoices') capturedInvoicePayload = payload;
@@ -1671,6 +1713,9 @@ describe('POST /api/kiosk/recipe-sale/confirm — modified_ingredients + snapsho
   });
 
   test('M-C1. confirm with locked-add modified list charges LOCKED_ADD total (displayed==charged)', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 250 });
     // locked-add at 1x: 195*1 + 45 + 5 = 245; + Centennial 0.5*10 = 5 => 250
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
@@ -1687,6 +1732,9 @@ describe('POST /api/kiosk/recipe-sale/confirm — modified_ingredients + snapsho
   });
 
   test('M-C2. confirm total matches quote total for same modified inputs (displayed==charged)', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 250 });
     // Must be identical to M-Q1 total (250.00) — core MOD-02 guarantee
     var quoteTotal;
     return callHandler('GET', '/api/kiosk/recipe-quote', {
@@ -1717,6 +1765,9 @@ describe('POST /api/kiosk/recipe-sale/confirm — modified_ingredients + snapsho
   });
 
   test('M-C3. snapshot.modified_base_ingredients equals pre-scale submitted list; is_modified=true', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 250 });
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
         recipe_id: 'RCP-001',
@@ -1736,6 +1787,9 @@ describe('POST /api/kiosk/recipe-sale/confirm — modified_ingredients + snapsho
   });
 
   test('M-C4. snapshot.ingredients reflects the SCALED MODIFIED list (not original recipe)', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 250 });
     // modified list has dry-hop, not hops; snapshot.ingredients must show scaled modified
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
@@ -1761,6 +1815,9 @@ describe('POST /api/kiosk/recipe-sale/confirm — modified_ingredients + snapsho
   });
 
   test('M-C5. invoice line items use scaled MODIFIED list (Zoho inventory deduction uses modified)', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 250 });
     var capturedInvoicePayload;
     mocks.zohoApi.zohoPost.mockImplementation(function (path, payload) {
       if (path === '/invoices') capturedInvoicePayload = payload;
@@ -1785,6 +1842,9 @@ describe('POST /api/kiosk/recipe-sale/confirm — modified_ingredients + snapsho
   });
 
   test('M-C6. confirm without modified_ingredients: snapshot.is_modified=false, modified_base_ingredients=null (regression)', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
     return callHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
         recipe_id: 'RCP-001',
@@ -1935,6 +1995,9 @@ describe('Unit conversion — sale/stock money path (73-03, D-01/D-02)', functio
   });
 
   test('U1. confirm invoice lineItems quantity is the CONVERTED qty (12g -> 0.012), not the raw scaled qty', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 50.24 });
     var capturedInvoicePayload;
     mocks.zohoApi.zohoPost.mockImplementation(function (path, payload) {
       if (path === '/invoices') capturedInvoicePayload = payload;
@@ -1957,6 +2020,9 @@ describe('Unit conversion — sale/stock money path (73-03, D-01/D-02)', functio
   });
 
   test('U2. quote total equals the summed invoice line totals the confirm/sale path builds (quote == sale, converted)', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 50.24 });
     var capturedInvoicePayload;
     mocks.zohoApi.zohoPost.mockImplementation(function (path, payload) {
       if (path === '/invoices') capturedInvoicePayload = payload;
