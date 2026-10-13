@@ -578,10 +578,8 @@ router.get('/api/recipes/:id/availability', function (req, res) {
           });
 
           // Step 3: Compute per-ingredient availability (D-07, D-08), unit-converted (D-01/D-02)
-          var result = ingredients.map(function (ing) {
+          var neededByLine = ingredients.map(function (ing) {
             var entry = entryMap[String(ing.item_id)];
-            var stock = entry ? (Number(entry.stock_on_hand) || 0) : 0;
-
             var needed;
             if (entry) {
               var lineCost = scaling.ingredientLineCost(entry, ing);
@@ -597,6 +595,24 @@ router.get('/api/recipes/:id/availability', function (req, res) {
             } else {
               needed = Number(ing.quantity) || 0;
             }
+            return needed;
+          });
+
+          // An item used on several lines draws on one stock pool, so batches
+          // come from its total per-batch need. One non-convertible line keeps
+          // the whole item fail-closed (-1).
+          var neededByItem = {};
+          ingredients.forEach(function (ing, i) {
+            var id = String(ing.item_id);
+            var prev = neededByItem[id];
+            var n = neededByLine[i];
+            neededByItem[id] = (prev === undefined) ? n : ((prev < 0 || n < 0) ? -1 : prev + n);
+          });
+
+          var result = ingredients.map(function (ing) {
+            var entry = entryMap[String(ing.item_id)];
+            var stock = entry ? (Number(entry.stock_on_hand) || 0) : 0;
+            var needed = neededByItem[String(ing.item_id)];
 
             var batches = needed < 0 ? 0 : (needed > 0 ? Math.floor(stock / needed) : 999);
             var status = batches === 0 ? 'out' : batches < 3 ? 'low' : 'ok';
