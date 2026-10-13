@@ -157,6 +157,145 @@ function distributeRecipeDiscount(lineItems, feeItemIds, preset, discountAmount)
 }
 
 // ---------------------------------------------------------------------------
+// Recipe invoice lines + fee tax (2026-10-13, owner decision: tax recipe fees
+// like kit sales). ONE builder feeds both the quote (what the terminal is
+// charged) and the confirm (what Zoho is invoiced), so the taxed lines cannot
+// drift between the two legs.
+// ---------------------------------------------------------------------------
+
+function recipeFeeItemIds() {
+  return [
+    process.env.MAKERS_FEE_ITEM_ID,
+    process.env.MATERIALS_FEE_ITEM_ID,
+    process.env.MILLING_FEE_ITEM_ID
+  ].filter(Boolean);
+}
+
+// Build the Zoho invoice line items for a scaled recipe. Ingredient lines use
+// CONVERTED quantities (SCALE-04, INV-01, D-01/D-02 — the converted number is
+// what Zoho decrements: 12 g hop -> 0.012 kg). Returns { lineItems } or
+// { unpriceable: '<error>' } (D-02 tiered fail-closed), or
+// { millingNotConfigured: true } for a milled take-out with no milling item.
+function buildRecipeLineItems(recipe, scaledIngredients, catalogMap, saleType, millGrain) {
+  var lineItems = [];
+  for (var i = 0; i < scaledIngredients.length; i++) {
+    var ing = scaledIngredients[i];
+    var catalogEntry = catalogMap[ing.item_id];
+    var li;
+    if (catalogEntry) {
+      var ingResult = scaling.ingredientLineCost(catalogEntry, ing);
+      if (!ingResult.ok) return { unpriceable: ingResult.error };
+      li = {
+        item_id: ing.item_id,
+        name: ing.item_name,
+        quantity: ingResult.convertedQty,
+        rate: Number(catalogEntry.rate) || 0
+      };
+      if (catalogEntry.tax_id) {
+        li.tax_id = catalogEntry.tax_id;
+      }
+    } else {
+      // Unknown item — not in catalog (T-36-07 tolerated elsewhere); push
+      // at face value rather than fail-closed. D-02 guards UNIT
+      // mismatches on items we recognize, not unrecognised item_ids.
+      li = {
+        item_id: ing.item_id,
+        name: ing.item_name,
+        quantity: Number(ing.quantity) || 0,
+        rate: 0
+      };
+    }
+    lineItems.push(li);
+  }
+
+  // Fee line items (always added to the invoice for record-keeping)
+  if (saleType === 'in-store') {
+    if (process.env.MAKERS_FEE_ITEM_ID) {
+      lineItems.push({ item_id: process.env.MAKERS_FEE_ITEM_ID, name: 'Brewing Fee', quantity: 1, rate: Number(recipe.service_fee) || 0 });
+    }
+    if (process.env.MATERIALS_FEE_ITEM_ID) {
+      lineItems.push({ item_id: process.env.MATERIALS_FEE_ITEM_ID, name: 'Materials Fee', quantity: 1, rate: Number(recipe.materials_fee) || 0 });
+    }
+  } else if (saleType === 'take-out' && millGrain) {
+    if (!process.env.MILLING_FEE_ITEM_ID) return { millingNotConfigured: true };
+    var millingEntry = catalogMap[process.env.MILLING_FEE_ITEM_ID];
+    lineItems.push({
+      item_id: process.env.MILLING_FEE_ITEM_ID,
+      name: 'Milling Fee',
+      quantity: 1,
+      rate: millingEntry ? (Number(millingEntry.rate) || 0) : 0
+    });
+  }
+  return { lineItems: lineItems };
+}
+
+// Taxable amount of a line as Zoho computes it: the line amount rounded to
+// cents, less its (already cent-rounded) discount.
+function recipeLineAmount(li) {
+  return Math.max(round2(round2((Number(li.quantity) || 0) * (Number(li.rate) || 0)) - (Number(li.discount) || 0)), 0);
+}
+
+// Fee items are services, which the ingredient catalog excludes; their Zoho
+// tax lives on the kiosk products catalog — the same source kit sales tax the
+// Makers Fee from (routes/catalog.js rebuildKioskCatalog on a cache miss).
+function getFeeCatalogMap() {
+  return cache.get(C.CACHE_KEYS.KIOSK_PRODUCTS).then(function (items) {
+    if (Array.isArray(items) && items.length) return items;
+    return require('./catalog').rebuildKioskCatalog();
+  }).then(function (items) {
+    var map = {};
+    (Array.isArray(items) ? items : []).forEach(function (p) {
+      if (p && p.item_id) map[p.item_id] = p;
+    });
+    return map;
+  });
+}
+
+// Tax for recipe invoice lines, mirroring pos.js computeTax: per-line rate
+// from the catalog, grouped by rate, each group rounded on its own (the Zoho
+// org's entity_level rounding), never a guessed rate. Fee lines take their
+// rate from the kiosk catalog and fail closed when it cannot be resolved;
+// ingredient lines resolve as kit lines do (an untaxed tax_id-tagged line is
+// 0%). Resolves { taxTotal } or { error } — the fee catalog is only read when
+// a fee line actually carries an amount.
+function computeRecipeTax(lineItems, catalogMap) {
+  var feeIds = recipeFeeItemIds();
+  var needsFees = lineItems.some(function (li) {
+    return feeIds.indexOf(li.item_id) !== -1 && recipeLineAmount(li) > 0;
+  });
+  var feeMapPromise = needsFees ? getFeeCatalogMap().catch(function () { return {}; }) : Promise.resolve({});
+  return feeMapPromise.then(function (feeMap) {
+    var taxByRate = {};
+    for (var i = 0; i < lineItems.length; i++) {
+      var li = lineItems[i];
+      var amount = recipeLineAmount(li);
+      if (amount <= 0) continue;
+      var pct;
+      if (feeIds.indexOf(li.item_id) !== -1) {
+        var fee = feeMap[li.item_id];
+        pct = fee ? parseFloat(fee.tax_percentage) : NaN;
+        if (isNaN(pct)) {
+          return { error: 'Cannot determine tax for "' + li.name + '" — its Zoho item has no tax rate or the product list is unavailable. Refresh the product list and try again.' };
+        }
+      } else {
+        var entry = catalogMap[li.item_id];
+        pct = entry ? parseFloat(entry.tax_percentage) : 0;
+        if (isNaN(pct)) {
+          if (!entry.tax_id) {
+            return { error: 'Cannot determine tax for "' + (entry.name || li.name) + '" — no tax rate configured for this item. Refresh the product list or fix the item in Zoho.' };
+          }
+          pct = 0;
+        }
+      }
+      taxByRate[String(pct)] = (taxByRate[String(pct)] || 0) + amount * (pct / 100);
+    }
+    var taxTotal = 0;
+    Object.keys(taxByRate).forEach(function (k) { taxTotal += round2(taxByRate[k]); });
+    return { taxTotal: round2(taxTotal) };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // computeRecipeQuote — shared helper (35-06, extended 36-03)
 // Fetches recipe, validates target_volume_l, reads INGREDIENTS_ALL catalog,
 // scales ingredients, checks stock, and computes the authoritative grand total.
@@ -492,6 +631,24 @@ function priceRecipe(data, rawTarget, saleType, millGrain, modifiedIngredients, 
       isModified: isModified
     };
 
+    // Fee tax (owner decision 2026-10-13): tax the same invoice lines the
+    // confirm leg books, after the discount is spread over them. grandTotal
+    // stays the pre-tax package total; chargeTotal is what the terminal takes.
+    function withRecipeTax(preset, disc) {
+      var built = buildRecipeLineItems(recipe, scaledIngredients, catalogMap, saleType, millGrain);
+      if (built.unpriceable) return Promise.reject({ status: 422, body: { error: built.unpriceable } });
+      if (built.millingNotConfigured) {
+        return Promise.reject({ status: 400, body: { error: 'Milling fee not configured. Contact admin.' } });
+      }
+      if (preset && disc) distributeRecipeDiscount(built.lineItems, recipeFeeItemIds(), preset, disc.discountAmount);
+      return computeRecipeTax(built.lineItems, catalogMap).then(function (taxResult) {
+        if (taxResult.error) return Promise.reject({ status: 400, body: { error: taxResult.error } });
+        baseResult.taxTotal = taxResult.taxTotal;
+        baseResult.chargeTotal = round2(baseResult.grandTotal + taxResult.taxTotal);
+        return baseResult;
+      });
+    }
+
     // Apply discount (if any). Server-authoritative — preset re-read from cache.
     if (discountReq && discountReq.preset_id) {
       return loadDiscountPreset(discountReq.preset_id).then(function (preset) {
@@ -500,11 +657,11 @@ function priceRecipe(data, rawTarget, saleType, millGrain, modifiedIngredients, 
         if (disc.error) return Promise.reject({ status: disc.status, body: { error: disc.error } });
         baseResult.grandTotal = disc.total;
         baseResult.discount = disc;
-        return baseResult;
+        return withRecipeTax(preset, disc);
       });
     }
 
-    return baseResult;
+    return withRecipeTax(null, null);
   });
 }
 
@@ -583,7 +740,8 @@ router.post('/api/kiosk/recipe-sale', function (req, res) {
 function _runRecipeSale(body, idempotencyKey, millGrain, modifiedIngredients, discountReq, req, res) {
   computeRecipeQuote(body.recipe_id, body.target_volume_l, body.sale_type, millGrain, modifiedIngredients, discountReq, 'sale')
     .then(function (quote) {
-      var grandTotal = quote.grandTotal;
+      // The terminal is charged the taxed total (fee tax, 2026-10-13).
+      var grandTotal = quote.chargeTotal;
       var scaleFactor = quote.scaleFactor;
       var targetVolumeL = quote.targetVolumeL;
       var pricingMode = quote.pricingMode;
@@ -604,13 +762,9 @@ function _runRecipeSale(body, idempotencyKey, millGrain, modifiedIngredients, di
       // DETECTOR. The kiosk now sends its displayed totals with recipe sales
       // (same optional field names as /api/kiosk/sale). Unlike the standard
       // sale path this comparison is deliberately LOG-ONLY (never a blocking
-      // 400): the recomputed grandTotal above (recipe-scaling) contains NO
-      // tax component, while the kiosk's displayed total adds client-side
-      // per-line tax (ingredient/fee tax_percentage) — a blocking $0.01
-      // assertion would therefore deterministically reject every recipe cart
-      // displaying nonzero tax (the CR-01 outage mode). Reconciling recipe
-      // tax methodology fail-closed is deferred to a follow-up phase
-      // (67-REVIEW.md WR-04 outcome). Until then, divergence is made LOUD in
+      // 400). The server total now includes fee tax (2026-10-13) and the
+      // kiosk displays the quote's tax_total, but a kiosk still running
+      // cached pre-tax JS would display less — so divergence stays LOUD in
       // logs + the event stream without risking a checkout outage. Client
       // totals are never trusted for pricing.
       if (typeof body.client_grand_total === 'number' && isFinite(body.client_grand_total) &&
@@ -664,6 +818,8 @@ function _runRecipeSale(body, idempotencyKey, millGrain, modifiedIngredients, di
               sale_type: body.sale_type,
               mill_grain: millGrain,
               total: grandTotal,
+              total_before_tax: quote.grandTotal,
+              tax_total: quote.taxTotal,
               total_before_discount: quote.totalBeforeDiscount,
               discount: quote.discount ? quote.discount.discountApplied : null,
               scale_factor: scaleFactor,
@@ -794,6 +950,10 @@ router.get('/api/kiosk/recipe-quote', function (req, res) {
         scale_factor: quote.scaleFactor,
         pricing_mode: quote.pricingMode,
         total: quote.grandTotal,
+        // Fee tax (2026-10-13): `total` stays the pre-tax package total the
+        // kiosk shows as a price; the terminal charges total_with_tax.
+        tax_total: quote.taxTotal,
+        total_with_tax: quote.chargeTotal,
         total_before_discount: quote.totalBeforeDiscount,
         discount: quote.discount ? quote.discount.discountApplied : null,
         is_modified: quote.isModified,
@@ -1040,40 +1200,9 @@ function _bookRecipeConfirm(body, confirmIdemKey, req, res) {
         // reaches the POST-CHARGE void safety net (payment_voided: true)
         // instead of the plain 409 "Insufficient stock" branch, which would
         // leave an already-charged card un-voided (U4c regression guard).
-        var lineItems = [];
-        var unpriceableLine = null; // D-02 tiered fail-closed (POST-CHARGE safety net)
-        for (var i = 0; i < scaledIngredients.length; i++) {
-          var ing = scaledIngredients[i];
-          var catalogEntry = catalogMap[ing.item_id];
-          var li;
-          if (catalogEntry) {
-            var ingResult = scaling.ingredientLineCost(catalogEntry, ing);
-            if (!ingResult.ok) {
-              unpriceableLine = ingResult.error;
-              break;
-            }
-            li = {
-              item_id: ing.item_id,
-              name: ing.item_name,
-              quantity: ingResult.convertedQty,
-              rate: Number(catalogEntry.rate) || 0
-            };
-            if (catalogEntry.tax_id) {
-              li.tax_id = catalogEntry.tax_id;
-            }
-          } else {
-            // Unknown item — not in catalog (T-36-07 tolerated elsewhere); push
-            // at face value rather than fail-closed. D-02 guards UNIT
-            // mismatches on items we recognize, not unrecognised item_ids.
-            li = {
-              item_id: ing.item_id,
-              name: ing.item_name,
-              quantity: Number(ing.quantity) || 0,
-              rate: 0
-            };
-          }
-          lineItems.push(li);
-        }
+        var builtLines = buildRecipeLineItems(recipe, scaledIngredients, catalogMap, body.sale_type, millGrain);
+        var lineItems = builtLines.lineItems || [];
+        var unpriceableLine = builtLines.unpriceable || null; // D-02 tiered fail-closed (POST-CHARGE safety net)
 
         if (unpriceableLine) {
           // POST-CHARGE defense-in-depth (D-02, tiered fail-closed): the
@@ -1117,38 +1246,9 @@ function _bookRecipeConfirm(body, confirmIdemKey, req, res) {
           });
         }
 
-        // Add applicable fee line items (always added to invoice for record-keeping)
-        if (body.sale_type === 'in-store') {
-          var serviceFee = Number(recipe.service_fee) || 0;
-          var materialsFee = Number(recipe.materials_fee) || 0;
-          if (process.env.MAKERS_FEE_ITEM_ID) {
-            lineItems.push({
-              item_id: process.env.MAKERS_FEE_ITEM_ID,
-              name: 'Brewing Fee',
-              quantity: 1,
-              rate: serviceFee
-            });
-          }
-          if (process.env.MATERIALS_FEE_ITEM_ID) {
-            lineItems.push({
-              item_id: process.env.MATERIALS_FEE_ITEM_ID,
-              name: 'Materials Fee',
-              quantity: 1,
-              rate: materialsFee
-            });
-          }
-        } else if (body.sale_type === 'take-out' && millGrain) {
-          if (!process.env.MILLING_FEE_ITEM_ID) {
-            return res.status(400).json({ error: 'Milling fee not configured. Contact admin.' });
-          }
-          var millingEntry = catalogMap[process.env.MILLING_FEE_ITEM_ID];
-          var millingRate = millingEntry ? (Number(millingEntry.rate) || 0) : 0;
-          lineItems.push({
-            item_id: process.env.MILLING_FEE_ITEM_ID,
-            name: 'Milling Fee',
-            quantity: 1,
-            rate: millingRate
-          });
+        // Fee lines were added by buildRecipeLineItems (shared with the quote).
+        if (builtLines.millingNotConfigured) {
+          return res.status(400).json({ error: 'Milling fee not configured. Contact admin.' });
         }
 
         // Determine authoritative grand total via helper (same formula as quote, SCALE-03)
@@ -1189,12 +1289,7 @@ function _bookRecipeConfirm(body, confirmIdemKey, req, res) {
             cache.releaseLock(C.LOCK_KEYS.RECIPE_SALE).catch(function () {});
             return res.status(discC.status).json({ error: discC.error });
           }
-          var feeItemIds = [
-            process.env.MAKERS_FEE_ITEM_ID,
-            process.env.MATERIALS_FEE_ITEM_ID,
-            process.env.MILLING_FEE_ITEM_ID
-          ].filter(Boolean);
-          distributeRecipeDiscount(lineItems, feeItemIds, discountPreset, discC.discountAmount);
+          distributeRecipeDiscount(lineItems, recipeFeeItemIds(), discountPreset, discC.discountAmount);
           grandTotal = discC.total;
           discountNote = '\nDiscount: ' + discountPreset.name + ' (-' + discC.discountAmount.toFixed(2) + ')';
           log.info('[pos-recipe/confirm] discount applied: ' + discountPreset.name + ' amount=' + discC.discountAmount + ' new grandTotal=' + grandTotal);
@@ -1213,6 +1308,36 @@ function _bookRecipeConfirm(body, confirmIdemKey, req, res) {
           customer_id: body.contact_id || process.env.KIOSK_CONTACT_ID || ''
         };
 
+        // Fee tax (owner decision 2026-10-13, mirrors the quote): from here on
+        // grandTotal is the TAXED total — what the terminal charged, what the
+        // capture must equal and what the payment books. The invoice carries
+        // an adjustment so lines + Zoho tax + adjustment equal it, because a
+        // locked package price differs from the sum of its ingredient lines.
+        var preTaxTotal = grandTotal;
+        return computeRecipeTax(lineItems, catalogMap).then(function (taxResult) {
+          if (taxResult.error) {
+            // Post-charge: the quote passed this same check, so this only
+            // fires if the fee catalog changed between legs. Fail closed.
+            log.error('[pos-recipe/confirm] Tax unresolved after charge — voiding txn=' + txnId + ': ' + taxResult.error);
+            return _voidRecipeTxnWithTimeout(txnId, 0, req).then(function (voidResult) {
+              cache.releaseLock(C.LOCK_KEYS.RECIPE_SALE).catch(function () {});
+              if (res.headersSent) return;
+              var taxErrBody = {
+                error: 'Payment was taken but the sale could not be taxed. Payment voided.',
+                payment_voided: !voidResult.voidFailed
+              };
+              if (voidResult.voidFailed) taxErrBody.needs_manual_review = true;
+              res.status(502).json(taxErrBody);
+            });
+          }
+          grandTotal = round2(preTaxTotal + taxResult.taxTotal);
+          var lineSum = round2(lineItems.reduce(function (sum, li) { return sum + recipeLineAmount(li); }, 0));
+          var adjustment = round2(preTaxTotal - lineSum);
+          if (adjustment !== 0) {
+            invoicePayload.adjustment = adjustment;
+            invoicePayload.adjustment_description = 'Recipe package price';
+          }
+
         // M-A3 parity (mirrors pos.js captureVerify, D-50-04): the amount
         // actually captured must equal the total we are about to book
         // (±$0.01) BEFORE any Zoho side-effect. An unreadable capture is a
@@ -1227,7 +1352,7 @@ function _bookRecipeConfirm(body, confirmIdemKey, req, res) {
           })
           : Promise.resolve(grandTotal);
 
-        captureVerify.then(function (captured) {
+        return captureVerify.then(function (captured) {
           if (grandTotal > 0 && (!isFinite(captured) || captured <= 0 || Math.abs(captured - grandTotal) > 0.01)) {
             log.error('[pos-recipe/confirm] captured amount mismatch — txn=' + txnId +
               ' captured=' + captured + ' grandTotal=' + grandTotal + ' — voiding');
@@ -1371,6 +1496,7 @@ function _bookRecipeConfirm(body, confirmIdemKey, req, res) {
               });
           });
         }); // end captureVerify.then
+        }); // end computeRecipeTax.then
       }).catch(function (cacheErr) {
         log.error('[pos-recipe/confirm] Cache error: ' + cacheErr.message);
         cache.releaseLock(C.LOCK_KEYS.RECIPE_SALE).catch(function () {});

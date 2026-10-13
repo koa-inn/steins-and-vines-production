@@ -12,6 +12,22 @@ var path = require('path');
 
 var mockRouteHandlers = {};
 
+// Recipe fee tax (2026-10-13): fee tax rates come from the kiosk products
+// catalog; on a cache miss pos-recipe rebuilds it via routes/catalog. Serve the
+// configured fee items at their real Zoho rates (Makers 5% GST, Materials and
+// Milling 12% PST + GST).
+jest.mock('../routes/catalog', function () {
+  return {
+    rebuildKioskCatalog: jest.fn(function () {
+      return Promise.resolve([
+        { item_id: process.env.MAKERS_FEE_ITEM_ID, tax_percentage: 5 },
+        { item_id: process.env.MATERIALS_FEE_ITEM_ID, tax_percentage: 12 },
+        { item_id: process.env.MILLING_FEE_ITEM_ID, tax_percentage: 12 }
+      ]);
+    })
+  };
+});
+
 jest.mock('express', function () {
   var router = {
     get:    jest.fn(function (p, handler) { mockRouteHandlers['GET:' + p] = handler; }),

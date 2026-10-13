@@ -23,6 +23,22 @@
 // Shared mocks used by BOTH pos.js AND pos-recipe.js describe blocks
 // =============================================================================
 
+// Recipe fee tax (2026-10-13): fee tax rates come from the kiosk products
+// catalog; on a cache miss pos-recipe rebuilds it via routes/catalog. Serve the
+// configured fee items at their real Zoho rates (Makers 5% GST, Materials and
+// Milling 12% PST + GST).
+jest.mock('../routes/catalog', function () {
+  return {
+    rebuildKioskCatalog: jest.fn(function () {
+      return Promise.resolve([
+        { item_id: process.env.MAKERS_FEE_ITEM_ID, tax_percentage: 5 },
+        { item_id: process.env.MATERIALS_FEE_ITEM_ID, tax_percentage: 12 },
+        { item_id: process.env.MILLING_FEE_ITEM_ID, tax_percentage: 12 }
+      ]);
+    })
+  };
+});
+
 jest.mock('express', function () {
   var router = { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() };
   var express = function () {};
@@ -306,7 +322,7 @@ describe('CR-01 — recipe-sale/confirm acquires idempotency lock from transacti
   test('CR-01-A: recipe-sale/confirm calls acquireIdempotencyLock with confirm:transaction_id seed', function () {
     // Recipe confirm captured-amount readback (2026-10-13): the capture equals
     // this test's recomputed total, so the booking proceeds as before.
-    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 247.85 });
     // CR-01 fix: recipe-sale/confirm must acquire idempotency lock from
     // body.idempotency_key || body.transaction_id || body.reference seed.
     // Before the fix, moneyPath.acquireIdempotencyLock is never called.
@@ -331,7 +347,7 @@ describe('CR-01 — recipe-sale/confirm acquires idempotency lock from transacti
   test('CR-01-B: recipe-sale/confirm in production with only transaction_id → proceeds (not 400)', function () {
     // Recipe confirm captured-amount readback (2026-10-13): the capture equals
     // this test's recomputed total, so the booking proceeds as before.
-    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 247.85 });
     process.env.NODE_ENV = 'production';
     return callRecipeHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {
