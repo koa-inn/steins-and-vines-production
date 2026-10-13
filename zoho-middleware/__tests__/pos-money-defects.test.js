@@ -304,6 +304,9 @@ describe('CR-01 — recipe-sale/confirm acquires idempotency lock from transacti
   });
 
   test('CR-01-A: recipe-sale/confirm calls acquireIdempotencyLock with confirm:transaction_id seed', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
     // CR-01 fix: recipe-sale/confirm must acquire idempotency lock from
     // body.idempotency_key || body.transaction_id || body.reference seed.
     // Before the fix, moneyPath.acquireIdempotencyLock is never called.
@@ -326,6 +329,9 @@ describe('CR-01 — recipe-sale/confirm acquires idempotency lock from transacti
   });
 
   test('CR-01-B: recipe-sale/confirm in production with only transaction_id → proceeds (not 400)', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
     process.env.NODE_ENV = 'production';
     return callRecipeHandler('POST', '/api/kiosk/recipe-sale/confirm', {
       body: {

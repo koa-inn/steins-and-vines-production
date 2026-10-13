@@ -44,6 +44,9 @@ jest.mock('axios', function () {
 
 jest.mock('../lib/helcim', function () {
   return {
+    // Recipe confirm captured-amount readback (2026-10-13). No default —
+    // set per test below to the total that test's own recipe/cart produces.
+    getCardTransactionById: jest.fn(),
     isTerminalEnabled: jest.fn().mockReturnValue(true),
     terminalPurchase: jest.fn().mockResolvedValue({}),
     voidTransaction: jest.fn().mockResolvedValue({})
@@ -362,6 +365,9 @@ describe('POST /api/kiosk/recipe-sale/confirm — hardened void (T-50-28, audit 
   // Case 7: recipe confirm void goes through the primitive
   // -------------------------------------------------------------------------
   test('7. a failed Zoho invoice creation routes the void through moneyPath.voidWithTimeout (not a raw helcimLib.voidTransaction call from the route)', function () {
+    // Recipe confirm captured-amount readback (2026-10-13): the capture equals
+    // this test's recomputed total, so the booking proceeds as before.
+    require('../lib/helcim').getCardTransactionById.mockResolvedValue({ status: 'APPROVED', amount: 245 });
     var voidSpy = jest.spyOn(mocks.moneyPath, 'voidWithTimeout');
     mocks.zohoApi.zohoPost.mockImplementation(function (path) {
       if (path === '/invoices') return Promise.reject(new Error('Zoho unavailable'));
