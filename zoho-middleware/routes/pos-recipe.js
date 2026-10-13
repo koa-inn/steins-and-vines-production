@@ -639,7 +639,13 @@ function _runRecipeSale(body, idempotencyKey, millGrain, modifiedIngredients, di
           return res.status(503).json({ error: 'Another recipe sale in progress — try again in a moment.' });
         }
 
-        var refNumber = 'RECIPE-' + Date.now();
+        // Use the kiosk's reference (mirrors pos.js:803) — /confirm keys the
+        // pending-charge sentinel, the invoice reference and the manual-confirm
+        // terminal poll on body.reference, which the kiosk sets to this value.
+        // A server-minted ref here left the sentinel uncleared and unpollable.
+        var refNumber = (body.reference_number && typeof body.reference_number === 'string')
+          ? body.reference_number.slice(0, 64)
+          : ('RECIPE-' + Date.now());
 
         // D-50-06a: derive the Helcim terminal idempotency key deterministically
         // from the client idempotency_key (mirrors pos.js:870-872) so Helcim
