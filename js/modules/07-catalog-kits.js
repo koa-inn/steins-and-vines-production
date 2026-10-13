@@ -70,9 +70,7 @@ function buildWaitlistCtaLink(doc) {
 
   var link = d.createElement('a');
   link.className = 'btn';
-  // While the beer page is held back, a beer card elsewhere must not link to it.
-  var beerLive = (typeof BEER_PAGE_LIVE === 'undefined') ? true : !!BEER_PAGE_LIVE;
-  link.href = isBeerPage ? '#waitlist' : (beerLive ? 'beer.html#waitlist' : 'contact.html');
+  link.href = isBeerPage ? '#waitlist' : 'beer.html#waitlist';
   link.textContent = 'Join the Waitlist';
 
   wrap.appendChild(link);
