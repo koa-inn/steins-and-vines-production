@@ -916,7 +916,48 @@ function _voidRecipeTxnWithTimeout(txnId, amount, req) {
   });
 }
 
+// F2 parity (mirrors pos.js verifyManualCharge): a manual confirm carries the
+// literal 'manual-confirm', not a terminal txn id, so it is the staff's word
+// that the card was charged. Resolve the real approved transaction from Helcim
+// (by the sale's reference) before anything is booked, and fail closed —
+// nothing booked, nothing voided — when it cannot be positively verified. A
+// genuinely orphaned real charge is settled by the reconcile sweep, which still
+// holds this sale's pending-charge record.
 function _runRecipeConfirm(body, confirmIdemKey, req, res) {
+  if (body.transaction_id !== 'manual-confirm') {
+    return _bookRecipeConfirm(body, confirmIdemKey, req, res);
+  }
+
+  function failUnverified(declined) {
+    if (confirmIdemKey) cache.releaseLock(confirmIdemKey).catch(function () {});
+    cache.releaseLock(C.LOCK_KEYS.RECIPE_SALE).catch(function () {});
+    if (res.headersSent) return;
+    if (declined) {
+      return res.status(400).json({
+        error: 'No approved card payment found for this sale (terminal reported declined or cancelled). Nothing was booked — do not re-charge.'
+      });
+    }
+    return res.status(409).json({
+      error: 'Card payment could not be verified yet. If the terminal approved, it will be reconciled automatically — do NOT re-charge. Otherwise wait a moment and retry.'
+    });
+  }
+
+  return helcimLib.pollTerminalResult(String(body.reference).slice(0, 64)).then(function (tr) {
+    if (tr && tr.approved && tr.transactionId) {
+      log.info('[pos-recipe/confirm] manual-confirm resolved to txn=' + tr.transactionId + ' ref=' + body.reference);
+      return _bookRecipeConfirm(Object.assign({}, body, { transaction_id: String(tr.transactionId) }), confirmIdemKey, req, res);
+    }
+    var declined = !!(tr && (tr.status === 'DECLINED' || tr.status === 'CANCELLED'));
+    log.warn('[pos-recipe/confirm] manual-confirm not verified ref=' + body.reference +
+      ' status=' + (tr && tr.status));
+    return failUnverified(declined);
+  }, function (pollErr) {
+    log.error('[pos-recipe/confirm] manual-confirm poll failed ref=' + body.reference + ': ' + pollErr.message);
+    return failUnverified(false);
+  });
+}
+
+function _bookRecipeConfirm(body, confirmIdemKey, req, res) {
   var txnId = body.transaction_id;
   var millGrain = body.mill_grain === true;
   // MOD-02 (36-03): parse modified_ingredients from request body (array or null)
