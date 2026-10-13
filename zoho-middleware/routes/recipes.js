@@ -541,9 +541,18 @@ router.get('/api/recipes/:id/availability', function (req, res) {
 
         // Step 2: Get ingredient stock from the full cached ingredients catalog (includes internal-only items)
         return cache.get(C.CACHE_KEYS.INGREDIENTS_ALL).then(function (catalog) {
-          // If full ingredients cache is cold, return unknown status (Pitfall 5) — NOT cached,
+          // Redis cold (the key has a 1 h TTL and expires in quiet hours) — fall
+          // back to the full-catalog file, same idiom as enrichIngredientGroups.
+          if (!catalog || !Array.isArray(catalog)) {
+            try {
+              catalog = JSON.parse(fs.readFileSync(INGREDIENTS_ALL_FILE_CACHE, 'utf8'));
+            } catch {
+              catalog = null;
+            }
+          }
+          // If no catalog is available at all, return unknown status (Pitfall 5) — NOT cached,
           // so a subsequent request re-checks once the ingredients catalog warms up.
-          if (!catalog) {
+          if (!catalog || !Array.isArray(catalog)) {
             var unknownResult = ingredients.map(function (ing) {
               return {
                 item_id: ing.item_id,
