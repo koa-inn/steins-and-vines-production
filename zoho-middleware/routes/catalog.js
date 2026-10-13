@@ -739,8 +739,9 @@ function servePublicIngredients(req, res) {
           log.error('[api/ingredients] overlayStock failed: ' + err.message);
           res.json({ source: 'file-cache', items: fileData });
         });
-        // Trigger background refresh
-        doRefreshIngredients().catch(function (err) {
+        // Trigger background refresh. Deferred via Promise.resolve so even a
+        // synchronous throw cannot reach the outer .catch and double-send.
+        Promise.resolve().then(doRefreshIngredients).catch(function (err) {
           log.error('[api/ingredients] Background refresh failed: ' + err.message);
         });
         return;
@@ -762,7 +763,7 @@ function servePublicIngredients(req, res) {
         log.info('[api/ingredients] Snapshot fallback hit (' + snapIngData.length + ' items)');
         cache.set(INGREDIENTS_CACHE_KEY, snapIngData, INGREDIENTS_CACHE_TTL);
         res.json({ source: 'snapshot', items: snapIngData });
-        doRefreshIngredients().catch(function (err) {
+        Promise.resolve().then(doRefreshIngredients).catch(function (err) {
           log.warn('[api/ingredients] Background snapshot→Zoho refresh failed: ' + err.message);
         });
         return;
