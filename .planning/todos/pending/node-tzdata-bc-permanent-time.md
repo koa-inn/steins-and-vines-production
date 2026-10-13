@@ -29,3 +29,18 @@ To check before choosing a fix:
 
 Fix options: upgrade Node to a release whose ICU bundles tzdata >= 2026a, or ship updated ICU data via
 `NODE_ICU_DATA`. Do this before 2026-11-01 and before the Phase 87 production window.
+
+## Progress (2026-10-13)
+
+- Confirmed inside Railway (`railway ssh`): staging AND production run Node v20.20.2, ICU 78.2,
+  tz 2025c, and give America/Vancouver GMT-08:00 for 2026-11-15. Node 20 is end-of-life, so it
+  will not get new tzdata.
+- Chose Node 24 LTS (v24.21.0, tz 2026c, supported to Apr 2028). Root, middleware, test:db, both
+  lints and migrate:guard are all green on 24. Under Node 24's npm, the install scripts it skips
+  (cpu-features, ssh2, protobufjs, sharp, fsevents) belong to dev-only or macOS-only packages; none
+  are middleware production deps.
+- `abc4d42e` pins .nvmrc / engines / CI / docs to 24 and adds the regression test
+  `zoho-middleware/__tests__/vancouver-timezone.test.js` (fails on 20, passes on 24).
+- `4a8267ab` fixes an unrelated date time-bomb test that began failing 2026-10-11.
+- Pushed to staging 2026-10-13. Remaining: verify the staging container, soak, then deploy to
+  production with the pinned-SHA discipline before 2026-11-01, and check Postgres `America/Vancouver`.
