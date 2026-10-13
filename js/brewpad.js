@@ -566,13 +566,14 @@ function renderDataGapWarning(readings, now) {
 
 /**
  * Determine if a batch should show the kiosk source badge.
- * Per D-11: visible only when source=kiosk AND status=pending.
+ * Per D-11: visible only for kiosk sales (source kiosk, or kiosk_recipe from a
+ * kiosk recipe sale) while status=pending.
  * @param {string} source - batch source value
  * @param {string} status - batch status value (already lowercased statusKey)
  * @returns {boolean}
  */
 function shouldShowKioskBadge(source, status) {
-  return source === 'kiosk' && (status || '').toLowerCase() === 'pending';
+  return (source === 'kiosk' || source === 'kiosk_recipe') && (status || '').toLowerCase() === 'pending';
 }
 
 /**
@@ -4241,7 +4242,7 @@ function parseWaitlistRecipeIds(value) {
     var resultsHtml = '';
     if (filtered.length === 0) {
       if (_batchStatusFilter === 'pending') {
-        resultsHtml += '<p class="bp-empty"><strong>No pending batches</strong><br>Kiosk sales with Maker&#39;s Fee will appear here automatically.</p>';
+        resultsHtml += '<p class="bp-empty"><strong>No pending batches</strong><br>Kiosk sales with Maker&#39;s Fee and kiosk recipe sales will appear here automatically.</p>';
       } else {
         resultsHtml += '<p class="bp-empty">No batches found.</p>';
       }
