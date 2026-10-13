@@ -179,6 +179,13 @@ describe('admin.js Scheduling + Homepage flows route through /api/admin/proxy (8
   });
 
   test('resetMonthToDefaults issues ONE call with every needed update; booked slots never appear', function () {
+    // resetMonthToDefaults skips days before today, so pin "today" before the fixture date
+    // (only Date is faked; flushPromises still needs the real setTimeout).
+    jest.useFakeTimers({
+      now: new Date('2026-10-01T12:00:00'),
+      doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate',
+        'clearImmediate', 'nextTick', 'queueMicrotask']
+    });
     var slots = [
       { date: '2026-10-10', time: '9:00 AM', status: 'blocked', _rowIndex: 20 }, // should become available
       { date: '2026-10-10', time: '12:00 PM', status: 'booked', _rowIndex: 21 } // never touched
@@ -195,6 +202,8 @@ describe('admin.js Scheduling + Homepage flows route through /api/admin/proxy (8
       expect(rows).toContain(20);
       expect(rows).not.toContain(21);
       noSheetsUrl();
+    }).finally(function () {
+      jest.useRealTimers();
     });
   });
 
