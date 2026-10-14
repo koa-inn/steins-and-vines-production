@@ -10,6 +10,7 @@ var axios = require('axios');
 var authTiers = require('../lib/authTiers');
 var scaling = require('../lib/recipe-scaling');
 var recipeStore = require('../lib/recipe-store');
+var recipeRules = require('../lib/recipe-rules');
 
 var router = express.Router();
 
@@ -726,8 +727,28 @@ function validateIngredientUnits(ingredients) {
 // POST /api/recipes — Create new recipe
 // ---------------------------------------------------------------------------
 
+// Phase 89 D-04: normalise then reject. Returns null when the payload is fine
+// (key absent, blank, or valid; payload.beer_category is rewritten to the
+// canonical key) or an error body for the caller to send. 400 (not this
+// file's usual 422) is a locked decision; recipe-pg and Apps Script
+// re-validate as defence in depth.
+function checkBeerCategory(payload) {
+  if (payload.beer_category === undefined) return null;
+  var key = recipeRules.normalizeBeerCategory(payload.beer_category);
+  if (key === null) {
+    return {
+      error: 'Beer category must be one of: ' + recipeRules.BEER_CATEGORY_KEYS.join(', '),
+      code: 'invalid_beer_category'
+    };
+  }
+  payload.beer_category = key;
+  return null;
+}
+
 router.post('/api/recipes', function (req, res) {
   var payload = req.body || {};
+  var badCategory = checkBeerCategory(payload);
+  if (badCategory) return res.status(400).json(badCategory);
 
   return validateIngredientUnits(payload.ingredients).then(function (rejection) {
     if (rejection) {
@@ -758,6 +779,9 @@ router.put('/api/recipes/:id', function (req, res) {
   // Postgres store (the sheets facade ignores it, D-04).
   var expectedUpdatedAt = payload.expected_updated_at;
   delete payload.expected_updated_at;
+
+  var badCategory = checkBeerCategory(payload);
+  if (badCategory) return res.status(400).json(badCategory);
 
   // D-02 activation guardrail — enforce server-side (Pitfall 7, T-13-04)
   // NOTE: this fires whenever status is 'active', including on a plain edit of
