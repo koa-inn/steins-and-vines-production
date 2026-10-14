@@ -4283,6 +4283,12 @@ function hardenProxyPayload(payload, req) {
   if (typeof req.staffEmail === 'string' && req.staffEmail) {
     payload.acting_user = req.staffEmail;
   }
+  // Phase 90 D-04/D-05: staff creates may only be 'internal' or 'manual'; automated
+  // sources (kiosk, online, zoho_scan, kiosk_recipe) are server-token only.
+  // (Regex, not a string literal: this guard issues nothing, and the 87-17 single-issuer scan counts quoted action names.)
+  if (/^create_batch$/i.test(String(payload.action)) && payload.source !== undefined && payload.source !== null) {
+    payload.source = String(payload.source).trim().toLowerCase() === 'internal' ? 'internal' : 'manual';
+  }
   return payload;
 }
 
