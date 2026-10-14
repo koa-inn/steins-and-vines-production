@@ -13,7 +13,7 @@
  * Underscore-prefixed result keys (e.g. `_recipeId`) are for the facade and are stripped there.
  *
  * Response shapes are byte-identical (JSON.stringify) to Apps Script get_recipes / get_recipe:
- * 18 recipe keys in sheet column order, '' for empty cells, JS numbers (pg returns numeric as
+ * 19 recipe keys in sheet column order (beer_category added in Phase 89), '' for empty cells, JS numbers (pg returns numeric as
  * strings — Pitfall 1), ISO-ms timestamp strings (pg returns Date objects), ingredients in
  * position (sheet-row) order with no position key.
  */
@@ -24,7 +24,7 @@ var recipeRules = require('./recipe-rules');
 var RECIPE_COLUMNS = [
   'recipe_id', 'name', 'style', 'description', 'status', 'locked_price', 'service_fee',
   'materials_fee', 'batch_size_l', 'abv', 'ibu', 'colour_srm', 'notes', 'created_at', 'created_by',
-  'updated_at', 'pricing_mode', 'schedule_id'
+  'updated_at', 'pricing_mode', 'schedule_id', 'beer_category'
 ];
 var INGREDIENT_COLUMNS = ['ingredient_id', 'recipe_id', 'item_id', 'item_name', 'quantity', 'unit'];
 
@@ -63,8 +63,8 @@ var LIST_IDS_SQL = 'select recipe_id from recipes order by recipe_id';
 
 var INSERT_RECIPE_SQL =
   'insert into recipes (name, style, description, status, locked_price, service_fee, materials_fee, ' +
-  'batch_size_l, abv, ibu, colour_srm, notes, created_at, created_by, updated_at, pricing_mode, schedule_id) ' +
-  'values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $13, $15, $16) returning recipe_id';
+  'batch_size_l, abv, ibu, colour_srm, notes, created_at, created_by, updated_at, pricing_mode, schedule_id, beer_category) ' +
+  'values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $13, $15, $16, $17) returning recipe_id';
 
 var INSERT_INGREDIENT_SQL =
   'insert into recipe_ingredients (recipe_id, position, item_id, item_name, quantity, unit) ' +
@@ -89,6 +89,8 @@ var DELETE_RECIPE_SQL = 'delete from recipes where recipe_id = $1';
 // Fixed column allow-lists for the dynamic SET clause (never built from payload keys).
 var UPDATE_STRING_FIELDS = ['name', 'style', 'description', 'status', 'notes', 'schedule_id'];
 var UPDATE_NUMERIC_FIELDS = ['locked_price', 'service_fee', 'materials_fee', 'batch_size_l', 'abv', 'ibu', 'colour_srm'];
+
+var BEER_CATEGORY_MESSAGE = 'beer_category must be one of: ' + recipeRules.BEER_CATEGORY_KEYS.join(', ');
 
 var STALE_MESSAGE = 'This recipe was changed since you opened it \u2014 reload to see the latest';
 
@@ -231,6 +233,9 @@ async function createRecipe(client, payload, opts) {
     });
   }
 
+  var beerCategory = recipeRules.normalizeBeerCategory(payload.beer_category);
+  if (beerCategory === null) return invalid(BEER_CATEGORY_MESSAGE);
+
   var ins = await client.query(INSERT_RECIPE_SQL, [
     recipeRules.sanitizeInput(payload.name),
     emptyToNull(recipeRules.sanitizeInput(payload.style || '')),
@@ -247,7 +252,8 @@ async function createRecipe(client, payload, opts) {
     now,
     actor,
     recipeRules.normalizePricingMode(payload.pricing_mode),
-    emptyToNull(recipeRules.sanitizeInput(payload.schedule_id || ''))
+    emptyToNull(recipeRules.sanitizeInput(payload.schedule_id || '')),
+    emptyToNull(beerCategory)
   ]);
   var recipeId = ins.rows[0].recipe_id;
 
@@ -321,6 +327,11 @@ async function updateRecipe(client, payload, opts) {
     addSet(nf, nv);
   }
   if (payload.pricing_mode !== undefined) addSet('pricing_mode', recipeRules.normalizePricingMode(payload.pricing_mode));
+  if (payload.beer_category !== undefined) {
+    var nextBeerCategory = recipeRules.normalizeBeerCategory(payload.beer_category);
+    if (nextBeerCategory === null) return invalid(BEER_CATEGORY_MESSAGE);
+    addSet('beer_category', emptyToNull(nextBeerCategory));
+  }
 
   var incoming;
   if (incomingRaw !== undefined) {
