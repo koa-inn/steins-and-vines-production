@@ -2611,6 +2611,30 @@ function batchDedupDecision(existingRows, payload) {
   return null;
 }
 
+// Phase 90 (D-05): source may only be edited manual <-> internal. A blank legacy source counts
+// as manual. Skip-vs-reject split: an off-list TARGET value (e.g. 'kiosk', 'x') is dropped,
+// never written (parity with the Postgres store, whose pinned test expects source:'x' ignored);
+// a manual/internal request against a locked automated source (kiosk, kiosk_recipe, online,
+// zoho_scan, research, ...) is rejected so staff see why. Pure: no Apps Script globals.
+// Ported line-for-line to zoho-middleware/lib/batch-rules.js (sourceTransitionDecision).
+// @returns {Object} { action:'skip' } | { action:'write', value } | { ok:false, error, message }
+function batchSourceTransitionDecision(currentSource, nextSource) {
+  var SOURCE_EDITABLE = ['', 'manual', 'internal'];
+  var SOURCE_TARGETS = ['manual', 'internal'];
+  if (nextSource === undefined || nextSource === null) return { action: 'skip' };
+  var next = String(nextSource || '').trim().toLowerCase();
+  if (SOURCE_TARGETS.indexOf(next) === -1) return { action: 'skip' };
+  var cur = String(currentSource || '').trim().toLowerCase();
+  if (SOURCE_EDITABLE.indexOf(cur) === -1) {
+    return {
+      ok: false,
+      error: 'invalid_source',
+      message: 'Batch source "' + cur + '" is automatic and not editable'
+    };
+  }
+  return { action: 'write', value: next };
+}
+
 function createBatch(payload, userEmail) {
   var isPending = !payload.schedule_id || !payload.start_date;
   if ((!payload.product_sku && !payload.recipe_id) || (!payload.customer_name && !payload.customer_firstname)) {
@@ -2853,6 +2877,18 @@ function updateBatch(payload, userEmail) {
     }
   }
 
+  // Phase 90 (D-05): source is editable only manual <-> internal. Decided BEFORE any write
+  // (VesselHistory row, vessel flip, field writes) so a rejection leaves the sheet untouched.
+  if (updates.source !== undefined) {
+    var sourceDecision = batchSourceTransitionDecision(current.source, updates.source);
+    if (sourceDecision.ok === false) return sourceDecision;
+    if (sourceDecision.action === 'write') {
+      updates.source = sourceDecision.value;
+    } else {
+      delete updates.source;
+    }
+  }
+
   // Check for vessel/location changes — record history
   var locationChanged = false;
   var locationFields = ['vessel_id', 'shelf_id', 'bin_id'];
@@ -2911,6 +2947,7 @@ function updateBatch(payload, userEmail) {
   // Apply updates
   var allowedFields = [
     'status', 'vessel_id', 'shelf_id', 'bin_id', 'notes',
+    'source',  // Phase 90: only manual/internal ever reaches here (batchSourceTransitionDecision above)
     // Phase 7: SO linking fields (D-04, D-05) and lifecycle date columns (D-09)
     'zoho_so_number', 'customer_id', 'customer_name', 'product_name',
     'customer_firstname', 'customer_lastname',
