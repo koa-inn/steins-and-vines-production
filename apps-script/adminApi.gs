@@ -2877,6 +2877,18 @@ function updateBatch(payload, userEmail) {
     }
   }
 
+  // Phase 90 (D-05): source is editable only manual <-> internal. Decided BEFORE any write
+  // (VesselHistory row, vessel flip, field writes) so a rejection leaves the sheet untouched.
+  if (updates.source !== undefined) {
+    var sourceDecision = batchSourceTransitionDecision(current.source, updates.source);
+    if (sourceDecision.ok === false) return sourceDecision;
+    if (sourceDecision.action === 'write') {
+      updates.source = sourceDecision.value;
+    } else {
+      delete updates.source;
+    }
+  }
+
   // Check for vessel/location changes — record history
   var locationChanged = false;
   var locationFields = ['vessel_id', 'shelf_id', 'bin_id'];
@@ -2935,6 +2947,7 @@ function updateBatch(payload, userEmail) {
   // Apply updates
   var allowedFields = [
     'status', 'vessel_id', 'shelf_id', 'bin_id', 'notes',
+    'source',  // Phase 90: only manual/internal ever reaches here (batchSourceTransitionDecision above)
     // Phase 7: SO linking fields (D-04, D-05) and lifecycle date columns (D-09)
     'zoho_so_number', 'customer_id', 'customer_name', 'product_name',
     'customer_firstname', 'customer_lastname',
