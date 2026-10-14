@@ -111,6 +111,15 @@ Findings outside Phase 85 scope (pre-existing):
 
 ## Production prerequisites
 
+### 2026-10-14: Phase 89 script-source rule (D-14)
+
+| Check | Value | Date |
+|-------|-------|------|
+| Script source verified | worktree rev-parse = ____ (must be d2c66be9) | date ____ |
+
+Run backfill, verify and replay only from the pinned d2c66be9 worktree until Phase 89 reaches
+production; see the RUNBOOK section 5 callout "Phase 89 script-source rule (D-14)".
+
 ### 2026-10-07: D-08 gate NOT met; owner chose deploy-only (option 1)
 
 - Production `GIFT_CARDS_STORE=dual` (Phase 84 window day 2; flip no earlier than ~2026-10-13).
