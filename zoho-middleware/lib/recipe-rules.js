@@ -51,6 +51,28 @@ function normalizePricingMode(value) {
   return value === 'dynamic' ? 'dynamic' : 'locked';
 }
 
+// D-02/D-03 (Phase 89): app-level enum, no DB CHECK; keep in sync with apps-script/adminApi.gs,
+// js/lib/constants.js BEER_CATEGORIES and css/styles.css .tint-* (drift test:
+// tests/frontend/beer-category-key-drift.test.js)
+var BEER_CATEGORY_KEYS = [
+  'pilsner', 'lager', 'pale', 'ipa', 'amber', 'wheat',
+  'session', 'saison', 'stout', 'porter', 'redale', 'brown'
+];
+
+/**
+ * Normalise a beer category (D-03/D-04/D-05).
+ * Returns the canonical key, '' (valid blank) or null (invalid, caller rejects).
+ * Orchestrator resolution 2 / research A1: non-strings and non-blank input that strips to
+ * nothing are rejected, not blanked.
+ */
+function normalizeBeerCategory(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'string') return null;
+  if (value.trim() === '') return '';
+  var key = value.toLowerCase().replace(/[^a-z]/g, '');
+  return BEER_CATEGORY_KEYS.indexOf(key) === -1 ? null : key;
+}
+
 /** Port of normalizeRecipeIngredientTuple (adminApi.gs) — Phase 79 D-04 comparison key. */
 function normalizeRecipeIngredientTuple(itemId, quantity, unit) {
   var itemKey = String(itemId === null || itemId === undefined ? '' : itemId).trim();
@@ -131,6 +153,8 @@ function planIngredientIds(incoming, storedIds) {
 module.exports = {
   sanitizeInput: sanitizeInput,
   normalizePricingMode: normalizePricingMode,
+  BEER_CATEGORY_KEYS: BEER_CATEGORY_KEYS,
+  normalizeBeerCategory: normalizeBeerCategory,
   normalizeRecipeIngredientTuple: normalizeRecipeIngredientTuple,
   recipeIngredientsUnchanged: recipeIngredientsUnchanged,
   planIngredientIds: planIngredientIds
