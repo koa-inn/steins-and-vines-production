@@ -42,6 +42,8 @@ var SUBCAT_ALIASES = {
   'additives': 'additive',
   'bottle': 'packaging',
   'bag': 'packaging',
+  'can': 'packaging',
+  'cans': 'packaging',
   'packaging': 'packaging',
   'fermenter': 'equipment',
   'equipment': 'equipment',
