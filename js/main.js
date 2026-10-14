@@ -1992,6 +1992,63 @@ function buildRecipeCard(recipe, doc) {
   return card;
 }
 
+// Closing card for the beer recipe grid (owner request 2026-10-14): same
+// bottle-label idiom as a recipe card, inviting a custom recipe, with the same
+// waitlist CTA. Static copy only — createElement/textContent (T-74-12).
+function buildCustomRecipeCard(doc) {
+  var d = doc || (typeof document !== 'undefined' ? document : null);
+
+  var card = d.createElement('div');
+  card.className = 'label-beer label-beer--custom';
+  card.setAttribute('data-custom-recipe', 'true');
+
+  var body = d.createElement('div');
+  body.className = 'label-body';
+  appendSvLogo(d, body);
+
+  var goldRule = d.createElement('div');
+  goldRule.className = 'gold-rule';
+  body.appendChild(goldRule);
+
+  var name = d.createElement('div');
+  name.className = 'beer-name';
+  name.textContent = 'Your Own Custom Recipe';
+  body.appendChild(name);
+
+  var sub = d.createElement('div');
+  sub.className = 'subcategory';
+  sub.textContent = 'Brewed to your taste';
+  body.appendChild(sub);
+
+  var desc = d.createElement('p');
+  desc.className = 'service-description';
+  desc.textContent = 'Don’t see what you’re after? Tell us what you like to drink and we’ll work with you to build a custom recipe — any style, your call.';
+  body.appendChild(desc);
+
+  var spacer = d.createElement('div');
+  spacer.className = 'notes-spacer';
+  body.appendChild(spacer);
+  card.appendChild(body);
+
+  var footer = d.createElement('div');
+  footer.className = 'price-footer';
+  var priceCol = d.createElement('div');
+  priceCol.className = 'price-col';
+  var priceLabel = d.createElement('div');
+  priceLabel.className = 'price-label';
+  priceLabel.textContent = 'Ferment in store';
+  priceCol.appendChild(priceLabel);
+  var priceValue = d.createElement('div');
+  priceValue.className = 'price-value';
+  priceValue.textContent = 'Priced to your recipe';
+  priceCol.appendChild(priceValue);
+  footer.appendChild(priceCol);
+  card.appendChild(footer);
+
+  card.appendChild(buildWaitlistCtaLink(d));
+  return card;
+}
+
 /**
  * Fetch active recipes for the public recipe block (D-05). Always resolves,
  * never rejects, to either { ok: true, recipes: [...] } or { ok: false }.
@@ -2089,10 +2146,12 @@ function renderRecipeBlock(result, showSubCopy, categoryFilter, middlewareUrl, d
   section.appendChild(sectionHeader);
 
   var grid = d.createElement('div');
-  grid.className = 'product-grid' + (result.recipes.length <= 3 ? ' product-grid--compact' : '');
+  // +1 for the closing custom-recipe card, which counts toward the layout.
+  grid.className = 'product-grid' + (result.recipes.length + 1 <= 3 ? ' product-grid--compact' : '');
   result.recipes.forEach(function (recipe) {
     grid.appendChild(buildRecipeCard(recipe, d));
   });
+  grid.appendChild(buildCustomRecipeCard(d));
   section.appendChild(grid);
 
   recipeEl.appendChild(section);
@@ -3647,7 +3706,7 @@ function renderKitBuyControl(wrap, product) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { loadProducts: loadProducts, appendSvLogo: appendSvLogo, buildBeerCard: buildBeerCard, flattenCustomFields: flattenCustomFields, matchesKitCategory: matchesKitCategory, buildWaitlistCtaLink: buildWaitlistCtaLink, sortFilterValues: sortFilterValues, recipeDisplayPrice: recipeDisplayPrice, fermentTimeDisplay: fermentTimeDisplay, buildRecipeCard: buildRecipeCard, fetchActiveRecipes: fetchActiveRecipes, renderRecipeBlock: renderRecipeBlock, orderCatalogBlocks: orderCatalogBlocks };
+  module.exports = { loadProducts: loadProducts, appendSvLogo: appendSvLogo, buildBeerCard: buildBeerCard, flattenCustomFields: flattenCustomFields, matchesKitCategory: matchesKitCategory, buildWaitlistCtaLink: buildWaitlistCtaLink, sortFilterValues: sortFilterValues, recipeDisplayPrice: recipeDisplayPrice, fermentTimeDisplay: fermentTimeDisplay, buildRecipeCard: buildRecipeCard, buildCustomRecipeCard: buildCustomRecipeCard, fetchActiveRecipes: fetchActiveRecipes, renderRecipeBlock: renderRecipeBlock, orderCatalogBlocks: orderCatalogBlocks };
 }
 var _allIngredients = [];
 var _ingredientsFuse = null;
