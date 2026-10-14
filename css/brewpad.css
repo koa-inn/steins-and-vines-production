@@ -2801,3 +2801,118 @@ textarea.bp-input {
   font-weight: 700;
   color: var(--batch-danger);
 }
+
+/* Phase 90-06: Internal source badge (list row + detail header) */
+.bp-source-badge--internal {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: var(--r-lg);
+  background: var(--batch-info-bg);
+  color: var(--batch-info);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* ===== Phase 90-06: guided invoice review (Possible invoices) ===== */
+.bp-link-review {
+  margin-top: 16px;
+}
+.bp-link-card {
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-emphasis);
+  border-radius: var(--r-md);
+  padding: 16px;
+  margin-bottom: 16px;
+  display: block;
+}
+.bp-link-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.bp-link-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink-primary);
+}
+.bp-link-card-meta {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ink-secondary);
+  margin: 4px 0;
+}
+.bp-link-card-nokit {
+  color: var(--ink-tertiary);
+}
+.bp-link-card-lines {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ink-primary);
+}
+.bp-link-card-warn {
+  margin: 8px 0;
+  padding: 4px 8px;
+  background: var(--batch-warning-bg);
+  border-left: 3px solid var(--batch-warning);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ink-primary);
+}
+.bp-link-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.bp-link-btn {
+  flex: 1;
+  min-height: 44px;
+}
+.bp-link-btn--primary {
+  flex: 2;
+  background: var(--stain);
+  color: var(--cellar-canvas);
+}
+.bp-link-empty {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ink-primary);
+  margin: 8px 0;
+}
+.bp-link-error {
+  background: var(--batch-danger-bg);
+  border-left-color: var(--batch-danger);
+  color: var(--batch-danger);
+}
+.bp-pill {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: var(--r-lg);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.bp-pill--ok { background: var(--batch-success-bg); color: var(--batch-success); }
+.bp-pill--warn { background: var(--batch-warning-bg); color: var(--batch-warning); }
+.bp-pill--muted { background: var(--ledger-soft); color: var(--ink-tertiary); }
+.bp-link-skeleton {
+  height: 96px;
+  margin-bottom: 16px;
+  border-radius: var(--r-md);
+  background: var(--ledger-soft);
+}

@@ -213,6 +213,35 @@ function filterBatchesByStatus(batches, filter) {
   });
 }
 
+// Phase 90 (D-06/D-24): the Unlinked set. Every batch, any status, with no invoice
+// number, whose source is not 'internal', and which is not disabled/deleted.
+// Blank-source legacy batches count (they are the backlog).
+function normBatchSource(source) {
+  return String(source === null || source === undefined ? '' : source).trim().toLowerCase();
+}
+
+function filterBatchesByUnlinked(batches) {
+  return (batches || []).filter(function (b) {
+    if (!b) return false;
+    if (String(b.zoho_so_number === null || b.zoho_so_number === undefined ? '' : b.zoho_so_number).trim() !== '') return false;
+    if (normBatchSource(b.source) === 'internal') return false;
+    var s = String(b.status || '').trim().toLowerCase();
+    return s !== 'disabled' && s !== 'deleted';
+  });
+}
+
+// Phase 90 (D-05): Mark internal / Mark as not internal is offered only for blank,
+// manual or internal sources. Locked sources (kiosk, kiosk_recipe, online, zoho_scan,
+// research, anything else) are never changed from the UI (server guards are authoritative).
+function isBatchSourceEditable(source) {
+  var s = normBatchSource(source);
+  return s === '' || s === 'manual' || s === 'internal';
+}
+
+function shouldShowInternalBadge(source) {
+  return normBatchSource(source) === 'internal';
+}
+
 // Ready-to-Bottle filter: intersects _allBatchesData with the SERVER-computed
 // _dashSummary.readyToBottle set (adminApi.gs:1847-1883) by batch_id. Does NOT
 // re-derive the packaging-due predicate client-side.
@@ -2453,6 +2482,306 @@ function parseWaitlistRecipeIds(value) {
     }
   }
 
+  // ===== Phase 90-06: guided invoice review =====
+  //
+  // Unlinked batch detail shows up to 3 candidate invoices from the middleware
+  // (the link-candidates route). NOTHING is written on render or on "Not this";
+  // writes happen only in the explicit tap handlers (Link invoice / Mark internal).
+
+  var LINK_REVIEW_MAX_CARDS = 3;
+  var LINK_REVIEW_MAX_LINES = 4;
+  // Holds the last response for the open detail so "Not this" can re-render without refetching.
+  var _linkReview = { batchId: null, data: null, batch: null };
+
+  function linkDismissKey(batchId) { return 'bp-link-dismissed:' + batchId; }
+
+  function readLinkDismissed(batchId) {
+    try {
+      var arr = JSON.parse(localStorage.getItem(linkDismissKey(batchId)) || '[]');
+      return Object.prototype.toString.call(arr) === '[object Array]' ? arr : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function addLinkDismissed(batchId, invoiceNumber) {
+    var arr = readLinkDismissed(batchId);
+    if (arr.indexOf(invoiceNumber) === -1) arr.push(invoiceNumber);
+    try { localStorage.setItem(linkDismissKey(batchId), JSON.stringify(arr)); } catch (e) {}
+  }
+
+  function fmtCardDate(dateStr) {
+    var s = String(dateStr || '').slice(0, 10);
+    var p = s.split('-');
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var mi = parseInt(p[1], 10) - 1;
+    if (p.length !== 3 || !(mi >= 0 && mi <= 11)) return s;
+    return parseInt(p[2], 10) + ' ' + months[mi] + ' ' + p[0];
+  }
+
+  function linkPill(status) {
+    var s = String(status || '').toLowerCase();
+    if (s === 'paid') return { cls: 'bp-pill--ok', label: 'Paid' };
+    if (s === 'partially_paid') return { cls: 'bp-pill--warn', label: 'Part paid' };
+    if (s === 'overdue') return { cls: 'bp-pill--warn', label: 'Overdue' };
+    return { cls: 'bp-pill--muted', label: 'Unpaid' };
+  }
+
+  function isNoCustomerBatch(b) {
+    var name = String(b.customer_name || getCustomerDisplayName(b) || '').trim();
+    if (/^walk[\s\-]*in$/i.test(name)) return true;
+    return name === '' && !String(b.customer_id || '').trim();
+  }
+
+  function linkReviewHeaderHtml() {
+    return '<div class="bp-detail-section-title">Possible invoices</div>' +
+      '<p class="bp-link-card-meta">Same customer, within 60 days of the start date. Nothing is saved until you tap Link invoice.</p>';
+  }
+
+  function linkReviewEmptyHtml(b, body) {
+    var html = '<div class="bp-link-empty"><strong>No matching invoices found</strong><br>' + escapeHTML(body) + '</div>';
+    html += '<div class="bp-link-card-actions">';
+    html += '<button type="button" class="btn-secondary bp-link-btn" data-action="search-all">Search all invoices</button>';
+    if (isBatchSourceEditable(b.source)) {
+      html += '<button type="button" class="btn-secondary bp-link-btn" data-action="internal">Mark internal</button>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function linkCandidateCardHtml(b, c) {
+    var pill = linkPill(c.status);
+    var html = '<div class="bp-link-card" data-so-number="' + escapeHTML(c.invoice_number) + '" data-batch-id="' + escapeHTML(b.batch_id) + '">';
+    html += '<div class="bp-link-card-head"><span class="bp-link-card-title">' + escapeHTML(c.invoice_number) + '</span>' +
+      '<span class="bp-pill ' + pill.cls + '">' + pill.label + '</span></div>';
+    var meta = [fmtCardDate(c.date)];
+    if (c.total !== undefined && c.total !== null && c.total !== '' && !isNaN(Number(c.total))) {
+      meta.push('$' + Number(c.total).toFixed(2));
+    }
+    if (c.date_distance_days !== undefined && c.date_distance_days !== null && !isNaN(Number(c.date_distance_days))) {
+      var d = Math.abs(Number(c.date_distance_days));
+      meta.push(d + (d === 1 ? ' day' : ' days') + ' from start');
+    }
+    html += '<div class="bp-link-card-meta">' + meta.map(escapeHTML).join(' · ') + '</div>';
+    var lines = c.line_items || [];
+    if (lines.length) {
+      html += '<ul class="bp-link-card-lines">';
+      lines.slice(0, LINK_REVIEW_MAX_LINES).forEach(function (li) {
+        var qty = (li.quantity !== undefined && li.quantity !== null && li.quantity !== '') ? String(li.quantity) + ' x ' : '';
+        html += '<li>' + escapeHTML(qty + (li.name || '')) + '</li>';
+      });
+      html += '</ul>';
+      if (lines.length > LINK_REVIEW_MAX_LINES) {
+        html += '<div class="bp-link-card-meta">+' + (lines.length - LINK_REVIEW_MAX_LINES) + ' more</div>';
+      }
+    }
+    if (c.has_kit_line === false) {
+      html += '<div class="bp-link-card-meta bp-link-card-nokit">No kit or fee line</div>';
+    }
+    if (c.linked_batches && c.linked_batches.length) {
+      html += '<div class="bp-link-card-warn">Already linked to ' + c.linked_batches.map(escapeHTML).join(', ') + '</div>';
+    } else if (c.linked_batches === null || c.linked_batches === undefined) {
+      html += '<div class="bp-link-card-meta">Link status unknown</div>';
+    }
+    html += '<div class="bp-link-card-actions">';
+    html += '<button type="button" class="btn bp-link-btn bp-link-btn--primary" data-action="link" data-so-number="' + escapeHTML(c.invoice_number) + '" data-batch-id="' + escapeHTML(b.batch_id) + '">Link invoice</button>';
+    html += '<button type="button" class="btn-secondary bp-link-btn" data-action="dismiss" data-so-number="' + escapeHTML(c.invoice_number) + '">Not this</button>';
+    if (isBatchSourceEditable(b.source)) {
+      html += '<button type="button" class="btn-secondary bp-link-btn" data-action="internal" data-so-number="' + escapeHTML(c.invoice_number) + '" data-batch-id="' + escapeHTML(b.batch_id) + '">Mark internal</button>';
+    }
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderLinkReview(b) {
+    var el = document.getElementById('bp-link-review');
+    var data = _linkReview.data;
+    if (!el || !data) return;
+    el.removeAttribute('aria-busy');
+    var html = linkReviewHeaderHtml();
+    if (data.reason === 'no_customer') {
+      el.innerHTML = html + linkReviewEmptyHtml(b, 'This batch has no customer, so no invoices can be suggested.');
+      return;
+    }
+    var dismissed = readLinkDismissed(b.batch_id);
+    var shown = (data.candidates || []).filter(function (c) {
+      return c && dismissed.indexOf(c.invoice_number) === -1;
+    }).slice(0, LINK_REVIEW_MAX_CARDS);
+    if (!shown.length) {
+      html += linkReviewEmptyHtml(b, 'Try Search all invoices, or mark this batch Internal if it was made for the shop.');
+    } else {
+      shown.forEach(function (c) { html += linkCandidateCardHtml(b, c); });
+    }
+    var unchecked = Number(data.uninspected_count) || 0;
+    if (data.inspected_all === false && unchecked > 0) {
+      html += '<p class="bp-link-card-meta bp-link-review-hint">' + unchecked + (unchecked === 1 ? ' more invoice' : ' more invoices') +
+        ' from this customer in the window ' + (unchecked === 1 ? 'was' : 'were') + ' not checked. Use Search all invoices.</p>';
+      if (shown.length) {
+        html += '<div class="bp-link-card-actions"><button type="button" class="btn-secondary bp-link-btn" data-action="search-all">Search all invoices</button></div>';
+      }
+    }
+    el.innerHTML = html;
+  }
+
+  function renderLinkReviewError(b) {
+    var el = document.getElementById('bp-link-review');
+    if (!el) return;
+    el.removeAttribute('aria-busy');
+    el.innerHTML = linkReviewHeaderHtml() +
+      '<div class="bp-link-card-warn bp-link-error" role="alert">Invoice lookup failed. Zoho may be busy, try again in a minute or search manually.</div>' +
+      '<div class="bp-link-card-actions">' +
+      '<button type="button" class="btn-secondary bp-link-btn" data-action="retry">Try again</button>' +
+      '<button type="button" class="btn-secondary bp-link-btn" data-action="search-all">Search all invoices</button>' +
+      '</div>';
+  }
+
+  function loadLinkCandidates(b) {
+    var el = document.getElementById('bp-link-review');
+    if (!el) return Promise.resolve();
+    _linkReview = { batchId: b.batch_id, data: null, batch: b };
+    if (isNoCustomerBatch(b)) {
+      _linkReview.data = { candidates: [], reason: 'no_customer' };
+      renderLinkReview(b);
+      return Promise.resolve();
+    }
+    el.setAttribute('aria-busy', 'true');
+    el.innerHTML = linkReviewHeaderHtml() +
+      '<div class="bp-link-skeleton"></div><div class="bp-link-skeleton"></div><div class="bp-link-skeleton"></div>' +
+      '<p class="bp-link-card-meta">Looking for invoices...</p>';
+    var qs = [];
+    if (b.customer_id) qs.push('customer_id=' + encodeURIComponent(b.customer_id));
+    qs.push('customer_name=' + encodeURIComponent(b.customer_name || getCustomerDisplayName(b) || ''));
+    qs.push('start_date=' + encodeURIComponent(String(b.start_date || b.created_at || '').slice(0, 10)));
+    var forBatch = b.batch_id;
+    // Ignore a late response when the detail pane has since moved to another batch.
+    function stillCurrent() {
+      return _linkReview.batchId === forBatch && document.getElementById('bp-link-review') === el;
+    }
+    return Promise.resolve(fetch(mwUrl() + '/api/batch/link-candidates?' + qs.join('&'), { credentials: 'include' }))
+      .then(function (r) {
+        if (!r || !r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (!stillCurrent()) return;
+        _linkReview.data = data || { candidates: [] };
+        renderLinkReview(b);
+      })
+      .catch(function () {
+        if (!stillCurrent()) return;
+        renderLinkReviewError(b);
+      });
+  }
+
+  // The ONLY write behind "Link invoice": the invoice number alone, guarded by the
+  // optimistic-lock version, then a status reconcile for the invoice. Never reuse
+  // the manual search handler here: it also overwrites the batch identity fields.
+  function linkBatchToInvoice(batchId, soNumber, expectedVersion) {
+    return adminApiPost('update_batch', {
+      batch_id: batchId,
+      updates: { zoho_so_number: soNumber },
+      expectedVersion: expectedVersion
+    }).then(function (res) {
+      afterBatchWrite(batchId, { refreshOpenDetail: true, listAffecting: true });
+      reconcileInvoiceStatus(soNumber);
+      return res;
+    });
+  }
+
+  // Mark internal ('internal') / Mark as not internal ('manual'). The UI only offers
+  // this for editable sources; the server store guards are authoritative.
+  function markBatchSource(batchId, nextSource) {
+    return adminApiPost('update_batch', {
+      batch_id: batchId,
+      updates: { source: nextSource }
+    }).then(function (res) {
+      afterBatchWrite(batchId, { refreshOpenDetail: true, listAffecting: true });
+      return res;
+    });
+  }
+
+  function setLinkCardBusy(scope, busy, activeBtn, busyLabel) {
+    Array.prototype.forEach.call(scope.querySelectorAll('button'), function (x) {
+      x.disabled = busy;
+    });
+    if (activeBtn) {
+      if (busy) {
+        activeBtn.setAttribute('data-label', activeBtn.textContent);
+        activeBtn.textContent = busyLabel;
+      } else if (activeBtn.getAttribute('data-label')) {
+        activeBtn.textContent = activeBtn.getAttribute('data-label');
+      }
+    }
+  }
+
+  function showLinkRowError(scope, message) {
+    var old = scope.querySelector('.bp-link-row-error');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var row = document.createElement('div');
+    row.className = 'bp-link-card-warn bp-link-error bp-link-row-error';
+    row.setAttribute('role', 'alert');
+    row.textContent = message;
+    scope.insertBefore(row, scope.firstChild);
+  }
+
+  function handleLinkInvoiceTap(b, btn) {
+    var soNumber = btn.getAttribute('data-so-number');
+    var scope = btn.closest('.bp-link-card') || btn.parentNode;
+    setLinkCardBusy(scope, true, btn, 'Linking...');
+    linkBatchToInvoice(b.batch_id, soNumber, b.last_updated).then(function (res) {
+      b.zoho_so_number = soNumber;
+      if (res && res.newVersion) b.last_updated = res.newVersion;
+      var review = document.getElementById('bp-link-review');
+      if (review) review.innerHTML = '';
+      showLinkedSo(soNumber);
+      showToast('Linked to ' + soNumber, 'success');
+    }).catch(function () {
+      setLinkCardBusy(scope, false, btn);
+      showLinkRowError(scope, 'Could not link. Try again.');
+    });
+  }
+
+  function handleMarkInternalTap(b, btn) {
+    var scope = btn.closest('.bp-link-card') || btn.parentNode;
+    setLinkCardBusy(scope, true, btn, 'Saving...');
+    markBatchSource(b.batch_id, 'internal').then(function () {
+      b.source = 'internal';
+      var review = document.getElementById('bp-link-review');
+      if (review) review.innerHTML = '<span class="bp-source-badge bp-source-badge--internal">Internal</span>';
+      showToast('Marked internal', 'success');
+    }).catch(function (err) {
+      setLinkCardBusy(scope, false, btn);
+      var msg = (err && err.code === 'invalid_source' && err.message) ? err.message : 'Could not mark internal. Try again.';
+      showLinkRowError(scope, msg);
+    });
+  }
+
+  function onLinkReviewClick(e) {
+    var btn = e.target.closest ? e.target.closest('button[data-action]') : null;
+    if (!btn) return;
+    var b = _linkReview.batch;
+    if (!b) return;
+    var action = btn.getAttribute('data-action');
+    if (action === 'link') {
+      handleLinkInvoiceTap(b, btn);
+    } else if (action === 'internal') {
+      handleMarkInternalTap(b, btn);
+    } else if (action === 'search-all') {
+      var openBtn = document.getElementById('bp-link-so-btn');
+      if (openBtn) openBtn.click();
+    } else if (action === 'retry') {
+      loadLinkCandidates(b);
+    } else if (action === 'dismiss') {
+      addLinkDismissed(b.batch_id, btn.getAttribute('data-so-number'));
+      renderLinkReview(b);
+    }
+  }
+
+  function initLinkReview(b, el) {
+    el.addEventListener('click', onLinkReviewClick);
+    loadLinkCandidates(b);
+  }
+
   // ===== Cache-busting helpers =====
 
   // afterBatchWrite — call after any successful write that mutates a single batch.
@@ -4048,6 +4377,8 @@ function parseWaitlistRecipeIds(value) {
   function applyBatchFilter() {
     if (_batchStatusFilter === 'readyToBottle') {
       _batchesData = readyToBottleRows();
+    } else if (_batchStatusFilter === 'unlinked') {
+      _batchesData = filterBatchesByUnlinked(_allBatchesData);
     } else {
       _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
     }
@@ -4160,7 +4491,8 @@ function parseWaitlistRecipeIds(value) {
         { val: 'primary', label: 'Primary' },
         { val: 'secondary', label: 'Secondary' },
         { val: 'complete', label: 'Complete' },
-        { val: 'readyToBottle', label: 'Ready to Bottle' }
+        { val: 'readyToBottle', label: 'Ready to Bottle' },
+        { val: 'unlinked', label: 'Unlinked' }
       ];
       var pendingCount = _allBatchesData.filter(function (b) {
         return String(b.status || '').toLowerCase() === 'pending';
@@ -4176,7 +4508,9 @@ function parseWaitlistRecipeIds(value) {
         var badge = ((f.val === 'pending' || f.val === 'readyToBottle') && count > 0)
           ? ' <span style="display:inline-block;min-width:16px;padding:0 5px;border-radius:8px;background:#e67e22;color:#fff;font-size:0.72rem;font-weight:700;line-height:16px;text-align:center;">' + count + '</span>'
           : '';
-        shellHtml += '<button type="button" class="bp-filter-btn' + active + '" data-status="' + f.val + '">' + f.label + badge + '</button>';
+        // Phase 90 (D-06/D-24): the Unlinked count is always shown, including (0).
+        var chipLabel = f.val === 'unlinked' ? f.label + ' (' + filterBatchesByUnlinked(_allBatchesData).length + ')' : f.label;
+        shellHtml += '<button type="button" class="bp-filter-btn' + active + '" data-status="' + f.val + '">' + chipLabel + badge + '</button>';
       });
       shellHtml += '<select id="bp-batch-product-filter" class="bp-filter-select"><option value="">All Products</option></select>';
       shellHtml += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-pull-from-zoho">Pull from Zoho</button>';
@@ -4236,6 +4570,10 @@ function parseWaitlistRecipeIds(value) {
     // Update filter button active states (they persist in the shell)
     Array.prototype.forEach.call(pane.querySelectorAll('.bp-filter-btn'), function (btn) {
       btn.classList.toggle('bp-filter-btn--active', btn.getAttribute('data-status') === _batchStatusFilter);
+      // The shell persists across renders, so keep the Unlinked count live.
+      if (btn.getAttribute('data-status') === 'unlinked') {
+        btn.textContent = 'Unlinked (' + filterBatchesByUnlinked(_allBatchesData).length + ')';
+      }
     });
 
     // Update product filter dropdown options
@@ -4271,6 +4609,8 @@ function parseWaitlistRecipeIds(value) {
     if (filtered.length === 0) {
       if (_batchStatusFilter === 'pending') {
         resultsHtml += '<p class="bp-empty"><strong>No pending batches</strong><br>Kiosk sales with Maker&#39;s Fee and kiosk recipe sales will appear here automatically.</p>';
+      } else if (_batchStatusFilter === 'unlinked') {
+        resultsHtml += '<p class="bp-empty"><strong>Every batch is linked</strong><br>Batches without an invoice are marked Internal.</p>';
       } else {
         resultsHtml += '<p class="bp-empty">No batches found.</p>';
       }
@@ -4333,6 +4673,9 @@ function parseWaitlistRecipeIds(value) {
         if (shouldShowKioskBadge(b.source, statusKey)) {
           resultsHtml += ' <span class="bp-kiosk-badge">Kiosk</span>';
         }
+        if (shouldShowInternalBadge(b.source)) {
+          resultsHtml += ' <span class="bp-source-badge bp-source-badge--internal">Internal</span>';
+        }
         resultsHtml += '</td>';
         resultsHtml += '<td>' + days + '</td>';
         resultsHtml += '</tr>';
@@ -4370,6 +4713,9 @@ function parseWaitlistRecipeIds(value) {
         resultsHtml += '<span class="bp-status-badge bp-status-badge--' + statusColor + '">' + escapeHTML(statusLabel) + '</span>';
         if (shouldShowKioskBadge(b.source, statusKey)) {
           resultsHtml += ' <span class="bp-kiosk-badge">Kiosk</span>';
+        }
+        if (shouldShowInternalBadge(b.source)) {
+          resultsHtml += ' <span class="bp-source-badge bp-source-badge--internal">Internal</span>';
         }
         resultsHtml += '</div>';
         resultsHtml += '<div class="bp-batch-card-name">' + escapeHTML(b.product_name || b.product_sku || '\u2014') +
@@ -5657,6 +6003,9 @@ function parseWaitlistRecipeIds(value) {
     html += '<div class="bp-detail-title-group">';
     html += '<span class="bp-detail-batch-id">' + escapeHTML(b.batch_id) + '</span>';
     html += '<span class="bp-status-badge bp-status-badge--' + statusColor + ' bp-status-clickable" id="bp-detail-status">' + escapeHTML(statusLabel) + '</span>';
+    if (shouldShowInternalBadge(b.source)) {
+      html += '<span class="bp-source-badge bp-source-badge--internal" id="bp-detail-internal-badge">Internal</span>';
+    }
     html += '</div>';
     html += '<button type="button" class="btn bp-btn-sm" id="bp-detail-qr-btn" title="Generate printable QR code for public batch page">Print QR</button>';
     html += '<button type="button" class="btn bp-btn-sm" id="bp-detail-label-btn" title="Download bottle label as PDF">Label PDF</button>';
@@ -5697,6 +6046,14 @@ function parseWaitlistRecipeIds(value) {
     html += '</div>';
     html += '<div class="bp-so-results" id="bp-so-search-results"></div>';
     html += '</div>';
+
+    // Phase 90-06 (D-07): guided review for unlinked batches, filled after mount.
+    if (filterBatchesByUnlinked([b]).length === 1) {
+      html += '<div id="bp-link-review" class="bp-link-review"></div>';
+    }
+    if (shouldShowInternalBadge(b.source)) {
+      html += '<button type="button" class="bp-so-change-btn" id="bp-unmark-internal">Mark as not internal</button>';
+    }
 
     // Change Customer button — rendered unconditionally (D-03: no linked SO = direct save)
     html += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-reassign-btn">Change Customer</button>';
@@ -5831,6 +6188,25 @@ function parseWaitlistRecipeIds(value) {
     var detailPane = document.getElementById('bp-batch-detail-pane');
     if (!detailPane) return;
     detailPane.innerHTML = html;
+
+    var linkReviewEl = document.getElementById('bp-link-review');
+    if (linkReviewEl) initLinkReview(b, linkReviewEl);
+    var unmarkInternalBtn = document.getElementById('bp-unmark-internal');
+    if (unmarkInternalBtn) {
+      unmarkInternalBtn.addEventListener('click', function () {
+        unmarkInternalBtn.disabled = true;
+        markBatchSource(b.batch_id, 'manual').then(function () {
+          b.source = 'manual';
+          var badge = document.getElementById('bp-detail-internal-badge');
+          if (badge && badge.parentNode) badge.parentNode.removeChild(badge);
+          if (unmarkInternalBtn.parentNode) unmarkInternalBtn.parentNode.removeChild(unmarkInternalBtn);
+          showToast('Marked as not internal', 'success');
+        }).catch(function (err) {
+          unmarkInternalBtn.disabled = false;
+          showToast('Failed: ' + ((err && err.message) || 'could not update'), 'error');
+        });
+      });
+    }
 
     // Recipe section toggle + interactions (Phase 16)
     var toggleBtn = document.getElementById('bp-recipe-section-toggle');
@@ -10362,7 +10738,14 @@ function parseWaitlistRecipeIds(value) {
         var filterBtn = e.target.closest('.bp-filter-btn');
         if (filterBtn) {
           _batchStatusFilter = filterBtn.getAttribute('data-status');
-          if (_batchStatusFilter === 'readyToBottle' && (!_dashSummary || _allBatchesData.length === 0)) {
+          if (_batchStatusFilter === 'unlinked' && _allBatchesData.length === 0) {
+            // Phase 90: afterBatchWrite empties _allBatchesData; filtering the empty
+            // list would claim "Every batch is linked". Load first, then apply.
+            loadBatches().then(function () {
+              applyBatchFilter();
+              renderBatchList();
+            });
+          } else if (_batchStatusFilter === 'readyToBottle' && (!_dashSummary || _allBatchesData.length === 0)) {
             // Ready-to-Bottle needs BOTH the server readyToBottle set (_dashSummary) AND
             // the batch list (_allBatchesData) — the rows are their intersection. Load
             // whichever is missing, THEN apply the filter (WR-02: loadDashboard() alone
@@ -11220,6 +11603,10 @@ function parseWaitlistRecipeIds(value) {
       sendBottlingInviteForBatch: sendBottlingInviteForBatch,
       // Test-only: render the batch-detail pane (bottling-invite send-tracking UI).
       _renderBatchDetailForTest: renderBatchDetail,
+      _renderBatchListForTest: renderBatchList,
+      _loadLinkCandidatesForTest: loadLinkCandidates,
+      _linkBatchToInvoiceForTest: linkBatchToInvoice,
+      _markBatchSourceForTest: markBatchSource,
       // Phase 80-03: test-only seams for renderWaitlist -- sets the IIFE-scoped
       // _waitlistRows/_waitlistFilter/_waitlistSearch state, then renders into
       // #bp-panel-waitlist so a jsdom test can inspect the resulting markup.
@@ -11305,6 +11692,9 @@ if (typeof module !== 'undefined' && module.exports) {
     isOverdue: isOverdue, isToday: isToday,
     filterBatchesByStatus: filterBatchesByStatus,
     filterBatchesByReadyToBottle: filterBatchesByReadyToBottle,
+    filterBatchesByUnlinked: filterBatchesByUnlinked,
+    isBatchSourceEditable: isBatchSourceEditable,
+    shouldShowInternalBadge: shouldShowInternalBadge,
     getCustomerDisplayName: getCustomerDisplayName,
     calcAbv: calcAbv, renderDataGapWarning: renderDataGapWarning,
     isSessionStale: isSessionStale,
