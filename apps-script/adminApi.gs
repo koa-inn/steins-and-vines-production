@@ -4246,6 +4246,12 @@ function createRecipe(payload, userEmail) {
     }
   }
 
+  // Phase 89 D-04: normalise then reject BEFORE the lock and any write (no partial writes)
+  var beerCategory = normalizeBeerCategory(payload.beer_category);
+  if (beerCategory === null) {
+    return { ok: false, error: 'invalid_data', message: 'beer_category must be one of: ' + BEER_CATEGORY_KEYS.join(', ') };
+  }
+
   var lock = acquireScriptLock(15000);
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -4287,6 +4293,10 @@ function createRecipe(payload, userEmail) {
     var scheduleCol = ensureRecipesScheduleIdColumn(recipesSheet);
     recipesSheet.getRange(recipesSheet.getLastRow(), scheduleCol + 1)
       .setValue(sanitizeInput(payload.schedule_id || ''));
+
+    // Phase 89 D-03/D-05: persist beer_category by header lookup ('' when not supplied)
+    var bcCol = ensureRecipesBeerCategoryColumn(recipesSheet);
+    recipesSheet.getRange(recipesSheet.getLastRow(), bcCol + 1).setValue(beerCategory);
 
     var ingredientErrors = [];
     var ingredientsCreated = 0;
@@ -4338,6 +4348,16 @@ function updateRecipe(payload, userEmail) {
     return { ok: false, error: 'missing_id', message: 'recipe_id is required' };
   }
 
+  // Phase 89 D-04/D-05: validate beer_category BEFORE the lock and any ensure/write.
+  // undefined = leave the cell untouched; '' clears it; off-list/non-string is rejected.
+  var beerCategoryUpdate;
+  if (payload.beer_category !== undefined) {
+    beerCategoryUpdate = normalizeBeerCategory(payload.beer_category);
+    if (beerCategoryUpdate === null) {
+      return { ok: false, error: 'invalid_data', message: 'beer_category must be one of: ' + BEER_CATEGORY_KEYS.join(', ') };
+    }
+  }
+
   // D-10: local 5s lock budget for THIS call site only (was 15000ms, the exact same ceiling
   // as the middleware's own axios timeout at zoho-middleware/routes/recipes.js:37). Waiting
   // the full 15s here meant that under lock contention the middleware could give up at the
@@ -4373,9 +4393,11 @@ function updateRecipe(payload, userEmail) {
     // array and the batched setValues() below would then write a stale-width row. Invalidate
     // the cache immediately after so findRowById() below re-reads the (possibly new) width.
     // ensureRecipesScheduleIdColumn() (D-03) shares the exact same hazard and so runs here too,
-    // before the same single cache invalidation.
+    // before the same single cache invalidation. Phase 89 beer_category shares the hazard and
+    // runs here too, unconditionally.
     var pmCol = ensureRecipesPricingModeColumn(recipesSheet);
     var schedCol = ensureRecipesScheduleIdColumn(recipesSheet);
+    var bcCol = ensureRecipesBeerCategoryColumn(recipesSheet);
     invalidateSheetCache(RECIPES_SHEET_NAME);
 
     var result = findRowById(RECIPES_SHEET_NAME, payload.recipe_id);
@@ -4428,6 +4450,13 @@ function updateRecipe(payload, userEmail) {
       rowValues[pmCol] = normalizePricingMode(payload.pricing_mode);
       if (minCol === null || pmCol < minCol) minCol = pmCol;
       if (maxCol === null || pmCol > maxCol) maxCol = pmCol;
+    }
+
+    // Phase 89: update beer_category (already normalised/validated above) via the self-migrated column
+    if (beerCategoryUpdate !== undefined && bcCol > 0) {
+      rowValues[bcCol] = beerCategoryUpdate;
+      if (minCol === null || bcCol < minCol) minCol = bcCol;
+      if (maxCol === null || bcCol > maxCol) maxCol = bcCol;
     }
 
     // Always update updated_at
@@ -4755,6 +4784,7 @@ function mirrorRecipeState(payload) {
     // Same self-migration as createRecipe so a legacy header never drops these values.
     ensureRecipesPricingModeColumn(recipesSheet);
     ensureRecipesScheduleIdColumn(recipesSheet);
+    ensureRecipesBeerCategoryColumn(recipesSheet);
 
     var headers = recipesSheet.getRange(1, 1, 1, recipesSheet.getLastColumn()).getValues()[0];
     var ridCol = headers.indexOf('recipe_id');

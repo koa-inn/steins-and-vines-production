@@ -17,7 +17,7 @@ var RECIPE_HEADERS_SHUFFLED = [
   'materials_fee', 'batch_size_l', 'abv', 'ibu', 'colour_srm', 'notes', 'created_at',
   'created_by', 'updated_at'
 ];
-var RECIPE_HEADERS_FULL = RECIPE_HEADERS_SHUFFLED.concat(['pricing_mode', 'schedule_id']);
+var RECIPE_HEADERS_FULL = RECIPE_HEADERS_SHUFFLED.concat(['pricing_mode', 'schedule_id', 'beer_category']);
 var ING_HEADERS = ['ingredient_id', 'recipe_id', 'item_id', 'item_name', 'quantity', 'unit'];
 
 function makeFakeSheet(headerRow) {
@@ -135,7 +135,8 @@ function recipeObj(id, overrides) {
     recipe_id: id, name: 'Pale Ale', style: 'APA', description: 'Hoppy', status: 'active',
     locked_price: 120, service_fee: 45, materials_fee: 5, batch_size_l: 23, abv: 5.2, ibu: 35,
     colour_srm: 6, notes: 'n', created_at: '2026-01-01T00:00:00.000Z', created_by: 'middleware',
-    updated_at: '2026-02-01T00:00:00.000Z', pricing_mode: 'dynamic', schedule_id: 'SCH-1'
+    updated_at: '2026-02-01T00:00:00.000Z', pricing_mode: 'dynamic', schedule_id: 'SCH-1',
+    beer_category: 'ipa'
   };
   Object.keys(overrides || {}).forEach(function (k) { r[k] = overrides[k]; });
   return r;
@@ -167,7 +168,7 @@ function setup(recipeHeaders) {
 function rawSource() { return fs.readFileSync(ADMIN_API_PATH, 'utf8'); }
 
 describe('mirrorRecipeState - unknown recipe (insert)', function () {
-  test('places all 18 values by header name and appends ingredients in order', function () {
+  test('places all 19 values by header name and appends ingredients in order', function () {
     var t = setup(RECIPE_HEADERS_FULL.slice());
     var ingredients = [ingObj(1, 'SV-R-000010'), ingObj(2, 'SV-R-000010', 'ITEM-2')];
     var res = t.api.mirrorRecipeState({ recipe: recipeObj('SV-R-000010'), ingredients: ingredients });
@@ -238,14 +239,15 @@ describe('mirrorRecipeState - duplicates, idempotence, legacy header', function 
     expect(JSON.stringify(t.ings._grid)).toBe(i1);
   });
 
-  test('legacy header without pricing_mode/schedule_id gains them in order and keeps the values', function () {
+  test('legacy header without pricing_mode/schedule_id/beer_category gains them in order and keeps the values', function () {
     var t = setup(RECIPE_HEADERS_SHUFFLED.slice());
     t.api.mirrorRecipeState({ recipe: recipeObj('SV-R-000010'), ingredients: [] });
     var header = t.recipes._grid[0];
-    expect(header.slice(-2)).toEqual(['pricing_mode', 'schedule_id']);
-    expect(header.length).toBe(18);
+    expect(header.slice(-3)).toEqual(['pricing_mode', 'schedule_id', 'beer_category']);
+    expect(header.length).toBe(19);
     expect(t.recipes._grid[1][header.indexOf('pricing_mode')]).toBe('dynamic');
     expect(t.recipes._grid[1][header.indexOf('schedule_id')]).toBe('SCH-1');
+    expect(t.recipes._grid[1][header.indexOf('beer_category')]).toBe(recipeObj('SV-R-000010').beer_category);
   });
 
   test('text is stored verbatim with no re-sanitisation', function () {
