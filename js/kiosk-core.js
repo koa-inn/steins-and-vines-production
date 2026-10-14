@@ -35,6 +35,15 @@
 (function () {
   'use strict';
 
+  // Shared recipe picker helper (D-20). Test-only fallback: in the browser the
+  // js/lib/recipe-picker.js script tag defines window.RecipePicker first.
+  if (typeof window !== 'undefined' && !window.RecipePicker && typeof require === 'function') {
+    try { window.RecipePicker = require('./lib/recipe-picker.js'); } catch (e) { /* helper unavailable */ }
+  }
+  function _kcRecipePicker() {
+    return (typeof window !== 'undefined' && window.RecipePicker) || null;
+  }
+
   // ===== Environment injection seam (D-02/D-06) =====
   // WR-01 (Phase 48 review): the middleware URL is resolved LAZILY on every read
   // via _mwUrlResolver, not captured once at init. This preserves the pre-phase
@@ -1178,7 +1187,12 @@
       grid.innerHTML = '<div class="kiosk-cart-empty"><p><strong>No active recipes</strong></p><p>No recipes are currently active.</p></div>';
       return;
     }
-    var html = '';
+    var html = '<div class="kiosk-recipe-search">' +
+      '<input type="text" id="kiosk-recipe-search-input" class="kiosk-recipe-search-input" role="combobox" ' +
+      'aria-expanded="false" aria-controls="kiosk-recipe-search-list" aria-autocomplete="list" ' +
+      'autocomplete="off" placeholder="Search or choose a recipe">' +
+      '<div id="kiosk-recipe-search-list" class="kiosk-recipe-search-list" role="listbox" ' +
+      'aria-label="Recipes" style="display:none"></div></div>';
     _kioskRecipes.forEach(function (r) {
       html += '<div class="kiosk-product-card kiosk-recipe-card" data-recipe-id="' + escapeHTML(r.recipe_id || '') + '">';
       html += '<div class="kiosk-product-body">';
@@ -1194,14 +1208,10 @@
 
     grid.querySelectorAll('.kiosk-recipe-card').forEach(function (card) {
       card.addEventListener('click', function () {
-        var recipeId = card.getAttribute('data-recipe-id');
-        var recipe = null;
-        for (var i = 0; i < _kioskRecipes.length; i++) {
-          if (_kioskRecipes[i].recipe_id === recipeId) { recipe = _kioskRecipes[i]; break; }
-        }
-        if (recipe) kioskShowRecipePrompt(recipe);
+        kioskSelectRecipeById(card.getAttribute('data-recipe-id'));
       });
     });
+    kioskBindRecipeSearch(grid);
 
     // Background-warm computed_price for dynamic recipes whose detail cache was cold.
     _kioskRecipes.forEach(function (r) {
@@ -1237,6 +1247,80 @@
           .catch(function () {}); // silently ignore — card retains locked_price as fallback
       }(r));
     });
+  }
+
+  // Single path shared by tile taps and search-list rows (D-19).
+  function kioskSelectRecipeById(recipeId) {
+    var recipe = null;
+    for (var i = 0; i < _kioskRecipes.length; i++) {
+      if (_kioskRecipes[i].recipe_id === recipeId) { recipe = _kioskRecipes[i]; break; }
+    }
+    if (recipe) kioskShowRecipePrompt(recipe);
+  }
+
+  function kioskBindRecipeSearch(grid) {
+    var input = grid.querySelector('#kiosk-recipe-search-input');
+    var panel = grid.querySelector('#kiosk-recipe-search-list');
+    if (!input || !panel) return;
+
+    function setOpen(open) {
+      panel.style.display = open ? '' : 'none';
+      input.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function renderRows() {
+      var picker = _kcRecipePicker();
+      var matches = picker ? picker.filterRecipes(_kioskRecipes, input.value) : _kioskRecipes;
+      var html = '';
+      if (matches.length === 0) {
+        html = '<div class="kiosk-recipe-search-empty">No recipes match. Clear the search to see all.</div>';
+      } else {
+        matches.forEach(function (r) {
+          html += '<div class="kiosk-recipe-search-option" role="option" data-recipe-id="' +
+            escapeHTML(r.recipe_id || '') + '">' +
+            '<span class="kiosk-recipe-search-name">' + escapeHTML(r.name || '') + '</span>' +
+            '<span class="kiosk-recipe-search-style">' + escapeHTML(r.style || '') + '</span></div>';
+        });
+      }
+      panel.innerHTML = html;
+      // Narrow the tiles by data attribute only (no re-render, keeps input focus).
+      var shown = {};
+      matches.forEach(function (r) { shown[r.recipe_id] = true; });
+      grid.querySelectorAll('.kiosk-recipe-card').forEach(function (card) {
+        card.style.display = shown[card.getAttribute('data-recipe-id')] ? '' : 'none';
+      });
+    }
+
+    function open() { renderRows(); setOpen(true); }
+
+    function choose(e) {
+      var row = e.target && e.target.closest ? e.target.closest('.kiosk-recipe-search-option') : null;
+      if (!row) return;
+      e.preventDefault();
+      setOpen(false);
+      kioskSelectRecipeById(row.getAttribute('data-recipe-id'));
+    }
+
+    input.addEventListener('focus', open);
+    input.addEventListener('click', open);
+    input.addEventListener('input', open);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') setOpen(false);
+    });
+    panel.addEventListener('mousedown', choose);
+    panel.addEventListener('touchstart', choose);
+
+    // Outside tap closes; a listener whose input was re-rendered away removes itself.
+    function outside(e) {
+      if (!document.body.contains(input)) {
+        document.removeEventListener('mousedown', outside);
+        document.removeEventListener('touchstart', outside);
+        return;
+      }
+      if (!e.target || !e.target.closest || !e.target.closest('.kiosk-recipe-search')) setOpen(false);
+    }
+    document.addEventListener('mousedown', outside);
+    document.addEventListener('touchstart', outside);
   }
 
   function kioskShowRecipePrompt(recipe) {

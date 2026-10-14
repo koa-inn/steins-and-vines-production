@@ -2908,3 +2908,52 @@ img {
   position: sticky;
   bottom: 0;
 }
+
+/* Phase 90-04: recipe search + full-list dropdown above the recipe tiles (D-19) */
+.kiosk-recipe-search {
+  grid-column: 1 / -1;
+  position: relative;
+}
+.kiosk-recipe-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 52px;
+  padding: 0 var(--sp-3, 12px);
+  font-size: 16px;
+}
+.kiosk-recipe-search-input:focus {
+  outline: 2px solid var(--ledger-focus, #4a7c59);
+  outline-offset: 1px;
+}
+.kiosk-recipe-search-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--cellar-raised);
+  border: 1px solid var(--ledger-emphasis);
+}
+.kiosk-recipe-search-option {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 52px;
+  padding: var(--sp-2, 8px) var(--sp-3, 12px);
+  cursor: pointer;
+}
+.kiosk-recipe-search-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+.kiosk-recipe-search-style {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-tertiary);
+}
+.kiosk-recipe-search-empty {
+  padding: var(--sp-3, 12px);
+  color: var(--ink-tertiary);
+}
