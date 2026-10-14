@@ -297,3 +297,136 @@ describe('sale payload', function () {
     expect(body.client_grand_total).toBe(44.8);
   });
 });
+
+describe('picker modal (standalone kiosk)', function () {
+  function openPicker() {
+    var core = setup();
+    core.removeCanningBundle(); // re-render the empty cart so the opener exists
+    document.getElementById('kiosk-canning-bundle-btn').click();
+    return core;
+  }
+  function pick(sel) { document.querySelector(sel).click(); }
+  function addBtn() { return document.getElementById('kcb-add'); }
+
+  test('kiosk.js registers the hook and the opener builds the dialog once', function () {
+    openPicker();
+    var overlay = document.getElementById('kiosk-canning-bundle-overlay');
+    expect(overlay).not.toBeNull();
+    var dlg = overlay.querySelector('[role="dialog"]');
+    expect(dlg.getAttribute('aria-modal')).toBe('true');
+    expect(overlay.querySelector('h3').textContent).toBe('Canning bundle');
+    expect(overlay.querySelector('#kcb-close').getAttribute('aria-label')).toBe('Close');
+    document.getElementById('kiosk-canning-bundle-btn').click();
+    expect(document.querySelectorAll('#kiosk-canning-bundle-overlay').length).toBe(1);
+  });
+
+  test('offers the two batch types and sizes, nothing preselected, no wine', function () {
+    openPicker();
+    var overlay = document.getElementById('kiosk-canning-bundle-overlay');
+    var text = overlay.textContent;
+    expect(text).toContain('Beer 25 L');
+    expect(text).toContain('Cider / sparkling wine 23 L');
+    expect(text).toContain('$40.00');
+    expect(text).toContain('$35.00');
+    expect(text).toContain('+ 12% tax');
+    expect(text).toContain('473 mL');
+    expect(text).toContain('355 mL');
+    expect(text.toLowerCase()).not.toContain('still');
+    expect(overlay.querySelectorAll('.kiosk-bundle-opt--active').length).toBe(0);
+    expect(addBtn().disabled).toBe(true);
+    pick('[data-bundle="beer-25"]');
+    expect(addBtn().disabled).toBe(true); // size missing
+  });
+
+  test('pre-fills the nominal count and follows size until the operator edits it', function () {
+    openPicker();
+    pick('[data-bundle="beer-25"]');
+    pick('[data-size="473"]');
+    expect(document.getElementById('kcb-count').value).toBe('52');
+    expect(document.getElementById('kcb-helper').textContent).toBe('Nominal for this batch: 52 cans');
+    expect(document.getElementById('kcb-total').textContent).toBe('$40.00 + $4.80 tax');
+    pick('[data-size="355"]');
+    expect(document.getElementById('kcb-count').value).toBe('70');
+    document.getElementById('kcb-inc').click(); // 71, operator edit
+    pick('[data-size="473"]');
+    expect(document.getElementById('kcb-count').value).toBe('71');
+  });
+
+  test('cider total preview is $35.00 + $4.20 tax', function () {
+    openPicker();
+    pick('[data-bundle="cider-23"]');
+    pick('[data-size="355"]');
+    expect(document.getElementById('kcb-count').value).toBe('64');
+    expect(document.getElementById('kcb-total').textContent).toBe('$35.00 + $4.20 tax');
+  });
+
+  test('over-cap needs the tick before Add to cart enables', function () {
+    openPicker();
+    pick('[data-bundle="beer-25"]');
+    pick('[data-size="473"]');
+    var countEl = document.getElementById('kcb-count');
+    countEl.value = '56';
+    countEl.dispatchEvent(new Event('input'));
+    var cap = document.getElementById('kcb-cap');
+    expect(cap.style.display).not.toBe('none');
+    expect(cap.textContent).toContain('Above the bundle cap. Confirm this is one batch.');
+    expect(cap.textContent).toContain('Yes, this is one batch');
+    expect(addBtn().disabled).toBe(true);
+    var ack = document.getElementById('kcb-ack');
+    ack.checked = true;
+    ack.dispatchEvent(new Event('change'));
+    expect(addBtn().disabled).toBe(false);
+    countEl.value = '55';
+    countEl.dispatchEvent(new Event('input'));
+    expect(cap.style.display).toBe('none');
+    expect(addBtn().disabled).toBe(false);
+  });
+
+  test('Add to cart adds both lines, closes the modal, re-renders', function () {
+    var core = openPicker();
+    pick('[data-bundle="beer-25"]');
+    pick('[data-size="473"]');
+    addBtn().click();
+    expect(Object.keys(core._getCart())).toEqual(['bundle-line', 'bundle-can']);
+    expect(core._getCart()['bundle-can'].qty).toBe(52);
+    expect(document.getElementById('kiosk-canning-bundle-overlay').style.display).toBe('none');
+    expect(document.getElementById('kiosk-cart-items').innerHTML).toContain('Canning Bundle');
+  });
+
+  test('an over-cap add carries the confirmation so the cart shows no second warning', function () {
+    var core = openPicker();
+    pick('[data-bundle="beer-25"]');
+    pick('[data-size="473"]');
+    var countEl = document.getElementById('kcb-count');
+    countEl.value = '56';
+    countEl.dispatchEvent(new Event('input'));
+    var ack = document.getElementById('kcb-ack');
+    ack.checked = true;
+    ack.dispatchEvent(new Event('change'));
+    addBtn().click();
+    expect(core._getCart()['bundle-can'].qty).toBe(56);
+    expect(document.querySelector('#kiosk-cart-items .kiosk-bundle-cap-warn')).toBeNull();
+  });
+
+  test('a missing can item shows the reason inline and leaves the cart alone', function () {
+    var core = setup();
+    seedCatalog(core, [KIT]);
+    core.removeCanningBundle();
+    document.getElementById('kiosk-canning-bundle-btn').click();
+    pick('[data-bundle="beer-25"]');
+    pick('[data-size="473"]');
+    addBtn().click();
+    expect(document.getElementById('kcb-error').textContent).toBe('Can item not found in the catalog. Refresh products.');
+    expect(Object.keys(core._getCart())).toEqual([]);
+    expect(document.getElementById('kiosk-canning-bundle-overlay').style.display).toBe('flex');
+  });
+
+  test('Go back closes without changing the cart', function () {
+    var core = openPicker();
+    pick('[data-bundle="beer-25"]');
+    pick('[data-size="473"]');
+    document.getElementById('kcb-back').click();
+    expect(document.getElementById('kiosk-canning-bundle-overlay').style.display).toBe('none');
+    expect(Object.keys(core._getCart())).toEqual([]);
+  });
+});

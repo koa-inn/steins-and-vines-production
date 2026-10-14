@@ -58,7 +58,9 @@
     // Behavior hooks bridging to functions not yet migrated (custom-item /
     // gift-card-issue modals stay in kiosk.js per PATTERNS.md).
     showCustomItemModal: function () { kioskShowCustomItemModal(); },
-    showGiftCardIssueModal: function () { kioskShowGiftCardIssueModal(); }
+    showGiftCardIssueModal: function () { kioskShowGiftCardIssueModal(); },
+    // Phase 90 (D-25): the canning-bundle picker exists on the standalone kiosk only.
+    showCanningBundleModal: function () { kioskShowCanningBundleModal(); }
   });
 
   // Local aliases so every existing call site (kioskCalcTotals(), kioskRenderCart(),
@@ -756,6 +758,181 @@
     if (btn) btn.style.display = '';
   }
 
+
+  // ===== Canning Bundle Picker (Phase 90, D-11..D-13, D-25) =====
+  // Prices and caps come from KioskCore.CANNING_BUNDLES (display only; the
+  // server re-prices from bundle_key). No wine option exists (D-13).
+
+  var KCB_REASONS = {
+    can_item_missing: 'Can item not found in the catalog. Refresh products.',
+    already_added: 'A canning bundle is already in the cart.',
+    recipe_cart: 'A canning bundle cannot be added to a recipe cart.',
+    bad_count: 'Cans filled must be a whole number from 1 to 100.'
+  };
+
+  function kioskShowCanningBundleModal() {
+    var table = KioskCore.CANNING_BUNDLES;
+    var overlay = document.getElementById('kiosk-canning-bundle-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'kiosk-canning-bundle-overlay';
+      overlay.style.cssText = [
+        'position:fixed', 'top:0', 'left:0', 'right:0', 'bottom:0',
+        'background:rgba(0,0,0,0.55)', 'z-index:1200',
+        'display:flex', 'align-items:center', 'justify-content:center'
+      ].join(';');
+      var typeBtns = Object.keys(table).map(function (key) {
+        return '<button type="button" class="kiosk-bundle-opt" data-bundle="' + key + '" aria-pressed="false">' +
+          table[key].label + '<br><span class="kiosk-bundle-note">' + KioskCore.fmt(table[key].price) + '</span></button>';
+      }).join('');
+      overlay.innerHTML = [
+        '<div class="kiosk-bundle-modal" role="dialog" aria-modal="true" aria-labelledby="kcb-title">',
+        '<div class="kiosk-bundle-modal-head">',
+        '<h3 id="kcb-title">Canning bundle</h3>',
+        '<button type="button" id="kcb-close" class="kiosk-bundle-close" aria-label="Close">&times;</button>',
+        '</div>',
+        '<section><div class="kiosk-bundle-label">Batch type</div>',
+        '<div class="kiosk-bundle-opts">', typeBtns, '</div>',
+        '<div class="kiosk-bundle-note">+ 12% tax</div></section>',
+        '<section><div class="kiosk-bundle-label">Can size</div>',
+        '<div class="kiosk-bundle-opts">',
+        '<button type="button" class="kiosk-bundle-opt" data-size="473" aria-pressed="false">473 mL</button>',
+        '<button type="button" class="kiosk-bundle-opt" data-size="355" aria-pressed="false">355 mL</button>',
+        '</div></section>',
+        '<section><div class="kiosk-bundle-label">Cans filled</div>',
+        '<div class="kiosk-bundle-stepper">',
+        '<button type="button" id="kcb-dec" class="kiosk-bundle-count" aria-label="Fewer cans">-</button>',
+        '<input id="kcb-count" class="kiosk-bundle-count" type="number" step="1" min="1" max="100" inputmode="numeric">',
+        '<button type="button" id="kcb-inc" class="kiosk-bundle-count" aria-label="More cans">+</button>',
+        '</div>',
+        '<div id="kcb-helper" class="kiosk-bundle-note"></div></section>',
+        '<div id="kcb-cap" class="kiosk-bundle-cap-warn" role="alert" style="display:none;">',
+        '<span>Above the bundle cap. Confirm this is one batch.</span>',
+        '<label class="kiosk-bundle-ack"><input id="kcb-ack" type="checkbox"> Yes, this is one batch</label>',
+        '</div>',
+        '<div id="kcb-total" class="kiosk-bundle-total"></div>',
+        '<div id="kcb-error" class="kiosk-bundle-error" role="alert" style="display:none;"></div>',
+        '<div class="kiosk-bundle-footer">',
+        '<button type="button" id="kcb-back" class="kiosk-bundle-secondary">Go back</button>',
+        '<button type="button" id="kcb-add" class="kiosk-bundle-primary" disabled>Add to cart</button>',
+        '</div>',
+        '</div>'
+      ].join('');
+      var kioskRoot = document.getElementById('kiosk-root') || document.body;
+      kioskRoot.appendChild(overlay);
+    }
+    overlay.style.display = 'flex';
+
+    var state = { bundle: null, size: null, countEdited: false };
+    var countEl = document.getElementById('kcb-count');
+    var helperEl = document.getElementById('kcb-helper');
+    var capEl = document.getElementById('kcb-cap');
+    var ackEl = document.getElementById('kcb-ack');
+    var totalEl = document.getElementById('kcb-total');
+    var errEl = document.getElementById('kcb-error');
+    var addBtn = document.getElementById('kcb-add');
+    var typeOpts = overlay.querySelectorAll('[data-bundle]');
+    var sizeOpts = overlay.querySelectorAll('[data-size]');
+
+    function count() {
+      var n = parseInt(countEl.value, 10);
+      return isFinite(n) ? n : NaN;
+    }
+    function overCap() {
+      if (!state.bundle || !state.size) return false;
+      var cap = table[state.bundle].cap[state.size];
+      var n = count();
+      return isFinite(n) && n > cap;
+    }
+    function refresh() {
+      var picked = !!(state.bundle && state.size);
+      var n = count();
+      var valid = isFinite(n) && n >= 1 && n <= 100;
+      var over = picked && overCap();
+      if (picked) {
+        helperEl.textContent = 'Nominal for this batch: ' + table[state.bundle].nominal[state.size] + ' cans';
+        var price = table[state.bundle].price;
+        totalEl.textContent = KioskCore.fmt(price) + ' + ' + KioskCore.fmt(Math.round(price * 12) / 100) + ' tax';
+      } else {
+        helperEl.textContent = '';
+        totalEl.textContent = '';
+      }
+      capEl.style.display = over ? '' : 'none';
+      if (!over) ackEl.checked = false;
+      addBtn.disabled = !(picked && valid && (!over || ackEl.checked));
+    }
+    function select(opts, attr, value) {
+      Array.prototype.forEach.call(opts, function (b) {
+        var on = b.getAttribute(attr) === String(value);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        if (on) { b.classList.add('kiosk-bundle-opt--active'); } else { b.classList.remove('kiosk-bundle-opt--active'); }
+      });
+    }
+    function prefill() {
+      if (state.bundle && state.size && !state.countEdited) {
+        countEl.value = String(table[state.bundle].nominal[state.size]);
+      }
+    }
+
+    countEl.value = '';
+    ackEl.checked = false;
+    errEl.style.display = 'none';
+    errEl.textContent = '';
+    select(typeOpts, 'data-bundle', '');
+    select(sizeOpts, 'data-size', '');
+    refresh();
+
+    Array.prototype.forEach.call(typeOpts, function (b) {
+      b.onclick = function () {
+        state.bundle = b.getAttribute('data-bundle');
+        select(typeOpts, 'data-bundle', state.bundle);
+        prefill();
+        refresh();
+      };
+    });
+    Array.prototype.forEach.call(sizeOpts, function (b) {
+      b.onclick = function () {
+        state.size = parseInt(b.getAttribute('data-size'), 10);
+        select(sizeOpts, 'data-size', state.size);
+        prefill();
+        refresh();
+      };
+    });
+    function bump(delta) {
+      var n = count();
+      if (!isFinite(n)) n = 0;
+      n = Math.min(100, Math.max(1, n + delta));
+      countEl.value = String(n);
+      state.countEdited = true;
+      refresh();
+    }
+    document.getElementById('kcb-dec').onclick = function () { bump(-1); };
+    document.getElementById('kcb-inc').onclick = function () { bump(1); };
+    countEl.oninput = function () { state.countEdited = true; refresh(); };
+    ackEl.onchange = refresh;
+
+    function close() { overlay.style.display = 'none'; }
+    document.getElementById('kcb-close').onclick = close;
+    document.getElementById('kcb-back').onclick = close;
+    overlay.onclick = function (e) { if (e.target === overlay) close(); };
+
+    addBtn.onclick = function () {
+      if (addBtn.disabled) return;
+      var res = KioskCore.addCanningBundle({
+        bundleKey: state.bundle,
+        canSize: state.size,
+        count: count(),
+        capConfirmed: overCap() && ackEl.checked
+      });
+      if (res && res.ok) {
+        close();
+        kioskRenderCart();
+        return;
+      }
+      errEl.textContent = KCB_REASONS[res && res.reason] || 'Could not add the canning bundle.';
+      errEl.style.display = '';
+    };
+  }
 
   // ===== Custom Item Modal (D-05, D-06) =====
 
