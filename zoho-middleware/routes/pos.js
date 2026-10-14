@@ -17,6 +17,7 @@ var moneyPath = require('../lib/money-path');
 var captureExceptionSafe = require('../lib/sentry-capture').captureExceptionSafe;
 var giftCardStore = require('../lib/gift-card-store');
 var opsProxy = require('../lib/ops-proxy');
+var kioskBundles = require('../lib/kiosk-bundles');
 // Phase 87-12: lazy so route tests that mock constants/cache/logger are unaffected.
 function batchProxy() { return require('../lib/batch-proxy'); }
 function batchStore() { return require('../lib/batch-store'); }
@@ -66,6 +67,31 @@ function resolveGstTaxId(catalogMap) {
     }
   }
   return null;
+}
+
+// Phase 90 (D-11..D-16, D-22): shared canning-bundle preparation for BOTH
+// /api/kiosk/sale and /api/kiosk/sale/confirm, so the two rebuild sites cannot
+// drift. Returns { error: <message|null>, hasBundle, canCatalogItem,
+// standardTaxId }. The caller decides how to surface `error`: a plain 400 on
+// /sale (no charge yet), a tagged throw on /confirm (a charge may exist).
+function prepareBundleContext(items, catalogMap) {
+  var ctx = { error: null, hasBundle: false, canCatalogItem: null, standardTaxId: null };
+  var invalid = kioskBundles.validateBundleCart(items, catalogMap);
+  if (invalid) { ctx.error = invalid.error; return ctx; }
+  var canLine = null;
+  var bundleLine = null;
+  for (var bi = 0; bi < items.length; bi++) {
+    if (kioskBundles.isBundleLine(items[bi])) bundleLine = items[bi];
+    if (kioskBundles.isBundleCanLine(items[bi])) canLine = items[bi];
+  }
+  if (!bundleLine) return ctx;
+  ctx.hasBundle = true;
+  ctx.canCatalogItem = catalogMap[canLine.item_id];
+  ctx.standardTaxId = kioskBundles.resolveStandardTaxId(catalogMap);
+  if (!ctx.standardTaxId) {
+    ctx.error = 'Cannot tax the canning bundle: no standard (12%) tax rate configured. Set ZOHO_TAX_STANDARD_ID.';
+  }
+  return ctx;
 }
 
 // Phase 67 review fix (CR-01): allocate a fixed discount across the matched
@@ -472,6 +498,9 @@ function processSale(body, idempotencyKey, req, res, stageStart) {
   // Validate each line item (structural validation only — price comes from catalog)
   for (var v = 0; v < body.items.length; v++) {
     var vi = body.items[v];
+    // Phase 90: bundle lines are fully server-built (price, tax, description);
+    // validated against the catalog in continueSaleWithCatalog.
+    if (kioskBundles.isBundleLine(vi)) continue;
     if (vi.custom) {
       // Custom line validation (D-05, T-43-01)
       var vDesc = typeof vi.description === 'string' ? vi.description.trim() : '';
@@ -546,6 +575,13 @@ function processSale(body, idempotencyKey, req, res, stageStart) {
     return continueSaleWithCatalog(catalogMap);
 
     function continueSaleWithCatalog(catalogMap) {
+      // Phase 90: canning bundle validation + standard tax. /sale runs before any
+      // charge, so a plain 400 is safe here (the confirm path throws a tagged error).
+      var bundleCtx = prepareBundleContext(body.items, catalogMap);
+      if (bundleCtx.error) {
+        return res.status(400).json({ error: bundleCtx.error });
+      }
+
       // Fail-closed guard: if any gift_cert line is present, KIOSK_GIFT_CARD_ITEM_ID must be set
       // (T-44-G4 — mirrors the issue route guard).
       if (body.items.some(function (i) { return i.gift_cert === true; }) &&
@@ -571,7 +607,7 @@ function processSale(body, idempotencyKey, req, res, stageStart) {
       // Pre-resolve GST tax_id for any taxable custom lines (D-02 fail-closed).
       // Must happen before the lineItems builder to avoid returning inside .map().
       var needGstTaxId = body.items.some(function (item) {
-        return item.custom && item.taxable !== false;
+        return item.custom && item.taxable !== false && !kioskBundles.isBundleLine(item);
       });
       var gstTaxId = null;
       if (needGstTaxId) {
@@ -587,6 +623,15 @@ function processSale(body, idempotencyKey, req, res, stageStart) {
       // D-03: Include per-item tax_id from catalog so Zoho computes tax using its rules
       var subtotal = 0;
       var lineItems = body.items.map(function (item) {
+        // Phase 90: server-priced canning bundle + its $0 can line (shared builders).
+        if (kioskBundles.isBundleLine(item)) {
+          var bundleLi = kioskBundles.buildBundleLine(item, bundleCtx.canCatalogItem, bundleCtx.standardTaxId);
+          subtotal += bundleLi.rate * bundleLi.quantity;
+          return bundleLi;
+        }
+        if (kioskBundles.isBundleCanLine(item)) {
+          return kioskBundles.buildBundleCanLine(item, catalogMap[item.item_id]);
+        }
         if (item.custom) {
           // Custom line: rate is staff-entered (bounded by validation above)
           var qty = Number(item.quantity) || 1;
@@ -1224,6 +1269,17 @@ function runConfirm(body, confirmIdemKey, req, res) {
       }
     }
 
+    // Phase 90: canning bundle validation + standard tax. A terminal charge may
+    // ALREADY exist here (body.transaction_id), so NEVER bare-400: throw a tagged
+    // error into the chain; the outer .catch returns 400 only when no charge
+    // exists and otherwise voids through the existing void-on-failure path.
+    var bundleCtxConfirm = prepareBundleContext(body.items, catalogMap);
+    if (bundleCtxConfirm.error) {
+      var bundleInvalidErr = new Error(bundleCtxConfirm.error);
+      bundleInvalidErr.__bundleInvalid = true;
+      throw bundleInvalidErr;
+    }
+
     // Fail-closed guard: gift_cert lines require KIOSK_GIFT_CARD_ITEM_ID (T-44-G4)
     if (body.items.some(function (i) { return i.gift_cert === true; }) &&
         !process.env.KIOSK_GIFT_CARD_ITEM_ID) {
@@ -1247,7 +1303,7 @@ function runConfirm(body, confirmIdemKey, req, res) {
 
     // Pre-resolve GST tax_id for any taxable custom lines (D-02 fail-closed).
     var needGstTaxIdConfirm = body.items.some(function (item) {
-      return item.custom && item.taxable !== false;
+      return item.custom && item.taxable !== false && !kioskBundles.isBundleLine(item);
     });
     var gstTaxIdConfirm = null;
     if (needGstTaxIdConfirm) {
@@ -1261,6 +1317,15 @@ function runConfirm(body, confirmIdemKey, req, res) {
 
     var subtotal = 0;
     var lineItems = body.items.map(function (item) {
+      // Phase 90: same shared builders as /api/kiosk/sale.
+      if (kioskBundles.isBundleLine(item)) {
+        var bundleLiC = kioskBundles.buildBundleLine(item, bundleCtxConfirm.canCatalogItem, bundleCtxConfirm.standardTaxId);
+        subtotal += bundleLiC.rate * bundleLiC.quantity;
+        return bundleLiC;
+      }
+      if (kioskBundles.isBundleCanLine(item)) {
+        return kioskBundles.buildBundleCanLine(item, catalogMap[item.item_id]);
+      }
       if (item.custom) {
         var qty = Number(item.quantity) || 1;
         var rate = Number(item.rate);
@@ -1911,7 +1976,9 @@ function runConfirm(body, confirmIdemKey, req, res) {
     // is safe and actionable — fall through to the generic void-on-failure
     // block below ONLY when a terminal charge already exists (never bare-400
     // after a charge, pos.js:816-819 invariant).
-    if (err && err.__taxUnresolved && !(body && body.transaction_id)) {
+    // Phase 90: an invalid canning bundle / unresolvable standard tax (tagged
+    // __bundleInvalid) follows the exact same rule as __taxUnresolved.
+    if (err && (err.__taxUnresolved || err.__bundleInvalid) && !(body && body.transaction_id)) {
       if (res.headersSent) return;
       // Phase 67 review fix (WR-01): release the confirm idempotency lock on
       // this actionable no-charge 400 — acquireIdempotencyLock only replays
