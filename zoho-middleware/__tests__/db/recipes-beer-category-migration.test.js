@@ -56,13 +56,16 @@ describeDb('migration 0006 recipes.beer_category', function () {
   it('accepts an arbitrary string at the DB level (enforcement is app-level, D-03)', async function () {
     var client = harness.client();
     var ins = await client.query(
-      "insert into recipes (name, beer_category) values ('X', 'anything-at-all') returning beer_category");
+      "insert into recipes (name, status, created_at, updated_at, beer_category) " +
+      "values ('X', 'draft', now(), now(), 'anything-at-all') returning beer_category");
     expect(ins.rows[0].beer_category).toBe('anything-at-all');
   });
 
   it('reads NULL when the column is not supplied', async function () {
     var client = harness.client();
-    var ins = await client.query("insert into recipes (name) values ('Y') returning beer_category");
+    var ins = await client.query(
+      "insert into recipes (name, status, created_at, updated_at) " +
+      "values ('Y', 'draft', now(), now()) returning beer_category");
     expect(ins.rows[0].beer_category).toBeNull();
   });
 });
