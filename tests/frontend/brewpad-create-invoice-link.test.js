@@ -189,3 +189,135 @@ describe('create sheet invoice selection', function () {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 3: submit path
+// ---------------------------------------------------------------------------
+describe('create sheet submit path', function () {
+  function fillProduct() {
+    $('bp-new-product-name').value = 'Pale Ale Kit';
+    $('bp-new-product-sku').value = 'KIT-1';
+  }
+  function chooseInvoice() {
+    $('bp-new-so-number').value = 'INV-000171';
+    $('bp-new-so-id').value = 'i1';
+  }
+  function submit() { $('bp-create-submit').click(); }
+
+  test('with an invoice: sends zoho_so_number and customer_id, no source, no confirm', function () {
+    fillProduct();
+    chooseInvoice();
+    $('bp-new-customer-id').value = 'c1';
+    submit();
+    var posts = proxyCalls('create_batch');
+    expect(posts.length).toBe(1);
+    var body = JSON.parse(posts[0].opts.body);
+    expect(body.zoho_so_number).toBe('INV-000171');
+    expect(body.customer_id).toBe('c1');
+    expect(body).not.toHaveProperty('source');
+    expect($('bp-confirm-sheet')).toBeNull();
+  });
+
+  test('with the internal checkbox: sends source internal and no invoice', function () {
+    fillProduct();
+    $('bp-new-no-invoice').checked = true;
+    submit();
+    var body = JSON.parse(proxyCalls('create_batch')[0].opts.body);
+    expect(body.source).toBe('internal');
+    expect(body).not.toHaveProperty('zoho_so_number');
+    expect($('bp-confirm-sheet')).toBeNull();
+  });
+
+  test('without a chosen customer the customer_id key is omitted', function () {
+    fillProduct();
+    $('bp-new-no-invoice').checked = true;
+    submit();
+    expect(JSON.parse(proxyCalls('create_batch')[0].opts.body)).not.toHaveProperty('customer_id');
+  });
+
+  test('with neither: confirm sheet gates creation until Create batch is tapped', function () {
+    fillProduct();
+    submit();
+    expect(proxyCalls('create_batch').length).toBe(0);
+    var sheet = $('bp-confirm-sheet');
+    expect(sheet.classList.contains('bp-confirm-sheet--visible')).toBe(true);
+    expect($('bp-confirm-sheet-msg').textContent).toContain('Create without invoice?');
+    expect($('bp-confirm-sheet-msg').textContent).toContain('You can link an invoice later from the batch.');
+    expect($('bp-confirm-sheet-ok').textContent).toBe('Create batch');
+    expect($('bp-confirm-sheet-ok').className).toContain('bp-confirm-btn--primary');
+    $('bp-confirm-sheet-ok').click();
+    expect(proxyCalls('create_batch').length).toBe(1);
+    var body = JSON.parse(proxyCalls('create_batch')[0].opts.body);
+    expect(body).not.toHaveProperty('zoho_so_number');
+    expect(body).not.toHaveProperty('source');
+  });
+
+  test('cancelling the confirm sheet creates nothing', function () {
+    fillProduct();
+    submit();
+    $('bp-confirm-sheet-cancel').click();
+    expect(proxyCalls('create_batch').length).toBe(0);
+  });
+
+  test('duplicate_so_number shows the inline banner naming known batches, re-enables submit, no retry', function () {
+    bp._setAllBatchesDataForTest([{ batch_id: 'SV-B-000063', zoho_so_number: 'INV-000171' }]);
+    proxyHandler = function () { return jsonResponse({ ok: false, code: 'duplicate_so_number', error: 'duplicate_so_number' }, 409); };
+    fillProduct();
+    chooseInvoice();
+    submit();
+    return tick(20).then(function () {
+      var banner = $('bp-new-create-error');
+      expect(banner.getAttribute('role')).toBe('alert');
+      expect(banner.textContent).toBe('That invoice already has a batch for this product (SV-B-000063). Create without an invoice and link it from the batch instead.');
+      expect($('bp-create-submit').disabled).toBe(false);
+      expect(proxyCalls('create_batch').length).toBe(1);
+      expect(calls.filter(function (c) { return /reconcile-invoice-status/.test(c.url); }).length).toBe(0);
+    });
+  });
+
+  test('duplicate banner omits the parentheses when no batch ids are known', function () {
+    proxyHandler = function () { return jsonResponse({ ok: false, code: 'duplicate_so_number' }, 409); };
+    fillProduct();
+    chooseInvoice();
+    submit();
+    return tick(20).then(function () {
+      expect($('bp-new-create-error').textContent).toBe('That invoice already has a batch for this product. Create without an invoice and link it from the batch instead.');
+    });
+  });
+
+  test('other create errors keep the toast path and no banner', function () {
+    proxyHandler = function () { return jsonResponse({ ok: false, error: 'boom' }, 500); };
+    fillProduct();
+    chooseInvoice();
+    submit();
+    return tick(20).then(function () {
+      expect($('bp-new-create-error')).toBeNull();
+      expect($('bp-create-submit').disabled).toBe(false);
+      expect(document.querySelector('.bp-toast--error')).not.toBeNull();
+    });
+  });
+
+  test('success with an invoice fires reconcile-invoice-status once after create_batch', function () {
+    fillProduct();
+    chooseInvoice();
+    submit();
+    return tick(20).then(function () {
+      var rec = calls.filter(function (c) { return /reconcile-invoice-status/.test(c.url); });
+      expect(rec.length).toBe(1);
+      expect(rec[0].opts.method).toBe('POST');
+      expect(JSON.parse(rec[0].opts.body)).toEqual({ zoho_so_number: 'INV-000171' });
+      var order = calls.map(function (c) { return /admin-proxy/.test(c.url) ? 'create' : (/reconcile/.test(c.url) ? 'reconcile' : 'other'); });
+      expect(order.indexOf('create')).toBeLessThan(order.indexOf('reconcile'));
+    });
+  });
+
+  test('success without an invoice does not call reconcile', function () {
+    fillProduct();
+    $('bp-new-no-invoice').checked = true;
+    submit();
+    return tick(20).then(function () {
+      expect(proxyCalls('create_batch').length).toBe(1);
+      expect(calls.filter(function (c) { return /reconcile-invoice-status/.test(c.url); }).length).toBe(0);
+    });
+  });
+});

@@ -2111,6 +2111,12 @@ function parseWaitlistRecipeIds(value) {
   // the INV-000151 class of bug). Fire-and-forget: never blocks or fails the delete UX
   // — a reconcile failure is silent (the one-time cleanup route is the backstop).
   function reconcileInvoiceStatusAfterDelete(zohoSoNumber) {
+    reconcileInvoiceStatus(zohoSoNumber);
+  }
+
+  // Shared fire-and-forget reconcile (delete path above, create-with-invoice path in
+  // the create sheet, Phase 90-03). A failure is silent; the cleanup route is the backstop.
+  function reconcileInvoiceStatus(zohoSoNumber) {
     if (!zohoSoNumber) return;
     fetch(mwUrl() + '/api/batch/reconcile-invoice-status', {
       method: 'POST',
@@ -4563,7 +4569,8 @@ function parseWaitlistRecipeIds(value) {
       });
   }
 
-  function showConfirmSheet(message, okLabel, okCls, onOk) {
+  // subText (optional, Phase 90-03): muted second line under the message.
+  function showConfirmSheet(message, okLabel, okCls, onOk, subText) {
     var sheet = document.getElementById('bp-confirm-sheet');
     if (!sheet) {
       sheet = document.createElement('div');
@@ -4580,7 +4587,15 @@ function parseWaitlistRecipeIds(value) {
         '</div></div>';
       document.body.appendChild(sheet);
     }
-    document.getElementById('bp-confirm-sheet-msg').textContent = message;
+    var msgEl = document.getElementById('bp-confirm-sheet-msg');
+    msgEl.textContent = message;
+    if (subText) {
+      var subEl = document.createElement('span');
+      subEl.className = 'bp-confirm-sheet-sub';
+      subEl.style.display = 'block';
+      subEl.textContent = subText;
+      msgEl.appendChild(subEl);
+    }
     var okBtn = document.getElementById('bp-confirm-sheet-ok');
     okBtn.textContent = okLabel;
     okBtn.className = 'btn ' + (okCls || '');
@@ -7622,38 +7637,65 @@ function parseWaitlistRecipeIds(value) {
         }
         var customerEmail = (document.getElementById('bp-new-customer-email') || {}).value || '';
 
-        submitBtn.disabled = true;
-        adminApiPost('create_batch', {
-          product_name: productName,
-          product_sku: productSku,
-          customer_firstname: customerFirstname || 'Walk-In',
-          customer_lastname: customerLastname || '',
-          customer_name: customerName || 'Walk-In',
-          customer_email: customerEmail,
-          start_date: startDate,
-          vessel_id: vesselId,
-          shelf_id: shelf,
-          bin_id: bin,
-          schedule_id: scheduleId,
-          notes: notes,
-          recipe_id: (document.getElementById('bp-new-recipe-id') || {}).value || '',
-          recipe_snapshot: (document.getElementById('bp-new-recipe-snapshot') || {}).value || ''
-        })
-          .then(function (result) {
-            showToast('Batch ' + (result.batch_id || '') + ' created', 'success');
-            closeCreateSheet();
-            _batchesLoaded = false;
-            _allBatchesData = [];
-            _eagerLoadTime = 0;
-            _upcomingLoaded = false;
-            _measBatches = [];
-            _dashLoadTime = 0;
-            loadBatches();
-          })
-          .catch(function (err) {
-            showToast('Failed: ' + err.message, 'error');
-            submitBtn.disabled = false;
-          });
+        var soNumber   = (document.getElementById('bp-new-so-number') || {}).value || '';
+        var noInvoice  = !!((document.getElementById('bp-new-no-invoice') || {}).checked);
+        var customerId = (document.getElementById('bp-new-customer-id') || {}).value || '';
+        // Captured BEFORE the call: a successful create clears _allBatchesData.
+        var linkedIds  = createSheetLinkedBatchIds(soNumber);
+
+        function doCreate() {
+          var oldErr = document.getElementById('bp-new-create-error');
+          if (oldErr && oldErr.parentNode) oldErr.parentNode.removeChild(oldErr);
+          submitBtn.disabled = true;
+          var payload = {
+            product_name: productName,
+            product_sku: productSku,
+            customer_firstname: customerFirstname || 'Walk-In',
+            customer_lastname: customerLastname || '',
+            customer_name: customerName || 'Walk-In',
+            customer_email: customerEmail,
+            start_date: startDate,
+            vessel_id: vesselId,
+            shelf_id: shelf,
+            bin_id: bin,
+            schedule_id: scheduleId,
+            notes: notes,
+            recipe_id: (document.getElementById('bp-new-recipe-id') || {}).value || '',
+            recipe_snapshot: (document.getElementById('bp-new-recipe-snapshot') || {}).value || '',
+            // undefined values are dropped by JSON.stringify, so only applicable keys are sent
+            customer_id: customerId || undefined,
+            zoho_so_number: soNumber || undefined,
+            source: (!soNumber && noInvoice) ? 'internal' : undefined
+          };
+          adminApiPost('create_batch', payload)
+            .then(function (result) {
+              showToast('Batch ' + (result.batch_id || '') + ' created', 'success');
+              if (soNumber) reconcileInvoiceStatus(soNumber);
+              closeCreateSheet();
+              _batchesLoaded = false;
+              _allBatchesData = [];
+              _eagerLoadTime = 0;
+              _upcomingLoaded = false;
+              _measBatches = [];
+              _dashLoadTime = 0;
+              loadBatches();
+            })
+            .catch(function (err) {
+              submitBtn.disabled = false;
+              if (err && err.code === 'duplicate_so_number') {
+                showCreateDuplicateBanner(linkedIds);
+                return;
+              }
+              showToast('Failed: ' + err.message, 'error');
+            });
+        }
+
+        if (!soNumber && !noInvoice) {
+          showConfirmSheet('Create without invoice?', 'Create batch', 'bp-confirm-btn--primary', doCreate,
+            'You can link an invoice later from the batch.');
+        } else {
+          doCreate();
+        }
       });
     }
   }
@@ -7825,6 +7867,24 @@ function parseWaitlistRecipeIds(value) {
       if (String(b.zoho_so_number || '').toLowerCase() === want && b.batch_id) ids.push(b.batch_id);
     }
     return ids;
+  }
+
+  // Inline danger banner above the submit button; never auto-retries (Phase 90-03, D-09).
+  function showCreateDuplicateBanner(linkedIds) {
+    var actions = document.querySelector('#bp-create-submit');
+    actions = actions && actions.parentNode;
+    if (!actions || !actions.parentNode) return;
+    var banner = document.getElementById('bp-new-create-error');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'bp-new-create-error';
+      banner.className = 'bp-form-error';
+      banner.setAttribute('role', 'alert');
+      actions.parentNode.insertBefore(banner, actions);
+    }
+    banner.textContent = 'That invoice already has a batch for this product' +
+      (linkedIds && linkedIds.length ? ' (' + linkedIds.join(', ') + ')' : '') +
+      '. Create without an invoice and link it from the batch instead.';
   }
 
   function bindCreateInvoicePicker() {
