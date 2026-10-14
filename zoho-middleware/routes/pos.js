@@ -18,6 +18,7 @@ var captureExceptionSafe = require('../lib/sentry-capture').captureExceptionSafe
 var giftCardStore = require('../lib/gift-card-store');
 var opsProxy = require('../lib/ops-proxy');
 var kioskBundles = require('../lib/kiosk-bundles');
+var linkCandidates = require('../lib/batch-link-candidates');
 // Phase 87-12: lazy so route tests that mock constants/cache/logger are unaffected.
 function batchProxy() { return require('../lib/batch-proxy'); }
 function batchStore() { return require('../lib/batch-store'); }
@@ -3061,6 +3062,106 @@ router.get('/api/batch/search-invoices', function (req, res) {
   });
 });
 
+// Phase 90 (D-07..D-10): READ-ONLY candidate invoices for the batch-detail
+// guided review. Staff tap-to-confirm happens in the UI via update_batch; this
+// route never writes anything (D-10). Zoho load is bounded: 1 list call + at
+// most MAX_DETAIL_FETCH sequential detail calls per cache miss.
+// GET /api/batch/link-candidates?customer_id=&customer_name=&start_date=YYYY-MM-DD
+router.get('/api/batch/link-candidates', function (req, res) {
+  authTiers.requireTiers(['legacy', 'session'])(req, res, function () {
+    var q = linkCandidates.validateCandidateQuery(req.query);
+    if (!q.ok) {
+      return res.status(400).json({ error: 'bad_request', message: q.message });
+    }
+    if (q.noCustomer) {
+      return res.json({ candidates: [], index_available: true, inspected_all: true, uninspected_count: 0, reason: 'no_customer' });
+    }
+
+    var cacheKey = 'batch-link-cand:v1:' + (q.customer_id
+      ? 'id:' + q.customer_id
+      : 'nm:' + crypto.createHash('sha256').update(linkCandidates.normaliseCustomerName(q.customer_name)).digest('hex').slice(0, 24)) +
+      ':' + q.start_date;
+
+    function lookup() {
+      var win = linkCandidates.candidateWindow(q.start_date);
+      var params = { date_start: win.date_start, date_end: win.date_end, sort_column: 'date', per_page: 200 };
+      if (q.customer_id) { params.customer_id = q.customer_id; } else { params.customer_name = q.customer_name; }
+      var wantName = q.customer_id ? null : linkCandidates.normaliseCustomerName(q.customer_name);
+
+      return zohoGet('/invoices', params).then(function (data) {
+        var rows = (data.invoices || []).filter(function (inv) {
+          if (inv.status === 'void') return false;
+          if (wantName !== null && linkCandidates.normaliseCustomerName(inv.customer_name) !== wantName) return false;
+          return true;
+        });
+        rows.sort(function (a, b) {
+          return linkCandidates.dateDistanceDays(a.date, q.start_date) - linkCandidates.dateDistanceDays(b.date, q.start_date);
+        });
+        var inspected = rows.slice(0, linkCandidates.MAX_DETAIL_FETCH);
+        var uninspected = rows.length - inspected.length;
+        var built = [];
+        // Sequential chain (NOT Promise.all) to respect the ~1/s Zoho quota.
+        var chain = Promise.resolve();
+        inspected.forEach(function (inv) {
+          chain = chain.then(function () {
+            return zohoGet('/invoices/' + inv.invoice_id).then(function (detailData) {
+              var detail = detailData.invoice || {};
+              var hasKit = brewpadIntegration.detectKitItems(detail.line_items || []).length > 0;
+              built.push(linkCandidates.toCandidate(inv, detail, q.start_date, hasKit));
+            });
+          });
+        });
+        return chain.then(function () {
+          return { candidates: linkCandidates.rankCandidates(built), uninspected_count: uninspected };
+        });
+      });
+    }
+
+    Promise.resolve()
+      .then(function () { return cache.get(cacheKey); })
+      .catch(function (err) {
+        log.warn('[batch/link-candidates] cache get failed (treated as miss): ' + (err && err.message));
+        return null;
+      })
+      .then(function (hit) {
+        if (hit && Array.isArray(hit.candidates)) return hit;
+        return lookup().then(function (fresh) {
+          Promise.resolve()
+            .then(function () { return cache.set(cacheKey, fresh, 600); })
+            .catch(function (err) {
+              log.warn('[batch/link-candidates] cache set failed (ignored): ' + (err && err.message));
+            });
+          return fresh;
+        });
+      })
+      .then(function (result) {
+        // linked_batches is recomputed on every request so a fresh link shows immediately (D-09).
+        return brewpadIntegration.fetchLiveBatchIndex().then(function (index) {
+          var indexAvailable = !!(index && index.byInvoiceNumber);
+          var candidates = result.candidates.map(function (c) {
+            var copy = Object.assign({}, c);
+            if (indexAvailable) {
+              copy.linked_batches = (index.byInvoiceNumber[c.invoice_number] || []).map(function (b) { return b.batch_id; });
+            } else {
+              copy.linked_batches = null;
+            }
+            return copy;
+          });
+          res.json({
+            candidates: candidates,
+            index_available: indexAvailable,
+            inspected_all: result.uninspected_count === 0,
+            uninspected_count: result.uninspected_count
+          });
+        });
+      })
+      .catch(function (err) {
+        log.error('[batch/link-candidates] Zoho error: ' + ((err && err.message) || err));
+        res.status(502).json({ error: 'Invoice lookup failed' });
+      });
+  });
+});
+
 // Phase 64/OPS-03: delete-hook — after a batch delete, re-derive ONE invoice's
 // cf_batch_status from the live batch set. NEVER trusts a client-supplied status
 // value; the label is always recomputed server-side from get_batches (T-64-04/T-64-07).
@@ -4181,6 +4282,12 @@ function hardenProxyPayload(payload, req) {
   SERVER_ONLY_PROXY_FIELDS.forEach(function (k) { delete payload[k]; });
   if (typeof req.staffEmail === 'string' && req.staffEmail) {
     payload.acting_user = req.staffEmail;
+  }
+  // Phase 90 D-04/D-05: staff creates may only be 'internal' or 'manual'; automated
+  // sources (kiosk, online, zoho_scan, kiosk_recipe) are server-token only.
+  // (Regex, not a string literal: this guard issues nothing, and the 87-17 single-issuer scan counts quoted action names.)
+  if (/^create_batch$/i.test(String(payload.action)) && payload.source !== undefined && payload.source !== null) {
+    payload.source = String(payload.source).trim().toLowerCase() === 'internal' ? 'internal' : 'manual';
   }
   return payload;
 }
