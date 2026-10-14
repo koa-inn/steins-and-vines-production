@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
-stopped_at: Phase 87 plan 18 complete; 87-19 gated on Phase 86 prod flip and Node 24 prod deploy
-last_updated: "2026-10-09T22:49:49.676Z"
-last_activity: 2026-10-14
+stopped_at: Phase 89 context gathered
+last_updated: "2026-10-14T18:29:48.923Z"
+last_activity: 2026-10-13
 progress:
-  total_phases: 74
+  total_phases: 75
   completed_phases: 30
   total_plans: 251
   completed_plans: 245
-  percent: 41
+  percent: 40
 ---
 
 # Project State
@@ -36,8 +36,10 @@ Last activity: 2026-10-13
 sheets by owner choice). Record: `87-CUTOVER-LOG.md`, `87-18-SUMMARY.md`.
 
 **Next: 87-19 production window, gated on two things:**
+
 1. Phase 86 production flip (`OPS_DATA_STORE=postgres`), which itself follows the Phase 85 prod cutover
    (85-13, pinned `d2c66be9:main`).
+
 2. Node 24 in production. `abc4d42e` (Node 24 LTS, tzdata 2026c, fixes America/Vancouver going UTC-8
    on 2026-11-01) is live and verified on staging since 2026-10-13; deploy to production before
    2026-11-01 with pinned-SHA discipline. Todo: `.planning/todos/pending/node-tzdata-bc-permanent-time.md`.
@@ -55,16 +57,20 @@ verify `5404abea`, captured-amount check `255c5e13`; recipe fee tax + invoice ad
 kiosk tax display `60d7b32f`; staff waitlist email wording `ecb328d8`; custom-recipe card `7713dcd3`;
 readable card subtitles `ab8a0347`. Railway fee item IDs fixed (staging live; production set with
 `--skip-deploys`, applies on next prod restart/deploy). Staging recipe store re-backfilled 2026-10-14.
+
 - **Beer page launch is staged on LOCAL branch `beer-launch`** (not merged/pushed; owner: not live yet).
   Merge = `git merge beer-launch` (refresh stamp conflicts) → build → tests → staging.
+
 - **Before any of the above reaches production:** one real in-store recipe sale on staging hardware
   (auto + manual confirm) must book 201 and the Zoho invoice must read Paid (first use of the invoice
   `adjustment` field). The 85-13 production push is pinned to `d2c66be9:main`, which predates this
   work — these commits need their own promotion decision.
+
 - **Open owner items:** CI frontend `Tests` job red since 2026-10-09 (`adminapi-batch-golden` TZ — test
   pins TZ inside Jest, which does not take effect; fix = TZ=America/Vancouver for the frontend run;
   awaiting go-ahead); hero copy mentions "stouts" (no stout recipe); handoff §6 (batch `source`
   editable — owner decision, PG allowlist excludes it by design); footer price-label legibility.
+
 - Session handoff: `HANDOFF-beer-golive.md` (untracked; §5 §9 §10 §11 stale/resolved).
 
 Older position notes (Phases 46-51, 76) are kept verbatim under "Accumulated Context → Earlier
@@ -111,7 +117,6 @@ Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 
 **SEC-02 / Phase 46 (auth re-architecture) — ✅ COMPLETE 2026-07-08.** Owner production cutover (46-10) executed off-hours: new 3-tier auth live (device-token kiosk / Google-session admin+BrewPad / legacy key), all three surfaces verified, `API_SECRET_KEY` rotated → **leaked key dead (403)**, no surface locked out, public checkout intact. 46-10-SUMMARY.md written; ROADMAP + REQUIREMENTS marked SEC-02 closed. Prod now runs `origin/main` (device-token auth). Detail: `docs/RUNBOOK.md` § Phase 46 Auth Cutover Outcome.
 
 **Phase 47 / SEC-01 (H1) — ✅ CLOSED on staging (2026-07-03).** Audit doc untracked+gitignored+excluded (`065ed99`); Actions-based `deploy-staging.yml` strips `.planning/`+audit docs (`7116801`); owner flipped staging Pages source → GitHub Actions; fixed a concurrency-group collision that had cancelled the deploy (`b9ac218`). Verified live: `.planning/` + audit docs → 404, `.well-known/security.txt` + site → 200. **Prod:** audit-doc removal rides the next prod deploy (Phase 46 cutover); prod `.planning/` already stripped pre-existing. Note: `Tests` CI is red on a pre-existing dev-only `form-data` advisory (v4.5 OBS-01 scope).
-
 
 ### Roadmap Evolution
 
@@ -282,6 +287,6 @@ Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 
 
 ## Session Continuity
 
-Last session: 2026-10-14
-Stopped at: Beer-launch pivot (staging only, see Current Position); Phase 89 added, not planned. Phase 87-19 still gated.
-Resume file: .planning/phases/89-beer-category-field-for-recipes/89-NOTES.md
+Last session: 2026-10-14T18:29:48.915Z
+Stopped at: Phase 89 context gathered
+Resume file: .planning/phases/89-beer-category-field-for-recipes/89-CONTEXT.md
