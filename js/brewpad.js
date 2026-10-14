@@ -5608,6 +5608,134 @@ function parseWaitlistRecipeIds(value) {
     }
   }
 
+  // ===== Phase 90-09: shared full-list recipe dropdown (D-19/D-20/D-23) =====
+  // One renderer + opener for the four BrewPad recipe pickers (attach, new-batch
+  // Recipes tab, waitlist per-row attach, waitlist manual-add). Opens ALL active
+  // recipes A-Z (no cap) on focus or click; typing narrows by name or style via
+  // RecipePicker.filterRecipes. Each picker keeps its own catalog variable and
+  // selection side-effects and passes them in.
+  function bpRecipePickerLib() {
+    if (typeof window !== 'undefined' && !window.RecipePicker && typeof require === 'function') {
+      // Test-only: js/lib/recipe-picker.js is a plain <script> in brewpad.html.
+      try { window.RecipePicker = require('./lib/recipe-picker.js'); } catch (e) { /* helper unavailable */ }
+    }
+    return (typeof window !== 'undefined' && window.RecipePicker) || null;
+  }
+
+  // catalog: array of recipes (ignored for status 'loading' / 'error').
+  // opts: { status: 'loading'|'error', onSelect(rid, rname, e), touch: bool, onRetry() }
+  function renderRecipeDropdown(dropdownEl, catalog, term, opts) {
+    if (!dropdownEl) return;
+    opts = opts || {};
+    var lib = bpRecipePickerLib();
+    var html;
+    if (opts.status === 'loading') {
+      html = '<div class="bp-vessel-option bp-vessel-option--empty">Loading recipes…</div>';
+    } else if (opts.status === 'error') {
+      html = '<div class="bp-vessel-option bp-vessel-option--empty bp-recipe-retry" role="button">Could not load recipes. Tap to retry.</div>';
+    } else {
+      var list = lib ? lib.filterRecipes(catalog || [], term) : (catalog || []);
+      if (list.length === 0) {
+        html = '<div class="bp-vessel-option bp-vessel-option--empty">' +
+          ((catalog && catalog.length) ? 'No recipes found. Clear the search to see all.' : 'No recipes found') + '</div>';
+      } else {
+        html = list.map(function (r) {
+          return '<div class="bp-vessel-option" role="option" data-rid="' + escapeHTML(r.recipe_id || '') +
+            '" data-rname="' + escapeHTML(r.name || '') + '">' +
+            '<span class="bp-recipe-opt-name">' + escapeHTML(r.name || '') + '</span>' +
+            (r.style ? '<span class="bp-recipe-opt-style">' + escapeHTML(r.style) + '</span>' : '') +
+            '</div>';
+        }).join('');
+      }
+    }
+    dropdownEl.classList.add('bp-recipe-dropdown');
+    dropdownEl.setAttribute('role', 'listbox');
+    dropdownEl.innerHTML = html;
+    dropdownEl.style.display = '';
+    if (opts.status === 'error' && opts.onRetry) {
+      var retryEl = dropdownEl.querySelector('.bp-recipe-retry');
+      if (retryEl) {
+        retryEl.addEventListener('mousedown', function (e) { e.preventDefault(); opts.onRetry(); });
+        retryEl.addEventListener('touchstart', function (e) { e.preventDefault(); opts.onRetry(); }, { passive: false });
+      }
+    }
+    if (opts.onSelect) {
+      Array.prototype.forEach.call(dropdownEl.querySelectorAll('.bp-vessel-option[data-rid]'), function (opt) {
+        function pick(e) {
+          e.preventDefault();
+          if (opts.touch) e.stopPropagation();
+          opts.onSelect(opt.getAttribute('data-rid'), opt.getAttribute('data-rname'), e);
+        }
+        opt.addEventListener('mousedown', pick);
+        if (opts.touch) opt.addEventListener('touchstart', pick, { passive: false });
+      });
+    }
+  }
+
+  // Builds one picker around an input + dropdown. cfg: { input, dropdown,
+  // getCatalog, setCatalog, onSelect, touch, guard }. Returns { show, close }.
+  // A failed fetch leaves the catalog null so the next open retries.
+  function bpCreateRecipePicker(cfg) {
+    var input = cfg.input;
+    var dropdown = cfg.dropdown;
+    var inflight = false;
+    var lastTerm = '';
+
+    function setExpanded(v) { if (input) input.setAttribute('aria-expanded', v ? 'true' : 'false'); }
+
+    function close() {
+      if (dropdown) dropdown.style.display = 'none';
+      setExpanded(false);
+    }
+
+    function show(term) {
+      if (cfg.guard && !cfg.guard()) return;
+      lastTerm = term || '';
+      var catalog = cfg.getCatalog();
+      if (!catalog) {
+        renderRecipeDropdown(dropdown, null, lastTerm, { status: 'loading' });
+        setExpanded(true);
+        if (inflight) return;
+        inflight = true;
+        Promise.resolve(fetch(mwUrl() + '/api/recipes?status=active', { credentials: 'include' }))
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            inflight = false;
+            cfg.setCatalog(data.recipes || []);
+            show(lastTerm);
+          })
+          .catch(function () {
+            inflight = false;
+            cfg.setCatalog(null);
+            renderRecipeDropdown(dropdown, null, lastTerm, {
+              status: 'error',
+              onRetry: function () { show(lastTerm); }
+            });
+            setExpanded(true);
+          });
+        return;
+      }
+      renderRecipeDropdown(dropdown, catalog, lastTerm, { onSelect: cfg.onSelect, touch: cfg.touch });
+      setExpanded(true);
+    }
+
+    if (input && dropdown) {
+      input.setAttribute('role', 'combobox');
+      input.setAttribute('aria-autocomplete', 'list');
+      input.setAttribute('aria-expanded', 'false');
+      if (dropdown.id) input.setAttribute('aria-controls', dropdown.id);
+      dropdown.setAttribute('role', 'listbox');
+      dropdown.classList.add('bp-recipe-dropdown');
+      input.addEventListener('focus', function () { show(input.value); });
+      // iPad Safari: tapping an already-focused input fires click, not focus.
+      input.addEventListener('click', function () { show(input.value); });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' || e.keyCode === 27) close();
+      });
+    }
+    return { show: show, close: close };
+  }
+
   function openRecipeAttachPanel(b, sectionBodyEl) {
     if (!sectionBodyEl) return;
     var emptyDiv = sectionBodyEl.querySelector('.bp-recipe-empty');
@@ -5637,68 +5765,43 @@ function parseWaitlistRecipeIds(value) {
     var resolvedInfo = document.getElementById('bp-attach-resolved-info');
     var _catalog = null;
 
-    function showAttachOptions(term) {
-      if (!_catalog) {
-        dropdown.innerHTML = '<div class="bp-vessel-option bp-vessel-option--empty">Loading recipes…</div>';
-        dropdown.style.display = '';
-        fetch(mwUrl() + '/api/recipes?status=active', { credentials: 'include' })
+    var picker = bpCreateRecipePicker({
+      input: input,
+      dropdown: dropdown,
+      getCatalog: function () { return _catalog; },
+      setCatalog: function (v) { _catalog = v; },
+      onSelect: function (rid, rname) {
+        input.value = rname || '';
+        picker.close();
+
+        // Phase 36: RESOLVE only — do NOT write the batch
+        fetch(mwUrl() + '/api/recipes/' + encodeURIComponent(rid), { credentials: 'include' })
           .then(function (r) { return r.json(); })
           .then(function (data) {
-            _catalog = data.recipes || [];
-            showAttachOptions(term);
+            var snap = data.recipe || {};
+            var ingredients = (data.ingredients || []).map(function (i) {
+              return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit,
+                       cf_type: i.cf_type || '', cf_subcategory: i.cf_subcategory || '', display_group: i.display_group || '',
+                       stock_on_hand: i.stock_on_hand != null ? i.stock_on_hand : null }; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
+            });
+
+            // Store resolved recipe — no update_batch call here (D-10)
+            _bpResolvedRecipe = { recipe: snap, ingredients: ingredients };
+
+            // Show resolved info label
+            if (resolvedInfo) {
+              resolvedInfo.textContent = escapeHTML(snap.name || rid);
+              resolvedInfo.style.display = '';
+            }
+
+            // GAP-5: wireAttachExpandedPanel injects the expanded panel INTO sectionBodyEl
+            // (the scrollable detail pane), so no explicit show/hide of a static sibling needed.
+            wireAttachExpandedPanel(b, sectionBodyEl);
           })
-          .catch(function () { _catalog = []; showAttachOptions(term); });
-        return;
+          .catch(function (err) { showToast('Failed to load recipe: ' + err.message, 'error'); });
       }
-      var matches = _catalog.filter(function (r) {
-        if (!term) return true;
-        return ((r.name || '') + ' ' + (r.style || '')).toLowerCase().indexOf(term.toLowerCase()) !== -1;
-      }).slice(0, 15);
-      dropdown.innerHTML = matches.length === 0
-        ? '<div class="bp-vessel-option bp-vessel-option--empty">No recipes found</div>'
-        : matches.map(function (r) {
-            return '<div class="bp-vessel-option" data-rid="' + escapeHTML(r.recipe_id || '') +
-              '" data-rname="' + escapeHTML(r.name || '') + '">' +
-              escapeHTML(r.name || '') +
-              (r.abv ? ' <span style="color:var(--ink-muted);font-size:0.82em;">' + escapeHTML(String(r.abv)) + '% ABV</span>' : '') +
-              '</div>';
-          }).join('');
-      dropdown.style.display = '';
-      Array.prototype.forEach.call(dropdown.querySelectorAll('.bp-vessel-option[data-rid]'), function (opt) {
-        opt.addEventListener('mousedown', function (e) {
-          e.preventDefault();
-          var rid = opt.getAttribute('data-rid');
-          input.value = opt.getAttribute('data-rname') || '';
-          dropdown.style.display = 'none';
-
-          // Phase 36: RESOLVE only — do NOT write the batch
-          fetch(mwUrl() + '/api/recipes/' + encodeURIComponent(rid), { credentials: 'include' })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-              var snap = data.recipe || {};
-              var ingredients = (data.ingredients || []).map(function (i) {
-                return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit,
-                         cf_type: i.cf_type || '', cf_subcategory: i.cf_subcategory || '', display_group: i.display_group || '',
-                         stock_on_hand: i.stock_on_hand != null ? i.stock_on_hand : null }; // eslint-disable-line eqeqeq -- intentional loose equality to match both null and undefined
-              });
-
-              // Store resolved recipe — no update_batch call here (D-10)
-              _bpResolvedRecipe = { recipe: snap, ingredients: ingredients };
-
-              // Show resolved info label
-              if (resolvedInfo) {
-                resolvedInfo.textContent = escapeHTML(snap.name || rid);
-                resolvedInfo.style.display = '';
-              }
-
-              // GAP-5: wireAttachExpandedPanel injects the expanded panel INTO sectionBodyEl
-              // (the scrollable detail pane), so no explicit show/hide of a static sibling needed.
-              wireAttachExpandedPanel(b, sectionBodyEl);
-            })
-            .catch(function (err) { showToast('Failed to load recipe: ' + err.message, 'error'); });
-        });
-      });
-    }
+    });
+    function showAttachOptions(term) { picker.show(term); }
 
     if (cancelBtn) {
       cancelBtn.addEventListener('click', function () {
@@ -5721,13 +5824,12 @@ function parseWaitlistRecipeIds(value) {
     }
 
     if (input) {
-      input.addEventListener('focus', function () { showAttachOptions(input.value); });
       input.addEventListener('input', function () {
         clearTimeout(input._timer);
         input._timer = setTimeout(function () { showAttachOptions(input.value); }, 200);
       });
       input.addEventListener('blur', function () {
-        setTimeout(function () { dropdown.style.display = 'none'; }, 200);
+        setTimeout(function () { picker.close(); }, 200);
       });
       input.focus();
     }
@@ -8138,71 +8240,38 @@ function parseWaitlistRecipeIds(value) {
 
     var _recipeCatalog = null;
 
-    function showRecipeOptions(term) {
-      if (_productPickerTab !== 'recipes') return;
-      if (!_recipeCatalog) {
-        dropdown.innerHTML = '<div class="bp-vessel-option bp-vessel-option--empty">Loading recipes…</div>';
-        dropdown.style.display = '';
-        fetch(mwUrl() + '/api/recipes?status=active', {
+    var picker = bpCreateRecipePicker({
+      input: input,
+      dropdown: dropdown,
+      touch: true,
+      guard: function () { return _productPickerTab === 'recipes'; },
+      getCatalog: function () { return _recipeCatalog; },
+      setCatalog: function (v) { _recipeCatalog = v; },
+      // Selecting a recipe: fetch full detail for snapshot, then populate hiddens
+      onSelect: function (rid, rname) {
+        input.value = rname;
+        if (nameHidden) nameHidden.value = rname;
+        if (recipeIdHidden) recipeIdHidden.value = rid;
+        picker.close();
+        fetch(mwUrl() + '/api/recipes/' + encodeURIComponent(rid), {
           credentials: 'include'
         }).then(function (r) { return r.json(); })
           .then(function (data) {
-            _recipeCatalog = data.recipes || [];
-            showRecipeOptions(term);
+            var snap = data.recipe || {};
+            var minimal = {
+              name: snap.name, style: snap.style, abv: snap.abv,
+              ibu: snap.ibu, batch_size_l: snap.batch_size_l,
+              ingredients: (data.ingredients || []).map(function (i) {
+                return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit, cf_type: i.cf_type || '', cf_subcategory: i.cf_subcategory || '', display_group: i.display_group || '' };
+              })
+            };
+            if (snapshotHidden) snapshotHidden.value = JSON.stringify(minimal);
           })
-          .catch(function () { _recipeCatalog = []; showRecipeOptions(term); });
-        return;
+          .catch(function () { if (snapshotHidden) snapshotHidden.value = ''; });
       }
-      var matches = _recipeCatalog.filter(function (r) {
-        if (!term) return true;
-        return ((r.name || '') + ' ' + (r.style || '')).toLowerCase().indexOf(term.toLowerCase()) !== -1;
-      }).slice(0, 15);
-      dropdown.innerHTML = matches.length === 0
-        ? '<div class="bp-vessel-option bp-vessel-option--empty">No recipes found</div>'
-        : matches.map(function (r) {
-            return '<div class="bp-vessel-option" data-rid="' + escapeHTML(r.recipe_id || '') +
-              '" data-rname="' + escapeHTML(r.name || '') + '">' +
-              escapeHTML(r.name || '') +
-              (r.abv ? ' <span style="color:var(--ink-muted);font-size:0.82em;">' + escapeHTML(String(r.abv)) + '% ABV</span>' : '') +
-              '</div>';
-          }).join('');
-      dropdown.style.display = '';
-
-      // Selecting a recipe: fetch full detail for snapshot, then populate hiddens
-      Array.prototype.forEach.call(dropdown.querySelectorAll('.bp-vessel-option[data-rid]'), function (opt) {
-        function selectRecipe(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          var rid = opt.getAttribute('data-rid');
-          var rname = opt.getAttribute('data-rname');
-          input.value = rname;
-          if (nameHidden) nameHidden.value = rname;
-          if (recipeIdHidden) recipeIdHidden.value = rid;
-          dropdown.style.display = 'none';
-          fetch(mwUrl() + '/api/recipes/' + encodeURIComponent(rid), {
-            credentials: 'include'
-          }).then(function (r) { return r.json(); })
-            .then(function (data) {
-              var snap = data.recipe || {};
-              var minimal = {
-                name: snap.name, style: snap.style, abv: snap.abv,
-                ibu: snap.ibu, batch_size_l: snap.batch_size_l,
-                ingredients: (data.ingredients || []).map(function (i) {
-                  return { item_id: i.item_id, item_name: i.item_name, quantity: i.quantity, unit: i.unit, cf_type: i.cf_type || '', cf_subcategory: i.cf_subcategory || '', display_group: i.display_group || '' };
-                })
-              };
-              if (snapshotHidden) snapshotHidden.value = JSON.stringify(minimal);
-            })
-            .catch(function () { if (snapshotHidden) snapshotHidden.value = ''; });
-        }
-        opt.addEventListener('mousedown', selectRecipe);
-        opt.addEventListener('touchstart', selectRecipe, { passive: false });
-      });
-    }
-
-    input.addEventListener('focus', function () {
-      if (_productPickerTab === 'recipes') showRecipeOptions(input.value);
     });
+    function showRecipeOptions(term) { picker.show(term); }
+
     var timer;
     input.addEventListener('input', function () {
       clearTimeout(timer);
@@ -9447,37 +9516,16 @@ function parseWaitlistRecipeIds(value) {
     var dropdown = document.getElementById('bp-waitlist-recipe-' + id + '-dropdown');
     if (!input || !dropdown) return;
 
-    function showWaitlistRecipeOptions(term) {
-      if (!_waitlistRecipeCatalog) {
-        dropdown.innerHTML = '<div class="bp-vessel-option bp-vessel-option--empty">Loading recipes…</div>';
-        dropdown.style.display = '';
-        fetch(mwUrl() + '/api/recipes?status=active', { credentials: 'include' })
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
-            _waitlistRecipeCatalog = data.recipes || [];
-            showWaitlistRecipeOptions(term);
-          })
-          .catch(function () { _waitlistRecipeCatalog = []; showWaitlistRecipeOptions(term); });
-        return;
+    var picker = bpCreateRecipePicker({
+      input: input,
+      dropdown: dropdown,
+      getCatalog: function () { return _waitlistRecipeCatalog; },
+      setCatalog: function (v) { _waitlistRecipeCatalog = v; },
+      onSelect: function (rid, rname) {
+        attachWaitlistRecipe(id, rid, rname, cellEl);
       }
-      var matches = _waitlistRecipeCatalog.filter(function (r) {
-        if (!term) return true;
-        return ((r.name || '') + ' ' + (r.style || '')).toLowerCase().indexOf(term.toLowerCase()) !== -1;
-      }).slice(0, 15);
-      dropdown.innerHTML = matches.length === 0
-        ? '<div class="bp-vessel-option bp-vessel-option--empty">No recipes found</div>'
-        : matches.map(function (r) {
-            return '<div class="bp-vessel-option" data-rid="' + escapeHTML(r.recipe_id || '') + '" data-rname="' + escapeHTML(r.name || '') + '">' +
-              escapeHTML(r.name || '') + '</div>';
-          }).join('');
-      dropdown.style.display = '';
-      Array.prototype.forEach.call(dropdown.querySelectorAll('.bp-vessel-option[data-rid]'), function (opt) {
-        opt.addEventListener('mousedown', function (e) {
-          e.preventDefault();
-          attachWaitlistRecipe(id, opt.getAttribute('data-rid'), opt.getAttribute('data-rname'), cellEl);
-        });
-      });
-    }
+    });
+    function showWaitlistRecipeOptions(term) { picker.show(term); }
 
     input.focus();
     input.addEventListener('input', function () {
@@ -9803,51 +9851,25 @@ function parseWaitlistRecipeIds(value) {
 
     // Shares _waitlistRecipeCatalog with the 80-04 per-row attach panel (own
     // lazy-fetch, never _recipesState) -- D-16: display-only, no detail fetch.
-    function showAddRecipeOptions(term) {
-      if (!recipeDropdown) return;
-      if (!_waitlistRecipeCatalog) {
-        recipeDropdown.innerHTML = '<div class="bp-vessel-option bp-vessel-option--empty">Loading recipes…</div>';
-        recipeDropdown.style.display = '';
-        fetch(mwUrl() + '/api/recipes?status=active', { credentials: 'include' })
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
-            _waitlistRecipeCatalog = data.recipes || [];
-            showAddRecipeOptions(term);
-          })
-          .catch(function () { _waitlistRecipeCatalog = []; showAddRecipeOptions(term); });
-        return;
+    var addPicker = recipeInput && recipeDropdown ? bpCreateRecipePicker({
+      input: recipeInput,
+      dropdown: recipeDropdown,
+      getCatalog: function () { return _waitlistRecipeCatalog; },
+      setCatalog: function (v) { _waitlistRecipeCatalog = v; },
+      onSelect: function (rid, rname) {
+        if (!selectedRecipes.some(function (r) { return r.recipe_id === rid; })) {
+          selectedRecipes.push({ recipe_id: rid, name: rname });
+          renderAddRecipeChips();
+        }
+        addPicker.close();
+        recipeInput.value = '';
       }
-      var matches = _waitlistRecipeCatalog.filter(function (r) {
-        if (!term) return true;
-        return ((r.name || '') + ' ' + (r.style || '')).toLowerCase().indexOf(term.toLowerCase()) !== -1;
-      }).slice(0, 15);
-      recipeDropdown.innerHTML = matches.length === 0
-        ? '<div class="bp-vessel-option bp-vessel-option--empty">No recipes found</div>'
-        : matches.map(function (r) {
-            return '<div class="bp-vessel-option" data-rid="' + escapeHTML(r.recipe_id || '') + '" data-rname="' + escapeHTML(r.name || '') + '">' +
-              escapeHTML(r.name || '') + '</div>';
-          }).join('');
-      recipeDropdown.style.display = '';
-      Array.prototype.forEach.call(recipeDropdown.querySelectorAll('.bp-vessel-option[data-rid]'), function (opt) {
-        opt.addEventListener('mousedown', function (e) {
-          e.preventDefault();
-          var rid = opt.getAttribute('data-rid');
-          var rname = opt.getAttribute('data-rname');
-          if (!selectedRecipes.some(function (r) { return r.recipe_id === rid; })) {
-            selectedRecipes.push({ recipe_id: rid, name: rname });
-            renderAddRecipeChips();
-          }
-          recipeDropdown.style.display = 'none';
-          if (recipeInput) recipeInput.value = '';
-        });
-      });
-    }
+    }) : null;
 
-    if (recipeInput) {
-      recipeInput.addEventListener('focus', function () { showAddRecipeOptions(recipeInput.value); });
-      recipeInput.addEventListener('input', function () { showAddRecipeOptions(recipeInput.value); });
+    if (recipeInput && addPicker) {
+      recipeInput.addEventListener('input', function () { addPicker.show(recipeInput.value); });
       recipeInput.addEventListener('blur', function () {
-        setTimeout(function () { if (recipeDropdown) recipeDropdown.style.display = 'none'; }, 200);
+        setTimeout(function () { addPicker.close(); }, 200);
       });
     }
 
@@ -11644,6 +11666,10 @@ function parseWaitlistRecipeIds(value) {
       // Phase 80-05: test-only seam for the manual-add sheet (D-21-D-25) --
       // same rationale as the Contact sheet seam above.
       _openWaitlistAddSheetForTest: openWaitlistAddSheet,
+      // Phase 90-09: seams for the shared recipe dropdown across the four pickers.
+      _openRecipeAttachPanelForTest: openRecipeAttachPanel,
+      _bindRecipePickerSearchForTest: bindRecipePickerSearch,
+      _setProductPickerTabForTest: function (v) { _productPickerTab = v; },
       // Plan 36-22: test-only state accessors for the cache-bust state vars
       getStateForTest: function () {
         return {

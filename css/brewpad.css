@@ -2916,3 +2916,15 @@ textarea.bp-input {
   border-radius: var(--r-md);
   background: var(--ledger-soft);
 }
+
+/* Phase 90-09: shared full-list recipe dropdown (name over style) */
+.bp-recipe-dropdown .bp-vessel-option {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+}
+.bp-recipe-opt-name { font-size: 14px; font-weight: 700; }
+.bp-recipe-opt-style { font-size: 12px; font-weight: 700; color: var(--ink-secondary); margin-top: 4px; }
+@media (min-width: 768px) {
+  .bp-vessel-dropdown.bp-recipe-dropdown { max-height: 320px; }
+}
