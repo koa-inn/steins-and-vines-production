@@ -8679,6 +8679,8 @@
     var r = recipe || {};
     document.getElementById('recipe-name').value = r.name || '';
     document.getElementById('recipe-style').value = r.style || '';
+    var beerCategorySelect = document.getElementById('recipe-beer-category');
+    if (beerCategorySelect) beerCategorySelect.value = r.beer_category || '';
     document.getElementById('recipe-description').value = r.description || '';
     document.getElementById('recipe-batch-size').value = r.batch_size_l || '';
     document.getElementById('recipe-abv').value = r.abv || '';
@@ -9055,6 +9057,7 @@
       ibu: parseInt(document.getElementById('recipe-ibu').value, 10) || 0,
       colour_srm: parseInt(document.getElementById('recipe-colour').value, 10) || 0,
       schedule_id: document.getElementById('recipe-schedule-select').value || null,
+      beer_category: document.getElementById('recipe-beer-category') ? document.getElementById('recipe-beer-category').value : '',
       pricing_mode: document.getElementById('recipe-pricing-mode') ? document.getElementById('recipe-pricing-mode').value : 'locked',
       locked_price: parseFloat(document.getElementById('recipe-locked-price').value) || 0,
       service_fee: parseFloat(document.getElementById('recipe-service-fee').value) || 45,
@@ -11728,6 +11731,7 @@
     var payload = {
       name: name,
       style: (selectedRecipe && selectedRecipe.style) || '',
+      beer_category: (selectedRecipe && selectedRecipe.beer_category) || '',
       batch_size_l: (selectedRecipe && selectedRecipe.batch_size_l) || null,
       pricing_mode: 'dynamic',
       status: 'draft',
@@ -11814,6 +11818,7 @@
       kioskSaveRecipeQuickEdit: kioskSaveRecipeQuickEdit,
       kioskRefreshRecipeFromDetail: kioskRefreshRecipeFromDetail,
       _recipesSaveForTest: saveRecipe,
+      _populateRecipeFormForTest: populateRecipeForm,
       _recipesDeleteForTest: deleteRecipe,
       // Phase 36 GAP-1 test hook (36-09): allows tests to invoke the expand body
       // without wiring up the full kioskShowRecipePrompt DOM context.

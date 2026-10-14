@@ -780,6 +780,7 @@ function buildRecipePayload(formData, ingredients) {
   return {
     name: formData.name || '',
     style: formData.style || '',
+    beer_category: formData.beer_category || '',
     description: formData.description || '',
     batch_size_l: formData.batch_size_l || 0,
     abv: formData.abv || 0,
@@ -2005,6 +2006,7 @@ function parseWaitlistRecipeIds(value) {
     var payload = {
       name: name,
       style: snap.style || '',
+      beer_category: snap.beer_category || '',
       batch_size_l: snap.batch_size_l || null,
       pricing_mode: 'dynamic',
       status: 'draft',
@@ -2742,6 +2744,7 @@ function parseWaitlistRecipeIds(value) {
     var get = function (id) { return document.getElementById(id); };
     if (get('bp-recipe-name')) get('bp-recipe-name').value = r.name || '';
     if (get('bp-recipe-style')) get('bp-recipe-style').value = r.style || '';
+    if (get('bp-recipe-beer-category')) get('bp-recipe-beer-category').value = r.beer_category || '';
     if (get('bp-recipe-description')) get('bp-recipe-description').value = r.description || '';
     if (get('bp-recipe-batch-size')) get('bp-recipe-batch-size').value = r.batch_size_l || '';
     if (get('bp-recipe-abv')) get('bp-recipe-abv').value = r.abv || '';
@@ -3059,6 +3062,7 @@ function parseWaitlistRecipeIds(value) {
       recipe_id: null,
       name: 'Copy of ' + (r.name || ''),
       style: r.style || '',
+      beer_category: r.beer_category || '',
       description: r.description || '',
       batch_size_l: r.batch_size_l || 0,
       abv: r.abv || 0,
@@ -3370,6 +3374,7 @@ function parseWaitlistRecipeIds(value) {
     return {
       name: get('bp-recipe-name') ? get('bp-recipe-name').value.trim() : '',
       style: get('bp-recipe-style') ? get('bp-recipe-style').value.trim() : '',
+      beer_category: get('bp-recipe-beer-category') ? get('bp-recipe-beer-category').value : '',
       description: get('bp-recipe-description') ? get('bp-recipe-description').value.trim() : '',
       batch_size_l: parseFloat(get('bp-recipe-batch-size') ? get('bp-recipe-batch-size').value : 0) || 0,
       abv: parseFloat(get('bp-recipe-abv') ? get('bp-recipe-abv').value : 0) || 0,
@@ -10940,6 +10945,8 @@ function parseWaitlistRecipeIds(value) {
     module.exports = Object.assign(module.exports || {}, {
       _initGoogleAuth: initGoogleAuth,
       _countRecipesUsingScheduleForTest: countRecipesUsingSchedule,
+      _bpPopulateRecipeFormForTest: populateRecipeForm,
+      _bpReadRecipeFormDataForTest: readRecipeFormData,
       _buildSchedFormForTest: buildSchedForm,
       _deleteScheduleForTest: deleteSchedule,
       _archiveScheduleForTest: archiveSchedule,
