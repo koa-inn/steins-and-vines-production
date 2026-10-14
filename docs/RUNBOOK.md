@@ -736,6 +736,24 @@ that a live batch references will deactivate rather than delete. Staging `recipe
 compares against the same shared sheet production reads, so expect differences for anything
 staging wrote.
 
+#### Staging recipe refresh (re-backfill)
+
+1. Download a snapshot .xlsx from the shared workbook (kept outside the repo).
+2. Owner tunnel: `railway connect Postgres --tunnel-only --environment staging`, then
+   `read -s BACKFILL_DATABASE_URL && export BACKFILL_DATABASE_URL`.
+3. Tables must be empty: delete from `recipe_ingredients`, then `recipes`. psql is not installed
+   locally; use `docker run --rm -it postgres:18-alpine psql "$BACKFILL_DATABASE_URL"` or a
+   node+pg one-liner.
+4. From `zoho-middleware/`: `recipes-backfill.js --file=<path> --dry-run` (0 rejects), then
+   `--promote`, then `recipes-verify.js --file=<path>`.
+5. Kill the leftover ssh child of the tunnel.
+
+On staging the scripts run from current `main` (staging has migration 0006 once Phase 89 is
+pushed, and needs the sheet `beer_category` header once `main` carries the 89 spec). Never run
+`recipes-replay-to-sheet.js --apply` from staging: the sheet is the shared production workbook.
+Expected verify noise after staff set categories on staging: `beer_category` mismatches for the
+edited recipes (staging writes never reach the sheet).
+
 ### 3. Apps Script redeploy
 
 Three new actions: `mirror_recipe_state`, `mirror_recipe_delete`, `recipe_batch_ref_count`.
@@ -760,6 +778,33 @@ rather default blank `pricing_mode` to `locked`, that is a code change, not a ru
 
 ### 5. After-hours production cutover
 
+> ⚠ **Phase 89 script-source rule (D-14).** Until Phase 89 is promoted to production, run
+> `scripts/backfill/recipes-backfill.js`, `recipes-verify.js` and `recipes-replay-to-sheet.js`
+> ONLY from a pinned worktree of `d2c66be9`, never from `main`, for the entire 85-13 -> 85-14
+> window (cutover, 7-day dual window, flip, any rollback/replay). Why:
+>
+> - `main`'s spec requires a `beer_category` sheet header (`headerRejects` rejects the whole
+>   Recipes sheet otherwise).
+> - `main`'s backfill inserts, and verify/replay select, a `beer_category` column that
+>   production Postgres does not have until migration 0006 ships with the Phase 89 promotion.
+> - The pinned scripts are byte-identical to today's apart from that column (`git diff
+>   d2c66be9 HEAD` on the backfill scripts was empty) and tolerate an extra sheet column, so
+>   they work whether or not the Apps Script redeploy has already added the header.
+>
+> Procedure (use Node 24, BC permanent time):
+>
+> ```bash
+> git worktree add ../sv-85-pinned d2c66be9
+> cd ../sv-85-pinned/zoho-middleware && nvm use 24 && npm ci
+> git -C ../sv-85-pinned rev-parse --short HEAD   # must print d2c66be9; record in 85-DUAL-LOG.md
+> ```
+>
+> Run every recipes script from there. Interaction: after the Phase 89 Apps Script redeploy
+> (v63 expected) a mirror write from production adds the `beer_category` header and writes the
+> Postgres value (blank before 89 ships), so nobody types categories on the sheet by hand;
+> state-copy mirrors overwrite them. This callout is removed in the Phase 89 production
+> promotion's release step.
+
 Run from `zoho-middleware/`. The Railway tunnel runs in the owner's own terminal; the database
 URL comes from `read -s BACKFILL_DATABASE_URL && export BACKFILL_DATABASE_URL`, never argv.
 Snapshots are File, Download .xlsx, kept outside the repo, equals-form `--file=`.
@@ -783,6 +828,7 @@ Snapshots are File, Download .xlsx, kept outside the repo, equals-form `--file=`
 ### 6. Dual window (D-07)
 
 At least 7 days, all ops observed, zero unexplained discrepancies. No auto-rollback.
+Run from the pinned d2c66be9 worktree (see §5 callout, D-14).
 
 - Daily Sentry check: `[dual-write] recipes.quote`, `[dual-write] recipes.sale`, component
   `recipes-mirror`, component `recipes-dual-price`. A `recipes-dual-price` warning means a
@@ -817,16 +863,22 @@ Tick the rows in 85-DUAL-LOG.md "Op-coverage table" as each op is seen.
 
 ### 8. Flip to postgres
 
+Run from the pinned d2c66be9 worktree (see §5 callout, D-14).
+
 Owner decision, after hours, once the §6 bar is met. Set `RECIPES_STORE=postgres`, confirm
 `/health`, run `recipes-verify.js` again. The mirror to the sheet **remains permanent on
 production** in `postgres` mode.
 
 ### 9. Rollback dual → sheets
 
+Run from the pinned d2c66be9 worktree (see §5 callout, D-14).
+
 Set `RECIPES_STORE=sheets`, then run `recipes-verify.js`. On any mismatch run
 `node scripts/backfill/recipes-replay-to-sheet.js --apply`, then verify again.
 
 ### 10. Rollback postgres → sheets
+
+Run from the pinned d2c66be9 worktree (see §5 callout, D-14).
 
 Same as §9: the sheet is a full state copy kept by the mirror. Replay with
 `recipes-replay-to-sheet.js --apply` if verify shows drift.
@@ -860,6 +912,7 @@ needed, recreate it from the most recent .xlsx snapshot or the Railway backup.
 ### 13. Release checklist
 
 - **Staging candidate commit SHA:** `bd12df33` (85-12 Task 1 green gate; later commits are docs-only). Production SHA to be filled in by Plan 85-13.
+- [ ] recipes scripts run from the pinned d2c66be9 worktree (rev-parse recorded in 85-DUAL-LOG.md) until Phase 89 reaches production
 
 
 ---
