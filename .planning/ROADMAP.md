@@ -154,7 +154,8 @@
 - [ ] **Phase 87: Batches + BatchTasks + PlatoReadings + VesselHistory → Postgres** — the big one; needs its own approved design pass first: `deleteBatch`'s 3-sheet cascade becomes FKs `ON DELETE CASCADE`; `SV-B-`/`PR-` IDs sequence-backed; dashboard/calendar/upcoming/location-conflict queries become indexed SQL; the admin-proxy seam (17 actions) swaps implementation so `js/brewpad.js` needs zero changes; `batch.html`'s public token-authenticated read path and the `pos.js` reconcile/kiosk-sale → batch hooks rewired; **maintenance-window cutover (a Sunday) instead of dual-write** — four correlated tables make dual genuinely hard; backfill rehearsed on staging against a fresh workbook snapshot first; Zoho `cf_batch_status` sync unchanged. (DB-06)
 - [ ] **Phase 88: Retire the Legacy Sheets** — Reservations/Holds/Kits DELETED (with the `onFormSubmit` trigger), not migrated — Zoho is the system of record; Schedule + Homepage move to committed repo content (the `content/zoho-snapshot.json` pattern) with the public pages reading the repo file, so opening hours and footer links stay off Railway; ProductEvents deleted or left as a dead tab (owner call); `adminApi.gs` shrinks to the production mirror writer (or is deleted); nightly Drive backup replaced by verified Railway backups/PITR plus a scheduled `pg_dump` to Drive with a restore drill; `docs/DATA-MODEL.md`, `docs/APPS_SCRIPT.md`, `docs/RUNBOOK.md` (rollback by flag, ledger replay, restore from dump) and CLAUDE.md updated. (DB-07)
 - [ ] **Phase 89: Beer category field for recipes** — optional `beer_category` enum (12 beer tint keys) set in BrewPad/admin, round-tripped through sheet, Postgres, backfill/verify and the public API, and used to colour beer recipe cards on beer.html.
-- [ ] **Phase 90: BrewPad batch invoice linking** — optional invoice link captured at manual batch creation, an "unlinked" filter on the batch list, and a human-confirmed review queue to backfill the 57 unlinked batches. Also: online grain orders can be split across recipes at checkout with a single milling fee. Also: a one-tap kiosk canning bundle (flat $40/$35 plus 12% tax, cans relieved at the actual count).
+- [ ] **Phase 90: BrewPad batch invoice linking** — optional invoice link captured at manual batch creation, an "unlinked" filter on the batch list, and a human-confirmed review queue to backfill the 57 unlinked batches. Also: a one-tap kiosk canning bundle (flat $40/$35 plus 12% tax, cans relieved at the actual count). Also: a full-list recipe picker dropdown in BrewPad, kiosk and the recipe editor.
+- [ ] **Phase 91: Online grain-order recipe splitting** — customers separate grains into up to 4 recipe bags as they select them (quantity splits allowed), staff see the split in Zoho notes, the email and BrewPad, and the milling fee stays once per order.
 
 ### 📋 Backlog — captured, not yet scheduled
 
@@ -1645,16 +1646,29 @@ Plans:
 ### Phase 90: BrewPad batch invoice linking
 
 **Goal:** Manually created BrewPad batches can carry their Zoho invoice link (`zoho_so_number`) from the moment they are created, staff can see which batches have no link, and the 57-batch backlog (28% of 206) is cleared through a review queue in which a person confirms every match. Every automated path (kiosk, zoho_scan, online, research) already links 63 of 63; the gap is the BrewPad create-batch sheet, which has no invoice input and leaves `zoho_so_number` out of the `create_batch` payload. The invoice field is optional, and internal/staff batches are handled deliberately (open owner decision: whether `source` becomes editable, beer-golive handoff §6). Do NOT touch `createBatchesFromSale` / `detectRecipeSale`, and do NOT auto-link from customer + product + date.
-**Second workstream (owner, 2026-10-14): online grain-order recipe splitting.** A customer buying grains on the online store can use the checkout UI to split them across recipes (e.g. two recipes, two separate bags), so staff know how to separate and mill the order, and the customer pays the milling fee once per order, not once per recipe. Online checkout already charges milling as one flat fee per order (`js/modules/12-checkout.js:1359`). Keep that and lock it with a test. The split is new information that has to reach staff. The two workstreams share no files and should be separate plans/waves.
+**Grain-order recipe splitting moved to Phase 91** (owner, 2026-10-14 discuss-phase: bigger than expected, since the split happens at grain selection time).
 **Third workstream (owner, 2026-10-14): kiosk one-tap canning bundle.** The operator picks the batch type (beer 25 L $40 / cider or sparkling wine 23 L $35; still wine is never canned) and the can size. The kiosk adds the real can item at the actual quantity used with rate $0 (this relieves stock), plus a custom line at the bundle price taxed at 12% GST+PST like the cans. It follows the `kioskSyncKitFees()` add/teardown pattern (`js/kiosk-core.js:772`) and the Phase 43 custom-line contract. It warns above the cap (beer 55/72, cider and sparkling wine 50/68). No Zoho composite or bundle item, and no discount-preset approach. This is a kiosk money-path change: it needs a real staging terminal sale before production. The related discount-alias bug is already fixed in `eaf0b8cc`.
+**Fourth workstream (owner, 2026-10-14): recipe picker dropdown.** Selecting a recipe shows the full list of active recipes on focus, and typing filters it. This covers the BrewPad new-batch picker, BrewPad attach-recipe, kiosk recipe mode, and the recipe editor (duplicate check plus "start from this recipe").
 **Requirements**: TBD
 **Depends on:** none hard. Must work on both batch stores (Phase 87 `BATCHES_STORE` sheets/dual/postgres; PG `batches.zoho_so_number` already exists, `0005_batches.sql:51`).
 **Plans:** 0 plans
-**Context:** `.planning/phases/90-brewpad-batch-invoice-linking/90-NOTES.md` (owner handoff 2026-10-14: per-source link measurement, root cause at `js/brewpad.js:7591`, reuse of `fetchSoSearch` / "Link to Invoice", `/api/batch/scan-invoices` for the review queue, acceptance criteria, do-not-do list)
+**Context:** `.planning/phases/90-brewpad-batch-invoice-linking/90-CONTEXT.md` (decisions D-01..D-21, 2026-10-14) and `.planning/phases/90-brewpad-batch-invoice-linking/90-NOTES.md` (owner handoff 2026-10-14: per-source link measurement, root cause at `js/brewpad.js:7591`, reuse of `fetchSoSearch` / "Link to Invoice", `/api/batch/scan-invoices` for the review queue, acceptance criteria, do-not-do list)
 
 Plans:
 
 - [ ] TBD (run /gsd-plan-phase 90 to break down)
+
+### Phase 91: Online grain-order recipe splitting
+
+**Goal:** A customer buying grains online can separate them into up to 4 recipe bags *as the grains are selected*. One grain line can be split by quantity across bags, and the split applies to all grains, milled or not. Staff see the bag breakdown in the Zoho sales order/invoice notes, the order confirmation email and the BrewPad `online` batch record. The milling fee stays once per order (`js/modules/12-checkout.js` ~:1359); pin it with a test. This is a cart and checkout money-path change.
+**Requirements**: TBD
+**Depends on:** none hard. The select-time UX is undecided (bag selector on add-to-cart vs recipe-builder mode): run /gsd-discuss-phase 91.
+**Plans:** 0 plans
+**Context:** starting decisions in `.planning/phases/90-brewpad-batch-invoice-linking/90-CONTEXT.md` <deferred> and 90-NOTES.md §"Second workstream".
+
+Plans:
+
+- [ ] TBD (run /gsd-discuss-phase 91, then /gsd-plan-phase 91)
 
 ---
 
