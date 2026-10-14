@@ -1614,14 +1614,14 @@ Plans:
 **Goal:** Staff set an explicit beer category on each recipe in BrewPad (and admin), and the public beer page colours each recipe card from it, replacing any keyword guessing from the free-text `style`. `beer_category` is an optional enum reusing the 12 existing beer tint keys (pilsner, lager, pale, ipa, amber, wheat, session, saison, stout, porter, redale, brown); blank keeps the default gold. It round-trips through every recipe layer: Apps Script (sheet column + create/update + PG->sheet mirror), Postgres (additive migration 0006 + recipe-pg), the backfill spec and verify, the public recipe API allowlist, both editors, and `buildRecipeCard` via `getTintClass`.
 **Requirements**: TBD
 **Depends on:** Phase 85 (sequencing only: the sheet column must exist before the 85-13 production backfill runs with the updated spec, or the backfill rejects the whole Recipes sheet)
-**Plans:** 9 plans
+**Plans:** 2/9 plans executed
 **Context:** `.planning/phases/89-beer-category-field-for-recipes/89-NOTES.md` (layer-by-layer touchpoint map, ordering traps, pinned tests, owner decisions so far)
 
 Plans:
 **Wave 1**
 
-- [ ] 89-01-PLAN.md — RUNBOOK D-14 pinned d2c66be9 worktree rule (first) + shared normalizeBeerCategory in recipe-rules.js
-- [ ] 89-02-PLAN.md — BEER_CATEGORIES in constants.js + whitelisted card tint in buildRecipeCard
+- [x] 89-01-PLAN.md — RUNBOOK D-14 pinned d2c66be9 worktree rule (first) + shared normalizeBeerCategory in recipe-rules.js
+- [x] 89-02-PLAN.md — BEER_CATEGORIES in constants.js + whitelisted card tint in buildRecipeCard
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

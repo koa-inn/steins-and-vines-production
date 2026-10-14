@@ -4,8 +4,8 @@ milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
 stopped_at: Phase 89 context gathered
-last_updated: "2026-10-14T20:59:19.933Z"
-last_activity: 2026-10-14 -- Phase 89 planning complete
+last_updated: "2026-10-14T21:00:43.359Z"
+last_activity: 2026-10-14 -- Phase 89 execution started
 progress:
   total_phases: 76
   completed_phases: 30
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 87 — batches-batchtasks-platoreadings-vesselhistory-postgres
+**Current focus:** Phase 89 — beer-category-field-for-recipes
 
 ## Current Position
 
-Phase: 87 (batches-batchtasks-platoreadings-vesselhistory-postgres) — EXECUTING
-Plan: 19 of 20
-Status: Ready to execute
-Last activity: 2026-10-14 -- Phase 89 planning complete
+Phase: 89 (beer-category-field-for-recipes) — EXECUTING
+Plan: 1 of 9
+Status: Executing Phase 89
+Last activity: 2026-10-14 -- Phase 89 execution started
 
 **Phase 87:** 18/20 plans done. Design approved; all code merged and on staging behind `BATCHES_STORE`
 (off); security review signed off; staging rehearsal passed 2026-10-09 (0 rejects, 0 verify mismatches,
