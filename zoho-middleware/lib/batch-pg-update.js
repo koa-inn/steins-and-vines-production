@@ -63,9 +63,12 @@ var TOKEN_SQL =
   'update batches set access_token = $2, last_regenerated_at = $3, last_updated = $3 where batch_id = $1';
 
 // Fixed allow-list of updatable columns (T-87-08-01): field -> value kind. access_token,
-// created_by, source and friends are deliberately absent.
+// created_by and friends are deliberately absent. source is editable only through the
+// manual <-> internal guard (batchRules.sourceTransitionDecision, Phase 90 D-05) applied in
+// updateBatch before prepareFieldValues; no other value can reach this list.
 var FIELD_KINDS = {
   status: 'status',
+  source: 'text',
   vessel_id: 'text',
   shelf_id: 'text',
   bin_id: 'text',
@@ -266,6 +269,21 @@ async function updateBatch(client, args, opts) {
 
   if (isVersionConflict(args.expectedVersion, row)) {
     return fail('version_conflict', 'Batch was modified by another user. Refresh and try again.');
+  }
+
+  // Phase 90 (D-05): source is editable only manual <-> internal. Work on a shallow copy so the
+  // caller's updates object is never mutated; an off-list target is dropped, a locked source rejects.
+  if (updates.source !== undefined) {
+    var sourceDecision = batchRules.sourceTransitionDecision(row.source, updates.source);
+    if (sourceDecision.ok === false) return sourceDecision;
+    var copy = {};
+    Object.keys(updates).forEach(function (k) { copy[k] = updates[k]; });
+    if (sourceDecision.action === 'write') {
+      copy.source = sourceDecision.value;
+    } else {
+      delete copy.source;
+    }
+    updates = copy;
   }
 
   // Everything that can reject is checked before the first write.
