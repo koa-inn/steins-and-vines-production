@@ -322,8 +322,11 @@ function sendWaitlistNotification(data) {
     to: staffTo(),
     replyTo: email || staffTo(),
     subject: 'New beer waitlist signup',
+    // Sent alongside the fire-and-forget MailerLite call, before it answers —
+    // so point at the sheet flag rather than claiming the sync succeeded.
     text: 'A new customer joined the beer waitlist:\n\nEmail: ' + (email || 'N/A') +
-      '\n\nThey have also been added to the MailerLite beer-waitlist group.'
+      '\n\nThey are being added to the MailerLite beer-waitlist group. To confirm it worked, ' +
+      'check that their row in the Waitlist sheet shows mailerlite_synced = TRUE.'
   });
 }
 
