@@ -79,6 +79,19 @@ Phase 90 has three workstreams that share no files. Plan them as separate plans/
   - As the name is typed, show matching existing recipes, with a warning when the name already exists.
   - Each match has a **"Start from this recipe"** action that copies it, reusing the existing clone / save-as-new path (`bpCloneRecipePayload` / `bpSaveAsNewRecipe` in BrewPad, `kioskSaveAsNewRecipe` in admin).
 
+### Addendum: owner answers at plan time (2026-10-14) and research corrections
+- **D-22:** Canning bundle prices ($40 beer / $35 cider-sparkling) are a **server-side constant** in the middleware next to the bundle rules. Changing them needs a code deploy, not env vars. The server owns the price and the 12% tax, and the client never sets them.
+- **D-23:** The two BrewPad **waitlist recipe pickers** (research: `js/brewpad.js` ~:8884 and ~:9241) also get the full-list dropdown (extends D-19).
+- **D-24:** The **Unlinked** filter excludes disabled or deleted batches as well as `source='internal'` (refines D-06).
+- **D-25:** The canning bundle button goes in the **standalone kiosk (`kiosk.html`) only**. The kiosk embedded in admin.html is unchanged.
+- **Research corrections (supersede the CONTEXT wording above):**
+  - The D-05 guard treats a **blank/legacy `source` as editable**, like `manual`. 82 batches have a blank source, 24 of them unlinked.
+  - **`kiosk_recipe`** joins the locked automated sources.
+  - Batches support **sheets and postgres only**, not dual.
+  - Candidate "Link invoice" (D-07) writes **only `zoho_so_number`**, then calls the invoice-status reconcile. It does not reuse `handleSoSelect`, which overwrites customer and product fields.
+  - "Start from this recipe" (D-21) fetches the recipe detail and then uses `bpCloneRecipePayload` and the BrewPad save-as-new path. `kioskSaveAsNewRecipe` is not the right target.
+  - The bundle needs **server-owned line handling** in both `/api/kiosk/sale` and `/api/kiosk/sale/confirm` (RESEARCH finding 1).
+
 ### Claude's Discretion
 - The exact ±60-day window and the "kit line" detection rule within D-08. Keep the human-confirm invariant.
 - Visual design of the chip, candidate cards, canning picker and dropdown, following existing BrewPad and kiosk styles.
