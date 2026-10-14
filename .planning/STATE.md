@@ -4,14 +4,14 @@ milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
 stopped_at: Phase 89 context gathered
-last_updated: "2026-10-14T18:29:48.923Z"
-last_activity: 2026-10-13
+last_updated: "2026-10-14T20:59:19.933Z"
+last_activity: 2026-10-14 -- Phase 89 planning complete
 progress:
-  total_phases: 75
+  total_phases: 76
   completed_phases: 30
-  total_plans: 251
+  total_plans: 260
   completed_plans: 245
-  percent: 40
+  percent: 39
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 Phase: 87 (batches-batchtasks-platoreadings-vesselhistory-postgres) — EXECUTING
 Plan: 19 of 20
 Status: Ready to execute
-Last activity: 2026-10-13
+Last activity: 2026-10-14 -- Phase 89 planning complete
 
 **Phase 87:** 18/20 plans done. Design approved; all code merged and on staging behind `BATCHES_STORE`
 (off); security review signed off; staging rehearsal passed 2026-10-09 (0 rejects, 0 verify mismatches,

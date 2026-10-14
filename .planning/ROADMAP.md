@@ -1618,14 +1618,28 @@ Plans:
 **Context:** `.planning/phases/89-beer-category-field-for-recipes/89-NOTES.md` (layer-by-layer touchpoint map, ordering traps, pinned tests, owner decisions so far)
 
 Plans:
+**Wave 1**
+
 - [ ] 89-01-PLAN.md — RUNBOOK D-14 pinned d2c66be9 worktree rule (first) + shared normalizeBeerCategory in recipe-rules.js
 - [ ] 89-02-PLAN.md — BEER_CATEGORIES in constants.js + whitelisted card tint in buildRecipeCard
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 89-03-PLAN.md — Apps Script normaliser, self-migrating column, create/update/mirror + parity and key-drift tests
 - [ ] 89-04-PLAN.md — Migration 0006 (no CHECK) + recipe-pg
 - [ ] 89-05-PLAN.md — API 400 invalid_beer_category + public allowlist
 - [ ] 89-06-PLAN.md — BrewPad + admin "Beer category" selects
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 89-07-PLAN.md — Backfill spec/reject/verify (D-14-gated spec commit, after 89-01 + 89-04)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 89-08-PLAN.md — Single phase build + authoritative full-suite gate (after all code plans)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 89-09-PLAN.md — Staging release, owner Apps Script redeploy, staff set D-06 categories, UAT, production promotion runsheet
 
 ### Phase 90: BrewPad batch invoice linking
@@ -1639,6 +1653,7 @@ Plans:
 **Context:** `.planning/phases/90-brewpad-batch-invoice-linking/90-NOTES.md` (owner handoff 2026-10-14: per-source link measurement, root cause at `js/brewpad.js:7591`, reuse of `fetchSoSearch` / "Link to Invoice", `/api/batch/scan-invoices` for the review queue, acceptance criteria, do-not-do list)
 
 Plans:
+
 - [ ] TBD (run /gsd-plan-phase 90 to break down)
 
 ---
