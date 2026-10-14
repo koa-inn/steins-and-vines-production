@@ -2741,3 +2741,63 @@ textarea.bp-input {
   background: rgba(184, 150, 62, 0.12);
   font-size: 0.875rem;
 }
+
+/* Phase 90-03: create-sheet invoice picker (chip, internal checkbox row, already-linked warning) */
+.bp-linked-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 0 16px;
+  min-height: 44px;
+  border-radius: 22px;
+  background: var(--batch-info-bg);
+  border: 1px solid var(--batch-info);
+  color: var(--batch-info);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.bp-linked-chip-x {
+  min-width: 44px;
+  min-height: 44px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.bp-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--ink-primary);
+}
+.bp-check-row input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.bp-so-linked-warn {
+  display: block;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: var(--batch-warning-bg);
+  border-left: 3px solid var(--batch-warning);
+  font-size: 0.75rem;
+  color: var(--ink-primary);
+}
+
+/* Phase 90-03: inline create error (duplicate invoice) */
+.bp-form-error {
+  margin: 8px 0;
+  padding: 8px 16px;
+  background: var(--batch-danger-bg);
+  border-left: 3px solid var(--batch-danger);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--batch-danger);
+}

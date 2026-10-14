@@ -2111,6 +2111,12 @@ function parseWaitlistRecipeIds(value) {
   // the INV-000151 class of bug). Fire-and-forget: never blocks or fails the delete UX
   // — a reconcile failure is silent (the one-time cleanup route is the backstop).
   function reconcileInvoiceStatusAfterDelete(zohoSoNumber) {
+    reconcileInvoiceStatus(zohoSoNumber);
+  }
+
+  // Shared fire-and-forget reconcile (delete path above, create-with-invoice path in
+  // the create sheet, Phase 90-03). A failure is silent; the cleanup route is the backstop.
+  function reconcileInvoiceStatus(zohoSoNumber) {
     if (!zohoSoNumber) return;
     fetch(mwUrl() + '/api/batch/reconcile-invoice-status', {
       method: 'POST',
@@ -2120,8 +2126,14 @@ function parseWaitlistRecipeIds(value) {
     }).catch(function () {});
   }
 
-  function fetchSoSearch(term) {
-    var resultsEl = document.getElementById('bp-so-search-results');
+  // opts (all optional; the detail-view caller passes none):
+  //   resultsId   - results container id (default 'bp-so-search-results')
+  //   onSelect    - fn({invoice_id, invoice_number, customer_name, customer_id, date});
+  //                 default is the detail-view handleSoSelect write path
+  //   renderExtra - fn(inv) -> escaped HTML appended inside each row
+  function fetchSoSearch(term, opts) {
+    opts = opts || {};
+    var resultsEl = document.getElementById(opts.resultsId || 'bp-so-search-results');
     if (!resultsEl) return;
     resultsEl.innerHTML = '<div class="bp-so-result-item" style="color:var(--ink-muted);">Searching…</div>';
 
@@ -2145,6 +2157,7 @@ function parseWaitlistRecipeIds(value) {
                + ' data-product-name="' + escapeHTML((inv.line_items && inv.line_items[0] ? inv.line_items[0].name : '') || '') + '">';
           html += '<span class="bp-so-result-name">' + escapeHTML(inv.customer_name) + '</span>';
           html += '<span class="bp-so-result-meta">' + escapeHTML(inv.invoice_number) + ' — ' + fmtDate(inv.date) + '</span>';
+          if (opts.renderExtra) html += opts.renderExtra(inv) || '';
           html += '</div>';
         }
         resultsEl.innerHTML = html;
@@ -2152,6 +2165,16 @@ function parseWaitlistRecipeIds(value) {
         var items = resultsEl.querySelectorAll('.bp-so-result-item[data-so-id]');
         for (var j = 0; j < items.length; j++) {
           items[j].addEventListener('click', function () {
+            if (opts.onSelect) {
+              opts.onSelect({
+                invoice_id: this.getAttribute('data-so-id'),
+                invoice_number: this.getAttribute('data-so-number'),
+                customer_name: this.getAttribute('data-customer-name'),
+                customer_id: this.getAttribute('data-customer-id'),
+                date: this.getAttribute('data-so-date')
+              });
+              return;
+            }
             handleSoSelect(this);
           });
         }
@@ -4546,7 +4569,8 @@ function parseWaitlistRecipeIds(value) {
       });
   }
 
-  function showConfirmSheet(message, okLabel, okCls, onOk) {
+  // subText (optional, Phase 90-03): muted second line under the message.
+  function showConfirmSheet(message, okLabel, okCls, onOk, subText) {
     var sheet = document.getElementById('bp-confirm-sheet');
     if (!sheet) {
       sheet = document.createElement('div');
@@ -4563,7 +4587,15 @@ function parseWaitlistRecipeIds(value) {
         '</div></div>';
       document.body.appendChild(sheet);
     }
-    document.getElementById('bp-confirm-sheet-msg').textContent = message;
+    var msgEl = document.getElementById('bp-confirm-sheet-msg');
+    msgEl.textContent = message;
+    if (subText) {
+      var subEl = document.createElement('span');
+      subEl.className = 'bp-confirm-sheet-sub';
+      subEl.style.display = 'block';
+      subEl.textContent = subText;
+      msgEl.appendChild(subEl);
+    }
     var okBtn = document.getElementById('bp-confirm-sheet-ok');
     okBtn.textContent = okLabel;
     okBtn.className = 'btn ' + (okCls || '');
@@ -7469,6 +7501,18 @@ function parseWaitlistRecipeIds(value) {
     html += '<button type="button" class="btn bp-btn-sm" id="bp-nc-save">Add Customer</button>';
     html += '</div></div></div>';
 
+    // Invoice (Phase 90-03, D-01/D-02): optional link captured at create time.
+    html += '<div class="bp-form-group" id="bp-new-so-group"><label>Invoice <span class="bp-optional">(optional)</span></label>';
+    html += '<div class="bp-vessel-wrap">';
+    html += '<input type="text" id="bp-new-so-search-input" class="bp-inline-input" placeholder="Search invoices by number or customer" autocomplete="off">';
+    html += '<div id="bp-new-so-chip" style="display:none;"></div>';
+    html += '<div class="bp-vessel-dropdown" id="bp-new-so-results" style="display:none;"></div>';
+    html += '<input type="hidden" id="bp-new-so-number">';
+    html += '<input type="hidden" id="bp-new-so-id">';
+    html += '</div>';
+    html += '<label class="bp-check-row" for="bp-new-no-invoice"><input type="checkbox" id="bp-new-no-invoice"> <span>No invoice (internal batch)</span></label>';
+    html += '</div>';
+
     // Start date
     html += '<div class="bp-form-group"><label>Start Date</label>';
     html += '<input type="date" id="bp-new-start-date" class="bp-inline-input" value="' + today + '"></div>';
@@ -7537,6 +7581,7 @@ function parseWaitlistRecipeIds(value) {
     });
 
     bindCustomerSearch();
+    bindCreateInvoicePicker();
 
     var vInput = document.getElementById('bp-new-vessel-text');
     var vDropdown = document.getElementById('bp-new-vessel-dropdown');
@@ -7592,38 +7637,65 @@ function parseWaitlistRecipeIds(value) {
         }
         var customerEmail = (document.getElementById('bp-new-customer-email') || {}).value || '';
 
-        submitBtn.disabled = true;
-        adminApiPost('create_batch', {
-          product_name: productName,
-          product_sku: productSku,
-          customer_firstname: customerFirstname || 'Walk-In',
-          customer_lastname: customerLastname || '',
-          customer_name: customerName || 'Walk-In',
-          customer_email: customerEmail,
-          start_date: startDate,
-          vessel_id: vesselId,
-          shelf_id: shelf,
-          bin_id: bin,
-          schedule_id: scheduleId,
-          notes: notes,
-          recipe_id: (document.getElementById('bp-new-recipe-id') || {}).value || '',
-          recipe_snapshot: (document.getElementById('bp-new-recipe-snapshot') || {}).value || ''
-        })
-          .then(function (result) {
-            showToast('Batch ' + (result.batch_id || '') + ' created', 'success');
-            closeCreateSheet();
-            _batchesLoaded = false;
-            _allBatchesData = [];
-            _eagerLoadTime = 0;
-            _upcomingLoaded = false;
-            _measBatches = [];
-            _dashLoadTime = 0;
-            loadBatches();
-          })
-          .catch(function (err) {
-            showToast('Failed: ' + err.message, 'error');
-            submitBtn.disabled = false;
-          });
+        var soNumber   = (document.getElementById('bp-new-so-number') || {}).value || '';
+        var noInvoice  = !!((document.getElementById('bp-new-no-invoice') || {}).checked);
+        var customerId = (document.getElementById('bp-new-customer-id') || {}).value || '';
+        // Captured BEFORE the call: a successful create clears _allBatchesData.
+        var linkedIds  = createSheetLinkedBatchIds(soNumber);
+
+        function doCreate() {
+          var oldErr = document.getElementById('bp-new-create-error');
+          if (oldErr && oldErr.parentNode) oldErr.parentNode.removeChild(oldErr);
+          submitBtn.disabled = true;
+          var payload = {
+            product_name: productName,
+            product_sku: productSku,
+            customer_firstname: customerFirstname || 'Walk-In',
+            customer_lastname: customerLastname || '',
+            customer_name: customerName || 'Walk-In',
+            customer_email: customerEmail,
+            start_date: startDate,
+            vessel_id: vesselId,
+            shelf_id: shelf,
+            bin_id: bin,
+            schedule_id: scheduleId,
+            notes: notes,
+            recipe_id: (document.getElementById('bp-new-recipe-id') || {}).value || '',
+            recipe_snapshot: (document.getElementById('bp-new-recipe-snapshot') || {}).value || '',
+            // undefined values are dropped by JSON.stringify, so only applicable keys are sent
+            customer_id: customerId || undefined,
+            zoho_so_number: soNumber || undefined,
+            source: (!soNumber && noInvoice) ? 'internal' : undefined
+          };
+          adminApiPost('create_batch', payload)
+            .then(function (result) {
+              showToast('Batch ' + (result.batch_id || '') + ' created', 'success');
+              if (soNumber) reconcileInvoiceStatus(soNumber);
+              closeCreateSheet();
+              _batchesLoaded = false;
+              _allBatchesData = [];
+              _eagerLoadTime = 0;
+              _upcomingLoaded = false;
+              _measBatches = [];
+              _dashLoadTime = 0;
+              loadBatches();
+            })
+            .catch(function (err) {
+              submitBtn.disabled = false;
+              if (err && err.code === 'duplicate_so_number') {
+                showCreateDuplicateBanner(linkedIds);
+                return;
+              }
+              showToast('Failed: ' + err.message, 'error');
+            });
+        }
+
+        if (!soNumber && !noInvoice) {
+          showConfirmSheet('Create without invoice?', 'Create batch', 'bp-confirm-btn--primary', doCreate,
+            'You can link an invoice later from the batch.');
+        } else {
+          doCreate();
+        }
       });
     }
   }
@@ -7782,6 +7854,128 @@ function parseWaitlistRecipeIds(value) {
         _kitCatalog = []; // graceful degradation — free text still works
         if (cb) cb();
       });
+  }
+
+  // Phase 90-03 (D-01/D-02/D-09/D-10): create-sheet invoice picker. Reuses fetchSoSearch;
+  // selecting only fills hidden fields and shows a chip. Nothing is written until Create batch.
+  function createSheetLinkedBatchIds(invoiceNumber) {
+    var ids = [];
+    var want = String(invoiceNumber || '').toLowerCase();
+    if (!want) return ids;
+    for (var i = 0; i < _allBatchesData.length; i++) {
+      var b = _allBatchesData[i];
+      if (String(b.zoho_so_number || '').toLowerCase() === want && b.batch_id) ids.push(b.batch_id);
+    }
+    return ids;
+  }
+
+  // Inline danger banner above the submit button; never auto-retries (Phase 90-03, D-09).
+  function showCreateDuplicateBanner(linkedIds) {
+    var actions = document.querySelector('#bp-create-submit');
+    actions = actions && actions.parentNode;
+    if (!actions || !actions.parentNode) return;
+    var banner = document.getElementById('bp-new-create-error');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'bp-new-create-error';
+      banner.className = 'bp-form-error';
+      banner.setAttribute('role', 'alert');
+      actions.parentNode.insertBefore(banner, actions);
+    }
+    banner.textContent = 'That invoice already has a batch for this product' +
+      (linkedIds && linkedIds.length ? ' (' + linkedIds.join(', ') + ')' : '') +
+      '. Create without an invoice and link it from the batch instead.';
+  }
+
+  function bindCreateInvoicePicker() {
+    var input   = document.getElementById('bp-new-so-search-input');
+    var results = document.getElementById('bp-new-so-results');
+    var chip    = document.getElementById('bp-new-so-chip');
+    var soNum   = document.getElementById('bp-new-so-number');
+    var soId    = document.getElementById('bp-new-so-id');
+    var noInv   = document.getElementById('bp-new-no-invoice');
+    var custText = document.getElementById('bp-new-customer-text');
+    if (!input || !results || !chip || !soNum || !soId || !noInv) return;
+
+    var timer;
+    var touched = false;   // staff typed in the invoice box themselves; stop re-seeding
+
+    function hideResults() {
+      results.style.display = 'none';
+      results.innerHTML = '';
+    }
+
+    function runSearch(term) {
+      results.style.display = '';
+      fetchSoSearch(term, {
+        resultsId: 'bp-new-so-results',
+        onSelect: selectCreateInvoice,
+        renderExtra: function (inv) {
+          var ids = createSheetLinkedBatchIds(inv.invoice_number);
+          if (!ids.length) return '';
+          return '<span class="bp-so-linked-warn">Already linked to ' + ids.map(escapeHTML).join(', ') + '</span>';
+        }
+      });
+    }
+
+    function selectCreateInvoice(inv) {
+      soNum.value = inv.invoice_number || '';
+      soId.value = inv.invoice_id || '';
+      noInv.checked = false;
+      input.style.display = 'none';
+      hideResults();
+      chip.innerHTML = '<span class="bp-linked-chip"><span class="bp-linked-chip-text">' + escapeHTML(inv.invoice_number) +
+        '</span><button type="button" class="bp-linked-chip-x" aria-label="Clear invoice">\u00d7</button></span>';
+      chip.style.display = '';
+      var x = chip.querySelector('.bp-linked-chip-x');
+      if (x) x.addEventListener('click', clearInvoice);
+    }
+
+    function clearInvoice() {
+      soNum.value = '';
+      soId.value = '';
+      chip.innerHTML = '';
+      chip.style.display = 'none';
+      input.style.display = '';
+    }
+
+    function seedFromCustomer() {
+      if (touched || soNum.value || noInv.checked || !custText) return;
+      input.value = custText.value;
+    }
+
+    input.addEventListener('input', function () {
+      touched = true;
+      clearTimeout(timer);
+      var term = input.value.trim();
+      if (term.length < 2) { hideResults(); return; }
+      timer = setTimeout(function () { runSearch(term); }, 400);
+    });
+
+    input.addEventListener('focus', function () {
+      seedFromCustomer();
+      var term = input.value.trim();
+      if (!input.disabled && !soNum.value && term.length >= 2 && !results.innerHTML) runSearch(term);
+    });
+
+    if (custText) {
+      custText.addEventListener('input', seedFromCustomer);
+      custText.addEventListener('blur', function () { setTimeout(seedFromCustomer, 300); });
+    }
+
+    noInv.addEventListener('change', function () {
+      clearTimeout(timer);
+      if (noInv.checked) {
+        clearInvoice();
+        hideResults();
+        input.value = '';
+        input.disabled = true;
+      } else {
+        input.disabled = false;
+        touched = false;
+        seedFromCustomer();
+      }
+    });
   }
 
   function bindCustomerSearch() {
@@ -10964,6 +11158,11 @@ function parseWaitlistRecipeIds(value) {
       _adminApiGetForTest: adminApiGet,
       // Phase 76-03: parallel seam for adminApiPost (mirrors _adminApiGetForTest).
       _adminApiPostForTest: adminApiPost,
+      // Phase 90-03: seams for the invoice search characterization + create-sheet tests.
+      _fetchSoSearchForTest: fetchSoSearch,
+      _buildCreateFormForTest: buildCreateForm,
+      _setAllBatchesDataForTest: function (list) { _allBatchesData = list; },
+      _setDetailBatchIdForTest: function (v) { _detailBatchId = v; },
       // Read-retry regression seam: fetchWithRetry retries transient 502/503/504
       // for reads (retryStatuses) but never for writes.
       _fetchWithRetryForTest: fetchWithRetry,
