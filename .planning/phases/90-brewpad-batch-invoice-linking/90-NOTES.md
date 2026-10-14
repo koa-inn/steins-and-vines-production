@@ -183,3 +183,86 @@ Added to Phase 90 by owner choice (Claude recommended a separate phase; the two 
 - Money path: any change to checkout totals or tax must keep the server and client agreeing (Zoho tax rounding is
   entity_level, see memory `zoho-tax-rounding-entity-level`).
 - CSP is unaffected unless a new third-party service is added.
+
+---
+
+# Third workstream — kiosk one-tap canning bundle (added 2026-10-14)
+
+Added to Phase 90 by owner choice. Claude recommended a separate phase because this is a kiosk money-path change. Source: owner handoff `HANDOFF-kiosk-canning-bundle.md` §B. §A of that handoff (the `can` discount alias bug) is already FIXED in `eaf0b8cc` (on staging 2026-10-14), so cans now classify as `ingredient:packaging`.
+
+## Business rules (owner-confirmed 2026-10-14)
+
+Flat price per batch for all the cans, replacing per-can pricing.
+
+| Batch type | Final volume | Bundle price | Nominal cans | Cap |
+|---|---|---|---|---|
+| Beer | 25 L | **$40** | 52 × 473 mL **or** 70 × 355 mL | 55 / 72 |
+| Wine (carbonated only) / cider | 23 L | **$35** | 48 × 473 mL **or** 64 × 355 mL | 50 / 68 |
+
+Still wine is **not** offered in cans — carbonated/sparkling only. Cider is fine.
+
+## Required design: custom line + zero-rated can line
+
+When the operator picks batch type + can size, the kiosk adds **two** lines:
+
+1. The real can item at the **actual quantity used**, rate **$0** — this is what relieves stock
+   correctly and survives yield variance (52 one batch, 55 the next).
+2. A **custom line item** — e.g. "Canning Bundle — Beer 25 L (473 mL)" — at the bundle price.
+
+### Why not the alternatives
+
+- **Composite items — rejected.** Verified in Zoho: composite items require a *bundling
+  transaction* before they can be sold. Evidence: `bundle_id 109900000000616944`, 21 May,
+  ref `SKIT-00001`, `quantity_to_bundle: 2`, status `bundled`, which is how
+  "Fermenting Starter Kit - 23L / 6 Gal" came to have `stock_on_hand: 2`. Requiring an assembly
+  transaction per canning session is unacceptable friction, and nominal-vs-actual can counts would
+  drift on both the composite and its components.
+- **Discount preset — rejected.** Blocked by §A, and even fixed, a *fixed-amount* discount gives
+  the wrong total whenever the real can count differs from nominal. A percentage won't land on a
+  round $40.
+
+## Existing machinery to reuse — do not rebuild
+
+- **Auto-maintained cart lines:** `kioskSyncKitFees()` at `js/kiosk-core.js:772` already watches
+  the cart and adds/removes the Makers and Materials fee lines by kit count. The bundle should
+  follow this pattern, including its teardown behaviour (it *deletes* its lines when the trigger
+  count hits zero — mirror that so a removed bundle doesn't strand lines).
+- **Custom line items:** built in Phase 43. `js/kiosk-core.js:2653` forwards
+  `description` / `note` / `taxable` with no `item_id`. See
+  `.planning/phases/43-kiosk-manual-custom-line-item-with-notes/` for the contract.
+
+## Two details that will bite
+
+1. **Tax.** The cans are **not** zero-rated. Verified on `can-473`:
+   `sales_tax_rule_id: 109900000000033423` ("GST + PST - Standard"),
+   `tax_id: 109900000000029101` ("BC PST + GST"), **12%**.
+   The $40/$35 custom line must carry the same 12% treatment. Do **not** default it to the
+   zero-rated ingredient rule (`109900000000033411`) used by kits.
+2. **Custom lines are excluded from discounts by design** — `js/kiosk-core.js:834`
+   (`D-08: custom/gift_cert lines are never discounted`). Harmless here, but means a cart-wide
+   discount will not touch the bundle line. Confirm with the owner that this is wanted before
+   changing it; do not change it as a side effect.
+
+## Acceptance criteria
+
+- Operator selects batch type + can size and gets both lines without manual entry.
+- Can line relieves the **actual** quantity; bundle price does not vary with count.
+- Bundle line taxed at 12%, matching the cans.
+- Removing the bundle removes both lines (no stranded $0 can line).
+- Quantity above the cap warns rather than silently charging the bundle rate.
+- Regression test: a bundle sale produces an invoice whose can-line quantity matches input and
+  whose total equals bundle price + 12% tax.
+
+
+## Open questions for /gsd-discuss-phase 90
+
+1. Cart-wide discounts skip custom lines by design (`js/kiosk-core.js:834`, D-08). Should the bundle line stay non-discountable?
+2. Over-cap behaviour: a warning only, or a warning plus switching to per-can pricing?
+3. Wine: does the operator pick still vs sparkling, or does the kiosk only offer wine cans for sparkling wine and cider?
+4. Proof: this needs a real staging terminal sale (the invoice shows the bundle plus 12% tax and the can quantity used) before production. Sequence it with the pending kiosk recipe money-path promotion.
+
+## Related
+
+- The beer.html copy now states the bundle ($40 beer / $35 cider and sparkling wine) — `f26946ad`.
+- The bundle is not a Zoho item (by design). Can stock: about 11 batches remain (586 x 473 mL, 778 x 355 mL); no reorder points yet.
+- `custom-labels.html:161` says a beer batch is "~84 cans (355 mL)", which conflicts with the 25 L final volume and the cap of 72. Fix it in this phase or as a quick copy fix.

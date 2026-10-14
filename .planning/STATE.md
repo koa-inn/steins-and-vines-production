@@ -128,6 +128,9 @@ Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 
   **Widened same day (owner choice):** also covers online grain-order recipe splitting at checkout, with
   milling charged once per order (already true online, `12-checkout.js:1359`). It shares no files with
   the batch-link work, so it should be separate plans.
+  **Widened again (owner choice):** a kiosk one-tap canning bundle (owner handoff §B). §A, the can discount
+  alias bug, is fixed in `eaf0b8cc` (staging). beer.html cans copy fix `f26946ad` (staging; production hotfix
+  pending owner staging check, and it must be re-applied after the 85-13 `d2c66be9` push).
 
 - **Phase 89 added 2026-10-14: Beer category field for recipes.** Owner wants beer recipe cards
   coloured like kit cards, from an explicit settable field rather than keyword inference from the
