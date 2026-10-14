@@ -1614,7 +1614,7 @@ Plans:
 **Goal:** Staff set an explicit beer category on each recipe in BrewPad (and admin), and the public beer page colours each recipe card from it, replacing any keyword guessing from the free-text `style`. `beer_category` is an optional enum reusing the 12 existing beer tint keys (pilsner, lager, pale, ipa, amber, wheat, session, saison, stout, porter, redale, brown); blank keeps the default gold. It round-trips through every recipe layer: Apps Script (sheet column + create/update + PG->sheet mirror), Postgres (additive migration 0006 + recipe-pg), the backfill spec and verify, the public recipe API allowlist, both editors, and `buildRecipeCard` via `getTintClass`.
 **Requirements**: TBD
 **Depends on:** Phase 85 (sequencing only: the sheet column must exist before the 85-13 production backfill runs with the updated spec, or the backfill rejects the whole Recipes sheet)
-**Plans:** 6/9 plans executed
+**Plans:** 7/9 plans executed
 **Context:** `.planning/phases/89-beer-category-field-for-recipes/89-NOTES.md` (layer-by-layer touchpoint map, ordering traps, pinned tests, owner decisions so far)
 
 Plans:
@@ -1632,7 +1632,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 89-07-PLAN.md — Backfill spec/reject/verify (D-14-gated spec commit, after 89-01 + 89-04)
+- [x] 89-07-PLAN.md — Backfill spec/reject/verify (D-14-gated spec commit, after 89-01 + 89-04)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
