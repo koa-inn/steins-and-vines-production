@@ -133,3 +133,53 @@ A **review queue** is the right shape: propose candidate invoices, require a hum
 - Do not make the invoice field mandatory without handling internal batches — as of 14 Oct 2026
   there are legitimately unlinked staff batches (SV-B-000230, SV-B-000231, SV-B-000233 among them)
   whose costs have been deliberately reclassified to the Staff & Promotional Consumption account.
+
+---
+
+# Second workstream — online grain-order recipe splitting (added 2026-10-14)
+
+## Owner request
+
+"Allow recipe splitting on our online store for grain orders. If a customer wants two different
+recipes, they can use the UI to indicate how to separate it. They shouldn't need to pay the milling fee
+twice."
+
+Added to Phase 90 by owner choice (Claude recommended a separate phase; the two workstreams share no files).
+
+## What exists today (verified 2026-10-14, line numbers will drift)
+
+- Online milling lives in `js/modules/12-checkout.js` (bundled into `js/main.js`, so rebuild after edits):
+  - `_milledItemKeys` (:2) is the set of cart item keys the customer wants milled, persisted in
+    `sessionStorage['sv-milled-keys']` (:5–17). It is cleared from `js/modules/11-cart.js` (:1331, :1345).
+  - `_millingServiceItem` (:3) is the Zoho service item, fetched lazily by matching a name containing "mill" (:194–210).
+  - `renderMillingSection(items, container)` (:1034) shows per-grain checkboxes for weight-unit items with
+    `millable === 'true'` (cart items carry `millable`, `11-cart.js:175`).
+  - **The fee is already charged once per order.** If any key is milled, one fee line at
+    `_millingServiceItem.rate` is added (:1115 display, :1359 totals + tax, :1510 order line). So no double charge exists
+    online today. Keep this and pin it with a test.
+- Middleware: `zoho-middleware/routes/checkout.js:353` lets service items (milling) pass validation.
+  Check whether the server recomputes or trusts the milling line before relying on it.
+- Public copy: `products/grains.html:134` / `:223` says "milling for $10 per order on request".
+  `ingredients.html` / `products.html` / `products/ingredients-supplies.html:~131` say "select milling during checkout".
+- **Kiosk is different:** kiosk recipe take-out adds `recipe-fee-milling` per recipe sale
+  (`js/kiosk-core.js:1475–1540`, `:1681–1685`). That is where a "pay milling twice" case could really happen.
+  Whether kiosk is in scope is an open question.
+
+## Open questions for /gsd-discuss-phase 90
+
+1. How the customer marks a split: a per-grain recipe/bag selector ("Recipe A / Recipe B"), named bags,
+   or a free-text instruction box. Max number of splits?
+2. Does a split apply to all grains or only milled ones? Can a single grain line be split by quantity across
+   recipes (e.g. 5 kg of 2-row → 3 kg A + 2 kg B)? Note qty inputs use step="any" (`9be62be9`).
+3. How the split reaches staff: Zoho invoice/sales-order notes or line descriptions, the order email,
+   and/or the `online` BrewPad batch record. It must survive into whatever staff actually read when milling.
+4. Milling fee: confirm one fee per order regardless of splits (current behaviour). Should kiosk take-out
+   with multiple recipes also charge once?
+5. Persistence: the split state should live alongside `sv-milled-keys` in sessionStorage and clear with the cart.
+
+## Guardrails
+
+- Do not change the per-order fee into per-recipe or per-bag pricing.
+- Money path: any change to checkout totals or tax must keep the server and client agreeing (Zoho tax rounding is
+  entity_level, see memory `zoho-tax-rounding-entity-level`).
+- CSP is unaffected unless a new third-party service is added.
