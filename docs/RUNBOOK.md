@@ -262,6 +262,7 @@ Deploy. Prefer this to forward-fixing a live deployment.
 
 | Date | Version | Previous (rollback target) | Change |
 |------|---------|----------------------------|--------|
+| _pending_ | _pending_ | _pending_ | **Phase 89**: additive BEER_CATEGORY_KEYS / normalizeBeerCategory, self-migrating beer_category column in createRecipe / updateRecipe / mirrorRecipeState (off-list rejected with invalid_data before any write), editor-run setupRecipeBeerCategoryColumn. Fill in at deploy time (Beer category (Phase 89) §2). |
 | 2026-10-09 | 62 | **61** | **Phase 87** (87-04/87-18): additive `mirror_batch_state`, `mirror_batch_delete`, `export_batch_tabs` (server_token-gated, not reachable by staff OAuth), `setupBatchMirrorNotices` / `removeBatchMirrorNotices` (run from the editor). Pre-paste editor-drift hash check was skipped (paste done first); post-paste editor hash of `adminApi.gs` matched the repo (`a8b34634…121a98`). Production probes after deploy: `get_batches` ok:true; `export_batch_tabs` ok:true (204 / 1068 / 70 / 427 rows). |
 | _pending_ | 61 | **60** | **Phase 86** (planned): additive `mirror_vessel_state`, `mirror_ferm_schedule_state`, `mirror_ferm_schedule_delete` (server_token-gated); staff email recorded in VesselHistory. Fill in date and probe results at deploy time (Ops data → Postgres §3). |
 | 2026-10-07 | 60 | **59** | **Phase 85** (85-04): additive `mirror_recipe_state`, `mirror_recipe_delete`, `recipe_batch_ref_count` (server_token-gated). Editor-drift hash check passed before paste; post-paste hash matched repo. `GET /api/recipes` returned 3 active recipes from Apps Script on production and staging after deploy. |
@@ -914,6 +915,56 @@ needed, recreate it from the most recent .xlsx snapshot or the Railway backup.
 - **Staging candidate commit SHA:** `bd12df33` (85-12 Task 1 green gate; later commits are docs-only). Production SHA to be filled in by Plan 85-13.
 - [ ] recipes scripts run from the pinned d2c66be9 worktree (rev-parse recorded in 85-DUAL-LOG.md) until Phase 89 reaches production
 
+
+---
+
+## Beer category (Phase 89)
+
+### 1. What ships
+
+Recipes gain an optional `beer_category` (one of 12 tint keys, D-02) that colours the recipe card on
+beer.html. Migration `0006` adds `recipes.beer_category` as nullable text with no CHECK (D-03);
+enforcement is application-level (`normalizeBeerCategory`, off-list values rejected with 400 at the
+recipe API and `invalid_data` in Apps Script). Apps Script `createRecipe` / `updateRecipe` /
+`mirrorRecipeState` carry the field and self-migrate the sheet column; the editor-run helper
+`setupRecipeBeerCategoryColumn` adds the header once. The public `GET /api/recipes` projection
+returns `beer_category`, both editors (BrewPad and admin) have a "Beer category" select, and the
+card tint is colour only (no visible text, D-08); a blank category keeps the default gold (D-09).
+
+### 2. Staging release
+
+1. Push to staging (`git push origin main`). The Railway pre-deploy applies `0006`.
+2. Owner redeploys Apps Script (follow "Apps Script (`adminApi.gs`)" above). The deployment is shared,
+   so this goes live in production immediately. Record the NEW and ROLLBACK versions in the deploy
+   table (the Phase 89 row). Run `setupRecipeBeerCategoryColumn` once from the editor; it logs
+   `beer_category column index: <n>` and is idempotent.
+3. No staging re-backfill is required: staging was re-backfilled 2026-10-14 and a new nullable
+   column needs no data. If recipes drifted, use Phase 85 §2 "Staging recipe refresh".
+4. Staff set the D-06 mapping in staging BrewPad (D-07, no seeding script): ipa = SV-R-000011,
+   SV-R-000013; pale = SV-R-000003; pilsner = SV-R-000010, SV-R-000002; lager = SV-R-000006,
+   SV-R-000016, SV-R-000008, SV-R-000004; brown = SV-R-000001, SV-R-000007. The 2 non-active
+   recipes stay blank. Then visually check https://staging.steinsandvines.ca/beer.html.
+5. Expected staging recipes-verify noise: `beer_category` mismatches for the categorised recipes,
+   because staging writes never reach the sheet. Never replay from staging.
+
+### 3. Production promotion runsheet (D-13, after 85-13)
+
+Preconditions:
+- The 85-13 production cutover is complete.
+- The promotion SHA includes migrations 0004 and 0005, or they are already applied in production,
+  because node-pg-migrate rejects an out-of-order 0006. 0006 ships only together with 0004/0005.
+- The owner chooses the SHA, and staging approval comes first (CLAUDE.md).
+
+Steps:
+1. Deploy the promotion.
+2. Confirm 0006 is applied (pgmigrations row / deploy log).
+3. Confirm anonymous production `/api/recipes?status=active` carries `beer_category`.
+4. Staff repeat the D-06 picks in production BrewPad.
+5. Check production beer.html colours once the beer page is live.
+6. Release step: remove the Phase 85 §5 "Phase 89 script-source rule (D-14)" callout and its
+   §6/§8/§9/§10/§13 pointers. From then on run the recipes scripts from main, but only once 0006 is
+   applied in production AND the production sheet has the `beer_category` header.
+7. Record the promotion SHA here: _pending_
 
 ---
 
