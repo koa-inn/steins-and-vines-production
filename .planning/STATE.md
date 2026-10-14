@@ -120,6 +120,12 @@ Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 
 
 ### Roadmap Evolution
 
+- **Phase 90 added 2026-10-14: BrewPad batch invoice linking.** Owner handoff: 57/206 batches (28%)
+  have no `zoho_so_number`. Every automated path links 63/63; the gap is BrewPad manual create
+  (`js/brewpad.js:7591` has no invoice field). Kept separate from Phase 89 (different domain, touches the
+  Phase 87 batch store, and depends on the open §6 owner decision about whether `source` is editable). Notes:
+  `.planning/phases/90-brewpad-batch-invoice-linking/90-NOTES.md`.
+
 - **Phase 89 added 2026-10-14: Beer category field for recipes.** Owner wants beer recipe cards
   coloured like kit cards, from an explicit settable field rather than keyword inference from the
   free-text `style`. Spans 9 layers and the Apps Script redeploy boundary; must be sequenced with the
