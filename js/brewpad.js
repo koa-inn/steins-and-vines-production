@@ -7486,6 +7486,18 @@ function parseWaitlistRecipeIds(value) {
     html += '<button type="button" class="btn bp-btn-sm" id="bp-nc-save">Add Customer</button>';
     html += '</div></div></div>';
 
+    // Invoice (Phase 90-03, D-01/D-02): optional link captured at create time.
+    html += '<div class="bp-form-group" id="bp-new-so-group"><label>Invoice <span class="bp-optional">(optional)</span></label>';
+    html += '<div class="bp-vessel-wrap">';
+    html += '<input type="text" id="bp-new-so-search-input" class="bp-inline-input" placeholder="Search invoices by number or customer" autocomplete="off">';
+    html += '<div id="bp-new-so-chip" style="display:none;"></div>';
+    html += '<div class="bp-vessel-dropdown" id="bp-new-so-results" style="display:none;"></div>';
+    html += '<input type="hidden" id="bp-new-so-number">';
+    html += '<input type="hidden" id="bp-new-so-id">';
+    html += '</div>';
+    html += '<label class="bp-check-row" for="bp-new-no-invoice"><input type="checkbox" id="bp-new-no-invoice"> <span>No invoice (internal batch)</span></label>';
+    html += '</div>';
+
     // Start date
     html += '<div class="bp-form-group"><label>Start Date</label>';
     html += '<input type="date" id="bp-new-start-date" class="bp-inline-input" value="' + today + '"></div>';
@@ -7554,6 +7566,7 @@ function parseWaitlistRecipeIds(value) {
     });
 
     bindCustomerSearch();
+    bindCreateInvoicePicker();
 
     var vInput = document.getElementById('bp-new-vessel-text');
     var vDropdown = document.getElementById('bp-new-vessel-dropdown');
@@ -7799,6 +7812,110 @@ function parseWaitlistRecipeIds(value) {
         _kitCatalog = []; // graceful degradation — free text still works
         if (cb) cb();
       });
+  }
+
+  // Phase 90-03 (D-01/D-02/D-09/D-10): create-sheet invoice picker. Reuses fetchSoSearch;
+  // selecting only fills hidden fields and shows a chip. Nothing is written until Create batch.
+  function createSheetLinkedBatchIds(invoiceNumber) {
+    var ids = [];
+    var want = String(invoiceNumber || '').toLowerCase();
+    if (!want) return ids;
+    for (var i = 0; i < _allBatchesData.length; i++) {
+      var b = _allBatchesData[i];
+      if (String(b.zoho_so_number || '').toLowerCase() === want && b.batch_id) ids.push(b.batch_id);
+    }
+    return ids;
+  }
+
+  function bindCreateInvoicePicker() {
+    var input   = document.getElementById('bp-new-so-search-input');
+    var results = document.getElementById('bp-new-so-results');
+    var chip    = document.getElementById('bp-new-so-chip');
+    var soNum   = document.getElementById('bp-new-so-number');
+    var soId    = document.getElementById('bp-new-so-id');
+    var noInv   = document.getElementById('bp-new-no-invoice');
+    var custText = document.getElementById('bp-new-customer-text');
+    if (!input || !results || !chip || !soNum || !soId || !noInv) return;
+
+    var timer;
+    var touched = false;   // staff typed in the invoice box themselves; stop re-seeding
+
+    function hideResults() {
+      results.style.display = 'none';
+      results.innerHTML = '';
+    }
+
+    function runSearch(term) {
+      results.style.display = '';
+      fetchSoSearch(term, {
+        resultsId: 'bp-new-so-results',
+        onSelect: selectCreateInvoice,
+        renderExtra: function (inv) {
+          var ids = createSheetLinkedBatchIds(inv.invoice_number);
+          if (!ids.length) return '';
+          return '<span class="bp-so-linked-warn">Already linked to ' + ids.map(escapeHTML).join(', ') + '</span>';
+        }
+      });
+    }
+
+    function selectCreateInvoice(inv) {
+      soNum.value = inv.invoice_number || '';
+      soId.value = inv.invoice_id || '';
+      noInv.checked = false;
+      input.style.display = 'none';
+      hideResults();
+      chip.innerHTML = '<span class="bp-linked-chip"><span class="bp-linked-chip-text">' + escapeHTML(inv.invoice_number) +
+        '</span><button type="button" class="bp-linked-chip-x" aria-label="Clear invoice">\u00d7</button></span>';
+      chip.style.display = '';
+      var x = chip.querySelector('.bp-linked-chip-x');
+      if (x) x.addEventListener('click', clearInvoice);
+    }
+
+    function clearInvoice() {
+      soNum.value = '';
+      soId.value = '';
+      chip.innerHTML = '';
+      chip.style.display = 'none';
+      input.style.display = '';
+    }
+
+    function seedFromCustomer() {
+      if (touched || soNum.value || noInv.checked || !custText) return;
+      input.value = custText.value;
+    }
+
+    input.addEventListener('input', function () {
+      touched = true;
+      clearTimeout(timer);
+      var term = input.value.trim();
+      if (term.length < 2) { hideResults(); return; }
+      timer = setTimeout(function () { runSearch(term); }, 400);
+    });
+
+    input.addEventListener('focus', function () {
+      seedFromCustomer();
+      var term = input.value.trim();
+      if (!input.disabled && !soNum.value && term.length >= 2 && !results.innerHTML) runSearch(term);
+    });
+
+    if (custText) {
+      custText.addEventListener('input', seedFromCustomer);
+      custText.addEventListener('blur', function () { setTimeout(seedFromCustomer, 300); });
+    }
+
+    noInv.addEventListener('change', function () {
+      clearTimeout(timer);
+      if (noInv.checked) {
+        clearInvoice();
+        hideResults();
+        input.value = '';
+        input.disabled = true;
+      } else {
+        input.disabled = false;
+        touched = false;
+        seedFromCustomer();
+      }
+    });
   }
 
   function bindCustomerSearch() {
@@ -10983,6 +11100,8 @@ function parseWaitlistRecipeIds(value) {
       _adminApiPostForTest: adminApiPost,
       // Phase 90-03: seams for the invoice search characterization + create-sheet tests.
       _fetchSoSearchForTest: fetchSoSearch,
+      _buildCreateFormForTest: buildCreateForm,
+      _setAllBatchesDataForTest: function (list) { _allBatchesData = list; },
       _setDetailBatchIdForTest: function (v) { _detailBatchId = v; },
       // Read-retry regression seam: fetchWithRetry retries transient 502/503/504
       // for reads (retryStatuses) but never for writes.
