@@ -68,13 +68,36 @@ var CATEGORY_DISPLAY_NAMES = {
   'Cleaning/Sanitization': 'Cleaning/Sanitization'
 };
 
+// ---------------------------------------------------------------------------
+// Beer recipe categories (Phase 89, D-02)
+// ---------------------------------------------------------------------------
+// Keys are the CSS `.tint-*` beer keys; they must match
+// zoho-middleware/lib/recipe-rules.js BEER_CATEGORY_KEYS and
+// apps-script/adminApi.gs (drift test in Plan 89-03). The blank option
+// "-- None (gold) --" is markup in the editors, not an entry here.
+var BEER_CATEGORIES = [
+  { key: 'pilsner', label: 'Pilsner' },
+  { key: 'lager',   label: 'Lager' },
+  { key: 'pale',    label: 'Pale ale' },
+  { key: 'ipa',     label: 'IPA' },
+  { key: 'session', label: 'Session' },
+  { key: 'wheat',   label: 'Wheat' },
+  { key: 'saison',  label: 'Saison' },
+  { key: 'amber',   label: 'Amber' },
+  { key: 'redale',  label: 'Red ale' },
+  { key: 'brown',   label: 'Brown' },
+  { key: 'porter',  label: 'Porter' },
+  { key: 'stout',   label: 'Stout' }
+];
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     CART_KEYS:     CART_KEYS,
     ITEM_TYPES:    ITEM_TYPES,
     PRODUCT_TABS:  PRODUCT_TABS,
     KIT_CATEGORIES: KIT_CATEGORIES,
-    CATEGORY_DISPLAY_NAMES: CATEGORY_DISPLAY_NAMES
+    CATEGORY_DISPLAY_NAMES: CATEGORY_DISPLAY_NAMES,
+    BEER_CATEGORIES: BEER_CATEGORIES
   };
 }
 // ===== Steins & Vines — Shared Utility Functions =====
@@ -1908,6 +1931,19 @@ function appendSvLogo(d, parent) {
   parent.appendChild(logo);
 }
 
+// D-09: blank/unknown -> default gold. Whitelist the key against
+// BEER_CATEGORIES before getTintClass, because `.label-beer[class*="tint-"]`
+// matches any tint-* and getTintClass accepts any string (threat T-89-04).
+function recipeTintClass(recipe) {
+  var key = recipe && typeof recipe.beer_category === 'string' ? recipe.beer_category : '';
+  if (!key) return '';
+  if (typeof BEER_CATEGORIES === 'undefined' || typeof getTintClass !== 'function') return '';
+  for (var i = 0; i < BEER_CATEGORIES.length; i++) {
+    if (BEER_CATEGORIES[i].key === key) return getTintClass({ tint: key });
+  }
+  return '';
+}
+
 // Recipe cards use the same bottle-label idiom as kit cards (owner UAT
 // 2026-09-01) so the two blocks read as one catalogue. The recipe IS the
 // ferment-in-store product, so it carries the in-store price and the waitlist
@@ -1916,7 +1952,8 @@ function buildRecipeCard(recipe, doc) {
   var d = doc || (typeof document !== 'undefined' ? document : null);
 
   var card = d.createElement('div');
-  card.className = 'label-beer';
+  var tint = recipeTintClass(recipe);
+  card.className = 'label-beer' + (tint ? ' ' + tint : '');
   card.setAttribute('data-recipe-id', recipe.recipe_id);
 
   var body = d.createElement('div');
@@ -2057,12 +2094,10 @@ function buildCustomRecipeCard(doc) {
 /**
  * Fetch active recipes for the public recipe block (D-05). Always resolves,
  * never rejects, to either { ok: true, recipes: [...] } or { ok: false }.
- * Recipes carry no category field of any kind — this phase's RESEARCH
- * (Pitfall 2) confirms the Recipes sheet has no category column, so recipes
- * are routed to the beer page only by a fixed category check, never by
- * style-keyword inference. LOCKED DECISION: if a wine recipe is ever created
- * it will need an explicit category field on the record, not a heuristic
- * added here.
+ * Recipes now carry `beer_category` (Phase 89), a beer-style colour key used
+ * only for card tint. It is NOT a page-routing category: recipes are still
+ * routed to the beer page by the fixed category check below, and a wine recipe
+ * would still need its own routing decision, not a heuristic added here.
  *
  * @param {String} categoryFilter - the active page's category ('wine' | 'beer' | '').
  * @param {String} middlewareUrl - SHEETS_CONFIG.MIDDLEWARE_URL.
@@ -3711,7 +3746,7 @@ function renderKitBuyControl(wrap, product) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { loadProducts: loadProducts, appendSvLogo: appendSvLogo, buildBeerCard: buildBeerCard, flattenCustomFields: flattenCustomFields, matchesKitCategory: matchesKitCategory, buildWaitlistCtaLink: buildWaitlistCtaLink, sortFilterValues: sortFilterValues, recipeDisplayPrice: recipeDisplayPrice, fermentTimeDisplay: fermentTimeDisplay, buildRecipeCard: buildRecipeCard, buildCustomRecipeCard: buildCustomRecipeCard, fetchActiveRecipes: fetchActiveRecipes, renderRecipeBlock: renderRecipeBlock, orderCatalogBlocks: orderCatalogBlocks };
+  module.exports = { loadProducts: loadProducts, appendSvLogo: appendSvLogo, buildBeerCard: buildBeerCard, flattenCustomFields: flattenCustomFields, matchesKitCategory: matchesKitCategory, buildWaitlistCtaLink: buildWaitlistCtaLink, sortFilterValues: sortFilterValues, recipeDisplayPrice: recipeDisplayPrice, fermentTimeDisplay: fermentTimeDisplay, recipeTintClass: recipeTintClass, buildRecipeCard: buildRecipeCard, buildCustomRecipeCard: buildCustomRecipeCard, fetchActiveRecipes: fetchActiveRecipes, renderRecipeBlock: renderRecipeBlock, orderCatalogBlocks: orderCatalogBlocks };
 }
 var _allIngredients = [];
 var _ingredientsFuse = null;
