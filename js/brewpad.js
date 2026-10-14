@@ -2120,8 +2120,14 @@ function parseWaitlistRecipeIds(value) {
     }).catch(function () {});
   }
 
-  function fetchSoSearch(term) {
-    var resultsEl = document.getElementById('bp-so-search-results');
+  // opts (all optional; the detail-view caller passes none):
+  //   resultsId   - results container id (default 'bp-so-search-results')
+  //   onSelect    - fn({invoice_id, invoice_number, customer_name, customer_id, date});
+  //                 default is the detail-view handleSoSelect write path
+  //   renderExtra - fn(inv) -> escaped HTML appended inside each row
+  function fetchSoSearch(term, opts) {
+    opts = opts || {};
+    var resultsEl = document.getElementById(opts.resultsId || 'bp-so-search-results');
     if (!resultsEl) return;
     resultsEl.innerHTML = '<div class="bp-so-result-item" style="color:var(--ink-muted);">Searching…</div>';
 
@@ -2145,6 +2151,7 @@ function parseWaitlistRecipeIds(value) {
                + ' data-product-name="' + escapeHTML((inv.line_items && inv.line_items[0] ? inv.line_items[0].name : '') || '') + '">';
           html += '<span class="bp-so-result-name">' + escapeHTML(inv.customer_name) + '</span>';
           html += '<span class="bp-so-result-meta">' + escapeHTML(inv.invoice_number) + ' — ' + fmtDate(inv.date) + '</span>';
+          if (opts.renderExtra) html += opts.renderExtra(inv) || '';
           html += '</div>';
         }
         resultsEl.innerHTML = html;
@@ -2152,6 +2159,16 @@ function parseWaitlistRecipeIds(value) {
         var items = resultsEl.querySelectorAll('.bp-so-result-item[data-so-id]');
         for (var j = 0; j < items.length; j++) {
           items[j].addEventListener('click', function () {
+            if (opts.onSelect) {
+              opts.onSelect({
+                invoice_id: this.getAttribute('data-so-id'),
+                invoice_number: this.getAttribute('data-so-number'),
+                customer_name: this.getAttribute('data-customer-name'),
+                customer_id: this.getAttribute('data-customer-id'),
+                date: this.getAttribute('data-so-date')
+              });
+              return;
+            }
             handleSoSelect(this);
           });
         }
@@ -10964,6 +10981,9 @@ function parseWaitlistRecipeIds(value) {
       _adminApiGetForTest: adminApiGet,
       // Phase 76-03: parallel seam for adminApiPost (mirrors _adminApiGetForTest).
       _adminApiPostForTest: adminApiPost,
+      // Phase 90-03: seams for the invoice search characterization + create-sheet tests.
+      _fetchSoSearchForTest: fetchSoSearch,
+      _setDetailBatchIdForTest: function (v) { _detailBatchId = v; },
       // Read-retry regression seam: fetchWithRetry retries transient 502/503/504
       // for reads (retryStatuses) but never for writes.
       _fetchWithRetryForTest: fetchWithRetry,
