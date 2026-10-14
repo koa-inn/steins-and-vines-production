@@ -40,6 +40,7 @@ var normalizeRow = normalizeLib.normalizeRow;
 var rejectsLib = require('./rejects');
 var backfillCli = require('./backfill');
 var specs = require('./specs/recipes');
+var recipeRules = require('../../lib/recipe-rules');
 
 var EXIT = backfillCli.EXIT;
 var assertSnapshotSafePath = backfillCli.assertSnapshotSafePath;
@@ -163,6 +164,10 @@ function buildRecipesBackfillPlan(input) {
         }
         if (VALID_PRICING_MODES.indexOf(values.pricing_mode) === -1) {
           rejects.push(makeReject(specs.recipes.sheet, row.rowNumber, id, 'pricing_mode', 'invalid_pricing_mode'));
+        }
+        if (typeof values.beer_category === 'string' && values.beer_category !== '' &&
+            recipeRules.BEER_CATEGORY_KEYS.indexOf(values.beer_category) === -1) {
+          rejects.push(makeReject(specs.recipes.sheet, row.rowNumber, id, 'beer_category', 'invalid_beer_category'));
         }
         if (recipeIdSet[values.recipe_id]) {
           rejects.push(makeReject(specs.recipes.sheet, row.rowNumber, id, 'recipe_id', 'duplicate_id'));

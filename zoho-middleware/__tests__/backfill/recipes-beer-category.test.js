@@ -61,16 +61,19 @@ describe('backfill beer_category', function () {
   it('rejects an unknown value with a reason code and no cell echo', function () {
     var result = plan([recipeRow(2, { beer_category: 'purple' })]);
     expect(result.recipes.length).toBe(0);
-    expect(result.rejects.length).toBe(1);
-    expect(result.rejects[0].field).toBe('beer_category');
-    expect(result.rejects[0].reason).toBe('invalid_beer_category');
+    // the dependent ingredient row is also rejected as an orphan; only the recipe reject matters here
+    var recipeRejects = result.rejects.filter(function (r) { return r.field === 'beer_category'; });
+    expect(recipeRejects.length).toBe(1);
+    expect(recipeRejects[0].reason).toBe('invalid_beer_category');
     expect(JSON.stringify(result.rejects)).not.toContain('purple');
   });
 
   it('rejects a non-canonical value (no coercion)', function () {
     var result = plan([recipeRow(2, { beer_category: 'IPA' })]);
     expect(result.recipes.length).toBe(0);
-    expect(result.rejects[0].reason).toBe('invalid_beer_category');
+    var r = result.rejects.filter(function (x) { return x.field === 'beer_category'; });
+    expect(r.length).toBe(1);
+    expect(r[0].reason).toBe('invalid_beer_category');
     expect(JSON.stringify(result.rejects)).not.toContain('IPA');
   });
 
