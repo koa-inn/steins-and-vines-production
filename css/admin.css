@@ -3425,3 +3425,23 @@ body.kiosk-mode .batch-cal-day { min-height: 100px; }
     font-size: 1rem; /* ≥16px — prevents iOS Safari auto-zoom on focus */
   }
 }
+
+/* 90-08 D-21: admin recipe editor similar-name list */
+.recipe-similar-title { font-size: 12px; font-weight: 700; color: var(--text-muted, #666); margin: 8px 0 4px; }
+.recipe-similar-list { max-height: 240px; overflow-y: auto; }
+.recipe-similar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.recipe-similar-name { font-size: 14px; font-weight: 700; }
+.recipe-similar-style { font-size: 12px; font-weight: 700; color: var(--text-muted, #666); flex: 1; }
+.recipe-dup-warn {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--batch-warning);
+  background: var(--batch-warning-bg);
+  color: var(--batch-warning);
+  font-size: 13px;
+}

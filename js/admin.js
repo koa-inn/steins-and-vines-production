@@ -46,6 +46,11 @@
   if (typeof window !== 'undefined' && !window.KioskCore && typeof require === 'function') {
     require('./kiosk-core.js');
   }
+  // Test-only: js/lib/recipe-picker.js is a plain <script> in admin.html (sets
+  // window.RecipePicker). Under Jest nothing loads it, so attach it here (90-08).
+  if (typeof window !== 'undefined' && !window.RecipePicker && typeof require === 'function') {
+    try { window.RecipePicker = require('./lib/recipe-picker.js'); } catch (e) { /* not available */ }
+  }
 
   // Build timestamp - updated on each deploy
   var BUILD_TIMESTAMP = '2026-10-14T21:17:34.004Z';
@@ -8396,7 +8401,8 @@
     currentRecipe: null,
     currentIngredients: [],
     availability: null,
-    previousStatus: 'draft'
+    previousStatus: 'draft',
+    allForDupCheck: null
   };
   var _recipesDataLoaded = false;
   var _recipesDataLoading = false;
@@ -8615,9 +8621,11 @@
       populateRecipeForm(null, []);
       renderAvailabilityBanner(null);
       renderIngredientRows([]);
+      initRecipeNameAssist();
       return;
     }
 
+    clearRecipeNameSimilar(true);
     if (titleEl) titleEl.textContent = 'Loading...';
     if (deleteBtn) deleteBtn.style.display = '';
     if (dupBtn) dupBtn.style.display = '';
@@ -9194,6 +9202,151 @@
       duration: 15000,
       onAction: onReload
     });
+  }
+
+  // ===== D-21: similar-name list + "Start from this recipe" (new-recipe mode only) =====
+
+  var _recipeNameAssistTimer = null;
+  var RECIPE_SIMILAR_MAX = 5;
+
+  function clearRecipeNameSimilar(remove) {
+    var c = document.getElementById('recipe-name-similar');
+    if (!c) return;
+    if (remove) {
+      if (c.parentNode) c.parentNode.removeChild(c);
+    } else {
+      c.innerHTML = '';
+    }
+  }
+
+  function ensureRecipeNameSimilarContainer() {
+    var c = document.getElementById('recipe-name-similar');
+    if (c) return c;
+    var nameEl = document.getElementById('recipe-name');
+    if (!nameEl || !nameEl.parentNode) return null;
+    c = document.createElement('div');
+    c.id = 'recipe-name-similar';
+    c.className = 'recipe-similar-wrap';
+    nameEl.parentNode.insertBefore(c, nameEl.nextSibling);
+    return c;
+  }
+
+  function loadAllRecipesForDupCheck() {
+    if (_recipesState.allForDupCheck) return Promise.resolve(_recipesState.allForDupCheck);
+    var mwUrl = getRecipesMwUrl();
+    if (!mwUrl) return Promise.resolve([]);
+    return fetch(mwUrl + '/api/recipes?status=all', { credentials: 'include', headers: getRecipesMwHeaders() })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+      .then(function (data) {
+        _recipesState.allForDupCheck = (data && data.recipes) || [];
+        return _recipesState.allForDupCheck;
+      })
+      .catch(function () { return []; });
+  }
+
+  function renderRecipeNameAssist() {
+    var c = document.getElementById('recipe-name-similar');
+    var nameEl = document.getElementById('recipe-name');
+    if (!c || !nameEl) return;
+    // New-recipe mode only: an existing recipe being edited has a currentRecipeId.
+    if (_recipesState.currentRecipeId !== null && _recipesState.currentRecipeId !== undefined) {
+      c.innerHTML = '';
+      return;
+    }
+    var picker = (typeof window !== 'undefined') ? window.RecipePicker : null;
+    var list = _recipesState.allForDupCheck;
+    if (!picker || !list) { c.innerHTML = ''; return; }
+    var matches = picker.findRecipeNameMatches(list, nameEl.value);
+    var all = matches.exact.concat(matches.similar).slice(0, RECIPE_SIMILAR_MAX);
+    var html = '';
+    if (matches.exact.length) {
+      html += '<div class="recipe-dup-warn" role="alert">A recipe named \'' + escapeHTML(nameEl.value.trim()) + '\' already exists.</div>';
+    }
+    if (all.length) {
+      html += '<div class="recipe-similar-title">Similar recipes</div><div class="recipe-similar-list">';
+      all.forEach(function (r) {
+        html += '<div class="recipe-similar-row" data-recipe-id="' + escapeHTML(r.recipe_id) + '">' +
+          '<span class="recipe-similar-name">' + escapeHTML(r.name) + '</span>' +
+          '<span class="recipe-similar-style">' + escapeHTML(r.style || '') + '</span>' +
+          '<button type="button" class="btn-secondary recipe-similar-start">Start from this recipe</button>' +
+          '</div>';
+      });
+      html += '</div>';
+    }
+    c.innerHTML = html;
+    Array.prototype.forEach.call(c.querySelectorAll('.recipe-similar-row'), function (row) {
+      var btn = row.querySelector('.recipe-similar-start');
+      var nm = row.querySelector('.recipe-similar-name');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        startRecipeFromExisting(row.getAttribute('data-recipe-id'), nm ? nm.textContent : '', btn);
+      });
+    });
+  }
+
+  function initRecipeNameAssist() {
+    var nameEl = document.getElementById('recipe-name');
+    if (!nameEl) return;
+    ensureRecipeNameSimilarContainer();
+    loadAllRecipesForDupCheck();
+    if (nameEl._nameAssistBound) return;
+    nameEl._nameAssistBound = true;
+    nameEl.addEventListener('input', function () {
+      if (_recipeNameAssistTimer) clearTimeout(_recipeNameAssistTimer);
+      _recipeNameAssistTimer = setTimeout(function () {
+        _recipeNameAssistTimer = null;
+        renderRecipeNameAssist();
+      }, 200);
+    });
+  }
+
+  function recipeFormIsDirty() {
+    var style = document.getElementById('recipe-style');
+    var desc = document.getElementById('recipe-description');
+    if ((_recipesState.currentIngredients || []).length > 0) return true;
+    if (style && String(style.value).trim()) return true;
+    if (desc && String(desc.value).trim()) return true;
+    return false;
+  }
+
+  function startRecipeFromExisting(recipeId, recipeName, btn) {
+    var mwUrl = getRecipesMwUrl();
+    if (!mwUrl || !recipeId) return;
+    function proceed() {
+      var origText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+      var prevErr = document.querySelector('#recipe-name-similar .recipe-start-error');
+      if (prevErr && prevErr.parentNode) prevErr.parentNode.removeChild(prevErr);
+      fetch(mwUrl + '/api/recipes/' + encodeURIComponent(recipeId), { credentials: 'include', headers: getRecipesMwHeaders() })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+        .then(function (detail) {
+          _recipesState.currentRecipe = detail.recipe || detail;
+          _recipesState.currentIngredients = (detail.ingredients || []).slice();
+          duplicateRecipe();
+          clearRecipeNameSimilar(false);
+          var nameEl = document.getElementById('recipe-name');
+          if (nameEl) {
+            if (nameEl.focus) nameEl.focus();
+            if (nameEl.select) nameEl.select();
+          }
+        })
+        .catch(function () {
+          if (btn) { btn.disabled = false; btn.textContent = origText; }
+          var c = document.getElementById('recipe-name-similar');
+          if (c) {
+            var err = document.createElement('div');
+            err.className = 'recipe-dup-warn recipe-start-error';
+            err.setAttribute('role', 'alert');
+            err.textContent = 'Could not load that recipe. Try again.';
+            c.appendChild(err);
+          }
+        });
+    }
+    if (recipeFormIsDirty()) {
+      showConfirm("Replace what you have entered with a copy of '" + recipeName + "'?", proceed);
+    } else {
+      proceed();
+    }
   }
 
   // Controls initialization
@@ -10362,6 +10515,9 @@
       addBatchAttentionItems: addBatchAttentionItems,
       filterIngredientCatalog: filterIngredientCatalog,
       _recipesState: _recipesState,
+      // 90-08: D-21 test seams
+      _openRecipeDetailForTest: openRecipeDetail,
+      _saveRecipeForTest: saveRecipe,
       parseBeerXML: parseBeerXML,
       autoMatchIngredients: autoMatchIngredients,
       isValidZohoNumber: isValidZohoNumber,
