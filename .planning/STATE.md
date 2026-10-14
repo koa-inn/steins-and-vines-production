@@ -5,7 +5,7 @@ milestone_name: Security & Money-Path Closeout
 status: executing
 stopped_at: Phase 87 plan 18 complete; 87-19 gated on Phase 86 prod flip and Node 24 prod deploy
 last_updated: "2026-10-09T22:49:49.676Z"
-last_activity: 2026-10-13
+last_activity: 2026-10-14
 progress:
   total_phases: 74
   completed_phases: 30
@@ -44,6 +44,28 @@ sheets by owner choice). Record: `87-CUTOVER-LOG.md`, `87-18-SUMMARY.md`.
 
 Other deadline: Railway config-as-code (`railway.toml`, runs the migration guards) stops applying
 2026-12-01; move settings to the dashboard first.
+
+**Off-roadmap beer-launch and recipe money-path work (2026-10-13/14, STAGING ONLY, nothing in production):**
+Owner pivoted from 87 to readying the beer page (Node 24 had not soaked long enough). On staging `main`:
+FAQ 28 L `2fb176af`; GA4 Buy Kit price `fdcef0fd`; recipe write-guard test `22c73f61`; recipe
+availability file fallback `eaf792c7` + per-item sum `4dfcc8e1`; cache-clear ALL key `51fa9527`;
+untracked `ingredients-cache.json` `a85a4d21` (+ `f7713d81`); `/cider` sitemap `1a670017`; kiosk_recipe
+badge `8c4dcd63`; step="any" qty inputs `9be62be9`; recipe-sale kiosk reference `6029ed7f`, manual-confirm
+verify `5404abea`, captured-amount check `255c5e13`; recipe fee tax + invoice adjustment `4849f473` +
+kiosk tax display `60d7b32f`; staff waitlist email wording `ecb328d8`; custom-recipe card `7713dcd3`;
+readable card subtitles `ab8a0347`. Railway fee item IDs fixed (staging live; production set with
+`--skip-deploys`, applies on next prod restart/deploy). Staging recipe store re-backfilled 2026-10-14.
+- **Beer page launch is staged on LOCAL branch `beer-launch`** (not merged/pushed; owner: not live yet).
+  Merge = `git merge beer-launch` (refresh stamp conflicts) → build → tests → staging.
+- **Before any of the above reaches production:** one real in-store recipe sale on staging hardware
+  (auto + manual confirm) must book 201 and the Zoho invoice must read Paid (first use of the invoice
+  `adjustment` field). The 85-13 production push is pinned to `d2c66be9:main`, which predates this
+  work — these commits need their own promotion decision.
+- **Open owner items:** CI frontend `Tests` job red since 2026-10-09 (`adminapi-batch-golden` TZ — test
+  pins TZ inside Jest, which does not take effect; fix = TZ=America/Vancouver for the frontend run;
+  awaiting go-ahead); hero copy mentions "stouts" (no stout recipe); handoff §6 (batch `source`
+  editable — owner decision, PG allowlist excludes it by design); footer price-label legibility.
+- Session handoff: `HANDOFF-beer-golive.md` (untracked; §5 §9 §10 §11 stale/resolved).
 
 Older position notes (Phases 46-51, 76) are kept verbatim under "Accumulated Context → Earlier
 position notes".
@@ -92,6 +114,12 @@ Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 
 
 
 ### Roadmap Evolution
+
+- **Phase 89 added 2026-10-14: Beer category field for recipes.** Owner wants beer recipe cards
+  coloured like kit cards, from an explicit settable field rather than keyword inference from the
+  free-text `style`. Spans 9 layers and the Apps Script redeploy boundary; must be sequenced with the
+  Phase 85 production backfill (missing-header reject trap). Full touchpoint map and open decisions:
+  `.planning/phases/89-beer-category-field-for-recipes/89-NOTES.md`.
 
 - **Phase 81 added 2026-09-05: Recipe fermentation timeline.** Owner direction — beer recipes should
   carry a fermentation time so customers get an expected ready date ("ales ~3 weeks, lagers ~5").
@@ -254,6 +282,6 @@ Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 
 
 ## Session Continuity
 
-Last session: 2026-10-13
-Stopped at: Phase 87 plan 18 complete (staging rehearsal passed); Node 24 fix on staging
-Resume file: None
+Last session: 2026-10-14
+Stopped at: Beer-launch pivot (staging only, see Current Position); Phase 89 added, not planned. Phase 87-19 still gated.
+Resume file: .planning/phases/89-beer-category-field-for-recipes/89-NOTES.md
