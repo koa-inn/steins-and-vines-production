@@ -52,7 +52,10 @@ function bustRecipeCache(recipeId) {
 // (steps, steps_parsed, title, is_transfer) are deliberately absent and
 // must stay absent — the schedule is reduced to this single integer before
 // anything reaches toPublicRecipe.
-var PUBLIC_RECIPE_FIELDS = ['recipe_id', 'name', 'style', 'description', 'ferment_days'];
+// Phase 89 (D-08): 'beer_category' is a deliberately public, non-sensitive
+// colour key used by buildRecipeCard; it is the only field 89 adds.
+// Everything else stays excluded.
+var PUBLIC_RECIPE_FIELDS = ['recipe_id', 'name', 'style', 'description', 'ferment_days', 'beer_category'];
 
 // Build-by-allowlist, never delete-from-source (T-74-04): a public recipe is
 // assembled as a NEW object copying only PUBLIC_RECIPE_FIELDS, so a future
