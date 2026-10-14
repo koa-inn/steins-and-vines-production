@@ -1614,11 +1614,17 @@ Plans:
 **Goal:** Staff set an explicit beer category on each recipe in BrewPad (and admin), and the public beer page colours each recipe card from it, replacing any keyword guessing from the free-text `style`. `beer_category` is an optional enum reusing the 12 existing beer tint keys (pilsner, lager, pale, ipa, amber, wheat, session, saison, stout, porter, redale, brown); blank keeps the default gold. It round-trips through every recipe layer: Apps Script (sheet column + create/update + PG->sheet mirror), Postgres (additive migration 0006 + recipe-pg), the backfill spec and verify, the public recipe API allowlist, both editors, and `buildRecipeCard` via `getTintClass`.
 **Requirements**: TBD
 **Depends on:** Phase 85 (sequencing only: the sheet column must exist before the 85-13 production backfill runs with the updated spec, or the backfill rejects the whole Recipes sheet)
-**Plans:** 0 plans
+**Plans:** 7 plans
 **Context:** `.planning/phases/89-beer-category-field-for-recipes/89-NOTES.md` (layer-by-layer touchpoint map, ordering traps, pinned tests, owner decisions so far)
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 89 to break down)
+- [ ] 89-01-PLAN.md — RUNBOOK D-14 pinned d2c66be9 worktree rule (first) + shared normalizeBeerCategory in recipe-rules.js
+- [ ] 89-02-PLAN.md — BEER_CATEGORIES in constants.js + whitelisted card tint in buildRecipeCard
+- [ ] 89-03-PLAN.md — Apps Script normaliser, self-migrating column, create/update/mirror + parity and key-drift tests
+- [ ] 89-04-PLAN.md — Migration 0006 (no CHECK) + recipe-pg + backfill spec/reject/verify
+- [ ] 89-05-PLAN.md — API 400 invalid_beer_category + public allowlist
+- [ ] 89-06-PLAN.md — BrewPad + admin "Beer category" selects + single phase build
+- [ ] 89-07-PLAN.md — Staging release, owner Apps Script redeploy, staff set D-06 categories, UAT, production promotion runsheet
 
 ### Phase 90: BrewPad batch invoice linking
 
