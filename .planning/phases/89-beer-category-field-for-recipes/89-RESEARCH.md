@@ -530,15 +530,20 @@ Not a rename/refactor phase. Stated explicitly for the data-bearing categories b
 | A4 | Carrying `beer_category` into the kiosk "Save as new" draft copies is desirable | Missed touchpoints #1 | Cosmetic only; omit if the owner prefers copies to start gold |
 | A5 | The unprototyped frontend changes (card, editors) will not break existing tests beyond the ones named; existing card tests pass because blank short-circuits (this one I did verify for the card; editor tests were reasoned from their assertions, not run) | Test Impact | A surprise failure in `brewpad-*` tests; run the full suite after the editor plan |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should the backfill reject off-list `beer_category` values?**
    - Known: the backfill rejects rather than coerces everything else (status, pricing_mode). Staff can hand-type the sheet.
    - Unclear: owner wants it? Not in CONTEXT.
    - Recommendation: yes, add a reason-code-only reject (small, symmetric with D-04). If declined, drop the corresponding test.
+   - **RESOLVED:** yes. The backfill rejects any non-blank cell that is not exactly one of the 12 canonical keys. It matches the exact key only and does NOT normalise (`'IPA'` is rejected, not coerced; every writer stores canonical keys, so a non-canonical cell is a hand edit to fix on the sheet). The reject carries the reason code `invalid_beer_category` only and never echoes the cell value (Phase 85 redaction). Implemented in Plan 89-07.
 2. **Does 85-DUAL-LOG / 85-14 verify run before the 89 promotion?**
    - Likely yes (89 promotes after 86/87 gates). Hence the pinned worktree must stay valid for the entire 7-day window, not just 85-13.
+   - **RESOLVED:** yes. The pinned `d2c66be9` worktree rule stays in force for the whole 85-13 -> 85-14 window (backfill, verify and replay all run from it) and is removed only when Phase 89 reaches production with 0006 applied and the production sheet carries the `beer_category` header. Documented by Plan 89-01; the removal step is in the Plan 89-09 production promotion runsheet.
 3. **Should admin surface the server 400 message?** Unreachable via the UI; leave as is unless the owner wants it.
+   - **RESOLVED:** no change; admin keeps its generic save error (Plan 89-06).
+4. **Assumption A1 (non-string / strips-to-empty input).**
+   - **RESOLVED (accepted):** non-string input is rejected, and non-blank input that normalises to empty (for example `'123'`, `'--'`) is rejected rather than silently blanked. Null, undefined and whitespace-only input stay blank (''). Implemented identically in `recipe-rules.js` (Plan 89-01) and `adminApi.gs` (Plan 89-03, parity-tested).
 
 ## Environment Availability
 
