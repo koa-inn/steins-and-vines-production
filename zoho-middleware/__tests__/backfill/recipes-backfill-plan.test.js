@@ -77,7 +77,7 @@ describe('buildRecipesBackfillPlan', function () {
     expect(result.counts.recipes).toBe(2);
     expect(result.counts.ingredients).toBe(2);
     expect(result.counts.perRecipe).toEqual({ 'SV-R-000001': 1, 'SV-R-000002': 1 });
-    expect(Object.keys(result.recipes[0]).length).toBe(18);
+    expect(Object.keys(result.recipes[0]).length).toBe(19);
   });
 
   test('header order differing from canonical is irrelevant (mapped by name)', function () {

@@ -50,7 +50,8 @@ module.exports = {
       txt('created_by', false),
       ts('updated_at', true),
       txt('pricing_mode', true),
-      txt('schedule_id', false)
+      txt('schedule_id', false),
+      txt('beer_category', false)
     ]
   },
   ingredients: {

@@ -34,7 +34,7 @@ var POSTGRES_URL_RE = /postgres(ql)?:\/\//;
 var RECIPE_FIELDS = [
   'recipe_id', 'name', 'style', 'description', 'status', 'locked_price', 'service_fee',
   'materials_fee', 'batch_size_l', 'abv', 'ibu', 'colour_srm', 'notes', 'created_at', 'created_by',
-  'updated_at', 'pricing_mode', 'schedule_id'
+  'updated_at', 'pricing_mode', 'schedule_id', 'beer_category'
 ];
 var NUMERIC_FIELDS = {
   locked_price: true, service_fee: true, materials_fee: true, batch_size_l: true,

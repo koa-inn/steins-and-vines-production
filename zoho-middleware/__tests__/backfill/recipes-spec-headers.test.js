@@ -13,7 +13,7 @@ var backfillCli = require('../../scripts/backfill/backfill');
 var REAL_RECIPES_HEADERS = [
   'recipe_id', 'name', 'style', 'description', 'status', 'locked_price', 'service_fee',
   'materials_fee', 'batch_size_l', 'abv', 'ibu', 'colour_srm', 'notes', 'created_at',
-  'created_by', 'updated_at', 'pricing_mode', 'schedule_id'
+  'created_by', 'updated_at', 'pricing_mode', 'schedule_id', 'beer_category'
 ];
 
 var REAL_INGREDIENT_HEADERS = ['ingredient_id', 'recipe_id', 'item_id', 'item_name', 'quantity', 'unit'];
@@ -23,7 +23,7 @@ function headersOf(spec) {
 }
 
 describe('recipes backfill specs match the real sheet row 1', function () {
-  test('Recipes spec has the 18 real headers', function () {
+  test('Recipes spec has the 19 real headers', function () {
     expect(headersOf(recipeSpecs.recipes)).toEqual(REAL_RECIPES_HEADERS);
     expect(recipeSpecs.recipes.sheet).toBe('Recipes');
     expect(recipeSpecs.recipes.table).toBe('recipes');
@@ -35,7 +35,7 @@ describe('recipes backfill specs match the real sheet row 1', function () {
     expect(recipeSpecs.ingredients.table).toBe('recipe_ingredients');
   });
 
-  test('a sheet with pricing_mode/schedule_id appended last (different order) still maps by name', function () {
+  test('a sheet with pricing_mode/schedule_id/beer_category appended last (different order) still maps by name', function () {
     var shuffled = REAL_RECIPES_HEADERS.slice().reverse();
     var check = backfillCli.checkHeaders(recipeSpecs.recipes, shuffled);
     expect(check.missing).toEqual([]);
