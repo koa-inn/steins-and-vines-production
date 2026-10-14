@@ -4413,19 +4413,21 @@ behold-widget {
 .tint-fruit    { --tint: #9b59b6; --tint-bg: rgba(155,89,182,0.04); --tint-border: #9b59b6; }
 .tint-specialty { --tint: #c08a3e; --tint-bg: rgba(192,138,62,0.04); --tint-border: #c08a3e; }
 
-/* Beer subcategories */
-.tint-pilsner  { --tint: #c8a84e; --tint-bg: rgba(200,168,78,0.04); --tint-border: #c8a84e; }
-.tint-amber    { --tint: #c0562b; --tint-bg: rgba(192,86,43,0.04); --tint-border: #c0562b; }
-.tint-wheat    { --tint: #d4a930; --tint-bg: rgba(212,169,48,0.04); --tint-border: #d4a930; }
-.tint-ipa      { --tint: #4a8c5c; --tint-bg: rgba(74,140,92,0.04); --tint-border: #4a8c5c; }
-.tint-pale     { --tint: #5a9a6a; --tint-bg: rgba(90,154,106,0.04); --tint-border: #5a9a6a; }
-.tint-session  { --tint: #6aaa5a; --tint-bg: rgba(106,170,90,0.04); --tint-border: #6aaa5a; }
-.tint-saison   { --tint: var(--color-gold); --tint-bg: rgba(184,150,62,0.04); --tint-border: var(--color-gold); }
-.tint-lager    { --tint: #b89040; --tint-bg: rgba(184,144,64,0.04); --tint-border: #b89040; }
-.tint-stout    { --tint: #4a3728; --tint-bg: rgba(74,55,40,0.05); --tint-border: #4a3728; }
-.tint-porter   { --tint: #5a4030; --tint-bg: rgba(90,64,48,0.04); --tint-border: #5a4030; }
-.tint-redale   { --tint: #a04030; --tint-bg: rgba(160,64,48,0.04); --tint-border: #a04030; }
-.tint-brown    { --tint: #7a5a3a; --tint-bg: rgba(122,90,58,0.04); --tint-border: #7a5a3a; }
+/* Beer subcategories. --tint-text is a darker shade of the same hue for small
+   text (style + brand lines), at least 4.5:1 on the label background; borders,
+   rules and the body wash keep --tint (owner legibility note, 2026-10-14). */
+.tint-pilsner  { --tint: #c8a84e; --tint-bg: rgba(200,168,78,0.04); --tint-border: #c8a84e; --tint-text: #826d33; }
+.tint-amber    { --tint: #c0562b; --tint-bg: rgba(192,86,43,0.04); --tint-border: #c0562b; --tint-text: #b65229; }
+.tint-wheat    { --tint: #d4a930; --tint-bg: rgba(212,169,48,0.04); --tint-border: #d4a930; --tint-text: #886c1f; }
+.tint-ipa      { --tint: #4a8c5c; --tint-bg: rgba(74,140,92,0.04); --tint-border: #4a8c5c; --tint-text: #427d52; }
+.tint-pale     { --tint: #5a9a6a; --tint-bg: rgba(90,154,106,0.04); --tint-border: #5a9a6a; --tint-text: #487b55; }
+.tint-session  { --tint: #6aaa5a; --tint-bg: rgba(106,170,90,0.04); --tint-border: #6aaa5a; --tint-text: #4d7c42; }
+.tint-saison   { --tint: var(--color-gold); --tint-bg: rgba(184,150,62,0.04); --tint-border: var(--color-gold); --tint-text: #866e2d; }
+.tint-lager    { --tint: #b89040; --tint-bg: rgba(184,144,64,0.04); --tint-border: #b89040; --tint-text: #8a6c30; }
+.tint-stout    { --tint: #4a3728; --tint-bg: rgba(74,55,40,0.05); --tint-border: #4a3728; --tint-text: #4a3728; }
+.tint-porter   { --tint: #5a4030; --tint-bg: rgba(90,64,48,0.04); --tint-border: #5a4030; --tint-text: #5a4030; }
+.tint-redale   { --tint: #a04030; --tint-bg: rgba(160,64,48,0.04); --tint-border: #a04030; --tint-text: #a04030; }
+.tint-brown    { --tint: #7a5a3a; --tint-bg: rgba(122,90,58,0.04); --tint-border: #7a5a3a; --tint-text: #7a5a3a; }
 
 /* ================================================
    SHARED: Tasting notes toggle (label cards)
@@ -4742,8 +4744,8 @@ behold-widget {
 }
 .label-beer .sv-logo svg { width: 100%; height: 100%; fill: currentColor; }
 .label-beer .subcategory {
-  font-family: var(--font-condensed); font-size: 0.6875rem; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.25em; color: var(--color-gold); margin-bottom: 0.35rem;
+  font-family: var(--font-condensed); font-size: 0.8rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.12em; color: #866e2d; margin-bottom: 0.35rem;
 }
 .label-beer .beer-name {
   font-family: var(--font-condensed); font-size: 1.6rem; font-weight: 700;
@@ -4810,8 +4812,8 @@ behold-widget {
 /* Beer tint overrides */
 .label-beer[class*="tint-"] { border-color: var(--tint-border); }
 .label-beer[class*="tint-"] .gold-rule { border-top-color: var(--tint-border); }
-.label-beer[class*="tint-"] .subcategory { color: var(--tint); }
-.label-beer[class*="tint-"] .brand { color: var(--tint); }
+.label-beer[class*="tint-"] .subcategory { color: var(--tint-text, var(--tint)); }
+.label-beer[class*="tint-"] .brand { color: var(--tint-text, var(--tint)); }
 .label-beer[class*="tint-"] .label-body { background: var(--tint-bg); }
 .label-beer[class*="tint-"] .reserve-link { background: var(--tint-bg); }
 .label-beer[class*="tint-"] .notes-toggle { color: var(--tint); }
