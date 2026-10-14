@@ -1645,18 +1645,42 @@ Plans:
 
 ### Phase 90: BrewPad batch invoice linking
 
-**Goal:** Manually created BrewPad batches can carry their Zoho invoice link (`zoho_so_number`) from the moment they are created, staff can see which batches have no link, and the 57-batch backlog (28% of 206) is cleared through a review queue in which a person confirms every match. Every automated path (kiosk, zoho_scan, online, research) already links 63 of 63; the gap is the BrewPad create-batch sheet, which has no invoice input and leaves `zoho_so_number` out of the `create_batch` payload. The invoice field is optional, and internal/staff batches are handled deliberately (open owner decision: whether `source` becomes editable, beer-golive handoff §6). Do NOT touch `createBatchesFromSale` / `detectRecipeSale`, and do NOT auto-link from customer + product + date.
+**Goal:** Manually created BrewPad batches can carry their Zoho invoice link (`zoho_so_number`) from the moment they are created, staff can see which batches have no link, and staff have a review queue, in which a person confirms every match, to clear the 57-batch backlog (28% of 206). Driving "Unlinked" to 0 on production is a post-promotion staff operation (D-10), not a phase completion criterion. Every automated path (kiosk, zoho_scan, online, research) already links 63 of 63; the gap is the BrewPad create-batch sheet, which has no invoice input and leaves `zoho_so_number` out of the `create_batch` payload. The invoice field is optional, and internal/staff batches are handled deliberately (open owner decision: whether `source` becomes editable, beer-golive handoff §6). Do NOT touch `createBatchesFromSale` / `detectRecipeSale`, and do NOT auto-link from customer + product + date.
 **Grain-order recipe splitting moved to Phase 91** (owner, 2026-10-14 discuss-phase: bigger than expected, since the split happens at grain selection time).
 **Third workstream (owner, 2026-10-14): kiosk one-tap canning bundle.** The operator picks the batch type (beer 25 L $40 / cider or sparkling wine 23 L $35; still wine is never canned) and the can size. The kiosk adds the real can item at the actual quantity used with rate $0 (this relieves stock), plus a custom line at the bundle price taxed at 12% GST+PST like the cans. It follows the `kioskSyncKitFees()` add/teardown pattern (`js/kiosk-core.js:772`) and the Phase 43 custom-line contract. It warns above the cap (beer 55/72, cider and sparkling wine 50/68). No Zoho composite or bundle item, and no discount-preset approach. This is a kiosk money-path change: it needs a real staging terminal sale before production. The related discount-alias bug is already fixed in `eaf0b8cc`.
 **Fourth workstream (owner, 2026-10-14): recipe picker dropdown.** Selecting a recipe shows the full list of active recipes on focus, and typing filters it. This covers the BrewPad new-batch picker, BrewPad attach-recipe, kiosk recipe mode, and the recipe editor (duplicate check plus "start from this recipe").
-**Requirements**: TBD
+**Requirements**: CONTEXT decisions D-01..D-25 (no REQUIREMENTS.md IDs)
 **Depends on:** none hard. Must work on both batch stores (Phase 87 `BATCHES_STORE` sheets/dual/postgres; PG `batches.zoho_so_number` already exists, `0005_batches.sql:51`).
-**Plans:** 0 plans
+**Plans:** 11 plans
 **Context:** `.planning/phases/90-brewpad-batch-invoice-linking/90-CONTEXT.md` (decisions D-01..D-21, 2026-10-14) and `.planning/phases/90-brewpad-batch-invoice-linking/90-NOTES.md` (owner handoff 2026-10-14: per-source link measurement, root cause at `js/brewpad.js:7591`, reuse of `fetchSoSearch` / "Link to Invoice", `/api/batch/scan-invoices` for the review queue, acceptance criteria, do-not-do list)
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 90 to break down)
+**Wave 1**
+
+- [ ] 90-01-PLAN.md — `source` manual<->internal guard in both batch stores (Apps Script + PG) + create round-trip tests
+- [ ] 90-02-PLAN.md — Server-owned canning bundle + $0 can line in /api/kiosk/sale and /sale/confirm (lib/kiosk-bundles.js)
+- [ ] 90-03-PLAN.md — Create-batch sheet: optional invoice picker (reused fetchSoSearch), internal checkbox, payload, confirm, dup banner
+- [ ] 90-04-PLAN.md — Shared js/lib/recipe-picker.js + kiosk recipe-mode full-list search
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 90-05-PLAN.md — Read-only GET /api/batch/link-candidates + create_batch source coercion
+- [ ] 90-06-PLAN.md — Unlinked chip + detail-view guided review (Link invoice / Not this / Mark internal)
+- [ ] 90-07-PLAN.md — Kiosk canning bundle picker + cart lifecycle (standalone kiosk only) + custom-labels copy
+- [ ] 90-08-PLAN.md — Admin recipe editor duplicate check + Start from this recipe
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 90-09-PLAN.md — BrewPad: four full-list recipe pickers + editor duplicate check / Start from
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 90-10-PLAN.md — Single phase build + authoritative full-suite gate
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 90-11-PLAN.md — Staging release, owner Apps Script redeploy, throwaway-data UAT, D-17 hardware session, production runsheet
 
 ### Phase 91: Online grain-order recipe splitting
 

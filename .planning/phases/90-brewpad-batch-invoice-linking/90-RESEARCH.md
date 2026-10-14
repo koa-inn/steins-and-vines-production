@@ -402,18 +402,25 @@ Contracts only (no implementation; planner/executor write code test-first).
 | A8 | `ZOHO_TAX_STANDARD_ID` is set in both Railway envs (value not read here) | C | If unset, fall back to catalog auto-discovery; if both fail the bundle sale 400s (fail-closed) |
 | A9 | ~10-13 active recipes today (prod snapshot 10, staging 13 as of 2026-10-07/13) | D | Scale argument only; design still handles ~100 |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Server contract for the bundle (owner-visible design choice)**
    - Known: server must own price, tax, can-line validity (above). Unknown: whether owner wants prices in code vs env, and one vs multiple bundles per cart.
    - Recommendation: constants module, single bundle per cart (fixed keys), revisit if two batches are canned in one sale.
+   - RESOLVED: D-22 (owner, plan time): prices are server-side constants in `zoho-middleware/lib/kiosk-bundles.js`; one bundle per cart (Plans 90-02, 90-07).
 2. **Customer resolution for the 57 legacy batches lacking `customer_id`**
    - Recommendation: Wave 0 read-only Zoho probe (`GET /invoices?customer_name=...` and contact search) on 2-3 known customers (e.g. Mercer, Lush, Lacheur from the false-positive list) to choose exact vs contains; document in plan.
+   - RESOLVED: no blocking probe is needed. Plan 90-05 applies a server-side exact post-filter on the normalised customer name, so the route returns the right invoices whether Zoho's `customer_name` filter matches exactly or by "contains". The probe is optional during Plan 90-05 execution and is re-checked read-only on staging in Plan 90-11; its result is recorded in the SUMMARY, not used as a gate.
 3. **Persistence of "Not this"** - localStorage (recommended) vs new column. Recommend localStorage; confirm with owner.
+   - RESOLVED: the UI-SPEC default, accepted by the owner: localStorage only (key `bp-link-dismissed:<batchId>`), no schema change (Plan 90-06).
 4. **Waitlist recipe pickers** (brewpad.js:8884, :9241) share the 15-cap defect but are not in D-19. Recommend including them if a shared dropdown function is built (near-zero marginal cost); otherwise leave and note.
+   - RESOLVED: D-23 (owner, plan time): included (Plan 90-09).
 5. **Embedded kiosk (admin.html) bundle button** - `kiosk-core.js` serves both surfaces; confirm whether the admin-embedded kiosk should expose the bundle (parity test says both surfaces build identical sale bodies).
+   - RESOLVED: D-25 (owner, plan time): standalone `kiosk.html` only; the admin-embedded kiosk is unchanged (Plan 90-07).
 6. **Mirror/replay:** the ops-mirror copies PG batch rows to the sheet in production only; `'internal'` is free text so no change, but confirm `batches-verify.js` treats `source` as plain text (spec `type:'text'`, verified).
+   - RESOLVED: verified in the research body: `source` is plain text in `batches-verify.js` and has no CHECK/enum in PG, so no change is needed.
 7. **Disabled batches in "Unlinked"** - exclude? (recommend yes).
+   - RESOLVED: D-24 (owner, plan time): disabled and deleted batches are excluded (Plan 90-06).
 
 ## Environment Availability
 

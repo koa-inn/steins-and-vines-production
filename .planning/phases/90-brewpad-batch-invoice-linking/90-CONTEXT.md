@@ -91,6 +91,9 @@ Phase 90 has three workstreams that share no files. Plan them as separate plans/
   - Candidate "Link invoice" (D-07) writes **only `zoho_so_number`**, then calls the invoice-status reconcile. It does not reuse `handleSoSelect`, which overwrites customer and product fields.
   - "Start from this recipe" (D-21) fetches the recipe detail and then uses `bpCloneRecipePayload` and the BrewPad save-as-new path. `kioskSaveAsNewRecipe` is not the right target.
   - The bundle needs **server-owned line handling** in both `/api/kiosk/sale` and `/api/kiosk/sale/confirm` (RESEARCH finding 1).
+- **D-05 refinement (owner-informed 2026-10-14):** off-list target values are dropped (never written), not rejected, to keep the pinned batch-pg-update test unedited; locked-source updates are rejected with invalid_source before any write.
+- **D-09 known limitation (plan-time, 2026-10-14):** a deliberate multi-link of one invoice to two batches of the **same product SKU** cannot be completed from the create sheet, because the server dedup returns `duplicate_so_number`. The create sheet shows a banner telling staff to create without an invoice and link it from the batch (detail-view Link to Invoice / Possible invoices). Multi-links across different SKUs work from the create sheet.
+- **Backlog clearance is operational (plan-time, 2026-10-14):** driving "Unlinked" to 0 on production is done by staff, one tap per batch (D-10), after production promotion. It is not a Phase 90 completion criterion. Phase 90 delivers the tools and proves them on staging.
 
 ### Claude's Discretion
 - The exact ±60-day window and the "kit line" detection rule within D-08. Keep the human-confirm invariant.
