@@ -2928,3 +2928,11 @@ textarea.bp-input {
 @media (min-width: 768px) {
   .bp-vessel-dropdown.bp-recipe-dropdown { max-height: 320px; }
 }
+
+/* Phase 90-09 (D-21): recipe editor similar-name assist */
+.bp-recipe-similar { max-height: 264px; overflow-y: auto; margin-top: 6px; border: 1px solid var(--ledger-soft); border-radius: var(--r-sm); }
+.bp-recipe-similar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; padding: 6px 10px; border-bottom: 1px solid var(--ledger-soft); }
+.bp-recipe-similar-row:last-child { border-bottom: none; }
+.bp-recipe-similar-info { display: flex; flex-direction: column; min-width: 0; }
+.bp-recipe-start-from { min-height: 44px; flex-shrink: 0; }
+.bp-recipe-dup { margin-top: 6px; padding: 8px 10px; background: var(--batch-warning-bg); border-left: 3px solid var(--batch-warning); font-size: 12px; font-weight: 700; }

@@ -3057,8 +3057,10 @@ function parseWaitlistRecipeIds(value) {
       populateRecipeForm(null);
       renderAvailabilityBannerBp(null);
       renderIngredientRows([], null);
+      initBpRecipeNameAssist();
       return;
     }
+    clearBpRecipeNameAssist();
 
     if (titleEl) titleEl.textContent = 'Loading…';
     renderAvailabilityBannerBp({ summary: 'loading' });
@@ -3405,6 +3407,123 @@ function parseWaitlistRecipeIds(value) {
     }
   }
 
+  // ===== Phase 90-09 (D-21): recipe editor similar-name assist + Start from =====
+  // New-recipe mode only. Lists up to 5 similar recipes (all statuses) while the name is typed and
+  // lets staff start from one via the existing clone path (bpCloneRecipe -> bpCloneRecipePayload).
+  var _bpNameAssistTimer = null;
+  var _bpNameAssistLoading = false;
+
+  function clearBpRecipeNameAssist() {
+    var box = document.getElementById('bp-recipe-name-similar');
+    if (box) box.innerHTML = '';
+  }
+
+  function renderBpRecipeNameAssist() {
+    var nameEl = document.getElementById('bp-recipe-name');
+    var box = document.getElementById('bp-recipe-name-similar');
+    if (!nameEl || !box) return;
+    if (_recipesState.currentRecipeId) { box.innerHTML = ''; return; }
+    var lib = bpRecipePickerLib();
+    if (!lib || !_recipesState.allForDupCheck) { box.innerHTML = ''; return; }
+    var m = lib.findRecipeNameMatches(_recipesState.allForDupCheck, nameEl.value);
+    var list = m.exact.concat(m.similar).slice(0, 5);
+    var html = '';
+    if (m.exact.length) {
+      html += '<div class="bp-recipe-dup" role="alert">A recipe named \'' + escapeHTML(m.exact[0].name || '') + '\' already exists.</div>';
+    }
+    if (list.length) {
+      html += '<div class="bp-recipe-similar">' + list.map(function (r) {
+        return '<div class="bp-recipe-similar-row">' +
+          '<div class="bp-recipe-similar-info"><span class="bp-recipe-opt-name">' + escapeHTML(r.name || '') + '</span>' +
+          (r.style ? '<span class="bp-recipe-opt-style">' + escapeHTML(r.style) + '</span>' : '') + '</div>' +
+          '<button type="button" class="btn-secondary bp-recipe-start-from" data-rid="' + escapeHTML(r.recipe_id || '') +
+          '" data-rname="' + escapeHTML(r.name || '') + '">Start from this recipe</button></div>';
+      }).join('') + '</div>';
+    }
+    box.innerHTML = html;
+  }
+
+  function initBpRecipeNameAssist() {
+    var nameEl = document.getElementById('bp-recipe-name');
+    if (!nameEl || !nameEl.parentNode) return;
+    var box = document.getElementById('bp-recipe-name-similar');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'bp-recipe-name-similar';
+      nameEl.parentNode.insertBefore(box, nameEl.nextSibling);
+    }
+    box.innerHTML = '';
+    if (!box._bpBound) {
+      box._bpBound = true;
+      box.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest('.bp-recipe-start-from') : null;
+        if (!btn || btn.disabled) return;
+        bpStartRecipeFromExisting(btn.getAttribute('data-rid'), btn.getAttribute('data-rname'), btn);
+      });
+    }
+    if (!nameEl._bpAssistBound) {
+      nameEl._bpAssistBound = true;
+      nameEl.addEventListener('input', function () {
+        clearTimeout(_bpNameAssistTimer);
+        _bpNameAssistTimer = setTimeout(renderBpRecipeNameAssist, 200);
+      });
+    }
+    var url = mwUrl();
+    if (!_recipesState.allForDupCheck && url && !_bpNameAssistLoading) {
+      _bpNameAssistLoading = true;
+      fetch(url + '/api/recipes?status=all', { credentials: 'include', headers: getRecipesMwHeaders() })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+        .then(function (data) {
+          _bpNameAssistLoading = false;
+          _recipesState.allForDupCheck = data.recipes || [];
+          renderBpRecipeNameAssist();
+        })
+        .catch(function () { _bpNameAssistLoading = false; });
+    }
+  }
+
+  function bpRecipeFormIsDirty() {
+    var get = function (id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
+    return (_recipesState.currentIngredients || []).length > 0 || !!get('bp-recipe-style') || !!get('bp-recipe-description');
+  }
+
+  function bpStartRecipeFromExisting(recipeId, recipeName, btn) {
+    var url = mwUrl();
+    if (!url || !recipeId) return;
+    function proceed() {
+      var box = document.getElementById('bp-recipe-name-similar');
+      var oldErr = box ? box.querySelector('.bp-recipe-start-error') : null;
+      if (oldErr) oldErr.parentNode.removeChild(oldErr);
+      if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+      return fetch(url + '/api/recipes/' + encodeURIComponent(recipeId), { credentials: 'include', headers: getRecipesMwHeaders() })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+        .then(function (detail) {
+          _recipesState.currentRecipe = detail.recipe || detail;
+          _recipesState.currentIngredients = (detail.ingredients || []).slice();
+          bpCloneRecipe();
+          var nameEl = document.getElementById('bp-recipe-name');
+          if (nameEl) { nameEl.focus(); if (nameEl.select) nameEl.select(); }
+        })
+        .catch(function () {
+          if (btn) { btn.disabled = false; btn.textContent = 'Start from this recipe'; }
+          var b = document.getElementById('bp-recipe-name-similar');
+          if (b) {
+            var err = document.createElement('div');
+            err.className = 'bp-recipe-dup bp-recipe-start-error';
+            err.setAttribute('role', 'alert');
+            err.textContent = 'Could not load that recipe. Try again.';
+            b.appendChild(err);
+          }
+        });
+    }
+    if (bpRecipeFormIsDirty()) {
+      showConfirmSheet("Replace what you have entered with a copy of '" + (recipeName || '') + "'?",
+        'Start from copy', 'bp-confirm-btn--primary', proceed);
+      return;
+    }
+    return proceed();
+  }
+
   // Pure helper: builds a clone draft payload from a source recipe + ingredients.
   // Returns { recipe, ingredients } — both are deep copies; source is NOT mutated.
   // Exported for unit tests.
@@ -3474,6 +3593,7 @@ function parseWaitlistRecipeIds(value) {
     renderAvailabilityBannerBp(null);
     renderIngredientRows(payload.ingredients, null);
     updateActivateGuardrail();
+    clearBpRecipeNameAssist();
   }
 
   // Activate guardrail (D-06): evaluate and reflect on the Activate button
@@ -11670,6 +11790,10 @@ function parseWaitlistRecipeIds(value) {
       _openRecipeAttachPanelForTest: openRecipeAttachPanel,
       _bindRecipePickerSearchForTest: bindRecipePickerSearch,
       _setProductPickerTabForTest: function (v) { _productPickerTab = v; },
+      // Phase 90-09 Task 2: editor name assist / Start from seams.
+      _openRecipeDetailForTest: openRecipeDetail,
+      _initBpRecipeNameAssistForTest: function () { return initBpRecipeNameAssist(); },
+      _bpStartRecipeFromExistingForTest: function (id, name, btn) { return bpStartRecipeFromExisting(id, name, btn); },
       // Plan 36-22: test-only state accessors for the cache-bust state vars
       getStateForTest: function () {
         return {
