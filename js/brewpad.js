@@ -213,6 +213,35 @@ function filterBatchesByStatus(batches, filter) {
   });
 }
 
+// Phase 90 (D-06/D-24): the Unlinked set. Every batch, any status, with no invoice
+// number, whose source is not 'internal', and which is not disabled/deleted.
+// Blank-source legacy batches count (they are the backlog).
+function normBatchSource(source) {
+  return String(source === null || source === undefined ? '' : source).trim().toLowerCase();
+}
+
+function filterBatchesByUnlinked(batches) {
+  return (batches || []).filter(function (b) {
+    if (!b) return false;
+    if (String(b.zoho_so_number === null || b.zoho_so_number === undefined ? '' : b.zoho_so_number).trim() !== '') return false;
+    if (normBatchSource(b.source) === 'internal') return false;
+    var s = String(b.status || '').trim().toLowerCase();
+    return s !== 'disabled' && s !== 'deleted';
+  });
+}
+
+// Phase 90 (D-05): Mark internal / Mark as not internal is offered only for blank,
+// manual or internal sources. Locked sources (kiosk, kiosk_recipe, online, zoho_scan,
+// research, anything else) are never changed from the UI (server guards are authoritative).
+function isBatchSourceEditable(source) {
+  var s = normBatchSource(source);
+  return s === '' || s === 'manual' || s === 'internal';
+}
+
+function shouldShowInternalBadge(source) {
+  return normBatchSource(source) === 'internal';
+}
+
 // Ready-to-Bottle filter: intersects _allBatchesData with the SERVER-computed
 // _dashSummary.readyToBottle set (adminApi.gs:1847-1883) by batch_id. Does NOT
 // re-derive the packaging-due predicate client-side.
@@ -4048,6 +4077,8 @@ function parseWaitlistRecipeIds(value) {
   function applyBatchFilter() {
     if (_batchStatusFilter === 'readyToBottle') {
       _batchesData = readyToBottleRows();
+    } else if (_batchStatusFilter === 'unlinked') {
+      _batchesData = filterBatchesByUnlinked(_allBatchesData);
     } else {
       _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
     }
@@ -4160,7 +4191,8 @@ function parseWaitlistRecipeIds(value) {
         { val: 'primary', label: 'Primary' },
         { val: 'secondary', label: 'Secondary' },
         { val: 'complete', label: 'Complete' },
-        { val: 'readyToBottle', label: 'Ready to Bottle' }
+        { val: 'readyToBottle', label: 'Ready to Bottle' },
+        { val: 'unlinked', label: 'Unlinked' }
       ];
       var pendingCount = _allBatchesData.filter(function (b) {
         return String(b.status || '').toLowerCase() === 'pending';
@@ -4176,7 +4208,9 @@ function parseWaitlistRecipeIds(value) {
         var badge = ((f.val === 'pending' || f.val === 'readyToBottle') && count > 0)
           ? ' <span style="display:inline-block;min-width:16px;padding:0 5px;border-radius:8px;background:#e67e22;color:#fff;font-size:0.72rem;font-weight:700;line-height:16px;text-align:center;">' + count + '</span>'
           : '';
-        shellHtml += '<button type="button" class="bp-filter-btn' + active + '" data-status="' + f.val + '">' + f.label + badge + '</button>';
+        // Phase 90 (D-06/D-24): the Unlinked count is always shown, including (0).
+        var chipLabel = f.val === 'unlinked' ? f.label + ' (' + filterBatchesByUnlinked(_allBatchesData).length + ')' : f.label;
+        shellHtml += '<button type="button" class="bp-filter-btn' + active + '" data-status="' + f.val + '">' + chipLabel + badge + '</button>';
       });
       shellHtml += '<select id="bp-batch-product-filter" class="bp-filter-select"><option value="">All Products</option></select>';
       shellHtml += '<button type="button" class="btn-secondary bp-btn-sm" id="bp-pull-from-zoho">Pull from Zoho</button>';
@@ -4236,6 +4270,10 @@ function parseWaitlistRecipeIds(value) {
     // Update filter button active states (they persist in the shell)
     Array.prototype.forEach.call(pane.querySelectorAll('.bp-filter-btn'), function (btn) {
       btn.classList.toggle('bp-filter-btn--active', btn.getAttribute('data-status') === _batchStatusFilter);
+      // The shell persists across renders, so keep the Unlinked count live.
+      if (btn.getAttribute('data-status') === 'unlinked') {
+        btn.textContent = 'Unlinked (' + filterBatchesByUnlinked(_allBatchesData).length + ')';
+      }
     });
 
     // Update product filter dropdown options
@@ -4271,6 +4309,8 @@ function parseWaitlistRecipeIds(value) {
     if (filtered.length === 0) {
       if (_batchStatusFilter === 'pending') {
         resultsHtml += '<p class="bp-empty"><strong>No pending batches</strong><br>Kiosk sales with Maker&#39;s Fee and kiosk recipe sales will appear here automatically.</p>';
+      } else if (_batchStatusFilter === 'unlinked') {
+        resultsHtml += '<p class="bp-empty"><strong>Every batch is linked</strong><br>Batches without an invoice are marked Internal.</p>';
       } else {
         resultsHtml += '<p class="bp-empty">No batches found.</p>';
       }
@@ -4333,6 +4373,9 @@ function parseWaitlistRecipeIds(value) {
         if (shouldShowKioskBadge(b.source, statusKey)) {
           resultsHtml += ' <span class="bp-kiosk-badge">Kiosk</span>';
         }
+        if (shouldShowInternalBadge(b.source)) {
+          resultsHtml += ' <span class="bp-source-badge bp-source-badge--internal">Internal</span>';
+        }
         resultsHtml += '</td>';
         resultsHtml += '<td>' + days + '</td>';
         resultsHtml += '</tr>';
@@ -4370,6 +4413,9 @@ function parseWaitlistRecipeIds(value) {
         resultsHtml += '<span class="bp-status-badge bp-status-badge--' + statusColor + '">' + escapeHTML(statusLabel) + '</span>';
         if (shouldShowKioskBadge(b.source, statusKey)) {
           resultsHtml += ' <span class="bp-kiosk-badge">Kiosk</span>';
+        }
+        if (shouldShowInternalBadge(b.source)) {
+          resultsHtml += ' <span class="bp-source-badge bp-source-badge--internal">Internal</span>';
         }
         resultsHtml += '</div>';
         resultsHtml += '<div class="bp-batch-card-name">' + escapeHTML(b.product_name || b.product_sku || '\u2014') +
@@ -10362,7 +10408,14 @@ function parseWaitlistRecipeIds(value) {
         var filterBtn = e.target.closest('.bp-filter-btn');
         if (filterBtn) {
           _batchStatusFilter = filterBtn.getAttribute('data-status');
-          if (_batchStatusFilter === 'readyToBottle' && (!_dashSummary || _allBatchesData.length === 0)) {
+          if (_batchStatusFilter === 'unlinked' && _allBatchesData.length === 0) {
+            // Phase 90: afterBatchWrite empties _allBatchesData; filtering the empty
+            // list would claim "Every batch is linked". Load first, then apply.
+            loadBatches().then(function () {
+              applyBatchFilter();
+              renderBatchList();
+            });
+          } else if (_batchStatusFilter === 'readyToBottle' && (!_dashSummary || _allBatchesData.length === 0)) {
             // Ready-to-Bottle needs BOTH the server readyToBottle set (_dashSummary) AND
             // the batch list (_allBatchesData) — the rows are their intersection. Load
             // whichever is missing, THEN apply the filter (WR-02: loadDashboard() alone
@@ -11220,6 +11273,7 @@ function parseWaitlistRecipeIds(value) {
       sendBottlingInviteForBatch: sendBottlingInviteForBatch,
       // Test-only: render the batch-detail pane (bottling-invite send-tracking UI).
       _renderBatchDetailForTest: renderBatchDetail,
+      _renderBatchListForTest: renderBatchList,
       // Phase 80-03: test-only seams for renderWaitlist -- sets the IIFE-scoped
       // _waitlistRows/_waitlistFilter/_waitlistSearch state, then renders into
       // #bp-panel-waitlist so a jsdom test can inspect the resulting markup.
@@ -11305,6 +11359,9 @@ if (typeof module !== 'undefined' && module.exports) {
     isOverdue: isOverdue, isToday: isToday,
     filterBatchesByStatus: filterBatchesByStatus,
     filterBatchesByReadyToBottle: filterBatchesByReadyToBottle,
+    filterBatchesByUnlinked: filterBatchesByUnlinked,
+    isBatchSourceEditable: isBatchSourceEditable,
+    shouldShowInternalBadge: shouldShowInternalBadge,
     getCustomerDisplayName: getCustomerDisplayName,
     calcAbv: calcAbv, renderDataGapWarning: renderDataGapWarning,
     isSessionStale: isSessionStale,
