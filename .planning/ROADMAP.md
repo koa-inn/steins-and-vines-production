@@ -1651,7 +1651,7 @@ Plans:
 **Fourth workstream (owner, 2026-10-14): recipe picker dropdown.** Selecting a recipe shows the full list of active recipes on focus, and typing filters it. This covers the BrewPad new-batch picker, BrewPad attach-recipe, kiosk recipe mode, and the recipe editor (duplicate check plus "start from this recipe").
 **Requirements**: CONTEXT decisions D-01..D-25 (no REQUIREMENTS.md IDs)
 **Depends on:** none hard. Must work on both batch stores (Phase 87 `BATCHES_STORE` sheets/dual/postgres; PG `batches.zoho_so_number` already exists, `0005_batches.sql:51`).
-**Plans:** 8/11 plans executed
+**Plans:** 9/11 plans executed
 **Context:** `.planning/phases/90-brewpad-batch-invoice-linking/90-CONTEXT.md` (decisions D-01..D-21, 2026-10-14) and `.planning/phases/90-brewpad-batch-invoice-linking/90-NOTES.md` (owner handoff 2026-10-14: per-source link measurement, root cause at `js/brewpad.js:7591`, reuse of `fetchSoSearch` / "Link to Invoice", `/api/batch/scan-invoices` for the review queue, acceptance criteria, do-not-do list)
 
 Plans:
@@ -1672,7 +1672,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 90-09-PLAN.md — BrewPad: four full-list recipe pickers + editor duplicate check / Start from
+- [x] 90-09-PLAN.md — BrewPad: four full-list recipe pickers + editor duplicate check / Start from
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
