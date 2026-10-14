@@ -72,7 +72,10 @@
     // ---- Behavior hooks bridging to not-yet-migrated code (custom-item /
     // gift-card-issue modals stay in the consumer per PATTERNS.md) ----
     showCustomItemModal: function () {},
-    showGiftCardIssueModal: function () {}
+    showGiftCardIssueModal: function () {},
+    // Phase 90 (D-25): the canning-bundle picker is registered by the standalone
+    // kiosk only. null (admin-embedded kiosk) means the opener is not rendered.
+    showCanningBundleModal: null
   };
 
   function kcInit(env) {
@@ -93,7 +96,7 @@
       'getCart', 'setCart', 'getDiscount', 'setDiscount', 'getGiftCard', 'setGiftCard',
       'getCustomer', 'setCustomer', 'getRecipeContext', 'setRecipeContext',
       'getModifiedIngredients', 'setModifiedIngredients',
-      'showCustomItemModal', 'showGiftCardIssueModal'
+      'showCustomItemModal', 'showGiftCardIssueModal', 'showCanningBundleModal'
     ];
     bridgedFns.forEach(function (name) {
       if (typeof env[name] === 'function') {
@@ -2135,6 +2138,20 @@
 
   function kioskSetQty(itemId, qty) {
     var cart = _kcEnv.getCart();
+    // Phase 90 (D-16): the bundle line is pinned at qty 1; the can line edits
+    // go through the cap-aware setter; dropping the can count to 0 removes both.
+    if (itemId === KIOSK_BUNDLE_LINE_KEY) {
+      kioskRenderCart();
+      return;
+    }
+    if (itemId === KIOSK_BUNDLE_CAN_KEY && cart[itemId]) {
+      if (qty <= 0) {
+        kioskRemoveCanningBundle();
+      } else {
+        kioskSetBundleCanCount(qty);
+      }
+      return;
+    }
     var wasKit = cart[itemId] && kioskGetItemType(cart[itemId].item) === 'kit';
     if (qty <= 0) {
       delete cart[itemId];
@@ -2153,6 +2170,10 @@
 
   function kioskRemoveFromCart(itemId) {
     var cart = _kcEnv.getCart();
+    if (itemId === KIOSK_BUNDLE_LINE_KEY || itemId === KIOSK_BUNDLE_CAN_KEY) {
+      kioskRemoveCanningBundle(); // D-16: either line removes both
+      return;
+    }
     var wasFee = cart[itemId] && kioskIsKitFee(cart[itemId].item);
     var wasKit = cart[itemId] && kioskGetItemType(cart[itemId].item) === 'kit';
     delete cart[itemId];
@@ -2166,6 +2187,7 @@
   }
 
   function kioskClearCart() {
+    _kioskBundleCapAck = false;
     _kioskMakersFeeWaived = false;
     _kcEnv.setCart({});
     _kcEnv.setDiscount(null);
@@ -2182,6 +2204,158 @@
     kioskUpdateDiscountDisplay();
     kioskRenderCart();
     kioskRenderProducts();
+  }
+
+  // ===== Canning bundle (Phase 90, D-11..D-16, D-22, D-25) =====
+  // DISPLAY-ONLY mirror of zoho-middleware/lib/kiosk-bundles.js BUNDLES. The
+  // server table is authoritative (it prices, taxes and labels the sale and
+  // ignores any client rate); kiosk-canning-bundle-parity.test.js pins this copy
+  // to the server so the displayed total cannot drift from the charge.
+  var KIOSK_CANNING_BUNDLES = {
+    'beer-25': {
+      price: 40,
+      label: 'Beer 25 L',
+      nominal: { 473: 52, 355: 70 },
+      cap: { 473: 55, 355: 72 }
+    },
+    'cider-23': {
+      price: 35,
+      label: 'Cider / sparkling wine 23 L',
+      nominal: { 473: 48, 355: 64 },
+      cap: { 473: 50, 355: 68 }
+    }
+  };
+  var KIOSK_BUNDLE_TAX_PCT = 12;
+  var KIOSK_BUNDLE_LINE_KEY = 'bundle-line';
+  var KIOSK_BUNDLE_CAN_KEY = 'bundle-can';
+  var KIOSK_BUNDLE_MAX_CANS = 100;
+  // Operator has confirmed the current over-cap count is one batch (D-12).
+  var _kioskBundleCapAck = false;
+
+  function kioskFindCanItem(size) {
+    var sku = 'CAN-' + size;
+    for (var i = 0; i < _kioskProducts.length; i++) {
+      if ((_kioskProducts[i].sku || '').toUpperCase() === sku) return _kioskProducts[i];
+    }
+    return null;
+  }
+
+  function kioskBundleInCart() {
+    var cart = _kcEnv.getCart();
+    return !!(cart[KIOSK_BUNDLE_LINE_KEY] || cart[KIOSK_BUNDLE_CAN_KEY]);
+  }
+
+  function kioskBundleCapFor(bundleKey, canSize) {
+    var b = Object.prototype.hasOwnProperty.call(KIOSK_CANNING_BUNDLES, bundleKey) ? KIOSK_CANNING_BUNDLES[bundleKey] : null;
+    return b && b.cap[canSize] ? b.cap[canSize] : null;
+  }
+
+  // True when the can count in the cart is above the bundle cap (display warning only).
+  function kioskBundleOverCap() {
+    var cart = _kcEnv.getCart();
+    var line = cart[KIOSK_BUNDLE_LINE_KEY];
+    var can = cart[KIOSK_BUNDLE_CAN_KEY];
+    if (!line || !can) return false;
+    var cap = kioskBundleCapFor(line.item.bundle_key, line.item.bundle_size);
+    return !!cap && can.qty > cap;
+  }
+
+  // opts: { bundleKey, canSize, count, capConfirmed }
+  function kioskAddCanningBundle(opts) {
+    opts = opts || {};
+    var hasKey = typeof opts.bundleKey === 'string' &&
+      Object.prototype.hasOwnProperty.call(KIOSK_CANNING_BUNDLES, opts.bundleKey);
+    if (!hasKey) return { ok: false, reason: 'unknown_bundle' };
+    var bundle = KIOSK_CANNING_BUNDLES[opts.bundleKey];
+    var size = Number(opts.canSize);
+    if (size !== 473 && size !== 355) return { ok: false, reason: 'unknown_size' };
+    if (_kcEnv.getRecipeContext()) return { ok: false, reason: 'recipe_cart' };
+    if (kioskBundleInCart()) return { ok: false, reason: 'already_added' };
+    var count = Number(opts.count);
+    if (!isFinite(count) || Math.floor(count) !== count || count < 1 || count > KIOSK_BUNDLE_MAX_CANS) {
+      return { ok: false, reason: 'bad_count' };
+    }
+    var canProduct = kioskFindCanItem(size);
+    if (!canProduct) return { ok: false, reason: 'can_item_missing' };
+
+    // Shallow copy so the catalog product keeps its real rate (T-90-30).
+    var canItem = {};
+    Object.keys(canProduct).forEach(function (k) { canItem[k] = canProduct[k]; });
+    canItem.rate = 0;
+    canItem.bundle_can = true;
+
+    var description = 'Canning Bundle — ' + bundle.label + ' (' + size + ' mL)';
+    var oldCart = _kcEnv.getCart();
+    var newCart = {};
+    // Bundle keys first so a fixed cart discount's last-line remainder lands on
+    // a later line, never on the $0 can line (D-14: discount code untouched).
+    newCart[KIOSK_BUNDLE_LINE_KEY] = {
+      item: {
+        custom: true,
+        bundle_key: opts.bundleKey,
+        bundle_size: size,
+        name: description,
+        description: description,
+        note: '',
+        rate: bundle.price,
+        tax_percentage: KIOSK_BUNDLE_TAX_PCT,
+        taxable: true
+      },
+      qty: 1
+    };
+    newCart[KIOSK_BUNDLE_CAN_KEY] = { item: canItem, qty: count };
+    Object.keys(oldCart).forEach(function (k) { newCart[k] = oldCart[k]; });
+    _kcEnv.setCart(newCart);
+    var overCap = count > bundle.cap[size];
+    _kioskBundleCapAck = !!opts.capConfirmed && overCap;
+    kioskRenderCart();
+    kioskRenderProducts();
+    return { ok: true, overCap: overCap };
+  }
+
+  function kioskRemoveCanningBundle() {
+    var cart = _kcEnv.getCart();
+    delete cart[KIOSK_BUNDLE_LINE_KEY];
+    delete cart[KIOSK_BUNDLE_CAN_KEY];
+    _kioskBundleCapAck = false;
+    kioskRenderCart();
+    kioskRenderProducts();
+  }
+
+  // Only the $0 can line changes; the bundle price is fixed (D-16).
+  function kioskSetBundleCanCount(n) {
+    var cart = _kcEnv.getCart();
+    var can = cart[KIOSK_BUNDLE_CAN_KEY];
+    if (!can) return { ok: false, reason: 'no_bundle' };
+    var count = Number(n);
+    if (!isFinite(count)) return { ok: false, reason: 'bad_count' };
+    count = Math.round(count);
+    if (count < 1) count = 1;
+    if (count > KIOSK_BUNDLE_MAX_CANS) count = KIOSK_BUNDLE_MAX_CANS;
+    can.qty = count;
+    var over = kioskBundleOverCap();
+    if (!over) _kioskBundleCapAck = false;
+    kioskRenderCart();
+    return { ok: true, overCap: over };
+  }
+
+  function kioskBundleOpenerHtml() {
+    if (typeof _kcEnv.showCanningBundleModal !== 'function' || _kcEnv.getRecipeContext()) return '';
+    var added = kioskBundleInCart();
+    return '<div style="margin-top:0.5rem;">' +
+      '<button id="kiosk-canning-bundle-btn" type="button" class="kiosk-add-custom-btn kiosk-canning-bundle-btn"' +
+      (added ? ' disabled' : '') + '>' +
+      (added ? 'Bundle added' : 'Canning bundle') +
+      '</button></div>';
+  }
+
+  function kioskWireBundleOpener() {
+    var btn = document.getElementById('kiosk-canning-bundle-btn');
+    if (btn) {
+      btn.addEventListener('click', function () {
+        if (typeof _kcEnv.showCanningBundleModal === 'function') _kcEnv.showCanningBundleModal();
+      });
+    }
   }
 
   function kioskRenderCart() {
@@ -2215,6 +2389,7 @@
         '+ Add custom item' +
         '</button>' +
         '</div>' +
+        kioskBundleOpenerHtml() +
         '<div style="margin-top:0.5rem;">' +
         '<button id="kiosk-add-gc-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #5a3e1b;border-radius:6px;background:none;cursor:pointer;color:#5a3e1b;">' +
         '+ Issue / Reload Gift Card' +
@@ -2233,6 +2408,7 @@
           _kcEnv.showCustomItemModal();
         });
       }
+      kioskWireBundleOpener();
       var addGcBtnEmpty = document.getElementById('kiosk-add-gc-btn');
       if (addGcBtnEmpty) {
         addGcBtnEmpty.addEventListener('click', function () {
@@ -2265,9 +2441,23 @@
         html += '</div>';
         return;
       }
-      html += '<div class="kiosk-cart-line">';
+      // Phase 90 (D-11/D-16): the bundle line has no stepper (qty fixed at 1); the
+      // paired can line keeps its stepper and shows the over-cap inline warning.
+      if (id === KIOSK_BUNDLE_LINE_KEY && item.bundle_key) {
+        html += '<div class="kiosk-cart-line kiosk-bundle-group">';
+        html += '<div class="kiosk-cart-line-name" title="' + escapeHTML(item.name || '') + '">' + escapeHTML(item.name || '') +
+          '<div class="kiosk-bundle-note">' + KIOSK_BUNDLE_TAX_PCT + '% tax</div></div>';
+        html += '<div class="kiosk-cart-qty"><span class="kiosk-qty-val">1</span></div>';
+        html += '<div class="kiosk-cart-line-total">' + kioskFmt(lineTotal) + '</div>';
+        html += '<button class="kiosk-cart-remove-btn" data-id="' + id + '">&times;</button>';
+        html += '</div>';
+        return;
+      }
+      var isBundleCan = (id === KIOSK_BUNDLE_CAN_KEY && !!item.bundle_can);
+      html += '<div class="kiosk-cart-line' + (isBundleCan ? ' kiosk-bundle-group' : '') + '">';
       var isWeight = kioskIsWeightItem(item);
-      html += '<div class="kiosk-cart-line-name" title="' + escapeHTML(item.name || '') + '">' + escapeHTML(item.name || '') + '</div>';
+      html += '<div class="kiosk-cart-line-name" title="' + escapeHTML(item.name || '') + '">' + escapeHTML(item.name || '') +
+        (isBundleCan ? '<div class="kiosk-bundle-note">Included in bundle</div>' : '') + '</div>';
       if (isWeight) {
         html += '<div class="kiosk-cart-qty">';
         html += '<input type="number" class="kiosk-qty-input" data-id="' + id + '" value="' + qty + '" step="0.01" min="0.001" inputmode="decimal">';
@@ -2283,6 +2473,12 @@
       html += '<div class="kiosk-cart-line-total">' + kioskFmt(lineTotal) + '</div>';
       html += '<button class="kiosk-cart-remove-btn" data-id="' + id + '">&times;</button>';
       html += '</div>';
+      if (isBundleCan && kioskBundleOverCap() && !_kioskBundleCapAck) {
+        html += '<div class="kiosk-bundle-cap-warn" role="alert">' +
+          '<span>Above the bundle cap. Confirm this is one batch.</span>' +
+          '<button type="button" class="kiosk-bundle-cap-ok">OK, one batch</button>' +
+          '</div>';
+      }
     });
 
     html += '<div style="margin-top:0.5rem;">' +
@@ -2290,6 +2486,7 @@
       '+ Add custom item' +
       '</button>' +
       '</div>';
+    html += kioskBundleOpenerHtml();
     html += '<div style="margin-top:0.5rem;">' +
       '<button id="kiosk-add-gc-btn" type="button" class="kiosk-add-custom-btn" style="width:100%;padding:0.6rem;font-size:0.95rem;border:1px dashed #5a3e1b;border-radius:6px;background:none;cursor:pointer;color:#5a3e1b;">' +
       '+ Issue / Reload Gift Card' +
@@ -2363,6 +2560,14 @@
     if (addCustomBtn) {
       addCustomBtn.addEventListener('click', function () {
         _kcEnv.showCustomItemModal();
+      });
+    }
+    kioskWireBundleOpener();
+    var capOkBtn = container.querySelector('.kiosk-bundle-cap-ok');
+    if (capOkBtn) {
+      capOkBtn.addEventListener('click', function () {
+        _kioskBundleCapAck = true;
+        kioskRenderCart();
       });
     }
     var addGcBtn = document.getElementById('kiosk-add-gc-btn');
@@ -2736,7 +2941,7 @@
       }
       // D-04/D-08: custom lines forward description/note/taxable — no item_id
       if (entry.item.custom) {
-        return {
+        var customLine = {
           custom: true,
           description: entry.item.description || '',
           note: entry.item.note || '',
@@ -2744,8 +2949,11 @@
           rate: parseFloat(entry.item.rate) || 0,
           taxable: entry.item.taxable !== false
         };
+        // Phase 90: the server re-prices a bundle line from bundle_key (D-22).
+        if (entry.item.bundle_key) customLine.bundle_key = entry.item.bundle_key;
+        return customLine;
       }
-      return {
+      var itemLine = {
         item_id: entry.item.item_id,
         name: entry.item.name || '',
         sku: entry.item.sku || '',
@@ -2754,6 +2962,8 @@
         product_type: entry.item.product_type || '',
         cf_type: entry.item.cf_type || ''
       };
+      if (entry.item.bundle_can) itemLine.bundle_can = true;
+      return itemLine;
     });
 
     // 57-03: pre-checkout phantom guard — the confirmed variant-2 stale-catalog
@@ -5821,6 +6031,12 @@
     findMaterialsFee: kioskFindMaterialsFee,
     countKitsInCart: kioskCountKitsInCart,
     syncKitFees: kioskSyncKitFees,
+    // Phase 90 canning bundle
+    CANNING_BUNDLES: KIOSK_CANNING_BUNDLES,
+    addCanningBundle: kioskAddCanningBundle,
+    removeCanningBundle: kioskRemoveCanningBundle,
+    setBundleCanCount: kioskSetBundleCanCount,
+    bundleOverCap: kioskBundleOverCap,
     isKitFee: kioskIsKitFee,
     findProductById: kioskFindProductById,
     r2: kioskR2,

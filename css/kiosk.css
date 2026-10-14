@@ -2957,3 +2957,35 @@ img {
   padding: var(--sp-3, 12px);
   color: var(--ink-tertiary);
 }
+
+/* ===== Phase 90: canning bundle (cart rows + opener) ===== */
+.kiosk-bundle-group { border-left: 3px solid var(--cork); padding-left: 0.5rem; }
+.kiosk-bundle-note { font-size: 12px; font-weight: 700; color: var(--ink-tertiary); }
+.kiosk-bundle-cap-warn { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; background: var(--batch-warning-bg); border-left: 3px solid var(--batch-warning); border-radius: 6px; padding: 0.5rem 0.75rem; margin: 0.25rem 0; font-size: 14px; color: var(--ink-primary); }
+.kiosk-bundle-cap-warn span { flex: 1; min-width: 12rem; }
+.kiosk-bundle-cap-ok { min-height: 44px; padding: 0 1rem; border: 1px solid var(--batch-warning); border-radius: 6px; background: var(--cellar-raised); color: var(--ink-primary); font-weight: 700; cursor: pointer; }
+.kiosk-canning-bundle-btn { width: 100%; min-height: 52px; padding: 0.6rem; font-size: 0.95rem; border: 1px solid var(--ledger-emphasis); border-radius: 6px; background: var(--cellar-raised); color: var(--ink-primary); font-weight: 700; cursor: pointer; }
+.kiosk-canning-bundle-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* ===== Phase 90: canning bundle picker modal ===== */
+.kiosk-bundle-modal { display: flex; flex-direction: column; gap: 32px; background: var(--cellar-raised); border-radius: 12px; padding: 24px; width: min(92vw, 480px); max-height: 92vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25); color: var(--ink-primary); }
+.kiosk-bundle-modal-head { display: flex; align-items: center; justify-content: space-between; }
+.kiosk-bundle-modal-head h3 { margin: 0; font-size: 1.25rem; }
+.kiosk-bundle-close { min-width: 44px; min-height: 44px; border: none; background: none; font-size: 1.75rem; line-height: 1; cursor: pointer; color: var(--ink-primary); }
+.kiosk-bundle-label { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.kiosk-bundle-opts { display: flex; gap: 8px; }
+.kiosk-bundle-opt { flex: 1; min-height: 52px; padding: 8px; font-size: 16px; font-weight: 700; background: var(--cellar-raised); color: var(--ink-primary); border: 1px solid var(--ledger-emphasis); border-radius: 6px; cursor: pointer; }
+.kiosk-bundle-opt--active { background: var(--stain); color: var(--cellar-canvas); }
+.kiosk-bundle-opt--active .kiosk-bundle-note { color: var(--cellar-canvas); }
+.kiosk-bundle-stepper { display: flex; gap: 8px; }
+.kiosk-bundle-count { width: 52px; height: 52px; text-align: center; font-size: 20px; font-weight: 700; border: 1px solid var(--ledger-emphasis); border-radius: 6px; background: var(--cellar-raised); color: var(--ink-primary); cursor: pointer; }
+input.kiosk-bundle-count { flex: 1; cursor: text; }
+.kiosk-bundle-ack { display: flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 700; cursor: pointer; }
+.kiosk-bundle-ack input { width: 24px; height: 24px; }
+.kiosk-bundle-total { font-size: 20px; font-weight: 700; }
+.kiosk-bundle-error { color: #a33; font-size: 14px; font-weight: 700; }
+.kiosk-bundle-footer { display: flex; gap: 12px; justify-content: flex-end; }
+.kiosk-bundle-secondary, .kiosk-bundle-primary { min-height: 52px; padding: 0 20px; font-size: 16px; font-weight: 700; border-radius: 6px; cursor: pointer; }
+.kiosk-bundle-secondary { background: var(--cellar-raised); color: var(--ink-primary); border: 1px solid var(--ledger-emphasis); }
+.kiosk-bundle-primary { background: var(--stain); color: var(--cellar-canvas); border: none; }
+.kiosk-bundle-primary:disabled { opacity: 0.4; cursor: default; }
