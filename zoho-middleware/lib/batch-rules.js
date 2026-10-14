@@ -370,6 +370,31 @@ function manualCreateFingerprint(actor, payload) {
   return crypto.createHash('sha256').update(parts.join('|')).digest('hex');
 }
 
+// ─── Source transition (Phase 90, D-05) ────────────────────────────────────
+
+var SOURCE_EDITABLE = ['', 'manual', 'internal'];
+var SOURCE_TARGETS = ['manual', 'internal'];
+
+/**
+ * Port of batchSourceTransitionDecision (apps-script/adminApi.gs). Blank current source counts as
+ * manual. Off-list target values are skipped (dropped); manual/internal against a locked automated
+ * source is rejected with invalid_source.
+ */
+function sourceTransitionDecision(currentSource, nextSource) {
+  if (nextSource === undefined || nextSource === null) return { action: 'skip' };
+  var next = String(nextSource || '').trim().toLowerCase();
+  if (SOURCE_TARGETS.indexOf(next) === -1) return { action: 'skip' };
+  var cur = String(currentSource || '').trim().toLowerCase();
+  if (SOURCE_EDITABLE.indexOf(cur) === -1) {
+    return {
+      ok: false,
+      error: 'invalid_source',
+      message: 'Batch source "' + cur + '" is automatic and not editable'
+    };
+  }
+  return { action: 'write', value: next };
+}
+
 // ─── Due date ──────────────────────────────────────────────────────────────
 
 /**
@@ -885,6 +910,7 @@ module.exports = {
   stripForList: stripForList,
   stripForPublic: stripForPublic,
   dedupDecision: dedupDecision,
+  sourceTransitionDecision: sourceTransitionDecision,
   calculateDueDate: calculateDueDate,
   isActiveStatus: isActiveStatus,
   validateUpdateStatus: validateUpdateStatus,
