@@ -2957,3 +2957,12 @@ img {
   padding: var(--sp-3, 12px);
   color: var(--ink-tertiary);
 }
+
+/* ===== Phase 90: canning bundle (cart rows + opener) ===== */
+.kiosk-bundle-group { border-left: 3px solid var(--cork); padding-left: 0.5rem; }
+.kiosk-bundle-note { font-size: 12px; font-weight: 700; color: var(--ink-tertiary); }
+.kiosk-bundle-cap-warn { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; background: var(--batch-warning-bg); border-left: 3px solid var(--batch-warning); border-radius: 6px; padding: 0.5rem 0.75rem; margin: 0.25rem 0; font-size: 14px; color: var(--ink-primary); }
+.kiosk-bundle-cap-warn span { flex: 1; min-width: 12rem; }
+.kiosk-bundle-cap-ok { min-height: 44px; padding: 0 1rem; border: 1px solid var(--batch-warning); border-radius: 6px; background: var(--cellar-raised); color: var(--ink-primary); font-weight: 700; cursor: pointer; }
+.kiosk-canning-bundle-btn { width: 100%; min-height: 52px; padding: 0.6rem; font-size: 0.95rem; border: 1px solid var(--ledger-emphasis); border-radius: 6px; background: var(--cellar-raised); color: var(--ink-primary); font-weight: 700; cursor: pointer; }
+.kiosk-canning-bundle-btn:disabled { opacity: 0.6; cursor: default; }
