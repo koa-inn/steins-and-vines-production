@@ -4174,6 +4174,29 @@ function normalizePricingMode(value) {
 }
 
 /**
+ * Phase 89 D-02/D-03: the 12 allowed beer_category keys (app-level enum, no sheet validation).
+ * Keep in sync with zoho-middleware/lib/recipe-rules.js (parity test) and js/lib/constants.js
+ * BEER_CATEGORIES (drift test).
+ */
+var BEER_CATEGORY_KEYS = [
+  'pilsner', 'lager', 'pale', 'ipa', 'amber', 'wheat',
+  'session', 'saison', 'stout', 'porter', 'redale', 'brown'
+];
+
+/**
+ * Phase 89 D-03/D-04: normalise then reject. Returns the canonical key, '' (blank = default gold)
+ * or null (invalid -> caller returns invalid_data). Body is identical to the middleware copy;
+ * must not reference Apps Script globals (pure gate).
+ */
+function normalizeBeerCategory(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'string') return null;
+  if (value.trim() === '') return '';
+  var key = value.toLowerCase().replace(/[^a-z]/g, '');
+  return BEER_CATEGORY_KEYS.indexOf(key) === -1 ? null : key;
+}
+
+/**
  * Self-migrating helper: the Recipes sheet originally shipped without a
  * schedule_id column, so a recipe had no way to link to a FermSchedules
  * template. Add the column (at the end) the first time we write, so
@@ -4188,6 +4211,22 @@ function ensureRecipesScheduleIdColumn(sheet) {
   var idx = headers.indexOf('schedule_id');
   if (idx === -1) {
     sheet.getRange(1, lastCol + 1).setValue('schedule_id').setFontWeight('bold');
+    return lastCol; // zero-based index of the newly added column
+  }
+  return idx;
+}
+
+/**
+ * Phase 89 D-03: self-migrating beer_category column (appended at the end, bold header),
+ * same idiom as the pricing_mode / schedule_id helpers. Existing rows read as '' (default gold).
+ * Returns the zero-based column index.
+ */
+function ensureRecipesBeerCategoryColumn(sheet) {
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var idx = headers.indexOf('beer_category');
+  if (idx === -1) {
+    sheet.getRange(1, lastCol + 1).setValue('beer_category').setFontWeight('bold');
     return lastCol; // zero-based index of the newly added column
   }
   return idx;
@@ -5138,6 +5177,17 @@ function exportBatchTabs() {
     }
   });
   return { ok: true, data: out };
+}
+
+/**
+ * Phase 89 D-03: editor-run helper. Run once after redeploy so the Recipes sheet has the
+ * beer_category header before any save. Not dispatched by any doGet/doPost action.
+ */
+function setupRecipeBeerCategoryColumn() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(RECIPES_SHEET_NAME);
+  var idx = ensureRecipesBeerCategoryColumn(sheet);
+  invalidateSheetCache(RECIPES_SHEET_NAME);
+  Logger.log('beer_category column index: ' + idx);
 }
 
 /**
