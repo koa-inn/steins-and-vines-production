@@ -68,12 +68,35 @@ var CATEGORY_DISPLAY_NAMES = {
   'Cleaning/Sanitization': 'Cleaning/Sanitization'
 };
 
+// ---------------------------------------------------------------------------
+// Beer recipe categories (Phase 89, D-02)
+// ---------------------------------------------------------------------------
+// Keys are the CSS `.tint-*` beer keys; they must match
+// zoho-middleware/lib/recipe-rules.js BEER_CATEGORY_KEYS and
+// apps-script/adminApi.gs (drift test in Plan 89-03). The blank option
+// "-- None (gold) --" is markup in the editors, not an entry here.
+var BEER_CATEGORIES = [
+  { key: 'pilsner', label: 'Pilsner' },
+  { key: 'lager',   label: 'Lager' },
+  { key: 'pale',    label: 'Pale ale' },
+  { key: 'ipa',     label: 'IPA' },
+  { key: 'session', label: 'Session' },
+  { key: 'wheat',   label: 'Wheat' },
+  { key: 'saison',  label: 'Saison' },
+  { key: 'amber',   label: 'Amber' },
+  { key: 'redale',  label: 'Red ale' },
+  { key: 'brown',   label: 'Brown' },
+  { key: 'porter',  label: 'Porter' },
+  { key: 'stout',   label: 'Stout' }
+];
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     CART_KEYS:     CART_KEYS,
     ITEM_TYPES:    ITEM_TYPES,
     PRODUCT_TABS:  PRODUCT_TABS,
     KIT_CATEGORIES: KIT_CATEGORIES,
-    CATEGORY_DISPLAY_NAMES: CATEGORY_DISPLAY_NAMES
+    CATEGORY_DISPLAY_NAMES: CATEGORY_DISPLAY_NAMES,
+    BEER_CATEGORIES: BEER_CATEGORIES
   };
 }
