@@ -56,17 +56,23 @@ function candidate(over) {
 
 var respondWith;
 var adminPosts;
+var adminRespond;
+var callLog;
 
 function installFetch() {
   adminPosts = [];
+  callLog = [];
+  adminRespond = null;
   global.fetch = jest.fn(function (url, options) {
     var u = String(url);
+    callLog.push(u + (options && options.method ? ' ' + options.method : ''));
     if (u.indexOf('/api/batch/link-candidates') !== -1) {
       return respondWith(u);
     }
     if (u.indexOf('/api/batch/admin-proxy') !== -1 && options && options.method === 'POST') {
       var body = JSON.parse(options.body || '{}');
       adminPosts.push(body);
+      if (adminRespond) return adminRespond(body);
     }
     return Promise.resolve({
       ok: true, status: 200,
@@ -376,5 +382,185 @@ describe('Possible invoices section', function () {
 
   test('exposes the load seam', function () {
     expect(typeof bp._loadLinkCandidatesForTest).toBe('function');
+  });
+});
+
+function updateBatchPosts() {
+  return adminPosts.filter(function (p) { return p.action === 'update_batch'; });
+}
+
+function reconcileFetches() {
+  return global.fetch.mock.calls.filter(function (c) {
+    return String(c[0]).indexOf('/api/batch/reconcile-invoice-status') !== -1;
+  });
+}
+
+function adminOk(extra) {
+  var body = { ok: true };
+  Object.keys(extra || {}).forEach(function (k) { body[k] = extra[k]; });
+  return jsonOk(body);
+}
+
+function adminFail(status, body) {
+  return Promise.resolve({ ok: false, status: status, json: function () { return Promise.resolve(body); } });
+}
+
+describe('Link invoice write', function () {
+  beforeEach(function () {
+    respondWith = function () { return jsonOk({ candidates: [candidate({ invoice_number: 'INV-000171' })], inspected_all: true }); };
+  });
+
+  test('sends only zoho_so_number with the version, busts caches, then reconciles', function () {
+    adminRespond = function () { return adminOk({ newVersion: 'v2' }); };
+    mount(batch());
+    global.sessionStorage.setItem('sv-bp-batch-SV-B-000010', '{"stale":true}');
+    return flushAll().then(function () {
+      var btn = document.querySelector('.bp-link-card [data-action="link"]');
+      btn.click();
+      expect(btn.textContent).toBe('Linking...');
+      expect(btn.disabled).toBe(true);
+      return flushAll();
+    }).then(function () {
+      var posts = updateBatchPosts();
+      expect(posts.length).toBe(1);
+      expect(posts[0].batch_id).toBe('SV-B-000010');
+      expect(Object.keys(posts[0].updates)).toEqual(['zoho_so_number']);
+      expect(posts[0].updates.zoho_so_number).toBe('INV-000171');
+      expect(posts[0].expectedVersion).toBe('v1');
+      // afterBatchWrite ran (snapshot busted, list state reset)
+      expect(global.sessionStorage.getItem('sv-bp-batch-SV-B-000010')).toBeNull();
+      expect(bp.getStateForTest()._batchesLoaded).toBe(false);
+      // reconcile fired after the write
+      var recs = reconcileFetches();
+      expect(recs.length).toBe(1);
+      expect(JSON.parse(recs[0][1].body)).toEqual({ zoho_so_number: 'INV-000171' });
+      var writeIdx = callLog.findIndex(function (c) { return c.indexOf('admin-proxy') !== -1 && c.indexOf('POST') !== -1; });
+      var recIdx = callLog.findIndex(function (c) { return c.indexOf('reconcile-invoice-status') !== -1; });
+      expect(recIdx).toBeGreaterThan(writeIdx);
+      expect(document.getElementById('bp-toast-container').textContent).toContain('Linked to INV-000171');
+      expect(document.getElementById('bp-link-review').querySelectorAll('.bp-link-card').length).toBe(0);
+    });
+  });
+
+  test('failure shows an alert on the card, re-enables buttons, no reconcile', function () {
+    adminRespond = function () { return adminFail(400, { ok: false, message: 'conflict' }); };
+    mount(batch());
+    return flushAll().then(function () {
+      document.querySelector('.bp-link-card [data-action="link"]').click();
+      return flushAll();
+    }).then(function () {
+      var card = document.querySelector('.bp-link-card');
+      expect(card.querySelector('[role="alert"]').textContent).toBe('Could not link. Try again.');
+      expect(card.querySelector('[data-action="link"]').disabled).toBe(false);
+      expect(card.querySelector('[data-action="link"]').textContent).toBe('Link invoice');
+      expect(reconcileFetches().length).toBe(0);
+    });
+  });
+
+  test('linkBatchToInvoice seam writes the narrow update', function () {
+    adminRespond = function () { return adminOk(); };
+    mount(batch());
+    return bp._linkBatchToInvoiceForTest('SV-B-000010', 'INV-9', 'v7').then(function () {
+      var posts = updateBatchPosts();
+      expect(posts[0].updates).toEqual({ zoho_so_number: 'INV-9' });
+      expect(posts[0].expectedVersion).toBe('v7');
+    });
+  });
+
+  test('no update_batch on render, on Not this, or on Search all invoices', function () {
+    mount(batch());
+    return flushAll().then(function () {
+      document.querySelector('[data-action="dismiss"]').click();
+      var searchAll = document.querySelector('#bp-link-review [data-action="search-all"]');
+      if (searchAll) searchAll.click();
+      return flushAll();
+    }).then(function () {
+      expect(updateBatchPosts().length).toBe(0);
+    });
+  });
+});
+
+describe('Mark internal and Mark as not internal', function () {
+  test('Mark internal on a card sends source internal and shows the badge', function () {
+    respondWith = function () { return jsonOk({ candidates: [candidate()], inspected_all: true }); };
+    adminRespond = function () { return adminOk(); };
+    mount(batch());
+    return flushAll().then(function () {
+      document.querySelector('.bp-link-card [data-action="internal"]').click();
+      return flushAll();
+    }).then(function () {
+      var posts = updateBatchPosts();
+      expect(posts.length).toBe(1);
+      expect(posts[0].batch_id).toBe('SV-B-000010');
+      expect(posts[0].updates).toEqual({ source: 'internal' });
+      expect(global.sessionStorage.getItem('sv-bp-batch-SV-B-000010')).toBeNull();
+      var section = document.getElementById('bp-link-review');
+      expect(section.querySelector('.bp-source-badge--internal').textContent).toBe('Internal');
+      expect(section.querySelectorAll('.bp-link-card').length).toBe(0);
+      expect(reconcileFetches().length).toBe(0);
+    });
+  });
+
+  test('Mark internal from the zero-candidates empty state works', function () {
+    adminRespond = function () { return adminOk(); };
+    mount(batch());
+    return flushAll().then(function () {
+      document.querySelector('#bp-link-review [data-action="internal"]').click();
+      return flushAll();
+    }).then(function () {
+      expect(updateBatchPosts()[0].updates).toEqual({ source: 'internal' });
+    });
+  });
+
+  test('invalid_source error shows the server message inline', function () {
+    respondWith = function () { return jsonOk({ candidates: [candidate()], inspected_all: true }); };
+    adminRespond = function () { return adminFail(400, { ok: false, code: 'invalid_source', message: 'Source cannot be changed' }); };
+    mount(batch());
+    return flushAll().then(function () {
+      document.querySelector('.bp-link-card [data-action="internal"]').click();
+      return flushAll();
+    }).then(function () {
+      var card = document.querySelector('.bp-link-card');
+      expect(card.querySelector('[role="alert"]').textContent).toBe('Source cannot be changed');
+      expect(card.querySelector('[data-action="internal"]').disabled).toBe(false);
+    });
+  });
+
+  test('locked source (kiosk_recipe): no Mark internal on cards or in the empty state', function () {
+    respondWith = function () { return jsonOk({ candidates: [candidate()], inspected_all: true }); };
+    mount(batch({ source: 'kiosk_recipe' }));
+    return flushAll().then(function () {
+      expect(document.querySelectorAll('.bp-link-card').length).toBe(1);
+      expect(document.querySelector('[data-action="internal"]')).toBeNull();
+      respondWith = function () { return jsonOk({ candidates: [], inspected_all: true }); };
+      mount(batch({ source: 'kiosk_recipe' }));
+      return flushAll();
+    }).then(function () {
+      expect(document.getElementById('bp-link-review').textContent).toContain('No matching invoices found');
+      expect(document.querySelector('[data-action="internal"]')).toBeNull();
+    });
+  });
+
+  test('Internal batch detail shows the badge and Mark as not internal, which sends manual', function () {
+    adminRespond = function () { return adminOk(); };
+    mount(batch({ source: 'internal' }));
+    expect(document.querySelector('.bp-detail-header .bp-source-badge--internal').textContent).toBe('Internal');
+    var undo = document.getElementById('bp-unmark-internal');
+    expect(undo.textContent).toBe('Mark as not internal');
+    undo.click();
+    return flushAll().then(function () {
+      var posts = updateBatchPosts();
+      expect(posts.length).toBe(1);
+      expect(posts[0].updates).toEqual({ source: 'manual' });
+      expect(global.sessionStorage.getItem('sv-bp-batch-SV-B-000010')).toBeNull();
+    });
+  });
+
+  test('markBatchSource seam', function () {
+    adminRespond = function () { return adminOk(); };
+    mount(batch());
+    return bp._markBatchSourceForTest('SV-B-000010', 'internal').then(function () {
+      expect(updateBatchPosts()[0].updates).toEqual({ source: 'internal' });
+    });
   });
 });
