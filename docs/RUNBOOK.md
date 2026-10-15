@@ -947,6 +947,8 @@ card tint is colour only (no visible text, D-08); a blank category keeps the def
 5. Expected staging recipes-verify noise: `beer_category` mismatches for the categorised recipes,
    because staging writes never reach the sheet. Never replay from staging.
 
+6. UAT approved 2026-10-15 (staging UAT run 2026-10-14): all 11 categories set via staging BrewPad, API matches the D-06 mapping (mismatches=0), card tints correct on staging beer.html with no category text, clone keeps the category. The staging admin view of SV-R-000003 was not checked (owner accepted).
+
 ### 3. Production promotion runsheet (D-13, after 85-13)
 
 Preconditions:
