@@ -992,6 +992,10 @@
 
     if (mode === 'recipes' && !_kioskRecipesLoaded && !_kioskRecipesLoading) {
       kioskLoadRecipes();
+    } else if (mode === 'recipes' && _kioskRecipesLoaded) {
+      // Recipes may have loaded in the background while in Products mode
+      // (kioskRetryStalledLoads), when kioskRenderRecipes was a no-op.
+      kioskRenderRecipes();
     }
   }
 
