@@ -262,6 +262,7 @@ Deploy. Prefer this to forward-fixing a live deployment.
 
 | Date | Version | Previous (rollback target) | Change |
 |------|---------|----------------------------|--------|
+| _pending_ | _pending_ | _pending_ | **Phase 90**: batchSourceTransitionDecision + guarded 'source' in updateBatch allowedFields (manual<->internal only, blank editable, automated sources rejected before any write). Fill in at deploy time (Phase 90 §2). |
 | 2026-10-14 | 63 | **62** | **Phase 89**: additive BEER_CATEGORY_KEYS / normalizeBeerCategory, self-migrating beer_category column in createRecipe / updateRecipe / mirrorRecipeState (off-list rejected with invalid_data before any write), editor-run setupRecipeBeerCategoryColumn. Owner ran setupRecipeBeerCategoryColumn (ok). Production probes 2026-10-14: Recipes list loaded 13 recipes; German Pilsner opened; draft "ZZ TEST 89 2026-10-14" create, edit and delete all succeeded and the recipe is gone; no console errors. |
 | 2026-10-09 | 62 | **61** | **Phase 87** (87-04/87-18): additive `mirror_batch_state`, `mirror_batch_delete`, `export_batch_tabs` (server_token-gated, not reachable by staff OAuth), `setupBatchMirrorNotices` / `removeBatchMirrorNotices` (run from the editor). Pre-paste editor-drift hash check was skipped (paste done first); post-paste editor hash of `adminApi.gs` matched the repo (`a8b34634…121a98`). Production probes after deploy: `get_batches` ok:true; `export_batch_tabs` ok:true (204 / 1068 / 70 / 427 rows). |
 | _pending_ | 61 | **60** | **Phase 86** (planned): additive `mirror_vessel_state`, `mirror_ferm_schedule_state`, `mirror_ferm_schedule_delete` (server_token-gated); staff email recorded in VesselHistory. Fill in date and probe results at deploy time (Ops data → Postgres §3). |
@@ -967,6 +968,62 @@ Steps:
    §6/§8/§9/§10/§13 pointers. From then on run the recipes scripts from main, but only once 0006 is
    applied in production AND the production sheet has the `beer_category` header.
 7. Record the promotion SHA here: _pending_
+
+---
+
+## BrewPad invoice linking, canning bundle and recipe pickers (Phase 90)
+
+### 1. What ships
+
+- BrewPad create-batch sheet: invoice picker plus a "No invoice (internal batch)" checkbox (D-01..D-04).
+- Guarded `source` edit manual<->internal in both batch stores (Apps Script `updateBatch` and the Postgres store, D-05). Automated sources are rejected before any write.
+- Unlinked filter chip and detail-view candidate review: Link invoice / Not this / Mark internal / Mark as not internal (D-06..D-10, D-24).
+- `GET /api/batch/link-candidates` (read-only, staff-session gated) and `create_batch` source coercion to manual/internal.
+- Kiosk canning bundle: server-owned $40.00 (beer) / $35.00 (cider, sparkling) plus 12% tax, $0 can line, standalone kiosk only (D-11..D-16, D-22, D-25).
+- Custom-labels copy fix (D-18).
+- Full-list recipe pickers on BrewPad, kiosk recipe search, and "Start from this recipe" in the BrewPad and admin recipe editors (D-19..D-21, D-23).
+
+### 2. Staging release
+
+- Pushed to staging with `git push origin main` only. The production remote is never touched in this phase.
+- The staging push follows the Phase 89 staging push (b34d96ee). The Phase 89 Apps Script row in the deploy table is already filled (v63, rollback v62), so there is no Phase 89 coupling question for the Phase 90 paste.
+- Owner Apps Script redeploy: the Phase 90 paste is the NEXT version after v63, and its rollback target is v63. The deployment is shared by staging and production, so it goes live in production immediately. The guard is additive and the production frontend does not send `source` yet. Record the versions in the deploy table above.
+- Staging data-safety rules (staging shares the Zoho org and the batch workbook with production):
+  - Throwaway batches named "ZZ TEST 90 <date>" only.
+  - Never tap Link invoice, Not this or Mark internal on a real batch.
+  - Delete the throwaway batches afterwards (delete triggers the invoice-label reconcile) and record the invoice used.
+- The Unlinked count on staging is the real production count (shared workbook).
+- UAT approved: _pending_
+
+### 3. D-17 staging hardware session
+
+One session on the staging terminal, covering both:
+
+1. Recipe money path: one auto-confirm and one manual-confirm sale.
+2. One canning bundle sale with a small can count (e.g. 2) to limit real stock movement in the shared Zoho org. Void or refund afterwards per the usual staging practice, which restores stock.
+
+Pass criteria: the invoice shows "Canning Bundle - ..." at the bundle price with 12% tax (beer 40.00 + 4.80 = 44.80; cider/sparkling 35.00 + 4.20 = 39.20), the can item at the entered quantity and $0.00, and the charged total equals the kiosk total.
+
+Session record (D-17): _pending_
+
+### 4. Known gaps (follow-ups, not fixed in Phase 90)
+
+- (a) The admin.html batch modal (Batches tab -> "New Batch" button `#create-batch-btn` -> `openCreateBatchModal` in js/admin.js ~:6482, `adminApiPost('create_batch', ...)` ~:6919) is still reachable. It creates manual batches with no invoice field and no internal option, so it can still add unlinked batches. Follow-up: add the same invoice picker and internal checkbox there, or retire the modal (owner decision).
+- (b) D-09 same-SKU multi-link: the BrewPad create sheet cannot link one invoice to a second batch of the same product (server `duplicate_so_number`). Staff create without an invoice and link from the batch detail view.
+- (c) Candidate lookup inspects at most the 10 in-window invoices nearest the start date (detail-fetch cap). The card section says when more were not checked, and Search all invoices covers the rest.
+
+### 5. Production promotion runsheet (not executed in Phase 90)
+
+Preconditions:
+- Staging approval recorded (section 2) and D-17 passed (section 3).
+- Owner chooses the SHA. Respect any pinned-SHA rule still in force for Phase 85/89 promotions.
+- Promote the kiosk server and bundles together with, or right after, the kiosk recipe money-path promotion (D-17).
+
+Steps:
+1. Confirm `ZOHO_TAX_STANDARD_ID` (or the can items' standard tax rule) resolves in production. Check names only, never values.
+2. Promote the chosen SHA per the usual production procedure.
+3. Staff then run the real backfill review on production BrewPad: Unlinked chip -> each batch -> Link invoice / Not this / Mark internal. SV-B-000230/231/233 are Internal. The known false positives must be rejected with Not this: SV-B-000222 (INV-000208), SV-B-000035/63/64 (INV-000230/INV-000171), SV-B-000067 (INV-000044).
+4. The target "Unlinked (0)" is an operational goal for staff after promotion (D-10, one human tap per batch). It is not a Phase 90 completion criterion.
 
 ---
 
