@@ -21,6 +21,7 @@ var dualWriteCompare = require('../lib/dual-write-compare');
 var sentryCapture = require('../lib/sentry-capture');
 
 var zohoPost = zohoApi.zohoPost;
+var zohoPut = zohoApi.zohoPut;
 
 var router = express.Router();
 
@@ -227,6 +228,43 @@ function buildRecipeLineItems(recipe, scaledIngredients, catalogMap, saleType, m
     });
   }
   return { lineItems: lineItems };
+}
+
+// Zoho computes invoice line totals itself (it kept a -0.02 line the server
+// floors to 0 and may round quantity/rate differently), so the invoice total
+// can differ from the charge by a few cents. A payment larger than the
+// balance is rejected, leaving the sale charged but unpaid. After creating
+// the invoice, read the total Zoho returned and re-balance the adjustment
+// (an untaxed line) to the charge. Fails closed: a gap too large to be
+// rounding, a failed update, or an update that still does not balance
+// rejects, and the caller voids the card.
+var RECIPE_RECONCILE_MAX_GAP = 1.00;
+
+function reconcileRecipeInvoice(invoiceData, invoicePayload, grandTotal) {
+  var invoice = (invoiceData && invoiceData.invoice) || {};
+  var zohoTotal = Number(invoice.total);
+  if (invoice.total === undefined || invoice.total === null || !isFinite(zohoTotal)) {
+    log.warn('[pos-recipe/confirm] Zoho returned no invoice total — cannot reconcile');
+    return Promise.resolve(invoiceData);
+  }
+  var gap = round2(grandTotal - zohoTotal);
+  if (Math.abs(gap) < 0.005) return Promise.resolve(invoiceData);
+  log.warn('[pos-recipe/confirm] Invoice ' + invoice.invoice_number + ' total ' + zohoTotal +
+    ' != charge ' + grandTotal + ' — re-balancing adjustment by ' + gap);
+  if (Math.abs(gap) > RECIPE_RECONCILE_MAX_GAP) {
+    return Promise.reject(new Error('Invoice total ' + zohoTotal + ' differs from charge ' + grandTotal + ' by more than rounding'));
+  }
+  var updated = Object.assign({}, invoicePayload, {
+    adjustment: round2((Number(invoicePayload.adjustment) || 0) + gap),
+    adjustment_description: 'Recipe package price'
+  });
+  return zohoPut('/invoices/' + invoice.invoice_id, updated).then(function (putData) {
+    var newTotal = Number(putData && putData.invoice && putData.invoice.total);
+    if (!isFinite(newTotal) || Math.abs(newTotal - grandTotal) >= 0.005) {
+      throw new Error('Invoice total ' + newTotal + ' still differs from charge ' + grandTotal + ' after re-balancing');
+    }
+    return invoiceData;
+  });
 }
 
 // Taxable amount of a line as Zoho computes it: the line amount rounded to
@@ -1380,6 +1418,7 @@ function _bookRecipeConfirm(body, confirmIdemKey, req, res) {
 
         // Create Zoho invoice
         return zohoPost('/invoices', invoicePayload)
+          .then(function (created) { return reconcileRecipeInvoice(created, invoicePayload, grandTotal); })
           .then(function (invoiceData) {
             var invoice = invoiceData.invoice || {};
             var invoiceId = invoice.invoice_id || '';
