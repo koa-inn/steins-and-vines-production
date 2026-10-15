@@ -1386,20 +1386,24 @@ function _bookRecipeConfirm(body, confirmIdemKey, req, res) {
             var invoiceNumber = invoice.invoice_number || '';
             log.info('[pos-recipe/confirm] Invoice created: ' + invoiceNumber);
 
-            // Submit invoice (triggers inventory deduction per INV-01) — fire-and-forget
-            zohoPost('/invoices/' + invoiceId + '/submit', {}).catch(function () {});
-
-            // Record customer payment
-            zohoPost('/customerpayments', {
-              payment_mode: 'creditcard',
-              amount: grandTotal,
-              date: today,
-              reference_number: txnId,
-              invoices: [{ invoice_id: invoiceId, amount_applied: grandTotal }],
-              notes: 'Kiosk recipe sale. Ref: ' + body.reference
-            }).catch(function (payErr) {
-              log.error('[pos-recipe/confirm] Payment recording failed: ' + payErr.message);
-            });
+            // Submit invoice (triggers inventory deduction per INV-01), THEN record the
+            // customer payment. Both stay fire-and-forget for the response, but the
+            // payment must wait for /submit: fired concurrently it hit a draft invoice
+            // and was dropped (D-17, INV-000236). Mirrors the kit path (pos.js ~1717).
+            zohoPost('/invoices/' + invoiceId + '/submit', {}).catch(function () {})
+              .then(function () {
+                return zohoPost('/customerpayments', {
+                  payment_mode: 'creditcard',
+                  amount: grandTotal,
+                  date: today,
+                  reference_number: txnId,
+                  invoices: [{ invoice_id: invoiceId, amount_applied: grandTotal }],
+                  notes: 'Kiosk recipe sale. Ref: ' + body.reference
+                });
+              })
+              .catch(function (payErr) {
+                log.error('[pos-recipe/confirm] Payment recording failed: ' + payErr.message);
+              });
 
             // Bust caches (Pitfall 4 — must bust BOTH product and ingredient caches).
             // INGREDIENTS_ALL is busted too because the stock/availability checks
