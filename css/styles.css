@@ -4822,7 +4822,9 @@ behold-widget {
 .label-beer[class*="tint-"] .beer-name { color: var(--tint); }
 .label-beer[class*="tint-"] .price-value { color: var(--tint); }
 .label-beer[class*="tint-"] .price-footer { border-top-color: var(--tint-border); }
-.label-beer[class*="tint-"] .price-col + .price-col { border-left-color: var(--tint-border); opacity: 0.3; }
+/* Soften only the divider; opacity here faded the whole "Ready in" column. */
+.label-beer[class*="tint-"] .price-col + .price-col { border-left-color: color-mix(in srgb, var(--tint-border) 30%, transparent); }
+.label-beer[class*="tint-"] .price-value.ferment-time-value { color: var(--tint-text, var(--tint)); }
 
 /* ===== Catalog View Toggle ===== */
 .catalog-view-toggle {
