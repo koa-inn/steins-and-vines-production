@@ -58,6 +58,20 @@ Trial results on Node 24.21.0, 2026-10-15:
 
 **Owner decision 2026-10-15: APPROVED.** Deploy the release SHA in sheets mode before D-08. Recipes dual still waits for the gift-card flip. The deploy time is not yet chosen.
 
+## Beer page launch (added 2026-10-15, owner chose option 1)
+
+The release also launches the beer page. On top of the commits above, `release/85-13-node24` (head 48e92ddc) carries:
+- **Fixes:** 2fb176af (FAQ 28 L), f26946ad (cans not included), ab8a0347 (card subtitles), 7713dcd3 (custom-recipe card), fdcef0fd (GA4 kit price), eaf792c7 and 4dfcc8e1 (availability), 1a670017 (/cider sitemap).
+- **Launch:** c01ab37d (nav item on 22 pages, ferment-in-store hub tile, noindex removed, `BEER_PAGE_LIVE` removed).
+- **Build:** 0971f47b.
+- **Sitemap fix:** 48e92ddc restores the /beer entry, which was lost while resolving the launch cherry-pick.
+
+Gate on Node 24: root 2181/2181, middleware 2555/2555, both lints clean.
+
+Phase 89 beer-category card colours are NOT included (migration 0006 must follow 0004/0005). On production the cards keep their pre-89 look.
+
+⚑ The owner is reviewing the page on staging (https://staging.steinsandvines.ca/beer.html) before the deploy. The public pages are no longer stamp-only versus production: the beer nav, hub tile and beer.html content change.
+
 ## Steps
 
 **Step 0: Prerequisites** (Claude, read-only)
