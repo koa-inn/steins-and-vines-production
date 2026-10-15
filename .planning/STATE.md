@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: executing
-stopped_at: Phase 89 context gathered
-last_updated: "2026-10-15T00:45:40.189Z"
+status: ready_to_plan
+stopped_at: Phase 89 complete (9/9) — ready to discuss Phase 90
+last_updated: 2026-10-15T19:35:49.314Z
 last_activity: 2026-10-15
 progress:
   total_phases: 77
   completed_phases: 30
   total_plans: 271
-  completed_plans: 263
+  completed_plans: 264
   percent: 39
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 89 — beer-category-field-for-recipes
+**Current focus:** Phase 90 — brewpad batch invoice linking
 
 ## Current Position
 
-Phase: 89 (beer-category-field-for-recipes) — EXECUTING
-Plan: 3 of 9
-Status: Ready to execute
+Phase: 90
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-10-15
 
 **Phase 87:** 18/20 plans done. Design approved; all code merged and on staging behind `BATCHES_STORE`
@@ -80,7 +80,7 @@ position notes".
 
 **Velocity:**
 
-- Total plans completed: 99 (prior milestone v4.1) + 11 (v4.2)
+- Total plans completed: 108 (prior milestone v4.1) + 11 (v4.2)
 - Average duration: 3 min
 - Total execution time: ~3 hrs
 

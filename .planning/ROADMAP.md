@@ -153,7 +153,7 @@
 - [ ] **Phase 86: Vessels + FermSchedules + Config → Postgres (+ the missing admin CRUD)** — `vessels`, `ferm_schedules` (`steps jsonb`, real booleans, `FS-` 4-pad IDs), `config`; NEW Vessels admin screen (add/edit/archive vessel_id, shelf, bin, status — no vessel CRUD exists anywhere today); NEW Staff Access screen replacing hand-editing `staff_emails`; `server_token` relocates to a Railway env var, never a DB row; security review attached (this is the auth allowlist); `createFermSchedule` ID generation stops being lock-free; backfill; dual; flip. (DB-05)
 - [ ] **Phase 87: Batches + BatchTasks + PlatoReadings + VesselHistory → Postgres** — the big one; needs its own approved design pass first: `deleteBatch`'s 3-sheet cascade becomes FKs `ON DELETE CASCADE`; `SV-B-`/`PR-` IDs sequence-backed; dashboard/calendar/upcoming/location-conflict queries become indexed SQL; the admin-proxy seam (17 actions) swaps implementation so `js/brewpad.js` needs zero changes; `batch.html`'s public token-authenticated read path and the `pos.js` reconcile/kiosk-sale → batch hooks rewired; **maintenance-window cutover (a Sunday) instead of dual-write** — four correlated tables make dual genuinely hard; backfill rehearsed on staging against a fresh workbook snapshot first; Zoho `cf_batch_status` sync unchanged. (DB-06)
 - [ ] **Phase 88: Retire the Legacy Sheets** — Reservations/Holds/Kits DELETED (with the `onFormSubmit` trigger), not migrated — Zoho is the system of record; Schedule + Homepage move to committed repo content (the `content/zoho-snapshot.json` pattern) with the public pages reading the repo file, so opening hours and footer links stay off Railway; ProductEvents deleted or left as a dead tab (owner call); `adminApi.gs` shrinks to the production mirror writer (or is deleted); nightly Drive backup replaced by verified Railway backups/PITR plus a scheduled `pg_dump` to Drive with a restore drill; `docs/DATA-MODEL.md`, `docs/APPS_SCRIPT.md`, `docs/RUNBOOK.md` (rollback by flag, ledger replay, restore from dump) and CLAUDE.md updated. (DB-07)
-- [ ] **Phase 89: Beer category field for recipes** — optional `beer_category` enum (12 beer tint keys) set in BrewPad/admin, round-tripped through sheet, Postgres, backfill/verify and the public API, and used to colour beer recipe cards on beer.html.
+- [x] **Phase 89: Beer category field for recipes** — optional `beer_category` enum (12 beer tint keys) set in BrewPad/admin, round-tripped through sheet, Postgres, backfill/verify and the public API, and used to colour beer recipe cards on beer.html. (completed 2026-10-15)
 - [ ] **Phase 90: BrewPad batch invoice linking** — optional invoice link captured at manual batch creation, an "unlinked" filter on the batch list, and a human-confirmed review queue to backfill the 57 unlinked batches. Also: a one-tap kiosk canning bundle (flat $40/$35 plus 12% tax, cans relieved at the actual count). Also: a full-list recipe picker dropdown in BrewPad, kiosk and the recipe editor.
 - [ ] **Phase 91: Online grain-order recipe splitting** — customers separate grains into up to 4 recipe bags as they select them (quantity splits allowed), staff see the split in Zoho notes, the email and BrewPad, and the milling fee stays once per order.
 
@@ -1615,7 +1615,7 @@ Plans:
 **Goal:** Staff set an explicit beer category on each recipe in BrewPad (and admin), and the public beer page colours each recipe card from it, replacing any keyword guessing from the free-text `style`. `beer_category` is an optional enum reusing the 12 existing beer tint keys (pilsner, lager, pale, ipa, amber, wheat, session, saison, stout, porter, redale, brown); blank keeps the default gold. It round-trips through every recipe layer: Apps Script (sheet column + create/update + PG->sheet mirror), Postgres (additive migration 0006 + recipe-pg), the backfill spec and verify, the public recipe API allowlist, both editors, and `buildRecipeCard` via `getTintClass`.
 **Requirements**: TBD
 **Depends on:** Phase 85 (sequencing only: the sheet column must exist before the 85-13 production backfill runs with the updated spec, or the backfill rejects the whole Recipes sheet)
-**Plans:** 8/9 plans executed
+**Plans:** 9/9 plans complete
 **Context:** `.planning/phases/89-beer-category-field-for-recipes/89-NOTES.md` (layer-by-layer touchpoint map, ordering traps, pinned tests, owner decisions so far)
 
 Plans:
@@ -1641,7 +1641,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 89-09-PLAN.md — Staging release, owner Apps Script redeploy, staff set D-06 categories, UAT, production promotion runsheet
+- [x] 89-09-PLAN.md — Staging release, owner Apps Script redeploy, staff set D-06 categories, UAT, production promotion runsheet
 
 ### Phase 90: BrewPad batch invoice linking
 
