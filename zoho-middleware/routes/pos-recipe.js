@@ -987,6 +987,13 @@ router.post('/api/kiosk/recipe-sale/confirm', function (req, res) {
 
   var body = req.body || {};
 
+  // Helcim transaction ids are integers, and /api/kiosk/sale/status passes them
+  // through as JSON numbers to the kiosk's auto-confirm. Normalise to a string so
+  // the validation below never bare-400s a real, already-charged sale.
+  if (typeof body.transaction_id === 'number' && isFinite(body.transaction_id)) {
+    body.transaction_id = String(body.transaction_id);
+  }
+
   // Input validation
   if (!body.recipe_id || typeof body.recipe_id !== 'string' || !body.recipe_id.trim()) {
     return res.status(400).json({ error: 'Missing recipe_id' });
