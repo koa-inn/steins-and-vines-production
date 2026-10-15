@@ -1070,9 +1070,11 @@ img {
 /* ---- Payment Screen ---- */
 .kiosk-payment-screen,
 .kiosk-receipt-screen {
+  /* Centre with the card's auto margins, not align-items/justify-content:
+     a flex-centred card taller than the screen overflows upward, where the
+     scroll container cannot reach (the Payment Approved title was cut off
+     on the iPad). Auto margins collapse to 0 when there is no room. */
   display: flex;
-  align-items: center;
-  justify-content: center;
   height: 100%;
   padding: 2rem 1rem;
   overflow-y: auto;
@@ -1087,6 +1089,7 @@ img {
   padding: 2.5rem 2rem;
   max-width: 460px;
   width: 100%;
+  margin: auto;
   text-align: center;
   box-shadow: 0 4px 24px rgba(0,0,0,0.08);
 }
