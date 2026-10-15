@@ -56,7 +56,7 @@ Trial results on Node 24.21.0, 2026-10-15:
   - It ships Node 24, the catalog-503 fix (`a509e397`, already in the pin) and the recipe money-path fixes.
 - **Step 4, recipes cutover to dual** (85-13 Tasks 2-3). This still waits for D-08, the gift card flip, exactly as planned.
 
-⚑ Owner decision: approve deploying the release SHA before D-08 is met. Otherwise Node 24 needs its own production release before Nov 1.
+**Owner decision 2026-10-15: APPROVED.** Deploy the release SHA in sheets mode before D-08. Recipes dual still waits for the gift-card flip. The deploy time is not yet chosen.
 
 ## Steps
 
