@@ -154,7 +154,7 @@
 - [ ] **Phase 87: Batches + BatchTasks + PlatoReadings + VesselHistory → Postgres** — the big one; needs its own approved design pass first: `deleteBatch`'s 3-sheet cascade becomes FKs `ON DELETE CASCADE`; `SV-B-`/`PR-` IDs sequence-backed; dashboard/calendar/upcoming/location-conflict queries become indexed SQL; the admin-proxy seam (17 actions) swaps implementation so `js/brewpad.js` needs zero changes; `batch.html`'s public token-authenticated read path and the `pos.js` reconcile/kiosk-sale → batch hooks rewired; **maintenance-window cutover (a Sunday) instead of dual-write** — four correlated tables make dual genuinely hard; backfill rehearsed on staging against a fresh workbook snapshot first; Zoho `cf_batch_status` sync unchanged. (DB-06)
 - [ ] **Phase 88: Retire the Legacy Sheets** — Reservations/Holds/Kits DELETED (with the `onFormSubmit` trigger), not migrated — Zoho is the system of record; Schedule + Homepage move to committed repo content (the `content/zoho-snapshot.json` pattern) with the public pages reading the repo file, so opening hours and footer links stay off Railway; ProductEvents deleted or left as a dead tab (owner call); `adminApi.gs` shrinks to the production mirror writer (or is deleted); nightly Drive backup replaced by verified Railway backups/PITR plus a scheduled `pg_dump` to Drive with a restore drill; `docs/DATA-MODEL.md`, `docs/APPS_SCRIPT.md`, `docs/RUNBOOK.md` (rollback by flag, ledger replay, restore from dump) and CLAUDE.md updated. (DB-07)
 - [x] **Phase 89: Beer category field for recipes** — optional `beer_category` enum (12 beer tint keys) set in BrewPad/admin, round-tripped through sheet, Postgres, backfill/verify and the public API, and used to colour beer recipe cards on beer.html. (completed 2026-10-15)
-- [ ] **Phase 90: BrewPad batch invoice linking** — optional invoice link captured at manual batch creation, an "unlinked" filter on the batch list, and a human-confirmed review queue to backfill the 57 unlinked batches. Also: a one-tap kiosk canning bundle (flat $40/$35 plus 12% tax, cans relieved at the actual count). Also: a full-list recipe picker dropdown in BrewPad, kiosk and the recipe editor.
+- [x] **Phase 90: BrewPad batch invoice linking** — optional invoice link captured at manual batch creation, an "unlinked" filter on the batch list, and a human-confirmed review queue to backfill the 57 unlinked batches. Also: a one-tap kiosk canning bundle (flat $40/$35 plus 12% tax, cans relieved at the actual count). Also: a full-list recipe picker dropdown in BrewPad, kiosk and the recipe editor. (completed 2026-10-15)
 - [ ] **Phase 91: Online grain-order recipe splitting** — customers separate grains into up to 4 recipe bags as they select them (quantity splits allowed), staff see the split in Zoho notes, the email and BrewPad, and the milling fee stays once per order.
 - [ ] **Phase 92: Kiosk past-sales lookup and ledger** — staff look up a customer's past orders by name on the kiosk, and browse a read-only ledger of recent kiosk sales.
 
@@ -1681,7 +1681,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 90-11-PLAN.md — Staging release, owner Apps Script redeploy, throwaway-data UAT, D-17 hardware session, production runsheet
+- [x] 90-11-PLAN.md — Staging release, owner Apps Script redeploy, throwaway-data UAT, D-17 hardware session, production runsheet
 
 ### Phase 91: Online grain-order recipe splitting
 

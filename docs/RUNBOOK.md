@@ -1006,7 +1006,18 @@ One session on the staging terminal, covering both:
 
 Pass criteria: the invoice shows "Canning Bundle - ..." at the bundle price with 12% tax (beer 40.00 + 4.80 = 44.80; cider/sparkling 35.00 + 4.20 = 39.20), the can item at the entered quantity and $0.00, and the charged total equals the kiosk total.
 
-Session record (D-17): _pending_
+Session record (D-17): **passed 2026-10-15** (owner on the staging iPad terminal, test customer "test" CUS-00052). The owner skipped the recipe manual-confirm leg.
+- Recipe auto-confirm: INV-000239 (SV-R-000016 Bavarian Style Lager, 95% test discount, Helcim txn 56644488, $4.88). Paid, invoice total equal to the charge, batch SV-B-000238 auto-created.
+- Getting there took three kiosk recipe money-path fixes, all found during this session:
+  - f4272eed: numeric Helcim transaction id.
+  - ae191772: payment raced the invoice submit.
+  - c10e8111 and 0cfbd181: the invoice total was a few cents off the charge. Zoho stores quantities to 3dp, and the reconcile PUT has to re-send each line's tax_id.
+  - The earlier failed attempts were reversed automatically (txns 56641673, 56642269, 56642753 and 56643687 all have APPROVED reverses). Their draft invoices INV-000236/237/238 were deleted.
+- Recipe manual confirm: **skipped by the owner**. One attempt (ref KIOSK-1792106495034, $97.85) returned 409 "could not be verified" with nothing booked. Helcim showed no transaction for that ref (no card was ever approved), so this was the fail-closed path working as designed. The recipe manual-confirm path is therefore still unproven with a real charge.
+- Canning bundle: INV-000240 (ref KIOSK-1792106677858, Helcim txn 56645223). The invoice showed "Canning Bundle — Beer 25 L (473 mL)" at $40.00 with BC PST + GST 12% ($4.80), 473 mL can line qty 52 at $0.00, total $44.80, Paid. The charged total equalled the kiosk total. The note reads "manual confirm", so the kit-sale manual-confirm path verified and booked correctly.
+- Kiosk receipt screen: the Payment Approved card was cut off at the top on the iPad (tall card overflowing upward out of the scroll area). Fixed in f6e6eff8 (build 34a85698).
+- Data fix by the owner during the session: Whirlfloc T Bulk had no sales tax set in Zoho.
+- Cleanup: the INV-000239/240 payments and invoices were deleted in Zoho (the can stock is returned), and batch SV-B-000238 was deleted (`get_batch` returns "Batch not found"). The owner refunds or voids txns 56644488 and 56645223 in Helcim.
 
 ### 4. Known gaps (follow-ups, not fixed in Phase 90)
 
