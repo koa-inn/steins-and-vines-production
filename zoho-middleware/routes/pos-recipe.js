@@ -189,7 +189,9 @@ function buildRecipeLineItems(recipe, scaledIngredients, catalogMap, saleType, m
       li = {
         item_id: ing.item_id,
         name: ing.item_name,
-        quantity: ingResult.convertedQty,
+        // Zoho stores quantities to 3 decimals (2.3 g = 0.0023 kg is kept as
+        // 0.002); line math on the unrounded quantity mispredicts its total.
+        quantity: Math.round(ingResult.convertedQty * 1000) / 1000,
         rate: Number(catalogEntry.rate) || 0
       };
       if (catalogEntry.tax_id) {
@@ -258,6 +260,22 @@ function reconcileRecipeInvoice(invoiceData, invoicePayload, grandTotal) {
     adjustment: round2((Number(invoicePayload.adjustment) || 0) + gap),
     adjustment_description: 'Recipe package price'
   });
+  // Re-send the lines exactly as Zoho created them: a line without its
+  // tax_id is re-defaulted on update (Materials Fee 12% became GST 5% on
+  // INV-000238), which moves the tax and defeats the re-balance.
+  if (Array.isArray(invoice.line_items) && invoice.line_items.length) {
+    updated.line_items = invoice.line_items.map(function (li) {
+      return {
+        line_item_id: li.line_item_id,
+        item_id: li.item_id,
+        name: li.name,
+        quantity: li.quantity,
+        rate: li.rate,
+        discount: li.discount,
+        tax_id: li.tax_id
+      };
+    });
+  }
   return zohoPut('/invoices/' + invoice.invoice_id, updated).then(function (putData) {
     var newTotal = Number(putData && putData.invoice && putData.invoice.total);
     if (!isFinite(newTotal) || Math.abs(newTotal - grandTotal) >= 0.005) {
