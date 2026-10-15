@@ -156,6 +156,7 @@
 - [x] **Phase 89: Beer category field for recipes** — optional `beer_category` enum (12 beer tint keys) set in BrewPad/admin, round-tripped through sheet, Postgres, backfill/verify and the public API, and used to colour beer recipe cards on beer.html. (completed 2026-10-15)
 - [ ] **Phase 90: BrewPad batch invoice linking** — optional invoice link captured at manual batch creation, an "unlinked" filter on the batch list, and a human-confirmed review queue to backfill the 57 unlinked batches. Also: a one-tap kiosk canning bundle (flat $40/$35 plus 12% tax, cans relieved at the actual count). Also: a full-list recipe picker dropdown in BrewPad, kiosk and the recipe editor.
 - [ ] **Phase 91: Online grain-order recipe splitting** — customers separate grains into up to 4 recipe bags as they select them (quantity splits allowed), staff see the split in Zoho notes, the email and BrewPad, and the milling fee stays once per order.
+- [ ] **Phase 92: Kiosk past-sales lookup and ledger** — staff look up a customer's past orders by name on the kiosk, and browse a read-only ledger of recent kiosk sales.
 
 ### 📋 Backlog — captured, not yet scheduled
 
@@ -1694,6 +1695,26 @@ Plans:
 
 - [ ] TBD (run /gsd-discuss-phase 91, then /gsd-plan-phase 91)
 
+
+### Phase 92: Kiosk past-sales lookup and ledger
+
+**Goal:** Two read-only kiosk views, both requested by the owner on 2026-10-15.
+1. **Past-order lookup by customer name.** Customers often ask what they bought last time. Staff type a name, pick the matching Zoho contact, and see that customer's past invoices (date, number, total, status) with the line items one tap away.
+2. **Sales ledger.** A chronological list of recent kiosk sales (date/time, invoice number, customer, total, tender/status), with a date filter.
+
+**Requirements:** TBD (run /gsd-discuss-phase 92).
+**Depends on:** none hard.
+**Plans:** 0 plans
+**Context and open questions for discuss-phase:**
+- Data source is Zoho invoices, which hold kit, recipe and SO-paid sales. Existing kiosk patterns to reuse: the Sales Orders / Collect view (`#kiosk-view-collect`, `GET /api/kiosk/salesorders` in `routes/pos.js` ~:2376) and the SO customer search.
+- Ledger scope is undecided: kiosk-originated only (reference `KIOSK-…`) or all invoices; how far back; whether online orders are included.
+- Name matching: Zoho `customer_name` search is "contains". Walk-ins booked to the default kiosk contact (`KIOSK_CONTACT_ID`) won't be findable by name.
+- Auth: reads must be staff-session gated like the other kiosk routes. Show no card data beyond what Zoho already stores.
+- Read-only: no refunds or voids from these views in this phase.
+
+Plans:
+
+- [ ] TBD (run /gsd-discuss-phase 92, then /gsd-plan-phase 92)
 ---
 
 **ROOT CAUSE LOCATED (2026-09-02, during the Sheets→Postgres research pass).** The audit flagged this class as H6/H7 in 2026-06-29 but never pinned the mechanism. It is now pinned:
