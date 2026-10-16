@@ -62,7 +62,7 @@ unexplained discrepancies) is met and the owner decides to flip to `postgres`.
 |-------|-------|
 | Owner | owner (Koa) |
 | Date | 2026-10-16 |
-| Decision | **flip** to `postgres`. Sentry checked by the owner: no `dual-write giftcards` events since 2026-10-06. Flipped during opening hours (kiosk confirmed idle; zero real gift-card traffic made the after-hours precaution moot). `GIFT_CARDS_STORE=postgres` set 2026-10-16 18:22:14Z; startup log `store modes: {"GIFT_CARDS_STORE":"postgres","RECIPES_STORE":"sheets"}`; /health ok, authenticated, database_required. Pre-flip: no giftcard/kiosk/terminal pending records. Post-flip verify: _pending owner run_. |
+| Decision | **flip** to `postgres`. Sentry checked by the owner: no `dual-write giftcards` events since 2026-10-06. Flipped during opening hours (kiosk confirmed idle; zero real gift-card traffic made the after-hours precaution moot). `GIFT_CARDS_STORE=postgres` set 2026-10-16 18:22:14Z; startup log `store modes: {"GIFT_CARDS_STORE":"postgres","RECIPES_STORE":"sheets"}`; /health ok, authenticated, database_required. Pre-flip: no giftcard/kiosk/terminal pending records. Post-flip verify 2026-10-16 18:35Z: `gift-cards-verify.js` against a fresh .xlsx (downloaded 18:34Z), run inside the production container (DATABASE_URL never left Railway) — "Verified 2 cards: 0 mismatches", exit 0; snapshot copy deleted. Mirror-write proof: _pending first post-flip write_. |
 
 ---
 *Phase: 84-giftcards-postgres*
