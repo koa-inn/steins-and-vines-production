@@ -948,12 +948,16 @@
   // ===== View Switching =====
 
   function kioskShowView(name) {
-    var views = ['browse', 'browse-customer', 'customer', 'payment', 'review-batches', 'receipt', 'error', 'collect', 'create-so'];
+    var views = ['browse', 'browse-customer', 'customer', 'payment', 'review-batches', 'receipt', 'error', 'collect', 'create-so', 'past-sales'];
+    // D-11: single choke point - any view other than Past Sales wipes its data.
+    if (name !== 'past-sales') kioskPastSalesClear();
     views.forEach(function (v) {
       var el = document.getElementById('kiosk-view-' + v);
       if (el) el.style.display = (v === name) ? '' : 'none';
     });
     _kioskCurrentView = name;
+    var psBtn = document.getElementById('kiosk-past-sales-btn');
+    if (psBtn) psBtn.style.display = (name === 'browse-customer') ? 'none' : '';
     if (name === 'browse') {
       var bmBtn = document.getElementById('kiosk-browse-mode-btn');
       if (bmBtn) bmBtn.style.display = '';
@@ -4467,6 +4471,309 @@
     });
   }
 
+  // ===== Past Sales (Phase 92, read-only) =====
+  // D-11: nothing from this view may survive a switch to any other view or the
+  // lock screen. kioskShowView() calls kioskPastSalesClear() for every name other
+  // than 'past-sales'; the generation counter makes a response that lands after
+  // that clear get discarded instead of rendered. D-13: no action controls.
+
+  var _kioskPsGen = 0;
+  var _kioskPsTab = 'customer';
+  var _kioskPsLedger = null;
+  var _kioskPsDetails = {};
+  var _kioskPsSearchTimer = null;
+  // 92-07 replaces these two hooks (customer-tab clearing / refresh).
+  var _kioskPsCustomerClear = function () {};
+  var _kioskPsCustomerRefresh = function () {};
+
+  function kioskPsFmtMoney(n) {
+    var v = Number(n);
+    if (isNaN(v)) v = 0;
+    var parts = v.toFixed(2).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return '$' + parts[0] + '.' + parts[1];
+  }
+
+  function kioskPsEl(id) {
+    return document.getElementById(id);
+  }
+
+  function kioskPsSetHtml(id, html) {
+    var el = kioskPsEl(id);
+    if (el) el.innerHTML = html;
+  }
+
+  function kioskShowPastSales() {
+    if (_kioskCurrentView === 'browse-customer') return; // D-11
+    kioskShowView('past-sales');
+    kioskPsSetTab(_kioskPsTab);
+  }
+
+  function kioskPastSalesClear() {
+    _kioskPsGen++;
+    _kioskPsTab = 'customer';
+    _kioskPsLedger = null;
+    _kioskPsDetails = {};
+    if (_kioskPsSearchTimer) {
+      clearTimeout(_kioskPsSearchTimer);
+      _kioskPsSearchTimer = null;
+    }
+    var ids = ['kiosk-ps-ledger-list', 'kiosk-ps-ledger-footer', 'kiosk-ps-ledger-message',
+      'kiosk-ps-customer-list', 'kiosk-ps-customer-heading', 'kiosk-ps-customer-message',
+      'kiosk-ps-contact-results'];
+    for (var i = 0; i < ids.length; i++) kioskPsSetHtml(ids[i], '');
+    var inputs = ['kiosk-ps-search', 'kiosk-ps-date'];
+    for (var j = 0; j < inputs.length; j++) {
+      var inp = kioskPsEl(inputs[j]);
+      if (inp) {
+        inp.value = '';
+        if (inputs[j] === 'kiosk-ps-date') inp.removeAttribute('max');
+      }
+    }
+    var older = kioskPsEl('kiosk-ps-load-older');
+    if (older) older.style.display = 'none';
+    var tabs = document.querySelectorAll('.kiosk-ps-tab');
+    for (var t = 0; t < tabs.length; t++) {
+      if (tabs[t].getAttribute('data-tab') === 'customer') tabs[t].classList.add('active');
+      else tabs[t].classList.remove('active');
+    }
+    var cp = kioskPsEl('kiosk-ps-customer-panel');
+    var lp = kioskPsEl('kiosk-ps-ledger-panel');
+    if (cp) cp.style.display = '';
+    if (lp) lp.style.display = 'none';
+    _kioskPsCustomerClear();
+  }
+
+  // Resolves parsed JSON; resolves null when the view was cleared meanwhile
+  // (stale, D-11); rejects with an Error carrying .status on a non-2xx.
+  function _kioskPsFetch(path, gen) {
+    return fetch(_kcEnv.mwUrl + path, _kcMergeAuth({
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    })).then(function (r) {
+      if (!r.ok) {
+        var e = new Error('HTTP ' + r.status);
+        e.status = r.status;
+        throw e;
+      }
+      return r.json();
+    }).then(function (data) {
+      if (gen !== _kioskPsGen) return null;
+      return data;
+    }, function (err) {
+      if (gen !== _kioskPsGen) return null;
+      throw err;
+    });
+  }
+
+  function kioskPsSetTab(tab) {
+    _kioskPsTab = tab === 'ledger' ? 'ledger' : 'customer';
+    var tabs = document.querySelectorAll('.kiosk-ps-tab');
+    for (var i = 0; i < tabs.length; i++) {
+      if (tabs[i].getAttribute('data-tab') === _kioskPsTab) tabs[i].classList.add('active');
+      else tabs[i].classList.remove('active');
+    }
+    var cp = kioskPsEl('kiosk-ps-customer-panel');
+    var lp = kioskPsEl('kiosk-ps-ledger-panel');
+    if (cp) cp.style.display = _kioskPsTab === 'customer' ? '' : 'none';
+    if (lp) lp.style.display = _kioskPsTab === 'ledger' ? '' : 'none';
+    if (_kioskPsTab === 'ledger' && !_kioskPsLedger) kioskPsLoadLedger(null, false);
+  }
+
+  function kioskPsLoadLedger(date, bust) {
+    if (!_kcEnv.mwUrl) {
+      kioskPsSetHtml('kiosk-ps-ledger-message', 'Middleware URL not configured.');
+      return;
+    }
+    var params = [];
+    if (date) params.push('date=' + encodeURIComponent(date));
+    if (bust) params.push('bust=1');
+    var path = '/api/kiosk/past-sales/ledger' + (params.length ? '?' + params.join('&') : '');
+    var gen = _kioskPsGen;
+    kioskPsSetHtml('kiosk-ps-ledger-message', 'Loading...');
+    kioskPsSetHtml('kiosk-ps-ledger-list', '<div class="kiosk-so-skeleton"><div class="kiosk-so-skeleton-card"></div>' +
+      '<div class="kiosk-so-skeleton-card"></div><div class="kiosk-so-skeleton-card"></div></div>');
+    kioskPsSetHtml('kiosk-ps-ledger-footer', '');
+    _kioskPsFetch(path, gen).then(function (data) {
+      if (data === null) return;
+      _kioskPsLedger = data;
+      kioskPsRenderLedger();
+    }).catch(function (err) {
+      if (gen !== _kioskPsGen) return;
+      kioskPsSetHtml('kiosk-ps-ledger-list', '');
+      var is400 = !!(err && err.status === 400);
+      var msg = is400 ? 'Pick a date up to today.' :
+        'Could not load sales. Check connection and try again. ' +
+        '<button type="button" class="btn-secondary kiosk-ps-retry">Retry</button>';
+      kioskPsSetHtml('kiosk-ps-ledger-message', msg);
+      var retry = document.querySelector('#kiosk-ps-ledger-message .kiosk-ps-retry');
+      if (retry) {
+        retry.addEventListener('click', function () { kioskPsLoadLedger(date, bust); });
+      }
+    });
+  }
+
+  function kioskPsBadgeClass(status) {
+    var s = String(status || '').toLowerCase().replace(/[^a-z]/g, '');
+    if (s === 'void') return 'void';
+    if (s === 'paid') return 'paid';
+    if (s === 'partiallypaid' || s === 'partial') return 'partial';
+    if (s === 'draft') return 'draft';
+    if (s === 'unpaid' || s === 'sent' || s === 'overdue') return 'unpaid';
+    return 'other';
+  }
+
+  function kioskPsStatusLabel(status) {
+    var s = String(status || '');
+    if (s.toLowerCase() === 'partially_paid') return 'Partial';
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  // Shared with the By-customer tab (92-07).
+  function kioskPsRowHtml(inv, opts) {
+    opts = opts || {};
+    var isVoid = String(inv.status || '').toLowerCase() === 'void';
+    var html = '<div class="kiosk-ps-row' + (isVoid ? ' kiosk-ps-row--void' : '') +
+      '" data-invoice-id="' + escapeHTML(String(inv.invoice_id)) + '">' +
+      '<div class="kiosk-ps-row-main">' +
+      '<span class="kiosk-ps-time">' + escapeHTML(opts.dateInstead ? (inv.date || '') : (inv.time || '')) + '</span>' +
+      '<span class="kiosk-ps-number">' + escapeHTML(inv.invoice_number || '') + '</span>';
+    if (!opts.hideCustomer) {
+      html += '<span class="kiosk-ps-customer">' + escapeHTML(inv.customer_name || '') + '</span>';
+    }
+    html += '<span class="kiosk-ps-badge kiosk-ps-badge--' + kioskPsBadgeClass(inv.status) + '">' +
+      escapeHTML(kioskPsStatusLabel(inv.status)) + '</span>' +
+      '<span class="kiosk-ps-tender">' + escapeHTML(inv.tender || '') + '</span>' +
+      '<span class="kiosk-ps-amount">' + escapeHTML(kioskPsFmtMoney(inv.total)) + '</span>' +
+      '</div></div>';
+    return html;
+  }
+
+  function kioskPsRenderLedger() {
+    var d = _kioskPsLedger;
+    if (!d) return;
+    var dateEl = kioskPsEl('kiosk-ps-date');
+    if (dateEl) {
+      dateEl.value = d.date || '';
+      if (d.today) dateEl.setAttribute('max', d.today);
+    }
+    var nextBtn = kioskPsEl('kiosk-ps-next');
+    if (nextBtn) nextBtn.disabled = !d.next_date;
+
+    var invoices = d.invoices || [];
+    var notes = [];
+    if (!invoices.length) notes.push('No in-store sales on this day.');
+    if (d.truncated) notes.push('Not all sales are shown for this day.');
+    if (d.tender_incomplete) notes.push('Some tenders could not be loaded.');
+    kioskPsSetHtml('kiosk-ps-ledger-message', notes.map(function (n) { return escapeHTML(n); }).join('<br>'));
+
+    var rows = '';
+    for (var i = 0; i < invoices.length; i++) rows += kioskPsRowHtml(invoices[i], {});
+    kioskPsSetHtml('kiosk-ps-ledger-list', rows);
+    kioskPsWireRows('kiosk-ps-ledger-list');
+
+    var footer = '';
+    if (invoices.length) {
+      var c = Number(d.count) || 0;
+      footer = escapeHTML(c + (c === 1 ? ' sale' : ' sales') + ' · ' + kioskPsFmtMoney(d.gross_total));
+    }
+    if (d.classification_incomplete) {
+      var u = Number(d.unclassified_count) || 0;
+      footer += (footer ? '<br>' : '') + escapeHTML(u + (u === 1 ? ' sale' : ' sales') +
+        ' could not be checked; totals may be incomplete.');
+    }
+    kioskPsSetHtml('kiosk-ps-ledger-footer', footer);
+  }
+
+  function kioskPsWireRows(listId) {
+    var list = kioskPsEl(listId);
+    if (!list) return;
+    var rows = list.querySelectorAll('.kiosk-ps-row');
+    for (var i = 0; i < rows.length; i++) {
+      rows[i].addEventListener('click', function (e) {
+        // taps inside an already-open detail must not collapse it
+        var t = e.target;
+        while (t && t !== this) {
+          if (t.classList && t.classList.contains('kiosk-ps-detail')) return;
+          t = t.parentNode;
+        }
+        kioskPsToggleDetail(this);
+      });
+    }
+  }
+
+  function kioskPsShiftDay(delta) {
+    if (!_kioskPsLedger) return;
+    var target = delta < 0 ? _kioskPsLedger.prev_date : _kioskPsLedger.next_date;
+    if (!target) return;
+    kioskPsLoadLedger(target, false);
+  }
+
+  function kioskPsRenderDetail(inv) {
+    var html = '';
+    var lines = inv.line_items || [];
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i];
+      html += '<div class="kiosk-ps-detail-line"><span>' + escapeHTML(l.name || '') + '</span><span>' +
+        escapeHTML(String(l.quantity)) + ' × ' + escapeHTML(kioskFmt(l.rate)) + ' = ' +
+        escapeHTML(kioskFmt(l.amount)) + '</span></div>';
+    }
+    html += '<div class="kiosk-ps-detail-totals">' +
+      '<span>Subtotal ' + escapeHTML(kioskFmt(inv.sub_total)) + '</span>' +
+      '<span>Tax ' + escapeHTML(kioskFmt(inv.tax_total)) + '</span>' +
+      '<span>Total ' + escapeHTML(kioskFmt(inv.total)) + '</span></div>';
+    return html;
+  }
+
+  // Shared by both tabs (92-07 reuses it). Items fetched on first tap only.
+  function kioskPsToggleDetail(rowEl) {
+    if (!rowEl) return;
+    var existing = rowEl.querySelector('.kiosk-ps-detail');
+    if (existing) {
+      if (existing.getAttribute('data-error')) {
+        rowEl.removeChild(existing); // failed earlier: fall through and retry
+      } else {
+        existing.style.display = existing.style.display === 'none' ? '' : 'none';
+        return;
+      }
+    }
+    var id = rowEl.getAttribute('data-invoice-id');
+    if (!id) return;
+    var box = document.createElement('div');
+    box.className = 'kiosk-ps-detail';
+    rowEl.appendChild(box);
+    if (_kioskPsDetails[id]) {
+      box.innerHTML = kioskPsRenderDetail(_kioskPsDetails[id]);
+      return;
+    }
+    if (!_kcEnv.mwUrl) {
+      box.textContent = 'Middleware URL not configured.';
+      box.setAttribute('data-error', '1');
+      return;
+    }
+    box.textContent = 'Loading...';
+    var gen = _kioskPsGen;
+    _kioskPsFetch('/api/kiosk/past-sales/invoice/' + encodeURIComponent(id), gen).then(function (data) {
+      if (data === null) return;
+      if (!data.invoice) throw new Error('bad shape');
+      _kioskPsDetails[id] = data.invoice;
+      box.innerHTML = kioskPsRenderDetail(data.invoice);
+    }).catch(function () {
+      if (gen !== _kioskPsGen) return;
+      box.textContent = 'Could not load items';
+      box.setAttribute('data-error', '1');
+    });
+  }
+
+  function kioskPsRefresh() {
+    _kioskPsDetails = {};
+    if (_kioskPsTab === 'ledger') {
+      kioskPsLoadLedger(_kioskPsLedger ? _kioskPsLedger.date : null, true);
+    } else {
+      _kioskPsCustomerRefresh();
+    }
+  }
+
   // ===== Status Chip Filter (D-09, D-10) =====
 
   function kioskRenderSoChips() {
@@ -6129,6 +6436,22 @@
 
     // gift card management (Phase 54, D-54-03)
     showGiftCardMgmt: kioskShowGiftCardMgmt,
+
+    // Past Sales (Phase 92, read-only)
+    showPastSales: kioskShowPastSales,
+    clearPastSales: kioskPastSalesClear,
+    pastSalesSetTab: kioskPsSetTab,
+    pastSalesLoadLedger: kioskPsLoadLedger,
+    pastSalesShiftDay: kioskPsShiftDay,
+    pastSalesRefresh: kioskPsRefresh,
+    pastSalesToggleDetail: kioskPsToggleDetail,
+    _getPastSalesState: function () {
+      var n = 0;
+      for (var k in _kioskPsDetails) {
+        if (Object.prototype.hasOwnProperty.call(_kioskPsDetails, k)) n++;
+      }
+      return { tab: _kioskPsTab, ledger: _kioskPsLedger, detailCount: n, gen: _kioskPsGen };
+    },
     normalizeCertNumber: kioskNormalizeCertNumber,
     wireCertInput: kioskWireCertInput,
 

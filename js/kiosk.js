@@ -93,6 +93,7 @@
   var kioskR2 = KioskCore.r2;
   var kioskCalcTotals = KioskCore.calcTotals;
   var kioskShowView = KioskCore.showView;
+  var kioskShowPastSales = KioskCore.showPastSales;
   var kioskSetMode = KioskCore.setMode;
   var kioskLoadProducts = KioskCore.loadProducts;
   var kioskLoadRecipes = KioskCore.loadRecipes;
@@ -325,6 +326,8 @@
 
   function showLockScreen(session) {
     _isLocked = true;
+    // Phase 92 D-11: a locked kiosk may face customers - drop Past Sales data.
+    KioskCore.clearPastSales();
     _pinBuffer = '';
     _pinAttempts = 0;
     var lockScreen = document.getElementById('kiosk-lock-screen');
@@ -1561,6 +1564,32 @@
       collectBack.addEventListener('click', function () { kioskShowView('browse'); });
     }
 
+    // Past Sales (Phase 92, read-only)
+    var psBtn = document.getElementById('kiosk-past-sales-btn');
+    if (psBtn) psBtn.addEventListener('click', kioskShowPastSales);
+
+    var psTabs = document.querySelectorAll('.kiosk-ps-tab');
+    Array.prototype.forEach.call(psTabs, function (tabBtn) {
+      tabBtn.addEventListener('click', function () {
+        KioskCore.pastSalesSetTab(tabBtn.getAttribute('data-tab'));
+      });
+    });
+
+    var psPrev = document.getElementById('kiosk-ps-prev');
+    if (psPrev) psPrev.addEventListener('click', function () { KioskCore.pastSalesShiftDay(-1); });
+    var psNext = document.getElementById('kiosk-ps-next');
+    if (psNext) psNext.addEventListener('click', function () { KioskCore.pastSalesShiftDay(1); });
+    var psDate = document.getElementById('kiosk-ps-date');
+    if (psDate) {
+      psDate.addEventListener('change', function () {
+        if (psDate.value) KioskCore.pastSalesLoadLedger(psDate.value, false);
+      });
+    }
+    var psRefresh = document.getElementById('kiosk-ps-refresh');
+    if (psRefresh) psRefresh.addEventListener('click', function () { KioskCore.pastSalesRefresh(); });
+    var psBack = document.getElementById('kiosk-ps-back');
+    if (psBack) psBack.addEventListener('click', function () { kioskShowView('browse'); });
+
     // Discount popover
     var discountBtnInit = document.getElementById('kiosk-discount-btn');
     if (discountBtnInit) {
@@ -1674,6 +1703,9 @@
       kioskDeviceToken: kioskDeviceToken,
       saveKioskDeviceToken: saveKioskDeviceToken,
       initKioskAuth: initKioskAuth,
+      // Phase 92 test hooks (Past Sales wiring + lock-screen clear)
+      _initKioskSaleTab: initKioskSaleTab,
+      _showLockScreen: showLockScreen,
       showDeviceTokenPrompt: showDeviceTokenPrompt,
       showKioskApp: showKioskApp,
       kioskShowCustomerStep: kioskShowCustomerStep,
