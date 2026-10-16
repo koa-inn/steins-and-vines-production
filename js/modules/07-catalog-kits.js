@@ -139,6 +139,10 @@ function sortFilterValues(field, values, categoryFilter) {
  * @param {Object} recipe - Public recipe payload ({price, price_from}).
  * @returns {String} The exact string to render in the price slot.
  */
+// Every beer recipe brews 28 L and packages about 25 L (beer.html FAQ); the
+// card shows the take-home volume beside the price.
+var RECIPE_TAKE_HOME_LITRES = 25;
+
 function recipeDisplayPrice(recipe) {
   var price = recipe && recipe.price;
   if (typeof price !== 'number' || !isFinite(price)) {
@@ -252,6 +256,12 @@ function buildRecipeCard(recipe, doc) {
   var priceValue = d.createElement('div');
   priceValue.className = 'price-value';
   priceValue.textContent = recipeDisplayPrice(recipe);
+  if (typeof recipe.price === 'number' && isFinite(recipe.price)) {
+    var priceUnit = d.createElement('span');
+    priceUnit.className = 'price-unit';
+    priceUnit.textContent = ' / ' + RECIPE_TAKE_HOME_LITRES + ' L';
+    priceValue.appendChild(priceUnit);
+  }
   priceCol.appendChild(priceValue);
   footer.appendChild(priceCol);
 
