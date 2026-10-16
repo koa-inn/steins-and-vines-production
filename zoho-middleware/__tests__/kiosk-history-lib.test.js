@@ -95,15 +95,21 @@ describe('classify', function () {
   });
   test('online', function () {
     expect(hist.classify({ reference_number: '48213377' }, [])).toBe('online');
-    expect(hist.classify({ reference_number: '' }, ['Online payment for Invoice INV-1'])).toBe('online');
+  });
+  test('blank reference is in-store regardless of note (owner decision 92-01)', function () {
+    expect(hist.classify({ reference_number: '' }, [])).toBe('in-store');
+    expect(hist.classify({ reference_number: '' }, ['Online payment for Invoice INV-1'])).toBe('in-store');
+    expect(hist.classify({}, null)).toBe('in-store');
+  });
+  test('all-digit reference with in-store note is in-store', function () {
+    expect(hist.classify({ reference_number: '123' }, ['Kiosk recipe sale. Ref: 1'])).toBe('in-store');
   });
   test('other', function () {
-    expect(hist.classify({ reference_number: '' }, [])).toBe('other');
     expect(hist.classify({ reference_number: 'misc' }, ['Customer note'])).toBe('other');
   });
   test('tolerates nulls', function () {
-    expect(hist.classify({}, [null, undefined])).toBe('other');
-    expect(hist.classify({}, null)).toBe('other');
+    expect(hist.classify({ reference_number: 'misc' }, [null, undefined])).toBe('other');
+    expect(hist.classify({ reference_number: 'misc' }, null)).toBe('other');
   });
 });
 

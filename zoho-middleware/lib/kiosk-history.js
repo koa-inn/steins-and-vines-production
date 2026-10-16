@@ -127,20 +127,53 @@ function startsWithAny(str, prefixes) {
   return false;
 }
 
+// Owner decision 92-01 (list-join-blank-in-store): a blank-reference invoice is
+// in-store regardless of payment note (SO-pay invoices carry no reference and
+// payment notes are mostly blank in Zoho). All-digit references are online
+// unless an in-store payment note marks them in-store (recipe safety net).
 function classify(inv, notes) {
   var ref = String((inv && inv.reference_number) || '');
   var list = Array.isArray(notes) ? notes : [];
-  var clean = [];
-  list.forEach(function (n) { if (typeof n === 'string') clean.push(n); });
-  var inStore = startsWithAny(ref, IN_STORE_REF_PREFIXES);
-  var online = /^\d+$/.test(ref);
-  clean.forEach(function (n) {
-    if (startsWithAny(n, IN_STORE_NOTE_PREFIXES)) inStore = true;
-    else if (startsWithAny(n, ONLINE_NOTE_PREFIXES)) online = true;
+  var inStoreNote = false;
+  list.forEach(function (n) {
+    if (typeof n === 'string' && startsWithAny(n, IN_STORE_NOTE_PREFIXES)) inStoreNote = true;
   });
-  if (inStore) return 'in-store';
-  if (online) return 'online';
+  if (startsWithAny(ref, IN_STORE_REF_PREFIXES)) return 'in-store';
+  if (ref === '') return 'in-store';
+  if (inStoreNote) return 'in-store';
+  if (/^\d+$/.test(ref)) return 'online';
   return 'other';
+}
+
+// Index customer-payment list rows by the invoice they pay. linkageField
+// 'invoice_numbers' is a comma string (live shape, 92-01 fixture); any other
+// value is treated as an invoices[] array of { invoice_id, invoice_number }.
+// Returns { <invoice_number|invoice_id>: [{ payment_mode, note }] }.
+function indexPaymentsByInvoice(payments, linkageField, notesField) {
+  var out = {};
+  function add(key, entry) {
+    if (!key) return;
+    if (!out[key]) out[key] = [];
+    out[key].push(entry);
+  }
+  (payments || []).forEach(function (p) {
+    if (!p) return;
+    var entry = {
+      payment_mode: p.payment_mode || '',
+      note: typeof p[notesField || 'description'] === 'string' ? p[notesField || 'description'] : ''
+    };
+    var link = p[linkageField];
+    if (typeof link === 'string') {
+      link.split(',').forEach(function (n) { add(n.replace(/^\s+|\s+$/g, ''), entry); });
+    } else if (Array.isArray(link)) {
+      link.forEach(function (i) {
+        if (!i) return;
+        add(i.invoice_number, entry);
+        if (i.invoice_id) add(String(i.invoice_id), entry);
+      });
+    }
+  });
+  return out;
 }
 
 function num(v) {
@@ -227,6 +260,7 @@ module.exports = {
   statusLabel: statusLabel,
   tenderLabel: tenderLabel,
   classify: classify,
+  indexPaymentsByInvoice: indexPaymentsByInvoice,
   slimInvoiceRow: slimInvoiceRow,
   slimInvoiceDetail: slimInvoiceDetail,
   ledgerTotals: ledgerTotals,
