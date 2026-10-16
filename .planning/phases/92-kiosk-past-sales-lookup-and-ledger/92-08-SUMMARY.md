@@ -1,6 +1,6 @@
 # Phase 92 Plan 08: Verification, Staging Deploy, Owner UAT Summary
 
-Status: Tasks 1-2 complete; Task 3 (owner UAT) AWAITING owner. This SUMMARY is provisional until the UAT verdict is recorded.
+Status: COMPLETE. Tasks 1-3 done; owner UAT APPROVED 2026-10-16.
 
 ## Task 1: Gates and env check
 
@@ -23,12 +23,20 @@ Status: Tasks 1-2 complete; Task 3 (owner UAT) AWAITING owner. This SUMMARY is p
 
 ## UAT
 
-Pending owner. Results of the 12 steps to be recorded here.
+Owner UAT APPROVED 2026-10-16. Owner response, verbatim: "looks great, if we could have a week or month view too that woul be useful". Treated as approval; per-step results were not itemised by the owner.
+
+Note: the ledger uses ONE ranged /customerpayments call per day (A-05 resolved to 1, not 2).
 
 ## Deviations
 
 None to the code. Build restamp drift reverted rather than committed (see Task 1).
 
+## Follow-up requests
+
+- Week or month view for the ledger (owner request, 2026-10-16). This is a new feature outside D-02 (one day at a time), so it was NOT implemented. Deferred to a follow-up phase.
+
 ## Owner review items
 
 Assumptions A-01..A-11, the 92-01 join-mode decision (blank-reference invoices, including SO-pay and manual back-office invoices, show in the ledger as In-store), and any D-14 deviation from 92-03.
+
+Assumptions A-01..A-11 and the 92-01 join-mode decision: accepted as-is (owner raised no objection). Not pushed to production; production deploy remains a separate step.
