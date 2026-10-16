@@ -1164,11 +1164,22 @@
       });
   }
 
+  // A locked recipe's in-store price is locked_price plus the brewing and materials
+  // fees, exactly as the server charges it (recipe-scaling computeScaledRecipeTotal);
+  // take-out adds no fees. computed_price already includes the fees.
+  function kioskLockedRecipePrice(recipe, saleType) {
+    var price = Number(recipe.locked_price) || 0;
+    if (saleType !== 'take-out') {
+      price += (Number(recipe.service_fee) || 0) + (Number(recipe.materials_fee) || 0);
+    }
+    return Math.round(price * 100) / 100;
+  }
+
   function kioskRecipePrice(recipe) {
     if (recipe.pricing_mode === 'dynamic' && Number(recipe.computed_price) > 0) return recipe.computed_price;
-    if (recipe.pricing_mode !== 'dynamic' && Number(recipe.locked_price) > 0) return recipe.locked_price;
+    if (recipe.pricing_mode !== 'dynamic' && Number(recipe.locked_price) > 0) return kioskLockedRecipePrice(recipe, 'in-store');
     if (Number(recipe.computed_price) > 0) return recipe.computed_price;
-    if (Number(recipe.locked_price) > 0) return recipe.locked_price;
+    if (Number(recipe.locked_price) > 0) return kioskLockedRecipePrice(recipe, 'in-store');
     return 0;
   }
 
@@ -1179,7 +1190,7 @@
     if (!recipe) return 0;
     if (recipe.pricing_mode === 'dynamic') {
       var base = Number(recipe.computed_price);
-      if (!(base > 0)) return Number(recipe.locked_price) > 0 ? Number(recipe.locked_price) : 0;
+      if (!(base > 0)) return Number(recipe.locked_price) > 0 ? kioskLockedRecipePrice(recipe, saleType) : 0;
       if (saleType === 'take-out') {
         var serviceFee = Number(recipe.service_fee) || 0;
         var materialsFee = Number(recipe.materials_fee) || 0;
@@ -1188,7 +1199,7 @@
       }
       return base;
     }
-    return Number(recipe.locked_price) > 0 ? Number(recipe.locked_price) : 0;
+    return Number(recipe.locked_price) > 0 ? kioskLockedRecipePrice(recipe, saleType) : 0;
   }
 
   function kioskRenderRecipes() {
