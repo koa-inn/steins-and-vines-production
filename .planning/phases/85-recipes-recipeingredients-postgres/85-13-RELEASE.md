@@ -123,3 +123,18 @@ Phase 89 beer-category card colours are NOT included (migration 0006 must follow
 
 - 2026-11-01 is a Sunday. Node 24 must be live on production before 2026-11-01 00:00 PDT.
 - Target: Step 2 this week. That leaves ≥10 days of production soak on Node 24 before the cliff.
+
+## Deploy record (2026-10-16 00:31 UTC)
+
+- **Push:** `release/85-13-node24` (74febd5d) was pushed to production as 2539cd02 (CNAME swap). Railway deploy 7afa6b6e is SUCCESS.
+- **Step 3 checks:** all passed.
+  - Node v24.21.0 / tz 2026c, and 2026-11-15 shows as PDT.
+  - 0003_recipes applied (guards OK); RECIPES_STORE=sheets, GIFT_CARDS_STORE=dual.
+  - /health is OK and authenticated.
+  - The live beer page is launched: nav, sitemap and indexing; 11 recipe cards with Ready in and / 25 L.
+- **Step 4:** BEER_SALES_ENABLED=true. The prod kiosk test sale INV-000241 was Paid with total == charge ($4.88). INV-000241 and batch SV-B-000238 were deleted; the owner refunds txn 56649148 in Helcim.
+- **Found during the session, not caused by this release:**
+  - Kiosk table view: Recipes mode keeps showing the product list (`.kiosk-product-grid--list { display: block !important }` beats the inline hide).
+  - The kiosk recipe tile labels the locked base price ($45) as "incl. brewing fee", but the sale adds the $45 brewing fee and $5 materials fee.
+  - The Resend startup verify fails with a send-only key (the code is unchanged from the previous prod).
+- **Next:** Step 5 (recipes dual cutover) waits for the D-08 gift-card flip.
