@@ -4188,6 +4188,17 @@ function getRecipeDetail(recipeId) {
  * @param {string} userEmail - Authenticated staff email
  */
 /**
+ * Header row of the Recipes tab for the ensure-column helpers. A tab that exists but is
+ * completely empty has getLastColumn() === 0, and getRange(1, 1, 1, 0) throws, which broke every
+ * recipe write (Phase 89 review MD-02). An empty tab has no headers, so the missing column is
+ * added at column A.
+ */
+function recipesHeaderRow(sheet, lastCol) {
+  if (lastCol < 1) return [];
+  return sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+}
+
+/**
  * Self-migrating helper: the Recipes sheet originally shipped without a
  * pricing_mode column, so the value was dropped on save and recipes always
  * reverted to 'locked'. Add the column (at the end) the first time we write,
@@ -4197,7 +4208,7 @@ function getRecipeDetail(recipeId) {
  */
 function ensureRecipesPricingModeColumn(sheet) {
   var lastCol = sheet.getLastColumn();
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var headers = recipesHeaderRow(sheet, lastCol);
   var idx = headers.indexOf('pricing_mode');
   if (idx === -1) {
     sheet.getRange(1, lastCol + 1).setValue('pricing_mode').setFontWeight('bold');
@@ -4244,7 +4255,7 @@ function normalizeBeerCategory(value) {
  */
 function ensureRecipesScheduleIdColumn(sheet) {
   var lastCol = sheet.getLastColumn();
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var headers = recipesHeaderRow(sheet, lastCol);
   var idx = headers.indexOf('schedule_id');
   if (idx === -1) {
     sheet.getRange(1, lastCol + 1).setValue('schedule_id').setFontWeight('bold');
@@ -4260,7 +4271,7 @@ function ensureRecipesScheduleIdColumn(sheet) {
  */
 function ensureRecipesBeerCategoryColumn(sheet) {
   var lastCol = sheet.getLastColumn();
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var headers = recipesHeaderRow(sheet, lastCol);
   var idx = headers.indexOf('beer_category');
   if (idx === -1) {
     sheet.getRange(1, lastCol + 1).setValue('beer_category').setFontWeight('bold');
@@ -5252,6 +5263,10 @@ function exportBatchTabs() {
  */
 function setupRecipeBeerCategoryColumn() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(RECIPES_SHEET_NAME);
+  if (!sheet) {
+    Logger.log('Recipes sheet missing: nothing to set up');
+    return;
+  }
   var idx = ensureRecipesBeerCategoryColumn(sheet);
   invalidateSheetCache(RECIPES_SHEET_NAME);
   Logger.log('beer_category column index: ' + idx);
