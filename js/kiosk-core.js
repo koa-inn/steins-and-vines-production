@@ -971,7 +971,12 @@
     var filterBar = document.querySelector('.kiosk-filter-bar');
     var resultCount = document.getElementById('kiosk-result-count');
 
-    if (prodGrid) prodGrid.style.display = mode === 'products' ? '' : 'none';
+    // !important: table view's .kiosk-product-grid--list is display:block !important,
+    // which beat a plain inline display:none and left the product list under Recipes.
+    if (prodGrid) {
+      if (mode === 'products') prodGrid.style.removeProperty('display');
+      else prodGrid.style.setProperty('display', 'none', 'important');
+    }
     if (recipeGrid) recipeGrid.style.display = mode === 'recipes' ? 'grid' : 'none';
     if (recipePrompt) {
       recipePrompt.style.display = 'none';
