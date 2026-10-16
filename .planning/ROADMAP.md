@@ -156,7 +156,7 @@
 - [x] **Phase 89: Beer category field for recipes** — optional `beer_category` enum (12 beer tint keys) set in BrewPad/admin, round-tripped through sheet, Postgres, backfill/verify and the public API, and used to colour beer recipe cards on beer.html. (completed 2026-10-15)
 - [x] **Phase 90: BrewPad batch invoice linking** — optional invoice link captured at manual batch creation, an "unlinked" filter on the batch list, and a human-confirmed review queue to backfill the 57 unlinked batches. Also: a one-tap kiosk canning bundle (flat $40/$35 plus 12% tax, cans relieved at the actual count). Also: a full-list recipe picker dropdown in BrewPad, kiosk and the recipe editor. (completed 2026-10-15)
 - [ ] **Phase 91: Online grain-order recipe splitting** — customers separate grains into up to 4 recipe bags as they select them (quantity splits allowed), staff see the split in Zoho notes, the email and BrewPad, and the milling fee stays once per order.
-- [ ] **Phase 92: Kiosk past-sales lookup and ledger** — staff look up a customer's past orders by name on the kiosk, and browse a read-only ledger of recent kiosk sales.
+- [x] **Phase 92: Kiosk past-sales lookup and ledger** — staff look up a customer's past orders by name on the kiosk, and browse a read-only ledger of recent kiosk sales. (completed 2026-10-16)
 
 ### 📋 Backlog — captured, not yet scheduled
 
@@ -1704,7 +1704,7 @@ Plans:
 
 **Requirements:** PSL-01 (ledger scope, day filter, footer total, voids: D-01..D-04), PSL-02 (customer lookup: D-05..D-09), PSL-03 (auth tier, slim allowlist, read-only: D-10, D-12, D-13), PSL-04 (Customer View isolation: D-11), PSL-05 (ledger tender: D-14), PSL-06 (inline line items: D-15), PSL-07 (cache + refresh: D-16).
 **Depends on:** none hard.
-**Plans:** 7/8 plans executed
+**Plans:** 8/8 plans complete
 **Context and open questions for discuss-phase:**
 - Data source is Zoho invoices, which hold kit, recipe and SO-paid sales. Existing kiosk patterns to reuse: the Sales Orders / Collect view (`#kiosk-view-collect`, `GET /api/kiosk/salesorders` in `routes/pos.js` ~:2376) and the SO customer search.
 - Ledger scope is undecided: kiosk-originated only (reference `KIOSK-…`) or all invoices; how far back; whether online orders are included.
@@ -1721,7 +1721,7 @@ Plans:
 - [x] 92-05-PLAN.md — kiosk.html Past Sales button + two-tab view markup + styles (no CSP change)
 - [x] 92-06-PLAN.md — Kiosk view lifecycle, D-11 clearing choke point, Ledger tab, inline detail, refresh, wiring
 - [x] 92-07-PLAN.md — Kiosk By-customer tab: contact search, history, Load older, walk-in message
-- [ ] 92-08-PLAN.md — Gates, KIOSK_CONTACT_ID env check, staging deploy + smoke, owner UAT
+- [x] 92-08-PLAN.md — Gates, KIOSK_CONTACT_ID env check, staging deploy + smoke, owner UAT
 ---
 
 **ROOT CAUSE LOCATED (2026-09-02, during the Sheets→Postgres research pass).** The audit flagged this class as H6/H7 in 2026-06-29 but never pinned the mechanism. It is now pinned:
