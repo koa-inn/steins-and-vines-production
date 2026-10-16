@@ -69,6 +69,7 @@
       <div class="kiosk-shell-user">
         <span id="kiosk-user-email"></span>
         <button type="button" class="btn-secondary admin-btn-sm" id="kiosk-orders-btn">Sales Orders</button>
+        <button type="button" class="btn-secondary admin-btn-sm" id="kiosk-past-sales-btn">Past Sales</button>
         <button type="button" class="btn-secondary admin-btn-sm" id="kiosk-browse-mode-btn">Customer View</button>
         <!-- Phase 54 (D-54-01): gift-card lookup/void lives in the Device Settings
              cluster, not the sales toolbar/discount popover, since void is
@@ -398,6 +399,45 @@
       </div>
       <div class="kiosk-collect-footer">
         <button type="button" class="btn-secondary" id="kiosk-collect-back">&larr; Back to POS</button>
+      </div>
+    </div>
+
+    <!-- Kiosk: Past Sales View (Phase 92 D-05 / D-11 / D-13). Read-only view (no action controls); not reachable from Customer View. -->
+    <div id="kiosk-view-past-sales" class="kiosk-view" style="display:none;">
+      <div class="kiosk-collect-header">
+        <h2>Past Sales</h2>
+        <div class="kiosk-collect-actions">
+          <button type="button" class="btn-secondary kiosk-refresh-btn" id="kiosk-ps-refresh" title="Refresh">&#8635;</button>
+        </div>
+      </div>
+      <div class="kiosk-so-status-filter kiosk-ps-tabs">
+        <button type="button" class="kiosk-so-chip kiosk-ps-tab active" data-tab="customer">By customer</button>
+        <button type="button" class="kiosk-so-chip kiosk-ps-tab" data-tab="ledger">Ledger</button>
+      </div>
+      <div id="kiosk-ps-customer-panel" class="kiosk-ps-panel">
+        <div class="kiosk-ps-search-bar">
+          <input type="search" id="kiosk-ps-search" class="kiosk-search-input" placeholder="Search customer by name..." autocomplete="off">
+        </div>
+        <div id="kiosk-ps-contact-results" class="kiosk-ps-contact-results"></div>
+        <div id="kiosk-ps-customer-heading" class="kiosk-ps-heading"></div>
+        <div id="kiosk-ps-customer-message" class="kiosk-ps-message"></div>
+        <div id="kiosk-ps-customer-list" class="kiosk-ps-list"></div>
+        <div class="kiosk-ps-more">
+          <button type="button" class="btn-secondary" id="kiosk-ps-load-older" style="display:none;">Load older</button>
+        </div>
+      </div>
+      <div id="kiosk-ps-ledger-panel" class="kiosk-ps-panel" style="display:none;">
+        <div class="kiosk-ps-daybar">
+          <button type="button" class="btn-secondary kiosk-ps-daybtn" id="kiosk-ps-prev" aria-label="Previous day">&lsaquo;</button>
+          <input type="date" id="kiosk-ps-date" class="kiosk-search-input">
+          <button type="button" class="btn-secondary kiosk-ps-daybtn" id="kiosk-ps-next" aria-label="Next day">&rsaquo;</button>
+        </div>
+        <div id="kiosk-ps-ledger-message" class="kiosk-ps-message"></div>
+        <div id="kiosk-ps-ledger-list" class="kiosk-ps-list"></div>
+        <div id="kiosk-ps-ledger-footer" class="kiosk-ps-total"></div>
+      </div>
+      <div class="kiosk-collect-footer">
+        <button type="button" class="btn-secondary" id="kiosk-ps-back">&larr; Back to POS</button>
       </div>
     </div>
 
