@@ -85,3 +85,15 @@ decision: list-join (gate not triggered)
 ## Self-Check: PASSED
 
 Files exist (script, test, fixture); commits d2f8d926 and b5afa927 present; fixture has no '@', no 10-digit runs, all customer_name REDACTED.
+
+## Join-mode owner decision
+
+decision: list-join-blank-in-store (owner, 2026-10-16)
+
+The spike gate formally returned `list-join`, but only 1 of ~13 sampled payment rows carried a money-path note in `description`, so classifying blank-reference (SO-pay) invoices by payment note would silently drop SO-paid kiosk sales from the ledger. The owner chose (2026-10-16):
+
+- JOIN_MODE stays `list-join` (tender from the `/customerpayments` list joined via `invoice_numbers`; note text read from `description`).
+- **Blank-reference invoices are classified `in-store` regardless of payment note** (ledger D-01 and customer-history source tag D-07). The owner accepts that a manual back-office invoice with a blank reference will appear in the ledger labelled In-store.
+- KIOSK-/POS- references → in-store. All-digit references → online, unless a payment note starting `Kiosk ` / `In-store terminal payment` / `Legacy POS payment` marks them in-store (recipe safety net). Anything else → Other.
+- `classification_incomplete` stays false / `unclassified_count` 0 in this mode.
+- The customer-history payments fetch (A-09) is only needed for all-digit references now; blank references no longer need a payment lookup to be tagged.
