@@ -42,6 +42,12 @@ var CACHE_KEYS = {
   CHECKOUT_IDEM_PREFIX: 'checkout:idem:',        // append client key (max 128 chars)
   KIOSK_IDEM_PREFIX:    'kiosk:idem:',           // append client key (max 128 chars)
 
+  // Kiosk past sales (Phase 92)
+  KIOSK_HISTORY_LEDGER_PREFIX:   'kiosk:history:ledger:v1:',   // append YYYY-MM-DD
+  KIOSK_HISTORY_CUSTOMER_PREFIX: 'kiosk:history:customer:v1:', // append customer_id + ':' + window
+  KIOSK_HISTORY_INVOICE_PREFIX:  'kiosk:history:invoice:v1:',  // append invoice_id
+  KIOSK_HISTORY_TENDER_PREFIX:   'kiosk:history:tender:v1:',   // append invoice_id (detail-fallback tender only)
+
   // Collect payment (Zoho SO → Helcim terminal)
   COLLECT_IDEM_PREFIX:    'collect:idem:',
   COLLECT_PENDING_PREFIX: 'collect:pending:',
