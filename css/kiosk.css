@@ -2992,3 +2992,48 @@ input.kiosk-bundle-count { flex: 1; cursor: text; }
 .kiosk-bundle-secondary { background: var(--cellar-raised); color: var(--ink-primary); border: 1px solid var(--ledger-emphasis); }
 .kiosk-bundle-primary { background: var(--stain); color: var(--cellar-canvas); border: none; }
 .kiosk-bundle-primary:disabled { opacity: 0.4; cursor: default; }
+
+/* Phase 92: Past Sales (read-only) */
+#kiosk-view-past-sales { display: flex; flex-direction: column; }
+.kiosk-ps-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.kiosk-ps-search-bar { padding: 0.75rem 1.25rem 0; }
+.kiosk-ps-search-bar .kiosk-search-input { width: 100%; box-sizing: border-box; }
+.kiosk-ps-contact-results { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.5rem 1.25rem 0; }
+.kiosk-ps-contact-row { background: var(--cellar-raised); border: 1px solid var(--ledger-emphasis); border-radius: var(--r-lg); padding: 0.75rem 1rem; min-height: 44px; color: var(--ink-primary); cursor: pointer; text-align: left; font-family: var(--font-body); font-size: 0.95rem; }
+.kiosk-ps-contact-row:hover { border-color: var(--barrel); }
+.kiosk-ps-heading { padding: 0.75rem 1.25rem 0; font-weight: 700; color: var(--ink-primary); }
+.kiosk-ps-message { padding: 0.75rem 1.25rem; color: var(--ink-tertiary); font-size: 0.9rem; }
+.kiosk-ps-message:empty, .kiosk-ps-heading:empty, .kiosk-ps-contact-results:empty { display: none; }
+.kiosk-ps-list { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.75rem 1.25rem; }
+.kiosk-ps-more { display: flex; justify-content: center; padding: 0 1.25rem 1rem; }
+.kiosk-ps-daybar { display: flex; align-items: center; justify-content: center; gap: 0.75rem; padding: 0.75rem 1.25rem 0; }
+.kiosk-ps-daybtn { min-width: 44px; min-height: 44px; font-size: 1.4rem; line-height: 1; }
+.kiosk-ps-daybar input[type="date"] { min-height: 44px; }
+.kiosk-ps-row { background: var(--cellar-raised); border: 1px solid var(--ledger-emphasis); border-radius: var(--r-lg); padding: 0.85rem 1rem; display: flex; flex-direction: column; gap: 0.4rem; cursor: pointer; transition: border-color 0.15s; }
+.kiosk-ps-row:hover { border-color: var(--barrel); }
+.kiosk-ps-row--void { opacity: 0.55; }
+.kiosk-ps-row--void .kiosk-ps-amount { text-decoration: line-through; }
+.kiosk-ps-row-main { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+.kiosk-ps-time { color: var(--ink-tertiary); font-size: 0.82rem; }
+.kiosk-ps-number { font-weight: 700; font-size: 0.95rem; color: var(--ink-primary); font-family: monospace; }
+.kiosk-ps-customer { color: var(--ink-secondary); font-size: 0.9rem; }
+.kiosk-ps-amount { font-size: 1.1rem; font-weight: 700; color: var(--cellar-green); }
+.kiosk-ps-tender { color: var(--ink-tertiary); font-size: 0.82rem; }
+.kiosk-ps-badge { display: inline-block; padding: 2px 10px; border-radius: 20px; border: 1px solid var(--ledger-emphasis); background: var(--cellar-raised); color: var(--ink-secondary); font-size: 0.75rem; font-weight: 600; }
+.kiosk-ps-badge--in-store { background: var(--cellar-green); border-color: var(--cellar-green); color: #fff; }
+.kiosk-ps-badge--online { background: var(--barrel); border-color: var(--barrel); color: #fff; }
+.kiosk-ps-badge--other { background: var(--ink-secondary); border-color: var(--ink-secondary); color: #fff; }
+.kiosk-ps-badge--void { background: transparent; border-color: var(--ink-tertiary); color: var(--ink-tertiary); }
+.kiosk-ps-badge--paid { background: var(--batch-success); border-color: var(--batch-success); color: #fff; }
+.kiosk-ps-badge--unpaid { background: transparent; border-color: var(--stain); color: var(--stain); }
+.kiosk-ps-badge--partial { background: transparent; border-color: var(--barrel); color: var(--barrel); }
+.kiosk-ps-badge--draft { background: transparent; border-color: var(--ink-tertiary); color: var(--ink-tertiary); }
+.kiosk-ps-detail { border-top: 1px solid var(--ledger-line); padding-top: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.kiosk-ps-detail-line { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.85rem; color: var(--ink-secondary); }
+.kiosk-ps-detail-totals { display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem; font-size: 0.85rem; color: var(--ink-primary); border-top: 1px solid var(--ledger-line); padding-top: 0.35rem; }
+.kiosk-ps-total { text-align: right; font-weight: 700; color: var(--ink-primary); padding: 0.75rem 1.25rem; border-top: 1px solid var(--ledger-line); }
+.kiosk-ps-total:empty { display: none; }
+@media (max-width: 600px) {
+  .kiosk-ps-list, .kiosk-ps-message, .kiosk-ps-heading, .kiosk-ps-search-bar, .kiosk-ps-contact-results { padding-left: 0.75rem; padding-right: 0.75rem; }
+  .kiosk-ps-total { padding-left: 0.75rem; padding-right: 0.75rem; }
+}
