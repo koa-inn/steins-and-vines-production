@@ -1431,13 +1431,27 @@ behold-widget {
    cream-on-cream fill it used to carry was invisible on the light background. Dark-banner
    styling lives under `.beer-banner--green` below. */
 
+.waitlist-lede {
+  max-width: 34rem;
+  margin: 0 auto 1.75rem;
+}
+
+/* Email field and submit read as one control: shared height, joined edge. They stack (and
+   separate) below 480px. */
 .beer-waitlist-form {
   display: flex;
   justify-content: center;
-  gap: 0.75rem;
+  align-items: stretch;
+  gap: 0;
   flex-wrap: wrap;
-  max-width: 400px;
+  max-width: 460px;
   margin: 0 auto;
+}
+
+.beer-waitlist-form .beer-waitlist-btn {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
 }
 
 /* Base styles assume the LIGHT cream body, which is where beer.html actually renders this form
@@ -1448,7 +1462,8 @@ behold-widget {
   padding: 0.75rem 1rem;
   font-size: 1rem;
   border: 2px solid var(--color-burgundy);
-  border-radius: var(--radius-sm);
+  border-right: 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   background: var(--color-white);
   color: var(--color-text);
 }
@@ -1476,9 +1491,15 @@ behold-widget {
     width: 100%;
     min-width: 0;
     flex-basis: 100%;
+    border-right: 2px solid var(--color-burgundy);
+    border-radius: var(--radius-sm);
+  }
+  .beer-waitlist-form {
+    gap: 0.75rem;
   }
   .beer-waitlist-form .beer-waitlist-btn {
     width: 100%;
+    border-radius: var(--radius-sm);
   }
   #waitlist .btn-secondary {
     width: 100%;
@@ -7628,5 +7649,38 @@ body.nav-open #mobile-catalog-bar {
   margin: 0.75rem auto 1rem;
 }
 .beer-waitlist-consent a { color: inherit; text-decoration: underline; }
+
+/* Secondary contact under the waitlist: a quiet text block, not a second button. */
+.waitlist-contact {
+  max-width: 28rem;
+  margin: 2rem auto 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(55, 14, 19, 0.15);
+}
+.waitlist-contact p { margin: 0; }
+.waitlist-contact .waitlist-contact-lead {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted-dark);
+  margin-bottom: 0.4rem;
+}
+.waitlist-contact-links {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.waitlist-contact-links a { color: var(--color-burgundy); text-decoration: none; }
+.waitlist-contact-links a:hover,
+.waitlist-contact-links a:focus-visible { text-decoration: underline; }
+.waitlist-contact-sep { margin: 0 0.6rem; color: var(--color-muted); }
+.waitlist-contact .waitlist-contact-address {
+  font-size: 0.875rem;
+  color: var(--color-muted-dark);
+  margin-top: 0.25rem;
+}
+@media (max-width: 480px) {
+  .waitlist-contact-links a { display: inline-block; padding: 0.35rem 0; }
+}
 .recaptcha-note { font-size: 0.75rem; color: var(--color-muted); }
 .recaptcha-note a { color: inherit; text-decoration: underline; }
