@@ -51,6 +51,8 @@ Every row must be classified before the flip bar can be considered met.
   - No `[dual-write] giftcards` warning in the Railway logs available for 2026-10-16.
   - Sentry itself was not checked by Claude (no access). The owner should confirm there are no `dual-write giftcards` events since 2026-10-06.
 
+- **Cleanup (owner request, 2026-10-16):** the runsheet's cash invoices INV-000242/243/244 and their four payments were deleted in Zoho, including the $0.50 Gift Card Redemptions payment, which restored the item stock. GC-000002 stays void in Postgres and the sheet as the test record, and its zoho_invoice_number now points at a deleted invoice.
+
 ## Flip-decision block
 
 Filled in once the §4/§6 flip bar (≥7 consecutive days, all six ops observed, zero
