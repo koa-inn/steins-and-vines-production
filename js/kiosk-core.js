@@ -4482,9 +4482,10 @@
   var _kioskPsLedger = null;
   var _kioskPsDetails = {};
   var _kioskPsSearchTimer = null;
-  // 92-07 replaces these two hooks (customer-tab clearing / refresh).
-  var _kioskPsCustomerClear = function () {};
-  var _kioskPsCustomerRefresh = function () {};
+  // By-customer tab state (92-07). Cleared by _kioskPsCustomerClear (D-11).
+  var _kioskPsContact = null;
+  var _kioskPsHistoryCount = 0;
+  var _kioskPsWindowStart = null;
 
   function kioskPsFmtMoney(n) {
     var v = Number(n);
@@ -4638,13 +4639,20 @@
       '<div class="kiosk-ps-row-main">' +
       '<span class="kiosk-ps-time">' + escapeHTML(opts.dateInstead ? (inv.date || '') : (inv.time || '')) + '</span>' +
       '<span class="kiosk-ps-number">' + escapeHTML(inv.invoice_number || '') + '</span>';
-    if (!opts.hideCustomer) {
+    if (!opts.hideCustomer && !opts.showSource) {
       html += '<span class="kiosk-ps-customer">' + escapeHTML(inv.customer_name || '') + '</span>';
     }
     html += '<span class="kiosk-ps-badge kiosk-ps-badge--' + kioskPsBadgeClass(inv.status) + '">' +
-      escapeHTML(kioskPsStatusLabel(inv.status)) + '</span>' +
-      '<span class="kiosk-ps-tender">' + escapeHTML(inv.tender || '') + '</span>' +
-      '<span class="kiosk-ps-amount">' + escapeHTML(kioskPsFmtMoney(inv.total)) + '</span>' +
+      escapeHTML(kioskPsStatusLabel(inv.status)) + '</span>';
+    if (opts.showSource) {
+      var src = String(inv.source || '').toLowerCase();
+      if (src !== 'in-store' && src !== 'online') src = 'other';
+      html += '<span class="kiosk-ps-badge kiosk-ps-badge--' + src + '">' +
+        (src === 'in-store' ? 'In-store' : (src === 'online' ? 'Online' : 'Other')) + '</span>';
+    } else {
+      html += '<span class="kiosk-ps-tender">' + escapeHTML(inv.tender || '') + '</span>';
+    }
+    html += '<span class="kiosk-ps-amount">' + escapeHTML(kioskPsFmtMoney(inv.total)) + '</span>' +
       '</div></div>';
     return html;
   }
@@ -4772,6 +4780,157 @@
     } else {
       _kioskPsCustomerRefresh();
     }
+  }
+
+  // ===== Past Sales: By customer tab (Phase 92-07) =====
+
+  var KIOSK_PS_WALKIN_MSG = "Walk-in sales aren't tied to a customer, use the Ledger by date.";
+
+  function _kioskPsCustomerClear() {
+    _kioskPsContact = null;
+    _kioskPsHistoryCount = 0;
+    _kioskPsWindowStart = null;
+    if (_kioskPsSearchTimer) {
+      clearTimeout(_kioskPsSearchTimer);
+      _kioskPsSearchTimer = null;
+    }
+  }
+
+  function _kioskPsCustomerRefresh() {
+    if (_kioskPsContact) kioskPsLoadCustomer(null, true);
+  }
+
+  function kioskPsSearch(q) {
+    q = String(q === null || q === undefined ? '' : q).trim();
+    if (_kioskPsSearchTimer) {
+      clearTimeout(_kioskPsSearchTimer);
+      _kioskPsSearchTimer = null;
+    }
+    if (q.length < 2) {
+      kioskPsSetHtml('kiosk-ps-contact-results', '');
+      return;
+    }
+    var gen = _kioskPsGen;
+    _kioskPsSearchTimer = setTimeout(function () {
+      _kioskPsSearchTimer = null;
+      if (!_kcEnv.mwUrl) return;
+      _kioskPsFetch('/api/contacts/search?q=' + encodeURIComponent(q), gen).then(function (data) {
+        if (data === null) return;
+        var list = (data && data.contacts) || [];
+        var box = kioskPsEl('kiosk-ps-contact-results');
+        if (!box) return;
+        if (!list.length) {
+          box.innerHTML = '<div class="kiosk-ps-message">No matching customers.</div>';
+          return;
+        }
+        var html = '';
+        for (var i = 0; i < list.length && i < 8; i++) {
+          html += '<div class="kiosk-customer-result-row kiosk-ps-contact-row" data-id="' +
+            escapeHTML(String(list[i].contact_id)) + '" data-name="' +
+            escapeHTML(String(list[i].contact_name || '')) + '">' +
+            escapeHTML(list[i].contact_name || '') + '</div>';
+        }
+        box.innerHTML = html;
+        var rows = box.querySelectorAll('.kiosk-ps-contact-row');
+        for (var j = 0; j < rows.length; j++) {
+          rows[j].addEventListener('click', function () {
+            kioskPsSelectContact(this.getAttribute('data-id'), this.getAttribute('data-name'));
+          });
+        }
+      }).catch(function () {
+        if (gen !== _kioskPsGen) return;
+        kioskPsSetHtml('kiosk-ps-contact-results',
+          '<div class="kiosk-ps-message">Could not search customers. Check connection and try again.</div>');
+      });
+    }, 300);
+  }
+
+  function kioskPsSelectContact(id, name) {
+    if (!id) return;
+    _kioskPsContact = { id: String(id), name: String(name || '') };
+    kioskPsSetHtml('kiosk-ps-contact-results', '');
+    var heading = kioskPsEl('kiosk-ps-customer-heading');
+    if (heading) heading.textContent = _kioskPsContact.name;
+    kioskPsLoadCustomer(null, false);
+  }
+
+  function kioskPsLoadCustomer(before, bust) {
+    if (!_kioskPsContact) return;
+    var older = kioskPsEl('kiosk-ps-load-older');
+    if (!_kcEnv.mwUrl) {
+      kioskPsSetHtml('kiosk-ps-customer-message', 'Middleware URL not configured.');
+      return;
+    }
+    var append = !!before;
+    var contact = _kioskPsContact;
+    var gen = _kioskPsGen;
+    var path = '/api/kiosk/past-sales/customer?customer_id=' + encodeURIComponent(contact.id);
+    if (before) path += '&before=' + encodeURIComponent(before);
+    if (bust) path += '&bust=1';
+    kioskPsSetHtml('kiosk-ps-customer-message', 'Loading...');
+    if (!append) {
+      kioskPsSetHtml('kiosk-ps-customer-list', '');
+      _kioskPsHistoryCount = 0;
+      if (older) older.style.display = 'none';
+    }
+    _kioskPsFetch(path, gen).then(function (data) {
+      if (data === null || _kioskPsContact !== contact) return;
+      if (data.walk_in) {
+        kioskPsSetHtml('kiosk-ps-customer-list', '');
+        _kioskPsHistoryCount = 0;
+        kioskPsEl('kiosk-ps-customer-message').textContent = KIOSK_PS_WALKIN_MSG;
+        if (older) older.style.display = 'none';
+        return;
+      }
+      var rows = data.invoices || [];
+      _kioskPsWindowStart = data.window_start || null;
+      kioskPsRenderCustomerRows(rows, append);
+      if (!_kioskPsHistoryCount) {
+        kioskPsSetHtml('kiosk-ps-customer-message', 'No sales in this period.');
+      } else if (data.truncated) {
+        kioskPsSetHtml('kiosk-ps-customer-message', 'Showing the most recent sales only.');
+      } else {
+        kioskPsSetHtml('kiosk-ps-customer-message', '');
+      }
+      if (older) older.style.display = (data.has_older && _kioskPsWindowStart) ? '' : 'none';
+    }).catch(function () {
+      if (gen !== _kioskPsGen) return;
+      kioskPsSetHtml('kiosk-ps-customer-message',
+        'Could not load this customer\'s sales. Check connection and try again. ' +
+        '<button type="button" class="btn-secondary" id="kiosk-ps-customer-retry">Retry</button>');
+      var retry = kioskPsEl('kiosk-ps-customer-retry');
+      if (retry) retry.addEventListener('click', function () { kioskPsLoadCustomer(before, bust); });
+    });
+  }
+
+  function kioskPsRenderCustomerRows(rows, append) {
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+      html += kioskPsRowHtml(rows[i], { dateInstead: true, showSource: true });
+    }
+    var list = kioskPsEl('kiosk-ps-customer-list');
+    if (!list) return;
+    if (append) list.insertAdjacentHTML('beforeend', html);
+    else list.innerHTML = html;
+    _kioskPsHistoryCount = (append ? _kioskPsHistoryCount : 0) + rows.length;
+    // wire only rows without a handler yet
+    var all = list.querySelectorAll('.kiosk-ps-row');
+    for (var k = 0; k < all.length; k++) {
+      if (all[k].getAttribute('data-wired')) continue;
+      all[k].setAttribute('data-wired', '1');
+      all[k].addEventListener('click', function (e) {
+        var t = e.target;
+        while (t && t !== this) {
+          if (t.classList && t.classList.contains('kiosk-ps-detail')) return;
+          t = t.parentNode;
+        }
+        kioskPsToggleDetail(this);
+      });
+    }
+  }
+
+  function kioskPsLoadOlder() {
+    if (_kioskPsWindowStart) kioskPsLoadCustomer(_kioskPsWindowStart, false);
   }
 
   // ===== Status Chip Filter (D-09, D-10) =====
@@ -6445,12 +6604,15 @@
     pastSalesShiftDay: kioskPsShiftDay,
     pastSalesRefresh: kioskPsRefresh,
     pastSalesToggleDetail: kioskPsToggleDetail,
+    pastSalesSearch: kioskPsSearch,
+    pastSalesSelectContact: kioskPsSelectContact,
+    pastSalesLoadOlder: kioskPsLoadOlder,
     _getPastSalesState: function () {
       var n = 0;
       for (var k in _kioskPsDetails) {
         if (Object.prototype.hasOwnProperty.call(_kioskPsDetails, k)) n++;
       }
-      return { tab: _kioskPsTab, ledger: _kioskPsLedger, detailCount: n, gen: _kioskPsGen };
+      return { tab: _kioskPsTab, ledger: _kioskPsLedger, detailCount: n, gen: _kioskPsGen, contact: _kioskPsContact, historyCount: _kioskPsHistoryCount };
     },
     normalizeCertNumber: kioskNormalizeCertNumber,
     wireCertInput: kioskWireCertInput,
