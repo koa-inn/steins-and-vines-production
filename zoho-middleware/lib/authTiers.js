@@ -67,6 +67,9 @@ var KIOSK_ROUTES = [
   '/api/kiosk/telemetry', // 68-01: no-side-effect stage-timing/latency sink — mirrors client-error's threat posture (returns 204 only, bounded numeric+string payload)
   '/api/pos/cancel',
   '/api/pos/status',
+  '/api/kiosk/past-sales/ledger', // Phase 92 D-10: read-only, allowlisted, capped
+  '/api/kiosk/past-sales/customer', // Phase 92 D-10: read-only, allowlisted, capped
+  '/api/kiosk/past-sales/invoice/:id', // Phase 92 D-10: documentation only — matched via prefix below
   '/api/contacts/search',
   '/api/contacts', // POST only (walk-in create) — GET is PII/admin-grade, see server.js PII_GET_ROUTES
 ];
@@ -94,6 +97,7 @@ function isKioskRoute(path) {
     return true;
   }
   if (path.indexOf('/api/kiosk/discounts/') === 0) return true;
+  if (path.indexOf('/api/kiosk/past-sales/invoice/') === 0) return true;
   return false;
 }
 

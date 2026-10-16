@@ -788,6 +788,7 @@ app.use('/', require('./routes/payments'));
 app.use('/', require('./routes/checkout'));
 app.use('/', require('./routes/taxes'));
 app.use('/', require('./routes/pos'));
+app.use('/', require('./routes/kiosk-history'));
 app.use('/', require('./routes/gift-cards'));
 app.use('/', require('./routes/collect'));
 app.use('/', require('./routes/purchaseorders'));
