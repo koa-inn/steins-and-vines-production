@@ -67,6 +67,7 @@ The release also launches the beer page. On top of the commits above, `release/8
 - **Sitemap fix:** 48e92ddc restores the /beer entry, which was lost while resolving the launch cherry-pick.
 - **Ready in fix:** 1029e8b5 (+ build 0826ba28): the faded "Ready in" column on tinted beer cards, from the owner review 2026-10-15.
 - **Take-home volume:** 733505d6 (+ build): recipe cards read "$95.00 / 25 L" (owner review 2026-10-15).
+- **Beer page control bar removed:** fd023807 and 0b99ddae (owner-approved test update) + build 58ac88bc: the kit search, filter and sort bar no longer appears on beer.html (owner review 2026-10-15).
 
 Gate on Node 24: root 2181/2181, middleware 2555/2555, both lints clean.
 
