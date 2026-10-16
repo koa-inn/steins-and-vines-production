@@ -16,10 +16,17 @@ var C = require('./constants');
 var STOCK_KEY_PREFIX = C.LEDGER_KEYS.STOCK_PREFIX;
 var VERSION_KEY = C.LEDGER_KEYS.VERSION;
 var ADJUSTMENTS_KEY = C.LEDGER_KEYS.ADJUSTMENTS;
+var HOLD_KEY_PREFIX = C.LEDGER_KEYS.HOLD_PREFIX;
 var STOCK_TTL = 7200;        // 2 hours
 var VERSION_TTL = 7200;      // 2 hours
 var ADJUSTMENTS_TTL = 86400; // 24 hours
 var MAX_LOG_ENTRIES = 1000;
+// How long a sale's decrement may override a HIGHER Zoho value. A kiosk sale creates the
+// Zoho invoice at once, so its hold only covers a catalog fetch already in flight. A website
+// checkout creates a sales order, which never lowers Zoho's stock_on_hand, so its hold keeps
+// the original behaviour: refreshed on every reconcile while Zoho stays higher.
+var KIOSK_HOLD_TTL = 600;    // 10 minutes
+var ORDER_HOLD_TTL = STOCK_TTL;
 
 /**
  * Reconcile Redis stock with a fresh list of items from Zoho.
@@ -49,19 +56,22 @@ function reconcile(items) {
 
     if (toReconcile.length === 0) return;
 
-    // Pipeline 1: read current ledger values for all items
+    // Pipeline 1: read current ledger values (and any recent-sale hold) for all items
     var getPipeline = client.multi();
     toReconcile.forEach(function (item) {
       getPipeline.get(STOCK_KEY_PREFIX + item.item_id);
+      getPipeline.get(HOLD_KEY_PREFIX + item.item_id);
     });
 
-    return getPipeline.exec().then(function (currentValues) {
+    return getPipeline.exec().then(function (results) {
+      results = results || [];
       // Pipeline 2: conditionally SET or EXPIRE each item
       var setPipeline = client.multi();
       var count = 0;
 
       toReconcile.forEach(function (item, i) {
-        var current = currentValues[i];
+        var current = results[i * 2];
+        var hold = results[i * 2 + 1];
         var zohoVal = item.stock_on_hand;
 
         if (current === null) {
@@ -74,9 +84,17 @@ function reconcile(items) {
             // Key is corrupted/negative OR Zoho has lower stock (processed other sales) — update
             setPipeline.set(STOCK_KEY_PREFIX + item.item_id, String(zohoVal), { EX: STOCK_TTL });
             count++;
+          } else if (hold) {
+            // Zoho >= current within a recent sale's hold: Zoho may not show that sale yet.
+            // Keep the lower (decremented) value; refresh the stock TTL. A website order's hold
+            // is refreshed too (its sales order never lowers Zoho); a kiosk hold just runs out.
+            setPipeline.expire(STOCK_KEY_PREFIX + item.item_id, STOCK_TTL);
+            if (hold === 'order') setPipeline.expire(HOLD_KEY_PREFIX + item.item_id, ORDER_HOLD_TTL);
+          } else if (zohoVal > curNum) {
+            // No recent sale: Zoho went up (restock, return, deleted invoice). Trust it.
+            setPipeline.set(STOCK_KEY_PREFIX + item.item_id, String(zohoVal), { EX: STOCK_TTL });
+            count++;
           } else {
-            // Zoho >= current: a sale happened during the Zoho fetch and hasn't synced yet.
-            // Keep the lower (decremented) value; just refresh the TTL.
             setPipeline.expire(STOCK_KEY_PREFIX + item.item_id, STOCK_TTL);
           }
         }
@@ -118,6 +136,12 @@ function decrementStock(lineItems, reason) {
       if (!line || !line.item_id || !line.quantity) return;
 
       pipeline.incrByFloat(STOCK_KEY_PREFIX + line.item_id, -line.quantity);
+      if (String(reason).indexOf('kiosk:') === 0) {
+        // NX: never shorten a pending website order's hold on the same item.
+        pipeline.set(HOLD_KEY_PREFIX + line.item_id, 'kiosk', { EX: KIOSK_HOLD_TTL, NX: true });
+      } else {
+        pipeline.set(HOLD_KEY_PREFIX + line.item_id, 'order', { EX: ORDER_HOLD_TTL });
+      }
 
       var entry = JSON.stringify({
         item_id: line.item_id,

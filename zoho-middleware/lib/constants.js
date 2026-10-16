@@ -102,6 +102,7 @@ var LEDGER_KEYS = {
   STOCK_PREFIX:   'inv:stock:',         // append item_id
   VERSION:        'inv:stock:version',
   ADJUSTMENTS:    'inv:adjustments:log',
+  HOLD_PREFIX:    'inv:hold:',          // append item_id — a recent sale's decrement Zoho may not show yet
 };
 
 // ---------------------------------------------------------------------------
