@@ -90,3 +90,36 @@ describe('spike sanitizer', function () {
     expect(d({ linkage_field: 'invoices', notes_in_list: false, notes_in_detail: false })).toBe('none');
   });
 });
+
+describe('committed fixture', function () {
+  var fs = require('fs');
+  var path = require('path');
+  var file = path.join(__dirname, 'fixtures', 'zoho-past-sales-shapes.json');
+  var text = fs.readFileSync(file, 'utf8');
+  var fixture = JSON.parse(text);
+
+  it('records a valid join_mode derived from linkage and notes', function () {
+    expect(['list-join', 'detail-fallback', 'none']).toContain(fixture._meta.join_mode);
+    expect(fixture._meta.join_mode).toBe(spike.deriveJoinMode(fixture._meta));
+    expect(['list', 'detail', 'none']).toContain(fixture._meta.notes_available_in);
+  });
+
+  it('has the required sections', function () {
+    ['_meta', 'customerpayments_list', 'invoices_list', 'invoice_detail'].forEach(function (k) {
+      expect(fixture).toHaveProperty(k);
+    });
+  });
+
+  it('contains no e-mail addresses or phone-like digit runs', function () {
+    expect(text).not.toContain('@');
+    expect(text).not.toMatch(/\b\d{10}\b/);
+  });
+
+  it('redacts every customer_name', function () {
+    var names = text.match(/"customer_name": "[^"]*"/g) || [];
+    expect(names.length).toBeGreaterThan(0);
+    names.forEach(function (n) {
+      expect(n).toMatch(/"customer_name": "REDACTED/);
+    });
+  });
+});

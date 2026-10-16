@@ -81,7 +81,7 @@ function deriveJoinMode(m) {
   return 'none';
 }
 
-var NAME_LIKE = /(customer|contact|salesperson|created_by|submitted_by|approver|modified_by)_?name$|^email$|email$|phone|mobile|address|^terms$|^contact_persons$|^created_by$/i;
+var NAME_LIKE = /url$|^contact_number$|(customer|contact|salesperson|created_by|submitted_by|approver|modified_by)_?name$|^email$|email$|phone|mobile|address|^terms$|^contact_persons$|^created_by$/i;
 var ID_LIKE = /(^|_)id$/;
 
 function makeCtx() {
@@ -217,12 +217,20 @@ function main() {
   if (customerId && !/^\d+$/.test(customerId)) die('--customer-id must be digits');
 
   var zohoGet = require(path.join(process.cwd(), 'lib', 'zoho-api')).zohoGet;
+  // Separate process from the server: connect Redis and hydrate the Zoho token (same as server boot).
+  var cache = require(path.join(process.cwd(), 'lib', 'cache'));
+  var zohoAuth = require(path.join(process.cwd(), 'lib', 'zohoAuth'));
   var D1 = nextDay(D);
   var raw = {};
 
   function rowsOf(data, key) { return (data && Array.isArray(data[key])) ? data[key] : []; }
 
-  zohoGet('/customerpayments', { date: D, per_page: 5 })
+  cache.init()
+    .then(function () { return zohoAuth.init(); })
+    .then(function () {
+      if (!zohoAuth.isAuthenticated()) throw new Error('Zoho not authenticated after init');
+      return zohoGet('/customerpayments', { date: D, per_page: 5 });
+    })
     .then(function (d) {
       raw.pay = d;
       return zohoGet('/customerpayments', { date_start: D, date_end: D1, per_page: 5 });
