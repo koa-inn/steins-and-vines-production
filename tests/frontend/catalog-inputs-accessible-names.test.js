@@ -25,10 +25,12 @@ describe('inputs on the category pages have accessible names', function () {
     expect(hasAccessibleName(tags[0])).toBe(true);
   });
 
+  // beer.html dropped its kit search bar (owner, 2026-10-15), so no search box remains to
+  // label; any that comes back must still carry an accessible name.
   test('beer.html catalogue search box', function () {
     var tags = inputs('beer.html', /class="catalog-search"/);
-    expect(tags.length).toBe(1);
-    expect(hasAccessibleName(tags[0])).toBe(true);
+    expect(tags.length).toBe(0);
+    tags.forEach(function (tag) { expect(hasAccessibleName(tag)).toBe(true); });
   });
 
   test('wine.html catalogue search box', function () {
