@@ -151,3 +151,23 @@ production; see the RUNBOOK section 5 callout "Phase 89 script-source rule (D-14
 ---
 *Phase: 85-recipes-recipeingredients-postgres*
 *Template created: 2026-10-07 (Plan 85-11)*
+
+## Production cutover (2026-10-16, owner approved during opening hours, kiosk idle)
+
+- **Prerequisites:**
+  - D-08 met: production gift cards flipped to postgres at 2026-10-16 18:22:14Z (84-DUAL-LOG).
+  - Phase 85 code was on production since prod-20261016-1, with 0003_recipes applied. Backups are live (Phase 83).
+- **Dry run:** fresh snapshot (20:45Z) gave 13 recipe rows and 145 ingredient rows, 0 rejects (so SV-R-000001's cells are fine). Seeds: recipe 16, ingredient 495.
+- **Promote:** done at 20:46:19Z, run inside the production container (DATABASE_URL never left Railway; the tunnel fails from zoho-middleware/). Promoted 13 recipes and 145 ingredients; sequences at 16 / 495.
+- **RECIPES_STORE=dual:** set at 20:46:28Z. Startup showed `store modes: {"GIFT_CARDS_STORE":"postgres","RECIPES_STORE":"dual"}` and `[sheet-mirror] mirror ENABLED (environment=production)`; the recipe mirror sweep is registered. /health is ok and database_required.
+- **Post-promote verify:** fresh snapshot (20:52Z) gave "Verified 13 recipes: 0 mismatches".
+- **Pre-open mirror write:** owner notes edit on draft SV-R-000014 (QA-23 cider, 5 ingredients) at 20:54:08Z, PUT 200.
+  - Postgres and the sheet had identical notes (same md5), identical updated_at (stored as a string), and 5 ingredients each.
+  - No mirror-dirty markers.
+- **Post-mirror verify:** fresh snapshot (20:55Z) gave "Verified 13 recipes: 0 mismatches".
+  - Cell-type check: created_at and updated_at are string cells for SV-R-000014, SV-R-000001 and SV-R-000016, so there was no Date-serial mangling.
+  - RecipeIngredients has 5 rows for SV-R-000014.
+- **Kiosk quote under dual:** SV-R-000016 in-store gives $95.00 + $2.85 tax = $97.85, unchanged from before the cutover, with no `[dual-write] recipes` discrepancy.
+  - One `[sheet-mirror] recipes.price failed: timeout of 15000ms` warning on the first, cold quote. This is the observe-only D-05 compare, not a price change; watch whether it recurs.
+- **Window day 1:** 2026-10-16. The 85-14 ≥7-day dual window runs to 2026-10-23 at the earliest, then the flip decision.
+- **Snapshots:** all deleted from the container and from Downloads.
