@@ -329,13 +329,18 @@ function slimInvoiceRow(inv, source, tender) {
 | A8 | `KIOSK_CONTACT_ID` is set on staging and prod | Walk-in | If unset, D-09 cannot be enforced server-side |
 | A9 | The shop trades after 17:00 local, so the UTC-date issue matters | Day boundaries | If never, `date` bucketing would also work, but `created_time` is still correct |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Spike S1 (Wave 0, blocking for the ledger tender plan).** Run read-only against staging Zoho via `railway ssh` or a one-off script: `GET /customerpayments?date=<a day with sales>&per_page=5`. Record the exact keys: invoice linkage, `description`/`notes`, `payment_mode`, `created_time`, and whether `date_start` is honored. Save a sanitized fixture to `zoho-middleware/__tests__/fixtures/`. Also fetch one invoice list row and one detail to confirm A4/A5.
+   - **RESOLVED:** Plan 92-01 runs the spike at execution time and records `_meta.join_mode` plus `_meta.notes_available_in`; any non-list-join result goes to the owner at the 92-01 join-mode gate before 92-03 builds.
 2. **Third source label.** What does the owner want for invoices that are neither in-store nor online? Recommendation: "Other" shown as a neutral chip.
+   - **RESOLVED:** A-01 (92-02): source 'other', rendered "Other" as a neutral chip.
 3. **Draft status wording.** Show "Draft" or fold it into Unpaid?
+   - **RESOLVED:** A-02 (92-02): the ledger shows "Draft"; customer history folds it into Unpaid.
 4. **Walk-in response shape.** The message is client-side. The server returns `{walk_in:true, invoices:[]}` with 200. Recommend 200 so the client has one success path.
+   - **RESOLVED:** A-07 (92-04): HTTP 200 `{ walk_in: true, invoices: [] }`.
 5. **Is a ledger day above 600 invoices realistic?** No. The cap is a safety valve.
+   - **RESOLVED:** answered inline; the 3x200 cap stays and sets `truncated`.
 
 ## Environment Availability
 
