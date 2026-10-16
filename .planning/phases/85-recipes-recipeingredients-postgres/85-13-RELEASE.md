@@ -60,12 +60,13 @@ Trial results on Node 24.21.0, 2026-10-15:
 
 ## Beer page launch (added 2026-10-15, owner chose option 1)
 
-The release also launches the beer page. On top of the commits above, `release/85-13-node24` (head 0826ba28) carries:
+The release also launches the beer page. On top of the commits above, `release/85-13-node24` (head see `git log -1 release/85-13-node24`) carries:
 - **Fixes:** 2fb176af (FAQ 28 L), f26946ad (cans not included), ab8a0347 (card subtitles), 7713dcd3 (custom-recipe card), fdcef0fd (GA4 kit price), eaf792c7 and 4dfcc8e1 (availability), 1a670017 (/cider sitemap).
 - **Launch:** c01ab37d (nav item on 22 pages, ferment-in-store hub tile, noindex removed, `BEER_PAGE_LIVE` removed).
 - **Build:** 0971f47b.
 - **Sitemap fix:** 48e92ddc restores the /beer entry, which was lost while resolving the launch cherry-pick.
 - **Ready in fix:** 1029e8b5 (+ build 0826ba28): the faded "Ready in" column on tinted beer cards, from the owner review 2026-10-15.
+- **Take-home volume:** 733505d6 (+ build): recipe cards read "$95.00 / 25 L" (owner review 2026-10-15).
 
 Gate on Node 24: root 2181/2181, middleware 2555/2555, both lints clean.
 
