@@ -22,12 +22,12 @@ that op during the current window.
 
 | Op | First seen at | Real or scripted | Sentry clean? |
 |----|----------------|-------------------|----------------|
-| issue | | | |
-| redeem | | | |
-| reload | | | |
+| issue | 2026-10-16 17:53:53Z (GC-000002, INV-000242, $1 cash) | scripted §5 | yes |
+| redeem | 2026-10-16 18:04:47Z (GC-000002 −$0.50; INV-000243 paid $1.74 cash + $0.50 to Gift Card Redemptions) | scripted §5 | yes |
+| reload | 2026-10-16 18:05:42Z (GC-000002 +$1.00; INV-000244 $1 cash) | scripted §5 | yes |
 | lookup | 2026-10-07 16:54:57Z (production kiosk, digits-only entry) | real | yes — no `[dual-write] giftcards.*` warning in prod logs 2026-10-06 23:00Z → 2026-10-07 |
-| void | | | |
-| adjust | | | |
+| void | 2026-10-16 18:07:25Z (GC-000002, reason "Phase 84 dual window test") | scripted §5 | yes |
+| adjust | 2026-10-16 18:06:24Z +$0.25 goodwill / 18:06:43Z −$0.25 correction (GC-000002) | scripted §5 | yes |
 
 ## Discrepancy table
 
@@ -36,7 +36,20 @@ Every row must be classified before the flip bar can be considered met.
 
 | Date/time | Sentry event link | Op | Cert | Classification (explained/bug) | Root cause | Fix commit | Window restarted? |
 |-----------|--------------------|----|------|----------------------------------|-------------|-------------|--------------------|
-| | | | | | | | |
+| 2026-10-16 17:55:19Z | (Railway log, CRITICAL) | redeem | GC-000002 | explained (configuration) | ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID unset (Phase 52 removed fallback) | none needed (env var set 2026-10-16) | no |
+
+## Window evidence (2026-10-16)
+
+- **Window:** 2026-10-06 → 2026-10-16. Ten consecutive days, no restart.
+- **Real traffic:** the Postgres ledger showed ZERO real gift-card operations from 2026-10-06 to 10-16 (only GC-000001's imported opening balance). The §5 $1 cash runsheet therefore covered issue, redeem, reload, adjust and void.
+- **Defect found by the runsheet and fixed:**
+  - The first redeem attempt returned 503: `ZOHO_GIFT_CARD_CLEARING_ACCOUNT_ID` was unset in both environments. Phase 52 had removed the hardcoded fallback, so gift-card redemption had been blocked on the prod kiosk since Phase 52 (fail-closed: nothing charged or booked).
+  - The owner set it to 109900000000873231 ("Gift Card Redemptions", cash type) on prod and staging on 2026-10-16. This is a configuration gap, not a dual-write discrepancy, so it is classified as explained and the window was not restarted.
+- **GC-000002 ledger in Postgres:** issue 0→1.00, redeem 1.00→0.50, reload 0.50→1.50, adjust 1.50→1.75→1.50, void at 1.50. The sheet (get_gift_cards) agrees: void, balance 1.50, face 1.00.
+- **Checks:**
+  - No `giftcard:pending:*` records.
+  - No `[dual-write] giftcards` warning in the Railway logs available for 2026-10-16.
+  - Sentry itself was not checked by Claude (no access). The owner should confirm there are no `dual-write giftcards` events since 2026-10-06.
 
 ## Flip-decision block
 
