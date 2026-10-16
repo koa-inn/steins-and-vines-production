@@ -625,9 +625,9 @@ target) here before flipping:
 
 | Field | Value |
 |-------|-------|
-| Apps Script version with `mirror_gift_card_state` ACTIVE at flip time | **59** (deployed 2026-10-03 14:08 on deployment `AKfycb…DI968g`, project "SV Website" `1uD14PTT…` — re-confirm still active at flip time) |
-| Rollback version (immediately prior) | **58** (2026-09-24) |
-| Flip date/time | _(fill in at flip time)_ |
+| Apps Script version with `mirror_gift_card_state` ACTIVE at flip time | **65** (Phase 89 MD-02 deploy, 2026-10-16; `mirror_gift_card_state` present since v59) |
+| Rollback version (immediately prior) | **64** (Apps Script). A store rollback after the flip is the §8 ledger-replay procedure, not a flag change |
+| Flip date/time | **2026-10-16 18:22:14Z**, during opening hours with the kiosk idle (owner decision) |
 
 After hours, once the §4 flip bar is met:
 

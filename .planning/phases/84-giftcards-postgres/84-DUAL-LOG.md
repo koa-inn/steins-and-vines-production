@@ -60,9 +60,9 @@ unexplained discrepancies) is met and the owner decides to flip to `postgres`.
 
 | Field | Value |
 |-------|-------|
-| Owner | |
-| Date | |
-| Decision | |
+| Owner | owner (Koa) |
+| Date | 2026-10-16 |
+| Decision | **flip** to `postgres`. Sentry checked by the owner: no `dual-write giftcards` events since 2026-10-06. Flipped during opening hours (kiosk confirmed idle; zero real gift-card traffic made the after-hours precaution moot). `GIFT_CARDS_STORE=postgres` set 2026-10-16 18:22:14Z; startup log `store modes: {"GIFT_CARDS_STORE":"postgres","RECIPES_STORE":"sheets"}`; /health ok, authenticated, database_required. Pre-flip: no giftcard/kiosk/terminal pending records. Post-flip verify: _pending owner run_. |
 
 ---
 *Phase: 84-giftcards-postgres*
