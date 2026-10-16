@@ -100,3 +100,12 @@ Better, bootstrap the full header set via the existing recipes header constants 
 _Reviewed: 2026-10-15_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+
+## Resolution (2026-10-16)
+
+- **MD-01: resolved, no code change (owner decision).** The backfill keeps exact-key matching (89-07 orchestrator resolution 1: "backfill never coerces"), pinned by `__tests__/backfill/recipes-beer-category.test.js`. All writers emit canonical keys. The live production sheet had 0 non-canonical values on 2026-10-16 (13 recipes, all blank). The recovery step is documented in docs/RUNBOOK.md (Phase 85 cutover step 1).
+- **MD-02: fixed.**
+  - All three Recipes ensure-column helpers read headers through `recipesHeaderRow`, which treats an empty tab as having no headers, so the column is added at A instead of throwing.
+  - `setupRecipeBeerCategoryColumn` logs and returns when the tab is missing.
+  - Behavioural test: `tests/frontend/adminapi-recipes-ensure-columns-empty-tab.test.js`, which uses a fake SpreadsheetApp.
+  - Needs an owner Apps Script paste and redeploy.

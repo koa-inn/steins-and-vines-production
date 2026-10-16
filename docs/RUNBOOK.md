@@ -815,6 +815,11 @@ Snapshots are File, Download .xlsx, kept outside the repo, equals-form `--file=`
 
 1. Fresh .xlsx, then
    `node scripts/backfill/recipes-backfill.js --file=<path> --dry-run` (0 rejects required).
+   A `beer_category` / `invalid_beer_category` reject means a hand-typed cell (e.g. `IPA`).
+   The backfill accepts exact keys only, by design (Phase 89 review MD-01, owner 2026-10-16).
+   Fix the cell on the sheet to the key (`pilsner lager pale ipa amber wheat session saison
+   stout porter redale brown`, or blank), then download a fresh .xlsx and re-run. BrewPad and
+   admin always write exact keys.
 2. `node scripts/backfill/recipes-backfill.js --file=<path> --promote` (needs empty tables,
    prompts for the database name, one transaction, seeds both sequences).
 3. Set `RECIPES_STORE=dual` on production. Confirm `/health` shows `database_required:true`.
