@@ -20,6 +20,11 @@ var PER_PAGE = 200;
 var LEDGER_MIN_DATE = '2020-01-01';
 var TTL_TODAY = 60;
 var TTL_PAST = 3600;
+var CUSTOMER_MAX_INVOICE_PAGES = 3;
+var CUSTOMER_MAX_PAYMENT_PAGES = 2;
+var HISTORY_MAX_MONTHS = 120;
+var WINDOW_MONTHS = 12;
+var ID_RE = /^\d{6,25}$/;
 
 // Join mode copied from zoho-middleware/__tests__/fixtures/zoho-past-sales-shapes.json
 // (_meta.join_mode = 'list-join', linkage 'invoice_numbers', notes in 'description').
@@ -51,12 +56,14 @@ function gate(req, res, fn) {
 }
 
 // Cache read errors are a miss; build() rejections propagate so a Zoho failure is never cached.
+// ttl may be a number or a function(result) -> number.
 function cachedOrBuild(key, ttl, bust, build) {
   var read = bust ? Promise.resolve(null) : Promise.resolve(cache.get(key)).catch(function () { return null; });
   return read.then(function (cached) {
     if (cached) return cached;
     return build().then(function (fresh) {
-      Promise.resolve(cache.set(key, fresh, ttl)).catch(noop);
+      var t = typeof ttl === 'function' ? ttl(fresh) : ttl;
+      Promise.resolve(cache.set(key, fresh, t)).catch(noop);
       return fresh;
     });
   });
@@ -167,6 +174,118 @@ router.get('/api/kiosk/past-sales/ledger', function (req, res) {
   });
 });
 
+function isBust(q) {
+  return q.bust === '1' || q.bust === 1 || q.bust === true;
+}
+
+function buildCustomer(customerId, winStart, winEnd, floor) {
+  if (config.joinMode !== 'list-join') {
+    return Promise.reject(new Error('unsupported join mode ' + config.joinMode));
+  }
+  var truncated = false;
+  var invoices;
+  return fetchPages('/invoices', {
+    customer_id: customerId, date_start: winStart, date_end: winEnd,
+    sort_column: 'created_time', sort_order: 'D', per_page: PER_PAGE
+  }, CUSTOMER_MAX_INVOICE_PAGES, 'invoices').then(function (inv) {
+    truncated = inv.truncated;
+    // Defense in depth: never return another contact's invoices.
+    invoices = inv.rows.filter(function (i) { return String(i.customer_id) === customerId; });
+    // Blank references are in-store by owner decision (92-01); only all-digit
+    // references need payment notes (recipe safety net, A-09).
+    var needNotes = invoices.some(function (i) { return /^\d+$/.test(String(i.reference_number || '')); });
+    if (!needNotes) return { rows: [], truncated: false };
+    return fetchPages('/customerpayments', {
+      customer_id: customerId, date_start: winStart, date_end: winEnd, per_page: PER_PAGE
+    }, CUSTOMER_MAX_PAYMENT_PAGES, 'customerpayments');
+  }).then(function (pay) {
+    var idx = hist.indexPaymentsByInvoice(pay.rows, config.linkageField, config.notesField);
+    var rows = hist.sortByCreatedDesc(invoices).map(function (inv) {
+      var notes = (idx[inv.invoice_number] || []).map(function (p) { return p.note; });
+      var row = hist.slimInvoiceRow(inv, hist.classify(inv, notes), '');
+      if (row.status === 'Draft') row.status = 'Unpaid';
+      return row;
+    });
+    return {
+      walk_in: false,
+      customer_id: customerId,
+      window_start: winStart,
+      window_end: winEnd,
+      has_older: winStart > floor,
+      truncated: truncated,
+      invoices: rows
+    };
+  });
+}
+
+// GET /api/kiosk/past-sales/customer?customer_id=<id>[&before=YYYY-MM-DD][&bust=1]
+// Only customer_id, before and bust are read (T-92-18).
+router.get('/api/kiosk/past-sales/customer', function (req, res) {
+  gate(req, res, function () {
+    var q = req.query || {};
+    var customerId = q.customer_id;
+    if (typeof customerId !== 'string' || !ID_RE.test(customerId)) {
+      return badRequest(res, 'customer_id must be a numeric Zoho id');
+    }
+    var walkIn = process.env.KIOSK_CONTACT_ID;
+    if (walkIn && customerId === String(walkIn)) {
+      return res.json({ walk_in: true, invoices: [] });
+    }
+    if (!walkIn) log.warn('[kiosk/past-sales/customer] KIOSK_CONTACT_ID unset; walk-in exclusion not enforced');
+    var today = hist.vancouverDay(new Date());
+    var floor = hist.addMonths(today, -HISTORY_MAX_MONTHS);
+    var before = q.before;
+    var winEnd = hist.addDays(today, 1);
+    var winStart = hist.addMonths(today, -WINDOW_MONTHS);
+    if (before !== undefined && before !== '') {
+      if (typeof before !== 'string' || !DATE_RE.test(before) || !hist.isRealDate(before)) {
+        return badRequest(res, 'before must be a real YYYY-MM-DD date');
+      }
+      if (before < floor) return badRequest(res, 'before is outside the history limit');
+      if (before > winEnd) return badRequest(res, 'before cannot be in the future');
+      winEnd = hist.addDays(before, -1);
+      winStart = hist.addMonths(before, -WINDOW_MONTHS);
+    } else {
+      before = '';
+    }
+    if (winStart < floor) winStart = floor;
+    var key = C.CACHE_KEYS.KIOSK_HISTORY_CUSTOMER_PREFIX + customerId + ':' + (before || 'latest');
+    cachedOrBuild(key, TTL_TODAY, isBust(q), function () {
+      return buildCustomer(customerId, winStart, winEnd, floor);
+    }).then(function (payload) {
+      res.json(payload);
+    }).catch(function (err) {
+      log.error('[kiosk/past-sales/customer] ' + errMessage(err));
+      if (!res.headersSent) res.status(502).json({ error: 'Unable to fetch customer sales' });
+    });
+  });
+});
+
+// GET /api/kiosk/past-sales/invoice/:id[?bust=1]
+router.get('/api/kiosk/past-sales/invoice/:id', function (req, res) {
+  gate(req, res, function () {
+    var id = req.params && req.params.id;
+    if (typeof id !== 'string' || !ID_RE.test(id)) {
+      return badRequest(res, 'invoice id must be a numeric Zoho id');
+    }
+    var ttl = function (d) {
+      return (d.status === 'Paid' || d.status === 'Void') ? TTL_PAST : TTL_TODAY;
+    };
+    cachedOrBuild(C.CACHE_KEYS.KIOSK_HISTORY_INVOICE_PREFIX + id, ttl, isBust(req.query || {}), function () {
+      return zohoGet('/invoices/' + id).then(function (data) {
+        return hist.slimInvoiceDetail((data && data.invoice) || {});
+      });
+    }).then(function (detail) {
+      res.json({ invoice: detail });
+    }).catch(function (err) {
+      log.error('[kiosk/past-sales/invoice] Zoho error: ' + errMessage(err));
+      if (res.headersSent) return;
+      if (err && err.response && err.response.status === 404) return res.status(404).json({ error: 'not_found' });
+      res.status(502).json({ error: 'Unable to fetch invoice' });
+    });
+  });
+});
+
 router.validateConfig = validateConfig;
 router._config = config;
 router._internals = {
@@ -180,7 +299,9 @@ router._internals = {
     PER_PAGE: PER_PAGE,
     LEDGER_MIN_DATE: LEDGER_MIN_DATE,
     TTL_TODAY: TTL_TODAY,
-    TTL_PAST: TTL_PAST
+    TTL_PAST: TTL_PAST,
+    CUSTOMER_MAX_INVOICE_PAGES: CUSTOMER_MAX_INVOICE_PAGES,
+    CUSTOMER_MAX_PAYMENT_PAGES: CUSTOMER_MAX_PAYMENT_PAGES
   }
 };
 
