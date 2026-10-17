@@ -1737,7 +1737,7 @@ Plans:
 - Whether day totals can come from the invoice list alone. Tender is not needed for summary rows, so the `/customerpayments` join could be skipped. The day classifier needs payments only for all-digit references.
 **Requirements:** PSL-08 (range endpoint: read-only GET /api/kiosk/past-sales/range, self-gated, device allowlist, hard-coded caps, slim response, floor/future 400: D-11), PSL-09 (exact match with the day ledger via shared pure helpers: D-12), PSL-10 (Mon-Sun week and calendar month bounds in Vancouver day strings, future trim, zero-day fill, newest first, flat month: D-02, D-05..D-08), PSL-11 (Day/Week/Month chips, adaptive date bar, stepping, date jump, label: D-01..D-03), PSL-12 (drill-in to the day ledger and back with scroll restore: D-04), PSL-13 (range cache 300 s current / 3600 s past, bust, dedupe, throttle: D-13, D-14), PSL-14 (one-go load and partial/truncation handling: D-09, D-10), PSL-15 (Phase 92 D-11 clearing and late-response drop for range state).
 **Depends on:** Phase 92
-**Plans:** 5/5 plans complete
+**Plans:** 5/6 plans complete
 
 Plans:
 
@@ -1754,6 +1754,10 @@ Plans:
 **Wave 3**
 
 - [x] 93-05-PLAN.md — Gates, staging push + smoke, owner iPad UAT incl. month vs 2-3 day ledgers (autonomous: false)
+
+**Gap closure (wave 1)**
+
+- [ ] 93-06-PLAN.md — Close WR-01 (stale range payload on Week/Month switch, PSL-11) and WR-02 (partial zero-count days tappable, PSL-14/D-10) with regression tests first; rebuild, gates, staging push only
 
 ---
 
