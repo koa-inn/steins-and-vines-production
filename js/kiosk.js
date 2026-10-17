@@ -1619,6 +1619,8 @@
     if (psSearch) psSearch.addEventListener('input', function () { KioskCore.pastSalesSearch(psSearch.value); });
     var psOlder = document.getElementById('kiosk-ps-load-older');
     if (psOlder) psOlder.addEventListener('click', function () { KioskCore.pastSalesLoadOlder(); });
+    var psBackLink = document.getElementById('kiosk-ps-backlink');
+    if (psBackLink) psBackLink.addEventListener('click', function () { KioskCore.pastSalesBackToRange(); });
     var psRefresh = document.getElementById('kiosk-ps-refresh');
     if (psRefresh) psRefresh.addEventListener('click', function () { KioskCore.pastSalesRefresh(); });
     var psBack = document.getElementById('kiosk-ps-back');
