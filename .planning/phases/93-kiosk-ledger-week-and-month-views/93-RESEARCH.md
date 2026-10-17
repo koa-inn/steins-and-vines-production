@@ -293,16 +293,18 @@ Nothing external changed; this is internal composition. Prod runs Node 24 with B
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | Invoice volume is about 1 per day (derived from invoice-number deltas INV-000160 to INV-000241 over 78 days); no live Zoho count was taken | Cap sizing | If a month holds more than 1000 invoices the range would show "at least"; cap 5 pages is 30x headroom so low risk |
+| A1 | Invoice volume is about 1 per day (derived from invoice-number deltas INV-000160 to INV-000241 over 78 days). **CONFIRMED** 2026-10-17 by live read-only Zoho count: 28 invoices in Sept 2026, 10 in Oct 1-16 (see Addendum) | Cap sizing | If a month holds more than 1000 invoices the range would show "at least"; cap 5 pages is ~35x headroom so low risk |
 | A2 | Zoho `/invoices` `date_start`/`date_end` filter on invoice `date`, inclusive on both ends (inferred from Phase 92 use and 92-01 fixture notes) | Exact match | If `date_end` were exclusive the D+1 handling would differ; the day ledger relies on the same behaviour, so equality still holds, but verify on staging by comparing a month view to day ledgers |
 | A3 | `/customerpayments` honors `date_start`/`date_end` (92-01 `customerpayments_date_range_honored`, used by `buildLedger` today) | Exact match | Range payments call would over-fetch; per-day payment filter keeps the result correct |
 | A4 | The scrolling element on the kiosk Past Sales view must be confirmed in CSS | Frontend | Scroll restore wrong element; check in plan task 1 of UI |
 | A5 | Proposed IDs PSL-08..15 need owner/planner acceptance | Requirements | Cosmetic |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Staging confirmation of equality.** Plan a UAT step: open Month on staging and compare 2-3 days against their day ledgers. Recommendation: include in the final plan's verification.
+   RESOLVED: 93-05 Task 2 (checkpoint:human-verify) step 4 compares September 2026 and current-month day figures against their day ledgers on the staging iPad; 93-02 Task 2 proves the same equality on a fixture (test name contains "equals the day ledger").
 2. **Customer-route narrow regex (`/^\d+$/`).** Not part of this phase; label-only effect there. Surface to owner as a separate issue, do not change.
+   RESOLVED: out of scope. 93-02 leaves buildCustomer unchanged (acceptance check on `git diff`) and records the smell in 93-02-SUMMARY.md; 93-05-SUMMARY.md lists it as an open owner item.
 
 ## Environment Availability
 
