@@ -4,14 +4,14 @@ milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
 stopped_at: Phase 93 context gathered
-last_updated: "2026-10-17T18:09:24.082Z"
-last_activity: 2026-10-17 -- Phase 93 execution started
+last_updated: "2026-10-17T18:45:25.941Z"
+last_activity: 2026-10-17
 progress:
   total_phases: 79
-  completed_phases: 34
-  total_plans: 284
-  completed_plans: 274
-  percent: 43
+  completed_phases: 35
+  total_plans: 285
+  completed_plans: 280
+  percent: 44
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 93 (kiosk-ledger-week-and-month-views) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 93
-Last activity: 2026-10-17 -- Phase 93 execution started
+Plan: 6 of 6 (93-06 gap closure complete; phase awaiting re-verification)
+Status: Phase 93 gap closure done on staging
+Last activity: 2026-10-17
 
 **Phase 87:** 18/20 plans done. Design approved; all code merged and on staging behind `BATCHES_STORE`
 (off); security review signed off; staging rehearsal passed 2026-10-09 (0 rejects, 0 verify mismatches,
