@@ -187,6 +187,8 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+*Last updated: 2026-10-17 after Phase 93 — kiosk Ledger Week/Month views complete (6/6 plans, PSL-08..15 verified 8/8, owner staging UAT approved). Range per-day figures share ledgerRowsForDay with the day ledger. Staging only; production push pending. Advisory follow-ups in 93-REVIEW.md (WR-03, IN-01..06); buildCustomer /^\\d+$/ payments-skip smell open. Previous footer follows.*
+
 *Last updated: 2026-10-02 after Phase 83 — Postgres infrastructure complete (14/14 plans, UAT 4/4, threats_open 0). DB-02 validated. Gap closure replaced the bypassable migration guard with a parser allowlist; nightly encrypted production backups live with a passed restore drill. Code is on staging; the production push of the 83 gap-closure work is still pending. Open before Phase 84: tests/CI use Postgres 16 while staging/prod run 18.6. Previous footer follows.*
 
 *Previously: 2026-09-23 — added Planned Milestone v4.9 Sheets → Postgres (Full Transition), Phases 82–88 / DB-01..07, and the superseding Key Decision. Phase 81 and the Zoho refresh-token fix are on production as of today. Previous footer follows.*
