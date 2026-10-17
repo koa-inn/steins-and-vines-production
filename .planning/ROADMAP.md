@@ -157,7 +157,7 @@
 - [x] **Phase 90: BrewPad batch invoice linking** — optional invoice link captured at manual batch creation, an "unlinked" filter on the batch list, and a human-confirmed review queue to backfill the 57 unlinked batches. Also: a one-tap kiosk canning bundle (flat $40/$35 plus 12% tax, cans relieved at the actual count). Also: a full-list recipe picker dropdown in BrewPad, kiosk and the recipe editor. (completed 2026-10-15)
 - [ ] **Phase 91: Online grain-order recipe splitting** — customers separate grains into up to 4 recipe bags as they select them (quantity splits allowed), staff see the split in Zoho notes, the email and BrewPad, and the milling fee stays once per order.
 - [x] **Phase 92: Kiosk past-sales lookup and ledger** — staff look up a customer's past orders by name on the kiosk, and browse a read-only ledger of recent kiosk sales. (completed 2026-10-16)
-- [ ] **Phase 93: Kiosk ledger week and month views** — Week (Mon–Sun) and Month ranges on the kiosk Ledger tab, as per-day summary rows that drill into the day ledger, with a count + gross footer.
+- [x] **Phase 93: Kiosk ledger week and month views** — Week (Mon–Sun) and Month ranges on the kiosk Ledger tab, as per-day summary rows that drill into the day ledger, with a count + gross footer. (completed 2026-10-17)
 
 ### 📋 Backlog — captured, not yet scheduled
 
@@ -1737,7 +1737,7 @@ Plans:
 - Whether day totals can come from the invoice list alone. Tender is not needed for summary rows, so the `/customerpayments` join could be skipped. The day classifier needs payments only for all-digit references.
 **Requirements:** PSL-08 (range endpoint: read-only GET /api/kiosk/past-sales/range, self-gated, device allowlist, hard-coded caps, slim response, floor/future 400: D-11), PSL-09 (exact match with the day ledger via shared pure helpers: D-12), PSL-10 (Mon-Sun week and calendar month bounds in Vancouver day strings, future trim, zero-day fill, newest first, flat month: D-02, D-05..D-08), PSL-11 (Day/Week/Month chips, adaptive date bar, stepping, date jump, label: D-01..D-03), PSL-12 (drill-in to the day ledger and back with scroll restore: D-04), PSL-13 (range cache 300 s current / 3600 s past, bust, dedupe, throttle: D-13, D-14), PSL-14 (one-go load and partial/truncation handling: D-09, D-10), PSL-15 (Phase 92 D-11 clearing and late-response drop for range state).
 **Depends on:** Phase 92
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 
@@ -1753,7 +1753,7 @@ Plans:
 
 **Wave 3**
 
-- [ ] 93-05-PLAN.md — Gates, staging push + smoke, owner iPad UAT incl. month vs 2-3 day ledgers (autonomous: false)
+- [x] 93-05-PLAN.md — Gates, staging push + smoke, owner iPad UAT incl. month vs 2-3 day ledgers (autonomous: false)
 
 ---
 
