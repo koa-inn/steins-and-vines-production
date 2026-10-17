@@ -1737,14 +1737,14 @@ Plans:
 - Whether day totals can come from the invoice list alone. Tender is not needed for summary rows, so the `/customerpayments` join could be skipped. The day classifier needs payments only for all-digit references.
 **Requirements:** PSL-08 (range endpoint: read-only GET /api/kiosk/past-sales/range, self-gated, device allowlist, hard-coded caps, slim response, floor/future 400: D-11), PSL-09 (exact match with the day ledger via shared pure helpers: D-12), PSL-10 (Mon-Sun week and calendar month bounds in Vancouver day strings, future trim, zero-day fill, newest first, flat month: D-02, D-05..D-08), PSL-11 (Day/Week/Month chips, adaptive date bar, stepping, date jump, label: D-01..D-03), PSL-12 (drill-in to the day ledger and back with scroll restore: D-04), PSL-13 (range cache 300 s current / 3600 s past, bust, dedupe, throttle: D-13, D-14), PSL-14 (one-go load and partial/truncation handling: D-09, D-10), PSL-15 (Phase 92 D-11 clearing and late-response drop for range state).
 **Depends on:** Phase 92
-**Plans:** 5 plans (3 waves)
+**Plans:** 2/5 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 93-01-PLAN.md — PSL-08..15 into ROADMAP; pure helpers (week/month bounds, day-window predicates, needsPaymentNotes derived from classify, shared ledgerRowsForDay) with unit tests
-- [ ] 93-03-PLAN.md — Ledger-tab markup/CSS for Day/Week/Month chips, range label, back link; range mode state, load, render, stepping, date jump, truncation, late-response drop
+- [x] 93-01-PLAN.md — PSL-08..15 into ROADMAP; pure helpers (week/month bounds, day-window predicates, needsPaymentNotes derived from classify, shared ledgerRowsForDay) with unit tests
+- [x] 93-03-PLAN.md — Ledger-tab markup/CSS for Day/Week/Month chips, range label, back link; range mode state, load, render, stepping, date jump, truncation, late-response drop
 
 **Wave 2**
 
