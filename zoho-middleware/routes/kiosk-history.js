@@ -321,9 +321,9 @@ function buildCustomer(customerId, winStart, winEnd, floor) {
     truncated = inv.truncated;
     // Defense in depth: never return another contact's invoices.
     invoices = inv.rows.filter(function (i) { return String(i.customer_id) === customerId; });
-    // Blank references are in-store by owner decision (92-01); only all-digit
-    // references need payment notes (recipe safety net, A-09).
-    var needNotes = invoices.some(function (i) { return /^\d+$/.test(String(i.reference_number || '')); });
+    // Fetch payment notes only when one could change a classification: the same
+    // rule as the ledger (hist.needsPaymentNotes), so both views label a sale alike.
+    var needNotes = invoices.some(function (i) { return hist.needsPaymentNotes(i); });
     if (!needNotes) return { rows: [], truncated: false };
     return fetchPages('/customerpayments', {
       customer_id: customerId, date_start: winStart, date_end: hist.addDays(winEnd, PAYMENT_LAG_DAYS), per_page: PER_PAGE
