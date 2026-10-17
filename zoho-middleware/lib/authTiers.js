@@ -68,6 +68,7 @@ var KIOSK_ROUTES = [
   '/api/pos/cancel',
   '/api/pos/status',
   '/api/kiosk/past-sales/ledger', // Phase 92 D-10: read-only, allowlisted, capped
+  '/api/kiosk/past-sales/range', // Phase 93: read-only, allowlisted, capped, slim
   '/api/kiosk/past-sales/customer', // Phase 92 D-10: read-only, allowlisted, capped
   '/api/kiosk/past-sales/invoice/:id', // Phase 92 D-10: documentation only — matched via prefix below
   '/api/contacts/search',

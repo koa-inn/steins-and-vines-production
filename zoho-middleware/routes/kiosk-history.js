@@ -20,6 +20,10 @@ var PER_PAGE = 200;
 var LEDGER_MIN_DATE = '2020-01-01';
 var TTL_TODAY = 60;
 var TTL_PAST = 3600;
+// Phase 93 range caps (D-10, D-13): Sept 2026 = 28 invoices, so 1,000 per range is ~35x headroom.
+var RANGE_MAX_INVOICE_PAGES = 5;
+var RANGE_MAX_PAYMENT_PAGES = 5;
+var TTL_RANGE_CURRENT = 300;
 var CUSTOMER_MAX_INVOICE_PAGES = 3;
 var CUSTOMER_MAX_PAYMENT_PAGES = 2;
 var HISTORY_MAX_MONTHS = 120;
@@ -144,26 +148,14 @@ function buildLedger(day, today) {
     date_start: day, date_end: nextDay, sort_column: 'created_time', sort_order: 'D', per_page: PER_PAGE
   }, LEDGER_MAX_INVOICE_PAGES, 'invoices').then(function (inv) {
     truncated = truncated || inv.truncated;
-    invoices = inv.rows.filter(function (i) { return hist.createdDay(i) === day; });
+    invoices = inv.rows;
     // One ranged payments call covers D..D+1 (payment `date` is UTC, A-05; date_start/date_end honored per 92-01).
     return fetchPages('/customerpayments', {
       date_start: day, date_end: nextDay, per_page: PER_PAGE
     }, LEDGER_MAX_PAYMENT_PAGES, 'customerpayments');
   }).then(function (pay) {
     truncated = truncated || pay.truncated;
-    var idx = hist.indexPaymentsByInvoice(pay.rows, config.linkageField, config.notesField);
-    var kept = [];
-    var tenders = {};
-    invoices.forEach(function (inv) {
-      var paid = idx[inv.invoice_number] || [];
-      var notes = paid.map(function (p) { return p.note; });
-      if (hist.classify(inv, notes) !== 'in-store') return;
-      kept.push(inv);
-      tenders[inv.invoice_id] = hist.tenderLabel(paid);
-    });
-    var rows = hist.sortByCreatedDesc(kept).map(function (inv) {
-      return hist.slimInvoiceRow(inv, 'in-store', tenders[inv.invoice_id]);
-    });
+    var rows = hist.ledgerRowsForDay(day, invoices, pay.rows, config.linkageField, config.notesField);
     var totals = hist.ledgerTotals(rows);
     var tenderIncomplete = pay.truncated || rows.some(function (r) {
       return (r.status === 'Paid' || r.status === 'Partial') && r.tender === '';
@@ -356,7 +348,10 @@ router._internals = {
     TTL_PAST: TTL_PAST,
     CUSTOMER_MAX_INVOICE_PAGES: CUSTOMER_MAX_INVOICE_PAGES,
     CUSTOMER_MAX_PAYMENT_PAGES: CUSTOMER_MAX_PAYMENT_PAGES,
-    BUST_MIN_INTERVAL_MS: BUST_MIN_INTERVAL_MS
+    BUST_MIN_INTERVAL_MS: BUST_MIN_INTERVAL_MS,
+    RANGE_MAX_INVOICE_PAGES: RANGE_MAX_INVOICE_PAGES,
+    RANGE_MAX_PAYMENT_PAGES: RANGE_MAX_PAYMENT_PAGES,
+    TTL_RANGE_CURRENT: TTL_RANGE_CURRENT
   }
 };
 
