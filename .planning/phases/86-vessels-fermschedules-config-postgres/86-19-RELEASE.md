@@ -38,8 +38,8 @@ Splitting 86 out of this is not practical:
 | 86-SECURITY.md | Signed by the owner 2026-10-08. |
 
 **Owner to confirm before go:**
-- [ ] During the Phase 93 iPad UAT (2026-10-17), leaving Customer View asked for the staff PIN. This is Phase 92 CR-01, which had no explicit iPad check recorded.
-- [ ] The production Vessels tab row 1 still has `label` to the right of `notes`. This is an 86-19 precondition; the header was added 2026-10-08.
+- [x] During the Phase 93 iPad UAT (2026-10-17), leaving Customer View asked for the staff PIN. This is Phase 92 CR-01. **Owner confirmed 2026-10-17.**
+- [x] The production Vessels tab row 1 still has `label` to the right of `notes`. This is an 86-19 precondition. **Owner confirmed 2026-10-17.**
 
 ## 3. Release steps (after close, kiosk idle)
 
@@ -82,3 +82,18 @@ Splitting 86 out of this is not practical:
   - Opening-day smoke.
   - The 86-20 window and flip follow, including the D-18 `staff_emails` probe before blanking.
 - **Phase 87:** the production Sunday window stays gated on the Phase 86 flip.
+
+## 7. Agreed schedule (owner, 2026-10-17)
+
+The owner asked to combine this with Phase 87. The 87 code ships dormant in this release, but the batch data cutover stays a separate Sunday window. There are three reasons:
+- The batch store refuses `postgres` unless vessels are PG-authoritative.
+- D-18 `staff_emails` blanking at the 86 flip closes direct staff-OAuth Apps Script writes.
+- One production change per night.
+
+| Target | Step |
+|--------|------|
+| Sat 10-17 or Sun 10-18, after close | This release (86 + 87 code dormant, 89/90/92/93 live) |
+| ~Mon 10-19, after hours | 86-19 Task 2: ops data to dual |
+| Tue-Wed | Scripted 86 runsheet (vessel create/edit/archive, schedule edit, staff access add/remove, sign-in probe) and a mid-window verify |
+| ~Thu 10-22, after hours | 86-20 flip to postgres, including the D-18 `staff_emails` probe and blanking |
+| **Sun 10-25** | 87-19 production batch cutover window (gated on the 86 flip being recorded) |
