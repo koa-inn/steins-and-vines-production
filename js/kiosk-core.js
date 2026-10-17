@@ -4490,6 +4490,9 @@
   // clear, so these drop responses superseded by a newer request in the view.
   var _kioskPsLedgerSeq = 0;
   var _kioskPsSearchSeq = 0;
+  // WR-02: latest customer-history request; Load older is ignored while one runs.
+  var _kioskPsCustomerSeq = 0;
+  var _kioskPsCustomerLoading = false;
 
   function kioskPsFmtMoney(n) {
     var v = Number(n);
@@ -4536,7 +4539,10 @@
       }
     }
     var older = kioskPsEl('kiosk-ps-load-older');
-    if (older) older.style.display = 'none';
+    if (older) {
+      older.style.display = 'none';
+      older.disabled = false;
+    }
     var tabs = document.querySelectorAll('.kiosk-ps-tab');
     for (var t = 0; t < tabs.length; t++) {
       if (tabs[t].getAttribute('data-tab') === 'customer') tabs[t].classList.add('active');
@@ -4795,6 +4801,8 @@
     _kioskPsContact = null;
     _kioskPsHistoryCount = 0;
     _kioskPsWindowStart = null;
+    _kioskPsCustomerSeq++;
+    _kioskPsCustomerLoading = false;
     if (_kioskPsSearchTimer) {
       clearTimeout(_kioskPsSearchTimer);
       _kioskPsSearchTimer = null;
@@ -4871,6 +4879,17 @@
     var append = !!before;
     var contact = _kioskPsContact;
     var gen = _kioskPsGen;
+    var seq = ++_kioskPsCustomerSeq;
+    _kioskPsCustomerLoading = true;
+    if (older) older.disabled = true;
+    // true when this is still the latest request for the current contact
+    function current() {
+      return gen === _kioskPsGen && seq === _kioskPsCustomerSeq && _kioskPsContact === contact;
+    }
+    function settle() {
+      _kioskPsCustomerLoading = false;
+      if (older) older.disabled = false;
+    }
     var path = '/api/kiosk/past-sales/customer?customer_id=' + encodeURIComponent(contact.id);
     if (before) path += '&before=' + encodeURIComponent(before);
     if (bust) path += '&bust=1';
@@ -4881,7 +4900,8 @@
       if (older) older.style.display = 'none';
     }
     _kioskPsFetch(path, gen).then(function (data) {
-      if (data === null || _kioskPsContact !== contact) return;
+      if (data === null || !current()) return;
+      settle();
       if (data.walk_in) {
         kioskPsSetHtml('kiosk-ps-customer-list', '');
         _kioskPsHistoryCount = 0;
@@ -4901,12 +4921,18 @@
       }
       if (older) older.style.display = (data.has_older && _kioskPsWindowStart) ? '' : 'none';
     }).catch(function () {
-      if (gen !== _kioskPsGen) return;
+      if (!current()) return;
+      settle();
       kioskPsSetHtml('kiosk-ps-customer-message',
         'Could not load this customer\'s sales. Check connection and try again. ' +
         '<button type="button" class="btn-secondary" id="kiosk-ps-customer-retry">Retry</button>');
       var retry = kioskPsEl('kiosk-ps-customer-retry');
-      if (retry) retry.addEventListener('click', function () { kioskPsLoadCustomer(before, bust); });
+      if (retry) {
+        retry.addEventListener('click', function () {
+          if (_kioskPsContact !== contact) return; // stale Retry from another contact
+          kioskPsLoadCustomer(before, bust);
+        });
+      }
     });
   }
 
@@ -4937,6 +4963,7 @@
   }
 
   function kioskPsLoadOlder() {
+    if (_kioskPsCustomerLoading) return; // WR-02: one Load older at a time
     if (_kioskPsWindowStart) kioskPsLoadCustomer(_kioskPsWindowStart, false);
   }
 

@@ -371,3 +371,73 @@ describe('By customer wiring (kiosk.js)', function () {
     expect(urls().some(function (u) { return u.indexOf('customer_id=77&before=2025-10-16') !== -1; })).toBe(true);
   });
 });
+
+describe('WR-02: Load older in-flight guard and per-contact error isolation', function () {
+  function ok(body) {
+    return { ok: true, status: 200, json: function () { return Promise.resolve(body); } };
+  }
+  function fail() {
+    return { ok: false, status: 502, json: function () { return Promise.resolve({}); } };
+  }
+  function deferred() {
+    var pending = [];
+    global.fetch.mockImplementation(function (url) {
+      return new Promise(function (resolve) { pending.push({ url: url, resolve: resolve }); });
+    });
+    return pending;
+  }
+
+  test('double-tapped Load older sends one request and does not duplicate rows', async function () {
+    var s = loadSurface();
+    route([['/past-sales/customer', function () { return respond(200, histBody()); }]]);
+    openView(s);
+    s.core.pastSalesSelectContact('77', 'Ann');
+    await flushPromises();
+    var pending = deferred();
+    s.core.pastSalesLoadOlder();
+    expect(el('kiosk-ps-load-older').disabled).toBe(true);
+    s.core.pastSalesLoadOlder();
+    expect(pending.length).toBe(1);
+    pending[0].resolve(ok(histBody({
+      has_older: false, window_start: '2024-10-16',
+      invoices: [{ invoice_id: 'o1', invoice_number: 'INV-000050', date: '2025-05-01', source: 'in-store', status: 'paid', total: 3 }]
+    })));
+    await flushPromises();
+    expect(document.querySelectorAll('#kiosk-ps-customer-list .kiosk-ps-row').length).toBe(4);
+    expect(s.core._getPastSalesState().historyCount).toBe(4);
+    expect(el('kiosk-ps-load-older').disabled).toBe(false);
+  });
+
+  test("an old contact's late error does not overwrite the new contact's message", async function () {
+    var s = loadSurface();
+    var pending = deferred();
+    openView(s);
+    s.core.pastSalesSelectContact('77', 'Ann');
+    s.core.pastSalesSelectContact('88', 'Bob');
+    expect(pending.length).toBe(2);
+    pending[1].resolve(ok(histBody({ customer_id: '88' })));
+    await flushPromises();
+    pending[0].resolve(fail());
+    await flushPromises();
+    expect(el('kiosk-ps-customer-message').textContent).not.toContain('Could not load');
+    expect(document.getElementById('kiosk-ps-customer-retry')).toBeNull();
+    expect(document.querySelectorAll('#kiosk-ps-customer-list .kiosk-ps-row').length).toBe(3);
+  });
+
+  test("a stale Retry from the old contact does nothing after switching contacts", async function () {
+    var s = loadSurface();
+    route([['/past-sales/customer', function () { return respond(502, {}); }]]);
+    openView(s);
+    s.core.pastSalesSelectContact('77', 'Ann');
+    await flushPromises();
+    var staleRetry = el('kiosk-ps-customer-retry');
+    route([['/past-sales/customer', function () { return respond(200, histBody({ customer_id: '88' })); }]]);
+    s.core.pastSalesSelectContact('88', 'Bob');
+    await flushPromises();
+    global.fetch.mockClear();
+    staleRetry.click();
+    await flushPromises();
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(el('kiosk-ps-customer-heading').textContent).toBe('Bob');
+  });
+});
