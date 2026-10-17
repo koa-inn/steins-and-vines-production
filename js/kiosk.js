@@ -409,7 +409,15 @@
     .then(function (result) {
       if (result.data.ok) {
         hideLockScreen();
-        showKioskApp();
+        var cont = _afterUnlock;
+        _afterUnlock = null;
+        if (cont) {
+          // CR-01: unlock after a Customer View exit - resume the sale only.
+          startInactivityTimer();
+          cont();
+        } else {
+          showKioskApp();
+        }
       } else {
         _pinAttempts++;
         var dotsContainer = document.getElementById('kiosk-lock-dots');
@@ -506,6 +514,9 @@
   var _pinAttempts = 0;
   var _inactivityTimer = null;
   var _isLocked = false;
+  // CR-01: set when the lock was raised by leaving Customer View; consumed on
+  // the next successful PIN.
+  var _afterUnlock = null;
   var INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
   // ===== Kiosk Sale State =====
@@ -755,10 +766,22 @@
     kioskUpdateCbCartBar();
   }
 
+  // Phase 92 CR-01 (owner decision 2026-10-16): leaving Customer View needs the
+  // staff PIN, so a customer holding the iPad cannot reach the staff POS (and
+  // Past Sales / Sales Orders from its header). Both exits ("<- POS" and
+  // "Start Purchase ->") lock; a verified PIN then runs the continuation below
+  // instead of showKioskApp(), so the cart and app init are left untouched.
   function kioskExitCustomerBrowse() {
+    _afterUnlock = kioskReturnToPosAfterUnlock;
+    stopInactivityTimer();
+    showLockScreen({});
+  }
+
+  function kioskReturnToPosAfterUnlock() {
     kioskShowView('browse');
     var btn = document.getElementById('kiosk-browse-mode-btn');
     if (btn) btn.style.display = '';
+    kioskRenderCart();
   }
 
 
