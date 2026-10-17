@@ -4,8 +4,8 @@ milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
 stopped_at: Phase 93 context gathered
-last_updated: "2026-10-17T17:51:01.715Z"
-last_activity: 2026-10-17 -- Phase 93 planning complete
+last_updated: "2026-10-17T18:09:24.082Z"
+last_activity: 2026-10-17 -- Phase 93 execution started
 progress:
   total_phases: 79
   completed_phases: 34
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Milestone complete
+**Current focus:** Phase 93 — kiosk-ledger-week-and-month-views
 
 ## Current Position
 
-Phase: 92
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-10-17 -- Phase 93 planning complete
+Phase: 93 (kiosk-ledger-week-and-month-views) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 93
+Last activity: 2026-10-17 -- Phase 93 execution started
 
 **Phase 87:** 18/20 plans done. Design approved; all code merged and on staging behind `BATCHES_STORE`
 (off); security review signed off; staging rehearsal passed 2026-10-09 (0 rejects, 0 verify mismatches,
