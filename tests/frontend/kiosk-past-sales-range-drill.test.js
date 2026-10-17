@@ -65,6 +65,9 @@ function loadSurface() {
   var mod = require('../../js/kiosk.js'); // eslint-disable-line global-require -- per-test isolation
   injectRealMarkup();
   localStorage.setItem(DEVICE_TOKEN_KEY, 'ps-token');
+  global.fetch.mockImplementation(function () { return respond(200, {}); });
+  mod._initKioskSaleTab(); // wires the Past Sales controls (incl. #kiosk-ps-backlink)
+  global.fetch.mockReset();
   return { mod: mod, core: global.window.KioskCore };
 }
 
@@ -154,7 +157,7 @@ function urls() {
 
 function dayLedgerFor(date) {
   return {
-    date: date, today: '2026-10-16', prev_date: null, next_date: null,
+    date: date, today: '2026-10-16', prev_date: '2026-10-14', next_date: null,
     invoices: [], count: 0, gross_total: 0, truncated: false, classification_incomplete: false
   };
 }
@@ -311,8 +314,9 @@ describe('Back with scroll restore', function () {
     var s = await loadWeek();
     var d = deferred();
     route([['/ledger', ledgerHandler], ['/range', function () { return d.promise; }]]);
+    var staleRow = row('2026-10-15');
     s.core.pastSalesRefresh();
-    row('2026-10-15').click();
+    staleRow.click(); // detached by the skeleton; its listener still fires a drill-in attempt
     await flushPromises();
     d.resolve(resolved(weekBody({ count: 99 })));
     await flushPromises();

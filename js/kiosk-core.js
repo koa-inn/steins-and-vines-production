@@ -4483,6 +4483,8 @@
   // Phase 93: Ledger mode ('day' | 'week' | 'month') and the loaded range payload.
   var _kioskPsMode = 'day';
   var _kioskPsRange = null;
+  // Phase 93-04: where a drilled-in day came from ({ mode, anchor, scrollTop }), else null.
+  var _kioskPsOrigin = null;
   var _kioskPsDetails = {};
   var _kioskPsSearchTimer = null;
   // By-customer tab state (92-07). Cleared by _kioskPsCustomerClear (D-11).
@@ -4526,6 +4528,8 @@
     _kioskPsLedger = null;
     _kioskPsMode = 'day';
     _kioskPsRange = null;
+    _kioskPsOrigin = null;
+    kioskPsHideBacklink();
     _kioskPsDetails = {};
     if (_kioskPsSearchTimer) {
       clearTimeout(_kioskPsSearchTimer);
@@ -4653,8 +4657,27 @@
     if (next) next.setAttribute('aria-label', 'Next ' + _kioskPsMode);
   }
 
+  function kioskPsHideBacklink() {
+    var bl = kioskPsEl('kiosk-ps-backlink');
+    if (bl) {
+      bl.style.display = 'none';
+      bl.textContent = '';
+    }
+  }
+
   function kioskPsSetMode(mode) {
     if (mode !== 'day' && mode !== 'week' && mode !== 'month') return;
+    if (_kioskPsOrigin) {
+      _kioskPsOrigin = null;
+      kioskPsHideBacklink();
+      if (mode === 'day') {
+        // Keep the day ledger already shown (D-02); just make Day the active mode.
+        _kioskPsMode = 'day';
+        _kioskPsRange = null;
+        kioskPsSyncModeUi();
+        return;
+      }
+    }
     _kioskPsMode = mode;
     kioskPsSyncModeUi();
     if (mode === 'day') {
@@ -4748,6 +4771,58 @@
     kioskPsSetHtml('kiosk-ps-ledger-list', rows);
     kioskPsSetHtml('kiosk-ps-ledger-footer', escapeHTML((d.truncated ? 'at least ' : '') +
       kioskPsSalesText(d.count) + ' · ' + kioskPsFmtMoney(d.gross_total)));
+    kioskPsWireDayRows();
+  }
+
+  // D-05: only rows with sales are tappable; zero-sale rows stay inert.
+  function kioskPsWireDayRows() {
+    var rows = document.querySelectorAll('#kiosk-ps-ledger-list .kiosk-ps-dayrow');
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].classList.contains('kiosk-ps-dayrow--zero')) continue;
+      rows[i].addEventListener('click', function () {
+        kioskPsOpenDay(this.getAttribute('data-date'));
+      });
+    }
+  }
+
+  // D-04: open a range day in the Phase 92 day ledger, remembering where we came from.
+  // Anchors use range_start (floored at 2020-01-01), never period_start.
+  function kioskPsOpenDay(date) {
+    if ((_kioskPsMode !== 'week' && _kioskPsMode !== 'month') || !_kioskPsRange || !date) return;
+    var panel = kioskPsEl('kiosk-ps-ledger-panel');
+    _kioskPsOrigin = {
+      mode: _kioskPsMode,
+      anchor: _kioskPsRange.range_start,
+      scrollTop: panel ? panel.scrollTop : 0
+    };
+    _kioskPsMode = 'day';
+    kioskPsSyncModeUi();
+    var chips = document.querySelectorAll('.kiosk-ps-mode');
+    for (var c = 0; c < chips.length; c++) chips[c].classList.remove('active'); // D-04: no chip while drilled in
+    kioskPsSetHtml('kiosk-ps-range-label', '');
+    var bl = kioskPsEl('kiosk-ps-backlink');
+    if (bl) {
+      bl.textContent = '\u2039 Back to ' + _kioskPsOrigin.mode;
+      bl.style.display = '';
+    }
+    kioskPsLoadLedger(date, false);
+  }
+
+  function kioskPsBackToRange() {
+    var origin = _kioskPsOrigin;
+    if (!origin) return;
+    ++_kioskPsLedgerSeq; // drop a late day response
+    _kioskPsOrigin = null;
+    _kioskPsMode = origin.mode;
+    kioskPsSyncModeUi();
+    kioskPsHideBacklink();
+    if (_kioskPsRange && _kioskPsRange.range_start === origin.anchor) {
+      kioskPsRenderRange();
+      var panel = kioskPsEl('kiosk-ps-ledger-panel');
+      if (panel) panel.scrollTop = origin.scrollTop;
+    } else {
+      kioskPsLoadRange(origin.mode, origin.anchor, false);
+    }
   }
 
   function kioskPsPickDate(value) {
@@ -4958,7 +5033,9 @@
 
   function kioskPsRefresh() {
     _kioskPsDetails = {};
-    if (_kioskPsTab === 'ledger') {
+    if (_kioskPsTab === 'ledger' && (_kioskPsMode === 'week' || _kioskPsMode === 'month')) {
+      kioskPsLoadRange(_kioskPsMode, _kioskPsRange ? _kioskPsRange.range_start : null, true);
+    } else if (_kioskPsTab === 'ledger') {
       kioskPsLoadLedger(_kioskPsLedger ? _kioskPsLedger.date : null, true);
     } else {
       _kioskPsCustomerRefresh();
@@ -6826,6 +6903,8 @@
     pastSalesSetMode: kioskPsSetMode,
     pastSalesPickDate: kioskPsPickDate,
     pastSalesLoadRange: kioskPsLoadRange,
+    pastSalesOpenDay: kioskPsOpenDay,
+    pastSalesBackToRange: kioskPsBackToRange,
     pastSalesRefresh: kioskPsRefresh,
     pastSalesToggleDetail: kioskPsToggleDetail,
     pastSalesSearch: kioskPsSearch,
@@ -6836,7 +6915,7 @@
       for (var k in _kioskPsDetails) {
         if (Object.prototype.hasOwnProperty.call(_kioskPsDetails, k)) n++;
       }
-      return { tab: _kioskPsTab, ledger: _kioskPsLedger, detailCount: n, gen: _kioskPsGen, contact: _kioskPsContact, historyCount: _kioskPsHistoryCount, mode: _kioskPsMode, range: _kioskPsRange };
+      return { tab: _kioskPsTab, ledger: _kioskPsLedger, detailCount: n, gen: _kioskPsGen, contact: _kioskPsContact, historyCount: _kioskPsHistoryCount, mode: _kioskPsMode, range: _kioskPsRange, origin: _kioskPsOrigin };
     },
     normalizeCertNumber: kioskNormalizeCertNumber,
     wireCertInput: kioskWireCertInput,
