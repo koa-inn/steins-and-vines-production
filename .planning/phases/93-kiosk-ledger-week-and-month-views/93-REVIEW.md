@@ -1,6 +1,8 @@
 ---
 phase: 93-kiosk-ledger-week-and-month-views
 reviewed: 2026-10-17T00:00:00Z
+re_reviewed: 2026-10-17T18:47:12Z
+re_review_diff: 534dd2b2..HEAD (js/kiosk-core.js, tests/frontend/kiosk-past-sales-range-drill.test.js)
 depth: standard
 files_reviewed: 12
 files_reviewed_list:
@@ -18,18 +20,48 @@ files_reviewed_list:
   - zoho-middleware/routes/kiosk-history.js
 findings:
   critical: 0
-  warning: 3
-  info: 5
-  total: 8
+  warning: 1
+  info: 6
+  total: 7
+resolved:
+  - WR-01 (855c4ed8)
+  - WR-02 (bb14a9dd)
 status: issues_found
 ---
 
 # Phase 93: Code Review Report
 
-**Reviewed:** 2026-10-17
+**Reviewed:** 2026-10-17 (re-reviewed 2026-10-17T18:47:12Z after gap closure 93-06)
 **Depth:** standard
-**Files Reviewed:** 12
-**Status:** issues_found
+**Files Reviewed:** 12 (re-review: 2)
+**Status:** issues_found (open: 1 warning, 6 info; WR-01 and WR-02 resolved)
+
+## Re-review: gap closure 93-06 (`534dd2b2..HEAD`)
+
+The re-review covered `js/kiosk-core.js` and `tests/frontend/kiosk-past-sales-range-drill.test.js`.
+
+**WR-01: RESOLVED in 855c4ed8.** `kioskPsLoadRange` now sets `_kioskPsRange` to null and blanks the range label whenever the cached payload's `type` differs from the requested type. It also disables ‹ and › while no payload is loaded.
+- The middleware payload carries `type` (`routes/kiosk-history.js:258`), so the comparison is meaningful and never compares against `undefined`.
+- ‹ and › are inert during a pending or failed switch. `kioskPsShiftDay` returns early on a null payload.
+- ↻ requests the current period of the new type (`range_start` falls back to null).
+- The loading copy falls back to `_kioskPsLedger.today` instead of the old `period_start`.
+- Same-type stepping keeps the payload, so `kioskPsBackToRange` still matches `origin.anchor` and re-renders from cache. A drill-in always records `origin.mode` from the payload's own type.
+- Choosing a Week or Month chip while drilled in also lands on the new path: it drops the old payload instead of reusing it.
+- The late-response drop is unchanged: success still checks `seq !== _kioskPsLedgerSeq`, and both paths are gated by `gen`.
+- Tests A–E pin the pending-switch, refresh, loading-copy, failure and success-recovery cases.
+- Residual (cosmetic, folded into IN-06): `#kiosk-ps-date` still shows the old payload's `range_end` until the new payload renders or after a failed load.
+
+**WR-02: RESOLVED in bb14a9dd.** The row is now marked zero only when `!(count > 0) && !partial`, so partial rows with 0 sales get no `--zero` class.
+- `kioskPsWireDayRows` therefore wires these rows, and the CSS gives them `cursor: pointer` and full opacity.
+- D-05 still holds: non-partial zero days keep `--zero` and are skipped (test H). Test G proves the drill-in opens the day ledger with the "Back to week" link.
+
+**Regression check:** No new blocker or warning.
+- ES5 is preserved: only `var`, no arrow functions or template literals, and ESLint is clean on `js/kiosk-core.js`.
+- `js/kiosk-core.min.js` contains both fixes (`Et.type!==e`, `Number(d.count)>0||d.partial`).
+- 45/45 tests pass across `kiosk-past-sales-range*.test.js`.
+- Re-entering the Ledger tab during a pending or failed switch now calls `kioskPsLoadRange` again because the payload is null (`kioskPsSetTab` :4607). This supersedes the in-flight request through the sequence bump and auto-retries after a failure. That behaviour is acceptable, so it is not a finding.
+- WR-03 was outside the scope of 93-06 and is **still open**. The new disable-both-buttons path does not widen it, because drilling in requires a loaded payload, so ‹ still reflects `!prev_anchor`.
+- One new Info item (IN-06) covers a pre-existing same-type stepping gap that sits next to the WR-01 fix.
 
 ## Narrative Findings (AI reviewer)
 
@@ -57,7 +89,7 @@ No critical issues.
 
 ## Warnings
 
-### WR-01: Stale range payload of the other type drives ‹ › / ↻ / label after a Week↔Month switch
+### WR-01: [RESOLVED 855c4ed8] Stale range payload of the other type drives ‹ › / ↻ / label after a Week↔Month switch
 
 **File:** `js/kiosk-core.js:4668-4692` (`kioskPsSetMode`), `js/kiosk-core.js:4694-4733` (`kioskPsLoadRange`), `js/kiosk-core.js:4964-4970` (`kioskPsShiftDay`), `js/kiosk-core.js:5034-5037` (`kioskPsRefresh`)
 
@@ -90,7 +122,7 @@ function kioskPsLoadRange(type, anchor, bust) {
 
 Add a frontend test: render a week, switch to Month with the response held pending, tap ‹, and assert that no request is sent with the week's `prev_anchor`.
 
-### WR-02: Partial (truncated) days that loaded 0 sales cannot be tapped, which blocks the D-10 exact-figures path
+### WR-02: [RESOLVED bb14a9dd] Partial (truncated) days that loaded 0 sales cannot be tapped, which blocks the D-10 exact-figures path
 
 **File:** `js/kiosk-core.js:4761-4762` (render), `js/kiosk-core.js:4778-4786` (`kioskPsWireDayRows`)
 
@@ -108,7 +140,7 @@ var zero = !(Number(day.count) > 0) && !day.partial;
 
 Add a test that a `partial: true, count: 0` row opens the day ledger.
 
-### WR-03: Disabled ‹ button carries over from a range into the day ledger
+### WR-03: [OPEN] Disabled ‹ button carries over from a range into the day ledger
 
 **File:** `js/kiosk-core.js:4672-4679` (`kioskPsSetMode` early return), `js/kiosk-core.js:4790-4812` (`kioskPsOpenDay`), `js/kiosk-core.js:4911-4919` (`kioskPsRenderLedger`)
 
@@ -183,8 +215,31 @@ When the payment cap is hit, the frontend shows "at least" in the footer and a n
 
 **Fix:** Set `min="2020-01-01"` on `#kiosk-ps-date`, and reword the message to "Pick a date between 2020 and today."
 
+### IN-06: Same-type stepping keeps the previous payload live while the next period loads or after it fails
+
+**File:** `js/kiosk-core.js:4699-4709` (`kioskPsLoadRange`), `js/kiosk-core.js:4976-4982` (`kioskPsShiftDay`), `js/kiosk-core.js:5049` (`kioskPsRefresh`)
+
+**Issue:** The WR-01 fix clears the payload and disables ‹ and › only when the range **type** changes. When stepping within one type (for example week A, then ‹ to week B), `_kioskPsRange` still holds A and ‹ and › stay enabled until B arrives. This behaviour existed before 93-06; it is not a regression.
+
+- **Fast double tap.** A second ‹ tap reads `A.prev_anchor` again. It re-requests B, and the sequence bump drops the first B request. The user expects to land two periods back but lands one period back.
+- **Failed step.** After B fails, the range label and `#kiosk-ps-date` still describe A, and ↻ refreshes A (`_kioskPsRange.range_start`). The Retry button in the error message targets B. The two controls therefore disagree about which period is shown.
+- **Residual from WR-01.** On a type switch, `#kiosk-ps-date` keeps the old payload's `range_end` until the new payload renders. After a failed switch it keeps that value indefinitely.
+
+**Fix:** Disable ‹ and › whenever a range request is in flight, not only when no payload exists. Re-enable them in `kioskPsRenderRange`, which already sets both buttons from the payload, and in the `catch` branch from the retained payload:
+
+```js
+// in kioskPsLoadRange, replacing the `if (!_kioskPsRange)` guard
+var psPrevBtn = kioskPsEl('kiosk-ps-prev'); if (psPrevBtn) psPrevBtn.disabled = true;
+var psNextBtn = kioskPsEl('kiosk-ps-next'); if (psNextBtn) psNextBtn.disabled = true;
+// in .catch, after the seq/gen guard
+if (_kioskPsRange && _kioskPsRange.type === type) {
+  var pb = kioskPsEl('kiosk-ps-prev'); if (pb) pb.disabled = !_kioskPsRange.prev_anchor;
+  var nb = kioskPsEl('kiosk-ps-next'); if (nb) nb.disabled = !_kioskPsRange.next_anchor;
+}
+```
+
 ---
 
-_Reviewed: 2026-10-17_
+_Reviewed: 2026-10-17; re-reviewed 2026-10-17T18:47:12Z (gap closure 93-06)_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
