@@ -9,9 +9,9 @@ No secrets, no names, no recipe values: recipe ids, ingredient ids and classific
 | Field | Value |
 |-------|-------|
 | Environment | production |
-| `RECIPES_STORE=dual` set at | |
-| Window day 1 date | |
-| Current window start (resets to day 1 on any bug-classified discrepancy) | |
+| `RECIPES_STORE=dual` set at | 2026-10-16 20:46:28Z (production) |
+| Window day 1 date | 2026-10-16 |
+| Current window start (resets to day 1 on any bug-classified discrepancy) | 2026-10-16 (no restarts) |
 
 ## Op-coverage table
 
@@ -21,12 +21,12 @@ unexplained discrepancies were raised for that op during the current window.
 
 | Op | First seen at | Real or scripted | Sentry clean? |
 |----|----------------|-------------------|----------------|
-| create | | | |
-| edit with ingredient change | | | |
-| delete | | | |
-| kiosk recipe sale | | | |
-| public list / detail | | | |
-| rename < 2 s (SC4 stopwatch) | | | |
+| create | 2026-10-17 19:05:01Z (SV-R-000017 draft) | scripted | yes |
+| edit with ingredient change | 2026-10-17 19:05:52Z (qty 1 to 2, PUT 299 ms) | scripted | yes |
+| delete | 2026-10-17 19:13:16Z (DELETE 200, then 404; deleted, not deactivated, after the test batch was removed) | scripted | yes |
+| kiosk recipe sale | 2026-10-17 19:09:09Z (INV-000246, Helcim txn 56748989, $2.34) | scripted on the real kiosk | yes |
+| public list / detail | 2026-10-17 ~19:06Z (list source postgres incl. test recipe; detail 200; card on beer.html) | scripted (real list reads also seen) | yes |
+| rename < 2 s (SC4 stopwatch) | 2026-10-17 19:06:04Z (PUT 274 ms) | scripted | yes |
 
 ## Discrepancy table
 
@@ -45,7 +45,8 @@ totals.
 
 | Date | compared | skipped settle | skipped dirty | sheet fetch failures | `recipes-dual-price` stale-dirty warnings | notes |
 |------|----------|----------------|---------------|----------------------|--------------------------------------------|-------|
-| | | | | | | |
+| 2026-10-16 | 0 | 0 | 0 | 1 | 0 | One cold-start quote at 20:49Z (SV-R-000016): sheet read timeout 15 s, observe-only, no price impact |
+| 2026-10-17 | 6 | 3 | 0 | 0 | 0 | All from the runsheet: 2 quote + 4 sale compares on SV-R-000017, all matched; 3 quote skips within 60 s of an edit (explained, RUNBOOK §12) |
 
 ## Explained differences (known up front)
 
@@ -171,3 +172,32 @@ production; see the RUNBOOK section 5 callout "Phase 89 script-source rule (D-14
   - One `[sheet-mirror] recipes.price failed: timeout of 15000ms` warning on the first, cold quote. This is the observe-only D-05 compare, not a price change; watch whether it recurs.
 - **Window day 1:** 2026-10-16. The 85-14 ≥7-day dual window runs to 2026-10-23 at the earliest, then the flip decision.
 - **Snapshots:** all deleted from the container and from Downloads.
+
+## Scripted runsheet and mid-window verify (2026-10-17, day 2)
+
+Driven by Claude in production admin, with the owner signing in and selling on the kiosk. Owner approved running it on production.
+
+- **Steps 1-5:**
+  - SV-R-000017 "ZZ TEST RECIPE 2026-10-17" was created as a draft with 1 ingredient (1L Swing-top Bottle Amber).
+  - It was activated with locked $1, its quantity edited from 1 to 2, and renamed (PUT 274 ms).
+  - Its fees were set to $0.01 to keep the sale small; that was a further edit.
+  - It appeared in the public list (`source: postgres`), the detail endpoint returned 200, and it showed on beer.html.
+- **Step 6:** kiosk sale at 23 L in-store for $2.34 ($1.02 plus $1.32 tax; tax is charged on the $11 ingredient retail).
+  - The first two terminal pushes failed with Helcim 409 ("Terminal error, please try again") and the third succeeded. This is the pre-existing `kiosk-terminal-charge-lag` issue, not Phase 85.
+  - The sale produced invoice INV-000246 and auto-created batch SV-B-000238.
+- **Step 7:** `[dual-price]` compared 6 times with no mismatch. There were no `[dual-write] recipes`, `recipes-mirror` or `recipes-dual-price` lines.
+- **Step 8:**
+  - Test batch SV-B-000238 was deleted first, through the admin proxy `delete_batch`, to remove the batch reference.
+  - SV-R-000017 was then deleted: DELETE 200, then GET 404, and it is gone from the public list.
+- **Step 9 cleanup:**
+  - The owner refunded Helcim txn 56748989.
+  - Zoho payment #241 (reference 56748989) was deleted.
+  - INV-000246 is awaiting void or delete in Zoho Books. The Phase 84 precedent deleted its test invoices INV-000242 to 245.
+- **Step 10:** `recipes-verify.js` ran inside the production container against a fresh .xlsx (downloaded about 19:15Z, sha256 prefix 320b7b1e) and printed **"Verified 13 recipes: 0 mismatches"** (exit 0). The snapshot copy was deleted from the container.
+  - Script source: the production container's own release scripts. These are pre-Phase-89, with no `beer_category`, which is equivalent to the D-14 pinned d2c66be9 rule.
+- **Discrepancies in window so far:** none. The only non-info lines are the explained cold-start sheet read on 10-16 and the settle skips.
+- **Flip bar status at day 2:**
+  - All six ops have been observed.
+  - There are zero unexplained discrepancies.
+  - The mid-window verify returned 0 mismatches.
+  - It is not yet 7 consecutive days. Shortening the window is an owner decision.
