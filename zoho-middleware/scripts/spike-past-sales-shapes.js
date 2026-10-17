@@ -83,6 +83,18 @@ function deriveJoinMode(m) {
 
 var NAME_LIKE = /url$|^contact_number$|(customer|contact|salesperson|created_by|submitted_by|approver|modified_by)_?name$|^email$|email$|phone|mobile|address|^terms$|^contact_persons$|^created_by$/i;
 var ID_LIKE = /(^|_)id$/;
+// WR-06: whole subtrees that can hold an address or free-form custom values,
+// and scalar keys NAME_LIKE misses (address parts, attention = a person's
+// name, fax, card last four, top-level cf_* custom-field values).
+var SUBTREE_REDACT = { billing_address: true, shipping_address: true, custom_field_hash: true };
+var SCALAR_REDACT = /^cf_|^(last_four_digits|attention|fax|street|street2|city|state|state_code|zip|country|country_code)$/;
+
+function isEmptyValue(v) {
+  if (v === '' || v === null || v === undefined) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === 'object') return Object.keys(v).length === 0;
+  return false;
+}
 
 function makeCtx() {
   return { ids: {}, nextId: 1, nums: {}, nextNum: 1 };
@@ -114,6 +126,10 @@ function sanitizeValue(ctx, key, v) {
   var out;
   var k;
   if (v === null || v === undefined) return v;
+  if (SUBTREE_REDACT[key] || (SCALAR_REDACT.test(key) && typeof v === 'object')) {
+    if (isEmptyValue(v)) return v;
+    return typeof v === 'object' ? { REDACTED: true } : 'REDACTED_' + key.toUpperCase();
+  }
   if (Array.isArray(v)) {
     if (key === 'custom_fields') {
       return v.length ? [{ label: 'REDACTED', value: 'REDACTED' }] : [];
@@ -141,6 +157,7 @@ function sanitizeValue(ctx, key, v) {
         return t ? synthInvNum(ctx, t) : t;
       }).join(', ');
     }
+    if (SCALAR_REDACT.test(key)) return v === '' ? '' : 'REDACTED_' + key.toUpperCase();
     if (NAME_LIKE.test(key)) return v === '' ? '' : 'REDACTED_' + key.toUpperCase();
     if (ID_LIKE.test(key)) return v === '' || v === 0 ? v : synthId(ctx, v);
     if (typeof v === 'string') {

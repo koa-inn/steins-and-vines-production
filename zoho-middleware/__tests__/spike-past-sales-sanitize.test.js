@@ -91,6 +91,51 @@ describe('spike sanitizer', function () {
   });
 });
 
+describe('spike sanitizer: addresses, card digits and custom fields (WR-06)', function () {
+  var populated = {
+    invoice: {
+      invoice_id: '9999999999999990002',
+      status: 'paid',
+      total: 12,
+      last_four_digits: '4242',
+      attention: 'SENTINEL_ATTN',
+      fax: '6045550100',
+      billing_address: {
+        address: '1 Secret St', street2: 'SENTINEL_UNIT', city: 'SENTINEL_CITY', state: 'SENTINEL_STATE',
+        zip: 'V8B 0K7', country: 'SENTINEL_COUNTRY', fax: '6045550101', attention: 'SENTINEL_ATTN2'
+      },
+      shipping_address: { street2: 'SENTINEL_SHIP_UNIT', city: 'SENTINEL_SHIP_CITY', zip: 'V6B 1A1' },
+      custom_field_hash: { cf_pet_name: 'SENTINEL_CF_HASH', cf_pet_name_unformatted: 'SENTINEL_CF_HASH2' },
+      cf_pet_name: 'SENTINEL_CF_TOP',
+      cf_pet_name_unformatted: 'SENTINEL_CF_TOP2',
+      cf_flag_unformatted: false
+    },
+    payment: { payment_mode: 'creditcard', last_four_digits: '1881', card_type: 'visa', amount: 5 }
+  };
+
+  it('strips populated address, attention, fax, last-four and cf_* values', function () {
+    var out = JSON.stringify(spike.sanitizeFixture(populated));
+    ['1 Secret St', 'SENTINEL_UNIT', 'SENTINEL_CITY', 'SENTINEL_STATE', 'V8B 0K7', 'SENTINEL_COUNTRY',
+      '6045550100', '6045550101', 'SENTINEL_ATTN', 'SENTINEL_ATTN2', 'SENTINEL_SHIP_UNIT', 'SENTINEL_SHIP_CITY',
+      'V6B 1A1', 'SENTINEL_CF_HASH', 'SENTINEL_CF_HASH2', 'SENTINEL_CF_TOP', 'SENTINEL_CF_TOP2', '4242', '1881'
+    ].forEach(function (v) { expect(out).not.toContain(v); });
+  });
+
+  it('keeps the key so the fixture still documents the shape', function () {
+    var out = spike.sanitizeFixture(populated);
+    expect(Object.keys(out.invoice).sort()).toEqual(Object.keys(populated.invoice).sort());
+    expect(out.invoice.billing_address).toEqual({ REDACTED: true });
+    expect(out.invoice.custom_field_hash).toEqual({ REDACTED: true });
+    expect(out.payment.payment_mode).toBe('creditcard');
+    expect(out.payment.amount).toBe(5);
+  });
+
+  it('leaves blank values blank (current fixture shape)', function () {
+    var out = spike.sanitizeFixture({ last_four_digits: '', attention: '', billing_address: {}, cf_x: '' });
+    expect(out).toEqual({ last_four_digits: '', attention: '', billing_address: {}, cf_x: '' });
+  });
+});
+
 describe('committed fixture', function () {
   var fs = require('fs');
   var path = require('path');
