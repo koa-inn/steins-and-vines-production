@@ -44,6 +44,7 @@ var CACHE_KEYS = {
 
   // Kiosk past sales (Phase 92)
   KIOSK_HISTORY_LEDGER_PREFIX:   'kiosk:history:ledger:v1:',   // append YYYY-MM-DD
+  KIOSK_HISTORY_RANGE_PREFIX:    'kiosk:history:range:v1:',    // append type + ':' + period start YYYY-MM-DD
   KIOSK_HISTORY_CUSTOMER_PREFIX: 'kiosk:history:customer:v1:', // append customer_id + ':' + window
   KIOSK_HISTORY_INVOICE_PREFIX:  'kiosk:history:invoice:v1:',  // append invoice_id
   KIOSK_HISTORY_TENDER_PREFIX:   'kiosk:history:tender:v1:',   // append invoice_id (detail-fallback tender only)

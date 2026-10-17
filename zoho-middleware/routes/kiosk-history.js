@@ -20,6 +20,10 @@ var PER_PAGE = 200;
 var LEDGER_MIN_DATE = '2020-01-01';
 var TTL_TODAY = 60;
 var TTL_PAST = 3600;
+// Phase 93 range caps (D-10, D-13): Sept 2026 = 28 invoices, so 1,000 per range is ~35x headroom.
+var RANGE_MAX_INVOICE_PAGES = 5;
+var RANGE_MAX_PAYMENT_PAGES = 5;
+var TTL_RANGE_CURRENT = 300;
 var CUSTOMER_MAX_INVOICE_PAGES = 3;
 var CUSTOMER_MAX_PAYMENT_PAGES = 2;
 var HISTORY_MAX_MONTHS = 120;
@@ -144,26 +148,14 @@ function buildLedger(day, today) {
     date_start: day, date_end: nextDay, sort_column: 'created_time', sort_order: 'D', per_page: PER_PAGE
   }, LEDGER_MAX_INVOICE_PAGES, 'invoices').then(function (inv) {
     truncated = truncated || inv.truncated;
-    invoices = inv.rows.filter(function (i) { return hist.createdDay(i) === day; });
+    invoices = inv.rows;
     // One ranged payments call covers D..D+1 (payment `date` is UTC, A-05; date_start/date_end honored per 92-01).
     return fetchPages('/customerpayments', {
       date_start: day, date_end: nextDay, per_page: PER_PAGE
     }, LEDGER_MAX_PAYMENT_PAGES, 'customerpayments');
   }).then(function (pay) {
     truncated = truncated || pay.truncated;
-    var idx = hist.indexPaymentsByInvoice(pay.rows, config.linkageField, config.notesField);
-    var kept = [];
-    var tenders = {};
-    invoices.forEach(function (inv) {
-      var paid = idx[inv.invoice_number] || [];
-      var notes = paid.map(function (p) { return p.note; });
-      if (hist.classify(inv, notes) !== 'in-store') return;
-      kept.push(inv);
-      tenders[inv.invoice_id] = hist.tenderLabel(paid);
-    });
-    var rows = hist.sortByCreatedDesc(kept).map(function (inv) {
-      return hist.slimInvoiceRow(inv, 'in-store', tenders[inv.invoice_id]);
-    });
+    var rows = hist.ledgerRowsForDay(day, invoices, pay.rows, config.linkageField, config.notesField);
     var totals = hist.ledgerTotals(rows);
     var tenderIncomplete = pay.truncated || rows.some(function (r) {
       return (r.status === 'Paid' || r.status === 'Partial') && r.tender === '';
@@ -214,6 +206,107 @@ router.get('/api/kiosk/past-sales/ledger', function (req, res) {
 function isBust(q) {
   return q.bust === '1' || q.bust === 1 || q.bust === true;
 }
+
+// Phase 93: per-day summary of a week/month. Every day goes through the same
+// hist.ledgerRowsForDay chain as the day ledger so figures match it (D-12).
+function buildRange(type, bounds, rangeStart, rangeEnd, today) {
+  if (config.joinMode !== 'list-join') {
+    return Promise.reject(new Error('unsupported join mode ' + config.joinMode));
+  }
+  var windowEnd = hist.addDays(rangeEnd, 1);
+  var dayList = [];
+  for (var d = rangeStart; d <= rangeEnd; d = hist.addDays(d, 1)) dayList.push(d);
+  var invRows;
+  var invTruncated = false;
+  return fetchPages('/invoices', {
+    date_start: rangeStart, date_end: windowEnd, sort_column: 'created_time', sort_order: 'D', per_page: PER_PAGE
+  }, RANGE_MAX_INVOICE_PAGES, 'invoices').then(function (inv) {
+    invRows = inv.rows;
+    invTruncated = inv.truncated;
+    // D-12: payments matter only when a counted invoice's class depends on notes.
+    var need = invRows.some(function (i) {
+      return hist.needsPaymentNotes(i) && dayList.some(function (day) { return hist.invoiceBelongsToDay(i, day); });
+    });
+    if (!need) return { rows: [], truncated: false };
+    return fetchPages('/customerpayments', {
+      date_start: rangeStart, date_end: windowEnd, per_page: PER_PAGE
+    }, RANGE_MAX_PAYMENT_PAGES, 'customerpayments');
+  }).then(function (pay) {
+    var oldest = null;
+    invRows.forEach(function (i) {
+      var c = hist.createdDay(i);
+      if (c && (oldest === null || c < oldest)) oldest = c;
+    });
+    var days = [];
+    var count = 0;
+    var cents = 0;
+    dayList.forEach(function (day) {
+      var totals = hist.ledgerTotals(hist.ledgerRowsForDay(day, invRows, pay.rows, config.linkageField, config.notesField));
+      count += totals.count;
+      cents += Math.round(totals.gross_total * 100);
+      days.push({
+        date: day,
+        count: totals.count,
+        gross_total: totals.gross_total,
+        partial: invTruncated && (oldest === null || day <= oldest)
+      });
+    });
+    days.reverse();
+    var prevDay = hist.addDays(bounds.start, -1);
+    var nextDay = hist.addDays(bounds.end, 1);
+    return {
+      type: type,
+      period_start: bounds.start,
+      period_end: bounds.end,
+      range_start: rangeStart,
+      range_end: rangeEnd,
+      today: today,
+      current: bounds.end >= today,
+      prev_anchor: bounds.start <= LEDGER_MIN_DATE ? null : prevDay,
+      next_anchor: nextDay > today ? null : nextDay,
+      days: days,
+      count: count,
+      gross_total: cents / 100,
+      truncated: invTruncated || !!pay.truncated,
+      classification_incomplete: !!pay.truncated
+    };
+  });
+}
+
+// GET /api/kiosk/past-sales/range?type=week|month[&date=YYYY-MM-DD][&bust=1]
+// Only type, date and bust are read; every other query param is ignored (T-92-11, T-93-05).
+router.get('/api/kiosk/past-sales/range', function (req, res) {
+  gate(req, res, function () {
+    var today = hist.vancouverDay(new Date());
+    var q = req.query || {};
+    var type = q.type;
+    if (type !== 'week' && type !== 'month') {
+      return badRequest(res, 'type must be week or month');
+    }
+    var date = today;
+    if (q.date !== undefined && q.date !== '') {
+      date = q.date;
+      if (typeof date !== 'string' || !DATE_RE.test(date) || !hist.isRealDate(date)) {
+        return badRequest(res, 'date must be a real YYYY-MM-DD date');
+      }
+      if (date > today) return badRequest(res, 'date cannot be in the future');
+      if (date < LEDGER_MIN_DATE) return badRequest(res, 'date is before ' + LEDGER_MIN_DATE);
+    }
+    var bounds = hist.periodBounds(type, date);
+    var rangeStart = bounds.start > LEDGER_MIN_DATE ? bounds.start : LEDGER_MIN_DATE;
+    var rangeEnd = bounds.end < today ? bounds.end : today;
+    var key = C.CACHE_KEYS.KIOSK_HISTORY_RANGE_PREFIX + type + ':' + bounds.start;
+    var ttl = function (d) { return d.current ? TTL_RANGE_CURRENT : TTL_PAST; };
+    cachedOrBuild(key, ttl, isBust(q), function () {
+      return buildRange(type, bounds, rangeStart, rangeEnd, today);
+    }).then(function (payload) {
+      res.json(payload);
+    }).catch(function (err) {
+      log.error('[kiosk/past-sales/range] ' + errMessage(err));
+      if (!res.headersSent) res.status(502).json({ error: 'Unable to fetch sales' });
+    });
+  });
+});
 
 function buildCustomer(customerId, winStart, winEnd, floor) {
   if (config.joinMode !== 'list-join') {
@@ -356,7 +449,10 @@ router._internals = {
     TTL_PAST: TTL_PAST,
     CUSTOMER_MAX_INVOICE_PAGES: CUSTOMER_MAX_INVOICE_PAGES,
     CUSTOMER_MAX_PAYMENT_PAGES: CUSTOMER_MAX_PAYMENT_PAGES,
-    BUST_MIN_INTERVAL_MS: BUST_MIN_INTERVAL_MS
+    BUST_MIN_INTERVAL_MS: BUST_MIN_INTERVAL_MS,
+    RANGE_MAX_INVOICE_PAGES: RANGE_MAX_INVOICE_PAGES,
+    RANGE_MAX_PAYMENT_PAGES: RANGE_MAX_PAYMENT_PAGES,
+    TTL_RANGE_CURRENT: TTL_RANGE_CURRENT
   }
 };
 
