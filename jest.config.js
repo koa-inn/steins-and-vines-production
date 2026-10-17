@@ -1,3 +1,8 @@
+// Run every frontend test in the shop's time zone. CI runners are UTC, and a test file
+// assigning process.env.TZ inside Jest's sandbox does not reach Node, so set it here,
+// before the workers start (they inherit it).
+process.env.TZ = 'America/Vancouver';
+
 module.exports = {
   testEnvironment: 'jsdom',
   testMatch: ['<rootDir>/tests/frontend/**/*.test.js'],
