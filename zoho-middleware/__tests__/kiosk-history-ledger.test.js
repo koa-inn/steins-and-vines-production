@@ -158,6 +158,7 @@ describe('GET /api/kiosk/past-sales/ledger', function () {
   var oldDev, oldMw;
   beforeEach(function () {
     jest.clearAllMocks();
+    router._internals.resetCacheState(); // WR-05 bust throttle is per process
     cache.get.mockResolvedValue(null);
     cache.set.mockResolvedValue('OK');
     oldDev = process.env.KIOSK_DEVICE_TOKEN; oldMw = process.env.MW_API_KEY;

@@ -57,18 +57,53 @@ function gate(req, res, fn) {
   authTiers.requireTiers(['legacy', 'device', 'session'])(req, res, fn);
 }
 
+// WR-05: protect the shared Zoho quota from refresh storms. Both maps are
+// per process and keyed by cache key; neither can be changed by a request.
+var BUST_MIN_INTERVAL_MS = 10000;
+var LAST_BUILT_MAX_KEYS = 500;
+var inflight = {};   // key -> promise of the running build
+var lastBuilt = {};  // key -> ms timestamp of the last successful build
+
+function noteBuilt(key) {
+  var now = Date.now();
+  lastBuilt[key] = now;
+  var keys = Object.keys(lastBuilt);
+  if (keys.length <= LAST_BUILT_MAX_KEYS) return;
+  keys.forEach(function (k) {
+    if (now - lastBuilt[k] >= BUST_MIN_INTERVAL_MS) delete lastBuilt[k];
+  });
+}
+
+// Concurrent builds for one key share a single Zoho chain.
+function sharedBuild(key, ttl, build) {
+  if (inflight[key]) return inflight[key];
+  var p = Promise.resolve().then(build).then(function (fresh) {
+    noteBuilt(key);
+    var t = typeof ttl === 'function' ? ttl(fresh) : ttl;
+    Promise.resolve(cache.set(key, fresh, t)).catch(noop);
+    return fresh;
+  });
+  inflight[key] = p;
+  var release = function () { if (inflight[key] === p) delete inflight[key]; };
+  p.then(release, release);
+  return p;
+}
+
 // Cache read errors are a miss; build() rejections propagate so a Zoho failure is never cached.
 // ttl may be a number or a function(result) -> number.
+// bust is ignored when this key was built less than BUST_MIN_INTERVAL_MS ago (WR-05).
 function cachedOrBuild(key, ttl, bust, build) {
+  if (bust && lastBuilt[key] && Date.now() - lastBuilt[key] < BUST_MIN_INTERVAL_MS) bust = false;
   var read = bust ? Promise.resolve(null) : Promise.resolve(cache.get(key)).catch(function () { return null; });
   return read.then(function (cached) {
     if (cached) return cached;
-    return build().then(function (fresh) {
-      var t = typeof ttl === 'function' ? ttl(fresh) : ttl;
-      Promise.resolve(cache.set(key, fresh, t)).catch(noop);
-      return fresh;
-    });
+    return sharedBuild(key, ttl, build);
   });
+}
+
+function resetCacheState() {
+  inflight = {};
+  lastBuilt = {};
 }
 
 // Strictly sequential page chain (no parallel fan-out): Zoho allows ~1 req/s.
@@ -309,6 +344,7 @@ router._config = config;
 router._internals = {
   gate: gate,
   cachedOrBuild: cachedOrBuild,
+  resetCacheState: resetCacheState,
   fetchPages: fetchPages,
   errMessage: errMessage,
   caps: {
@@ -319,7 +355,8 @@ router._internals = {
     TTL_TODAY: TTL_TODAY,
     TTL_PAST: TTL_PAST,
     CUSTOMER_MAX_INVOICE_PAGES: CUSTOMER_MAX_INVOICE_PAGES,
-    CUSTOMER_MAX_PAYMENT_PAGES: CUSTOMER_MAX_PAYMENT_PAGES
+    CUSTOMER_MAX_PAYMENT_PAGES: CUSTOMER_MAX_PAYMENT_PAGES,
+    BUST_MIN_INTERVAL_MS: BUST_MIN_INTERVAL_MS
   }
 };
 

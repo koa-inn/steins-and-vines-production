@@ -61,6 +61,7 @@ function fakeNow() {
 }
 function setup() {
   jest.clearAllMocks();
+  router._internals.resetCacheState(); // WR-05 bust throttle is per process
   cache.get.mockResolvedValue(null);
   cache.set.mockResolvedValue('OK');
   process.env.KIOSK_DEVICE_TOKEN = DEVICE;
