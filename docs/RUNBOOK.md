@@ -59,6 +59,7 @@ error + no tracking, but avoid it):
 
 | Date | Git SHA | Railway Deploy ID | Deploy URL | Notes |
 |------|---------|-------------------|------------|-------|
+| 2026-10-17 20:09 UTC | `bb879a8c` | `ea61a171-2ba5-4bf2-9c27-e430ade0cbd2` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/39065193738) | Beer page em dashes, By-customer payments rule, Ledger arrow fixes |
 | 2026-10-17 19:47 UTC | `d12b4b9b` | `b3fd002a-f9e1-4f72-bbf0-2791866c086e` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/39063576769) | 86-19 release: Phase 86/87 code dormant (sheets), Phases 89/90/92/93 live |
 | 2026-10-16 19:46 UTC | `2ce88fb8` | (Railway auto) | manual pinned push (prod commit `ff3239cf`) | Inventory-ledger fix (f060f5a9): Zoho stock increases now reach the kiosk/website. A kiosk-sale hold lasts 10 min; a website-order hold is unchanged. Gate on Node 24: FE 2197, MW 2562. Post-deploy: healthy, store modes GIFT_CARDS_STORE=postgres / RECIPES_STORE=sheets, catalog 529 items, airlock 11 = Zoho. |
 | 2026-10-16 17:33 UTC | `b0adb2c9` | (no middleware change, no Railway redeploy) | manual pinned push (prod commit `ee1a2bf1`) | Kiosk display fixes on release/85-13-node24: Recipes mode hides the product list in table view (2c834956), and the locked recipe tile shows the in-store price with fees (72a2562f). Front end only. Gate on Node 24: FE 2197, MW 2555. Live kiosk.html serves stamp mvb8wrze with both fixes. The middleware kept running (uptime ~16.7 h). |
