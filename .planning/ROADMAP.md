@@ -157,6 +157,7 @@
 - [x] **Phase 90: BrewPad batch invoice linking** — optional invoice link captured at manual batch creation, an "unlinked" filter on the batch list, and a human-confirmed review queue to backfill the 57 unlinked batches. Also: a one-tap kiosk canning bundle (flat $40/$35 plus 12% tax, cans relieved at the actual count). Also: a full-list recipe picker dropdown in BrewPad, kiosk and the recipe editor. (completed 2026-10-15)
 - [ ] **Phase 91: Online grain-order recipe splitting** — customers separate grains into up to 4 recipe bags as they select them (quantity splits allowed), staff see the split in Zoho notes, the email and BrewPad, and the milling fee stays once per order.
 - [x] **Phase 92: Kiosk past-sales lookup and ledger** — staff look up a customer's past orders by name on the kiosk, and browse a read-only ledger of recent kiosk sales. (completed 2026-10-16)
+- [ ] **Phase 93: Kiosk ledger week and month views** — Week (Mon–Sun) and Month ranges on the kiosk Ledger tab, as per-day summary rows that drill into the day ledger, with a count + gross footer.
 
 ### 📋 Backlog — captured, not yet scheduled
 
@@ -1722,6 +1723,25 @@ Plans:
 - [x] 92-06-PLAN.md — Kiosk view lifecycle, D-11 clearing choke point, Ledger tab, inline detail, refresh, wiring
 - [x] 92-07-PLAN.md — Kiosk By-customer tab: contact search, history, Load older, walk-in message
 - [x] 92-08-PLAN.md — Gates, KIOSK_CONTACT_ID env check, staging deploy + smoke, owner UAT
+### Phase 93: Kiosk ledger week and month views
+
+**Goal:** Add Week and Month ranges to the Phase 92 kiosk Ledger tab. The owner asked for them at Phase 92 UAT on 2026-10-16 ("if we could have a week or month view too that would be useful").
+**Owner decisions already taken (2026-10-16):**
+- **List shape:** a range shows per-day summary rows (date, sale count, gross total). Tapping a day opens that day's existing Phase 92 ledger. Individual sales are not listed across the range.
+- **Ranges:** weeks run Monday to Sunday and months are calendar months, both in America/Vancouver time, with ‹ › to step between them.
+- **Footer:** the range total shows count and gross only, with no tender split, the same as the day footer. The end-of-day cash-up report stays deferred.
+- **Phase 92 rules carry over:** in-store only (blank-reference invoices count as in-store), voids and drafts are excluded from counts and totals, read-only, and data is cleared when Customer View, the lock screen or a new sale starts.
+**Open for discuss/plan:**
+- Zoho call budget for a month: Phase 92 caps a day at 3 pages × 200 invoices.
+- Range caching and TTLs, since past weeks and months rarely change.
+- Whether day totals can come from the invoice list alone. Tender is not needed for summary rows, so the `/customerpayments` join could be skipped. The day classifier needs payments only for all-digit references.
+**Requirements**: TBD
+**Depends on:** Phase 92
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 93 to break down)
+
 ---
 
 **ROOT CAUSE LOCATED (2026-09-02, during the Sheets→Postgres research pass).** The audit flagged this class as H6/H7 in 2026-06-29 but never pinned the mechanism. It is now pinned:

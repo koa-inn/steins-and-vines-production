@@ -120,6 +120,8 @@ Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 
 
 ### Roadmap Evolution
 
+- Phase 93 added (2026-10-17): Kiosk ledger week and month views. The owner requested it at Phase 92 UAT and chose per-day summary rows, Mon–Sun weeks and calendar months, and a count + gross footer.
+
 - **Phase 90 added 2026-10-14: BrewPad batch invoice linking.** Owner handoff: 57/206 batches (28%)
   have no `zoho_so_number`. Every automated path links 63/63; the gap is BrewPad manual create
   (`js/brewpad.js:7591` has no invoice field). Kept separate from Phase 89 (different domain, touches the
