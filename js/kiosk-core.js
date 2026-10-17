@@ -4696,6 +4696,17 @@
       kioskPsSetHtml('kiosk-ps-ledger-message', 'Middleware URL not configured.');
       return;
     }
+    // WR-01 / PSL-11: a payload of the other type must not drive stepping, refresh or copy.
+    if (_kioskPsRange && _kioskPsRange.type !== type) {
+      _kioskPsRange = null;
+      kioskPsSetHtml('kiosk-ps-range-label', '');
+    }
+    if (!_kioskPsRange) {
+      var psPrevBtn = kioskPsEl('kiosk-ps-prev');
+      if (psPrevBtn) psPrevBtn.disabled = true;
+      var psNextBtn = kioskPsEl('kiosk-ps-next');
+      if (psNextBtn) psNextBtn.disabled = true;
+    }
     var path = '/api/kiosk/past-sales/range?type=' + encodeURIComponent(type) +
       (anchor ? '&date=' + encodeURIComponent(anchor) : '') + (bust ? '&bust=1' : '');
     var gen = _kioskPsGen;

@@ -419,3 +419,89 @@ describe('D-11 clearing of drill-in state', function () {
     expectClean(s);
   });
 });
+
+describe('Gap WR-01: Week/Month switch drops the stale payload', function () {
+  var RANGE = 'http://localhost:3001/api/kiosk/past-sales/range';
+
+  function routePending() {
+    var d = deferred();
+    route([['/ledger', ledgerHandler], ['/range', function () { return d.promise; }]]);
+    return d;
+  }
+
+  test('A: week to month, pending: range dropped, label blank, stepping disabled and inert', async function () {
+    var s = await loadWeek();
+    routePending();
+    s.core.pastSalesSetMode('month');
+    expect(s.core._getPastSalesState().range).toBeNull();
+    expect(el('kiosk-ps-range-label').textContent).toBe('');
+    expect(el('kiosk-ps-prev').disabled).toBe(true);
+    expect(el('kiosk-ps-next').disabled).toBe(true);
+    global.fetch.mockClear();
+    s.core.pastSalesShiftDay(-1);
+    await flushPromises();
+    expect(urls().some(function (u) { return u.indexOf('date=2026-10-11') !== -1; })).toBe(false);
+    expect(urls().length).toBe(0);
+  });
+
+  test('B: refresh during a pending switch requests the new type current period', async function () {
+    var s = await loadWeek();
+    routePending();
+    s.core.pastSalesSetMode('month');
+    global.fetch.mockClear();
+    s.core.pastSalesRefresh();
+    await flushPromises();
+    expect(urls()).toEqual([RANGE + '?type=month&bust=1']);
+  });
+
+  test('C: loading copy names the month from the day ledger today, not the old payload', async function () {
+    var s = await loadWeek(weekBody({
+      period_start: '2026-09-28', period_end: '2026-10-04', range_start: '2026-09-28',
+      range_end: '2026-10-04', prev_anchor: '2026-09-27', next_anchor: '2026-10-05', current: false
+    }));
+    routePending();
+    s.core.pastSalesSetMode('month');
+    var msg = el('kiosk-ps-ledger-message').textContent;
+    expect(msg).toContain('October');
+    expect(msg).not.toContain('September');
+  });
+
+  test('D: failed switch leaves no payload and stepping stays inert', async function () {
+    var s = await loadWeek();
+    route([['/ledger', ledgerHandler], ['/range', function () { return respond(502, {}); }]]);
+    s.core.pastSalesSetMode('month');
+    await flushPromises();
+    expect(s.core._getPastSalesState().range).toBeNull();
+    expect(el('kiosk-ps-range-label').textContent).toBe('');
+    expect(el('kiosk-ps-prev').disabled).toBe(true);
+    expect(el('kiosk-ps-next').disabled).toBe(true);
+    expect(el('kiosk-ps-ledger-message').textContent).toContain('Could not load sales');
+    global.fetch.mockClear();
+    s.core.pastSalesShiftDay(-1);
+    await flushPromises();
+    expect(urls().length).toBe(0);
+  });
+
+  test('E: month to week, then success: stepping uses the new payload anchors', async function () {
+    var s = loadSurface();
+    route([['/ledger', ledgerHandler], ['/range', function () { return respond(200, monthBody()); }]]);
+    openLedger(s);
+    await flushPromises();
+    s.core.pastSalesSetMode('month');
+    await flushPromises();
+    var d = routePending();
+    s.core.pastSalesSetMode('week');
+    expect(el('kiosk-ps-prev').disabled).toBe(true);
+    global.fetch.mockClear();
+    s.core.pastSalesShiftDay(-1);
+    expect(urls().some(function (u) { return u.indexOf('date=2026-09-30') !== -1; })).toBe(false);
+    d.resolve(resolved(weekBody()));
+    await flushPromises();
+    expect(el('kiosk-ps-prev').disabled).toBe(false);
+    expect(s.core._getPastSalesState().range.type).toBe('week');
+    global.fetch.mockClear();
+    s.core.pastSalesShiftDay(-1);
+    await flushPromises();
+    expect(urls()).toEqual([RANGE + '?type=week&date=2026-10-11']);
+  });
+});
