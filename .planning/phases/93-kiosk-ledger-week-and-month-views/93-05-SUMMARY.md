@@ -1,6 +1,6 @@
 # Phase 93 Plan 05: Gates, Staging Deploy, Owner UAT Summary
 
-Status: UAT PENDING. Task 1 complete; Task 2 (owner iPad UAT) awaiting response.
+Status: COMPLETE. Task 1 done; Task 2 (owner iPad UAT) approved 2026-10-17.
 
 ## Task 1: Gates and staging push
 
@@ -23,11 +23,7 @@ Status: UAT PENDING. Task 1 complete; Task 2 (owner iPad UAT) awaiting response.
 
 ## UAT
 
-PENDING. Owner outcome and the month-vs-day-ledger comparison (2-3 days, count/gross side by side) to be recorded here.
-
-| Date | Month view count / gross | Day ledger count / gross | Match |
-|------|--------------------------|--------------------------|-------|
-| tbd | | | |
+Owner approved on the staging iPad on 2026-10-17 (reply: "approved"). No gaps reported. The month-vs-day-ledger comparison was approved by the owner without itemised figures; no specific days or count/gross numbers were supplied, so none are recorded here.
 
 ## Deviations
 
@@ -35,5 +31,5 @@ None.
 
 ## Open owner items
 
-- Production promotion: separate owner go, pinned SHA per docs/RUNBOOK.md.
+- Production deploy not done (staging only). Production promotion: separate owner go, pinned SHA per docs/RUNBOOK.md.
 - buildCustomer `/^\d+$/` payments-skip smell: out of scope, separate issue.
