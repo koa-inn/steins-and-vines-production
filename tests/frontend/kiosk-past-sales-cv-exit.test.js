@@ -32,6 +32,25 @@ function wait(ms) {
   return new Promise(function (resolve) { setTimeout(resolve, ms); });
 }
 
+// Poll instead of fixed sleeps: the PIN pad uses 150/250/600 ms timers and a
+// loaded machine can delay them.
+async function waitFor(cond, timeoutMs) {
+  var end = Date.now() + (timeoutMs || 4000);
+  while (Date.now() < end) {
+    if (cond()) return;
+    await wait(20);
+  }
+}
+
+function lockHidden() {
+  return document.getElementById('kiosk-lock-screen').style.display === 'none';
+}
+
+function pinPadReset() {
+  return !document.querySelector('.kiosk-lock-dot--filled') &&
+    !document.querySelector('.kiosk-lock-dots--error');
+}
+
 function el(id) {
   var node = document.getElementById(id);
   if (!node) throw new Error('expected #' + id);
@@ -127,7 +146,7 @@ describe('CR-01: leaving Customer View requires the staff PIN', function () {
       pinResponse(true);
       el(pair[0]).click();
       typePin('1234');
-      await wait(450);
+      await waitFor(lockHidden);
       expect(el('kiosk-lock-screen').style.display).toBe('none');
       expect(el('kiosk-view-browse').style.display).toBe('');
       expect(el('kiosk-view-browse-customer').style.display).toBe('none');
@@ -145,7 +164,8 @@ describe('CR-01: leaving Customer View requires the staff PIN', function () {
       pinResponse(false);
       el(pair[0]).click();
       typePin('9999');
-      await wait(450);
+      await waitFor(function () { return el('kiosk-lock-error').textContent === 'Incorrect PIN'; });
+      await wait(300); // give a wrongly-scheduled unlock time to show itself
       expect(el('kiosk-lock-screen').style.display).toBe('');
       expect(el('kiosk-view-browse').style.display).toBe('none');
       expect(el('kiosk-past-sales-btn').style.display).toBe('none');
@@ -160,10 +180,11 @@ describe('CR-01: leaving Customer View requires the staff PIN', function () {
     pinResponse(false);
     el('kiosk-cb-back-btn').click();
     typePin('9999');
-    await wait(800);
+    await waitFor(function () { return el('kiosk-lock-error').textContent === 'Incorrect PIN'; });
+    await waitFor(pinPadReset);
     pinResponse(true);
     typePin('1234');
-    await wait(450);
+    await waitFor(lockHidden);
     expect(el('kiosk-view-browse').style.display).toBe('');
     expect(s.core._getCart()).toEqual(CART);
   });
