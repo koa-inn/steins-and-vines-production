@@ -4483,6 +4483,10 @@
   // Phase 93: Ledger mode ('day' | 'week' | 'month') and the loaded range payload.
   var _kioskPsMode = 'day';
   var _kioskPsRange = null;
+  // IN-06: anchor of the latest range request, so ↻ after a failed load targets what Retry does.
+  var _kioskPsRangeAnchor = null;
+  // WR-03: earliest date the ledger serves; the day before it is a 400.
+  var KIOSK_PS_FLOOR = '2020-01-01';
   // Phase 93-04: where a drilled-in day came from ({ mode, anchor, scrollTop }), else null.
   var _kioskPsOrigin = null;
   var _kioskPsDetails = {};
@@ -4528,6 +4532,7 @@
     _kioskPsLedger = null;
     _kioskPsMode = 'day';
     _kioskPsRange = null;
+    _kioskPsRangeAnchor = null;
     _kioskPsOrigin = null;
     kioskPsHideBacklink();
     _kioskPsDetails = {};
@@ -4701,12 +4706,12 @@
       _kioskPsRange = null;
       kioskPsSetHtml('kiosk-ps-range-label', '');
     }
-    if (!_kioskPsRange) {
-      var psPrevBtn = kioskPsEl('kiosk-ps-prev');
-      if (psPrevBtn) psPrevBtn.disabled = true;
-      var psNextBtn = kioskPsEl('kiosk-ps-next');
-      if (psNextBtn) psNextBtn.disabled = true;
-    }
+    // IN-06: no stepping while any range request is in flight; kioskPsRenderRange re-enables.
+    var psPrevBtn = kioskPsEl('kiosk-ps-prev');
+    if (psPrevBtn) psPrevBtn.disabled = true;
+    var psNextBtn = kioskPsEl('kiosk-ps-next');
+    if (psNextBtn) psNextBtn.disabled = true;
+    _kioskPsRangeAnchor = anchor || null;
     var path = '/api/kiosk/past-sales/range?type=' + encodeURIComponent(type) +
       (anchor ? '&date=' + encodeURIComponent(anchor) : '') + (bust ? '&bust=1' : '');
     var gen = _kioskPsGen;
@@ -4725,6 +4730,12 @@
       kioskPsRenderRange();
     }).catch(function (err) {
       if (gen !== _kioskPsGen || seq !== _kioskPsLedgerSeq) return;
+      // IN-06: after a failure the view describes the period Retry loads, not the old
+      // payload: drop it, blank the label, show the requested date; ‹/› stay disabled.
+      _kioskPsRange = null;
+      kioskPsSetHtml('kiosk-ps-range-label', '');
+      var failDateEl = kioskPsEl('kiosk-ps-date');
+      if (failDateEl) failDateEl.value = anchor || '';
       kioskPsSetHtml('kiosk-ps-ledger-list', '');
       var is400 = !!(err && err.status === 400);
       var msg = is400 ? 'Pick a date up to today.' :
@@ -4928,6 +4939,9 @@
       dateEl.value = d.date || '';
       if (d.today) dateEl.setAttribute('max', d.today);
     }
+    // WR-03: the day render owns both buttons, so a range's floor state never carries over.
+    var prevBtn = kioskPsEl('kiosk-ps-prev');
+    if (prevBtn) prevBtn.disabled = !d.prev_date || d.prev_date < KIOSK_PS_FLOOR;
     var nextBtn = kioskPsEl('kiosk-ps-next');
     if (nextBtn) nextBtn.disabled = !d.next_date;
 
@@ -4983,7 +4997,7 @@
     }
     if (!_kioskPsLedger) return;
     var target = delta < 0 ? _kioskPsLedger.prev_date : _kioskPsLedger.next_date;
-    if (!target) return;
+    if (!target || target < KIOSK_PS_FLOOR) return;
     kioskPsLoadLedger(target, false);
   }
 
@@ -5046,7 +5060,7 @@
   function kioskPsRefresh() {
     _kioskPsDetails = {};
     if (_kioskPsTab === 'ledger' && (_kioskPsMode === 'week' || _kioskPsMode === 'month')) {
-      kioskPsLoadRange(_kioskPsMode, _kioskPsRange ? _kioskPsRange.range_start : null, true);
+      kioskPsLoadRange(_kioskPsMode, _kioskPsRange ? _kioskPsRange.range_start : _kioskPsRangeAnchor, true);
     } else if (_kioskPsTab === 'ledger') {
       kioskPsLoadLedger(_kioskPsLedger ? _kioskPsLedger.date : null, true);
     } else {
