@@ -880,6 +880,14 @@ Owner decision, after hours, once the §6 bar is met. Set `RECIPES_STORE=postgre
 `/health`, run `recipes-verify.js` again. The mirror to the sheet **remains permanent on
 production** in `postgres` mode.
 
+**Production flip record:**
+- Flipped 2026-10-17 at 19:17:15Z. The owner chose to do it on window day 2, during opening hours with no recipe activity, after the scripted runsheet covered all ops.
+- Post-flip verify returned 13 recipes and 0 mismatches.
+- Rollback targets:
+  - The Railway deployment `4d45312c` (dual), or set `RECIPES_STORE=sheets` per §10.
+  - Apps Script: the current version is v65 per the Phase 89 record, and `mirror_recipe_state` has been present since v60.
+  - Don't roll Apps Script back below v60 while the sheet is the mirror.
+
 ### 9. Rollback dual → sheets
 
 Run from the pinned d2c66be9 worktree (see §5 callout, D-14).

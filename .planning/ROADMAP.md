@@ -2234,7 +2234,7 @@ Plans:
   3. Parity tests prove the Phase 73 unit guard, the Phase 79 D-04 change comparison and D-09 id-honouring behave identically on Postgres; a kiosk recipe sale prices identically on both stores
   4. `dual` ≥1 week with mirror and discrepancy logging, then flip; a recipe rename completes in under 2 s on production
 
-**Plans:** 12/14 plans executed
+**Plans:** 13/14 plans executed
 
 Plans:
 **Wave 1**
@@ -2273,7 +2273,7 @@ Plans:
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
-- [ ] 85-14-PLAN.md — ≥7-day dual window, owner flip decision, flip to postgres + production rename < 2 s (checkpoints)
+- [x] 85-14-PLAN.md — ≥7-day dual window, owner flip decision, flip to postgres + production rename < 2 s (checkpoints)
 
 ### Phase 86: Vessels + FermSchedules + Config → Postgres
 

@@ -69,9 +69,9 @@ observed, zero unexplained discrepancies) is met and the owner decides to flip t
 
 | Field | Value |
 |-------|-------|
-| Owner | |
-| Date | |
-| Decision | |
+| Owner | Koa Inn (owner) |
+| Date | 2026-10-17 (window day 2) |
+| Decision | **flip** to `postgres`, now, during opening hours. The owner shortened the 7-day rule because no more recipes will be made or sold today. Evidence: all 6 ops observed; 0 unexplained discrepancies; D-05 window totals compared 6, skipped settle 3, skipped dirty 0, mismatches 0, sheet fetch failures 1 (cold start 10-16), so the skipped/total ratio is 3/9; no stale-dirty warnings; mid-window recipes-verify 13 recipes / 0 mismatches. |
 
 ## Staging rehearsal
 
@@ -201,3 +201,22 @@ Driven by Claude in production admin, with the owner signing in and selling on t
   - There are zero unexplained discrepancies.
   - The mid-window verify returned 0 mismatches.
   - It is not yet 7 consecutive days. Shortening the window is an owner decision.
+
+## Post-flip verification (2026-10-17, production)
+
+| Step | Result | Evidence |
+|------|--------|----------|
+| 1. Apps Script version with `mirror_recipe_state` active | PASS | `mirror_recipe_state` has been in the shared deployment since v60. Current version per the Phase 89 record is v65; it was not re-read in the Apps Script console during the flip. |
+| 2. Set `RECIPES_STORE=postgres`, redeploy, `/health` | PASS | Set 19:17:15Z. Deployment `990f1764` SUCCESS. Startup `store modes: {"GIFT_CARDS_STORE":"postgres","RECIPES_STORE":"postgres"}`, `[sheet-mirror] mirror ENABLED`, recipe mirror sweep registered. `/health` ok, `database:true`, `database_required:true`. Rollback deployment target: `4d45312c` (dual). |
+| 3. Fresh .xlsx, `recipes-verify` | PASS | Snapshot downloaded 19:22Z (sha256 prefix 5b758d62), run in-container: **"Verified 13 recipes: 0 mismatches"**, exit 0. Snapshot removed from the container. |
+| 4. Rename a real draft, PUT under 2 s | PASS | SV-R-000014 renamed to "… (flip test)" with PUT **354 ms**, then renamed back with PUT 256 ms. Both were stored (updated_at 19:20:50Z and 19:21:17Z). |
+| 5. Sheet row shows the mirrored name | PASS | The step 3 verify ran after both renames and matched SV-R-000014's final name and its 5 ingredient rows on the sheet. |
+| 6. Kiosk quote and public list/detail | PASS | SV-R-000016 at 28 L in-store: $95.00 + $2.85 = $97.85, the same as the 10-16 cutover. Public list `source: postgres` with 11 active recipes; detail 200. Drafts return 404 unauthenticated (explained, §12). |
+| 7. Logs: no `recipes-mirror` errors and no surviving `mirror-dirty` markers | PASS | No mirror, dirty or dual warnings after the flip. The only startup error is the pre-existing Resend verify message ("key restricted to only send emails"). |
+
+**Test-sale cleanup is complete:**
+- Helcim txn 56748989 was refunded by the owner.
+- Zoho payment #241 and invoice INV-000246 were deleted, matching the Phase 84 precedent.
+- Test batch SV-B-000238 and test recipe SV-R-000017 were deleted.
+
+**Process note:** during step 4 a first save was attempted from a stale admin form, one still holding the deleted SV-R-000017. It sent no write; the recipe list was unchanged at 13. The page was reloaded and the step redone.
