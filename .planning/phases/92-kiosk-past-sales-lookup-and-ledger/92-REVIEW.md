@@ -27,6 +27,8 @@ findings:
   info: 7
   total: 15
 status: issues_found
+fix_status: critical_warning_fixed
+fix_report: 92-REVIEW-FIX.md
 ---
 
 # Phase 92: Code Review Report
@@ -58,6 +60,8 @@ Main concerns:
 
 ### CR-01: Past Sales is reachable from Customer View in two taps with no PIN (D-11 not actually enforced)
 
+**Fix status:** FIXED (commits eb806418, 19e83ec9). Owner decision 2026-10-16: leaving Customer View requires the staff PIN. Both exits show the lock screen. A verified PIN returns to `browse` through a one-shot continuation that does not re-run `showKioskApp`, so the cart is preserved. This also closes the Sales Orders exposure.
+
 **File:** `js/kiosk-core.js:959-960`, `js/kiosk-core.js:4507-4508`; related pre-existing wiring at `js/kiosk.js:758-762`, `js/kiosk.js:1502-1505`, `js/kiosk.js:1529-1532`
 **Issue:** D-11 says Past Sales must not be reachable from the customer-facing Customer View. Right now the only protections are hiding `#kiosk-past-sales-btn` while `_kioskCurrentView === 'browse-customer'` and an early return in `kioskShowPastSales()`. But Customer View has two un-gated exits straight to the staff POS (`browse`):
 - the `#kiosk-cb-back-btn` ("← POS") button
@@ -87,6 +91,8 @@ Or require the PIN in `kioskExitCustomerBrowse()` itself, which also closes the 
 
 ### WR-01: Ledger responses that finish out of order render the wrong day (no per-request guard)
 
+**Fix status:** FIXED (commit 5b1b53ed). Per-tab request sequence numbers for the ledger and contact search. Picking a contact also supersedes an in-flight search.
+
 **File:** `js/kiosk-core.js:4584-4612`, `js/kiosk-core.js:4550-4569`
 **Issue:** `_kioskPsGen` only changes in `kioskPastSalesClear()`, so it protects against view switches but not against two ledger requests racing each other. Example: staff pick a date in `#kiosk-ps-date`, then quickly tap ‹ (which uses the *previous* `_kioskPsLedger.prev_date`), or change the date input twice. Whichever response arrives last wins. Because `kioskPsRenderLedger()` writes `d.date` back into the input, the screen stays self-consistent, but it is not the day staff last asked for. The same problem hits the contact search (`js/kiosk-core.js:4817`): an older `/api/contacts/search` result can overwrite the results for a newer query.
 **Fix:** Add a per-tab request sequence number and drop superseded responses:
@@ -107,6 +113,8 @@ Do the same for `kioskPsSearch`.
 
 ### WR-02: Customer tab: a double-tapped "Load older" duplicates rows; an old contact's error and Retry leak into the new contact
 
+**Fix status:** FIXED (commit 0209d8d1). Added a customer-request sequence and an in-flight flag: Load older is disabled and ignored while a load runs. Handlers check the contact, and the Retry closure captures the contact.
+
 **File:** `js/kiosk-core.js:4857-4904`, `js/kiosk-core.js:4932-4934`
 **Issue:**
 1. `kioskPsLoadOlder()` reads `_kioskPsWindowStart`, but that value only advances when the response lands. Two taps before then send two identical `before=` requests, and both append. The same invoices are listed twice and `_kioskPsHistoryCount` is inflated.
@@ -114,6 +122,8 @@ Do the same for `kioskPsSearch`.
 **Fix:** In the catch, add `if (_kioskPsContact !== contact) return;`. Add an in-flight flag (or the sequence number from WR-01): hide or disable `#kiosk-ps-load-older` while a request runs, and ignore `kioskPsLoadOlder()` until it settles. Make the Retry closure capture `contact`, and have it bail out if `_kioskPsContact !== contact`.
 
 ### WR-03: Draft invoices are counted in the ledger's sale count and gross total
+
+**Fix status:** FIXED (commit 8e985030). Owner decision 2026-10-16: drafts are shown with a Draft badge but excluded from count and gross_total, like voids. Customer history now labels them Draft, not Unpaid.
 
 **File:** `zoho-middleware/lib/kiosk-history.js:225-234`, `zoho-middleware/routes/kiosk-history.js:120-130`
 **Issue:** `ledgerTotals` excludes only `Void`. Blank-reference invoices count as in-store by owner decision, so a Draft invoice is counted as a sale. Drafts can come from a back-office draft or a half-finished kiosk/SO-pay flow (see the kiosk slow-approval orphan incident). The footer total ("14 sales · $1,240.55") then overstates real sales. The customer route treats drafts differently and relabels them `Unpaid` (`routes/kiosk-history.js:206`), so the two views disagree.
@@ -125,6 +135,8 @@ Confirm the rule with the owner, since D-04 only covers voids.
 
 ### WR-04: Customer history can mislabel recipe sales as "Online" without saying so (payment truncation and window not surfaced)
 
+**Fix status:** FIXED (commit 6ec7cb0e). Added a `source_incomplete` flag for payment truncation, which the UI shows. The payments window now runs 7 days past winEnd. Added `next_before`, which resumes from the oldest returned day when invoices are truncated; the client de-dupes rows by invoice_id.
+
 **File:** `zoho-middleware/routes/kiosk-history.js:191-218`
 **Issue:**
 - `truncated` comes only from the invoice fetch. When `/customerpayments` hits `CUSTOMER_MAX_PAYMENT_PAGES` (2 × 200), its `truncated` flag is thrown away. Any all-digit-reference recipe invoice whose payment fell off the page then has no "Kiosk …" note and is classified `online`. No hint reaches the client.
@@ -133,6 +145,8 @@ Confirm the rule with the owner, since D-04 only covers voids.
 **Fix:** Return `truncated: inv.truncated || pay.truncated` (or a separate `source_incomplete` flag). Widen the payments `date_end` by a few days past `winEnd`. When invoices are truncated, set the next `before` to the oldest returned invoice's date instead of `winStart` (for example, return `next_before`).
 
 ### WR-05: `bust=1` is unthrottled and builds are not deduplicated, so the shared Zoho quota can be burned
+
+**Fix status:** FIXED (commit ca93153d). Builds are deduped per key while in flight, and bust is ignored within 10 s of the last build for that key. Both are server constants.
 
 **File:** `zoho-middleware/routes/kiosk-history.js:60-70`, `:165`, `:253`, `:274`
 **Issue:** Any caller with a device token can send `bust=1` on every request. A ledger build is up to 6 sequential Zoho GETs and a customer build up to 5, each wrapped in `withRetry`. Concurrent requests for the same key each run a full build because there is no in-flight dedupe. Repeated ↻ taps, or a leaked device token looping on `bust=1`, use up the same Zoho quota (~1 req/s plus a daily cap) that the money paths depend on. Only the generic `apiLimiter` protects it.
@@ -149,6 +163,8 @@ function cachedOrBuild(key, ttl, bust, build) {
 
 ### WR-06: Spike sanitizer misses address, attention, fax, last-four and `cf_*` values
 
+**Fix status:** FIXED (commit e1293686). Address, hash and cf_* subtrees and scalars are now redacted, with a populated-value test. The committed fixture was not regenerated; it needs a live run.
+
 **File:** `zoho-middleware/scripts/spike-past-sales-shapes.js:84`, `:112-153`
 **Issue:** `NAME_LIKE` catches `address`, `phone` and `email`. It does not catch the other `billing_address` / `shipping_address` sub-keys: `street2`, `city`, `state`, `zip`, `country`, `fax`, `attention`. `attention` is usually a person's name. `last_four_digits` (card last four) survives because it is under 10 digits. Top-level `cf_*` custom-field values and the `custom_field_hash` contents also pass through unredacted (the fixture shows `cf_batch_status: "Pending — SV-B-000228"`). The fixture committed in `__tests__/fixtures/zoho-past-sales-shapes.json` is clean only because the sampled addresses were blank. The next run against a customer with an address on file would print street, city, postcode and the attention name into a file that gets committed. The staging org is shared with prod.
 **Fix:** Redact whole subtrees and use an allowlist for the rest:
@@ -160,6 +176,8 @@ Add a sanitize test case with populated address and `cf_*` values.
 
 ### WR-07: `before` equal to the history floor produces an inverted Zoho date range
 
+**Fix status:** FIXED (commit e9b4aef3). The check is now `before <= floor`, plus an inverted-window backstop.
+
 **File:** `zoho-middleware/routes/kiosk-history.js:244-251`
 **Issue:** The check is `before < floor`, so `before === floor` gets through. Then `winEnd = floor - 1 day`, `winStart` is clamped to `floor`, and Zoho receives `date_start > date_end`. Depending on Zoho, that is a 400 (turned into a misleading 502 "Unable to fetch customer sales") or an empty list cached for 60 s. The shipped client never sends this value because `has_older` is false at the floor, but the server should not depend on that.
 **Fix:** `if (before <= floor) return badRequest(res, 'before is outside the history limit');`, and/or reject `winStart > winEnd` after clamping.
@@ -168,11 +186,15 @@ Add a sanitize test case with populated address and `cf_*` values.
 
 ### IN-01: The authTiers header comment does not record the D-10 widening of device-token access
 
+**Fix status:** NOT FIXED (out of scope: Info items left as logged per the fix brief).
+
 **File:** `zoho-middleware/lib/authTiers.js:10-13`, `:70-72`, `:100`
 **Issue:** The module header still says device tokens are "NEVER admin-grade (a stolen iPad must not reach PII…)". A bare device token can now read any customer's invoice history and any invoice's line items by id. D-10 accepts this. The D-54-GC reversal was recorded in the header, though, and this one is not.
 **Fix:** Add a short "Phase 92 D-10" paragraph next to the D-54-GC note describing the accepted residual risk.
 
 ### IN-02: `validateConfig` accepts join modes that are not implemented
+
+**Fix status:** NOT FIXED (out of scope: Info items left as logged per the fix brief).
 
 **File:** `zoho-middleware/routes/kiosk-history.js:40-49`, `:99-102`, `:182-184`
 **Issue:** `detail-fallback` and `none` pass the boot-time validation but then fail every request with a 502. Boot validation should reject anything that was not built.
@@ -180,11 +202,15 @@ Add a sanitize test case with populated address and `cf_*` values.
 
 ### IN-03: Dead response fields and an unused constant
 
+**Fix status:** NOT FIXED (out of scope: Info items left as logged per the fix brief).
+
 **File:** `zoho-middleware/routes/kiosk-history.js:144-145`, `zoho-middleware/lib/constants.js` (`KIOSK_HISTORY_TENDER_PREFIX`), `zoho-middleware/lib/kiosk-history.js:19` (`ONLINE_NOTE_PREFIXES`)
 **Issue:** `classification_incomplete` is always `false` and `unclassified_count` always `0`, yet the client renders branches for both (`js/kiosk-core.js` `kioskPsRenderLedger`). The tender cache prefix and the online-note prefixes are never read.
 **Fix:** Remove them, or mark them as reserved for detail-fallback.
 
 ### IN-04: Bust parsing is duplicated
+
+**Fix status:** NOT FIXED (out of scope: Info items left as logged per the fix brief).
 
 **File:** `zoho-middleware/routes/kiosk-history.js:165` vs `:177-179`
 **Issue:** The ledger route inlines the same expression that `isBust()` implements.
@@ -192,17 +218,23 @@ Add a sanitize test case with populated address and `cf_*` values.
 
 ### IN-05: Row click wiring is duplicated
 
+**Fix status:** NOT FIXED (out of scope: Info items left as logged per the fix brief).
+
 **File:** `js/kiosk-core.js:4696-4711` vs `js/kiosk-core.js:4906-4930`
 **Issue:** The ancestor-walk and toggle handler is copy-pasted. The ledger version also has no `data-wired` guard, so it is only safe because the list is always fully replaced.
 **Fix:** Make one `kioskPsWireRow(el)` helper that sets `data-wired`, and call it from both places.
 
 ### IN-06: The ledger 400 message is wrong for dates before 2020
 
+**Fix status:** NOT FIXED (out of scope: Info items left as logged per the fix brief).
+
 **File:** `js/kiosk-core.js:4605-4606`
 **Issue:** Every 400 shows "Pick a date up to today.", including a date before `LEDGER_MIN_DATE` (2020-01-01) picked from the date input, which has no `min`. After a 400, `_kioskPsLedger` still holds the previous day, so ‹ › move relative to that day while the input shows the rejected date.
 **Fix:** Set `min="2020-01-01"` on `#kiosk-ps-date`. Show the server's `message` field, or a range-aware message. Restore the input to `_kioskPsLedger.date` after an error.
 
 ### IN-07: The cached past-day payload carries a stale `today`
+
+**Fix status:** NOT FIXED (out of scope: Info items left as logged per the fix brief).
 
 **File:** `zoho-middleware/routes/kiosk-history.js:134-138`, `:166`
 **Issue:** Past days are cached for 3600 s with `today` frozen at build time. If a past day is loaded just before Vancouver midnight, the date input's `max` (set from `d.today`) can stay on the old day for up to an hour, which blocks picking the new today from the input. The arrows still work. Late tender writes for a day that was cached right after midnight (slow-approval flows) also lag up to an hour unless someone taps ↻.
