@@ -2068,7 +2068,7 @@ function buildCustomRecipeCard(doc) {
 
   var desc = d.createElement('p');
   desc.className = 'service-description';
-  desc.textContent = 'Don’t see what you’re after? Tell us what you like to drink and we’ll work with you to build a custom recipe — any style, your call.';
+  desc.textContent = 'Don’t see what you’re after? Tell us what you like to drink and we’ll work with you to build a custom recipe. Any style, your call.';
   body.appendChild(desc);
 
   var spacer = d.createElement('div');
