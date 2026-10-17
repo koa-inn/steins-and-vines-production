@@ -16,6 +16,7 @@
 - 🚧 **v4.7 Post-Review Polish & Trust** — Phases 57-61 (in progress)
 - 📝 **v4.8 BrewPad Bookkeeping & Inventory Integrity** — Phases 62-66 (planned)
 - 📝 **v4.9 Sheets → Postgres (Full Transition)** — Phases 82-88 (planned)
+- 📝 **v5.0 BrewPad Dashboard v2** — Phases 94-99 (planned)
 
 ## Phases
 
@@ -158,6 +159,34 @@
 - [ ] **Phase 91: Online grain-order recipe splitting** — customers separate grains into up to 4 recipe bags as they select them (quantity splits allowed), staff see the split in Zoho notes, the email and BrewPad, and the milling fee stays once per order.
 - [x] **Phase 92: Kiosk past-sales lookup and ledger** — staff look up a customer's past orders by name on the kiosk, and browse a read-only ledger of recent kiosk sales. (completed 2026-10-16)
 - [x] **Phase 93: Kiosk ledger week and month views** — Week (Mon–Sun) and Month ranges on the kiosk Ledger tab, as per-day summary rows that drill into the day ledger, with a count + gross footer. (completed 2026-10-17)
+
+### 📝 v5.0 BrewPad Dashboard v2 (Planned)
+
+**Milestone Goal:** Overhaul the BrewPad dashboard so its numbers are correct, beer and cider are first-class types alongside wine, every graph has real options (filters, period, grouping, click-through) and it is fast and responsive on the shop tablet, phone and desktop.
+
+**Source of truth:** `.planning/research/brewpad-dashboard-v2.md`, the owner's handoff of 2026-10-17. It includes live data findings F1–F10, such as the "avg days to complete" figure showing 173 when the real number is 63.
+
+**Rules for every phase in this milestone:**
+
+- **Approval gate:** build only the handoff §7 items the owner has ticked. None were ticked when this milestone was filed, so each phase's discuss-phase must record which items are approved.
+- **Data writes:** any write to production data (backfills, batch edits) needs the owner's explicit OK in-session, with a `--dry-run` first.
+- **Feature flag:** ship behind `?dash=v2` until the owner signs off.
+- **Classification:** classify by `cf_type` or SKU/item_id, never by product name.
+- **Staff batches:** exclude staff, R&D and family batches from sales views, but keep them in production and capacity views.
+- **`update_batch`:** always nest the fields in `updates:{}`.
+
+**Interaction with v4.9:** Phase 87 moves batches, tasks and readings to Postgres behind `BATCHES_STORE`. Its production cutover is still gated, and it turns the dashboard queries into SQL behind the admin-proxy seam.
+- The new `batch_type` field (B3) and any new aggregate or bulk endpoint (S1) must go through that seam and work under both `sheets` and `postgres` stores, not as Apps Script-only changes.
+- Alternatively, they wait for the Phase 87 production cutover. Phase 94's discuss step decides which.
+
+**Phasing:** this is additive. Numbering continues from Phase 93 and nothing is renumbered. The order is 94 → 95 → 96 → 97 → 98 → 99, and Phase 94 must land first.
+
+- [ ] **Phase 94: Dashboard correctness and data foundations** — fix the avg cycle-time KPI (B1); dry-run backfill of `completed_at` for 40 legacy batches (B2, data write gated); explicit `batch_type` wine/beer/cider/other set on create and backfilled (B3, data write gated); one dashboard data layer, classifier and date-window helper so every total agrees (D1); server-side `get_dashboard_stats` or bulk tasks/readings endpoint to kill the N+1 `get_batch` calls (S1).
+- [ ] **Phase 95: Global filters and chart engine** — sticky global filter bar for type, period, group-by, measure (batches or litres), source and staff toggle, held in the URL hash (D2); a chart library behind a small `chart()` helper, Chart.js 4 by default (D3); click-through from every bar, segment and tile to the filtered Batches tab (D4); trend deltas on KPI tiles (D5).
+- [ ] **Phase 96: New and upgraded dashboard graphs** — G1 production over time · G2 pipeline · G3 cycle-time distribution · G4 product breakdown for all types + leaderboard · G5 workload forecast · G6 vessel capacity and conflicts · G7 task health · G8 fermentation curves + readings due · G9 sales source mix · G10 data-health card.
+- [ ] **Phase 97: Beer and cider dashboard sections** — beer batch card and section (style, ABV/IBU, OG vs target FG, current step including temperature steps, cans and litres packaged); cider section; 2-week packaging calendar for bottling and canning, coordinated with the canning handoffs without duplicating their scope.
+- [ ] **Phase 98: Dashboard alerts and quick wins** — A1 "Needs attention" counts by type · A2 stale batches past their planned schedule · A3 vessel conflicts · A4 ready to bottle with invite not sent (link only, no automatic email) · A5 waitlist tile.
+- [ ] **Phase 99: Dashboard responsiveness and performance** — mobile-first grid with no horizontal scroll at 360 px; skeleton loaders and cached-first render; lazy charts below the fold; < 1.5 s warm / < 3 s cold on the shop tablet; Lighthouse mobile ≥ 85; a table view for every chart; then make v2 the default.
 
 ### 📋 Backlog — captured, not yet scheduled
 
@@ -2391,3 +2420,127 @@ Plans:
   2. Opening hours and footer links are served from committed repo content on every public page (no `PUBLISHED_*_CSV_URL` reads remain); a documented edit → commit → deploy path replaces editing the sheet
   3. Railway backups/PITR are verified by an actual restore drill, plus a scheduled `pg_dump` to Drive; the runbook covers flag-flip rollback, ledger replay and restore-from-dump
   4. `adminApi.gs` is reduced to the production mirror writer (or deleted), the Apps Script deployment/rollback table is closed out, and `docs/DATA-MODEL.md`, `docs/APPS_SCRIPT.md`, `docs/RUNBOOK.md` and CLAUDE.md describe Postgres as the store
+
+## Phase Details (v5.0)
+
+Source for every phase below: `.planning/research/brewpad-dashboard-v2.md`.
+- §4 lists the items and §3 the live data findings.
+- §5 gives the constraints and §6 the milestone acceptance criteria.
+- §7 is the owner's approval list. Build only the items that are ticked.
+
+### Phase 94: Dashboard correctness and data foundations
+
+**Goal:** Every number on the BrewPad dashboard is correct and consistent, and each batch carries an explicit type (wine, beer, cider, other).
+- One data layer feeds every widget.
+- A server-side aggregate removes the per-batch N+1 fetches.
+
+**Depends on:** nothing in v5.0. It interacts with Phase 87 (batches → Postgres): B3 and S1 must go through the admin-proxy seam and work under both `BATCHES_STORE` modes, or wait for the 87 production cutover. Discuss-phase decides which.
+**Requirements:** TBD. Handoff items B1, B2, B3, D1 and S1, subject to §7 approval.
+**Success Criteria** (draft, refined in discuss-phase):
+
+  1. The avg cycle-time KPI counts only batches with `completed_at`, shows mean and median plus the number excluded, and is within ±1 day of an independent recompute from `get_batches`. It was 173, and the live recompute was 63 days.
+  2. Type totals agree across every widget for any filter combination, because they share one classifier and one date-window helper. This fixes F4: 120 vs 122 vs 204.
+  3. Every batch has a `batch_type`, set on create from the kiosk, online and manual paths. The type is derived from recipe style, then Zoho `cf_type` by SKU/item_id, then the name. Existing rows are backfilled only after a dry run and the owner's in-session OK.
+  4. The dashboard loads from one lean aggregate call (cached ~60 s) rather than one `get_batch` per batch.
+  5. The `completed_at` backfill for the 40 legacy batches exists as a dry-run script. It is run for real only with the owner's OK, using nested `updates:{}`.
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-discuss-phase 94, then /gsd-plan-phase 94)
+
+### Phase 95: Global filters and chart engine
+
+**Goal:** Every dashboard widget responds to one sticky global filter bar, renders through a shared chart helper, and clicks through to the filtered batch list.
+- **Filters:** type, period, group-by, measure, source and staff toggle.
+- **Chart helper:** Chart.js 4 by default.
+
+**Depends on:** Phase 94 (D1 data layer, B3 type)
+**Requirements:** TBD. Handoff items D2, D3, D4 and D5.
+**Success Criteria** (draft):
+
+  1. The filter state is kept in the URL hash and in localStorage, so a copied URL reproduces the view. On phones the bar collapses to a sheet.
+  2. The litres measure uses 23 L for wine and cider, 28 L brewed / 25 L packaged for beer, or `target_volume_L` when it is set.
+  3. Every bar, segment and KPI tile opens the Batches tab pre-filtered to exactly those batches.
+  4. KPI tiles show the change against the previous equivalent period.
+  5. The chart library is loaded within the site CSP. Every public page's CSP stays untouched unless the library is served from a new domain (CLAUDE.md rule 12).
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD
+
+### Phase 96: New and upgraded dashboard graphs
+
+**Goal:** The dashboard covers production, pipeline, cycle time, products, workload, vessels, task health, fermentation, sales source and data health.
+- Each graph has options, click-through and a table view.
+- Beer and cider appear as their own series everywhere wine does.
+
+**Depends on:** Phase 95
+**Requirements:** TBD. Handoff items G1 to G10.
+**Success Criteria** (draft):
+
+  1. G1 (production over time, stacked by type) replaces the fixed 6-month "Batches by month" chart.
+  2. G6 lists the double-booked vessels (F5: PCB-009, PFB-012, PCB-066 and PCB-016) and the unassigned active batches.
+  3. G7's on-time rate is shown only after staff confirm whether late `completed_at` stamps mean real lateness or after-the-fact ticking (F8).
+  4. G8 pairs the fermentation curves with a "readings due" list, because readings are sparse (F7).
+  5. G10 shows missing vessel, duplicate vessel, missing `completed_at`, missing SO number, blank source and stale over 90 days. A missing invoice link is not treated as unbilled.
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD
+
+### Phase 97: Beer and cider dashboard sections
+
+**Goal:** Beer and cider have their own dashboard sections and batch cards, and staff can see the next two weeks of bottling and canning.
+
+**Depends on:** Phase 96. Coordinate with `HANDOFF-canning-copy-and-bundle.md`, `HANDOFF-kiosk-canning-bundle.md` and `HANDOFF-beer-golive.md`, and do not duplicate their scope.
+**Requirements:** TBD. Handoff §4 Phase D.
+**Success Criteria** (draft):
+
+  1. The beer card shows style, ABV and IBU, OG against target FG with the latest reading, and the current schedule step, including temperature steps.
+  2. Beer packaging output is shown in cans and litres, with 25 L packaged per 28 L brew.
+  3. The cider section shows juice or recipe, yeast and the readings curve.
+  4. A 2-week packaging calendar lists bottling for wine and cider and canning for beer.
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD
+
+### Phase 98: Dashboard alerts and quick wins
+
+**Goal:** The dashboard surfaces the things staff need to act on: attention items by type, stale batches, vessel conflicts, uninvited bottling and the waitlist.
+
+**Depends on:** Phase 94. A3 also needs Phase 96's G6.
+**Requirements:** TBD. Handoff items A1 to A5 (the owner may strike any).
+**Success Criteria** (draft):
+
+  1. "Needs attention" shows counts by type, each linking to a filtered task list.
+  2. The stale-batch alert fires on batches past their planned schedule length, not on a flat 90 days.
+  3. "Ready to bottle, invite not sent" links to the existing invite flow. Nothing is emailed automatically (F9).
+  4. A waitlist tile links to the Waitlist tab.
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD
+
+### Phase 99: Dashboard responsiveness and performance
+
+**Goal:** The v2 dashboard is fast and usable on the shop tablet, phones and desktop, and accessible. Once that holds, it becomes the default view.
+
+**Depends on:** Phases 94 to 98
+**Requirements:** TBD. Handoff §4 Phase F.
+**Success Criteria** (draft):
+
+  1. The layout is a mobile-first grid: 1 column on phone, 2 on tablet, 3–4 on desktop. There is no horizontal scroll at 360 px.
+  2. On the shop tablet the dashboard is interactive in under 1.5 s with a warm cache and under 3 s cold. Lighthouse mobile performance on `brewpad.html` is ≥ 85.
+  3. Every chart has a "view as table" fallback. Colour is never the only signal, and focus states are visible.
+  4. The `?dash=v2` flag is removed once the owner signs off, and v2 becomes the default.
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD
