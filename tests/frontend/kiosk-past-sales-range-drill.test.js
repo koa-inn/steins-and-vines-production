@@ -505,3 +505,44 @@ describe('Gap WR-01: Week/Month switch drops the stale payload', function () {
     expect(urls()).toEqual([RANGE + '?type=week&date=2026-10-11']);
   });
 });
+
+describe('Gap WR-02: partial zero-count days drill in', function () {
+  function truncBody() {
+    return weekBody({
+      truncated: true,
+      days: [
+        { date: '2026-10-16', count: 3, gross_total: 100, partial: false },
+        { date: '2026-10-14', count: 0, gross_total: 0, partial: false },
+        { date: '2026-10-12', count: 0, gross_total: 0, partial: true }
+      ]
+    });
+  }
+
+  test('F: partial zero-count row is not greyed and shows the partial badge', async function () {
+    await loadWeek(truncBody());
+    var r = row('2026-10-12');
+    expect(r.classList.contains('kiosk-ps-dayrow--partial')).toBe(true);
+    expect(r.classList.contains('kiosk-ps-dayrow--zero')).toBe(false);
+    expect(r.textContent).toContain('partial');
+  });
+
+  test('G: tapping it opens that day ledger with the Back link', async function () {
+    await loadWeek(truncBody());
+    global.fetch.mockClear();
+    row('2026-10-12').click();
+    await flushPromises();
+    expect(urls()).toEqual(['http://localhost:3001/api/kiosk/past-sales/ledger?date=2026-10-12']);
+    expect(backlink().style.display).not.toBe('none');
+    expect(backlink().textContent).toBe('‹ Back to week');
+  });
+
+  test('H: non-partial zero day stays greyed and inert (D-05)', async function () {
+    await loadWeek(truncBody());
+    expect(row('2026-10-14').classList.contains('kiosk-ps-dayrow--zero')).toBe(true);
+    global.fetch.mockClear();
+    row('2026-10-14').click();
+    await flushPromises();
+    expect(urls().length).toBe(0);
+    expect(activeMode()).toBe('week');
+  });
+});

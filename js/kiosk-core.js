@@ -4769,7 +4769,7 @@
       var dp = kioskPsParseDate(day.date);
       var label = day.date === d.today ? 'Today' :
         (dp ? kioskPsWeekday(day.date) + ' ' + KIOSK_PS_MONTHS_SHORT[dp.m - 1] + ' ' + dp.d : String(day.date || ''));
-      var zero = !(Number(day.count) > 0);
+      var zero = !(Number(day.count) > 0) && !day.partial; // WR-02 / D-10
       rows += '<div class="kiosk-ps-dayrow' + (zero ? ' kiosk-ps-dayrow--zero' : '') +
         (day.partial ? ' kiosk-ps-dayrow--partial' : '') +
         '" data-date="' + escapeHTML(String(day.date || '')) + '">' +
@@ -4785,7 +4785,8 @@
     kioskPsWireDayRows();
   }
 
-  // D-05: only rows with sales are tappable; zero-sale rows stay inert.
+  // D-05: only rows with sales are tappable; zero-sale rows stay inert unless flagged
+  // partial, because a partial day's exact figures are only in its day ledger (D-10, WR-02).
   function kioskPsWireDayRows() {
     var rows = document.querySelectorAll('#kiosk-ps-ledger-list .kiosk-ps-dayrow');
     for (var i = 0; i < rows.length; i++) {
