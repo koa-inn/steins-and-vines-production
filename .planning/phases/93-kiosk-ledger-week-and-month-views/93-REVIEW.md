@@ -20,12 +20,14 @@ files_reviewed_list:
   - zoho-middleware/routes/kiosk-history.js
 findings:
   critical: 0
-  warning: 1
-  info: 6
-  total: 7
+  warning: 0
+  info: 5
+  total: 5
 resolved:
   - WR-01 (855c4ed8)
   - WR-02 (bb14a9dd)
+  - WR-03 (d6aa7617)
+  - IN-06 (d6aa7617)
 status: issues_found
 ---
 
@@ -60,7 +62,7 @@ The re-review covered `js/kiosk-core.js` and `tests/frontend/kiosk-past-sales-ra
 - `js/kiosk-core.min.js` contains both fixes (`Et.type!==e`, `Number(d.count)>0||d.partial`).
 - 45/45 tests pass across `kiosk-past-sales-range*.test.js`.
 - Re-entering the Ledger tab during a pending or failed switch now calls `kioskPsLoadRange` again because the payload is null (`kioskPsSetTab` :4607). This supersedes the in-flight request through the sequence bump and auto-retries after a failure. That behaviour is acceptable, so it is not a finding.
-- WR-03 was outside the scope of 93-06 and is **still open**. The new disable-both-buttons path does not widen it, because drilling in requires a loaded payload, so ‹ still reflects `!prev_anchor`.
+- WR-03 was outside the scope of 93-06 and is **still open** (since RESOLVED in d6aa7617, see below). The new disable-both-buttons path does not widen it, because drilling in requires a loaded payload, so ‹ still reflects `!prev_anchor`.
 - One new Info item (IN-06) covers a pre-existing same-type stepping gap that sits next to the WR-01 fix.
 
 ## Narrative Findings (AI reviewer)
@@ -140,7 +142,9 @@ var zero = !(Number(day.count) > 0) && !day.partial;
 
 Add a test that a `partial: true, count: 0` row opens the day ledger.
 
-### WR-03: [OPEN] Disabled ‹ button carries over from a range into the day ledger
+### WR-03: [RESOLVED d6aa7617] Disabled ‹ button carries over from a range into the day ledger
+
+**Resolution (d6aa7617):** `kioskPsRenderLedger` now sets ‹ as `!prev_date || prev_date < '2020-01-01'` alongside ›, so a floor range's disabled ‹ no longer carries into a drill-in or Day mode. `kioskPsShiftDay` also refuses a pre-2020 target, so 2020-01-01 never requests 2019-12-31. Tests: `tests/frontend/kiosk-past-sales-range-nav.test.js` (WR-03 block).
 
 **File:** `js/kiosk-core.js:4672-4679` (`kioskPsSetMode` early return), `js/kiosk-core.js:4790-4812` (`kioskPsOpenDay`), `js/kiosk-core.js:4911-4919` (`kioskPsRenderLedger`)
 
@@ -215,7 +219,9 @@ When the payment cap is hit, the frontend shows "at least" in the footer and a n
 
 **Fix:** Set `min="2020-01-01"` on `#kiosk-ps-date`, and reword the message to "Pick a date between 2020 and today."
 
-### IN-06: Same-type stepping keeps the previous payload live while the next period loads or after it fails
+### IN-06: [RESOLVED d6aa7617] Same-type stepping keeps the previous payload live while the next period loads or after it fails
+
+**Resolution (d6aa7617):** `kioskPsLoadRange` disables ‹ and › on every range request; `kioskPsRenderRange` re-enables them from the new payload. On failure the code does not restore the old period. It applies the rule a failed type switch already used: drop the payload, blank the label, set `#kiosk-ps-date` to the requested anchor (blank for the current period), and keep ‹ and › disabled. ↻ falls back to the last requested anchor (`_kioskPsRangeAnchor`), so ↻ and Retry load the same period. This also clears the WR-01 date-input residual. Tests: `tests/frontend/kiosk-past-sales-range-nav.test.js` (IN-06 block).
 
 **File:** `js/kiosk-core.js:4699-4709` (`kioskPsLoadRange`), `js/kiosk-core.js:4976-4982` (`kioskPsShiftDay`), `js/kiosk-core.js:5049` (`kioskPsRefresh`)
 
