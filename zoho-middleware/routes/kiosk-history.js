@@ -240,7 +240,8 @@ router.get('/api/kiosk/past-sales/customer', function (req, res) {
       if (typeof before !== 'string' || !DATE_RE.test(before) || !hist.isRealDate(before)) {
         return badRequest(res, 'before must be a real YYYY-MM-DD date');
       }
-      if (before < floor) return badRequest(res, 'before is outside the history limit');
+      // WR-07: before === floor would give winEnd < floor (an inverted Zoho range).
+      if (before <= floor) return badRequest(res, 'before is outside the history limit');
       if (before > winEnd) return badRequest(res, 'before cannot be in the future');
       winEnd = hist.addDays(before, -1);
       winStart = hist.addMonths(before, -WINDOW_MONTHS);
@@ -248,6 +249,7 @@ router.get('/api/kiosk/past-sales/customer', function (req, res) {
       before = '';
     }
     if (winStart < floor) winStart = floor;
+    if (winStart > winEnd) return badRequest(res, 'before is outside the history limit');
     var key = C.CACHE_KEYS.KIOSK_HISTORY_CUSTOMER_PREFIX + customerId + ':' + (before || 'latest');
     cachedOrBuild(key, TTL_TODAY, isBust(q), function () {
       return buildCustomer(customerId, winStart, winEnd, floor);

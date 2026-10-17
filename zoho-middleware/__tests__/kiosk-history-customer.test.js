@@ -168,6 +168,16 @@ describe('GET /api/kiosk/past-sales/customer', function () {
     expect(zohoApi.zohoGet).not.toHaveBeenCalled();
   });
 
+  test('before equal to the 10-year floor is 400, never an inverted Zoho range (WR-07)', async function () {
+    var r = await call(handler, { customer_id: CID, before: '2016-10-16' });
+    expect(r._status).toBe(400);
+    expect(zohoApi.zohoGet).not.toHaveBeenCalled();
+    var ok = await call(handler, { customer_id: CID, before: '2016-10-17' });
+    expect(ok._status).toBeNull();
+    var p = callsTo('/invoices')[0][1];
+    expect(p.date_start <= p.date_end).toBe(true);
+  });
+
   test('window reaching the 10-year floor has has_older false and is clamped', async function () {
     var r = await call(handler, { customer_id: CID, before: '2017-03-01' });
     expect(r._json.window_start).toBe('2016-10-16');
