@@ -1737,7 +1737,7 @@ Plans:
 - Whether day totals can come from the invoice list alone. Tender is not needed for summary rows, so the `/customerpayments` join could be skipped. The day classifier needs payments only for all-digit references.
 **Requirements:** PSL-08 (range endpoint: read-only GET /api/kiosk/past-sales/range, self-gated, device allowlist, hard-coded caps, slim response, floor/future 400: D-11), PSL-09 (exact match with the day ledger via shared pure helpers: D-12), PSL-10 (Mon-Sun week and calendar month bounds in Vancouver day strings, future trim, zero-day fill, newest first, flat month: D-02, D-05..D-08), PSL-11 (Day/Week/Month chips, adaptive date bar, stepping, date jump, label: D-01..D-03), PSL-12 (drill-in to the day ledger and back with scroll restore: D-04), PSL-13 (range cache 300 s current / 3600 s past, bust, dedupe, throttle: D-13, D-14), PSL-14 (one-go load and partial/truncation handling: D-09, D-10), PSL-15 (Phase 92 D-11 clearing and late-response drop for range state).
 **Depends on:** Phase 92
-**Plans:** 2/5 plans executed
+**Plans:** 4/5 plans executed
 
 Plans:
 
@@ -1748,8 +1748,8 @@ Plans:
 
 **Wave 2**
 
-- [ ] 93-02-PLAN.md — buildLedger on the shared helper; GET /api/kiosk/past-sales/range (caps 5/5, TTL 300/3600, allowlist, slim) with the D-12 equality test (blocked on 93-01)
-- [ ] 93-04-PLAN.md — Drill-in to the day ledger and Back with scroll restore, mode-aware refresh, D-11 clearing of drill-in state (blocked on 93-03)
+- [x] 93-02-PLAN.md — buildLedger on the shared helper; GET /api/kiosk/past-sales/range (caps 5/5, TTL 300/3600, allowlist, slim) with the D-12 equality test (blocked on 93-01)
+- [x] 93-04-PLAN.md — Drill-in to the day ledger and Back with scroll restore, mode-aware refresh, D-11 clearing of drill-in state (blocked on 93-03)
 
 **Wave 3**
 
