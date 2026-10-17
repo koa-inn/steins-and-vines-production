@@ -454,3 +454,82 @@ describe('Past Sales kiosk.js wiring', function () {
     expect(el('kiosk-ps-ledger-list').innerHTML).toBe('');
   });
 });
+
+describe('WR-01: superseded responses are dropped', function () {
+  function deferredRoute(match) {
+    var pending = [];
+    global.fetch.mockImplementation(function (url) {
+      if (url.indexOf(match) === -1) return respond(404, {});
+      return new Promise(function (resolve) { pending.push({ url: url, resolve: resolve }); });
+    });
+    return pending;
+  }
+  function ok(body) {
+    return { ok: true, status: 200, json: function () { return Promise.resolve(body); } };
+  }
+
+  test('an older ledger response landing last does not overwrite the newer day', async function () {
+    var s = loadSurface();
+    var pending = deferredRoute('/ledger');
+    s.core.showView('browse');
+    s.core.showPastSales();
+    s.core.pastSalesLoadLedger('2026-10-10', false);
+    s.core.pastSalesLoadLedger('2026-10-12', false);
+    expect(pending.length).toBe(2);
+    pending[1].resolve(ok(ledgerBody({ date: '2026-10-12', prev_date: '2026-10-11', next_date: '2026-10-13' })));
+    await flushPromises();
+    pending[0].resolve(ok(ledgerBody({ date: '2026-10-10', prev_date: '2026-10-09', next_date: '2026-10-11' })));
+    await flushPromises();
+    expect(el('kiosk-ps-date').value).toBe('2026-10-12');
+    expect(s.core._getPastSalesState().ledger.date).toBe('2026-10-12');
+  });
+
+  test('an older ledger error landing last does not replace the newer day', async function () {
+    var s = loadSurface();
+    var pending = deferredRoute('/ledger');
+    s.core.showView('browse');
+    s.core.showPastSales();
+    s.core.pastSalesLoadLedger('2026-10-10', false);
+    s.core.pastSalesLoadLedger('2026-10-12', false);
+    pending[1].resolve(ok(ledgerBody({ date: '2026-10-12' })));
+    await flushPromises();
+    pending[0].resolve({ ok: false, status: 502, json: function () { return Promise.resolve({}); } });
+    await flushPromises();
+    expect(el('kiosk-ps-ledger-message').textContent).not.toContain('Could not load sales');
+    expect(document.querySelectorAll('#kiosk-ps-ledger-list .kiosk-ps-row').length).toBe(2);
+  });
+
+  test('an older contact-search response landing last does not overwrite newer results', async function () {
+    var s = loadSurface();
+    var pending = deferredRoute('/api/contacts/search');
+    s.core.showView('browse');
+    s.core.showPastSales();
+    jest.useFakeTimers();
+    s.core.pastSalesSearch('an');
+    jest.advanceTimersByTime(301);
+    s.core.pastSalesSearch('ann');
+    jest.advanceTimersByTime(301);
+    jest.useRealTimers();
+    expect(pending.length).toBe(2);
+    pending[1].resolve(ok({ contacts: [{ contact_id: '2', contact_name: 'Ann Newer' }] }));
+    await flushPromises();
+    pending[0].resolve(ok({ contacts: [{ contact_id: '1', contact_name: 'Andy Older' }] }));
+    await flushPromises();
+    expect(el('kiosk-ps-contact-results').textContent).toBe('Ann Newer');
+  });
+
+  test('clearing the search box drops an in-flight search response', async function () {
+    var s = loadSurface();
+    var pending = deferredRoute('/api/contacts/search');
+    s.core.showView('browse');
+    s.core.showPastSales();
+    jest.useFakeTimers();
+    s.core.pastSalesSearch('ann');
+    jest.advanceTimersByTime(301);
+    jest.useRealTimers();
+    s.core.pastSalesSearch('');
+    pending[0].resolve(ok({ contacts: [{ contact_id: '1', contact_name: 'Ann' }] }));
+    await flushPromises();
+    expect(el('kiosk-ps-contact-results').innerHTML).toBe('');
+  });
+});

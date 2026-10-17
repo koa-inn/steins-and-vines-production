@@ -4486,6 +4486,10 @@
   var _kioskPsContact = null;
   var _kioskPsHistoryCount = 0;
   var _kioskPsWindowStart = null;
+  // WR-01: per-request sequence numbers. _kioskPsGen only changes on a view
+  // clear, so these drop responses superseded by a newer request in the view.
+  var _kioskPsLedgerSeq = 0;
+  var _kioskPsSearchSeq = 0;
 
   function kioskPsFmtMoney(n) {
     var v = Number(n);
@@ -4591,16 +4595,17 @@
     if (bust) params.push('bust=1');
     var path = '/api/kiosk/past-sales/ledger' + (params.length ? '?' + params.join('&') : '');
     var gen = _kioskPsGen;
+    var seq = ++_kioskPsLedgerSeq;
     kioskPsSetHtml('kiosk-ps-ledger-message', 'Loading...');
     kioskPsSetHtml('kiosk-ps-ledger-list', '<div class="kiosk-so-skeleton"><div class="kiosk-so-skeleton-card"></div>' +
       '<div class="kiosk-so-skeleton-card"></div><div class="kiosk-so-skeleton-card"></div></div>');
     kioskPsSetHtml('kiosk-ps-ledger-footer', '');
     _kioskPsFetch(path, gen).then(function (data) {
-      if (data === null) return;
+      if (data === null || seq !== _kioskPsLedgerSeq) return;
       _kioskPsLedger = data;
       kioskPsRenderLedger();
     }).catch(function (err) {
-      if (gen !== _kioskPsGen) return;
+      if (gen !== _kioskPsGen || seq !== _kioskPsLedgerSeq) return;
       kioskPsSetHtml('kiosk-ps-ledger-list', '');
       var is400 = !!(err && err.status === 400);
       var msg = is400 ? 'Pick a date up to today.' :
@@ -4802,6 +4807,7 @@
 
   function kioskPsSearch(q) {
     q = String(q === null || q === undefined ? '' : q).trim();
+    var seq = ++_kioskPsSearchSeq; // WR-01: any newer keystroke supersedes
     if (_kioskPsSearchTimer) {
       clearTimeout(_kioskPsSearchTimer);
       _kioskPsSearchTimer = null;
@@ -4815,7 +4821,7 @@
       _kioskPsSearchTimer = null;
       if (!_kcEnv.mwUrl) return;
       _kioskPsFetch('/api/contacts/search?q=' + encodeURIComponent(q), gen).then(function (data) {
-        if (data === null) return;
+        if (data === null || seq !== _kioskPsSearchSeq) return;
         var list = (data && data.contacts) || [];
         var box = kioskPsEl('kiosk-ps-contact-results');
         if (!box) return;
@@ -4838,7 +4844,7 @@
           });
         }
       }).catch(function () {
-        if (gen !== _kioskPsGen) return;
+        if (gen !== _kioskPsGen || seq !== _kioskPsSearchSeq) return;
         kioskPsSetHtml('kiosk-ps-contact-results',
           '<div class="kiosk-ps-message">Could not search customers. Check connection and try again.</div>');
       });
@@ -4848,6 +4854,7 @@
   function kioskPsSelectContact(id, name) {
     if (!id) return;
     _kioskPsContact = { id: String(id), name: String(name || '') };
+    _kioskPsSearchSeq++; // WR-01: a late search response must not reopen the picker
     kioskPsSetHtml('kiosk-ps-contact-results', '');
     var heading = kioskPsEl('kiosk-ps-customer-heading');
     if (heading) heading.textContent = _kioskPsContact.name;
