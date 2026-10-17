@@ -147,3 +147,19 @@ unexplained discrepancies) is met and the owner decides to flip to `postgres`.
 | `ops-verify.js` staff leg: missing from Postgres 0 | | |
 | Railway `STAFF_EMAILS` trimmed to owner break-glass only (date) | | |
 | Regular staff member and an owner can still sign in | | |
+
+## Production prerequisites and release (86-19 Task 1), 2026-10-17
+
+| Check | Value |
+|-------|-------|
+| D-12 | Met. Production `RECIPES_STORE=postgres` since 2026-10-17 19:17:15Z; post-flip verify 13/0 (85-DUAL-LOG.md). |
+| Security sign-off | 86-SECURITY.md, owner, 2026-10-08 |
+| Vessels `label` header | Owner confirmed present 2026-10-17 |
+| Phase 92 CR-01 PIN on Customer View exit | Owner confirmed during the 93 UAT, 2026-10-17 |
+| Release | Gated Production Deploy, run 2 (run 1 failed at test-frontend: a UTC-only Jest timezone bug, fixed in d12b4b9b). Staging SHA `d12b4b9b` became production `47fcd354` (+CNAME), tag `prod-20261017-1`. Railway deployment `b3fd002a` SUCCESS, 2026-10-17 12:45 PDT. Rollback target: `990f1764`. |
+| Migrations | `0004_ops_data`, `0005_batches` and `0006_recipes_beer_category` applied by the pre-deploy guard chain ("Migrations complete!") |
+| Store modes at startup | `{"GIFT_CARDS_STORE":"postgres","RECIPES_STORE":"postgres","OPS_DATA_STORE":"sheets","STAFF_ACCESS_STORE":"sheets","BATCHES_STORE":"sheets"}`. The new code prints the unset flags explicitly as `sheets`, i.e. off. |
+| `/health` | ok, `database:true`, `database_required:true` |
+| Smoke | `/api/recipes?status=active` returns `source: postgres`, 11 recipes, all carrying `beer_category`. Kiosk quote SV-R-000016 at 28 L in-store is still $97.85. Admin-proxy `get_vessels` returns 232 and `get_ferm_schedules` 12 (from the Sheet). Production kiosk.html serves the new bundle with the Week/Month chips and Past Sales. beer.html has 11 cards with "Ready in" and no console or CSP errors. Logs show only the known Resend verify message. |
+| Apps Script | v65 active on the shared deployment (covers v61 for 86, v62 for 87, v63/v65 for 89) |
+| Pending | Owner sign-in to admin and BrewPad (allowlist still read from the Sheet). Reload the kiosk iPad. `recipes-verify.js` from main with the next snapshot (Phase 89 step). |

@@ -985,7 +985,7 @@ Steps:
 6. Release step: remove the Phase 85 §5 "Phase 89 script-source rule (D-14)" callout and its
    §6/§8/§9/§10/§13 pointers. From then on run the recipes scripts from main, but only once 0006 is
    applied in production AND the production sheet has the `beer_category` header.
-7. Record the promotion SHA here: _pending_
+7. Record the promotion SHA here: staging `d12b4b9b` became production `47fcd354`, tag `prod-20261017-1`, Railway `b3fd002a` (2026-10-17). Migration 0006 is applied. The D-14 callout removal is still pending: it waits for the first `recipes-verify.js` run from main, which is scheduled for the 2026-10-18 session.
 
 ---
 
