@@ -202,9 +202,8 @@ function buildCustomer(customerId, winStart, winEnd, floor) {
     var idx = hist.indexPaymentsByInvoice(pay.rows, config.linkageField, config.notesField);
     var rows = hist.sortByCreatedDesc(invoices).map(function (inv) {
       var notes = (idx[inv.invoice_number] || []).map(function (p) { return p.note; });
-      var row = hist.slimInvoiceRow(inv, hist.classify(inv, notes), '');
-      if (row.status === 'Draft') row.status = 'Unpaid';
-      return row;
+      // Drafts keep their 'Draft' label so customer history agrees with the ledger (WR-03).
+      return hist.slimInvoiceRow(inv, hist.classify(inv, notes), '');
     });
     return {
       walk_in: false,

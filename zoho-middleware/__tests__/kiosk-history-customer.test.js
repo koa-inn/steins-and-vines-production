@@ -193,7 +193,7 @@ describe('GET /api/kiosk/past-sales/customer', function () {
     expect(by['INV-3'].source).toBe('online');
     expect(by['INV-4'].source).toBe('in-store');
     expect(by['INV-5'].source).toBe('other');
-    expect(by['INV-4'].status).toBe('Unpaid');
+    expect(by['INV-4'].status).toBe('Draft'); // WR-03: same label as the ledger
     expect(by['INV-5'].status).toBe('Void');
     r._json.invoices.forEach(function (x) {
       expect(x.tender).toBe('');

@@ -222,11 +222,13 @@ function slimInvoiceDetail(detail) {
   };
 }
 
+// Voids (D-04) and drafts (Phase 92 WR-03 owner decision 2026-10-16) are listed
+// with a badge but are not sales: they never enter the count or gross total.
 function ledgerTotals(rows) {
   var count = 0;
   var cents = 0;
   (rows || []).forEach(function (r) {
-    if (r.status === 'Void') return;
+    if (r.status === 'Void' || r.status === 'Draft') return;
     count += 1;
     cents += Math.round(num(r.total) * 100);
   });

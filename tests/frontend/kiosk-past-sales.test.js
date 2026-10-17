@@ -533,3 +533,20 @@ describe('WR-01: superseded responses are dropped', function () {
     expect(el('kiosk-ps-contact-results').innerHTML).toBe('');
   });
 });
+
+describe('WR-03: draft rows', function () {
+  test('ledger renders a Draft badge for a draft row', async function () {
+    var s = loadSurface();
+    route([['/ledger', function () {
+      var b = ledgerBody();
+      b.invoices[0].status = 'Draft';
+      return respond(200, b);
+    }]]);
+    s.core.showView('browse');
+    s.core.showPastSales();
+    s.core.pastSalesSetTab('ledger');
+    await flushPromises();
+    var row = document.querySelector('#kiosk-ps-ledger-list .kiosk-ps-row');
+    expect(row.querySelector('.kiosk-ps-badge--draft').textContent).toBe('Draft');
+  });
+});

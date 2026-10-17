@@ -213,8 +213,11 @@ describe('GET /api/kiosk/past-sales/ledger', function () {
     expect(r._json.prev_date).toBe('2026-10-14');
     var void7 = r._json.invoices.filter(function (i) { return i.invoice_number === 'INV-7'; })[0];
     expect(void7.status).toBe('Void');
-    expect(r._json.count).toBe(8);
-    expect(r._json.gross_total).toBe(10 + 20 + 30 + 40 + 60 + 80 + 100 + 110);
+    // WR-03 owner rule: drafts are listed with a Draft badge but not counted (like voids)
+    var draft6 = r._json.invoices.filter(function (i) { return i.invoice_number === 'INV-6'; })[0];
+    expect(draft6.status).toBe('Draft');
+    expect(r._json.count).toBe(7);
+    expect(r._json.gross_total).toBe(10 + 20 + 30 + 40 + 80 + 100 + 110);
     expect(r._json.invoices.every(function (i) { return i.source === 'in-store'; })).toBe(true);
     expect(r._json.classification_incomplete).toBe(false);
     expect(r._json.unclassified_count).toBe(0);

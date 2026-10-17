@@ -166,11 +166,11 @@ describe('slim builders', function () {
 });
 
 describe('ledgerTotals', function () {
-  test('cents-exact, void excluded', function () {
+  test('cents-exact, void and draft excluded (D-04 + WR-03 owner rule)', function () {
     expect(hist.ledgerTotals([
       { status: 'Paid', total: 10.1 }, { status: 'Void', total: 99 },
       { status: 'Unpaid', total: 0.2 }, { status: 'Draft', total: 5 }
-    ])).toEqual({ count: 3, gross_total: 15.3 });
+    ])).toEqual({ count: 2, gross_total: 10.3 });
   });
 });
 

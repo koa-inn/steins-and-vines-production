@@ -441,3 +441,18 @@ describe('WR-02: Load older in-flight guard and per-contact error isolation', fu
     expect(el('kiosk-ps-customer-heading').textContent).toBe('Bob');
   });
 });
+
+describe('WR-03: draft rows in customer history', function () {
+  test('a Draft invoice shows a Draft badge, not Unpaid', async function () {
+    var s = loadSurface();
+    route([['/past-sales/customer', function () {
+      return respond(200, histBody({ invoices: [{ invoice_id: 'd1', invoice_number: 'INV-000200', date: '2026-10-01', source: 'in-store', status: 'Draft', total: 7 }] }));
+    }]]);
+    openView(s);
+    s.core.pastSalesSelectContact('77', 'Ann');
+    await flushPromises();
+    var row = document.querySelector('#kiosk-ps-customer-list .kiosk-ps-row');
+    expect(row.querySelector('.kiosk-ps-badge--draft').textContent).toBe('Draft');
+    expect(row.textContent).not.toContain('Unpaid');
+  });
+});
