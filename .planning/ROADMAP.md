@@ -1737,10 +1737,23 @@ Plans:
 - Whether day totals can come from the invoice list alone. Tender is not needed for summary rows, so the `/customerpayments` join could be skipped. The day classifier needs payments only for all-digit references.
 **Requirements**: TBD
 **Depends on:** Phase 92
-**Plans:** 0 plans
+**Plans:** 5 plans (3 waves)
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 93 to break down)
+
+**Wave 1**
+
+- [ ] 93-01-PLAN.md — PSL-08..15 into ROADMAP; pure helpers (week/month bounds, day-window predicates, needsPaymentNotes derived from classify, shared ledgerRowsForDay) with unit tests
+- [ ] 93-03-PLAN.md — Ledger-tab markup/CSS for Day/Week/Month chips, range label, back link; range mode state, load, render, stepping, date jump, truncation, late-response drop
+
+**Wave 2**
+
+- [ ] 93-02-PLAN.md — buildLedger on the shared helper; GET /api/kiosk/past-sales/range (caps 5/5, TTL 300/3600, allowlist, slim) with the D-12 equality test (blocked on 93-01)
+- [ ] 93-04-PLAN.md — Drill-in to the day ledger and Back with scroll restore, mode-aware refresh, D-11 clearing of drill-in state (blocked on 93-03)
+
+**Wave 3**
+
+- [ ] 93-05-PLAN.md — Gates, staging push + smoke, owner iPad UAT incl. month vs 2-3 day ledgers (autonomous: false)
 
 ---
 
