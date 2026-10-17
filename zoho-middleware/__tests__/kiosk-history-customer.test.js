@@ -241,6 +241,51 @@ describe('GET /api/kiosk/past-sales/customer', function () {
     expect(r._json.truncated).toBe(true);
   });
 
+  test('WR-04: payment truncation is surfaced as source_incomplete', async function () {
+    mockZoho({ invoices: [inv(1, 'INV-1', '777', '2026-10-10T10:00:00-0700')], morePay: true });
+    var r = await call(handler, { customer_id: CID });
+    expect(r._json.truncated).toBe(false);
+    expect(r._json.source_incomplete).toBe(true);
+    mockZoho({ invoices: [inv(1, 'INV-1', '777', '2026-10-10T10:00:00-0700')] });
+    var r2 = await call(handler, { customer_id: CID, bust: '1', before: '2026-10-01' });
+    expect(r2._json.source_incomplete).toBe(false);
+  });
+
+  test('WR-04: payments window runs past the invoice window end', async function () {
+    mockZoho({ invoices: [inv(1, 'INV-1', '777', '2026-10-10T10:00:00-0700')] });
+    await call(handler, { customer_id: CID, before: '2025-10-16' });
+    var p = callsTo('/customerpayments')[0][1];
+    expect(p.date_start).toBe('2024-10-16');
+    expect(p.date_end).toBe('2025-10-22'); // winEnd 2025-10-15 + 7 days
+  });
+
+  test('WR-04: untruncated window pages back from window_start', async function () {
+    var r = await call(handler, { customer_id: CID });
+    expect(r._json.next_before).toBe('2025-10-16');
+    expect(r._json.has_older).toBe(true);
+  });
+
+  test('WR-04: truncated invoices page back from the oldest returned day, not window_start', async function () {
+    var a = inv(1, 'INV-1', 'KIOSK-1', '2026-10-10T10:00:00-0700');
+    var b = inv(2, 'INV-2', 'KIOSK-2', '2026-06-03T10:00:00-0700');
+    b.date = '2026-06-03';
+    mockZoho({ invoices: [a, b], more: true });
+    var r = await call(handler, { customer_id: CID });
+    expect(r._json.truncated).toBe(true);
+    // the next window must still include 2026-06-03 (more invoices may share that day)
+    expect(r._json.next_before).toBe('2026-06-04');
+    expect(r._json.has_older).toBe(true);
+  });
+
+  test('WR-04: truncated window whose oldest day is its end still makes progress', async function () {
+    var a = inv(1, 'INV-1', 'KIOSK-1', '2025-10-15T10:00:00-0700');
+    a.date = '2025-10-15';
+    mockZoho({ invoices: [a], more: true });
+    var r = await call(handler, { customer_id: CID, before: '2025-10-16' });
+    expect(r._json.next_before).toBe('2025-10-15');
+    expect(r._json.next_before < '2025-10-16').toBe(true);
+  });
+
   test('cache key, ttl, bust', async function () {
     await call(handler, { customer_id: CID });
     expect(cache.get).toHaveBeenCalledWith(C.CACHE_KEYS.KIOSK_HISTORY_CUSTOMER_PREFIX + CID + ':latest');

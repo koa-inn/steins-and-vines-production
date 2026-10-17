@@ -4910,14 +4910,17 @@
         return;
       }
       var rows = data.invoices || [];
-      _kioskPsWindowStart = data.window_start || null;
+      // WR-04: the server says where the next page starts (the oldest shown
+      // day when this window was truncated); older servers only send window_start.
+      _kioskPsWindowStart = data.next_before || data.window_start || null;
       kioskPsRenderCustomerRows(rows, append);
       if (!_kioskPsHistoryCount) {
         kioskPsSetHtml('kiosk-ps-customer-message', 'No sales in this period.');
-      } else if (data.truncated) {
-        kioskPsSetHtml('kiosk-ps-customer-message', 'Showing the most recent sales only.');
       } else {
-        kioskPsSetHtml('kiosk-ps-customer-message', '');
+        var notes = [];
+        if (data.truncated) notes.push('More sales in this period. Tap Load older to see them.');
+        if (data.source_incomplete) notes.push('Some In-store / Online tags may be wrong.');
+        kioskPsSetHtml('kiosk-ps-customer-message', notes.map(function (n) { return escapeHTML(n); }).join('<br>'));
       }
       if (older) older.style.display = (data.has_older && _kioskPsWindowStart) ? '' : 'none';
     }).catch(function () {
@@ -4937,15 +4940,27 @@
   }
 
   function kioskPsRenderCustomerRows(rows, append) {
-    var html = '';
-    for (var i = 0; i < rows.length; i++) {
-      html += kioskPsRowHtml(rows[i], { dateInstead: true, showSource: true });
-    }
     var list = kioskPsEl('kiosk-ps-customer-list');
     if (!list) return;
+    // WR-04: a page that resumes from a truncated day overlaps the rows above
+    // it; skip invoices already listed.
+    var shown = {};
+    if (append) {
+      var existing = list.querySelectorAll('.kiosk-ps-row');
+      for (var e = 0; e < existing.length; e++) shown[existing[e].getAttribute('data-invoice-id')] = true;
+    }
+    var html = '';
+    var added = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var rid = String(rows[i].invoice_id);
+      if (shown[rid]) continue;
+      shown[rid] = true;
+      html += kioskPsRowHtml(rows[i], { dateInstead: true, showSource: true });
+      added++;
+    }
     if (append) list.insertAdjacentHTML('beforeend', html);
     else list.innerHTML = html;
-    _kioskPsHistoryCount = (append ? _kioskPsHistoryCount : 0) + rows.length;
+    _kioskPsHistoryCount = (append ? _kioskPsHistoryCount : 0) + added;
     // wire only rows without a handler yet
     var all = list.querySelectorAll('.kiosk-ps-row');
     for (var k = 0; k < all.length; k++) {

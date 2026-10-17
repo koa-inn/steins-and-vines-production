@@ -24,6 +24,8 @@ var CUSTOMER_MAX_INVOICE_PAGES = 3;
 var CUSTOMER_MAX_PAYMENT_PAGES = 2;
 var HISTORY_MAX_MONTHS = 120;
 var WINDOW_MONTHS = 12;
+// WR-04: a recipe invoice's payment can be dated after the invoice window end.
+var PAYMENT_LAG_DAYS = 7;
 var ID_RE = /^\d{6,25}$/;
 
 // Join mode copied from zoho-middleware/__tests__/fixtures/zoho-past-sales-shapes.json
@@ -196,7 +198,7 @@ function buildCustomer(customerId, winStart, winEnd, floor) {
     var needNotes = invoices.some(function (i) { return /^\d+$/.test(String(i.reference_number || '')); });
     if (!needNotes) return { rows: [], truncated: false };
     return fetchPages('/customerpayments', {
-      customer_id: customerId, date_start: winStart, date_end: winEnd, per_page: PER_PAGE
+      customer_id: customerId, date_start: winStart, date_end: hist.addDays(winEnd, PAYMENT_LAG_DAYS), per_page: PER_PAGE
     }, CUSTOMER_MAX_PAYMENT_PAGES, 'customerpayments');
   }).then(function (pay) {
     var idx = hist.indexPaymentsByInvoice(pay.rows, config.linkageField, config.notesField);
@@ -205,13 +207,28 @@ function buildCustomer(customerId, winStart, winEnd, floor) {
       // Drafts keep their 'Draft' label so customer history agrees with the ledger (WR-03).
       return hist.slimInvoiceRow(inv, hist.classify(inv, notes), '');
     });
+    // WR-04: when invoices were truncated, page back from the oldest returned
+    // day (inclusive, the client de-dupes by invoice_id) instead of winStart,
+    // so the invoices between the cut and winStart are not skipped for good.
+    var nextBefore = winStart;
+    if (truncated) {
+      var oldest = '';
+      invoices.forEach(function (i) {
+        var d = String(i.date || hist.createdDay(i) || '');
+        if (DATE_RE.test(d) && (!oldest || d < oldest)) oldest = d;
+      });
+      if (oldest) nextBefore = oldest < winEnd ? hist.addDays(oldest, 1) : oldest;
+    }
     return {
       walk_in: false,
       customer_id: customerId,
       window_start: winStart,
       window_end: winEnd,
-      has_older: winStart > floor,
+      next_before: nextBefore,
+      has_older: nextBefore > floor,
       truncated: truncated,
+      // payments page cap hit: some In-store/Online tags may be wrong
+      source_incomplete: !!pay.truncated,
       invoices: rows
     };
   });

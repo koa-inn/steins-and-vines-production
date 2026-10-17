@@ -456,3 +456,52 @@ describe('WR-03: draft rows in customer history', function () {
     expect(row.textContent).not.toContain('Unpaid');
   });
 });
+
+describe('WR-04: incompleteness signals and next_before paging', function () {
+  test('Load older uses next_before and de-dupes rows already shown', async function () {
+    var s = loadSurface();
+    route([['/past-sales/customer', function (url) {
+      if (url.indexOf('before=') === -1) {
+        return respond(200, histBody({ truncated: true, next_before: '2026-07-02' }));
+      }
+      return respond(200, histBody({
+        has_older: false, window_start: '2025-07-02', next_before: '2025-07-02',
+        invoices: [
+          { invoice_id: 'h0', invoice_number: 'INV-000100', date: '2026-07-01', source: 'other', status: 'void', total: 9 },
+          { invoice_id: 'o1', invoice_number: 'INV-000050', date: '2026-06-01', source: 'in-store', status: 'paid', total: 3 }
+        ]
+      }));
+    }]]);
+    openView(s);
+    s.core.pastSalesSelectContact('77', 'Ann');
+    await flushPromises();
+    expect(el('kiosk-ps-customer-message').textContent).toBe('More sales in this period. Tap Load older to see them.');
+    s.core.pastSalesLoadOlder();
+    await flushPromises();
+    expect(urls()[1]).toBe('http://localhost:3001/api/kiosk/past-sales/customer?customer_id=77&before=2026-07-02');
+    var ids = Array.prototype.map.call(document.querySelectorAll('#kiosk-ps-customer-list .kiosk-ps-row'),
+      function (r) { return r.getAttribute('data-invoice-id'); });
+    expect(ids).toEqual(['h2', 'h1', 'h0', 'o1']);
+    expect(s.core._getPastSalesState().historyCount).toBe(4);
+  });
+
+  test('source_incomplete shows a tag warning', async function () {
+    var s = loadSurface();
+    route([['/past-sales/customer', function () { return respond(200, histBody({ source_incomplete: true })); }]]);
+    openView(s);
+    s.core.pastSalesSelectContact('77', 'Ann');
+    await flushPromises();
+    expect(el('kiosk-ps-customer-message').textContent).toBe('Some In-store / Online tags may be wrong.');
+  });
+
+  test('older responses without next_before still page from window_start', async function () {
+    var s = loadSurface();
+    route([['/past-sales/customer', function () { return respond(200, histBody()); }]]);
+    openView(s);
+    s.core.pastSalesSelectContact('77', 'Ann');
+    await flushPromises();
+    s.core.pastSalesLoadOlder();
+    await flushPromises();
+    expect(urls()[1]).toBe('http://localhost:3001/api/kiosk/past-sales/customer?customer_id=77&before=2025-10-16');
+  });
+});
