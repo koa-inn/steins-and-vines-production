@@ -1598,6 +1598,13 @@
       });
     });
 
+    var psModes = document.querySelectorAll('.kiosk-ps-mode');
+    Array.prototype.forEach.call(psModes, function (modeBtn) {
+      modeBtn.addEventListener('click', function () {
+        KioskCore.pastSalesSetMode(modeBtn.getAttribute('data-mode'));
+      });
+    });
+
     var psPrev = document.getElementById('kiosk-ps-prev');
     if (psPrev) psPrev.addEventListener('click', function () { KioskCore.pastSalesShiftDay(-1); });
     var psNext = document.getElementById('kiosk-ps-next');
@@ -1605,7 +1612,7 @@
     var psDate = document.getElementById('kiosk-ps-date');
     if (psDate) {
       psDate.addEventListener('change', function () {
-        if (psDate.value) KioskCore.pastSalesLoadLedger(psDate.value, false);
+        if (psDate.value) KioskCore.pastSalesPickDate(psDate.value);
       });
     }
     var psSearch = document.getElementById('kiosk-ps-search');

@@ -4480,6 +4480,9 @@
   var _kioskPsGen = 0;
   var _kioskPsTab = 'customer';
   var _kioskPsLedger = null;
+  // Phase 93: Ledger mode ('day' | 'week' | 'month') and the loaded range payload.
+  var _kioskPsMode = 'day';
+  var _kioskPsRange = null;
   var _kioskPsDetails = {};
   var _kioskPsSearchTimer = null;
   // By-customer tab state (92-07). Cleared by _kioskPsCustomerClear (D-11).
@@ -4521,6 +4524,8 @@
     _kioskPsGen++;
     _kioskPsTab = 'customer';
     _kioskPsLedger = null;
+    _kioskPsMode = 'day';
+    _kioskPsRange = null;
     _kioskPsDetails = {};
     if (_kioskPsSearchTimer) {
       clearTimeout(_kioskPsSearchTimer);
@@ -4543,6 +4548,12 @@
       older.style.display = 'none';
       older.disabled = false;
     }
+    kioskPsSyncModeUi();
+    kioskPsSetHtml('kiosk-ps-range-label', '');
+    var prevBtn = kioskPsEl('kiosk-ps-prev');
+    if (prevBtn) prevBtn.disabled = false;
+    var nextBtn0 = kioskPsEl('kiosk-ps-next');
+    if (nextBtn0) nextBtn0.disabled = false;
     var tabs = document.querySelectorAll('.kiosk-ps-tab');
     for (var t = 0; t < tabs.length; t++) {
       if (tabs[t].getAttribute('data-tab') === 'customer') tabs[t].classList.add('active');
@@ -4588,7 +4599,161 @@
     var lp = kioskPsEl('kiosk-ps-ledger-panel');
     if (cp) cp.style.display = _kioskPsTab === 'customer' ? '' : 'none';
     if (lp) lp.style.display = _kioskPsTab === 'ledger' ? '' : 'none';
-    if (_kioskPsTab === 'ledger' && !_kioskPsLedger) kioskPsLoadLedger(null, false);
+    if (_kioskPsTab === 'ledger' && _kioskPsMode === 'day' && !_kioskPsLedger) kioskPsLoadLedger(null, false);
+    if (_kioskPsTab === 'ledger' && _kioskPsMode !== 'day' && !_kioskPsRange) kioskPsLoadRange(_kioskPsMode, null, false);
+  }
+
+  // ===== Past Sales: Ledger Day / Week / Month modes (Phase 93) =====
+
+  var KIOSK_PS_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+    'August', 'September', 'October', 'November', 'December'];
+  var KIOSK_PS_MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
+    'Oct', 'Nov', 'Dec'];
+  var KIOSK_PS_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  // Parses 'YYYY-MM-DD' without Date string parsing. Returns null when malformed.
+  function kioskPsParseDate(str) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(str || ''));
+    if (!m) return null;
+    return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
+  }
+
+  function kioskPsWeekday(dateStr) {
+    var p = kioskPsParseDate(dateStr);
+    if (!p) return '';
+    return KIOSK_PS_WEEKDAYS[new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay()];
+  }
+
+  function kioskPsRangeLabel(range) {
+    var a = kioskPsParseDate(range && range.period_start);
+    var b = kioskPsParseDate(range && range.period_end);
+    if (!a || !b) return '';
+    if (range.type === 'month') return KIOSK_PS_MONTHS[a.m - 1] + ' ' + a.y;
+    var dash = ' – ';
+    if (a.y !== b.y) {
+      return KIOSK_PS_MONTHS_SHORT[a.m - 1] + ' ' + a.d + ', ' + a.y + dash +
+        KIOSK_PS_MONTHS_SHORT[b.m - 1] + ' ' + b.d + ', ' + b.y;
+    }
+    if (a.m !== b.m) {
+      return KIOSK_PS_MONTHS_SHORT[a.m - 1] + ' ' + a.d + dash + KIOSK_PS_MONTHS_SHORT[b.m - 1] + ' ' + b.d;
+    }
+    return KIOSK_PS_MONTHS_SHORT[a.m - 1] + ' ' + a.d + dash + b.d;
+  }
+
+  // Chip active state and prev/next aria-labels follow _kioskPsMode.
+  function kioskPsSyncModeUi() {
+    var chips = document.querySelectorAll('.kiosk-ps-mode');
+    for (var i = 0; i < chips.length; i++) {
+      if (chips[i].getAttribute('data-mode') === _kioskPsMode) chips[i].classList.add('active');
+      else chips[i].classList.remove('active');
+    }
+    var prev = kioskPsEl('kiosk-ps-prev');
+    var next = kioskPsEl('kiosk-ps-next');
+    if (prev) prev.setAttribute('aria-label', 'Previous ' + _kioskPsMode);
+    if (next) next.setAttribute('aria-label', 'Next ' + _kioskPsMode);
+  }
+
+  function kioskPsSetMode(mode) {
+    if (mode !== 'day' && mode !== 'week' && mode !== 'month') return;
+    _kioskPsMode = mode;
+    kioskPsSyncModeUi();
+    if (mode === 'day') {
+      _kioskPsRange = null;
+      kioskPsSetHtml('kiosk-ps-range-label', '');
+      var prev = kioskPsEl('kiosk-ps-prev');
+      if (prev) prev.disabled = false;
+      kioskPsLoadLedger(null, false);
+    } else {
+      kioskPsLoadRange(mode, null, false);
+    }
+  }
+
+  function kioskPsLoadRange(type, anchor, bust) {
+    if (!_kcEnv.mwUrl) {
+      kioskPsSetHtml('kiosk-ps-ledger-message', 'Middleware URL not configured.');
+      return;
+    }
+    var path = '/api/kiosk/past-sales/range?type=' + encodeURIComponent(type) +
+      (anchor ? '&date=' + encodeURIComponent(anchor) : '') + (bust ? '&bust=1' : '');
+    var gen = _kioskPsGen;
+    var seq = ++_kioskPsLedgerSeq;
+    var ref = anchor || (_kioskPsRange && _kioskPsRange.period_start) ||
+      (_kioskPsLedger && _kioskPsLedger.today) || '';
+    var rp = kioskPsParseDate(ref);
+    var what = rp ? KIOSK_PS_MONTHS[rp.m - 1] : 'this ' + type;
+    kioskPsSetHtml('kiosk-ps-ledger-message', escapeHTML('Loading ' + what + '… this can take a few seconds'));
+    kioskPsSetHtml('kiosk-ps-ledger-list', '<div class="kiosk-so-skeleton"><div class="kiosk-so-skeleton-card"></div>' +
+      '<div class="kiosk-so-skeleton-card"></div><div class="kiosk-so-skeleton-card"></div></div>');
+    kioskPsSetHtml('kiosk-ps-ledger-footer', '');
+    _kioskPsFetch(path, gen).then(function (data) {
+      if (data === null || seq !== _kioskPsLedgerSeq) return;
+      _kioskPsRange = data;
+      kioskPsRenderRange();
+    }).catch(function (err) {
+      if (gen !== _kioskPsGen || seq !== _kioskPsLedgerSeq) return;
+      kioskPsSetHtml('kiosk-ps-ledger-list', '');
+      var is400 = !!(err && err.status === 400);
+      var msg = is400 ? 'Pick a date up to today.' :
+        'Could not load sales. Check connection and try again. ' +
+        '<button type="button" class="btn-secondary kiosk-ps-retry">Retry</button>';
+      kioskPsSetHtml('kiosk-ps-ledger-message', msg);
+      var retry = document.querySelector('#kiosk-ps-ledger-message .kiosk-ps-retry');
+      if (retry) {
+        retry.addEventListener('click', function () { kioskPsLoadRange(type, anchor, bust); });
+      }
+    });
+  }
+
+  function kioskPsSalesText(count) {
+    var c = Number(count) || 0;
+    return c + (c === 1 ? ' sale' : ' sales');
+  }
+
+  function kioskPsRenderRange() {
+    var d = _kioskPsRange;
+    if (!d) return;
+    var dateEl = kioskPsEl('kiosk-ps-date');
+    if (dateEl) {
+      dateEl.value = d.range_end || '';
+      if (d.today) dateEl.setAttribute('max', d.today);
+    }
+    var prevBtn = kioskPsEl('kiosk-ps-prev');
+    if (prevBtn) prevBtn.disabled = !d.prev_anchor;
+    var nextBtn = kioskPsEl('kiosk-ps-next');
+    if (nextBtn) nextBtn.disabled = !d.next_anchor;
+    kioskPsSetHtml('kiosk-ps-range-label', escapeHTML(kioskPsRangeLabel(d)));
+
+    var notes = [];
+    if (d.truncated) notes.push('Not all sales are shown for this period.');
+    if (d.classification_incomplete) notes.push('Some sales could not be checked; totals may be incomplete.');
+    kioskPsSetHtml('kiosk-ps-ledger-message', notes.map(function (n) { return escapeHTML(n); }).join('<br>'));
+
+    var days = d.days || [];
+    var rows = '';
+    for (var i = 0; i < days.length; i++) {
+      var day = days[i];
+      var dp = kioskPsParseDate(day.date);
+      var label = day.date === d.today ? 'Today' :
+        (dp ? kioskPsWeekday(day.date) + ' ' + KIOSK_PS_MONTHS_SHORT[dp.m - 1] + ' ' + dp.d : String(day.date || ''));
+      var zero = !(Number(day.count) > 0);
+      rows += '<div class="kiosk-ps-dayrow' + (zero ? ' kiosk-ps-dayrow--zero' : '') +
+        (day.partial ? ' kiosk-ps-dayrow--partial' : '') +
+        '" data-date="' + escapeHTML(String(day.date || '')) + '">' +
+        '<span class="kiosk-ps-dayrow-date">' + escapeHTML(label) + '</span>' +
+        '<span class="kiosk-ps-dayrow-count">' + escapeHTML(kioskPsSalesText(day.count)) + '</span>' +
+        '<span class="kiosk-ps-amount">' + escapeHTML(kioskPsFmtMoney(day.gross_total)) + '</span>' +
+        (day.partial ? '<span class="kiosk-ps-badge kiosk-ps-badge--partial">partial</span>' : '') +
+        '</div>';
+    }
+    kioskPsSetHtml('kiosk-ps-ledger-list', rows);
+    kioskPsSetHtml('kiosk-ps-ledger-footer', escapeHTML((d.truncated ? 'at least ' : '') +
+      kioskPsSalesText(d.count) + ' · ' + kioskPsFmtMoney(d.gross_total)));
+  }
+
+  function kioskPsPickDate(value) {
+    if (!value) return;
+    if (_kioskPsMode === 'week' || _kioskPsMode === 'month') kioskPsLoadRange(_kioskPsMode, value, false);
+    else kioskPsLoadLedger(value, false);
   }
 
   function kioskPsLoadLedger(date, bust) {
@@ -4722,6 +4887,13 @@
   }
 
   function kioskPsShiftDay(delta) {
+    if (_kioskPsMode === 'week' || _kioskPsMode === 'month') {
+      if (!_kioskPsRange) return;
+      var anchor = delta < 0 ? _kioskPsRange.prev_anchor : _kioskPsRange.next_anchor;
+      if (!anchor) return;
+      kioskPsLoadRange(_kioskPsMode, anchor, false);
+      return;
+    }
     if (!_kioskPsLedger) return;
     var target = delta < 0 ? _kioskPsLedger.prev_date : _kioskPsLedger.next_date;
     if (!target) return;
@@ -6651,6 +6823,9 @@
     pastSalesSetTab: kioskPsSetTab,
     pastSalesLoadLedger: kioskPsLoadLedger,
     pastSalesShiftDay: kioskPsShiftDay,
+    pastSalesSetMode: kioskPsSetMode,
+    pastSalesPickDate: kioskPsPickDate,
+    pastSalesLoadRange: kioskPsLoadRange,
     pastSalesRefresh: kioskPsRefresh,
     pastSalesToggleDetail: kioskPsToggleDetail,
     pastSalesSearch: kioskPsSearch,
@@ -6661,7 +6836,7 @@
       for (var k in _kioskPsDetails) {
         if (Object.prototype.hasOwnProperty.call(_kioskPsDetails, k)) n++;
       }
-      return { tab: _kioskPsTab, ledger: _kioskPsLedger, detailCount: n, gen: _kioskPsGen, contact: _kioskPsContact, historyCount: _kioskPsHistoryCount };
+      return { tab: _kioskPsTab, ledger: _kioskPsLedger, detailCount: n, gen: _kioskPsGen, contact: _kioskPsContact, historyCount: _kioskPsHistoryCount, mode: _kioskPsMode, range: _kioskPsRange };
     },
     normalizeCertNumber: kioskNormalizeCertNumber,
     wireCertInput: kioskWireCertInput,
