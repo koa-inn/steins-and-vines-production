@@ -427,11 +427,18 @@
         </div>
       </div>
       <div id="kiosk-ps-ledger-panel" class="kiosk-ps-panel" style="display:none;">
+        <div class="kiosk-so-status-filter kiosk-ps-modes">
+          <button type="button" class="kiosk-so-chip kiosk-ps-mode active" data-mode="day">Day</button>
+          <button type="button" class="kiosk-so-chip kiosk-ps-mode" data-mode="week">Week</button>
+          <button type="button" class="kiosk-so-chip kiosk-ps-mode" data-mode="month">Month</button>
+        </div>
         <div class="kiosk-ps-daybar">
           <button type="button" class="btn-secondary kiosk-ps-daybtn" id="kiosk-ps-prev" aria-label="Previous day">&lsaquo;</button>
+          <span id="kiosk-ps-range-label" class="kiosk-ps-range-label"></span>
           <input type="date" id="kiosk-ps-date" class="kiosk-search-input">
           <button type="button" class="btn-secondary kiosk-ps-daybtn" id="kiosk-ps-next" aria-label="Next day">&rsaquo;</button>
         </div>
+        <button type="button" id="kiosk-ps-backlink" class="btn-secondary kiosk-ps-backlink" style="display:none;"></button>
         <div id="kiosk-ps-ledger-message" class="kiosk-ps-message"></div>
         <div id="kiosk-ps-ledger-list" class="kiosk-ps-list"></div>
         <div id="kiosk-ps-ledger-footer" class="kiosk-ps-total"></div>
