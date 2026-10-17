@@ -250,6 +250,83 @@ function sortByCreatedDesc(invoices) {
   return decorated.map(function (x) { return x.inv; });
 }
 
+// ---- Phase 93: week/month range helpers (pure, string arithmetic only) ----
+
+// Monday on or before `day` (ROADMAP weeks run Mon-Sun).
+function weekStart(day) {
+  var t = parseDateUtc(day);
+  if (t === null) return null;
+  var dow = new Date(t).getUTCDay();
+  return addDays(day, -((dow + 6) % 7));
+}
+
+function monthStart(day) {
+  return String(day).slice(0, 8) + '01';
+}
+
+function monthEnd(day) {
+  return addDays(addMonths(monthStart(day), 1), -1);
+}
+
+function periodBounds(type, anchor) {
+  if (type === 'week') {
+    var s = weekStart(anchor);
+    return { start: s, end: addDays(s, 6) };
+  }
+  if (type === 'month') {
+    return { start: monthStart(anchor), end: monthEnd(anchor) };
+  }
+  return null;
+}
+
+// Mirrors the day query window (date_start=day, date_end=day+1): a record whose
+// own `date` is outside [day, day+1] would not have been returned by Zoho.
+// Missing or unparseable dates are accepted.
+function inDayWindow(rec, day) {
+  var d = rec && rec.date;
+  if (typeof d === 'string' && DATE_RE.test(d) && isRealDate(d)) {
+    return d === day || d === addDays(day, 1);
+  }
+  return true;
+}
+
+function inDayQueryWindow(inv, day) {
+  return inDayWindow(inv, day);
+}
+
+function paymentInDayWindow(p, day) {
+  return inDayWindow(p, day);
+}
+
+function invoiceBelongsToDay(inv, day) {
+  return createdDay(inv) === day && inDayQueryWindow(inv, day);
+}
+
+// True exactly when an in-store payment note could change classify's result,
+// so callers may skip the payments fetch for invoices where it is false.
+function needsPaymentNotes(inv) {
+  return classify(inv, []) !== classify(inv, [IN_STORE_NOTE_PREFIXES[0] + 'x']);
+}
+
+// The single per-day chain shared by the day ledger and the range build (D-12).
+function ledgerRowsForDay(day, invoices, payRows, linkageField, notesField) {
+  var dayInvoices = (invoices || []).filter(function (i) { return invoiceBelongsToDay(i, day); });
+  var dayPays = (payRows || []).filter(function (p) { return paymentInDayWindow(p, day); });
+  var idx = indexPaymentsByInvoice(dayPays, linkageField, notesField);
+  var kept = [];
+  var tenders = {};
+  dayInvoices.forEach(function (inv) {
+    var paid = idx[inv.invoice_number] || [];
+    var notes = paid.map(function (p) { return p.note; });
+    if (classify(inv, notes) !== 'in-store') return;
+    kept.push(inv);
+    tenders[inv.invoice_id] = tenderLabel(paid);
+  });
+  return sortByCreatedDesc(kept).map(function (inv) {
+    return slimInvoiceRow(inv, 'in-store', tenders[inv.invoice_id]);
+  });
+}
+
 module.exports = {
   TIMEZONE: TIMEZONE,
   isRealDate: isRealDate,
@@ -272,5 +349,14 @@ module.exports = {
   ONLINE_NOTE_PREFIXES: ONLINE_NOTE_PREFIXES,
   ROW_KEYS: ROW_KEYS,
   DETAIL_KEYS: DETAIL_KEYS,
-  LINE_ITEM_KEYS: LINE_ITEM_KEYS
+  LINE_ITEM_KEYS: LINE_ITEM_KEYS,
+  weekStart: weekStart,
+  monthStart: monthStart,
+  monthEnd: monthEnd,
+  periodBounds: periodBounds,
+  inDayQueryWindow: inDayQueryWindow,
+  invoiceBelongsToDay: invoiceBelongsToDay,
+  paymentInDayWindow: paymentInDayWindow,
+  needsPaymentNotes: needsPaymentNotes,
+  ledgerRowsForDay: ledgerRowsForDay
 };
