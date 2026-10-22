@@ -2822,6 +2822,7 @@ function parseWaitlistRecipeIds(value) {
         .then(function (r) {
           var data = r.data || {};
           try { sessionStorage.setItem('sv-bp-batch-' + batchId, JSON.stringify({ ts: Date.now(), data: data })); } catch (e) {}
+          syncListTaskCounts(batchId, data.tasks);
           if (_selectedBatchId === batchId) renderBatchDetail(data);
         })
         .catch(function () {});
@@ -4585,6 +4586,38 @@ function parseWaitlistRecipeIds(value) {
       applyBatchFilter();
       renderBatchList();
     });
+  }
+
+  // applyTaskToggleToList — keep a list card's "N/M tasks" in step with a task
+  // ticked or unticked elsewhere. Task writes keep the cached list on purpose
+  // (listAffecting:false, WR-01), so without this the card showed the old count.
+  function applyTaskToggleToList(batchId, checked) {
+    var b = null;
+    for (var i = 0; i < _allBatchesData.length; i++) {
+      if (String(_allBatchesData[i].batch_id) === String(batchId)) { b = _allBatchesData[i]; break; }
+    }
+    if (!b) return;
+    var total = parseInt(b.tasks_total, 10) || 0;
+    var done = (parseInt(b.tasks_done, 10) || 0) + (checked ? 1 : -1);
+    b.tasks_done = Math.max(0, Math.min(total, done));
+    if (document.getElementById('bp-batch-results')) renderBatchList();
+  }
+
+  // syncListTaskCounts — set a list card's task counts exactly from a freshly
+  // fetched batch detail, correcting any optimistic +1/-1 (e.g. a tick and untick
+  // inside the 300 ms save debounce).
+  function syncListTaskCounts(batchId, tasks) {
+    if (!Array.isArray(tasks)) return;
+    var b = null;
+    for (var i = 0; i < _allBatchesData.length; i++) {
+      if (String(_allBatchesData[i].batch_id) === String(batchId)) { b = _allBatchesData[i]; break; }
+    }
+    if (!b) return;
+    b.tasks_total = tasks.length;
+    b.tasks_done = tasks.filter(function (t) {
+      return t.completed === true || t.completed === 'TRUE' || t.completed === '1';
+    }).length;
+    if (document.getElementById('bp-batch-results')) renderBatchList();
   }
 
   var STATUS_LABELS = { primary: 'Primary', secondary: 'Secondary', complete: 'Complete', active: 'Active', packaging: 'Packaging', pending: 'Pending' };
@@ -10825,6 +10858,7 @@ function parseWaitlistRecipeIds(value) {
               // the Batches tab (WR-01). loadDashboard() then keeps the batch-view
               // readyToBottle filter live if it's the active view.
               if (task && task.batch_id) afterBatchWrite(task.batch_id, { listAffecting: false });
+              applyTaskToggleToList(task ? task.batch_id : _selectedBatchId, checked);
               loadDashboard().then(refreshReadyToBottleFilterView);
               var titleLower = task ? (task.title || '').toLowerCase() : '';
               var isVesselChange = checked && task && (
@@ -10994,6 +11028,7 @@ function parseWaitlistRecipeIds(value) {
               // loadDashboard() refetches _dashSummary for readyToBottle freshness and keeps
               // the batch-view readyToBottle filter live if it's the active view.
               if (task && task.batch_id) afterBatchWrite(task.batch_id, { listAffecting: false });
+              applyTaskToggleToList(task ? task.batch_id : _selectedBatchId, checked);
               loadDashboard().then(refreshReadyToBottleFilterView);
               var titleLower2 = task ? (task.title || '').toLowerCase() : '';
               var isVesselChange2 = checked && task && (
@@ -11220,6 +11255,7 @@ function parseWaitlistRecipeIds(value) {
               // the dashboard stat cards/chart aren't blanked (WR-01) — freshness comes
               // from loadDashboard() refetching _dashSummary, not from clearing
               // _allBatchesData (#2; this handler had no afterBatchWrite before).
+              applyTaskToggleToList(_selectedBatchId, checked);
               if (_selectedBatchId) afterBatchWrite(_selectedBatchId, { listAffecting: false, refreshOpenDetail: true });
               loadDashboard().then(refreshReadyToBottleFilterView);
             })
@@ -11733,6 +11769,8 @@ function parseWaitlistRecipeIds(value) {
       // readyToBottle re-derive path (CR-01) without a DOM change-event.
       applyBatchFilter: applyBatchFilter,
       selectBatchStatusFilter: selectBatchStatusFilter,
+      applyTaskToggleToList: applyTaskToggleToList,
+      syncListTaskCounts: syncListTaskCounts,
       // Phase 69: the single readyToBottle intersection that drives BOTH the filter rows
       // AND the count chip (WR-03) — exported so a test can pin that they cannot diverge.
       readyToBottleRows: readyToBottleRows,
