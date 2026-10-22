@@ -10,17 +10,17 @@ classifications only.
 | Field | Value |
 |-------|-------|
 | Environment | production |
-| `OPS_DATA_STORE=dual` set at | |
-| `STAFF_ACCESS_STORE=dual` set at | |
-| Window day 1 date | |
-| Current window start (resets to day 1 on any bug-classified discrepancy) | |
+| `OPS_DATA_STORE=dual` set at | 2026-10-20T00:00:45Z (Mon 2026-10-19 17:00 PDT, shop closed); deployment `b523aaf0`, rollback `ea61a171` |
+| `STAFF_ACCESS_STORE=dual` set at | 2026-10-20T00:00:45Z (same single change as OPS) |
+| Window day 1 date | 2026-10-20 (Tue, first open day in dual) |
+| Current window start (resets to day 1 on any bug-classified discrepancy) | 2026-10-20 |
 
 ## Production prerequisites (D-12)
 
 | Check | Evidence | Date |
 |-------|----------|------|
-| Production `RECIPES_STORE=postgres` recorded in 85-DUAL-LOG.md "Flip decision" | | |
-| Phase 85 post-flip verification complete | | |
+| Production `RECIPES_STORE=postgres` recorded in 85-DUAL-LOG.md "Flip decision" | Flipped 2026-10-17 19:17:15Z (85-DUAL-LOG.md) | 2026-10-17 |
+| Phase 85 post-flip verification complete | 85-DUAL-LOG.md "Post-flip verification (2026-10-17, production)"; re-run from shipped main 2026-10-19 on S1: `Verified 13 recipes: 0 mismatches`, exit 0 (runsheet step 1, A1 GO) | 2026-10-19 |
 | Data-hygiene decisions (FS-0011 "ZZ Test Template", "[gfs-probe]" on FS-0001): delete/clean or accept | Owner: import both as-is (accept) | 2026-10-08 |
 | Vessels `label` header present (`ops-verify.js` prints "Vessels label header: present") | label header added to Vessels L1; staging verify printed "present" | 2026-10-08 |
 
@@ -60,12 +60,22 @@ Leftover staging test data: TST-001 (Empty, label "UAT test carboy") and FS-0013
 
 | Date | Step | Result |
 |------|------|--------|
-| | backfill dry run (0 rejects) | |
-| | promote + `ops-verify.js` 0 mismatches | |
-| | both flags set to dual together; `/health` `database_required` true | |
-| | startup log "Ops mirror sweep registered" | |
-| | pre-open mirror write + fresh-snapshot verify | |
+| 2026-10-19 | backfill dry run (0 rejects) | In-container on S1 (sha `772790ed`): 232 vessels, 13 schedules, 2 config keys, 2 staff (2 owners); seeds 13/232; 0 non-imported keys; 0 Config staff_emails entries outside the Railway list; **0 rejects**. Pre-check: all 10 ops/batch tables were 0; C1 headers OK (Vessels `label` after `notes`, Config `key \| value`) |
+| 2026-10-19 | promote + `ops-verify.js` 0 mismatches | Promoted 232/13/2/2, sequences 13/232. `ops-verify` on S1: label header present, **0 mismatches**, staff missing-from-PG 0, PG-only 1 (an owner passed via --owners that is not in env STAFF_EMAILS) |
+| 2026-10-20 00:00:45Z | both flags set to dual together; `/health` `database_required` true | One `railway variable set` (both keys) → deploy `b523aaf0` SUCCESS. store modes: GIFT_CARDS postgres, RECIPES postgres, OPS dual, STAFF dual, BATCHES sheets. `/health` ok, authenticated, redis, database, database_required true |
+| 2026-10-20 00:03:06Z | startup log "Ops mirror sweep registered" | `[sheet-mirror] mirror ENABLED (environment=production)` + `[ops-mirror] Ops mirror sweep registered: every 5 minutes` |
+| 2026-10-20 00:03:41Z | pre-open mirror write + fresh-snapshot verify | Owner session (Claude in Chrome): MT-001 (Empty) notes edit, `PUT /api/vessels/MT-001` 200 in 23 ms; dirty markers 0. S2 (sha `8346e38a`, downloaded after the write): MT-001 notes on the sheet match; `ops-verify` **0 mismatches** (232/13), missing-from-PG 0, PG-only 1 (as above); row layout check: MT-001 and FS-0001 cell counts ≤ header, types match neighbours BK-001/FS-0002, no shift. **A2 GO.** S1/S2 deleted from the container |
 | | every regular staff member signed in once | |
+
+**Scope note (owner decision, 2026-10-19):** Only runsheet steps 1-2 were run on Mon 10-19 (the
+Sunday 10-18 session did not happen). The owner chose dual-only for the evening, so staff use dual
+for real Tue 10-20 to Sat 10-24. This restores most of the D-11 real-use window that the runsheet
+had replaced with the scripted step 3. The flip (86-20) and the 87-19 batch window move to the next
+closed day. The scripted step 3 still runs before the flip for any action real use has not covered.
+
+Open for the window: every regular staff member signs in once. The production staff list is the
+2 owner accounts only, so the owner must confirm whether any other staff account needs adding
+before the STAFF_EMAILS trim.
 
 ## Op coverage
 
@@ -76,7 +86,7 @@ unexplained discrepancies were raised for that action during the current window.
 | Action | First seen at | Real or scripted | Sentry clean? |
 |--------|----------------|-------------------|----------------|
 | vessel add | staging 2026-10-08 (not window) | staging | yes |
-| vessel edit | staging 2026-10-08 (not window) | staging | yes |
+| vessel edit | production 2026-10-20 00:03:41Z (MT-001 notes, pre-open; window starts 10-20) | scripted | yes |
 | vessel archive | staging 2026-10-08 (not window) | staging | yes |
 | vessel status override | staging 2026-10-08 (not window) | staging | yes |
 | batch-flow vessel status delta | staging 2026-10-08 (not window) | staging | yes |
