@@ -1,13 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Google Tag Manager -->
-  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-  })(window,document,'script','dataLayer','GTM-NHRCGLC5');</script>
-  <!-- End Google Tag Manager -->
+  <!-- Google Tag Manager loads only after cookie consent: see js/consent.js and docs/TRACKING.md -->
+  <script src="js/consent.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -163,35 +158,32 @@
     .lb-foot a { color: var(--color-green); text-decoration: none; }
     .lb-foot a:hover, .lb-foot a:focus-visible { text-decoration: underline; }
     .lb-hours { margin-top: 6px; font-size: 0.8rem; color: var(--color-muted); }
+    .lb-foot .lb-cookie-btn { margin-top: 10px; font-size: 0.75rem; color: var(--color-muted); }
     @media (min-width: 600px) {
       .lb-logo { max-width: 300px; }
     }
   </style>
 </head>
 <body class="links-page">
-  <!-- Google Tag Manager (noscript) -->
-  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NHRCGLC5"
-  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-  <!-- End Google Tag Manager (noscript) -->
 
   <main class="lb-wrap">
     <h1 class="lb-logo-heading"><img src="images/SV_Logo_Wordmark_green.svg" alt="Steins &amp; Vines" class="lb-logo"></h1>
     <p class="lb-tagline">Squamish's ferment-on-premise wine, beer &amp; cider &mdash; crafted by you.</p>
 
     <nav class="lb-links" aria-label="Steins &amp; Vines links">
-      <a class="lb-btn" href="index.html"><span class="lb-ico" aria-hidden="true">&#127863;</span> Visit our website</a>
-      <a class="lb-btn lb-btn--primary" href="products/ferment-in-store.html"><span class="lb-ico" aria-hidden="true">&#128197;</span> Book a ferment session</a>
-      <a class="lb-btn" href="https://www.squamishchief.com/sponsored/a-fresh-take-on-wine-why-more-squamish-locals-are-choosing-the-u-brew-experience-12711744" target="_blank" rel="noopener"><span class="lb-ico" aria-hidden="true">&#128240;</span> Read our story &mdash; Squamish Chief</a>
-      <a class="lb-btn" href="contact.html"><span class="lb-ico" aria-hidden="true">&#128205;</span> Find us, hours &amp; contact</a>
-      <a class="lb-btn" href="https://g.page/r/CaSR2qI3SIkMEBM/review" target="_blank" rel="noopener"><span class="lb-ico" aria-hidden="true">&#11088;</span> Leave us a Google review</a>
-      <a class="lb-btn" href="https://instagram.com/steinsandvinessq" target="_blank" rel="noopener"><span class="lb-ico" aria-hidden="true">&#128247;</span> Follow us on Instagram</a>
+      <a class="lb-btn" href="index.html" data-track="website"><span class="lb-ico" aria-hidden="true">&#127863;</span> Visit our website</a>
+      <a class="lb-btn lb-btn--primary" href="products/ferment-in-store.html" data-track="book_ferment"><span class="lb-ico" aria-hidden="true">&#128197;</span> Book a ferment session</a>
+      <a class="lb-btn" href="https://www.squamishchief.com/sponsored/a-fresh-take-on-wine-why-more-squamish-locals-are-choosing-the-u-brew-experience-12711744" target="_blank" rel="noopener" data-track="squamish_chief"><span class="lb-ico" aria-hidden="true">&#128240;</span> Read our story &mdash; Squamish Chief</a>
+      <a class="lb-btn" href="contact.html" data-track="contact"><span class="lb-ico" aria-hidden="true">&#128205;</span> Find us, hours &amp; contact</a>
+      <a class="lb-btn" href="https://g.page/r/CaSR2qI3SIkMEBM/review" target="_blank" rel="noopener" data-track="google_review"><span class="lb-ico" aria-hidden="true">&#11088;</span> Leave us a Google review</a>
+      <a class="lb-btn" href="https://instagram.com/steinsandvinessq" target="_blank" rel="noopener" data-track="instagram_button"><span class="lb-ico" aria-hidden="true">&#128247;</span> Follow us on Instagram</a>
     </nav>
 
     <div class="lb-social">
-      <a href="https://instagram.com/steinsandvinessq" aria-label="Follow us on Instagram" target="_blank" rel="noopener">
+      <a href="https://instagram.com/steinsandvinessq" aria-label="Follow us on Instagram" target="_blank" rel="noopener" data-track="instagram_icon">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
       </a>
-      <a href="https://facebook.com/steinsandvines" aria-label="Follow us on Facebook" target="_blank" rel="noopener">
+      <a href="https://facebook.com/steinsandvines" aria-label="Follow us on Facebook" target="_blank" rel="noopener" data-track="facebook_icon">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
       </a>
     </div>
@@ -200,9 +192,30 @@
       <iframe title="Map to Steins &amp; Vines, 11-38918 Progress Way, Squamish" src="https://www.google.com/maps?q=Steins+and+Vines,+11-38918+Progress+Way,+Squamish,+BC+V8B+0K7&amp;z=16&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
     </div>
     <footer class="lb-foot">
-      <a href="https://maps.app.goo.gl/ZXnczQAtsWeiYTqW7" target="_blank" rel="noopener">11-38918 Progress Way, Squamish, BC V8B 0K7</a>
-      <div class="lb-hours">Tue&ndash;Sat 10AM&ndash;4PM &middot; Thu until 7PM &middot; Sun &amp; Mon closed</div>
+      <a href="https://maps.app.goo.gl/ZXnczQAtsWeiYTqW7" target="_blank" rel="noopener" data-track="map_directions">11-38918 Progress Way, Squamish, BC V8B 0K7</a>
+      <div class="lb-hours">Tue, Wed, Fri &amp; Sat 10AM&ndash;4PM &middot; Thu 12PM&ndash;7PM &middot; Sun &amp; Mon closed</div>
+      <button type="button" class="footer-legal-btn lb-cookie-btn" data-cookie-settings>Cookie settings</button>
     </footer>
   </main>
+  <!-- Link-in-bio click tracking: pushes "linkinbio_click" to dataLayer (see docs/TRACKING.md).
+       Events queue until the visitor accepts cookies, then GTM processes them. -->
+  <script>
+  (function () {
+    window.dataLayer = window.dataLayer || [];
+    document.addEventListener('click', function (e) {
+      var el = e.target;
+      while (el && el !== document && !(el.tagName === 'A' && el.getAttribute('data-track'))) {
+        el = el.parentNode;
+      }
+      if (!el || el === document) return;
+      window.dataLayer.push({
+        event: 'linkinbio_click',
+        link_id: el.getAttribute('data-track'),
+        link_url: el.href,
+        link_text: (el.textContent || '').replace(/\s+/g, ' ').trim()
+      });
+    }, true);
+  })();
+  </script>
 </body>
 </html>

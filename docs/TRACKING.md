@@ -16,7 +16,7 @@ There is a second, **unused** Meta pixel in the Business Manager ("Wine and Brew
 
 ## Cookie consent (added 2026-09-17)
 
-`js/consent.js` replaces the inline GTM snippet on every public page (not `404.html`, not the staff surfaces, and not `links.html`, which still carries the inline snippet pending the owner's uncommitted edit).
+`js/consent.js` replaces the inline GTM snippet on every public page, including `links.html` since 2026-10-22 (not `404.html` and not the staff surfaces).
 
 - On first visit it pushes Google Consent Mode v2 defaults (`analytics_storage`, `ad_storage`, `ad_user_data`, `ad_personalization` = `denied`) and shows a small bottom-left notice with equal **Decline** / **Accept** buttons and a link to `privacy.html#cookies`. **GTM is not loaded** until Accept.
 - Accept: stores `sv-cookie-consent` = `{choice:"accepted", at, v:1}` in localStorage, pushes `consent update` (granted), pushes `gtm.js` and injects the GTM script. Later visits load GTM immediately. Decline stores `declined`; nothing loads. Both are asked again after 365 days.
@@ -25,12 +25,13 @@ There is a second, **unused** Meta pixel in the Business Manager ("Wine and Brew
 - Site JS keeps pushing `dataLayer` events regardless; GTM processes the queue when it loads, so a visitor who accepts mid-session still gets their earlier events.
 - Not gated: Sentry, reCAPTCHA on checkout, the first-party event beacon to Apps Script (`trackEvent`, no cookie), and the Behold Instagram embed on the home page.
 - Consequence for reporting: GA4 / Meta / Metricool now see **consenting visitors only**. Expect a step change in sessions and conversions from the deploy date. Consent Mode defaults are pushed so Google's modelled conversions can fill part of the gap if that is enabled in GA4/Ads.
-- Tests: `tests/frontend/cookie-consent.test.js` (behaviour + page markup).
+- Tests: `tests/frontend/cookie-consent.test.js` (behaviour + page markup); `tests/frontend/links-page.test.js` covers `links.html`.
 
 ## How events flow
 
 1. Site JS (`js/modules/`, built into `js/main.min.js`) pushes events to `dataLayer`:
    `add_to_cart`, `begin_checkout`, `purchase` (with `ecommerce.transaction_id`, `value`, `currency`, `items`), plus page-specific view events (`fis_page_view`, `is_page_view`, `resrvation_page_view` — note the long-standing typo, kept for data continuity).
+   `links.html` (Instagram link-in-bio) pushes `linkinbio_click` with `link_id` (the link's `data-track` value), `link_url` and `link_text` from an inline script on the page.
 2. GTM custom-event triggers (`CE - add_to_cart`, `CE - begin_checkout`, `CE - purchase`) fire both the GA4 event tags and the Meta pixel Custom HTML tags.
 3. Payment is a HelcimPay iframe on our own domain — checkout never leaves steinsandvines.ca. There is **no server-side tracking**: no GA4 Measurement Protocol secrets exist; the middleware does not send analytics events.
 
@@ -75,3 +76,4 @@ Every public HTML page carries a `<meta http-equiv="Content-Security-Policy">` t
 - "Unassigned" revenue in GA4 predates the CSP fix; re-verify attribution with a post-deploy test transaction.
 - `resrvation_page_view` typo: rename only with a coordinated change (site JS + GTM trigger + GA4 reports expectations).
 - Cloudflare bot rules could still be tightened upstream (bots no longer pollute conversions, but still pollute traffic stats).
+- `linkinbio_click` (added 2026-10-22) needs a GTM Custom Event trigger on `linkinbio_click` and a GA4 event tag passing `link_id`, `link_url` and `link_text`. Until then the events reach `dataLayer` but not GA4.
