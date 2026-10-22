@@ -331,27 +331,38 @@ function sendWaitlistNotification(data) {
 }
 
 /**
- * Staff alert for a mailing list signup from the website form (links, home or
- * contact page). Sent after MailerLite accepted the address, so it can say the
+ * Staff alert for a mailing list signup: the website form (links, home or
+ * contact page) or the newsletter box at checkout. Sent after MailerLite accepted the address, so it can say the
  * subscriber is in the Customer group, and whether they were already on it.
  *
  * @param {Object} data
  * @param {string} data.email
- * @param {string} data.source            - 'links' | 'home' | 'contact' | 'site'
+ * @param {string} data.source            - 'links' | 'home' | 'contact' | 'checkout' | 'site'
+ * @param {string} [data.orderNumber]     - checkout only: the order the customer opted in on
  * @param {boolean} data.alreadySubscribed - true when MailerLite already had them
  */
 function sendNewsletterNotification(data) {
   var email = (data.email || '').trim();
-  var page = (data.source || 'site') === 'site' ? 'website' : data.source + ' page';
+  var source = data.source || 'site';
   var already = data.alreadySubscribed === true;
+  var intro;
+  if (source === 'checkout') {
+    intro = already
+      ? 'A customer who was already on the list ticked the newsletter box at checkout:'
+      : 'A customer ticked the newsletter box at checkout and joined the mailing list:';
+  } else {
+    var page = source === 'site' ? 'website' : source + ' page';
+    intro = already
+      ? 'Someone who was already on the list signed up again from the ' + page + ':'
+      : 'A new subscriber joined the mailing list from the ' + page + ':';
+  }
   return sendViaResend({
     to: staffTo(),
     replyTo: email || staffTo(),
     subject: already ? 'Mailing list signup (already subscribed)' : 'New mailing list signup',
-    text: (already
-      ? 'Someone who was already on the list signed up again from the ' + page + ':'
-      : 'A new subscriber joined the mailing list from the ' + page + ':') +
+    text: intro +
       '\n\nEmail: ' + (email || 'N/A') +
+      (data.orderNumber ? '\nOrder: ' + data.orderNumber : '') +
       '\n\nThey are in the MailerLite Customer group.'
   });
 }

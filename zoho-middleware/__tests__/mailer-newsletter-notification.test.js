@@ -38,4 +38,12 @@ describe('sendNewsletterNotification', () => {
     expect(body.text).toContain('links page');
     expect(body.text).toMatch(/already on the list/i);
   });
+
+  test('a checkout opt-in names the order', async () => {
+    await mailer.sendNewsletterNotification({ email: 'buyer@x.com', source: 'checkout', alreadySubscribed: false, orderNumber: 'INV-000300' });
+    var body = axios.post.mock.calls[0][1];
+    expect(body.subject).toBe('New mailing list signup');
+    expect(body.text).toContain('ticked the newsletter box at checkout');
+    expect(body.text).toContain('INV-000300');
+  });
 });

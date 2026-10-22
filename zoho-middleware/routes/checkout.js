@@ -826,7 +826,21 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
         });
         if (mailerlite.isConfigured()) {
           var newsletterGroup = (process.env.MAILERLITE_NEWSLETTER_GROUP_ID || '').trim();
-          mailerlite.addSubscriber(newsletterEmail, newsletterGroup ? [newsletterGroup] : []).catch(function (mlErr) {
+          mailerlite.addSubscriber(newsletterEmail, newsletterGroup ? [newsletterGroup] : []).then(function (ml) {
+            // Staff alert, in its own chain so a failure here is never logged as
+            // a failed subscribe. A just-created record has created_at === updated_at.
+            var sub = (ml && ml.data) || {};
+            Promise.resolve().then(function () {
+              return mailer.sendNewsletterNotification({
+                email: newsletterEmail,
+                source: 'checkout',
+                orderNumber: soNumber || '',
+                alreadySubscribed: !!(sub.created_at && sub.updated_at && sub.created_at !== sub.updated_at)
+              });
+            }).catch(function (notifyErr) {
+              log.error('[checkout] Newsletter staff notify failed (non-fatal): ' + notifyErr.message);
+            });
+          }, function (mlErr) {
             log.error('[checkout] Newsletter subscribe failed (non-fatal) for ' +
               redact.maskEmail(newsletterEmail) + ': ' + mlErr.message);
           });
