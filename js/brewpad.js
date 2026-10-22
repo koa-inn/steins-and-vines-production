@@ -4569,6 +4569,24 @@ function parseWaitlistRecipeIds(value) {
       });
   }
 
+  // selectBatchStatusFilter(filterBtn) — a batch-view status chip was clicked. afterBatchWrite empties
+  // _allBatchesData after a list-affecting save so the next view refetches; every
+  // chip must therefore load an emptied list BEFORE filtering it, or the view shows
+  // no batches at all (owner report 2026-10-22: "all the batch data disappears").
+  // Phase 90 fixed this for Unlinked only. Ready-to-Bottle also needs _dashSummary
+  // (its rows are the intersection, WR-02). loadDashboard/loadBatches fail soft; all
+  // filtering routes through applyBatchFilter (CR-01).
+  function selectBatchStatusFilter(filterBtn) {
+    _batchStatusFilter = filterBtn.getAttribute('data-status');
+    var loads = [];
+    if (_allBatchesData.length === 0) loads.push(loadBatches());
+    if (_batchStatusFilter === 'readyToBottle' && !_dashSummary) loads.push(loadDashboard());
+    return Promise.all(loads).then(function () {
+      applyBatchFilter();
+      renderBatchList();
+    });
+  }
+
   var STATUS_LABELS = { primary: 'Primary', secondary: 'Secondary', complete: 'Complete', active: 'Active', packaging: 'Packaging', pending: 'Pending' };
   var STATUS_COLORS = { primary: 'info', secondary: 'warning', complete: 'success', active: 'info', packaging: 'warning', pending: 'neutral' };
 
@@ -10879,32 +10897,7 @@ function parseWaitlistRecipeIds(value) {
 
         var filterBtn = e.target.closest('.bp-filter-btn');
         if (filterBtn) {
-          _batchStatusFilter = filterBtn.getAttribute('data-status');
-          if (_batchStatusFilter === 'unlinked' && _allBatchesData.length === 0) {
-            // Phase 90: afterBatchWrite empties _allBatchesData; filtering the empty
-            // list would claim "Every batch is linked". Load first, then apply.
-            loadBatches().then(function () {
-              applyBatchFilter();
-              renderBatchList();
-            });
-          } else if (_batchStatusFilter === 'readyToBottle' && (!_dashSummary || _allBatchesData.length === 0)) {
-            // Ready-to-Bottle needs BOTH the server readyToBottle set (_dashSummary) AND
-            // the batch list (_allBatchesData) — the rows are their intersection. Load
-            // whichever is missing, THEN apply the filter (WR-02: loadDashboard() alone
-            // refetches only the summary, so filtering an empty _allBatchesData yielded []).
-            // loadDashboard/loadBatches fail soft; all filtering routes through
-            // applyBatchFilter (CR-01).
-            Promise.all([
-              _dashSummary ? Promise.resolve() : loadDashboard(),
-              _allBatchesData.length ? Promise.resolve() : loadBatches()
-            ]).then(function () {
-              applyBatchFilter();
-              renderBatchList();
-            });
-          } else {
-            applyBatchFilter();
-            renderBatchList();
-          }
+          selectBatchStatusFilter(filterBtn);
           return;
         }
         if (e.target.closest('#bp-batch-view-toggle')) {
@@ -11739,6 +11732,7 @@ function parseWaitlistRecipeIds(value) {
       // Phase 69: filter-derivation seam — exported so behavioral tests can drive the
       // readyToBottle re-derive path (CR-01) without a DOM change-event.
       applyBatchFilter: applyBatchFilter,
+      selectBatchStatusFilter: selectBatchStatusFilter,
       // Phase 69: the single readyToBottle intersection that drives BOTH the filter rows
       // AND the count chip (WR-03) — exported so a test can pin that they cannot diverge.
       readyToBottleRows: readyToBottleRows,
