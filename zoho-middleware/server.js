@@ -387,6 +387,59 @@ app.post('/api/waitlist', waitlistLimiter, async function (req, res) {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/newsletter — main mailing list signup (links, home, contact pages)
+// ---------------------------------------------------------------------------
+// MailerLite is the only store here (no sheet row, unlike the beer waitlist),
+// so its failure, or a missing MAILERLITE_NEWSLETTER_GROUP_ID, is a 503: never
+// accept a signup and silently drop it. The response never discloses whether
+// the address was already subscribed. `company` is a honeypot field hidden from
+// people: a filled one is answered like success and never subscribed.
+var newsletterLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: makeRedisStore(60 * 1000, 'newsletter'),
+  skip: redisUnavailableSkip,
+  message: { error: 'Too many requests, please try again later' }
+});
+var NEWSLETTER_SOURCES = ['links', 'home', 'contact'];
+
+app.post('/api/newsletter', newsletterLimiter, function (req, res) {
+  var body = req.body || {};
+  var email = (typeof body.email === 'string' ? body.email : '').trim();
+  var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) return res.status(400).json({ error: 'Valid email is required' });
+
+  if (typeof body.company === 'string' && body.company.trim()) return res.json({ success: true });
+
+  var groupId = (process.env.MAILERLITE_NEWSLETTER_GROUP_ID || '').trim();
+  if (!mailerlite.isConfigured() || !groupId) {
+    console.error('[newsletter] MailerLite API key or MAILERLITE_NEWSLETTER_GROUP_ID not set: signup refused');
+    return res.status(503).json({ error: 'Sign-up is temporarily unavailable' });
+  }
+
+  var source = NEWSLETTER_SOURCES.indexOf(body.source) !== -1 ? body.source : 'site';
+
+  mailerlite.addSubscriber(email, [groupId])
+    .then(function () {
+      // CASL consent record: who (masked), when, where, and the exact statement
+      // shown beside the form.
+      eventLog.logEvent('newsletter.consent', {
+        email: redact.maskEmail(email),
+        source: source,
+        consent: body.consent === true,
+        consentText: (typeof body.consent_text === 'string') ? body.consent_text.substring(0, 400) : ''
+      });
+      res.json({ success: true });
+    })
+    .catch(function (err) {
+      console.error('[newsletter] MailerLite subscribe failed:', err.message);
+      res.status(503).json({ error: 'Sign-up is temporarily unavailable' });
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Auth guard — protects all /api/* routes below
 // ---------------------------------------------------------------------------
 
