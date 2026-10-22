@@ -872,6 +872,17 @@ if (require.main === module) {
         log.info('[cron] Scheduled warm-up registered: 05:00 and 13:00 UTC daily');
       }
 
+      // Kiosk catalog: rebuild every 10 minutes from 9:00 to 19:50 shop time so the
+      // 30-minute cache never expires during opening hours and a kiosk load never
+      // waits on a cold Zoho rebuild (5-11 s in production logs, 2026-10). Registered
+      // outside the authenticated branch and checked per run, so it still starts
+      // working if Zoho authenticates after boot.
+      cron.schedule('*/10 9-19 * * *', function () {
+        if (!zohoAuth.isAuthenticated()) return;
+        catalogRouter.refreshKioskCatalogInBackground();
+      }, { timezone: 'America/Vancouver' });
+      log.info('[cron] Kiosk catalog refresh registered: every 10 min, 09:00-19:50 America/Vancouver');
+
       // Kit registry: the Kits sheet is the only authoritative answer to "is this line
       // item a kit?" (the Zoho catalog has no category on any item). Loaded once at
       // startup and refreshed hourly; batch creation degrades to a heuristic without it,

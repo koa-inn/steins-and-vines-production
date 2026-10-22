@@ -884,6 +884,32 @@ function rebuildKioskCatalog() {
 }
 
 /**
+ * refreshKioskCatalogInBackground() — rebuild the kiosk catalog cache on a
+ * schedule (server.js) so a kiosk load never waits on a cold Zoho rebuild.
+ * Overlapping calls share one rebuild. Never rejects: on failure the existing
+ * cache entry is left alone (it keeps serving until its TTL) and the error is
+ * logged. Resolves the rebuilt catalog, or null on failure.
+ */
+var _kioskRefreshInFlight = null;
+
+function refreshKioskCatalogInBackground() {
+  if (_kioskRefreshInFlight) return _kioskRefreshInFlight;
+  _kioskRefreshInFlight = rebuildKioskCatalog()
+    .then(function (sellable) {
+      log.info('[kiosk-catalog] Background refresh: ' + sellable.length + ' items');
+      return sellable;
+    }, function (err) {
+      log.error('[kiosk-catalog] Background refresh failed: ' + (err && err.message));
+      return null;
+    })
+    .then(function (result) {
+      _kioskRefreshInFlight = null;
+      return result;
+    });
+  return _kioskRefreshInFlight;
+}
+
+/**
  * GET /api/kiosk/products
  * Returns all active sellable items from Zoho Inventory with price, stock,
  * and tax info. Cached for 5 minutes. Intended for the in-store kiosk/POS.
@@ -1214,5 +1240,6 @@ router.refreshIngredients = doRefreshIngredients;
 // SAME cold-Zoho-refetch the manual ?bust=1 refresh uses, on a sale-time
 // catalog-miss auto-reconcile.
 router.rebuildKioskCatalog = rebuildKioskCatalog;
+router.refreshKioskCatalogInBackground = refreshKioskCatalogInBackground;
 
 module.exports = router;
