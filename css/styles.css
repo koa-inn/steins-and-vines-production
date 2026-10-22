@@ -1507,6 +1507,86 @@ behold-widget {
   }
 }
 
+/* ===== Main mailing list signup (links, home, contact pages; js/newsletter.js) =====
+   Same joined field + button as the beer waitlist form, on the light cream body. */
+.newsletter-signup {
+  text-align: center;
+  padding: 3rem 0;
+}
+.newsletter-title {
+  color: var(--color-green);
+  margin-bottom: 0.5rem;
+}
+.newsletter-lede {
+  max-width: 34rem;
+  margin: 0 auto 1.5rem;
+}
+.newsletter-form {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  flex-wrap: wrap;
+  max-width: 460px;
+  margin: 0 auto;
+}
+.newsletter-form input[type="email"] {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: 2px solid var(--color-burgundy);
+  border-right: 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  background: var(--color-white);
+  color: var(--color-text);
+}
+.newsletter-form input[type="email"]::placeholder { color: var(--color-muted); }
+.newsletter-form input[type="email"]:focus-visible {
+  outline: 2px solid var(--color-burgundy);
+  outline-offset: 2px;
+}
+.newsletter-form .newsletter-btn {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+.newsletter-hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.newsletter-status {
+  min-height: 1.5em;
+  margin: 0.75rem auto 0;
+  color: var(--color-green);
+  font-weight: 700;
+}
+.newsletter-status--error { color: var(--color-burgundy); }
+.newsletter-consent {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-muted);
+  max-width: 34rem;
+  margin: 0.25rem auto 0;
+}
+.newsletter-consent a { color: inherit; text-decoration: underline; }
+@media (max-width: 480px) {
+  .newsletter-form { gap: 0.75rem; }
+  .newsletter-form input[type="email"] {
+    width: 100%;
+    min-width: 0;
+    flex-basis: 100%;
+    border-right: 2px solid var(--color-burgundy);
+    border-radius: var(--radius-sm);
+  }
+  .newsletter-form .newsletter-btn {
+    width: 100%;
+    border-radius: var(--radius-sm);
+  }
+}
+
 /* ===== Beer Banner Option A: Green Garden ===== */
 .beer-banner--green {
   background: linear-gradient(135deg, var(--color-green) 0%, #3a5a3b 100%);

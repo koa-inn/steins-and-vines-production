@@ -30,8 +30,8 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mvaa9q52">
-  <link rel="stylesheet" href="css/search-overlay.min.css?v=mvaa9q52">
+  <link rel="stylesheet" href="css/styles.min.css?v=mvk4w9cg">
+  <link rel="stylesheet" href="css/search-overlay.min.css?v=mvk4w9cg">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -214,6 +214,20 @@
       </div>
     </section>
 
+    <section class="newsletter-signup content" aria-labelledby="newsletter-title">
+      <div class="container">
+        <h2 id="newsletter-title" class="newsletter-title">Stay in the loop</h2>
+        <p class="newsletter-lede">New kits, seasonal recipes, events and offers from the shop, straight to your inbox.</p>
+        <form class="newsletter-form" data-newsletter="contact" novalidate>
+          <input type="email" name="email" placeholder="Enter your email" aria-label="Email address" autocomplete="email" required>
+          <input type="text" name="company" class="newsletter-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <button type="submit" class="btn newsletter-btn">Sign up</button>
+        </form>
+        <p class="newsletter-status" role="status" aria-live="polite"></p>
+        <p class="newsletter-consent">By signing up, you agree to receive emails from Steins &amp; Vines (1571221 B.C. Ltd., 11-38918 Progress Way, Squamish, BC) about new kits, recipes, events and offers. Every email has an unsubscribe link. See our <a href="privacy.html">Privacy Policy</a>.</p>
+      </div>
+    </section>
+
     <div class="section-icon">
       <img src="images/Icon_green.svg" alt="" aria-hidden="true" loading="lazy">
     </div>
@@ -290,9 +304,10 @@
   <script src="js/vendor/sentry.min.js"></script>
   <script src="js/sentry-init.js"></script>
   <script src="js/sheets-config.js" defer></script>
-  <script src="js/main.min.js?v=mvaa9q52" defer></script>
+  <script src="js/newsletter.js" defer></script>
+  <script src="js/main.min.js?v=mvk4w9cg" defer></script>
   <script src="js/vendor/fuse.min.js" defer></script>
-  <script src="js/modules/17-search-overlay.min.js?v=mvaa9q52" defer></script>
+  <script src="js/modules/17-search-overlay.min.js?v=mvk4w9cg" defer></script>
 
 </body>
 </html>

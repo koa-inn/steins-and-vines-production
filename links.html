@@ -32,7 +32,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <noscript><link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
   <link rel="icon" href="images/Icon_green.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/styles.min.css?v=mt8x50v6">
+  <link rel="stylesheet" href="css/styles.min.css?v=mvk4w9cg">
   <style>
     /* Link-in-bio hub — scoped, brand tokens from styles.css */
     body.links-page {
@@ -158,6 +158,10 @@
     .lb-foot a { color: var(--color-green); text-decoration: none; }
     .lb-foot a:hover, .lb-foot a:focus-visible { text-decoration: underline; }
     .lb-hours { margin-top: 6px; font-size: 0.8rem; color: var(--color-muted); }
+    .lb-newsletter { padding: 24px 0 8px; }
+    .lb-newsletter .container { padding: 0; }
+    .lb-newsletter .newsletter-title { font-size: 1.25rem; }
+    .lb-newsletter .newsletter-lede { font-size: 0.9rem; margin-bottom: 14px; }
     .lb-foot .lb-cookie-btn { margin-top: 10px; font-size: 0.75rem; color: var(--color-muted); }
     @media (min-width: 600px) {
       .lb-logo { max-width: 300px; }
@@ -188,6 +192,20 @@
       </a>
     </div>
 
+    <section class="newsletter-signup lb-newsletter" aria-labelledby="newsletter-title">
+      <div class="container">
+        <h2 id="newsletter-title" class="newsletter-title">Stay in the loop</h2>
+        <p class="newsletter-lede">New kits, seasonal recipes, events and offers from the shop, straight to your inbox.</p>
+        <form class="newsletter-form" data-newsletter="links" novalidate>
+          <input type="email" name="email" placeholder="Enter your email" aria-label="Email address" autocomplete="email" required>
+          <input type="text" name="company" class="newsletter-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <button type="submit" class="btn newsletter-btn">Sign up</button>
+        </form>
+        <p class="newsletter-status" role="status" aria-live="polite"></p>
+        <p class="newsletter-consent">By signing up, you agree to receive emails from Steins &amp; Vines (1571221 B.C. Ltd., 11-38918 Progress Way, Squamish, BC) about new kits, recipes, events and offers. Every email has an unsubscribe link. See our <a href="privacy.html">Privacy Policy</a>.</p>
+      </div>
+    </section>
+
     <div class="lb-map">
       <iframe title="Map to Steins &amp; Vines, 11-38918 Progress Way, Squamish" src="https://www.google.com/maps?q=Steins+and+Vines,+11-38918+Progress+Way,+Squamish,+BC+V8B+0K7&amp;z=16&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
     </div>
@@ -217,5 +235,7 @@
     }, true);
   })();
   </script>
+  <script src="js/sheets-config.js"></script>
+  <script src="js/newsletter.js"></script>
 </body>
 </html>

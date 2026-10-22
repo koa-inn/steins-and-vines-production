@@ -31,6 +31,7 @@ There is a second, **unused** Meta pixel in the Business Manager ("Wine and Brew
 
 1. Site JS (`js/modules/`, built into `js/main.min.js`) pushes events to `dataLayer`:
    `add_to_cart`, `begin_checkout`, `purchase` (with `ecommerce.transaction_id`, `value`, `currency`, `items`), plus page-specific view events (`fis_page_view`, `is_page_view`, `resrvation_page_view` — note the long-standing typo, kept for data continuity).
+   The mailing list form (`js/newsletter.js`, on the links, home and contact pages) pushes `newsletter_signup` with `newsletter_source` (`links`, `home` or `contact`) after a successful signup.
    `links.html` (Instagram link-in-bio) pushes `linkinbio_click` with `link_id` (the link's `data-track` value), `link_url` and `link_text` from an inline script on the page.
 2. GTM custom-event triggers (`CE - add_to_cart`, `CE - begin_checkout`, `CE - purchase`) fire both the GA4 event tags and the Meta pixel Custom HTML tags.
 3. Payment is a HelcimPay iframe on our own domain — checkout never leaves steinsandvines.ca. There is **no server-side tracking**: no GA4 Measurement Protocol secrets exist; the middleware does not send analytics events.
@@ -76,4 +77,5 @@ Every public HTML page carries a `<meta http-equiv="Content-Security-Policy">` t
 - "Unassigned" revenue in GA4 predates the CSP fix; re-verify attribution with a post-deploy test transaction.
 - `resrvation_page_view` typo: rename only with a coordinated change (site JS + GTM trigger + GA4 reports expectations).
 - Cloudflare bot rules could still be tightened upstream (bots no longer pollute conversions, but still pollute traffic stats).
+- `newsletter_signup` (added 2026-10-22) has no GTM trigger or GA4 tag yet.
 - `linkinbio_click` (added 2026-10-22) needs a GTM Custom Event trigger on `linkinbio_click` and a GA4 event tag passing `link_id`, `link_url` and `link_text`. Until then the events reach `dataLayer` but not GA4.
