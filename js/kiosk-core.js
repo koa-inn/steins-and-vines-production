@@ -4254,7 +4254,10 @@
     var newSaleBtn = document.getElementById('kiosk-new-sale-btn');
     if (newSaleBtn) {
       newSaleBtn.onclick = function () {
-        kioskLoadProducts(true);
+        // Cached re-fetch, not ?bust=1: the middleware rebuilds the kiosk catalog
+        // every 10 min in shop hours, so a bust here only added a 7-10 s cold Zoho
+        // rebuild to the start of every sale. The Refresh button still busts.
+        kioskLoadProducts('cached');
         _kcEnv.setCustomer(null);
         kioskClearImportedSo();
         kioskShowView('browse');
@@ -5537,7 +5540,7 @@
         var newSaleBtn = document.getElementById('kiosk-new-sale-btn');
         if (newSaleBtn) {
           newSaleBtn.onclick = function () {
-            kioskLoadProducts(true);
+            kioskLoadProducts('cached'); // cached re-fetch, see kioskShowReceipt
             _kioskSoPayingId = null;
             if (_kioskImportedSoId) {
               // D-07: Return to empty cart/product grid after SO payment
