@@ -422,7 +422,13 @@ app.post('/api/newsletter', newsletterLimiter, function (req, res) {
   var source = NEWSLETTER_SOURCES.indexOf(body.source) !== -1 ? body.source : 'site';
 
   mailerlite.addSubscriber(email, [groupId])
-    .then(function () {
+    .then(function (ml) {
+      // A record MailerLite just created has created_at === updated_at; an
+      // existing subscriber's updated_at moves on the upsert.
+      var sub = (ml && ml.data) || {};
+      var alreadySubscribed = !!(sub.created_at && sub.updated_at && sub.created_at !== sub.updated_at);
+      mailer.sendNewsletterNotification({ email: email, source: source, alreadySubscribed: alreadySubscribed })
+        .catch(function (err) { console.error('[newsletter] staff notify failed:', err.message); });
       // CASL consent record: who (masked), when, where, and the exact statement
       // shown beside the form.
       eventLog.logEvent('newsletter.consent', {
