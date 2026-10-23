@@ -223,11 +223,11 @@ GSD's command prefix depends on the installed version: `/gsd:…` or `/gsd-…`.
 
 ## 7. Approval (owner ticks; Claude Code implements only `[x]`)
 
-- [ ] **B1** Fix avg cycle time
-- [ ] **B2** Backfill `completed_at` for 40 legacy batches (data write)
-- [ ] **B3** Explicit `batch_type` field + backfill (data write)
-- [ ] **D1** Single dashboard data layer
-- [ ] **S1** Server-side `get_dashboard_stats` / bulk endpoints
+- [x] **B1** Fix avg cycle time
+- [x] **B2** Backfill `completed_at` for 40 legacy batches (data write)
+- [x] **B3** Explicit `batch_type` field + backfill (data write)
+- [x] **D1** Single dashboard data layer
+- [x] **S1** Server-side `get_dashboard_stats` / bulk endpoints
 - [ ] **D2** Global filter bar
 - [ ] **D3** Chart.js (or ECharts: ______)
 - [ ] **D4** Click-through to filtered batch list
@@ -247,3 +247,5 @@ GSD's command prefix depends on the installed version: `/gsd:…` or `/gsd-…`.
 - [ ] **Phase F** Responsive and performance pass
 
 **Owner notes:**
+
+- 2026-10-23: Phase 94 items B1, B2, B3, D1 and S1 approved. Plan now; build after the Phase 87 batches→Postgres production cutover, so B3 and S1 target the Postgres batch store only. B2/B3 production writes still need an in-session OK after a `--dry-run`. Other items are decided at their own phase's discuss step.
