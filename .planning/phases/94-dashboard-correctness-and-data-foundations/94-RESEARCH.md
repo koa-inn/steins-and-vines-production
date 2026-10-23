@@ -84,7 +84,7 @@ Every Postgres batch create goes through ONE function, `createBatch` in `zoho-mi
 
 The most important design finding: **keep `batch_type`, `batch_type_source` and `completed_at_source` Postgres-only.** The sheet mirror (`mirror_batch_state` → `_mirrorKeyToHeaders`) silently drops keys that have no sheet header, so no Apps Script change, no new Apps Script version and no sheet column is needed, and the Phase 89 `missing_header` reject trap cannot fire. Adding the keys to `BATCH_COLUMNS` instead would break golden tests (`Object.keys(bundle.batch)` must equal `BATCH_COLUMNS`), the pinned 33-header spec, and the daily drift check's `headersMatch`. `unit_seq` is the existing precedent for a PG-only column.
 
-**Primary recommendation:** Add migration `0007` with three nullable PG-only columns; compute type once in `createBatch` via a pure `classifyBatchType()` in `batch-rules.js`; add a new read action `get_dashboard_stats` (separate map, not `ACTION_TO_OP`, to avoid editing pinned tests); build the client on pure `dashboardWindow()` + `getDashboardData()` helpers fed by that action; ship both backfills as `--apply`-gated PG scripts that default to dry-run, followed by a `batches-replay-to-sheet` run for `completed_at`.
+**Primary recommendation:** Add migration `0007` with three nullable PG-only columns; compute type once in `createBatch` via a pure `classifyBatchType()` in `batch-rules.js`; add a new read action `get_dashboard_stats` (separate map, not `ACTION_TO_OP`, to avoid editing pinned tests); build the client on pure `dashboardWindow()` + `getDashboardData()` helpers fed by that action; ship both backfills as `--apply`-gated PG scripts that default to dry-run, followed on production (never staging) by a `batches-replay-to-sheet` run after each apply (both bump the mirrored `last_updated`).
 
 ## Architectural Responsibility Map
 
@@ -161,7 +161,7 @@ No external packages are installed by this phase. slopcheck is not applicable. *
                                   ─► renderDashboard widgets (tiles, month chart, wine breakdown)
 
  BACKFILLS (container): batch-type-backfill / completed-at-backfill (dry-run default, --apply)
-        └ pgUpdate.updateBatch(opts.trusted) per batch ─► batches-replay-to-sheet --since --apply (completed_at only)
+        └ pgUpdate.updateBatch(opts.trusted) per batch ─► batches-replay-to-sheet --since --apply (production only, after EACH apply; never staging)
 ```
 
 ### Recommended Project Structure
@@ -390,7 +390,7 @@ In `batch-store.create(payload, opts)`: before `dispatch`, await a `resolveTypeH
 2. Hints per batch: recipe type from `recipe_snapshot`; Zoho `cf_type` from a live all-items fetch (the list endpoint carries `cf_type`, no enrichment needed; see catalog.js:527 comment) indexed by `sku` and `item_id`; schedule category from the join.
 3. `classifyBatchType` → proposed `(type, source)`. Skip rows with `batch_type_source = 'manual'`.
 4. Print every row `batch_id type rule product_sku` plus a type×rule count table and the "needs a type" count. Exit without writing.
-5. `--apply`: per batch inside `withTransaction`, `pgUpdate.updateBatch(client, {batch_id, updates:{batch_type}}, {trusted:true, actor:'backfill', now})` where `trusted` lets `batch_type_source` be stamped by the server. Re-assert `batch_type_source IS DISTINCT FROM 'manual'` under the row lock. Row-count check against the dry-run count (RUNBOOK §16 pattern). No mirror replay needed (PG-only).
+5. `--apply`: per batch inside `withTransaction`, `pgUpdate.updateBatch(client, {batch_id, updates:{batch_type}}, {trusted:true, actor:'backfill', now})` where `trusted` lets `batch_type_source` be stamped by the server. Re-assert `batch_type_source IS DISTINCT FROM 'manual'` under the row lock. Row-count check against the dry-run count (RUNBOOK §16 pattern). **CORRECTED (planning):** a mirror replay IS needed on production after this apply too: `updateBatch` bumps `last_updated`, which is a mirrored and drift-compared sheet column (`specs/batches.js`). Staging never replays (it never mirrors; the workbook is shared).
 
 **B2 `completed-at-backfill.js`**: candidates = `status='complete' AND completed_at IS NULL`. Proposed value = `max(batch_tasks.completed_at)` where `completed = true`; none → leave blank (D-14, no `last_updated` fallback). Print `batch_id proposed_iso source` plus counts (candidates, will fill, stay blank). Also print how many proposed dates fall before `start_date` (those yield negative spans and would be excluded; the owner should see them). `--apply` writes `completed_at` through `updateBatch` (nested `updates`, `completed_at` is already in `FIELD_KINDS`) and stamps `completed_at_source='backfill-task'` via the trusted channel. **Then run `batches-replay-to-sheet.js --since=<apply start> --apply`** because `completed_at` is a mirrored sheet column. Log in `87-CUTOVER-LOG.md` "SQL fixes" per RUNBOOK §16.
 - Caveat to tell the owner (F8): task `completed_at` is often ticked after the fact, so backfilled dates can be later than the real finish and inflate cycle time. The source marker allows excluding them later; consider showing "(estimated)" in the batch timeline (`buildLifecycleTimeline`, js/brewpad.js:661) as a follow-up, not in scope.
@@ -408,7 +408,7 @@ Not a rename phase, but two data writes touch live state:
 | OS-registered state | None | None |
 | Secrets/env vars | None new. Backfills use existing `BACKFILL_DATABASE_URL`, and the Zoho creds already in the container | None |
 | Build artifacts | `js/brewpad.min.js`, `brewpad.html` cache-bust stamp regenerate on `npm run build` | Run `npm run build` after editing `js/brewpad.js` |
-| Sheet mirror | `completed_at` backfill must be replayed to the sheet; type columns are not mirrored | `batches-replay-to-sheet.js` after B2 apply |
+| Sheet mirror | **CORRECTED:** BOTH backfills must be replayed on production (both bump mirrored `last_updated`; B2 also changes `completed_at`); type columns themselves are not mirrored. Never on staging | `batches-replay-to-sheet.js --since` + `batches-verify` after EACH production apply |
 
 ## Environment Availability
 
@@ -500,20 +500,26 @@ Not a rename phase, but two data writes touch live state:
 | A4 | In-process memo is sufficient (single Railway instance, or 60 s staleness across instances is tolerable) | Pattern 4 | Multi-instance would show up to 60 s stale data between instances |
 | A5 | Cycle-time default window is YTD, same as the sibling tiles | Open Q 3 | If the owner wants all-time, numbers are identical today (all 2026) but differ in Jan 2027 |
 | A6 | The Zoho all-items list endpoint returns `cf_type` for items that are no longer in the kiosk catalog | Backfill design | Some historical SKUs could stay unclassified and land on the "needs a type" list |
-| A7 | Migration 0006 is not yet on production | Pitfall 10 | If already applied, 0007 simply follows it |
+| A7 | ~~Migration 0006 is not yet on production~~ **CORRECTED (planning):** 0006 is already applied on production (`docs/RUNBOOK.md` ~989, prod-20261017-1, 2026-10-17). The live check stays in plan 94-10 | Pitfall 10 | 0007 simply follows it |
 | A8 | `kiosk-products` Redis entries exist for kit SKUs sold at the kiosk and online | Pitfall 5 | Create-time rule 2 would miss and the name fallback / needs-type list absorbs it |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Recipe `style` vs Phase 89 "no style inference".**
    - Known: D-05 rule 1 says recipe style; 89-CONTEXT says the owner rejected keyword inference from `style`; Claude's discretion says use `beer_category` where present.
    - Unclear: whether a small style map for cider/seltzer/wine recipes is wanted.
    - Recommendation: `beer_category` → beer; otherwise exact tokens only; else fall through. Confirm in plan review.
+   - **RESOLVED → D-22:** recipe `beer_category` → beer; otherwise exact style words only (wine|beer|cider|seltzer); no style inference. Implemented in plan 01 (`recipeBatchType`) and plan 03.
 2. **Stamp `completed_at` when a status change to `complete` arrives via `update_batch`?** The badge path never sets it, so the gap keeps growing after B2. A small fix in `updateBatch` (stamp `now` when status becomes `complete` and `completed_at` is empty and none supplied; source marker e.g. `status`) closes it, but it changes a Phase 87 parity-ported module. Recommendation: include it as a separate, small task with its own regression test, owner to confirm.
+   - **RESOLVED → D-23:** `updateBatch` stamps `completed_at` (only when blank) with `completed_at_source = 'status'`; regression test first. Plan 04 Task 1.
 3. **Cycle-time window**: all-time (handoff baseline, 125 batches) or YTD? Recommend YTD default via the shared helper; identical today.
+   - **RESOLVED → D-24:** calendar year to date (America/Vancouver), bucketed by completion day. Plans 02 and 07.
 4. **Existing-test edits**: if the owner wants `batch_type` inside `get_batch`/`get_batches`, golden tests must be edited (needs explicit approval, name each in the plan). Default plan avoids this; the detail pane reads the type from the aggregate rows.
+   - **RESOLVED → plan 01:** the new columns stay out of `BATCH_COLUMNS`, `get_batch`/`get_batches` and the golden outputs; no existing test is edited; the type reaches the UI only through `get_dashboard_stats`.
 5. **Subcategory source for the aggregate**: server join from the kiosk cache (recommended) vs keep the stale July snapshot join on the client. Decide at plan time; the wine breakdown test (`brewpad-wine-breakdown.test.js`) must stay green either way.
+   - **RESOLVED → plan 05:** server-side join from the `zoho:kiosk-products` cache (`product_subcategory`/`brand`/`manufacturer`, '' on a miss), with the client snapshot as fallback (plan 07).
 6. **Rollout order**: migration → code deploy → B3 dry-run + owner OK + apply → B2 dry-run + owner OK + apply + replay → frontend flip. Because the corrected numbers are live (D-03) and rows are NULL until the B3 apply, the client must treat NULL `batch_type` with the old `resolveBatchType` fallback so nothing regresses between deploy and backfill. Confirm this sequencing against the Phase 87 cutover runsheet.
+   - **RESOLVED → plans 07 and 09–12:** migration → deploy → B3 dry run + owner OK + apply → B2 dry run + owner OK + apply; production replays + verifies after EACH apply, staging never replays (Postgres-only recompute check). The client keeps the `resolveBatchType` fallback for NULL `batch_type` (plans 02/07).
 
 ## Sources
 

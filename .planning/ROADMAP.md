@@ -176,6 +176,7 @@
 - **`update_batch`:** always nest the fields in `updates:{}`.
 
 **Interaction with v4.9:** Phase 87 moves batches, tasks and readings to Postgres behind `BATCHES_STORE`. Its production cutover is still gated, and it turns the dashboard queries into SQL behind the admin-proxy seam.
+
 - The new `batch_type` field (B3) and any new aggregate or bulk endpoint (S1) must go through that seam and work under both `sheets` and `postgres` stores, not as Apps Script-only changes.
 - Alternatively, they wait for the Phase 87 production cutover. Phase 94's discuss step decides which.
 
@@ -1725,10 +1726,10 @@ Plans:
 
 - [ ] TBD (run /gsd-discuss-phase 91, then /gsd-plan-phase 91)
 
-
 ### Phase 92: Kiosk past-sales lookup and ledger
 
 **Goal:** Two read-only kiosk views, both requested by the owner on 2026-10-15.
+
 1. **Past-order lookup by customer name.** Customers often ask what they bought last time. Staff type a name, pick the matching Zoho contact, and see that customer's past invoices (date, number, total, status) with the line items one tap away.
 2. **Sales ledger.** A chronological list of recent kiosk sales (date/time, invoice number, customer, total, tender/status), with a date filter.
 
@@ -1736,6 +1737,7 @@ Plans:
 **Depends on:** none hard.
 **Plans:** 8/8 plans complete
 **Context and open questions for discuss-phase:**
+
 - Data source is Zoho invoices, which hold kit, recipe and SO-paid sales. Existing kiosk patterns to reuse: the Sales Orders / Collect view (`#kiosk-view-collect`, `GET /api/kiosk/salesorders` in `routes/pos.js` ~:2376) and the SO customer search.
 - Ledger scope is undecided: kiosk-originated only (reference `KIOSK-…`) or all invoices; how far back; whether online orders are included.
 - Name matching: Zoho `customer_name` search is "contains". Walk-ins booked to the default kiosk contact (`KIOSK_CONTACT_ID`) won't be findable by name.
@@ -1752,18 +1754,23 @@ Plans:
 - [x] 92-06-PLAN.md — Kiosk view lifecycle, D-11 clearing choke point, Ledger tab, inline detail, refresh, wiring
 - [x] 92-07-PLAN.md — Kiosk By-customer tab: contact search, history, Load older, walk-in message
 - [x] 92-08-PLAN.md — Gates, KIOSK_CONTACT_ID env check, staging deploy + smoke, owner UAT
+
 ### Phase 93: Kiosk ledger week and month views
 
 **Goal:** Add Week and Month ranges to the Phase 92 kiosk Ledger tab. The owner asked for them at Phase 92 UAT on 2026-10-16 ("if we could have a week or month view too that would be useful").
 **Owner decisions already taken (2026-10-16):**
+
 - **List shape:** a range shows per-day summary rows (date, sale count, gross total). Tapping a day opens that day's existing Phase 92 ledger. Individual sales are not listed across the range.
 - **Ranges:** weeks run Monday to Sunday and months are calendar months, both in America/Vancouver time, with ‹ › to step between them.
 - **Footer:** the range total shows count and gross only, with no tender split, the same as the day footer. The end-of-day cash-up report stays deferred.
 - **Phase 92 rules carry over:** in-store only (blank-reference invoices count as in-store), voids and drafts are excluded from counts and totals, read-only, and data is cleared when Customer View, the lock screen or a new sale starts.
+
 **Open for discuss/plan:**
+
 - Zoho call budget for a month: Phase 92 caps a day at 3 pages × 200 invoices.
 - Range caching and TTLs, since past weeks and months rarely change.
 - Whether day totals can come from the invoice list alone. Tender is not needed for summary rows, so the `/customerpayments` join could be skipped. The day classifier needs payments only for all-digit references.
+
 **Requirements:** PSL-08 (range endpoint: read-only GET /api/kiosk/past-sales/range, self-gated, device allowlist, hard-coded caps, slim response, floor/future 400: D-11), PSL-09 (exact match with the day ledger via shared pure helpers: D-12), PSL-10 (Mon-Sun week and calendar month bounds in Vancouver day strings, future trim, zero-day fill, newest first, flat month: D-02, D-05..D-08), PSL-11 (Day/Week/Month chips, adaptive date bar, stepping, date jump, label: D-01..D-03), PSL-12 (drill-in to the day ledger and back with scroll restore: D-04), PSL-13 (range cache 300 s current / 3600 s past, bust, dedupe, throttle: D-13, D-14), PSL-14 (one-go load and partial/truncation handling: D-09, D-10), PSL-15 (Phase 92 D-11 clearing and late-response drop for range state).
 **Depends on:** Phase 92
 **Plans:** 6/6 plans complete
@@ -2424,17 +2431,19 @@ Plans:
 ## Phase Details (v5.0)
 
 Source for every phase below: `.planning/research/brewpad-dashboard-v2.md`.
+
 - §4 lists the items and §3 the live data findings.
 - §5 gives the constraints and §6 the milestone acceptance criteria.
 - §7 is the owner's approval list. Build only the items that are ticked.
 
 ### Phase 94: Dashboard correctness and data foundations
 
-**Goal:** Every number on the BrewPad dashboard is correct and consistent, and each batch carries an explicit type (wine, beer, cider, other).
+**Goal:** Every number on the BrewPad dashboard is correct and consistent, and each batch carries an explicit type (wine, beer, cider, seltzer, other).
+
 - One data layer feeds every widget.
 - A server-side aggregate removes the per-batch N+1 fetches.
 
-**Depends on:** nothing in v5.0. It interacts with Phase 87 (batches → Postgres): B3 and S1 must go through the admin-proxy seam and work under both `BATCHES_STORE` modes, or wait for the 87 production cutover. Discuss-phase decides which.
+**Depends on:** nothing in v5.0. It interacts with Phase 87 (batches → Postgres): B3 and S1 target the Postgres batch store only, through the admin-proxy seam, and the build waits for the 87 production cutover (D-01).
 **Requirements:** TBD. Handoff items B1, B2, B3, D1 and S1, subject to §7 approval.
 **Success Criteria** (draft, refined in discuss-phase):
 
@@ -2444,14 +2453,53 @@ Source for every phase below: `.planning/research/brewpad-dashboard-v2.md`.
   4. The dashboard loads from one lean aggregate call (cached ~60 s) rather than one `get_batch` per batch.
   5. The `completed_at` backfill for the 40 legacy batches exists as a dry-run script. It is run for real only with the owner's OK, using nested `updates:{}`.
 
-**Plans:** 0 plans
+**Plans:** 13 plans (9 waves). Build gated on the Phase 87 production cutover (D-01).
 
 Plans:
-- [ ] TBD (run /gsd-discuss-phase 94, then /gsd-plan-phase 94)
+**Wave 1**
+
+- [ ] 94-01-PLAN.md — Migration 0007 (PG-only batch_type/batch_type_source/completed_at_source), pure classifyBatchType, type-hint helpers (B3)
+- [ ] 94-02-PLAN.md — TDD client data layer: dashboardWindow, cycle math, getDashboardData, needs-type filter (B1, D1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 94-03-PLAN.md — Set batch_type on create for every source via createBatch + Redis cf_type hint (B3)
+- [ ] 94-04-PLAN.md — Update path: D-23 completed_at stamp (regression first), manual type edit, trusted backfill channel, re-derive (B3, B2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 94-05-PLAN.md — S1 get_dashboard_stats aggregate, 60 s memo cleared on writes, BrewPad-proxy-only routing (S1, D1)
+- [ ] 94-06-PLAN.md — Dry-run-default backfill CLIs (types, completion dates) + production-only guard on batches-replay-to-sheet (B2, B3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 94-07-PLAN.md — Wire dashboard onto the data layer + aggregate load; wide cycle-time tile; B1 render regression first (B1, D1, S1)
+- [ ] 94-13-PLAN.md — Independent cycle recompute CLI (+ NULL-type/needs-type counts) and RUNBOOK/README procedure; wave 4, before rollout (B1, B2, B3)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 94-08-PLAN.md — Detail-pane Type select (manual) + "Needs a type" chip (B3)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 94-09-PLAN.md — Staging rollout: deploy, dry runs, owner OK, applies, verify, D-13 check (checkpoint)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 94-10-PLAN.md — Staging iPad UAT + production pre-deploy gate (0006 verified, SHA approved) (checkpoint)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 94-11-PLAN.md — Production release + B3 type backfill behind owner OK (checkpoint)
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 94-12-PLAN.md — Production B2 completion-date backfill behind owner OK + D-13 production acceptance (checkpoint)
 
 ### Phase 95: Global filters and chart engine
 
 **Goal:** Every dashboard widget responds to one sticky global filter bar, renders through a shared chart helper, and clicks through to the filtered batch list.
+
 - **Filters:** type, period, group-by, measure, source and staff toggle.
 - **Chart helper:** Chart.js 4 by default.
 
@@ -2468,11 +2516,13 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD
 
 ### Phase 96: New and upgraded dashboard graphs
 
 **Goal:** The dashboard covers production, pipeline, cycle time, products, workload, vessels, task health, fermentation, sales source and data health.
+
 - Each graph has options, click-through and a table view.
 - Beer and cider appear as their own series everywhere wine does.
 
@@ -2489,6 +2539,7 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD
 
 ### Phase 97: Beer and cider dashboard sections
@@ -2507,6 +2558,7 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD
 
 ### Phase 98: Dashboard alerts and quick wins
@@ -2525,6 +2577,7 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD
 
 ### Phase 99: Dashboard responsiveness and performance
@@ -2543,4 +2596,5 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD

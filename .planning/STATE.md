@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: completed
+status: executing
 stopped_at: Phase 94 UI-SPEC approved
-last_updated: "2026-10-23T19:26:30.236Z"
-last_activity: 2026-10-17
+last_updated: "2026-10-23T21:37:57.921Z"
+last_activity: 2026-10-23 -- Phase 94 planning complete
 progress:
   total_phases: 85
   completed_phases: 35
-  total_plans: 285
+  total_plans: 298
   completed_plans: 281
   percent: 41
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 Phase: 93
 Plan: Not started
-Status: Milestone complete
-Last activity: 2026-10-17
+Status: Ready to execute
+Last activity: 2026-10-23 -- Phase 94 planning complete
 
 **Phase 87:** 18/20 plans done. Design approved; all code merged and on staging behind `BATCHES_STORE`
 (off); security review signed off; staging rehearsal passed 2026-10-09 (0 rejects, 0 verify mismatches,
