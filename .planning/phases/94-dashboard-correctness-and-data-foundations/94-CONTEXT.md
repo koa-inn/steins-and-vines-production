@@ -64,6 +64,11 @@ responsive/performance pass. Those are Phases 95–99.
 ### Server aggregate (S1)
 - **D-21:** The dashboard loads from one lean aggregate call through the admin-proxy seam, cached about 60 s. It replaces the per-batch `get_batch` N+1. It returns lean rows: id, type, status, dates, vessel, source, product, subcategory, volume, task due/complete dates, latest reading. Postgres-backed per D-01.
 
+### Post-research decisions (owner, 2026-10-23, during plan-phase)
+- **D-22:** Recipe rule (D-05 rule 1) = recipe `beer_category` present → `beer`; otherwise only **exact style-word matches** (e.g. `cider`, `wine`, `seltzer`, `beer`) decide; no broad style inference (IPA/lager/merlot guessing). Anything else falls through to rule 2 (Zoho `cf_type`). Resolves RESEARCH Open Question 1 consistently with Phase 89's rejection of style inference.
+- **D-23:** `updateBatch` stamps `completed_at` (only when blank) when status changes to `complete`, e.g. from the BrewPad status badge, so the B2 gap does not regrow. The source marker is `completed_at_source = 'status'` (or equivalent). A regression test comes first. This is a deliberate, approved change to the Phase 87 batch store module.
+- **D-24:** The cycle-time tile covers the **calendar year to date** (America/Vancouver), using the shared date-window helper (D-19/D-20), and is bucketed by `completed_at` (D-18).
+
 ### Claude's Discretion
 - Field names for the source markers (`batch_type_source`, `completed_at_source`) and the migration shape. These follow the existing migration conventions (`zoho-middleware/migrations/000N_*.sql`) and the Apps Script mirror column rules.
 - Whether S1 extends the existing `get_batch_dashboard_summary` / `getDashboardSummary` path or adds a new action.
