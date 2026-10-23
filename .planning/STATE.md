@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: milestone_complete
-stopped_at: Milestone complete (Phase 93 was final phase)
-last_updated: 2026-10-17T18:48:27.842Z
+status: completed
+stopped_at: Phase 94 context gathered
+last_updated: "2026-10-23T18:57:27.344Z"
 last_activity: 2026-10-17
 progress:
-  total_phases: 79
+  total_phases: 85
   completed_phases: 35
   total_plans: 285
-  completed_plans: 280
-  percent: 44
+  completed_plans: 281
+  percent: 41
 ---
 
 # Project State
@@ -301,6 +301,6 @@ Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 
 
 ## Session Continuity
 
-Last session: 2026-10-17T17:33:10.788Z
-Stopped at: Phase 93 context gathered
-Resume file: .planning/phases/93-kiosk-ledger-week-and-month-views/93-CONTEXT.md
+Last session: 2026-10-23T18:57:27.330Z
+Stopped at: Phase 94 context gathered
+Resume file: .planning/phases/94-dashboard-correctness-and-data-foundations/94-CONTEXT.md
