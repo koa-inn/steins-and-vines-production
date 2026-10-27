@@ -2453,7 +2453,7 @@ Source for every phase below: `.planning/research/brewpad-dashboard-v2.md`.
   4. The dashboard loads from one lean aggregate call (cached ~60 s) rather than one `get_batch` per batch.
   5. The `completed_at` backfill for the 40 legacy batches exists as a dry-run script. It is run for real only with the owner's OK, using nested `updates:{}`.
 
-**Plans:** 6/13 plans executed
+**Plans:** 8/13 plans executed
 
 Plans:
 **Wave 1**
@@ -2473,8 +2473,8 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 94-07-PLAN.md — Wire dashboard onto the data layer + aggregate load; wide cycle-time tile; B1 render regression first (B1, D1, S1)
-- [ ] 94-13-PLAN.md — Independent cycle recompute CLI (+ NULL-type/needs-type counts) and RUNBOOK/README procedure; wave 4, before rollout (B1, B2, B3)
+- [x] 94-07-PLAN.md — Wire dashboard onto the data layer + aggregate load; wide cycle-time tile; B1 render regression first (B1, D1, S1)
+- [x] 94-13-PLAN.md — Independent cycle recompute CLI (+ NULL-type/needs-type counts) and RUNBOOK/README procedure; wave 4, before rollout (B1, B2, B3)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
