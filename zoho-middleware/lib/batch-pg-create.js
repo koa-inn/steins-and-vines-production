@@ -25,6 +25,7 @@
 var crypto = require('crypto');
 var batchRules = require('./batch-rules');
 var batchRead = require('./batch-pg-read');
+var batchTypeHints = require('./batch-type-hints');
 var vesselPg = require('./vessel-pg');
 var schedulePg = require('./ferm-schedule-pg');
 var sanitizeInput = require('./recipe-rules').sanitizeInput;
@@ -55,9 +56,10 @@ var INSERT_BATCH_SQL =
   'customer_firstname, customer_lastname, customer_email, start_date, schedule_id, ' +
   'schedule_snapshot, vessel_id, shelf_id, bin_id, notes, access_token, reservation_id, ' +
   'created_at, created_by, last_updated, source, zoho_so_number, fermentation_started_at, ' +
-  'recipe_id, recipe_snapshot, target_volume_l, scale_factor, unit_seq) values ' +
+  'recipe_id, recipe_snapshot, target_volume_l, scale_factor, unit_seq, ' +
+  'batch_type, batch_type_source) values ' +
   '($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, ' +
-  '$21, $22, $23, $24, $25, $26, $27, $28) returning batch_id';
+  '$21, $22, $23, $24, $25, $26, $27, $28, $29, $30) returning batch_id';
 
 var INSERT_TASK_SQL =
   'insert into batch_tasks (batch_id, step_number, title, description, day_offset, due_date, ' +
@@ -160,6 +162,38 @@ async function insertChildren(client, batchId, steps, p, startDate, actor, now) 
   return created;
 }
 
+function snapshotStyle(snapshot) {
+  try {
+    var obj = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
+    return obj && typeof obj === 'object' && obj.style ? String(obj.style) : '';
+  } catch {
+    return '';
+  }
+}
+
+// D-05/D-06/D-22: staff-chosen type wins for manual/internal; otherwise classify from hints.
+async function resolveBatchType(client, p, schedule, isPending, opts) {
+  var source = String(p.source || 'manual').toLowerCase();
+  if (source === 'manual' || source === 'internal') {
+    var chosen = batchRules.normalizeBatchType(p.batch_type);
+    if (chosen) return { type: chosen, source: 'manual' };
+  }
+  var hints = {
+    zohoCfType: opts.typeHints && opts.typeHints.zohoCfType,
+    scheduleCategory: !isPending && schedule ? schedule.category : ''
+  };
+  if (p.recipe_id) {
+    var recipe = await batchTypeHints.recipeTypeHint(client, p.recipe_id);
+    if (recipe) {
+      hints.recipeBeerCategory = recipe.beerCategory;
+      hints.recipeStyle = recipe.style;
+    } else {
+      hints.recipeStyle = snapshotStyle(p.recipe_snapshot);
+    }
+  }
+  return batchRules.classifyBatchType({ product_name: p.product_name }, hints);
+}
+
 async function createBatch(client, payload, opts) {
   var p = Object.assign({}, payload || {});
   opts = opts || {};
@@ -188,8 +222,9 @@ async function createBatch(client, payload, opts) {
   // Schedule: read from Postgres in this transaction; any client-sent steps are ignored.
   var steps = [];
   var snapshot = '';
+  var schedule = null;
   if (!isPending) {
-    var schedule = await schedulePg.getSchedule(client, String(p.schedule_id));
+    schedule = await schedulePg.getSchedule(client, String(p.schedule_id));
     if (!schedule) return fail('not_found', 'Schedule not found: ' + p.schedule_id);
     snapshot = schedule.steps || '[]';
     steps = Array.isArray(schedule.steps_parsed) ? schedule.steps_parsed : [];
@@ -228,6 +263,8 @@ async function createBatch(client, payload, opts) {
   var snapshotRecipe = p.recipe_snapshot === undefined || p.recipe_snapshot === null ? '' :
     (typeof p.recipe_snapshot === 'string' ? p.recipe_snapshot : JSON.stringify(p.recipe_snapshot));
 
+  var typed = await resolveBatchType(client, p, schedule, isPending, opts);
+
   var values = [
     isPending ? 'pending' : 'primary',
     sanitizeInput(p.product_sku),
@@ -256,7 +293,9 @@ async function createBatch(client, payload, opts) {
     snapshotRecipe,
     targetVolume,
     scaleFactor,
-    unitSeq
+    unitSeq,
+    typed.type,
+    typed.source
   ];
 
   // Savepoint so a unit_seq collision can be reported as a business rejection without
