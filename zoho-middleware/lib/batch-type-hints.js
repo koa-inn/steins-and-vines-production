@@ -27,7 +27,7 @@ async function readKioskProducts() {
   try {
     var list = await cache().get(constants().CACHE_KEYS.KIOSK_PRODUCTS);
     return Array.isArray(list) ? list : null;
-  } catch (e) {
+  } catch {
     log.warn('[batch-type-hints] kiosk cache read failed');
     return null;
   }
