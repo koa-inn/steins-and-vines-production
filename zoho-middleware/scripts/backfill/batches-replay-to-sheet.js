@@ -20,12 +20,15 @@
  *   node scripts/backfill/batches-replay-to-sheet.js --since=2026-10-12T00:00:00Z           # dry run
  *   node scripts/backfill/batches-replay-to-sheet.js --since=2026-10-12T00:00:00Z --apply
  *
+ * Production only: refuses to run unless lib/sheet-mirror.isMirrorEnabled() (Phase 94).
+ *
  * Exit codes: 0 ok, 1 error or replay stopped on a failure.
  */
 
 var backfillCli = require('./backfill');
 var opsMirror = require('../../lib/ops-mirror');
 var batchPgRead = require('../../lib/batch-pg-read');
+var sheetMirror = require('../../lib/sheet-mirror');
 
 var EXIT = backfillCli.EXIT;
 var POSTGRES_URL_RE = /postgres(ql)?:\/\//;
@@ -189,10 +192,26 @@ async function runBatchesReplay(opts, deps) {
   }
 }
 
+/**
+ * Staging and production share one workbook and staging never mirrors, so a replay from anywhere
+ * but the production Railway environment would write staging rows into the production workbook.
+ * Same strict gate as the live mirror; there is deliberately no override.
+ */
+function assertProductionEnvironment() {
+  if (sheetMirror.isMirrorEnabled()) return true;
+  throw new Error(
+    'refusing to run: this is not the production Railway environment (RAILWAY_ENVIRONMENT_NAME=' +
+    JSON.stringify(process.env.RAILWAY_ENVIRONMENT_NAME || '') + '). staging never mirrors; ' +
+    'staging and production share one workbook, so a replay from here would write into the ' +
+    'shared production workbook.'
+  );
+}
+
 function main() {
   var db = require('../../lib/db');
   var opts;
   try {
+    assertProductionEnvironment();
     opts = parseArgs(process.argv.slice(2));
   } catch (err) {
     console.error('Error: ' + err.message);
@@ -225,5 +244,6 @@ if (require.main === module) {
 module.exports = {
   runBatchesReplay: runBatchesReplay,
   parseArgs: parseArgs,
+  assertProductionEnvironment: assertProductionEnvironment,
   EXIT: EXIT
 };
