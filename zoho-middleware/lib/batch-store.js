@@ -36,6 +36,7 @@ function pgRead() { return require('./batch-pg-read'); }
 function pgCreate() { return require('./batch-pg-create'); }
 function pgUpdate() { return require('./batch-pg-update'); }
 function pgTasks() { return require('./batch-pg-tasks'); }
+function typeHints() { return require('./batch-type-hints'); }
 function scheduleStore() { return require('./ferm-schedule-store'); }
 
 function getMode() {
@@ -204,12 +205,20 @@ function create(payload, opts) {
     var invoice = payload && payload.zoho_so_number ? String(payload.zoho_so_number) : '';
     log.warn('[batch-store] create_batch refused: maintenance' + (invoice ? ' invoice=' + invoice : ''));
   }
-  return dispatch('create', function (client) {
-    var o = writeOpts(payload, opts);
-    var pgOpts = { actor: o.actor, now: o.now };
-    if (opts && typeof opts.replayWindowMs === 'number') pgOpts.replayWindowMs = opts.replayWindowMs;
-    return pgCreate().createBatch(client, payload, pgOpts);
-  }, finish);
+  var sku = payload && payload.product_sku ? String(payload.product_sku).trim() : '';
+  // D-05: resolve the Zoho cf_type from the Redis kiosk cache BEFORE the transaction (no I/O inside it).
+  var hintPromise = isPostgres() && !isFrozen() && sku ?
+    typeHints().zohoTypeHint(sku).catch(function () { return null; }) :
+    Promise.resolve(null);
+  return hintPromise.then(function (hint) {
+    return dispatch('create', function (client) {
+      var o = writeOpts(payload, opts);
+      var pgOpts = { actor: o.actor, now: o.now };
+      if (opts && typeof opts.replayWindowMs === 'number') pgOpts.replayWindowMs = opts.replayWindowMs;
+      pgOpts.typeHints = { zohoCfType: hint ? hint.cfType : '' };
+      return pgCreate().createBatch(client, payload, pgOpts);
+    }, finish);
+  });
 }
 
 function simpleWrite(name, modFn, fnName) {
