@@ -26,6 +26,7 @@ var batchRules = require('./batch-rules');
 var batchRead = require('./batch-pg-read');
 var vesselPg = require('./vessel-pg');
 var recipeRules = require('./recipe-rules');
+var batchTypeHints = require('./batch-type-hints');
 
 // ─── SQL (module-level constants only) ─────────────────────────────────────
 
@@ -59,6 +60,9 @@ var BATCH_SCHEDULE_SQL =
   'update batches set schedule_snapshot = $2, schedule_id = coalesce($3, schedule_id), last_updated = $4 ' +
   'where batch_id = $1';
 
+var TYPE_SET_SQL =
+  'update batches set batch_type = $2, batch_type_source = $3 where batch_id = $1';
+
 var TOKEN_SQL =
   'update batches set access_token = $2, last_regenerated_at = $3, last_updated = $3 where batch_id = $1';
 
@@ -90,6 +94,11 @@ var FIELD_KINDS = {
 };
 var FIELD_ORDER = Object.keys(FIELD_KINDS);
 var LOCATION_FIELDS = ['vessel_id', 'shelf_id', 'bin_id'];
+
+// Phase 94 (D-06, D-15, D-16): sources a trusted server-side caller (backfill CLIs) may stamp.
+// A client can only ever produce 'manual'; batch-store's writeOpts never forwards `trusted`.
+var TRUSTED_TYPE_SOURCES = ['recipe', 'zoho', 'schedule', 'name', 'other'];
+var TRUSTED_COMPLETED_SOURCE = 'backfill-task';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -205,6 +214,34 @@ async function applyLocationChange(client, row, loc, opts) {
   };
 }
 
+// ─── Type re-derivation (Phase 94, D-06) ───────────────────────────────────
+
+/**
+ * Re-classifies a batch whose type came from a weak source (name/other) once a schedule or recipe
+ * is attached. Returns {type, source} only when the result improves on what is stored; manual,
+ * recipe, zoho, schedule and legacy NULL sources are never touched. The zoho hint is omitted: it
+ * already missed at create time.
+ */
+async function rederiveType(client, row, overrides) {
+  if (!batchRules.shouldRederiveType(row.batch_type_source)) return null;
+  var scheduleId = overrides.scheduleId || row.schedule_id;
+  var recipeId = overrides.recipeId || row.recipe_id;
+  var hints = {};
+  if (scheduleId) hints.scheduleCategory = await batchTypeHints.scheduleCategoryHint(client, scheduleId);
+  if (recipeId) {
+    var rh = await batchTypeHints.recipeTypeHint(client, recipeId);
+    if (rh) {
+      hints.recipeBeerCategory = rh.beerCategory;
+      hints.recipeStyle = rh.style;
+    }
+  }
+  var result = batchRules.classifyBatchType({ product_name: row.product_name }, hints);
+  var strong = result.source !== 'name' && result.source !== 'other';
+  var improves = strong ||
+    (row.batch_type_source === 'other' && result.type !== row.batch_type);
+  return improves ? result : null;
+}
+
 // ─── updateBatch ───────────────────────────────────────────────────────────
 
 /** Validates and converts the whitelisted updates. Returns {ok, values} or a failure. */
@@ -286,6 +323,36 @@ async function updateBatch(client, args, opts) {
     updates = copy;
   }
 
+  // Phase 94: batch_type is handled outside FIELD_KINDS (its source is never client-controlled).
+  // No source column is ever read from the client payload.
+  var trusted = !!(opts && opts.trusted === true);
+  var typeSet = null;
+  if (updates.batch_type !== undefined) {
+    var normalizedType = batchRules.normalizeBatchType(updates.batch_type);
+    if (!normalizedType) {
+      return fail('invalid_input', 'batch_type must be one of: wine, beer, cider, seltzer, other');
+    }
+    var typeSource = 'manual';
+    if (trusted) {
+      typeSource = opts.batchTypeSource;
+      if (TRUSTED_TYPE_SOURCES.indexOf(typeSource) < 0) {
+        return fail('invalid_input', 'batchTypeSource is not allowed');
+      }
+      if (row.batch_type_source === 'manual') return fail('manual_locked', 'batch type was set by hand');
+    }
+    typeSet = { type: normalizedType, source: typeSource };
+  }
+  var trustedCompleted = false;
+  if (trusted && updates.completed_at !== undefined) {
+    if (opts.completedAtSource !== TRUSTED_COMPLETED_SOURCE) {
+      return fail('invalid_input', 'completedAtSource is not allowed');
+    }
+    if (row.completed_at !== null && row.completed_at !== undefined) {
+      return fail('already_set', 'completed_at is already set');
+    }
+    trustedCompleted = true;
+  }
+
   // Everything that can reject is checked before the first write.
   var prepared = prepareFieldValues(updates);
   if (!prepared.ok) return prepared;
@@ -322,6 +389,18 @@ async function updateBatch(client, args, opts) {
     }
   }
 
+  // Phase 94 (D-23, B2): a status change to complete stamps completed_at when none exists and
+  // none was supplied, so the gap cannot regrow. A caller-supplied value is recorded as manual.
+  var completedSource;
+  if (values.completed_at !== undefined) {
+    completedSource = values.completed_at === null
+      ? null
+      : (trustedCompleted ? TRUSTED_COMPLETED_SOURCE : 'manual');
+  } else if (values.status === 'complete' && !row.completed_at) {
+    values.completed_at = now;
+    completedSource = 'status';
+  }
+
   var sets = [];
   var params = [String(row.batch_id)];
   function addSet(col, value) {
@@ -335,6 +414,15 @@ async function updateBatch(client, args, opts) {
       addSet(f, values[f]);
     }
   });
+  if (!typeSet && values.recipe_id) {
+    var derived = await rederiveType(client, row, { recipeId: values.recipe_id });
+    if (derived) typeSet = { type: derived.type, source: derived.source };
+  }
+  if (typeSet) {
+    addSet('batch_type', typeSet.type);
+    addSet('batch_type_source', typeSet.source);
+  }
+  if (completedSource !== undefined) addSet('completed_at_source', completedSource);
   addSet('last_updated', now);
   await client.query('update batches set ' + sets.join(', ') + ' where batch_id = $1', params);
 
@@ -420,6 +508,8 @@ async function updateBatchSchedule(client, args, opts) {
   var startDate = dateOnly(row.start_date);
 
   await client.query(BATCH_SCHEDULE_SQL, [id, JSON.stringify(steps), scheduleId, now]);
+  var derivedType = await rederiveType(client, row, { scheduleId: scheduleId });
+  if (derivedType) await client.query(TYPE_SET_SQL, [id, derivedType.type, derivedType.source]);
 
   var existing = (await client.query(TASKS_FOR_BATCH_SQL, [id])).rows;
   // Later rows win on a duplicate step number (script parity: existingByStep overwrite).
