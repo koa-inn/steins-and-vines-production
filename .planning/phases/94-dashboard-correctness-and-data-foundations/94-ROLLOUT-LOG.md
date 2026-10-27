@@ -64,4 +64,29 @@ Full list: `~/sv-backfill/94-staging-completed-dryrun.txt` (outside the repo).
 - candidates **40**, will fill **40**, stay blank **0**, before start_date **0**. All are stamped `backfill-task`.
 - Range SV-B-000002 .. SV-B-000057; proposed dates 2026-02-26 .. 2026-05-02.
 
-**No `--apply` has been run.** Awaiting the owner's review of both full lists (94-09 Task 2).
+**Owner OK (94-09 Task 2):** on 2026-10-27 the owner reviewed both lists and replied "yes, apply both on staging".
+
+### Staging applies (94-09 Task 3), in-container
+
+| Run | Time (UTC) | Result |
+|-----|-----------|--------|
+| `batch-type-backfill.js --apply --expect=215` | 21:43:36 | candidates 215, **written 215, skipped 0**; same type x rule table as the dry run |
+| `completed-at-backfill.js --apply --expect=40` | 21:43:49 | candidates 40, **written 40, skipped 0**; stay blank 0, before start_date 0 |
+| `batch-cycle-recompute.js` | 21:43:51 | see below |
+
+staging: no replay/verify (staging never mirrors). The apply CLIs printed the same note.
+
+Recompute (Calendar-YTD 2026, Vancouver days, completed batches):
+
+```
+n: 175  excluded: 0  median: 57d  mean: 59d
+  beer: n=1 median=38d mean=38d
+  cider: n=5 median=71d mean=73d
+  wine: n=169 median=57d mean=59d
+null_batch_type: 0
+needs_a_type: 0
+```
+
+Next: the dashboard side of D-13 on staging BrewPad (tile median/mean/N, per-type row, started/completed this
+year, month-chart totals, 6-month wine total, Needs-a-type chip = 0). The Chrome extension was disconnected at
+the first attempt.
