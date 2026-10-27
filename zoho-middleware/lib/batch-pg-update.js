@@ -322,6 +322,16 @@ async function updateBatch(client, args, opts) {
     }
   }
 
+  // Phase 94 (D-23, B2): a status change to complete stamps completed_at when none exists and
+  // none was supplied, so the gap cannot regrow. A caller-supplied value is recorded as manual.
+  var completedSource;
+  if (values.completed_at !== undefined) {
+    completedSource = values.completed_at === null ? null : 'manual';
+  } else if (values.status === 'complete' && !row.completed_at) {
+    values.completed_at = now;
+    completedSource = 'status';
+  }
+
   var sets = [];
   var params = [String(row.batch_id)];
   function addSet(col, value) {
@@ -335,6 +345,7 @@ async function updateBatch(client, args, opts) {
       addSet(f, values[f]);
     }
   });
+  if (completedSource !== undefined) addSet('completed_at_source', completedSource);
   addSet('last_updated', now);
   await client.query('update batches set ' + sets.join(', ') + ' where batch_id = $1', params);
 

@@ -162,7 +162,7 @@ async function onPackagingCompleted(client, row, now, vesselChanges) {
     if (!tasks[i].is_packaging && !tasks[i].completed) return row;
   }
   if (String(row.status).toLowerCase() === 'complete') return row;
-  var next = await patchBatch(client, row, { status: 'complete', completed_at: now }, now);
+  var next = await patchBatch(client, row, { status: 'complete', completed_at: now, completed_at_source: 'task' }, now);
   if (row.vessel_id) vesselChanges.push({ vessel_id: String(row.vessel_id), status: 'Empty' });
   return next;
 }
