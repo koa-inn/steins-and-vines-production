@@ -211,3 +211,24 @@ Dry run in the production container (~23:29Z). Full list: `~/sv-backfill/94-prod
 - **Identical to the staging-approved list** (`diff` empty: same ids, proposed dates and `backfill-task` source).
 
 Awaiting the owner's OK for `--apply --expect=40`.
+
+### Production B2 apply (94-12)
+
+- **Owner OK:** 2026-10-27, verbatim "yes apply with expect=40, and push the patch".
+- **Apply:** `completed-at-backfill.js --apply --expect=40` at 23:30:39Z: candidates 40, **written 40, skipped 0**; stay blank 0, before start_date 0.
+- **Replay:** dry run `--since=2026-10-27T23:30:41.311Z` built 40 state and 0 delete requests. Then the same one-off driver
+  (`/tmp/replay-driver.js`, 120 s timeout, 3 tries, nothing skipped) ran from 23:30:58 to 23:42:27Z:
+  `Replayed 40/40`, exitCode 0, 0 retries, 648 s.
+- **Recompute** (production, 23:43:02Z):
+
+```
+n: 175  excluded: 0  median: 57d  mean: 59d
+  beer: n=1 median=38d mean=38d
+  cider: n=5 median=71d mean=73d
+  wine: n=169 median=57d mean=59d
+null_batch_type: 0
+needs_a_type: 0
+```
+
+- **Next:** `batches-verify` on a fresh owner snapshot, then the dashboard D-13 check (the owner needs to sign in again;
+  a page reload showed the staff sign-in screen) and owner sign-off.
