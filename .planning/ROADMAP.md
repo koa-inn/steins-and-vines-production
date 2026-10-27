@@ -2453,13 +2453,13 @@ Source for every phase below: `.planning/research/brewpad-dashboard-v2.md`.
   4. The dashboard loads from one lean aggregate call (cached ~60 s) rather than one `get_batch` per batch.
   5. The `completed_at` backfill for the 40 legacy batches exists as a dry-run script. It is run for real only with the owner's OK, using nested `updates:{}`.
 
-**Plans:** 13 plans (9 waves). Build gated on the Phase 87 production cutover (D-01).
+**Plans:** 2/13 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 94-01-PLAN.md — Migration 0007 (PG-only batch_type/batch_type_source/completed_at_source), pure classifyBatchType, type-hint helpers (B3)
-- [ ] 94-02-PLAN.md — TDD client data layer: dashboardWindow, cycle math, getDashboardData, needs-type filter (B1, D1)
+- [x] 94-01-PLAN.md — Migration 0007 (PG-only batch_type/batch_type_source/completed_at_source), pure classifyBatchType, type-hint helpers (B3)
+- [x] 94-02-PLAN.md — TDD client data layer: dashboardWindow, cycle math, getDashboardData, needs-type filter (B1, D1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
