@@ -276,3 +276,31 @@ node scripts/backfill/ops-replay-to-sheet.js --apply [--only=vessels|schedules] 
 Exit codes: `ops-verify` 0 = "0 mismatches", 4 = mismatches, 1 = error. `ops-replay-to-sheet`
 0 = ok, 1 = error or stopped at the first `{ok:false}`. `ops-backfill` as documented in its
 header (2 rejects, 3 promote check failed).
+
+## Phase 94 batch tooling
+
+Batch type (B3), completion date (B2) and an independent cycle-time recompute. Run from
+`zoho-middleware/`, **inside the Railway container** (`railway ssh`), with
+`BACKFILL_DATABASE_URL=$DATABASE_URL`. Equals-form flags only; the database is never on argv;
+output is ids, rules and counts only. Full procedure: `docs/RUNBOOK.md`, "Batch type and
+completion dates (Phase 94)".
+
+```bash
+# B3: re-classify batch type. Dry run by default; --apply needs the reviewed candidate count.
+node scripts/backfill/batch-type-backfill.js
+node scripts/backfill/batch-type-backfill.js --apply --expect=N [--with-names]
+
+# B2: fill missing completed_at for complete batches. Dry run by default.
+node scripts/backfill/completed-at-backfill.js
+node scripts/backfill/completed-at-backfill.js --apply --expect=N
+
+# Read-only calendar-YTD (Vancouver) median/mean cycle days via SQL percentile_cont, plus
+# null_batch_type and needs_a_type counts. Independent of the dashboard JS (+/-1 day check).
+node scripts/backfill/batch-cycle-recompute.js [--year=2026]
+```
+
+`batches-replay-to-sheet.js` now **refuses to run outside the production Railway environment**:
+staging never mirrors and shares one workbook with production.
+
+Exit codes: `batch-type-backfill` / `completed-at-backfill` 0 = ok, 1 = error, 3 = `--expect`
+mismatch. `batch-cycle-recompute` 0 = ok, 1 = error.

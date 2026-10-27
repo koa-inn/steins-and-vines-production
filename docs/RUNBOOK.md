@@ -1514,6 +1514,55 @@ commit;   -- or: rollback;
 
 ---
 
+## Batch type and completion dates (Phase 94)
+
+Backfills batch type (B3) and missing completion dates (B2), then checks cycle time independently. All three
+CLIs live in `zoho-middleware/scripts/backfill/` (see its README). The two backfills are dry-run by default and
+write only with `--apply --expect=<reviewed count>`.
+
+### Preconditions
+
+- The Phase 87 production cutover is done (`BATCHES_STORE=postgres`, recorded in `87-CUTOVER-LOG.md`).
+- Migration `0006` then `0007` is applied on the target environment.
+
+### How to run (in-container)
+
+`railway connect` from `zoho-middleware/` fails, so run inside the middleware service: `railway ssh`, then
+`BACKFILL_DATABASE_URL=$DATABASE_URL node scripts/backfill/<cli>.js ...`. Never put a database URL on the command line.
+
+### Owner-OK rule (D-09, D-16)
+
+No `--apply` is run without the owner's in-session OK on the FULL dry-run list. `--expect=N` must equal the count the
+owner reviewed; a mismatch exits 3 and writes nothing.
+
+### Staging (Postgres only)
+
+1. `batch-type-backfill.js` dry run (B3), owner review, then `--apply --expect=N`.
+2. `completed-at-backfill.js` dry run (B2), owner review, then `--apply --expect=M`.
+3. `batch-cycle-recompute.js`: `null_batch_type` should be 0; compare the median/mean with the dashboard (+/-1 day).
+
+NEVER run `batches-replay-to-sheet` or `batches-verify` on staging: staging never mirrors and the workbook is shared
+with production. The replay CLI refuses outside production anyway.
+
+### Production
+
+Same order as staging, plus, after EACH `--apply` (both bump the mirrored `last_updated`):
+
+1. `node scripts/backfill/batches-replay-to-sheet.js --since=<apply start, ISO>` (dry run, check the listed ids), then `--apply`.
+2. `batches-verify.js --file=<fresh snapshot>` and require 0 mismatches.
+
+### Logging
+
+Log each production apply (date, command, count, reason) in `87-CUTOVER-LOG.md` under "SQL fixes" (see the SQL-fix rule above).
+
+### Rollback and corrections
+
+Re-runs are idempotent. Correct a single batch's type in the BrewPad detail pane (source becomes `manual`, never
+overwritten by a re-run). Estimated completion dates are stamped `completed_at_source = 'backfill-task'`, so they can be
+found and revised.
+
+---
+
 ## Phase 46 Auth Cutover (CRITICAL — leaked-key neutralization)
 
 Closes the audit CRITICAL: the storefront previously shipped `MW_API_KEY` in client JS, so the
