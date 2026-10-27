@@ -357,6 +357,7 @@ function resolveBatchType(batch, scheduleCategoryById) {
 // ---------------------------------------------------------------------------
 var DASH_WINDOW_DAYS = { '30d': 30, '90d': 90, '6mo': 180, '12mo': 365 };
 var DASH_TYPES = ['wine', 'beer', 'cider', 'seltzer', 'other'];
+var DASH_TYPE_LABELS = { wine: 'Wine', beer: 'Beer', cider: 'Cider', seltzer: 'Seltzer', other: 'Other' };
 var DASH_STARTED_STATUSES = { primary: true, secondary: true, complete: true };
 var DASH_MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -1523,6 +1524,7 @@ function parseWaitlistRecipeIds(value) {
 
   // Dashboard
   var _dashSummary = null;
+  var _dashData = null;   // Phase 94: get_dashboard_stats aggregate ({asOf, batches, ...}) or null (sheets fallback)
   var _dashLoadTime = 0;
   var _dashAutoRefreshTimer = null;
   var _notesAutoSaveTimer = null;
@@ -4273,30 +4275,48 @@ function parseWaitlistRecipeIds(value) {
     });
     html += '</div>';
 
-    // Stat cards + Active batches (computed from _allBatchesData)
-    if (_allBatchesData.length > 0) {
-      var thisYear = new Date().getFullYear();
-      var ytdStarted = 0, ytdComplete = 0, activeNow = 0;
-      var totalDays = 0, completedWithDays = [];
-      _allBatchesData.forEach(function (b) {
-        var yr = b.start_date ? parseInt(String(b.start_date).slice(0, 4), 10) : 0;
-        if (yr === thisYear) ytdStarted++;
-        var st = String(b.status || '').toLowerCase();
-        if (yr === thisYear && st === 'complete') {
-          ytdComplete++;
-          if (b.start_date) {
-            var daysDone = Math.floor((Date.now() - new Date(b.start_date)) / 86400000);
-            if (daysDone > 0) { completedWithDays.push(daysDone); totalDays += daysDone; }
+    // Phase 94: every widget below reads one getDashboardData result (D-20).
+    var dashRows = _dashData ? _dashData.batches : toDashRows(_allBatchesData);
+    var todayStrP = todayPacific();
+    var dashAsOf = _dashData ? _dashData.asOf : { today: todayStrP, year: parseInt(todayStrP.slice(0, 4), 10), tz: 'America/Vancouver' };
+    var schedCatMap = buildScheduleCategoryById(_fermSchedules);
+    var ytd = getDashboardData(dashRows, dashAsOf, { window: 'ytd', scheduleCategoryById: schedCatMap });
+
+    // Stat cards: three year-to-date tiles + the full-width cycle-time tile
+    if (dashRows.length > 0) {
+      var ytdTitle = escapeHTML('Calendar year to date (' + dashAsOf.year + '), Vancouver time');
+      html += '<div class="bp-stat-grid">';
+      html += '<div class="bp-stat-card"><div class="bp-stat-num">' + ytd.activeNow + '</div><div class="bp-stat-label">Fermenting now</div></div>';
+      html += '<div class="bp-stat-card" title="' + ytdTitle + '"><div class="bp-stat-num">' + ytd.totals.all + '</div><div class="bp-stat-label">Started this year</div></div>';
+      html += '<div class="bp-stat-card" title="' + ytdTitle + '"><div class="bp-stat-num">' + ytd.completedTotals.all + '</div><div class="bp-stat-label">Completed this year</div></div>';
+      html += '<div class="bp-stat-label bp-stat-caption">This year = Jan 1 to today</div>';
+
+      var cyc = ytd.cycle;
+      html += '<div class="bp-stat-card bp-stat-card--wide" role="group" aria-label="Days to complete">';
+      html += '<div class="bp-stat-label">Days to complete (median)</div>';
+      if (cyc.n > 0) {
+        html += '<div class="bp-stat-row"><div class="bp-stat-num">' + cyc.median + '</div><div class="bp-stat-label">mean ' + cyc.mean + 'd</div></div>';
+        var basis = 'Based on ' + cyc.n + ' batch' + (cyc.n !== 1 ? 'es' : '');
+        html += '<div class="bp-stat-label">' + escapeHTML(basis);
+        if (cyc.excluded > 0) {
+          html += ', <span class="bp-stat-warn">' + cyc.excluded + ' excluded (no completion date)</span>';
+        }
+        html += '</div>';
+        var typeParts = [];
+        for (var cti = 0; cti < DASH_TYPES.length; cti++) {
+          var cty = cyc.byType[DASH_TYPES[cti]];
+          if (cty && cty.n > 0) {
+            typeParts.push('<span><strong>' + escapeHTML(DASH_TYPE_LABELS[DASH_TYPES[cti]]) + '</strong> ' + cty.median + 'd</span>');
           }
         }
-        if (st === 'primary' || st === 'secondary') activeNow++;
-      });
-      var avgDays = completedWithDays.length ? Math.round(totalDays / completedWithDays.length) : null;
-      html += '<div class="bp-stat-grid">';
-      html += '<div class="bp-stat-card"><div class="bp-stat-num">' + activeNow + '</div><div class="bp-stat-label">Fermenting now</div></div>';
-      html += '<div class="bp-stat-card"><div class="bp-stat-num">' + ytdStarted + '</div><div class="bp-stat-label">Started this year</div></div>';
-      html += '<div class="bp-stat-card"><div class="bp-stat-num">' + ytdComplete + '</div><div class="bp-stat-label">Completed this year</div></div>';
-      html += '<div class="bp-stat-card"><div class="bp-stat-num">' + (avgDays !== null ? avgDays : '\u2014') + '</div><div class="bp-stat-label">Avg days to complete</div></div>';
+        if (typeParts.length) {
+          html += '<div class="bp-stat-label bp-stat-types">' + typeParts.join(' &middot; ') + '</div>';
+        }
+      } else {
+        html += '<div class="bp-stat-row"><div class="bp-stat-num">\u2014</div></div>';
+        html += '<div class="bp-stat-label">No completed batches with a completion date yet</div>';
+      }
+      html += '</div>';
       html += '</div>';
     }
 
@@ -4308,13 +4328,13 @@ function parseWaitlistRecipeIds(value) {
     var TYPE_ORDER = ['wine', 'beer', 'cider', 'seltzer', 'other'];
 
     var byMonth = (d && d.batchesByMonth) || [];
-    if (byMonth.length > 0 || _allBatchesData.length > 0) {
+    if (byMonth.length > 0 || dashRows.length > 0) {
       html += '<div class="bp-section-header">Batches by Month</div>';
+      html += '<div class="bp-stat-label">Started batches only</div>';
 
-      if (_allBatchesData.length > 0) {
-        // Stacked bar chart from client data
-        var schedCatMap = buildScheduleCategoryById(_fermSchedules);
-        var typedMonths = bucketBatchesByMonthType(_allBatchesData, schedCatMap, 6);
+      if (dashRows.length > 0) {
+        // Stacked bar chart from the shared data layer (started batches only)
+        var typedMonths = ytd.monthBuckets;
 
         // Determine which types have any data at all (for legend)
         var typeHasData = {};
@@ -4464,18 +4484,40 @@ function parseWaitlistRecipeIds(value) {
       }
       html += '</div>';
 
-      // Resolve the active period's windowDays value (null = All Time)
-      var wActivePeriodDays = 180; // default: 6 months
-      for (var wpri = 0; wpri < WINE_PERIOD_DEFS.length; wpri++) {
-        if (WINE_PERIOD_DEFS[wpri].key === _dashWinePeriod) {
-          wActivePeriodDays = WINE_PERIOD_DEFS[wpri].days;
-          break;
+      // Compute bucketed data using Plan 01 helpers
+      // Phase 94: the wine membership + window come from the shared data layer
+      // (same window keys as the period chips); bucketWineDimension then only tallies.
+      var wineWin = dashboardWindow(_dashWinePeriod, dashAsOf.today);
+      var wineRows = [];
+      var wineMerged = {};
+      var wsk;
+      for (wsk in _dashWineSkuLookup) {
+        if (Object.prototype.hasOwnProperty.call(_dashWineSkuLookup, wsk)) wineMerged[wsk] = _dashWineSkuLookup[wsk];
+      }
+      for (var wri = 0; wri < dashRows.length; wri++) {
+        var wr = dashRows[wri];
+        if (DASH_STARTED_STATUSES[String(wr.status || '').toLowerCase()] !== true) continue;
+        if (!inWindow(wr.start_date, wineWin)) continue;
+        if (effectiveBatchType(wr, schedCatMap) !== 'wine') continue;
+        wineRows.push({ batch_id: wr.batch_id, category: 'wine', start_date: wr.start_date, product_sku: wr.product_sku });
+        if (wr.product_sku) {
+          var wsrc = _dashWineSkuLookup[String(wr.product_sku)];
+          var wov = {};
+          var wdd = {};
+          var wpairs = [['subcategory', 'product_subcategory'], ['brand', 'product_brand'], ['manufacturer', 'product_manufacturer']];
+          var wany = false;
+          for (var wpp = 0; wpp < wpairs.length; wpp++) {
+            if (wr[wpairs[wpp][1]]) { wov[wpairs[wpp][0]] = wr[wpairs[wpp][1]]; wany = true; }
+          }
+          if (wany) {
+            var wk2;
+            if (wsrc) { for (wk2 in wsrc) { if (Object.prototype.hasOwnProperty.call(wsrc, wk2)) wdd[wk2] = wsrc[wk2]; } }
+            for (wk2 in wov) { if (Object.prototype.hasOwnProperty.call(wov, wk2)) wdd[wk2] = wov[wk2]; }
+            wineMerged[String(wr.product_sku)] = wdd;
+          }
         }
       }
-
-      // Compute bucketed data using Plan 01 helpers
-      var wSchedCatMap = buildScheduleCategoryById(_fermSchedules);
-      var wRawBuckets = bucketWineDimension(_allBatchesData, wSchedCatMap, _dashWineSkuLookup, _dashWineDimension, wActivePeriodDays);
+      var wRawBuckets = bucketWineDimension(wineRows, null, wineMerged, _dashWineDimension, null);
       var wBuckets = applyTopN(wRawBuckets, 8);
 
       // Build empty-state copy reflecting the active period
@@ -12092,6 +12134,7 @@ function parseWaitlistRecipeIds(value) {
       _initBpRecipeNameAssistForTest: function () { return initBpRecipeNameAssist(); },
       _bpStartRecipeFromExistingForTest: function (id, name, btn) { return bpStartRecipeFromExisting(id, name, btn); },
       // Plan 36-22: test-only state accessors for the cache-bust state vars
+      _renderDashboardForTest: function () { renderDashboard(); },
       getStateForTest: function () {
         return {
           _batchesLoaded: _batchesLoaded,
@@ -12103,7 +12146,8 @@ function parseWaitlistRecipeIds(value) {
           // Phase 69: batch-view filter state so tests can assert re-derive behavior
           _batchStatusFilter: _batchStatusFilter,
           _batchesData: _batchesData,
-          _dashSummary: _dashSummary
+          _dashSummary: _dashSummary,
+          _dashData: _dashData
         };
       },
       _setStateForTest: function (patch) {
@@ -12117,6 +12161,8 @@ function parseWaitlistRecipeIds(value) {
         if ('_batchStatusFilter' in patch) _batchStatusFilter = patch._batchStatusFilter;
         if ('_batchesData'       in patch) _batchesData       = patch._batchesData;
         if ('_dashSummary'       in patch) _dashSummary       = patch._dashSummary;
+        if ('_dashData' in patch) _dashData = patch._dashData;
+        if ('_dashWineSkuLookup' in patch) _dashWineSkuLookup = patch._dashWineSkuLookup;
       },
       // Phase 73-05 (D-05): recipe editor save-resilience test seams.
       saveRecipe: saveRecipe,
