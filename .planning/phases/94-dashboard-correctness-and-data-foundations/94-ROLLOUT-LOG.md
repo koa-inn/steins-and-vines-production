@@ -136,3 +136,5 @@ changed on production.
   and the migration allowlist and guard pass. After the release, `get_dashboard_stats` serves the dashboard.
   New batches get `batch_type` on create, but existing production rows stay NULL until the 94-11 B3 backfill,
   which needs its own owner OK. Until then the production "Needs a type" chip will show the untyped batches.
+
+**Owner release approval:** 141901a7 at 2026-10-27T22:10:26Z (verbatim: "release 141901a7 now").
