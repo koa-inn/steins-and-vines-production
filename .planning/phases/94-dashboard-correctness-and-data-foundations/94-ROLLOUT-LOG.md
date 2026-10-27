@@ -176,3 +176,22 @@ Follow-up: production recipe `beer_category` backfill (Phase 89 gap; probably al
 production).
 
 Awaiting the owner's review of the full list and OK for `--apply --expect=215`.
+
+### Production B3 apply (94-11 Task 3)
+
+- **Owner OK:** 2026-10-27, verbatim "signed in, yes apply with expect=215".
+- **Dashboard before the apply (production, owner signed in):** it renders on the new data layer. Tile median 61d,
+  mean 61d, "Based on 135 batches, 40 excluded (no completion date)". Started 214, completed 135. Before B3 and B2
+  the client-side classifier was used. No errors shown.
+- **Apply:** `batch-type-backfill.js --apply --expect=215` (in-container) at 22:19:49Z: candidates 215,
+  **written 215, skipped 0**. Same type x rule table as the dry run.
+- **Replay dry run:** `batches-replay-to-sheet.js --since=2026-10-27T22:19:54.013Z` built 215 state and 0 delete requests.
+- **Replay `--apply`:**
+  - **Run 1 (22:20:08Z):** stopped at SV-B-000005, "timeout of 30000ms exceeded".
+  - **Run 2 (22:21:59Z):** stopped at SV-B-000038, same timeout. By then it had sent SV-B-000001..000037 successfully;
+    the replay stops at its first error.
+  - Apps Script `mirror_batch_state` takes about 15–30 s per batch right now, so a full re-run would take more than an hour.
+    All 215 rows share one `last_updated`, so `--since` cannot resume from a point.
+  - **Resume:** a one-off driver, `/tmp/replay-driver.js` in the container, calls the same `runBatchesReplay`, so the
+    payloads and order are unchanged. Its injected HTTP client returns ok for ids below SV-B-000038 (already sent) and
+    allows 120 s per call with 3 tries. Started ~22:35Z with `nohup`.
