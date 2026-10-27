@@ -1494,6 +1494,11 @@ img { max-width: 100%; height: auto; display: block; }
 .bp-stat-card { background: var(--cellar-raised); border-radius: 8px; padding: 10px 14px; }
 .bp-stat-num { font-size: 1.7rem; font-weight: 700; color: var(--stain); line-height: 1.1; }
 .bp-stat-label { font-size: 0.75rem; color: var(--ink-secondary); margin-top: 2px; }
+.bp-stat-card--wide { grid-column: 1 / -1; }
+.bp-stat-caption { grid-column: 1 / -1; margin-top: 0; }
+.bp-stat-row { display: flex; align-items: baseline; gap: 16px; }
+.bp-stat-types { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.bp-stat-warn { color: var(--batch-warning); }
 
 /* ===== Active batches table (Item 5a) ===== */
 .bp-active-batches-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-bottom: 16px; }
