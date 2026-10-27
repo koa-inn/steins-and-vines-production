@@ -195,3 +195,6 @@ Awaiting the owner's review of the full list and OK for `--apply --expect=215`.
   - **Resume:** a one-off driver, `/tmp/replay-driver.js` in the container, calls the same `runBatchesReplay`, so the
     payloads and order are unchanged. Its injected HTTP client returns ok for ids below SV-B-000038 (already sent) and
     allows 120 s per call with 3 tries. Started ~22:35Z with `nohup`.
+  - **Driver result (finished ~23:15Z):** `Replayed 215/215 request(s)`, exitCode 0. It skipped 35 already-sent ids
+    below SV-B-000038 (the gaps are deleted batches), sent the other 180 with 0 retries, and took 2456 s (~14 s/batch).
+  - **Next:** `batches-verify` against a fresh owner snapshot.
