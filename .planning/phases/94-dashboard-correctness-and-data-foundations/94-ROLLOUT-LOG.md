@@ -198,3 +198,16 @@ Awaiting the owner's review of the full list and OK for `--apply --expect=215`.
   - **Driver result (finished ~23:15Z):** `Replayed 215/215 request(s)`, exitCode 0. It skipped 35 already-sent ids
     below SV-B-000038 (the gaps are deleted batches), sent the other 180 with 0 retries, and took 2456 s (~14 s/batch).
   - **Next:** `batches-verify` against a fresh owner snapshot.
+- **Verify after the B3 replay:** owner snapshot S6 (sha `a5fef135`) uploaded to the container, sha256 prefix
+  `4f142c85ca7ee39c` checked on both ends. Ran `batches-verify` at 23:28:14Z: headers match; counts 215 / 1114 / 72 / 442
+  equal; 0 orphans; **0 mismatches**; exit 0. The uploaded file was then deleted from the container.
+- **Production B3: COMPLETE.**
+
+## Production B2
+
+Dry run in the production container (~23:29Z). Full list: `~/sv-backfill/94-prod-completed-dryrun.txt` (outside the repo).
+
+- candidates **40**, will fill **40**, stay blank **0**, before start_date **0**.
+- **Identical to the staging-approved list** (`diff` empty: same ids, proposed dates and `backfill-task` source).
+
+Awaiting the owner's OK for `--apply --expect=40`.
