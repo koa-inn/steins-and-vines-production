@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
-stopped_at: Phase 94 UI-SPEC approved
-last_updated: "2026-10-23T21:37:57.921Z"
-last_activity: 2026-10-23 -- Phase 94 planning complete
+stopped_at: Phase 86 flip + Phase 87 production cutover complete
+last_updated: "2026-10-27T19:30:00.000Z"
+last_activity: 2026-10-27 -- Phase 86 flip + Phase 87 production cutover
 progress:
   total_phases: 85
   completed_phases: 35
@@ -21,57 +21,41 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Milestone complete
+**Current focus:** Phase 87 rollback week, then Phase 94
 
 ## Current Position
 
-Phase: 93
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-10-23 -- Phase 94 planning complete
+Phase: 87 (production cutover done), then 94
+Plan: 87-19 Task 3 + 87-20 rollback week open; 94 planned (13 plans), unblocked
+Status: Production on Postgres for every store
+Last activity: 2026-10-27 -- Phase 86 flip + Phase 87 production cutover
 
-**Phase 87:** 18/20 plans done. Design approved; all code merged and on staging behind `BATCHES_STORE`
-(off); security review signed off; staging rehearsal passed 2026-10-09 (0 rejects, 0 verify mismatches,
-0 parity differences pre- and post-flip, steps 3-8 about 30 min, rollback about 3 min; staging back on
-sheets by owner choice). Record: `87-CUTOVER-LOG.md`, `87-18-SUMMARY.md`.
+**2026-10-27 production cutover (shop open, owner present):**
 
-**Next: 87-19 production window, gated on two things:**
-
-1. Phase 86 production flip (`OPS_DATA_STORE=postgres`), which itself follows the Phase 85 prod cutover
-   (85-13, pinned `d2c66be9:main`).
-
-2. Node 24 in production. `abc4d42e` (Node 24 LTS, tzdata 2026c, fixes America/Vancouver going UTC-8
-   on 2026-11-01) is live and verified on staging since 2026-10-13; deploy to production before
-   2026-11-01 with pinned-SHA discipline. Todo: `.planning/todos/pending/node-tzdata-bc-permanent-time.md`.
-
-Other deadline: Railway config-as-code (`railway.toml`, runs the migration guards) stops applying
-2026-12-01; move settings to the dashboard first.
-
-**Off-roadmap beer-launch and recipe money-path work (2026-10-13/14, STAGING ONLY, nothing in production):**
-Owner pivoted from 87 to readying the beer page (Node 24 had not soaked long enough). On staging `main`:
-FAQ 28 L `2fb176af`; GA4 Buy Kit price `fdcef0fd`; recipe write-guard test `22c73f61`; recipe
-availability file fallback `eaf792c7` + per-item sum `4dfcc8e1`; cache-clear ALL key `51fa9527`;
-untracked `ingredients-cache.json` `a85a4d21` (+ `f7713d81`); `/cider` sitemap `1a670017`; kiosk_recipe
-badge `8c4dcd63`; step="any" qty inputs `9be62be9`; recipe-sale kiosk reference `6029ed7f`, manual-confirm
-verify `5404abea`, captured-amount check `255c5e13`; recipe fee tax + invoice adjustment `4849f473` +
-kiosk tax display `60d7b32f`; staff waitlist email wording `ecb328d8`; custom-recipe card `7713dcd3`;
-readable card subtitles `ab8a0347`. Railway fee item IDs fixed (staging live; production set with
-`--skip-deploys`, applies on next prod restart/deploy). Staging recipe store re-backfilled 2026-10-14.
-
-- **Beer page launch is staged on LOCAL branch `beer-launch`** (not merged/pushed; owner: not live yet).
-  Merge = `git merge beer-launch` (refresh stamp conflicts) → build → tests → staging.
-
-- **Before any of the above reaches production:** one real in-store recipe sale on staging hardware
-  (auto + manual confirm) must book 201 and the Zoho invoice must read Paid (first use of the invoice
-  `adjustment` field). The 85-13 production push is pinned to `d2c66be9:main`, which predates this
-  work — these commits need their own promotion decision.
-
-- **Open owner items:** CI frontend `Tests` job red since 2026-10-09 (`adminapi-batch-golden` TZ — test
-  pins TZ inside Jest, which does not take effect; fix = TZ=America/Vancouver for the frontend run;
-  awaiting go-ahead); hero copy mentions "stouts" (no stout recipe); handoff §6 (batch `source`
-  editable — owner decision, PG allowlist excludes it by design); footer price-label legibility.
-
-- Session handoff: `HANDOFF-beer-golive.md` (untracked; §5 §9 §10 §11 stale/resolved).
+- **Phase 86 (86-20 COMPLETE).**
+  - `OPS_DATA_STORE` and `STAFF_ACCESS_STORE` are `postgres` since 18:13:39Z (deploy `fd9fb39e`).
+  - The owner overrode the 7-day bar after 8 days in dual. Post-flip `ops-verify` found 0 mismatches.
+  - D-18 is closed: the Config `staff_emails` cell is blanked and the probe returns `unauthorized`.
+  - `STAFF_EMAILS` already held 1 owner, so no trim was needed.
+  - Record: `86-DUAL-LOG.md`, `86-20-SUMMARY.md`.
+- **Phase 87 (87-19 window done).**
+  - `BATCHES_STORE=postgres` since 18:40:18Z (deploy `90dfb9c1`).
+  - The freeze lasted about 27 minutes and no sales arrived during it.
+  - Promoted 214 / 1106 / 72 / 440. Verify found 0 mismatches; parity found 0 differences before and after.
+  - Smoke passed; `create_batch` took 79 ms.
+  - Record: `87-CUTOVER-LOG.md`.
+- **Open:**
+  1. The owner runs `setupBatchMirrorNotices()` (AS1, unconfirmed).
+  2. 87-19 Task 3: the first real sale creates its batch; record the `create_batch` median.
+  3. 87-20 rollback week, 10-28 → 11-03, with a daily `[batches-drift]` line. Retire afterwards and delete `~/sv-backfill/pre-cutover-2026-10-27.json`.
+  4. Rollback order: Phase 87 first. OPS can only go back to `dual` while `BATCHES_STORE=postgres`.
+- **Next:** Phase 94 (BrewPad Dashboard v2 foundations), now unblocked.
+- **Deadline:** Railway config-as-code (`railway.toml`) stops applying on 2026-12-01. Move those settings to the dashboard first.
+- **Still open from before:**
+  - Hero copy mentions "stouts" (there is no stout recipe).
+  - Handoff §6: whether batch `source` should be editable.
+  - Footer price-label legibility.
+  - The owner still has to confirm the BrewPad list fix `b8f5a34e`.
 
 Older position notes (Phases 46-51, 76) are kept verbatim under "Accumulated Context → Earlier
 position notes".

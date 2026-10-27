@@ -1069,6 +1069,15 @@ or in any terminal output this section references: every script prints ids, fiel
 counts only. Evidence is logged in
 `.planning/phases/86-vessels-fermschedules-config-postgres/86-DUAL-LOG.md`.
 
+**Production flip record (2026-10-27):**
+- `OPS_DATA_STORE=postgres` and `STAFF_ACCESS_STORE=postgres` set together at 18:11:21Z (deploy
+  `fd9fb39e`, live 18:13:39Z), owner override of the 7-day bar after 8 days in dual. Post-flip
+  `ops-verify` 233 vessels / 13 schedules, 0 mismatches.
+- D-18 closed: Config `staff_emails` value cell blanked; probe `unauthorized` after the cache window.
+- `STAFF_EMAILS` already holds one owner (break-glass), so no trim was needed.
+- Rollback: `OPS_DATA_STORE=dual` (preferred). `sheets` is refused at boot while `BATCHES_STORE=postgres`
+  (roll Phase 87 back first). Apps Script stays on v65.
+
 Two independent flags drive this phase: `OPS_DATA_STORE` (vessels, schedules, config) and
 `STAFF_ACCESS_STORE` (the staff sign-in list). Each takes `sheets` | `dual` | `postgres` and each
 rolls back on its own (D-19).
@@ -1217,6 +1226,13 @@ window**: `BATCHES_STORE` takes `sheets` | `postgres` only (`dual` refuses to bo
 inside one frozen maintenance window. Every script prints ids, field names and counts only, never a
 customer name, email, token or note. Evidence goes in
 `.planning/phases/87-batches-batchtasks-platoreadings-vesselhistory-postgres/87-CUTOVER-LOG.md`.
+
+**Production cutover record (2026-10-27):**
+- Freeze T0 18:13:39Z (set with the Phase 86 flip), promote 214 / 1106 / 72 / 440, verify 0 mismatches,
+  parity 0 before and after. Flip T1 18:34:09Z (deploy `90dfb9c1`, live 18:40:18Z). Batch writes were frozen
+  about 27 minutes; no sales arrived during the freeze. Record: `87-CUTOVER-LOG.md`.
+- Rollback week (§13) runs 2026-10-28 to 2026-11-03. Pre-cutover parity snapshot:
+  `~/sv-backfill/pre-cutover-2026-10-27.json` (customer names; keep until retirement, then delete).
 
 Environment variables:
 

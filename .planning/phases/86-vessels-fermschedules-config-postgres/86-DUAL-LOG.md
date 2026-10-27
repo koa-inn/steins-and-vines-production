@@ -85,18 +85,18 @@ unexplained discrepancies were raised for that action during the current window.
 
 | Action | First seen at | Real or scripted | Sentry clean? |
 |--------|----------------|-------------------|----------------|
-| vessel add | staging 2026-10-08 (not window) | staging | yes |
-| vessel edit | production 2026-10-20 00:03:41Z (MT-001 notes, pre-open; window starts 10-20) | scripted | yes |
-| vessel archive | staging 2026-10-08 (not window) | staging | yes |
-| vessel status override | staging 2026-10-08 (not window) | staging | yes |
-| batch-flow vessel status delta | staging 2026-10-08 (not window) | staging | yes |
-| schedule create | staging 2026-10-08 (not window) | staging | yes |
-| schedule edit | staging 2026-10-08 (not window) | staging | yes |
-| schedule delete-or-archive | staging 2026-10-08 (not window) | staging | yes |
-| schedule propagate | staging 2026-10-08 (not window) | staging | yes |
-| staff add | | | |
-| staff remove | | | |
-| staff role change | | | |
+| vessel add | production 2026-10-27 ~17:56Z (TST-901) | scripted | yes |
+| vessel edit | production 2026-10-20 00:03:41Z (MT-001 notes); real edits through 2026-10-23; TST-901 location 2026-10-27 | real + scripted | yes |
+| vessel archive | production 2026-10-27 17:57:46Z (TST-901; archive while In-Use refused 409 first) | scripted | yes |
+| vessel status override | production 2026-10-27 (TST-901 In-Use, then Empty) | scripted | yes |
+| batch-flow vessel status delta | production, real BrewPad batch flows during the window (~174 admin-proxy calls 10-22..10-27); post-flip SV-B-000246 on LFB-009/LFB-008 2026-10-27 | real + scripted | yes |
+| schedule create | production 2026-10-27 ("ZZ Test Schedule 2026-10-27") | scripted | yes |
+| schedule edit | production 2026-10-27 (added a day-7 step) | scripted | yes |
+| schedule delete-or-archive | production 2026-10-27 (test schedule deleted; PG back to 13) | scripted | yes |
+| schedule propagate | staging 2026-10-08 only (owner chose the short check; no active batch used the test schedule) | staging | yes |
+| staff add | staging 2026-10-08 + tests (owner skipped the second-account check: production has owners only) | staging/tests | yes |
+| staff remove | tests only (staff-access-routes, auth-tiers-revocation); owner skip, see above | tests | yes |
+| staff role change | tests only; owner skip, see above | tests | yes |
 
 ## Discrepancy table
 
@@ -143,20 +143,20 @@ unexplained discrepancies) is met and the owner decides to flip to `postgres`.
 
 | Field | Value |
 |-------|-------|
-| Owner | |
-| Date | |
-| Decision | |
+| Owner | hello@ (owner), in session |
+| Date | 2026-10-27 (Tue, shop open; owner accepted BrewPad downtime) |
+| Decision | **Flip.** Owner override of the 7-day bar (D-11): 8 calendar days in dual (10-19 → 10-27), 0 `ops-mirror` errors and 0 `[dual-write] staff-access` lines in the current deployment's logs (10-22 → 10-27), 0 dirty markers, plus a short scripted check on production (vessel add/edit/status/archive-refused/archive, schedule create/edit/delete) and S3 `ops-verify` 233 vessels / 13 schedules, 0 mismatches. Staff add/role/remove on production skipped by the owner (owners only; covered on staging and by tests). Flipped together with the 87 freeze (combined variant). |
 
 ## Post-flip verification
 
 | Check | Result | Date |
 |-------|--------|------|
-| Both flags `postgres`; `ops-verify.js` 0 mismatches | | |
-| D-18: Config `staff_emails` value cell blanked with retirement note | | |
-| Direct Apps Script call with a non-owner staff token returns unauthorized (after 5 minutes) | | |
-| `ops-verify.js` staff leg: missing from Postgres 0 | | |
-| Railway `STAFF_EMAILS` trimmed to owner break-glass only (date) | | |
-| Regular staff member and an owner can still sign in | | |
+| Both flags `postgres`; `ops-verify.js` 0 mismatches | PASS. One `railway variable set` (OPS, STAFF, plus `BATCHES_FREEZE`) at 18:11:21Z → deploy `fd9fb39e` SUCCESS, store modes OPS/STAFF postgres at 18:13:39Z, mirror ENABLED, ops sweep registered, `/health` database_required true. S4 (downloaded 11:15 PDT, after the flip) `ops-verify`: label header present, 233 vessels / 13 schedules, **0 mismatches** | 2026-10-27 |
+| D-18: Config `staff_emails` value cell blanked with retirement note | PASS (owner blanked column B and wrote the retirement note in column C) | 2026-10-27 |
+| Direct Apps Script call with a non-owner staff token returns unauthorized (after 5 minutes) | PASS with the owner's token (runsheet adjustment 9: the cell was the only OAuth limb). Positive control before blanking: `true -`. After a 6-minute wait (18:20:58Z): `false unauthorized`. Token read from the clipboard, never printed; clipboard cleared after | 2026-10-27 |
+| `ops-verify.js` staff leg: missing from Postgres 0 | PASS (S3 and S4: missing 0, Postgres-only 1 = an owner passed via `--owners`) | 2026-10-27 |
+| Railway `STAFF_EMAILS` trimmed to owner break-glass only (date) | Not needed: production `STAFF_EMAILS` already holds 1 owner account. Owner confirmed no non-owner staff sign in with their own account | 2026-10-27 |
+| Regular staff member and an owner can still sign in | Owner signed in to BrewPad after the flip (`POST /auth/google` 200, 18:43Z) and to admin. No regular staff accounts exist | 2026-10-27 |
 
 ## Production prerequisites and release (86-19 Task 1), 2026-10-17
 

@@ -154,7 +154,7 @@ Severity is shown only for non-closed rows.
 | T-86-19-04 | mitigate | decision checkpoint | SCHEDULED (86-19) |
 | T-86-19-05 | mitigate | backup status prerequisite | SCHEDULED (86-19) |
 | T-86-19-06 | mitigate | label header gate | SCHEDULED (86-19) |
-| T-86-20-01 | mitigate | D-18 blank + probe | SCHEDULED (86-20), see section 7 |
+| T-86-20-01 | mitigate | D-18 blank + probe | **CLOSED 2026-10-27**: Config cell blanked; owner-token probe `true` before, `false unauthorized` after the 6-minute cache window |
 | T-86-20-02 | mitigate | trim only after `missingFromPg 0` | SCHEDULED (86-20) |
 | T-86-20-03 | mitigate | owners stay in STAFF_EMAILS | SCHEDULED (86-20) |
 | T-86-20-04 | mitigate | D-11 bar plus decision checkpoint | SCHEDULED (86-20) |
@@ -176,7 +176,7 @@ Severity is shown only for non-closed rows.
 4. Delete-vs-new-reference check-then-act window on schedules (T-86-13-05, Low; batches keep a schedule snapshot).
 5. ~~Non-owner vessel mutations (`/api/vessels` POST/PUT/archive) accept the cookie session without the `x-session-token` header requirement.~~ **FIXED before sign-off (owner request, 2026-10-08), commit `756abe31`:** `routes/vessels.js` `sessionWriteBlocked()` now requires the `x-session-token` header (matching any `sv_session` cookie) and an allowlisted Origin on session-tier POST/PUT/archive/unarchive; legacy `x-api-key` and GET reads unchanged. Evidence: `__tests__/vessels-routes-csrf.test.js` (21 tests: cookie-only, mismatch, bad Origin -> 403 on all four mutations; was 12 failing before the fix). No longer an accepted risk.
 
-## 7. Required mitigation at the production flip (D-18) - HIGH until executed, scheduled: 86-20
+## 7. Required mitigation at the production flip (D-18) - CLOSED 2026-10-27 (86-20)
 
 Finding: Apps Script `checkAuthorization` (`adminApi.gs` ~L610-720) still authorises direct OAuth callers whose email is in the Config sheet `staff_emails` cell (cached 5 min). A person removed in Staff Access who is still listed in that cell could call Apps Script directly with their own Google token, bypassing the middleware allowlist.
 

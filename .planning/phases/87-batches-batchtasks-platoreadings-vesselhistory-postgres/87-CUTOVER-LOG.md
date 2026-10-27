@@ -100,45 +100,56 @@ Observation (pre-existing, matches Apps Script via parity): BrewPad dashboard "A
 
 | Check | Evidence | Date |
 |-------|----------|------|
-| Phase 86 production flip recorded (`OPS_DATA_STORE=postgres`, Q14/D-13) | | |
+| Phase 86 production flip recorded (`OPS_DATA_STORE=postgres`, Q14/D-13) | 86-DUAL-LOG "Flip decision" + "Post-flip verification"; flipped in the same change that set the freeze (combined variant) | 2026-10-27 |
 | Apps Script v62 deployed, rollback v61, editor-drift check | v62 live; pre-paste drift check skipped, post-paste hash matched repo; probes ok | 2026-10-09 |
-| Staging rehearsal complete and within budget | | |
+| Staging rehearsal complete and within budget | Run 2: 0 rejects, 0 mismatches, 0 parity differences, steps 3-8 ~30 min (see above) | 2026-10-09 |
 | Q1 orphan task rows BT-000567..570 deleted | Owner deleted the 4 rows; `export_batch_tabs` re-check shows 0 orphans in BatchTasks, PlatoReadings, VesselHistory (re-confirm before the production dry run) | 2026-10-09 |
-| Q3 Apps Script timezone confirmed | Owner confirmed America/Vancouver. Caveat: Node 20.20.2 ships tzdata 2025c and will treat Vancouver as UTC-8 from 2026-11-01 (BC is permanently UTC-7). Must be fixed before the production window; see todo node-tzdata-bc-permanent-time | 2026-10-09 |
-| Pinned production SHA | | |
-| Migration 0005 and inert Phase 87 code on production | | |
-| Window date and time agreed with owner | | |
+| Q3 Apps Script timezone confirmed | Owner confirmed America/Vancouver. Caveat: Node 20.20.2 ships tzdata 2025c and will treat Vancouver as UTC-8 from 2026-11-01 (BC is permanently UTC-7). Must be fixed before the production window; see todo node-tzdata-bc-permanent-time. **Resolved:** production on Node 24.21 since 2026-10-16 | 2026-10-09 |
+| Pinned production SHA | No deploy for the window. Production code `47fcd354`+ (prod-20261022-1, Railway `e7776fc9`) already carried the Phase 87 code; window used variable-only redeploys | 2026-10-27 |
+| Migration 0005 and inert Phase 87 code on production | 0005 applied 2026-10-17 (prod-20261017-1); all 6 batch tables were 0 rows before the promote | 2026-10-27 |
+| Window date and time agreed with owner | Owner: "lets do it now, brewpad can afford to be down" (Tue, shop open, daytime) | 2026-10-27 |
 
 ## Production window
 
 | Field | Value |
 |-------|-------|
-| Freeze set at (`BATCHES_FREEZE`) | |
-| Flip at (`BATCHES_STORE=postgres`) | |
-| Window closed at | |
+| Freeze set at (`BATCHES_FREEZE`) | T0 2026-10-27T18:13:39Z (`BATCHES_FREEZE="1:30 PM"`, set 18:11:21Z with the 86 flip; deploy `fd9fb39e`) |
+| Flip at (`BATCHES_STORE=postgres`) | T1 2026-10-27T18:34:09Z (set + `BATCHES_FREEZE` deleted + `railway redeploy`); deploy `90dfb9c1` live 18:40:18Z |
+| Window closed at | T2 ~2026-10-27T19:05Z after smoke + test batch delete. Batch writes frozen ~27 min (18:13:39 → 18:40:18) |
 
 Timeline:
 
 | Step | Start | End | Notes |
 |------|-------|-----|-------|
+| 5a Freeze (combined with 86 flip) | 18:11Z | 18:13Z | deploy `fd9fb39e` |
+| 5c Snapshot S4 | 18:15Z | | owner download, sha `fad92bb1` |
+| 5d Dry run | 18:16Z | | 214 / 1106 / 72 / 440, 0 rejects, seeds 245/1121/74/442 |
+| 5e Promote | 18:16Z | | exit 0, sequences 245/1121/74/442 |
+| 5g Parity (pre-flip) | ~18:17Z | | 0 differences (5 reads); snapshot copied to `~/sv-backfill/pre-cutover-2026-10-27.json` (mode 600) |
+| 5f Verify on S5 (post-promote snapshot, 11:24 PDT, sha `5ae19af9`) | ~18:25Z | | headers match, counts equal, 0 orphans, 0 mismatches |
+| 5i Flip | 18:34Z | 18:40Z | deploy `90dfb9c1`; store modes all postgres; drift check registered |
+| 5k Post-flip parity via proxy | ~18:42Z | | 0 differences (5 reads); session token via clipboard, never printed |
+| 5l Smoke | 18:43Z | ~19:05Z | see below |
+| 5j D-12 notices (`setupBatchMirrorNotices`) | | | **owner action pending** |
 
 Go/no-go record (D-06):
 
 | Gate | Result |
 |------|--------|
-| Dry run: 0 rejects | |
-| Row counts equal | |
-| `batches-verify.js` 0 mismatches | |
-| `batches-parity.js` 0 differences | |
-| Owner go/no-go decision and time | |
-| Smoke: create batch / mark task / add reading / vessel transfer | |
+| Dry run: 0 rejects | PASS |
+| Row counts equal | PASS (214 / 1106 / 72 / 440) |
+| `batches-verify.js` 0 mismatches | PASS |
+| `batches-parity.js` 0 differences | PASS (pre-flip and post-flip) |
+| Owner go/no-go decision and time | GO, ~18:33Z ("lets do ettt") |
+| Smoke: create batch / mark task / add reading / vessel transfer | PASS. SV-B-000246 (internal, FS-0001, LFB-009) created in BrewPad, `create_batch ms=79`; task tick, reading (20 °P) and transfer to LFB-008 saved; vessel statuses flipped (LFB-008 In-Use, LFB-009 Empty); history row carries the OLD vessel by design. Sheet mirror row confirmed by owner. Admin: customer page loaded, Regenerate URL → old token "Invalid access token", new token loads. Deleted from admin: PG rows 0, tombstone 1, both vessels Empty, 214 batches, 0 dirty markers, no errors in logs |
 
 Invoices taken during the window (numbers only):
 
 | Invoice | Batch created by | Notes |
 |---------|------------------|-------|
+| none | - | The freeze deployment `fd9fb39e` logged no POST requests at all between 18:13Z and 18:40Z (no sales, no refused creates) |
 
-Scan invoices result:
+Scan invoices result: not run; nothing to recover.
 
 ## Next-business-day smoke (SC4)
 
