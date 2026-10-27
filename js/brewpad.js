@@ -351,6 +351,271 @@ function resolveBatchType(batch, scheduleCategoryById) {
   return 'other';
 }
 
+// ---------------------------------------------------------------------------
+// Phase 94 dashboard data layer. Pure ES5 helpers: no wall clock inside the
+// window/cycle math (everything derives from asOf.today, a Vancouver YYYY-MM-DD).
+// ---------------------------------------------------------------------------
+var DASH_WINDOW_DAYS = { '30d': 30, '90d': 90, '6mo': 180, '12mo': 365 };
+var DASH_TYPES = ['wine', 'beer', 'cider', 'seltzer', 'other'];
+var DASH_STARTED_STATUSES = { primary: true, secondary: true, complete: true };
+var DASH_MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Whole-day index of a 'YYYY-MM-DD' string (UTC based, DST proof).
+function dayNumber(ymd) {
+  var p = String(ymd).slice(0, 10).split('-');
+  return Math.floor(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000);
+}
+
+function addDays(ymd, n) {
+  var d = new Date((dayNumber(ymd) + n) * 86400000);
+  var m = d.getUTCMonth() + 1;
+  var day = d.getUTCDate();
+  return d.getUTCFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+}
+
+// Whole days from start to completion; null when either is missing or span < 0.
+function cycleDays(startYmd, completedYmd) {
+  if (!startYmd || !completedYmd) return null;
+  var n = dayNumber(completedYmd) - dayNumber(startYmd);
+  if (isNaN(n) || n < 0) return null;
+  return n;
+}
+
+function medianOf(nums) {
+  if (!nums || !nums.length) return null;
+  var a = nums.slice().sort(function (x, y) { return x - y; });
+  var mid = Math.floor(a.length / 2);
+  return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+}
+
+function meanOf(nums) {
+  if (!nums || !nums.length) return null;
+  var sum = 0;
+  for (var i = 0; i < nums.length; i++) sum += nums[i];
+  return sum / nums.length;
+}
+
+function dashboardWindow(key, asOfToday) {
+  var end = asOfToday;
+  if (key === 'all') return { key: 'all', start: '0000-01-01', end: end };
+  if (DASH_WINDOW_DAYS[key]) {
+    return { key: key, start: addDays(end, -(DASH_WINDOW_DAYS[key] - 1)), end: end };
+  }
+  return { key: 'ytd', start: String(end).slice(0, 4) + '-01-01', end: end };
+}
+
+function inWindow(ymd, w) {
+  if (!ymd) return false;
+  var s = String(ymd).slice(0, 10);
+  return s >= w.start && s <= w.end;
+}
+
+function effectiveBatchType(row, scheduleCategoryById) {
+  var bt = row && row.batch_type ? String(row.batch_type).toLowerCase() : '';
+  if (bt && DASH_TYPES.indexOf(bt) !== -1) return bt;
+  var sc = row && row.schedule_category ? String(row.schedule_category).toLowerCase() : '';
+  if (sc && KNOWN_BATCH_TYPES[sc]) return sc;
+  return resolveBatchType(row || {}, scheduleCategoryById);
+}
+
+function vancouverDay(iso) {
+  if (!iso) return null;
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Vancouver' });
+}
+
+// Adapt get_batches rows to the lean dashboard row contract (sheets-mode fallback).
+function toDashRows(batches) {
+  var out = [];
+  if (!batches || !batches.length) return out;
+  for (var i = 0; i < batches.length; i++) {
+    var b = batches[i] || {};
+    out.push({
+      batch_id: b.batch_id,
+      status: String(b.status || '').toLowerCase(),
+      batch_type: b.batch_type || null,
+      batch_type_source: b.batch_type_source || null,
+      start_date: b.start_date ? String(b.start_date).slice(0, 10) : null,
+      completed_day: vancouverDay(b.completed_at),
+      completed_at: b.completed_at || null,
+      completed_at_source: b.completed_at_source || null,
+      vessel_id: b.vessel_id || null,
+      source: b.source || '',
+      product_sku: b.product_sku || '',
+      product_name: b.product_name || '',
+      product_subcategory: b.product_subcategory || '',
+      product_brand: b.product_brand || '',
+      product_manufacturer: b.product_manufacturer || '',
+      recipe_id: b.recipe_id || '',
+      schedule_id: b.schedule_id || '',
+      schedule_category: '',
+      target_volume_l: b.target_volume_l === undefined ? null : b.target_volume_l,
+      tasks_total: b.tasks_total || 0,
+      tasks_done: b.tasks_done || 0
+    });
+  }
+  return out;
+}
+
+function emptyTypeCounts() {
+  var o = {};
+  for (var i = 0; i < DASH_TYPES.length; i++) o[DASH_TYPES[i]] = 0;
+  return o;
+}
+
+function isNeedsType(row, type) {
+  var src = row.batch_type_source ? String(row.batch_type_source).toLowerCase() : '';
+  return type === 'other' && src !== 'manual' && String(row.status || '').toLowerCase() !== 'disabled';
+}
+
+// The single dashboard computation. Each row is classified once and the type
+// filter is applied once, before any total is computed.
+function getDashboardData(rows, asOf, filters) {
+  var f = filters || {};
+  var winKey = f.window || 'ytd';
+  var typeFilter = f.type || 'all';
+  var months = f.months || 6;
+  var catMap = f.scheduleCategoryById || {};
+  var today = asOf.today;
+  var win = dashboardWindow(winKey, today);
+  var cycleWin = win;
+
+  var items = [];
+  var needsType = [];
+  var src = rows || [];
+  var i;
+  for (i = 0; i < src.length; i++) {
+    var r = src[i];
+    if (!r) continue;
+    var t = effectiveBatchType(r, catMap);
+    // needsType is a worklist and ignores the type filter.
+    if (isNeedsType(r, t)) needsType.push(r);
+    if (typeFilter !== 'all' && t !== typeFilter) continue;
+    items.push({ row: r, type: t, status: String(r.status || '').toLowerCase() });
+  }
+
+  var activeNow = 0;
+  var pendingCount = 0;
+  var started = 0;
+  var completed = 0;
+  var totalsByType = emptyTypeCounts();
+  var completedByType = emptyTypeCounts();
+  var spans = [];
+  var spansByType = {};
+  var excluded = 0;
+
+  // Month bucket skeleton: last N calendar months ending at the asOf month.
+  var y = +String(today).slice(0, 4);
+  var m = +String(today).slice(5, 7);
+  var buckets = [];
+  var bucketByKey = {};
+  var k;
+  for (k = months - 1; k >= 0; k--) {
+    var mm = m - k;
+    var yy = y;
+    while (mm < 1) { mm += 12; yy -= 1; }
+    var key = yy + '-' + (mm < 10 ? '0' : '') + mm;
+    var bk = { key: key, label: DASH_MONTH_LABELS[mm - 1], total: 0, counts: emptyTypeCounts() };
+    buckets.push(bk);
+    bucketByKey[key] = bk;
+  }
+
+  for (i = 0; i < items.length; i++) {
+    var it = items[i];
+    var row = it.row;
+    var isStarted = DASH_STARTED_STATUSES[it.status] === true;
+    if (it.status === 'pending') pendingCount++;
+    if (it.status === 'primary' || it.status === 'secondary') activeNow++;
+    if (!isStarted) continue;
+
+    if (inWindow(row.start_date, win)) {
+      started++;
+      totalsByType[it.type]++;
+    }
+    if (inWindow(row.completed_day, win)) {
+      completed++;
+      completedByType[it.type]++;
+    }
+    if (row.start_date && row.start_date <= today) {
+      var b = bucketByKey[String(row.start_date).slice(0, 7)];
+      if (b) { b.total++; b.counts[it.type]++; }
+    }
+
+    if (it.status === 'complete') {
+      if (row.completed_day) {
+        if (inWindow(row.completed_day, cycleWin)) {
+          var span = cycleDays(row.start_date, row.completed_day);
+          if (span === null) {
+            excluded++;
+          } else {
+            spans.push(span);
+            if (!spansByType[it.type]) spansByType[it.type] = [];
+            spansByType[it.type].push(span);
+          }
+        }
+      } else if (inWindow(row.start_date, cycleWin)) {
+        excluded++;
+      }
+    }
+  }
+
+  var cycleByType = {};
+  for (k = 0; k < DASH_TYPES.length; k++) {
+    var tt = DASH_TYPES[k];
+    var list = spansByType[tt];
+    if (list && list.length) {
+      cycleByType[tt] = { n: list.length, median: Math.round(medianOf(list)), mean: Math.round(meanOf(list)) };
+    }
+  }
+  var med = medianOf(spans);
+  var mean = meanOf(spans);
+
+  return {
+    asOf: asOf,
+    window: win,
+    activeNow: activeNow,
+    pendingCount: pendingCount,
+    started: started,
+    totals: { all: started, byType: totalsByType },
+    completed: completed,
+    completedTotals: { all: completed, byType: completedByType },
+    monthBuckets: buckets,
+    cycle: {
+      n: spans.length,
+      excluded: excluded,
+      median: med === null ? null : Math.round(med),
+      mean: mean === null ? null : Math.round(mean),
+      byType: cycleByType
+    },
+    needsType: needsType
+  };
+}
+
+// Batches whose effective type is 'other' and not manually set. typeById overlays
+// { batch_type, batch_type_source } by batch_id onto get_batches rows.
+function filterBatchesByNeedsType(batches, typeById, scheduleCategoryById) {
+  var out = [];
+  if (!batches || !batches.length) return out;
+  var overlay = typeById || {};
+  for (var i = 0; i < batches.length; i++) {
+    var b = batches[i];
+    if (!b) continue;
+    var o = overlay[b.batch_id] || {};
+    var merged = {
+      batch_type: o.batch_type !== undefined ? o.batch_type : b.batch_type,
+      batch_type_source: o.batch_type_source !== undefined ? o.batch_type_source : b.batch_type_source,
+      schedule_category: b.schedule_category,
+      schedule_id: b.schedule_id,
+      category: b.category,
+      schedule_snapshot: b.schedule_snapshot,
+      status: b.status
+    };
+    if (isNeedsType(merged, effectiveBatchType(merged, scheduleCategoryById))) out.push(b);
+  }
+  return out;
+}
+
 // Bucket batches by month and beverage type for the Batches-by-Month chart.
 // Returns an ordered array (oldest → newest) of:
 //   { label: 'Jan', total: N, counts: { wine:N, beer:N, cider:N, seltzer:N, other:N } }
@@ -11899,6 +12164,17 @@ if (typeof module !== 'undefined' && module.exports) {
     isValidImportNumber: isValidImportNumber,
     resolveBatchType: resolveBatchType,
     buildScheduleCategoryById: buildScheduleCategoryById,
+    dayNumber: dayNumber,
+    addDays: addDays,
+    cycleDays: cycleDays,
+    medianOf: medianOf,
+    meanOf: meanOf,
+    dashboardWindow: dashboardWindow,
+    inWindow: inWindow,
+    effectiveBatchType: effectiveBatchType,
+    toDashRows: toDashRows,
+    getDashboardData: getDashboardData,
+    filterBatchesByNeedsType: filterBatchesByNeedsType,
     bucketBatchesByMonthType: bucketBatchesByMonthType,
     buildSkuLookup: buildSkuLookup,
     normalizeWineTime: normalizeWineTime,
