@@ -4142,16 +4142,21 @@ function parseWaitlistRecipeIds(value) {
     }
 
     Promise.all([
-      settle(adminApiGet('get_batch_dashboard_summary')),
+      settle(adminApiGet('get_dashboard_stats')),
       settle(adminApiGet('get_batches', { status: 'all' })),   // fetch ALL statuses at once
       settle(adminApiGet('get_vessels')),
       settle(adminApiGet('get_ferm_schedules')),
       settle(adminApiGet('get_tasks_upcoming', { limit: 200 }))
     ]).then(function (results) {
+      // Sheets mode answers invalid_action for the aggregate: fall back to the summary read.
+      if (results[0]) { results[0] = dashAggregateFromStats(results[0]); return results; }
+      return fetchSummaryAggregate().then(function (agg) { results[0] = agg; return results; });
+    }).then(function (results) {
       var r0 = results[0], r1 = results[1], r2 = results[2], r3 = results[3], r4 = results[4];
 
       if (r0) {
-        _dashSummary  = r0.data || null;
+        _dashData     = r0.stats;
+        _dashSummary  = r0.summary;
         _dashLoadTime = Date.now();
       }
 
@@ -4203,27 +4208,51 @@ function parseWaitlistRecipeIds(value) {
     }, 300000); // 5min — single user, no concurrent edits
   }
 
+  // Phase 94 (D-21): one aggregate read replaces the summary call. Sheets mode
+  // answers invalid_action, so fall back to the summary + the get_batches rows.
+  function dashAggregateFromStats(r) {
+    var stats = (r && r.data) || null;
+    return { stats: stats, summary: (stats && stats.summary) || null };
+  }
+
+  function dashAggregateFromSummary(r) {
+    return { stats: null, summary: (r && r.data) || null };
+  }
+
+  // Summary-only aggregate (never rejects: null on failure, like settle()).
+  function fetchSummaryAggregate() {
+    return adminApiGet('get_batch_dashboard_summary').then(dashAggregateFromSummary, function () { return null; });
+  }
+
+  function fetchDashboardAggregate() {
+    return adminApiGet('get_dashboard_stats').then(dashAggregateFromStats, function () {
+      return adminApiGet('get_batch_dashboard_summary').then(dashAggregateFromSummary);
+    });
+  }
+
   function loadDashboard() {
     _dashLoadTime = Date.now();
-    // Fetch summary + upcoming tasks together for the workload chart
+    // Fetch aggregate + upcoming tasks together for the workload chart
     // (returns the thenable so callers can chain on completion — e.g. the
     // Ready-to-Bottle filter's not-loaded path applies the filter after this resolves)
     return Promise.all([
-      adminApiGet('get_batch_dashboard_summary'),
+      fetchDashboardAggregate(),
       adminApiGet('get_tasks_upcoming', { limit: 100 })
     ]).then(function (results) {
-      _dashSummary = results[0].data || null;
+      _dashData = results[0].stats;
+      _dashSummary = results[0].summary;
       _upcomingTasks = (results[1].data && results[1].data.tasks) || _upcomingTasks;
       if (results[1].data) { _upcomingLoaded = true; _upcomingLoadTime = Date.now(); }
       renderDashboard();
-    }).catch(function (err) {
-      // Degrade gracefully: try summary-only
-      adminApiGet('get_batch_dashboard_summary').then(function (r) {
-        _dashSummary = r.data || null;
+    }).catch(function () {
+      // Degrade gracefully: try the aggregate alone
+      return fetchDashboardAggregate().then(function (r) {
+        _dashData = r.stats;
+        _dashSummary = r.summary;
         renderDashboard();
       }).catch(function (e) {
         var inner = document.getElementById('bp-dashboard-inner');
-        if (inner) inner.innerHTML = '<p class="bp-empty">Failed to load dashboard: ' + escapeHTML(e.message) + '</p>';
+        if (inner) inner.innerHTML = '<p class="bp-empty">Failed to load dashboard: ' + escapeHTML(e.message) + '. Reopen the Dashboard tab to try again.</p>';
       });
     });
   }
@@ -12135,6 +12164,8 @@ function parseWaitlistRecipeIds(value) {
       _bpStartRecipeFromExistingForTest: function (id, name, btn) { return bpStartRecipeFromExisting(id, name, btn); },
       // Plan 36-22: test-only state accessors for the cache-bust state vars
       _renderDashboardForTest: function () { renderDashboard(); },
+      _loadDashboardForTest: function () { return loadDashboard(); },
+      _eagerLoadForTest: function () { return eagerLoad(); },
       getStateForTest: function () {
         return {
           _batchesLoaded: _batchesLoaded,

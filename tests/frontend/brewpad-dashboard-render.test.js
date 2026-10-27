@@ -250,3 +250,112 @@ describe('XSS (T-94-29)', function () {
     expect(html()).toContain('&lt;script&gt;alert(2)');
   });
 });
+
+describe('dashboard load via get_dashboard_stats (S1, D-21)', function () {
+  function mockFetch(handlers) {
+    var calls = [];
+    global.fetch = jest.fn(function (url, opts) {
+      var body = {};
+      try { body = JSON.parse(opts && opts.body); } catch (e) { body = {}; }
+      calls.push(body.action);
+      var h = handlers[body.action];
+      var res = h ? h(body) : { ok: true, data: {} };
+      return Promise.resolve({
+        ok: res.ok !== false, status: res.ok === false ? 400 : 200,
+        json: function () { return Promise.resolve(res); }
+      });
+    });
+    return calls;
+  }
+
+  var STATS = {
+    ok: true,
+    data: {
+      asOf: ASOF,
+      batches: leanFromRaw(baseRaw()),
+      tasks: [],
+      latestReadings: [],
+      summary: { primaryCount: 1, secondaryCount: 1, completeCount: 5 }
+    }
+  };
+
+  beforeEach(function () {
+    document.body.innerHTML = '<div id="bp-dashboard-inner"></div>';
+    bp._setStateForTest({ _allBatchesData: [], _dashData: null, _dashSummary: null, _dashWineSkuLookup: {} });
+  });
+
+  test('aggregate ok: exactly one get_dashboard_stats, no summary read, no per-batch get_batch', function () {
+    var calls = mockFetch({
+      get_dashboard_stats: function () { return STATS; },
+      get_tasks_upcoming: function () { return { ok: true, data: { tasks: [] } }; }
+    });
+    return bp._loadDashboardForTest().then(function () {
+      expect(calls.filter(function (a) { return a === 'get_dashboard_stats'; }).length).toBe(1);
+      expect(calls).not.toContain('get_batch_dashboard_summary');
+      expect(calls).not.toContain('get_batch');
+      var st = bp.getStateForTest();
+      expect(st._dashData.batches.length).toBe(8);
+      expect(st._dashSummary).toEqual(STATS.data.summary);
+      expect(tile().querySelector('.bp-stat-num').textContent).toBe('62');
+    });
+  });
+
+  test('invalid_action falls back to the summary; _dashData stays null; tile from get_batches rows', function () {
+    var calls = mockFetch({
+      get_dashboard_stats: function () { return { ok: false, error: 'invalid_action' }; },
+      get_batch_dashboard_summary: function () { return { ok: true, data: { primaryCount: 2 } }; },
+      get_tasks_upcoming: function () { return { ok: true, data: { tasks: [] } }; }
+    });
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] }).setSystemTime(new Date('2026-10-23T18:00:00Z'));
+    bp._setStateForTest({ _allBatchesData: baseRaw() });
+    return bp._loadDashboardForTest().then(function () {
+      expect(calls).toContain('get_batch_dashboard_summary');
+      var st = bp.getStateForTest();
+      expect(st._dashData).toBeNull();
+      expect(st._dashSummary).toEqual({ primaryCount: 2 });
+      expect(tile().querySelector('.bp-stat-num').textContent).toBe('62');
+    });
+  });
+
+  test('both failing shows the UI-SPEC error copy', function () {
+    mockFetch({
+      get_dashboard_stats: function () { return { ok: false, error: 'invalid_action' }; },
+      get_batch_dashboard_summary: function () { return { ok: false, error: 'boom' }; },
+      get_tasks_upcoming: function () { return { ok: true, data: { tasks: [] } }; }
+    });
+    return bp._loadDashboardForTest().then(function () {
+      expect(html()).toContain('<p class="bp-empty">Failed to load dashboard: boom. Reopen the Dashboard tab to try again.</p>');
+    });
+  });
+
+  test('eagerLoad reads get_dashboard_stats instead of the summary and keeps the other reads', function () {
+    var calls = mockFetch({
+      get_dashboard_stats: function () { return STATS; },
+      get_batches: function () { return { ok: true, data: { batches: [] } }; }
+    });
+    bp._eagerLoadForTest();
+    return new Promise(function (resolve) { setTimeout(resolve, 50); }).then(function () {
+      expect(calls).toContain('get_dashboard_stats');
+      expect(calls).not.toContain('get_batch_dashboard_summary');
+      ['get_batches', 'get_vessels', 'get_ferm_schedules', 'get_tasks_upcoming'].forEach(function (a) {
+        expect(calls).toContain(a);
+      });
+      expect(bp.getStateForTest()._dashData).not.toBeNull();
+    });
+  });
+
+  test('eagerLoad falls back to the summary when the aggregate is unavailable (sheets mode)', function () {
+    var calls = mockFetch({
+      get_dashboard_stats: function () { return { ok: false, error: 'invalid_action' }; },
+      get_batch_dashboard_summary: function () { return { ok: true, data: { primaryCount: 3 } }; },
+      get_batches: function () { return { ok: true, data: { batches: [] } }; }
+    });
+    bp._eagerLoadForTest();
+    return new Promise(function (resolve) { setTimeout(resolve, 50); }).then(function () {
+      expect(calls).toContain('get_batch_dashboard_summary');
+      var st = bp.getStateForTest();
+      expect(st._dashData).toBeNull();
+      expect(st._dashSummary).toEqual({ primaryCount: 3 });
+    });
+  });
+});
