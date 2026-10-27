@@ -91,6 +91,11 @@ var FIELD_KINDS = {
 var FIELD_ORDER = Object.keys(FIELD_KINDS);
 var LOCATION_FIELDS = ['vessel_id', 'shelf_id', 'bin_id'];
 
+// Phase 94 (D-06, D-15, D-16): sources a trusted server-side caller (backfill CLIs) may stamp.
+// A client can only ever produce 'manual'; batch-store's writeOpts never forwards `trusted`.
+var TRUSTED_TYPE_SOURCES = ['recipe', 'zoho', 'schedule', 'name', 'other'];
+var TRUSTED_COMPLETED_SOURCE = 'backfill-task';
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function fail(error, message) {
@@ -286,6 +291,36 @@ async function updateBatch(client, args, opts) {
     updates = copy;
   }
 
+  // Phase 94: batch_type is handled outside FIELD_KINDS (its source is never client-controlled).
+  // updates.batch_type_source / updates.completed_at_source are never read.
+  var trusted = !!(opts && opts.trusted === true);
+  var typeSet = null;
+  if (updates.batch_type !== undefined) {
+    var normalizedType = batchRules.normalizeBatchType(updates.batch_type);
+    if (!normalizedType) {
+      return fail('invalid_input', 'batch_type must be one of: wine, beer, cider, seltzer, other');
+    }
+    var typeSource = 'manual';
+    if (trusted) {
+      typeSource = opts.batchTypeSource;
+      if (TRUSTED_TYPE_SOURCES.indexOf(typeSource) < 0) {
+        return fail('invalid_input', 'batchTypeSource is not allowed');
+      }
+      if (row.batch_type_source === 'manual') return fail('manual_locked', 'batch type was set by hand');
+    }
+    typeSet = { type: normalizedType, source: typeSource };
+  }
+  var trustedCompleted = false;
+  if (trusted && updates.completed_at !== undefined) {
+    if (opts.completedAtSource !== TRUSTED_COMPLETED_SOURCE) {
+      return fail('invalid_input', 'completedAtSource is not allowed');
+    }
+    if (row.completed_at !== null && row.completed_at !== undefined) {
+      return fail('already_set', 'completed_at is already set');
+    }
+    trustedCompleted = true;
+  }
+
   // Everything that can reject is checked before the first write.
   var prepared = prepareFieldValues(updates);
   if (!prepared.ok) return prepared;
@@ -326,7 +361,9 @@ async function updateBatch(client, args, opts) {
   // none was supplied, so the gap cannot regrow. A caller-supplied value is recorded as manual.
   var completedSource;
   if (values.completed_at !== undefined) {
-    completedSource = values.completed_at === null ? null : 'manual';
+    completedSource = values.completed_at === null
+      ? null
+      : (trustedCompleted ? TRUSTED_COMPLETED_SOURCE : 'manual');
   } else if (values.status === 'complete' && !row.completed_at) {
     values.completed_at = now;
     completedSource = 'status';
@@ -345,6 +382,10 @@ async function updateBatch(client, args, opts) {
       addSet(f, values[f]);
     }
   });
+  if (typeSet) {
+    addSet('batch_type', typeSet.type);
+    addSet('batch_type_source', typeSet.source);
+  }
   if (completedSource !== undefined) addSet('completed_at_source', completedSource);
   addSet('last_updated', now);
   await client.query('update batches set ' + sets.join(', ') + ' where batch_id = $1', params);
