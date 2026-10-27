@@ -2453,7 +2453,7 @@ Source for every phase below: `.planning/research/brewpad-dashboard-v2.md`.
   4. The dashboard loads from one lean aggregate call (cached ~60 s) rather than one `get_batch` per batch.
   5. The `completed_at` backfill for the 40 legacy batches exists as a dry-run script. It is run for real only with the owner's OK, using nested `updates:{}`.
 
-**Plans:** 2/13 plans executed
+**Plans:** 4/13 plans executed
 
 Plans:
 **Wave 1**
@@ -2463,8 +2463,8 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 94-03-PLAN.md — Set batch_type on create for every source via createBatch + Redis cf_type hint (B3)
-- [ ] 94-04-PLAN.md — Update path: D-23 completed_at stamp (regression first), manual type edit, trusted backfill channel, re-derive (B3, B2)
+- [x] 94-03-PLAN.md — Set batch_type on create for every source via createBatch + Redis cf_type hint (B3)
+- [x] 94-04-PLAN.md — Update path: D-23 completed_at stamp (regression first), manual type edit, trusted backfill channel, re-derive (B3, B2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
