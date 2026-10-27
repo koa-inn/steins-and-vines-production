@@ -896,7 +896,66 @@ function buildDashboardSummary(rows, opts) {
   return summary;
 }
 
+// ─── Batch type (Phase 94) — NOT an Apps Script port ───────────────────────
+// Everything above is a parity port of adminApi.gs. This section is new Phase 94 logic with no
+// Apps Script counterpart (batches.batch_type is PG-only, not in BATCH_COLUMNS). Pure: callers
+// resolve the hints (Redis / DB) and pass them in.
+
+var BATCH_TYPES = ['wine', 'beer', 'cider', 'seltzer', 'other'];
+var BATCH_TYPE_SOURCES = ['recipe', 'zoho', 'schedule', 'name', 'other', 'manual'];
+
+function normalizeBatchType(v) {
+  var s = String(v === null || v === undefined ? '' : v).trim().toLowerCase();
+  return BATCH_TYPES.indexOf(s) >= 0 ? s : '';
+}
+
+// D-22: only a valid beer_category (-> beer) or an exact style word decides. No style guessing.
+function recipeBatchType(beerCategory, style) {
+  var cat = recipeRules.normalizeBeerCategory(beerCategory);
+  if (cat) return 'beer';
+  var s = String(style === null || style === undefined ? '' : style).trim().toLowerCase();
+  if (s === 'wine' || s === 'beer' || s === 'cider' || s === 'seltzer') return s;
+  return '';
+}
+
+// Conservative whole-word product-name map (D-05 rule 4). cider/seltzer are tested before beer.
+function nameBatchType(name) {
+  var n = String(name === null || name === undefined ? '' : name).toLowerCase();
+  if (/\bcider\b/.test(n)) return 'cider';
+  if (/\bseltzer\b/.test(n)) return 'seltzer';
+  if (/\b(beer|lager|ale|ipa|stout|porter|pilsner)\b/.test(n)) return 'beer';
+  if (/\bwine\b/.test(n)) return 'wine';
+  return '';
+}
+
+// D-05 order: recipe -> zoho cf_type -> schedule category -> product name -> other. First match wins.
+function classifyBatchType(batch, hints) {
+  var b = batch || {};
+  var h = hints || {};
+  var t = recipeBatchType(h.recipeBeerCategory, h.recipeStyle);
+  if (t) return { type: t, source: 'recipe' };
+  t = normalizeBatchType(h.zohoCfType);
+  if (t && t !== 'other') return { type: t, source: 'zoho' };
+  t = normalizeBatchType(h.scheduleCategory);
+  if (t && t !== 'other') return { type: t, source: 'schedule' };
+  t = nameBatchType(b.product_name);
+  if (t) return { type: t, source: 'name' };
+  return { type: 'other', source: 'other' };
+}
+
+// D-06: only heuristic sources are re-derived; a manual choice is never overwritten.
+function shouldRederiveType(source) {
+  return source === 'name' || source === 'other';
+}
+
 module.exports = {
+  BATCH_TYPES: BATCH_TYPES,
+  BATCH_TYPE_SOURCES: BATCH_TYPE_SOURCES,
+  normalizeBatchType: normalizeBatchType,
+  recipeBatchType: recipeBatchType,
+  nameBatchType: nameBatchType,
+  classifyBatchType: classifyBatchType,
+  shouldRederiveType: shouldRederiveType,
   BATCH_COLUMNS: BATCH_COLUMNS,
   TASK_COLUMNS: TASK_COLUMNS,
   READING_COLUMNS: READING_COLUMNS,
