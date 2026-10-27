@@ -102,3 +102,37 @@ needs_a_type: 0
 | Needs-a-type chip | `Needs a type (0)` | needs_a_type 0 | match |
 
 **D-13 check: PASS** (median and mean within ±1 — exact, type totals agree for the same window, chip = needs_a_type).
+
+## Staging UAT
+
+The owner checked staging BrewPad on the iPad (dashboard tiles, month chart, Needs-a-type chip, Type select).
+Result, 2026-10-27, verbatim: **"gotcha, cool then approved"**.
+
+## Production pre-deploy
+
+Read-only (production container via `railway ssh`, read-only transaction; Railway variable listing). Nothing
+changed on production.
+
+- **Migrations applied on production (`pgmigrations`):** 0001_init, 0002_gift_cards, 0003_recipes, 0004_ops_data,
+  0005_batches, `0006_recipes_beer_category` (2026-10-17T19:46:55Z).
+  - **0006 present: yes.**
+  - **0007 present: no.** 0007 applies next, in order, on the release boot.
+- **Store flags:** `BATCHES_STORE=postgres`, `OPS_DATA_STORE=postgres`, no `BATCHES_FREEZE`.
+- **Rollback target:** Railway deployment `90dfb9c1-3ecf-4535-b9fa-2ad45745bc91` (SUCCESS, 2026-10-27 18:34Z, the
+  87 flip deploy). Production git: `production/main` = `0944f4c6`, the CNAME commit on top of `prod-20261022-1`
+  (`2b397c89`), which is an ancestor of the candidate.
+- **Candidate SHA:** `141901a7` (staging-verified in 94-09).
+- **Commits `production/main..141901a7` (no merges):** 39 in total.
+  - **35 Phase 94 commits:** 94-01..94-08 and 94-13 code, tests and docs, plus phase tracking.
+  - **4 others, all docs or bookkeeping with no runtime effect:**
+    - `8dbfa2ac` docs(todo) newsletter landing page;
+    - `8186f54e` docs(86,87) record the production flip;
+    - `f0184315` docs(state) 94 context;
+    - `129e439d` the bot's deploy-runbook line.
+- **Non-Phase-94 files in the diff:**
+  - `CNAME` is the production-only CNAME commit. `enforce-cname.yml` re-applies it after the push.
+  - `zoho-middleware/routes/pos.js` adds only the `get_dashboard_stats: true` allowlist entries (94-05).
+- **Ship shape:** the release boot applies migration 0007. Its three columns are Postgres-only and additive,
+  and the migration allowlist and guard pass. After the release, `get_dashboard_stats` serves the dashboard.
+  New batches get `batch_type` on create, but existing production rows stay NULL until the 94-11 B3 backfill,
+  which needs its own owner OK. Until then the production "Needs a type" chip will show the untyped batches.
