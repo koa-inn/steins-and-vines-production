@@ -135,6 +135,6 @@ describe('Unlinked chip, filter and empty state', function () {
     var labels = Array.prototype.map.call(document.querySelectorAll('.bp-filter-btn'), function (b) {
       return b.getAttribute('data-status');
     });
-    expect(labels).toEqual(['pending', 'active', 'primary', 'secondary', 'complete', 'readyToBottle', 'unlinked']);
+    expect(labels).toEqual(['pending', 'active', 'primary', 'secondary', 'complete', 'readyToBottle', 'unlinked', 'needsType']);
   });
 });

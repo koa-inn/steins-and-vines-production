@@ -2967,6 +2967,45 @@ function parseWaitlistRecipeIds(value) {
     });
   }
 
+  // Phase 94 (D-06): staff-chosen type, recorded as manual by the server.
+  function setBatchType(batchId, nextType) {
+    return adminApiPost('update_batch', { batch_id: batchId, updates: { batch_type: nextType } }).then(function (res) {
+      var rows = _dashData && _dashData.batches ? _dashData.batches : [];
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i] && rows[i].batch_id === batchId) {
+          rows[i].batch_type = nextType;
+          rows[i].batch_type_source = 'manual';
+        }
+      }
+      afterBatchWrite(batchId, { refreshOpenDetail: true, listAffecting: true });
+      return res;
+    });
+  }
+
+  var TYPE_SOURCE_HINTS = {
+    recipe: 'Set automatically (recipe)',
+    zoho: 'Set automatically (Zoho product)',
+    schedule: 'Set automatically (schedule)',
+    name: 'Set automatically (product name)',
+    other: 'Not recognised, please choose',
+    manual: 'Set by hand'
+  };
+  var TYPE_OPTIONS = [['wine', 'Wine'], ['beer', 'Beer'], ['cider', 'Cider'], ['seltzer', 'Seltzer'], ['other', 'Other']];
+
+  function batchTypeInfo(b) {
+    var row = null;
+    var rows = _dashData && _dashData.batches ? _dashData.batches : [];
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i] && rows[i].batch_id === b.batch_id) { row = rows[i]; break; }
+    }
+    var src = row ? row.batch_type_source : b.batch_type_source;
+    var merged = { batch_type: row ? row.batch_type : b.batch_type, schedule_category: b.schedule_category, schedule_id: b.schedule_id, category: b.category, schedule_snapshot: b.schedule_snapshot, product_name: b.product_name, product_sku: b.product_sku, recipe_id: b.recipe_id };
+    var type = effectiveBatchType(merged, buildScheduleCategoryById(_fermSchedules));
+    var hint = TYPE_SOURCE_HINTS[String(src || '').toLowerCase()];
+    if (!hint) hint = type === 'other' ? 'Not yet classified' : 'Set automatically (schedule)';
+    return { type: type, hint: hint };
+  }
+
   function setLinkCardBusy(scope, busy, activeBtn, busyLabel) {
     Array.prototype.forEach.call(scope.querySelectorAll('button'), function (x) {
       x.disabled = busy;
@@ -4831,11 +4870,29 @@ function parseWaitlistRecipeIds(value) {
   // re-derive site (switchTab, loadBatches fresh + post-fetch, the filter-button click
   // handler) routes through here so the Ready-to-Bottle filter survives tab switches and
   // post-write reloads (CR-01).
+  // Phase 94 (D-07): { batch_id: {batch_type, batch_type_source} } from the dashboard
+  // aggregate; empty in sheets mode (rows then fall back to effectiveBatchType).
+  function dashTypeById() {
+    var out = {};
+    var rows = _dashData && _dashData.batches ? _dashData.batches : [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (r && r.batch_id) out[r.batch_id] = { batch_type: r.batch_type, batch_type_source: r.batch_type_source };
+    }
+    return out;
+  }
+
+  function needsTypeRows() {
+    return filterBatchesByNeedsType(_allBatchesData, dashTypeById(), buildScheduleCategoryById(_fermSchedules));
+  }
+
   function applyBatchFilter() {
     if (_batchStatusFilter === 'readyToBottle') {
       _batchesData = readyToBottleRows();
     } else if (_batchStatusFilter === 'unlinked') {
       _batchesData = filterBatchesByUnlinked(_allBatchesData);
+    } else if (_batchStatusFilter === 'needsType') {
+      _batchesData = needsTypeRows();
     } else {
       _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
     }
@@ -4999,7 +5056,8 @@ function parseWaitlistRecipeIds(value) {
         { val: 'secondary', label: 'Secondary' },
         { val: 'complete', label: 'Complete' },
         { val: 'readyToBottle', label: 'Ready to Bottle' },
-        { val: 'unlinked', label: 'Unlinked' }
+        { val: 'unlinked', label: 'Unlinked' },
+        { val: 'needsType', label: 'Needs a type' }
       ];
       var pendingCount = _allBatchesData.filter(function (b) {
         return String(b.status || '').toLowerCase() === 'pending';
@@ -5017,6 +5075,8 @@ function parseWaitlistRecipeIds(value) {
           : '';
         // Phase 90 (D-06/D-24): the Unlinked count is always shown, including (0).
         var chipLabel = f.val === 'unlinked' ? f.label + ' (' + filterBatchesByUnlinked(_allBatchesData).length + ')' : f.label;
+        // Phase 94 (D-07): same always-shown count as Unlinked, no badge.
+        if (f.val === 'needsType') chipLabel = f.label + ' (' + needsTypeRows().length + ')';
         shellHtml += '<button type="button" class="bp-filter-btn' + active + '" data-status="' + f.val + '">' + chipLabel + badge + '</button>';
       });
       shellHtml += '<select id="bp-batch-product-filter" class="bp-filter-select"><option value="">All Products</option></select>';
@@ -5081,6 +5141,9 @@ function parseWaitlistRecipeIds(value) {
       if (btn.getAttribute('data-status') === 'unlinked') {
         btn.textContent = 'Unlinked (' + filterBatchesByUnlinked(_allBatchesData).length + ')';
       }
+      if (btn.getAttribute('data-status') === 'needsType') {
+        btn.textContent = 'Needs a type (' + needsTypeRows().length + ')';
+      }
     });
 
     // Update product filter dropdown options
@@ -5118,6 +5181,8 @@ function parseWaitlistRecipeIds(value) {
         resultsHtml += '<p class="bp-empty"><strong>No pending batches</strong><br>Kiosk sales with Maker&#39;s Fee and kiosk recipe sales will appear here automatically.</p>';
       } else if (_batchStatusFilter === 'unlinked') {
         resultsHtml += '<p class="bp-empty"><strong>Every batch is linked</strong><br>Batches without an invoice are marked Internal.</p>';
+      } else if (_batchStatusFilter === 'needsType') {
+        resultsHtml += '<p class="bp-empty">Every batch has a type.</p>';
       } else {
         resultsHtml += '<p class="bp-empty">No batches found.</p>';
       }
@@ -6623,6 +6688,20 @@ function parseWaitlistRecipeIds(value) {
     // Info grid
     html += '<div class="bp-detail-info">';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Product</span><span>' + escapeHTML(b.product_name || b.product_sku || '\u2014') + '</span></div>';
+    var typeInfo = batchTypeInfo(b);
+    var typeLabel = typeInfo.type.charAt(0).toUpperCase() + typeInfo.type.slice(1);
+    if (statusKey === 'disabled' || statusKey === 'deleted' || !_dashData) {
+      html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Type</span><span id="bp-detail-type-text">' + escapeHTML(typeLabel) + '</span></div>';
+    } else {
+      html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Type</span><span>';
+      html += '<select class="bp-select" id="bp-detail-type" aria-label="Batch type">';
+      TYPE_OPTIONS.forEach(function (o) {
+        html += '<option value="' + o[0] + '"' + (o[0] === typeInfo.type ? ' selected' : '') + '>' + o[1] + '</option>';
+      });
+      html += '</select>';
+      html += '<span class="bp-stat-label" id="bp-detail-type-hint" style="display:block;">' + escapeHTML(typeInfo.hint) + '</span>';
+      html += '</span></div>';
+    }
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Customer</span><span id="bp-detail-customer">' + escapeHTML(getCustomerDisplayName(b) || '\u2014') + '</span></div>';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Email</span><span id="bp-detail-email">' + escapeHTML(b.customer_email || '\u2014') + '</span></div>';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Phone</span><span id="bp-detail-phone">' + escapeHTML(b.customer_phone || '\u2014') + '</span></div>';
@@ -6800,6 +6879,25 @@ function parseWaitlistRecipeIds(value) {
 
     var linkReviewEl = document.getElementById('bp-link-review');
     if (linkReviewEl) initLinkReview(b, linkReviewEl);
+    var typeSelect = document.getElementById('bp-detail-type');
+    if (typeSelect) {
+      var prevType = typeSelect.value;
+      typeSelect.addEventListener('change', function () {
+        var nextType = typeSelect.value;
+        typeSelect.disabled = true;
+        setBatchType(b.batch_id, nextType).then(function () {
+          prevType = nextType;
+          typeSelect.disabled = false;
+          var hintEl = document.getElementById('bp-detail-type-hint');
+          if (hintEl) hintEl.textContent = TYPE_SOURCE_HINTS.manual;
+          showToast('Type updated', 'success');
+        }).catch(function () {
+          typeSelect.value = prevType;
+          typeSelect.disabled = false;
+          showToast('Could not update type. Try again.', 'error');
+        });
+      });
+    }
     var unmarkInternalBtn = document.getElementById('bp-unmark-internal');
     if (unmarkInternalBtn) {
       unmarkInternalBtn.addEventListener('click', function () {
