@@ -955,6 +955,7 @@ module.exports = {
   recipeBatchType: recipeBatchType,
   nameBatchType: nameBatchType,
   classifyBatchType: classifyBatchType,
+  formatDay: formatDay,
   shouldRederiveType: shouldRederiveType,
   BATCH_COLUMNS: BATCH_COLUMNS,
   TASK_COLUMNS: TASK_COLUMNS,

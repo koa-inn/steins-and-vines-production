@@ -26,6 +26,11 @@ var WRITE_OPS = [
   'publicAddReadings', 'propagate'
 ];
 
+// Phase 94 S1 (D-21): in-process memo of the dashboard aggregate, cleared by every successful write.
+var DASH_MEMO_TTL_MS = 60000;
+var _dashMemo = null;
+var _clock = function () { return Date.now(); };
+
 var BATCH_ID_RE = /^SV-B-[0-9]{6,}$/;
 var TOKEN_RE = /^[0-9a-f]{32}$/;
 
@@ -76,6 +81,7 @@ function scheduleMirror(entity, id) {
 /** Schedules mirrors for a successful write result, then strips internal keys. */
 function finish(raw) {
   if (raw && raw.ok) {
+    _dashMemo = null;
     var seen = {};
     var batchIds = [];
     if (raw._batchId) batchIds.push(raw._batchId);
@@ -132,6 +138,35 @@ function detail(payload) {
 function dashboard() {
   return dispatch('dashboard', function (client) {
     return pgRead().getDashboardSummary(client, { now: new Date() });
+  });
+}
+
+/**
+ * Phase 94 S1: lean dashboard aggregate, memoised 60 s and cleared by finish() on any successful
+ * write. Subcategory/brand/manufacturer are joined from the kiosk product cache (failure-tolerant).
+ */
+function dashStats() {
+  if (!isPostgres()) return Promise.resolve(null);
+  if (_dashMemo && _clock() - _dashMemo.at <= DASH_MEMO_TTL_MS) {
+    return Promise.resolve(_dashMemo.value);
+  }
+  return dispatch('dashStats', function (client) {
+    return pgRead().getDashboardStats(client, { now: new Date() });
+  }).then(function (value) {
+    if (!value || !value.ok) return value;
+    return typeHints().kioskProductIndex().catch(function () { return {}; }).then(function (index) {
+      var idx = index || {};
+      value.data.batches.forEach(function (row) {
+        var hit = idx[row.product_sku];
+        if (hit) {
+          row.product_subcategory = hit.cf_subcategory || '';
+          row.product_brand = hit.brand || '';
+          row.product_manufacturer = hit.manufacturer || '';
+        }
+      });
+      _dashMemo = { at: _clock(), value: value };
+      return value;
+    });
   });
 }
 
@@ -321,6 +356,9 @@ module.exports = {
   list: list,
   detail: detail,
   dashboard: dashboard,
+  dashStats: dashStats,
+  _setDashClockForTest: function (fn) { _clock = fn; },
+  _clearDashMemoForTest: function () { _dashMemo = null; },
   calendar: calendar,
   upcoming: upcoming,
   batchInit: batchInit,

@@ -38,6 +38,9 @@ var ACTION_TO_OP = {
   regenerate_batch_token: 'regenerateToken'
 };
 
+// Phase 94 S1 (D-21): read-only aggregate. Kept apart from the pinned 17-action map above.
+var STATS_ACTION_TO_OP = { get_dashboard_stats: 'dashStats' };
+
 var WRITE_ACTIONS = {
   create_batch: true,
   update_batch: true,
@@ -60,7 +63,7 @@ function msg(err) {
  * @returns {boolean} true when this module owns the response (decided synchronously).
  */
 function intercept(action, payload, req, res, logTag) {
-  var opName = ACTION_TO_OP[action];
+  var opName = ACTION_TO_OP[action] || STATS_ACTION_TO_OP[action];
   if (!opName) return false;
 
   var flag = batchFlag();
@@ -103,5 +106,6 @@ function intercept(action, payload, req, res, logTag) {
 module.exports = {
   intercept: intercept,
   WRITE_ACTIONS: WRITE_ACTIONS,
-  ACTION_TO_OP: ACTION_TO_OP
+  ACTION_TO_OP: ACTION_TO_OP,
+  STATS_ACTION_TO_OP: STATS_ACTION_TO_OP
 };

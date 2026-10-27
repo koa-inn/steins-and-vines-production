@@ -70,6 +70,30 @@ var OPEN_ACTIVE_TASKS_SQL =
   "where t.completed = false and b.status in ('primary', 'secondary') " +
   'order by length(t.task_id), t.task_id';
 
+// Phase 94 S1 (D-21): lean aggregate. Explicit column whitelist, never select *; no customer_*,
+// access_token, notes or snapshot columns. $1 is the timezone for the completion day.
+var DASH_STATS_BATCHES_SQL =
+  'select b.batch_id, b.status, b.batch_type, b.batch_type_source, ' +
+  "to_char(b.start_date, 'YYYY-MM-DD') as start_date, " +
+  "to_char(b.completed_at at time zone $1, 'YYYY-MM-DD') as completed_day, " +
+  'b.completed_at, b.completed_at_source, b.vessel_id, b.source, b.product_sku, b.product_name, ' +
+  'b.recipe_id, b.schedule_id, ' +
+  "lower(coalesce(s.category, '')) as schedule_category, b.target_volume_l, " +
+  'coalesce(tc.total, 0)::int as tasks_total, coalesce(tc.done, 0)::int as tasks_done ' +
+  'from batches b left join ferm_schedules s on s.schedule_id = b.schedule_id ' +
+  'left join (' + TASK_COUNTS_SQL + ') tc on tc.batch_id = b.batch_id ' +
+  'order by length(b.batch_id), b.batch_id';
+var DASH_STATS_TASKS_SQL =
+  'select t.batch_id, t.task_id, to_char(t.due_date, \'YYYY-MM-DD\') as due_date, t.completed, ' +
+  "to_char(t.completed_at at time zone $1, 'YYYY-MM-DD') as completed_day, " +
+  't.is_packaging, t.is_transfer ' +
+  'from batch_tasks t join batches b on b.batch_id = t.batch_id ' +
+  "where b.status in ('primary', 'secondary') order by length(t.task_id), t.task_id";
+var DASH_STATS_READINGS_SQL =
+  'select distinct on (r.batch_id) r.batch_id, r.reading_at, r.degrees_plato, r.temperature, r.ph ' +
+  'from plato_readings r join batches b on b.batch_id = r.batch_id ' +
+  "where b.status in ('primary', 'secondary') order by r.batch_id, r.reading_at desc";
+
 // Location conflict: the status predicate is literally the batches_location_idx partial predicate.
 var LOCATION_CONFLICT_SQL =
   'select batch_id from batches ' +
@@ -208,6 +232,53 @@ function getDashboardSummary(client, opts) {
   });
 }
 
+function numOrNull(v) {
+  if (v === null || v === undefined) return null;
+  var n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
+/**
+ * Phase 94 S1: one lean read for every dashboard widget. Sequential on one client. Subcategory,
+ * brand and manufacturer are '' here; lib/batch-store enriches them from the kiosk product cache.
+ */
+function getDashboardStats(client, opts) {
+  var o = opts || {};
+  var now = o.now || new Date();
+  var tz = o.timezone || DEFAULT_TIMEZONE;
+  var out = {};
+  return client.query(DASH_STATS_BATCHES_SQL, [tz]).then(function (res) {
+    out.batches = res.rows.map(function (r) {
+      r.target_volume_l = numOrNull(r.target_volume_l);
+      r.product_subcategory = '';
+      r.product_brand = '';
+      r.product_manufacturer = '';
+      return r;
+    });
+    return client.query(DASH_STATS_TASKS_SQL, [tz]);
+  }).then(function (res) {
+    out.tasks = res.rows;
+    return client.query(DASH_STATS_READINGS_SQL);
+  }).then(function (res) {
+    out.latestReadings = res.rows.map(function (r) {
+      r.degrees_plato = numOrNull(r.degrees_plato);
+      r.temperature = numOrNull(r.temperature);
+      r.ph = numOrNull(r.ph);
+      return r;
+    });
+    return getDashboardSummary(client, { now: now, timezone: tz });
+  }).then(function (summary) {
+    var today = batchRules.formatDay(now, tz);
+    return ok({
+      asOf: { today: today, year: Number(today.slice(0, 4)), tz: tz },
+      batches: out.batches,
+      tasks: out.tasks,
+      latestReadings: out.latestReadings,
+      summary: summary.data
+    });
+  });
+}
+
 function getTasksCalendar(client, start, end) {
   if (!start || !end) return Promise.resolve(ok({ tasks: [] }));
   return Promise.all([
@@ -287,6 +358,7 @@ module.exports = {
   getBatchDetail: getBatchDetail,
   getBatchPublic: getBatchPublic,
   getDashboardSummary: getDashboardSummary,
+  getDashboardStats: getDashboardStats,
   getTasksCalendar: getTasksCalendar,
   getTasksUpcoming: getTasksUpcoming,
   findLocationConflict: findLocationConflict,

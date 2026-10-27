@@ -4297,6 +4297,7 @@ var ADMIN_PROXY_ACTIONS = {
   get_batch: true,
   get_batches: true,
   get_batch_dashboard_summary: true,
+  get_dashboard_stats: true, // Phase 94 S1 (D-21): read-only aggregate
   get_vessels: true,
   get_ferm_schedules: true,
   get_tasks_upcoming: true,
@@ -4334,6 +4335,7 @@ var ADMIN_PROXY_READS = {
   get_batch: true,
   get_batches: true,
   get_batch_dashboard_summary: true,
+  get_dashboard_stats: true, // Phase 94 S1 (D-21): read-only aggregate
   get_vessels: true,
   get_ferm_schedules: true,
   get_tasks_upcoming: true,
