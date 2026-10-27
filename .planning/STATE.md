@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
-stopped_at: Phase 86 flip + Phase 87 production cutover complete
-last_updated: "2026-10-27T19:30:00.000Z"
-last_activity: 2026-10-27 -- Phase 86 flip + Phase 87 production cutover
+stopped_at: Phase 94 UI-SPEC approved
+last_updated: "2026-10-27T19:40:51.673Z"
+last_activity: 2026-10-27 -- Phase 94 execution started
 progress:
   total_phases: 85
   completed_phases: 35
   total_plans: 298
-  completed_plans: 281
+  completed_plans: 282
   percent: 41
 ---
 
@@ -21,14 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 87 rollback week, then Phase 94
+**Current focus:** Phase 94 — dashboard-correctness-and-data-foundations
 
 ## Current Position
 
-Phase: 87 (production cutover done), then 94
-Plan: 87-19 Task 3 + 87-20 rollback week open; 94 planned (13 plans), unblocked
-Status: Production on Postgres for every store
-Last activity: 2026-10-27 -- Phase 86 flip + Phase 87 production cutover
+Phase: 94 (dashboard-correctness-and-data-foundations) — EXECUTING
+Plan: 1 of 13
+Also open: Phase 87 — 87-19 Task 3 (first real sale) + 87-20 rollback week 10-28 → 11-03
+Status: Executing Phase 94
+Last activity: 2026-10-27 -- Phase 94 execution started
 
 **2026-10-27 production cutover (shop open, owner present):**
 
