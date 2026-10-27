@@ -87,6 +87,18 @@ null_batch_type: 0
 needs_a_type: 0
 ```
 
-Next: the dashboard side of D-13 on staging BrewPad (tile median/mean/N, per-type row, started/completed this
-year, month-chart totals, 6-month wine total, Needs-a-type chip = 0). The Chrome extension was disconnected at
-the first attempt.
+### D-13 acceptance (staging BrewPad, owner signed in, read by Claude in Chrome, ~21:5xZ)
+
+| Number | Dashboard | Recompute | Result |
+|--------|-----------|-----------|--------|
+| Cycle tile median | 57d | 57d | match |
+| Cycle tile mean | 59d | 59d | match |
+| Cycle tile N | 175 | n 175 | match |
+| Per-type medians | Wine 57d · Beer 38d · Cider 71d | wine 57 · beer 38 · cider 71 | match |
+| Completed this year | 175 | n 175 (Calendar-YTD completed) | match |
+| Started this year | 214 | n/a | recorded |
+| Month chart (May–Oct, started) | legend Wine 122 / Beer 2 / Cider 4 / Other 0; bars 30+33+17+15+14+19 = 128 | n/a | legend = bars (128) |
+| Wine breakdown, 6 Months | Total 122 (Red 73, White 36, Rosé 10, Fruit 3) | n/a | = chart wine 122 |
+| Needs-a-type chip | `Needs a type (0)` | needs_a_type 0 | match |
+
+**D-13 check: PASS** (median and mean within ±1 — exact, type totals agree for the same window, chip = needs_a_type).

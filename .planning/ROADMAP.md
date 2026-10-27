@@ -2453,7 +2453,7 @@ Source for every phase below: `.planning/research/brewpad-dashboard-v2.md`.
   4. The dashboard loads from one lean aggregate call (cached ~60 s) rather than one `get_batch` per batch.
   5. The `completed_at` backfill for the 40 legacy batches exists as a dry-run script. It is run for real only with the owner's OK, using nested `updates:{}`.
 
-**Plans:** 9/13 plans executed
+**Plans:** 10/13 plans executed
 
 Plans:
 **Wave 1**
@@ -2482,7 +2482,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 94-09-PLAN.md — Staging rollout: deploy, dry runs, owner OK, applies, verify, D-13 check (checkpoint)
+- [x] 94-09-PLAN.md — Staging rollout: deploy, dry runs, owner OK, applies, verify, D-13 check (checkpoint)
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
