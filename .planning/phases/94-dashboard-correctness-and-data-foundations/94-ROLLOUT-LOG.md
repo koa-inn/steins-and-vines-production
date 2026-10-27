@@ -138,3 +138,41 @@ changed on production.
   which needs its own owner OK. Until then the production "Needs a type" chip will show the untyped batches.
 
 **Owner release approval:** 141901a7 at 2026-10-27T22:10:26Z (verbatim: "release 141901a7 now").
+
+## Production release (94-11 Task 1)
+
+- **Push:** `git push production 141901a7:main --force` at 22:10:37Z (`0944f4c6...141901a7`). Tagged `prod-20261027-1`.
+- **Railway:** deployment `896f6942-dff8-4ccc-af7b-42ae658281ce` SUCCESS (built 22:10:44Z, live ~22:14Z). The rollback target is still `90dfb9c1`.
+- **Health:** `/health` 200, `database_required: true`. Store modes are all `postgres`.
+- **Migration:** the boot log shows migration-guard and allowlist OK, then `### MIGRATION 0007_batch_type (UP) ###`.
+  A read-only read-back of `pgmigrations` gives `0007_batch_type <- 0006_recipes_beer_category`.
+  `batches`: 215 rows, 0 typed (expected before B3).
+- **Frontend:** the GitHub Pages "Deploy Production (filtered)" run succeeded. Production BrewPad loads at the staff
+  sign-in screen; the dashboard render check waits on the owner's Google sign-in.
+- **Production repo `Tests` workflow: FAILED, on the `npm audit --audit-level=high --omit=dev` step only.**
+  The failure is a new high advisory, body-parser GHSA-27r3-jxmh-p828 (DoS via trailing bytes after a compressed body),
+  and `npm audit fix` is available. Every other step passed: unit tests, Postgres tests, lint, the frontend suite
+  and artifact drift. This is not caused by Phase 94. It needs a separate dependency-patch change.
+
+## Production B3
+
+Dry run in the production container at 22:18:11Z. Full list: `~/sv-backfill/94-prod-type-dryrun.txt` (outside the repo).
+
+| Type | Rule | Count |
+|------|------|-------|
+| wine | zoho | 206 |
+| cider | zoho | 5 |
+| beer | name | 2 |
+| cider | schedule | 1 |
+| wine | schedule | 1 |
+| **needs a type** | | **0** |
+| **candidates** | | **215** |
+
+Diff against the staging list: 213 rows are identical. SV-B-000167 and SV-B-000229 are `beer` on both, but decided by
+`name` on production and `recipe` on staging. Cause (read-only check): on production their linked recipe rows have
+`beer_category` NULL, while staging has it set. These are Phase 89 values that never reached the production recipes
+table. The type is unaffected. Source `name` stays eligible for later re-derivation once a category exists.
+Follow-up: production recipe `beer_category` backfill (Phase 89 gap; probably also affects beer.html card tints on
+production).
+
+Awaiting the owner's review of the full list and OK for `--apply --expect=215`.
