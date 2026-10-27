@@ -162,4 +162,103 @@ describeDb('batch-pg-update-type: manual type, trusted channel, re-derive', func
       expect((await row(id)).batch_type_source).toBe('manual');
     });
   });
+
+  describe('re-derive when a schedule or recipe is attached', function () {
+    var SNAP = JSON.stringify([{ step_number: 1, day_offset: 1, title: 'A' }]);
+    var sSeq = 0;
+
+    async function addSchedule(category) {
+      sSeq += 1;
+      var id = 'FS-9' + String(sSeq).padStart(3, '0');
+      await client().query(
+        'insert into ferm_schedules (schedule_id, name, category, steps, created_at, updated_at) ' +
+        "values ($1, $2, $3, '[]'::jsonb, $4, $4)",
+        [id, 'Sched ' + id, category, T0]
+      );
+      return id;
+    }
+
+    async function addRecipe(id, beerCategory) {
+      await client().query(
+        "insert into recipes (recipe_id, name, status, beer_category, created_at, updated_at) " +
+        "values ($1, 'R', 'active', $2, $3, $3)",
+        [id, beerCategory, T0]
+      );
+    }
+
+    async function attach(id, scheduleId) {
+      return upd.updateBatchSchedule(client(), {
+        batch_id: id, schedule_snapshot: SNAP, schedule_id: scheduleId
+      }, OPTS);
+    }
+
+    it('other/other becomes the schedule category with source schedule', async function () {
+      var id = await addBatch({ batch_type: 'other', batch_type_source: 'other' });
+      var res = await attach(id, await addSchedule('wine'));
+      expect(res.ok).toBe(true);
+      var r = await row(id);
+      expect(r.batch_type).toBe('wine');
+      expect(r.batch_type_source).toBe('schedule');
+    });
+
+    it('beer/name becomes cider/schedule (schedule outranks name)', async function () {
+      var id = await addBatch({ batch_type: 'beer', batch_type_source: 'name', product_name: 'Pale Ale' });
+      await attach(id, await addSchedule('cider'));
+      var r = await row(id);
+      expect(r.batch_type).toBe('cider');
+      expect(r.batch_type_source).toBe('schedule');
+    });
+
+    it('leaves zoho, manual and recipe sources alone', async function () {
+      var sched = await addSchedule('cider');
+      var sources = ['zoho', 'manual', 'recipe'];
+      for (var i = 0; i < sources.length; i++) {
+        var id = await addBatch({ batch_type: 'wine', batch_type_source: sources[i] });
+        await attach(id, sched);
+        var r = await row(id);
+        expect(r.batch_type).toBe('wine');
+        expect(r.batch_type_source).toBe(sources[i]);
+      }
+    });
+
+    it('leaves a legacy NULL-source batch for the backfill', async function () {
+      var id = await addBatch();
+      await attach(id, await addSchedule('wine'));
+      var r = await row(id);
+      expect(r.batch_type).toBeNull();
+      expect(r.batch_type_source).toBeNull();
+    });
+
+    it('keeps other/other when the schedule has no usable category', async function () {
+      var id = await addBatch({ batch_type: 'other', batch_type_source: 'other' });
+      await attach(id, await addSchedule(null));
+      var r = await row(id);
+      expect(r.batch_type).toBe('other');
+      expect(r.batch_type_source).toBe('other');
+    });
+
+    it('attaching a recipe with a beer_category re-derives other/other to beer/recipe', async function () {
+      await addRecipe('SV-R-900001', 'stout');
+      var id = await addBatch({ batch_type: 'other', batch_type_source: 'other' });
+      var res = await upd.updateBatch(client(), {
+        batch_id: id, updates: { recipe_id: 'SV-R-900001' }
+      }, OPTS);
+      expect(res.ok).toBe(true);
+      expect(res.message).toBe('Batch updated');
+      var r = await row(id);
+      expect(r.batch_type).toBe('beer');
+      expect(r.batch_type_source).toBe('recipe');
+    });
+
+    it('does not re-derive when batch_type is supplied in the same call', async function () {
+      await addRecipe('SV-R-900002', 'stout');
+      var id = await addBatch({ batch_type: 'other', batch_type_source: 'other' });
+      await upd.updateBatch(client(), {
+        batch_id: id, updates: { recipe_id: 'SV-R-900002', batch_type: 'wine' }
+      }, OPTS);
+      var r = await row(id);
+      expect(r.batch_type).toBe('wine');
+      expect(r.batch_type_source).toBe('manual');
+    });
+  });
 });
