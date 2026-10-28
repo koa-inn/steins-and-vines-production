@@ -2572,15 +2572,15 @@ Plans:
   4. G8 shows Plato curves for active beer and cider, with a neutral "No readings yet" list. There is no "readings due" list or wording (D-08, D-09).
   5. G10 shows no vessel, missing `completed_at`, no invoice link, blank source and stale over 90 days. A missing invoice link is labelled "no invoice link", never unbilled. Shared vessels are not a data-health item (D-14).
 
-**Plans:** 11 plans
+**Plans:** 3/11 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 96-01-PLAN.md — owner OK for the Phase 95 test assertions D-15/D-16 must change; §7 owner note
-- [ ] 96-02-PLAN.md — get_dashboard_stats adds taskRows, readings, vessels, batchMeta (whitelisted columns)
-- [ ] 96-03-PLAN.md — shared pure helpers (table/list/seg/select/toggle, classifier, breakdown), chart() extensions, CSS tokens
+- [x] 96-01-PLAN.md — owner OK for the Phase 95 test assertions D-15/D-16 must change; §7 owner note
+- [x] 96-02-PLAN.md — get_dashboard_stats adds taskRows, readings, vessels, batchMeta (whitelisted columns)
+- [x] 96-03-PLAN.md — shared pure helpers (table/list/seg/select/toggle, classifier, breakdown), chart() extensions, CSS tokens
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
