@@ -357,7 +357,7 @@ function resolveBatchType(batch, scheduleCategoryById) {
 // ---------------------------------------------------------------------------
 var DASH_WINDOW_DAYS = { '30d': 30, '90d': 90, '6mo': 180, '12mo': 365 };
 var DASH_TYPES = ['wine', 'beer', 'cider', 'seltzer', 'other'];
-var DASH_TYPE_LABELS = { wine: 'Wine', beer: 'Beer', cider: 'Cider', seltzer: 'Seltzer', other: 'Other' };
+var DASH_TYPE_LABELS = { all: 'All', wine: 'Wine', beer: 'Beer', cider: 'Cider', seltzer: 'Seltzer', other: 'Other' };
 var DASH_STARTED_STATUSES = { primary: true, secondary: true, complete: true };
 var DASH_MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -1080,7 +1080,6 @@ var DASH_FILTER_WHITELIST = {
   source: ['all', 'kiosk', 'online', 'manual', 'zoho_scan', 'research', 'internal', 'unknown'],
   staff: ['0', '1']
 };
-var DASH_TYPE_LABELS = { all: 'All', wine: 'Wine', beer: 'Beer', cider: 'Cider' };
 var DASH_SOURCE_LABELS = { kiosk: 'Kiosk', online: 'Online', manual: 'Manual', zoho_scan: 'Zoho scan', research: 'Research', internal: 'Internal', unknown: 'Unknown' };
 
 function parseDashHash(hash) {
