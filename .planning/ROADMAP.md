@@ -2513,7 +2513,7 @@ Plans:
   4. KPI tiles show the change against the previous equivalent period.
   5. The chart library is loaded within the site CSP. Every public page's CSP stays untouched unless the library is served from a new domain (CLAUDE.md rule 12).
 
-**Plans:** 2/11 plans executed
+**Plans:** 4/11 plans executed
 
 Plans:
 
@@ -2524,8 +2524,8 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 95-02-PLAN.md — staff-flag candidate backfill CLI (dry run / --apply --expect=N), README + RUNBOOK section, §7 ticks
-- [ ] 95-04-PLAN.md — pure filter state (hash/localStorage/opt-in), formatDelta, banner label, id-carrying wine buckets
+- [x] 95-02-PLAN.md — staff-flag candidate backfill CLI (dry run / --apply --expect=N), README + RUNBOOK section, §7 ticks
+- [x] 95-04-PLAN.md — pure filter state (hash/localStorage/opt-in), formatDelta, banner label, id-carrying wine buckets
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
