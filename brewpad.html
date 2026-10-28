@@ -13,7 +13,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="favicon.ico">
   <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
-  <link rel="stylesheet" href="css/brewpad.min.css?v=mvsf7sb8">
+  <link rel="stylesheet" href="css/brewpad.min.css?v=mvsffkw9">
   <script src="js/lib/constants.js"></script>
   <script src="js/lib/utils.js"></script>
   <script src="js/lib/auth.js"></script>
@@ -24,7 +24,7 @@
   <script src="js/vendor/qrcode.min.js"></script>
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="js/brewpad.min.js?v=mvsf7sb8"></script>
+  <script src="js/brewpad.min.js?v=mvsffkw9"></script>
 </head>
 <body>
 
@@ -64,6 +64,7 @@
 
       <!-- Dashboard panel -->
       <div id="bp-panel-dashboard" class="bp-panel">
+        <div class="bp-dash-switch-row"><button type="button" id="bp-dash-switch" class="bp-link-btn bp-dash-switch" hidden></button></div>
         <div class="bp-panel-inner" id="bp-dashboard-inner" aria-live="polite" aria-atomic="false">
           <div class="bp-skeleton-block"></div>
           <div class="bp-skeleton-block" style="height:120px;margin-top:12px;"></div>

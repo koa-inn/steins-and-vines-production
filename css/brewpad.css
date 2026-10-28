@@ -2947,3 +2947,74 @@ textarea.bp-input {
 .bp-recipe-similar-info { display: flex; flex-direction: column; min-width: 0; }
 .bp-recipe-start-from { min-height: 44px; flex-shrink: 0; }
 .bp-recipe-dup { margin-top: 6px; padding: 8px 10px; background: var(--batch-warning-bg); border-left: 3px solid var(--batch-warning); font-size: 12px; font-weight: 700; }
+
+/* ===== Phase 95-06: v2 dashboard shell + global filter bar ===== */
+.bp-dash-switch-row { max-width: 900px; margin: 0 auto; padding: 8px 16px 0; text-align: right; }
+.bp-dash-switch { flex: none; min-height: 44px; font-size: 14px; background: none; border: 0; color: var(--ink-secondary); text-decoration: underline; cursor: pointer; }
+
+/* top: 0 (not var(--bp-shell-height)): the bar sticks inside the scrolling .bp-panel, which already sits below the shell header. */
+.bp-dash-filters {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 16px;
+  background: var(--cellar-raised);
+  border-bottom: 1px solid var(--ledger-line);
+  padding: 8px 16px;
+  margin: -16px -16px 16px;
+}
+.bp-dash-filter { display: flex; flex-direction: column; gap: 4px; }
+.bp-dash-filter-label { font-size: 12px; font-weight: 700; color: var(--ink-secondary); display: flex; flex-direction: column; gap: 4px; }
+.bp-seg { display: inline-flex; flex-wrap: nowrap; }
+.bp-seg-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--ctrl-border);
+  background: var(--cellar-raised);
+  color: var(--ink-secondary);
+  font-size: 14px;
+  cursor: pointer;
+}
+.bp-seg-btn[aria-checked="true"],
+.bp-seg-btn[aria-pressed="true"] { background: var(--stain); color: var(--cellar-raised); }
+.bp-dash-filters .bp-select, .bp-dash-range .bp-select, .bp-dash-sheet .bp-select { min-height: 44px; font-size: 16px; }
+.bp-dash-filters .bp-link-btn { flex: none; }
+.bp-dash-range { background: var(--cellar-raised); border-bottom: 1px solid var(--ledger-line); padding: 8px 16px; margin: -16px -16px 16px; }
+.bp-dash-range-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; }
+.bp-dash-range-error { font-size: 12px; color: var(--batch-danger); margin-top: 4px; }
+.bp-dash-badge { display: inline-block; min-width: 20px; padding: 0 4px; border-radius: 10px; background: var(--stain); color: var(--cellar-raised); font-size: 12px; text-align: center; }
+.bp-dash-filters-btn .bp-dash-badge { background: var(--cellar-raised); color: var(--stain); }
+.bp-dash-summary { flex: 1; min-width: 0; font-size: 12px; color: var(--ink-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: center; }
+
+.bp-dash-sheet { position: fixed; inset: 0; z-index: 50; }
+.bp-dash-sheet-backdrop { position: absolute; inset: 0; background: rgba(44, 34, 24, 0.4); }
+.bp-dash-sheet-panel {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  max-height: 85vh; overflow-y: auto;
+  background: var(--cellar-raised);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  padding: 16px;
+}
+.bp-dash-sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.bp-dash-sheet-title { font-size: 16px; margin: 0; }
+.bp-dash-sheet-x { flex: none; width: 44px; min-height: 44px; }
+.bp-dash-sheet-body { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
+.bp-dash-sheet-body .bp-seg { display: flex; width: 100%; overflow-x: auto; }
+.bp-dash-sheet-body .bp-seg-btn { flex: 1; }
+.bp-dash-sheet-body .bp-select { width: 100%; }
+.bp-dash-sheet-foot { position: sticky; bottom: -16px; display: flex; gap: 8px; margin: 16px -16px -16px; padding: 16px; background: var(--cellar-raised); border-top: 1px solid var(--ledger-line); }
+.bp-dash-sheet-foot .bp-btn { flex: 2; min-height: 44px; }
+
+.bp-widget { background: var(--cellar-raised); border: 1px solid var(--ledger-line); border-radius: var(--r-lg); padding: 16px; margin-bottom: 16px; }
+.bp-widget-title { font-size: 16px; font-weight: 700; margin: 0; }
+.bp-widget-sub { font-size: 12px; color: var(--ink-secondary); margin: 4px 0 8px; }
+.bp-chart { position: relative; height: 240px; }
+
+@media (max-width: 600px) {
+  .bp-dash-filters { flex-wrap: nowrap; align-items: center; }
+  .bp-chart { height: 200px; }
+}
