@@ -6362,6 +6362,16 @@ function parseWaitlistRecipeIds(value) {
     switchTab('batches');
   }
 
+  // Phase 95-10 UAT: the bottom tab bar always opens the normal Batches list. Only a dashboard
+  // click (openDashDrill) shows a drilled set, so a leftover drill is dropped here.
+  function handleTabBarClick(tab) {
+    if (tab === 'batches' && _dashDrill) {
+      _dashDrill = null;
+      _batchStatusFilter = 'active';
+    }
+    switchTab(tab);
+  }
+
   function clearDashDrill() {
     _dashDrill = null;
     _batchStatusFilter = 'active';
@@ -13634,7 +13644,7 @@ function parseWaitlistRecipeIds(value) {
     }
     Array.prototype.forEach.call(document.querySelectorAll('.bp-tab'), function (btn) {
       btn.addEventListener('click', function () {
-        switchTab(btn.getAttribute('data-tab'));
+        handleTabBarClick(btn.getAttribute('data-tab'));
       });
       // Preload batch data on hover/touch of the batches tab
       if (btn.getAttribute('data-tab') === 'batches') {
@@ -13742,6 +13752,7 @@ function parseWaitlistRecipeIds(value) {
       _renderBatchListForTest: renderBatchList,
       _openDashDrillForTest: openDashDrill,
       _clearDashDrillForTest: clearDashDrill,
+      _handleTabBarClickForTest: handleTabBarClick,
       _switchTabForTest: switchTab,
       _initDelegationForTest: initDelegation,
       _loadLinkCandidatesForTest: loadLinkCandidates,
