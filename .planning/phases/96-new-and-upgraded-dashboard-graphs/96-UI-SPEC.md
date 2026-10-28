@@ -1,7 +1,8 @@
 ---
 phase: 96
 slug: new-and-upgraded-dashboard-graphs
-status: draft
+status: approved
+reviewed_at: 2026-10-28
 shadcn_initialized: false
 preset: none
 created: 2026-10-28
@@ -151,7 +152,7 @@ Shared states (every widget; copy extends Phase 95):
 | Filtered to zero | `.bp-empty` with the widget's own empty copy below (falls back to `No batches match these filters.` + `Reset filters`) |
 | Chart.js failed | `.bp-empty` `Charts could not load. Reload the page to try again.` Table view and lists still work (they need no Chart.js) |
 | Data error | Phase 94 pattern `Failed to load dashboard: {message}. Reopen the Dashboard tab to try again.` once at page level, not per widget |
-| Server data missing a field | Widget shows `.bp-empty` `Not available yet.` and the rest of the page renders (guard against a stale 60 s cache from before the endpoint extension) |
+| Server data missing a field | Widget shows `.bp-empty` `Not available yet. Reopen the Dashboard tab to refresh.` and the rest of the page renders (guard against a stale 60 s cache from before the endpoint extension) |
 
 Never render a zero placeholder or "0 batches" before data exists. Singular/plural everywhere: `1 batch`, `2 batches`, `1 task`, `1 vessel`.
 
@@ -256,7 +257,7 @@ Left-to-right content in one card (stacked on narrow): capacity chart, then two 
 One widget, two charts stacked, no on-time rate and no staff anywhere.
 
 - **Overdue ageing (top)**: horizontal bar, three rows `1–3 days`, `4–7 days`, `8+ days`, count of open tasks past `due_date` (Vancouver calendar days), neutral ink ramp (see Color), count printed at the bar end, 120px tall. Sub-header `Open tasks past due date`.
-- **Completions over time (bottom)**: single-series column chart (neutral `--ink-secondary`), x buckets from global Period/Group by, y = tasks completed. Sub-header `Tasks ticked off`. 12px note beneath: `Tick times can lag the work, so this is not an on-time rate.`
+- **Completions over time (bottom)**: single-series column chart (neutral `--ink-secondary`), x buckets from global Period/Group by, y = tasks completed. Sub-header `Tasks ticked off`. 12px note beneath: `Tick times can lag the work, so lateness here is only an estimate.`
 - **Options**: `.bp-select` `Task kind` (aria-label): `All tasks` (default) and the five G5 kinds. Applies to both charts.
 - **Subtitle**: `Tasks · {period} · by month`.
 - **Table**: two tables under the one toggle, each with its own 12px sub-header: ageing `Overdue by` | `Open tasks` | `Batches`; completions `Period` | `Tasks completed`.
@@ -297,7 +298,7 @@ One widget, two charts stacked, no on-time rate and no staff anywhere.
   5. `Stale active batches` (active more than 90 days)
 - **Expanded content**: up to 5 rows (batch id, product, type spelled out, and a 12px detail such as `Active 112 days` / `Staff batch`), then `Show all {N}` and a text button `Open these batches` that drills (banner above). A row opens the batch detail.
 - **Count 0**: row is non-expandable, count shown as `0` with `✓` glyph and `--ink-tertiary` text. Neutral, never red or amber on any category, including high counts.
-- **Note** (12px, under subtitle): `No invoice link means no Zoho sales order is stored on the batch. It does not mean the batch is unbilled.`
+- **Note** (12px, under subtitle): `No invoice link means no Zoho sales order is stored on the batch. It does not mean the batch is unpaid.`
 - **Subtitle**: `All batches · ignores the filters above`.
 - **Shared vessels are not listed here** (D-14); G6 owns them.
 - **Staff**: staff batches are included and tagged `Staff batch` in the row detail.
@@ -324,10 +325,10 @@ One widget, two charts stacked, no on-time rate and no staff anywhere.
 | Widget titles | `Production over time`, `Pipeline`, `Cycle time`, `Products`, `Top 10 products`, `Workload`, `Vessels`, `Task health`, `Fermentation`, `Source mix`, `Data health` |
 | View toggle | `Chart` / `Table` (aria-label `View as`) |
 | Empty states | G1/G2/G4/G9: `No batches match these filters.` + `Reset filters`; G3: `No completed batches in this period.`; G5: `No open tasks due in the next {14 or 30} days.`; G6 lists: `No vessels are shared right now.` / `Every active batch has a vessel.`; G7: `No open tasks are overdue.` / `No tasks were ticked off in this period.`; G8: `No Plato readings have been recorded yet.` / `Every active beer and cider batch has a reading.` / `Fermentation curves cover beer and cider.`; G10: `No data issues found.` |
-| Error states | Inherited: `Charts could not load. Reload the page to try again.`; `Failed to load dashboard: {message}. Reopen the Dashboard tab to try again.`; widget-level `Not available yet.` for missing server fields |
+| Error states | Inherited: `Charts could not load. Reload the page to try again.`; `Failed to load dashboard: {message}. Reopen the Dashboard tab to try again.`; widget-level `Not available yet. Reopen the Dashboard tab to refresh.` for missing server fields |
 | Neutral list headings | `Shared vessels`, `No vessel`, `No readings yet`, `No invoice link`, `Missing completion date`, `Blank source`, `Stale active batches` |
 | Banned words | "double-booked", "conflict", "unbilled", "due" or "overdue" for readings, "on-time rate", "completions by staff", "error" on neutral lists |
-| Notes | `Staff batches hidden` / `Including staff batches`; `Ignores the filters above`; `Tick times can lag the work, so this is not an on-time rate.`; `More than one active batch is using the same vessel. This is allowed.`; `No invoice link means no Zoho sales order is stored on the batch. It does not mean the batch is unbilled.`; `litres estimated from standard batch sizes` |
+| Notes | `Staff batches hidden` / `Including staff batches`; `Ignores the filters above`; `Tick times can lag the work, so lateness here is only an estimate.`; `More than one active batch is using the same vessel. This is allowed.`; `No invoice link means no Zoho sales order is stored on the batch. It does not mean the batch is unpaid.`; `litres estimated from standard batch sizes` |
 | Destructive confirmation | None. No destructive actions or writes in this phase (lists navigate to the existing batch detail; no new write path) |
 
 ---
@@ -346,7 +347,7 @@ One widget, two charts stacked, no on-time rate and no staff anywhere.
 
 - Reuse: `chart()` (js/brewpad.js:1415), `openDashDrill` / `dashDrillLabel`, `wineBreakdownBuckets` / `mergeWineSkuLookup` as the base for G4, `buildDashV2Model` / `renderDashboardV2` for the section shell, `.bp-seg`, `.bp-select`, `.bp-empty`, `.bp-drill-banner`, `.bp-stat-card--link`. The Phase 95 `.bp-widget` markup needs the new `.bp-widget-head` / controls structure; migrate the KPI-adjacent re-hosted widgets to it (G1 replaces "Batches per period", G4 replaces "Wine breakdown").
 - The header/table/list/accordion building blocks (`widgetShell`, `viewToggle`, `dataTable`, `listRows`) should be shared pure helpers so each of G1–G10 is small; table models come from the same builder as the chart (one model, two renderers) so numbers cannot diverge.
-- Server data (Claude's Discretion in CONTEXT): the UI assumes task titles and flags for open and completed tasks, all readings for active beer/cider batches, vessels (`type`, `capacity_liters`, `archived`) and `batches.vessel_id`. Absent fields must degrade to `Not available yet.` per widget (stale 60 s cache pitfall from Phase 95 review).
+- Server data (Claude's Discretion in CONTEXT): the UI assumes task titles and flags for open and completed tasks, all readings for active beer/cider batches, vessels (`type`, `capacity_liters`, `archived`) and `batches.vessel_id`. Absent fields must degrade to `Not available yet. Reopen the Dashboard tab to refresh.` per widget (stale 60 s cache pitfall from Phase 95 review).
 - Tests (jsdom, one file per widget family): table and chart models identical; banner labels exactly as the table above; singular/plural; no zero placeholder before data; shared vessel counted once; archived vessels excluded; no-vessel row opens the batch detail (no banner); G7 has no on-time rate or staff text anywhere; G8 expected line omitted when OG or target FG is missing; G10 never says "unbilled"; banned-word guard test over all new copy; 7-day bin edges and 95th percentile cap in G3; Monday–Sunday buckets and Vancouver calendar days for overdue ageing; type totals agree across widgets for the same filters (Phase 94 D-20).
 - Open (non-blocking): confirm the five G2 stage labels against actual stored statuses; confirm cat-1..5 distinguishability on the iPad; confirm the G8 20-line cap is enough once beer volume grows.
 
@@ -354,11 +355,11 @@ One widget, two charts stacked, no on-time rate and no staff anywhere.
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS (banned-word conflicts in the G7/G10 notes fixed after check)
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS (12px table-cell padding is a declared exception matching `.bp-select`)
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-10-28 (gsd-ui-checker, 6/6; copy fixes applied)
