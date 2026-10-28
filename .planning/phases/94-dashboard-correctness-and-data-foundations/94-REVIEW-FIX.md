@@ -70,3 +70,21 @@ Notes for the owner:
 _Fixed: 2026-10-28T02:30:00Z_
 _Fixer: Claude (gsd-code-fixer)_
 _Iteration: 1_
+
+## Staging verification (2026-10-28, `e1aec934`, Railway `92760dbb`)
+
+Ran on the throwaway batch SV-B-000248 (SKU `ZZTEST94`, source `internal`, no customer and no invoice, so no Zoho writes)
+through the staging admin-proxy. The owner was signed in, and the rows were read from staging Postgres.
+
+| Check | Result |
+|-------|--------|
+| Create | status `pending`; `get_batch` returns `batch_type: other`, `batch_type_source: other` (WR-02 server) |
+| pending to secondary to complete | `completed_at` 02:29:23.169Z stamped |
+| CR-01 reopen to secondary | `completed_at` cleared |
+| complete again | new `completed_at` 02:29:26.978Z, `completed_at_source: status` |
+| WR-01 re-send `complete` | `completed_at` unchanged (02:29:26.978Z) |
+| WR-02 set type `beer` | `get_batch` and `get_batches` both return beer/manual. After a full reload the detail pane shows the Type select = Beer with hint "Set by hand" |
+| Cleanup | `delete_batch` ok; row gone, tombstone written, staging back to 215 batches |
+
+WR-03 (memo race) and WR-04 (backfill downgrade) are covered by their regression tests only; neither can be
+triggered by hand.
