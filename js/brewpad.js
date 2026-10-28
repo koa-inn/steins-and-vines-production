@@ -1357,6 +1357,190 @@ function wineBreakdownBuckets(rows, skuLookup, dimension, topN) {
   return result;
 }
 
+// ===== Phase 96-03: shared pure helpers (one model, two renderers) =====
+var DASH_TASK_KINDS = [
+  { key: 'transfer', label: 'Racking / transfer' },
+  { key: 'filtering', label: 'Filtering' },
+  { key: 'packaging', label: 'Packaging' },
+  { key: 'temp', label: 'Temperature step' },
+  { key: 'other', label: 'Other' }
+];
+
+// Subject text is raw; escape at render.
+function dashDrillSubject(subject, count) {
+  var n = Number(count) || 0;
+  return 'From dashboard: ' + String(subject || '') + ' · ' + n + (n === 1 ? ' batch' : ' batches');
+}
+
+// Same classification path as getDashboardData (effectiveBatchType + sourceMatches + isStaffRow).
+function dashClassifyRows(rows, opts) {
+  var o = opts || {};
+  var typeFilter = o.type || 'all';
+  var catMap = o.scheduleCategoryById || {};
+  var list = [];
+  var byId = {};
+  var src = rows || [];
+  for (var i = 0; i < src.length; i++) {
+    var r = src[i];
+    if (!r) continue;
+    var t = effectiveBatchType(r, catMap);
+    if (typeFilter !== 'all' && t !== typeFilter) continue;
+    if (!sourceMatches(r, o.source)) continue;
+    var staff = isStaffRow(r, o.staffIds);
+    if (o.staff === false && staff) continue;
+    var item = { row: r, type: t, status: String(r.status || '').toLowerCase(), staff: staff };
+    list.push(item);
+    byId[r.batch_id] = item;
+  }
+  return { list: list, byId: byId };
+}
+
+function dashTaskKind(task) {
+  var t = task || {};
+  var title = String(t.title || '');
+  if (t.is_packaging === true) return 'packaging';
+  if (t.is_transfer === true) return 'transfer';
+  if (/bottl|packag/i.test(title)) return 'packaging';
+  if (/rack/i.test(title)) return 'transfer';
+  if (/filter/i.test(title)) return 'filtering';
+  if (/^(lower|crash|raise|warm|cool|chill)\b/i.test(title) || /[0-9]\s*[º°]\s*c\b/i.test(title)) return 'temp';
+  return 'other';
+}
+
+// Group items by valueOf(item); blank -> 'Unspecified' (last); overflow -> 'Other (n more)' before it.
+function dashBreakdownBuckets(items, valueOf, topN, litresOf) {
+  var tally = {};
+  var order = [];
+  var blank = { label: 'Unspecified', count: 0, litres: 0, ids: [] };
+  var list = items || [];
+  for (var i = 0; i < list.length; i++) {
+    var it = list[i];
+    var raw = valueOf(it);
+    var label = (raw === null || raw === undefined) ? '' : String(raw).trim();
+    var l = litresOf ? (Number(litresOf(it)) || 0) : 0;
+    var id = it && it.row ? it.row.batch_id : (it ? it.batch_id : undefined);
+    var b;
+    if (label === '') {
+      b = blank;
+    } else {
+      if (!Object.prototype.hasOwnProperty.call(tally, label)) {
+        tally[label] = { label: label, count: 0, litres: 0, ids: [] };
+        order.push(label);
+      }
+      b = tally[label];
+    }
+    b.count++;
+    b.litres += l;
+    b.ids.push(id);
+  }
+  var named = [];
+  for (var j = 0; j < order.length; j++) named.push(tally[order[j]]);
+  named.sort(function (a, b2) {
+    if (b2.count !== a.count) return b2.count - a.count;
+    return a.label < b2.label ? -1 : (a.label > b2.label ? 1 : 0);
+  });
+  var out = named;
+  if (topN && named.length > topN) {
+    out = named.slice(0, topN);
+    var rest = named.slice(topN);
+    var other = { label: 'Other (' + rest.length + ' more)', count: 0, litres: 0, ids: [] };
+    for (var k = 0; k < rest.length; k++) {
+      other.count += rest[k].count;
+      other.litres += rest[k].litres;
+      other.ids = other.ids.concat(rest[k].ids);
+    }
+    out.push(other);
+  }
+  if (blank.count) out.push(blank);
+  return out;
+}
+
+// Widget/control keys are restricted to [a-z0-9_] so data-* attributes cannot carry markup.
+function dashKey(s) {
+  return String(s === undefined || s === null ? '' : s).replace(/[^a-z0-9_]/gi, '').toLowerCase();
+}
+
+function dashSegHtml(widget, ctl, choices, selected, ariaLabel) {
+  var html = '<div class="bp-seg" role="radiogroup" aria-label="' + escapeHTML(ariaLabel) + '">';
+  for (var i = 0; i < choices.length; i++) {
+    var val = String(choices[i][0]);
+    var on = val === String(selected);
+    html += '<button type="button" class="bp-seg-btn" role="radio" aria-checked="' + (on ? 'true' : 'false') + '"' +
+      ' tabindex="' + (on ? '0' : '-1') + '" data-dash-w="' + dashKey(widget) + ':' + dashKey(ctl) + ':' + dashKey(val) + '">' +
+      escapeHTML(choices[i][1]) + '</button>';
+  }
+  return html + '</div>';
+}
+
+function dashSelectHtml(widget, ctl, choices, selected, ariaLabel) {
+  var html = '<select class="bp-select" data-dash-wsel="' + dashKey(widget) + ':' + dashKey(ctl) + '" aria-label="' + escapeHTML(ariaLabel) + '">';
+  for (var i = 0; i < choices.length; i++) {
+    var val = String(choices[i][0]);
+    html += '<option value="' + escapeHTML(val) + '"' + (val === String(selected) ? ' selected' : '') + '>' + escapeHTML(choices[i][1]) + '</option>';
+  }
+  return html + '</select>';
+}
+
+function dashViewToggleHtml(widget, view) {
+  return dashSegHtml(widget, 'view', [['chart', 'Chart'], ['table', 'Table']], view === 'table' ? 'table' : 'chart', 'View as');
+}
+
+function dashTableHtml(widget, model) {
+  var m = model || {};
+  var cols = m.columns || [];
+  var rows = m.rows || [];
+  var w = dashKey(widget);
+  var html = '<div class="bp-table-wrap"><table class="bp-table"><caption class="bp-visually-hidden">' + escapeHTML(m.caption) + '</caption><thead><tr>';
+  var i;
+  for (i = 0; i < cols.length; i++) {
+    html += '<th scope="col"' + (cols[i].numeric ? ' class="bp-num"' : '') + '>' + escapeHTML(cols[i].label) + '</th>';
+  }
+  html += '</tr></thead><tbody>';
+  for (i = 0; i < rows.length; i++) {
+    html += '<tr' + (rows[i].total ? ' class="bp-table-total"' : '') + '>';
+    var cells = rows[i].cells || [];
+    for (var c = 0; c < cells.length; c++) {
+      var cell = cells[c];
+      var numeric = cols[c] && cols[c].numeric;
+      var inner = escapeHTML(cell.text);
+      if (cell.drill !== undefined && cell.drill !== null) {
+        inner = '<button type="button" class="bp-table-link" data-dash-row="' + w + ':' + (parseInt(cell.drill, 10) || 0) + '">' + inner + '</button>';
+      }
+      html += '<td' + (numeric ? ' class="bp-num"' : '') + '>' + inner + '</td>';
+    }
+    html += '</tr>';
+  }
+  return html + '</tbody></table></div>';
+}
+
+function dashListHtml(widget, listKey, items, opts) {
+  var o = opts || {};
+  var limit = o.limit || 5;
+  var list = items || [];
+  var w = dashKey(widget);
+  if (!list.length) return '<p class="bp-empty">' + escapeHTML(o.emptyText) + '</p>';
+  var shown = o.expanded ? list : list.slice(0, limit);
+  var html = '<div class="bp-list">';
+  for (var i = 0; i < shown.length; i++) {
+    var it = shown[i];
+    var body = '<span class="bp-list-main"><span class="bp-list-primary">' + escapeHTML(it.primary) + '</span>' +
+      (it.secondary ? '<span class="bp-list-row-sub">' + escapeHTML(it.secondary) + '</span>' : '') + '</span>' +
+      '<span class="bp-list-right">' + escapeHTML(it.right) + '</span>';
+    if (it.drill !== undefined && it.drill !== null) {
+      html += '<button type="button" class="bp-list-row" data-dash-row="' + w + ':' + dashKey(it.drill) + '">' + body +
+        '<span class="bp-list-chev" aria-hidden="true">›</span></button>';
+    } else {
+      html += '<div class="bp-list-row">' + body + '</div>';
+    }
+  }
+  html += '</div>';
+  if (list.length > limit) {
+    html += '<button type="button" class="bp-link-btn" data-dash-showall="' + w + ':' + dashKey(listKey) + '" aria-expanded="' +
+      (o.expanded ? 'true' : 'false') + '">' + (o.expanded ? 'Show fewer' : 'Show all ' + list.length) + '</button>';
+  }
+  return html;
+}
+
 // ===== Phase 95-05: lazy Chart.js loader + shared chart() helper =====
 var CHART_JS_SRC = 'js/vendor/chart.umd.min.js?v=4.5.1';
 var _chartJsPromise = null;
@@ -1375,6 +1559,17 @@ function readChartTheme() {
     cider: v('--chart-cider', '#a8841a'),
     beer: v('--chart-beer', '#9a4e0c'),
     other: v('--chart-other', '#9a8672'),
+    cat1: v('--chart-cat-1', '#3f6670'),
+    cat2: v('--chart-cat-2', '#5f6b3a'),
+    cat3: v('--chart-cat-3', '#6e4a6a'),
+    cat4: v('--chart-cat-4', '#b0623f'),
+    cat5: v('--chart-cat-5', '#4a403a'),
+    cat6: v('--chart-other', '#9a8672'),
+    inkPrimary: v('--ink-primary', '#2c2218'),
+    inkSecondary: v('--ink-secondary', '#6b5442'),
+    inkTertiary: v('--ink-tertiary', '#8c7866'),
+    ledgerSoft: v('--ledger-soft', 'rgba(119, 70, 45, 0.07)'),
+    ledgerLine: v('--ledger-line', 'rgba(119, 70, 45, 0.12)'),
     separator: v('--cellar-raised', '#faf8f2'),
     grid: v('--ledger-soft', 'rgba(119, 70, 45, 0.07)'),
     axis: v('--ledger-line', 'rgba(119, 70, 45, 0.12)'),
@@ -1424,6 +1619,18 @@ function chart(canvas, cfg) {
     return String(Math.round(Number(n) * 10) / 10).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
   var fmtValue = function (n) { return litres ? fmtNum(n) + ' L' : String(n); };
+  // Phase 96: optional unit text (tasks, vessels, days, plato, percent).
+  var unitText = function (n) {
+    var num = Number(n);
+    switch (cfg.unit) {
+      case 'tasks': return fmtNum(num) + (num === 1 ? ' task' : ' tasks');
+      case 'vessels': return fmtNum(num) + (num === 1 ? ' vessel' : ' vessels');
+      case 'days': return fmtNum(num) + ' d';
+      case 'plato': return fmtNum(num) + ' °P';
+      case 'percent': return fmtNum(num) + '%';
+      default: return null;
+    }
+  };
   var valueOf = function (item) {
     var p = item && item.parsed;
     if (typeof p === 'number') return p;
@@ -1447,6 +1654,11 @@ function chart(canvas, cfg) {
     if (cfg.type === 'line') {
       ds.borderColor = series[i].colour;
       ds.borderWidth = 2;
+      if (series[i].borderDash) ds.borderDash = series[i].borderDash;
+      if (series[i].pointRadius !== undefined) ds.pointRadius = series[i].pointRadius;
+      if (series[i].borderWidth !== undefined) ds.borderWidth = series[i].borderWidth;
+      if (series[i].fill !== undefined) ds.fill = series[i].fill;
+      if (series[i].showLine !== undefined) ds.showLine = series[i].showLine;
     }
     datasets.push(ds);
   }
@@ -1463,9 +1675,12 @@ function chart(canvas, cfg) {
   };
   if (litres) {
     valueScale.ticks.callback = function (val) { return fmtNum(val) + ' L'; };
+  } else if (cfg.percent || cfg.unit === 'percent') {
+    valueScale.ticks.callback = function (val) { return val + '%'; };
   } else {
     valueScale.ticks.precision = 0;
   }
+  if (cfg.percent) valueScale.max = 100;
   var labelScale = {
     stacked: !!cfg.stacked,
     grid: { display: false },
@@ -1493,21 +1708,98 @@ function chart(canvas, cfg) {
           label: function (item) {
             var name = (item.dataset && item.dataset.label) || item.label || '';
             var val = valueOf(item);
+            if (typeof cfg.tooltipLabel === 'function') return cfg.tooltipLabel(item);
+            var ut = unitText(val);
+            if (ut !== null) return name + ': ' + ut;
             return name + ': ' + (litres ? fmtNum(val) + ' L' : val + (Number(val) === 1 ? ' batch' : ' batches'));
           },
           footer: function (items) {
+            if (typeof cfg.tooltipFooter === 'function') return cfg.tooltipFooter(items);
             if (!cfg.tooltipTotal) return '';
             var sum = 0;
             for (var j = 0; j < (items || []).length; j++) sum += Number(valueOf(items[j])) || 0;
-            return 'Total: ' + fmtValue(sum);
+            var ut2 = unitText(sum);
+            return 'Total: ' + (ut2 !== null ? ut2 : fmtValue(sum));
           }
         }
       }
     }
   };
+  if (cfg.xType === 'linear') {
+    labelScale.type = 'linear';
+    labelScale.beginAtZero = false;
+    labelScale.ticks.precision = 0;
+  }
+  var addTitle = function (scale, text) {
+    if (text) scale.title = { display: true, text: text, color: theme.tick, font: { size: 12 } };
+  };
+  addTitle(labelScale,cfg.horizontal ? cfg.yTitle : cfg.xTitle);
+  addTitle(valueScale, cfg.horizontal ? cfg.xTitle : cfg.yTitle);
   if (!isDoughnut) {
     options.scales = cfg.horizontal ? { x: valueScale, y: labelScale } : { x: labelScale, y: valueScale };
     if (cfg.horizontal) options.indexAxis = 'y';
+  }
+
+  var plugins = [];
+  if (typeof cfg.dataLabels === 'function') {
+    plugins.push({
+      id: 'dashDataLabels',
+      afterDatasetsDraw: function (inst) {
+        var ctx = inst.ctx;
+        ctx.save();
+        ctx.fillStyle = theme.inkPrimary;
+        ctx.font = '12px ' + theme.font;
+        ctx.textBaseline = 'middle';
+        var metas = inst.data.datasets;
+        for (var d = 0; d < metas.length; d++) {
+          var meta = inst.getDatasetMeta(d);
+          if (meta && meta.hidden) continue;
+          for (var e = 0; e < meta.data.length; e++) {
+            var text = cfg.dataLabels(e, d);
+            if (text === null || text === undefined || text === '') continue;
+            var el = meta.data[e];
+            if (cfg.horizontal) {
+              ctx.textAlign = 'left';
+              ctx.fillText(String(text), el.x + 4, el.y);
+            } else {
+              ctx.textAlign = 'center';
+              ctx.fillText(String(text), el.x, el.y - 8);
+            }
+          }
+        }
+        ctx.restore();
+      }
+    });
+  }
+  if (cfg.vLines && cfg.vLines.length) {
+    plugins.push({
+      id: 'dashVLines',
+      afterDatasetsDraw: function (inst) {
+        var ctx = inst.ctx;
+        var xs = inst.scales && inst.scales.x;
+        var area = inst.chartArea;
+        if (!xs || !area) return;
+        ctx.save();
+        ctx.font = '12px ' + theme.font;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        for (var q = 0; q < cfg.vLines.length; q++) {
+          var vl = cfg.vLines[q];
+          var px = xs.getPixelForValue(vl.value);
+          ctx.strokeStyle = vl.colour || theme.inkSecondary;
+          ctx.fillStyle = vl.colour || theme.inkSecondary;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(px, area.top);
+          ctx.lineTo(px, area.bottom);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          if (vl.label) ctx.fillText(String(vl.label), px + 4, area.top + q * 12);
+        }
+        ctx.restore();
+      }
+    });
   }
 
   if (typeof cfg.onClick === 'function') {
@@ -1517,11 +1809,19 @@ function chart(canvas, cfg) {
       var hit = inst.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
       if (hit && hit.length) {
         var key = series[hit[0].datasetIndex] ? series[hit[0].datasetIndex].key : null;
-        cfg.onClick({ index: hit[0].index, key: key });
+        if (key !== null && cfg.inertKeys && cfg.inertKeys.indexOf(key) !== -1) return;
+        var payload = { index: hit[0].index, key: key };
+        // Opt-in: existing Phase 95 call sites (and their locked tests) expect exactly {index, key}.
+        if (cfg.hitDatasetIndex) payload.datasetIndex = hit[0].datasetIndex;
+        cfg.onClick(payload);
         return;
       }
       var col = inst.getElementsAtEventForMode(evt, 'index', { intersect: false }, true);
-      if (col && col.length) cfg.onClick({ index: col[0].index, key: null });
+      if (col && col.length) {
+        var colPayload = { index: col[0].index, key: null };
+        if (cfg.hitDatasetIndex) colPayload.datasetIndex = null;
+        cfg.onClick(colPayload);
+      }
     };
     canvas.style.cursor = 'pointer';
   }
@@ -1532,7 +1832,8 @@ function chart(canvas, cfg) {
   return new Chart(canvas, {
     type: cfg.type,
     data: { labels: cfg.labels, datasets: datasets },
-    options: options
+    options: options,
+    plugins: plugins
   });
 }
 
@@ -14004,6 +14305,16 @@ if (typeof module !== 'undefined' && module.exports) {
     dashDrillLabel: dashDrillLabel,
     mergeWineSkuLookup: mergeWineSkuLookup,
     wineBreakdownBuckets: wineBreakdownBuckets,
+    dashDrillSubject: dashDrillSubject,
+    dashClassifyRows: dashClassifyRows,
+    dashTaskKind: dashTaskKind,
+    DASH_TASK_KINDS: DASH_TASK_KINDS,
+    dashBreakdownBuckets: dashBreakdownBuckets,
+    dashSegHtml: dashSegHtml,
+    dashSelectHtml: dashSelectHtml,
+    dashViewToggleHtml: dashViewToggleHtml,
+    dashTableHtml: dashTableHtml,
+    dashListHtml: dashListHtml,
     loadChartJs: loadChartJs,
     readChartTheme: readChartTheme,
     chart: chart,
