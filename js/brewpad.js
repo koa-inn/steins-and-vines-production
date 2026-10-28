@@ -1667,6 +1667,260 @@ function buildG1Model(model, mode) {
   };
 }
 
+// ===== Phase 96-05: G2 Pipeline and G3 Cycle time (pure models; one model feeds chart and table) =====
+var DASH_PIPELINE_STAGES = [['pending', 'Pending'], ['primary', 'Primary'], ['secondary', 'Secondary'], ['ready', 'Ready to bottle'], ['complete', 'Complete'], ['other', 'Other stage']];
+var DASH_PROD_SERIES = [['wine', 'Wine'], ['cider', 'Cider'], ['beer', 'Beer'], ['other', 'Other']];
+
+// Series key for a batch type: seltzer folds into Other (as in G1).
+function dashProdKey(type) {
+  return (type === 'wine' || type === 'cider' || type === 'beer') ? type : 'other';
+}
+
+// The visible series for the global Type: all four under All, else just the one.
+function dashProdSeries(typeFilter) {
+  if (!typeFilter || typeFilter === 'all') return DASH_PROD_SERIES.slice();
+  var k = dashProdKey(typeFilter);
+  for (var i = 0; i < DASH_PROD_SERIES.length; i++) {
+    if (DASH_PROD_SERIES[i][0] === k) return [DASH_PROD_SERIES[i]];
+  }
+  return DASH_PROD_SERIES.slice();
+}
+
+// G2. Ready to bottle (pinned definition): an active (primary/secondary) batch whose batch_id is in the
+// server-computed summary.readyToBottle set (batch-rules buildDashboardSummary: an incomplete packaging
+// task AND either every non-packaging task done or the packaging due date reached). It takes precedence
+// over Primary/Secondary so each batch appears once. Complete counts only the model window. Statuses
+// outside pending/primary/secondary/complete land in 'Other stage' (row shown only when non-empty).
+function buildG2Model(rows, model, ctx) {
+  var c = ctx || {};
+  var st = model.state;
+  var cls = dashClassifyRows(rows, { type: st.type, source: st.source, staffIds: c.staffIds, scheduleCategoryById: c.catMap });
+  var ready = c.readyIds || {};
+  var series = dashProdSeries(st.type);
+  var theme = readChartTheme();
+  var colours = { wine: theme.wine, cider: theme.cider, beer: theme.beer, other: theme.other };
+  var cells = {};
+  var i;
+  var s;
+  for (i = 0; i < DASH_PIPELINE_STAGES.length; i++) {
+    cells[DASH_PIPELINE_STAGES[i][0]] = { wine: [], cider: [], beer: [], other: [] };
+  }
+  for (i = 0; i < cls.list.length; i++) {
+    var it = cls.list[i];
+    var id = it.row.batch_id;
+    var stage = null;
+    if (it.status === 'pending') stage = 'pending';
+    else if ((it.status === 'primary' || it.status === 'secondary') && ready[id] === true) stage = 'ready';
+    else if (it.status === 'primary') stage = 'primary';
+    else if (it.status === 'secondary') stage = 'secondary';
+    else if (it.status === 'complete') stage = inWindow(it.row.completed_day, model.win) ? 'complete' : null;
+    else stage = 'other';
+    if (stage) cells[stage][dashProdKey(it.type)].push(id);
+  }
+  var stageRows = [];
+  var labels = [];
+  var stageTotals = [];
+  for (i = 0; i < DASH_PIPELINE_STAGES.length; i++) {
+    var sk = DASH_PIPELINE_STAGES[i][0];
+    var all = [];
+    for (s = 0; s < series.length; s++) all = all.concat(cells[sk][series[s][0]]);
+    if (sk === 'other' && !all.length) continue;
+    stageRows.push({ key: sk, label: DASH_PIPELINE_STAGES[i][1], ids: all });
+    labels.push(DASH_PIPELINE_STAGES[i][1]);
+    stageTotals.push(all.length);
+  }
+  var out = [];
+  var grand = 0;
+  for (s = 0; s < series.length; s++) {
+    var data = [];
+    for (i = 0; i < stageRows.length; i++) data.push(cells[stageRows[i].key][series[s][0]].length);
+    out.push({ key: series[s][0], label: series[s][1], data: data, colour: colours[series[s][0]] });
+  }
+  for (i = 0; i < stageTotals.length; i++) grand += stageTotals[i];
+  function subjectFor(stageKey, stageLabel, typeLabel) {
+    if (stageKey === 'complete') return (typeLabel ? typeLabel + ' completed ' : 'Completed ') + model.periodLabel;
+    return (typeLabel ? typeLabel + ' at ' : 'Batches at ') + stageLabel;
+  }
+  var columns = [{ label: 'Stage' }];
+  for (s = 0; s < series.length; s++) columns.push({ label: series[s][1], numeric: true });
+  columns.push({ label: 'Total', numeric: true });
+  var tRows = [];
+  var parts = [];
+  for (i = 0; i < stageRows.length; i++) {
+    var sr = stageRows[i];
+    var tc = [{ text: sr.label }];
+    for (s = 0; s < series.length; s++) {
+      var sids = cells[sr.key][series[s][0]];
+      var cell = { text: String(sids.length), value: sids.length };
+      if (sids.length) { cell.ids = sids.slice(); cell.subject = subjectFor(sr.key, sr.label, series[s][1]); }
+      tc.push(cell);
+    }
+    var tot = { text: String(sr.ids.length), value: sr.ids.length };
+    if (sr.ids.length) { tot.ids = sr.ids.slice(); tot.subject = subjectFor(sr.key, sr.label, ''); }
+    tc.push(tot);
+    tRows.push({ cells: tc });
+    parts.push(sr.label + ' ' + sr.ids.length);
+  }
+  return {
+    labels: labels,
+    stages: stageRows,
+    series: out,
+    cells: cells,
+    totals: stageTotals,
+    subtitle: 'Active batches by stage · right now',
+    note: 'Complete counts batches finished in ' + model.periodLabel,
+    ariaLabel: 'Pipeline, batches by stage. ' + parts.join(', '),
+    empty: grand === 0,
+    subjectFor: subjectFor,
+    table: { caption: 'Pipeline, batches by stage', columns: columns, rows: tRows }
+  };
+}
+
+// Nearest-rank 95th percentile; null for an empty list.
+function dashP95(nums) {
+  if (!nums || !nums.length) return null;
+  var a = nums.slice().sort(function (x, y) { return x - y; });
+  return a[Math.ceil(0.95 * a.length) - 1];
+}
+
+// G3 product value for the optional Product select (single global Type only).
+function dashCycleProduct(type, row, meta, lookup) {
+  var v = '';
+  if (type === 'wine') {
+    var p = lookup ? lookup[String(row.product_sku)] : null;
+    v = (p && p.subcategory) || row.product_subcategory || '';
+  } else if (type === 'beer') {
+    v = (meta && meta.recipe_style) || '';
+  } else if (type === 'cider') {
+    v = (meta && meta.recipe_name) || row.product_name || '';
+  }
+  return String(v === null || v === undefined ? '' : v).trim();
+}
+
+function buildG3Model(rows, model, ctx) {
+  var c = ctx || {};
+  var st = model.state;
+  var meta = c.batchMeta || {};
+  var cls = dashClassifyRows(rows, { type: st.type, source: st.source, staffIds: c.staffIds, scheduleCategoryById: c.catMap });
+  var series = dashProdSeries(st.type);
+  var theme = readChartTheme();
+  var colours = { wine: theme.wine, cider: theme.cider, beer: theme.beer, other: theme.other };
+  var single = (st.type === 'wine' || st.type === 'beer' || st.type === 'cider') ? st.type : null;
+  var lookup = single === 'wine' ? mergeWineSkuLookup(c.lookup, rows) : null;
+  var set = [];
+  var i;
+  var s;
+  for (i = 0; i < cls.list.length; i++) {
+    var it = cls.list[i];
+    if (it.status !== 'complete' || !inWindow(it.row.completed_day, model.win)) continue;
+    var span = cycleDays(it.row.start_date, it.row.completed_day);
+    if (span === null) continue;
+    set.push({ item: it, span: span, key: dashProdKey(it.type) });
+  }
+  // Product choices come from the whole set, alphabetical after 'All products'.
+  var choices = [['all', 'All products']];
+  var product = 'all';
+  var filtered = set;
+  if (single) {
+    var seen = {};
+    var names = [];
+    for (i = 0; i < set.length; i++) {
+      var pv = dashCycleProduct(single, set[i].item.row, meta[set[i].item.row.batch_id], lookup);
+      set[i].product = pv;
+      if (pv && !Object.prototype.hasOwnProperty.call(seen, pv)) { seen[pv] = true; names.push(pv); }
+    }
+    names.sort(function (a, b) { return a < b ? -1 : (a > b ? 1 : 0); });
+    for (i = 0; i < names.length; i++) choices.push([names[i], names[i]]);
+    if (c.product && c.product !== 'all' && Object.prototype.hasOwnProperty.call(seen, c.product)) {
+      product = c.product;
+      filtered = set.filter(function (e) { return e.product === product; });
+    }
+  }
+  var spans = filtered.map(function (e) { return e.span; });
+  var p95 = dashP95(spans);
+  var N = p95 === null ? 7 : Math.max(7, Math.ceil(p95 / 7) * 7);
+  var nBins = N / 7 + 1;
+  var binLabels = [];
+  for (i = 0; i < nBins - 1; i++) binLabels.push((i * 7) + '–' + (i * 7 + 6));
+  binLabels.push(N + '+');
+  var binIds = [];
+  for (i = 0; i < nBins; i++) binIds.push({ wine: [], cider: [], beer: [], other: [] });
+  for (i = 0; i < filtered.length; i++) {
+    var bi = filtered[i].span >= N ? nBins - 1 : Math.floor(filtered[i].span / 7);
+    binIds[bi][filtered[i].key].push(filtered[i].item.row.batch_id);
+  }
+  var out = [];
+  var vLines = [];
+  for (s = 0; s < series.length; s++) {
+    var sk = series[s][0];
+    var data = [];
+    for (i = 0; i < nBins; i++) data.push(binIds[i][sk].length);
+    out.push({ key: sk, label: series[s][1], data: data, colour: colours[sk] });
+    var planned = [];
+    for (i = 0; i < filtered.length; i++) {
+      if (filtered[i].key !== sk) continue;
+      var pd = Number((meta[filtered[i].item.row.batch_id] || {}).planned_days);
+      if (pd > 0) planned.push(pd);
+    }
+    if (planned.length) {
+      var pm = Math.round(medianOf(planned));
+      vLines.push({ key: sk, median: pm, value: Math.min(pm, N) / 7 - 0.5, colour: colours[sk], label: 'Planned ' + pm + ' d' });
+    }
+  }
+  var med = medianOf(spans);
+  var medText = med === null ? null : Math.round(med);
+  var subtitle = 'Days from start to complete · ' + model.periodLabel + (medText === null ? '' : ' · median ' + medText + ' d');
+  function subjectFor(binLabel, typeLabel) {
+    return (typeLabel ? typeLabel + ' completed in ' : 'Completed in ') + binLabel + ' days';
+  }
+  var columns = [{ label: 'Days' }];
+  for (s = 0; s < series.length; s++) columns.push({ label: series[s][1], numeric: true });
+  columns.push({ label: 'Total', numeric: true });
+  var tRows = [];
+  var parts = [];
+  for (i = 0; i < nBins; i++) {
+    var tc = [{ text: binLabels[i] }];
+    var all = [];
+    for (s = 0; s < series.length; s++) {
+      var ids = binIds[i][series[s][0]];
+      var cell = { text: String(ids.length), value: ids.length };
+      if (ids.length) { cell.ids = ids.slice(); cell.subject = subjectFor(binLabels[i], series[s][1]); }
+      tc.push(cell);
+      all = all.concat(ids);
+    }
+    var tot = { text: String(all.length), value: all.length };
+    if (all.length) { tot.ids = all.slice(); tot.subject = subjectFor(binLabels[i], ''); }
+    tc.push(tot);
+    tRows.push({ cells: tc });
+    parts.push(binLabels[i] + ' ' + all.length);
+  }
+  var pc = [{ text: 'Planned (median)' }];
+  for (s = 0; s < series.length; s++) {
+    var found = null;
+    for (i = 0; i < vLines.length; i++) { if (vLines[i].key === series[s][0]) found = vLines[i]; }
+    pc.push({ text: found ? found.median + ' d' : '–' });
+  }
+  pc.push({ text: '–' });
+  tRows.push({ cells: pc });
+  return {
+    labels: binLabels,
+    series: out,
+    binIds: binIds,
+    vLines: vLines,
+    n: filtered.length,
+    cap: N,
+    median: medText,
+    product: product,
+    choices: choices,
+    showProduct: single !== null,
+    subtitle: subtitle,
+    ariaLabel: 'Cycle time, days from start to complete, ' + model.periodLabel + '. ' + parts.join(', '),
+    empty: filtered.length === 0,
+    subjectFor: subjectFor,
+    table: { caption: 'Cycle time, days from start to complete, ' + model.periodLabel, columns: columns, rows: tRows }
+  };
+}
+
 // ===== Phase 95-05: lazy Chart.js loader + shared chart() helper =====
 var CHART_JS_SRC = 'js/vendor/chart.umd.min.js?v=4.5.1';
 var _chartJsPromise = null;
@@ -5987,6 +6241,163 @@ function parseWaitlistRecipeIds(value) {
     });
   }
 
+  // Raw rows, staff map and category map for the pipeline/cycle widgets (same sources as refreshDashV2).
+  function dashV2ProdCtx() {
+    var staffIds = {};
+    var sids = (_dashData && _dashData.staffBatchIds) || [];
+    for (var i = 0; i < sids.length; i++) staffIds[sids[i]] = true;
+    return {
+      rows: (_dashData ? _dashData.batches : toDashRows(_allBatchesData)) || [],
+      staffIds: staffIds,
+      catMap: buildScheduleCategoryById(_fermSchedules)
+    };
+  }
+
+  function dashV2ReadyIds() {
+    var list = (_dashData && _dashData.summary && _dashData.summary.readyToBottle) ||
+      (_dashSummary && _dashSummary.readyToBottle) || [];
+    var out = {};
+    for (var i = 0; i < list.length; i++) {
+      var id = list[i] && typeof list[i] === 'object' ? list[i].batch_id : list[i];
+      if (id !== undefined && id !== null) out[id] = true;
+    }
+    return out;
+  }
+
+  // Table cells -> dashTableHtml model, registering one drill per clickable cell.
+  function dashV2TableModel(w, t) {
+    var tm = { caption: t.caption, columns: t.columns, rows: [] };
+    for (var r = 0; r < t.rows.length; r++) {
+      var cells = [];
+      for (var c = 0; c < t.rows[r].cells.length; c++) {
+        var src = t.rows[r].cells[c];
+        var out = { text: src.text };
+        if (src.ids) out.drill = dashV2DrillAdd(w, src.ids, src.subject, false);
+        cells.push(out);
+      }
+      tm.rows.push({ cells: cells });
+    }
+    return tm;
+  }
+
+  function dashV2ShowTable(slotId, chartKey, w, t) {
+    destroyDashV2Slot(chartKey);
+    var body = document.getElementById(slotId).querySelector('.bp-widget-body');
+    body.setAttribute('data-state', 'table');
+    body.innerHTML = dashTableHtml(w, dashV2TableModel(w, t));
+  }
+
+  var DASH_V2_PIPELINE_TITLE = 'Pipeline';
+  var DASH_V2_CYCLE_TITLE = 'Cycle time';
+
+  function renderDashV2Pipeline(model, chartState) {
+    var slotId = 'bp-dash-v2-pipeline';
+    if (!model || !document.getElementById(slotId)) return;
+    var view = dashV2Opt('g2', 'view', 'chart') === 'table' ? 'table' : 'chart';
+    var ctx = dashV2ProdCtx();
+    var g = buildG2Model(ctx.rows, model, { staffIds: ctx.staffIds, catMap: ctx.catMap, readyIds: dashV2ReadyIds() });
+    var slot = dashV2Widget(slotId, DASH_V2_PIPELINE_TITLE);
+    slot.style.display = '';
+    dashV2SetControls(slotId, dashViewToggleHtml('g2', view));
+    slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
+    dashV2SetNote(slotId, g.note);
+    if (g.empty) { dashV2Msg(slotId, 'pipeline', DASH_V2_PIPELINE_TITLE, dashV2EmptyHtml()); return; }
+    if (view === 'table') { dashV2ShowTable(slotId, 'pipeline', 'g2', g.table); return; }
+    if (dashV2ChartBlocked(slotId, 'pipeline', DASH_V2_PIPELINE_TITLE, chartState)) return;
+    var el = dashV2Canvas(slotId, DASH_V2_PIPELINE_TITLE);
+    el.canvas.parentNode.style.height = (48 * g.labels.length + 32) + 'px';
+    var legend = [];
+    var i;
+    for (i = 0; i < g.series.length; i++) legend.push({ label: g.series[i].label, colour: g.series[i].colour });
+    el.legend.innerHTML = dashV2LegendHtml(legend);
+    // Drill ids per cell, registered once so the chart and table share the same sets.
+    var cellDrill = [];
+    for (i = 0; i < g.stages.length; i++) {
+      var row = { all: g.stages[i].ids.length ? dashV2DrillAdd('g2', g.stages[i].ids, g.subjectFor(g.stages[i].key, g.stages[i].label, ''), false) : null };
+      for (var s = 0; s < g.series.length; s++) {
+        var sids = g.cells[g.stages[i].key][g.series[s].key];
+        row[g.series[s].key] = sids.length ? dashV2DrillAdd('g2', sids, g.subjectFor(g.stages[i].key, g.stages[i].label, g.series[s].label), false) : null;
+      }
+      cellDrill.push(row);
+    }
+    _dashV2Charts.pipeline = chart(el.canvas, {
+      type: 'bar',
+      horizontal: true,
+      stacked: true,
+      labels: g.labels,
+      series: g.series,
+      measure: 'batches',
+      ariaLabel: g.ariaLabel,
+      dataLabels: function (e, d) { return d === g.series.length - 1 ? String(g.totals[e]) : null; },
+      onClick: function (hit) {
+        var row2 = cellDrill[hit.index];
+        var di = row2 ? (hit.key ? row2[hit.key] : row2.all) : null;
+        var entry = di === null || di === undefined ? null : _dashV2Drills.g2[di];
+        if (entry) dashV2Go(entry.ids, entry.label);
+      }
+    });
+  }
+
+  function renderDashV2Cycle(model, chartState) {
+    var slotId = 'bp-dash-v2-cycle';
+    if (!model || !document.getElementById(slotId)) return;
+    var view = dashV2Opt('g3', 'view', 'chart') === 'table' ? 'table' : 'chart';
+    var ctx = dashV2ProdCtx();
+    var meta = {};
+    var bm = (_dashData && _dashData.batchMeta) || [];
+    for (var m = 0; m < bm.length; m++) { if (bm[m] && bm[m].batch_id !== undefined) meta[bm[m].batch_id] = bm[m]; }
+    var g = buildG3Model(ctx.rows, model, {
+      staffIds: ctx.staffIds, catMap: ctx.catMap, batchMeta: meta,
+      product: dashV2Opt('g3', 'product', 'all'), lookup: _dashWineSkuLookup
+    });
+    var slot = dashV2Widget(slotId, DASH_V2_CYCLE_TITLE);
+    slot.style.display = '';
+    dashV2SetControls(slotId, (g.showProduct ? dashSelectHtml('g3', 'product', g.choices, g.product, 'Product') : '') +
+      dashViewToggleHtml('g3', view));
+    slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
+    if (g.empty) {
+      dashV2Msg(slotId, 'cycle', DASH_V2_CYCLE_TITLE, 'No completed batches in this period. <button type="button" class="bp-link-btn" data-dash-reset>Reset filters</button>');
+      return;
+    }
+    if (view === 'table') { dashV2ShowTable(slotId, 'cycle', 'g3', g.table); return; }
+    if (dashV2ChartBlocked(slotId, 'cycle', DASH_V2_CYCLE_TITLE, chartState)) return;
+    var el = dashV2Canvas(slotId, DASH_V2_CYCLE_TITLE);
+    el.canvas.parentNode.style.height = '';
+    var legend = [];
+    var i;
+    for (i = 0; i < g.series.length; i++) legend.push({ label: g.series[i].label, colour: g.series[i].colour });
+    el.legend.innerHTML = dashV2LegendHtml(legend);
+    var cellDrill = [];
+    for (i = 0; i < g.labels.length; i++) {
+      var row = { all: null };
+      var all = [];
+      for (var s = 0; s < g.series.length; s++) {
+        var sids = g.binIds[i][g.series[s].key];
+        all = all.concat(sids);
+        row[g.series[s].key] = sids.length ? dashV2DrillAdd('g3', sids, g.subjectFor(g.labels[i], g.series[s].label), false) : null;
+      }
+      if (all.length) row.all = dashV2DrillAdd('g3', all, g.subjectFor(g.labels[i], ''), false);
+      cellDrill.push(row);
+    }
+    _dashV2Charts.cycle = chart(el.canvas, {
+      type: 'bar',
+      labels: g.labels,
+      series: g.series,
+      stacked: true,
+      measure: 'batches',
+      vLines: g.vLines,
+      xTitle: 'Days from start to complete',
+      yTitle: 'Batches',
+      ariaLabel: g.ariaLabel,
+      onClick: function (hit) {
+        var row2 = cellDrill[hit.index];
+        var di = row2 ? (hit.key ? row2[hit.key] : row2.all) : null;
+        var entry = di === null || di === undefined ? null : _dashV2Drills.g3[di];
+        if (entry) dashV2Go(entry.ids, entry.label);
+      }
+    });
+  }
+
   function renderDashV2Wine(model) {
     var slot = document.getElementById('bp-dash-v2-wine');
     if (!slot || !model) return;
@@ -6070,6 +6481,14 @@ function parseWaitlistRecipeIds(value) {
       render: function (model, cs) {
         renderDashV2Production(model, cs);
       }
+    },
+    {
+      key: 'g2', slot: 'bp-dash-v2-pipeline', title: DASH_V2_PIPELINE_TITLE, chart: 'pipeline', needs: [],
+      render: function (model, cs) { renderDashV2Pipeline(model, cs); }
+    },
+    {
+      key: 'g3', slot: 'bp-dash-v2-cycle', title: DASH_V2_CYCLE_TITLE, chart: 'cycle', needs: [],
+      render: function (model, cs) { renderDashV2Cycle(model, cs); }
     },
     {
       key: 'wine', slot: 'bp-dash-v2-wine', title: 'Wine breakdown', chart: 'wine', needs: [],
@@ -14606,6 +15025,10 @@ if (typeof module !== 'undefined' && module.exports) {
     sanitizeDashFilters: sanitizeDashFilters,
     buildDashV2Model: buildDashV2Model,
     buildG1Model: buildG1Model,
+    buildG2Model: buildG2Model,
+    buildG3Model: buildG3Model,
+    dashP95: dashP95,
+    DASH_PIPELINE_STAGES: DASH_PIPELINE_STAGES,
     resolveDashFilters: resolveDashFilters,
     serializeDashFilters: serializeDashFilters,
     dashV2FlagFrom: dashV2FlagFrom,
