@@ -176,6 +176,64 @@ describe('WR-03: v2 never renders zero tiles when no data source is loaded', fun
   });
 });
 
+describe('WR-06: the filter bar follows a phone/tablet width change', function () {
+  var TODAY = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Vancouver' });
+  var phone = false;
+  var listeners = [];
+
+  beforeEach(function () {
+    phone = false;
+    listeners = [];
+    window.matchMedia = function (q) {
+      return {
+        get matches() { return phone && q.indexOf('600') !== -1; },
+        addEventListener: function (type, fn) { if (q.indexOf('600') !== -1) listeners.push(fn); },
+        removeEventListener: function () {}
+      };
+    };
+  });
+
+  afterEach(function () {
+    delete window.matchMedia;
+    bp._setDashV2ForTest(false);
+  });
+
+  function flip(on) {
+    phone = on;
+    listeners.forEach(function (fn) { fn({ matches: on }); });
+  }
+
+  test('rebuilds the bar and closes an open sheet when the width crosses 600px', function () {
+    document.body.innerHTML = '<div id="bp-dashboard-inner"></div>';
+    bp._setStateForTest({
+      _dashData: { asOf: { today: TODAY, year: +TODAY.slice(0, 4), tz: 'America/Vancouver' }, batches: [lean('A', TODAY)], staffBatchIds: [] },
+      _allBatchesData: [],
+      _dashWineSkuLookup: {}
+    });
+    bp._setDashV2ForTest(true);
+    bp._renderDashboardV2ForTest();
+    var bar = document.getElementById('bp-dash-filters');
+    expect(bar.getAttribute('data-mode')).toBe('tablet');
+    expect(listeners.length).toBe(1);
+
+    flip(true);
+    expect(bar.getAttribute('data-mode')).toBe('phone');
+    expect(bar.querySelector('[data-dash-open-sheet]')).not.toBeNull();
+
+    bar.querySelector('[data-dash-open-sheet]').click();
+    expect(document.getElementById('bp-dash-sheet')).not.toBeNull();
+
+    flip(false);
+    expect(bar.getAttribute('data-mode')).toBe('tablet');
+    expect(document.getElementById('bp-dash-sheet')).toBeNull();
+    expect(bar.querySelector('[data-dash-ctl="type"]')).not.toBeNull();
+
+    // A second render does not register a second listener.
+    bp._renderDashboardV2ForTest();
+    expect(listeners.length).toBe(1);
+  });
+});
+
 describe('WR-02: a custom range past the aggregate asOf day is clamped and labelled honestly', function () {
   var ASOF = { today: '2026-10-28', year: 2026, tz: 'America/Vancouver' };
   var ROWS = [lean('A', '2026-10-02'), lean('B', '2026-03-01'), lean('C', '2025-06-01')];

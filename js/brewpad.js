@@ -5157,6 +5157,24 @@ function parseWaitlistRecipeIds(value) {
     return !!(window.matchMedia && window.matchMedia('(max-width: 600px)').matches);
   }
 
+  // Review WR-06: Split View / Slide Over or a rotation can cross 600px with no filter tap, so
+  // follow the media query. Bound once, on the first v2 render; addListener is older iPad Safari.
+  var _dashV2ModeBound = false;
+  function onDashV2ModeChange() {
+    if (!isDashV2() || !document.getElementById('bp-dash-v2')) return;
+    closeDashV2Sheet(false);
+    updateDashV2Bar();
+  }
+  function bindDashV2ModeListener() {
+    if (_dashV2ModeBound || !window.matchMedia) return;
+    var mq = window.matchMedia('(max-width: 600px)');
+    if (!mq) return;
+    if (mq.addEventListener) mq.addEventListener('change', onDashV2ModeChange);
+    else if (mq.addListener) mq.addListener(onDashV2ModeChange);
+    else return;
+    _dashV2ModeBound = true;
+  }
+
   function dashV2SegHtml(ctl) {
     var h = '<div class="bp-dash-filter"><span class="bp-dash-filter-label">' + ctl.label + '</span>';
     h += '<div class="bp-seg" role="radiogroup" aria-label="' + ctl.label + '">';
@@ -5793,6 +5811,7 @@ function parseWaitlistRecipeIds(value) {
       shell.addEventListener('keydown', onDashV2Keydown);
       _dashV2RangeOpen = false;
     }
+    bindDashV2ModeListener();
     if (!_dashV2State) _dashV2State = readDashFiltersFromEnv();
     refreshDashV2();
   }
