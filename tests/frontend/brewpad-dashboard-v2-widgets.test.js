@@ -372,21 +372,25 @@ describe('Batches per period chart', function () {
 });
 
 describe('Wine breakdown', function () {
+  // 96-TEST-DECISION items 2c/4/5/6: Wine breakdown became G4 Products.
   test('horizontal bar over subcategory, staff hidden by default, segment click drills', async function () {
+    var list = rows();
+    list.push(lean('W4', 'wine', YEAR + '-01-06', { product_sku: 'S1', product_subcategory: 'Red' }));
+    bp._setStateForTest({ _dashData: { asOf: ASOF, batches: list, staffBatchIds: [] }, _allBatchesData: list });
     await renderV2('');
     var c = wineChart();
     expect(c.config.options.indexAxis).toBe('y');
     expect(c.config.data.labels).toEqual(['Red', 'White']);
-    expect(c.config.data.datasets[0].data).toEqual([1, 1]);
-    expect(document.querySelector('#bp-dash-v2-wine .bp-widget-title').textContent).toBe('Wine breakdown');
+    expect(c.config.data.datasets[0].data).toEqual([2, 1]);
+    expect(document.querySelector('#bp-dash-v2-wine .bp-widget-title').textContent).toBe('Products');
     expect(document.querySelector('#bp-dash-v2-wine .bp-widget-sub').textContent).toContain('Staff batches hidden');
     var Fk = Fake;
     Fk.prototype.getElementsAtEventForMode = function (e, mode) {
       return mode === 'nearest' ? [{ index: 0, datasetIndex: 0 }] : [];
     };
     c.config.options.onClick({}, [], c);
-    expect(Object.keys(drill().ids)).toEqual(['W1']);
-    expect(drill().label).toBe('From dashboard: Wine Red started YTD · 1 batch');
+    expect(Object.keys(drill().ids).sort()).toEqual(['W1', 'W4']);
+    expect(drill().label).toBe('From dashboard: Wine, Subcategory Red · 2 batches');
   });
 
   test('Include staff batches adds the staff batch and says so; production views unchanged', async function () {
@@ -398,22 +402,27 @@ describe('Wine breakdown', function () {
     expect(JSON.stringify(periodChart().config.data)).toBe(periodBefore);
   });
 
-  test('dimension chips are widget-local', async function () {
+  test('Type segment and Group by select are widget-local', async function () {
     await renderV2('');
-    var chip = document.querySelector('[data-dash-wine-dim="brand"]');
-    chip.click();
-    expect(document.querySelector('[data-dash-wine-dim="brand"]').getAttribute('aria-pressed')).toBe('true');
+    var sel = document.querySelector('[data-dash-wsel="g4:dim"]');
+    expect(sel.getAttribute('aria-label')).toBe('Dimension');
+    expect(document.querySelector('[data-dash-w="g4:type:wine"]').getAttribute('aria-checked')).toBe('true');
+    sel.value = 'brand';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
     expect(document.querySelector('#bp-dash-v2-wine .bp-widget-sub').textContent).toContain('by brand');
-    expect(wineChart().config.data.labels).toEqual(['Unknown']);
-    document.querySelector('[data-dash-wine-dim="subcategory"]').click();
+    expect(wineChart().config.data.labels).toEqual(['Unspecified']);
+    var sel2 = document.querySelector('[data-dash-wsel="g4:dim"]');
+    sel2.value = 'subcategory';
+    sel2.dispatchEvent(new Event('change', { bubbles: true }));
     expect(wineChart().config.data.labels).toEqual(['Red', 'White']);
   });
 
-  test('hidden for Beer and Cider, shown for All and Wine', async function () {
+  test('stays visible for every Type, following the global Type', async function () {
     await renderV2('type=beer');
-    expect(document.getElementById('bp-dash-v2-wine').style.display).toBe('none');
+    expect(document.getElementById('bp-dash-v2-wine').style.display).toBe('');
+    expect(document.querySelector('#bp-dash-v2-wine [data-dash-w^="g4:type"]')).toBeNull();
     await go('type=cider');
-    expect(document.getElementById('bp-dash-v2-wine').style.display).toBe('none');
+    expect(document.getElementById('bp-dash-v2-wine').style.display).toBe('');
     await go('type=wine');
     expect(document.getElementById('bp-dash-v2-wine').style.display).toBe('');
     await go('');

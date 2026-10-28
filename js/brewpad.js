@@ -1921,6 +1921,397 @@ function buildG3Model(rows, model, ctx) {
   };
 }
 
+// ===== Phase 96-06: G4 Products (+ Top 10) and G9 Source mix (pure models) =====
+var DASH_G4_TYPES = [['wine', 'Wine'], ['cider', 'Cider'], ['beer', 'Beer']];
+var DASH_G4_DIMS = {
+  wine: [['subcategory', 'Subcategory'], ['brand', 'Brand'], ['manufacturer', 'Manufacturer']],
+  beer: [['style', 'Style'], ['recipe', 'Recipe']],
+  cider: [['recipe', 'Recipe']]
+};
+var DASH_SOURCE_CATS = [
+  ['kiosk', 'Kiosk', 'cat1'], ['online', 'Online', 'cat2'], ['manual', 'Manual', 'cat3'],
+  ['zoho_scan', 'Zoho scan', 'cat4'], ['other', 'Other', 'cat5'], ['unknown', 'Unknown', 'cat6']
+];
+
+function dashSourceCat(source) {
+  var s = normBatchSource(source);
+  if (s === '') return 'unknown';
+  if (s === 'kiosk' || s === 'kiosk_recipe') return 'kiosk';
+  if (s === 'online' || s === 'manual' || s === 'zoho_scan') return s;
+  return 'other';
+}
+
+function dashMetaById(batchMeta) {
+  var out = {};
+  var list = batchMeta || [];
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && list[i].batch_id !== undefined && list[i].batch_id !== null) out[list[i].batch_id] = list[i];
+  }
+  return out;
+}
+
+function dashStaffNote(model) {
+  return model.state.staff === '1' ? 'Including staff batches' : 'Staff batches hidden';
+}
+
+// Ranks breakdown buckets by the Measure, rolls the tail into 'Other (n more)', keeps 'Unspecified' last.
+function dashRankBuckets(buckets, useLitres, topN) {
+  var named = [];
+  var blank = null;
+  var i;
+  for (i = 0; i < buckets.length; i++) {
+    if (buckets[i].label === 'Unspecified') blank = buckets[i]; else named.push(buckets[i]);
+  }
+  function val(b) { return useLitres ? b.litres : b.count; }
+  named.sort(function (a, b) {
+    if (val(b) !== val(a)) return val(b) - val(a);
+    return a.label < b.label ? -1 : (a.label > b.label ? 1 : 0);
+  });
+  var out = named;
+  if (topN && named.length > topN) {
+    out = named.slice(0, topN);
+    var other = { label: 'Other (' + (named.length - topN) + ' more)', count: 0, litres: 0, ids: [] };
+    for (i = topN; i < named.length; i++) {
+      other.count += named[i].count;
+      other.litres += named[i].litres;
+      other.ids = other.ids.concat(named[i].ids);
+    }
+    out.push(other);
+  }
+  if (blank) out.push(blank);
+  return out;
+}
+
+function dashIdSet(ids) {
+  var set = {};
+  for (var i = 0; i < (ids || []).length; i++) set[ids[i]] = true;
+  return set;
+}
+
+function dashLitresText(v) { return dashGroupThousands(Math.round(v * 10) / 10) + ' L'; }
+
+// ctx: {lookup, metaById, type, dim, staffIds, catMap}
+function buildG4Model(rows, model, ctx) {
+  var c = ctx || {};
+  var st = model.state;
+  var cur = model.cur;
+  var lit = st.measure === 'litres';
+  var theme = readChartTheme();
+  var colours = { wine: theme.wine, cider: theme.cider, beer: theme.beer };
+  var showTypeSeg = st.type === 'all';
+  var type = null;
+  if (showTypeSeg) type = (c.type === 'wine' || c.type === 'cider' || c.type === 'beer') ? c.type : 'wine';
+  else if (st.type === 'wine' || st.type === 'cider' || st.type === 'beer') type = st.type;
+  var dims = type ? DASH_G4_DIMS[type] : [];
+  var dim = dims.length ? dims[0][0] : '';
+  var dimLabel = dims.length ? dims[0][1] : '';
+  var d;
+  for (d = 0; d < dims.length; d++) {
+    if (dims[d][0] === c.dim) { dim = dims[d][0]; dimLabel = dims[d][1]; }
+  }
+  var staffOn = st.staff === '1';
+  var meta = c.metaById || {};
+  var lookup = type === 'wine' ? mergeWineSkuLookup(c.lookup, rows) : null;
+  var items = [];
+  var staffHidden = 0;
+  var typeName = '';
+  if (type) {
+    for (d = 0; d < DASH_G4_TYPES.length; d++) { if (DASH_G4_TYPES[d][0] === type) typeName = DASH_G4_TYPES[d][1]; }
+    var inSet = dashIdSet(cur.ids.startedByType[type]);
+    var cls = dashClassifyRows(rows, { type: type, source: st.source, staffIds: c.staffIds, scheduleCategoryById: c.catMap });
+    for (var i = 0; i < cls.list.length; i++) {
+      var it = cls.list[i];
+      if (inSet[it.row.batch_id] !== true) continue;
+      if (it.staff && !staffOn) { staffHidden++; continue; }
+      items.push(it);
+    }
+  }
+  function valueOf(it) {
+    var row = it.row;
+    if (type === 'wine') {
+      var p = lookup ? lookup[String(row.product_sku)] : null;
+      return p ? p[dim] : '';
+    }
+    var m = meta[row.batch_id] || {};
+    if (dim === 'style') return m.recipe_style;
+    return m.recipe_name || row.product_name;
+  }
+  function litresOf(it) { return batchLitres(it.row, 'started', type).l; }
+  var ranked = dashRankBuckets(dashBreakdownBuckets(items, valueOf, 0, litresOf), lit, 12);
+  var total = 0;
+  var totalL = 0;
+  var labels = [];
+  var data = [];
+  var parts = [];
+  for (d = 0; d < ranked.length; d++) {
+    total += ranked[d].count;
+    totalL += ranked[d].litres;
+    labels.push(ranked[d].label);
+    var v = lit ? Math.round(ranked[d].litres * 10) / 10 : ranked[d].count;
+    data.push(v);
+    parts.push(ranked[d].label + ' ' + (lit ? dashLitresText(v) : v));
+  }
+  function subjectFor(value) { return typeName + ', ' + dimLabel + ' ' + value; }
+  var columns = [{ label: 'Name' }, { label: 'Batches', numeric: true }, { label: 'Litres', numeric: true }, { label: 'Share', numeric: true }];
+  var tRows = [];
+  for (d = 0; d < ranked.length; d++) {
+    var share = total > 0 ? (ranked[d].count / total * 100).toFixed(1) + '%' : '0.0%';
+    tRows.push({ cells: [
+      { text: ranked[d].label, ids: ranked[d].ids.slice(), subject: subjectFor(ranked[d].label) },
+      { text: String(ranked[d].count) },
+      { text: dashGroupThousands(Math.round(ranked[d].litres)) },
+      { text: share }
+    ] });
+  }
+  var subtitle = '';
+  if (type) {
+    subtitle = typeName + ' by ' + dimLabel.toLowerCase() + ' · started ' + model.periodLabel + (lit ? ' · litres' : '');
+  } else {
+    subtitle = 'Started batches · ' + model.periodLabel;
+  }
+  return {
+    type: type,
+    typeChoices: DASH_G4_TYPES,
+    showTypeSeg: showTypeSeg,
+    dim: dim,
+    dims: dims,
+    dimLabel: dimLabel,
+    buckets: ranked,
+    labels: labels,
+    series: type ? [{ key: type, label: typeName, data: data, colour: colours[type] }] : [],
+    measure: lit ? 'litres' : 'batches',
+    total: total,
+    totalLitres: totalL,
+    staffHidden: staffHidden,
+    note: dashStaffNote(model),
+    subtitle: subtitle + ' · ' + dashStaffNote(model),
+    ariaLabel: (typeName || 'Products') + ' batches started by ' + dimLabel.toLowerCase() + ', ' + model.periodLabel + '. ' + parts.join(', '),
+    empty: ranked.length === 0,
+    subjectFor: subjectFor,
+    table: { caption: (typeName || 'Products') + ' by ' + dimLabel.toLowerCase() + ', started ' + model.periodLabel, columns: columns, rows: tRows }
+  };
+}
+
+// ctx: {metaById, staffIds, catMap}
+function buildTop10Model(rows, model, ctx) {
+  var c = ctx || {};
+  var st = model.state;
+  var cur = model.cur;
+  var lit = st.measure === 'litres';
+  var theme = readChartTheme();
+  var colours = { wine: theme.wine, cider: theme.cider, beer: theme.beer, other: theme.other };
+  var typeNames = { wine: 'Wine', cider: 'Cider', beer: 'Beer', other: 'Other' };
+  var meta = c.metaById || {};
+  var staffOn = st.staff === '1';
+  var inSet = dashIdSet(cur.ids.started);
+  var cls = dashClassifyRows(rows, { type: st.type, source: st.source, staffIds: c.staffIds, scheduleCategoryById: c.catMap });
+  var groups = {};
+  var order = [];
+  var i;
+  for (i = 0; i < cls.list.length; i++) {
+    var it = cls.list[i];
+    var row = it.row;
+    if (inSet[row.batch_id] !== true) continue;
+    if (it.staff && !staffOn) continue;
+    var key = row.recipe_id || row.product_sku;
+    if (!key) continue;
+    key = String(key);
+    if (!Object.prototype.hasOwnProperty.call(groups, key)) {
+      var m = meta[row.batch_id] || {};
+      groups[key] = { key: key, label: String(m.recipe_name || row.product_name || key), type: dashProdKey(it.type), count: 0, litres: 0, ids: [] };
+      order.push(key);
+    }
+    groups[key].count++;
+    groups[key].litres += batchLitres(row, 'started', it.type).l;
+    groups[key].ids.push(row.batch_id);
+  }
+  var list = [];
+  for (i = 0; i < order.length; i++) list.push(groups[order[i]]);
+  function val(g) { return lit ? g.litres : g.count; }
+  list.sort(function (a, b) {
+    if (val(b) !== val(a)) return val(b) - val(a);
+    return a.label < b.label ? -1 : (a.label > b.label ? 1 : 0);
+  });
+  list = list.slice(0, 10);
+  var labels = [];
+  var parts = [];
+  for (i = 0; i < list.length; i++) {
+    labels.push((i + 1) + '. ' + list[i].label);
+    parts.push((i + 1) + '. ' + list[i].label + ' ' + (lit ? dashLitresText(list[i].litres) : list[i].count));
+  }
+  var series = [];
+  var seen = {};
+  for (i = 0; i < list.length; i++) {
+    var tk = list[i].type;
+    if (seen[tk]) continue;
+    seen[tk] = true;
+    var data = [];
+    for (var j = 0; j < list.length; j++) {
+      data.push(list[j].type === tk ? (lit ? Math.round(list[j].litres * 10) / 10 : list[j].count) : 0);
+    }
+    series.push({ key: tk, label: typeNames[tk], data: data, colour: colours[tk] });
+  }
+  var columns = [{ label: 'Rank', numeric: true }, { label: 'Product' }, { label: 'Type' }, { label: 'Batches', numeric: true }, { label: 'Litres', numeric: true }];
+  var tRows = [];
+  for (i = 0; i < list.length; i++) {
+    tRows.push({ cells: [
+      { text: String(i + 1) },
+      { text: list[i].label, ids: list[i].ids.slice(), subject: 'Top product ' + list[i].label },
+      { text: typeNames[list[i].type] },
+      { text: String(list[i].count) },
+      { text: dashGroupThousands(Math.round(list[i].litres)) }
+    ] });
+  }
+  return {
+    entries: list,
+    labels: labels,
+    series: series,
+    measure: lit ? 'litres' : 'batches',
+    ariaLabel: 'Top products started, ' + model.periodLabel + '. ' + parts.join(', '),
+    empty: list.length === 0,
+    table: { caption: 'Top 10 products started, ' + model.periodLabel, columns: columns, rows: tRows }
+  };
+}
+
+// Largest-remainder rounding to one decimal so a bucket's shares sum to exactly 100.0.
+function dashShareTenths(counts) {
+  var total = 0;
+  var i;
+  for (i = 0; i < counts.length; i++) total += counts[i];
+  var out = [];
+  if (total <= 0) { for (i = 0; i < counts.length; i++) out.push(0); return out; }
+  var floors = [];
+  var rems = [];
+  var used = 0;
+  for (i = 0; i < counts.length; i++) {
+    var exact = counts[i] / total * 1000;
+    floors.push(Math.floor(exact));
+    rems.push({ i: i, r: exact - Math.floor(exact) });
+    used += floors[i];
+  }
+  rems.sort(function (a, b) { return b.r - a.r || a.i - b.i; });
+  for (var k = 0; k < 1000 - used; k++) floors[rems[k % rems.length].i]++;
+  for (i = 0; i < floors.length; i++) out.push(floors[i] / 10);
+  return out;
+}
+
+// ctx: {mode: 'count'|'share', staffIds, catMap}
+function buildG9Model(rows, model, ctx) {
+  var c = ctx || {};
+  var st = model.state;
+  var cur = model.cur;
+  var lit = st.measure === 'litres';
+  var share = c.mode === 'share';
+  var staffOn = st.staff === '1';
+  var theme = readChartTheme();
+  var buckets = cur.periodBuckets || [];
+  var cls = dashClassifyRows(rows, { type: st.type, source: st.source, staffIds: c.staffIds, scheduleCategoryById: c.catMap });
+  var nCats = DASH_SOURCE_CATS.length;
+  var cells = [];
+  var vals = [];
+  var i;
+  var s;
+  for (i = 0; i < buckets.length; i++) {
+    var ids = [];
+    var v = [];
+    for (s = 0; s < nCats; s++) { ids.push([]); v.push(0); }
+    for (var j = 0; j < buckets[i].all.length; j++) {
+      var id = buckets[i].all[j];
+      var it = cls.byId[id];
+      if (!it) continue;
+      if (it.staff && !staffOn) continue;
+      var cat = dashSourceCat(it.row.source);
+      for (s = 0; s < nCats; s++) {
+        if (DASH_SOURCE_CATS[s][0] === cat) {
+          ids[s].push(id);
+          v[s] += lit ? batchLitres(it.row, 'started', it.type).l : 1;
+        }
+      }
+    }
+    cells.push(ids);
+    vals.push(v);
+  }
+  var totals = [];
+  for (i = 0; i < buckets.length; i++) {
+    var t = 0;
+    for (s = 0; s < nCats; s++) t += vals[i][s];
+    totals.push(t);
+  }
+  var shown = [];
+  var grand = 0;
+  for (s = 0; s < nCats; s++) {
+    var sum = 0;
+    for (i = 0; i < buckets.length; i++) sum += vals[i][s];
+    grand += sum;
+    shown.push(sum > 0);
+  }
+  // Share values per bucket (tenths, sums to 100.0).
+  var shares = [];
+  for (i = 0; i < buckets.length; i++) shares.push(share ? dashShareTenths(vals[i]) : null);
+  var out = [];
+  var counts = [];
+  for (s = 0; s < nCats; s++) {
+    if (!shown[s]) continue;
+    var data = [];
+    var cnt = [];
+    for (i = 0; i < buckets.length; i++) {
+      var raw = lit ? Math.round(vals[i][s] * 10) / 10 : vals[i][s];
+      cnt.push(raw);
+      data.push(share ? shares[i][s] : raw);
+    }
+    out.push({ key: DASH_SOURCE_CATS[s][0], label: DASH_SOURCE_CATS[s][1], data: data, colour: theme[DASH_SOURCE_CATS[s][2]] });
+    counts.push(cnt);
+  }
+  var labels = [];
+  for (i = 0; i < buckets.length; i++) labels.push(buckets[i].label);
+  var by = st.group === 'week' ? 'week' : 'month';
+  var subtitle = 'Started ' + (lit ? 'litres' : 'batches') + ' by source · ' + model.periodLabel + ' · by ' + by;
+  if (st.source && st.source !== 'all') subtitle += ' · Source: ' + (DASH_SOURCE_LABELS[st.source] || st.source);
+  function fmt(x) { return lit ? dashLitresText(x) : String(x); }
+  function subjectFor(srcLabel, bucketLabel) {
+    return (srcLabel ? srcLabel + ' batches' : 'Batches') + ' started in ' + bucketLabel;
+  }
+  var columns = [{ label: 'Period' }];
+  for (s = 0; s < nCats; s++) columns.push({ label: DASH_SOURCE_CATS[s][1], numeric: true });
+  columns.push({ label: 'Total', numeric: true });
+  var tRows = [];
+  var parts = [];
+  for (i = buckets.length - 1; i >= 0; i--) {
+    var tc = [{ text: labels[i] }];
+    var all = [];
+    for (s = 0; s < nCats; s++) {
+      var cell = { text: share ? shares[i][s].toFixed(1) + '%' : fmt(Math.round(vals[i][s] * 10) / 10) };
+      if (cells[i][s].length) {
+        cell.ids = cells[i][s].slice();
+        cell.subject = subjectFor(DASH_SOURCE_CATS[s][1], labels[i]);
+        all = all.concat(cells[i][s]);
+      }
+      tc.push(cell);
+    }
+    var tot = { text: share ? (totals[i] > 0 ? '100.0%' : '0.0%') : fmt(Math.round(totals[i] * 10) / 10) };
+    if (all.length) { tot.ids = all; tot.subject = subjectFor('', labels[i]); }
+    tc.push(tot);
+    tRows.push({ cells: tc });
+  }
+  for (i = 0; i < buckets.length; i++) parts.push(labels[i] + ' ' + fmt(Math.round(totals[i] * 10) / 10));
+  return {
+    mode: share ? 'share' : 'count',
+    labels: labels,
+    series: out,
+    counts: counts,
+    cells: cells,
+    totals: totals,
+    measure: lit ? 'litres' : 'batches',
+    percent: share,
+    note: dashStaffNote(model),
+    subtitle: subtitle,
+    ariaLabel: 'Started ' + (lit ? 'litres' : 'batches') + ' by source, ' + model.periodLabel + '. ' + parts.join(', '),
+    empty: grand === 0,
+    subjectFor: subjectFor,
+    table: { caption: 'Started ' + (lit ? 'litres' : 'batches') + ' by source, ' + model.periodLabel, columns: columns, rows: tRows }
+  };
+}
+
 // ===== Phase 95-05: lazy Chart.js loader + shared chart() helper =====
 var CHART_JS_SRC = 'js/vendor/chart.umd.min.js?v=4.5.1';
 var _chartJsPromise = null;
@@ -2921,8 +3312,6 @@ function parseWaitlistRecipeIds(value) {
   var _dashV2On = false;          // Phase 95-06: per-device v2 opt-in
   var _dashV2State = null;        // sanitised filter state
   var _dashV2Model = null;        // last buildDashV2Model result
-  var _dashV2WineDimension = 'subcategory';  // widget-local; never touches v1 _dashWineDimension
-  var _dashV2WineBuckets = [];
   var _dashV2Seq = 0;
   var _dashV2WidgetOpts = {};     // Phase 96: 'w:opt' -> value; in memory only, never hash/localStorage
   var _dashV2Drills = {};         // Phase 96: widgetKey -> [{ids, label}] rebuilt each render
@@ -5989,14 +6378,7 @@ function parseWaitlistRecipeIds(value) {
     }
     var msg = failed ? 'No data loaded.' : 'Loading…';
     dashV2Msg('bp-dash-v2-period', 'period', DASH_V2_PERIOD_TITLE, msg);
-    var st = _dashV2State || {};
-    var wine = document.getElementById('bp-dash-v2-wine');
-    if (st.type === 'all' || st.type === 'wine' || !st.type) {
-      dashV2Msg('bp-dash-v2-wine', 'wine', 'Wine breakdown', msg);
-    } else if (wine) {
-      destroyDashV2Slot('wine');
-      wine.style.display = 'none';
-    }
+    dashV2Msg('bp-dash-v2-wine', 'wine', 'Products', msg);
     if (failed || _eagerLoading || _batchesLoading) return;
     loadBatches().then(function () {
       if (isDashV2() && document.getElementById('bp-dash-v2')) refreshDashV2(true);
@@ -6026,7 +6408,6 @@ function parseWaitlistRecipeIds(value) {
   // ===========================================================================
   // Phase 95-08: v2 widgets (tiles, Batches per period, Wine breakdown) on the one data layer.
   // ===========================================================================
-  var DASH_V2_WINE_DIMS = [['subcategory', 'Subcategory'], ['brand', 'Brand'], ['manufacturer', 'Manufacturer'], ['time', 'Time']];
 
   function dashV2Fmt(n) { return dashGroupThousands(Math.round(Number(n) || 0)); }
 
@@ -6096,7 +6477,6 @@ function parseWaitlistRecipeIds(value) {
     if (!slot.firstChild) {
       slot.innerHTML = '<div class="bp-widget"><div class="bp-widget-head"><div class="bp-widget-titles">' +
         '<h3 class="bp-widget-title"></h3><p class="bp-widget-sub"></p></div><div class="bp-widget-controls"></div></div>' +
-        (slotId === 'bp-dash-v2-wine' ? '<div class="bp-widget-chips"></div>' : '') +
         '<p class="bp-widget-note" hidden></p><div class="bp-widget-body"></div></div>';
       slot.querySelector('.bp-widget-title').textContent = title;
     }
@@ -6398,67 +6778,158 @@ function parseWaitlistRecipeIds(value) {
     });
   }
 
-  function renderDashV2Wine(model) {
-    var slot = document.getElementById('bp-dash-v2-wine');
-    if (!slot || !model) return;
-    var st = model.state;
-    if (st.type !== 'all' && st.type !== 'wine') {
-      destroyDashV2Slot('wine');
-      slot.style.display = 'none';
-      return;
+  var DASH_V2_PRODUCTS_TITLE = 'Products';
+  var DASH_V2_SOURCE_TITLE = 'Source mix';
+
+  function dashV2G4Height(n) { return Math.min(440, 32 * Math.max(1, n) + 40) + 'px'; }
+
+  // G4 Products: breakdown (left/top) plus Top 10 (right/below) inside one widget.
+  function renderDashV2Products(model, chartState) {
+    var slotId = 'bp-dash-v2-wine';
+    if (!model || !document.getElementById(slotId)) return;
+    var view = dashV2Opt('g4', 'view', 'chart') === 'table' ? 'table' : 'chart';
+    var tview = dashV2Opt('g4', 'tview', 'chart') === 'table' ? 'table' : 'chart';
+    var ctx = dashV2ProdCtx();
+    var metaById = dashMetaById(_dashData && _dashData.batchMeta);
+    var g = buildG4Model(ctx.rows, model, {
+      lookup: _dashWineSkuLookup, metaById: metaById, staffIds: ctx.staffIds, catMap: ctx.catMap,
+      type: dashV2Opt('g4', 'type', null), dim: dashV2Opt('g4', 'dim', null)
+    });
+    var slot = dashV2Widget(slotId, DASH_V2_PRODUCTS_TITLE);
+    slot.style.display = '';
+    dashV2SetControls(slotId, (g.showTypeSeg ? dashSegHtml('g4', 'type', g.typeChoices, g.type, 'Product type') : '') +
+      (g.dims.length ? '<span class="bp-ctl-label" aria-hidden="true">Group by</span>' + dashSelectHtml('g4', 'dim', g.dims, g.dim, 'Dimension') : '') +
+      dashViewToggleHtml('g4', view));
+    slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
+    dashV2SetNote(slotId, '');
+    destroyDashV2Slot('top10');
+    if (g.empty) { dashV2Msg(slotId, 'wine', DASH_V2_PRODUCTS_TITLE, dashV2EmptyHtml()); return; }
+    if (g.type === 'wine') {
+      if (_dashWineSkuError) { dashV2Msg(slotId, 'wine', DASH_V2_PRODUCTS_TITLE, 'Unable to load catalog data — wine breakdown unavailable.'); return; }
+      if (_dashWineSkuLookup === null) {
+        loadWineSnapshot();
+        dashV2Msg(slotId, 'wine', DASH_V2_PRODUCTS_TITLE, 'Loading…');
+        return;
+      }
     }
-    var title = 'Wine breakdown';
-    var cur = model.cur;
-    if (cur.started === 0) { dashV2Msg('bp-dash-v2-wine', 'wine', title, dashV2EmptyHtml()); return; }
-    if (_dashWineSkuError) { dashV2Msg('bp-dash-v2-wine', 'wine', title, 'Unable to load catalog data — wine breakdown unavailable.'); return; }
-    if (_dashWineSkuLookup === null) {
-      loadWineSnapshot();
-      dashV2Msg('bp-dash-v2-wine', 'wine', title, 'Loading…');
-      return;
+    if ((view === 'chart' || tview === 'chart') && dashV2ChartBlocked(slotId, 'wine', DASH_V2_PRODUCTS_TITLE, chartState)) return;
+    var t = buildTop10Model(ctx.rows, model, { metaById: metaById, staffIds: ctx.staffIds, catMap: ctx.catMap });
+    destroyDashV2Slot('wine');
+    var body = slot.querySelector('.bp-widget-body');
+    body.setAttribute('data-state', 'g4');
+    var main = view === 'table' ?
+      dashTableHtml('g4', dashV2TableModel('g4', g.table)) :
+      '<div class="bp-chart"><canvas></canvas></div>';
+    var top;
+    if (t.empty) {
+      top = '<p class="bp-empty">' + dashV2EmptyHtml() + '</p>';
+    } else if (tview === 'table') {
+      top = dashTableHtml('g4', dashV2TableModel('g4', t.table));
+    } else {
+      top = '<div class="bp-chart"><canvas></canvas></div><div class="bp-chart-legend"></div>';
     }
-    var dim = _dashV2WineDimension;
-    var buckets = wineBreakdownBuckets(cur.mix.wine, mergeWineSkuLookup(_dashWineSkuLookup, cur.mix.wine), dim, 8);
-    _dashV2WineBuckets = buckets;
-    var wrap = dashV2Widget('bp-dash-v2-wine', title);
-    wrap.style.display = '';
-    var chips = '';
-    for (var i = 0; i < DASH_V2_WINE_DIMS.length; i++) {
-      var on = DASH_V2_WINE_DIMS[i][0] === dim;
-      chips += '<button type="button" class="bp-dash-chip" aria-pressed="' + (on ? 'true' : 'false') + '" data-dash-wine-dim="' + DASH_V2_WINE_DIMS[i][0] + '">' + escapeHTML(DASH_V2_WINE_DIMS[i][1]) + '</button>';
+    body.innerHTML = '<div class="bp-g4"><div class="bp-g4-main">' + main + '</div>' +
+      '<div class="bp-g4-top"><div class="bp-g4-tophead"><h4 class="bp-g4-subtitle">Top 10 products</h4>' +
+      dashSegHtml('g4', 'tview', [['chart', 'Chart'], ['table', 'Table']], tview, 'Top 10 view as') + '</div>' + top + '</div></div>';
+    var canvases = body.querySelectorAll('canvas');
+    var ci = 0;
+    if (view === 'chart') {
+      var mc = canvases[ci++];
+      mc.parentNode.style.height = dashV2G4Height(g.labels.length);
+      _dashV2Charts.wine = chart(mc, {
+        type: 'bar',
+        horizontal: true,
+        labels: g.labels,
+        series: g.series,
+        measure: g.measure,
+        ariaLabel: g.ariaLabel,
+        onClick: function (hit) {
+          var bk = g.buckets[hit.index];
+          if (bk) dashV2Go(bk.ids, dashDrillSubject(g.subjectFor(bk.label), bk.ids.length));
+        }
+      });
     }
-    wrap.querySelector('.bp-widget-chips').innerHTML = chips;
-    var note = st.staff === '1' ? 'Including staff batches' : 'Staff batches hidden';
-    wrap.querySelector('.bp-widget-sub').textContent = 'Started batches · ' + model.periodLabel + ' · by ' + dim + ' · ' + note;
-    if (!buckets.length) {
-      dashV2Msg('bp-dash-v2-wine', 'wine', title, dashV2EmptyHtml());
-      return;
+    if (!t.empty && tview === 'chart') {
+      var tc = canvases[ci++];
+      tc.parentNode.style.height = dashV2G4Height(t.labels.length);
+      var legend = [];
+      for (var i = 0; i < t.series.length; i++) legend.push({ label: t.series[i].label, colour: t.series[i].colour });
+      tc.parentNode.nextSibling.innerHTML = dashV2LegendHtml(legend);
+      _dashV2Charts.top10 = chart(tc, {
+        type: 'bar',
+        horizontal: true,
+        stacked: true,
+        labels: t.labels,
+        series: t.series,
+        measure: t.measure,
+        ariaLabel: t.ariaLabel,
+        onClick: function (hit) {
+          var en = t.entries[hit.index];
+          if (en) dashV2Go(en.ids, dashDrillSubject('Top product ' + en.label, en.ids.length));
+        }
+      });
     }
-    var theme = readChartTheme();
-    var labels = [];
-    var data = [];
-    var parts = [];
-    for (var j = 0; j < buckets.length; j++) {
-      labels.push(buckets[j].label);
-      data.push(buckets[j].count);
-      parts.push(buckets[j].label + ' ' + buckets[j].count);
+  }
+
+  // G9 Source mix: stacked column over time, Count | Share.
+  function renderDashV2Source(model, chartState) {
+    var slotId = 'bp-dash-v2-source';
+    if (!model || !document.getElementById(slotId)) return;
+    var view = dashV2Opt('g9', 'view', 'chart') === 'table' ? 'table' : 'chart';
+    var mode = dashV2Opt('g9', 'mode', 'count') === 'share' ? 'share' : 'count';
+    var ctx = dashV2ProdCtx();
+    var g = buildG9Model(ctx.rows, model, { mode: mode, staffIds: ctx.staffIds, catMap: ctx.catMap });
+    var slot = dashV2Widget(slotId, DASH_V2_SOURCE_TITLE);
+    slot.style.display = '';
+    dashV2SetControls(slotId, dashSegHtml('g9', 'mode', [['count', 'Count'], ['share', 'Share']], mode, 'Show as') +
+      dashViewToggleHtml('g9', view));
+    slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
+    dashV2SetNote(slotId, g.note);
+    if (g.empty) { dashV2Msg(slotId, 'source', DASH_V2_SOURCE_TITLE, dashV2EmptyHtml()); return; }
+    if (view === 'table') { dashV2ShowTable(slotId, 'source', 'g9', g.table); return; }
+    if (dashV2ChartBlocked(slotId, 'source', DASH_V2_SOURCE_TITLE, chartState)) return;
+    var el = dashV2Canvas(slotId, DASH_V2_SOURCE_TITLE);
+    el.canvas.parentNode.style.height = '';
+    var legend = [];
+    var i;
+    for (i = 0; i < g.series.length; i++) legend.push({ label: g.series[i].label, colour: g.series[i].colour });
+    el.legend.innerHTML = dashV2LegendHtml(legend);
+    function catIndex(key) {
+      for (var q = 0; q < DASH_SOURCE_CATS.length; q++) { if (DASH_SOURCE_CATS[q][0] === key) return q; }
+      return -1;
     }
-    var el = dashV2Canvas('bp-dash-v2-wine', title);
-    el.legend.innerHTML = '';
-    _dashV2Charts.wine = chart(el.canvas, {
+    _dashV2Charts.source = chart(el.canvas, {
       type: 'bar',
-      horizontal: true,
-      labels: labels,
-      series: [{ key: 'wine', label: 'Wine', data: data, colour: theme.wine }],
-      measure: 'batches',
-      ariaLabel: 'Wine batches started by ' + dim + ', ' + model.periodLabel + '. ' + parts.join(', '),
+      labels: g.labels,
+      series: g.series,
+      stacked: true,
+      percent: g.percent,
+      measure: g.percent ? 'batches' : g.measure,
+      tooltipTotal: !g.percent,
+      tooltipLabel: g.percent ? function (item) {
+        var di = item.datasetIndex;
+        var raw = g.counts[di] ? g.counts[di][item.dataIndex] : 0;
+        var cnt = g.measure === 'litres' ? dashLitresText(raw) : raw + (raw === 1 ? ' batch' : ' batches');
+        return item.dataset.label + ': ' + item.parsed.y + '% (' + cnt + ')';
+      } : undefined,
+      ariaLabel: g.ariaLabel,
       onClick: function (hit) {
-        var bk = _dashV2WineBuckets[hit.index];
-        if (!bk) return;
-        var m = _dashV2Model;
-        openDashDrill({
-          ids: bk.ids.slice(),
-          label: dashDrillLabel({ typeLabel: 'Wine ' + bk.label, verb: 'started', periodLabel: m ? m.periodLabel : '', count: bk.ids.length })
-        });
+        var bi = hit.index;
+        if (!g.cells[bi]) return;
+        var ids;
+        var label = g.labels[bi];
+        var subject;
+        if (hit.key) {
+          var ci = catIndex(hit.key);
+          if (ci < 0) return;
+          ids = g.cells[bi][ci];
+          subject = g.subjectFor(DASH_SOURCE_CATS[ci][1], label);
+        } else {
+          ids = [];
+          for (var q = 0; q < g.cells[bi].length; q++) ids = ids.concat(g.cells[bi][q]);
+          subject = g.subjectFor('', label);
+        }
+        dashV2Go(ids, dashDrillSubject(subject, ids.length));
       }
     });
   }
@@ -6491,13 +6962,12 @@ function parseWaitlistRecipeIds(value) {
       render: function (model, cs) { renderDashV2Cycle(model, cs); }
     },
     {
-      key: 'wine', slot: 'bp-dash-v2-wine', title: 'Wine breakdown', chart: 'wine', needs: [],
-      render: function (model, cs) {
-        var st = model.state;
-        var shown = st.type === 'all' || st.type === 'wine';
-        if (shown && model.cur.started !== 0 && dashV2ChartBlocked('bp-dash-v2-wine', 'wine', 'Wine breakdown', cs)) return;
-        renderDashV2Wine(model);
-      }
+      key: 'g4', slot: 'bp-dash-v2-wine', title: DASH_V2_PRODUCTS_TITLE, chart: 'wine', needs: [],
+      render: function (model, cs) { renderDashV2Products(model, cs); }
+    },
+    {
+      key: 'g9', slot: 'bp-dash-v2-source', title: DASH_V2_SOURCE_TITLE, chart: 'source', needs: [],
+      render: function (model, cs) { renderDashV2Source(model, cs); }
     }
   ];
 
@@ -6631,11 +7101,6 @@ function parseWaitlistRecipeIds(value) {
     if ((el = t.closest('.bp-seg-btn[data-dash-w]'))) { selectDashV2WidgetOpt(el); return; }
     if ((el = t.closest('[data-dash-row]'))) { onDashV2RowClick(el); return; }
     if ((el = t.closest('[data-dash-showall]'))) { onDashV2ShowAll(el); return; }
-    if ((el = t.closest('[data-dash-wine-dim]'))) {
-      var wd = el.getAttribute('data-dash-wine-dim');
-      if (wd && wd !== _dashV2WineDimension) { _dashV2WineDimension = wd; renderDashV2Wine(_dashV2Model); }
-      return;
-    }
     if (t.closest('[data-dash-reset]')) { commitDashV2State(DASH_FILTER_DEFAULTS); return; }
     if ((el = t.closest('[data-dash-apply-range]'))) {
       if (el.disabled) return;
@@ -15028,6 +15493,12 @@ if (typeof module !== 'undefined' && module.exports) {
     buildG2Model: buildG2Model,
     buildG3Model: buildG3Model,
     dashP95: dashP95,
+    DASH_G4_DIMS: DASH_G4_DIMS,
+    DASH_SOURCE_CATS: DASH_SOURCE_CATS,
+    dashSourceCat: dashSourceCat,
+    buildG4Model: buildG4Model,
+    buildTop10Model: buildTop10Model,
+    buildG9Model: buildG9Model,
     DASH_PIPELINE_STAGES: DASH_PIPELINE_STAGES,
     resolveDashFilters: resolveDashFilters,
     serializeDashFilters: serializeDashFilters,
