@@ -627,6 +627,8 @@ function getDashboardData(rows, asOf, filters) {
   var periodBuckets = [];
   var periodByKey = {};
   var startedItems = [];
+  var completedItems = [];
+  var completedBuckets = [];
 
   var activeNow = 0;
   var pendingCount = 0;
@@ -682,6 +684,7 @@ function getDashboardData(rows, asOf, filters) {
     // Review CR-01: only complete rows count, so a reopened batch's stale stamp is ignored.
     if (it.status === 'complete' && inWindow(row.completed_day, win)) {
       completed++;
+      completedItems.push(it);
       completedByType[it.type]++;
       idSets.completed.push(row.batch_id);
       idSets.completedByType[it.type].push(row.batch_id);
@@ -737,6 +740,37 @@ function getDashboardData(rows, asOf, filters) {
       }
     }
     var skel = skelStart ? periodSkeleton(skelStart, win.end, f.group) : [];
+    // Phase 96: completion twin of periodBuckets, keyed by completed_day.
+    var cStart = win.start;
+    if (win.key === 'all') {
+      cStart = null;
+      for (i = 0; i < completedItems.length; i++) {
+        var cdi = String(completedItems[i].row.completed_day).slice(0, 10);
+        if (cStart === null || cdi < cStart) cStart = cdi;
+      }
+    }
+    var cSkel = cStart ? periodSkeleton(cStart, win.end, f.group) : [];
+    var cByKey = {};
+    for (k = 0; k < cSkel.length; k++) {
+      var cb = {
+        key: cSkel[k].key, label: cSkel[k].label, ids: emptyTypeLists(), all: [],
+        counts: emptyTypeCounts(), total: 0, litres: emptyTypeCounts(), totalLitres: 0
+      };
+      completedBuckets.push(cb);
+      cByKey[cb.key] = cb;
+    }
+    for (i = 0; i < completedItems.length; i++) {
+      var ci = completedItems[i];
+      var cbk = cByKey[bucketKeyOf(String(ci.row.completed_day).slice(0, 10), f.group)];
+      if (!cbk) continue;
+      var cl = batchLitres(ci.row, 'completed', ci.type).l;
+      cbk.ids[ci.type].push(ci.row.batch_id);
+      cbk.all.push(ci.row.batch_id);
+      cbk.counts[ci.type]++;
+      cbk.total++;
+      cbk.litres[ci.type] += cl;
+      cbk.totalLitres += cl;
+    }
     for (k = 0; k < skel.length; k++) {
       var pb = {
         key: skel[k].key, label: skel[k].label, ids: emptyTypeLists(), all: [],
@@ -768,6 +802,7 @@ function getDashboardData(rows, asOf, filters) {
     ids: idSets,
     litres: litres,
     periodBuckets: periodBuckets,
+    completedBuckets: completedBuckets,
     mix: { wine: mixWine, staffHidden: staffHidden },
     earliestStart: earliestStart,
     asOf: asOf,
