@@ -3687,6 +3687,29 @@ function parseWaitlistRecipeIds(value) {
     });
   }
 
+  // Phase 95 (D-08/D-10): staff flag write. Boolean only (T-95-27); nested updates + batch_id
+  // so the server whitelist applies and the gb:<batchId> cache busts.
+  function setStaffBatch(batchId, value) {
+    var flag = value === true;
+    return adminApiPost('update_batch', { batch_id: batchId, updates: { staff_batch: flag } }).then(function (res) {
+      if (_dashData) {
+        var ids = _dashData.staffBatchIds;
+        if (!Array.isArray(ids)) { ids = []; _dashData.staffBatchIds = ids; }
+        var at = ids.indexOf(batchId);
+        if (flag && at === -1) ids.push(batchId);
+        if (!flag && at !== -1) ids.splice(at, 1);
+      }
+      if (isDashV2()) refreshDashV2();
+      afterBatchWrite(batchId, { refreshOpenDetail: true, listAffecting: true });
+      return res;
+    });
+  }
+
+  var STAFF_SOURCE_HINTS = {
+    internal: 'Set automatically (internal batch)',
+    research: 'Set automatically (research batch)'
+  };
+
   var TYPE_SOURCE_HINTS = {
     recipe: 'Set automatically (recipe)',
     zoho: 'Set automatically (Zoho product)',
@@ -7872,6 +7895,20 @@ function parseWaitlistRecipeIds(value) {
       html += '<span class="bp-stat-label" id="bp-detail-type-hint" style="display:block;">' + escapeHTML(typeInfo.hint) + '</span>';
       html += '</span></div>';
     }
+    // Phase 95 (D-08): staff flag, right after Type
+    var isStaff = b.staff_batch === true || b.staff_batch === 'true' || b.staff_batch === 1;
+    if (statusKey === 'disabled' || statusKey === 'deleted') {
+      html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Staff batch</span><span id="bp-detail-staff-text">' + (isStaff ? 'Yes' : 'No') + '</span></div>';
+    } else {
+      var staffSrc = String(b.source || '').trim().toLowerCase();
+      var staffHint = !isStaff ? '' : (STAFF_SOURCE_HINTS[staffSrc] || 'Set by hand');
+      html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Staff batch</span><span>';
+      html += '<label class="bp-detail-staff-label" style="display:flex;align-items:center;gap:8px;min-height:44px;">';
+      html += '<input type="checkbox" id="bp-detail-staff"' + (isStaff ? ' checked' : '') + ' style="width:44px;height:44px;margin:0;">';
+      html += '<span>Staff, family or R&amp;D (hidden from mix charts)</span></label>';
+      if (staffHint) html += '<span class="bp-stat-label" id="bp-detail-staff-hint" style="display:block;">' + escapeHTML(staffHint) + '</span>';
+      html += '</span></div>';
+    }
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Customer</span><span id="bp-detail-customer">' + escapeHTML(getCustomerDisplayName(b) || '\u2014') + '</span></div>';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Email</span><span id="bp-detail-email">' + escapeHTML(b.customer_email || '\u2014') + '</span></div>';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Phone</span><span id="bp-detail-phone">' + escapeHTML(b.customer_phone || '\u2014') + '</span></div>';
@@ -8065,6 +8102,24 @@ function parseWaitlistRecipeIds(value) {
           typeSelect.value = prevType;
           typeSelect.disabled = false;
           showToast('Could not update type. Try again.', 'error');
+        });
+      });
+    }
+    var staffBox = document.getElementById('bp-detail-staff');
+    if (staffBox) {
+      staffBox.addEventListener('change', function () {
+        var nextStaff = staffBox.checked;
+        staffBox.disabled = true;
+        setStaffBatch(b.batch_id, nextStaff).then(function () {
+          b.staff_batch = nextStaff;
+          staffBox.disabled = false;
+          var hintEl = document.getElementById('bp-detail-staff-hint');
+          if (hintEl) hintEl.textContent = nextStaff ? 'Set by hand' : '';
+          showToast('Staff flag updated', 'success');
+        }).catch(function () {
+          staffBox.checked = !nextStaff;
+          staffBox.disabled = false;
+          showToast('Could not update staff flag. Try again.', 'error');
         });
       });
     }
