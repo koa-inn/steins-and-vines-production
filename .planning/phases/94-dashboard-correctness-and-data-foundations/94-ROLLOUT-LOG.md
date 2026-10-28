@@ -262,3 +262,14 @@ Awaiting the owner's sign-off on the live dashboard (94-12 final).
 ## Owner sign-off
 
 The owner checked the live production dashboard. Result, 2026-10-28T01:44:05Z, verbatim: **"signed off"**. Phase 94's rollout is complete.
+
+## Production release 2 — review fixes (2026-10-28)
+
+- **Owner approval:** "release 3f64da2d". The release came after staging verification of CR-01, WR-01 and WR-02 on a
+  throwaway batch (94-REVIEW-FIX.md). Staging ran `e1aec934`; `3f64da2d` adds only `.planning` docs and was pushed
+  to origin first.
+- **Deploy:** `git push production 3f64da2d:main --force` at 02:52:20Z (`141901a7..3f64da2d`, fast-forward). Tagged
+  `prod-20261028-1`. Railway `d8ffd7bd` SUCCESS. `/health` 200, `BATCHES_STORE=postgres`. The rollback target is `896f6942`
+  (prod-20261027-1).
+- **In-container check:** the `includeType` read path is present and body-parser is 1.20.9. The production repo `Tests`
+  middleware job passed, including the audit step that failed on 10-27. No migration and no data change.

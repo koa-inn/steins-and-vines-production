@@ -59,6 +59,8 @@ error + no tracking, but avoid it):
 
 | Date | Git SHA | Railway Deploy ID | Deploy URL | Notes |
 |------|---------|-------------------|------------|-------|
+| 2026-10-28 02:52 UTC | `3f64da2d` | `d8ffd7bd-3149-4ea1-ad18-c9fd5421cfb6` | manual `git push production 3f64da2d:main` (tag `prod-20261028-1`) | Phase 94 review fixes CR-01 (reopen clears completed_at), WR-01..04; body-parser 1.20.9 + qs 6.16.2 security patch |
+| 2026-10-27 22:10 UTC | `141901a7` | `896f6942-dff8-4ccc-af7b-42ae658281ce` | manual `git push production 141901a7:main` (tag `prod-20261027-1`) | Phase 94 BrewPad dashboard correctness + batch_type (migration 0007), get_dashboard_stats, backfill CLIs |
 | 2026-10-22 23:57 UTC | `2b397c89` | `unknown (TIMEOUT-UNKNOWN)` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/39872485531) | Kiosk catalog speed-up, BrewPad list + task-count fixes, links page tracking/consent/hours, newsletter signup + staff alerts (site + checkout), follow-redirects security patch |
 | 2026-10-17 20:09 UTC | `bb879a8c` | `ea61a171-2ba5-4bf2-9c27-e430ade0cbd2` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/39065193738) | Beer page em dashes, By-customer payments rule, Ledger arrow fixes |
 | 2026-10-17 19:47 UTC | `d12b4b9b` | `b3fd002a-f9e1-4f72-bbf0-2791866c086e` | [Run](https://github.com/koa-inn/steins-and-vines-staging/actions/runs/39063576769) | 86-19 release: Phase 86/87 code dormant (sheets), Phases 89/90/92/93 live |
