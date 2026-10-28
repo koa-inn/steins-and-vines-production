@@ -1323,6 +1323,185 @@ function wineBreakdownBuckets(rows, skuLookup, dimension, topN) {
   return result;
 }
 
+// ===== Phase 95-05: lazy Chart.js loader + shared chart() helper =====
+var CHART_JS_SRC = 'js/vendor/chart.umd.min.js?v=4.5.1';
+var _chartJsPromise = null;
+var _chartTheme = null;
+
+function readChartTheme() {
+  if (_chartTheme) return _chartTheme;
+  var cs = (typeof window !== 'undefined' && window.getComputedStyle && document.documentElement)
+    ? window.getComputedStyle(document.documentElement) : null;
+  function v(name, fallback) {
+    var val = cs ? String(cs.getPropertyValue(name) || '').trim() : '';
+    return val || fallback;
+  }
+  _chartTheme = {
+    wine: v('--chart-wine', '#6e1a2c'),
+    cider: v('--chart-cider', '#a8841a'),
+    beer: v('--chart-beer', '#9a4e0c'),
+    other: v('--chart-other', '#9a8672'),
+    separator: v('--cellar-raised', '#faf8f2'),
+    grid: v('--ledger-soft', 'rgba(119, 70, 45, 0.07)'),
+    axis: v('--ledger-line', 'rgba(119, 70, 45, 0.12)'),
+    tick: v('--ink-secondary', '#6b5442'),
+    tooltipBg: v('--ink-primary', '#2c2218'),
+    tooltipText: v('--cellar-raised', '#faf8f2'),
+    font: v('--font-body', "'Lato', 'Helvetica Neue', Arial, sans-serif")
+  };
+  return _chartTheme;
+}
+
+function loadChartJs() {
+  if (typeof window !== 'undefined' && window.Chart) return Promise.resolve(window.Chart);
+  if (_chartJsPromise) return _chartJsPromise;
+  _chartJsPromise = new Promise(function (resolve, reject) {
+    var s = document.createElement('script');
+    s.src = CHART_JS_SRC;
+    s.async = true;
+    s.onload = function () {
+      if (window.Chart) {
+        try { window.Chart.defaults.font.family = readChartTheme().font; } catch (e) { /* defaults optional */ }
+        resolve(window.Chart);
+      } else {
+        _chartJsPromise = null;
+        reject(new Error('Chart.js loaded but window.Chart is missing'));
+      }
+    };
+    s.onerror = function () {
+      _chartJsPromise = null;
+      if (s.parentNode) s.parentNode.removeChild(s);
+      reject(new Error('Chart.js failed to load'));
+    };
+    document.head.appendChild(s);
+  });
+  return _chartJsPromise;
+}
+
+function chart(canvas, cfg) {
+  var Chart = window.Chart;
+  var theme = readChartTheme();
+  var existing = Chart.getChart ? Chart.getChart(canvas) : null;
+  if (existing) existing.destroy();
+
+  var isDoughnut = cfg.type === 'doughnut';
+  var litres = cfg.measure === 'litres';
+  var fmtNum = function (n) {
+    return String(Math.round(Number(n) * 10) / 10).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  };
+  var fmtValue = function (n) { return litres ? fmtNum(n) + ' L' : String(n); };
+  var valueOf = function (item) {
+    var p = item && item.parsed;
+    if (typeof p === 'number') return p;
+    if (!p) return 0;
+    return cfg.horizontal ? p.x : p.y;
+  };
+
+  var series = cfg.series || [];
+  var datasets = [];
+  for (var i = 0; i < series.length; i++) {
+    var ds = {
+      label: series[i].label,
+      data: series[i].data,
+      backgroundColor: series[i].colour,
+      borderColor: theme.separator,
+      borderWidth: (cfg.stacked || isDoughnut) ? 2 : 0,
+      borderRadius: 3,
+      borderSkipped: false,
+      _key: series[i].key
+    };
+    if (cfg.type === 'line') {
+      ds.borderColor = series[i].colour;
+      ds.borderWidth = 2;
+    }
+    datasets.push(ds);
+  }
+
+  var reduced = false;
+  try { reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { reduced = false; }
+
+  var valueScale = {
+    beginAtZero: true,
+    stacked: !!cfg.stacked,
+    grid: { color: theme.grid },
+    border: { color: theme.axis },
+    ticks: { color: theme.tick, font: { size: 12 } }
+  };
+  if (litres) {
+    valueScale.ticks.callback = function (val) { return fmtNum(val) + ' L'; };
+  } else {
+    valueScale.ticks.precision = 0;
+  }
+  var labelScale = {
+    stacked: !!cfg.stacked,
+    grid: { display: false },
+    border: { color: theme.axis },
+    ticks: { color: theme.tick, font: { size: 12 } }
+  };
+
+  var options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: reduced ? false : { duration: 200 },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: theme.tooltipBg,
+        titleColor: theme.tooltipText,
+        bodyColor: theme.tooltipText,
+        footerColor: theme.tooltipText,
+        padding: 8,
+        titleFont: { size: 12 },
+        bodyFont: { size: 12 },
+        footerFont: { size: 12 },
+        callbacks: {
+          label: function (item) {
+            var name = (item.dataset && item.dataset.label) || item.label || '';
+            var val = valueOf(item);
+            return name + ': ' + (litres ? fmtNum(val) + ' L' : val + ' batches');
+          },
+          footer: function (items) {
+            if (!cfg.tooltipTotal) return '';
+            var sum = 0;
+            for (var j = 0; j < (items || []).length; j++) sum += Number(valueOf(items[j])) || 0;
+            return 'Total: ' + fmtValue(sum);
+          }
+        }
+      }
+    }
+  };
+  if (!isDoughnut) {
+    options.scales = cfg.horizontal ? { x: valueScale, y: labelScale } : { x: labelScale, y: valueScale };
+    if (cfg.horizontal) options.indexAxis = 'y';
+  }
+
+  if (typeof cfg.onClick === 'function') {
+    options.onClick = function (evt, elements, chartInst) {
+      var inst = chartInst || Chart.getChart(canvas);
+      if (!inst) return;
+      var hit = inst.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+      if (hit && hit.length) {
+        var key = series[hit[0].datasetIndex] ? series[hit[0].datasetIndex].key : null;
+        cfg.onClick({ index: hit[0].index, key: key });
+        return;
+      }
+      var col = inst.getElementsAtEventForMode(evt, 'index', { intersect: false }, true);
+      if (col && col.length) cfg.onClick({ index: col[0].index, key: null });
+    };
+    canvas.style.cursor = 'pointer';
+  }
+
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', cfg.ariaLabel || '');
+
+  return new Chart(canvas, {
+    type: cfg.type,
+    data: { labels: cfg.labels, datasets: datasets },
+    options: options
+  });
+}
+
 // Session staleness check — returns true if token is older than thresholdMs
 function isSessionStale(lastTokenTime, thresholdMs) {
   if (!lastTokenTime || !thresholdMs) return true;
@@ -12869,6 +13048,12 @@ if (typeof module !== 'undefined' && module.exports) {
     dashDrillLabel: dashDrillLabel,
     mergeWineSkuLookup: mergeWineSkuLookup,
     wineBreakdownBuckets: wineBreakdownBuckets,
+    loadChartJs: loadChartJs,
+    readChartTheme: readChartTheme,
+    chart: chart,
+    _loadChartJsForTest: loadChartJs,
+    _chartForTest: chart,
+    _resetChartJsForTest: function () { _chartJsPromise = null; _chartTheme = null; },
     filterBatchesByNeedsType: filterBatchesByNeedsType,
     bucketBatchesByMonthType: bucketBatchesByMonthType,
     buildSkuLookup: buildSkuLookup,
