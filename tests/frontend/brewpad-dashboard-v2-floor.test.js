@@ -435,3 +435,423 @@ describe('renderers', function () {
     expect(empties).toEqual(['No open tasks are overdue.', 'No tasks were ticked off in this period.']);
   });
 });
+
+// ===== Phase 96-08: G6 Vessels and G8 Fermentation =====
+function ves(id, type, cap, archived) {
+  return { vessel_id: id, type: type, capacity_liters: cap, archived: !!archived };
+}
+
+function vesselFixture() {
+  return [
+    ves('CB-1', 'Carboy', 23), ves('CB-2', 'Carboy', 23), ves('CB-3', 'Carboy', null),
+    ves('CB-OLD', 'Carboy', 23, true),
+    ves('BK-1', 'Bucket', 30),
+    ves('KG-1', 'Keg', 19),
+    ves('CF-1', 'Conical Fermenter', 100), ves('CF-2', 'Conical Fermenter', 100)
+  ];
+}
+
+function vesselBatches() {
+  return [
+    lean('W1', 'wine', 'primary', { vessel_id: 'CB-1', product_name: 'Merlot' }),
+    lean('W2', 'wine', 'secondary', { vessel_id: 'CB-1', product_name: 'Shiraz' }),
+    lean('B1', 'beer', 'primary', { vessel_id: 'CF-1', product_name: 'Pale Ale' }),
+    lean('B2', 'beer', 'primary', { vessel_id: 'CF-1', product_name: 'IPA' }),
+    lean('C1', 'cider', 'primary', { vessel_id: 'CB-OLD', product_name: 'Apple' }),
+    lean('W3', 'wine', 'primary', { vessel_id: 'ZZ-9', product_name: 'Rose' }),
+    lean('W4', 'wine', 'primary', { vessel_id: '', product_name: 'Pinot' }),
+    lean('W5', 'wine', 'complete', { vessel_id: 'CB-2', completed_day: d(-1) }),
+    lean('W6', 'wine', 'pending', { vessel_id: 'BK-1' })
+  ];
+}
+
+function g6(c, rows, ves2) {
+  return bp.buildG6Model(rows || vesselBatches(), ves2 || vesselFixture(), c || {});
+}
+
+describe('buildG6Model', function () {
+  test('capacity grouped by stored type in fixed order; shared vessel and archived handled', function () {
+    var g = g6();
+    expect(g.labels).toEqual(['Carboy', 'Bucket', 'Keg', 'Conical Fermenter']);
+    // Carboy: CB-1 in use (shared by two batches, counted once); CB-2, CB-3 free; CB-OLD archived excluded
+    expect(g.types[0].total).toBe(3);
+    expect(g.types[0].inUse).toBe(1);
+    expect(g.series[0].data).toEqual([1, 0, 0, 1]);
+    expect(g.series[1].data).toEqual([2, 1, 1, 1]);
+    expect(g.label(0)).toBe('1 of 3');
+    expect(bp.DASH_VESSEL_TYPE_ORDER[0]).toBe('Carboy');
+  });
+
+  test('in use drill is the active batches on that type', function () {
+    var g = g6();
+    expect(g.types[0].ids.slice().sort()).toEqual(['W1', 'W2']);
+    expect(g.types[0].subject).toBe('Carboys in use');
+    expect(g.table.rows[0].cells[1].subject).toBe('Carboys in use');
+  });
+
+  test('litres mode sums known capacities and notes vessels with none', function () {
+    var g = g6({ mode: 'litres' });
+    expect(g.series[0].data).toEqual([23, 0, 0, 100]);
+    expect(g.series[1].data).toEqual([23, 30, 19, 100]);
+    expect(g.label(3)).toBe('100 of 200 L');
+    expect(g.subtitle).toBe('Right now · all batch types and sources · vessels with no capacity recorded are left out');
+    expect(g6().subtitle).toBe('Right now · all batch types and sources');
+  });
+
+  test('shared and no-vessel lists', function () {
+    var g = g6();
+    expect(g.shared.map(function (s) { return s.primary; })).toEqual(['CB-1 · Carboy', 'CF-1 · Conical Fermenter']);
+    expect(g.shared[0].right).toBe('2 batches');
+    expect(g.shared[0].secondary).toBe('W1, W2');
+    expect(g.shared[0].subject).toBe('Shared vessel CB-1');
+    expect(g.noVessel.map(function (s) { return s.primary; })).toEqual(['W4']);
+    expect(g.noVessel[0].secondary).toBe('Pinot · Wine');
+    expect(g.noVessel[0].ids).toEqual(['W4']);
+  });
+
+  test('a vessel id missing from the vessel list is labelled Unknown type', function () {
+    var g = g6({}, vesselBatches().concat([lean('X1', 'wine', 'primary', { vessel_id: 'QQ-1' }), lean('X2', 'wine', 'primary', { vessel_id: 'QQ-1' })]));
+    expect(g.shared.map(function (s) { return s.primary; })).toContain('QQ-1 · Unknown type');
+  });
+
+  test('empty and banned words', function () {
+    expect(g6({}, [], []).empty).toBe(true);
+    var g = g6();
+    var txt = JSON.stringify([g.shared, g.noVessel, g.subtitle, g.note, g.sharedNote, g.table]).toLowerCase();
+    ['conflict', 'double-booked', 'error'].forEach(function (s) { expect(txt).not.toContain(s); });
+  });
+});
+
+function fBatches() {
+  return [
+    lean('E1', 'beer', 'primary', { start_date: d(-10), product_name: 'Pale Ale' }),
+    lean('E2', 'cider', 'secondary', { start_date: d(-6), product_name: 'Dry Cider' }),
+    lean('E3', 'beer', 'primary', { start_date: d(-3), product_name: 'Stout' }),
+    lean('E4', 'cider', 'primary', { start_date: d(-8), product_name: 'Perry', source: 'online' }),
+    lean('E5', 'wine', 'primary', { start_date: d(-9), product_name: 'Merlot' }),
+    lean('E6', 'beer', 'complete', { start_date: d(-30), completed_day: d(-1) }),
+    lean('E7', 'beer', 'pending', { start_date: d(-2) })
+  ];
+}
+
+function rd(batch, day, plato, extra) {
+  return Object.assign({ batch_id: batch, reading_at: day + 'T10:00:00Z', reading_day: day, degrees_plato: plato, temperature: 18.5, ph: null }, extra || {});
+}
+
+function fReadings() {
+  return [
+    rd('E1', d(-9), 12.5), rd('E1', d(-5), 8.1), rd('E1', d(-1), 4.2),
+    rd('E2', d(-4), 11),
+    rd('E5', d(-8), 20),
+    rd('E6', d(-20), 10),
+    rd('E4', d(-7), null)
+  ];
+}
+
+function g8(over, c, meta, readings, rows) {
+  var r = rows || fBatches();
+  var st = Object.assign({}, bp.DASH_FILTER_DEFAULTS, over || {});
+  var m = bp.buildDashV2Model(r, ASOF, st, {}, {});
+  return bp.buildG8Model(r, readings || fReadings(), meta || {}, m, c || {});
+}
+
+describe('buildG8Model', function () {
+  test('all mode: one series per batch with readings, wine and complete never plotted', function () {
+    var g = g8();
+    expect(g.series.map(function (s) { return s.key; })).toEqual(['E1', 'E2']);
+    expect(g.series[0].data).toEqual([{ x: 1, y: 12.5 }, { x: 5, y: 8.1 }, { x: 9, y: 4.2 }]);
+    expect(g.legend.map(function (l) { return l.label; })).toEqual(['Beer', 'Cider']);
+    expect(g.choices.map(function (c2) { return c2[0]; })).toEqual(['all', 'E1', 'E2']);
+    expect(g.stats).toBeNull();
+  });
+
+  test('x is clamped at zero when a reading predates the start', function () {
+    var g = g8({}, {}, {}, [rd('E3', d(-5), 9)]);
+    expect(g.series[0].data[0].x).toBe(0);
+  });
+
+  test('single batch: expected series absent when og/target_fg null', function () {
+    var g = g8({}, { batch: 'E1' }, { E1: { og: null, target_fg: null, planned_days: 14 } });
+    expect(g.series.map(function (s) { return s.key; })).toEqual(['E1']);
+    expect(g.note).toBe('No expected curve: this recipe has no OG or target FG.');
+    expect(g.stats.map(function (s) { return s[1]; })).toEqual(['–', '4.2 °P', '–', '–', '–']);
+  });
+
+  test('single batch: dashed expected series and stats when all known', function () {
+    var g = g8({}, { batch: 'E1' }, { E1: { og: 12.5, target_fg: 3, planned_days: 14, recipe_name: 'Pale' } });
+    var ex = g.series[1];
+    expect(ex.key).toBe('expected');
+    expect(ex.borderDash).toEqual([6, 4]);
+    expect(ex.data).toEqual([{ x: 0, y: 12.5 }, { x: 14, y: 3 }]);
+    expect(g.stats[3][1]).toBe('76%');
+    expect(g.stats[4][1]).toBe((Math.round(bp.calcAbv(12.5, 3) * 10) / 10).toFixed(1) + '%');
+    expect(g.note).toBe('');
+    expect(g.choices[1][1]).toBe('E1 · Pale');
+  });
+
+  test('known og and fg but no schedule length', function () {
+    var g = g8({}, { batch: 'E1' }, { E1: { og: 12.5, target_fg: 3, planned_days: null } });
+    expect(g.series.length).toBe(1);
+    expect(g.note).toBe('No expected curve: this batch has no fermentation schedule.');
+    expect(g.stats[3][1]).toBe('76%');
+  });
+
+  test('stale selected batch falls back to all', function () {
+    expect(g8({}, { batch: 'NOPE' }).batch).toBe('all');
+    expect(g8({}, { batch: 'E5' }).batch).toBe('all');
+  });
+
+  test('caps at 20 most recent with a note', function () {
+    var rows = [];
+    var rds = [];
+    for (var i = 0; i < 22; i++) {
+      var id = 'M' + (i < 10 ? '0' : '') + i;
+      rows.push(lean(id, 'beer', 'primary', { start_date: d(-30) }));
+      rds.push(rd(id, d(-25 + i), 10));
+    }
+    var g = g8({}, {}, {}, rds, rows);
+    expect(g.series.length).toBe(20);
+    expect(g.series[0].key).toBe('M21');
+    expect(g.note).toBe('Showing the 20 most recent. Pick a batch to see others.');
+  });
+
+  test('No readings yet: active beer/cider only, day desc', function () {
+    var g = g8();
+    expect(g.noReadings.map(function (n) { return n.primary; })).toEqual(['E4', 'E3']);
+    expect(g.noReadings[0].right).toBe('Day 8');
+    expect(g.noReadings[0].secondary).toBe('Perry · Cider');
+  });
+
+  test('global Source narrows; Type wine says so; no readings state', function () {
+    expect(g8({ source: 'online' }).noReadings.map(function (n) { return n.primary; })).toEqual(['E4']);
+    var w = g8({ type: 'wine' });
+    expect(w.state).toBe('wrongType');
+    expect(w.stateText).toBe('Fermentation curves cover beer and cider.');
+    var none = g8({}, {}, {}, [rd('E5', d(-1), 5)]);
+    expect(none.state).toBe('noReadings');
+    expect(none.stateText).toBe('No Plato readings have been recorded yet.');
+  });
+
+  test('table: newest first, dashes for blanks; banned words absent', function () {
+    var g = g8();
+    expect(g.table.columns.map(function (c2) { return c2.label; })).toEqual(['Batch', 'Type', 'Day', '°P', 'Temp', 'pH']);
+    expect(g.table.rows[0].cells[0].text).toBe('E1');
+    expect(g.table.rows[0].cells[5].text).toBe('–');
+    expect(g.table.rows.length).toBe(4);
+    var txt = JSON.stringify([g.note, g.noReadings, g.noReadingsEmpty, g.subtitle, g.table.columns]).toLowerCase();
+    ['due', 'overdue', 'missing'].forEach(function (s) { expect(txt).not.toContain(s); });
+  });
+});
+
+describe('G6 and G8 renderers', function () {
+  var Fake;
+
+  function makeFakeChart() {
+    function FakeChart(canvas, config) {
+      this.canvas = canvas;
+      this.config = config;
+      this.destroyed = false;
+      FakeChart.instances.push(this);
+    }
+    FakeChart.instances = [];
+    FakeChart.prototype.destroy = function () { this.destroyed = true; };
+    FakeChart.prototype.resize = function () {};
+    FakeChart.prototype.getElementsAtEventForMode = function () { return []; };
+    FakeChart.getChart = function (canvas) {
+      for (var i = FakeChart.instances.length - 1; i >= 0; i--) {
+        if (FakeChart.instances[i].canvas === canvas && !FakeChart.instances[i].destroyed) return FakeChart.instances[i];
+      }
+      return null;
+    };
+    FakeChart.defaults = { font: {} };
+    return FakeChart;
+  }
+
+  function allRows() { return vesselBatches().concat(fBatches()); }
+
+  async function renderV2(dash) {
+    document.body.innerHTML =
+      '<div><button type="button" id="bp-dash-switch" hidden></button></div>' +
+      '<div id="bp-dashboard-inner"></div><div id="bp-panel-dashboard"></div>' +
+      '<div id="bp-panel-batches"><div id="bp-batch-list-pane"></div></div>' +
+      '<div id="bp-batch-detail-pane"></div><div id="bp-toast-container"></div>';
+    bp._setStateForTest({
+      _allBatchesData: allRows(),
+      _dashData: Object.assign({ asOf: ASOF, batches: allRows(), staffBatchIds: [], batchMeta: [], vessels: vesselFixture(), readings: fReadings() }, dash),
+      _dashSummary: {}
+    });
+    window.history.replaceState(null, '', '/brewpad.html?dash=v2');
+    bp._initDashV2FlagForTest();
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    bp._renderDashboardForTest();
+    await flush();
+  }
+
+  function chartOf(slot) {
+    var cv = document.querySelector('#' + slot + ' canvas');
+    return cv ? Fake.getChart(cv) : null;
+  }
+  function drill() { return bp.getStateForTest()._dashDrill; }
+  function hit(c, index, datasetIndex) {
+    Fake.prototype.getElementsAtEventForMode = function (e, mode) { return mode === 'nearest' ? [{ index: index, datasetIndex: datasetIndex || 0 }] : []; };
+    c.config.options.onClick({}, [], c);
+  }
+
+  beforeEach(function () {
+    window.localStorage.clear();
+    Object.keys(bp._dashV2FrameForTest.opts).forEach(function (k) { delete bp._dashV2FrameForTest.opts[k]; });
+    bp._resetChartJsForTest();
+    Fake = makeFakeChart();
+    window.Chart = Fake;
+    Array.prototype.forEach.call(document.head.querySelectorAll('script'), function (s) { s.parentNode.removeChild(s); });
+  });
+
+  afterEach(function () {
+    delete window.Chart;
+    window.localStorage.clear();
+  });
+
+  test('Vessels: chart, table equal, lists, no red styling', async function () {
+    await renderV2({});
+    expect(document.querySelector('#bp-dash-v2-vessels .bp-widget-title').textContent).toBe('Vessels');
+    expect(document.querySelector('#bp-dash-v2-vessels .bp-widget-note').textContent).toBe('Ignores the filters above');
+    var c = chartOf('bp-dash-v2-vessels');
+    expect(c.config.data.labels).toEqual(['Carboy', 'Bucket', 'Keg', 'Conical Fermenter']);
+    var chartData = c.config.data.datasets.map(function (ds) { return ds.data.slice(); });
+    document.querySelector('[data-dash-w="g6:view:table"]').click();
+    var rows = document.querySelectorAll('#bp-dash-v2-vessels tbody tr');
+    expect(rows.length).toBe(4);
+    Array.prototype.forEach.call(rows, function (tr, i) {
+      expect(+tr.children[1].textContent).toBe(chartData[0][i]);
+      expect(+tr.children[2].textContent).toBe(chartData[1][i]);
+    });
+    var html = document.getElementById('bp-dash-v2-vessels').innerHTML;
+    expect(html).not.toContain('--batch-danger');
+    expect(html).not.toContain('bp-delta--bad');
+    var txt = document.getElementById('bp-dash-v2-vessels').textContent.toLowerCase();
+    ['conflict', 'double-booked', 'error'].forEach(function (s) { expect(txt).not.toContain(s); });
+    expect(txt).toContain('shared vessels (2)');
+    expect(txt).toContain('no vessel (6)');
+  });
+
+  test('Vessels: In use click drills, Available is inert, Litres segment', async function () {
+    await renderV2({});
+    var c = chartOf('bp-dash-v2-vessels');
+    expect(c.config.data.datasets[0]._key).toBe('inuse');
+    hit(c, 0, 0);
+    expect(drill().label).toBe('From dashboard: Carboys in use · 2 batches');
+    bp._clearDashDrillForTest();
+    hit(chartOf('bp-dash-v2-vessels'), 0, 1);
+    expect(drill()).toBeNull();
+    document.querySelector('[data-dash-w="g6:mode:litres"]').click();
+    expect(document.querySelector('#bp-dash-v2-vessels .bp-widget-sub').textContent).toContain('vessels with no capacity recorded are left out');
+  });
+
+  test('Vessels: lists drill, no-vessel row opens the batch without a banner, Show all', async function () {
+    var rows = allRows();
+    var extra = [];
+    for (var i = 0; i < 6; i++) extra.push(lean('N' + i, 'wine', 'primary', { vessel_id: '' }));
+    await renderV2({ batches: rows.concat(extra) });
+    var sharedRow = document.querySelector('#bp-dash-v2-vessels [data-dash-row^="g6:"]');
+    sharedRow.click();
+    expect(drill().label).toBe('From dashboard: Shared vessel CB-1 · 2 batches');
+    bp._clearDashDrillForTest();
+    var btn = document.querySelector('[data-dash-showall="g6:novessel"]');
+    expect(btn.textContent).toBe('Show all 12');
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
+    var before = document.querySelectorAll('#bp-dash-v2-vessels .bp-list')[1].children.length;
+    expect(before).toBe(5);
+    btn.click();
+    btn = document.querySelector('[data-dash-showall="g6:novessel"]');
+    expect(btn.getAttribute('aria-expanded')).toBe('true');
+    expect(document.querySelectorAll('#bp-dash-v2-vessels .bp-list')[1].children.length).toBe(12);
+    var rowsEls = document.querySelectorAll('#bp-dash-v2-vessels .bp-list')[1].querySelectorAll('[data-dash-row]');
+    rowsEls[0].click();
+    expect(drill()).toBeNull();
+  });
+
+  test('Vessels: lists render while Chart.js is unavailable', async function () {
+    delete window.Chart;
+    bp._resetChartJsForTest();
+    await renderV2({});
+    expect(document.querySelectorAll('#bp-dash-v2-vessels .bp-list-row').length).toBeGreaterThan(0);
+  });
+
+  test('Fermentation: curves, legend types, click opens detail, expected inert', async function () {
+    await renderV2({});
+    var c = chartOf('bp-dash-v2-ferment');
+    expect(c.config.type).toBe('line');
+    expect(c.config.data.datasets.map(function (ds) { return ds._key; })).toEqual(['E1', 'E2']);
+    expect(document.querySelector('#bp-dash-v2-ferment .bp-widget-sub').textContent).toBe('Plato readings · active beer and cider');
+    hit(c, 0, 1);
+    expect(drill()).toBeNull();
+    var legend = document.querySelector('#bp-dash-v2-ferment .bp-chart-legend').textContent;
+    expect(legend).toContain('Beer');
+    expect(legend).toContain('Cider');
+    var lis = document.querySelectorAll('#bp-dash-v2-ferment .bp-list')[0].textContent;
+    expect(lis).toContain('E4');
+    expect(document.querySelector('#bp-dash-v2-ferment h4').textContent).toBe('No readings yet (5)');
+  });
+
+  test('Fermentation: single batch adds the dashed expected series only with og, target FG and schedule', async function () {
+    await renderV2({ batchMeta: [{ batch_id: 'E1', og: 12.5, target_fg: 3, planned_days: 14, recipe_name: 'Pale' }] });
+    var sel = document.querySelector('[data-dash-wsel="g8:batch"]');
+    sel.value = 'E1';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    var c = chartOf('bp-dash-v2-ferment');
+    expect(c.config.data.datasets.map(function (ds) { return ds._key; })).toEqual(['E1', 'expected']);
+    expect(c.config.data.datasets[1].borderDash).toEqual([6, 4]);
+    expect(document.querySelector('#bp-dash-v2-ferment .bp-stat-row').textContent).toContain('76%');
+    hit(c, 0, 1);
+    expect(drill()).toBeNull();
+  });
+
+  test('Fermentation: without OG the note replaces the curve; stats show dashes', async function () {
+    await renderV2({});
+    var sel = document.querySelector('[data-dash-wsel="g8:batch"]');
+    sel.value = 'E1';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.querySelector('#bp-dash-v2-ferment .bp-dash-foot-note').textContent).toBe('No expected curve: this recipe has no OG or target FG.');
+    expect(chartOf('bp-dash-v2-ferment').config.data.datasets.length).toBe(1);
+  });
+
+  test('Fermentation: table equals the plotted points; banned words absent', async function () {
+    await renderV2({});
+    var c = chartOf('bp-dash-v2-ferment');
+    var n = c.config.data.datasets.reduce(function (a, ds) { return a + ds.data.length; }, 0);
+    document.querySelector('[data-dash-w="g8:view:table"]').click();
+    expect(document.querySelectorAll('#bp-dash-v2-ferment tbody tr').length).toBe(n);
+    var txt = document.getElementById('bp-dash-v2-ferment').textContent.toLowerCase();
+    ['overdue', 'missing', ' due'].forEach(function (s) { expect(txt).not.toContain(s); });
+    expect(document.getElementById('bp-dash-v2-ferment').innerHTML).not.toContain('--batch-danger');
+  });
+
+  test('Fermentation: a No readings yet row opens the batch detail', async function () {
+    await renderV2({});
+    var row = document.querySelector('#bp-dash-v2-ferment .bp-list [data-dash-row]');
+    row.click();
+    expect(drill()).toBeNull();
+  });
+
+  test('Fermentation: Type Wine and empty states', async function () {
+    await renderV2({});
+    document.querySelector('[data-dash-ctl="type"][data-val="wine"]').click();
+    expect(document.querySelector('#bp-dash-v2-ferment .bp-empty').textContent).toBe('Fermentation curves cover beer and cider.');
+    document.querySelector('[data-dash-ctl="type"][data-val="all"]').click();
+    await renderV2({ readings: [] });
+    expect(document.querySelector('#bp-dash-v2-ferment .bp-empty').textContent).toBe('No Plato readings have been recorded yet.');
+  });
+
+  test('without vessels or readings both widgets say so', async function () {
+    await renderV2({ vessels: undefined, readings: undefined });
+    ['bp-dash-v2-vessels', 'bp-dash-v2-ferment'].forEach(function (id) {
+      expect(document.querySelector('#' + id + ' .bp-empty').textContent).toBe('Not available yet. Reopen the Dashboard tab to refresh.');
+    });
+  });
+
+  test('list text is escaped', async function () {
+    var rows = allRows().concat([lean('X1', 'wine', 'primary', { vessel_id: '', product_name: '<img src=x onerror=alert(1)>' })]);
+    await renderV2({ batches: rows });
+    expect(document.querySelector('#bp-dash-v2-vessels img')).toBeNull();
+  });
+});

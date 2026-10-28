@@ -2563,6 +2563,300 @@ function buildG7Model(rows, taskRows, model, ctx) {
   };
 }
 
+// ===== Phase 96-08: G6 Vessels and G8 Fermentation (pure models; read _dashData.vessels / readings / batchMeta) =====
+var DASH_VESSEL_TYPE_ORDER = ['Carboy', 'Bucket', 'Keg', 'Drum', 'Boil Kettle', 'Conical Fermenter', 'Mash Tun'];
+
+function dashSortIds(a, b) { return a < b ? -1 : (a > b ? 1 : 0); }
+
+function dashLitresNum(n) { return dashGroupThousands(Math.round(Number(n) || 0)); }
+
+function buildG6Model(rows, vessels, ctx) {
+  var c = ctx || {};
+  var mode = c.mode === 'litres' ? 'litres' : 'vessels';
+  var theme = readChartTheme();
+  // Physical state: every global filter (staff included) is ignored.
+  var cls = dashClassifyRows(rows, { scheduleCategoryById: c.catMap, staffIds: c.staffIds });
+  var vmap = {};
+  var all = vessels || [];
+  var i;
+  for (i = 0; i < all.length; i++) { if (all[i]) vmap[all[i].vessel_id] = all[i]; }
+  var onVessel = {};
+  var noVessel = [];
+  for (i = 0; i < cls.list.length; i++) {
+    var it = cls.list[i];
+    if (it.status !== 'primary' && it.status !== 'secondary') continue;
+    var vid = String(it.row.vessel_id === undefined || it.row.vessel_id === null ? '' : it.row.vessel_id).trim();
+    if (vid === '') { noVessel.push(it); continue; }
+    if (!Object.prototype.hasOwnProperty.call(onVessel, vid)) onVessel[vid] = [];
+    onVessel[vid].push(it.row.batch_id);
+  }
+  // Capacity rows by stored type; archived vessels are counted nowhere.
+  var byType = {};
+  var typeNames = [];
+  var missingCap = false;
+  for (i = 0; i < all.length; i++) {
+    var v = all[i];
+    if (!v || v.archived === true) continue;
+    var ty = String(v.type || '').trim() || 'Unknown type';
+    if (!Object.prototype.hasOwnProperty.call(byType, ty)) {
+      byType[ty] = { type: ty, total: 0, inUse: 0, litresTotal: 0, litresInUse: 0, ids: [] };
+      typeNames.push(ty);
+    }
+    var tb = byType[ty];
+    var cap = (v.capacity_liters === null || v.capacity_liters === undefined) ? null : Number(v.capacity_liters);
+    if (cap !== null && isNaN(cap)) cap = null;
+    if (cap === null) missingCap = true;
+    var used = Object.prototype.hasOwnProperty.call(onVessel, v.vessel_id);
+    tb.total++;
+    if (cap !== null) tb.litresTotal += cap;
+    if (used) {
+      tb.inUse++;
+      if (cap !== null) tb.litresInUse += cap;
+      tb.ids = tb.ids.concat(onVessel[v.vessel_id]);
+    }
+  }
+  typeNames.sort(function (a, b) {
+    var ia = DASH_VESSEL_TYPE_ORDER.indexOf(a);
+    var ib = DASH_VESSEL_TYPE_ORDER.indexOf(b);
+    if (ia === -1 && ib === -1) return dashSortIds(a, b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+  var lit = mode === 'litres';
+  var labels = [];
+  var inUse = [];
+  var avail = [];
+  var types = [];
+  var tRows = [];
+  var parts = [];
+  for (i = 0; i < typeNames.length; i++) {
+    var t = byType[typeNames[i]];
+    t.ids = dashDistinct(t.ids);
+    var tot = lit ? t.litresTotal : t.total;
+    var use = lit ? t.litresInUse : t.inUse;
+    t.subject = t.type + 's in use';
+    types.push(t);
+    labels.push(t.type);
+    inUse.push(use);
+    avail.push(tot - use);
+    var uc = { text: lit ? dashLitresNum(use) + ' L' : String(use) };
+    if (t.ids.length) { uc.ids = t.ids.slice(); uc.subject = t.subject; }
+    tRows.push({ cells: [{ text: t.type }, uc, { text: lit ? dashLitresNum(tot - use) + ' L' : String(tot - use) }, { text: lit ? dashLitresNum(tot) + ' L' : String(tot) }] });
+    parts.push(t.type + ' ' + (lit ? dashLitresNum(use) + ' of ' + dashLitresNum(tot) + ' L' : use + ' of ' + tot));
+  }
+  // Shared vessels: 2+ active batches on one vessel (allowed; shown neutrally).
+  var sharedIds = [];
+  for (var k in onVessel) {
+    if (Object.prototype.hasOwnProperty.call(onVessel, k) && onVessel[k].length >= 2) sharedIds.push(k);
+  }
+  sharedIds.sort(dashSortIds);
+  var shared = [];
+  for (i = 0; i < sharedIds.length; i++) {
+    var sid = sharedIds[i];
+    var bids = dashDistinct(onVessel[sid]);
+    var sv = vmap[sid];
+    shared.push({
+      primary: sid + ' · ' + ((sv && String(sv.type || '').trim()) || 'Unknown type'),
+      secondary: bids.join(', '),
+      right: bids.length + ' batches',
+      ids: bids,
+      subject: 'Shared vessel ' + sid
+    });
+  }
+  noVessel.sort(function (a, b) { return dashSortIds(String(a.row.batch_id), String(b.row.batch_id)); });
+  var none = [];
+  for (i = 0; i < noVessel.length; i++) {
+    none.push({
+      primary: String(noVessel[i].row.batch_id),
+      secondary: (noVessel[i].row.product_name || '') + ' · ' + (DASH_TYPE_LABELS[noVessel[i].type] || ''),
+      right: '',
+      ids: [noVessel[i].row.batch_id],
+      subject: 'Batch ' + noVessel[i].row.batch_id
+    });
+  }
+  return {
+    mode: mode,
+    types: types,
+    labels: labels,
+    series: [
+      { key: 'inuse', label: 'In use', data: inUse, colour: theme.inkSecondary },
+      { key: 'available', label: 'Available', data: avail, colour: theme.ledgerSoft, borderColour: theme.ledgerLine }
+    ],
+    unit: lit ? 'litres' : 'vessels',
+    label: function (idx) {
+      var tt = types[idx];
+      if (!tt) return '';
+      return lit ? dashLitresNum(tt.litresInUse) + ' of ' + dashLitresNum(tt.litresTotal) + ' L' : tt.inUse + ' of ' + tt.total;
+    },
+    empty: types.length === 0,
+    emptyText: 'No vessels have been recorded yet.',
+    subtitle: 'Right now · all batch types and sources' + (lit && missingCap ? ' · vessels with no capacity recorded are left out' : ''),
+    note: 'Ignores the filters above',
+    sharedNote: 'More than one active batch is using the same vessel. This is allowed.',
+    shared: shared,
+    noVessel: none,
+    ariaLabel: 'Vessel capacity in use, right now. ' + (parts.length ? parts.join(', ') : 'None'),
+    table: { caption: 'Vessel capacity in use by type', columns: [{ label: 'Vessel type' }, { label: 'In use', numeric: true }, { label: 'Available', numeric: true }, { label: 'Total', numeric: true }], rows: tRows }
+  };
+}
+
+function dashPlato(n) { return (Math.round(Number(n) * 10) / 10) + ' °P'; }
+
+function buildG8Model(rows, readings, metaById, model, ctx) {
+  var c = ctx || {};
+  var st = model.state;
+  var today = model.cur.asOf.today;
+  var theme = readChartTheme();
+  var meta = metaById || {};
+  var base = {
+    choices: [['all', 'All batches with readings']],
+    batch: 'all',
+    series: [],
+    legend: [],
+    stats: null,
+    note: '',
+    subtitle: 'Plato readings · active beer and cider',
+    noReadings: [],
+    noReadingsEmpty: 'Every active beer and cider batch has a reading.',
+    table: { caption: 'Plato readings', columns: [], rows: [] },
+    state: 'ok',
+    stateText: '',
+    ariaLabel: ''
+  };
+  if (st.type === 'wine' || st.type === 'seltzer' || st.type === 'other') {
+    base.state = 'wrongType';
+    base.stateText = 'Fermentation curves cover beer and cider.';
+    return base;
+  }
+  var cls = dashClassifyRows(rows, { type: st.type, source: st.source, staffIds: c.staffIds, scheduleCategoryById: c.catMap });
+  var items = [];
+  var i;
+  for (i = 0; i < cls.list.length; i++) {
+    var it = cls.list[i];
+    if ((it.status === 'primary' || it.status === 'secondary') && (it.type === 'beer' || it.type === 'cider')) items.push(it);
+  }
+  var itemById = {};
+  for (i = 0; i < items.length; i++) itemById[items[i].row.batch_id] = items[i];
+  // Plato points per batch (x = day since start).
+  var pts = {};
+  var latest = {};
+  var list = readings || [];
+  for (i = 0; i < list.length; i++) {
+    var r = list[i];
+    if (!r || !itemById[r.batch_id]) continue;
+    if (r.degrees_plato === null || r.degrees_plato === undefined || isNaN(Number(r.degrees_plato)) || !r.reading_day) continue;
+    var b = itemById[r.batch_id];
+    var x = Math.max(0, dayNumber(r.reading_day) - dayNumber(String(b.row.start_date || r.reading_day)));
+    if (!pts[r.batch_id]) pts[r.batch_id] = [];
+    pts[r.batch_id].push({ x: x, y: Number(r.degrees_plato), at: r.reading_at || r.reading_day, temp: r.temperature, ph: r.ph });
+    if (!latest[r.batch_id] || r.reading_day > latest[r.batch_id]) latest[r.batch_id] = r.reading_day;
+  }
+  var withPts = [];
+  for (i = 0; i < items.length; i++) {
+    var id = items[i].row.batch_id;
+    if (pts[id]) {
+      pts[id].sort(function (p, q) { return p.x - q.x || (p.at < q.at ? -1 : (p.at > q.at ? 1 : 0)); });
+      withPts.push(id);
+    }
+  }
+  withPts.sort(function (a, b2) {
+    if (latest[a] !== latest[b2]) return latest[a] < latest[b2] ? 1 : -1;
+    return dashSortIds(a, b2);
+  });
+  // Batches with no Plato reading yet.
+  var none = [];
+  for (i = 0; i < items.length; i++) {
+    if (pts[items[i].row.batch_id]) continue;
+    var day = Math.max(0, dayNumber(today) - dayNumber(String(items[i].row.start_date || today)));
+    none.push({
+      primary: String(items[i].row.batch_id),
+      secondary: (items[i].row.product_name || '') + ' · ' + (DASH_TYPE_LABELS[items[i].type] || ''),
+      right: 'Day ' + day,
+      day: day,
+      ids: [items[i].row.batch_id],
+      subject: 'Batch ' + items[i].row.batch_id
+    });
+  }
+  none.sort(function (a, b3) { return b3.day - a.day || dashSortIds(a.primary, b3.primary); });
+  base.noReadings = none;
+  if (!withPts.length) {
+    base.state = 'noReadings';
+    base.stateText = 'No Plato readings have been recorded yet.';
+    return base;
+  }
+  function nameOf(bid) {
+    var m = meta[bid];
+    return (m && m.recipe_name) || itemById[bid].row.product_name || '';
+  }
+  for (i = 0; i < withPts.length; i++) base.choices.push([withPts[i], withPts[i] + ' · ' + nameOf(withPts[i])]);
+  var sel = c.batch && c.batch !== 'all' && pts[c.batch] ? c.batch : 'all';
+  base.batch = sel;
+  var plotted = sel === 'all' ? withPts.slice(0, 20) : [sel];
+  if (sel === 'all' && withPts.length > 20) base.note = 'Showing the 20 most recent. Pick a batch to see others.';
+  var seen = {};
+  var parts = [];
+  var tableRows = [];
+  for (i = 0; i < plotted.length; i++) {
+    var pid = plotted[i];
+    var ty = itemById[pid].type;
+    var colour = theme[ty];
+    var data = [];
+    var q;
+    for (q = 0; q < pts[pid].length; q++) data.push({ x: pts[pid][q].x, y: pts[pid][q].y });
+    base.series.push({ key: pid, label: pid, data: data, colour: colour, borderWidth: 2, pointRadius: sel === 'all' ? 3 : 4, batchId: pid });
+    if (!seen[ty]) { seen[ty] = true; base.legend.push({ label: DASH_TYPE_LABELS[ty], colour: colour }); }
+    parts.push(pid + ' ' + pts[pid].length + (pts[pid].length === 1 ? ' reading' : ' readings'));
+    for (q = 0; q < pts[pid].length; q++) {
+      var p = pts[pid][q];
+      tableRows.push({
+        at: p.at,
+        cells: [
+          { text: pid, ids: [pid], subject: 'Batch ' + pid },
+          { text: DASH_TYPE_LABELS[ty] },
+          { text: String(p.x) },
+          { text: dashPlato(p.y) },
+          { text: p.temp === null || p.temp === undefined || p.temp === '' ? '–' : String(p.temp) },
+          { text: p.ph === null || p.ph === undefined || p.ph === '' ? '–' : String(p.ph) }
+        ]
+      });
+    }
+  }
+  tableRows.sort(function (a, b4) { return a.at < b4.at ? 1 : (a.at > b4.at ? -1 : 0); });
+  base.table = {
+    caption: 'Plato readings',
+    columns: [{ label: 'Batch' }, { label: 'Type' }, { label: 'Day', numeric: true }, { label: '°P', numeric: true }, { label: 'Temp', numeric: true }, { label: 'pH', numeric: true }],
+    rows: tableRows
+  };
+  if (sel !== 'all') {
+    var m2 = meta[sel] || {};
+    var og = m2.og === null || m2.og === undefined ? null : Number(m2.og);
+    var fg = m2.target_fg === null || m2.target_fg === undefined ? null : Number(m2.target_fg);
+    var pd = m2.planned_days === null || m2.planned_days === undefined ? null : Number(m2.planned_days);
+    if (og !== null && isNaN(og)) og = null;
+    if (fg !== null && isNaN(fg)) fg = null;
+    if (pd !== null && (isNaN(pd) || pd <= 0)) pd = null;
+    if (og !== null && fg !== null && pd !== null) {
+      base.series.push({ key: 'expected', label: 'Expected', data: [{ x: 0, y: og }, { x: pd, y: fg }], colour: theme.inkTertiary, borderDash: [6, 4], pointRadius: 0, borderWidth: 2 });
+    } else if (og === null || fg === null) {
+      base.note = 'No expected curve: this recipe has no OG or target FG.';
+    } else {
+      base.note = 'No expected curve: this batch has no fermentation schedule.';
+    }
+    var last = pts[sel][pts[sel].length - 1];
+    var both = og !== null && fg !== null && og !== 0;
+    base.stats = [
+      ['OG', og === null ? '–' : dashPlato(og)],
+      ['Latest', dashPlato(last.y)],
+      ['Target FG', fg === null ? '–' : dashPlato(fg)],
+      ['Attenuation', both ? Math.round((og - fg) / og * 100) + '%' : '–'],
+      ['ABV', both ? (Math.round(calcAbv(og, fg) * 10) / 10).toFixed(1) + '%' : '–']
+    ];
+  }
+  base.ariaLabel = 'Plato readings by day since start. ' + parts.join(', ');
+  return base;
+}
+
 // ===== Phase 95-05: lazy Chart.js loader + shared chart() helper =====
 var CHART_JS_SRC = 'js/vendor/chart.umd.min.js?v=4.5.1';
 var _chartJsPromise = null;
@@ -2673,6 +2967,8 @@ function chart(canvas, cfg) {
       borderSkipped: false,
       _key: series[i].key
     };
+    // Phase 96-08: opt-in 1px outline for neutral fills (G6 Available).
+    if (series[i].borderColour) { ds.borderColor = series[i].borderColour; ds.borderWidth = 1; }
     if (cfg.type === 'line') {
       ds.borderColor = series[i].colour;
       ds.borderWidth = 2;
@@ -2751,6 +3047,7 @@ function chart(canvas, cfg) {
     labelScale.type = 'linear';
     labelScale.beginAtZero = false;
     labelScale.ticks.precision = 0;
+    if (typeof cfg.xMin === 'number') labelScale.min = cfg.xMin;
   }
   // Phase 96-07: optional bold tick (e.g. the 'Today' column in Workload).
   if (typeof cfg.boldTick === 'number') {
@@ -7342,6 +7639,151 @@ function parseWaitlistRecipeIds(value) {
     }
   }
 
+  var DASH_V2_VESSELS_TITLE = 'Vessels';
+  var DASH_V2_FERMENT_TITLE = 'Fermentation';
+
+  // Chart region that degrades to a message while Chart.js is loading or failed; lists below still render.
+  function dashV2ChartRegion(chartState) {
+    if (window.Chart) return '<div class="bp-chart"><canvas></canvas></div>';
+    return '<p class="bp-empty">' + (chartState === 'failed' ? DASH_V2_FAILED : DASH_V2_LOADING) + '</p>';
+  }
+
+  // Register one drill per list item and return dashListHtml items.
+  function dashV2ListItems(w, items) {
+    var out = [];
+    for (var i = 0; i < items.length; i++) {
+      out.push({
+        primary: items[i].primary,
+        secondary: items[i].secondary,
+        right: items[i].right,
+        drill: dashV2DrillAdd(w, items[i].ids, items[i].subject, false)
+      });
+    }
+    return out;
+  }
+
+  function dashV2ListBlock(w, listKey, title, items, emptyText, note) {
+    return '<div class="bp-g6-list bp-g8-list"><h4 class="bp-g4-subtitle">' + escapeHTML(title) + ' (' + items.length + ')</h4>' +
+      (note ? '<p class="bp-dash-foot-note">' + escapeHTML(note) + '</p>' : '') +
+      dashListHtml(w, listKey, dashV2ListItems(w, items), { limit: 5, expanded: !!_dashV2Expanded[w + ':' + listKey], emptyText: emptyText }) + '</div>';
+  }
+
+  // G6 Vessels: capacity in use per stored vessel type, plus neutral Shared vessels / No vessel lists.
+  function renderDashV2Vessels(model, chartState) {
+    var slotId = 'bp-dash-v2-vessels';
+    if (!model || !document.getElementById(slotId)) return;
+    var view = dashV2Opt('g6', 'view', 'chart') === 'table' ? 'table' : 'chart';
+    var mode = dashV2Opt('g6', 'mode', 'vessels') === 'litres' ? 'litres' : 'vessels';
+    var ctx = dashV2ProdCtx();
+    var g = buildG6Model(ctx.rows, _dashData.vessels, { mode: mode, staffIds: ctx.staffIds, catMap: ctx.catMap });
+    var slot = dashV2Widget(slotId, DASH_V2_VESSELS_TITLE);
+    slot.style.display = '';
+    dashV2SetControls(slotId, dashSegHtml('g6', 'mode', [['vessels', 'Vessels'], ['litres', 'Litres']], mode, 'Show as') +
+      dashViewToggleHtml('g6', view));
+    slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
+    dashV2SetNote(slotId, g.note);
+    destroyDashV2Slot('vessels');
+    var body = slot.querySelector('.bp-widget-body');
+    body.setAttribute('data-state', 'g6');
+    var top;
+    if (g.empty) top = '<p class="bp-empty">' + escapeHTML(g.emptyText) + '</p>';
+    else if (view === 'table') top = dashTableHtml('g6', dashV2TableModel('g6', g.table));
+    else top = dashV2ChartRegion(chartState);
+    body.innerHTML = '<div class="bp-g6"><div class="bp-g6-chart">' + top + '</div>' +
+      dashV2ListBlock('g6', 'shared', 'Shared vessels', g.shared, 'No vessels are shared right now.', g.sharedNote) +
+      dashV2ListBlock('g6', 'novessel', 'No vessel', g.noVessel, 'Every active batch has a vessel.', '') + '</div>';
+    var canvas = body.querySelector('canvas');
+    if (g.empty || view !== 'chart' || !canvas) return;
+    canvas.parentNode.style.height = (48 * g.labels.length + 32) + 'px';
+    _dashV2Charts.vessels = chart(canvas, {
+      type: 'bar',
+      horizontal: true,
+      stacked: true,
+      labels: g.labels,
+      series: g.series,
+      unit: g.mode === 'litres' ? undefined : 'vessels',
+      measure: g.mode === 'litres' ? 'litres' : undefined,
+      inertKeys: ['available'],
+      dataLabels: function (e, di) { return di === 1 ? g.label(e) : ''; },
+      ariaLabel: g.ariaLabel,
+      onClick: function (hit) {
+        var t = g.types[hit.index];
+        if (t && t.ids.length) dashV2Go(t.ids, dashDrillSubject(t.subject, t.ids.length));
+      }
+    });
+  }
+
+  function dashV2StatsHtml(stats) {
+    var h = '<dl class="bp-stat-row">';
+    for (var i = 0; i < stats.length; i++) {
+      h += '<div><dt>' + escapeHTML(stats[i][0]) + '</dt><dd>' + escapeHTML(stats[i][1]) + '</dd></div>';
+    }
+    return h + '</dl>';
+  }
+
+  // G8 Fermentation: Plato readings by day since start, plus a neutral "No readings yet" list.
+  function renderDashV2Ferment(model, chartState) {
+    var slotId = 'bp-dash-v2-ferment';
+    if (!model || !document.getElementById(slotId)) return;
+    var view = dashV2Opt('g8', 'view', 'chart') === 'table' ? 'table' : 'chart';
+    var ctx = dashV2ProdCtx();
+    var metaById = {};
+    var bm = _dashData.batchMeta || [];
+    for (var i = 0; i < bm.length; i++) { if (bm[i]) metaById[bm[i].batch_id] = bm[i]; }
+    var g = buildG8Model(ctx.rows, _dashData.readings, metaById, model, {
+      batch: String(dashV2Opt('g8', 'batch', 'all')), staffIds: ctx.staffIds, catMap: ctx.catMap
+    });
+    var slot = dashV2Widget(slotId, DASH_V2_FERMENT_TITLE);
+    slot.style.display = '';
+    slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
+    dashV2SetNote(slotId, '');
+    destroyDashV2Slot('ferment');
+    var body = slot.querySelector('.bp-widget-body');
+    body.setAttribute('data-state', 'g8');
+    if (g.state === 'wrongType') {
+      dashV2SetControls(slotId, '');
+      body.innerHTML = '<p class="bp-empty">' + escapeHTML(g.stateText) + '</p>';
+      return;
+    }
+    var list = dashV2ListBlock('g8', 'noreadings', 'No readings yet', g.noReadings, g.noReadingsEmpty, '');
+    if (g.state === 'noReadings') {
+      dashV2SetControls(slotId, '');
+      body.innerHTML = '<div class="bp-g8"><p class="bp-empty">' + escapeHTML(g.stateText) + '</p>' + list + '</div>';
+      return;
+    }
+    dashV2SetControls(slotId, dashSelectHtml('g8', 'batch', g.choices, g.batch, 'Batch') + dashViewToggleHtml('g8', view));
+    var top = view === 'table' ? dashTableHtml('g8', dashV2TableModel('g8', g.table)) : dashV2ChartRegion(chartState);
+    var legend = view === 'chart' && window.Chart ? '<div class="bp-chart-legend"></div>' : '';
+    body.innerHTML = '<div class="bp-g8"><div class="bp-g8-chart">' + top + legend +
+      (g.note ? '<p class="bp-dash-foot-note">' + escapeHTML(g.note) + '</p>' : '') +
+      (g.stats ? dashV2StatsHtml(g.stats) : '') + '</div>' + list + '</div>';
+    var canvas = body.querySelector('canvas');
+    if (view !== 'chart' || !canvas) return;
+    canvas.parentNode.style.height = (dashV2IsPhone() ? 220 : 280) + 'px';
+    var items = g.legend.slice();
+    for (var s = 0; s < g.series.length; s++) {
+      if (g.series[s].key === 'expected') items.push({ label: 'Expected (dashed)', colour: g.series[s].colour });
+    }
+    body.querySelector('.bp-chart-legend').innerHTML = dashV2LegendHtml(items);
+    _dashV2Charts.ferment = chart(canvas, {
+      type: 'line',
+      xType: 'linear',
+      xMin: 0,
+      xTitle: 'Days since start',
+      yTitle: '°P',
+      labels: undefined,
+      series: g.series,
+      unit: 'plato',
+      inertKeys: ['expected'],
+      hitDatasetIndex: true,
+      ariaLabel: g.ariaLabel,
+      onClick: function (hit) {
+        var ser = g.series[hit.datasetIndex];
+        if (ser && ser.batchId) dashV2Go([ser.batchId], '');
+      }
+    });
+  }
+
   var DASH_V2_LOADING = 'Loading charts…';
   var DASH_V2_FAILED = 'Charts could not load. Reload the page to try again.';
   var DASH_V2_PERIOD_TITLE = 'Production over time';
@@ -7384,6 +7826,14 @@ function parseWaitlistRecipeIds(value) {
     {
       key: 'g7', slot: 'bp-dash-v2-tasks', title: DASH_V2_TASKS_TITLE, chart: 'ageing', needs: ['taskRows'],
       render: function (model, cs) { renderDashV2Tasks(model, cs); }
+    },
+    {
+      key: 'g6', slot: 'bp-dash-v2-vessels', title: DASH_V2_VESSELS_TITLE, chart: 'vessels', needs: ['vessels'],
+      render: function (model, cs) { renderDashV2Vessels(model, cs); }
+    },
+    {
+      key: 'g8', slot: 'bp-dash-v2-ferment', title: DASH_V2_FERMENT_TITLE, chart: 'ferment', needs: ['readings'],
+      render: function (model, cs) { renderDashV2Ferment(model, cs); }
     }
   ];
 
@@ -15931,6 +16381,9 @@ if (typeof module !== 'undefined' && module.exports) {
     dashTaskKind: dashTaskKind,
     buildG5Model: buildG5Model,
     buildG7Model: buildG7Model,
+    buildG6Model: buildG6Model,
+    buildG8Model: buildG8Model,
+    DASH_VESSEL_TYPE_ORDER: DASH_VESSEL_TYPE_ORDER,
     DASH_TASK_KINDS: DASH_TASK_KINDS,
     dashBreakdownBuckets: dashBreakdownBuckets,
     dashSegHtml: dashSegHtml,
