@@ -534,3 +534,262 @@ describe('G1 Production over time', function () {
     expect(slot.querySelector('canvas')).toBeNull();
   });
 });
+
+// ===== Phase 96-05: G2 Pipeline and G3 Cycle time =====
+describe('G2 Pipeline and G3 Cycle time', function () {
+  function ago(n) { return bp.addDays(TODAY, -n); }
+  // Completed batch whose span is `span` days, finished `finishedAgo` days ago (window 'all').
+  function done(id, type, span, finishedAgo, extra) {
+    return lean(id, type, ago(finishedAgo + span), Object.assign({
+      status: 'complete', completed_day: ago(finishedAgo), completed_at: ago(finishedAgo) + 'T10:00:00Z'
+    }, extra || {}));
+  }
+  function fixture() {
+    return [
+      lean('A1', 'wine', ago(5), { status: 'pending' }),
+      lean('A2', 'beer', ago(6), { status: 'primary' }),
+      lean('A3', 'beer', ago(7), { status: 'secondary' }),
+      lean('A4', 'beer', ago(8), { status: 'secondary' }),
+      lean('A5', 'cider', ago(9), { status: 'primary', source: 'manual' }),
+      lean('A6', 'wine', ago(10), { status: 'primary', staff_batch: true }),
+      lean('A7', 'wine', ago(11), { status: 'disabled' }),
+      lean('A8', 'seltzer', ago(12), { status: 'secondary' }),
+      done('D1', 'wine', 22, 3, { product_subcategory: 'Red' }),
+      done('D2', 'wine', 25, 4, { product_subcategory: 'Red' }),
+      done('D3', 'wine', 30, 5, { product_subcategory: 'White' }),
+      done('D4', 'beer', 10, 6),
+      done('D5', 'cider', 12, 7)
+    ];
+  }
+  function mdl(rowsIn, over) {
+    var st = Object.assign({}, bp.DASH_FILTER_DEFAULTS, { period: 'all' }, over || {});
+    return bp.buildDashV2Model(rowsIn, ASOF, st, {}, {});
+  }
+  var ctx = { staffIds: {}, catMap: {}, readyIds: { A3: true } };
+  function g2(rowsIn, over, c) { var m = mdl(rowsIn, over); return { m: m, g: bp.buildG2Model(rowsIn, m, c || ctx) }; }
+  function cell(g, stageKey, seriesKey) {
+    var si = g.stages.map(function (s) { return s.key; }).indexOf(stageKey);
+    return g.series.filter(function (s) { return s.key === seriesKey; })[0].data[si];
+  }
+  function btnW(attr) { return document.querySelector('[data-dash-w="' + attr + '"]'); }
+
+  describe('buildG2Model', function () {
+    test('stages in order, ready takes precedence, other stage only when non-empty', function () {
+      var r = g2(fixture());
+      expect(r.g.labels).toEqual(['Pending', 'Primary', 'Secondary', 'Ready to bottle', 'Complete', 'Other stage']);
+      expect(cell(r.g, 'ready', 'beer')).toBe(1);
+      expect(cell(r.g, 'secondary', 'beer')).toBe(1);
+      expect(cell(r.g, 'other', 'wine')).toBe(1);
+      var noOther = fixture().filter(function (x) { return x.batch_id !== 'A7'; });
+      expect(g2(noOther).g.labels).not.toContain('Other stage');
+    });
+
+    test('seltzer folds into other; staff included', function () {
+      var r = g2(fixture());
+      expect(cell(r.g, 'secondary', 'other')).toBe(1);
+      expect(cell(r.g, 'primary', 'wine')).toBe(1);
+    });
+
+    [{ type: 'all' }, { type: 'wine' }, { type: 'beer' }, { source: 'kiosk' }].forEach(function (over) {
+      test('agrees with the tiles: ' + JSON.stringify(over), function () {
+        var r = g2(fixture(), over);
+        var active = 0;
+        var comp = 0;
+        r.g.stages.forEach(function (s, i) {
+          if (s.key === 'primary' || s.key === 'secondary' || s.key === 'ready') active += r.g.totals[i];
+          if (s.key === 'complete') comp += r.g.totals[i];
+        });
+        expect(active).toBe(r.m.cur.activeNow);
+        expect(comp).toBe(r.m.cur.completed);
+        ['wine', 'cider', 'beer'].forEach(function (k) {
+          var se = r.g.series.filter(function (x) { return x.key === k; })[0];
+          if (!se) return;
+          var ci = r.g.stages.map(function (s) { return s.key; }).indexOf('complete');
+          expect(se.data[ci]).toBe(r.m.cur.completedTotals.byType[k]);
+        });
+      });
+    });
+
+    test('complete outside the window is not shown; no ready ids keeps Primary/Secondary', function () {
+      var list = fixture();
+      list.push(done('OLD', 'wine', 5, 900));
+      var r = g2(list, { period: '30d' });
+      expect(cell(r.g, 'complete', 'wine')).toBe(3);
+      var none = g2(fixture(), {}, { staffIds: {}, catMap: {}, readyIds: {} });
+      expect(cell(none.g, 'ready', 'beer')).toBe(0);
+      expect(cell(none.g, 'secondary', 'beer')).toBe(2);
+    });
+
+    test('drill subjects, note and table equal chart numbers', function () {
+      var r = g2(fixture(), { period: 'ytd' });
+      expect(r.g.subjectFor('secondary', 'Secondary', 'Beer')).toBe('Beer at Secondary');
+      expect(r.g.subjectFor('ready', 'Ready to bottle', 'Wine')).toBe('Wine at Ready to bottle');
+      expect(r.g.subjectFor('complete', 'Complete', 'Beer')).toBe('Beer completed YTD');
+      expect(r.g.subjectFor('secondary', 'Secondary', '')).toBe('Batches at Secondary');
+      expect(r.g.subjectFor('complete', 'Complete', '')).toBe('Completed YTD');
+      expect(r.g.note).toBe('Complete counts batches finished in YTD');
+      r.g.table.rows.forEach(function (row, i) {
+        var nums = row.cells.slice(1, -1).map(function (c) { return c.value; });
+        r.g.series.forEach(function (se, k) { expect(se.data[i]).toBe(nums[k]); });
+        expect(row.cells[row.cells.length - 1].value).toBe(sum(nums));
+      });
+      expect(r.g.table.columns.map(function (c) { return c.label; })).toEqual(['Stage', 'Wine', 'Cider', 'Beer', 'Other', 'Total']);
+    });
+  });
+
+  describe('dashP95 and buildG3Model', function () {
+    test('nearest-rank p95', function () {
+      expect(bp.dashP95([])).toBeNull();
+      var a = [];
+      for (var i = 1; i <= 20; i++) a.push(i);
+      expect(bp.dashP95(a)).toBe(19);
+    });
+
+    function spanRows(spans) {
+      return spans.map(function (n, i) { return done('X' + i, 'wine', n, 1 + i); });
+    }
+    function g3(rowsIn, over, c) {
+      var m = mdl(rowsIn, over);
+      return { m: m, g: bp.buildG3Model(rowsIn, m, c || { staffIds: {}, catMap: {}, batchMeta: {} }) };
+    }
+
+    test('outlier cap: p95 40 and one 200 -> bins to 35-41 and 42+', function () {
+      var spans = [];
+      for (var i = 0; i < 18; i++) spans.push(10 + i);
+      spans.push(40);
+      spans.push(200);
+      var r = g3(spanRows(spans));
+      expect(r.g.cap).toBe(42);
+      expect(r.g.labels).toEqual(['0–6', '7–13', '14–20', '21–27', '28–34', '35–41', '42+']);
+      expect(r.g.series[0].data[6]).toBe(1);
+      expect(sum(r.g.series[0].data)).toBe(20);
+    });
+
+    test('bin edges: 6 -> 0-6, 7 -> 7-13', function () {
+      var r = g3(spanRows([0, 6, 7, 13, 14]));
+      expect(r.g.series[0].data.slice(0, 3)).toEqual([2, 2, 1]);
+    });
+
+    test('total equals the Days to complete set (cur.cycle.n)', function () {
+      var list = fixture();
+      ['all', 'wine', 'beer'].forEach(function (t) {
+        var r = g3(list, { type: t });
+        expect(r.g.n).toBe(r.m.cur.cycle.n);
+        expect(r.g.median).toBe(r.m.cur.cycle.median);
+      });
+      var k = g3(list, { source: 'kiosk' });
+      expect(k.g.n).toBe(k.m.cur.cycle.n);
+    });
+
+    test('planned lines use the per-type median, capped at the open bin', function () {
+      var list = [done('P1', 'wine', 22, 1), done('P2', 'wine', 25, 2), done('P3', 'beer', 10, 3)];
+      var meta = { P1: { planned_days: 20 }, P2: { planned_days: 30 }, P3: { planned_days: 400 } };
+      var r = g3(list, {}, { staffIds: {}, catMap: {}, batchMeta: meta });
+      var wine = r.g.vLines.filter(function (v) { return v.key === 'wine'; })[0];
+      expect(wine.label).toBe('Planned 25 d');
+      expect(wine.value).toBeCloseTo(25 / 7 - 0.5, 5);
+      var beer = r.g.vLines.filter(function (v) { return v.key === 'beer'; })[0];
+      expect(beer.value).toBeCloseTo(r.g.cap / 7 - 0.5, 5);
+      expect(g3(list).g.vLines).toEqual([]);
+      var last = r.g.table.rows[r.g.table.rows.length - 1];
+      expect(last.cells[0].text).toBe('Planned (median)');
+      expect(last.cells.every(function (c) { return !c.ids; })).toBe(true);
+    });
+
+    test('subtitle, subjects and product choices', function () {
+      var list = fixture();
+      var r = g3(list, { type: 'wine' });
+      expect(r.g.subtitle).toBe('Days from start to complete · ' + r.m.periodLabel + ' · median 25 d');
+      expect(r.g.choices.map(function (c) { return c[1]; })).toEqual(['All products', 'Red', 'White']);
+      var red = bp.buildG3Model(list, r.m, { staffIds: {}, catMap: {}, batchMeta: {}, product: 'Red' });
+      expect(red.n).toBe(2);
+      expect(r.g.subjectFor('21–27', 'Wine')).toBe('Wine completed in 21–27 days');
+      expect(r.g.subjectFor('21–27', '')).toBe('Completed in 21–27 days');
+      expect(g3(list, { type: 'all' }).g.showProduct).toBe(false);
+      expect(g3([]).g.subtitle).toBe('Days from start to complete · ' + mdl([]).periodLabel);
+    });
+  });
+
+  describe('renderers', function () {
+    beforeEach(function () {
+      var o = bp._dashV2FrameForTest.opts;
+      Object.keys(o).forEach(function (k) { delete o[k]; });
+    });
+    function setup(list, extra) {
+      bp._setStateForTest({ _allBatchesData: list, _dashData: Object.assign({ asOf: ASOF, batches: list, staffBatchIds: [] }, extra || {}) });
+    }
+    function chartOf(sel) { var c = document.querySelector(sel + ' canvas'); return c ? Fake.getChart(c) : null; }
+
+    test('pipeline chart and table share numbers; one live instance per canvas', async function () {
+      setup(fixture(), { summary: { readyToBottle: [{ batch_id: 'A3' }] } });
+      await renderV2('period=all');
+      var ch = chartOf('#bp-dash-v2-pipeline');
+      expect(ch.config.options.indexAxis).toBe('y');
+      expect(document.querySelector('#bp-dash-v2-pipeline .bp-widget-note').textContent).toContain('Complete counts batches finished in');
+      expect(document.querySelector('#bp-dash-v2-pipeline .bp-chart').style.height).toBe('320px');
+      var chartNums = ch.config.data.datasets.map(function (d) { return d.data.slice(); });
+      btnW('g2:view:table').click();
+      var rowsEl = document.querySelectorAll('#bp-dash-v2-pipeline tbody tr');
+      for (var i = 0; i < rowsEl.length; i++) {
+        var tds = rowsEl[i].querySelectorAll('td');
+        chartNums.forEach(function (d, k) { expect(Number(tds[k + 1].textContent)).toBe(d[i]); });
+      }
+      btnW('g2:view:chart').click();
+      var canvas = document.querySelector('#bp-dash-v2-pipeline canvas');
+      expect(live(canvas).length).toBe(1);
+    });
+
+    test('pipeline table: single batch opens detail, multiple opens the banner', async function () {
+      setup(fixture(), { summary: { readyToBottle: [] } });
+      await renderV2('period=all');
+      btnW('g2:view:table').click();
+      function rowFor(label) {
+        return Array.prototype.filter.call(document.querySelectorAll('#bp-dash-v2-pipeline tbody tr'), function (tr) { return tr.cells[0].textContent === label; })[0];
+      }
+      var links = rowFor('Secondary').querySelectorAll('.bp-table-link');
+      links[links.length - 1].click();
+      expect(drill().label).toBe('From dashboard: Batches at Secondary · 3 batches');
+      bp._clearDashDrillForTest();
+      var pend = rowFor('Pending').querySelectorAll('.bp-table-link');
+      pend[pend.length - 1].click();
+      expect(drill()).toBeNull();
+    });
+
+    test('pipeline segment click uses the stage and type subject', async function () {
+      setup(fixture(), { summary: { readyToBottle: [] } });
+      await renderV2('period=all');
+      var ch = chartOf('#bp-dash-v2-pipeline');
+      var si = ch.config.data.labels.indexOf('Secondary');
+      var di = ch.config.data.datasets.map(function (d) { return d.label; }).indexOf('Beer');
+      Fake.prototype.getElementsAtEventForMode = function (e, mode) { return mode === 'nearest' ? [{ index: si, datasetIndex: di }] : []; };
+      ch.config.options.onClick({}, [], ch);
+      expect(drill().label).toBe('From dashboard: Beer at Secondary · 2 batches');
+    });
+
+    test('cycle: histogram, drill banner and product select', async function () {
+      setup(fixture(), { batchMeta: [{ batch_id: 'D1', planned_days: 30 }] });
+      await renderV2('period=all');
+      var ch = chartOf('#bp-dash-v2-cycle');
+      expect(ch).not.toBeNull();
+      expect(document.querySelector('#bp-dash-v2-cycle select')).toBeNull();
+      var bi = ch.config.data.labels.indexOf('21–27');
+      var di = ch.config.data.datasets.map(function (d) { return d.label; }).indexOf('Wine');
+      Fake.prototype.getElementsAtEventForMode = function (e, mode) { return mode === 'nearest' ? [{ index: bi, datasetIndex: di }] : []; };
+      ch.config.options.onClick({}, [], ch);
+      expect(drill().label).toBe('From dashboard: Wine completed in 21–27 days · 2 batches');
+      await renderV2('period=all&type=wine');
+      var sel = document.querySelector('#bp-dash-v2-cycle select');
+      expect(sel.getAttribute('aria-label')).toBe('Product');
+      expect(Array.prototype.map.call(sel.options, function (o) { return o.textContent; })).toEqual(['All products', 'Red', 'White']);
+    });
+
+    test('cycle empty state has copy, Reset filters and no canvas', async function () {
+      setup([lean('E1', 'wine', ago(3))]);
+      await renderV2('period=all');
+      var slot = document.getElementById('bp-dash-v2-cycle');
+      expect(slot.querySelector('.bp-empty').textContent).toContain('No completed batches in this period.');
+      expect(slot.querySelector('[data-dash-reset]')).not.toBeNull();
+      expect(slot.querySelector('canvas')).toBeNull();
+    });
+  });
+});
