@@ -89,6 +89,8 @@ Minor, left as is: backfilled staff flags show the hint "Set by hand".
 
 Owner: **approved** (2026-10-28).
 
+Drill/tab-bar fix `26b34fd1` (3 new tests) re-checked on staging (`brewpad.min.js?v=mvsiqsqy`): tile drill shows the banner; Dashboard -> bottom Batches tab shows no banner.
+
 ## Production pre-deploy
 
 Read-only, 2026-10-28 (production container via `railway ssh`, read-only transaction; Railway deployment list). No production change.
