@@ -1586,8 +1586,12 @@ the command line (the CLI refuses it).
 ### Owner-OK rule
 
 No `--apply` without the owner's in-session OK on the FULL dry-run list. `--expect=N` must equal the reviewed count; a
-mismatch exits 3 and writes nothing. False positives (for example an unrelated "Inn" name) are fixed by clearing the
-flag by hand afterwards, not by editing the SQL.
+mismatch exits 3 and writes nothing. False positives (for example a paying customer who shares a family surname) are
+dropped with `--exclude=<ids>` on both the dry run and the apply, so `--expect` is the count actually written; an
+excluded id that is not a candidate is refused. Do not edit the SQL.
+
+Owner review 2026-10-28 (staging): flag Koa Inn and Paul McLachlan only. Anthony McLachlan, Katie McLachlan and
+Wayne (SV-B-000238, source `internal`) are paying customers - exclude their batches.
 
 ### Staging (Postgres only)
 

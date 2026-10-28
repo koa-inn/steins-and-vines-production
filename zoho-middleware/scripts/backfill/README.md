@@ -316,6 +316,8 @@ Equals-form flags only; the database is never on argv. Full procedure: `docs/RUN
 node scripts/backfill/staff-batch-backfill.js
 # Apply only the reviewed candidate count; --with-names adds customer names to the listing.
 node scripts/backfill/staff-batch-backfill.js --apply --expect=N [--with-names]
+# Drop owner-rejected rows (paying customers) from both dry run and apply; --expect counts what remains.
+node scripts/backfill/staff-batch-backfill.js --exclude=SV-B-000025,SV-B-000238 [--apply --expect=N]
 ```
 
 Candidates: `staff_batch = false` AND (source `internal` / `research`, or customer name / first / last name containing

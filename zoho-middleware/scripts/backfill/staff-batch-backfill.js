@@ -17,6 +17,11 @@
  *
  *   node scripts/backfill/staff-batch-backfill.js                         # dry run
  *   node scripts/backfill/staff-batch-backfill.js --apply --expect=12
+ *   node scripts/backfill/staff-batch-backfill.js --exclude=SV-B-000025,SV-B-000238   # drop reviewed rows
+ *
+ * --exclude removes owner-rejected rows (e.g. a paying customer who shares a family surname) from
+ * both the dry run and the apply, so --expect is the count of the rows that will actually be written.
+ * An excluded id that is not a candidate is refused, to catch typos.
  *
  * Exit codes: 0 ok, 1 error, 3 --expect did not match the candidate count.
  */
@@ -28,6 +33,7 @@ var sheetMirror = require('../../lib/sheet-mirror');
 
 var EXIT = backfillCli.EXIT;
 var POSTGRES_URL_RE = /postgres(ql)?:\/\//;
+var BATCH_ID_RE = /^SV-B-\d+$/;
 
 // Postgres ARE word boundaries (\m start, \M end), built here and bound as parameters.
 var MCLACHLAN_PG = '\\mMcLachlan\\M';
@@ -50,7 +56,7 @@ var CANDIDATES_SQL =
 var LOCK_SQL = 'select staff_batch from batches where batch_id = $1 for update';
 
 function parseArgs(argv) {
-  var opts = { apply: false, dryRun: false, expect: null, withNames: false };
+  var opts = { apply: false, dryRun: false, expect: null, withNames: false, exclude: [] };
   argv.forEach(function (arg) {
     if (POSTGRES_URL_RE.test(arg)) {
       throw new Error('pass the database via BACKFILL_DATABASE_URL, never on the command line');
@@ -66,8 +72,14 @@ function parseArgs(argv) {
       opts.withNames = true;
     } else if (flag === '--expect' && value !== undefined && /^\d+$/.test(value)) {
       opts.expect = parseInt(value, 10);
+    } else if (flag === '--exclude' && value !== undefined) {
+      var ids = value.split(',').map(function (s) { return s.trim(); });
+      if (!ids.length || ids.some(function (id) { return !BATCH_ID_RE.test(id); })) {
+        throw new Error('--exclude needs a comma list of batch ids like SV-B-000025');
+      }
+      ids.forEach(function (id) { if (opts.exclude.indexOf(id) === -1) opts.exclude.push(id); });
     } else {
-      throw new Error('unknown flag "' + flag + '" - valid flags: --dry-run, --apply, --expect=<n>, --with-names');
+      throw new Error('unknown flag "' + flag + '" - valid flags: --dry-run, --apply, --expect=<n>, --exclude=<ids>, --with-names');
     }
   });
   if (opts.apply && opts.dryRun) throw new Error('--dry-run and --apply cannot be combined');
@@ -160,6 +172,15 @@ async function runStaffBackfill(opts, deps) {
   var isProduction = deps.isProduction || sheetMirror.isMirrorEnabled;
   try {
     var plan = planRows(await readRows(deps.pool));
+    var exclude = opts.exclude || [];
+    var candidateIds = plan.map(function (e) { return e.batch_id; });
+    var missing = exclude.filter(function (id) { return candidateIds.indexOf(id) === -1; });
+    if (missing.length) {
+      log('Refusing: ' + missing.join(', ') + ' is not a candidate. Check the --exclude list against the dry run.');
+      return { exitCode: EXIT.ERROR, candidates: 0, written: 0, skipped: 0 };
+    }
+    exclude.forEach(function (id) { log('excluded ' + id + ' owner_review'); });
+    plan = plan.filter(function (e) { return exclude.indexOf(e.batch_id) === -1; });
     var counts = {};
     plan.forEach(function (e) {
       var seen = {};
@@ -175,7 +196,8 @@ async function runStaffBackfill(opts, deps) {
     log('candidates: ' + plan.length);
 
     if (!opts.apply) {
-      log('Dry run - no writes. Re-run with --apply --expect=' + plan.length +
+      log('Dry run - no writes. Re-run with --apply ' +
+        (exclude.length ? '--exclude=' + exclude.join(',') + ' ' : '') + '--expect=' + plan.length +
         ' after the owner OKs this list.');
       return { exitCode: EXIT.OK, candidates: plan.length, written: 0, skipped: 0 };
     }
