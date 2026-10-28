@@ -1559,6 +1559,17 @@ function readChartTheme() {
     cider: v('--chart-cider', '#a8841a'),
     beer: v('--chart-beer', '#9a4e0c'),
     other: v('--chart-other', '#9a8672'),
+    cat1: v('--chart-cat-1', '#3f6670'),
+    cat2: v('--chart-cat-2', '#5f6b3a'),
+    cat3: v('--chart-cat-3', '#6e4a6a'),
+    cat4: v('--chart-cat-4', '#b0623f'),
+    cat5: v('--chart-cat-5', '#4a403a'),
+    cat6: v('--chart-other', '#9a8672'),
+    inkPrimary: v('--ink-primary', '#2c2218'),
+    inkSecondary: v('--ink-secondary', '#6b5442'),
+    inkTertiary: v('--ink-tertiary', '#8c7866'),
+    ledgerSoft: v('--ledger-soft', 'rgba(119, 70, 45, 0.07)'),
+    ledgerLine: v('--ledger-line', 'rgba(119, 70, 45, 0.12)'),
     separator: v('--cellar-raised', '#faf8f2'),
     grid: v('--ledger-soft', 'rgba(119, 70, 45, 0.07)'),
     axis: v('--ledger-line', 'rgba(119, 70, 45, 0.12)'),
@@ -1608,6 +1619,18 @@ function chart(canvas, cfg) {
     return String(Math.round(Number(n) * 10) / 10).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
   var fmtValue = function (n) { return litres ? fmtNum(n) + ' L' : String(n); };
+  // Phase 96: optional unit text (tasks, vessels, days, plato, percent).
+  var unitText = function (n) {
+    var num = Number(n);
+    switch (cfg.unit) {
+      case 'tasks': return fmtNum(num) + (num === 1 ? ' task' : ' tasks');
+      case 'vessels': return fmtNum(num) + (num === 1 ? ' vessel' : ' vessels');
+      case 'days': return fmtNum(num) + ' d';
+      case 'plato': return fmtNum(num) + ' °P';
+      case 'percent': return fmtNum(num) + '%';
+      default: return null;
+    }
+  };
   var valueOf = function (item) {
     var p = item && item.parsed;
     if (typeof p === 'number') return p;
@@ -1631,6 +1654,11 @@ function chart(canvas, cfg) {
     if (cfg.type === 'line') {
       ds.borderColor = series[i].colour;
       ds.borderWidth = 2;
+      if (series[i].borderDash) ds.borderDash = series[i].borderDash;
+      if (series[i].pointRadius !== undefined) ds.pointRadius = series[i].pointRadius;
+      if (series[i].borderWidth !== undefined) ds.borderWidth = series[i].borderWidth;
+      if (series[i].fill !== undefined) ds.fill = series[i].fill;
+      if (series[i].showLine !== undefined) ds.showLine = series[i].showLine;
     }
     datasets.push(ds);
   }
@@ -1647,9 +1675,12 @@ function chart(canvas, cfg) {
   };
   if (litres) {
     valueScale.ticks.callback = function (val) { return fmtNum(val) + ' L'; };
+  } else if (cfg.percent || cfg.unit === 'percent') {
+    valueScale.ticks.callback = function (val) { return val + '%'; };
   } else {
     valueScale.ticks.precision = 0;
   }
+  if (cfg.percent) valueScale.max = 100;
   var labelScale = {
     stacked: !!cfg.stacked,
     grid: { display: false },
@@ -1677,21 +1708,98 @@ function chart(canvas, cfg) {
           label: function (item) {
             var name = (item.dataset && item.dataset.label) || item.label || '';
             var val = valueOf(item);
+            if (typeof cfg.tooltipLabel === 'function') return cfg.tooltipLabel(item);
+            var ut = unitText(val);
+            if (ut !== null) return name + ': ' + ut;
             return name + ': ' + (litres ? fmtNum(val) + ' L' : val + (Number(val) === 1 ? ' batch' : ' batches'));
           },
           footer: function (items) {
+            if (typeof cfg.tooltipFooter === 'function') return cfg.tooltipFooter(items);
             if (!cfg.tooltipTotal) return '';
             var sum = 0;
             for (var j = 0; j < (items || []).length; j++) sum += Number(valueOf(items[j])) || 0;
-            return 'Total: ' + fmtValue(sum);
+            var ut2 = unitText(sum);
+            return 'Total: ' + (ut2 !== null ? ut2 : fmtValue(sum));
           }
         }
       }
     }
   };
+  if (cfg.xType === 'linear') {
+    labelScale.type = 'linear';
+    labelScale.beginAtZero = false;
+    labelScale.ticks.precision = 0;
+  }
+  var addTitle = function (scale, text) {
+    if (text) scale.title = { display: true, text: text, color: theme.tick, font: { size: 12 } };
+  };
+  addTitle(labelScale,cfg.horizontal ? cfg.yTitle : cfg.xTitle);
+  addTitle(valueScale, cfg.horizontal ? cfg.xTitle : cfg.yTitle);
   if (!isDoughnut) {
     options.scales = cfg.horizontal ? { x: valueScale, y: labelScale } : { x: labelScale, y: valueScale };
     if (cfg.horizontal) options.indexAxis = 'y';
+  }
+
+  var plugins = [];
+  if (typeof cfg.dataLabels === 'function') {
+    plugins.push({
+      id: 'dashDataLabels',
+      afterDatasetsDraw: function (inst) {
+        var ctx = inst.ctx;
+        ctx.save();
+        ctx.fillStyle = theme.inkPrimary;
+        ctx.font = '12px ' + theme.font;
+        ctx.textBaseline = 'middle';
+        var metas = inst.data.datasets;
+        for (var d = 0; d < metas.length; d++) {
+          var meta = inst.getDatasetMeta(d);
+          if (meta && meta.hidden) continue;
+          for (var e = 0; e < meta.data.length; e++) {
+            var text = cfg.dataLabels(e, d);
+            if (text === null || text === undefined || text === '') continue;
+            var el = meta.data[e];
+            if (cfg.horizontal) {
+              ctx.textAlign = 'left';
+              ctx.fillText(String(text), el.x + 4, el.y);
+            } else {
+              ctx.textAlign = 'center';
+              ctx.fillText(String(text), el.x, el.y - 8);
+            }
+          }
+        }
+        ctx.restore();
+      }
+    });
+  }
+  if (cfg.vLines && cfg.vLines.length) {
+    plugins.push({
+      id: 'dashVLines',
+      afterDatasetsDraw: function (inst) {
+        var ctx = inst.ctx;
+        var xs = inst.scales && inst.scales.x;
+        var area = inst.chartArea;
+        if (!xs || !area) return;
+        ctx.save();
+        ctx.font = '12px ' + theme.font;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        for (var q = 0; q < cfg.vLines.length; q++) {
+          var vl = cfg.vLines[q];
+          var px = xs.getPixelForValue(vl.value);
+          ctx.strokeStyle = vl.colour || theme.inkSecondary;
+          ctx.fillStyle = vl.colour || theme.inkSecondary;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(px, area.top);
+          ctx.lineTo(px, area.bottom);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          if (vl.label) ctx.fillText(String(vl.label), px + 4, area.top + q * 12);
+        }
+        ctx.restore();
+      }
+    });
   }
 
   if (typeof cfg.onClick === 'function') {
@@ -1701,11 +1809,19 @@ function chart(canvas, cfg) {
       var hit = inst.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
       if (hit && hit.length) {
         var key = series[hit[0].datasetIndex] ? series[hit[0].datasetIndex].key : null;
-        cfg.onClick({ index: hit[0].index, key: key });
+        if (key !== null && cfg.inertKeys && cfg.inertKeys.indexOf(key) !== -1) return;
+        var payload = { index: hit[0].index, key: key };
+        // Opt-in: existing Phase 95 call sites (and their locked tests) expect exactly {index, key}.
+        if (cfg.hitDatasetIndex) payload.datasetIndex = hit[0].datasetIndex;
+        cfg.onClick(payload);
         return;
       }
       var col = inst.getElementsAtEventForMode(evt, 'index', { intersect: false }, true);
-      if (col && col.length) cfg.onClick({ index: col[0].index, key: null });
+      if (col && col.length) {
+        var colPayload = { index: col[0].index, key: null };
+        if (cfg.hitDatasetIndex) colPayload.datasetIndex = null;
+        cfg.onClick(colPayload);
+      }
     };
     canvas.style.cursor = 'pointer';
   }
@@ -1716,7 +1832,8 @@ function chart(canvas, cfg) {
   return new Chart(canvas, {
     type: cfg.type,
     data: { labels: cfg.labels, datasets: datasets },
-    options: options
+    options: options,
+    plugins: plugins
   });
 }
 

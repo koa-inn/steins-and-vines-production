@@ -197,3 +197,129 @@ describe('markup helpers', function () {
     expect(xss).not.toContain('<script>');
   });
 });
+
+describe('chart() Phase 96 extensions', function () {
+  function makeFake() {
+    function F(canvas, config) { this.canvas = canvas; this.config = config; this.destroyed = false; F.instances.push(this); }
+    F.instances = [];
+    F.hits = {};
+    F.prototype.destroy = function () { this.destroyed = true; };
+    F.prototype.getElementsAtEventForMode = function (evt, mode) { return F.hits[mode] || []; };
+    F.getChart = function (c) {
+      for (var i = F.instances.length - 1; i >= 0; i--) { if (F.instances[i].canvas === c && !F.instances[i].destroyed) return F.instances[i]; }
+      return undefined;
+    };
+    F.defaults = { font: {} };
+    return F;
+  }
+  var Fake;
+  beforeEach(function () {
+    Fake = makeFake();
+    window.Chart = Fake;
+    bp._resetChartJsForTest();
+    window.matchMedia = function () { return { matches: false }; };
+  });
+  function make(over) {
+    var c = { type: 'bar', labels: ['a', 'b'], series: [{ key: 'x', label: 'X', data: [1, 2], colour: '#000' }, { key: 'available', label: 'Av', data: [3, 4], colour: '#111' }], measure: 'batches', ariaLabel: 'A' };
+    for (var k in over) c[k] = over[k];
+    bp.chart(document.createElement('canvas'), c);
+    return Fake.instances[Fake.instances.length - 1].config;
+  }
+  function label(conf, val) {
+    return conf.options.plugins.tooltip.callbacks.label({ dataset: { label: 'S' }, parsed: { y: val }, label: 'a' });
+  }
+
+  test('units in tooltips', function () {
+    expect(label(make({ unit: 'tasks' }), 7)).toBe('S: 7 tasks');
+    expect(label(make({ unit: 'tasks' }), 1)).toBe('S: 1 task');
+    expect(label(make({ unit: 'vessels' }), 1)).toBe('S: 1 vessel');
+    expect(label(make({ unit: 'vessels' }), 3)).toBe('S: 3 vessels');
+    expect(label(make({ unit: 'days' }), 12)).toBe('S: 12 d');
+    expect(label(make({ unit: 'plato' }), 12.5)).toBe('S: 12.5 °P');
+    expect(label(make({ unit: 'percent' }), 42.5)).toBe('S: 42.5%');
+  });
+  test('default tooltip unchanged and overrides honoured', function () {
+    expect(label(make({}), 2)).toBe('S: 2 batches');
+    var conf = make({ tooltipLabel: function () { return 'custom'; }, tooltipFooter: function () { return 'foot'; } });
+    expect(label(conf, 2)).toBe('custom');
+    expect(conf.options.plugins.tooltip.callbacks.footer([])).toBe('foot');
+  });
+  test('percent axis and titles', function () {
+    var conf = make({ percent: true, xTitle: 'Week', yTitle: 'Share' });
+    expect(conf.options.scales.y.max).toBe(100);
+    expect(conf.options.scales.y.ticks.callback(50)).toBe('50%');
+    expect(conf.options.scales.x.title.text).toBe('Week');
+    expect(conf.options.scales.y.title.font.size).toBe(12);
+    var h = make({ percent: true, horizontal: true });
+    expect(h.options.scales.x.max).toBe(100);
+  });
+  test('no plugins by default', function () {
+    expect(make({}).plugins).toEqual([]);
+  });
+  test('dashDataLabels plugin draws at bar ends', function () {
+    var conf = make({ dataLabels: function (i) { return 'L' + i; } });
+    var p = conf.plugins.filter(function (x) { return x.id === 'dashDataLabels'; })[0];
+    expect(p).toBeDefined();
+    var calls = [];
+    var ctx = { save: function () {}, restore: function () {}, fillText: function (t, x, y) { calls.push([t, x, y]); } };
+    p.afterDatasetsDraw({
+      ctx: ctx,
+      data: { datasets: [{}] },
+      getDatasetMeta: function () { return { data: [{ x: 10, y: 20 }, { x: 30, y: 40 }] }; }
+    });
+    expect(calls.length).toBe(2);
+    expect(calls[0][0]).toBe('L0');
+  });
+  test('dashVLines plugin draws dashed lines with stacked labels', function () {
+    var conf = make({ vLines: [{ value: 3, colour: '#f00', label: 'one' }, { value: 5, label: 'two' }] });
+    var p = conf.plugins.filter(function (x) { return x.id === 'dashVLines'; })[0];
+    expect(p).toBeDefined();
+    var dashes = [];
+    var texts = [];
+    var ctx = {
+      save: function () {}, restore: function () {}, beginPath: function () {}, moveTo: function () {}, lineTo: function () {}, stroke: function () {},
+      setLineDash: function (d) { dashes.push(d); },
+      fillText: function (t, x, y) { texts.push([t, x, y]); }
+    };
+    p.afterDatasetsDraw({ ctx: ctx, chartArea: { top: 10, bottom: 100 }, scales: { x: { getPixelForValue: function (v) { return v * 10; } } } });
+    expect(dashes[0]).toEqual([6, 4]);
+    expect(texts[0][2]).toBe(10);
+    expect(texts[1][2]).toBe(22);
+  });
+  test('linear x and per-series line props', function () {
+    var conf = make({
+      type: 'line', xType: 'linear',
+      series: [{ key: 's', label: 'S', data: [{ x: 1, y: 2 }], colour: '#000', borderDash: [4, 4], pointRadius: 0, borderWidth: 1, fill: false, showLine: true }]
+    });
+    expect(conf.options.scales.x.type).toBe('linear');
+    var ds = conf.data.datasets[0];
+    expect(ds.borderDash).toEqual([4, 4]);
+    expect(ds.pointRadius).toBe(0);
+    expect(ds.borderWidth).toBe(1);
+    expect(ds.fill).toBe(false);
+    expect(ds.showLine).toBe(true);
+    expect(ds.data[0]).toEqual({ x: 1, y: 2 });
+  });
+  test('inert series and datasetIndex on click', function () {
+    var onClick = jest.fn();
+    var conf = make({ onClick: onClick, inertKeys: ['available'], hitDatasetIndex: true });
+    var inst = Fake.instances[Fake.instances.length - 1];
+    Fake.hits.nearest = [{ index: 1, datasetIndex: 1 }];
+    conf.options.onClick({}, [], inst);
+    expect(onClick).not.toHaveBeenCalled();
+    Fake.hits.nearest = [{ index: 1, datasetIndex: 0 }];
+    conf.options.onClick({}, [], inst);
+    expect(onClick).toHaveBeenCalledWith({ index: 1, key: 'x', datasetIndex: 0 });
+    Fake.hits.nearest = [];
+    Fake.hits.index = [{ index: 0 }];
+    conf.options.onClick({}, [], inst);
+    expect(onClick).toHaveBeenLastCalledWith({ index: 0, key: null, datasetIndex: null });
+  });
+  test('theme exposes category tokens with fallbacks', function () {
+    var t = bp.readChartTheme();
+    expect(t.cat1).toBe('#3f6670');
+    expect(t.cat6).toBe(t.other);
+    expect(t.inkPrimary).toBeTruthy();
+    expect(t.ledgerLine).toBeTruthy();
+  });
+});
