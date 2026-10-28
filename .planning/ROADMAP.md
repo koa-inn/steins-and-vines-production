@@ -182,7 +182,7 @@
 
 **Phasing:** this is additive. Numbering continues from Phase 93 and nothing is renumbered. The order is 94 → 95 → 96 → 97 → 98 → 99, and Phase 94 must land first.
 
-- [ ] **Phase 94: Dashboard correctness and data foundations** — fix the avg cycle-time KPI (B1); dry-run backfill of `completed_at` for 40 legacy batches (B2, data write gated); explicit `batch_type` wine/beer/cider/other set on create and backfilled (B3, data write gated); one dashboard data layer, classifier and date-window helper so every total agrees (D1); server-side `get_dashboard_stats` or bulk tasks/readings endpoint to kill the N+1 `get_batch` calls (S1).
+- [x] **Phase 94: Dashboard correctness and data foundations** — fix the avg cycle-time KPI (B1); dry-run backfill of `completed_at` for 40 legacy batches (B2, data write gated); explicit `batch_type` wine/beer/cider/other set on create and backfilled (B3, data write gated); one dashboard data layer, classifier and date-window helper so every total agrees (D1); server-side `get_dashboard_stats` or bulk tasks/readings endpoint to kill the N+1 `get_batch` calls (S1). (completed 2026-10-28)
 - [ ] **Phase 95: Global filters and chart engine** — sticky global filter bar for type, period, group-by, measure (batches or litres), source and staff toggle, held in the URL hash (D2); a chart library behind a small `chart()` helper, Chart.js 4 by default (D3); click-through from every bar, segment and tile to the filtered Batches tab (D4); trend deltas on KPI tiles (D5).
 - [ ] **Phase 96: New and upgraded dashboard graphs** — G1 production over time · G2 pipeline · G3 cycle-time distribution · G4 product breakdown for all types + leaderboard · G5 workload forecast · G6 vessel capacity and conflicts · G7 task health · G8 fermentation curves + readings due · G9 sales source mix · G10 data-health card.
 - [ ] **Phase 97: Beer and cider dashboard sections** — beer batch card and section (style, ABV/IBU, OG vs target FG, current step including temperature steps, cans and litres packaged); cider section; 2-week packaging calendar for bottling and canning, coordinated with the canning handoffs without duplicating their scope.
@@ -2453,7 +2453,7 @@ Source for every phase below: `.planning/research/brewpad-dashboard-v2.md`.
   4. The dashboard loads from one lean aggregate call (cached ~60 s) rather than one `get_batch` per batch.
   5. The `completed_at` backfill for the 40 legacy batches exists as a dry-run script. It is run for real only with the owner's OK, using nested `updates:{}`.
 
-**Plans:** 10/13 plans executed
+**Plans:** 13/13 plans complete
 
 Plans:
 **Wave 1**
@@ -2486,15 +2486,15 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 94-10-PLAN.md — Staging iPad UAT + production pre-deploy gate (0006 verified, SHA approved) (checkpoint)
+- [x] 94-10-PLAN.md — Staging iPad UAT + production pre-deploy gate (0006 verified, SHA approved) (checkpoint)
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
-- [ ] 94-11-PLAN.md — Production release + B3 type backfill behind owner OK (checkpoint)
+- [x] 94-11-PLAN.md — Production release + B3 type backfill behind owner OK (checkpoint)
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
-- [ ] 94-12-PLAN.md — Production B2 completion-date backfill behind owner OK + D-13 production acceptance (checkpoint)
+- [x] 94-12-PLAN.md — Production B2 completion-date backfill behind owner OK + D-13 production acceptance (checkpoint)
 
 ### Phase 95: Global filters and chart engine
 

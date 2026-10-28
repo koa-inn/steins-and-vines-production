@@ -258,3 +258,7 @@ subcategory lookup from the catalog snapshot (Phase 29.4), not Phase 94; the tot
 The SQL-fix rows for both applies are logged in `87-CUTOVER-LOG.md` "SQL fixes".
 
 Awaiting the owner's sign-off on the live dashboard (94-12 final).
+
+## Owner sign-off
+
+The owner checked the live production dashboard. Result, 2026-10-28T01:44:05Z, verbatim: **"signed off"**. Phase 94's rollout is complete.
