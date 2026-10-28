@@ -2166,6 +2166,7 @@ function parseWaitlistRecipeIds(value) {
   var _batchStatusFilter = 'active';
   var _batchProductFilter = '';
   var _batchSearch = '';
+  var _dashDrill = null;          // Phase 95 (D-14): { ids: {id:true}, count, label } while a dashboard click-through is active
   var _batchSearchTimer = null;   // module-scope so switchTab() can cancel a pending re-render
   var _batchViewMode = 'cards';   // 'cards' or 'table'
   var _batchTableSortCol = 'batch_id';
@@ -3685,6 +3686,29 @@ function parseWaitlistRecipeIds(value) {
       return res;
     });
   }
+
+  // Phase 95 (D-08/D-10): staff flag write. Boolean only (T-95-27); nested updates + batch_id
+  // so the server whitelist applies and the gb:<batchId> cache busts.
+  function setStaffBatch(batchId, value) {
+    var flag = value === true;
+    return adminApiPost('update_batch', { batch_id: batchId, updates: { staff_batch: flag } }).then(function (res) {
+      if (_dashData) {
+        var ids = _dashData.staffBatchIds;
+        if (!Array.isArray(ids)) { ids = []; _dashData.staffBatchIds = ids; }
+        var at = ids.indexOf(batchId);
+        if (flag && at === -1) ids.push(batchId);
+        if (!flag && at !== -1) ids.splice(at, 1);
+      }
+      if (isDashV2()) refreshDashV2();
+      afterBatchWrite(batchId, { refreshOpenDetail: true, listAffecting: true });
+      return res;
+    });
+  }
+
+  var STAFF_SOURCE_HINTS = {
+    internal: 'Set automatically (internal batch)',
+    research: 'Set automatically (research batch)'
+  };
 
   var TYPE_SOURCE_HINTS = {
     recipe: 'Set automatically (recipe)',
@@ -6004,16 +6028,48 @@ function parseWaitlistRecipeIds(value) {
     return filterBatchesByNeedsType(_allBatchesData, dashTypeById(), buildScheduleCategoryById(_fermSchedules));
   }
 
+  // Phase 95 (D-14): while a dashboard click-through is active, every chip works on
+  // the intersection of its normal rows with the drilled id set.
+  function drillFilterRows(rows) {
+    if (!_dashDrill) return rows;
+    return rows.filter(function (b) { return b && _dashDrill.ids[b.batch_id] === true; });
+  }
+
   function applyBatchFilter() {
+    var srcRows = drillFilterRows(_allBatchesData);
     if (_batchStatusFilter === 'readyToBottle') {
-      _batchesData = readyToBottleRows();
+      _batchesData = drillFilterRows(readyToBottleRows());
     } else if (_batchStatusFilter === 'unlinked') {
-      _batchesData = filterBatchesByUnlinked(_allBatchesData);
+      _batchesData = filterBatchesByUnlinked(srcRows);
     } else if (_batchStatusFilter === 'needsType') {
-      _batchesData = needsTypeRows();
+      _batchesData = drillFilterRows(needsTypeRows());
     } else {
-      _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
+      _batchesData = filterBatchesByStatus(srcRows, _batchStatusFilter);
     }
+  }
+
+  // openDashDrill(spec) - spec = { ids: string[], label: string }. Shows exactly spec.ids on the
+  // Batches tab (chip 'all', search/product cleared) under a dismissible banner.
+  function openDashDrill(spec) {
+    var ids = (spec && spec.ids) || [];
+    var map = {};
+    for (var i = 0; i < ids.length; i++) map[ids[i]] = true;
+    _dashDrill = { ids: map, count: ids.length, label: String((spec && spec.label) || '') };
+    _batchStatusFilter = 'all';
+    _batchSearch = '';
+    _batchProductFilter = '';
+    _batchesLoaded = false;
+    var searchEl = document.getElementById('bp-batch-search');
+    if (searchEl) searchEl.value = '';
+    switchTab('batches');
+  }
+
+  function clearDashDrill() {
+    _dashDrill = null;
+    _batchStatusFilter = 'active';
+    if (_allBatchesData.length === 0) { loadBatches(); return; }
+    applyBatchFilter();
+    renderBatchList();
   }
 
   // refreshReadyToBottleFilterView — after a task write + loadDashboard() refetch,
@@ -6165,6 +6221,9 @@ function parseWaitlistRecipeIds(value) {
       // Batch list content wrapper
       shellHtml += '<div id="bp-batch-list-content"' + (_batchSubView !== 'batches' ? ' style="display:none;"' : '') + '>';
 
+      // Phase 95 (D-14): dashboard click-through banner slot (filled on every render)
+      shellHtml += '<div id="bp-drill-banner-slot"></div>';
+
       // Filter bar
       shellHtml += '<div class="bp-batch-filters">';
       var filterOpts = [
@@ -6289,13 +6348,29 @@ function parseWaitlistRecipeIds(value) {
       viewToggle.textContent = _batchViewMode === 'cards' ? '\u2630' : '\u229e';
     }
 
+    // Phase 95 (D-14): banner above the chips; label escaped (T-95-26)
+    var bannerSlot = document.getElementById('bp-drill-banner-slot');
+    if (bannerSlot) {
+      if (_dashDrill) {
+        bannerSlot.innerHTML = '<div class="bp-drill-banner" role="status"><span class="bp-drill-banner-text">' + escapeHTML(_dashDrill.label) + '</span>' +
+          '<button type="button" class="bp-drill-banner-close" data-action="clear-dash-drill" aria-label="Clear dashboard filter">\u2715</button></div>';
+      } else {
+        bannerSlot.innerHTML = '';
+      }
+    }
+
     // Always: update just the results container
     var resultsEl = document.getElementById('bp-batch-results');
     if (!resultsEl) return;
 
     var resultsHtml = '';
+    if (_dashDrill && filtered.length > 0) {
+      resultsHtml += '<h3 class="bp-drill-heading">' + filtered.length + (filtered.length === 1 ? ' batch shown' : ' batches shown') + '</h3>';
+    }
     if (filtered.length === 0) {
-      if (_batchStatusFilter === 'pending') {
+      if (_dashDrill) {
+        resultsHtml += '<p class="bp-empty">No batches in this set any more.</p>';
+      } else if (_batchStatusFilter === 'pending') {
         resultsHtml += '<p class="bp-empty"><strong>No pending batches</strong><br>Kiosk sales with Maker&#39;s Fee and kiosk recipe sales will appear here automatically.</p>';
       } else if (_batchStatusFilter === 'unlinked') {
         resultsHtml += '<p class="bp-empty"><strong>Every batch is linked</strong><br>Batches without an invoice are marked Internal.</p>';
@@ -7820,6 +7895,20 @@ function parseWaitlistRecipeIds(value) {
       html += '<span class="bp-stat-label" id="bp-detail-type-hint" style="display:block;">' + escapeHTML(typeInfo.hint) + '</span>';
       html += '</span></div>';
     }
+    // Phase 95 (D-08): staff flag, right after Type
+    var isStaff = b.staff_batch === true || b.staff_batch === 'true' || b.staff_batch === 1;
+    if (statusKey === 'disabled' || statusKey === 'deleted') {
+      html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Staff batch</span><span id="bp-detail-staff-text">' + (isStaff ? 'Yes' : 'No') + '</span></div>';
+    } else {
+      var staffSrc = String(b.source || '').trim().toLowerCase();
+      var staffHint = !isStaff ? '' : (STAFF_SOURCE_HINTS[staffSrc] || 'Set by hand');
+      html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Staff batch</span><span>';
+      html += '<label class="bp-detail-staff-label" style="display:flex;align-items:center;gap:8px;min-height:44px;">';
+      html += '<input type="checkbox" id="bp-detail-staff"' + (isStaff ? ' checked' : '') + ' style="width:44px;height:44px;margin:0;">';
+      html += '<span>Staff, family or R&amp;D (hidden from mix charts)</span></label>';
+      if (staffHint) html += '<span class="bp-stat-label" id="bp-detail-staff-hint" style="display:block;">' + escapeHTML(staffHint) + '</span>';
+      html += '</span></div>';
+    }
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Customer</span><span id="bp-detail-customer">' + escapeHTML(getCustomerDisplayName(b) || '\u2014') + '</span></div>';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Email</span><span id="bp-detail-email">' + escapeHTML(b.customer_email || '\u2014') + '</span></div>';
     html += '<div class="bp-detail-info-row"><span class="bp-detail-info-label">Phone</span><span id="bp-detail-phone">' + escapeHTML(b.customer_phone || '\u2014') + '</span></div>';
@@ -8013,6 +8102,24 @@ function parseWaitlistRecipeIds(value) {
           typeSelect.value = prevType;
           typeSelect.disabled = false;
           showToast('Could not update type. Try again.', 'error');
+        });
+      });
+    }
+    var staffBox = document.getElementById('bp-detail-staff');
+    if (staffBox) {
+      staffBox.addEventListener('change', function () {
+        var nextStaff = staffBox.checked;
+        staffBox.disabled = true;
+        setStaffBatch(b.batch_id, nextStaff).then(function () {
+          b.staff_batch = nextStaff;
+          staffBox.disabled = false;
+          var hintEl = document.getElementById('bp-detail-staff-hint');
+          if (hintEl) hintEl.textContent = nextStaff ? 'Set by hand' : '';
+          showToast('Staff flag updated', 'success');
+        }).catch(function () {
+          staffBox.checked = !nextStaff;
+          staffBox.disabled = false;
+          showToast('Could not update staff flag. Try again.', 'error');
         });
       });
     }
@@ -12167,6 +12274,7 @@ function parseWaitlistRecipeIds(value) {
       dashInner.addEventListener('click', function (e) {
         var tile = e.target.closest('.bp-pipeline-tile');
         if (tile) {
+          _dashDrill = null;
           _batchStatusFilter = tile.getAttribute('data-status');
           _batchSearch = '';
           _batchesLoaded = false;
@@ -12481,6 +12589,10 @@ function parseWaitlistRecipeIds(value) {
           return;
         }
 
+        if (e.target.closest('[data-action="clear-dash-drill"]')) {
+          clearDashDrill();
+          return;
+        }
         var filterBtn = e.target.closest('.bp-filter-btn');
         if (filterBtn) {
           selectBatchStatusFilter(filterBtn);
@@ -13330,6 +13442,9 @@ function parseWaitlistRecipeIds(value) {
       // Test-only: render the batch-detail pane (bottling-invite send-tracking UI).
       _renderBatchDetailForTest: renderBatchDetail,
       _renderBatchListForTest: renderBatchList,
+      _openDashDrillForTest: openDashDrill,
+      _clearDashDrillForTest: clearDashDrill,
+      _initDelegationForTest: initDelegation,
       _loadLinkCandidatesForTest: loadLinkCandidates,
       _linkBatchToInvoiceForTest: linkBatchToInvoice,
       _markBatchSourceForTest: markBatchSource,
@@ -13400,7 +13515,10 @@ function parseWaitlistRecipeIds(value) {
           _dashSummary: _dashSummary,
           _dashData: _dashData,
           _dashV2State: _dashV2State,
-          _dashV2Model: _dashV2Model
+          _dashV2Model: _dashV2Model,
+          _dashDrill: _dashDrill,
+          _batchSearch: _batchSearch,
+          _batchProductFilter: _batchProductFilter
         };
       },
       _setStateForTest: function (patch) {
