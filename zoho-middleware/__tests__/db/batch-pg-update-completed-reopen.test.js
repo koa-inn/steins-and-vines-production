@@ -112,4 +112,13 @@ describeDb('batch-pg-update completed_at: reopen clears, re-sent complete does n
     expect(r.completed_at).toBeNull();
     expect(r.completed_at_source).toBeNull();
   });
+
+  it('WR-01: re-sending complete on a complete row with no date does not stamp now', async function () {
+    var id = await addBatch('complete');
+    var res = await upd.updateBatch(client(), { batch_id: id, updates: { status: 'complete' } }, OPTS);
+    expect(res.ok).toBe(true);
+    var r = await row(id);
+    expect(r.completed_at).toBeNull();
+    expect(r.completed_at_source).toBeNull();
+  });
 });

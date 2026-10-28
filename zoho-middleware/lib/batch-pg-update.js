@@ -396,7 +396,9 @@ async function updateBatch(client, args, opts) {
     completedSource = values.completed_at === null
       ? null
       : (trustedCompleted ? TRUSTED_COMPLETED_SOURCE : 'manual');
-  } else if (values.status === 'complete' && !row.completed_at) {
+  } else if (values.status === 'complete' && oldStatus !== 'complete' && !row.completed_at) {
+    // Review WR-01: only a transition INTO complete stamps; a re-sent complete leaves a
+    // legacy blank row blank (D-14).
     values.completed_at = now;
     completedSource = 'status';
   } else if (batchRules.isActiveStatus(values.status) &&
