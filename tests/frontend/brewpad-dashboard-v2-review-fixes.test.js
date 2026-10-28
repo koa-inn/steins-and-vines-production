@@ -99,6 +99,83 @@ function lean(id, start, extra) {
   }, extra || {});
 }
 
+describe('WR-03: v2 never renders zero tiles when no data source is loaded', function () {
+  var TODAY = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Vancouver' });
+
+  function mountV2() {
+    document.body.innerHTML = '<div id="bp-dashboard-inner"></div><div id="bp-toast-container"></div>';
+    bp._setDashV2ForTest(true);
+  }
+
+  afterEach(function () { bp._setDashV2ForTest(false); });
+
+  test('shows a skeleton, loads the batch list, then renders real numbers', async function () {
+    var resolveBatches;
+    global.fetch.mockImplementation(function () {
+      return new Promise(function (r) { resolveBatches = r; });
+    });
+    bp._setStateForTest({ _dashData: null, _allBatchesData: [], _batchesLoaded: false, _dashWineSkuLookup: {} });
+    mountV2();
+    bp._renderDashboardV2ForTest();
+
+    var tiles = document.getElementById('bp-dash-v2-tiles');
+    expect(tiles.querySelector('.bp-skeleton-block')).not.toBeNull();
+    expect(tiles.textContent).not.toMatch(/Fermenting now/);
+    expect(bp.getStateForTest()._dashV2Model).toBeNull();
+    expect(document.querySelector('[data-dash-ctl="type"]')).not.toBeNull();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    resolveBatches({
+      ok: true, status: 200,
+      json: function () {
+        return Promise.resolve({ ok: true, data: { batches: [
+          { batch_id: 'R1', status: 'primary', start_date: TODAY, product_name: 'Merlot', source: 'kiosk' }
+        ] } });
+      }
+    });
+    for (var i = 0; i < 6; i++) await flush();
+
+    tiles = document.getElementById('bp-dash-v2-tiles');
+    expect(tiles.querySelector('.bp-skeleton-block')).toBeNull();
+    expect(tiles.textContent).toMatch(/Fermenting now/);
+    expect(bp.getStateForTest()._dashV2Model.cur.activeNow).toBe(1);
+  });
+
+  test('a failed load says so instead of showing zeros', async function () {
+    global.fetch.mockImplementation(function () { return jsonResponse({ ok: false, message: 'down' }, 500); });
+    bp._setStateForTest({ _dashData: null, _allBatchesData: [], _batchesLoaded: false });
+    mountV2();
+    bp._renderDashboardV2ForTest();
+    for (var i = 0; i < 10; i++) await flush();
+    var tiles = document.getElementById('bp-dash-v2-tiles');
+    expect(tiles.textContent).not.toMatch(/Fermenting now/);
+    expect(tiles.textContent).toMatch(/could not load/i);
+  });
+
+  test('fallback mode: the staff tick updates the list row before the dashboard refresh', async function () {
+    var row = {
+      batch_id: 'S1', status: 'primary', start_date: TODAY, product_name: 'Merlot', source: 'kiosk',
+      batch_type: 'wine', batch_type_source: 'manual', staff_batch: false
+    };
+    bp._setStateForTest({ _dashData: null, _allBatchesData: [row], _batchesLoaded: true });
+    mountV2();
+    bp._renderDashboardV2ForTest();
+    expect(bp.getStateForTest()._dashV2Model.cur.mix.staffHidden).toBe(0);
+    global.fetch.mockImplementation(function (url, options) {
+      if (options && options.method === 'POST' && /update_batch/.test(options.body)) {
+        return jsonResponse({ ok: true });
+      }
+      return new Promise(function () {});
+    });
+    await bp._setStaffBatchForTest('S1', true);
+    // Staff batches are hidden from the mix by default, so the refreshed model drops S1 from it.
+    var m = bp.getStateForTest()._dashV2Model;
+    expect(m.cur.mix.staffHidden).toBe(1);
+    expect(m.cur.mix.wine.length).toBe(0);
+    expect(row.staff_batch).toBe(true);
+  });
+});
+
 describe('WR-02: a custom range past the aggregate asOf day is clamped and labelled honestly', function () {
   var ASOF = { today: '2026-10-28', year: 2026, tz: 'America/Vancouver' };
   var ROWS = [lean('A', '2026-10-02'), lean('B', '2026-03-01'), lean('C', '2025-06-01')];

@@ -2170,6 +2170,7 @@ function parseWaitlistRecipeIds(value) {
   var _allBatchesData = [];  // full unfiltered batch list (all statuses) — source of truth for filter/search
   var _eagerLoadDone = false;
   var _eagerLoadTime = 0;
+  var _eagerLoading = false;   // review WR-03: boot load in flight (it re-renders the dashboard itself)
   var _batchesLoaded = false;
   var _batchesLoading = false;
   var _batchesLoadTime = 0;
@@ -3712,6 +3713,10 @@ function parseWaitlistRecipeIds(value) {
         if (flag && at === -1) ids.push(batchId);
         if (!flag && at !== -1) ids.splice(at, 1);
       }
+      // Review WR-03: in the summary fallback v2 reads the list rows, so patch the row too.
+      for (var i = 0; i < _allBatchesData.length; i++) {
+        if (_allBatchesData[i] && _allBatchesData[i].batch_id === batchId) _allBatchesData[i].staff_batch = flag;
+      }
       if (isDashV2()) refreshDashV2();
       afterBatchWrite(batchId, { refreshOpenDetail: true, listAffecting: true });
       return res;
@@ -4925,6 +4930,7 @@ function parseWaitlistRecipeIds(value) {
       return p.then(function (r) { return r; }).catch(function () { return null; });
     }
 
+    _eagerLoading = true;
     Promise.all([
       settle(adminApiGet('get_dashboard_stats')),
       settle(adminApiGet('get_batches', { status: 'all' })),   // fetch ALL statuses at once
@@ -4936,6 +4942,7 @@ function parseWaitlistRecipeIds(value) {
       if (results[0]) { results[0] = dashAggregateFromStats(results[0]); return results; }
       return fetchSummaryAggregate().then(function (agg) { results[0] = agg; return results; });
     }).then(function (results) {
+      _eagerLoading = false;
       var r0 = results[0], r1 = results[1], r2 = results[2], r3 = results[3], r4 = results[4];
 
       if (r0) {
@@ -5264,9 +5271,44 @@ function parseWaitlistRecipeIds(value) {
     refreshDashV2();
   }
 
-  function refreshDashV2() {
+  // No data source yet: placeholder tiles and widgets, then one batch-list load (unless the
+  // boot eager load is still in flight; it re-renders the dashboard when it lands).
+  function showDashV2NoData(afterLoad) {
+    _dashV2Model = null;
+    _dashV2Seq++;
+    updateDashV2Bar();
+    var tiles = document.getElementById('bp-dash-v2-tiles');
+    var failed = afterLoad === true;   // our own load finished and the list is still not loaded
+    if (tiles) {
+      tiles.innerHTML = failed ?
+        '<p class="bp-empty">Dashboard data could not load. Reopen the Dashboard tab to try again.</p>' :
+        '<div class="bp-skeleton-block"></div>';
+    }
+    var msg = failed ? 'No data loaded.' : 'Loading…';
+    dashV2Msg('bp-dash-v2-period', 'period', 'Batches per period', msg);
+    var st = _dashV2State || {};
+    var wine = document.getElementById('bp-dash-v2-wine');
+    if (st.type === 'all' || st.type === 'wine' || !st.type) {
+      dashV2Msg('bp-dash-v2-wine', 'wine', 'Wine breakdown', msg);
+    } else if (wine) {
+      destroyDashV2Slot('wine');
+      wine.style.display = 'none';
+    }
+    if (failed || _eagerLoading || _batchesLoading) return;
+    loadBatches().then(function () {
+      if (isDashV2() && document.getElementById('bp-dash-v2')) refreshDashV2(true);
+    });
+  }
+
+  function refreshDashV2(afterLoad) {
     if (!document.getElementById('bp-dash-v2')) return;
     if (!_dashV2State) _dashV2State = readDashFiltersFromEnv();
+    // Review WR-03: with neither the aggregate nor the batch list loaded, the numbers would
+    // all be zero. Show a placeholder and load the list instead (UI-SPEC: no zero placeholders).
+    if (!_dashData && !(_allBatchesData && _allBatchesData.length) && !_batchesLoaded) {
+      showDashV2NoData(afterLoad);
+      return;
+    }
     var todayStrP = todayPacific();
     var rows = _dashData ? _dashData.batches : toDashRows(_allBatchesData);
     var asOf = _dashData ? _dashData.asOf : { today: todayStrP, year: parseInt(todayStrP.slice(0, 4), 10), tz: 'America/Vancouver' };
@@ -13770,6 +13812,7 @@ function parseWaitlistRecipeIds(value) {
       _openDashDrillForTest: openDashDrill,
       _clearDashDrillForTest: clearDashDrill,
       _renderPullCandidatesForTest: renderPullCandidates,
+      _setStaffBatchForTest: setStaffBatch,
       _handleTabBarClickForTest: handleTabBarClick,
       _switchTabForTest: switchTab,
       _initDelegationForTest: initDelegation,
