@@ -36,7 +36,9 @@ var DEFAULT_TIMEZONE = 'America/Vancouver';
 var MIDNIGHT_GUARD_MINUTES = 15;
 var HTTP_TIMEOUT_MS = 30000;
 // Keys absent from one side by design. Everything else must match.
-var IGNORED_KEYS = { access_token: true };
+// batch_type / batch_type_source: Postgres-only extras on the proxy list/detail (review WR-02);
+// the sheet has no such columns.
+var IGNORED_KEYS = { access_token: true, batch_type: true, batch_type_source: true };
 var UPCOMING_LIMIT = 200;
 
 function parseArgs(argv) {

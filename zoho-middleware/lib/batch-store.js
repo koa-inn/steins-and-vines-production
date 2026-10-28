@@ -124,14 +124,16 @@ function dispatch(name, fn, post) {
 function list(payload) {
   var p = payload || {};
   return dispatch('list', function (client) {
-    return pgRead().listBatches(client, { status: p.status, limit: p.limit, offset: p.offset });
+    return pgRead().listBatches(client, {
+      status: p.status, limit: p.limit, offset: p.offset, includeType: true
+    });
   });
 }
 
 function detail(payload) {
   var p = payload || {};
   return dispatch('detail', function (client) {
-    return pgRead().getBatchDetail(client, p.batch_id);
+    return pgRead().getBatchDetail(client, p.batch_id, { includeType: true });
   });
 }
 
@@ -191,14 +193,15 @@ function batchInit(payload) {
   return runPg(function (client) {
     var out = {};
     // Sequential on purpose: one client never runs concurrent queries.
-    return pgRead().listBatches(client, { status: p.status, limit: p.limit, offset: p.offset })
-      .then(function (batches) {
-        out.batches = batches.data;
-        return pgRead().getDashboardSummary(client, { now: new Date() });
-      }).then(function (summary) {
-        out.summary = summary.data;
-        return out;
-      });
+    return pgRead().listBatches(client, {
+      status: p.status, limit: p.limit, offset: p.offset, includeType: true
+    }).then(function (batches) {
+      out.batches = batches.data;
+      return pgRead().getDashboardSummary(client, { now: new Date() });
+    }).then(function (summary) {
+      out.summary = summary.data;
+      return out;
+    });
   }).then(function (out) {
     return scheduleStore().list().then(function (r) {
       return {

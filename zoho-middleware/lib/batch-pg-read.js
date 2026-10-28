@@ -144,6 +144,16 @@ function loadChildren(client, batchId) {
 // ─── Reads ─────────────────────────────────────────────────────────────────
 
 /**
+ * Phase 94 review WR-02: Postgres-only type extras for the staff list/detail reads. Opt-in
+ * (opts.includeType) so the sheet-shaped default (golden parity, the mirror bundle and the
+ * reconcile index) is unchanged. The sheet has no such columns.
+ */
+function addBatchType(batch, row) {
+  batch.batch_type = row && row.batch_type ? String(row.batch_type) : null;
+  batch.batch_type_source = row && row.batch_type_source ? String(row.batch_type_source) : null;
+}
+
+/**
  * getBatches: status filter ('active' | 'all' | a status, case-insensitive), limit/offset.
  * `total` is the unfiltered row count, `filtered` the count after the status filter (script parity).
  */
@@ -170,6 +180,11 @@ function listBatches(client, opts) {
       offset: o.offset,
       total: Number(res[2].rows[0].n)
     });
+    if (o.includeType) {
+      var rowById = {};
+      res[0].rows.forEach(function (r) { rowById[String(r.batch_id)] = r; });
+      out.batches.forEach(function (b) { addBatchType(b, rowById[String(b.batch_id)]); });
+    }
     return ok(out);
   });
 }
@@ -181,13 +196,16 @@ function listAllForIndex(client) {
   });
 }
 
-function getBatchDetail(client, batchId) {
+function getBatchDetail(client, batchId, opts) {
+  var includeType = !!(opts && opts.includeType);
   if (!batchId) return Promise.resolve(ok(batchRules.buildBatchDetail('', null, [], [], [])));
   return client.query(BATCH_BY_ID_SQL, [String(batchId)]).then(function (res) {
     var row = firstRow(res);
     if (!row) return ok(batchRules.buildBatchDetail(batchId, null, [], [], []));
     return loadChildren(client, row.batch_id).then(function (kids) {
-      return ok(batchRules.buildBatchDetail(batchId, row, kids.tasks, kids.readings, kids.history));
+      var detail = batchRules.buildBatchDetail(batchId, row, kids.tasks, kids.readings, kids.history);
+      if (includeType && detail.batch) addBatchType(detail.batch, row);
+      return ok(detail);
     });
   });
 }

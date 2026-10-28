@@ -596,6 +596,11 @@ function getDashboardData(rows, asOf, filters) {
 
 // Batches whose effective type is 'other' and not manually set. typeById overlays
 // { batch_type, batch_type_source } by batch_id onto get_batches rows.
+// get_batch / get_batches rows from Postgres carry batch_type_source (null when unclassified).
+function hasServerType(b) {
+  return !!b && b.batch_type_source !== undefined;
+}
+
 function filterBatchesByNeedsType(batches, typeById, scheduleCategoryById) {
   var out = [];
   if (!batches || !batches.length) return out;
@@ -603,7 +608,8 @@ function filterBatchesByNeedsType(batches, typeById, scheduleCategoryById) {
   for (var i = 0; i < batches.length; i++) {
     var b = batches[i];
     if (!b) continue;
-    var o = overlay[b.batch_id] || {};
+    // Review WR-02: a server-provided type on the row (get_batches) is fresher than the overlay.
+    var o = hasServerType(b) ? b : (overlay[b.batch_id] || {});
     var merged = {
       batch_type: o.batch_type !== undefined ? o.batch_type : b.batch_type,
       batch_type_source: o.batch_type_source !== undefined ? o.batch_type_source : b.batch_type_source,
@@ -2996,8 +3002,11 @@ function parseWaitlistRecipeIds(value) {
   function batchTypeInfo(b) {
     var row = null;
     var rows = _dashData && _dashData.batches ? _dashData.batches : [];
-    for (var i = 0; i < rows.length; i++) {
-      if (rows[i] && rows[i].batch_id === b.batch_id) { row = rows[i]; break; }
+    // Review WR-02: prefer the type get_batch returned; the dashboard rows are a cached snapshot.
+    if (!hasServerType(b)) {
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i] && rows[i].batch_id === b.batch_id) { row = rows[i]; break; }
+      }
     }
     var src = row ? row.batch_type_source : b.batch_type_source;
     var merged = { batch_type: row ? row.batch_type : b.batch_type, schedule_category: b.schedule_category, schedule_id: b.schedule_id, category: b.category, schedule_snapshot: b.schedule_snapshot, product_name: b.product_name, product_sku: b.product_sku, recipe_id: b.recipe_id };

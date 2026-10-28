@@ -119,7 +119,7 @@ describe('postgres mode freeze', function () {
     read.getBatchDetail.mockResolvedValue({ ok: true, data: { batch: {} } });
     return store.detail({ batch_id: 'SV-B-000001' }).then(function (r) {
       expect(r.ok).toBe(true);
-      expect(read.getBatchDetail).toHaveBeenCalledWith(CLIENT, 'SV-B-000001');
+      expect(read.getBatchDetail).toHaveBeenCalledWith(CLIENT, 'SV-B-000001', { includeType: true });
     });
   });
 
@@ -154,7 +154,9 @@ describe('postgres reads', function () {
       store.countByRecipe('R1'),
       store.countBySchedule('S1')
     ]).then(function (r) {
-      expect(read.listBatches).toHaveBeenCalledWith(CLIENT, { status: 'active', limit: 5, offset: 1 });
+      expect(read.listBatches).toHaveBeenCalledWith(CLIENT, {
+        status: 'active', limit: 5, offset: 1, includeType: true
+      });
       expect(read.getDashboardSummary.mock.calls[0][1].now).toBeInstanceOf(Date);
       expect(read.getTasksCalendar).toHaveBeenCalledWith(CLIENT, '2026-01-01', '2026-01-31');
       expect(read.getTasksUpcoming).toHaveBeenCalledWith(CLIENT, 7);
