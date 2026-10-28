@@ -1,7 +1,8 @@
 ---
 phase: 95
 slug: global-filters-and-chart-engine
-status: draft
+status: approved
+reviewed_at: 2026-10-27
 shadcn_initialized: false
 preset: none
 created: 2026-10-27
@@ -94,6 +95,8 @@ Delta colours: neutral by default. Increase uses `--batch-success`, decrease use
 
 ## Surfaces
 
+Visual hierarchy: the KPI tile row (accent numbers + deltas) is the primary focal point; the sticky filter bar and the batches-per-period chart are secondary; remaining re-hosted widgets are tertiary.
+
 ### 1. Global filter bar (D-04, D-05, D-06)
 
 Element: `<div id="bp-dash-filters" class="bp-dash-filters" role="group" aria-label="Dashboard filters">` at top of the v2 dashboard, `position: sticky; top: var(--bp-shell-height); z-index` below the shell header. Background `--cellar-raised`, bottom border 1px `--ledger-line`, padding 8px 16px.
@@ -106,18 +109,18 @@ Controls, in order (tablet and wider, single row that wraps to two on iPad portr
 | Period | Segmented control + "Custom" segment | 30d, 90d, 6m, 12m, YTD, All, Custom | YTD |
 | Group by | Segmented control | Week, Month | Month |
 | Measure | Segmented control | Batches, Litres | Batches |
-| Source | Native `<select class="bp-select">` | All sources, kiosk, online, manual, zoho_scan, research, internal, Unknown | All sources |
+| Source | Native `<select class="bp-select">` | All sources, Kiosk, Online, Manual, Zoho scan, Research, Internal, Unknown (values: kiosk, online, manual, zoho_scan, research, internal, null/empty) | All sources |
 | Staff | Checkbox-style toggle button, `aria-pressed` | "Include staff batches" | off |
 
 Segmented control: `.bp-seg` container with `.bp-seg-btn` buttons, `min-height: 44px`, 14px text, border 1px `--ctrl-border`, `--r-md` radius, gap 0 between segments; selected = accent fill (see Color). Implemented as `role="radiogroup"` with `role="radio"` buttons and `aria-checked`. Keyboard: arrow keys move, Space/Enter select.
 
 Each control has a 12px/700 `--ink-secondary` label above it (Type, Period, Group by, Measure, Source). Staff toggle has its own text as label.
 
-Custom range: choosing "Custom" opens an inline row beneath the bar (not a popover; iPad-safe) with two native `<input type="date">` labelled "From" and "To", 16px, 44px high, and an "Apply" button (`.bp-btn`). Native pickers give the iPad wheel UI. Validation: From must be on or before To; max To is today (Vancouver). Invalid shows inline error `From must be on or before To.` in `--batch-danger` 12px and Apply stays disabled. Chart updates only on Apply. The Custom segment label shows the range once applied: `Jun 1 – Jul 15`. Weeks are Monday–Sunday; dates are Vancouver calendar dates.
+Custom range: choosing "Custom" opens an inline row beneath the bar (not a popover; iPad-safe) with two native `<input type="date">` labelled "From" and "To", 16px, 44px high, and an "Apply Date Range" button (`.bp-btn`). Native pickers give the iPad wheel UI. Validation: From must be on or before To; max To is today (Vancouver). Invalid shows inline error `From must be on or before To.` in `--batch-danger` 12px and Apply Date Range stays disabled. Chart updates only on Apply Date Range. The Custom segment label shows the range once applied: `Jun 1 – Jul 15`. Weeks are Monday–Sunday; dates are Vancouver calendar dates.
 
 Active-filter summary: when any filter differs from default, a "Reset" text button (`.bp-link-btn`, 44px) appears at the end of the bar: `Reset filters`. Reset restores D-05 defaults.
 
-Phone (width <= 600px, collapses per D-04): bar shows a single row: `Filters` button (44px, with count badge of non-default filters) plus a one-line summary text (12px, truncated with ellipsis, e.g. `YTD · Month · Batches · All`). Tapping `Filters` opens a bottom sheet: `role="dialog" aria-modal="true" aria-labelledby`, backdrop `rgba(44,34,24,0.4)`, sheet `--cellar-raised`, radius `--r-lg` top corners, padding 16px, controls stacked full width with 16px gap, sticky footer with `Apply` (primary) and `Reset`. Close by Apply, backdrop tap, or `✕` (44x44). Focus moves into the sheet on open and back to `Filters` on close; Esc closes. Phone applies on `Apply`; tablet applies immediately on each tap.
+Phone (width <= 600px, collapses per D-04): bar shows a single row: `Filters` button (44px, with count badge of non-default filters) plus a one-line summary text (12px, truncated with ellipsis, e.g. `YTD · Month · Batches · All`). Tapping `Filters` opens a bottom sheet: `role="dialog" aria-modal="true" aria-labelledby`, backdrop `rgba(44,34,24,0.4)`, sheet `--cellar-raised`, radius `--r-lg` top corners, padding 16px, controls stacked full width with 16px gap, sticky footer with `Apply Filters` (primary) and `Reset`. Close by Apply Filters, backdrop tap, or `✕` (44x44). Focus moves into the sheet on open and back to `Filters` on close; Esc closes. Phone applies on `Apply Filters`; tablet applies immediately on each tap.
 
 State persistence (D-06): hash format `#dash=v2&type=wine&period=ytd&group=month&measure=batches&source=kiosk&staff=0&from=&to=`; only non-default keys written. Hash wins over localStorage on load. Every filter change calls `history.replaceState` (not pushState, so Back does not step through filter taps).
 
@@ -193,7 +196,7 @@ Batch detail pane (`renderBatchDetail`), a new `.bp-detail-info-row` directly af
 
 | Element | Copy |
 |---------|------|
-| Primary CTA | `Apply` (custom range, phone sheet). The only primary action introduced |
+| Primary CTA | `Apply Date Range` (custom range row), `Apply Filters` (phone sheet). The only primary action introduced |
 | Opt-in / opt-out | `Try new dashboard` / `Back to classic dashboard` |
 | Filter labels | `Type`, `Period`, `Group by`, `Measure`, `Source` |
 | Period options | `30d`, `90d`, `6m`, `12m`, `YTD`, `All`, `Custom` |
@@ -223,7 +226,7 @@ Batch detail pane (`renderBatchDetail`), a new `.bp-detail-info-row` directly af
 |----------|-------------|-------------|
 | shadcn official | none | not applicable (no shadcn) |
 | third-party | none | not applicable |
-| npm vendor file | Chart.js 4 (self-hosted, pinned exact version) | Download from the official release, record version and SHA-256 in `js/vendor/` README or commit message, scan for no unexpected network calls. Checked 2026-10-27: no CSP change needed (no CSP tag in brewpad.html) |
+| npm vendor file | Chart.js 4 (self-hosted, pinned exact version) | Download from the official release, record version and SHA-256 in `js/vendor/` README or commit message, scan for no unexpected network calls. Plan must include a verification step that the version + SHA-256 are actually recorded. Checked 2026-10-27: no CSP change needed (no CSP tag in brewpad.html) |
 
 ---
 
@@ -238,11 +241,11 @@ Batch detail pane (`renderBatchDetail`), a new `.bp-detail-info-row` directly af
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-10-27 (FLAGs on Copywriting, Visuals, Registry Safety addressed inline)
