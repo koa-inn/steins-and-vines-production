@@ -2166,6 +2166,7 @@ function parseWaitlistRecipeIds(value) {
   var _batchStatusFilter = 'active';
   var _batchProductFilter = '';
   var _batchSearch = '';
+  var _dashDrill = null;          // Phase 95 (D-14): { ids: {id:true}, count, label } while a dashboard click-through is active
   var _batchSearchTimer = null;   // module-scope so switchTab() can cancel a pending re-render
   var _batchViewMode = 'cards';   // 'cards' or 'table'
   var _batchTableSortCol = 'batch_id';
@@ -6004,16 +6005,48 @@ function parseWaitlistRecipeIds(value) {
     return filterBatchesByNeedsType(_allBatchesData, dashTypeById(), buildScheduleCategoryById(_fermSchedules));
   }
 
+  // Phase 95 (D-14): while a dashboard click-through is active, every chip works on
+  // the intersection of its normal rows with the drilled id set.
+  function drillFilterRows(rows) {
+    if (!_dashDrill) return rows;
+    return rows.filter(function (b) { return b && _dashDrill.ids[b.batch_id] === true; });
+  }
+
   function applyBatchFilter() {
+    var srcRows = drillFilterRows(_allBatchesData);
     if (_batchStatusFilter === 'readyToBottle') {
-      _batchesData = readyToBottleRows();
+      _batchesData = drillFilterRows(readyToBottleRows());
     } else if (_batchStatusFilter === 'unlinked') {
-      _batchesData = filterBatchesByUnlinked(_allBatchesData);
+      _batchesData = filterBatchesByUnlinked(srcRows);
     } else if (_batchStatusFilter === 'needsType') {
-      _batchesData = needsTypeRows();
+      _batchesData = drillFilterRows(needsTypeRows());
     } else {
-      _batchesData = filterBatchesByStatus(_allBatchesData, _batchStatusFilter);
+      _batchesData = filterBatchesByStatus(srcRows, _batchStatusFilter);
     }
+  }
+
+  // openDashDrill(spec) - spec = { ids: string[], label: string }. Shows exactly spec.ids on the
+  // Batches tab (chip 'all', search/product cleared) under a dismissible banner.
+  function openDashDrill(spec) {
+    var ids = (spec && spec.ids) || [];
+    var map = {};
+    for (var i = 0; i < ids.length; i++) map[ids[i]] = true;
+    _dashDrill = { ids: map, count: ids.length, label: String((spec && spec.label) || '') };
+    _batchStatusFilter = 'all';
+    _batchSearch = '';
+    _batchProductFilter = '';
+    _batchesLoaded = false;
+    var searchEl = document.getElementById('bp-batch-search');
+    if (searchEl) searchEl.value = '';
+    switchTab('batches');
+  }
+
+  function clearDashDrill() {
+    _dashDrill = null;
+    _batchStatusFilter = 'active';
+    if (_allBatchesData.length === 0) { loadBatches(); return; }
+    applyBatchFilter();
+    renderBatchList();
   }
 
   // refreshReadyToBottleFilterView — after a task write + loadDashboard() refetch,
@@ -6165,6 +6198,9 @@ function parseWaitlistRecipeIds(value) {
       // Batch list content wrapper
       shellHtml += '<div id="bp-batch-list-content"' + (_batchSubView !== 'batches' ? ' style="display:none;"' : '') + '>';
 
+      // Phase 95 (D-14): dashboard click-through banner slot (filled on every render)
+      shellHtml += '<div id="bp-drill-banner-slot"></div>';
+
       // Filter bar
       shellHtml += '<div class="bp-batch-filters">';
       var filterOpts = [
@@ -6289,13 +6325,29 @@ function parseWaitlistRecipeIds(value) {
       viewToggle.textContent = _batchViewMode === 'cards' ? '\u2630' : '\u229e';
     }
 
+    // Phase 95 (D-14): banner above the chips; label escaped (T-95-26)
+    var bannerSlot = document.getElementById('bp-drill-banner-slot');
+    if (bannerSlot) {
+      if (_dashDrill) {
+        bannerSlot.innerHTML = '<div class="bp-drill-banner" role="status"><span class="bp-drill-banner-text">' + escapeHTML(_dashDrill.label) + '</span>' +
+          '<button type="button" class="bp-drill-banner-close" data-action="clear-dash-drill" aria-label="Clear dashboard filter">\u2715</button></div>';
+      } else {
+        bannerSlot.innerHTML = '';
+      }
+    }
+
     // Always: update just the results container
     var resultsEl = document.getElementById('bp-batch-results');
     if (!resultsEl) return;
 
     var resultsHtml = '';
+    if (_dashDrill && filtered.length > 0) {
+      resultsHtml += '<h3 class="bp-drill-heading">' + filtered.length + (filtered.length === 1 ? ' batch shown' : ' batches shown') + '</h3>';
+    }
     if (filtered.length === 0) {
-      if (_batchStatusFilter === 'pending') {
+      if (_dashDrill) {
+        resultsHtml += '<p class="bp-empty">No batches in this set any more.</p>';
+      } else if (_batchStatusFilter === 'pending') {
         resultsHtml += '<p class="bp-empty"><strong>No pending batches</strong><br>Kiosk sales with Maker&#39;s Fee and kiosk recipe sales will appear here automatically.</p>';
       } else if (_batchStatusFilter === 'unlinked') {
         resultsHtml += '<p class="bp-empty"><strong>Every batch is linked</strong><br>Batches without an invoice are marked Internal.</p>';
@@ -12167,6 +12219,7 @@ function parseWaitlistRecipeIds(value) {
       dashInner.addEventListener('click', function (e) {
         var tile = e.target.closest('.bp-pipeline-tile');
         if (tile) {
+          _dashDrill = null;
           _batchStatusFilter = tile.getAttribute('data-status');
           _batchSearch = '';
           _batchesLoaded = false;
@@ -12481,6 +12534,10 @@ function parseWaitlistRecipeIds(value) {
           return;
         }
 
+        if (e.target.closest('[data-action="clear-dash-drill"]')) {
+          clearDashDrill();
+          return;
+        }
         var filterBtn = e.target.closest('.bp-filter-btn');
         if (filterBtn) {
           selectBatchStatusFilter(filterBtn);
@@ -13330,6 +13387,9 @@ function parseWaitlistRecipeIds(value) {
       // Test-only: render the batch-detail pane (bottling-invite send-tracking UI).
       _renderBatchDetailForTest: renderBatchDetail,
       _renderBatchListForTest: renderBatchList,
+      _openDashDrillForTest: openDashDrill,
+      _clearDashDrillForTest: clearDashDrill,
+      _initDelegationForTest: initDelegation,
       _loadLinkCandidatesForTest: loadLinkCandidates,
       _linkBatchToInvoiceForTest: linkBatchToInvoice,
       _markBatchSourceForTest: markBatchSource,
@@ -13400,7 +13460,10 @@ function parseWaitlistRecipeIds(value) {
           _dashSummary: _dashSummary,
           _dashData: _dashData,
           _dashV2State: _dashV2State,
-          _dashV2Model: _dashV2Model
+          _dashV2Model: _dashV2Model,
+          _dashDrill: _dashDrill,
+          _batchSearch: _batchSearch,
+          _batchProductFilter: _batchProductFilter
         };
       },
       _setStateForTest: function (patch) {
