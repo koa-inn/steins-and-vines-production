@@ -232,3 +232,29 @@ needs_a_type: 0
 
 - **Next:** `batches-verify` on a fresh owner snapshot, then the dashboard D-13 check (the owner needs to sign in again;
   a page reload showed the staff sign-in screen) and owner sign-off.
+
+### Production final verify + D-13 (94-12)
+
+- **Verify after the B2 replay:** owner snapshot S7 (sha `f5391b91`) uploaded, sha256 prefix `28100c93142c3a55` checked on both
+  ends. Ran `batches-verify` at 01:33:07Z: headers match; counts 215 / 1114 / 72 / 442 equal; 0 orphans; **0 mismatches**;
+  exit 0. The uploaded file was then deleted.
+- **D-13 (production BrewPad; the owner signed in again; read by Claude in Chrome):**
+
+| Number | Dashboard | Recompute | Result |
+|--------|-----------|-----------|--------|
+| Cycle tile median / mean / N | 57d / 59d / 175 ("Based on 175 batches", none excluded) | 57 / 59 / 175 | match |
+| Per-type medians | Wine 57d · Beer 38d · Cider 71d | 57 · 38 · 71 | match |
+| Completed this year | 175 | n 175 | match |
+| Started this year | 214 | n/a | same as staging |
+| Month chart legend | Wine 122 / Beer 2 / Cider 4 / Other 0 = bars 128 | n/a | consistent |
+| Wine breakdown total | 122 (Red 68, White 36, Rosé 10, Fruit 3, Unknown 5) | n/a | = chart wine 122 |
+| Needs-a-type chip | `Needs a type (0)` | needs_a_type 0 | match |
+
+**D-13 check: PASS** on production. Before the backfills the tile read 61d / 61d / 135 with 40 excluded.
+
+Note: production's wine breakdown shows "Unknown 5" where staging showed those 5 as Red. That is the
+subcategory lookup from the catalog snapshot (Phase 29.4), not Phase 94; the totals still agree.
+
+The SQL-fix rows for both applies are logged in `87-CUTOVER-LOG.md` "SQL fixes".
+
+Awaiting the owner's sign-off on the live dashboard (94-12 final).

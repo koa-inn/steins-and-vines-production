@@ -184,3 +184,5 @@ The first production drift run may show false date mismatches; read its log line
 
 | Date | Batch ids | Reason | Dry-run count | Rows updated | Mirror replayed |
 |------|-----------|--------|---------------|--------------|-----------------|
+| 2026-10-27 22:19Z | all 215 (SV-B-000001..000247) | Phase 94 B3: set `batch_type` + `batch_type_source` (`batch-type-backfill.js --apply --expect=215`, trusted channel, owner OK) | 215 | 215 | yes, 215/215 (finished 23:15Z); verify 0 mismatches at 23:28Z |
+| 2026-10-27 23:30Z | 40 (SV-B-000002..000057) | Phase 94 B2: set missing `completed_at` from task completion, source `backfill-task` (`completed-at-backfill.js --apply --expect=40`, owner OK) | 40 | 40 | yes, 40/40 (finished 23:42Z); verify 0 mismatches at 01:33Z |
