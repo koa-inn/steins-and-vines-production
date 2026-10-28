@@ -117,7 +117,8 @@ function planRows(rows, zohoIndex) {
     var stored = r.batch_type_source;
     var entry = {
       batch_id: r.batch_id, sku: str(r.product_sku), name: str(r.product_name),
-      action: 'unchanged', type: str(r.batch_type) || 'other', rule: stored || 'none'
+      action: 'unchanged', type: str(r.batch_type) || 'other', rule: stored || 'none',
+      stored: stored || null
     };
     if (stored === 'manual') {
       entry.action = 'skip-manual';
@@ -158,7 +159,10 @@ async function writeOne(pool, entry, now) {
     var res = await pgUpdate.updateBatch(
       client,
       { batch_id: entry.batch_id, updates: { batch_type: entry.type } },
-      { trusted: true, batchTypeSource: entry.rule, actor: 'backfill', now: now }
+      {
+        trusted: true, batchTypeSource: entry.rule, expectedTypeSource: entry.stored,
+        actor: 'backfill', now: now
+      }
     );
     if (res && res.ok) {
       await client.query('commit');
@@ -238,7 +242,9 @@ async function runBatchTypeBackfill(opts, deps) {
       var res = await writeOne(deps.pool, candidates[i], applyStart);
       if (res && res.ok) {
         written++;
-      } else if (res && res.error === 'manual_locked') {
+      } else if (res && (res.error === 'manual_locked' || res.error === 'source_changed')) {
+        // source_changed: upgraded (or re-set) since the read; never downgrade it (WR-04).
+        log('skipped ' + candidates[i].batch_id + ' ' + res.error);
         skipped++;
       } else {
         log('Apply stopped - batch ' + candidates[i].batch_id + ' error=' + ((res && res.error) || 'unknown'));

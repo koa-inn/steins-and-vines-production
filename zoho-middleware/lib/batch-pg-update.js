@@ -99,6 +99,8 @@ var LOCATION_FIELDS = ['vessel_id', 'shelf_id', 'bin_id'];
 // A client can only ever produce 'manual'; batch-store's writeOpts never forwards `trusted`.
 var TRUSTED_TYPE_SOURCES = ['recipe', 'zoho', 'schedule', 'name', 'other'];
 var TRUSTED_COMPLETED_SOURCE = 'backfill-task';
+// Sources the trusted type backfill may overwrite (review WR-04): never recipe/zoho/schedule/manual.
+var TRUSTED_WEAK_TYPE_SOURCES = [null, 'name', 'other'];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -339,6 +341,17 @@ async function updateBatch(client, args, opts) {
         return fail('invalid_input', 'batchTypeSource is not allowed');
       }
       if (row.batch_type_source === 'manual') return fail('manual_locked', 'batch type was set by hand');
+      // Review WR-04 (D-06): the backfill plans from a snapshot, so re-check under the row lock.
+      // Only a still-weak row (NULL / name / other) may be written, and when the caller says what
+      // it saw (expectedTypeSource, null = unclassified) the stored source must still match.
+      var storedSource = row.batch_type_source || null;
+      if (TRUSTED_WEAK_TYPE_SOURCES.indexOf(storedSource) < 0) {
+        return fail('source_changed', 'batch type source is now ' + storedSource);
+      }
+      if (Object.prototype.hasOwnProperty.call(opts, 'expectedTypeSource') &&
+          (opts.expectedTypeSource || null) !== storedSource) {
+        return fail('source_changed', 'batch type source changed since the backfill read');
+      }
     }
     typeSet = { type: normalizedType, source: typeSource };
   }
