@@ -1493,7 +1493,7 @@ function chart(canvas, cfg) {
           label: function (item) {
             var name = (item.dataset && item.dataset.label) || item.label || '';
             var val = valueOf(item);
-            return name + ': ' + (litres ? fmtNum(val) + ' L' : val + ' batches');
+            return name + ': ' + (litres ? fmtNum(val) + ' L' : val + (Number(val) === 1 ? ' batch' : ' batches'));
           },
           footer: function (items) {
             if (!cfg.tooltipTotal) return '';

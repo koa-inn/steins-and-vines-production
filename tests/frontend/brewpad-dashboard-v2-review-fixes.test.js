@@ -234,6 +234,35 @@ describe('WR-06: the filter bar follows a phone/tablet width change', function (
   });
 });
 
+describe('IN-01: the chart tooltip uses the singular for one batch', function () {
+  function FakeChart(canvas, config) { this.canvas = canvas; this.config = config; }
+  FakeChart.prototype.destroy = function () {};
+  FakeChart.getChart = function () { return undefined; };
+  FakeChart.defaults = { font: {} };
+
+  beforeEach(function () {
+    window.Chart = FakeChart;
+    window.matchMedia = function () { return { matches: false }; };
+  });
+  afterEach(function () {
+    delete window.Chart;
+    delete window.matchMedia;
+  });
+
+  test('1 batch, 0 batches, 2 batches', function () {
+    var canvas = document.createElement('canvas');
+    document.body.appendChild(canvas);
+    var c = bp._chartForTest(canvas, {
+      type: 'bar', labels: ['a'], series: [{ key: 'wine', label: 'Wine', data: [1], colour: '#6e1a2c' }],
+      stacked: true, horizontal: false, measure: 'batches', ariaLabel: 'Batches by type', tooltipTotal: true
+    });
+    var label = c.config.options.plugins.tooltip.callbacks.label;
+    expect(label({ dataset: { label: 'Wine' }, parsed: { y: 1 } })).toBe('Wine: 1 batch');
+    expect(label({ dataset: { label: 'Wine' }, parsed: { y: 0 } })).toBe('Wine: 0 batches');
+    expect(label({ dataset: { label: 'Wine' }, parsed: { y: 2 } })).toBe('Wine: 2 batches');
+  });
+});
+
 describe('WR-02: a custom range past the aggregate asOf day is clamped and labelled honestly', function () {
   var ASOF = { today: '2026-10-28', year: 2026, tz: 'America/Vancouver' };
   var ROWS = [lean('A', '2026-10-02'), lean('B', '2026-03-01'), lean('C', '2025-06-01')];
