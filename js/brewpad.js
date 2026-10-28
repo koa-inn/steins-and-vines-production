@@ -453,7 +453,8 @@ function toDashRows(batches) {
       schedule_category: '',
       target_volume_l: b.target_volume_l === undefined ? null : b.target_volume_l,
       tasks_total: b.tasks_total || 0,
-      tasks_done: b.tasks_done || 0
+      tasks_done: b.tasks_done || 0,
+      staff_batch: b.staff_batch === true
     });
   }
   return out;
@@ -470,6 +471,112 @@ function isNeedsType(row, type) {
   return type === 'other' && src !== 'manual' && String(row.status || '').toLowerCase() !== 'disabled';
 }
 
+// ---------------------------------------------------------------------------
+// Phase 95 selection layer helpers (pure ES5, no wall clock).
+// ---------------------------------------------------------------------------
+var DASH_YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function emptyTypeLists() {
+  var o = {};
+  for (var i = 0; i < DASH_TYPES.length; i++) o[DASH_TYPES[i]] = [];
+  return o;
+}
+
+// Monday on or before ymd (1970-01-01 was a Thursday).
+function weekStartOf(ymd) {
+  var sinceMonday = (dayNumber(ymd) + 3) % 7;
+  return addDays(ymd, -sinceMonday);
+}
+
+function bucketKeyOf(ymd, group) {
+  if (group === 'week') return weekStartOf(ymd);
+  return String(ymd).slice(0, 7);
+}
+
+function bucketLabelOf(key, group) {
+  if (group === 'week') {
+    return 'Week of ' + DASH_MONTH_LABELS[+String(key).slice(5, 7) - 1] + ' ' + (+String(key).slice(8, 10));
+  }
+  return DASH_MONTH_LABELS[+String(key).slice(5, 7) - 1] + ' ' + String(key).slice(0, 4);
+}
+
+// Gap-filled bucket list; first bucket contains start, last contains end.
+function periodSkeleton(start, end, group) {
+  var out = [];
+  var key;
+  if (!start || !end || start > end) return out;
+  if (group === 'week') {
+    key = weekStartOf(start);
+    var lastWeek = weekStartOf(end);
+    while (key <= lastWeek) {
+      out.push({ key: key, label: bucketLabelOf(key, 'week') });
+      key = addDays(key, 7);
+    }
+    return out;
+  }
+  var y = +String(start).slice(0, 4);
+  var m = +String(start).slice(5, 7);
+  var lastMonth = String(end).slice(0, 7);
+  while (true) {
+    key = y + '-' + (m < 10 ? '0' : '') + m;
+    if (key > lastMonth) break;
+    out.push({ key: key, label: bucketLabelOf(key, 'month') });
+    m++;
+    if (m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+
+function sourceMatches(row, want) {
+  if (want === undefined || want === null || want === '' || want === 'all') return true;
+  var s = normBatchSource(row && row.source);
+  if (want === 'unknown') return s === '';
+  if (want === 'kiosk') return s === 'kiosk' || s === 'kiosk_recipe';
+  return s === want;
+}
+
+// Litres for one batch. kind: 'started' | 'active' | 'completed'. est=true when a default was used.
+function batchLitres(row, kind, type) {
+  var tv = Number(row && row.target_volume_l);
+  if (tv > 0) return { l: tv, est: false };
+  if (type === 'beer') return { l: kind === 'completed' ? 25 : 28, est: true };
+  return { l: 23, est: true };
+}
+
+function isStaffRow(row, staffIds) {
+  if (!row) return false;
+  return row.staff_batch === true || !!(staffIds && staffIds[row.batch_id] === true);
+}
+
+function isRealYmd(s) {
+  return typeof s === 'string' && DASH_YMD_RE.test(s) && addDays(s, 0) === s;
+}
+
+function windowFromFilters(state, today) {
+  var st = state || {};
+  var p = st.period;
+  if (p === 'custom') {
+    if (isRealYmd(st.from) && isRealYmd(st.to) && st.from <= st.to && st.to <= today) {
+      return { key: 'custom', start: st.from, end: st.to };
+    }
+    return dashboardWindow('ytd', today);
+  }
+  if (p === 'all' || p === 'ytd' || DASH_WINDOW_DAYS[p]) return dashboardWindow(p, today);
+  return dashboardWindow('ytd', today);
+}
+
+function previousWindow(win, today) {
+  if (!win || win.key === 'all') return null;
+  if (win.key === 'ytd') {
+    var py = +String(win.end).slice(0, 4) - 1;
+    var md = String(win.end).slice(5, 10);
+    if (md === '02-29') md = '02-28';
+    return { key: 'ytd', start: py + '-01-01', end: py + '-' + md, days: dayNumber(py + '-' + md) - dayNumber(py + '-01-01') + 1 };
+  }
+  var n = dayNumber(win.end) - dayNumber(win.start) + 1;
+  return { key: win.key, start: addDays(win.start, -n), end: addDays(win.start, -1), days: n };
+}
+
 // The single dashboard computation. Each row is classified once and the type
 // filter is applied once, before any total is computed.
 function getDashboardData(rows, asOf, filters) {
@@ -480,21 +587,46 @@ function getDashboardData(rows, asOf, filters) {
   var catMap = f.scheduleCategoryById || {};
   var today = asOf.today;
   var win = dashboardWindow(winKey, today);
+  if (f.range && f.range.start && f.range.end) {
+    win = { key: f.window || 'custom', start: f.range.start, end: f.range.end };
+  }
   var cycleWin = win;
 
   var items = [];
   var needsType = [];
   var src = rows || [];
+  var earliestStart = null;
   var i;
   for (i = 0; i < src.length; i++) {
     var r = src[i];
     if (!r) continue;
     var t = effectiveBatchType(r, catMap);
+    var rStatus = String(r.status || '').toLowerCase();
+    // earliestStart looks at every started row before any filter.
+    if (DASH_STARTED_STATUSES[rStatus] === true && r.start_date) {
+      var sd = String(r.start_date).slice(0, 10);
+      if (earliestStart === null || sd < earliestStart) earliestStart = sd;
+    }
     // needsType is a worklist and ignores the type filter.
     if (isNeedsType(r, t)) needsType.push(r);
     if (typeFilter !== 'all' && t !== typeFilter) continue;
-    items.push({ row: r, type: t, status: String(r.status || '').toLowerCase() });
+    if (!sourceMatches(r, f.source)) continue;
+    items.push({ row: r, type: t, status: rStatus });
   }
+
+  var idSets = {
+    started: [], completed: [], activeNow: [], cycle: [],
+    startedByType: emptyTypeLists(), completedByType: emptyTypeLists()
+  };
+  var litres = {
+    started: 0, completed: 0, activeNow: 0,
+    startedByType: emptyTypeCounts(), completedByType: emptyTypeCounts(), estimated: false
+  };
+  var mixWine = [];
+  var staffHidden = 0;
+  var periodBuckets = [];
+  var periodByKey = {};
+  var startedItems = [];
 
   var activeNow = 0;
   var pendingCount = 0;
@@ -527,17 +659,36 @@ function getDashboardData(rows, asOf, filters) {
     var row = it.row;
     var isStarted = DASH_STARTED_STATUSES[it.status] === true;
     if (it.status === 'pending') pendingCount++;
-    if (it.status === 'primary' || it.status === 'secondary') activeNow++;
+    if (it.status === 'primary' || it.status === 'secondary') {
+      activeNow++;
+      idSets.activeNow.push(row.batch_id);
+      var lAct = batchLitres(row, 'active', it.type);
+      litres.activeNow += lAct.l;
+      if (lAct.est) litres.estimated = true;
+    }
     if (!isStarted) continue;
 
     if (inWindow(row.start_date, win)) {
       started++;
       totalsByType[it.type]++;
+      idSets.started.push(row.batch_id);
+      idSets.startedByType[it.type].push(row.batch_id);
+      var lSt = batchLitres(row, 'started', it.type);
+      litres.started += lSt.l;
+      litres.startedByType[it.type] += lSt.l;
+      if (lSt.est) litres.estimated = true;
+      startedItems.push(it);
     }
     // Review CR-01: only complete rows count, so a reopened batch's stale stamp is ignored.
     if (it.status === 'complete' && inWindow(row.completed_day, win)) {
       completed++;
       completedByType[it.type]++;
+      idSets.completed.push(row.batch_id);
+      idSets.completedByType[it.type].push(row.batch_id);
+      var lCo = batchLitres(row, 'completed', it.type);
+      litres.completed += lCo.l;
+      litres.completedByType[it.type] += lCo.l;
+      if (lCo.est) litres.estimated = true;
     }
     if (row.start_date && row.start_date <= today) {
       var b = bucketByKey[String(row.start_date).slice(0, 7)];
@@ -552,6 +703,7 @@ function getDashboardData(rows, asOf, filters) {
             excluded++;
           } else {
             spans.push(span);
+            idSets.cycle.push(row.batch_id);
             if (!spansByType[it.type]) spansByType[it.type] = [];
             spansByType[it.type].push(span);
           }
@@ -573,7 +725,51 @@ function getDashboardData(rows, asOf, filters) {
   var med = medianOf(spans);
   var mean = meanOf(spans);
 
+  // Phase 95: window-clipped period buckets and the wine mix rows, both from
+  // the started-in-window set so they match ids.started by construction.
+  if (f.group === 'week' || f.group === 'month') {
+    var skelStart = win.start;
+    if (win.key === 'all') {
+      skelStart = null;
+      for (i = 0; i < startedItems.length; i++) {
+        var sdi = String(startedItems[i].row.start_date).slice(0, 10);
+        if (skelStart === null || sdi < skelStart) skelStart = sdi;
+      }
+    }
+    var skel = skelStart ? periodSkeleton(skelStart, win.end, f.group) : [];
+    for (k = 0; k < skel.length; k++) {
+      var pb = {
+        key: skel[k].key, label: skel[k].label, ids: emptyTypeLists(), all: [],
+        counts: emptyTypeCounts(), total: 0, litres: emptyTypeCounts(), totalLitres: 0
+      };
+      periodBuckets.push(pb);
+      periodByKey[pb.key] = pb;
+    }
+    for (i = 0; i < startedItems.length; i++) {
+      var si = startedItems[i];
+      var pbk = periodByKey[bucketKeyOf(String(si.row.start_date).slice(0, 10), f.group)];
+      if (!pbk) continue;
+      var pl = batchLitres(si.row, 'started', si.type).l;
+      pbk.ids[si.type].push(si.row.batch_id);
+      pbk.all.push(si.row.batch_id);
+      pbk.counts[si.type]++;
+      pbk.total++;
+      pbk.litres[si.type] += pl;
+      pbk.totalLitres += pl;
+    }
+  }
+  for (i = 0; i < startedItems.length; i++) {
+    if (startedItems[i].type !== 'wine') continue;
+    if (f.staff !== true && isStaffRow(startedItems[i].row, f.staffIds)) { staffHidden++; continue; }
+    mixWine.push(startedItems[i].row);
+  }
+
   return {
+    ids: idSets,
+    litres: litres,
+    periodBuckets: periodBuckets,
+    mix: { wine: mixWine, staffHidden: staffHidden },
+    earliestStart: earliestStart,
     asOf: asOf,
     window: win,
     activeNow: activeNow,
@@ -12359,6 +12555,15 @@ if (typeof module !== 'undefined' && module.exports) {
     effectiveBatchType: effectiveBatchType,
     toDashRows: toDashRows,
     getDashboardData: getDashboardData,
+    weekStartOf: weekStartOf,
+    bucketKeyOf: bucketKeyOf,
+    bucketLabelOf: bucketLabelOf,
+    periodSkeleton: periodSkeleton,
+    sourceMatches: sourceMatches,
+    batchLitres: batchLitres,
+    isStaffRow: isStaffRow,
+    windowFromFilters: windowFromFilters,
+    previousWindow: previousWindow,
     filterBatchesByNeedsType: filterBatchesByNeedsType,
     bucketBatchesByMonthType: bucketBatchesByMonthType,
     buildSkuLookup: buildSkuLookup,
