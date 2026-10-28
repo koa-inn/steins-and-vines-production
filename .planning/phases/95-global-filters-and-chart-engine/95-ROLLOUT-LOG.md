@@ -100,4 +100,9 @@ Read-only, 2026-10-28 (production container via `railway ssh`, read-only transac
 - **Rollback target:** Railway deployment `d8ffd7bd-3149-4ea1-ad18-c9fd5421cfb6` (SUCCESS, 2026-10-28 02:52Z, `prod-20261028-1`).
 - **production/main:** `3f64da2d`. Commits on main not yet on production: 54. Outside Phase 95 these are docs only:
   `fd92427e`, `aef21a36`, `1bf21d41`, `44a0e542`, `354b3d98` (STATE / Phase 94 docs).
-- **Candidate SHA:** pending - the code-review warning fixes (95-REVIEW-FIX) land first and must be staging-verified.
+- **Code review:** 95-REVIEW.md 0 critical / 6 warning / 10 info. Fixed WR-01..04, WR-06, IN-01 (95-REVIEW-FIX.md); WR-05 skipped
+  (hint wording, owner already chose to leave it). Gate on Node 24 after merge `9d584448`: FE 3012, MW 3708, DB 443, lints clean.
+- **Staging re-check of fixes:** pushed `9d584448`; Railway `b80c38c3` SUCCESS, `/health 200`. Staff CLI dry run prints
+  `fingerprint:`; `--apply` without `--expect-ids` refused (exit 1). v2 renders, no console errors; custom Oct 1 – Oct 28
+  (ending today) shows the range label and "vs prior 28 days".
+- **Candidate SHA:** `9d584448` (code; later commits are `.planning` docs only).
