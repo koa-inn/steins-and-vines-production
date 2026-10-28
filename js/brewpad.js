@@ -2967,6 +2967,8 @@ function chart(canvas, cfg) {
       borderSkipped: false,
       _key: series[i].key
     };
+    // Phase 96-08: opt-in 1px outline for neutral fills (G6 Available).
+    if (series[i].borderColour) { ds.borderColor = series[i].borderColour; ds.borderWidth = 1; }
     if (cfg.type === 'line') {
       ds.borderColor = series[i].colour;
       ds.borderWidth = 2;
@@ -3045,6 +3047,7 @@ function chart(canvas, cfg) {
     labelScale.type = 'linear';
     labelScale.beginAtZero = false;
     labelScale.ticks.precision = 0;
+    if (typeof cfg.xMin === 'number') labelScale.min = cfg.xMin;
   }
   // Phase 96-07: optional bold tick (e.g. the 'Today' column in Workload).
   if (typeof cfg.boldTick === 'number') {
@@ -7636,6 +7639,151 @@ function parseWaitlistRecipeIds(value) {
     }
   }
 
+  var DASH_V2_VESSELS_TITLE = 'Vessels';
+  var DASH_V2_FERMENT_TITLE = 'Fermentation';
+
+  // Chart region that degrades to a message while Chart.js is loading or failed; lists below still render.
+  function dashV2ChartRegion(chartState) {
+    if (window.Chart) return '<div class="bp-chart"><canvas></canvas></div>';
+    return '<p class="bp-empty">' + (chartState === 'failed' ? DASH_V2_FAILED : DASH_V2_LOADING) + '</p>';
+  }
+
+  // Register one drill per list item and return dashListHtml items.
+  function dashV2ListItems(w, items) {
+    var out = [];
+    for (var i = 0; i < items.length; i++) {
+      out.push({
+        primary: items[i].primary,
+        secondary: items[i].secondary,
+        right: items[i].right,
+        drill: dashV2DrillAdd(w, items[i].ids, items[i].subject, false)
+      });
+    }
+    return out;
+  }
+
+  function dashV2ListBlock(w, listKey, title, items, emptyText, note) {
+    return '<div class="bp-g6-list bp-g8-list"><h4 class="bp-g4-subtitle">' + escapeHTML(title) + ' (' + items.length + ')</h4>' +
+      (note ? '<p class="bp-dash-foot-note">' + escapeHTML(note) + '</p>' : '') +
+      dashListHtml(w, listKey, dashV2ListItems(w, items), { limit: 5, expanded: !!_dashV2Expanded[w + ':' + listKey], emptyText: emptyText }) + '</div>';
+  }
+
+  // G6 Vessels: capacity in use per stored vessel type, plus neutral Shared vessels / No vessel lists.
+  function renderDashV2Vessels(model, chartState) {
+    var slotId = 'bp-dash-v2-vessels';
+    if (!model || !document.getElementById(slotId)) return;
+    var view = dashV2Opt('g6', 'view', 'chart') === 'table' ? 'table' : 'chart';
+    var mode = dashV2Opt('g6', 'mode', 'vessels') === 'litres' ? 'litres' : 'vessels';
+    var ctx = dashV2ProdCtx();
+    var g = buildG6Model(ctx.rows, _dashData.vessels, { mode: mode, staffIds: ctx.staffIds, catMap: ctx.catMap });
+    var slot = dashV2Widget(slotId, DASH_V2_VESSELS_TITLE);
+    slot.style.display = '';
+    dashV2SetControls(slotId, dashSegHtml('g6', 'mode', [['vessels', 'Vessels'], ['litres', 'Litres']], mode, 'Show as') +
+      dashViewToggleHtml('g6', view));
+    slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
+    dashV2SetNote(slotId, g.note);
+    destroyDashV2Slot('vessels');
+    var body = slot.querySelector('.bp-widget-body');
+    body.setAttribute('data-state', 'g6');
+    var top;
+    if (g.empty) top = '<p class="bp-empty">' + escapeHTML(g.emptyText) + '</p>';
+    else if (view === 'table') top = dashTableHtml('g6', dashV2TableModel('g6', g.table));
+    else top = dashV2ChartRegion(chartState);
+    body.innerHTML = '<div class="bp-g6"><div class="bp-g6-chart">' + top + '</div>' +
+      dashV2ListBlock('g6', 'shared', 'Shared vessels', g.shared, 'No vessels are shared right now.', g.sharedNote) +
+      dashV2ListBlock('g6', 'novessel', 'No vessel', g.noVessel, 'Every active batch has a vessel.', '') + '</div>';
+    var canvas = body.querySelector('canvas');
+    if (g.empty || view !== 'chart' || !canvas) return;
+    canvas.parentNode.style.height = (48 * g.labels.length + 32) + 'px';
+    _dashV2Charts.vessels = chart(canvas, {
+      type: 'bar',
+      horizontal: true,
+      stacked: true,
+      labels: g.labels,
+      series: g.series,
+      unit: g.mode === 'litres' ? undefined : 'vessels',
+      measure: g.mode === 'litres' ? 'litres' : undefined,
+      inertKeys: ['available'],
+      dataLabels: function (e, di) { return di === 1 ? g.label(e) : ''; },
+      ariaLabel: g.ariaLabel,
+      onClick: function (hit) {
+        var t = g.types[hit.index];
+        if (t && t.ids.length) dashV2Go(t.ids, dashDrillSubject(t.subject, t.ids.length));
+      }
+    });
+  }
+
+  function dashV2StatsHtml(stats) {
+    var h = '<dl class="bp-stat-row">';
+    for (var i = 0; i < stats.length; i++) {
+      h += '<div><dt>' + escapeHTML(stats[i][0]) + '</dt><dd>' + escapeHTML(stats[i][1]) + '</dd></div>';
+    }
+    return h + '</dl>';
+  }
+
+  // G8 Fermentation: Plato readings by day since start, plus a neutral "No readings yet" list.
+  function renderDashV2Ferment(model, chartState) {
+    var slotId = 'bp-dash-v2-ferment';
+    if (!model || !document.getElementById(slotId)) return;
+    var view = dashV2Opt('g8', 'view', 'chart') === 'table' ? 'table' : 'chart';
+    var ctx = dashV2ProdCtx();
+    var metaById = {};
+    var bm = _dashData.batchMeta || [];
+    for (var i = 0; i < bm.length; i++) { if (bm[i]) metaById[bm[i].batch_id] = bm[i]; }
+    var g = buildG8Model(ctx.rows, _dashData.readings, metaById, model, {
+      batch: String(dashV2Opt('g8', 'batch', 'all')), staffIds: ctx.staffIds, catMap: ctx.catMap
+    });
+    var slot = dashV2Widget(slotId, DASH_V2_FERMENT_TITLE);
+    slot.style.display = '';
+    slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
+    dashV2SetNote(slotId, '');
+    destroyDashV2Slot('ferment');
+    var body = slot.querySelector('.bp-widget-body');
+    body.setAttribute('data-state', 'g8');
+    if (g.state === 'wrongType') {
+      dashV2SetControls(slotId, '');
+      body.innerHTML = '<p class="bp-empty">' + escapeHTML(g.stateText) + '</p>';
+      return;
+    }
+    var list = dashV2ListBlock('g8', 'noreadings', 'No readings yet', g.noReadings, g.noReadingsEmpty, '');
+    if (g.state === 'noReadings') {
+      dashV2SetControls(slotId, '');
+      body.innerHTML = '<div class="bp-g8"><p class="bp-empty">' + escapeHTML(g.stateText) + '</p>' + list + '</div>';
+      return;
+    }
+    dashV2SetControls(slotId, dashSelectHtml('g8', 'batch', g.choices, g.batch, 'Batch') + dashViewToggleHtml('g8', view));
+    var top = view === 'table' ? dashTableHtml('g8', dashV2TableModel('g8', g.table)) : dashV2ChartRegion(chartState);
+    var legend = view === 'chart' && window.Chart ? '<div class="bp-chart-legend"></div>' : '';
+    body.innerHTML = '<div class="bp-g8"><div class="bp-g8-chart">' + top + legend +
+      (g.note ? '<p class="bp-dash-foot-note">' + escapeHTML(g.note) + '</p>' : '') +
+      (g.stats ? dashV2StatsHtml(g.stats) : '') + '</div>' + list + '</div>';
+    var canvas = body.querySelector('canvas');
+    if (view !== 'chart' || !canvas) return;
+    canvas.parentNode.style.height = (dashV2IsPhone() ? 220 : 280) + 'px';
+    var items = g.legend.slice();
+    for (var s = 0; s < g.series.length; s++) {
+      if (g.series[s].key === 'expected') items.push({ label: 'Expected (dashed)', colour: g.series[s].colour });
+    }
+    body.querySelector('.bp-chart-legend').innerHTML = dashV2LegendHtml(items);
+    _dashV2Charts.ferment = chart(canvas, {
+      type: 'line',
+      xType: 'linear',
+      xMin: 0,
+      xTitle: 'Days since start',
+      yTitle: '°P',
+      labels: undefined,
+      series: g.series,
+      unit: 'plato',
+      inertKeys: ['expected'],
+      hitDatasetIndex: true,
+      ariaLabel: g.ariaLabel,
+      onClick: function (hit) {
+        var ser = g.series[hit.datasetIndex];
+        if (ser && ser.batchId) dashV2Go([ser.batchId], '');
+      }
+    });
+  }
+
   var DASH_V2_LOADING = 'Loading charts…';
   var DASH_V2_FAILED = 'Charts could not load. Reload the page to try again.';
   var DASH_V2_PERIOD_TITLE = 'Production over time';
@@ -7678,6 +7826,14 @@ function parseWaitlistRecipeIds(value) {
     {
       key: 'g7', slot: 'bp-dash-v2-tasks', title: DASH_V2_TASKS_TITLE, chart: 'ageing', needs: ['taskRows'],
       render: function (model, cs) { renderDashV2Tasks(model, cs); }
+    },
+    {
+      key: 'g6', slot: 'bp-dash-v2-vessels', title: DASH_V2_VESSELS_TITLE, chart: 'vessels', needs: ['vessels'],
+      render: function (model, cs) { renderDashV2Vessels(model, cs); }
+    },
+    {
+      key: 'g8', slot: 'bp-dash-v2-ferment', title: DASH_V2_FERMENT_TITLE, chart: 'ferment', needs: ['readings'],
+      render: function (model, cs) { renderDashV2Ferment(model, cs); }
     }
   ];
 
