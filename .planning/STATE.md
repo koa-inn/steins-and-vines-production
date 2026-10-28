@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
-status: executing
-stopped_at: Phase 94 UI-SPEC approved
-last_updated: "2026-10-27T19:40:51.673Z"
+status: ready_to_plan
+stopped_at: Phase 94 complete (13/13) — ready to discuss Phase 95
+last_updated: 2026-10-28T01:50:29.533Z
 last_activity: 2026-10-27 -- Phase 94 execution started
 progress:
   total_phases: 85
   completed_phases: 35
   total_plans: 298
-  completed_plans: 282
+  completed_plans: 295
   percent: 41
 ---
 
@@ -21,15 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Customers can discover, select, or co-create fermentation recipes and purchase them as a complete package — with ingredient inventory, pricing, and batch tracking handled automatically by the system.
-**Current focus:** Phase 94 — dashboard-correctness-and-data-foundations
+**Current focus:** Phase 95 — global filters and chart engine
 
 ## Current Position
 
-Phase: 94 (dashboard-correctness-and-data-foundations) — EXECUTING
-Plan: 1 of 13
+Phase: 95
+Plan: Not started
 Also open: Phase 87 — 87-19 Task 3 (first real sale) + 87-20 rollback week 10-28 → 11-03
-Status: Executing Phase 94
-Last activity: 2026-10-27 -- Phase 94 execution started
+**Phase 94 COMPLETE 2026-10-27:** live on production `141901a7` (`prod-20261027-1`, Railway `896f6942`; rollback target `90dfb9c1`). B3 (215 typed) + B2 (40 completion dates) applied on staging + prod with owner OK; replay + verify 0 mismatches; D-13 PASS (57d/59d/175); verification passed 5/5; owner signed off. Staging batches now on Postgres (refreshed + flipped 2026-10-27). Open from Phase 94: code review 94-REVIEW.md has 1 blocker (CR-01: reopened batches keep `completed_at` — 0 prod rows affected yet) + 4 warnings -> `/gsd-code-review 94 --fix`; `/gsd-secure-phase 94` (security enforcement on); replay CLI needs retry/longer timeout/resume (Apps Script ~14 s per batch); prod recipes lack `beer_category` (Phase 89 gap); batch list/detail age still now − start_date. body-parser patch `13805fe9` on staging only (rides next release).
+Status: Ready to plan
+Last activity: 2026-10-28
 
 **2026-10-27 production cutover (shop open, owner present):**
 
@@ -65,7 +66,7 @@ position notes".
 
 **Velocity:**
 
-- Total plans completed: 122 (prior milestone v4.1) + 11 (v4.2)
+- Total plans completed: 135 (prior milestone v4.1) + 11 (v4.2)
 - Average duration: 3 min
 - Total execution time: ~3 hrs
 
