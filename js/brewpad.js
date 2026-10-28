@@ -1357,6 +1357,190 @@ function wineBreakdownBuckets(rows, skuLookup, dimension, topN) {
   return result;
 }
 
+// ===== Phase 96-03: shared pure helpers (one model, two renderers) =====
+var DASH_TASK_KINDS = [
+  { key: 'transfer', label: 'Racking / transfer' },
+  { key: 'filtering', label: 'Filtering' },
+  { key: 'packaging', label: 'Packaging' },
+  { key: 'temp', label: 'Temperature step' },
+  { key: 'other', label: 'Other' }
+];
+
+// Subject text is raw; escape at render.
+function dashDrillSubject(subject, count) {
+  var n = Number(count) || 0;
+  return 'From dashboard: ' + String(subject || '') + ' · ' + n + (n === 1 ? ' batch' : ' batches');
+}
+
+// Same classification path as getDashboardData (effectiveBatchType + sourceMatches + isStaffRow).
+function dashClassifyRows(rows, opts) {
+  var o = opts || {};
+  var typeFilter = o.type || 'all';
+  var catMap = o.scheduleCategoryById || {};
+  var list = [];
+  var byId = {};
+  var src = rows || [];
+  for (var i = 0; i < src.length; i++) {
+    var r = src[i];
+    if (!r) continue;
+    var t = effectiveBatchType(r, catMap);
+    if (typeFilter !== 'all' && t !== typeFilter) continue;
+    if (!sourceMatches(r, o.source)) continue;
+    var staff = isStaffRow(r, o.staffIds);
+    if (o.staff === false && staff) continue;
+    var item = { row: r, type: t, status: String(r.status || '').toLowerCase(), staff: staff };
+    list.push(item);
+    byId[r.batch_id] = item;
+  }
+  return { list: list, byId: byId };
+}
+
+function dashTaskKind(task) {
+  var t = task || {};
+  var title = String(t.title || '');
+  if (t.is_packaging === true) return 'packaging';
+  if (t.is_transfer === true) return 'transfer';
+  if (/bottl|packag/i.test(title)) return 'packaging';
+  if (/rack/i.test(title)) return 'transfer';
+  if (/filter/i.test(title)) return 'filtering';
+  if (/^(lower|crash|raise|warm|cool|chill)\b/i.test(title) || /[0-9]\s*[º°]\s*c\b/i.test(title)) return 'temp';
+  return 'other';
+}
+
+// Group items by valueOf(item); blank -> 'Unspecified' (last); overflow -> 'Other (n more)' before it.
+function dashBreakdownBuckets(items, valueOf, topN, litresOf) {
+  var tally = {};
+  var order = [];
+  var blank = { label: 'Unspecified', count: 0, litres: 0, ids: [] };
+  var list = items || [];
+  for (var i = 0; i < list.length; i++) {
+    var it = list[i];
+    var raw = valueOf(it);
+    var label = (raw === null || raw === undefined) ? '' : String(raw).trim();
+    var l = litresOf ? (Number(litresOf(it)) || 0) : 0;
+    var id = it && it.row ? it.row.batch_id : (it ? it.batch_id : undefined);
+    var b;
+    if (label === '') {
+      b = blank;
+    } else {
+      if (!Object.prototype.hasOwnProperty.call(tally, label)) {
+        tally[label] = { label: label, count: 0, litres: 0, ids: [] };
+        order.push(label);
+      }
+      b = tally[label];
+    }
+    b.count++;
+    b.litres += l;
+    b.ids.push(id);
+  }
+  var named = [];
+  for (var j = 0; j < order.length; j++) named.push(tally[order[j]]);
+  named.sort(function (a, b2) {
+    if (b2.count !== a.count) return b2.count - a.count;
+    return a.label < b2.label ? -1 : (a.label > b2.label ? 1 : 0);
+  });
+  var out = named;
+  if (topN && named.length > topN) {
+    out = named.slice(0, topN);
+    var rest = named.slice(topN);
+    var other = { label: 'Other (' + rest.length + ' more)', count: 0, litres: 0, ids: [] };
+    for (var k = 0; k < rest.length; k++) {
+      other.count += rest[k].count;
+      other.litres += rest[k].litres;
+      other.ids = other.ids.concat(rest[k].ids);
+    }
+    out.push(other);
+  }
+  if (blank.count) out.push(blank);
+  return out;
+}
+
+// Widget/control keys are restricted to [a-z0-9_] so data-* attributes cannot carry markup.
+function dashKey(s) {
+  return String(s === undefined || s === null ? '' : s).replace(/[^a-z0-9_]/gi, '').toLowerCase();
+}
+
+function dashSegHtml(widget, ctl, choices, selected, ariaLabel) {
+  var html = '<div class="bp-seg" role="radiogroup" aria-label="' + escapeHTML(ariaLabel) + '">';
+  for (var i = 0; i < choices.length; i++) {
+    var val = String(choices[i][0]);
+    var on = val === String(selected);
+    html += '<button type="button" class="bp-seg-btn" role="radio" aria-checked="' + (on ? 'true' : 'false') + '"' +
+      ' tabindex="' + (on ? '0' : '-1') + '" data-dash-w="' + dashKey(widget) + ':' + dashKey(ctl) + ':' + dashKey(val) + '">' +
+      escapeHTML(choices[i][1]) + '</button>';
+  }
+  return html + '</div>';
+}
+
+function dashSelectHtml(widget, ctl, choices, selected, ariaLabel) {
+  var html = '<select class="bp-select" data-dash-wsel="' + dashKey(widget) + ':' + dashKey(ctl) + '" aria-label="' + escapeHTML(ariaLabel) + '">';
+  for (var i = 0; i < choices.length; i++) {
+    var val = String(choices[i][0]);
+    html += '<option value="' + escapeHTML(val) + '"' + (val === String(selected) ? ' selected' : '') + '>' + escapeHTML(choices[i][1]) + '</option>';
+  }
+  return html + '</select>';
+}
+
+function dashViewToggleHtml(widget, view) {
+  return dashSegHtml(widget, 'view', [['chart', 'Chart'], ['table', 'Table']], view === 'table' ? 'table' : 'chart', 'View as');
+}
+
+function dashTableHtml(widget, model) {
+  var m = model || {};
+  var cols = m.columns || [];
+  var rows = m.rows || [];
+  var w = dashKey(widget);
+  var html = '<div class="bp-table-wrap"><table class="bp-table"><caption class="bp-visually-hidden">' + escapeHTML(m.caption) + '</caption><thead><tr>';
+  var i;
+  for (i = 0; i < cols.length; i++) {
+    html += '<th scope="col"' + (cols[i].numeric ? ' class="bp-num"' : '') + '>' + escapeHTML(cols[i].label) + '</th>';
+  }
+  html += '</tr></thead><tbody>';
+  for (i = 0; i < rows.length; i++) {
+    html += '<tr' + (rows[i].total ? ' class="bp-table-total"' : '') + '>';
+    var cells = rows[i].cells || [];
+    for (var c = 0; c < cells.length; c++) {
+      var cell = cells[c];
+      var numeric = cols[c] && cols[c].numeric;
+      var inner = escapeHTML(cell.text);
+      if (cell.drill !== undefined && cell.drill !== null) {
+        inner = '<button type="button" class="bp-table-link" data-dash-row="' + w + ':' + (parseInt(cell.drill, 10) || 0) + '">' + inner + '</button>';
+      }
+      html += '<td' + (numeric ? ' class="bp-num"' : '') + '>' + inner + '</td>';
+    }
+    html += '</tr>';
+  }
+  return html + '</tbody></table></div>';
+}
+
+function dashListHtml(widget, listKey, items, opts) {
+  var o = opts || {};
+  var limit = o.limit || 5;
+  var list = items || [];
+  var w = dashKey(widget);
+  if (!list.length) return '<p class="bp-empty">' + escapeHTML(o.emptyText) + '</p>';
+  var shown = o.expanded ? list : list.slice(0, limit);
+  var html = '<div class="bp-list">';
+  for (var i = 0; i < shown.length; i++) {
+    var it = shown[i];
+    var body = '<span class="bp-list-main"><span class="bp-list-primary">' + escapeHTML(it.primary) + '</span>' +
+      (it.secondary ? '<span class="bp-list-row-sub">' + escapeHTML(it.secondary) + '</span>' : '') + '</span>' +
+      '<span class="bp-list-right">' + escapeHTML(it.right) + '</span>';
+    if (it.drill !== undefined && it.drill !== null) {
+      html += '<button type="button" class="bp-list-row" data-dash-row="' + w + ':' + dashKey(it.drill) + '">' + body +
+        '<span class="bp-list-chev" aria-hidden="true">›</span></button>';
+    } else {
+      html += '<div class="bp-list-row">' + body + '</div>';
+    }
+  }
+  html += '</div>';
+  if (list.length > limit) {
+    html += '<button type="button" class="bp-link-btn" data-dash-showall="' + w + ':' + dashKey(listKey) + '" aria-expanded="' +
+      (o.expanded ? 'true' : 'false') + '">' + (o.expanded ? 'Show fewer' : 'Show all ' + list.length) + '</button>';
+  }
+  return html;
+}
+
 // ===== Phase 95-05: lazy Chart.js loader + shared chart() helper =====
 var CHART_JS_SRC = 'js/vendor/chart.umd.min.js?v=4.5.1';
 var _chartJsPromise = null;
@@ -14004,6 +14188,16 @@ if (typeof module !== 'undefined' && module.exports) {
     dashDrillLabel: dashDrillLabel,
     mergeWineSkuLookup: mergeWineSkuLookup,
     wineBreakdownBuckets: wineBreakdownBuckets,
+    dashDrillSubject: dashDrillSubject,
+    dashClassifyRows: dashClassifyRows,
+    dashTaskKind: dashTaskKind,
+    DASH_TASK_KINDS: DASH_TASK_KINDS,
+    dashBreakdownBuckets: dashBreakdownBuckets,
+    dashSegHtml: dashSegHtml,
+    dashSelectHtml: dashSelectHtml,
+    dashViewToggleHtml: dashViewToggleHtml,
+    dashTableHtml: dashTableHtml,
+    dashListHtml: dashListHtml,
     loadChartJs: loadChartJs,
     readChartTheme: readChartTheme,
     chart: chart,
