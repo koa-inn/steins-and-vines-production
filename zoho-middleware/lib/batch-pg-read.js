@@ -98,6 +98,29 @@ var DASH_STATS_READINGS_SQL =
   'from plato_readings r join batches b on b.batch_id = r.batch_id ' +
   "where b.status in ('primary', 'secondary') order by r.batch_id, r.reading_at desc";
 
+// Phase 96 (Plan 02): new arrays for the extra dashboard widgets. Explicit whitelists: never
+// completed_by, recorded_by, notes, customer_*, access_token, zoho_so_number or raw recipe_snapshot.
+var DASH_STATS_TASK_ROWS_SQL =
+  'select t.batch_id, t.task_id, t.title, to_char(t.due_date, \'YYYY-MM-DD\') as due_date, t.completed, ' +
+  "to_char(t.completed_at at time zone $1, 'YYYY-MM-DD') as completed_day, " +
+  't.is_packaging, t.is_transfer ' +
+  'from batch_tasks t join batches b on b.batch_id = t.batch_id ' +
+  "where (t.completed = false and b.status in ('primary', 'secondary')) " +
+  'or (t.completed = true and t.completed_at is not null) ' +
+  'order by length(t.task_id), t.task_id';
+var DASH_STATS_ALL_READINGS_SQL =
+  'select r.batch_id, r.reading_at, ' +
+  "to_char(r.reading_at at time zone $1, 'YYYY-MM-DD') as reading_day, " +
+  'r.degrees_plato, r.temperature, r.ph ' +
+  'from plato_readings r join batches b on b.batch_id = r.batch_id ' +
+  "where b.status in ('primary', 'secondary') order by r.batch_id, r.reading_at";
+var DASH_STATS_VESSELS_SQL =
+  'select vessel_id, type, capacity_liters, archived from vessels order by position';
+var DASH_STATS_BATCH_META_SQL =
+  "select b.batch_id, (b.zoho_so_number <> '') as has_invoice_link, b.recipe_snapshot, " +
+  '(select max(t.day_offset) from batch_tasks t where t.batch_id = b.batch_id) as planned_days ' +
+  'from batches b order by length(b.batch_id), b.batch_id';
+
 // Location conflict: the status predicate is literally the batches_location_idx partial predicate.
 var LOCATION_CONFLICT_SQL =
   'select batch_id from batches ' +
@@ -261,6 +284,32 @@ function numOrNull(v) {
   return isNaN(n) ? null : n;
 }
 
+function snapshotString(v) {
+  return v === null || v === undefined || typeof v === 'object' ? '' : String(v).trim().slice(0, 120);
+}
+
+function snapshotPlato(v) {
+  if (v === null || v === undefined || v === '' || typeof v === 'object') return null;
+  var n = Number(v);
+  return isFinite(n) && n >= 2 && n <= 40 ? n : null;
+}
+
+/**
+ * Phase 96: pure, tolerant parse of the stored recipe_snapshot text. Never throws; a malformed or
+ * non-object snapshot yields empty strings and nulls. OG / target FG are degrees Plato (2..40).
+ */
+function parseDashSnapshot(text) {
+  var out = { recipe_name: '', recipe_style: '', og: null, target_fg: null };
+  var snap;
+  try { snap = JSON.parse(text); } catch (e) { return out; }
+  if (!snap || typeof snap !== 'object' || Array.isArray(snap)) return out;
+  out.recipe_name = snapshotString(snap.name);
+  out.recipe_style = snapshotString(snap.style);
+  out.og = snapshotPlato(snap.og);
+  out.target_fg = snapshotPlato(snap.target_fg !== undefined && snap.target_fg !== null ? snap.target_fg : snap.fg);
+  return out;
+}
+
 /**
  * Phase 94 S1: one lean read for every dashboard widget. Sequential on one client. Subcategory,
  * brand and manufacturer are '' here; lib/batch-store enriches them from the kiosk product cache.
@@ -292,6 +341,31 @@ function getDashboardStats(client, opts) {
     return client.query(DASH_STATS_STAFF_SQL);
   }).then(function (res) {
     out.staffBatchIds = res.rows.map(function (r) { return r.batch_id; });
+    return client.query(DASH_STATS_TASK_ROWS_SQL, [tz]);
+  }).then(function (res) {
+    out.taskRows = res.rows;
+    return client.query(DASH_STATS_ALL_READINGS_SQL, [tz]);
+  }).then(function (res) {
+    out.readings = res.rows.map(function (r) {
+      r.degrees_plato = numOrNull(r.degrees_plato);
+      r.temperature = numOrNull(r.temperature);
+      r.ph = numOrNull(r.ph);
+      return r;
+    });
+    return client.query(DASH_STATS_VESSELS_SQL);
+  }).then(function (res) {
+    out.vessels = res.rows.map(function (r) {
+      return { vessel_id: r.vessel_id, type: r.type, capacity_liters: numOrNull(r.capacity_liters), archived: r.archived === true };
+    });
+    return client.query(DASH_STATS_BATCH_META_SQL);
+  }).then(function (res) {
+    out.batchMeta = res.rows.map(function (r) {
+      var meta = parseDashSnapshot(r.recipe_snapshot);
+      meta.batch_id = r.batch_id;
+      meta.has_invoice_link = r.has_invoice_link === true;
+      meta.planned_days = numOrNull(r.planned_days);
+      return meta;
+    });
     return getDashboardSummary(client, { now: now, timezone: tz });
   }).then(function (summary) {
     var today = batchRules.formatDay(now, tz);
@@ -301,7 +375,11 @@ function getDashboardStats(client, opts) {
       tasks: out.tasks,
       latestReadings: out.latestReadings,
       staffBatchIds: out.staffBatchIds,
-      summary: summary.data
+      summary: summary.data,
+      taskRows: out.taskRows,
+      readings: out.readings,
+      vessels: out.vessels,
+      batchMeta: out.batchMeta
     });
   });
 }
@@ -386,6 +464,7 @@ module.exports = {
   getBatchPublic: getBatchPublic,
   getDashboardSummary: getDashboardSummary,
   getDashboardStats: getDashboardStats,
+  parseDashSnapshot: parseDashSnapshot,
   getTasksCalendar: getTasksCalendar,
   getTasksUpcoming: getTasksUpcoming,
   findLocationConflict: findLocationConflict,
