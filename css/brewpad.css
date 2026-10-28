@@ -3128,6 +3128,10 @@ button.bp-list-row:focus-visible { outline: 2px solid var(--ledger-focus); outli
 .bp-accordion-head[aria-expanded="true"]::after { transform: rotate(-90deg); }
 .bp-accordion-head:focus-visible { outline: 2px solid var(--ledger-focus); outline-offset: 2px; }
 .bp-health-zero { color: var(--ink-tertiary); }
+.bp-health-cat { border-top: 1px solid var(--ledger-line); padding: 0 0 8px; }
+.bp-health-cat:first-child { border-top: 0; }
+.bp-health-row { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.bp-health-count b { font-weight: 700; margin-right: 8px; }
 .bp-stat-row { display: flex; flex-wrap: wrap; gap: 16px; }
 .bp-stat-row > * { flex: 1 1 120px; }
 .bp-g4 { display: grid; grid-template-columns: 1fr; gap: 24px; }

@@ -2701,6 +2701,69 @@ function buildG6Model(rows, vessels, ctx) {
   };
 }
 
+// ===== Phase 96-09: G10 Data health (pure model; ignores every global filter) =====
+var DASH_HEALTH_CATS = [
+  { key: 'novessel', label: 'No vessel' },
+  { key: 'nocompletedat', label: 'Missing completion date' },
+  { key: 'noinvoice', label: 'No invoice link' },
+  { key: 'blanksource', label: 'Blank source' },
+  { key: 'stale', label: 'Stale active batches' }
+];
+var DASH_HEALTH_STALE_DAYS = 90;
+
+function buildG10Model(rows, metaById, ctx) {
+  var c = ctx || {};
+  var meta = metaById || {};
+  var today = c.today;
+  var cls = dashClassifyRows(rows, { scheduleCategoryById: c.catMap, staffIds: c.staffIds });
+  var buckets = {};
+  var i;
+  for (i = 0; i < DASH_HEALTH_CATS.length; i++) buckets[DASH_HEALTH_CATS[i].key] = [];
+  function mk(it, detail) {
+    var id = it.row.batch_id;
+    return {
+      primary: String(id),
+      secondary: (it.row.product_name || '') + ' · ' + (DASH_TYPE_LABELS[it.type] || '') + (detail ? ' · ' + detail : '') + (it.staff ? ' · Staff batch' : ''),
+      right: '',
+      ids: [id],
+      subject: 'Batch ' + id
+    };
+  }
+  for (i = 0; i < cls.list.length; i++) {
+    var it = cls.list[i];
+    var st = it.status;
+    if (st === 'disabled' || st === 'deleted') continue;
+    var r = it.row;
+    var active = st === 'primary' || st === 'secondary';
+    var vid = String(r.vessel_id === undefined || r.vessel_id === null ? '' : r.vessel_id).trim();
+    var src = normBatchSource(r.source);
+    if (active && vid === '') buckets.novessel.push(mk(it, ''));
+    if (st === 'complete' && String(r.completed_at === undefined || r.completed_at === null ? '' : r.completed_at).trim() === '') buckets.nocompletedat.push(mk(it, ''));
+    var m = meta[r.batch_id];
+    if (m && m.has_invoice_link === false && src !== 'internal') buckets.noinvoice.push(mk(it, ''));
+    if (src === '') buckets.blanksource.push(mk(it, ''));
+    if (active && today && r.start_date) {
+      var age = dayNumber(today) - dayNumber(r.start_date);
+      if (age > DASH_HEALTH_STALE_DAYS) buckets.stale.push(mk(it, 'Active ' + age + ' days'));
+    }
+  }
+  var cats = [];
+  var total = 0;
+  for (i = 0; i < DASH_HEALTH_CATS.length; i++) {
+    var list = buckets[DASH_HEALTH_CATS[i].key];
+    list.sort(function (a, b) { return dashSortIds(a.primary, b.primary); });
+    total += list.length;
+    cats.push({ key: DASH_HEALTH_CATS[i].key, label: DASH_HEALTH_CATS[i].label, count: list.length, items: list });
+  }
+  return {
+    cats: cats,
+    allZero: total === 0,
+    subtitle: 'All batches · ignores the filters above',
+    note: 'No invoice link means no Zoho sales order is stored on the batch. It does not mean the batch is unpaid.',
+    emptyText: 'No data issues found.'
+  };
+}
+
 function dashPlato(n) { return (Math.round(Number(n) * 10) / 10) + ' °P'; }
 
 function buildG8Model(rows, readings, metaById, model, ctx) {
@@ -7795,6 +7858,61 @@ function parseWaitlistRecipeIds(value) {
     return true;
   }
 
+  // G10 Data health: five neutral accordion categories; counts only, no chart, no red/amber.
+  var DASH_V2_HEALTH_TITLE = 'Data health';
+
+  function renderDashV2Health(model) {
+    var slotId = 'bp-dash-v2-health';
+    if (!model || !document.getElementById(slotId)) return;
+    var ctx = dashV2ProdCtx();
+    var metaById = {};
+    var bm = (_dashData && _dashData.batchMeta) || [];
+    for (var m = 0; m < bm.length; m++) { if (bm[m]) metaById[bm[m].batch_id] = bm[m]; }
+    var g = buildG10Model(ctx.rows, metaById, { today: model.cur.asOf.today, staffIds: ctx.staffIds, catMap: ctx.catMap });
+    var slot = dashV2Widget(slotId, DASH_V2_HEALTH_TITLE);
+    slot.style.display = '';
+    dashV2SetControls(slotId, '');
+    slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
+    dashV2SetNote(slotId, g.note);
+    destroyDashV2Slot('health');
+    var body = slot.querySelector('.bp-widget-body');
+    body.setAttribute('data-state', 'g10');
+    var h = '<div class="bp-g10">';
+    if (g.allZero) h += '<p class="bp-empty">' + escapeHTML(g.emptyText) + '</p>';
+    for (var i = 0; i < g.cats.length; i++) {
+      var cat = g.cats[i];
+      if (cat.count === 0) {
+        h += '<div class="bp-health-cat"><div class="bp-health-row"><span>' + escapeHTML(cat.label) + '</span><span class="bp-health-zero">0 ✓</span></div></div>';
+        continue;
+      }
+      var open = !!_dashV2Expanded['acc:g10:' + cat.key];
+      h += '<div class="bp-health-cat"><button type="button" class="bp-accordion-head" aria-expanded="' + (open ? 'true' : 'false') +
+        '" data-dash-acc="g10:' + cat.key + '"><span>' + escapeHTML(cat.label) + '</span><span class="bp-health-count"><b>' + cat.count + '</b></span></button>';
+      if (open) {
+        var openIds = [];
+        for (var k = 0; k < cat.items.length; k++) openIds.push(cat.items[k].ids[0]);
+        var openIdx = dashV2DrillAdd('g10', openIds, cat.label, false);
+        h += dashListHtml('g10', 'all' + cat.key, dashV2ListItems('g10', cat.items), { limit: 5, expanded: !!_dashV2Expanded['g10:all' + cat.key], emptyText: '' }) +
+          '<button type="button" class="bp-link-btn" data-dash-row="g10:' + openIdx + '">Open these batches</button>';
+      }
+      h += '</div>';
+    }
+    body.innerHTML = h + '</div>';
+  }
+
+  function onDashV2Accordion(el) {
+    var attr = el.getAttribute('data-dash-acc') || '';
+    var p = attr.split(':');
+    if (p.length !== 2 || p[0] !== 'g10') return;
+    var ok = false;
+    for (var i = 0; i < DASH_HEALTH_CATS.length; i++) { if (DASH_HEALTH_CATS[i].key === p[1]) ok = true; }
+    if (!ok) return;
+    _dashV2Expanded['acc:' + attr] = !_dashV2Expanded['acc:' + attr];
+    rerenderDashV2Widget('g10');
+    var again = document.querySelector('[data-dash-acc="' + attr + '"]');
+    if (again) again.focus();
+  }
+
   // Registry: later plans add {key, slot, title, chart, needs, render(model, chartState)}.
   var DASH_V2_WIDGETS = [
     {
@@ -7834,6 +7952,10 @@ function parseWaitlistRecipeIds(value) {
     {
       key: 'g8', slot: 'bp-dash-v2-ferment', title: DASH_V2_FERMENT_TITLE, chart: 'ferment', needs: ['readings'],
       render: function (model, cs) { renderDashV2Ferment(model, cs); }
+    },
+    {
+      key: 'g10', slot: 'bp-dash-v2-health', title: DASH_V2_HEALTH_TITLE, chart: 'health', needs: ['batchMeta'],
+      render: function (model) { renderDashV2Health(model); }
     }
   ];
 
@@ -7967,6 +8089,7 @@ function parseWaitlistRecipeIds(value) {
     if ((el = t.closest('.bp-seg-btn[data-dash-w]'))) { selectDashV2WidgetOpt(el); return; }
     if ((el = t.closest('[data-dash-row]'))) { onDashV2RowClick(el); return; }
     if ((el = t.closest('[data-dash-showall]'))) { onDashV2ShowAll(el); return; }
+    if ((el = t.closest('[data-dash-acc]'))) { onDashV2Accordion(el); return; }
     if (t.closest('[data-dash-reset]')) { commitDashV2State(DASH_FILTER_DEFAULTS); return; }
     if ((el = t.closest('[data-dash-apply-range]'))) {
       if (el.disabled) return;
@@ -16383,6 +16506,8 @@ if (typeof module !== 'undefined' && module.exports) {
     buildG7Model: buildG7Model,
     buildG6Model: buildG6Model,
     buildG8Model: buildG8Model,
+    buildG10Model: buildG10Model,
+    DASH_HEALTH_CATS: DASH_HEALTH_CATS,
     DASH_VESSEL_TYPE_ORDER: DASH_VESSEL_TYPE_ORDER,
     DASH_TASK_KINDS: DASH_TASK_KINDS,
     dashBreakdownBuckets: dashBreakdownBuckets,
