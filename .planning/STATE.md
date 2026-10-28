@@ -4,12 +4,12 @@ milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
 stopped_at: Phase 96 UI-SPEC approved
-last_updated: "2026-10-28T20:59:30.031Z"
-last_activity: 2026-10-28 -- Phase 95 execution started
+last_updated: "2026-10-28T21:23:28.525Z"
+last_activity: 2026-10-28 -- Phase 96 planning complete
 progress:
   total_phases: 85
   completed_phases: 37
-  total_plans: 309
+  total_plans: 320
   completed_plans: 306
   percent: 44
 ---
@@ -29,8 +29,8 @@ Phase: 95 (global-filters-and-chart-engine) — EXECUTING
 Plan: 1 of 11
 Also open: Phase 87 — 87-19 Task 3 (first real sale) + 87-20 rollback week 10-28 → 11-03
 **Phase 94 COMPLETE 2026-10-27:** live on production `141901a7` (`prod-20261027-1`, Railway `896f6942`; rollback target `90dfb9c1`). B3 (215 typed) + B2 (40 completion dates) applied on staging + prod with owner OK; replay + verify 0 mismatches; D-13 PASS (57d/59d/175); verification passed 5/5; owner signed off. Staging batches now on Postgres (refreshed + flipped 2026-10-27). Open from Phase 94: code review CR-01 + WR-01..04 FIXED 2026-10-28 (6c296bcc..73970cfb), LIVE on prod 2026-10-28 (`3f64da2d`, `prod-20261028-1`, Railway `d8ffd7bd`; rollback `896f6942`); IN-01..05 open; replay CLI needs retry/longer timeout/resume (Apps Script ~14 s per batch); prod recipes lack `beer_category` (Phase 89 gap); batch list/detail age still now − start_date. body-parser patch `13805fe9` LIVE on prod in the same release (CI audit green).
-Status: Executing Phase 95
-Last activity: 2026-10-28 -- Phase 95 execution started
+Status: Ready to execute
+Last activity: 2026-10-28 -- Phase 96 planning complete
 
 **2026-10-27 production cutover (shop open, owner present):**
 
