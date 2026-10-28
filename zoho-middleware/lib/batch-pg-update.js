@@ -63,6 +63,9 @@ var BATCH_SCHEDULE_SQL =
 var TYPE_SET_SQL =
   'update batches set batch_type = $2, batch_type_source = $3 where batch_id = $1';
 
+// Phase 95 (D-18): staff flag write that does not bump last_updated (backfill channel, like TYPE_SET_SQL).
+var STAFF_SET_SQL = 'update batches set staff_batch = $2 where batch_id = $1';
+
 var TOKEN_SQL =
   'update batches set access_token = $2, last_regenerated_at = $3, last_updated = $3 where batch_id = $1';
 
@@ -355,6 +358,13 @@ async function updateBatch(client, args, opts) {
     }
     typeSet = { type: normalizedType, source: typeSource };
   }
+  // Phase 95 (D-08): staff_batch is handled outside FIELD_KINDS with a strict boolean whitelist.
+  // D-19: a source change never sets it; only create does.
+  var staffSet = null;
+  if (updates.staff_batch !== undefined) {
+    staffSet = batchRules.normalizeStaffBatch(updates.staff_batch);
+    if (staffSet === null) return fail('invalid_input', 'staff_batch must be true or false');
+  }
   var trustedCompleted = false;
   if (trusted && updates.completed_at !== undefined) {
     if (opts.completedAtSource !== TRUSTED_COMPLETED_SOURCE) {
@@ -445,6 +455,7 @@ async function updateBatch(client, args, opts) {
     addSet('batch_type_source', typeSet.source);
   }
   if (completedSource !== undefined) addSet('completed_at_source', completedSource);
+  if (staffSet !== null) addSet('staff_batch', staffSet);
   addSet('last_updated', now);
   await client.query('update batches set ' + sets.join(', ') + ' where batch_id = $1', params);
 
@@ -594,7 +605,18 @@ async function regenerateToken(client, args, opts) {
   return { ok: true, access_token: token, _batchId: id };
 }
 
+/**
+ * Phase 95 (D-18): set the staff flag without bumping last_updated. Only the operator backfill
+ * CLI calls this; it is not reachable from any route. Returns the affected row count.
+ */
+async function setStaffBatch(client, batchId, value) {
+  if (typeof value !== 'boolean') throw new TypeError('setStaffBatch value must be a boolean');
+  var res = await client.query(STAFF_SET_SQL, [String(batchId), value]);
+  return res.rowCount;
+}
+
 module.exports = {
+  setStaffBatch: setStaffBatch,
   updateBatch: updateBatch,
   applyLocationChange: applyLocationChange,
   deleteBatch: deleteBatch,
