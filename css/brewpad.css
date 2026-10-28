@@ -3068,3 +3068,16 @@ textarea.bp-input {
   .bp-dash-filters { flex-wrap: nowrap; align-items: center; }
   .bp-chart { height: 200px; }
 }
+
+/* ===== Phase 95-08: v2 widgets ===== */
+.bp-delta { font-size: 12px; margin-top: 4px; color: var(--ink-secondary); }
+.bp-delta--good { color: var(--batch-success); }
+.bp-delta--bad { color: var(--batch-danger); }
+.bp-delta--neutral { color: var(--ink-secondary); }
+.bp-chart-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; font-size: 12px; color: var(--ink-secondary); }
+.bp-chart-legend-item { display: inline-flex; align-items: center; gap: 8px; }
+.bp-chart-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
+.bp-widget-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.bp-dash-chip { min-height: 44px; padding: 0 16px; border: 1px solid var(--ledger-line); border-radius: 999px; background: var(--cellar-raised); color: var(--ink-primary); font: inherit; font-size: 14px; cursor: pointer; }
+.bp-dash-chip[aria-pressed="true"] { background: var(--ink-primary); color: var(--cellar-raised); border-color: var(--ink-primary); }
+.bp-dash-chip:focus-visible { outline: 2px solid var(--ledger-focus); outline-offset: 2px; }

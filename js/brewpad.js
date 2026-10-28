@@ -2229,6 +2229,9 @@ function parseWaitlistRecipeIds(value) {
   var _dashV2On = false;          // Phase 95-06: per-device v2 opt-in
   var _dashV2State = null;        // sanitised filter state
   var _dashV2Model = null;        // last buildDashV2Model result
+  var _dashV2WineDimension = 'subcategory';  // widget-local; never touches v1 _dashWineDimension
+  var _dashV2WineBuckets = [];
+  var _dashV2Seq = 0;
   var _dashV2Charts = {};         // slotId -> Chart instance (filled by plan 08)
   var _dashV2RangeOpen = false;   // custom range row open on tablet
   var _dashV2Stage = null;        // phone sheet staged state
@@ -3908,6 +3911,7 @@ function parseWaitlistRecipeIds(value) {
 
     var now = Date.now();
     if (tab === 'dashboard') {
+      if (isDashV2()) resizeDashV2Charts();
       if (now - _dashLoadTime > CACHE_TTL_LONG) loadDashboard();
     } else if (tab === 'batches') {
       if (_selectedBatchId) closeBatchDetail();   // close any open detail pane
@@ -5261,6 +5265,294 @@ function parseWaitlistRecipeIds(value) {
     for (var i = 0; i < ids.length; i++) staffIds[ids[i]] = true;
     _dashV2Model = buildDashV2Model(rows || [], asOf, _dashV2State, staffIds, buildScheduleCategoryById(_fermSchedules));
     updateDashV2Bar();
+    renderDashV2Widgets();
+  }
+
+  // ===========================================================================
+  // Phase 95-08: v2 widgets (tiles, Batches per period, Wine breakdown) on the one data layer.
+  // ===========================================================================
+  var DASH_V2_WINE_DIMS = [['subcategory', 'Subcategory'], ['brand', 'Brand'], ['manufacturer', 'Manufacturer'], ['time', 'Time']];
+
+  function dashV2Fmt(n) { return dashGroupThousands(Math.round(Number(n) || 0)); }
+
+  function dashV2DeltaHtml(d) {
+    if (!d) return '';
+    return '<div class="bp-delta bp-delta--' + escapeHTML(d.tone) + '" aria-label="' + escapeHTML(d.aria) + '">' + escapeHTML(d.text) + '</div>';
+  }
+
+  function renderDashV2Tiles(model) {
+    var slot = document.getElementById('bp-dash-v2-tiles');
+    if (!slot || !model) return;
+    var cur = model.cur;
+    var prev = model.prev;
+    var lit = model.state.measure === 'litres';
+    var period = escapeHTML(model.periodLabel);
+    function dOpts(kind) { return { kind: kind, win: model.win, prevWin: model.prevWin, insufficient: model.insufficient }; }
+    function countDelta(curN, prevN, kind) { return dashV2DeltaHtml(formatDelta(curN, prev ? prevN : null, dOpts(kind))); }
+    function val(count, litres) { return lit ? dashV2Fmt(litres) + ' L' : String(count); }
+    var kind = lit ? 'litres' : 'count';
+    var html = '<div class="bp-stat-grid">';
+    html += '<button type="button" class="bp-stat-card bp-stat-card--link" data-dash-drill="activeNow"><div class="bp-stat-num">' +
+      val(cur.activeNow, cur.litres.activeNow) + '</div><div class="bp-stat-label">Fermenting now</div><div class="bp-stat-label">Right now</div></button>';
+    html += '<button type="button" class="bp-stat-card bp-stat-card--link" data-dash-drill="started"><div class="bp-stat-num">' +
+      val(cur.started, cur.litres.started) + '</div><div class="bp-stat-label">Started (' + period + ')</div>' +
+      countDelta(lit ? cur.litres.started : cur.started, prev && (lit ? prev.litres.started : prev.started), kind) + '</button>';
+    html += '<button type="button" class="bp-stat-card bp-stat-card--link" data-dash-drill="completed"><div class="bp-stat-num">' +
+      val(cur.completed, cur.litres.completed) + '</div><div class="bp-stat-label">Completed (' + period + ')</div>' +
+      countDelta(lit ? cur.litres.completed : cur.completed, prev && (lit ? prev.litres.completed : prev.completed), kind) + '</button>';
+    var cyc = cur.cycle;
+    html += '<button type="button" class="bp-stat-card bp-stat-card--link bp-stat-card--wide" data-dash-drill="cycle">';
+    html += '<div class="bp-stat-label">Days to complete (median)</div>';
+    if (cyc.n > 0) {
+      html += '<div class="bp-stat-row"><div class="bp-stat-num">' + cyc.median + '</div><div class="bp-stat-label">mean ' + cyc.mean + 'd</div></div>';
+      html += '<div class="bp-stat-label">Based on ' + cyc.n + ' batch' + (cyc.n !== 1 ? 'es' : '') + '</div>';
+    } else {
+      html += '<div class="bp-stat-row"><div class="bp-stat-num">—</div></div>';
+      html += '<div class="bp-stat-label">No completed batches with a completion date in this period</div>';
+    }
+    html += dashV2DeltaHtml(formatDelta(cyc.median, prev ? prev.cycle.median : null, dOpts('days')));
+    html += '</button></div>';
+    slot.innerHTML = html;
+  }
+
+  function onDashV2TileClick(btn) {
+    var model = _dashV2Model;
+    if (!model) return;
+    var which = btn.getAttribute('data-dash-drill');
+    var cur = model.cur;
+    var ids = cur.ids[which];
+    if (!ids) return;
+    var litres = null;
+    if (model.state.measure === 'litres' && which !== 'cycle') litres = cur.litres[which];
+    var verbs = { activeNow: 'fermenting', started: 'started', completed: 'completed', cycle: 'cycle' };
+    var label = dashDrillLabel({
+      typeLabel: model.state.type !== 'all' ? (DASH_TYPE_LABELS[model.state.type] || '') : '',
+      verb: verbs[which],
+      periodLabel: model.periodLabel,
+      count: ids.length,
+      litres: litres
+    });
+    openDashDrill({ ids: ids.slice(), label: label });
+  }
+
+  function dashV2Widget(slotId, title) {
+    var slot = document.getElementById(slotId);
+    if (!slot) return null;
+    if (!slot.firstChild) {
+      slot.innerHTML = '<div class="bp-widget"><h2 class="bp-widget-title"></h2><p class="bp-widget-sub"></p>' +
+        (slotId === 'bp-dash-v2-wine' ? '<div class="bp-widget-chips"></div>' : '') +
+        '<div class="bp-widget-body"></div></div>';
+      slot.querySelector('.bp-widget-title').textContent = title;
+    }
+    return slot;
+  }
+
+  function destroyDashV2Slot(key) {
+    var c = _dashV2Charts[key];
+    if (c && c.destroy) { try { c.destroy(); } catch (e) { /* already gone */ } }
+    delete _dashV2Charts[key];
+  }
+
+  function dashV2Msg(slotId, key, title, msgHtml) {
+    var slot = dashV2Widget(slotId, title);
+    if (!slot) return;
+    slot.style.display = '';
+    destroyDashV2Slot(key);
+    var body = slot.querySelector('.bp-widget-body');
+    body.setAttribute('data-state', 'msg');
+    body.innerHTML = '<p class="bp-empty">' + msgHtml + '</p>';
+  }
+
+  function dashV2EmptyHtml() {
+    return 'No batches match these filters. <button type="button" class="bp-link-btn" data-dash-reset>Reset filters</button>';
+  }
+
+  // Returns the (persistent) canvas for a widget slot, creating the chart scaffold once.
+  function dashV2Canvas(slotId, title) {
+    var slot = dashV2Widget(slotId, title);
+    slot.style.display = '';
+    var body = slot.querySelector('.bp-widget-body');
+    if (body.getAttribute('data-state') !== 'chart') {
+      body.setAttribute('data-state', 'chart');
+      body.innerHTML = '<div class="bp-chart"><canvas></canvas></div><div class="bp-chart-legend"></div>';
+    }
+    return { canvas: body.querySelector('canvas'), legend: body.querySelector('.bp-chart-legend'), slot: slot };
+  }
+
+  function dashV2LegendHtml(items) {
+    var h = '';
+    for (var i = 0; i < items.length; i++) {
+      h += '<span class="bp-chart-legend-item"><span class="bp-chart-swatch" style="background:' + escapeHTML(items[i].colour) + '"></span>' + escapeHTML(items[i].label) + '</span>';
+    }
+    return h;
+  }
+
+  function renderDashV2PeriodChart(model) {
+    if (!model || !document.getElementById('bp-dash-v2-period')) return;
+    var cur = model.cur;
+    var st = model.state;
+    if (cur.started === 0) { dashV2Msg('bp-dash-v2-period', 'period', 'Batches per period', dashV2EmptyHtml()); return; }
+    var theme = readChartTheme();
+    var lit = st.measure === 'litres';
+    var defs = [['wine', 'Wine', theme.wine], ['cider', 'Cider', theme.cider], ['beer', 'Beer', theme.beer], ['other', 'Other', theme.other]];
+    var only = st.type === 'all' ? null : (st.type === 'seltzer' ? 'other' : st.type);
+    var buckets = cur.periodBuckets;
+    var labels = [];
+    var series = [];
+    var legend = [];
+    var parts = [];
+    var i;
+    var d;
+    for (i = 0; i < buckets.length; i++) labels.push(buckets[i].label);
+    for (d = 0; d < defs.length; d++) {
+      var key = defs[d][0];
+      if (only && key !== only) continue;
+      var data = [];
+      var total = 0;
+      for (i = 0; i < buckets.length; i++) {
+        var b = buckets[i];
+        var v;
+        if (lit) v = key === 'other' ? b.litres.seltzer + b.litres.other : b.litres[key];
+        else v = key === 'other' ? b.counts.seltzer + b.counts.other : b.counts[key];
+        v = lit ? Math.round(v * 10) / 10 : v;
+        data.push(v);
+        total += v;
+      }
+      series.push({ key: key, label: defs[d][1], data: data, colour: defs[d][2] });
+      legend.push({ label: defs[d][1], colour: defs[d][2] });
+      if (total > 0) parts.push(defs[d][1] + ' ' + (lit ? dashV2Fmt(total) + ' L' : total));
+    }
+    var el = dashV2Canvas('bp-dash-v2-period', 'Batches per period');
+    var by = st.group === 'week' ? 'week' : 'month';
+    var sub = (lit ? 'Started litres' : 'Started batches') + ' · ' + model.periodLabel + ' · by ' + by;
+    if (lit && cur.litres.estimated) sub += ' · litres estimated from standard batch sizes';
+    el.slot.querySelector('.bp-widget-sub').textContent = sub;
+    el.legend.innerHTML = dashV2LegendHtml(legend);
+    _dashV2Charts.period = chart(el.canvas, {
+      type: 'bar',
+      labels: labels,
+      series: series,
+      stacked: true,
+      measure: lit ? 'litres' : 'batches',
+      tooltipTotal: true,
+      ariaLabel: (lit ? 'Started litres by ' : 'Started batches by ') + by + ', ' + model.periodLabel + '. ' + parts.join(', '),
+      onClick: function (hit) {
+        var m = _dashV2Model;
+        var bk = m && m.cur.periodBuckets[hit.index];
+        if (!bk) return;
+        var ids;
+        var typeLabel = '';
+        if (hit.key === 'other') { ids = bk.ids.seltzer.concat(bk.ids.other); typeLabel = 'Other'; }
+        else if (hit.key) { ids = bk.ids[hit.key]; typeLabel = DASH_TYPE_LABELS[hit.key] || ''; }
+        else ids = bk.all;
+        openDashDrill({ ids: ids.slice(), label: dashDrillLabel({ typeLabel: typeLabel, verb: 'started', bucketLabel: bk.label, count: ids.length }) });
+      }
+    });
+  }
+
+  function renderDashV2Wine(model) {
+    var slot = document.getElementById('bp-dash-v2-wine');
+    if (!slot || !model) return;
+    var st = model.state;
+    if (st.type !== 'all' && st.type !== 'wine') {
+      destroyDashV2Slot('wine');
+      slot.style.display = 'none';
+      return;
+    }
+    var title = 'Wine breakdown';
+    var cur = model.cur;
+    if (cur.started === 0) { dashV2Msg('bp-dash-v2-wine', 'wine', title, dashV2EmptyHtml()); return; }
+    if (_dashWineSkuError) { dashV2Msg('bp-dash-v2-wine', 'wine', title, 'Unable to load catalog data — wine breakdown unavailable.'); return; }
+    if (_dashWineSkuLookup === null) {
+      loadWineSnapshot();
+      dashV2Msg('bp-dash-v2-wine', 'wine', title, 'Loading…');
+      return;
+    }
+    var dim = _dashV2WineDimension;
+    var buckets = wineBreakdownBuckets(cur.mix.wine, mergeWineSkuLookup(_dashWineSkuLookup, cur.mix.wine), dim, 8);
+    _dashV2WineBuckets = buckets;
+    var wrap = dashV2Widget('bp-dash-v2-wine', title);
+    wrap.style.display = '';
+    var chips = '';
+    for (var i = 0; i < DASH_V2_WINE_DIMS.length; i++) {
+      var on = DASH_V2_WINE_DIMS[i][0] === dim;
+      chips += '<button type="button" class="bp-dash-chip" aria-pressed="' + (on ? 'true' : 'false') + '" data-dash-wine-dim="' + DASH_V2_WINE_DIMS[i][0] + '">' + escapeHTML(DASH_V2_WINE_DIMS[i][1]) + '</button>';
+    }
+    wrap.querySelector('.bp-widget-chips').innerHTML = chips;
+    var note = st.staff === '1' ? 'Including staff batches' : 'Staff batches hidden';
+    wrap.querySelector('.bp-widget-sub').textContent = 'Started batches · ' + model.periodLabel + ' · by ' + dim + ' · ' + note;
+    if (!buckets.length) {
+      dashV2Msg('bp-dash-v2-wine', 'wine', title, dashV2EmptyHtml());
+      return;
+    }
+    var theme = readChartTheme();
+    var labels = [];
+    var data = [];
+    var parts = [];
+    for (var j = 0; j < buckets.length; j++) {
+      labels.push(buckets[j].label);
+      data.push(buckets[j].count);
+      parts.push(buckets[j].label + ' ' + buckets[j].count);
+    }
+    var el = dashV2Canvas('bp-dash-v2-wine', title);
+    el.legend.innerHTML = '';
+    _dashV2Charts.wine = chart(el.canvas, {
+      type: 'bar',
+      horizontal: true,
+      labels: labels,
+      series: [{ key: 'wine', label: 'Wine', data: data, colour: theme.wine }],
+      measure: 'batches',
+      ariaLabel: 'Wine batches started by ' + dim + ', ' + model.periodLabel + '. ' + parts.join(', '),
+      onClick: function (hit) {
+        var bk = _dashV2WineBuckets[hit.index];
+        if (!bk) return;
+        var m = _dashV2Model;
+        openDashDrill({
+          ids: bk.ids.slice(),
+          label: dashDrillLabel({ typeLabel: 'Wine ' + bk.label, verb: 'started', periodLabel: m ? m.periodLabel : '', count: bk.ids.length })
+        });
+      }
+    });
+  }
+
+  function renderDashV2Widgets() {
+    var model = _dashV2Model;
+    if (!model) return;
+    renderDashV2Tiles(model);
+    var seq = ++_dashV2Seq;
+    var wineShown = model.state.type === 'all' || model.state.type === 'wine';
+    if (model.cur.started === 0) {
+      renderDashV2PeriodChart(model);
+      renderDashV2Wine(model);
+      return;
+    }
+    if (!window.Chart) {
+      dashV2Msg('bp-dash-v2-period', 'period', 'Batches per period', 'Loading charts…');
+      if (wineShown) dashV2Msg('bp-dash-v2-wine', 'wine', 'Wine breakdown', 'Loading charts…');
+      else renderDashV2Wine(model);
+    }
+    function fail() {
+      dashV2Msg('bp-dash-v2-period', 'period', 'Batches per period', 'Charts could not load. Reload the page to try again.');
+      if (wineShown) dashV2Msg('bp-dash-v2-wine', 'wine', 'Wine breakdown', 'Charts could not load. Reload the page to try again.');
+    }
+    loadChartJs().then(function () {
+      if (seq !== _dashV2Seq || !isDashV2()) return;
+      try {
+        renderDashV2PeriodChart(_dashV2Model);
+        renderDashV2Wine(_dashV2Model);
+      } catch (e) { fail(); }
+    }, function () {
+      if (seq !== _dashV2Seq || !isDashV2()) return;
+      fail();
+    });
+  }
+
+  function resizeDashV2Charts() {
+    var keys = Object.keys(_dashV2Charts);
+    for (var i = 0; i < keys.length; i++) {
+      var c = _dashV2Charts[keys[i]];
+      if (c && c.resize) { try { c.resize(); } catch (e) { /* chart gone */ } }
+    }
   }
 
   function closeDashV2Sheet(restoreFocus) {
@@ -5321,6 +5613,12 @@ function parseWaitlistRecipeIds(value) {
     if (t.closest('[data-dash-sheet-reset]')) {
       closeDashV2Sheet(true);
       commitDashV2State(DASH_FILTER_DEFAULTS);
+      return;
+    }
+    if ((el = t.closest('[data-dash-drill]'))) { onDashV2TileClick(el); return; }
+    if ((el = t.closest('[data-dash-wine-dim]'))) {
+      var wd = el.getAttribute('data-dash-wine-dim');
+      if (wd && wd !== _dashV2WineDimension) { _dashV2WineDimension = wd; renderDashV2Wine(_dashV2Model); }
       return;
     }
     if (t.closest('[data-dash-reset]')) { commitDashV2State(DASH_FILTER_DEFAULTS); return; }
@@ -13444,6 +13742,7 @@ function parseWaitlistRecipeIds(value) {
       _renderBatchListForTest: renderBatchList,
       _openDashDrillForTest: openDashDrill,
       _clearDashDrillForTest: clearDashDrill,
+      _switchTabForTest: switchTab,
       _initDelegationForTest: initDelegation,
       _loadLinkCandidatesForTest: loadLinkCandidates,
       _linkBatchToInvoiceForTest: linkBatchToInvoice,
