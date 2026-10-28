@@ -83,6 +83,14 @@ today's widgets (tiles, month chart, wine breakdown) on the new engine and filte
   compare with the previous window, and a custom range with the window just before it. **YTD** compares with the same
   Jan 1–today stretch last year. **All shows no delta.** Display ▲/▼ with the change.
 
+### Post-research decisions (owner, 2026-10-27, plan-phase session)
+- **D-16:** The `kiosk_recipe` source value counts under the **Kiosk** source filter option. There is no separate option.
+- **D-17:** Seltzer and other batches use **23 L** in the litres measure, labelled as an estimate. This resolves the D-11 open question.
+- **D-18:** The one-time staff-flag backfill writes **directly to the Postgres-only column without bumping `last_updated`**,
+  like the Phase 94 `TYPE_SET_SQL` path. It has **no replay step**. `batches-verify` must still report 0 mismatches.
+- **D-19:** `staff_batch` is auto-set **only on create**. A later source edit to internal/research does not set it,
+  and staff tick the box by hand.
+
 ### Carried forward (locked, do not re-ask)
 - Every widget reads `getDashboardData(rows, asOf, filters)` and the stored `batch_type` (Phase 94 D-20).
 - Totals count started batches only: primary, secondary and complete (D-17).
@@ -181,3 +189,5 @@ These matched the phase on keywords only, so none were folded:
 
 *Phase: 95-global-filters-and-chart-engine*
 *Context gathered: 2026-10-28*
+
+<!-- Planner notes from research (Claude's Discretion, accepted): sticky filter bar uses top:0 inside .bp-panel, not var(--bp-shell-height); period code keys stay 6mo/12mo with UI labels 6m/12m; Chart.js pinned to 4.5.1 (4.6.1 is under two weeks old). -->
