@@ -2513,7 +2513,7 @@ Plans:
   4. KPI tiles show the change against the previous equivalent period.
   5. The chart library is loaded within the site CSP. Every public page's CSP stays untouched unless the library is served from a new domain (CLAUDE.md rule 12).
 
-**Plans:** 7/11 plans executed
+**Plans:** 8/11 plans executed
 
 Plans:
 
@@ -2541,7 +2541,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 95-08-PLAN.md — KPI tiles with deltas, stacked period chart, wine breakdown on chart(), click-through wiring
+- [x] 95-08-PLAN.md — KPI tiles with deltas, stacked period chart, wine breakdown on chart(), click-through wiring
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
