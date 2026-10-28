@@ -74,3 +74,17 @@ staging: no replay/verify (staging never mirrors).
 - Wine breakdown note "Staff batches hidden". Sticky filter bar pins flush under the header.
 - Drill: Week of Sep 14 bar (10) -> Batches tab, banner "From dashboard: Wine started in Week of Sep 14 · 10 batches", "10 batches shown".
 - Not exercised on desktop: staff checkbox write, custom date picker, phone width (left to the iPad pass).
+
+### Checklist pass (Claude in Chrome on the owner's Mac, owner signed in, 2026-10-28 ~20:00Z)
+
+The owner asked Claude to run the iPad checklist in the open Chrome tab. Steps 1-11 all passed: opt-in persists across
+reload (with filters); sticky bar; Wine/90d/Week deltas; Litres ("L", estimated subtitle); bar drill 10 = 10; tile drills
+37/46/59/59 equal tile numbers; staff toggle changes the wine note only; custom Jun 1 – Aug 31 with "vs prior 92 days";
+cider gold vs beer amber distinct; SV-B-000232 showed Staff batch ticked (backfill), untick + re-tick both toasted
+"Staff flag updated", left ticked; Back to classic restores v1 and "Try new dashboard".
+
+Finding (owner decision): a drill survived leaving Batches and re-entering via the bottom Batches tab. Owner: "Yes,
+clear it" - the bottom Batches tab clears the drill (fix on main with a regression test, then staging re-check).
+Minor, left as is: backfilled staff flags show the hint "Set by hand".
+
+Owner: **approved** (2026-10-28).
