@@ -88,3 +88,14 @@ clear it" - the bottom Batches tab clears the drill (fix on main with a regressi
 Minor, left as is: backfilled staff flags show the hint "Set by hand".
 
 Owner: **approved** (2026-10-28).
+
+## Production pre-deploy
+
+Read-only, 2026-10-28 (production container via `railway ssh`, read-only transaction; Railway deployment list). No production change.
+
+- **Migrations on production (`pgmigrations`):** 0001_init .. 0007_batch_type. `0007_batch_type` present: **yes**. `0008_staff_batch` present: **no**; `batches.staff_batch` column absent.
+- **BATCHES_STORE:** `postgres`. `/health` 200 (`authenticated: true`, `database_required: true`).
+- **Rollback target:** Railway deployment `d8ffd7bd-3149-4ea1-ad18-c9fd5421cfb6` (SUCCESS, 2026-10-28 02:52Z, `prod-20261028-1`).
+- **production/main:** `3f64da2d`. Commits on main not yet on production: 54. Outside Phase 95 these are docs only:
+  `fd92427e`, `aef21a36`, `1bf21d41`, `44a0e542`, `354b3d98` (STATE / Phase 94 docs).
+- **Candidate SHA:** pending - the code-review warning fixes (95-REVIEW-FIX) land first and must be staging-verified.
