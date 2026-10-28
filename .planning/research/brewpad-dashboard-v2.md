@@ -232,16 +232,16 @@ GSD's command prefix depends on the installed version: `/gsd:…` or `/gsd-…`.
 - [x] **D3** Chart.js (self-hosted)
 - [x] **D4** Click-through to filtered batch list
 - [x] **D5** Trend deltas on KPI tiles
-- [ ] **G1** Production over time (count/litres)
-- [ ] **G2** Pipeline
-- [ ] **G3** Cycle time distribution
-- [ ] **G4** Product breakdown for all types + leaderboard
-- [ ] **G5** Workload forecast
-- [ ] **G6** Vessel capacity and conflicts
-- [ ] **G7** Task health (on-time rate pending staff check, F8)
-- [ ] **G8** Fermentation curves + readings due
-- [ ] **G9** Sales source mix
-- [ ] **G10** Data health card
+- [x] **G1** Production over time (count/litres)
+- [x] **G2** Pipeline
+- [x] **G3** Cycle time distribution
+- [x] **G4** Product breakdown for all types + leaderboard
+- [x] **G5** Workload forecast
+- [x] **G6** Vessel capacity and conflicts
+- [x] **G7** Task health (on-time rate pending staff check, F8)
+- [x] **G8** Fermentation curves + readings due
+- [x] **G9** Sales source mix
+- [x] **G10** Data health card
 - [ ] **Phase D** Beer and cider sections + packaging calendar
 - [ ] **A1–A5** Alerts and quick wins (strike any not wanted)
 - [ ] **Phase F** Responsive and performance pass
