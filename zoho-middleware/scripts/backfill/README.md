@@ -304,3 +304,21 @@ staging never mirrors and shares one workbook with production.
 
 Exit codes: `batch-type-backfill` / `completed-at-backfill` 0 = ok, 1 = error, 3 = `--expect`
 mismatch. `batch-cycle-recompute` 0 = ok, 1 = error.
+
+## Phase 95 staff flag tooling
+
+Flags existing staff / family / R&D batches (`batches.staff_batch`) so the BrewPad v2 mix views can hide them. Run from
+`zoho-middleware/`, **inside the Railway container** (`railway ssh`), with `BACKFILL_DATABASE_URL=$DATABASE_URL`.
+Equals-form flags only; the database is never on argv. Full procedure: `docs/RUNBOOK.md`, "Staff batch flag (Phase 95)".
+
+```bash
+# Dry run by default: batch_id, status, source, reason(s) and matched field. No customer names.
+node scripts/backfill/staff-batch-backfill.js
+# Apply only the reviewed candidate count; --with-names adds customer names to the listing.
+node scripts/backfill/staff-batch-backfill.js --apply --expect=N [--with-names]
+```
+
+Candidates: `staff_batch = false` AND (source `internal` / `research`, or customer name / first / last name containing
+`McLachlan` or `Inn` as a whole word, case-insensitive). Exit codes: 0 = ok, 1 = error, 3 = `--expect` mismatch.
+It writes without bumping `last_updated`, so no sheet replay is needed; on production run `batches-verify` afterwards
+(expect 0 mismatches). Re-runs are idempotent.

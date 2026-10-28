@@ -1565,6 +1565,52 @@ found and revised.
 
 ---
 
+## Staff batch flag (Phase 95)
+
+One-time backfill of `batches.staff_batch` for existing staff / family / R&D batches (D-09), so the BrewPad v2 mix
+views can hide them. CLI: `zoho-middleware/scripts/backfill/staff-batch-backfill.js` (see its README). Dry-run by
+default; writes only with `--apply --expect=<reviewed count>`. Candidates: source `internal` / `research`, or a
+customer name containing `McLachlan` or `Inn` as a whole word.
+
+### Preconditions
+
+- Migration `0008` is applied on the target environment, after `0007`.
+- The Phase 94 B3/B2 backfills are already applied.
+
+### How to run (in-container)
+
+`railway ssh` into the middleware service, then
+`BACKFILL_DATABASE_URL=$DATABASE_URL node scripts/backfill/staff-batch-backfill.js ...`. Never put a database URL on
+the command line (the CLI refuses it).
+
+### Owner-OK rule
+
+No `--apply` without the owner's in-session OK on the FULL dry-run list. `--expect=N` must equal the reviewed count; a
+mismatch exits 3 and writes nothing. False positives (for example an unrelated "Inn" name) are fixed by clearing the
+flag by hand afterwards, not by editing the SQL.
+
+### Staging (Postgres only)
+
+Dry run, owner OK, `--apply --expect=N`. NEVER run batches-replay-to-sheet or batches-verify on staging: staging never
+mirrors and the workbook is shared with production.
+
+### Production
+
+Dry run, owner OK, `--apply --expect=N`, then `batches-verify.js --file=<fresh snapshot>` and require 0 mismatches.
+No replay is needed: the write does not bump `last_updated` (D-18), and `staff_batch` is not mirrored to the sheet.
+This satisfies D-09's "after replay + verify" ordering.
+
+### Logging
+
+Log each production apply (date, command, count, reason) in `87-CUTOVER-LOG.md` under "SQL fixes".
+
+### Rollback and corrections
+
+Re-runs are idempotent (a second dry run lists 0). Clear a wrongly flagged batch with the Staff batch checkbox in the
+BrewPad detail pane. New batches are flagged only on create, for internal / research sources (D-19).
+
+---
+
 ## Phase 46 Auth Cutover (CRITICAL — leaked-key neutralization)
 
 Closes the audit CRITICAL: the storefront previously shipped `MW_API_KEY` in client JS, so the
