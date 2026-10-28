@@ -513,17 +513,23 @@ if (staffSet !== null) addSet('staff_batch', staffSet);
 | A7 | Mobile Safari tap fires Chart.js `onClick` reliably with `intersect:false` index mode | Pitfall 6 | Click-through fails on touch; needs iPad UAT, fallback is tap-to-tooltip then tap-tooltip |
 | A8 | Timezone tests: `America/Vancouver` DST dates quoted (Mar 8, Nov 1 2026) | Tests | Test date choice only |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **OQ1 Seltzer/other litres default (CONTEXT D-11).**
    - Known: wine/cider 23 L; beer 28/25 L; seltzer and other have no stated volume; `target_volume_l` is empty everywhere; seltzer/other are rare.
    - Unclear: owner's intended default.
    - Recommendation: 23 L, always marked "estimated"; ask the owner at plan review or accept as a one-line constant (`DASH_DEFAULT_LITRES`).
+   RESOLVED: D-17 — seltzer and other use 23 L, labelled as an estimate (plan 95-03 batchLitres; plan 95-08 subtitle note).
 2. **OQ2 Staff flag on later source flip.** Auto-set on create is locked; should `manual -> internal` via "Mark internal" set the flag? Recommend yes (set only, never clear), owner confirm.
+   RESOLVED: D-19 — auto-set on create only; a later source edit does not set it (overrides the recommendation above). Plan 95-01 tests the source flip leaves staff_batch false.
 3. **OQ3 `kiosk_recipe` and other source values in the Source filter.** D-04 list omits `kiosk_recipe`. Recommend Kiosk = kiosk + kiosk_recipe; any other unrecognised value shown in an "Other" option only when present. Owner confirm.
+   RESOLVED: D-16 — `kiosk_recipe` counts under the Kiosk option; no separate option (plan 95-03 sourceMatches).
 4. **OQ4 Cycle-time tile click-through.** Clicking "Days to complete" - drill to the contributing batches (completed with span in window) or non-clickable? UI spec lists every tile as clickable. Recommend drill to those ids and say so in the banner.
+   RESOLVED: the cycle-time tile is clickable and drills to the contributing ids (`ids.cycle`) — plan 95-08 (ids from plan 95-03).
 5. **OQ5 Backfill write: bump `last_updated` or not.** Recommended: not (avoids replay). If the planner/owner prefers going through `updateBatch`, replay of N batches at ~14 s each is required first.
+   RESOLVED: D-18 — direct write to the Postgres-only column via `setStaffBatch`, no `last_updated` bump, no replay; `batches-verify` must still show 0 mismatches (plans 95-01, 95-02, 95-11).
 6. **OQ6 Sticky offset.** UI-spec `top: var(--bp-shell-height)` appears wrong for this layout (Pitfall 1). Confirm on device; use `top:0`.
+   RESOLVED: `top: 0` inside `.bp-panel` (planner-resolved discretion item), implemented in plan 95-06 and checked on the iPad in plan 95-10. (Related PWA opt-in concern A1: resolved by the in-app switch button plus `?dash=v2`, plan 95-06.)
 
 ## Environment Availability
 

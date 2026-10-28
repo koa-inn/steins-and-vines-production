@@ -2513,11 +2513,47 @@ Plans:
   4. KPI tiles show the change against the previous equivalent period.
   5. The chart library is loaded within the site CSP. Every public page's CSP stays untouched unless the library is served from a new domain (CLAUDE.md rule 12).
 
-**Plans:** 0 plans
+**Plans:** 11 plans
 
 Plans:
 
-- [ ] TBD
+**Wave 1**
+
+- [ ] 95-01-PLAN.md — staff_batch column (migration 0008), auto-set on create, update_batch branch, no-bump setStaffBatch, staffBatchIds on the aggregate
+- [ ] 95-03-PLAN.md — (TDD) extend getDashboardData: range/source/staff/group filters, id sets, window-clipped week/month buckets, litres, previous window
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 95-02-PLAN.md — staff-flag candidate backfill CLI (dry run / --apply --expect=N), README + RUNBOOK section, §7 ticks
+- [ ] 95-04-PLAN.md — pure filter state (hash/localStorage/opt-in), formatDelta, banner label, id-carrying wine buckets
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 95-05-PLAN.md — vendor Chart.js 4.5.1 (hash-verified, README), lazy loadChartJs, chart() helper, brand colour tokens
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 95-06-PLAN.md — v2 opt-in + dispatch, persistent shell, sticky filter bar, custom range, phone sheet
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 95-07-PLAN.md — click-through destination (drill state, banner, chip narrowing) + staff checkbox in the detail pane
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 95-08-PLAN.md — KPI tiles with deltas, stacked period chart, wine breakdown on chart(), click-through wiring
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 95-09-PLAN.md — staging deploy, 0008 check, staff dry run, owner OK, staging apply
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 95-10-PLAN.md — owner iPad UAT of v2 on staging; production pre-deploy; release SHA approval
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 95-11-PLAN.md — production release, staff dry run, owner OK, apply, batches-verify 0 mismatches
 
 ### Phase 96: New and upgraded dashboard graphs
 
