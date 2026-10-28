@@ -126,3 +126,19 @@ In-container, `--dry-run`, exit 0, no writes. Full lists outside the repo: `~/sv
 - Without exclusions: **30 candidates** (name:Inn 11, name:McLachlan 18, source:internal 3, source:research 1); same 30 ids as staging.
 - With the staging-approved `--exclude` (the same 10 customer batches): **20 candidates** (name:Inn 11, name:McLachlan 9; source:internal 2 and
   source:research 1 overlap), fingerprint `79e38cb5f22c`.
+
+Owner OK (prod staff): --expect=20 with the same `--exclude` of 10 customer batches (Anthony McLachlan, Katie McLachlan,
+SV-B-000238), fingerprint `79e38cb5f22c`, 2026-10-28 ~20:27Z. No batch ids to clear afterwards.
+
+## Production staff apply
+
+| Step | Result |
+|------|--------|
+| Apply start | 2026-10-28T20:27:42Z |
+| `--apply --exclude=<10> --expect=20 --expect-ids=79e38cb5f22c` | candidates 20, written 20, skipped 0, exit 0 |
+| Re-run `--dry-run --exclude=<10>` | re-run candidates 0 |
+| Read-only read-back | `count(*) where staff_batch` = 20; excluded ids flagged = 0 |
+| Owner snapshot `STEINS AND VINES-6.xlsx` (downloaded 20:27Z), sha256 prefix `4ea07ea8f63f321c` checked on both ends, deleted from container after | |
+| `batches-verify --file=<snapshot>` | headers match; counts 215 / 1114 / 72 / 442 equal; 0 orphans; batches-verify: 0 mismatches |
+
+No replay run (D-18: last_updated unchanged; staff_batch is Postgres-only). 87-CUTOVER-LOG "SQL fixes" entry added.

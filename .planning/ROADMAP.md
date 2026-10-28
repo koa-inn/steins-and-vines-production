@@ -183,7 +183,7 @@
 **Phasing:** this is additive. Numbering continues from Phase 93 and nothing is renumbered. The order is 94 → 95 → 96 → 97 → 98 → 99, and Phase 94 must land first.
 
 - [x] **Phase 94: Dashboard correctness and data foundations** — fix the avg cycle-time KPI (B1); dry-run backfill of `completed_at` for 40 legacy batches (B2, data write gated); explicit `batch_type` wine/beer/cider/other set on create and backfilled (B3, data write gated); one dashboard data layer, classifier and date-window helper so every total agrees (D1); server-side `get_dashboard_stats` or bulk tasks/readings endpoint to kill the N+1 `get_batch` calls (S1). (completed 2026-10-28)
-- [ ] **Phase 95: Global filters and chart engine** — sticky global filter bar for type, period, group-by, measure (batches or litres), source and staff toggle, held in the URL hash (D2); a chart library behind a small `chart()` helper, Chart.js 4 by default (D3); click-through from every bar, segment and tile to the filtered Batches tab (D4); trend deltas on KPI tiles (D5).
+- [x] **Phase 95: Global filters and chart engine** — sticky global filter bar for type, period, group-by, measure (batches or litres), source and staff toggle, held in the URL hash (D2); a chart library behind a small `chart()` helper, Chart.js 4 by default (D3); click-through from every bar, segment and tile to the filtered Batches tab (D4); trend deltas on KPI tiles (D5). (completed 2026-10-28)
 - [ ] **Phase 96: New and upgraded dashboard graphs** — G1 production over time · G2 pipeline · G3 cycle-time distribution · G4 product breakdown for all types + leaderboard · G5 workload forecast · G6 vessel capacity and conflicts · G7 task health · G8 fermentation curves + readings due · G9 sales source mix · G10 data-health card.
 - [ ] **Phase 97: Beer and cider dashboard sections** — beer batch card and section (style, ABV/IBU, OG vs target FG, current step including temperature steps, cans and litres packaged); cider section; 2-week packaging calendar for bottling and canning, coordinated with the canning handoffs without duplicating their scope.
 - [ ] **Phase 98: Dashboard alerts and quick wins** — A1 "Needs attention" counts by type · A2 stale batches past their planned schedule · A3 vessel conflicts · A4 ready to bottle with invite not sent (link only, no automatic email) · A5 waitlist tile.
@@ -2513,7 +2513,7 @@ Plans:
   4. KPI tiles show the change against the previous equivalent period.
   5. The chart library is loaded within the site CSP. Every public page's CSP stays untouched unless the library is served from a new domain (CLAUDE.md rule 12).
 
-**Plans:** 9/11 plans executed
+**Plans:** 11/11 plans complete
 
 Plans:
 
@@ -2549,11 +2549,11 @@ Plans:
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
-- [ ] 95-10-PLAN.md — owner iPad UAT of v2 on staging; production pre-deploy; release SHA approval
+- [x] 95-10-PLAN.md — owner iPad UAT of v2 on staging; production pre-deploy; release SHA approval
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
-- [ ] 95-11-PLAN.md — production release, staff dry run, owner OK, apply, batches-verify 0 mismatches
+- [x] 95-11-PLAN.md — production release, staff dry run, owner OK, apply, batches-verify 0 mismatches
 
 ### Phase 96: New and upgraded dashboard graphs
 
