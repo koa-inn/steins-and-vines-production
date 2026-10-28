@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: Security & Money-Path Closeout
 status: executing
-stopped_at: Phase 95 UI-SPEC approved
-last_updated: "2026-10-28T17:46:22.953Z"
+stopped_at: Phase 96 context gathered
+last_updated: "2026-10-28T20:42:47.574Z"
 last_activity: 2026-10-28 -- Phase 95 execution started
 progress:
   total_phases: 85
-  completed_phases: 36
+  completed_phases: 37
   total_plans: 309
-  completed_plans: 295
-  percent: 42
+  completed_plans: 306
+  percent: 44
 ---
 
 # Project State
@@ -287,6 +287,6 @@ Milestone: v4.5 Security & Money-Path Closeout — NOT complete (the 2026-07-08 
 
 ## Session Continuity
 
-Last session: 2026-10-28T03:19:32.893Z
-Stopped at: Phase 95 UI-SPEC approved
-Resume file: .planning/phases/95-global-filters-and-chart-engine/95-UI-SPEC.md
+Last session: 2026-10-28T20:42:47.568Z
+Stopped at: Phase 96 context gathered
+Resume file: .planning/phases/96-new-and-upgraded-dashboard-graphs/96-CONTEXT.md
