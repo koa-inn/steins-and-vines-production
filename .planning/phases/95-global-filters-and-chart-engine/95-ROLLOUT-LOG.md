@@ -61,3 +61,16 @@ Owner OK (staging staff): --expect=20 with --exclude of the 10 customer batches,
 | Read-only read-back | `count(*) where staff_batch` = 20; excluded ids flagged = 0 |
 
 staging: no replay/verify (staging never mirrors).
+
+## Staging UAT
+
+### Desktop pass (Claude in Chrome, owner signed in, 2026-10-28 ~19:45Z)
+
+- Staging serves the Phase 95 `brewpad.min.js` (contains `bp_dash_v2`, `staff_batch`, the Chart.js loader); `js/vendor/chart.umd.min.js` is 200.
+- Before sign-in / before v2 opens: no Chart.js request. After v2 opens: one request, `js/vendor/chart.umd.min.js?v=4.5.1`.
+- Console: no app errors. Only the Google sign-in popup-blocked message (GSI, pre-existing, not Phase 95).
+- Defaults YTD · Month · Batches · All: tiles 39 fermenting / 214 started / 175 completed / median 57d; Period YTD shows "No earlier data to compare".
+- Wine · 90d · Week: hash becomes `#dash=v2&type=wine&period=90d&group=week`; tiles show deltas (`▼ 30 (-39%) vs prev 90d`, cycle `▲ 7d (+12%)`); Reset filters appears.
+- Wine breakdown note "Staff batches hidden". Sticky filter bar pins flush under the header.
+- Drill: Week of Sep 14 bar (10) -> Batches tab, banner "From dashboard: Wine started in Week of Sep 14 · 10 batches", "10 batches shown".
+- Not exercised on desktop: staff checkbox write, custom date picker, phone width (left to the iPad pass).
