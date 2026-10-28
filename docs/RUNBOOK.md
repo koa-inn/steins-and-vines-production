@@ -1569,7 +1569,7 @@ found and revised.
 
 One-time backfill of `batches.staff_batch` for existing staff / family / R&D batches (D-09), so the BrewPad v2 mix
 views can hide them. CLI: `zoho-middleware/scripts/backfill/staff-batch-backfill.js` (see its README). Dry-run by
-default; writes only with `--apply --expect=<reviewed count>`. Candidates: source `internal` / `research`, or a
+default; writes only with `--apply --expect=<reviewed count> --expect-ids=<reviewed fingerprint>`. Candidates: source `internal` / `research`, or a
 customer name containing `McLachlan` or `Inn` as a whole word.
 
 ### Preconditions
@@ -1585,22 +1585,25 @@ the command line (the CLI refuses it).
 
 ### Owner-OK rule
 
-No `--apply` without the owner's in-session OK on the FULL dry-run list. `--expect=N` must equal the reviewed count; a
-mismatch exits 3 and writes nothing. False positives (for example a paying customer who shares a family surname) are
-dropped with `--exclude=<ids>` on both the dry run and the apply, so `--expect` is the count actually written; an
-excluded id that is not a candidate is refused. Do not edit the SQL.
+No `--apply` without the owner's in-session OK on the FULL dry-run list. `--expect=N` must equal the reviewed count and
+`--expect-ids=FP` the fingerprint the reviewed dry run printed (`fingerprint: ...`, the first 12 hex of the SHA-256 of
+the sorted candidate ids). Either mismatch exits 3 and writes nothing, so a set that changed since the review (one row
+flagged by hand, one new match, same count) is refused. `--apply` without `--expect-ids` is refused. False positives
+(for example a paying customer who shares a family surname) are dropped with `--exclude=<ids>` on both the dry run and
+the apply, so `--expect` and `--expect-ids` describe the rows actually written; an excluded id that is not a candidate
+is refused. Do not edit the SQL.
 
 Owner review 2026-10-28 (staging): flag Koa Inn and Paul McLachlan only. Anthony McLachlan, Katie McLachlan and
 Wayne (SV-B-000238, source `internal`) are paying customers - exclude their batches.
 
 ### Staging (Postgres only)
 
-Dry run, owner OK, `--apply --expect=N`. NEVER run batches-replay-to-sheet or batches-verify on staging: staging never
+Dry run, owner OK, `--apply --expect=N --expect-ids=FP`. NEVER run batches-replay-to-sheet or batches-verify on staging: staging never
 mirrors and the workbook is shared with production.
 
 ### Production
 
-Dry run, owner OK, `--apply --expect=N`, then `batches-verify.js --file=<fresh snapshot>` and require 0 mismatches.
+Dry run, owner OK, `--apply --expect=N --expect-ids=FP`, then `batches-verify.js --file=<fresh snapshot>` and require 0 mismatches.
 No replay is needed: the write does not bump `last_updated` (D-18), and `staff_batch` is not mirrored to the sheet.
 This satisfies D-09's "after replay + verify" ordering.
 

@@ -1173,8 +1173,18 @@ function countNonDefaultFilters(state) {
 function buildDashV2Model(rows, asOf, state, staffIds, catMap) {
   var st = state || DASH_FILTER_DEFAULTS;
   var today = asOf.today;
-  var win = windowFromFilters(st, today);
+  // Review WR-02: the range was validated against the client's today, but the aggregate's
+  // asOf.today can be a day behind (fetched before midnight). Clamp the end to asOf.today
+  // instead of silently falling back to YTD, and label from the window actually used.
+  var winState = st;
+  if (st.period === 'custom' && isRealYmd(st.from) && isRealYmd(st.to) && st.from <= today && st.to > today) {
+    winState = { period: 'custom', from: st.from, to: today };
+  }
+  var win = windowFromFilters(winState, today);
   var prevWin = previousWindow(win, today);
+  var periodLabel = win.key === 'custom' ?
+    dashShortDate(win.start) + ' – ' + dashShortDate(win.end) :
+    dashPeriodLabel({ period: win.key });
   function run(range) {
     return getDashboardData(rows, asOf, {
       range: range,
@@ -1190,7 +1200,7 @@ function buildDashV2Model(rows, asOf, state, staffIds, catMap) {
   var cur = run(win);
   var prev = prevWin ? run(prevWin) : null;
   var insufficient = !prevWin || !cur.earliestStart || prevWin.start < cur.earliestStart;
-  return { state: st, win: win, prevWin: prevWin, cur: cur, prev: prev, insufficient: insufficient, periodLabel: dashPeriodLabel(st) };
+  return { state: st, win: win, prevWin: prevWin, cur: cur, prev: prev, insufficient: insufficient, periodLabel: periodLabel };
 }
 
 function dashGroupThousands(n) {
@@ -1483,7 +1493,7 @@ function chart(canvas, cfg) {
           label: function (item) {
             var name = (item.dataset && item.dataset.label) || item.label || '';
             var val = valueOf(item);
-            return name + ': ' + (litres ? fmtNum(val) + ' L' : val + ' batches');
+            return name + ': ' + (litres ? fmtNum(val) + ' L' : val + (Number(val) === 1 ? ' batch' : ' batches'));
           },
           footer: function (items) {
             if (!cfg.tooltipTotal) return '';
@@ -2160,6 +2170,7 @@ function parseWaitlistRecipeIds(value) {
   var _allBatchesData = [];  // full unfiltered batch list (all statuses) — source of truth for filter/search
   var _eagerLoadDone = false;
   var _eagerLoadTime = 0;
+  var _eagerLoading = false;   // review WR-03: boot load in flight (it re-renders the dashboard itself)
   var _batchesLoaded = false;
   var _batchesLoading = false;
   var _batchesLoadTime = 0;
@@ -3702,6 +3713,10 @@ function parseWaitlistRecipeIds(value) {
         if (flag && at === -1) ids.push(batchId);
         if (!flag && at !== -1) ids.splice(at, 1);
       }
+      // Review WR-03: in the summary fallback v2 reads the list rows, so patch the row too.
+      for (var i = 0; i < _allBatchesData.length; i++) {
+        if (_allBatchesData[i] && _allBatchesData[i].batch_id === batchId) _allBatchesData[i].staff_batch = flag;
+      }
       if (isDashV2()) refreshDashV2();
       afterBatchWrite(batchId, { refreshOpenDetail: true, listAffecting: true });
       return res;
@@ -4915,6 +4930,7 @@ function parseWaitlistRecipeIds(value) {
       return p.then(function (r) { return r; }).catch(function () { return null; });
     }
 
+    _eagerLoading = true;
     Promise.all([
       settle(adminApiGet('get_dashboard_stats')),
       settle(adminApiGet('get_batches', { status: 'all' })),   // fetch ALL statuses at once
@@ -4926,6 +4942,7 @@ function parseWaitlistRecipeIds(value) {
       if (results[0]) { results[0] = dashAggregateFromStats(results[0]); return results; }
       return fetchSummaryAggregate().then(function (agg) { results[0] = agg; return results; });
     }).then(function (results) {
+      _eagerLoading = false;
       var r0 = results[0], r1 = results[1], r2 = results[2], r3 = results[3], r4 = results[4];
 
       if (r0) {
@@ -5140,6 +5157,24 @@ function parseWaitlistRecipeIds(value) {
     return !!(window.matchMedia && window.matchMedia('(max-width: 600px)').matches);
   }
 
+  // Review WR-06: Split View / Slide Over or a rotation can cross 600px with no filter tap, so
+  // follow the media query. Bound once, on the first v2 render; addListener is older iPad Safari.
+  var _dashV2ModeBound = false;
+  function onDashV2ModeChange() {
+    if (!isDashV2() || !document.getElementById('bp-dash-v2')) return;
+    closeDashV2Sheet(false);
+    updateDashV2Bar();
+  }
+  function bindDashV2ModeListener() {
+    if (_dashV2ModeBound || !window.matchMedia) return;
+    var mq = window.matchMedia('(max-width: 600px)');
+    if (!mq) return;
+    if (mq.addEventListener) mq.addEventListener('change', onDashV2ModeChange);
+    else if (mq.addListener) mq.addListener(onDashV2ModeChange);
+    else return;
+    _dashV2ModeBound = true;
+  }
+
   function dashV2SegHtml(ctl) {
     var h = '<div class="bp-dash-filter"><span class="bp-dash-filter-label">' + ctl.label + '</span>';
     h += '<div class="bp-seg" role="radiogroup" aria-label="' + ctl.label + '">';
@@ -5254,9 +5289,44 @@ function parseWaitlistRecipeIds(value) {
     refreshDashV2();
   }
 
-  function refreshDashV2() {
+  // No data source yet: placeholder tiles and widgets, then one batch-list load (unless the
+  // boot eager load is still in flight; it re-renders the dashboard when it lands).
+  function showDashV2NoData(afterLoad) {
+    _dashV2Model = null;
+    _dashV2Seq++;
+    updateDashV2Bar();
+    var tiles = document.getElementById('bp-dash-v2-tiles');
+    var failed = afterLoad === true;   // our own load finished and the list is still not loaded
+    if (tiles) {
+      tiles.innerHTML = failed ?
+        '<p class="bp-empty">Dashboard data could not load. Reopen the Dashboard tab to try again.</p>' :
+        '<div class="bp-skeleton-block"></div>';
+    }
+    var msg = failed ? 'No data loaded.' : 'Loading…';
+    dashV2Msg('bp-dash-v2-period', 'period', 'Batches per period', msg);
+    var st = _dashV2State || {};
+    var wine = document.getElementById('bp-dash-v2-wine');
+    if (st.type === 'all' || st.type === 'wine' || !st.type) {
+      dashV2Msg('bp-dash-v2-wine', 'wine', 'Wine breakdown', msg);
+    } else if (wine) {
+      destroyDashV2Slot('wine');
+      wine.style.display = 'none';
+    }
+    if (failed || _eagerLoading || _batchesLoading) return;
+    loadBatches().then(function () {
+      if (isDashV2() && document.getElementById('bp-dash-v2')) refreshDashV2(true);
+    });
+  }
+
+  function refreshDashV2(afterLoad) {
     if (!document.getElementById('bp-dash-v2')) return;
     if (!_dashV2State) _dashV2State = readDashFiltersFromEnv();
+    // Review WR-03: with neither the aggregate nor the batch list loaded, the numbers would
+    // all be zero. Show a placeholder and load the list instead (UI-SPEC: no zero placeholders).
+    if (!_dashData && !(_allBatchesData && _allBatchesData.length) && !_batchesLoaded) {
+      showDashV2NoData(afterLoad);
+      return;
+    }
     var todayStrP = todayPacific();
     var rows = _dashData ? _dashData.batches : toDashRows(_allBatchesData);
     var asOf = _dashData ? _dashData.asOf : { today: todayStrP, year: parseInt(todayStrP.slice(0, 4), 10), tz: 'America/Vancouver' };
@@ -5741,6 +5811,7 @@ function parseWaitlistRecipeIds(value) {
       shell.addEventListener('keydown', onDashV2Keydown);
       _dashV2RangeOpen = false;
     }
+    bindDashV2ModeListener();
     if (!_dashV2State) _dashV2State = readDashFiltersFromEnv();
     refreshDashV2();
   }
@@ -6370,6 +6441,13 @@ function parseWaitlistRecipeIds(value) {
       _batchStatusFilter = 'active';
     }
     switchTab(tab);
+  }
+
+  // Review WR-01: code that forces a status filter (not a chip tap) drops any leftover
+  // dashboard drill, otherwise the drilled id set hides the rows the caller wants shown.
+  function setBatchStatusFilterProgrammatic(status) {
+    _dashDrill = null;
+    _batchStatusFilter = status;
   }
 
   function clearDashDrill() {
@@ -7175,7 +7253,7 @@ function parseWaitlistRecipeIds(value) {
             // Bust cache and reload batch list after any successful creates.
             // Force the filter to 'pending' so freshly created batches are immediately visible.
             if (summary.okCount > 0) {
-              _batchStatusFilter = 'pending';
+              setBatchStatusFilterProgrammatic('pending');
               _batchesLoaded = false;
               _allBatchesData = [];
               _batchesLoadTime = 0;
@@ -13752,6 +13830,8 @@ function parseWaitlistRecipeIds(value) {
       _renderBatchListForTest: renderBatchList,
       _openDashDrillForTest: openDashDrill,
       _clearDashDrillForTest: clearDashDrill,
+      _renderPullCandidatesForTest: renderPullCandidates,
+      _setStaffBatchForTest: setStaffBatch,
       _handleTabBarClickForTest: handleTabBarClick,
       _switchTabForTest: switchTab,
       _initDelegationForTest: initDelegation,

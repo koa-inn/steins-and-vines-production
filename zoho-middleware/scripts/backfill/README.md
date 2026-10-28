@@ -312,15 +312,22 @@ Flags existing staff / family / R&D batches (`batches.staff_batch`) so the BrewP
 Equals-form flags only; the database is never on argv. Full procedure: `docs/RUNBOOK.md`, "Staff batch flag (Phase 95)".
 
 ```bash
-# Dry run by default: batch_id, status, source, reason(s) and matched field. No customer names.
+# Dry run by default: batch_id, status, source, reason(s) and matched field, then the count and an
+# id-set fingerprint. No customer names.
 node scripts/backfill/staff-batch-backfill.js
-# Apply only the reviewed candidate count; --with-names adds customer names to the listing.
-node scripts/backfill/staff-batch-backfill.js --apply --expect=N [--with-names]
-# Drop owner-rejected rows (paying customers) from both dry run and apply; --expect counts what remains.
-node scripts/backfill/staff-batch-backfill.js --exclude=SV-B-000025,SV-B-000238 [--apply --expect=N]
+# Apply only the reviewed set: N and FP are the count and fingerprint the reviewed dry run printed.
+# --with-names adds customer names to the listing.
+node scripts/backfill/staff-batch-backfill.js --apply --expect=N --expect-ids=FP [--with-names]
+# Drop owner-rejected rows (paying customers) from both dry run and apply; --expect and --expect-ids
+# describe what remains.
+node scripts/backfill/staff-batch-backfill.js --exclude=SV-B-000025,SV-B-000238 [--apply --expect=N --expect-ids=FP]
 ```
 
+`--expect-ids` is the first 12 hex characters of the SHA-256 of the sorted, comma-joined candidate ids
+(after `--exclude`). The count alone is not enough: a reviewed row can drop out and an unreviewed one
+appear with the same total. `--apply` without `--expect-ids` is refused.
+
 Candidates: `staff_batch = false` AND (source `internal` / `research`, or customer name / first / last name containing
-`McLachlan` or `Inn` as a whole word, case-insensitive). Exit codes: 0 = ok, 1 = error, 3 = `--expect` mismatch.
+`McLachlan` or `Inn` as a whole word, case-insensitive). Exit codes: 0 = ok, 1 = error, 3 = `--expect` or `--expect-ids` mismatch.
 It writes without bumping `last_updated`, so no sheet replay is needed; on production run `batches-verify` afterwards
 (expect 0 mismatches). Re-runs are idempotent.
