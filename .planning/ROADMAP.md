@@ -2513,7 +2513,7 @@ Plans:
   4. KPI tiles show the change against the previous equivalent period.
   5. The chart library is loaded within the site CSP. Every public page's CSP stays untouched unless the library is served from a new domain (CLAUDE.md rule 12).
 
-**Plans:** 4/11 plans executed
+**Plans:** 5/11 plans executed
 
 Plans:
 
@@ -2529,7 +2529,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 95-05-PLAN.md — vendor Chart.js 4.5.1 (hash-verified, README), lazy loadChartJs, chart() helper, brand colour tokens
+- [x] 95-05-PLAN.md — vendor Chart.js 4.5.1 (hash-verified, README), lazy loadChartJs, chart() helper, brand colour tokens
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
