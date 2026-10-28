@@ -184,7 +184,7 @@
 
 - [x] **Phase 94: Dashboard correctness and data foundations** — fix the avg cycle-time KPI (B1); dry-run backfill of `completed_at` for 40 legacy batches (B2, data write gated); explicit `batch_type` wine/beer/cider/other set on create and backfilled (B3, data write gated); one dashboard data layer, classifier and date-window helper so every total agrees (D1); server-side `get_dashboard_stats` or bulk tasks/readings endpoint to kill the N+1 `get_batch` calls (S1). (completed 2026-10-28)
 - [x] **Phase 95: Global filters and chart engine** — sticky global filter bar for type, period, group-by, measure (batches or litres), source and staff toggle, held in the URL hash (D2); a chart library behind a small `chart()` helper, Chart.js 4 by default (D3); click-through from every bar, segment and tile to the filtered Batches tab (D4); trend deltas on KPI tiles (D5). (completed 2026-10-28)
-- [ ] **Phase 96: New and upgraded dashboard graphs** — G1 production over time · G2 pipeline · G3 cycle-time distribution · G4 product breakdown for all types + leaderboard · G5 workload forecast · G6 vessel capacity and conflicts · G7 task health · G8 fermentation curves + readings due · G9 sales source mix · G10 data-health card.
+- [ ] **Phase 96: New and upgraded dashboard graphs** — G1 production over time · G2 pipeline · G3 cycle-time distribution · G4 product breakdown for all types + leaderboard · G5 workload forecast · G6 vessel capacity + shared vessels · G7 task health · G8 fermentation curves + no-readings list · G9 sales source mix · G10 data-health card.
 - [ ] **Phase 97: Beer and cider dashboard sections** — beer batch card and section (style, ABV/IBU, OG vs target FG, current step including temperature steps, cans and litres packaged); cider section; 2-week packaging calendar for bottling and canning, coordinated with the canning handoffs without duplicating their scope.
 - [ ] **Phase 98: Dashboard alerts and quick wins** — A1 "Needs attention" counts by type · A2 stale batches past their planned schedule · A3 vessel conflicts · A4 ready to bottle with invite not sent (link only, no automatic email) · A5 waitlist tile.
 - [ ] **Phase 99: Dashboard responsiveness and performance** — mobile-first grid with no horizontal scroll at 360 px; skeleton loaders and cached-first render; lazy charts below the fold; < 1.5 s warm / < 3 s cold on the shop tablet; Lighthouse mobile ≥ 85; a table view for every chart; then make v2 the default.
@@ -2557,22 +2557,20 @@ Plans:
 
 ### Phase 96: New and upgraded dashboard graphs
 
-**Goal:** The dashboard covers production, pipeline, cycle time, products, workload, vessels, task health, fermentation, sales source and data health.
+**Goal:** The v2 dashboard covers production, pipeline, cycle time, products, workload, vessels, task health, fermentation, sales source and data health.
 
 - Each graph has options, click-through and a table view.
 - Beer and cider appear as their own series everywhere wine does.
 
 **Depends on:** Phase 95
-**Requirements:** TBD. Handoff items G1 to G10.
-**Success Criteria** (draft):
+**Requirements:** Handoff items G1 to G10 (all approved 2026-10-28, D-01).
+**Success Criteria** (amended by 96-CONTEXT D-02, D-04, D-08, D-09, D-14):
 
-  1. G1 (production over time, stacked by type) replaces the fixed 6-month "Batches by month" chart.
-  2. G6 lists the double-booked vessels (F5: PCB-009, PFB-012, PCB-066 and PCB-016) and the unassigned active batches.
-  3. G7's on-time rate is shown only after staff confirm whether late `completed_at` stamps mean real lateness or after-the-fact ticking (F8).
-  4. G8 pairs the fermentation curves with a "readings due" list, because readings are sparse (F7).
-  5. G10 shows missing vessel, duplicate vessel, missing `completed_at`, missing SO number, blank source and stale over 90 days. A missing invoice link is not treated as unbilled.
-
-**Amendments (96-CONTEXT):** criterion 2 → neutral "Shared vessels" list, no double-booked framing (D-04); criterion 3 → no on-time rate at all (D-02); criterion 4 → no "readings due" list, a neutral "No readings yet" list instead (D-08, D-09); criterion 5 → shared vessels are not a data-health item (D-14).
+  1. G1 (production over time, stacked by type, Started or Completed) replaces Phase 95's "Batches per period" chart (D-15).
+  2. G6 shows vessel capacity by stored vessel type (a shared vessel counts once, archived excluded), a neutral "Shared vessels" list (sharing is allowed; never "conflict" or "double-booked") and the active batches with no vessel (D-04..D-07).
+  3. G7 shows overdue ageing of open tasks and completions over time. It never shows an on-time rate, because late `completed_at` stamps mean after-the-fact ticking (F8 answered, D-02), and it never shows completions by staff (D-03).
+  4. G8 shows Plato curves for active beer and cider, with a neutral "No readings yet" list. There is no "readings due" list or wording (D-08, D-09).
+  5. G10 shows no vessel, missing `completed_at`, no invoice link, blank source and stale over 90 days. A missing invoice link is labelled "no invoice link", never unbilled. Shared vessels are not a data-health item (D-14).
 
 **Plans:** 11 plans
 
