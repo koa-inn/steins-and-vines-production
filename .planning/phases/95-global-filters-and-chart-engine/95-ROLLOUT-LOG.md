@@ -106,3 +106,23 @@ Read-only, 2026-10-28 (production container via `railway ssh`, read-only transac
   `fingerprint:`; `--apply` without `--expect-ids` refused (exit 1). v2 renders, no console errors; custom Oct 1 – Oct 28
   (ending today) shows the range label and "vs prior 28 days".
 - **Candidate SHA:** `9d584448` (code; later commits are `.planning` docs only).
+
+Owner release approval: 33d10f48 (2026-10-28 ~20:05Z, in session: "Release 33d10f48"). Owner also OK'd the 95-01 edit to
+`batches-type-migration.test.js` (rollback depth 1 -> 2, assertions unchanged).
+
+## Production deploy
+
+- **Released SHA:** `33d10f48` (= approved). `git push production 33d10f48:main --force` at 2026-10-28T20:07:50Z; tag `prod-20261028-2`.
+- **CI (production repo):** Tests run 40760495972: artifact-drift, test-frontend, test-middleware pass; test-e2e not gating (known red since 2026-09).
+- **Railway:** deployment `a3cce010-575e-4f2f-91fa-3296a88bf130` SUCCESS. `/health 200` (`authenticated: true`, `database_required: true`). Rollback target `d8ffd7bd`.
+- **0008 applied:** in-container read-only read-back: `0008_staff_batch <- 0007_batch_type <- 0006_recipes_beer_category`; 215 batches, 0 staff.
+- RUNBOOK deploy-history row added.
+
+## Production staff dry run
+
+In-container, `--dry-run`, exit 0, no writes. Full lists outside the repo: `~/sv-backfill/95-prod-staff-dryrun.txt` (30) and
+`~/sv-backfill/95-prod-staff-dryrun-excluded.txt` (20).
+
+- Without exclusions: **30 candidates** (name:Inn 11, name:McLachlan 18, source:internal 3, source:research 1); same 30 ids as staging.
+- With the staging-approved `--exclude` (the same 10 customer batches): **20 candidates** (name:Inn 11, name:McLachlan 9; source:internal 2 and
+  source:research 1 overlap), fingerprint `79e38cb5f22c`.
