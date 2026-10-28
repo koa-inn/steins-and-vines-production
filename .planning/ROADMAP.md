@@ -2572,7 +2572,7 @@ Plans:
   4. G8 shows Plato curves for active beer and cider, with a neutral "No readings yet" list. There is no "readings due" list or wording (D-08, D-09).
   5. G10 shows no vessel, missing `completed_at`, no invoice link, blank source and stale over 90 days. A missing invoice link is labelled "no invoice link", never unbilled. Shared vessels are not a data-health item (D-14).
 
-**Plans:** 7/11 plans executed
+**Plans:** 8/11 plans executed
 
 Plans:
 
@@ -2600,7 +2600,7 @@ Plans:
 
 **Wave 6**
 
-- [ ] 96-08-PLAN.md — G6 Vessels, G8 Fermentation
+- [x] 96-08-PLAN.md — G6 Vessels, G8 Fermentation
 
 **Wave 7**
 
