@@ -2513,7 +2513,7 @@ Plans:
   4. KPI tiles show the change against the previous equivalent period.
   5. The chart library is loaded within the site CSP. Every public page's CSP stays untouched unless the library is served from a new domain (CLAUDE.md rule 12).
 
-**Plans:** 5/11 plans executed
+**Plans:** 6/11 plans executed
 
 Plans:
 
@@ -2533,7 +2533,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 95-06-PLAN.md — v2 opt-in + dispatch, persistent shell, sticky filter bar, custom range, phone sheet
+- [x] 95-06-PLAN.md — v2 opt-in + dispatch, persistent shell, sticky filter bar, custom range, phone sheet
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
