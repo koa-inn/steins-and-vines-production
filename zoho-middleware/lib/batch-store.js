@@ -29,6 +29,9 @@ var WRITE_OPS = [
 // Phase 94 S1 (D-21): in-process memo of the dashboard aggregate, cleared by every successful write.
 var DASH_MEMO_TTL_MS = 60000;
 var _dashMemo = null;
+// Review WR-03: bumped by every successful write so an in-flight read never memoises a
+// pre-write snapshot.
+var _dashGen = 0;
 var _clock = function () { return Date.now(); };
 
 var BATCH_ID_RE = /^SV-B-[0-9]{6,}$/;
@@ -82,6 +85,7 @@ function scheduleMirror(entity, id) {
 function finish(raw) {
   if (raw && raw.ok) {
     _dashMemo = null;
+    _dashGen++;
     var seen = {};
     var batchIds = [];
     if (raw._batchId) batchIds.push(raw._batchId);
@@ -152,6 +156,7 @@ function dashStats() {
   if (_dashMemo && _clock() - _dashMemo.at <= DASH_MEMO_TTL_MS) {
     return Promise.resolve(_dashMemo.value);
   }
+  var gen = _dashGen;
   return dispatch('dashStats', function (client) {
     return pgRead().getDashboardStats(client, { now: new Date() });
   }).then(function (value) {
@@ -166,7 +171,7 @@ function dashStats() {
           row.product_manufacturer = hit.manufacturer || '';
         }
       });
-      _dashMemo = { at: _clock(), value: value };
+      if (gen === _dashGen) _dashMemo = { at: _clock(), value: value };
       return value;
     });
   });
