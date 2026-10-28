@@ -38,7 +38,7 @@ var HTTP_TIMEOUT_MS = 30000;
 // Keys absent from one side by design. Everything else must match.
 // batch_type / batch_type_source: Postgres-only extras on the proxy list/detail (review WR-02);
 // the sheet has no such columns.
-var IGNORED_KEYS = { access_token: true, batch_type: true, batch_type_source: true };
+var IGNORED_KEYS = { access_token: true, batch_type: true, batch_type_source: true, staff_batch: true };
 var UPCOMING_LIMIT = 200;
 
 function parseArgs(argv) {

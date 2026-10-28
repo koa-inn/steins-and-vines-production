@@ -948,7 +948,26 @@ function shouldRederiveType(source) {
   return source === 'name' || source === 'other';
 }
 
+// ─── Staff batch flag (Phase 95, D-08) — PG-only, NOT in BATCH_COLUMNS ─────
+// Auto-set at create time only (D-19) for these sources; later source changes never touch it.
+var STAFF_AUTO_SOURCES = ['internal', 'research'];
+
+function isStaffAutoSource(source) {
+  var s = String(source === null || source === undefined ? '' : source).trim().toLowerCase();
+  return STAFF_AUTO_SOURCES.indexOf(s) >= 0;
+}
+
+// true/'true' -> true, false/'false' -> false, anything else -> null (invalid).
+function normalizeStaffBatch(v) {
+  if (v === true || v === 'true') return true;
+  if (v === false || v === 'false') return false;
+  return null;
+}
+
 module.exports = {
+  STAFF_AUTO_SOURCES: STAFF_AUTO_SOURCES,
+  isStaffAutoSource: isStaffAutoSource,
+  normalizeStaffBatch: normalizeStaffBatch,
   BATCH_TYPES: BATCH_TYPES,
   BATCH_TYPE_SOURCES: BATCH_TYPE_SOURCES,
   normalizeBatchType: normalizeBatchType,
