@@ -1031,6 +1031,298 @@ function applyTopN(buckets, n) {
   return result;
 }
 
+// ---------------------------------------------------------------------------
+// Phase 95-04: v2 dashboard filter state, display strings, deltas, wine buckets.
+// All pure: storage and URL access happen in the render layer.
+// ---------------------------------------------------------------------------
+var DASH_FILTER_DEFAULTS = { type: 'all', period: 'ytd', group: 'month', measure: 'batches', source: 'all', staff: '0', from: '', to: '' };
+var DASH_FILTER_KEYS = ['type', 'period', 'group', 'measure', 'source', 'staff', 'from', 'to'];
+var DASH_FILTER_WHITELIST = {
+  type: ['all', 'wine', 'beer', 'cider'],
+  period: ['30d', '90d', '6mo', '12mo', 'ytd', 'all', 'custom'],
+  group: ['week', 'month'],
+  measure: ['batches', 'litres'],
+  source: ['all', 'kiosk', 'online', 'manual', 'zoho_scan', 'research', 'internal', 'unknown'],
+  staff: ['0', '1']
+};
+var DASH_TYPE_LABELS = { all: 'All', wine: 'Wine', beer: 'Beer', cider: 'Cider' };
+var DASH_SOURCE_LABELS = { kiosk: 'Kiosk', online: 'Online', manual: 'Manual', zoho_scan: 'Zoho scan', research: 'Research', internal: 'Internal', unknown: 'Unknown' };
+
+function parseDashHash(hash) {
+  var out = {};
+  var s = String(hash || '').replace(/^#/, '');
+  if (!s) return out;
+  var parts = s.split('&');
+  for (var i = 0; i < parts.length; i++) {
+    var eq = parts[i].indexOf('=');
+    if (eq < 1) continue;
+    try {
+      out[decodeURIComponent(parts[i].slice(0, eq))] = decodeURIComponent(parts[i].slice(eq + 1));
+    } catch (e) { /* malformed pair skipped */ }
+  }
+  return out;
+}
+
+function dashWhitelisted(key, val) {
+  var list = DASH_FILTER_WHITELIST[key];
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] === val) return list[i];
+  }
+  return DASH_FILTER_DEFAULTS[key];
+}
+
+// Builds a fresh state object from whitelisted literals only (T-95-15).
+function sanitizeDashFilters(raw, today) {
+  var r = (raw && typeof raw === 'object') ? raw : {};
+  var out = {
+    type: dashWhitelisted('type', r.type),
+    period: dashWhitelisted('period', r.period),
+    group: dashWhitelisted('group', r.group),
+    measure: dashWhitelisted('measure', r.measure),
+    source: dashWhitelisted('source', r.source),
+    staff: dashWhitelisted('staff', r.staff),
+    from: '',
+    to: ''
+  };
+  if (out.period === 'custom') {
+    if (isRealYmd(r.from) && isRealYmd(r.to) && r.from <= r.to && r.to <= today) {
+      out.from = r.from;
+      out.to = r.to;
+    } else {
+      out.period = 'ytd';
+    }
+  }
+  return out;
+}
+
+function resolveDashFilters(hash, storedJson, today) {
+  var parsed = parseDashHash(hash);
+  var authoritative = parsed.dash === 'v2';
+  for (var i = 0; i < DASH_FILTER_KEYS.length && !authoritative; i++) {
+    if (Object.prototype.hasOwnProperty.call(parsed, DASH_FILTER_KEYS[i])) authoritative = true;
+  }
+  if (authoritative) return sanitizeDashFilters(parsed, today);
+  if (storedJson) {
+    try {
+      var st = JSON.parse(storedJson);
+      if (st && typeof st === 'object') return sanitizeDashFilters(st, today);
+    } catch (e) { /* corrupted storage -> defaults */ }
+  }
+  return sanitizeDashFilters({}, today);
+}
+
+function serializeDashFilters(state) {
+  var s = state || {};
+  var out = 'dash=v2';
+  var keys = ['type', 'period', 'group', 'measure', 'source', 'staff'];
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    if (s[k] !== undefined && s[k] !== DASH_FILTER_DEFAULTS[k]) out += '&' + k + '=' + encodeURIComponent(s[k]);
+  }
+  if (s.period === 'custom') {
+    out += '&from=' + encodeURIComponent(s.from || '') + '&to=' + encodeURIComponent(s.to || '');
+  }
+  return out;
+}
+
+function dashV2FlagFrom(search, hash, storedFlag) {
+  var q = String(search || '');
+  if (/[?&]dash=v2(&|$)/.test(q) || parseDashHash(hash).dash === 'v2') return { on: true, persist: '1' };
+  if (/[?&]dash=v1(&|$)/.test(q)) return { on: false, persist: '0' };
+  return { on: storedFlag === '1', persist: null };
+}
+
+function dashShortDate(ymd) {
+  return DASH_MONTH_LABELS[+String(ymd).slice(5, 7) - 1] + ' ' + (+String(ymd).slice(8, 10));
+}
+
+function dashPeriodLabel(state) {
+  var p = state && state.period;
+  if (p === '6mo') return '6m';
+  if (p === '12mo') return '12m';
+  if (p === 'ytd') return 'YTD';
+  if (p === 'all') return 'All';
+  if (p === 'custom') return dashShortDate(state.from) + ' – ' + dashShortDate(state.to);
+  return String(p || '');
+}
+
+function dashFilterSummary(state) {
+  var s = state || DASH_FILTER_DEFAULTS;
+  var parts = [
+    dashPeriodLabel(s),
+    s.group === 'week' ? 'Week' : 'Month',
+    s.measure === 'litres' ? 'Litres' : 'Batches',
+    DASH_TYPE_LABELS[s.type] || 'All'
+  ];
+  if (s.source && s.source !== 'all') parts.push(DASH_SOURCE_LABELS[s.source] || s.source);
+  if (s.staff === '1') parts.push('Staff');
+  return parts.join(' · ');
+}
+
+function countNonDefaultFilters(state) {
+  var s = state || {};
+  var keys = ['type', 'period', 'group', 'measure', 'source', 'staff'];
+  var n = 0;
+  for (var i = 0; i < keys.length; i++) {
+    if (s[keys[i]] !== undefined && s[keys[i]] !== DASH_FILTER_DEFAULTS[keys[i]]) n++;
+  }
+  return n;
+}
+
+function dashGroupThousands(n) {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function dashDeltaSuffix(win, prevWin) {
+  var k = win && win.key;
+  if (k === '30d' || k === '90d') return 'vs prev ' + k;
+  if (k === '6mo') return 'vs prev 6m';
+  if (k === '12mo') return 'vs prev 12m';
+  if (k === 'ytd') return 'vs same period last year';
+  if (k === 'custom') return 'vs prior ' + (prevWin && prevWin.days) + ' days';
+  return null;
+}
+
+function dashDeltaAriaTail(win, prevWin) {
+  var k = win && win.key;
+  if (k === '30d') return 'previous 30 days';
+  if (k === '90d') return 'previous 90 days';
+  if (k === '6mo') return 'previous 6 months';
+  if (k === '12mo') return 'previous 12 months';
+  if (k === 'ytd') return 'the same period last year';
+  return 'the prior ' + (prevWin && prevWin.days) + ' days';
+}
+
+function formatDelta(cur, prev, opts) {
+  var o = opts || {};
+  var win = o.win || {};
+  if (win.key === 'all') return null;
+  var none = { text: 'No earlier data to compare', dir: 'none', tone: 'neutral', aria: 'No earlier data to compare' };
+  if (o.insufficient || cur === null || cur === undefined || prev === null || prev === undefined) return none;
+  var suffix = dashDeltaSuffix(win, o.prevWin);
+  var tail = dashDeltaAriaTail(win, o.prevWin);
+  var kind = o.kind || 'count';
+  var diff = Math.round(cur - prev);
+  if (diff === 0) {
+    return { text: '– no change ' + suffix, dir: 'flat', tone: 'neutral', aria: 'No change compared with ' + tail };
+  }
+  var up = diff > 0;
+  var abs = Math.abs(diff);
+  var num;
+  var unitWord;
+  if (kind === 'litres') { num = dashGroupThousands(abs) + ' L'; unitWord = abs === 1 ? 'litre' : 'litres'; }
+  else if (kind === 'days') { num = abs + 'd'; unitWord = abs === 1 ? 'day' : 'days'; }
+  else { num = String(abs); unitWord = ''; }
+  var text = (up ? '▲ ' : '▼ ') + num;
+  if (prev >= 5 && Math.abs(cur - prev) / prev >= 0.10) {
+    var pct = Math.round((cur - prev) / prev * 100);
+    text += ' (' + (pct > 0 ? '+' : '') + pct + '%)';
+  }
+  text += ' ' + suffix;
+  var good = kind === 'days' ? !up : up;
+  return {
+    text: text,
+    dir: up ? 'up' : 'down',
+    tone: good ? 'good' : 'bad',
+    aria: (up ? 'Up ' : 'Down ') + dashGroupThousands(abs) + (unitWord ? ' ' + unitWord : '') + ' compared with ' + tail
+  };
+}
+
+function dashDrillLabel(spec) {
+  var sp = spec || {};
+  var t = sp.typeLabel ? String(sp.typeLabel) : '';
+  var verb = sp.verb;
+  var head;
+  if (verb === 'fermenting') {
+    head = (t ? t + ' fermenting now' : 'Fermenting now');
+  } else if (verb === 'cycle') {
+    head = (t ? t + ' days to complete' : 'Days to complete') + ', ' + (sp.periodLabel || '');
+  } else if (sp.bucketLabel) {
+    head = (t ? t + ' ' + verb : verb.charAt(0).toUpperCase() + verb.slice(1)) + ' in ' + sp.bucketLabel;
+  } else {
+    head = (t ? t + ' ' + verb : verb.charAt(0).toUpperCase() + verb.slice(1)) + (sp.periodLabel ? ' ' + sp.periodLabel : '');
+  }
+  var count = Number(sp.count) || 0;
+  var out = 'From dashboard: ' + head + ' · ' + count + (count === 1 ? ' batch' : ' batches');
+  if (sp.litres !== undefined && sp.litres !== null && Number(sp.litres) > 0) {
+    out += ' (' + dashGroupThousands(Math.round(Number(sp.litres))) + ' L)';
+  }
+  return out;
+}
+
+// Same override rules as the v1 inline merge in renderDashboard; input not mutated.
+function mergeWineSkuLookup(lookup, rows) {
+  var merged = {};
+  var k;
+  var src = lookup || {};
+  for (k in src) {
+    if (Object.prototype.hasOwnProperty.call(src, k)) merged[k] = src[k];
+  }
+  var pairs = [['subcategory', 'product_subcategory'], ['brand', 'product_brand'], ['manufacturer', 'product_manufacturer']];
+  var list = rows || [];
+  for (var i = 0; i < list.length; i++) {
+    var r = list[i];
+    if (!r || !r.product_sku) continue;
+    var ov = {};
+    var any = false;
+    for (var p = 0; p < pairs.length; p++) {
+      if (r[pairs[p][1]]) { ov[pairs[p][0]] = r[pairs[p][1]]; any = true; }
+    }
+    if (!any) continue;
+    var sku = String(r.product_sku);
+    var combined = {};
+    var base = src[sku];
+    if (base) { for (k in base) { if (Object.prototype.hasOwnProperty.call(base, k)) combined[k] = base[k]; } }
+    for (k in ov) { if (Object.prototype.hasOwnProperty.call(ov, k)) combined[k] = ov[k]; }
+    merged[sku] = combined;
+  }
+  return merged;
+}
+
+// Wine rows (already gated to wine + window upstream) -> [{label, count, ids}].
+// Same sort / top-N / Other / Unknown-last rules as bucketWineDimension + applyTopN.
+function wineBreakdownBuckets(rows, skuLookup, dimension, topN) {
+  var tally = {};
+  var weekFor = {};
+  var unknownIds = [];
+  var list = rows || [];
+  for (var i = 0; i < list.length; i++) {
+    var r = list[i];
+    var product = skuLookup ? skuLookup[String(r.product_sku)] : null;
+    var dv = product ? product[dimension] : null;
+    if (!product || dv === null || dv === undefined || String(dv).trim() === '') { unknownIds.push(r.batch_id); continue; }
+    var label;
+    if (dimension === 'time') {
+      var norm = normalizeWineTime(String(dv));
+      label = norm.label;
+      weekFor[label] = norm.week;
+    } else {
+      label = String(dv).trim();
+    }
+    if (!Object.prototype.hasOwnProperty.call(tally, label)) tally[label] = [];
+    tally[label].push(r.batch_id);
+  }
+  var normal = [];
+  for (var lbl in tally) {
+    if (Object.prototype.hasOwnProperty.call(tally, lbl)) normal.push({ label: lbl, count: tally[lbl].length, ids: tally[lbl] });
+  }
+  if (dimension === 'time') {
+    normal.sort(function (a, b) { return weekFor[a.label] - weekFor[b.label]; });
+  } else {
+    normal.sort(function (a, b) { return b.count - a.count; });
+  }
+  var result = normal;
+  if (topN && normal.length > topN) {
+    var sorted = normal.slice().sort(function (a, b) { return b.count - a.count; });
+    result = sorted.slice(0, topN);
+    var otherIds = [];
+    for (var j = topN; j < sorted.length; j++) otherIds = otherIds.concat(sorted[j].ids);
+    result.push({ label: 'Other', count: otherIds.length, ids: otherIds });
+  }
+  if (unknownIds.length) result.push({ label: 'Unknown', count: unknownIds.length, ids: unknownIds });
+  return result;
+}
+
 // Session staleness check — returns true if token is older than thresholdMs
 function isSessionStale(lastTokenTime, thresholdMs) {
   if (!lastTokenTime || !thresholdMs) return true;
@@ -12564,6 +12856,19 @@ if (typeof module !== 'undefined' && module.exports) {
     isStaffRow: isStaffRow,
     windowFromFilters: windowFromFilters,
     previousWindow: previousWindow,
+    DASH_FILTER_DEFAULTS: DASH_FILTER_DEFAULTS,
+    parseDashHash: parseDashHash,
+    sanitizeDashFilters: sanitizeDashFilters,
+    resolveDashFilters: resolveDashFilters,
+    serializeDashFilters: serializeDashFilters,
+    dashV2FlagFrom: dashV2FlagFrom,
+    dashPeriodLabel: dashPeriodLabel,
+    dashFilterSummary: dashFilterSummary,
+    countNonDefaultFilters: countNonDefaultFilters,
+    formatDelta: formatDelta,
+    dashDrillLabel: dashDrillLabel,
+    mergeWineSkuLookup: mergeWineSkuLookup,
+    wineBreakdownBuckets: wineBreakdownBuckets,
     filterBatchesByNeedsType: filterBatchesByNeedsType,
     bucketBatchesByMonthType: bucketBatchesByMonthType,
     buildSkuLookup: buildSkuLookup,
