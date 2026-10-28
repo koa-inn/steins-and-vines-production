@@ -1173,8 +1173,18 @@ function countNonDefaultFilters(state) {
 function buildDashV2Model(rows, asOf, state, staffIds, catMap) {
   var st = state || DASH_FILTER_DEFAULTS;
   var today = asOf.today;
-  var win = windowFromFilters(st, today);
+  // Review WR-02: the range was validated against the client's today, but the aggregate's
+  // asOf.today can be a day behind (fetched before midnight). Clamp the end to asOf.today
+  // instead of silently falling back to YTD, and label from the window actually used.
+  var winState = st;
+  if (st.period === 'custom' && isRealYmd(st.from) && isRealYmd(st.to) && st.from <= today && st.to > today) {
+    winState = { period: 'custom', from: st.from, to: today };
+  }
+  var win = windowFromFilters(winState, today);
   var prevWin = previousWindow(win, today);
+  var periodLabel = win.key === 'custom' ?
+    dashShortDate(win.start) + ' – ' + dashShortDate(win.end) :
+    dashPeriodLabel({ period: win.key });
   function run(range) {
     return getDashboardData(rows, asOf, {
       range: range,
@@ -1190,7 +1200,7 @@ function buildDashV2Model(rows, asOf, state, staffIds, catMap) {
   var cur = run(win);
   var prev = prevWin ? run(prevWin) : null;
   var insufficient = !prevWin || !cur.earliestStart || prevWin.start < cur.earliestStart;
-  return { state: st, win: win, prevWin: prevWin, cur: cur, prev: prev, insufficient: insufficient, periodLabel: dashPeriodLabel(st) };
+  return { state: st, win: win, prevWin: prevWin, cur: cur, prev: prev, insufficient: insufficient, periodLabel: periodLabel };
 }
 
 function dashGroupThousands(n) {

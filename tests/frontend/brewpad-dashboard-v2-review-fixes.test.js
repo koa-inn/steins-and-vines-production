@@ -88,3 +88,41 @@ describe('WR-01: bulk create from the pull sheet clears an active dashboard dril
     expect(document.querySelector('.bp-drill-banner')).toBeNull();
   });
 });
+
+function lean(id, start, extra) {
+  return Object.assign({
+    batch_id: id, status: 'primary', batch_type: 'wine', batch_type_source: 'recipe',
+    start_date: start, completed_day: null, completed_at: null, completed_at_source: null,
+    vessel_id: null, source: 'kiosk', product_sku: '', product_name: '', product_subcategory: '',
+    product_brand: '', product_manufacturer: '', recipe_id: '', schedule_id: '',
+    schedule_category: '', target_volume_l: 20, tasks_total: 0, tasks_done: 0
+  }, extra || {});
+}
+
+describe('WR-02: a custom range past the aggregate asOf day is clamped and labelled honestly', function () {
+  var ASOF = { today: '2026-10-28', year: 2026, tz: 'America/Vancouver' };
+  var ROWS = [lean('A', '2026-10-02'), lean('B', '2026-03-01'), lean('C', '2025-06-01')];
+
+  test('to is one day after asOf.today: window ends on asOf.today, label matches the window', function () {
+    var st = bp.sanitizeDashFilters({ period: 'custom', from: '2026-10-01', to: '2026-10-29' }, '2026-10-29');
+    expect(st.period).toBe('custom');
+    var m = bp.buildDashV2Model(ROWS, ASOF, st, {}, {});
+    expect(m.win).toEqual({ key: 'custom', start: '2026-10-01', end: '2026-10-28' });
+    expect(m.periodLabel).toBe('Oct 1 – Oct 28');
+    expect(m.cur.started).toBe(1);
+  });
+
+  test('a range wholly after asOf.today falls back to YTD and says YTD', function () {
+    var st = bp.sanitizeDashFilters({ period: 'custom', from: '2026-10-29', to: '2026-10-29' }, '2026-10-29');
+    var m = bp.buildDashV2Model(ROWS, ASOF, st, {}, {});
+    expect(m.win.key).toBe('ytd');
+    expect(m.periodLabel).toBe('YTD');
+  });
+
+  test('an in-range custom window is unchanged', function () {
+    var st = bp.sanitizeDashFilters({ period: 'custom', from: '2026-06-01', to: '2026-06-30' }, '2026-10-29');
+    var m = bp.buildDashV2Model(ROWS, ASOF, st, {}, {});
+    expect(m.win).toEqual({ key: 'custom', start: '2026-06-01', end: '2026-06-30' });
+    expect(m.periodLabel).toBe('Jun 1 – Jun 30');
+  });
+});
