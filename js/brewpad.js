@@ -2312,6 +2312,257 @@ function buildG9Model(rows, model, ctx) {
   };
 }
 
+// ===== Phase 96-07: G5 Workload and G7 Task health (pure models; read _dashData.taskRows) =====
+var DASH_WEEKDAYS_FROM_THU = ['Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed'];
+var DASH_TASK_KIND_WORDS = { transfer: 'Racking', filtering: 'Filtering', packaging: 'Packaging', temp: 'Temperature steps', other: 'Other tasks' };
+var DASH_TASK_KIND_COLOURS = ['cat1', 'cat2', 'cat3', 'cat4', 'cat5'];
+
+// Tasks joined to classified (Type + Source filtered, staff included) batches.
+// open: not completed, on a primary/secondary batch. kind: 'all' or a DASH_TASK_KINDS key.
+function dashJoinTasks(rows, taskRows, st, ctx, kind) {
+  var c = ctx || {};
+  var cls = dashClassifyRows(rows, { type: st.type, source: st.source, staffIds: c.staffIds, scheduleCategoryById: c.catMap });
+  var open = [];
+  var done = [];
+  var list = taskRows || [];
+  for (var i = 0; i < list.length; i++) {
+    var t = list[i];
+    if (!t) continue;
+    var it = cls.byId[t.batch_id];
+    if (!it) continue;
+    var k = dashTaskKind(t);
+    if (kind && kind !== 'all' && k !== kind) continue;
+    var rec = { batch_id: t.batch_id, kind: k, due: t.due_date || null, doneDay: t.completed_day || null };
+    if (t.completed === true) done.push(rec);
+    else if (it.status === 'primary' || it.status === 'secondary') open.push(rec);
+  }
+  return { open: open, done: done };
+}
+
+function dashDistinct(ids) {
+  var seen = {};
+  var out = [];
+  for (var i = 0; i < ids.length; i++) {
+    if (!Object.prototype.hasOwnProperty.call(seen, ids[i])) { seen[ids[i]] = true; out.push(ids[i]); }
+  }
+  return out;
+}
+
+function dashDayLabel(ymd, isToday) {
+  if (isToday) return 'Today';
+  return DASH_WEEKDAYS_FROM_THU[dayNumber(ymd) % 7] + ' ' + (+String(ymd).slice(8, 10));
+}
+
+function dashTasksText(n) { return n + (n === 1 ? ' task' : ' tasks'); }
+function dashBatchesText(n) { return n + (n === 1 ? ' batch' : ' batches'); }
+
+function buildG5Model(rows, taskRows, model, ctx) {
+  var c = ctx || {};
+  var st = model.state;
+  var horizon = Number(c.horizon) === 30 ? 30 : 14;
+  var today = model.cur.asOf.today;
+  var theme = readChartTheme();
+  var j = dashJoinTasks(rows, taskRows, st, c, 'all');
+  var nK = DASH_TASK_KINDS.length;
+  var days = [];
+  var labels = [];
+  var ids = [];
+  var vals = [];
+  var i;
+  var k;
+  for (i = 0; i < horizon; i++) {
+    var ymd = addDays(today, i);
+    days.push(ymd);
+    labels.push(dashDayLabel(ymd, i === 0));
+    var cell = [];
+    var v = [];
+    for (k = 0; k < nK; k++) { cell.push([]); v.push(0); }
+    ids.push(cell);
+    vals.push(v);
+  }
+  var overdue = 0;
+  for (i = 0; i < j.open.length; i++) {
+    var t = j.open[i];
+    if (!t.due) continue;
+    if (t.due < today) { overdue++; continue; }
+    var di = dayNumber(t.due) - dayNumber(today);
+    if (di < 0 || di >= horizon) continue;
+    for (k = 0; k < nK; k++) {
+      if (DASH_TASK_KINDS[k].key === t.kind) { ids[di][k].push(t.batch_id); vals[di][k]++; }
+    }
+  }
+  var dayIds = [];
+  var dayTotals = [];
+  var grand = 0;
+  for (i = 0; i < horizon; i++) {
+    var all = [];
+    var tot = 0;
+    for (k = 0; k < nK; k++) {
+      ids[i][k] = dashDistinct(ids[i][k]);
+      all = all.concat(ids[i][k]);
+      tot += vals[i][k];
+    }
+    dayIds.push(dashDistinct(all));
+    dayTotals.push(tot);
+    grand += tot;
+  }
+  var series = [];
+  for (k = 0; k < nK; k++) {
+    var data = [];
+    for (i = 0; i < horizon; i++) data.push(vals[i][k]);
+    series.push({ key: DASH_TASK_KINDS[k].key, label: DASH_TASK_KINDS[k].label, data: data, colour: theme[DASH_TASK_KIND_COLOURS[k]] });
+  }
+  function subjectFor(kindKey, ymd2) {
+    return (kindKey ? DASH_TASK_KIND_WORDS[kindKey] + ' due ' : 'Tasks due ') + dashShortDate(ymd2);
+  }
+  var columns = [{ label: 'Date' }];
+  for (k = 0; k < nK; k++) columns.push({ label: DASH_TASK_KINDS[k].label, numeric: true });
+  columns.push({ label: 'Total', numeric: true });
+  var tRows = [];
+  var parts = [];
+  for (i = 0; i < horizon; i++) {
+    var tc = [{ text: labels[i] }];
+    for (k = 0; k < nK; k++) {
+      var cl = { text: String(vals[i][k]) };
+      if (ids[i][k].length) { cl.ids = ids[i][k].slice(); cl.subject = subjectFor(DASH_TASK_KINDS[k].key, days[i]); }
+      tc.push(cl);
+    }
+    var tl = { text: String(dayTotals[i]) };
+    if (dayIds[i].length) { tl.ids = dayIds[i].slice(); tl.subject = subjectFor('', days[i]); }
+    tc.push(tl);
+    tRows.push({ cells: tc });
+    if (dayTotals[i]) parts.push(labels[i] + ' ' + dayTotals[i]);
+  }
+  return {
+    horizon: horizon,
+    days: days,
+    labels: labels,
+    series: series,
+    ids: ids,
+    dayIds: dayIds,
+    dayTotals: dayTotals,
+    dayBatches: dayIds.map(function (d) { return d.length; }),
+    overdue: overdue,
+    note: overdue > 0 ? (overdue === 1 ? '1 open task is overdue. See Task health.' : overdue + ' open tasks are overdue. See Task health.') : '',
+    subtitle: 'Open tasks due · next ' + horizon + ' days',
+    emptyText: 'No open tasks due in the next ' + horizon + ' days.',
+    empty: grand === 0,
+    ariaLabel: 'Workload, open tasks due in the next ' + horizon + ' days. ' + (parts.length ? parts.join(', ') : 'None'),
+    footer: function (idx) { return dashTasksText(dayTotals[idx]) + ' · ' + dashBatchesText(dayIds[idx].length); },
+    subjectFor: subjectFor,
+    table: { caption: 'Workload, open tasks due by day', columns: columns, rows: tRows }
+  };
+}
+
+var DASH_AGEING_BANDS = [['1–3 days', 1, 3], ['4–7 days', 4, 7], ['8+ days', 8, 100000]];
+
+function buildG7Model(rows, taskRows, model, ctx) {
+  var c = ctx || {};
+  var st = model.state;
+  var kind = c.kind || 'all';
+  var today = model.cur.asOf.today;
+  var theme = readChartTheme();
+  var j = dashJoinTasks(rows, taskRows, st, c, kind);
+  var todayN = dayNumber(today);
+  var bandIds = [[], [], []];
+  var bandCount = [0, 0, 0];
+  var i;
+  var b;
+  for (i = 0; i < j.open.length; i++) {
+    var t = j.open[i];
+    if (!t.due) continue;
+    var late = todayN - dayNumber(t.due);
+    if (late < 1) continue;
+    for (b = 0; b < 3; b++) {
+      if (late >= DASH_AGEING_BANDS[b][1] && late <= DASH_AGEING_BANDS[b][2]) { bandIds[b].push(t.batch_id); bandCount[b]++; }
+    }
+  }
+  var ageTotal = bandCount[0] + bandCount[1] + bandCount[2];
+  var ageLabels = [];
+  var ageColours = [theme.inkTertiary, theme.inkSecondary, theme.inkPrimary];
+  var ageRows = [];
+  var ageIds = [];
+  for (b = 0; b < 3; b++) {
+    bandIds[b] = dashDistinct(bandIds[b]);
+    ageLabels.push(DASH_AGEING_BANDS[b][0]);
+    ageIds.push(bandIds[b]);
+    var subj = 'Open tasks overdue ' + DASH_AGEING_BANDS[b][0];
+    var oc = { text: String(bandCount[b]) };
+    var bc = { text: String(bandIds[b].length) };
+    if (bandIds[b].length) { oc.ids = bandIds[b].slice(); oc.subject = subj; bc.ids = bandIds[b].slice(); bc.subject = subj; }
+    ageRows.push({ cells: [{ text: DASH_AGEING_BANDS[b][0] }, oc, bc] });
+  }
+  // Completions over time, bucketed like the other period widgets.
+  var group = st.group === 'week' ? 'week' : 'month';
+  var start = model.win.start;
+  var end = model.win.end;
+  var inWin = [];
+  for (i = 0; i < j.done.length; i++) {
+    if (j.done[i].doneDay && inWindow(j.done[i].doneDay, model.win)) inWin.push(j.done[i]);
+  }
+  if (start === '0000-01-01') {
+    start = null;
+    for (i = 0; i < inWin.length; i++) { if (start === null || inWin[i].doneDay < start) start = inWin[i].doneDay; }
+  }
+  var skel = start ? periodSkeleton(start, end, group) : [];
+  var cmap = {};
+  var cids = {};
+  for (i = 0; i < skel.length; i++) { cmap[skel[i].key] = 0; cids[skel[i].key] = []; }
+  for (i = 0; i < inWin.length; i++) {
+    var key = bucketKeyOf(inWin[i].doneDay, group);
+    if (Object.prototype.hasOwnProperty.call(cmap, key)) { cmap[key]++; cids[key].push(inWin[i].batch_id); }
+  }
+  var cLabels = [];
+  var cData = [];
+  var cCells = [];
+  var doneTotal = 0;
+  var cRows = [];
+  for (i = 0; i < skel.length; i++) {
+    cLabels.push(skel[i].label);
+    cData.push(cmap[skel[i].key]);
+    cCells.push(dashDistinct(cids[skel[i].key]));
+    doneTotal += cmap[skel[i].key];
+  }
+  function compSubject(label) { return 'Tasks completed in ' + label; }
+  for (i = skel.length - 1; i >= 0; i--) {
+    var cc = { text: String(cData[i]) };
+    if (cCells[i].length) { cc.ids = cCells[i].slice(); cc.subject = compSubject(cLabels[i]); }
+    cRows.push({ cells: [{ text: cLabels[i] }, cc] });
+  }
+  var choices = [['all', 'All tasks']];
+  for (i = 0; i < DASH_TASK_KINDS.length; i++) choices.push([DASH_TASK_KINDS[i].key, DASH_TASK_KINDS[i].label]);
+  return {
+    kind: kind,
+    choices: choices,
+    ageing: {
+      labels: ageLabels,
+      counts: bandCount,
+      ids: ageIds,
+      total: ageTotal,
+      colours: ageColours,
+      empty: ageTotal === 0,
+      emptyText: 'No open tasks are overdue.',
+      subjectFor: function (bi) { return 'Open tasks overdue ' + DASH_AGEING_BANDS[bi][0]; },
+      ariaLabel: 'Open tasks past due date. ' + ageLabels.map(function (l, q) { return l + ' ' + bandCount[q]; }).join(', '),
+      table: { caption: 'Open tasks past due date', columns: [{ label: 'Overdue by' }, { label: 'Open tasks', numeric: true }, { label: 'Batches', numeric: true }], rows: ageRows }
+    },
+    completions: {
+      labels: cLabels,
+      data: cData,
+      cells: cCells,
+      total: doneTotal,
+      colour: theme.cat1,
+      empty: doneTotal === 0,
+      emptyText: 'No tasks were ticked off in this period.',
+      subjectFor: compSubject,
+      ariaLabel: 'Tasks ticked off, ' + model.periodLabel + '. ' + cLabels.map(function (l, q) { return l + ' ' + cData[q]; }).join(', '),
+      table: { caption: 'Tasks ticked off, ' + model.periodLabel, columns: [{ label: 'Period' }, { label: 'Tasks completed', numeric: true }], rows: cRows }
+    },
+    subtitle: 'Tasks · ' + model.periodLabel + ' · by ' + group,
+    note: 'Tick times can lag the work, so lateness here is only an estimate.'
+  };
+}
+
 // ===== Phase 95-05: lazy Chart.js loader + shared chart() helper =====
 var CHART_JS_SRC = 'js/vendor/chart.umd.min.js?v=4.5.1';
 var _chartJsPromise = null;
@@ -2500,6 +2751,10 @@ function chart(canvas, cfg) {
     labelScale.type = 'linear';
     labelScale.beginAtZero = false;
     labelScale.ticks.precision = 0;
+  }
+  // Phase 96-07: optional bold tick (e.g. the 'Today' column in Workload).
+  if (typeof cfg.boldTick === 'number') {
+    labelScale.ticks.font = function (tctx) { return { size: 12, weight: tctx.index === cfg.boldTick ? '700' : '400' }; };
   }
   var addTitle = function (scale, text) {
     if (text) scale.title = { display: true, text: text, color: theme.tick, font: { size: 12 } };
@@ -6934,6 +7189,159 @@ function parseWaitlistRecipeIds(value) {
     });
   }
 
+  var DASH_V2_WORKLOAD_TITLE = 'Workload';
+  var DASH_V2_TASKS_TITLE = 'Task health';
+
+  // Quiet note under a widget body (Workload overdue count).
+  function dashV2FootNote(slotId, text) {
+    var slot = document.getElementById(slotId);
+    var body = slot && slot.querySelector('.bp-widget-body');
+    if (!body || !text) return;
+    var p = document.createElement('p');
+    p.className = 'bp-dash-foot-note';
+    p.textContent = text;
+    body.appendChild(p);
+  }
+
+  // G5 Workload: open tasks due per day, stacked by task kind.
+  function renderDashV2Workload(model, chartState) {
+    var slotId = 'bp-dash-v2-workload';
+    if (!model || !document.getElementById(slotId)) return;
+    var view = dashV2Opt('g5', 'view', 'chart') === 'table' ? 'table' : 'chart';
+    var horizon = String(dashV2Opt('g5', 'horizon', '14')) === '30' ? '30' : '14';
+    var ctx = dashV2ProdCtx();
+    var g = buildG5Model(ctx.rows, _dashData.taskRows, model, { horizon: horizon, staffIds: ctx.staffIds, catMap: ctx.catMap });
+    var slot = dashV2Widget(slotId, DASH_V2_WORKLOAD_TITLE);
+    slot.style.display = '';
+    dashV2SetControls(slotId, dashSegHtml('g5', 'horizon', [['14', '14 days'], ['30', '30 days']], horizon, 'Days ahead') +
+      dashViewToggleHtml('g5', view));
+    slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
+    dashV2SetNote(slotId, '');
+    if (g.empty) {
+      dashV2Msg(slotId, 'workload', DASH_V2_WORKLOAD_TITLE, escapeHTML(g.emptyText));
+      dashV2FootNote(slotId, g.note);
+      return;
+    }
+    if (view === 'table') {
+      dashV2ShowTable(slotId, 'workload', 'g5', g.table);
+      dashV2FootNote(slotId, g.note);
+      return;
+    }
+    if (dashV2ChartBlocked(slotId, 'workload', DASH_V2_WORKLOAD_TITLE, chartState)) return;
+    var el = dashV2Canvas(slotId, DASH_V2_WORKLOAD_TITLE);
+    el.canvas.parentNode.style.height = '';
+    var legend = [];
+    var i;
+    for (i = 0; i < g.series.length; i++) legend.push({ label: g.series[i].label, colour: g.series[i].colour });
+    el.legend.innerHTML = dashV2LegendHtml(legend);
+    dashV2FootNote(slotId, g.note);
+    _dashV2Charts.workload = chart(el.canvas, {
+      type: 'bar',
+      stacked: true,
+      labels: g.labels,
+      series: g.series,
+      unit: 'tasks',
+      boldTick: 0,
+      hitDatasetIndex: true,
+      ariaLabel: g.ariaLabel,
+      tooltipFooter: function (items) {
+        var first = items && items[0];
+        return first ? g.footer(first.dataIndex) : '';
+      },
+      onClick: function (hit) {
+        var bi = hit.index;
+        if (!g.ids[bi]) return;
+        var ids;
+        var subject;
+        var ki = -1;
+        if (hit.key) {
+          for (var q = 0; q < g.series.length; q++) { if (g.series[q].key === hit.key) ki = q; }
+        }
+        if (ki >= 0) {
+          ids = g.ids[bi][ki];
+          subject = g.subjectFor(hit.key, g.days[bi]);
+        } else {
+          ids = g.dayIds[bi];
+          subject = g.subjectFor('', g.days[bi]);
+        }
+        dashV2Go(ids, dashDrillSubject(subject, ids.length));
+      }
+    });
+  }
+
+  // G7 Task health: overdue ageing of open tasks plus tasks ticked off over time.
+  function renderDashV2Tasks(model, chartState) {
+    var slotId = 'bp-dash-v2-tasks';
+    if (!model || !document.getElementById(slotId)) return;
+    var view = dashV2Opt('g7', 'view', 'chart') === 'table' ? 'table' : 'chart';
+    var kindOpt = String(dashV2Opt('g7', 'kind', 'all'));
+    var ctx = dashV2ProdCtx();
+    var g = buildG7Model(ctx.rows, _dashData.taskRows, model, { kind: kindOpt, staffIds: ctx.staffIds, catMap: ctx.catMap });
+    var slot = dashV2Widget(slotId, DASH_V2_TASKS_TITLE);
+    slot.style.display = '';
+    dashV2SetControls(slotId, dashSelectHtml('g7', 'kind', g.choices, g.kind, 'Task kind') + dashViewToggleHtml('g7', view));
+    slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
+    dashV2SetNote(slotId, g.note);
+    destroyDashV2Slot('ageing');
+    destroyDashV2Slot('completions');
+    if (view === 'chart' && dashV2ChartBlocked(slotId, 'ageing', DASH_V2_TASKS_TITLE, chartState)) return;
+    var body = slot.querySelector('.bp-widget-body');
+    body.setAttribute('data-state', 'g7');
+    var ageBlock;
+    var compBlock;
+    if (g.ageing.empty) {
+      ageBlock = '<p class="bp-empty">' + escapeHTML(g.ageing.emptyText) + '</p>';
+    } else if (view === 'table') {
+      ageBlock = dashTableHtml('g7', dashV2TableModel('g7', g.ageing.table));
+    } else {
+      ageBlock = '<div class="bp-chart"><canvas></canvas></div>';
+    }
+    if (g.completions.empty) {
+      compBlock = '<p class="bp-empty">' + escapeHTML(g.completions.emptyText) + '</p>';
+    } else if (view === 'table') {
+      compBlock = dashTableHtml('g7', dashV2TableModel('g7', g.completions.table));
+    } else {
+      compBlock = '<div class="bp-chart"><canvas></canvas></div>';
+    }
+    body.innerHTML = '<div class="bp-g7"><div class="bp-g7-block"><h4 class="bp-g4-subtitle">Open tasks past due date</h4>' + ageBlock + '</div>' +
+      '<div class="bp-g7-block"><h4 class="bp-g4-subtitle">Tasks ticked off</h4>' + compBlock + '</div></div>';
+    if (view !== 'chart') return;
+    var cvs = body.querySelectorAll('canvas');
+    var ci = 0;
+    if (!g.ageing.empty) {
+      var ac = cvs[ci++];
+      ac.parentNode.style.height = '120px';
+      _dashV2Charts.ageing = chart(ac, {
+        type: 'bar',
+        horizontal: true,
+        labels: g.ageing.labels,
+        series: [{ key: 'ageing', label: 'Open tasks', data: g.ageing.counts, colour: g.ageing.colours }],
+        unit: 'tasks',
+        dataLabels: function (e) { return String(g.ageing.counts[e]); },
+        ariaLabel: g.ageing.ariaLabel,
+        onClick: function (hit) {
+          var ids = g.ageing.ids[hit.index];
+          if (ids && ids.length) dashV2Go(ids, dashDrillSubject(g.ageing.subjectFor(hit.index), ids.length));
+        }
+      });
+    }
+    if (!g.completions.empty) {
+      var cc = cvs[ci++];
+      cc.parentNode.style.height = '';
+      _dashV2Charts.completions = chart(cc, {
+        type: 'bar',
+        labels: g.completions.labels,
+        series: [{ key: 'completed', label: 'Tasks completed', data: g.completions.data, colour: g.completions.colour }],
+        unit: 'tasks',
+        ariaLabel: g.completions.ariaLabel,
+        onClick: function (hit) {
+          var ids2 = g.completions.cells[hit.index];
+          if (ids2 && ids2.length) dashV2Go(ids2, dashDrillSubject(g.completions.subjectFor(g.completions.labels[hit.index]), ids2.length));
+        }
+      });
+    }
+  }
+
   var DASH_V2_LOADING = 'Loading charts…';
   var DASH_V2_FAILED = 'Charts could not load. Reload the page to try again.';
   var DASH_V2_PERIOD_TITLE = 'Production over time';
@@ -6968,6 +7376,14 @@ function parseWaitlistRecipeIds(value) {
     {
       key: 'g9', slot: 'bp-dash-v2-source', title: DASH_V2_SOURCE_TITLE, chart: 'source', needs: [],
       render: function (model, cs) { renderDashV2Source(model, cs); }
+    },
+    {
+      key: 'g5', slot: 'bp-dash-v2-workload', title: DASH_V2_WORKLOAD_TITLE, chart: 'workload', needs: ['taskRows'],
+      render: function (model, cs) { renderDashV2Workload(model, cs); }
+    },
+    {
+      key: 'g7', slot: 'bp-dash-v2-tasks', title: DASH_V2_TASKS_TITLE, chart: 'ageing', needs: ['taskRows'],
+      render: function (model, cs) { renderDashV2Tasks(model, cs); }
     }
   ];
 
@@ -15513,6 +15929,8 @@ if (typeof module !== 'undefined' && module.exports) {
     dashDrillSubject: dashDrillSubject,
     dashClassifyRows: dashClassifyRows,
     dashTaskKind: dashTaskKind,
+    buildG5Model: buildG5Model,
+    buildG7Model: buildG7Model,
     DASH_TASK_KINDS: DASH_TASK_KINDS,
     dashBreakdownBuckets: dashBreakdownBuckets,
     dashSegHtml: dashSegHtml,
