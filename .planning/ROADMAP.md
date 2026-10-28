@@ -2513,14 +2513,14 @@ Plans:
   4. KPI tiles show the change against the previous equivalent period.
   5. The chart library is loaded within the site CSP. Every public page's CSP stays untouched unless the library is served from a new domain (CLAUDE.md rule 12).
 
-**Plans:** 11 plans
+**Plans:** 2/11 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 95-01-PLAN.md — staff_batch column (migration 0008), auto-set on create, update_batch branch, no-bump setStaffBatch, staffBatchIds on the aggregate
-- [ ] 95-03-PLAN.md — (TDD) extend getDashboardData: range/source/staff/group filters, id sets, window-clipped week/month buckets, litres, previous window
+- [x] 95-01-PLAN.md — staff_batch column (migration 0008), auto-set on create, update_batch branch, no-bump setStaffBatch, staffBatchIds on the aggregate
+- [x] 95-03-PLAN.md — (TDD) extend getDashboardData: range/source/staff/group filters, id sets, window-clipped week/month buckets, litres, previous window
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
