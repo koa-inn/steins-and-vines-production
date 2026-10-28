@@ -2572,11 +2572,49 @@ Plans:
   4. G8 pairs the fermentation curves with a "readings due" list, because readings are sparse (F7).
   5. G10 shows missing vessel, duplicate vessel, missing `completed_at`, missing SO number, blank source and stale over 90 days. A missing invoice link is not treated as unbilled.
 
-**Plans:** 0 plans
+**Amendments (96-CONTEXT):** criterion 2 → neutral "Shared vessels" list, no double-booked framing (D-04); criterion 3 → no on-time rate at all (D-02); criterion 4 → no "readings due" list, a neutral "No readings yet" list instead (D-08, D-09); criterion 5 → shared vessels are not a data-health item (D-14).
+
+**Plans:** 11 plans
 
 Plans:
 
-- [ ] TBD
+**Wave 1**
+
+- [ ] 96-01-PLAN.md — owner OK for the Phase 95 test assertions D-15/D-16 must change; §7 owner note
+- [ ] 96-02-PLAN.md — get_dashboard_stats adds taskRows, readings, vessels, batchMeta (whitelisted columns)
+- [ ] 96-03-PLAN.md — shared pure helpers (table/list/seg/select/toggle, classifier, breakdown), chart() extensions, CSS tokens
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 96-04-PLAN.md — four headed sections, widget framework (options, Chart/Table, drills, missing-data guard), G1
+
+**Wave 3**
+
+- [ ] 96-05-PLAN.md — G2 Pipeline, G3 Cycle time
+
+**Wave 4**
+
+- [ ] 96-06-PLAN.md — G4 Products + Top 10 (replaces Wine breakdown), G9 Source mix
+
+**Wave 5**
+
+- [ ] 96-07-PLAN.md — G5 Workload, G7 Task health
+
+**Wave 6**
+
+- [ ] 96-08-PLAN.md — G6 Vessels, G8 Fermentation
+
+**Wave 7**
+
+- [ ] 96-09-PLAN.md — G10 Data health, cross-widget agreement and copy-guard tests
+
+**Wave 8**
+
+- [ ] 96-10-PLAN.md — staging deploy, owner iPad UAT, production pre-deploy, release SHA approval
+
+**Wave 9**
+
+- [ ] 96-11-PLAN.md — production release and owner confirmation
 
 ### Phase 97: Beer and cider dashboard sections
 
