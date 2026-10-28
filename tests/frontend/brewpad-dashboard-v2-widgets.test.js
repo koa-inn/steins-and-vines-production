@@ -355,7 +355,10 @@ describe('Batches per period chart', function () {
     await go('group=month');
     expect(document.querySelector('#bp-dash-v2-period canvas')).toBe(canvas);
     expect(live(canvas).length).toBe(1);
-    expect(live().length).toBe(2);
+    var canvases = Array.prototype.slice.call(document.querySelectorAll('#bp-dash-v2 canvas'));
+    expect(canvases.length).toBeGreaterThanOrEqual(2);
+    expect(live().length).toBe(canvases.length);
+    canvases.forEach(function (c) { expect(live(c).length).toBe(1); });
   });
 
   test('switching to the dashboard tab resizes live charts', async function () {
