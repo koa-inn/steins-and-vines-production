@@ -83,6 +83,10 @@ var DASH_STATS_BATCHES_SQL =
   'from batches b left join ferm_schedules s on s.schedule_id = b.schedule_id ' +
   'left join (' + TASK_COUNTS_SQL + ') tc on tc.batch_id = b.batch_id ' +
   'order by length(b.batch_id), b.batch_id';
+// Phase 95 (D-08): ids only, never customer columns. Kept out of DASH_STATS_BATCHES_SQL so the
+// per-row lean key set is unchanged.
+var DASH_STATS_STAFF_SQL =
+  'select batch_id from batches where staff_batch = true order by length(batch_id), batch_id';
 var DASH_STATS_TASKS_SQL =
   'select t.batch_id, t.task_id, to_char(t.due_date, \'YYYY-MM-DD\') as due_date, t.completed, ' +
   "to_char(t.completed_at at time zone $1, 'YYYY-MM-DD') as completed_day, " +
@@ -151,6 +155,7 @@ function loadChildren(client, batchId) {
 function addBatchType(batch, row) {
   batch.batch_type = row && row.batch_type ? String(row.batch_type) : null;
   batch.batch_type_source = row && row.batch_type_source ? String(row.batch_type_source) : null;
+  batch.staff_batch = !!(row && row.staff_batch === true);
 }
 
 /**
@@ -284,6 +289,9 @@ function getDashboardStats(client, opts) {
       r.ph = numOrNull(r.ph);
       return r;
     });
+    return client.query(DASH_STATS_STAFF_SQL);
+  }).then(function (res) {
+    out.staffBatchIds = res.rows.map(function (r) { return r.batch_id; });
     return getDashboardSummary(client, { now: now, timezone: tz });
   }).then(function (summary) {
     var today = batchRules.formatDay(now, tz);
@@ -292,6 +300,7 @@ function getDashboardStats(client, opts) {
       batches: out.batches,
       tasks: out.tasks,
       latestReadings: out.latestReadings,
+      staffBatchIds: out.staffBatchIds,
       summary: summary.data
     });
   });

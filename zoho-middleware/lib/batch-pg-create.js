@@ -57,9 +57,9 @@ var INSERT_BATCH_SQL =
   'schedule_snapshot, vessel_id, shelf_id, bin_id, notes, access_token, reservation_id, ' +
   'created_at, created_by, last_updated, source, zoho_so_number, fermentation_started_at, ' +
   'recipe_id, recipe_snapshot, target_volume_l, scale_factor, unit_seq, ' +
-  'batch_type, batch_type_source) values ' +
+  'batch_type, batch_type_source, staff_batch) values ' +
   '($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, ' +
-  '$21, $22, $23, $24, $25, $26, $27, $28, $29, $30) returning batch_id';
+  '$21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31) returning batch_id';
 
 var INSERT_TASK_SQL =
   'insert into batch_tasks (batch_id, step_number, title, description, day_offset, due_date, ' +
@@ -295,7 +295,9 @@ async function createBatch(client, payload, opts) {
     scaleFactor,
     unitSeq,
     typed.type,
-    typed.source
+    typed.source,
+    // D-08/D-19: derived from the payload source at create time only; never read from the payload.
+    batchRules.isStaffAutoSource(p.source || 'manual')
   ];
 
   // Savepoint so a unit_seq collision can be reported as a business rejection without
