@@ -2579,6 +2579,10 @@ function parseWaitlistRecipeIds(value) {
   var _dashV2WineDimension = 'subcategory';  // widget-local; never touches v1 _dashWineDimension
   var _dashV2WineBuckets = [];
   var _dashV2Seq = 0;
+  var _dashV2WidgetOpts = {};     // Phase 96: 'w:opt' -> value; in memory only, never hash/localStorage
+  var _dashV2Drills = {};         // Phase 96: widgetKey -> [{ids, label}] rebuilt each render
+  var _dashV2Expanded = {};       // Phase 96: 'w:list' -> true when "Show all" is on
+  var _dashV2ChartState = 'pending';
   var _dashV2Charts = {};         // slotId -> Chart instance (filled by plan 08)
   var _dashV2RangeOpen = false;   // custom range row open on tablet
   var _dashV2Stage = null;        // phone sheet staged state
@@ -5639,7 +5643,7 @@ function parseWaitlistRecipeIds(value) {
         '<div class="bp-skeleton-block"></div>';
     }
     var msg = failed ? 'No data loaded.' : 'Loading…';
-    dashV2Msg('bp-dash-v2-period', 'period', 'Batches per period', msg);
+    dashV2Msg('bp-dash-v2-period', 'period', DASH_V2_PERIOD_TITLE, msg);
     var st = _dashV2State || {};
     var wine = document.getElementById('bp-dash-v2-wine');
     if (st.type === 'all' || st.type === 'wine' || !st.type) {
@@ -5745,12 +5749,56 @@ function parseWaitlistRecipeIds(value) {
     var slot = document.getElementById(slotId);
     if (!slot) return null;
     if (!slot.firstChild) {
-      slot.innerHTML = '<div class="bp-widget"><h2 class="bp-widget-title"></h2><p class="bp-widget-sub"></p>' +
+      slot.innerHTML = '<div class="bp-widget"><div class="bp-widget-head"><div class="bp-widget-titles">' +
+        '<h3 class="bp-widget-title"></h3><p class="bp-widget-sub"></p></div><div class="bp-widget-controls"></div></div>' +
         (slotId === 'bp-dash-v2-wine' ? '<div class="bp-widget-chips"></div>' : '') +
-        '<div class="bp-widget-body"></div></div>';
+        '<p class="bp-widget-note" hidden></p><div class="bp-widget-body"></div></div>';
       slot.querySelector('.bp-widget-title').textContent = title;
     }
     return slot;
+  }
+
+  // Header options (segmented controls / selects / Chart-Table toggle). html is built by dash*Html helpers.
+  function dashV2SetControls(slotId, html) {
+    var slot = document.getElementById(slotId);
+    var c = slot && slot.querySelector('.bp-widget-controls');
+    if (c) c.innerHTML = html || '';
+  }
+
+  function dashV2SetNote(slotId, text) {
+    var slot = document.getElementById(slotId);
+    var n = slot && slot.querySelector('.bp-widget-note');
+    if (!n) return;
+    n.textContent = text || '';
+    n.hidden = !text;
+  }
+
+  function dashV2Opt(w, opt, dflt) {
+    var v = _dashV2WidgetOpts[w + ':' + opt];
+    return v === undefined ? dflt : v;
+  }
+
+  function dashV2DrillReset(w) { _dashV2Drills[w] = []; }
+
+  // labelOrSubject is a prebuilt banner label when isLabel is true, else a subject for dashDrillSubject.
+  function dashV2DrillAdd(w, ids, labelOrSubject, isLabel) {
+    if (!_dashV2Drills[w]) _dashV2Drills[w] = [];
+    var list = ids ? ids.slice() : [];
+    _dashV2Drills[w].push({ ids: list, label: isLabel ? String(labelOrSubject) : dashDrillSubject(labelOrSubject, list.length) });
+    return _dashV2Drills[w].length - 1;
+  }
+
+  // Widget drills: one batch opens its detail (no banner), 2+ open the Batches tab with the banner.
+  function openDashBatch(id) {
+    _dashDrill = null;
+    switchTab('batches');
+    selectBatch(id);
+  }
+
+  function dashV2Go(ids, label) {
+    if (!ids || !ids.length) return;
+    if (ids.length === 1) { openDashBatch(ids[0]); return; }
+    openDashDrill({ ids: ids.slice(), label: label });
   }
 
   function destroyDashV2Slot(key) {
@@ -5921,35 +5969,92 @@ function parseWaitlistRecipeIds(value) {
     });
   }
 
+  var DASH_V2_LOADING = 'Loading charts…';
+  var DASH_V2_FAILED = 'Charts could not load. Reload the page to try again.';
+  var DASH_V2_PERIOD_TITLE = 'Batches per period';
+
+  // Returns true (after showing the loading/failure copy) when a chart body cannot render yet.
+  function dashV2ChartBlocked(slotId, chartKey, title, chartState) {
+    if (window.Chart) return false;
+    dashV2Msg(slotId, chartKey, title, chartState === 'failed' ? DASH_V2_FAILED : DASH_V2_LOADING);
+    return true;
+  }
+
+  // Registry: later plans add {key, slot, title, chart, needs, render(model, chartState)}.
+  var DASH_V2_WIDGETS = [
+    {
+      key: 'g1', slot: 'bp-dash-v2-period', title: DASH_V2_PERIOD_TITLE, chart: 'period', needs: [],
+      render: function (model, cs) {
+        if (model.cur.started !== 0 && dashV2ChartBlocked('bp-dash-v2-period', 'period', DASH_V2_PERIOD_TITLE, cs)) return;
+        renderDashV2PeriodChart(model);
+      }
+    },
+    {
+      key: 'wine', slot: 'bp-dash-v2-wine', title: 'Wine breakdown', chart: 'wine', needs: [],
+      render: function (model, cs) {
+        var st = model.state;
+        var shown = st.type === 'all' || st.type === 'wine';
+        if (shown && model.cur.started !== 0 && dashV2ChartBlocked('bp-dash-v2-wine', 'wine', 'Wine breakdown', cs)) return;
+        renderDashV2Wine(model);
+      }
+    }
+  ];
+
+  function dashV2WidgetMissing(def) {
+    var needs = def.needs || [];
+    for (var i = 0; i < needs.length; i++) {
+      if (!_dashData || !Array.isArray(_dashData[needs[i]])) return true;
+    }
+    return false;
+  }
+
+  // One widget, isolated: a throw or missing server array only affects that widget.
+  function runDashV2Widget(def, model, chartState) {
+    if (!document.getElementById(def.slot)) return;
+    dashV2DrillReset(def.key);
+    try {
+      if (dashV2WidgetMissing(def)) {
+        dashV2Msg(def.slot, def.chart || def.key, def.title, 'Not available yet. Reopen the Dashboard tab to refresh.');
+        return;
+      }
+      def.render(model, chartState);
+    } catch (e) {
+      dashV2Msg(def.slot, def.chart || def.key, def.title, DASH_V2_FAILED);
+    }
+  }
+
+  function renderDashV2AllWidgets(model, chartState) {
+    for (var i = 0; i < DASH_V2_WIDGETS.length; i++) runDashV2Widget(DASH_V2_WIDGETS[i], model, chartState);
+  }
+
+  function rerenderDashV2Widget(w) {
+    var model = _dashV2Model;
+    if (!model) return;
+    for (var i = 0; i < DASH_V2_WIDGETS.length; i++) {
+      if (DASH_V2_WIDGETS[i].key === w) { runDashV2Widget(DASH_V2_WIDGETS[i], model, window.Chart ? 'ready' : _dashV2ChartState); return; }
+    }
+  }
+
   function renderDashV2Widgets() {
     var model = _dashV2Model;
     if (!model) return;
     renderDashV2Tiles(model);
     var seq = ++_dashV2Seq;
-    var wineShown = model.state.type === 'all' || model.state.type === 'wine';
-    if (model.cur.started === 0) {
-      renderDashV2PeriodChart(model);
-      renderDashV2Wine(model);
+    if (window.Chart) {
+      _dashV2ChartState = 'ready';
+      renderDashV2AllWidgets(model, 'ready');
       return;
     }
-    if (!window.Chart) {
-      dashV2Msg('bp-dash-v2-period', 'period', 'Batches per period', 'Loading charts…');
-      if (wineShown) dashV2Msg('bp-dash-v2-wine', 'wine', 'Wine breakdown', 'Loading charts…');
-      else renderDashV2Wine(model);
-    }
-    function fail() {
-      dashV2Msg('bp-dash-v2-period', 'period', 'Batches per period', 'Charts could not load. Reload the page to try again.');
-      if (wineShown) dashV2Msg('bp-dash-v2-wine', 'wine', 'Wine breakdown', 'Charts could not load. Reload the page to try again.');
-    }
+    _dashV2ChartState = 'pending';
+    renderDashV2AllWidgets(model, 'pending');
     loadChartJs().then(function () {
       if (seq !== _dashV2Seq || !isDashV2()) return;
-      try {
-        renderDashV2PeriodChart(_dashV2Model);
-        renderDashV2Wine(_dashV2Model);
-      } catch (e) { fail(); }
+      _dashV2ChartState = 'ready';
+      renderDashV2AllWidgets(_dashV2Model, 'ready');
     }, function () {
       if (seq !== _dashV2Seq || !isDashV2()) return;
-      fail();
+      _dashV2ChartState = 'failed';
+      renderDashV2AllWidgets(_dashV2Model, 'failed');
     });
   }
 
@@ -6022,6 +6127,9 @@ function parseWaitlistRecipeIds(value) {
       return;
     }
     if ((el = t.closest('[data-dash-drill]'))) { onDashV2TileClick(el); return; }
+    if ((el = t.closest('.bp-seg-btn[data-dash-w]'))) { selectDashV2WidgetOpt(el); return; }
+    if ((el = t.closest('[data-dash-row]'))) { onDashV2RowClick(el); return; }
+    if ((el = t.closest('[data-dash-showall]'))) { onDashV2ShowAll(el); return; }
     if ((el = t.closest('[data-dash-wine-dim]'))) {
       var wd = el.getAttribute('data-dash-wine-dim');
       if (wd && wd !== _dashV2WineDimension) { _dashV2WineDimension = wd; renderDashV2Wine(_dashV2Model); }
@@ -6066,6 +6174,37 @@ function parseWaitlistRecipeIds(value) {
     }
   }
 
+  // data-dash-w="widget:option:value"
+  function selectDashV2WidgetOpt(el) {
+    var attr = el.getAttribute('data-dash-w') || '';
+    var p = attr.split(':');
+    if (p.length !== 3) return;
+    _dashV2WidgetOpts[p[0] + ':' + p[1]] = p[2];
+    rerenderDashV2Widget(p[0]);
+    var again = document.querySelector('[data-dash-w="' + attr + '"]');
+    if (again) again.focus();
+  }
+
+  // data-dash-row="widget:index" resolves through the in-memory drill registry; unknown keys are ignored.
+  function onDashV2RowClick(el) {
+    var p = (el.getAttribute('data-dash-row') || '').split(':');
+    if (p.length !== 2) return;
+    var list = _dashV2Drills[p[0]];
+    var entry = list && list[parseInt(p[1], 10)];
+    if (!entry) return;
+    dashV2Go(entry.ids, entry.label);
+  }
+
+  function onDashV2ShowAll(el) {
+    var attr = el.getAttribute('data-dash-showall') || '';
+    var p = attr.split(':');
+    if (p.length !== 2) return;
+    _dashV2Expanded[attr] = !_dashV2Expanded[attr];
+    rerenderDashV2Widget(p[0]);
+    var again = document.querySelector('[data-dash-showall="' + attr + '"]');
+    if (again) again.focus();
+  }
+
   function selectDashV2Segment(el, inSheet) {
     var key = el.getAttribute('data-dash-ctl');
     var val = el.getAttribute('data-val');
@@ -6095,6 +6234,16 @@ function parseWaitlistRecipeIds(value) {
   function onDashV2Change(e) {
     var t = e.target;
     if (!t || !t.getAttribute) return;
+    var wsel = t.getAttribute('data-dash-wsel');
+    if (wsel) {
+      var wp = wsel.split(':');
+      if (wp.length !== 2) return;
+      _dashV2WidgetOpts[wsel] = t.value;
+      rerenderDashV2Widget(wp[0]);
+      var sel = document.querySelector('[data-dash-wsel="' + wsel + '"]');
+      if (sel) sel.focus();
+      return;
+    }
     if (t.getAttribute('data-dash-ctl') === 'source') {
       var sheet = document.getElementById('bp-dash-sheet');
       if (sheet && sheet.contains(t)) { dashV2StageSet('source', t.value); return; }
@@ -6118,6 +6267,15 @@ function parseWaitlistRecipeIds(value) {
       return;
     }
     if (!t || !t.closest || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
+    var wbtn = t.closest('.bp-seg-btn[data-dash-w]');
+    if (wbtn) {
+      var wall = wbtn.parentNode.querySelectorAll('.bp-seg-btn');
+      var widx = Array.prototype.indexOf.call(wall, wbtn);
+      var wn = e.key === 'ArrowRight' ? (widx + 1) % wall.length : (widx - 1 + wall.length) % wall.length;
+      e.preventDefault();
+      selectDashV2WidgetOpt(wall[wn]);
+      return;
+    }
     var btn = t.closest('.bp-seg-btn[data-dash-ctl]');
     if (!btn) return;
     var group = btn.parentNode;
@@ -6131,6 +6289,27 @@ function parseWaitlistRecipeIds(value) {
     target.focus();
   }
 
+  var DASH_V2_SECTIONS = [
+    { title: 'Production', hint: 'Follows the filters above', slots: [['bp-dash-v2-period', true], ['bp-dash-v2-pipeline'], ['bp-dash-v2-cycle']] },
+    { title: 'Floor today', hint: 'Right now, mostly ignores the period filter', slots: [['bp-dash-v2-workload'], ['bp-dash-v2-vessels'], ['bp-dash-v2-tasks', true], ['bp-dash-v2-ferment', true]] },
+    { title: 'Products & sales', hint: 'Follows the filters above; staff batches hidden by default', slots: [['bp-dash-v2-wine', true], ['bp-dash-v2-source', true]] },
+    { title: 'Data health', hint: 'All batches, ignores the filters', slots: [['bp-dash-v2-health', true]] }
+  ];
+
+  function dashV2SectionsHtml() {
+    var html = '';
+    for (var i = 0; i < DASH_V2_SECTIONS.length; i++) {
+      var sec = DASH_V2_SECTIONS[i];
+      html += '<section class="bp-dash-section"><div class="bp-dash-section-head"><h2 class="bp-dash-section-title">' + escapeHTML(sec.title) +
+        '</h2><p class="bp-dash-section-hint">' + escapeHTML(sec.hint) + '</p></div><div class="bp-dash-grid">';
+      for (var j = 0; j < sec.slots.length; j++) {
+        html += '<div id="' + sec.slots[j][0] + '"' + (sec.slots[j][1] ? ' class="bp-dash-full"' : '') + '></div>';
+      }
+      html += '</div></section>';
+    }
+    return html;
+  }
+
   function renderDashboardV2() {
     var inner = document.getElementById('bp-dashboard-inner');
     if (!inner) return;
@@ -6139,7 +6318,7 @@ function parseWaitlistRecipeIds(value) {
       inner.innerHTML = '<div id="bp-dash-v2" class="bp-dash-v2">' +
         '<div id="bp-dash-filters" class="bp-dash-filters" role="group" aria-label="Dashboard filters"></div>' +
         '<div id="bp-dash-range" class="bp-dash-range" hidden></div>' +
-        '<div id="bp-dash-v2-tiles"></div><div id="bp-dash-v2-period"></div><div id="bp-dash-v2-wine"></div></div>';
+        '<div id="bp-dash-v2-tiles"></div>' + dashV2SectionsHtml() + '</div>';
       var shell = document.getElementById('bp-dash-v2');
       shell.addEventListener('click', onDashV2Click);
       shell.addEventListener('change', onDashV2Change);
@@ -14225,6 +14404,19 @@ function parseWaitlistRecipeIds(value) {
       _setDashV2ForTest: function (on) { _dashV2On = on === true; },
       _initDashV2FlagForTest: function () { initDashV2Flag(); },
       _setDashV2ChartsForTest: function (m) { _dashV2Charts = m; },
+      // Phase 96-04: framework seams (registry + helpers) so tests can mount throwaway widgets.
+      _dashV2FrameForTest: {
+        widgets: DASH_V2_WIDGETS,
+        opts: _dashV2WidgetOpts,
+        expanded: _dashV2Expanded,
+        opt: dashV2Opt,
+        drillAdd: dashV2DrillAdd,
+        scaffold: dashV2Widget,
+        setControls: dashV2SetControls,
+        setNote: dashV2SetNote,
+        msg: dashV2Msg,
+        openBatch: openDashBatch
+      },
       _loadDashboardForTest: function () { return loadDashboard(); },
       _eagerLoadForTest: function () { return eagerLoad(); },
       getStateForTest: function () {
@@ -14243,6 +14435,7 @@ function parseWaitlistRecipeIds(value) {
           _dashV2State: _dashV2State,
           _dashV2Model: _dashV2Model,
           _dashDrill: _dashDrill,
+          _selectedBatchId: _selectedBatchId,
           _batchSearch: _batchSearch,
           _batchProductFilter: _batchProductFilter
         };
