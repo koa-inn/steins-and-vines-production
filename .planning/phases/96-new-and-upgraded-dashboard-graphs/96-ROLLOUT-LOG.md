@@ -1,0 +1,35 @@
+# Phase 96 Rollout Log
+
+Record of the Phase 96 staging and production rollout (plans 96-10, 96-11).
+Ids, counts and reason codes only — no customer names, emails or tokens.
+
+## Code gate
+
+main at `ac8124b7`, 2026-10-28:
+
+| Suite | Result |
+|-------|--------|
+| Frontend `npm test` | 232 suites / 3199 tests passed |
+| Frontend `npm run lint` | clean |
+| Middleware `npm test` (Node 24.21, prod runtime) | 3679 passed; `staff-access-routes` suite flaked once under full-run load, passes alone (no Phase 96 change there) |
+| Middleware `npm test` (Node 20.20, local default) | 2 failures in `vancouver-timezone.test.js` — Node 20 tzdata; pass on Node 24 |
+| Middleware `npm run test:db` | 52 suites / 448 passed |
+
+Pre-deploy fix `ac8124b7` (owner-approved): single `DASH_TYPE_LABELS` map so seltzer/other rows keep their type label (regression test `tests/frontend/brewpad-dashboard-v2-type-labels.test.js`).
+
+## Staging deploy
+
+- **Staging SHA:** `ac8124b7` (`git push origin main` 2026-10-28 22:10 UTC, `1c1a9488..ac8124b7`).
+- **Pages:** Deploy Staging run `40777904301` success.
+- **Railway staging:** deployment `e26ef3a2-b6ba-4e15-82eb-d7ab5dbe4bf0` SUCCESS; `/health` ok (`authenticated: true`, `database: true`, `database_required: true`).
+- **Payload check** (in-container, read-only `getDashboardStats` on the staging database):
+
+| Array | Count | Columns |
+|-------|-------|---------|
+| taskRows | 1114 | batch_id, task_id, title, due_date, completed, completed_day, is_packaging, is_transfer |
+| readings | 4 | batch_id, reading_at, reading_day, degrees_plato, temperature, ph |
+| vessels | 233 | vessel_id, type, capacity_liters, archived |
+| batchMeta | 215 | recipe_name, recipe_style, og, target_fg, batch_id, has_invoice_link, planned_days |
+
+- **Leak check:** 0 email addresses; no `recipe_snapshot`; no `customer_*` key in any Phase 96 array. `customer_name` appears only in the pre-existing Phase 94 `summary` block (unchanged by this phase; staff-only endpoint).
+- **Desktop / phone render pass:** folded into the owner's staging UAT (staging sits behind Cloudflare Access + staff sign-in).
