@@ -37,6 +37,12 @@
   --cellar-green: #4a6f4b;
   --stain: #370e13;
 
+  /* Chart series (Phase 95) */
+  --chart-wine: #6e1a2c;
+  --chart-cider: #a8841a;
+  --chart-beer: #9a4e0c;
+  --chart-other: var(--ink-tertiary);
+
   /* Semantic */
   --batch-success: #3d7a40;
   --batch-success-bg: rgba(61, 122, 64, 0.08);
