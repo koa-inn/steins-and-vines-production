@@ -399,6 +399,13 @@ async function updateBatch(client, args, opts) {
   } else if (values.status === 'complete' && !row.completed_at) {
     values.completed_at = now;
     completedSource = 'status';
+  } else if (batchRules.isActiveStatus(values.status) &&
+             (row.completed_at || row.completed_at_source)) {
+    // Review CR-01: a reopen (back to primary/secondary) clears the stamp, so the dashboard does
+    // not count the batch as completed and a later re-completion stamps its real date.
+    // complete -> disabled keeps it.
+    values.completed_at = null;
+    completedSource = null;
   }
 
   var sets = [];

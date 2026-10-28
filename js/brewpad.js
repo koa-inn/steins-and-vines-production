@@ -534,7 +534,8 @@ function getDashboardData(rows, asOf, filters) {
       started++;
       totalsByType[it.type]++;
     }
-    if (inWindow(row.completed_day, win)) {
+    // Review CR-01: only complete rows count, so a reopened batch's stale stamp is ignored.
+    if (it.status === 'complete' && inWindow(row.completed_day, win)) {
       completed++;
       completedByType[it.type]++;
     }

@@ -157,7 +157,8 @@ describeDb('batch-pg-tasks: tasks', function () {
       await tasks.updateBatchTask(client(), { task_id: p, updates: { completed: false } }, OPTS);
       var row = await batchRow(b);
       expect(row.status).toBe('secondary');
-      expect(row.completed_at.getTime()).toBe(T0.getTime());
+      // Phase 94 review CR-01: a reopened batch no longer keeps its completion stamp.
+      expect(row.completed_at).toBeNull();
       expect(await vstatus('VP-103')).toBe('In-Use');
     });
 

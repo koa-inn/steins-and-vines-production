@@ -171,9 +171,13 @@ async function onPackagingCompleted(client, row, now, vesselChanges) {
 async function onPackagingUncompleted(client, row, now, vesselChanges) {
   var tasks = (await client.query(TASKS_BY_BATCH_SQL, [row.batch_id])).rows;
   var hasCompletedTransfer = tasks.some(function (t) { return t.is_transfer && t.completed; });
-  var next = await patchBatch(
-    client, row, { status: hasCompletedTransfer ? 'secondary' : 'primary' }, now
-  );
+  var patch = { status: hasCompletedTransfer ? 'secondary' : 'primary' };
+  // Review CR-01: a reopened batch carries no completion stamp (same rule as updateBatch).
+  if (row.completed_at || row.completed_at_source) {
+    patch.completed_at = null;
+    patch.completed_at_source = null;
+  }
+  var next = await patchBatch(client, row, patch, now);
   if (row.vessel_id) vesselChanges.push({ vessel_id: String(row.vessel_id), status: 'In-Use' });
   return next;
 }
