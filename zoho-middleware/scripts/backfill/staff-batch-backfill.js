@@ -8,24 +8,28 @@
  * customer name column contains McLachlan or Inn as a whole word, case-insensitive).
  *
  * DRY RUN by default: prints batch_id, status, source, the matching reason(s) and field name per
- * candidate, then a count summary. Customer names are never printed unless --with-names. It
- * writes only with --apply --expect=<N>, where N is the candidate count the owner reviewed.
+ * candidate, then a count summary and an id-set fingerprint. Customer names are never printed unless
+ * --with-names. It writes only with --apply --expect=<N> --expect-ids=<fingerprint>, where N and the
+ * fingerprint are the ones the reviewed dry run printed. The count alone is not enough (review WR-04):
+ * a reviewed row can drop out and an unreviewed one appear with the same total.
  *
  * Writes go through lib/batch-pg-update.setStaffBatch under a row lock, one transaction per batch.
  * last_updated is NOT bumped (D-18), so no sheet replay is needed and batches-verify stays clean.
  * Env only: BACKFILL_DATABASE_URL.
  *
  *   node scripts/backfill/staff-batch-backfill.js                         # dry run
- *   node scripts/backfill/staff-batch-backfill.js --apply --expect=12
+ *   node scripts/backfill/staff-batch-backfill.js --apply --expect=12 --expect-ids=3f9c0a1b2d4e
  *   node scripts/backfill/staff-batch-backfill.js --exclude=SV-B-000025,SV-B-000238   # drop reviewed rows
  *
  * --exclude removes owner-rejected rows (e.g. a paying customer who shares a family surname) from
- * both the dry run and the apply, so --expect is the count of the rows that will actually be written.
+ * both the dry run and the apply, so --expect and --expect-ids describe the rows that will actually
+ * be written.
  * An excluded id that is not a candidate is refused, to catch typos.
  *
- * Exit codes: 0 ok, 1 error, 3 --expect did not match the candidate count.
+ * Exit codes: 0 ok, 1 error, 3 --expect or --expect-ids did not match the candidates.
  */
 
+var crypto = require('crypto');
 var backfillCli = require('./backfill');
 var batchRules = require('../../lib/batch-rules');
 var pgUpdate = require('../../lib/batch-pg-update');
@@ -34,6 +38,7 @@ var sheetMirror = require('../../lib/sheet-mirror');
 var EXIT = backfillCli.EXIT;
 var POSTGRES_URL_RE = /postgres(ql)?:\/\//;
 var BATCH_ID_RE = /^SV-B-\d+$/;
+var FINGERPRINT_RE = /^[0-9a-f]{12}$/;
 
 // Postgres ARE word boundaries (\m start, \M end), built here and bound as parameters.
 var MCLACHLAN_PG = '\\mMcLachlan\\M';
@@ -56,7 +61,7 @@ var CANDIDATES_SQL =
 var LOCK_SQL = 'select staff_batch from batches where batch_id = $1 for update';
 
 function parseArgs(argv) {
-  var opts = { apply: false, dryRun: false, expect: null, withNames: false, exclude: [] };
+  var opts = { apply: false, dryRun: false, expect: null, expectIds: null, withNames: false, exclude: [] };
   argv.forEach(function (arg) {
     if (POSTGRES_URL_RE.test(arg)) {
       throw new Error('pass the database via BACKFILL_DATABASE_URL, never on the command line');
@@ -72,6 +77,8 @@ function parseArgs(argv) {
       opts.withNames = true;
     } else if (flag === '--expect' && value !== undefined && /^\d+$/.test(value)) {
       opts.expect = parseInt(value, 10);
+    } else if (flag === '--expect-ids' && value !== undefined && FINGERPRINT_RE.test(value)) {
+      opts.expectIds = value;
     } else if (flag === '--exclude' && value !== undefined) {
       var ids = value.split(',').map(function (s) { return s.trim(); });
       if (!ids.length || ids.some(function (id) { return !BATCH_ID_RE.test(id); })) {
@@ -79,15 +86,24 @@ function parseArgs(argv) {
       }
       ids.forEach(function (id) { if (opts.exclude.indexOf(id) === -1) opts.exclude.push(id); });
     } else {
-      throw new Error('unknown flag "' + flag + '" - valid flags: --dry-run, --apply, --expect=<n>, --exclude=<ids>, --with-names');
+      throw new Error('unknown flag "' + flag + '" - valid flags: --dry-run, --apply, --expect=<n>, --expect-ids=<fingerprint>, --exclude=<ids>, --with-names');
     }
   });
   if (opts.apply && opts.dryRun) throw new Error('--dry-run and --apply cannot be combined');
   if (opts.apply && opts.expect === null) {
     throw new Error('--apply requires --expect=<candidates> from the reviewed dry run');
   }
+  if (opts.apply && opts.expectIds === null) {
+    throw new Error('--apply requires --expect-ids=<fingerprint> from the reviewed dry run');
+  }
   if (!opts.apply && opts.expect !== null) throw new Error('--expect is only valid with --apply');
+  if (!opts.apply && opts.expectIds !== null) throw new Error('--expect-ids is only valid with --apply');
   return opts;
+}
+
+/** Short id-set fingerprint: first 12 hex of sha256 over the sorted, comma-joined batch ids. */
+function fingerprintIds(ids) {
+  return crypto.createHash('sha256').update(ids.slice().sort().join(',')).digest('hex').slice(0, 12);
 }
 
 function str(v) {
@@ -194,16 +210,25 @@ async function runStaffBackfill(opts, deps) {
     log('--- reasons ---');
     Object.keys(counts).sort().forEach(function (k) { log(k + ': ' + counts[k]); });
     log('candidates: ' + plan.length);
+    var fingerprint = fingerprintIds(plan.map(function (e) { return e.batch_id; }));
+    log('fingerprint: ' + fingerprint);
 
     if (!opts.apply) {
       log('Dry run - no writes. Re-run with --apply ' +
         (exclude.length ? '--exclude=' + exclude.join(',') + ' ' : '') + '--expect=' + plan.length +
-        ' after the owner OKs this list.');
+        ' --expect-ids=' + fingerprint + ' after the owner OKs this list.');
       return { exitCode: EXIT.OK, candidates: plan.length, written: 0, skipped: 0 };
     }
     if (plan.length !== opts.expect) {
       log('Refusing to apply: candidates ' + plan.length + ' != --expect ' + opts.expect +
         '. Re-run the dry run and re-review.');
+      return { exitCode: EXIT.CHECKS_FAILED, candidates: plan.length, written: 0, skipped: 0 };
+    }
+    // parseArgs makes --expect-ids mandatory on the command line; programmatic callers that
+    // pass expectIds get the same check.
+    if (opts.expectIds !== undefined && opts.expectIds !== null && fingerprint !== opts.expectIds) {
+      log('Refusing to apply: candidate fingerprint ' + fingerprint + ' != --expect-ids ' + opts.expectIds +
+        '. The candidate set changed since the reviewed dry run. Re-run the dry run and re-review.');
       return { exitCode: EXIT.CHECKS_FAILED, candidates: plan.length, written: 0, skipped: 0 };
     }
 
@@ -269,6 +294,7 @@ if (require.main === module) {
 module.exports = {
   runStaffBackfill: runStaffBackfill,
   parseArgs: parseArgs,
+  fingerprintIds: fingerprintIds,
   CANDIDATES_SQL: CANDIDATES_SQL,
   EXIT: EXIT
 };
