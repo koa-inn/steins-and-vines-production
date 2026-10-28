@@ -6372,6 +6372,13 @@ function parseWaitlistRecipeIds(value) {
     switchTab(tab);
   }
 
+  // Review WR-01: code that forces a status filter (not a chip tap) drops any leftover
+  // dashboard drill, otherwise the drilled id set hides the rows the caller wants shown.
+  function setBatchStatusFilterProgrammatic(status) {
+    _dashDrill = null;
+    _batchStatusFilter = status;
+  }
+
   function clearDashDrill() {
     _dashDrill = null;
     _batchStatusFilter = 'active';
@@ -7175,7 +7182,7 @@ function parseWaitlistRecipeIds(value) {
             // Bust cache and reload batch list after any successful creates.
             // Force the filter to 'pending' so freshly created batches are immediately visible.
             if (summary.okCount > 0) {
-              _batchStatusFilter = 'pending';
+              setBatchStatusFilterProgrammatic('pending');
               _batchesLoaded = false;
               _allBatchesData = [];
               _batchesLoadTime = 0;
@@ -13752,6 +13759,7 @@ function parseWaitlistRecipeIds(value) {
       _renderBatchListForTest: renderBatchList,
       _openDashDrillForTest: openDashDrill,
       _clearDashDrillForTest: clearDashDrill,
+      _renderPullCandidatesForTest: renderPullCandidates,
       _handleTabBarClickForTest: handleTabBarClick,
       _switchTabForTest: switchTab,
       _initDelegationForTest: initDelegation,
