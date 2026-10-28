@@ -271,7 +271,7 @@ describe('Batches per period chart', function () {
     expect(String(total)).toBe(tile('started').querySelector('.bp-stat-num').textContent);
     var other = cfg.data.datasets[3].data;
     expect(sum(other)).toBe(1);
-    expect(document.querySelector('#bp-dash-v2-period .bp-widget-title').textContent).toBe('Batches per period');
+    expect(document.querySelector('#bp-dash-v2-period .bp-widget-title').textContent).toBe('Production over time');
     expect(document.querySelector('#bp-dash-v2-period .bp-widget-sub').textContent).toBe('Started batches · YTD · by month');
     expect(document.querySelectorAll('#bp-dash-v2-period .bp-chart-legend-item').length).toBe(4);
     expect(document.querySelector('#bp-dash-v2-period canvas').getAttribute('aria-label')).toBe('Started batches by month, YTD. Wine 3, Cider 1, Beer 1, Other 1');
@@ -306,8 +306,10 @@ describe('Batches per period chart', function () {
       return [];
     };
     cfgClick({}, [], periodChart());
-    expect(Object.keys(drill().ids)).toEqual(bk.ids.beer);
-    expect(drill().label).toBe('From dashboard: Beer started in ' + bk.label + ' · ' + bk.ids.beer.length + ' batch');
+    // 96-TEST-DECISION item 2a: a one-batch widget drill opens that batch's detail, no banner.
+    expect(bk.ids.beer.length).toBe(1);
+    expect(drill()).toBeNull();
+    expect(bp.getStateForTest()._selectedBatchId).toBe(bk.ids.beer[0]);
 
     Fk.prototype.getElementsAtEventForMode = function (e, mode) {
       if (mode === 'nearest') return [{ index: idx, datasetIndex: 3 }];
@@ -319,7 +321,10 @@ describe('Batches per period chart', function () {
     idx = oIdx;
     cfgClick({}, [], periodChart());
     var ob = m.cur.periodBuckets[oIdx];
-    expect(Object.keys(drill().ids).sort()).toEqual(ob.ids.seltzer.concat(ob.ids.other).sort());
+    // 96-TEST-DECISION item 2b: seltzer + other is one batch here, so its detail opens, no banner.
+    expect(ob.ids.seltzer.concat(ob.ids.other)).toEqual(['S1']);
+    expect(drill()).toBeNull();
+    expect(bp.getStateForTest()._selectedBatchId).toBe('S1');
 
     Fk.prototype.getElementsAtEventForMode = function (e, mode) {
       if (mode === 'index') return [{ index: oIdx }];

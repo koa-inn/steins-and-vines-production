@@ -414,3 +414,123 @@ describe('widget framework', function () {
     expect(calls.length).toBeGreaterThan(0);
   });
 });
+
+describe('G1 Production over time', function () {
+  function btnW(attr) { return document.querySelector('[data-dash-w="' + attr + '"]'); }
+  beforeEach(function () {
+    var o = bp._dashV2FrameForTest.opts;
+    Object.keys(o).forEach(function (k) { delete o[k]; });
+  });
+  function sumRow(cells) { return sum(cells.map(function (c) { return c.value; })); }
+
+  test('title, default subtitle, controls', async function () {
+    await renderV2('');
+    var slot = document.getElementById('bp-dash-v2-period');
+    expect(slot.querySelector('.bp-widget-title').textContent).toBe('Production over time');
+    expect(slot.querySelector('.bp-widget-sub').textContent).toBe('Started batches · YTD · by month');
+    expect(btnW('g1:mode:started').getAttribute('aria-checked')).toBe('true');
+    expect(btnW('g1:mode:completed')).not.toBeNull();
+    expect(btnW('g1:view:chart').getAttribute('aria-checked')).toBe('true');
+    expect(slot.querySelector('canvas').getAttribute('aria-label')).toBe('Started batches by month, YTD. Wine 3, Cider 1, Beer 1, Other 1');
+  });
+
+  test('Completed mode plots completedBuckets and matches the Completed tile', async function () {
+    await renderV2('');
+    btnW('g1:mode:completed').click();
+    var cfg = periodChart().config;
+    var total = sum(cfg.data.datasets.map(function (d) { return sum(d.data); }));
+    expect(total).toBe(model().cur.completed);
+    expect(String(total)).toBe(tile('completed').querySelector('.bp-stat-num').textContent);
+    expect(document.querySelector('#bp-dash-v2-period .bp-widget-sub').textContent).toBe('Completed batches · YTD · by month');
+    expect(document.querySelector('#bp-dash-v2-period canvas').getAttribute('aria-label')).toMatch(/^Completed batches by month, YTD\./);
+  });
+
+  test('table model cells equal chart dataset values for every bucket/type (modes and measures)', function () {
+    ['batches', 'litres'].forEach(function (measure) {
+      ['started', 'completed'].forEach(function (mode) {
+        var m = bp.buildDashV2Model(rows(), ASOF, Object.assign({}, bp.DASH_FILTER_DEFAULTS || {}, { period: 'ytd', type: 'all', source: 'all', staff: '1', group: 'month', measure: measure }), {}, {});
+        var g = bp.buildG1Model(m, mode);
+        var n = g.buckets.length;
+        expect(g.table.rows.length).toBe(n);
+        g.table.rows.forEach(function (row, ri) {
+          var bi = n - 1 - ri;
+          g.series.forEach(function (s, si) {
+            expect(row.cells[si + 1].value).toBe(s.data[bi]);
+          });
+          var tc = row.cells[row.cells.length - 1];
+          expect(tc.value).toBe(g.totals[bi]);
+          expect(Math.round(sumRow(row.cells.slice(1, -1)) * 10) / 10).toBe(tc.value);
+        });
+      });
+    });
+  });
+
+  test('Started totals equal the Started tile', function () {
+    var m = bp.buildDashV2Model(rows(), ASOF, { period: 'ytd', type: 'all', source: 'all', staff: '1', group: 'month', measure: 'batches' }, {}, {});
+    var g = bp.buildG1Model(m, 'started');
+    expect(sum(g.totals)).toBe(m.cur.started);
+  });
+
+  test('table view: columns, newest first, drill cells open detail or banner', async function () {
+    await renderV2('');
+    btnW('g1:view:table').click();
+    var slot = document.getElementById('bp-dash-v2-period');
+    expect(slot.querySelector('canvas')).toBeNull();
+    var heads = Array.prototype.map.call(slot.querySelectorAll('thead th'), function (h) { return h.textContent; });
+    expect(heads).toEqual(['Period', 'Wine', 'Cider', 'Beer', 'Other', 'Total']);
+    var firstCols = Array.prototype.map.call(slot.querySelectorAll('tbody tr'), function (tr) { return tr.querySelector('td').textContent; });
+    var labels = model().cur.periodBuckets.map(function (b) { return b.label; });
+    expect(firstCols).toEqual(labels.slice().reverse());
+    // Jan row: Wine 3 -> banner, Beer 1 -> detail
+    var janRow = Array.prototype.filter.call(slot.querySelectorAll('tbody tr'), function (tr) { return tr.querySelector('td').textContent === labels[0]; })[0];
+    var cells = janRow.querySelectorAll('td');
+    cells[1].querySelector('button').click();
+    expect(drill().label).toBe('From dashboard: Wine started in ' + labels[0] + ' · 3 batches');
+    bp._clearDashDrillForTest();
+    cells[3].querySelector('button').click();
+    expect(drill()).toBeNull();
+    expect(bp.getStateForTest()._selectedBatchId).toBe('B1');
+    // zero cells are not buttons
+    expect(cells[2].querySelector('button')).toBeNull();
+  });
+
+  test('table Other column only under Type All; litres follow Measure', async function () {
+    await renderV2('type=wine');
+    btnW('g1:view:table').click();
+    var heads = Array.prototype.map.call(document.querySelectorAll('#bp-dash-v2-period thead th'), function (h) { return h.textContent; });
+    expect(heads).toEqual(['Period', 'Wine', 'Total']);
+    await go('measure=litres');
+    expect(document.querySelector('#bp-dash-v2-period tbody td.bp-num').textContent).toMatch(/ L$/);
+  });
+
+  test('table view needs no Chart.js', async function () {
+    delete window.Chart;
+    await renderV2('');
+    var wrapped = document.querySelector('#bp-dash-v2-period .bp-empty');
+    expect(wrapped.textContent).toBe('Loading charts…');
+    btnW('g1:view:table').click();
+    expect(document.querySelector('#bp-dash-v2-period table')).not.toBeNull();
+  });
+
+  test('completed-bucket chart click opens a completed label', async function () {
+    var list = rows();
+    list.push(lean('W9', 'wine', YEAR + '-01-21', { status: 'complete', completed_day: YEAR + '-02-12', completed_at: YEAR + '-02-12T10:00:00Z' }));
+    bp._setStateForTest({ _dashData: { asOf: ASOF, batches: list, staffBatchIds: [] }, _allBatchesData: list });
+    await renderV2('');
+    btnW('g1:mode:completed').click();
+    var idx = -1;
+    model().cur.completedBuckets.forEach(function (b, i) { if (b.ids.wine.length === 2) idx = i; });
+    expect(idx).toBeGreaterThan(-1);
+    Fake.prototype.getElementsAtEventForMode = function (e, mode) { return mode === 'nearest' ? [{ index: idx, datasetIndex: 0 }] : []; };
+    periodChart().config.options.onClick({}, [], periodChart());
+    expect(drill().label).toBe('From dashboard: Wine completed in ' + model().cur.completedBuckets[idx].label + ' · 2 batches');
+  });
+
+  test('empty state shows copy and Reset filters', async function () {
+    await renderV2('type=beer&source=online');
+    var slot = document.getElementById('bp-dash-v2-period');
+    expect(slot.querySelector('.bp-empty').textContent).toContain('No batches match these filters.');
+    expect(slot.querySelector('[data-dash-reset]')).not.toBeNull();
+    expect(slot.querySelector('canvas')).toBeNull();
+  });
+});

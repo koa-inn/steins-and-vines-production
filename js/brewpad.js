@@ -1576,6 +1576,97 @@ function dashListHtml(widget, listKey, items, opts) {
   return html;
 }
 
+// ===== Phase 96-04: G1 Production over time (pure model; one model feeds chart and table) =====
+var DASH_G1_DEFS = [['wine', 'Wine'], ['cider', 'Cider'], ['beer', 'Beer'], ['other', 'Other']];
+
+function dashG1BucketIds(bk, key) {
+  if (key === 'other') return bk.ids.seltzer.concat(bk.ids.other);
+  if (key) return bk.ids[key];
+  return bk.all;
+}
+
+function dashG1Drill(bk, key, mode) {
+  var ids = dashG1BucketIds(bk, key);
+  var typeLabel = key ? (key === 'other' ? 'Other' : (DASH_TYPE_LABELS[key] || '')) : '';
+  return {
+    ids: ids.slice(),
+    label: dashDrillLabel({ typeLabel: typeLabel, verb: mode === 'completed' ? 'completed' : 'started', bucketLabel: bk.label, count: ids.length })
+  };
+}
+
+function buildG1Model(model, mode) {
+  var cur = model.cur;
+  var st = model.state;
+  var m = mode === 'completed' ? 'completed' : 'started';
+  var lit = st.measure === 'litres';
+  var buckets = (m === 'completed' ? cur.completedBuckets : cur.periodBuckets) || [];
+  var theme = readChartTheme();
+  var colours = { wine: theme.wine, cider: theme.cider, beer: theme.beer, other: theme.other };
+  var only = st.type === 'all' ? null : (st.type === 'seltzer' ? 'other' : st.type);
+  var by = st.group === 'week' ? 'week' : 'month';
+  var labels = [];
+  var series = [];
+  var parts = [];
+  var totals = [];
+  var i;
+  var d;
+  for (i = 0; i < buckets.length; i++) {
+    labels.push(buckets[i].label);
+    var tv = lit ? buckets[i].totalLitres : buckets[i].total;
+    totals.push(lit ? Math.round(tv * 10) / 10 : tv);
+  }
+  for (d = 0; d < DASH_G1_DEFS.length; d++) {
+    var key = DASH_G1_DEFS[d][0];
+    if (only && key !== only) continue;
+    var data = [];
+    var sum = 0;
+    for (i = 0; i < buckets.length; i++) {
+      var b = buckets[i];
+      var v;
+      if (lit) v = key === 'other' ? b.litres.seltzer + b.litres.other : b.litres[key];
+      else v = key === 'other' ? b.counts.seltzer + b.counts.other : b.counts[key];
+      v = lit ? Math.round(v * 10) / 10 : v;
+      data.push(v);
+      sum += v;
+    }
+    series.push({ key: key, label: DASH_G1_DEFS[d][1], data: data, colour: colours[key] });
+    if (sum > 0) parts.push(DASH_G1_DEFS[d][1] + ' ' + (lit ? dashGroupThousands(Math.round(sum)) + ' L' : sum));
+  }
+  var noun = (m === 'completed' ? 'Completed ' : 'Started ') + (lit ? 'litres' : 'batches');
+  var subtitle = noun + ' · ' + model.periodLabel + ' · by ' + by;
+  if (lit && cur.litres.estimated) subtitle += ' · litres estimated from standard batch sizes';
+  function fmt(v) { return lit ? dashGroupThousands(Math.round(v)) + ' L' : String(v); }
+  var columns = [{ label: 'Period' }];
+  for (d = 0; d < series.length; d++) columns.push({ label: series[d].label, numeric: true });
+  columns.push({ label: 'Total', numeric: true });
+  var rows = [];
+  for (i = buckets.length - 1; i >= 0; i--) {
+    var cells = [{ text: buckets[i].label }];
+    for (d = 0; d < series.length; d++) {
+      var val = series[d].data[i];
+      var cell = { text: fmt(val), value: val };
+      if (val > 0) { var dr = dashG1Drill(buckets[i], series[d].key, m); cell.ids = dr.ids; cell.label = dr.label; }
+      cells.push(cell);
+    }
+    var tcell = { text: fmt(totals[i]), value: totals[i] };
+    if (buckets[i].total > 0) { var td = dashG1Drill(buckets[i], null, m); tcell.ids = td.ids; tcell.label = td.label; }
+    cells.push(tcell);
+    rows.push({ cells: cells });
+  }
+  return {
+    mode: m,
+    labels: labels,
+    series: series,
+    buckets: buckets,
+    totals: totals,
+    subtitle: subtitle,
+    ariaLabel: noun + ' by ' + by + ', ' + model.periodLabel + '. ' + parts.join(', '),
+    measure: lit ? 'litres' : 'batches',
+    empty: (m === 'completed' ? cur.completed : cur.started) === 0,
+    table: { caption: noun + ' by ' + by + ', ' + model.periodLabel, columns: columns, rows: rows }
+  };
+}
+
 // ===== Phase 95-05: lazy Chart.js loader + shared chart() helper =====
 var CHART_JS_SRC = 'js/vendor/chart.umd.min.js?v=4.5.1';
 var _chartJsPromise = null;
@@ -5841,65 +5932,57 @@ function parseWaitlistRecipeIds(value) {
     return h;
   }
 
-  function renderDashV2PeriodChart(model) {
-    if (!model || !document.getElementById('bp-dash-v2-period')) return;
-    var cur = model.cur;
-    var st = model.state;
-    if (cur.started === 0) { dashV2Msg('bp-dash-v2-period', 'period', 'Batches per period', dashV2EmptyHtml()); return; }
-    var theme = readChartTheme();
-    var lit = st.measure === 'litres';
-    var defs = [['wine', 'Wine', theme.wine], ['cider', 'Cider', theme.cider], ['beer', 'Beer', theme.beer], ['other', 'Other', theme.other]];
-    var only = st.type === 'all' ? null : (st.type === 'seltzer' ? 'other' : st.type);
-    var buckets = cur.periodBuckets;
-    var labels = [];
-    var series = [];
-    var legend = [];
-    var parts = [];
-    var i;
-    var d;
-    for (i = 0; i < buckets.length; i++) labels.push(buckets[i].label);
-    for (d = 0; d < defs.length; d++) {
-      var key = defs[d][0];
-      if (only && key !== only) continue;
-      var data = [];
-      var total = 0;
-      for (i = 0; i < buckets.length; i++) {
-        var b = buckets[i];
-        var v;
-        if (lit) v = key === 'other' ? b.litres.seltzer + b.litres.other : b.litres[key];
-        else v = key === 'other' ? b.counts.seltzer + b.counts.other : b.counts[key];
-        v = lit ? Math.round(v * 10) / 10 : v;
-        data.push(v);
-        total += v;
+  function renderDashV2Production(model, chartState) {
+    var slotId = 'bp-dash-v2-period';
+    if (!model || !document.getElementById(slotId)) return;
+    var mode = dashV2Opt('g1', 'mode', 'started') === 'completed' ? 'completed' : 'started';
+    var view = dashV2Opt('g1', 'view', 'chart') === 'table' ? 'table' : 'chart';
+    var g = buildG1Model(model, mode);
+    var slot = dashV2Widget(slotId, DASH_V2_PERIOD_TITLE);
+    slot.style.display = '';
+    dashV2SetControls(slotId, dashSegHtml('g1', 'mode', [['started', 'Started'], ['completed', 'Completed']], mode, 'Show batches') +
+      dashViewToggleHtml('g1', view));
+    slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
+    if (g.empty) { dashV2Msg(slotId, 'period', DASH_V2_PERIOD_TITLE, dashV2EmptyHtml()); return; }
+    if (view === 'table') {
+      destroyDashV2Slot('period');
+      var body = slot.querySelector('.bp-widget-body');
+      body.setAttribute('data-state', 'table');
+      var tm = { caption: g.table.caption, columns: g.table.columns, rows: [] };
+      for (var r = 0; r < g.table.rows.length; r++) {
+        var cells = [];
+        for (var c = 0; c < g.table.rows[r].cells.length; c++) {
+          var src = g.table.rows[r].cells[c];
+          var out = { text: src.text };
+          if (src.ids) out.drill = dashV2DrillAdd('g1', src.ids, src.label, true);
+          cells.push(out);
+        }
+        tm.rows.push({ cells: cells });
       }
-      series.push({ key: key, label: defs[d][1], data: data, colour: defs[d][2] });
-      legend.push({ label: defs[d][1], colour: defs[d][2] });
-      if (total > 0) parts.push(defs[d][1] + ' ' + (lit ? dashV2Fmt(total) + ' L' : total));
+      body.innerHTML = dashTableHtml('g1', tm);
+      return;
     }
-    var el = dashV2Canvas('bp-dash-v2-period', 'Batches per period');
-    var by = st.group === 'week' ? 'week' : 'month';
-    var sub = (lit ? 'Started litres' : 'Started batches') + ' · ' + model.periodLabel + ' · by ' + by;
-    if (lit && cur.litres.estimated) sub += ' · litres estimated from standard batch sizes';
-    el.slot.querySelector('.bp-widget-sub').textContent = sub;
+    if (dashV2ChartBlocked(slotId, 'period', DASH_V2_PERIOD_TITLE, chartState)) return;
+    var el = dashV2Canvas(slotId, DASH_V2_PERIOD_TITLE);
+    var legend = [];
+    for (var i = 0; i < g.series.length; i++) legend.push({ label: g.series[i].label, colour: g.series[i].colour });
     el.legend.innerHTML = dashV2LegendHtml(legend);
     _dashV2Charts.period = chart(el.canvas, {
       type: 'bar',
-      labels: labels,
-      series: series,
+      labels: g.labels,
+      series: g.series,
       stacked: true,
-      measure: lit ? 'litres' : 'batches',
+      measure: g.measure,
       tooltipTotal: true,
-      ariaLabel: (lit ? 'Started litres by ' : 'Started batches by ') + by + ', ' + model.periodLabel + '. ' + parts.join(', '),
+      ariaLabel: g.ariaLabel,
       onClick: function (hit) {
         var m = _dashV2Model;
-        var bk = m && m.cur.periodBuckets[hit.index];
+        if (!m) return;
+        var cm = dashV2Opt('g1', 'mode', 'started') === 'completed' ? 'completed' : 'started';
+        var bk = (cm === 'completed' ? m.cur.completedBuckets : m.cur.periodBuckets)[hit.index];
         if (!bk) return;
-        var ids;
-        var typeLabel = '';
-        if (hit.key === 'other') { ids = bk.ids.seltzer.concat(bk.ids.other); typeLabel = 'Other'; }
-        else if (hit.key) { ids = bk.ids[hit.key]; typeLabel = DASH_TYPE_LABELS[hit.key] || ''; }
-        else ids = bk.all;
-        openDashDrill({ ids: ids.slice(), label: dashDrillLabel({ typeLabel: typeLabel, verb: 'started', bucketLabel: bk.label, count: ids.length }) });
+        var dr = dashG1Drill(bk, hit.key || null, cm);
+        dashV2Go(dr.ids, dr.label);
       }
     });
   }
@@ -5971,7 +6054,7 @@ function parseWaitlistRecipeIds(value) {
 
   var DASH_V2_LOADING = 'Loading charts…';
   var DASH_V2_FAILED = 'Charts could not load. Reload the page to try again.';
-  var DASH_V2_PERIOD_TITLE = 'Batches per period';
+  var DASH_V2_PERIOD_TITLE = 'Production over time';
 
   // Returns true (after showing the loading/failure copy) when a chart body cannot render yet.
   function dashV2ChartBlocked(slotId, chartKey, title, chartState) {
@@ -5985,8 +6068,7 @@ function parseWaitlistRecipeIds(value) {
     {
       key: 'g1', slot: 'bp-dash-v2-period', title: DASH_V2_PERIOD_TITLE, chart: 'period', needs: [],
       render: function (model, cs) {
-        if (model.cur.started !== 0 && dashV2ChartBlocked('bp-dash-v2-period', 'period', DASH_V2_PERIOD_TITLE, cs)) return;
-        renderDashV2PeriodChart(model);
+        renderDashV2Production(model, cs);
       }
     },
     {
@@ -14523,6 +14605,7 @@ if (typeof module !== 'undefined' && module.exports) {
     parseDashHash: parseDashHash,
     sanitizeDashFilters: sanitizeDashFilters,
     buildDashV2Model: buildDashV2Model,
+    buildG1Model: buildG1Model,
     resolveDashFilters: resolveDashFilters,
     serializeDashFilters: serializeDashFilters,
     dashV2FlagFrom: dashV2FlagFrom,
