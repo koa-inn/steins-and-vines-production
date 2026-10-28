@@ -1169,6 +1169,30 @@ function countNonDefaultFilters(state) {
   return n;
 }
 
+// Phase 95-06: current/previous model for the v2 dashboard (pure).
+function buildDashV2Model(rows, asOf, state, staffIds, catMap) {
+  var st = state || DASH_FILTER_DEFAULTS;
+  var today = asOf.today;
+  var win = windowFromFilters(st, today);
+  var prevWin = previousWindow(win, today);
+  function run(range) {
+    return getDashboardData(rows, asOf, {
+      range: range,
+      window: range.key,
+      type: st.type,
+      source: st.source,
+      staff: st.staff === '1',
+      staffIds: staffIds || {},
+      group: st.group,
+      scheduleCategoryById: catMap || {}
+    });
+  }
+  var cur = run(win);
+  var prev = prevWin ? run(prevWin) : null;
+  var insufficient = !prevWin || !cur.earliestStart || prevWin.start < cur.earliestStart;
+  return { state: st, win: win, prevWin: prevWin, cur: cur, prev: prev, insufficient: insufficient, periodLabel: dashPeriodLabel(st) };
+}
+
 function dashGroupThousands(n) {
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
@@ -2201,6 +2225,12 @@ function parseWaitlistRecipeIds(value) {
   var _dashData = null;   // Phase 94: get_dashboard_stats aggregate ({asOf, batches, ...}) or null (sheets fallback)
   var _dashLoadTime = 0;
   var _dashAutoRefreshTimer = null;
+  var _dashV2On = false;          // Phase 95-06: per-device v2 opt-in
+  var _dashV2State = null;        // sanitised filter state
+  var _dashV2Model = null;        // last buildDashV2Model result
+  var _dashV2Charts = {};         // slotId -> Chart instance (filled by plan 08)
+  var _dashV2RangeOpen = false;   // custom range row open on tablet
+  var _dashV2Stage = null;        // phone sheet staged state
   var _notesAutoSaveTimer = null;
   var _dashExpandedDay = null;
   var _dashRtbExpanded = false;
@@ -4849,7 +4879,7 @@ function parseWaitlistRecipeIds(value) {
   function eagerLoad() {
     // Show loading in dashboard (the first visible panel)
     var dashInner = document.getElementById('bp-dashboard-inner');
-    if (dashInner) dashInner.innerHTML = '<div class="bp-skeleton-block"></div><div class="bp-skeleton-block" style="height:120px;margin-top:12px;"></div>';
+    if (dashInner && !document.getElementById('bp-dash-v2')) dashInner.innerHTML = '<div class="bp-skeleton-block"></div><div class="bp-skeleton-block" style="height:120px;margin-top:12px;"></div>';
 
     // Wrap each call so a single failure doesn't reject the whole Promise.all —
     // a partial result is better than a blank dashboard.
@@ -4996,7 +5026,418 @@ function parseWaitlistRecipeIds(value) {
       });
   }
 
+  // ===========================================================================
+  // Phase 95-06: v2 dashboard shell, opt-in switch and global filter bar.
+  // ===========================================================================
+  var DASH_V2_CONTROLS = [
+    { key: 'type', label: 'Type', opts: [['all', 'All'], ['wine', 'Wine'], ['beer', 'Beer'], ['cider', 'Cider']] },
+    { key: 'period', label: 'Period', opts: [['30d', '30d'], ['90d', '90d'], ['6mo', '6m'], ['12mo', '12m'], ['ytd', 'YTD'], ['all', 'All'], ['custom', 'Custom']] },
+    { key: 'group', label: 'Group by', opts: [['week', 'Week'], ['month', 'Month']] },
+    { key: 'measure', label: 'Measure', opts: [['batches', 'Batches'], ['litres', 'Litres']] }
+  ];
+  var DASH_V2_SOURCES = [['all', 'All sources'], ['kiosk', 'Kiosk'], ['online', 'Online'], ['manual', 'Manual'], ['zoho_scan', 'Zoho scan'], ['research', 'Research'], ['internal', 'Internal'], ['unknown', 'Unknown']];
+
+  function isDashV2() { return _dashV2On === true; }
+
+  function readDashFiltersFromEnv() {
+    var stored = null;
+    try { stored = localStorage.getItem('bp_dash_filters'); } catch (e) { stored = null; }
+    return resolveDashFilters(location.hash, stored, todayPacific());
+  }
+
+  function writeDashFiltersToEnv(state) {
+    try {
+      history.replaceState(null, '', location.pathname + location.search + '#' + serializeDashFilters(state));
+    } catch (e) { /* history unavailable */ }
+    try { localStorage.setItem('bp_dash_filters', JSON.stringify(state)); } catch (e2) { /* private mode */ }
+  }
+
+  function initDashV2Flag() {
+    var stored = null;
+    try { stored = localStorage.getItem('bp_dash_v2'); } catch (e) { stored = null; }
+    var f = dashV2FlagFrom(location.search, location.hash, stored);
+    _dashV2On = f.on === true;
+    if (f.persist !== null) {
+      try { localStorage.setItem('bp_dash_v2', f.persist); } catch (e2) { /* private mode */ }
+    }
+    _dashV2State = readDashFiltersFromEnv();
+  }
+
+  // Drops dash=... from the query string and dash/filter keys from the hash.
+  function stripDashFromUrl() {
+    var params = String(location.search || '').replace(/^\?/, '').split('&');
+    var keep = [];
+    var i;
+    for (i = 0; i < params.length; i++) {
+      if (params[i] && params[i].split('=')[0] !== 'dash') keep.push(params[i]);
+    }
+    var hparts = String(location.hash || '').replace(/^#/, '').split('&');
+    var hkeep = [];
+    for (i = 0; i < hparts.length; i++) {
+      var hk = hparts[i].split('=')[0];
+      if (hparts[i] && hk !== 'dash' && DASH_FILTER_KEYS.indexOf(hk) === -1) hkeep.push(hparts[i]);
+    }
+    var url = location.pathname + (keep.length ? '?' + keep.join('&') : '') + (hkeep.length ? '#' + hkeep.join('&') : '');
+    try { history.replaceState(null, '', url); } catch (e) { /* history unavailable */ }
+  }
+
+  function destroyDashV2Charts() {
+    var keys = Object.keys(_dashV2Charts);
+    for (var i = 0; i < keys.length; i++) {
+      try { if (_dashV2Charts[keys[i]] && _dashV2Charts[keys[i]].destroy) _dashV2Charts[keys[i]].destroy(); } catch (e) { /* already gone */ }
+    }
+    _dashV2Charts = {};
+  }
+
+  function syncDashSwitch() {
+    var btn = document.getElementById('bp-dash-switch');
+    if (!btn) return;
+    btn.hidden = false;
+    btn.textContent = isDashV2() ? 'Back to classic dashboard' : 'Try new dashboard';
+  }
+
+  function setDashV2(on) {
+    _dashV2On = on === true;
+    try { localStorage.setItem('bp_dash_v2', _dashV2On ? '1' : '0'); } catch (e) { /* private mode */ }
+    if (!_dashV2On) destroyDashV2Charts();
+    stripDashFromUrl();
+    if (_dashV2On) {
+      _dashV2State = readDashFiltersFromEnv();
+      writeDashFiltersToEnv(_dashV2State);
+    }
+    renderDashboard();
+  }
+
+  function dashV2IsPhone() {
+    return !!(window.matchMedia && window.matchMedia('(max-width: 600px)').matches);
+  }
+
+  function dashV2SegHtml(ctl) {
+    var h = '<div class="bp-dash-filter"><span class="bp-dash-filter-label">' + ctl.label + '</span>';
+    h += '<div class="bp-seg" role="radiogroup" aria-label="' + ctl.label + '">';
+    for (var i = 0; i < ctl.opts.length; i++) {
+      h += '<button type="button" class="bp-seg-btn" role="radio" aria-checked="false" tabindex="-1" data-dash-ctl="' + ctl.key + '" data-val="' + ctl.opts[i][0] + '">' + ctl.opts[i][1] + '</button>';
+    }
+    return h + '</div></div>';
+  }
+
+  function dashV2RangeHtml() {
+    return '<div class="bp-dash-range-fields">' +
+      '<label class="bp-dash-filter-label">From<input type="date" class="bp-select" data-dash-from></label>' +
+      '<label class="bp-dash-filter-label">To<input type="date" class="bp-select" data-dash-to></label>' +
+      '<button type="button" class="bp-btn" data-dash-apply-range disabled>Apply Date Range</button></div>' +
+      '<div class="bp-dash-range-error" role="alert" hidden>From must be on or before To.</div>';
+  }
+
+  function dashV2ControlsHtml() {
+    var h = '';
+    for (var i = 0; i < DASH_V2_CONTROLS.length; i++) h += dashV2SegHtml(DASH_V2_CONTROLS[i]);
+    h += '<div class="bp-dash-filter"><span class="bp-dash-filter-label">Source</span>';
+    h += '<select class="bp-select" data-dash-ctl="source" aria-label="Source">';
+    for (var j = 0; j < DASH_V2_SOURCES.length; j++) {
+      h += '<option value="' + DASH_V2_SOURCES[j][0] + '">' + DASH_V2_SOURCES[j][1] + '</option>';
+    }
+    h += '</select></div>';
+    h += '<div class="bp-dash-filter"><button type="button" class="bp-seg-btn bp-dash-staff" data-dash-staff aria-pressed="false">Include staff batches</button></div>';
+    return h;
+  }
+
+  function buildDashV2Bar() {
+    var bar = document.getElementById('bp-dash-filters');
+    if (!bar) return;
+    if (dashV2IsPhone()) {
+      bar.setAttribute('data-mode', 'phone');
+      bar.innerHTML = '<button type="button" class="bp-seg-btn bp-dash-filters-btn" data-dash-open-sheet aria-haspopup="dialog">Filters <span class="bp-dash-badge" hidden></span></button>' +
+        '<span class="bp-dash-summary"></span>' +
+        '<button type="button" class="bp-link-btn" data-dash-reset hidden>Reset filters</button>';
+    } else {
+      bar.setAttribute('data-mode', 'tablet');
+      bar.innerHTML = dashV2ControlsHtml() +
+        '<button type="button" class="bp-link-btn" data-dash-reset hidden>Reset filters</button>';
+    }
+  }
+
+  // Marks the selected segments / select / toggle inside root from state.
+  function paintDashV2Controls(root, state, rangeOpen) {
+    var btns = root.querySelectorAll('.bp-seg-btn[data-dash-ctl]');
+    var i;
+    for (i = 0; i < btns.length; i++) {
+      var key = btns[i].getAttribute('data-dash-ctl');
+      var val = btns[i].getAttribute('data-val');
+      var cur = (key === 'period' && rangeOpen) ? 'custom' : state[key];
+      var on = cur === val;
+      btns[i].setAttribute('aria-checked', on ? 'true' : 'false');
+      btns[i].setAttribute('tabindex', on ? '0' : '-1');
+      if (key === 'period' && val === 'custom') {
+        btns[i].textContent = state.period === 'custom' ? dashPeriodLabel(state) : 'Custom';
+      }
+    }
+    var sel = root.querySelector('select[data-dash-ctl="source"]');
+    if (sel) sel.value = state.source;
+    var staff = root.querySelector('[data-dash-staff]');
+    if (staff) staff.setAttribute('aria-pressed', state.staff === '1' ? 'true' : 'false');
+  }
+
+  function updateDashV2Bar() {
+    var bar = document.getElementById('bp-dash-filters');
+    if (!bar || !_dashV2State) return;
+    var phone = dashV2IsPhone();
+    if ((bar.getAttribute('data-mode') === 'phone') !== phone || !bar.firstChild) buildDashV2Bar();
+    var n = countNonDefaultFilters(_dashV2State);
+    if (phone) {
+      var badge = bar.querySelector('.bp-dash-badge');
+      if (badge) { badge.textContent = String(n); badge.hidden = n === 0; }
+      var sum = bar.querySelector('.bp-dash-summary');
+      if (sum) sum.textContent = dashFilterSummary(_dashV2State);
+    } else {
+      paintDashV2Controls(bar, _dashV2State, _dashV2RangeOpen);
+    }
+    var reset = bar.querySelector('[data-dash-reset]');
+    if (reset) reset.hidden = n === 0;
+    var range = document.getElementById('bp-dash-range');
+    if (range) {
+      range.hidden = phone || !_dashV2RangeOpen;
+      if (!range.hidden && !range.firstChild) {
+        range.innerHTML = dashV2RangeHtml();
+        validateDashV2Range(range);
+      }
+    }
+  }
+
+  function validateDashV2Range(box) {
+    var from = box.querySelector('[data-dash-from]');
+    var to = box.querySelector('[data-dash-to]');
+    var apply = box.querySelector('[data-dash-apply-range]');
+    var err = box.querySelector('.bp-dash-range-error');
+    var today = todayPacific();
+    from.max = today;
+    to.max = today;
+    var ok = isRealYmd(from.value) && isRealYmd(to.value) && from.value <= to.value && to.value <= today;
+    var bad = !!(from.value && to.value && from.value > to.value);
+    apply.disabled = !ok;
+    err.hidden = !bad;
+    return ok;
+  }
+
+  function commitDashV2State(next) {
+    _dashV2State = sanitizeDashFilters(next, todayPacific());
+    _dashV2RangeOpen = false;
+    writeDashFiltersToEnv(_dashV2State);
+    refreshDashV2();
+  }
+
+  function refreshDashV2() {
+    if (!document.getElementById('bp-dash-v2')) return;
+    if (!_dashV2State) _dashV2State = readDashFiltersFromEnv();
+    var todayStrP = todayPacific();
+    var rows = _dashData ? _dashData.batches : toDashRows(_allBatchesData);
+    var asOf = _dashData ? _dashData.asOf : { today: todayStrP, year: parseInt(todayStrP.slice(0, 4), 10), tz: 'America/Vancouver' };
+    var staffIds = {};
+    var ids = (_dashData && _dashData.staffBatchIds) || [];
+    for (var i = 0; i < ids.length; i++) staffIds[ids[i]] = true;
+    _dashV2Model = buildDashV2Model(rows || [], asOf, _dashV2State, staffIds, buildScheduleCategoryById(_fermSchedules));
+    updateDashV2Bar();
+  }
+
+  function closeDashV2Sheet(restoreFocus) {
+    var sheet = document.getElementById('bp-dash-sheet');
+    if (sheet && sheet.parentNode) sheet.parentNode.removeChild(sheet);
+    _dashV2Stage = null;
+    if (restoreFocus) {
+      var b = document.querySelector('[data-dash-open-sheet]');
+      if (b) b.focus();
+    }
+  }
+
+  function openDashV2Sheet() {
+    var shell = document.getElementById('bp-dash-v2');
+    if (!shell || document.getElementById('bp-dash-sheet')) return;
+    _dashV2Stage = sanitizeDashFilters(_dashV2State, todayPacific());
+    var sheet = document.createElement('div');
+    sheet.id = 'bp-dash-sheet';
+    sheet.className = 'bp-dash-sheet';
+    sheet.innerHTML = '<div class="bp-dash-sheet-backdrop" data-dash-close></div>' +
+      '<div class="bp-dash-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="bp-dash-sheet-title" tabindex="-1">' +
+      '<div class="bp-dash-sheet-head"><h2 id="bp-dash-sheet-title" class="bp-dash-sheet-title">Filters</h2>' +
+      '<button type="button" class="bp-link-btn bp-dash-sheet-x" data-dash-close aria-label="Close filters">&#10005;</button></div>' +
+      '<div class="bp-dash-sheet-body">' + dashV2ControlsHtml() + '<div class="bp-dash-sheet-range" hidden>' + dashV2RangeHtml() + '</div></div>' +
+      '<div class="bp-dash-sheet-foot"><button type="button" class="bp-btn" data-dash-apply-sheet>Apply Filters</button>' +
+      '<button type="button" class="bp-link-btn" data-dash-sheet-reset>Reset</button></div></div>';
+    shell.appendChild(sheet);
+    paintDashV2Controls(sheet, _dashV2Stage, false);
+    var rangeBox = sheet.querySelector('.bp-dash-sheet-range');
+    validateDashV2Range(rangeBox);
+    var panel = sheet.querySelector('.bp-dash-sheet-panel');
+    var first = panel.querySelector('[aria-checked="true"]') || panel;
+    first.focus();
+  }
+
+  function dashV2StageSet(key, val) {
+    var next = {};
+    var k;
+    for (k in _dashV2Stage) { if (Object.prototype.hasOwnProperty.call(_dashV2Stage, k)) next[k] = _dashV2Stage[k]; }
+    next[key] = val;
+    _dashV2Stage = next;
+  }
+
+  function onDashV2Click(e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var sheet = document.getElementById('bp-dash-sheet');
+    var inSheet = !!(sheet && sheet.contains(t));
+    var el;
+    if ((el = t.closest('[data-dash-close]'))) { closeDashV2Sheet(true); return; }
+    if (t.closest('[data-dash-open-sheet]')) { openDashV2Sheet(); return; }
+    if (t.closest('[data-dash-apply-sheet]')) {
+      var staged = _dashV2Stage;
+      closeDashV2Sheet(true);
+      commitDashV2State(staged);
+      return;
+    }
+    if (t.closest('[data-dash-sheet-reset]')) {
+      closeDashV2Sheet(true);
+      commitDashV2State(DASH_FILTER_DEFAULTS);
+      return;
+    }
+    if (t.closest('[data-dash-reset]')) { commitDashV2State(DASH_FILTER_DEFAULTS); return; }
+    if ((el = t.closest('[data-dash-apply-range]'))) {
+      if (el.disabled) return;
+      var box = el.closest('.bp-dash-range, .bp-dash-sheet-range');
+      var from = box.querySelector('[data-dash-from]').value;
+      var to = box.querySelector('[data-dash-to]').value;
+      if (!validateDashV2Range(box)) return;
+      if (inSheet) {
+        dashV2StageSet('period', 'custom');
+        dashV2StageSet('from', from);
+        dashV2StageSet('to', to);
+        paintDashV2Controls(sheet, _dashV2Stage, false);
+      } else {
+        var base = {};
+        var k;
+        for (k in _dashV2State) { if (Object.prototype.hasOwnProperty.call(_dashV2State, k)) base[k] = _dashV2State[k]; }
+        base.period = 'custom';
+        base.from = from;
+        base.to = to;
+        commitDashV2State(base);
+      }
+      return;
+    }
+    if ((el = t.closest('[data-dash-staff]'))) {
+      if (inSheet) {
+        dashV2StageSet('staff', _dashV2Stage.staff === '1' ? '0' : '1');
+        paintDashV2Controls(sheet, _dashV2Stage, false);
+      } else {
+        var s2 = sanitizeDashFilters(_dashV2State, todayPacific());
+        s2.staff = s2.staff === '1' ? '0' : '1';
+        commitDashV2State(s2);
+      }
+      return;
+    }
+    if ((el = t.closest('.bp-seg-btn[data-dash-ctl]'))) {
+      selectDashV2Segment(el, inSheet);
+    }
+  }
+
+  function selectDashV2Segment(el, inSheet) {
+    var key = el.getAttribute('data-dash-ctl');
+    var val = el.getAttribute('data-val');
+    if (inSheet) {
+      var sheet = document.getElementById('bp-dash-sheet');
+      var rangeBox = sheet.querySelector('.bp-dash-sheet-range');
+      if (key === 'period' && val === 'custom') {
+        rangeBox.hidden = false;
+        paintDashV2Controls(sheet, _dashV2Stage, true);
+        return;
+      }
+      rangeBox.hidden = true;
+      dashV2StageSet(key, val);
+      paintDashV2Controls(sheet, _dashV2Stage, false);
+      return;
+    }
+    if (key === 'period' && val === 'custom') {
+      _dashV2RangeOpen = true;
+      updateDashV2Bar();
+      return;
+    }
+    var next = sanitizeDashFilters(_dashV2State, todayPacific());
+    next[key] = val;
+    commitDashV2State(next);
+  }
+
+  function onDashV2Change(e) {
+    var t = e.target;
+    if (!t || !t.getAttribute) return;
+    if (t.getAttribute('data-dash-ctl') === 'source') {
+      var sheet = document.getElementById('bp-dash-sheet');
+      if (sheet && sheet.contains(t)) { dashV2StageSet('source', t.value); return; }
+      var next = sanitizeDashFilters(_dashV2State, todayPacific());
+      next.source = t.value;
+      commitDashV2State(next);
+    }
+  }
+
+  function onDashV2Input(e) {
+    var t = e.target;
+    if (!t || !t.closest || !(t.hasAttribute('data-dash-from') || t.hasAttribute('data-dash-to'))) return;
+    var box = t.closest('.bp-dash-range, .bp-dash-sheet-range');
+    if (box) validateDashV2Range(box);
+  }
+
+  function onDashV2Keydown(e) {
+    var t = e.target;
+    if (e.key === 'Escape' && document.getElementById('bp-dash-sheet')) {
+      closeDashV2Sheet(true);
+      return;
+    }
+    if (!t || !t.closest || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
+    var btn = t.closest('.bp-seg-btn[data-dash-ctl]');
+    if (!btn) return;
+    var group = btn.parentNode;
+    var all = group.querySelectorAll('.bp-seg-btn');
+    var idx = Array.prototype.indexOf.call(all, btn);
+    var nidx = e.key === 'ArrowRight' ? (idx + 1) % all.length : (idx - 1 + all.length) % all.length;
+    e.preventDefault();
+    var target = all[nidx];
+    var sheet = document.getElementById('bp-dash-sheet');
+    selectDashV2Segment(target, !!(sheet && sheet.contains(target)));
+    target.focus();
+  }
+
+  function renderDashboardV2() {
+    var inner = document.getElementById('bp-dashboard-inner');
+    if (!inner) return;
+    if (!document.getElementById('bp-dash-v2')) {
+      destroyDashV2Charts();
+      inner.innerHTML = '<div id="bp-dash-v2" class="bp-dash-v2">' +
+        '<div id="bp-dash-filters" class="bp-dash-filters" role="group" aria-label="Dashboard filters"></div>' +
+        '<div id="bp-dash-range" class="bp-dash-range" hidden></div>' +
+        '<div id="bp-dash-v2-tiles"></div><div id="bp-dash-v2-period"></div><div id="bp-dash-v2-wine"></div></div>';
+      var shell = document.getElementById('bp-dash-v2');
+      shell.addEventListener('click', onDashV2Click);
+      shell.addEventListener('change', onDashV2Change);
+      shell.addEventListener('input', onDashV2Input);
+      shell.addEventListener('keydown', onDashV2Keydown);
+      _dashV2RangeOpen = false;
+    }
+    if (!_dashV2State) _dashV2State = readDashFiltersFromEnv();
+    refreshDashV2();
+  }
+
+  // Boot wiring: flag, switch button, hashchange.
+  initDashV2Flag();
+  document.addEventListener('click', function (e) {
+    if (e.target && e.target.closest && e.target.closest('#bp-dash-switch')) setDashV2(!isDashV2());
+  });
+  window.addEventListener('hashchange', function () {
+    if (!isDashV2()) return;
+    _dashV2State = readDashFiltersFromEnv();
+    _dashV2RangeOpen = false;
+    refreshDashV2();
+  });
+
   function renderDashboard() {
+    syncDashSwitch();
+    if (isDashV2()) { return renderDashboardV2(); }
     var inner = document.getElementById('bp-dashboard-inner');
     if (!inner) return;
     var d = _dashSummary || {};
@@ -12939,6 +13380,10 @@ function parseWaitlistRecipeIds(value) {
       _bpStartRecipeFromExistingForTest: function (id, name, btn) { return bpStartRecipeFromExisting(id, name, btn); },
       // Plan 36-22: test-only state accessors for the cache-bust state vars
       _renderDashboardForTest: function () { renderDashboard(); },
+      _renderDashboardV2ForTest: function () { renderDashboardV2(); },
+      _setDashV2ForTest: function (on) { _dashV2On = on === true; },
+      _initDashV2FlagForTest: function () { initDashV2Flag(); },
+      _setDashV2ChartsForTest: function (m) { _dashV2Charts = m; },
       _loadDashboardForTest: function () { return loadDashboard(); },
       _eagerLoadForTest: function () { return eagerLoad(); },
       getStateForTest: function () {
@@ -12953,7 +13398,9 @@ function parseWaitlistRecipeIds(value) {
           _batchStatusFilter: _batchStatusFilter,
           _batchesData: _batchesData,
           _dashSummary: _dashSummary,
-          _dashData: _dashData
+          _dashData: _dashData,
+          _dashV2State: _dashV2State,
+          _dashV2Model: _dashV2Model
         };
       },
       _setStateForTest: function (patch) {
@@ -13038,6 +13485,7 @@ if (typeof module !== 'undefined' && module.exports) {
     DASH_FILTER_DEFAULTS: DASH_FILTER_DEFAULTS,
     parseDashHash: parseDashHash,
     sanitizeDashFilters: sanitizeDashFilters,
+    buildDashV2Model: buildDashV2Model,
     resolveDashFilters: resolveDashFilters,
     serializeDashFilters: serializeDashFilters,
     dashV2FlagFrom: dashV2FlagFrom,
