@@ -2688,17 +2688,37 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [ ] 100-01-PLAN.md — Assets + JSON committed unchanged; final deposit terms; refunds/terms deposit sections (W1)
 - [ ] 100-02-PLAN.md — Staging live spike LV1–LV11 (Zoho advance behaviour, Helcim nonce propagation), go/no-go; LV11 hard gate (W1, checkpoint)
 - [ ] 100-03-PLAN.md — Shared libs: zohoDelete/zohoPostOnce, Helcim initialize invoiceNumber, extracted resolveOrCreateContact (W1)
 - [ ] 100-04-PLAN.md — lib/limited-releases.js allowlist + basket validation (D-18); deposit emails (W1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 100-05-PLAN.md — lib/limited-releases-deposit.js: sanctioned salesorders_to_apply advance, per-kit SOs with fees, cleanup, guard test (W2)
-- [ ] 100-06-PLAN.md — LV11 gate, /api/preorder/initialize (nonce, kill switch) + deposit verification stage + server wiring (W3)
-- [ ] 100-07-PLAN.md — Deposit booking stage: N SOs + advances, cleanup→void→alert, emails, newsletter (W4)
-- [ ] 100-08-PLAN.md — D-02 brew day: finalize applies advance via /credits; kiosk SO-pay charges the remainder (W3)
-- [ ] 100-09-PLAN.md — Kiosk deposit preview route + badge/remainder display (W5)
 - [ ] 100-10-PLAN.md — limited-releases.html shell (CSP, held back), page CSS, build wiring, page-list tests (W2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 100-06-PLAN.md — LV11 gate, /api/preorder/initialize (nonce, kill switch) + deposit verification stage + server wiring (W3)
+- [ ] 100-08-PLAN.md — D-02 brew day: finalize applies advance via /credits; kiosk SO-pay charges the remainder (W3)
 - [ ] 100-11-PLAN.md — Module 18: kits, calendar, collections, JSON-LD, stepper/basket/sticky bar (W3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 100-07-PLAN.md — Deposit booking stage: N SOs + advances, cleanup→void→alert, emails, newsletter (W4)
 - [ ] 100-12-PLAN.md — Module 18 payment flow + in-page confirmation (W4)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 100-09-PLAN.md — Kiosk deposit preview route + badge/remainder display (W5)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 100-13-PLAN.md — RUNBOOK, staging deploy, owner real-money staging run incl. brew day, wording sign-off (W6, checkpoint)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 100-14-PLAN.md — Production push + real $50 deposit, then launch commit (nav, sitemap, index) (W7, checkpoint)
