@@ -2684,7 +2684,7 @@ Plans:
   4. The new page carries the sibling pages' CSP and any new tracking or third-party domains are added on every public page (CLAUDE.md rule 12).
   5. Open owner question resolved before launch: refund policy if a supplier cannot fill a reserved kit (handoff §8 item 1).
 
-**Plans:** 6/14 plans executed
+**Plans:** 9/14 plans executed
 
 Plans:
 
@@ -2702,9 +2702,9 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 100-06-PLAN.md — LV11 gate, /api/preorder/initialize (nonce, kill switch) + deposit verification stage + server wiring (W3)
-- [ ] 100-08-PLAN.md — D-02 brew day: finalize applies advance via /credits; kiosk SO-pay charges the remainder (W3)
-- [ ] 100-11-PLAN.md — Module 18: kits, calendar, collections, JSON-LD, stepper/basket/sticky bar (W3)
+- [x] 100-06-PLAN.md — LV11 gate, /api/preorder/initialize (nonce, kill switch) + deposit verification stage + server wiring (W3)
+- [x] 100-08-PLAN.md — D-02 brew day: finalize applies advance via /credits; kiosk SO-pay charges the remainder (W3)
+- [x] 100-11-PLAN.md — Module 18: kits, calendar, collections, JSON-LD, stepper/basket/sticky bar (W3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
