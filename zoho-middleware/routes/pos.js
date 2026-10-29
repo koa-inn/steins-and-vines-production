@@ -19,6 +19,7 @@ var giftCardStore = require('../lib/gift-card-store');
 var opsProxy = require('../lib/ops-proxy');
 var kioskBundles = require('../lib/kiosk-bundles');
 var linkCandidates = require('../lib/batch-link-candidates');
+var depositLib = require('../lib/limited-releases-deposit');
 // Phase 87-12: lazy so route tests that mock constants/cache/logger are unaffected.
 function batchProxy() { return require('../lib/batch-proxy'); }
 function batchStore() { return require('../lib/batch-store'); }
@@ -2609,24 +2610,94 @@ router.post('/api/kiosk/salesorder-pay', function (req, res) {
     });
 });
 
+/**
+ * Amount due for a kiosk SO payment (Phase 100 D-02).
+ * Non-LIMITED SOs: parseFloat(so.balance), no Zoho calls (legacy behaviour).
+ * LIMITED-* SOs: base (live non-void invoice balance_due, else SO total) minus
+ * the unused part of this SO's deposit advance. Rejects if Zoho can't be read.
+ *
+ * @returns {Promise<{isLimited:boolean, base:number, depositApplied:number, due:number, advance:object|null}>}
+ */
+function computeSalesOrderAmountDue(so) {
+  if (!depositLib.isLimitedReleaseSalesOrder(so)) {
+    var bal = parseFloat(so.balance);
+    return Promise.resolve({ isLimited: false, base: bal, depositApplied: 0, due: bal, advance: null });
+  }
+  var linked = (Array.isArray(so.invoices) ? so.invoices : []).filter(function (inv) {
+    return inv && inv.invoice_id && String(inv.status || '').toLowerCase() !== 'void';
+  })[0];
+  var basePromise = linked
+    ? zohoGet('/invoices/' + linked.invoice_id).then(function (d) {
+      return parseFloat(((d && d.invoice) || {}).balance_due);
+    })
+    : Promise.resolve(parseFloat(so.total));
+  return basePromise.then(function (base) {
+    return depositLib.findDepositAdvanceForSalesOrder(so).then(function (advance) {
+      var unused = advance ? advance.unused_amount : 0;
+      if (!isFinite(unused)) unused = 0;
+      var applied = Math.min(unused, base);
+      return {
+        isLimited: true,
+        base: base,
+        depositApplied: applied,
+        due: Math.round((base - applied) * 100) / 100,
+        advance: advance
+      };
+    });
+  });
+}
+
 function processSalesOrderPay(body, soId, effectiveKey, lockKey, req, res) {
   // Fetch the Sales Order from Zoho
   zohoGet('/salesorders/' + soId)
     .then(function (data) {
       var so = data.salesorder || {};
-      var balance = parseFloat(so.balance);
-      var soNumber = so.salesorder_number || '';
-      var customerId = so.customer_id || '';
+      var isLimited = depositLib.isLimitedReleaseSalesOrder(so);
       var orderStatus = (so.order_status || so.status || '').toLowerCase();
 
-      // Guard: balance must be positive
-      if (isNaN(balance) || balance <= 0) {
-        return res.status(400).json({ error: 'No balance due on this order' });
+      // Guard: balance must be positive (LIMITED SOs are checked on the computed due below)
+      if (!isLimited) {
+        var rawBalance = parseFloat(so.balance);
+        if (isNaN(rawBalance) || rawBalance <= 0) {
+          return res.status(400).json({ error: 'No balance due on this order' });
+        }
       }
 
       // Guard: reject void/closed orders
       if (orderStatus === 'void' || orderStatus === 'closed') {
         return res.status(400).json({ error: 'Order is ' + orderStatus });
+      }
+
+      return computeSalesOrderAmountDue(so).then(function (amt) {
+        return { so: so, amt: amt };
+      }, function (lookupErr) {
+        // Read-only pre-charge failure: nothing charged, safe to release and retry.
+        log.error('[kiosk/so-pay] Deposit lookup failed for soId=' + soId + ': ' + lookupErr.message);
+        cache.releaseLock(lockKey).catch(function () {});
+        return res.status(502).json({ error: 'Could not read the deposit for this order. Try again.' });
+      });
+    })
+    .then(function (ctx) {
+      if (!ctx || !ctx.so) return;
+      var so = ctx.so;
+      var amt = ctx.amt;
+      var balance = amt.due;
+      var soNumber = so.salesorder_number || '';
+      var customerId = so.customer_id || '';
+
+      if (amt.isLimited) {
+        if (isNaN(amt.base) || amt.base < 0.01) {
+          cache.releaseLock(lockKey).catch(function () {});
+          return res.status(400).json({ error: 'No balance due on this order' });
+        }
+        if (balance < 0.01) {
+          cache.releaseLock(lockKey).catch(function () {});
+          return res.status(400).json({ error: 'Deposit covers this order — no card payment needed. Ask the owner.' });
+        }
+        if (!amt.advance) {
+          log.warn('[kiosk/so-pay] LIMITED SO has no deposit advance: soNumber=' + soNumber);
+          eventLog.logEvent('kiosk.limited_so_no_advance', { soId: soId });
+        }
       }
 
       log.info('[kiosk/so-pay] Starting payment: soNumber=' + soNumber +
@@ -2737,7 +2808,10 @@ function processSalesOrderPay(body, soId, effectiveKey, lockKey, req, res) {
             payment_mode: paymentMode,
             reference_number: txnId || soNumber,
             notes: 'Kiosk SO payment. Terminal txn: ' + txnId,
-            date: today
+            date: today,
+            advance: amt.advance
+              ? { payment_id: amt.advance.payment_id, amount: amt.depositApplied }
+              : undefined
           })
             .then(function (result) {
               var invoiceId = result.invoiceId;
@@ -2756,7 +2830,8 @@ function processSalesOrderPay(body, soId, effectiveKey, lockKey, req, res) {
                 soNumber: soNumber,
                 txnId: txnId,
                 amount: balance,
-                invoiceId: invoiceId
+                invoiceId: invoiceId,
+                depositApplied: amt.depositApplied
               });
 
               // Trigger batch creation for kit items (fire-and-forget per D-01)
@@ -2772,6 +2847,7 @@ function processSalesOrderPay(body, soId, effectiveKey, lockKey, req, res) {
                 amount: balance,
                 card_type: paymentMode
               };
+              if (amt.isLimited) responseBody.deposit_applied = amt.depositApplied;
 
               // D-50-01: cache the success receipt under lockKey so a
               // client-keyed retry replays instead of re-charging.
@@ -4755,4 +4831,5 @@ module.exports = router;
 // Exposed for unit testing (pure-ish helpers)
 module.exports.resolveDiscount = resolveDiscount;
 module.exports.computeTax = computeTax;
+module.exports.computeSalesOrderAmountDue = computeSalesOrderAmountDue;
 module.exports.resolveGstTaxId = resolveGstTaxId;
