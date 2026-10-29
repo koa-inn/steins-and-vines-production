@@ -2684,7 +2684,7 @@ Plans:
   4. The new page carries the sibling pages' CSP and any new tracking or third-party domains are added on every public page (CLAUDE.md rule 12).
   5. Open owner question resolved before launch: refund policy if a supplier cannot fill a reserved kit (handoff §8 item 1).
 
-**Plans:** 4/14 plans executed
+**Plans:** 6/14 plans executed
 
 Plans:
 
@@ -2697,8 +2697,8 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 100-05-PLAN.md — lib/limited-releases-deposit.js: sanctioned salesorders_to_apply advance, per-kit SOs with fees, cleanup, guard test (W2)
-- [ ] 100-10-PLAN.md — limited-releases.html shell (CSP, held back), page CSS, build wiring, page-list tests (W2)
+- [x] 100-05-PLAN.md — lib/limited-releases-deposit.js: sanctioned salesorders_to_apply advance, per-kit SOs with fees, cleanup, guard test (W2)
+- [x] 100-10-PLAN.md — limited-releases.html shell (CSP, held back), page CSS, build wiring, page-list tests (W2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
