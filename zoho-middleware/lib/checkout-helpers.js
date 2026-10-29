@@ -246,7 +246,75 @@ function readIngredientsFileCache() {
   return [];
 }
 
+/**
+ * Find-or-create a Zoho contact server-side from email (Phase 100 D-13:
+ * verbatim move of checkout.js resolveCustomerId so preorders share it).
+ * The contact is resolved from the email, never from a client customer_id.
+ * Returns { contactId, freshlyCreated } so callers can log orphan warnings.
+ *
+ * cache / constants / zoho-api are required lazily so Jest module mocks in
+ * route tests still intercept them. checkout.js passes its own already-bound
+ * cache/zohoGet/zohoPost via `deps` so route tests that reset the module
+ * registry keep hitting the same mocks the route was loaded with.
+ *
+ * @param {{name:string, email:string, phone:string}} args
+ * @param {{cache?:object, zohoGet?:Function, zohoPost?:Function}} [deps]
+ */
+async function resolveOrCreateContact(args, deps) {
+  deps = deps || {};
+  var cache = deps.cache || require('./cache');
+  var C = require('./constants');
+  var zohoApi = {
+    zohoGet: deps.zohoGet || require('./zoho-api').zohoGet,
+    zohoPost: deps.zohoPost || require('./zoho-api').zohoPost
+  };
+  var customerName = args.name;
+  var customerEmail = args.email;
+  var customerPhone = args.phone;
+  var CONTACT_CACHE_KEY = C.CACHE_KEYS.CONTACT_PREFIX + customerEmail.toLowerCase();
+  var CONTACT_CACHE_TTL = 600; // 10 minutes
+
+  var cached = await cache.get(CONTACT_CACHE_KEY);
+  if (cached) {
+    return { contactId: cached, freshlyCreated: false };
+  }
+
+  var data = await zohoApi.zohoGet('/contacts', { email: customerEmail });
+  var contacts = (data.contacts || []);
+  if (contacts.length > 0) {
+    var contactId = contacts[0].contact_id;
+    cache.set(CONTACT_CACHE_KEY, contactId, CONTACT_CACHE_TTL).catch(function () {});
+    return { contactId: contactId, freshlyCreated: false };
+  }
+  // Not found — create a new contact.
+  // Email/phone/name MUST be nested under contact_persons; Zoho Books drops
+  // them when sent at the top level (see buildContactPayload).
+  var contactPayload = buildContactPayload(customerName, customerEmail, customerPhone);
+  try {
+    var createData = await zohoApi.zohoPost('/contacts', contactPayload);
+    var contact = createData.contact || {};
+    if (contact.contact_id) {
+      cache.set(CONTACT_CACHE_KEY, contact.contact_id, CONTACT_CACHE_TTL).catch(function () {});
+    }
+    return { contactId: contact.contact_id, freshlyCreated: true };
+  } catch (createErr) {
+    // Zoho rejects duplicate contact names — fall back to name search
+    if (createErr.response && createErr.response.status === 400) {
+      var nameData = await zohoApi.zohoGet('/contacts', { contact_name: customerName });
+      var nameContacts = (nameData.contacts || []);
+      if (nameContacts.length > 0) {
+        var nameContactId = nameContacts[0].contact_id;
+        cache.set(CONTACT_CACHE_KEY, nameContactId, CONTACT_CACHE_TTL).catch(function () {});
+        return { contactId: nameContactId, freshlyCreated: false };
+      }
+      throw createErr; // give up — surface the original error
+    }
+    throw createErr;
+  }
+}
+
 module.exports = {
+  resolveOrCreateContact: resolveOrCreateContact,
   readServicesSnapshot: readServicesSnapshot,
   readIngredientsFileCache: readIngredientsFileCache,
   withTimeout: withTimeout,
