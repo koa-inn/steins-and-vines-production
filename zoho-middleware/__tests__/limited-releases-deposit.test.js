@@ -167,3 +167,95 @@ describe('findDepositAdvanceForSalesOrder', function () {
     await expect(dep.findDepositAdvanceForSalesOrder(SO)).rejects.toThrow('boom');
   });
 });
+
+describe('createDepositSet', function () {
+  function args(n) {
+    var units = [];
+    for (var i = 1; i <= n; i++) units.push(unit(i, n));
+    var rates = {}; rates[EMBER] = 230;
+    return { customerId: 'C1', units: units, kitRates: rates, fees: FEES, txnId: 'T9',
+      consentText: 'ok', consentAt: 'now', date: '2026-10-29' };
+  }
+  function soOk(n) { return { salesorder: { salesorder_id: 'S' + n, salesorder_number: 'SO-' + n } }; }
+  function payOk(n) { return { payment: { payment_id: 'P' + n } }; }
+
+  test('creates SO then payment per unit in order', async function () {
+    zoho.zohoPostOnce
+      .mockResolvedValueOnce(soOk(1)).mockResolvedValueOnce(payOk(1))
+      .mockResolvedValueOnce(soOk(2)).mockResolvedValueOnce(payOk(2));
+    var r = await dep.createDepositSet(args(2));
+    expect(r.created).toHaveLength(2);
+    expect(r.created[1]).toMatchObject({ salesorder_id: 'S2', payment_id: 'P2', name: 'Ember' });
+    expect(zoho.zohoPostOnce.mock.calls.map(function (c) { return c[0]; }))
+      .toEqual(['/salesorders', '/customerpayments', '/salesorders', '/customerpayments']);
+  });
+
+  test('SO_2 failure carries the partial list and stops', async function () {
+    var e = new Error('bad'); e.response = { status: 400 };
+    zoho.zohoPostOnce
+      .mockResolvedValueOnce(soOk(1)).mockResolvedValueOnce(payOk(1))
+      .mockRejectedValueOnce(e);
+    var caught;
+    try { await dep.createDepositSet(args(3)); } catch (x) { caught = x; }
+    expect(zoho.zohoPostOnce).toHaveBeenCalledTimes(3);
+    expect(caught.created).toHaveLength(1);
+    expect(caught.possibleOrphan).toBeFalsy();
+  });
+
+  test('payment_2 failure keeps SO_2 with null payment_id', async function () {
+    var e = new Error('bad'); e.response = { status: 400 };
+    zoho.zohoPostOnce
+      .mockResolvedValueOnce(soOk(1)).mockResolvedValueOnce(payOk(1))
+      .mockResolvedValueOnce(soOk(2)).mockRejectedValueOnce(e);
+    var caught;
+    try { await dep.createDepositSet(args(2)); } catch (x) { caught = x; }
+    expect(caught.created).toHaveLength(2);
+    expect(caught.created[1]).toMatchObject({ salesorder_id: 'S2', payment_id: null });
+  });
+
+  test('timeout sets possibleOrphan', async function () {
+    var e = new Error('timeout'); e.code = 'ECONNABORTED';
+    zoho.zohoPostOnce.mockRejectedValueOnce(e);
+    var caught;
+    try { await dep.createDepositSet(args(1)); } catch (x) { caught = x; }
+    expect(caught.possibleOrphan).toBe(true);
+    expect(caught.created).toEqual([]);
+  });
+});
+
+describe('cleanupDepositSet', function () {
+  var created = [
+    { salesorder_id: 'S1', payment_id: 'P1' },
+    { salesorder_id: 'S2', payment_id: 'P2' }
+  ];
+  test('deletes payment then SO for each record, reverse order', async function () {
+    zoho.zohoDelete.mockResolvedValue({});
+    var r = await dep.cleanupDepositSet(created, 'T9');
+    expect(r).toEqual({ ok: true, leftovers: [] });
+    expect(zoho.zohoDelete.mock.calls.map(function (c) { return c[0]; })).toEqual([
+      '/customerpayments/P2', '/salesorders/S2', '/customerpayments/P1', '/salesorders/S1'
+    ]);
+  });
+  test('a failing payment delete is reported and the rest still attempted', async function () {
+    zoho.zohoDelete.mockImplementation(function (p) {
+      return p === '/customerpayments/P2' ? Promise.reject(new Error('no')) : Promise.resolve({});
+    });
+    var r = await dep.cleanupDepositSet(created, 'T9');
+    expect(r.ok).toBe(false);
+    expect(r.leftovers).toHaveLength(1);
+    expect(r.leftovers[0]).toMatchObject({ kind: 'payment', id: 'P2' });
+    expect(zoho.zohoDelete).toHaveBeenCalledTimes(4);
+  });
+  test('SO delete failure falls back to void, then reports', async function () {
+    zoho.zohoDelete.mockImplementation(function (p) {
+      return p.indexOf('/salesorders/') === 0 ? Promise.reject(new Error('x')) : Promise.resolve({});
+    });
+    zoho.zohoPost.mockRejectedValue(new Error('void failed'));
+    var r = await dep.cleanupDepositSet([created[0]], 'T9');
+    expect(zoho.zohoPost).toHaveBeenCalledWith('/salesorders/S1/status/void', {});
+    expect(r.leftovers[0]).toMatchObject({ kind: 'salesorder', id: 'S1' });
+  });
+  test('never rejects on empty input', async function () {
+    expect(await dep.cleanupDepositSet(undefined)).toEqual({ ok: true, leftovers: [] });
+  });
+});
