@@ -398,7 +398,7 @@ describe('limited releases payment: confirmation (D-11)', function () {
     expect(box.classList.contains('hidden')).toBe(false);
     var rows = box.querySelectorAll('.lr-confirm__row');
     expect(rows.length).toBe(2);
-    expect(rows[0].textContent).toBe(k1.short_name + ' · ' + k1.release_label + ' · SO SO-00101');
+    expect(rows[0].textContent).toBe(k1.short_name + ' · ' + k1.release_label + ' · SO-00101');
     expect(rows[1].textContent).toContain('SO-00102');
     expect(box.querySelector('.confirm-checkmark svg')).not.toBeNull();
     expect(box.textContent).toContain('Deposit paid: $100');
@@ -426,7 +426,7 @@ describe('limited releases payment: confirmation (D-11)', function () {
     });
     var rows = document.querySelectorAll('#lr-confirm .lr-confirm__row');
     expect(rows.length).toBe(3);
-    var nums = [].map.call(rows, function (r) { return /SO (\S+)$/.exec(r.textContent)[1]; });
+    var nums = [].map.call(rows, function (r) { return /· (SO-\S+)$/.exec(r.textContent)[1]; });
     expect(nums.slice().sort()).toEqual(['SO-1', 'SO-2', 'SO-3']);
     var order = [].map.call(document.querySelectorAll('.lr-kit'), function (c) { return c.id; });
     var k2First = order.indexOf('lr-kit-' + k2.sku) < order.indexOf('lr-kit-' + k1.sku);

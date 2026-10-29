@@ -13,9 +13,64 @@ body[data-page="limited-releases"] #lr-collections {
   padding-bottom: 32px;
 }
 
+/* ===== Page rhythm (plan 15 polish) =====
+   styles.css centres every .content p (max-width 75ch + auto side margins).
+   This page's sections are left-aligned, so paragraphs keep the measure but
+   start on the section's left edge. Only the hero and attribution stay centred. */
+body[data-page="limited-releases"] .content p {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+body[data-page="limited-releases"] .content {
+  padding: 32px 0;
+}
+
+body[data-page="limited-releases"] .content h2 {
+  margin: 0 0 8px;
+}
+
+body[data-page="limited-releases"] .section-icon {
+  padding: 8px 0;
+}
+
+body[data-page="limited-releases"] .section-icon img {
+  width: 32px;
+  height: 32px;
+}
+
+body[data-page="limited-releases"] #lr-hero {
+  padding: 48px 0;
+}
+
+body[data-page="limited-releases"] #lr-hero h1 {
+  margin-bottom: 16px;
+}
+
+body[data-page="limited-releases"] #lr-hero p {
+  margin: 0 auto 24px;
+}
+
+.lr-intro {
+  color: var(--color-muted);
+}
+
+body[data-page="limited-releases"] .content p.lr-intro {
+  margin: 0 0 24px;
+}
+
+/* How it works: site step component, tighter to its heading */
+body[data-page="limited-releases"] #lr-how .how-it-works-steps {
+  margin-top: 24px;
+}
+
 /* ===== Collections ===== */
 .lr-collection {
   margin-bottom: 48px;
+}
+
+.lr-collection:last-child {
+  margin-bottom: 0;
 }
 
 .lr-collection__header {
@@ -25,8 +80,7 @@ body[data-page="limited-releases"] #lr-collections {
   padding: 24px;
   background: var(--color-green);
   color: var(--color-cream);
-  border-radius: var(--radius-sm);
-  margin-bottom: 24px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
 
 .lr-collection__header h2,
@@ -35,30 +89,63 @@ body[data-page="limited-releases"] #lr-collections {
   margin: 0 0 8px;
 }
 
+.lr-collection__header p.lr-collection__blurb {
+  margin-bottom: 0;
+}
+
+.lr-collection__theme {
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
 .lr-collection__logo {
   height: 48px;
   width: auto;
   align-self: flex-start;
 }
 
+.lr-collection__hero-frame {
+  overflow: hidden;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  line-height: 0;
+}
+
 .lr-collection__hero {
   display: block;
   width: 100%;
   height: auto;
-  border-radius: var(--radius-sm);
-  margin-bottom: 16px;
+}
+
+/* The RJS Elemento hero artwork (1920x1233) carries a strip of the supplier's
+   own clipped brochure text down its left edge. Crop that strip (about 220px)
+   and the empty foot so only the bottles and landscape show. */
+#lr-collection-rq27 .lr-collection__hero-frame {
+  aspect-ratio: 1700 / 1100;
+}
+
+#lr-collection-rq27 .lr-collection__hero {
+  width: calc(100% * 1920 / 1700);
+  max-width: none;
+  margin-left: calc(-100% * 220 / 1700);
 }
 
 .lr-brochure {
   display: inline-block;
-  margin-bottom: 24px;
+  margin: 16px 0 32px;
 }
 
 @media (min-width: 768px) {
   .lr-collection__header {
     flex-direction: row;
     align-items: center;
-    gap: 24px;
+    gap: 32px;
+    padding: 32px;
+  }
+
+  .lr-collection__logo {
+    align-self: center;
+    flex-shrink: 0;
   }
 }
 
@@ -70,12 +157,21 @@ body[data-page="limited-releases"] #lr-collections {
   align-items: stretch;
 }
 
+/* Half-column tracks so a short last row is centred instead of leaving
+   empty cells: 5 cards lay out as 2+2+1 (centred) on tablets and 3+2
+   (centred) on desktop. */
 @media (min-width: 640px) {
-  .lr-grid { grid-template-columns: repeat(2, 1fr); }
+  .lr-grid { grid-template-columns: repeat(4, 1fr); }
+  .lr-grid > .lr-kit { grid-column: span 2; }
+  .lr-grid > .lr-kit:nth-child(2n+1):last-child { grid-column: 2 / span 2; }
 }
 
 @media (min-width: 1024px) {
-  .lr-grid { grid-template-columns: repeat(3, 1fr); }
+  .lr-grid { grid-template-columns: repeat(6, 1fr); }
+  .lr-grid > .lr-kit,
+  .lr-grid > .lr-kit:nth-child(2n+1):last-child { grid-column: span 2; }
+  .lr-grid > .lr-kit:nth-child(3n+1):nth-last-child(2) { grid-column: 2 / span 2; }
+  .lr-grid > .lr-kit:nth-child(3n+1):last-child { grid-column: 3 / span 2; }
 }
 
 .lr-kit {
@@ -168,21 +264,19 @@ body[data-page="limited-releases"] #lr-collections {
 .lr-specs {
   display: flex;
   flex-wrap: wrap;
+  gap: 8px;
   list-style: none;
   padding: 0;
-  margin-top: 8px;
+  margin-top: 16px;
   margin-bottom: 8px;
   font-size: 0.875rem;
+  line-height: 1.4;
 }
 
 .lr-specs li {
-  padding: 0 8px;
-  border-left: 1px solid rgba(119, 70, 45, 0.3);
-}
-
-.lr-specs li:first-child {
-  padding-left: 0;
-  border-left: 0;
+  padding: 4px 8px;
+  background: var(--color-cream);
+  border-radius: var(--radius-xs);
 }
 
 .lr-kit__notes {
@@ -201,6 +295,11 @@ body[data-page="limited-releases"] #lr-collections {
 .lr-pairs ul {
   margin: 0 0 8px;
   padding-left: 20px;
+  line-height: 1.5;
+}
+
+.lr-kit__notes {
+  line-height: 1.5;
 }
 
 .lr-kit__footer {
@@ -288,14 +387,46 @@ body[data-page="limited-releases"] #lr-collections {
 }
 
 .lr-calendar__month {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 12px;
+  align-items: start;
+  align-content: start;
   background: var(--color-white);
   border: 1px solid rgba(119, 70, 45, 0.3);
   border-radius: var(--radius-sm);
-  padding: 12px 16px;
+  padding: 16px;
 }
 
 .lr-calendar__month--active {
   border-top: 2px solid var(--color-gold-dark);
+}
+
+.lr-calendar__label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-green);
+  padding-top: 2px;
+}
+
+.lr-calendar__kits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.5;
+}
+
+.lr-calendar__kit a {
+  font-weight: 700;
+}
+
+.lr-calendar__tag {
+  font-size: 0.875rem;
+  color: var(--color-muted);
 }
 
 @media (min-width: 640px) {
@@ -304,6 +435,60 @@ body[data-page="limited-releases"] #lr-collections {
     grid-template-columns: repeat(3, 1fr);
     gap: 16px;
   }
+
+  .lr-calendar__month {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .lr-calendar__label {
+    padding: 0 0 8px;
+    border-bottom: 1px solid rgba(119, 70, 45, 0.3);
+  }
+}
+
+/* ===== Deposit terms ===== */
+.lr-terms {
+  margin: 16px 0 16px;
+  padding-left: 20px;
+  line-height: 1.5;
+}
+
+.lr-terms li + li {
+  margin-top: 8px;
+}
+
+body[data-page="limited-releases"] .content p.lr-price-note {
+  margin: 0;
+  padding: 16px;
+  background: var(--color-white);
+  border-left: 2px solid var(--color-green);
+  border-radius: var(--radius-xs);
+  line-height: 1.5;
+}
+
+/* ===== Reservation panel (white card per UI-SPEC) ===== */
+body[data-page="limited-releases"] #lr-reserve > .container {
+  max-width: 760px;
+  background: var(--color-white);
+  border: 1px solid rgba(119, 70, 45, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 24px;
+}
+
+@media (min-width: 640px) {
+  body[data-page="limited-releases"] #lr-reserve > .container {
+    padding: 32px;
+  }
+}
+
+body[data-page="limited-releases"] #lr-reserve-heading {
+  margin-bottom: 16px;
+}
+
+/* After payment the confirmation has its own heading. */
+#lr-reserve > .container:has(#lr-confirm:not(.hidden)) #lr-reserve-heading {
+  display: none;
 }
 
 /* ===== Basket and form ===== */
@@ -311,30 +496,99 @@ body[data-page="limited-releases"] #lr-collections {
   margin-bottom: 24px;
 }
 
+.lr-basket__empty-heading {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--color-green);
+  margin: 0 0 4px;
+}
+
+body[data-page="limited-releases"] .content p.lr-basket__empty {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.lr-basket__list {
+  margin: 0;
+  border-top: 1px solid rgba(119, 70, 45, 0.3);
+}
+
 .lr-basket__row {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
   gap: 16px;
   padding: 8px 0;
   border-bottom: 1px solid rgba(119, 70, 45, 0.3);
+  line-height: 1.5;
+}
+
+.lr-basket__release {
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+
+.lr-basket__remove {
+  min-height: 44px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .lr-basket__total {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 16px;
-  padding: 12px 0;
+  padding: 16px 0 0;
   font-weight: 700;
+}
+
+.lr-basket__total strong {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  color: var(--color-burgundy);
+}
+
+@media (max-width: 479px) {
+  .lr-basket__row {
+    grid-template-columns: 1fr auto;
+    gap: 0 16px;
+  }
+
+  .lr-basket__release {
+    grid-row: 2;
+  }
+
+  .lr-basket__remove {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+  }
+}
+
+body[data-page="limited-releases"] #lr-form .form-group--float {
+  margin-bottom: 16px;
+}
+
+body[data-page="limited-releases"] #lr-form .form-group--float input {
+  background: rgba(229, 222, 193, 0.35);
 }
 
 #lr-form .form-error-msg {
   font-size: 0.875rem;
 }
 
-.lr-order-limit {
+body[data-page="limited-releases"] #lr-form .checkout-consent {
+  margin: 24px 0 16px;
+  gap: 12px;
+}
+
+body[data-page="limited-releases"] .content p.lr-order-limit {
   font-size: 0.875rem;
   color: var(--color-muted);
-  margin: 12px 0;
+  margin: 0 0 16px;
 }
 
 #lr-pay {
@@ -348,15 +602,28 @@ body[data-page="limited-releases"] #lr-collections {
   }
 }
 
-#lr-pay-hint {
+body[data-page="limited-releases"] .content p#lr-pay-hint {
   font-size: 0.875rem;
   color: var(--color-muted);
-  margin: 8px 0;
+  margin: 8px 0 0;
+}
+
+#lr-pay-status:not(:empty),
+#lr-pay-alert:not(:empty) {
+  margin-top: 8px;
 }
 
 #lr-pay-alert {
   color: var(--color-error);
   font-weight: 700;
+}
+
+#lr-call-us {
+  margin-top: 8px;
+}
+
+body[data-page="limited-releases"] #lr-form .recaptcha-note {
+  margin: 24px 0 0;
 }
 
 .lr-spinner {
@@ -401,18 +668,70 @@ body[data-page="limited-releases"] #lr-collections {
   }
 }
 
-/* ===== Confirmation and attribution ===== */
-.lr-confirm {
-  background: var(--color-white);
-  border: 1px solid rgba(119, 70, 45, 0.3);
-  border-radius: var(--radius-sm);
-  padding: 24px;
+/* ===== Confirmation and attribution =====
+   The confirmation sits inside the white reservation panel, so it shares the
+   panel's padding: every line starts on one left edge. */
+.lr-confirm .confirm-checkmark {
+  margin-bottom: 16px;
 }
 
-.lr-attribution {
+body[data-page="limited-releases"] #lr-confirm-heading {
+  margin: 0 0 16px;
+}
+
+.lr-confirm__list {
+  margin: 0 0 16px;
+  border-top: 1px solid rgba(119, 70, 45, 0.3);
+}
+
+.lr-confirm__so {
+  white-space: nowrap;
+}
+
+.lr-confirm__row {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(119, 70, 45, 0.3);
+  line-height: 1.5;
+}
+
+body[data-page="limited-releases"] .content p.lr-confirm__totals {
+  margin: 0 0 24px;
+}
+
+.lr-confirm__subheading {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--color-green);
+  margin: 0 0 8px;
+}
+
+.lr-confirm__steps {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  line-height: 1.5;
+}
+
+.lr-confirm__steps li + li {
+  margin-top: 4px;
+}
+
+body[data-page="limited-releases"] .content p.lr-confirm__email {
+  margin: 0 0 24px;
+}
+
+.lr-confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+body[data-page="limited-releases"] .content p.lr-attribution {
   font-size: 0.875rem;
   color: var(--color-muted);
   text-align: center;
+  margin: 0 auto;
 }
 
 /* ===== Reduced motion ===== */
@@ -440,5 +759,10 @@ body[data-page="limited-releases"] #lr-collections {
   body[data-page="limited-releases"] .lr-bar,
   body[data-page="limited-releases"] #lr-collections {
     display: none !important;
+  }
+
+  body[data-page="limited-releases"] #lr-reserve > .container {
+    border: 0;
+    padding: 0;
   }
 }

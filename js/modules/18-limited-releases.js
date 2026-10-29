@@ -398,15 +398,18 @@ function lrBuildCalendar(data) {
   var current = now.getFullYear() + '-' + (now.getMonth() < 9 ? '0' : '') + (now.getMonth() + 1);
   buildCalendar(data).forEach(function (cell) {
     var li = lrEl('li', 'lr-calendar__month' + (cell.month === current ? ' lr-calendar__month--active' : ''));
-    li.appendChild(lrEl('strong', '', cell.label));
+    li.appendChild(lrEl('strong', 'lr-calendar__label', cell.label));
+    var kits = lrEl('ul', 'lr-calendar__kits');
     cell.kits.forEach(function (k) {
-      var entry = lrEl('span', 'lr-calendar__kit');
+      var entry = lrEl('li', 'lr-calendar__kit');
       var a = lrEl('a', '', k.short_name);
       a.href = '#lr-kit-' + k.sku;
       entry.appendChild(a);
-      entry.appendChild(lrEl('span', 'lr-calendar__tag', ' ' + k.supplier));
-      li.appendChild(entry);
+      entry.appendChild(document.createTextNode(' '));
+      entry.appendChild(lrEl('span', 'lr-calendar__tag', k.supplier));
+      kits.appendChild(entry);
     });
+    li.appendChild(kits);
     ol.appendChild(li);
   });
 }
@@ -437,10 +440,13 @@ function lrRender(data) {
   var steps = lrById('lr-how-steps');
   if (steps) {
     lrClear(steps);
-    (copy.how_it_works || []).forEach(function (s) {
-      var li = lrEl('li');
-      li.appendChild(lrEl('strong', '', s.step));
-      li.appendChild(document.createTextNode(': ' + s.text));
+    (copy.how_it_works || []).forEach(function (s, i) {
+      var li = lrEl('li', 'how-it-works-step');
+      var num = lrEl('div', 'how-it-works-step-number', String(i + 1));
+      num.setAttribute('aria-hidden', 'true');
+      li.appendChild(num);
+      li.appendChild(lrEl('h3', 'how-it-works-step-title', s.step));
+      li.appendChild(lrEl('p', 'how-it-works-step-desc', s.text));
       steps.appendChild(li);
     });
   }
@@ -1107,6 +1113,12 @@ function lrOnSuccess(response, email) {
   if (heading) heading.focus();
 }
 
+/** Zoho SO numbers already carry the "SO-" prefix; add one only when it is missing. */
+function lrSoLabel(num) {
+  var n = (num === null || num === undefined) ? '' : String(num);
+  return /^SO[-\s]/i.test(n) ? n : 'SO ' + n;
+}
+
 function lrRenderConfirmation(response, email) {
   var form = lrById('lr-form');
   var basket = lrById('lr-basket');
@@ -1169,8 +1181,9 @@ function lrRenderConfirmation(response, email) {
   list.style.listStyle = 'none';
   list.style.padding = '0';
   orders.forEach(function (o) {
-    list.appendChild(lrEl('li', 'lr-confirm__row',
-      o.so.name + ' · ' + o.so.release_label + ' · SO ' + o.so.salesorder_number));
+    var row = lrEl('li', 'lr-confirm__row', o.so.name + ' · ' + o.so.release_label + ' · ');
+    row.appendChild(lrEl('span', 'lr-confirm__so', lrSoLabel(o.so.salesorder_number)));
+    list.appendChild(row);
   });
   box.appendChild(list);
 
@@ -1181,7 +1194,7 @@ function lrRenderConfirmation(response, email) {
   totals.appendChild(document.createTextNode(' · ' + lrKitsLabel(kitCount)));
   box.appendChild(totals);
 
-  box.appendChild(lrEl('h3', '', 'What happens next'));
+  box.appendChild(lrEl('h3', 'lr-confirm__subheading', 'What happens next'));
   var steps = lrEl('ol', 'lr-confirm__steps');
   var how = (_lrData && _lrData.copy && _lrData.copy.how_it_works) || [];
   how.slice(1, 4).forEach(function (s) {
