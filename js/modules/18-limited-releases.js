@@ -550,6 +550,8 @@ function lrRenderBasket() {
 }
 
 function lrUpdatePay() {
+  // During a payment the state machine owns the button label and disabled flag.
+  if (_lrPayState !== 'ready') return;
   var btn = lrById('lr-pay');
   var consent = lrById('lr-consent');
   var hint = lrById('lr-pay-hint');
@@ -685,6 +687,12 @@ function lrBindHandlers() {
   var consent = lrById('lr-consent');
   if (consent) consent.addEventListener('change', lrUpdatePay);
 
+  var payBtn = lrById('lr-pay');
+  if (payBtn) payBtn.addEventListener('click', submitPayment);
+  var payForm = lrById('lr-form');
+  if (payForm) payForm.addEventListener('submit', function (e) { e.preventDefault(); });
+  if (typeof window !== 'undefined') window.addEventListener('message', handleHelcimMessage);
+
   var barBtn = lrById('lr-bar-btn');
   if (barBtn) {
     barBtn.addEventListener('click', function () {
@@ -750,6 +758,370 @@ function lrBoot() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Payment flow (Plan 100-12): validate -> reCAPTCHA -> initialize -> HelcimPay
+// iframe -> deposit. The server is the authority; the client keeps the
+// transaction id alive and never claims "not charged" without proof.
+// ---------------------------------------------------------------------------
+
+var LR_HELCIM_ORIGINS = ['https://secure.helcim.app', 'https://myhelcim.com'];
+var LR_DEPOSIT_TIMEOUT_MS = 60000;
+var LR_MSG_CANCELLED = 'Payment cancelled. You have not been charged.';
+var LR_MSG_DECLINED = 'Your card was declined. You have not been charged. Please try a different card or contact your bank.';
+var LR_MSG_UNREACHABLE = 'We could not reach the payment service. You have not been charged. Please try again.';
+var LR_MSG_NOT_OPEN = 'Reservations are not open yet. Please check back soon.';
+var LR_MSG_VERIFY = 'We could not verify your request. Please try again.';
+var LR_MSG_VOIDED = 'We could not complete your reservation, and your card has not been charged. Please try again, or call us at ' + LR_PHONE + '.';
+var LR_MSG_UNKNOWN = 'Your payment went through but we could not confirm your reservation here. Please do not pay again. Call us at ' + LR_PHONE + ' or email us and we will sort it out.';
+
+var _lrPayState = 'ready';   // ready | starting | iframe | verifying | unknown | success
+var _lrSubmitting = false;
+var _lrCheckoutToken = null;
+var _lrSecretToken = null;
+var _lrInvoice = '';
+var _lrTxnId = '';
+var _lrItems = null;
+var _lrUnloadOn = false;
+
+function lrBeforeUnload(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (e) e.returnValue = '';
+  return '';
+}
+
+function lrSetUnload(on) {
+  if (typeof window === 'undefined') return;
+  if (on && !_lrUnloadOn) {
+    window.addEventListener('beforeunload', lrBeforeUnload);
+    _lrUnloadOn = true;
+  } else if (!on && _lrUnloadOn) {
+    window.removeEventListener('beforeunload', lrBeforeUnload);
+    _lrUnloadOn = false;
+  }
+}
+
+function lrMiddlewareUrl() {
+  return (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG && SHEETS_CONFIG.MIDDLEWARE_URL) || '';
+}
+
+function lrGetRecaptchaToken(action) {
+  return new Promise(function (resolve) {
+    var key = (typeof window !== 'undefined' && window.RECAPTCHA_SITE_KEY) ||
+      (typeof SHEETS_CONFIG !== 'undefined' && SHEETS_CONFIG && SHEETS_CONFIG.RECAPTCHA_SITE_KEY) || '';
+    if (typeof grecaptcha === 'undefined' || !key) { resolve(''); return; }
+    grecaptcha.ready(function () {
+      grecaptcha.execute(key, { action: action }).then(resolve, function () { resolve(''); });
+    });
+  });
+}
+
+/** POST JSON. Resolves {status, body} (body null when not JSON); rejects on network error or timeout. */
+function lrPost(path, payload, timeoutMs) {
+  var opts = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  };
+  var timer = null;
+  if (timeoutMs && typeof AbortController === 'function') {
+    var ctl = new AbortController();
+    opts.signal = ctl.signal;
+    timer = setTimeout(function () { ctl.abort(); }, timeoutMs);
+  }
+  return fetch(lrMiddlewareUrl() + path, opts).then(function (r) {
+    return r.text().then(function (t) {
+      if (timer) clearTimeout(timer);
+      var body = null;
+      try { body = JSON.parse(t); } catch (e) { body = null; }
+      return { status: r.status, body: body };
+    });
+  }, function (err) {
+    if (timer) clearTimeout(timer);
+    throw err;
+  });
+}
+
+function lrExtractTransactionId(data) {
+  var em = data && data.eventMessage;
+  if (typeof em === 'string') { try { em = JSON.parse(em); } catch (e) { return ''; } }
+  var inner = em && em.data && em.data.data;
+  if (inner && inner.transactionId) return String(inner.transactionId);
+  var flat = em && em.data;
+  return (flat && flat.transactionId) ? String(flat.transactionId) : '';
+}
+
+function lrIsDecline(data) {
+  var em = data && data.eventMessage;
+  if (!em) return false;
+  var text = typeof em === 'string' ? em : JSON.stringify(em);
+  return /declin/i.test(text);
+}
+
+function lrSetAlert(text, reference) {
+  var alertEl = lrById('lr-pay-alert');
+  if (!alertEl) return;
+  lrClear(alertEl);
+  if (text) alertEl.appendChild(document.createTextNode(text));
+  if (reference) alertEl.appendChild(lrEl('p', 'lr-pay-reference', 'Reference: ' + reference));
+}
+
+function lrSetStatus(text) {
+  var s = lrById('lr-pay-status');
+  if (s) s.textContent = text || '';
+}
+
+function lrRemoveCloseButton() {
+  var c = lrById('lr-close-pay');
+  if (c && c.parentNode) c.parentNode.removeChild(c);
+}
+
+/**
+ * Moves the form panel to a payment state and updates button, status,
+ * alert, lock, sticky bar and beforeunload accordingly.
+ * @param {string} state ready | starting | iframe | verifying | unknown
+ * @param {Object} [o] {status, alert, reference}
+ */
+function lrSetPaymentState(state, o) {
+  o = o || {};
+  _lrPayState = state;
+  var btn = lrById('lr-pay');
+  var call = lrById('lr-call-us');
+  lrRemoveCloseButton();
+  lrSetStatus(o.status || '');
+  lrSetAlert(o.alert || '', o.reference);
+  if (call) {
+    if (state === 'unknown') call.classList.remove('hidden');
+    else call.classList.add('hidden');
+  }
+  lrSetUnload(state === 'iframe' || state === 'verifying');
+  if (state === 'ready') {
+    _lrSubmitting = false;
+    if (btn) btn.classList.remove('btn-loading');
+    setControlsLocked(false);
+    return;
+  }
+  setControlsLocked(true);
+  if (!btn) return;
+  btn.disabled = true;
+  if (state === 'starting') {
+    btn.textContent = 'Opening secure payment...';
+    btn.classList.add('btn-loading');
+    lrSetStatus('Preparing your payment.');
+  } else if (state === 'iframe') {
+    btn.textContent = 'Secure payment open';
+    btn.classList.remove('btn-loading');
+    lrSetStatus('Complete your payment in the secure window. We never see your card number.');
+    var close = lrEl('button', 'btn-secondary', 'Close secure payment');
+    close.type = 'button';
+    close.id = 'lr-close-pay';
+    close.addEventListener('click', lrCancelPayment);
+    if (btn.parentNode) btn.parentNode.insertBefore(close, btn.nextSibling);
+  } else if (state === 'verifying') {
+    btn.textContent = 'Confirming your reservation...';
+    btn.classList.add('btn-loading');
+    lrSetStatus('Payment approved. Please keep this page open while we confirm your reservation. Do not pay again.');
+  } else if (state === 'unknown') {
+    btn.textContent = 'Payment received';
+    btn.classList.remove('btn-loading');
+  }
+}
+
+function lrClearSession() {
+  _lrCheckoutToken = null;
+  _lrSecretToken = null;
+  _lrInvoice = '';
+  _lrTxnId = '';
+  _lrItems = null;
+}
+
+function lrCloseIframe() {
+  if (typeof removeHelcimPayIframe === 'function') removeHelcimPayIframe();
+}
+
+function lrCancelPayment() {
+  if (_lrPayState !== 'iframe') return;
+  lrCloseIframe();
+  lrClearSession();
+  lrSetPaymentState('ready', { status: LR_MSG_CANCELLED });
+}
+
+function lrFieldGroup(input) {
+  var n = input && input.parentNode;
+  while (n && !(n.classList && n.classList.contains('form-group'))) n = n.parentNode;
+  return n;
+}
+
+function lrFieldError(input, msg) {
+  var group = lrFieldGroup(input);
+  var m = group && group.querySelector('.form-error-msg');
+  if (msg) {
+    input.classList.add('field-error');
+    input.setAttribute('aria-invalid', 'true');
+    if (m) { m.textContent = msg; m.classList.add('visible'); }
+  } else {
+    input.classList.remove('field-error');
+    input.removeAttribute('aria-invalid');
+    if (m) { m.textContent = ''; m.classList.remove('visible'); }
+  }
+}
+
+/** Validates name, email and phone. Returns the first invalid input, or null. */
+function lrValidateFields() {
+  var name = lrById('lr-name');
+  var email = lrById('lr-email');
+  var phone = lrById('lr-phone');
+  var first = null;
+  var phoneOk = false;
+  if (phone) {
+    var d = phone.value.replace(/\D/g, '');
+    phoneOk = d.length >= 10 && d.length <= 15;
+  }
+  var checks = [
+    [name, !!(name && name.value.trim()), 'Please enter your name.'],
+    [email, !!(email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())), 'Please enter a valid email address.'],
+    [phone, phoneOk, 'Please enter a phone number we can reach you on.']
+  ];
+  checks.forEach(function (c) {
+    if (!c[0]) return;
+    lrFieldError(c[0], c[1] ? '' : c[2]);
+    if (!c[1] && !first) first = c[0];
+  });
+  return first;
+}
+
+function submitPayment() {
+  if (_lrSubmitting || _lrPayState !== 'ready') return;
+  var bad = lrValidateFields();
+  if (bad) { bad.focus(); return; }
+  var items = getBasketLines();
+  if (!items.length) return;
+  _lrSubmitting = true;
+  _lrItems = items;
+  lrSetPaymentState('starting');
+  lrGetRecaptchaToken('preorder_initialize').then(function (token) {
+    return lrPost('/api/preorder/initialize', { items: items, recaptcha_token: token });
+  }).then(function (res) {
+    var b = res.body;
+    if (res.status === 200 && b && b.checkoutToken && typeof appendHelcimPayIframe === 'function') {
+      _lrCheckoutToken = b.checkoutToken;
+      _lrSecretToken = b.secretToken || null;
+      _lrInvoice = b.invoice_number || '';
+      lrSetPaymentState('iframe');
+      appendHelcimPayIframe(b.checkoutToken);
+      return;
+    }
+    var msg = LR_MSG_UNREACHABLE;
+    if (res.status === 503) msg = LR_MSG_NOT_OPEN;
+    else if (res.status === 400) msg = LR_MSG_VERIFY;
+    lrClearSession();
+    lrSetPaymentState('ready', { alert: msg });
+  }, function () {
+    lrClearSession();
+    lrSetPaymentState('ready', { alert: LR_MSG_UNREACHABLE });
+  });
+}
+
+function handleHelcimMessage(event) {
+  if (!event || LR_HELCIM_ORIGINS.indexOf(event.origin) === -1) return;
+  if (_lrPayState !== 'iframe') return;
+  var data = event.data || {};
+  if (typeof data === 'string') { try { data = JSON.parse(data); } catch (e) { return; } }
+  var byCheckout = _lrCheckoutToken && data.eventName === 'helcim-pay-js-' + _lrCheckoutToken;
+  var bySecret = _lrSecretToken && data.eventName === 'helcim-pay-js-' + _lrSecretToken;
+  if (!byCheckout && !bySecret) return;
+  if (data.eventStatus === 'SUCCESS') {
+    _lrTxnId = lrExtractTransactionId(data);
+    lrCloseIframe();
+    if (!_lrTxnId) {
+      // Approved but unreadable: we cannot book it. Never claim "not charged".
+      lrSetPaymentState('unknown', { alert: LR_MSG_UNKNOWN });
+      return;
+    }
+    submitDeposit();
+  } else if (data.eventStatus === 'ABORTED') {
+    lrCloseIframe();
+    var declined = lrIsDecline(data);
+    lrClearSession();
+    lrSetPaymentState('ready', declined ? { alert: LR_MSG_DECLINED } : { status: LR_MSG_CANCELLED });
+  }
+}
+
+function lrUnknownOutcome() {
+  lrSetPaymentState('unknown', { alert: LR_MSG_UNKNOWN, reference: _lrTxnId });
+}
+
+function submitDeposit() {
+  lrSetPaymentState('verifying');
+  var nl = lrById('lr-newsletter');
+  var copy = (_lrData && _lrData.copy) || {};
+  var consentLabel = lrById('lr-consent-label');
+  var payload = {
+    transaction_id: _lrTxnId,
+    invoice_number: _lrInvoice,
+    items: _lrItems,
+    customer: {
+      name: ((lrById('lr-name') || {}).value || '').trim(),
+      email: ((lrById('lr-email') || {}).value || '').trim(),
+      phone: ((lrById('lr-phone') || {}).value || '').trim()
+    },
+    consent: {
+      accepted: true,
+      text: copy.deposit_checkbox_label || (consentLabel && consentLabel.textContent) || ''
+    },
+    newsletter: !!(nl && nl.checked)
+  };
+  return lrGetRecaptchaToken('preorder_deposit').then(function (token) {
+    payload.recaptcha_token = token;
+    return lrPost('/api/preorder/deposit', payload, LR_DEPOSIT_TIMEOUT_MS);
+  }).then(function (res) {
+    var b = res.body;
+    if ((res.status === 200 || res.status === 201) && b && b.ok === true) {
+      try {
+        lrOnSuccess(b, payload.customer.email);
+      } catch (e) {
+        lrUnknownOutcome();
+      }
+      return;
+    }
+    if (b && b.voided === true) {
+      lrClearSession();
+      lrSetPaymentState('ready', { alert: LR_MSG_VOIDED });
+      return;
+    }
+    lrUnknownOutcome();
+  }, function () {
+    lrUnknownOutcome();
+  });
+}
+
+function lrOnSuccess(response, email) {
+  _lrPayState = 'success';
+  _lrSubmitting = false;
+  lrSetUnload(false);
+  lrRemoveCloseButton();
+  lrRenderConfirmation(response, email);
+  clearBasket();
+  var bar = lrById('lr-bar');
+  if (bar) bar.classList.add('hidden');
+  var heading = lrById('lr-confirm-heading');
+  if (heading) heading.focus();
+}
+
+function lrRenderConfirmation(response, email) {
+  var form = lrById('lr-form');
+  var basket = lrById('lr-basket');
+  var box = lrById('lr-confirm');
+  if (form) form.classList.add('hidden');
+  if (basket) basket.classList.add('hidden');
+  if (!box) return;
+  lrClear(box);
+  var h2 = lrEl('h2', '', 'Your deposit is paid');
+  h2.id = 'lr-confirm-heading';
+  h2.setAttribute('tabindex', '-1');
+  box.appendChild(h2);
+  box.classList.remove('hidden');
+}
+
 // Public surface for the payment flow (loaded as a separate script).
 if (typeof window !== 'undefined') {
   window.LimitedReleases = {
@@ -784,6 +1156,10 @@ if (typeof module !== 'undefined' && module.exports) {
     render: lrRender,
     getBasketLines: getBasketLines,
     setControlsLocked: setControlsLocked,
-    clearBasket: clearBasket
+    clearBasket: clearBasket,
+    submitPayment: submitPayment,
+    submitDeposit: submitDeposit,
+    handleHelcimMessage: handleHelcimMessage,
+    setPaymentState: lrSetPaymentState
   };
 }
