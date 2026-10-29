@@ -122,6 +122,45 @@ function zohoPut(path, body) {
 }
 
 /**
+ * Proxy a POST to the Zoho Books API WITHOUT retry.
+ * Use for non-idempotent creates in money paths (limited-release SOs and
+ * deposits): a timed-out POST may have succeeded server-side, and a retry
+ * would duplicate it (Phase 100, RESEARCH Pitfall 5).
+ */
+function zohoPostOnce(path, body) {
+  return zohoAuth.getAccessToken().then(function (token) {
+    return withRetry(function () {
+      return axios.post(ZOHO_API_BASE + path, body, {
+        headers: { Authorization: 'Zoho-oauthtoken ' + token },
+        params: { organization_id: process.env.ZOHO_ORG_ID },
+        timeout: 15000
+      }).then(function (response) {
+        return response.data;
+      });
+    }, { retries: 0 });
+  });
+}
+
+/**
+ * Proxy a DELETE request to the Zoho Books API.
+ * Retries on 5xx like zohoPut (a retried delete of an already-deleted record
+ * surfaces a 4xx which the caller treats as done).
+ */
+function zohoDelete(path) {
+  return zohoAuth.getAccessToken().then(function (token) {
+    return withRetry(function () {
+      return axios.delete(ZOHO_API_BASE + path, {
+        headers: { Authorization: 'Zoho-oauthtoken ' + token },
+        params: { organization_id: process.env.ZOHO_ORG_ID },
+        timeout: 15000
+      }).then(function (response) {
+        return response.data;
+      });
+    });
+  });
+}
+
+/**
  * Proxy a GET request to the Zoho Inventory API.
  */
 function inventoryGet(path, params) {
@@ -266,6 +305,8 @@ module.exports = {
   zohoGet: zohoGet,
   zohoPost: zohoPost,
   zohoPut: zohoPut,
+  zohoPostOnce: zohoPostOnce,
+  zohoDelete: zohoDelete,
   inventoryGet: inventoryGet,
   inventoryPost: inventoryPost,
   inventoryPut: inventoryPut,
