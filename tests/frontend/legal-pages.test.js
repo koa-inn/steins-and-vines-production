@@ -23,7 +23,7 @@ var LEGAL_PAGES = ['terms.html', 'refunds.html', 'warranty.html', 'privacy.html'
 // Public pages that carry the shared footer. links.html is a link-in-bio page
 // with its own footer and is out of scope; staff surfaces are excluded.
 var ROOT_PAGES = ['index.html', 'about.html', 'contact.html', 'custom-labels.html', 'hops.html',
-  'ingredients.html', 'products.html', 'reservation.html', 'wine.html', 'beer.html', '404.html'];
+  'ingredients.html', 'products.html', 'reservation.html', 'wine.html', 'beer.html', 'limited-releases.html', '404.html'];
 var SUB_PAGES = ['products/ferment-in-store.html', 'products/ingredients-supplies.html',
   'products/hops.html', 'products/grains.html', 'products/yeast.html', 'products/additives.html',
   'products/packaging.html', 'products/equipment.html'];
