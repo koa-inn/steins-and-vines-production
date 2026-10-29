@@ -35,14 +35,11 @@
       "Deposits are $50 per kit and are non-refundable.",
       "Your deposit comes off the kit price when you start your batch.",
       "Release months are set by the suppliers and can change. We'll let you know if your kit is delayed.",
-      "If a supplier can't deliver a kit you've reserved, we'll refund that deposit in full."
+      "If a supplier can't deliver a kit you've reserved, we'll refund that deposit in full.",
+      "We hold your kit for 60 days after it arrives. If you haven't started your batch by then, the deposit is forfeited.",
+      "Before your kit's release month, you can ask us to move your deposit to another limited release kit, subject to availability. Call or email us and we'll make the change."
     ],
-    "deposit_checkbox_label": "I understand my $50 deposit per kit is non-refundable and will be applied to the kit price when I start my batch.",
-    "open_decisions_for_owner": [
-      "How long a kit is held after it arrives before the deposit is forfeited (suggested: 60 days).",
-      "Whether a deposit can be moved to a different limited kit before release.",
-      "Confirm the supplier-failure refund line above - recommended even with non-refundable deposits."
-    ]
+    "deposit_checkbox_label": "I understand my $50 deposit per kit is non-refundable and will be applied to the kit price when I start my batch."
   },
   "collections": [
     {
