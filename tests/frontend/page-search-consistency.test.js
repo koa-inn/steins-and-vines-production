@@ -20,7 +20,7 @@ var ROOT = path.join(__dirname, '..', '..');
 var PUBLIC_PAGES = [
   'index.html', 'about.html', 'contact.html', 'custom-labels.html',
   'hops.html', 'ingredients.html', 'products.html', 'reservation.html',
-  '404.html',
+  '404.html', 'limited-releases.html',
   'products/ferment-in-store.html', 'products/ingredients-supplies.html',
   'products/hops.html', 'products/grains.html', 'products/yeast.html',
   'products/additives.html', 'products/packaging.html', 'products/equipment.html'

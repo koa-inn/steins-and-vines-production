@@ -197,7 +197,7 @@ describe('public page markup', function () {
   // Every public page that used to carry the inline GTM snippet. links.html
   // (link-in-bio) is out of scope: it is the owner's uncommitted edit.
   var PAGES = ['index.html', 'about.html', 'contact.html', 'custom-labels.html', 'hops.html', 'ingredients.html',
-    'products.html', 'reservation.html', 'wine.html', 'beer.html',
+    'products.html', 'reservation.html', 'wine.html', 'beer.html', 'limited-releases.html',
     'terms.html', 'refunds.html', 'warranty.html', 'privacy.html',
     'products/ferment-in-store.html', 'products/ingredients-supplies.html', 'products/hops.html',
     'products/grains.html', 'products/yeast.html', 'products/additives.html', 'products/packaging.html',
