@@ -2432,10 +2432,27 @@ router.get('/api/kiosk/salesorders', function (req, res) {
           };
         });
 
-        // Cache the full result (before search filtering)
-        cache.set(KIOSK_SO_CACHE_KEY, orders, KIOSK_SO_CACHE_TTL).catch(function () {});
-
-        return orders;
+        // Phase 100: Collect pushes straight to the terminal, so the card is the
+        // only amount staff see first. Give actionable limited-release SOs the
+        // same deposit-aware remainder salesorder-pay will charge. Sequential to
+        // keep Zoho calls bounded; a failed lookup leaves the fields off.
+        var limited = orders.filter(function (o) {
+          return o.is_limited_release && (o.status === 'draft' || o.status === 'open');
+        });
+        return limited.reduce(function (chain, o) {
+          return chain.then(function () {
+            return computeSalesOrderAmountDue(o).then(function (d) {
+              o.deposit_held = d.depositApplied;
+              o.amount_due = d.due;
+            }).catch(function (err) {
+              log.warn('[kiosk/salesorders] deposit lookup failed so=' + o.salesorder_number + ': ' + err.message);
+            });
+          });
+        }, Promise.resolve()).then(function () {
+          // Cache the full result (before search filtering)
+          cache.set(KIOSK_SO_CACHE_KEY, orders, KIOSK_SO_CACHE_TTL).catch(function () {});
+          return orders;
+        });
       });
     })
     .then(function (orders) {
