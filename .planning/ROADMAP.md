@@ -2684,16 +2684,16 @@ Plans:
   4. The new page carries the sibling pages' CSP and any new tracking or third-party domains are added on every public page (CLAUDE.md rule 12).
   5. Open owner question resolved before launch: refund policy if a supplier cannot fill a reserved kit (handoff §8 item 1).
 
-**Plans:** 14 plans (7 waves)
+**Plans:** 3/14 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 100-01-PLAN.md — Assets + JSON committed unchanged; final deposit terms; refunds/terms deposit sections (W1)
+- [x] 100-01-PLAN.md — Assets + JSON committed unchanged; final deposit terms; refunds/terms deposit sections (W1)
 - [ ] 100-02-PLAN.md — Staging live spike LV1–LV11 (Zoho advance behaviour, Helcim nonce propagation), go/no-go; LV11 hard gate (W1, checkpoint)
-- [ ] 100-03-PLAN.md — Shared libs: zohoDelete/zohoPostOnce, Helcim initialize invoiceNumber, extracted resolveOrCreateContact (W1)
-- [ ] 100-04-PLAN.md — lib/limited-releases.js allowlist + basket validation (D-18); deposit emails (W1)
+- [x] 100-03-PLAN.md — Shared libs: zohoDelete/zohoPostOnce, Helcim initialize invoiceNumber, extracted resolveOrCreateContact (W1)
+- [x] 100-04-PLAN.md — lib/limited-releases.js allowlist + basket validation (D-18); deposit emails (W1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
