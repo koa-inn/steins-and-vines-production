@@ -322,4 +322,37 @@ describe('chart() Phase 96 extensions', function () {
     expect(t.inkPrimary).toBeTruthy();
     expect(t.ledgerLine).toBeTruthy();
   });
+
+  // Staging UAT 2026-10-29 (Chrome pass): fixes found on staging.
+  test('horizontal bar-end labels get right padding so they are not clipped', function () {
+    var texts = ['18 of 140', '13 of 59'];
+    var conf = make({ horizontal: true, dataLabels: function (i) { return texts[i]; } });
+    expect(conf.options.layout.padding.right).toBeGreaterThanOrEqual(9 * 6);
+    var v = make({ dataLabels: function () { return '5'; } });
+    expect(v.options.layout.padding.top).toBeGreaterThanOrEqual(12);
+    expect(make({}).options.layout).toBeUndefined();
+  });
+  test('labelMaxChars truncates long category ticks with an ellipsis', function () {
+    var cb = make({ horizontal: true, labelMaxChars: 10 }).options.scales.y.ticks.callback;
+    expect(cb.call({ getLabelForValue: function () { return 'Short'; } }, 0)).toBe('Short');
+    expect(cb.call({ getLabelForValue: function () { return 'A very long product name'; } }, 0)).toBe('A very lo…');
+  });
+  test('vertical-line labels sit on a background so the dashed lines never cross the text', function () {
+    var conf = make({ vLines: [{ value: 3, label: 'Planned 35 d' }] });
+    var p = conf.plugins.filter(function (x) { return x.id === 'dashVLines'; })[0];
+    var rects = [];
+    var ctx = {
+      save: function () {}, restore: function () {}, beginPath: function () {}, moveTo: function () {}, lineTo: function () {}, stroke: function () {},
+      setLineDash: function () {}, fillText: function () {},
+      measureText: function () { return { width: 60 }; },
+      fillRect: function (x, y, w, h) { rects.push([x, y, w, h]); }
+    };
+    p.afterDatasetsDraw({ ctx: ctx, chartArea: { top: 10, bottom: 100, right: 400 }, scales: { x: { getPixelForValue: function (v) { return v * 10; } } } });
+    expect(rects.length).toBe(1);
+    expect(rects[0][2]).toBeGreaterThanOrEqual(60);
+  });
+  test('Show all is a styled text button', function () {
+    var items = [1, 2, 3, 4, 5, 6].map(function (n) { return { primary: 'B' + n, right: '', drill: n }; });
+    expect(bp.dashListHtml('g6', 'x', items, { limit: 5 })).toContain('bp-text-btn');
+  });
 });

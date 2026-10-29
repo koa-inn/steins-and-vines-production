@@ -251,4 +251,12 @@ describe('G10 renderer', function () {
     expect(document.querySelector('#bp-dash-v2-health img')).toBeNull();
     expect(slotText()).toContain('<img');
   });
+
+  // Staging UAT 2026-10-29: the button rendered as a bare browser button.
+  test('Open these batches is a styled text button', async function () {
+    await renderV2({});
+    document.querySelector('[data-dash-acc="g10:noinvoice"]').click();
+    var btn = Array.prototype.filter.call(document.querySelectorAll('#bp-dash-v2-health button'), function (b) { return b.textContent === 'Open these batches'; })[0];
+    expect(btn.classList.contains('bp-text-btn')).toBe(true);
+  });
 });

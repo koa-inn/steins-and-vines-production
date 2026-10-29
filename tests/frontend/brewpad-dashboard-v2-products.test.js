@@ -481,4 +481,18 @@ describe('renderers', function () {
     var after = JSON.stringify(Object.keys(bp.getStateForTest()).filter(function (k) { return /^_dashWine/.test(k); }).map(function (k) { return bp.getStateForTest()[k]; }));
     expect(after).toBe(before);
   });
+
+  // Staging UAT 2026-10-29: Group by sat apart from its select, two view toggles stacked, Top 10 names were clipped.
+  test('Group by sits with its select, the breakdown has its own view head, long labels are truncated', async function () {
+    await renderV2('');
+    var grp = document.querySelector('#bp-dash-v2-wine .bp-widget-controls .bp-ctl-group');
+    expect(grp).not.toBeNull();
+    expect(grp.textContent).toContain('Group by');
+    expect(grp.querySelector('[data-dash-wsel="g4:dim"]')).not.toBeNull();
+    expect(document.querySelector('#bp-dash-v2-wine .bp-widget-controls [data-dash-w^="g4:view"]')).toBeNull();
+    expect(document.querySelector('#bp-dash-v2-wine .bp-g4-main [data-dash-w="g4:view:table"]')).not.toBeNull();
+    var long = { getLabelForValue: function () { return '1. New Zealand Style Sauvignon Blanc'; } };
+    expect(chartOf('bp-dash-v2-wine', 0).config.options.scales.y.ticks.callback.call(long, 0)).toMatch(/…$/);
+    expect(chartOf('bp-dash-v2-wine', 1).config.options.scales.y.ticks.callback.call(long, 0)).toMatch(/…$/);
+  });
 });

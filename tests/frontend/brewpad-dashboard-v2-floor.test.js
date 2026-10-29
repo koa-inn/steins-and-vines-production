@@ -434,6 +434,16 @@ describe('renderers', function () {
     var empties = Array.prototype.map.call(document.querySelectorAll('#bp-dash-v2-tasks .bp-empty'), function (p) { return p.textContent; });
     expect(empties).toEqual(['No open tasks are overdue.', 'No tasks were ticked off in this period.']);
   });
+
+  // Staging UAT 2026-10-29: a re-render (e.g. after Chart.js loads) appended a second overdue note.
+  test('Workload overdue note shows once after re-renders', async function () {
+    await renderV2({ taskRows: tasks() });
+    bp._renderDashboardForTest();
+    await flush();
+    bp._renderDashboardForTest();
+    await flush();
+    expect(document.querySelectorAll('#bp-dash-v2-workload .bp-dash-foot-note').length).toBe(1);
+  });
 });
 
 // ===== Phase 96-08: G6 Vessels and G8 Fermentation =====

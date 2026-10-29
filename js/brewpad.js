@@ -1569,7 +1569,7 @@ function dashListHtml(widget, listKey, items, opts) {
   }
   html += '</div>';
   if (list.length > limit) {
-    html += '<button type="button" class="bp-link-btn" data-dash-showall="' + w + ':' + dashKey(listKey) + '" aria-expanded="' +
+    html += '<button type="button" class="bp-text-btn" data-dash-showall="' + w + ':' + dashKey(listKey) + '" aria-expanded="' +
       (o.expanded ? 'true' : 'false') + '">' + (o.expanded ? 'Show fewer' : 'Show all ' + list.length) + '</button>';
   }
   return html;
@@ -3115,6 +3115,24 @@ function chart(canvas, cfg) {
   if (typeof cfg.boldTick === 'number') {
     labelScale.ticks.font = function (tctx) { return { size: 12, weight: tctx.index === cfg.boldTick ? '700' : '400' }; };
   }
+  // Opt-in: long category names (Top 10 products) are cut with an ellipsis instead of clipped at the edge.
+  if (cfg.labelMaxChars > 0) {
+    labelScale.ticks.callback = function (val) {
+      var full = String(this && this.getLabelForValue ? this.getLabelForValue(val) : val);
+      return full.length > cfg.labelMaxChars ? full.slice(0, cfg.labelMaxChars - 1) + '…' : full;
+    };
+  }
+  // Bar-end labels are drawn past the bar end, so leave room for the longest one or it is clipped.
+  if (typeof cfg.dataLabels === 'function' && !isDoughnut) {
+    var maxLabelLen = 0;
+    for (var li = 0; li < (cfg.labels || []).length; li++) {
+      for (var ls = 0; ls < series.length; ls++) {
+        var lt = cfg.dataLabels(li, ls);
+        if (lt !== null && lt !== undefined && String(lt).length > maxLabelLen) maxLabelLen = String(lt).length;
+      }
+    }
+    options.layout = { padding: cfg.horizontal ? { right: maxLabelLen * 7 + 8 } : { top: 16 } };
+  }
   var addTitle = function (scale, text) {
     if (text) scale.title = { display: true, text: text, color: theme.tick, font: { size: 12 } };
   };
@@ -3168,11 +3186,12 @@ function chart(canvas, cfg) {
         ctx.font = '12px ' + theme.font;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        for (var q = 0; q < cfg.vLines.length; q++) {
+        var q;
+        // All lines first, then every label on a background, so no line crosses another line's label.
+        for (q = 0; q < cfg.vLines.length; q++) {
           var vl = cfg.vLines[q];
           var px = xs.getPixelForValue(vl.value);
           ctx.strokeStyle = vl.colour || theme.inkSecondary;
-          ctx.fillStyle = vl.colour || theme.inkSecondary;
           ctx.lineWidth = 1;
           ctx.setLineDash([6, 4]);
           ctx.beginPath();
@@ -3180,7 +3199,20 @@ function chart(canvas, cfg) {
           ctx.lineTo(px, area.bottom);
           ctx.stroke();
           ctx.setLineDash([]);
-          if (vl.label) ctx.fillText(String(vl.label), px + 4, area.top + q * 12);
+        }
+        for (q = 0; q < cfg.vLines.length; q++) {
+          var vq = cfg.vLines[q];
+          if (!vq.label) continue;
+          var lx = xs.getPixelForValue(vq.value) + 4;
+          var ly = area.top + q * 12;
+          if (ctx.measureText && ctx.fillRect) {
+            var lw = ctx.measureText(String(vq.label)).width;
+            if (area.right && lx + lw > area.right) lx = Math.max(area.left || 0, lx - lw - 8);
+            ctx.fillStyle = theme.separator;
+            ctx.fillRect(lx - 2, ly - 1, lw + 4, 13);
+          }
+          ctx.fillStyle = vq.colour || theme.inkSecondary;
+          ctx.fillText(String(vq.label), lx, ly);
         }
         ctx.restore();
       }
@@ -7412,8 +7444,8 @@ function parseWaitlistRecipeIds(value) {
     var slot = dashV2Widget(slotId, DASH_V2_PRODUCTS_TITLE);
     slot.style.display = '';
     dashV2SetControls(slotId, (g.showTypeSeg ? dashSegHtml('g4', 'type', g.typeChoices, g.type, 'Product type') : '') +
-      (g.dims.length ? '<span class="bp-ctl-label" aria-hidden="true">Group by</span>' + dashSelectHtml('g4', 'dim', g.dims, g.dim, 'Dimension') : '') +
-      dashViewToggleHtml('g4', view));
+      (g.dims.length ? '<span class="bp-ctl-group"><span class="bp-ctl-label" aria-hidden="true">Group by</span>' +
+        dashSelectHtml('g4', 'dim', g.dims, g.dim, 'Dimension') + '</span>' : ''));
     slot.querySelector('.bp-widget-sub').textContent = g.subtitle;
     dashV2SetNote(slotId, '');
     destroyDashV2Slot('top10');
@@ -7442,7 +7474,10 @@ function parseWaitlistRecipeIds(value) {
     } else {
       top = '<div class="bp-chart"><canvas></canvas></div><div class="bp-chart-legend"></div>';
     }
-    body.innerHTML = '<div class="bp-g4"><div class="bp-g4-main">' + main + '</div>' +
+    // Each column has its own heading and view toggle, so the two toggles never stack in the header.
+    var mainHead = '<div class="bp-g4-tophead"><h4 class="bp-g4-heading">By ' + escapeHTML(String(g.dimLabel || '').toLowerCase()) + '</h4>' +
+      dashViewToggleHtml('g4', view) + '</div>';
+    body.innerHTML = '<div class="bp-g4"><div class="bp-g4-main">' + mainHead + main + '</div>' +
       '<div class="bp-g4-top"><div class="bp-g4-tophead"><h4 class="bp-g4-subtitle">Top 10 products</h4>' +
       dashSegHtml('g4', 'tview', [['chart', 'Chart'], ['table', 'Table']], tview, 'Top 10 view as') + '</div>' + top + '</div></div>';
     var canvases = body.querySelectorAll('canvas');
@@ -7453,6 +7488,7 @@ function parseWaitlistRecipeIds(value) {
       _dashV2Charts.wine = chart(mc, {
         type: 'bar',
         horizontal: true,
+        labelMaxChars: 24,
         labels: g.labels,
         series: g.series,
         measure: g.measure,
@@ -7472,6 +7508,7 @@ function parseWaitlistRecipeIds(value) {
       _dashV2Charts.top10 = chart(tc, {
         type: 'bar',
         horizontal: true,
+        labelMaxChars: 24,
         stacked: true,
         labels: t.labels,
         series: t.series,
@@ -7551,11 +7588,15 @@ function parseWaitlistRecipeIds(value) {
   var DASH_V2_WORKLOAD_TITLE = 'Workload';
   var DASH_V2_TASKS_TITLE = 'Task health';
 
-  // Quiet note under a widget body (Workload overdue count).
+  // Quiet note under a widget body (Workload overdue count). The chart canvas is reused across
+  // re-renders, so drop the previous note first or a copy piles up on every render.
   function dashV2FootNote(slotId, text) {
     var slot = document.getElementById(slotId);
     var body = slot && slot.querySelector('.bp-widget-body');
-    if (!body || !text) return;
+    if (!body) return;
+    var old = body.querySelectorAll(':scope > .bp-dash-foot-note');
+    for (var i = 0; i < old.length; i++) body.removeChild(old[i]);
+    if (!text) return;
     var p = document.createElement('p');
     p.className = 'bp-dash-foot-note';
     p.textContent = text;
@@ -7892,7 +7933,7 @@ function parseWaitlistRecipeIds(value) {
         for (var k = 0; k < cat.items.length; k++) openIds.push(cat.items[k].ids[0]);
         var openIdx = dashV2DrillAdd('g10', openIds, cat.label, false);
         h += dashListHtml('g10', 'all' + cat.key, dashV2ListItems('g10', cat.items), { limit: 5, expanded: !!_dashV2Expanded['g10:all' + cat.key], emptyText: '' }) +
-          '<button type="button" class="bp-link-btn" data-dash-row="g10:' + openIdx + '">Open these batches</button>';
+          '<button type="button" class="bp-text-btn" data-dash-row="g10:' + openIdx + '">Open these batches</button>';
       }
       h += '</div>';
     }
