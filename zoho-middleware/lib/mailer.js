@@ -512,7 +512,7 @@ function sendWaitlistContact(data) {
 
 // Customer-supplied text: strip CR/LF (header/body injection) and cap length.
 function flattenText(v, max) {
-  return String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim().slice(0, max || 100);
+  return String(v === null || v === undefined ? '' : v).replace(/[\r\n]+/g, ' ').trim().slice(0, max || 100);
 }
 
 // Zoho SO numbers already start with "SO-"; only label a bare number.

@@ -119,12 +119,12 @@ async function realBookDeposit(ctx) {
     })
   };
 
-  try { await cache.set(ctx.idemKey, responseBody, IDEM_TTL); } catch (e) { log.warn('[preorder] idem cache failed txn=' + txnId); }
+  try { await cache.set(ctx.idemKey, responseBody, IDEM_TTL); } catch { log.warn('[preorder] idem cache failed txn=' + txnId); }
   for (var i = 0; i < REPLAY_SUFFIXES.length; i++) {
     await moneyPath.markTxnUsed(cache, txnId, REPLAY_SUFFIXES[i], REPLAY_TTL);
   }
-  try { await cache.del('preorder:nonce:' + ctx.invoiceNumber); } catch (e) { log.warn('[preorder] nonce delete failed txn=' + txnId); }
-  try { await cache.del(pendingKey); } catch (e) { log.warn('[preorder] sentinel delete failed txn=' + txnId); }
+  try { await cache.del('preorder:nonce:' + ctx.invoiceNumber); } catch { log.warn('[preorder] nonce delete failed txn=' + txnId); }
+  try { await cache.del(pendingKey); } catch { log.warn('[preorder] sentinel delete failed txn=' + txnId); }
 
   res.status(201).json(responseBody);
 
@@ -224,7 +224,7 @@ async function failAfterCapture(ctx, err, stage, pendingKey) {
   }
 
   if (voided && !leftovers.length && !possibleOrphan && !cleanupThrew) {
-    try { await cache.del(pendingKey); } catch (e) { log.warn('[preorder] sentinel delete failed txn=' + txnId); }
+    try { await cache.del(pendingKey); } catch { log.warn('[preorder] sentinel delete failed txn=' + txnId); }
   }
 
   log.error('[preorder] failed after charge txn=' + txnId + ' stage=' + stage + ' voided=' + voided);
