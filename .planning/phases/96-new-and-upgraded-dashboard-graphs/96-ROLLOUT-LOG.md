@@ -64,7 +64,7 @@ Owner decision 2026-10-29: iPad pass **waived**, because BrewPad is mostly used 
 
 ### OG/FG follow-up
 
-The G8 expected curve, attenuation and ABV stay dormant until OG/target FG are recorded on recipes. Owner's answer on tracking it as a follow-up: see the release decision below.
+The G8 expected curve, attenuation and ABV stay dormant until OG/target FG are recorded on recipes. Owner (2026-10-29): **track as follow-up** (todo `.planning/todos/pending/recipe-og-target-fg-capture.md`).
 
 ## Production pre-deploy
 
@@ -76,3 +76,7 @@ Read-only, 2026-10-29:
 - **Candidate SHA:** `77ca2833` (staging-verified code at `8dcccc79`; later commit is docs only). 58 commits ahead of `production/main`.
 - **Shipped non-test, non-planning files:** `brewpad.html`, `css/brewpad.css`, `css/brewpad.min.css`, `js/brewpad.js`, `js/brewpad.min.js`, `zoho-middleware/lib/batch-pg-read.js`, `docs/RUNBOOK.md`.
 - **Flagged commits not in Phase 96:** `b4f2f3a6`, `1ced35d9`, `b93e4348`. These are Phase 95 rollout and verification docs (planning files plus one RUNBOOK deploy-history line), with no code.
+
+## Release decision
+
+Owner release approval: 3f761072959a8efc5b70926060a7d7e0f5b5e167 — 2026-10-29T19:22:39Z (owner, execute-phase checkpoint 96-10 Task 4). Rollback target: Railway `a3cce010-575e-4f2f-91fa-3296a88bf130`.
