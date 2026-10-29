@@ -371,3 +371,108 @@ describe('limited releases payment: honest copy after approval', function () {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('limited releases payment: confirmation (D-11)', function () {
+  beforeEach(setup);
+
+  function so(kit, num) {
+    return { salesorder_id: 'id' + num, salesorder_number: num, item_id: kit.zoho_item_id, name: kit.short_name, release_label: kit.release_label };
+  }
+
+  async function pay(response) {
+    await openIframe(2);
+    fetchMock.mockImplementationOnce(function () { return resp(201, response); });
+    lr.handleHelcimMessage(helcimSuccess('CT1', '777'));
+    await flush();
+  }
+
+  test('renders one row per SO with totals, steps, email and focus', async function () {
+    var k1 = DATA.kits[0];
+    await pay({
+      ok: true, deposit_total: 100, kit_count: 2,
+      salesorders: [so(k1, 'SO-00101'), so(k1, 'SO-00102')]
+    });
+    expect($('lr-form').classList.contains('hidden')).toBe(true);
+    expect($('lr-basket').classList.contains('hidden')).toBe(true);
+    var box = $('lr-confirm');
+    expect(box.classList.contains('hidden')).toBe(false);
+    var rows = box.querySelectorAll('.lr-confirm__row');
+    expect(rows.length).toBe(2);
+    expect(rows[0].textContent).toBe(k1.short_name + ' · ' + k1.release_label + ' · SO SO-00101');
+    expect(rows[1].textContent).toContain('SO-00102');
+    expect(box.querySelector('.confirm-checkmark svg')).not.toBeNull();
+    expect(box.textContent).toContain('Deposit paid: $100');
+    expect(box.textContent).toContain('2 kits');
+    expect(box.textContent).toContain('What happens next');
+    var how = DATA.copy.how_it_works;
+    expect(box.querySelectorAll('.lr-confirm__steps li').length).toBe(3);
+    expect(box.querySelector('.lr-confirm__steps').textContent).toContain(how[1].text);
+    expect(box.querySelector('.lr-confirm__steps').textContent).toContain(how[3].text);
+    expect(box.textContent).toContain('We have emailed your confirmation to jane@example.com.');
+    var h2 = box.querySelector('h2');
+    expect(h2.textContent).toBe('Your deposit is paid');
+    expect(h2.getAttribute('tabindex')).toBe('-1');
+    expect(document.activeElement).toBe(h2);
+    expect(box.querySelector('.btn-secondary').textContent).toBe('Print confirmation');
+    expect(box.querySelector('a.btn').getAttribute('href')).toBe('wine.html');
+  });
+
+  test('3 SOs across kits render exactly 3 rows with 3 distinct numbers in display order', async function () {
+    var k1 = DATA.kits[0];
+    var k2 = DATA.kits[1];
+    await pay({
+      ok: true, deposit_total: 150, kit_count: 3,
+      salesorders: [so(k2, 'SO-3'), so(k1, 'SO-1'), so(k1, 'SO-2')]
+    });
+    var rows = document.querySelectorAll('#lr-confirm .lr-confirm__row');
+    expect(rows.length).toBe(3);
+    var nums = [].map.call(rows, function (r) { return /SO (\S+)$/.exec(r.textContent)[1]; });
+    expect(nums.slice().sort()).toEqual(['SO-1', 'SO-2', 'SO-3']);
+    var order = [].map.call(document.querySelectorAll('.lr-kit'), function (c) { return c.id; });
+    var k2First = order.indexOf('lr-kit-' + k2.sku) < order.indexOf('lr-kit-' + k1.sku);
+    expect(rows[k2First ? 0 : 2].textContent).toContain('SO-3');
+  });
+
+  test('clears basket, bar, beforeunload and keeps controls locked', async function () {
+    var rem = jest.spyOn(window, 'removeEventListener');
+    await pay({ ok: true, deposit_total: 100, kit_count: 2, salesorders: [so(DATA.kits[0], 'SO-1')] });
+    expect(lr.getBasketLines()).toEqual([]);
+    expect($('lr-bar').classList.contains('hidden')).toBe(true);
+    expect(rem.mock.calls.filter(function (c) { return c[0] === 'beforeunload'; }).length).toBe(1);
+    var plus = document.querySelector('.lr-stepper__btn[data-action="add"]');
+    expect(plus.disabled).toBe(true);
+    rem.mockRestore();
+  });
+
+  test('server-supplied text is rendered literally (no HTML injection)', async function () {
+    var bad = so(DATA.kits[0], '<img src=x>');
+    bad.name = '<img src=x onerror=alert(1)>';
+    await pay({ ok: true, deposit_total: 50, kit_count: 1, salesorders: [bad] });
+    expect($('lr-confirm').querySelector('img')).toBeNull();
+    expect($('lr-confirm').textContent).toContain('<img src=x>');
+  });
+
+  test('email with markup renders literally', async function () {
+    await openIframe(1);
+    $('lr-email').value = 'a@b.co<img src=x>';
+    fetchMock.mockImplementationOnce(function () { return resp(200, { ok: true, kit_count: 1, deposit_total: 50, salesorders: [so(DATA.kits[0], 'SO-1')] }); });
+    lr.handleHelcimMessage(helcimSuccess('CT1', '777'));
+    await flush();
+    expect($('lr-confirm').querySelector('img')).toBeNull();
+  });
+
+  test('a 200 replay renders the same confirmation', async function () {
+    await openIframe(1);
+    fetchMock.mockImplementationOnce(function () { return resp(200, { ok: true, kit_count: 1, deposit_total: 50, salesorders: [so(DATA.kits[0], 'SO-9')] }); });
+    lr.handleHelcimMessage(helcimSuccess('CT1', '777'));
+    await flush();
+    expect($('lr-confirm').textContent).toContain('SO-9');
+  });
+
+  test('print button calls window.print', async function () {
+    window.print = jest.fn();
+    await pay({ ok: true, deposit_total: 50, kit_count: 1, salesorders: [so(DATA.kits[0], 'SO-1')] });
+    $('lr-confirm').querySelector('.btn-secondary').click();
+    expect(window.print).toHaveBeenCalled();
+  });
+});

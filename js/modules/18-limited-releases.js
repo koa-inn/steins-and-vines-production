@@ -1115,10 +1115,96 @@ function lrRenderConfirmation(response, email) {
   if (basket) basket.classList.add('hidden');
   if (!box) return;
   lrClear(box);
+
+  var reduced = typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var svgNs = 'http://www.w3.org/2000/svg';
+  var wrap = lrEl('div', 'confirm-checkmark');
+  wrap.setAttribute('aria-hidden', 'true');
+  var svg = document.createElementNS(svgNs, 'svg');
+  svg.setAttribute('viewBox', '0 0 52 52');
+  svg.setAttribute('width', '52');
+  svg.setAttribute('height', '52');
+  var circle = document.createElementNS(svgNs, 'circle');
+  circle.setAttribute('class', 'confirm-checkmark-circle');
+  circle.setAttribute('cx', '26');
+  circle.setAttribute('cy', '26');
+  circle.setAttribute('r', '25');
+  circle.setAttribute('fill', 'none');
+  circle.setAttribute('stroke', 'currentColor');
+  circle.setAttribute('stroke-width', '2');
+  var tick = document.createElementNS(svgNs, 'path');
+  tick.setAttribute('class', 'confirm-checkmark-path');
+  tick.setAttribute('fill', 'none');
+  tick.setAttribute('stroke', 'currentColor');
+  tick.setAttribute('stroke-width', '3');
+  tick.setAttribute('stroke-linecap', 'round');
+  tick.setAttribute('stroke-linejoin', 'round');
+  tick.setAttribute('d', 'M14.1 27.2l7.1 7.2 16.7-16.8');
+  if (reduced) {
+    // Final state, no draw animation.
+    circle.setAttribute('style', 'animation:none;stroke-dashoffset:0');
+    tick.setAttribute('style', 'animation:none;stroke-dashoffset:0');
+  }
+  svg.appendChild(circle);
+  svg.appendChild(tick);
+  wrap.appendChild(svg);
+  box.appendChild(wrap);
+
   var h2 = lrEl('h2', '', 'Your deposit is paid');
   h2.id = 'lr-confirm-heading';
   h2.setAttribute('tabindex', '-1');
   box.appendChild(h2);
+
+  // One row per SO, in kit display order (stable for unknown item ids).
+  var orders = ((response && response.salesorders) || []).map(function (so, i) {
+    var pos = _lrKits.length;
+    for (var k = 0; k < _lrKits.length; k++) {
+      if (_lrKits[k].zoho_item_id === so.item_id) { pos = k; break; }
+    }
+    return { so: so, pos: pos, i: i };
+  });
+  orders.sort(function (a, b) { return a.pos - b.pos || a.i - b.i; });
+  var list = lrEl('ul', 'lr-confirm__list');
+  list.style.listStyle = 'none';
+  list.style.padding = '0';
+  orders.forEach(function (o) {
+    list.appendChild(lrEl('li', 'lr-confirm__row',
+      o.so.name + ' · ' + o.so.release_label + ' · SO ' + o.so.salesorder_number));
+  });
+  box.appendChild(list);
+
+  var kitCount = typeof response.kit_count === 'number' ? response.kit_count : orders.length;
+  var depositTotal = typeof response.deposit_total === 'number' ? response.deposit_total : kitCount * 50;
+  var totals = lrEl('p', 'lr-confirm__totals');
+  totals.appendChild(lrEl('strong', '', 'Deposit paid: ' + lrFormatMoney(depositTotal)));
+  totals.appendChild(document.createTextNode(' · ' + lrKitsLabel(kitCount)));
+  box.appendChild(totals);
+
+  box.appendChild(lrEl('h3', '', 'What happens next'));
+  var steps = lrEl('ol', 'lr-confirm__steps');
+  var how = (_lrData && _lrData.copy && _lrData.copy.how_it_works) || [];
+  how.slice(1, 4).forEach(function (s) {
+    var li = lrEl('li');
+    li.appendChild(lrEl('strong', '', s.step));
+    li.appendChild(document.createTextNode(': ' + s.text));
+    steps.appendChild(li);
+  });
+  box.appendChild(steps);
+  box.appendChild(lrEl('p', 'lr-confirm__email', 'We have emailed your confirmation to ' + email + '.'));
+
+  var actions = lrEl('div', 'lr-confirm__actions');
+  var print = lrEl('button', 'btn-secondary', 'Print confirmation');
+  print.type = 'button';
+  print.addEventListener('click', function () {
+    if (typeof window.print === 'function') window.print();
+  });
+  actions.appendChild(print);
+  var back = lrEl('a', 'btn', 'Back to browsing');
+  back.href = 'wine.html';
+  actions.appendChild(back);
+  box.appendChild(actions);
+
   box.classList.remove('hidden');
 }
 
