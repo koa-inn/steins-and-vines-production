@@ -117,6 +117,29 @@ The handoffs already lock most of the WHAT, and they stand unless a decision bel
 - **D-15: Newsletter opt-in is optional and unticked by default.** Use the existing CASL wording
   and send to MailerLite only when ticked, the same as checkout.
 
+### Post-research decisions (owner, 2026-10-29, after 100-RESEARCH.md)
+- **D-16: Real money on staging is approved.** Staging uses the LIVE Zoho org and the LIVE
+  Helcim account. The owner approves the Wave-0 spike and the staging run making real charges on
+  their own card: one $50 charge, then $150. All of them are voided, and the Zoho records are
+  cleaned up afterwards (the Phase 71 precedent). The spike settles the [LIVE-VERIFY] items before
+  the money-path plans are final. If the advance turns out to be dropped or unlinked, switch to
+  research Plan B (Zoho retainer invoices) and tell the owner.
+- **D-17: Bind each payment to its order with a nonce. This is approved and deviates from the
+  handoff.** Add `POST /api/preorder/initialize`, which mints a one-time nonce and sets it as the
+  Helcim `invoiceRequest.invoiceNumber`. `POST /api/preorder/deposit` accepts a transaction, and
+  voids one, only when its readback carries this nonce, is `APPROVED`, is `type=purchase`, and
+  matches the amount in cents. Do NOT copy checkout's `rejectWithVoid`-on-any-400 pattern.
+- **D-18: Each order is limited to 10 kits in total.** This is a request-size bound, not an
+  inventory cap, so "no cap" still holds across orders. Each line is 1–10 per kit. The form copy
+  reads: "Up to 10 kits per order. Call us for more: (604) 567-4565".
+- **D-19: The existing checkout void weakness is out of scope.** It is filed as
+  `.planning/todos/pending/checkout-reject-with-void-no-ownership-check.md`. Phase 100 does not
+  change `/api/checkout`.
+- **D-13 amended:** there is no shared contact find-or-create helper (`resolveCustomerId` is a
+  closure inside `processCheckout`). Extract it **verbatim** into a shared lib function, keeping
+  `/api/checkout`'s behaviour byte-identical with its tests still green, and use it in the deposit
+  route. The "Last, First" fix is still out of scope.
+
 ### Claude's Discretion
 - Card layout details within the asset rules: a bottle shot on every card, and the scene image as
   a header band only when present.
