@@ -4358,6 +4358,9 @@
       html += '<div class="kiosk-so-card-body">';
       html += '<span class="kiosk-so-customer">' + escapeHTML(so.customer_name || 'Unknown') + '</span>';
       html += '<span class="kiosk-so-date">' + escapeHTML(so.date || '') + '</span>';
+      if (so.is_limited_release) {
+        html += '<span class="kiosk-so-limited">Limited release \u00b7 $50 deposit held</span>';
+      }
       html += '</div>';
 
       html += '<div class="kiosk-so-card-detail" data-so-detail="' + escapeHTML(so.salesorder_id) + '" style="display:none;"></div>';
@@ -5501,14 +5504,44 @@
       };
     }
 
-    fetch(mwUrl + '/api/kiosk/salesorder-pay', _kcMergeAuth({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ salesorder_id: soId, idempotency_key: _kioskSoPayKey })
-    }))
-    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+    // Phase 100 D-02: read-only preview of the deposit/remainder for limited-release
+    // SOs. Display only -- salesorder-pay recomputes server-side. Any failure
+    // degrades to a neutral line and the pay POST still goes ahead.
+    var previewPromise = null;
+    if (so.is_limited_release) {
+      if (msgEl) msgEl.textContent = 'Applying the $50 deposit\u2026';
+      var depositRow = function (label, value) {
+        if (!itemsEl) return;
+        itemsEl.innerHTML += '<div class="kiosk-payment-item-row"><span>' + label + '</span><span>' + value + '</span></div>';
+      };
+      previewPromise = fetch(mwUrl + '/api/kiosk/salesorder-due?salesorder_id=' + encodeURIComponent(soId), _kcMergeAuth({ method: 'GET' }))
+        .then(function (r) {
+          if (!r.ok) throw new Error('preview ' + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          if (amountEl) amountEl.textContent = kioskFmt(data.due);
+          depositRow('Deposit applied', '-' + kioskFmt(data.deposit_applied));
+        })
+        .catch(function () {
+          depositRow('Deposit', 'applied at payment');
+        });
+    }
+
+    var doPay = function () {
+      if (cancelled) return null;
+      return fetch(mwUrl + '/api/kiosk/salesorder-pay', _kcMergeAuth({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ salesorder_id: soId, idempotency_key: _kioskSoPayKey })
+      }));
+    };
+    // Non-limited orders keep the original synchronous pay fetch.
+    var payStart = previewPromise ? previewPromise.then(doPay) : Promise.resolve(doPay());
+    payStart
+    .then(function (r) { if (!r) return { status: 0, data: null, skipped: true }; return r.json().then(function (d) { return { status: r.status, data: d }; }); })
     .then(function (result) {
-      if (cancelled) return;
+      if (cancelled || result.skipped) return;
       // 50-04 (T-50-22): every branch below — success and every failure
       // routed through kioskShowSoError — is a terminal outcome for THIS
       // order's attempt. Clear FIRST: the retry path in kioskShowSoError
@@ -5529,6 +5562,9 @@
           html += '<div class="kiosk-receipt-row" style="font-weight:700;font-size:1.05rem;">';
           html += '<strong>Amount</strong><strong>' + kioskFmt(result.data.amount || balance) + '</strong>';
           html += '</div>';
+          if (result.data.deposit_applied > 0) {
+            html += '<div class="kiosk-receipt-row"><span>Deposit applied</span><span>' + kioskFmt(result.data.deposit_applied) + '</span></div>';
+          }
           if (result.data.transaction_id) {
             html += '<div class="kiosk-receipt-row"><span>Transaction</span><span style="font-size:0.8rem;font-family:monospace;">' + escapeHTML(result.data.transaction_id) + '</span></div>';
           }

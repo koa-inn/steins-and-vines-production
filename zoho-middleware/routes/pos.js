@@ -2418,6 +2418,8 @@ router.get('/api/kiosk/salesorders', function (req, res) {
             total: so.total || 0,
             status: so.status || '',
             date: so.date || '',
+            reference_number: so.reference_number || '',
+            is_limited_release: String(so.reference_number || '').indexOf('LIMITED-') === 0,
             line_items: (so.line_items || []).map(function (li) {
               return {
                 item_id: li.item_id || '',
@@ -2608,6 +2610,40 @@ router.post('/api/kiosk/salesorder-pay', function (req, res) {
       // status === 'acquired' — proceed
       return processSalesOrderPay(body, soId, effectiveKey, lockKey, req, res);
     });
+});
+
+/**
+ * GET /api/kiosk/salesorder-due?salesorder_id=<digits>
+ * Phase 100 D-02: READ-ONLY preview of what the terminal will charge for a
+ * kiosk SO payment (deposit applied + remainder). Never drives the charge --
+ * /api/kiosk/salesorder-pay recomputes via the same computeSalesOrderAmountDue.
+ * Response: { salesorder_id, is_limited_release, base, deposit_applied, due }
+ */
+router.get('/api/kiosk/salesorder-due', function (req, res) {
+  authTiers.requireTiers(['legacy', 'device', 'session'])(req, res, function () {
+    var soId = String(req.query.salesorder_id || '');
+    if (!/^\d+$/.test(soId)) {
+      return res.status(400).json({ error: 'salesorder_id must be numeric' });
+    }
+    zohoGet('/salesorders/' + soId)
+      .then(function (data) {
+        var so = (data && data.salesorder) || {};
+        return computeSalesOrderAmountDue(so).then(function (amt) {
+          var round = function (n) { return Math.round(n * 100) / 100; };
+          return res.json({
+            salesorder_id: soId,
+            is_limited_release: amt.isLimited,
+            base: round(amt.base),
+            deposit_applied: round(amt.depositApplied),
+            due: round(amt.due)
+          });
+        });
+      })
+      .catch(function (err) {
+        log.error('[kiosk/salesorder-due] lookup failed: ' + (err && err.message));
+        if (!res.headersSent) res.status(502).json({ error: 'Could not look up the order amount' });
+      });
+  });
 });
 
 /**
