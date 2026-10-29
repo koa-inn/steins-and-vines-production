@@ -506,6 +506,137 @@ function sendWaitlistContact(data) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Limited Releases deposit emails (Phase 100)
+// ---------------------------------------------------------------------------
+
+// Customer-supplied text: strip CR/LF (header/body injection) and cap length.
+function flattenText(v, max) {
+  return String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim().slice(0, max || 100);
+}
+
+function soLines(salesorders) {
+  return (salesorders || []).map(function (so) {
+    return '  - ' + flattenText(so.name, 100) + ' · ' + flattenText(so.release_label, 40) +
+      ' · SO ' + flattenText(so.salesorder_number, 40);
+  });
+}
+
+/**
+ * Customer copy of the deposit confirmation (same content as the on-page one).
+ * @param {Object} data - {email, name, salesorders:[{salesorder_number, name, release_label}], depositTotal, kitCount}
+ */
+function sendPreorderDepositConfirmation(data) {
+  if (!data || !data.email) return Promise.reject(new Error('No customer email provided'));
+
+  var kitCount = Number(data.kitCount) || 0;
+  var name = flattenText(data.name, 100);
+  var subject = 'Your Limited Release deposit is confirmed (' + kitCount + (kitCount === 1 ? ' kit)' : ' kits)');
+
+  var body = [
+    name ? 'Hi ' + name + ',' : 'Hi,',
+    '',
+    'Thank you! Your deposit for the Limited Releases is confirmed.',
+    '',
+    'Your reserved kits:'
+  ].concat(soLines(data.salesorders), [
+    '',
+    'Deposit paid: $' + (Number(data.depositTotal) || 0).toFixed(2) + ' (non-refundable, $50 per kit)',
+    '',
+    'What happens next:',
+    '  1. We order your kit from the supplier for its release month.',
+    "  2. When your kit arrives, we'll get in touch to book a time to start your batch.",
+    "  3. On brew day you pay the rest of the kit price, less your deposit, plus the usual Maker's Fee and Materials Fee.",
+    '',
+    'We hold your kit for 60 days after it arrives.',
+    'Need to change a kit? Call us at (604) 567-4565 before its release month.',
+    '',
+    'Steins & Vines',
+    STORE_ADDRESS
+  ]).filter(function (line) { return line !== ''; }).join('\n');
+
+  return sendViaResend({
+    to: data.email,
+    replyTo: staffTo(),
+    subject: subject,
+    text: body
+  });
+}
+
+/**
+ * Staff notification for a paid Limited Release deposit. Staff mail may carry
+ * PII; it is not a log.
+ */
+function sendPreorderDepositNotification(data) {
+  var kitCount = Number(data.kitCount) || 0;
+  var total = (Number(data.depositTotal) || 0).toFixed(2);
+  var subject = 'New Limited Release deposit: ' + kitCount + (kitCount === 1 ? ' kit, $' : ' kits, $') + total;
+
+  var body = [
+    'A Limited Release deposit was paid online.',
+    '',
+    'Kits / sales orders:'
+  ].concat(soLines(data.salesorders), [
+    '',
+    'Deposit total: $' + total,
+    'Helcim transaction: ' + flattenText(data.txnId, 60),
+    '',
+    'Customer:',
+    '  Name:  ' + flattenText(data.name, 100),
+    '  Email: ' + flattenText(data.email, 150),
+    '  Phone: ' + flattenText(data.phone, 40)
+  ]).join('\n');
+
+  return sendViaResend({
+    to: staffTo(),
+    replyTo: data.email ? flattenText(data.email, 150) : undefined,
+    subject: subject,
+    text: body
+  });
+}
+
+/**
+ * Staff alert: the deposit failed after the card was charged.
+ * @param {Object} data - {txnId, voided, leftovers:[{kind,id,error}], possibleOrphan, reason?}
+ */
+function sendPreorderCleanupAlert(data) {
+  var txnId = flattenText(data.txnId, 60);
+  var leftovers = data.leftovers || [];
+  var subject = 'ACTION NEEDED: Limited Release deposit failed after charge (txn ' + txnId + ')';
+
+  var lines = ['A Limited Release deposit failed after the card was charged.'];
+  if (data.reason) lines.push('Reason: ' + flattenText(data.reason, 300));
+  lines.push(
+    '',
+    data.voided
+      ? 'The Helcim transaction ' + txnId + ' was voided successfully.'
+      : 'The Helcim transaction ' + txnId + ' was NOT voided. Void or refund it by hand in the Helcim dashboard.',
+    ''
+  );
+  if (leftovers.length) {
+    lines.push('Remove these Zoho records by hand (reference LIMITED-2026-27):');
+    leftovers.forEach(function (l) {
+      lines.push('  - ' + flattenText(l.kind, 40) + ' ' + flattenText(l.id, 60) +
+        (l.error ? ' (' + flattenText(l.error, 200) + ')' : ''));
+    });
+  } else {
+    lines.push('No leftover Zoho records were reported.');
+  }
+  if (data.possibleOrphan) {
+    lines.push(
+      '',
+      'Possible orphan: a Zoho create timed out — search Sales Orders for reference LIMITED-2026-27 ' +
+      'with this Helcim txn in the notes.'
+    );
+  }
+
+  return sendViaResend({
+    to: staffTo(),
+    subject: subject,
+    text: lines.join('\n')
+  });
+}
+
 module.exports = {
   isConfigured: isConfigured,
   verifyTransport: verifyTransport,
@@ -517,5 +648,8 @@ module.exports = {
   sendBottlingInvite: sendBottlingInvite,
   sendWaitlistNotification: sendWaitlistNotification,
   sendNewsletterNotification: sendNewsletterNotification,
-  sendWaitlistContact: sendWaitlistContact
+  sendWaitlistContact: sendWaitlistContact,
+  sendPreorderDepositConfirmation: sendPreorderDepositConfirmation,
+  sendPreorderDepositNotification: sendPreorderDepositNotification,
+  sendPreorderCleanupAlert: sendPreorderCleanupAlert
 };
