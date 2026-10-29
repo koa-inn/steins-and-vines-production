@@ -27,6 +27,30 @@ test.describe('About page', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Limited releases page
+// ---------------------------------------------------------------------------
+test.describe('Limited releases page', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/limited-releases.html');
+  });
+
+  test('page loads with the content title and ten kit cards', async ({ page }) => {
+    await expect(page).toHaveTitle(/Limited Release Wines 2026-27/);
+    await expect(page.locator('article.lr-kit')).toHaveCount(10);
+  });
+
+  test('pay button enables only after choosing a kit and ticking consent', async ({ page }) => {
+    const pay = page.locator('#lr-pay');
+    await expect(pay).toBeDisabled();
+    await page.locator('.lr-stepper__btn[data-action="add"]').first().click();
+    await expect(pay).toBeDisabled();
+    await page.locator('#lr-consent').check();
+    await expect(pay).toBeEnabled();
+    await expect(pay).toHaveText('Pay $50 deposit');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Contact page
 // ---------------------------------------------------------------------------
 test.describe('Contact page', () => {
