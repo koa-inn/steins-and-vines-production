@@ -1620,6 +1620,24 @@ BrewPad detail pane. New batches are flagged only on create, for internal / rese
 
 ---
 
+## Limited Release deposits (Phase 100)
+
+Customers reserve limited-release kits on `limited-releases.html` with a $50 non-refundable-by-default deposit per kit. Each kit becomes one Zoho Sales Order (SO) with a $50 unapplied customer advance, reference `LIMITED-2026-27`, and the Maker's Fee and Materials Fee already on the SO (D-03). No BrewPad batch is created at deposit time.
+
+1. **Who reserved what.** In Zoho Books, list Sales Orders filtered by reference `LIMITED-2026-27` and group by item. One SO is one kit. Staff also get one email per deposit.
+2. **Before each supplier order.** Count the SOs per kit; that is the quantity to order.
+3. **Kit arrives.** Receive the bill, then contact each depositor to book a start. Add the 10 SKUs to the BrewPad Kits sheet so batches carry product data (owner ops item).
+4. **Brew day.** Take payment with the kiosk Pay button on the SO. The kiosk shows "Deposit applied" and charges only the remainder; it applies the $50 advance to the invoice and creates the batch. The Maker's Fee and Materials Fee are already on the SO and are invoiced at conversion. Do not take payment any other way: the `/api/pos/collect` path is not deposit-aware.
+5. **Supplier cannot deliver (D-05).** Refund the $50 per kit in Helcim, delete the deposit payment in Zoho (or refund it from the advance), then void/delete the SO.
+6. **Switching before the release month (D-07).** Edit the SO's kit line in Zoho to another limited kit (same reference). The advance stays on the SO.
+7. **Forfeit after 60 days (D-06).** Leave the SO open and ask the accountant how to recognise the forfeited advance, case by case.
+8. **Alert "ACTION NEEDED: Limited Release deposit failed after charge".** Find the leftovers by the listed ids and the Helcim transaction id in the SO notes. If the email says the void failed, void the charge in Helcim.
+9. **Daily check while deposits are open.** Compare Helcim transactions whose invoice number starts with `LR-` against `LIMITED-2026-27` SOs. Redis keys `preorder:pending:<txn>` mark incomplete bookings.
+10. **Kill switch.** `PREORDER_DEPOSITS_ENABLED=true` on the middleware service opens reservations; unset it to stop new deposits (in-flight payments are still booked or voided). Staging first; production only after owner sign-off.
+11. **Payment dates are UTC.** An evening deposit may be dated the next day. Accountant note.
+
+---
+
 ## Phase 46 Auth Cutover (CRITICAL — leaked-key neutralization)
 
 Closes the audit CRITICAL: the storefront previously shipped `MW_API_KEY` in client JS, so the
