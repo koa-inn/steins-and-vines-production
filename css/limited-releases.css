@@ -1,0 +1,444 @@
+/* Limited Releases page (Phase 100). All selectors are .lr- / #lr- scoped or
+   under body[data-page="limited-releases"]. Tokens come from styles.css. */
+
+body[data-page="limited-releases"] h2 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+body[data-page="limited-releases"] #lr-collections {
+  padding-top: 32px;
+  padding-bottom: 32px;
+}
+
+/* ===== Collections ===== */
+.lr-collection {
+  margin-bottom: 48px;
+}
+
+.lr-collection__header {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  background: var(--color-green);
+  color: var(--color-cream);
+  border-radius: var(--radius-sm);
+  margin-bottom: 24px;
+}
+
+.lr-collection__header h2,
+.lr-collection__header p {
+  color: var(--color-cream);
+  margin: 0 0 8px;
+}
+
+.lr-collection__logo {
+  height: 48px;
+  width: auto;
+  align-self: flex-start;
+}
+
+.lr-collection__hero {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+}
+
+.lr-brochure {
+  display: inline-block;
+  margin-bottom: 24px;
+}
+
+@media (min-width: 768px) {
+  .lr-collection__header {
+    flex-direction: row;
+    align-items: center;
+    gap: 24px;
+  }
+}
+
+/* ===== Kit grid and card ===== */
+.lr-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+@media (min-width: 640px) {
+  .lr-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 1024px) {
+  .lr-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.lr-kit {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-white);
+  border: 1px solid rgba(119, 70, 45, 0.3);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.lr-kit--selected {
+  border: 2px solid var(--color-burgundy);
+}
+
+.lr-kit__scene {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.lr-kit__media {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  background: var(--color-cream);
+}
+
+.lr-kit__bottle {
+  height: 180px;
+  width: auto;
+  object-fit: contain;
+}
+
+.lr-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-cream);
+  background: var(--color-burgundy);
+  border-radius: var(--radius-xs);
+  padding: 4px 8px;
+}
+
+.lr-kit > :not(.lr-kit__scene):not(.lr-kit__media) {
+  margin-left: 16px;
+  margin-right: 16px;
+}
+
+.lr-chip {
+  align-self: flex-start;
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-green);
+  border: 1px solid var(--color-green);
+  border-radius: var(--radius-xs);
+  padding: 4px 8px;
+}
+
+.lr-kit__name {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-green);
+  margin-bottom: 4px;
+}
+
+.lr-kit__grapes {
+  margin: 0 0 4px;
+}
+
+.lr-kit__region {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.lr-kit__region-note {
+  margin: 0 0 8px;
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
+
+.lr-specs {
+  display: flex;
+  flex-wrap: wrap;
+  list-style: none;
+  padding: 0;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+}
+
+.lr-specs li {
+  padding: 0 8px;
+  border-left: 1px solid rgba(119, 70, 45, 0.3);
+}
+
+.lr-specs li:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.lr-kit__notes {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.lr-pairs summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.lr-pairs ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.lr-kit__footer {
+  margin-top: auto;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.lr-price {
+  font-size: 0.875rem;
+}
+
+.lr-price strong {
+  display: inline-block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-burgundy);
+}
+
+/* ===== Quantity stepper ===== */
+.lr-stepper {
+  display: inline-flex;
+  align-items: center;
+}
+
+.lr-stepper__btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-burgundy);
+  background: var(--color-cream);
+  border: 2px solid var(--color-burgundy);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.lr-stepper__btn:active {
+  opacity: 0.85;
+}
+
+.lr-stepper__btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.lr-kit--selected .lr-stepper__btn[data-action="add"],
+.lr-kit--selected .lr-stepper__btn:last-of-type {
+  color: var(--color-cream);
+  background: var(--color-burgundy);
+}
+
+.lr-qty {
+  display: inline-block;
+  width: 44px;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.lr-max-note {
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+/* ===== Release calendar ===== */
+.lr-calendar {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lr-calendar__month {
+  background: var(--color-white);
+  border: 1px solid rgba(119, 70, 45, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+}
+
+.lr-calendar__month--active {
+  border-top: 2px solid var(--color-gold-dark);
+}
+
+@media (min-width: 640px) {
+  .lr-calendar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+}
+
+/* ===== Basket and form ===== */
+.lr-basket {
+  margin-bottom: 24px;
+}
+
+.lr-basket__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(119, 70, 45, 0.3);
+}
+
+.lr-basket__total {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  font-weight: 700;
+}
+
+#lr-form .form-error-msg {
+  font-size: 0.875rem;
+}
+
+.lr-order-limit {
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  margin: 12px 0;
+}
+
+#lr-pay {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  #lr-pay {
+    width: auto;
+    min-width: 240px;
+  }
+}
+
+#lr-pay-hint {
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  margin: 8px 0;
+}
+
+#lr-pay-alert {
+  color: var(--color-error);
+  font-weight: 700;
+}
+
+.lr-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-cream);
+  border-top-color: transparent;
+  border-radius: 50%;
+  vertical-align: middle;
+  animation: lr-spin 0.8s linear infinite;
+}
+
+@keyframes lr-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===== Sticky bar ===== */
+.lr-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  background: var(--color-green);
+  color: var(--color-cream);
+}
+
+.lr-bar--static {
+  position: static;
+}
+
+@media (min-width: 768px) {
+  .lr-bar {
+    display: none;
+  }
+}
+
+/* ===== Confirmation and attribution ===== */
+.lr-confirm {
+  background: var(--color-white);
+  border: 1px solid rgba(119, 70, 45, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 24px;
+}
+
+.lr-attribution {
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+/* ===== Reduced motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  .lr-stepper__btn {
+    transition: none;
+  }
+
+  .lr-spinner {
+    display: none;
+  }
+}
+
+/* ===== Print: confirmation only ===== */
+@media print {
+  body[data-page="limited-releases"] .site-header,
+  body[data-page="limited-releases"] .site-footer,
+  body[data-page="limited-releases"] .section-icon,
+  body[data-page="limited-releases"] .beer-banner,
+  body[data-page="limited-releases"] #lr-how,
+  body[data-page="limited-releases"] #lr-calendar-section,
+  body[data-page="limited-releases"] #lr-terms-section,
+  body[data-page="limited-releases"] #lr-form,
+  body[data-page="limited-releases"] #lr-basket,
+  body[data-page="limited-releases"] .lr-bar,
+  body[data-page="limited-releases"] #lr-collections {
+    display: none !important;
+  }
+}
