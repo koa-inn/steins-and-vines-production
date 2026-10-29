@@ -57,3 +57,22 @@ Issues found and fixed in `8dcccc79` (regression tests first; owner: "do all fix
 
 Staging SHA after fixes: `8dcccc79` (Pages deploy run `40934610958` success; no middleware change).
 Still open: owner iPad UAT (touch, Home Screen app, colour distinguishability).
+
+## Staging UAT
+
+Owner decision 2026-10-29: iPad pass **waived**, because BrewPad is mostly used from a desktop browser. The desktop Chrome pass (above, including the 390px phone-width check) is accepted as the staging UAT. The seven Chrome-pass issues are fixed and re-verified on staging at `8dcccc79`.
+
+### OG/FG follow-up
+
+The G8 expected curve, attenuation and ABV stay dormant until OG/target FG are recorded on recipes. Owner's answer on tracking it as a follow-up: see the release decision below.
+
+## Production pre-deploy
+
+Read-only, 2026-10-29:
+
+- **Rollback target:** production Railway deployment `a3cce010-575e-4f2f-91fa-3296a88bf130` (SUCCESS 2026-10-28 20:07 UTC, Phase 95 release prod-20261028-2).
+- **BATCHES_STORE:** `postgres` (in-container `railway ssh`); runtime Node v24.22.0.
+- **Migrations:** none pending (no files under `zoho-middleware/migrations` in `production/main..HEAD`).
+- **Candidate SHA:** `77ca2833` (staging-verified code at `8dcccc79`; later commit is docs only). 58 commits ahead of `production/main`.
+- **Shipped non-test, non-planning files:** `brewpad.html`, `css/brewpad.css`, `css/brewpad.min.css`, `js/brewpad.js`, `js/brewpad.min.js`, `zoho-middleware/lib/batch-pg-read.js`, `docs/RUNBOOK.md`.
+- **Flagged commits not in Phase 96:** `b4f2f3a6`, `1ced35d9`, `b93e4348`. These are Phase 95 rollout and verification docs (planning files plus one RUNBOOK deploy-history line), with no code.
