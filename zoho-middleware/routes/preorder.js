@@ -25,6 +25,9 @@ var helpers = require('../lib/checkout-helpers');
 var moneyPath = require('../lib/money-path');
 var mailer = require('../lib/mailer');
 var limited = require('../lib/limited-releases');
+var deposit = require('../lib/limited-releases-deposit');
+var mailerlite = require('../lib/mailerlite');
+var redact = require('../lib/redact');
 var captureExceptionSafe = require('../lib/sentry-capture').captureExceptionSafe;
 
 var verifyRecaptcha = helpers.verifyRecaptcha;
@@ -39,10 +42,205 @@ var UNAVAILABLE_MSG = 'Reservations are temporarily unavailable.';
 var UNAVAILABLE_VOIDED_MSG = 'Reservations are temporarily unavailable. Your card has been refunded if charged.';
 var RECAPTCHA_MSG = 'Request could not be verified. Please try again.';
 
-// Plan 07 replaces this with the real booking (contact, SOs, emails).
-var bookDeposit = function () {
-  return Promise.reject(new Error('booking not implemented'));
-};
+var PENDING_TTL = 604800;
+var REPLAY_TTL = 2592000;
+var IDEM_TTL = 86400;
+var FAIL_MSG = 'We could not complete your reservation.';
+
+function logPending(txnId, count) {
+  log.info('[preorder] pending sentinel txn=' + txnId + ' kits=' + count);
+}
+
+// ---------------------------------------------------------------------------
+// Booking stage (Plan 07). Contact -> rates/fees -> N SOs + N advances. Any
+// failure after the charge is proven: cleanup every created record, THEN void
+// (the void always runs), alert staff on leftovers. Sends its own response.
+// ---------------------------------------------------------------------------
+async function realBookDeposit(ctx) {
+  var txnId = ctx.txnId;
+  var res = ctx.res;
+  var pendingKey = 'preorder:pending:' + txnId;
+  var consentAt = new Date().toISOString();
+  var stage = 'contact';
+  var created = [];
+
+  try {
+    // Ids and counts only -- no PII in the sentinel.
+    await cache.set(pendingKey, {
+      txnId: txnId,
+      kitCount: ctx.totalKits,
+      amount: ctx.amount,
+      created_at: consentAt
+    }, PENDING_TTL);
+    logPending(txnId, ctx.totalKits);
+
+    var contact = await helpers.resolveOrCreateContact({
+      name: ctx.customer.name,
+      email: ctx.customer.email,
+      phone: ctx.customer.phone
+    });
+
+    stage = 'pricing';
+    var fees = await deposit.resolveFeeItems();
+    var distinct = [];
+    ctx.lines.forEach(function (l) { if (distinct.indexOf(l.item_id) === -1) distinct.push(l.item_id); });
+    var rates = await Promise.all(distinct.map(function (id) { return deposit.getKitRate(id); }));
+    var kitRates = {};
+    distinct.forEach(function (id, i) { kitRates[id] = rates[i]; });
+
+    stage = 'create';
+    var set = await deposit.createDepositSet({
+      customerId: contact.contactId,
+      units: limited.expandUnits(ctx.lines),
+      kitRates: kitRates,
+      fees: fees,
+      txnId: txnId,
+      consentText: ctx.consent.text,
+      consentAt: consentAt,
+      date: new Date().toISOString().slice(0, 10)
+    });
+    created = set.created;
+  } catch (err) {
+    return failAfterCapture(ctx, err, stage, pendingKey);
+  }
+
+  var responseBody = {
+    ok: true,
+    deposit_total: ctx.amount,
+    kit_count: ctx.totalKits,
+    salesorders: created.map(function (c) {
+      return {
+        salesorder_id: c.salesorder_id,
+        salesorder_number: c.salesorder_number,
+        item_id: c.item_id,
+        name: limited.ALLOWLIST[c.item_id].name,
+        release_label: limited.ALLOWLIST[c.item_id].release_label
+      };
+    })
+  };
+
+  try { await cache.set(ctx.idemKey, responseBody, IDEM_TTL); } catch (e) { log.warn('[preorder] idem cache failed txn=' + txnId); }
+  for (var i = 0; i < REPLAY_SUFFIXES.length; i++) {
+    await moneyPath.markTxnUsed(cache, txnId, REPLAY_SUFFIXES[i], REPLAY_TTL);
+  }
+  try { await cache.del('preorder:nonce:' + ctx.invoiceNumber); } catch (e) { log.warn('[preorder] nonce delete failed txn=' + txnId); }
+  try { await cache.del(pendingKey); } catch (e) { log.warn('[preorder] sentinel delete failed txn=' + txnId); }
+
+  res.status(201).json(responseBody);
+
+  eventLog.logEvent('preorder.deposit_completed', {
+    txnId: txnId,
+    kitCount: ctx.totalKits,
+    soCount: created.length,
+    grandTotal: ctx.amount
+  });
+
+  var mailData = {
+    email: ctx.customer.email,
+    name: ctx.customer.name,
+    phone: ctx.customer.phone,
+    txnId: txnId,
+    salesorders: responseBody.salesorders,
+    depositTotal: ctx.amount,
+    kitCount: ctx.totalKits
+  };
+  Promise.resolve().then(function () { return mailer.sendPreorderDepositConfirmation(mailData); })
+    .catch(function (e) { log.warn('[preorder] customer confirmation email failed: ' + (e && e.message)); });
+  Promise.resolve().then(function () { return mailer.sendPreorderDepositNotification(mailData); })
+    .catch(function (e) { log.warn('[preorder] staff notification email failed: ' + (e && e.message)); });
+
+  // Newsletter: strict boolean true only (CASL). Fire-and-forget.
+  if (ctx.newsletter === true && ctx.customer.email) {
+    var nlEmail = ctx.customer.email.toLowerCase();
+    eventLog.logEvent('preorder.newsletter_opt_in', {
+      orderNumber: created[0] ? created[0].salesorder_number : '',
+      email: redact.maskEmail(nlEmail),
+      source: 'preorder'
+    });
+    if (mailerlite.isConfigured()) {
+      var group = (process.env.MAILERLITE_NEWSLETTER_GROUP_ID || '').trim();
+      Promise.resolve().then(function () {
+        return mailerlite.addSubscriber(nlEmail, group ? [group] : []);
+      }).then(function (ml) {
+        var sub = (ml && ml.data) || {};
+        return mailer.sendNewsletterNotification({
+          email: nlEmail,
+          source: 'preorder',
+          orderNumber: created[0] ? created[0].salesorder_number : '',
+          alreadySubscribed: !!(sub.created_at && sub.updated_at && sub.created_at !== sub.updated_at)
+        });
+      }).catch(function (e) {
+        log.error('[preorder] newsletter subscribe failed (non-fatal) for ' + redact.maskEmail(nlEmail) + ': ' + (e && e.message));
+      });
+    } else {
+      log.warn('[preorder] MAILERLITE_API_KEY not set -- newsletter opt-in recorded but not synced for ' + redact.maskEmail(nlEmail));
+    }
+  }
+}
+
+async function failAfterCapture(ctx, err, stage, pendingKey) {
+  var txnId = ctx.txnId;
+  var created = (err && err.created) || [];
+  var leftovers = [];
+  var cleanupThrew = false;
+
+  if (created.length) {
+    try {
+      var cleanup = await deposit.cleanupDepositSet(created, txnId);
+      leftovers = (cleanup && cleanup.leftovers) || [];
+    } catch (cleanErr) {
+      cleanupThrew = true;
+      log.error('[preorder] cleanup threw txn=' + txnId + ': ' + (cleanErr && cleanErr.message));
+      leftovers = created.map(function (c) {
+        return { kind: 'salesorder', id: c.salesorder_id, error: 'cleanup threw' };
+      });
+    }
+  }
+
+  // The void is never skipped (D-04).
+  var voidResult;
+  try {
+    voidResult = await moneyPath.voidWithTimeout(helcimLib, txnId, ctx.amount, {
+      mailer: mailer,
+      eventLog: eventLog,
+      reqId: ctx.reqId
+    });
+  } catch (voidErr) {
+    log.error('[preorder] void threw txn=' + txnId + ': ' + (voidErr && voidErr.message));
+    voidResult = { ok: false };
+  }
+  var voided = !!(voidResult && voidResult.ok);
+  var possibleOrphan = !!(err && err.possibleOrphan);
+
+  if (leftovers.length || possibleOrphan || cleanupThrew) {
+    Promise.resolve().then(function () {
+      return mailer.sendPreorderCleanupAlert({
+        txnId: txnId,
+        voided: voided,
+        leftovers: leftovers,
+        possibleOrphan: possibleOrphan
+      });
+    }).catch(function (e) { log.warn('[preorder] cleanup alert failed: ' + (e && e.message)); });
+  }
+
+  if (voided && !leftovers.length && !possibleOrphan && !cleanupThrew) {
+    try { await cache.del(pendingKey); } catch (e) { log.warn('[preorder] sentinel delete failed txn=' + txnId); }
+  }
+
+  log.error('[preorder] failed after charge txn=' + txnId + ' stage=' + stage + ' voided=' + voided);
+  captureExceptionSafe(err, { level: 'error', tags: { reqId: ctx.reqId || null, txnId: txnId, stage: stage } });
+  eventLog.logEvent('preorder.failed_after_charge', {
+    txnId: txnId,
+    kitCount: ctx.totalKits,
+    grandTotal: ctx.amount,
+    stage: stage,
+    voided: voided,
+    leftoverCount: leftovers.length
+  });
+  return ctx.res.status(500).json({ error: FAIL_MSG, voided: voided });
+}
+
+var bookDeposit = realBookDeposit;
 
 function emailLine(value, maxLen) {
   if (typeof value !== 'string') return '';
