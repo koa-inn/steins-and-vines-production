@@ -300,7 +300,7 @@ function runHelcimInit() {
   var amount = parseFloat(arg('amount', '1.00'));
   var invNo = 'LR-SPIKE-' + crypto.randomBytes(4).toString('hex');
   var base = { paymentType: 'purchase', amount: amount, currency: 'CAD' };
-  var nested = Object.assign({}, base, { invoiceRequest: { invoiceNumber: invNo } });
+  var nested = Object.assign({}, base, { invoiceRequest: { invoiceNumber: invNo, lineItems: [{ description: 'Spike deposit', quantity: 1, price: amount, total: amount }] } });
   return axios.post(HELCIM_BASE + '/helcim-pay/initialize', nested, { headers: helcimHeaders(), timeout: 10000 })
     .then(function (r) { return { form: 'invoiceRequest.invoiceNumber', data: r.data }; })
     .catch(function (e) {
