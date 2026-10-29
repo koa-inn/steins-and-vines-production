@@ -18,12 +18,10 @@ var readIngredientsFileCache = helpers.readIngredientsFileCache;
 var verifyRecaptcha = helpers.verifyRecaptcha;
 var notifyAdminPanel = helpers.notifyAdminPanel;
 var buildLineItems = helpers.buildLineItems;
-var buildContactPayload = helpers.buildContactPayload;
 var findMakersFeeItem = helpers.findMakersFeeItem;
 var findMaterialsFeeItem = helpers.findMaterialsFeeItem;
 
 var zohoPost = zohoApi.zohoPost;
-var zohoGet = zohoApi.zohoGet;
 var mailer = require('../lib/mailer');
 var mailerlite = require('../lib/mailerlite');
 
@@ -261,47 +259,11 @@ async function processCheckout(body, idempotencyKey, res, zohoOffline, reqId) {
   // This prevents a caller from supplying an arbitrary customer_id to attach
   // the order to someone else's contact record.
   // Returns { contactId, freshlyCreated } so callers can log orphan warnings.
-  var CONTACT_CACHE_KEY = C.CACHE_KEYS.CONTACT_PREFIX + customerEmail.toLowerCase();
-  var CONTACT_CACHE_TTL = 600; // 10 minutes
-
   async function resolveCustomerId() {
-    var cached = await cache.get(CONTACT_CACHE_KEY);
-    if (cached) {
-      return { contactId: cached, freshlyCreated: false };
-    }
-
-    var data = await zohoGet('/contacts', { email: customerEmail });
-    var contacts = (data.contacts || []);
-    if (contacts.length > 0) {
-      var contactId = contacts[0].contact_id;
-      cache.set(CONTACT_CACHE_KEY, contactId, CONTACT_CACHE_TTL).catch(function () {});
-      return { contactId: contactId, freshlyCreated: false };
-    }
-    // Not found — create a new contact.
-    // Email/phone/name MUST be nested under contact_persons; Zoho Books drops
-    // them when sent at the top level (see buildContactPayload).
-    var contactPayload = buildContactPayload(customerName, customerEmail, customerPhone);
-    try {
-      var createData = await zohoPost('/contacts', contactPayload);
-      var contact = createData.contact || {};
-      if (contact.contact_id) {
-        cache.set(CONTACT_CACHE_KEY, contact.contact_id, CONTACT_CACHE_TTL).catch(function () {});
-      }
-      return { contactId: contact.contact_id, freshlyCreated: true };
-    } catch (createErr) {
-      // Zoho rejects duplicate contact names — fall back to name search
-      if (createErr.response && createErr.response.status === 400) {
-        var nameData = await zohoGet('/contacts', { contact_name: customerName });
-        var nameContacts = (nameData.contacts || []);
-        if (nameContacts.length > 0) {
-          var nameContactId = nameContacts[0].contact_id;
-          cache.set(CONTACT_CACHE_KEY, nameContactId, CONTACT_CACHE_TTL).catch(function () {});
-          return { contactId: nameContactId, freshlyCreated: false };
-        }
-        throw createErr; // give up — surface the original error
-      }
-      throw createErr;
-    }
+    return helpers.resolveOrCreateContact(
+      { name: customerName, email: customerEmail, phone: customerPhone },
+      { cache: cache, zohoGet: zohoApi.zohoGet, zohoPost: zohoPost }
+    );
   }
 
   // Item #11 — Anchor prices to authoritative catalog cache.

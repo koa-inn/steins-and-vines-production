@@ -106,17 +106,24 @@ function helcimHeaders(idempotencyKey) {
  *
  * @param {number} amount   - Amount to charge (e.g. 50.00)
  * @param {string} currency - ISO currency code (default 'CAD')
+ * @param {{invoiceNumber?:string}} [opts] - Phase 100 D-17: binds the HelcimPay
+ *   transaction to a server-minted nonce via invoiceRequest.invoiceNumber;
+ *   readback via getCardTransactionById().invoiceNumber
  * @returns {Promise<{ checkoutToken: string, secretToken: string }>}
  */
-function initializeCheckout(amount, currency) {
+function initializeCheckout(amount, currency, opts) {
   if (!HELCIM_API_TOKEN) {
     return Promise.reject(new Error('Helcim not configured'));
   }
-  return axios.post(HELCIM_BASE_URL + '/helcim-pay/initialize', {
+  var body = {
     paymentType: 'purchase',
     amount: amount,
     currency: currency || 'CAD'
-  }, {
+  };
+  if (opts && typeof opts.invoiceNumber === 'string' && opts.invoiceNumber.length > 0) {
+    body.invoiceRequest = { invoiceNumber: opts.invoiceNumber };
+  }
+  return axios.post(HELCIM_BASE_URL + '/helcim-pay/initialize', body, {
     headers: helcimHeaders(),
     timeout: 10000
   }).then(function (resp) {
