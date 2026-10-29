@@ -188,6 +188,7 @@
 - [ ] **Phase 97: Beer and cider dashboard sections** — beer batch card and section (style, ABV/IBU, OG vs target FG, current step including temperature steps, cans and litres packaged); cider section; 2-week packaging calendar for bottling and canning, coordinated with the canning handoffs without duplicating their scope.
 - [ ] **Phase 98: Dashboard alerts and quick wins** — A1 "Needs attention" counts by type · A2 stale batches past their planned schedule · A3 vessel conflicts · A4 ready to bottle with invite not sent (link only, no automatic email) · A5 waitlist tile.
 - [ ] **Phase 99: Dashboard responsiveness and performance** — mobile-first grid with no horizontal scroll at 360 px; skeleton loaders and cached-first render; lazy charts below the fold; < 1.5 s warm / < 3 s cold on the shop tablet; Lighthouse mobile ≥ 85; a table view for every chart; then make v2 the default.
+- [ ] **Phase 100: Limited Releases page and online deposits** — `limited-releases.html` for the ten 2026-27 limited-release wine kits (Winexpert LE26 + RJS RQ27 "Elemento") with supplier marketing assets; $50 non-refundable online deposit per kit via `POST /api/preorder/deposit`; launches only when deposits work end to end. Worked next (owner, 2026-10-29), independent of Phases 97–99.
 
 ### 📋 Backlog — captured, not yet scheduled
 
@@ -1795,8 +1796,6 @@ Plans:
 
 - [x] 93-06-PLAN.md — Close WR-01 (stale range payload on Week/Month switch, PSL-11) and WR-02 (partial zero-count days tappable, PSL-14/D-10) with regression tests first; rebuild, gates, staging push only
 
----
-
 **ROOT CAUSE LOCATED (2026-09-02, during the Sheets→Postgres research pass).** The audit flagged this class as H6/H7 in 2026-06-29 but never pinned the mechanism. It is now pinned:
 
 `redeemGiftCard` (`apps-script/adminApi.gs:4204`) changes a customer balance across **four independently-committing `setValue()` calls**, with the idempotency key written **LAST**:
@@ -2670,3 +2669,23 @@ Plans:
 Plans:
 
 - [ ] TBD
+
+### Phase 100: Limited Releases page and online deposits
+
+**Goal:** Customers can browse this season's ten limited-release wine kits (five Winexpert Limited Edition 2026, five RJS Restricted Quantities 2027 "Elemento") on a new public `limited-releases.html` page that uses the suppliers' own marketing assets, and reserve kits with a $50 non-refundable online deposit per kit that books correctly in Zoho. The page goes live only when deposits work end to end.
+
+**Depends on:** nothing in v5.0 (independent of Phases 97–99; worked next, owner 2026-10-29)
+**Requirements:** TBD. Sources: `HANDOFF-limited-releases-deposits.md` (main spec §0–§11), `HANDOFF-limited-releases-assets.md` (assets addendum), todo `.planning/todos/pending/limited-releases-page-and-deposits.md`.
+**Success Criteria** (draft):
+
+  1. The supplier images and `content/limited-releases-2026-27.json` are committed as their own commit, unchanged, before any page work.
+  2. `limited-releases.html` renders all ten kits from the JSON: food pairings, a region note, the right logo variant, brochure links with file size, and attribution. No text is overlaid on the LE26 hero, and kits without a scene image render cleanly.
+  3. A customer can pay a $50 deposit per kit through `POST /api/preorder/deposit`, end to end on staging, with no cap. A per-item cap stays easy to add in `lib/limited-releases.js`.
+  4. The new page carries the sibling pages' CSP and any new tracking or third-party domains are added on every public page (CLAUDE.md rule 12).
+  5. Open owner question resolved before launch: refund policy if a supplier cannot fill a reserved kit (handoff §8 item 1).
+
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 100 to break down)
