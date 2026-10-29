@@ -2018,6 +2018,27 @@ img {
   font-size: 0.82rem;
 }
 
+/* Phase 100: limited-release SO badge + deposit line (own rows under the customer/date row) */
+.kiosk-so-card-body {
+  flex-wrap: wrap;
+}
+
+.kiosk-so-limited,
+.kiosk-so-deposit-note {
+  flex-basis: 100%;
+  font-size: 0.82rem;
+}
+
+.kiosk-so-limited {
+  margin-top: 0.35rem;
+  font-weight: 700;
+  color: var(--cellar-green);
+}
+
+.kiosk-so-deposit-note {
+  color: var(--ink-secondary);
+}
+
 .kiosk-so-card-items {
   font-size: 0.82rem;
   color: var(--ink-tertiary);

@@ -4346,6 +4346,10 @@
       var total = parseFloat(so.total) || 0;
       var balance = parseFloat(so.balance) || 0;
       var displayAmount = balance > 0 ? balance : total;
+      // Phase 100: Collect charges the remainder after the $50 deposit, so the
+      // card shows that amount (salesorder-pay still recomputes server-side).
+      var hasDue = so.is_limited_release && typeof so.amount_due === 'number' && isFinite(so.amount_due);
+      if (hasDue) displayAmount = so.amount_due;
       var lineItems = so.line_items || [];
       var displayStatus = (so.status === 'confirmed' || so.status === 'invoiced') ? 'paid' : so.status;
       var isActionable = displayStatus === 'open' || displayStatus === 'draft';
@@ -4360,6 +4364,9 @@
       html += '<span class="kiosk-so-date">' + escapeHTML(so.date || '') + '</span>';
       if (so.is_limited_release) {
         html += '<span class="kiosk-so-limited">Limited release \u00b7 $50 deposit held</span>';
+        html += '<span class="kiosk-so-deposit-note">' + (hasDue && so.deposit_held > 0
+          ? kioskFmt(so.deposit_held) + ' deposit applied \u00b7 total ' + kioskFmt(total)
+          : 'Deposit applied at payment') + '</span>';
       }
       html += '</div>';
 
@@ -4376,9 +4383,13 @@
         } else {
           html += '<div class="kiosk-so-paid-badge">Paid</div>';
         }
-        html += '<button type="button" class="btn-secondary kiosk-so-import-btn" data-so-id="' + escapeHTML(so.salesorder_id) + '">';
-        html += 'Import to Cart';
-        html += '</button>';
+        // Phase 100: the cart path is not deposit-aware (it would charge the
+        // full kit price), so limited-release SOs are paid with Collect only.
+        if (!so.is_limited_release) {
+          html += '<button type="button" class="btn-secondary kiosk-so-import-btn" data-so-id="' + escapeHTML(so.salesorder_id) + '">';
+          html += 'Import to Cart';
+          html += '</button>';
+        }
       } else {
         // D-11: closed/paid SO -- Reorder button
         html += '<div class="kiosk-so-paid-badge">' + escapeHTML(displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)) + '</div>';
