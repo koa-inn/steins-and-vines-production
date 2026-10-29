@@ -364,6 +364,7 @@ function ensureOpenInvoiceForSalesOrder(soId) {
  *      amount, so clamping avoids a Zoho 400 over-apply and logs any >1c gap.
  *   3. POST /customerpayments applying to that invoice_id via invoices:[...]
  *      (NEVER salesorders_to_apply, which lands as an unapplied advance).
+ *      Sole exception: lib/limited-releases-deposit.js books limited-release deposits as advances (Phase 100 D-01).
  *
  * Fail-closed: rejects on ANY finalize/apply failure — the caller must reverse
  * the charge or write a reconcile record; a rejection here is never "booked".
