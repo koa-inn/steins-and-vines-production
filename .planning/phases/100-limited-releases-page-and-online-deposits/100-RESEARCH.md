@@ -439,37 +439,39 @@ eventLog.logEvent('preorder.deposit_completed', { txnId: txn, kitCount: n, soCou
 | A10 | BC consumer law (BPCPA future-performance rules) may constrain a "non-refundable" deposit for goods delivered later | Open Q 6 | Wording or terms must change; lawyer review |
 | A11 | Google reads JSON-LD injected by JS | Frontend | SEO only; static fallback possible |
 
-## Open Questions / [LIVE-VERIFY] items
+## Open Questions / [LIVE-VERIFY] items (RESOLVED)
+
+> Planner annotation (2026-10-29): every owner question below is RESOLVED by a CONTEXT decision or routed to a named plan; every LV item is routed to the plan that verifies it. Research substance is unchanged.
 
 ### Wave 0 live spike (staging, live org, throwaway customer; clean up afterwards)
 Write a staging-gated script modelled on `scripts/replay-collect-webhook.js` (refuses unless `SENTRY_ENVIRONMENT === 'staging'`, run via `railway ssh`) and the read-only style of `spike-past-sales-shapes.js`. It creates a $1 test SO and payment, then records answers, and deletes everything. Do the SO-state matrix both as draft and after `/status/confirmed`.
 
-| # | Question | Why it matters | Planned handling |
-|---|----------|----------------|------------------|
-| LV1 | After `salesorders_to_apply`, does `GET /customerpayments/{id}` show `unused_amount` = full amount and any SO linkage field? | Confirms the advance exists and what identifies it | If unlinked or dropped, switch to Plan B (retainer invoice) before building |
-| LV2 | Does `GET /salesorders/{id}` change `balance`, or show any payments field? | Decides whether the kiosk list needs a preview | Design is robust either way |
-| LV3 | Does `POST /invoices/fromsalesorder` auto-apply the advance? | Decides whether the credit step is a no-op | The re-read `unused_amount` guard handles both |
-| LV4 | Does `POST /invoices/{id}/credits` apply the payment, and do `balance_due` and the payment's `unused_amount` update? | Core of D-02 | A1 |
-| LV5 | Is a payment accepted against a stock-0 item's SO, a draft SO, and a confirmed SO? Does SO creation with stock-0 items succeed? | Gate for the whole flow | |
-| LV6 | Is `description` stored and searchable via `search_text=<SO number>`? Is `notes` dropped? Does `reference_number` accept duplicates across N payments? | Advance lookup design | A7, A8 |
-| LV7 | Does the list payments response include `unused_amount`? (The docs do not list it.) | Else use `GET /customerpayments/{id}` per candidate | |
-| LV8 | Do `DELETE /customerpayments/{id}`, SO void and SO delete work on an SO that carries an advance, and in which order? | Cleanup | A2, A3 |
-| LV9 | Does omitting `rate` on a kit line pull the item rate and its zero tax? | Simplifies the SO build | Explicit rate remains the default |
-| LV10 | Does a multi-entry `salesorders_to_apply` (N SOs in one payment) work? | Optional optimization | Default stays per-SO payments |
-| LV11 | Does HelcimPay carry `invoiceRequest.invoiceNumber` into `getCardTransactionById().invoiceNumber`? | Nonce binding | A5 |
-| LV12 | Full dress rehearsal on staging, then brew day: take a staging LIMITED SO through the kiosk SO-pay path and confirm the advance is applied, only the remainder is charged, and exactly one BrewPad batch is created | Acceptance for D-02 | CONTEXT "Specifics" |
+| # | Question | Why it matters | Planned handling | Resolution |
+|---|----------|----------------|------------------|------------|
+| LV1 | After `salesorders_to_apply`, does `GET /customerpayments/{id}` show `unused_amount` = full amount and any SO linkage field? | Confirms the advance exists and what identifies it | If unlinked or dropped, switch to Plan B (retainer invoice) before building | ROUTED — Plan 02 Task 2 (spike); go/no-go Plan A/B in Plan 02 Task 3 |
+| LV2 | Does `GET /salesorders/{id}` change `balance`, or show any payments field? | Decides whether the kiosk list needs a preview | Design is robust either way | ROUTED — Plan 02 Task 2; consumed by Plans 08/09 |
+| LV3 | Does `POST /invoices/fromsalesorder` auto-apply the advance? | Decides whether the credit step is a no-op | The re-read `unused_amount` guard handles both | ROUTED — Plan 02 Task 2; consumed by Plan 08 |
+| LV4 | Does `POST /invoices/{id}/credits` apply the payment, and do `balance_due` and the payment's `unused_amount` update? | Core of D-02 | A1 | ROUTED — Plan 02 Task 2 (go/no-go gate); consumed by Plan 08 |
+| LV5 | Is a payment accepted against a stock-0 item's SO, a draft SO, and a confirmed SO? Does SO creation with stock-0 items succeed? | Gate for the whole flow | | ROUTED — Plan 02 Task 2 |
+| LV6 | Is `description` stored and searchable via `search_text=<SO number>`? Is `notes` dropped? Does `reference_number` accept duplicates across N payments? | Advance lookup design | A7, A8 | ROUTED — Plan 02 Task 2; "Deposit lookup" consumed by Plan 05 |
+| LV7 | Does the list payments response include `unused_amount`? (The docs do not list it.) | Else use `GET /customerpayments/{id}` per candidate | | ROUTED — Plan 02 Task 2; consumed by Plan 05 |
+| LV8 | Do `DELETE /customerpayments/{id}`, SO void and SO delete work on an SO that carries an advance, and in which order? | Cleanup | A2, A3 | ROUTED — Plan 02 Task 2 ("Confirmed endpoints"); consumed by Plans 05/07/13 |
+| LV9 | Does omitting `rate` on a kit line pull the item rate and its zero tax? | Simplifies the SO build | Explicit rate remains the default | ROUTED — Plan 02 Task 2 |
+| LV10 | Does a multi-entry `salesorders_to_apply` (N SOs in one payment) work? | Optional optimization | Default stays per-SO payments | ROUTED — Plan 02 Task 2 (optional) |
+| LV11 | Does HelcimPay carry `invoiceRequest.invoiceNumber` into `getCardTransactionById().invoiceNumber`? | Nonce binding | A5 | ROUTED — Plan 02 Task 3 (hard gate: yes / no→replan per Pitfall 1 minimum fallback / deferred only with owner acceptance); Plan 06 Task 0 enforces; if deferred, Plan 13 Task 2 step 2 verifies on the first staging deposit with a stop condition |
+| LV12 | Full dress rehearsal on staging, then brew day: take a staging LIMITED SO through the kiosk SO-pay path and confirm the advance is applied, only the remainder is charged, and exactly one BrewPad batch is created | Acceptance for D-02 | CONTEXT "Specifics" | ROUTED — Plan 13 Task 2 step 4 (live terminal payment required; a decline is recorded as D-02 OPEN RISK gating Plan 14) |
 
 **Zoho Books MCP:** I did not have it in this session, so nothing was inspected read-only. If you can reach it, the cheapest first check is Payment #170 in org 110002406307 (reference Helcim txn 53184102, SO-000076 / INV-000169). It was booked with `salesorders_to_apply` on 2026-08-14. Look at whether it shows any SO linkage. Historical online-deposit SOs from before 2026-05-07 (checkout commit `438400bb` era) may also exist and show how Zoho treated them.
 
 ### Questions for the owner / planner
-1. **D-13 premise:** there is no shared contact helper. Approve the extraction (Pitfall 7)?
-2. **Pitfall 1 nonce binding:** approve a small `POST /api/preorder/initialize` that deviates from the handoff and UI-SPEC wording, or accept the weaker fallback?
-3. **Total-kit bound** per order (A4).
-4. **Helcim "test mode":** staging shares the live Helcim account and Zoho org (Option B). Is a real $50-$150 charge, voided or refunded, acceptable for the staging run?
-5. **Kiosk preview:** how much brew-day UI is wanted (a "Deposit held / charging $X" line)?
-6. **Legal:** a "non-refundable" deposit for goods delivered months later may fall under BC consumer-protection rules for future-performance contracts. The existing Terms already cite BPCPA sections. Have the lawyer or owner confirm the wording before launch (A10).
-7. **Forfeited-deposit accounting and tax** stays with the accountant (D-06, not a build item). Note that a UTC `date` can shift a late-evening deposit to the next day.
-8. **The 11 untracked `HANDOFF-*.md` files** in the working tree: only the two limited-release handoffs relate to this phase. Decide whether to commit them with the assets commit.
+1. **D-13 premise:** there is no shared contact helper. Approve the extraction (Pitfall 7)? — **RESOLVED:** D-13 amended (extract `resolveOrCreateContact` verbatim; Plan 03 Task 3).
+2. **Pitfall 1 nonce binding:** approve a small `POST /api/preorder/initialize` that deviates from the handoff and UI-SPEC wording, or accept the weaker fallback? — **RESOLVED:** D-17 (nonce binding approved; Plans 03, 06, 12; LV11 gate in Plans 02/06).
+3. **Total-kit bound** per order (A4). — **RESOLVED:** D-18 (10 kits per order; Plan 04 validateBasket).
+4. **Helcim "test mode":** staging shares the live Helcim account and Zoho org (Option B). Is a real $50-$150 charge, voided or refunded, acceptable for the staging run? — **RESOLVED:** D-16 (real money on staging approved; Plans 02 and 13 void/refund everything).
+5. **Kiosk preview:** how much brew-day UI is wanted (a "Deposit held / charging $X" line)? — **RESOLVED:** planner discretion under D-02 — badge plus "Deposit applied" remainder line via a read-only preview (Plan 09).
+6. **Legal:** a "non-refundable" deposit for goods delivered months later may fall under BC consumer-protection rules for future-performance contracts. The existing Terms already cite BPCPA sections. Have the lawyer or owner confirm the wording before launch (A10). — **DEFERRED** to the owner at sign-off: Plan 13 Task 2 step 6 records whether the lawyer reviews "non-refundable" before launch.
+7. **Forfeited-deposit accounting and tax** stays with the accountant (D-06, not a build item). Note that a UTC `date` can shift a late-evening deposit to the next day. — **RESOLVED:** D-06 (accountant, case by case; not a build item); UTC date note in the Plan 13 RUNBOOK item 11.
+8. **The 11 untracked `HANDOFF-*.md` files** in the working tree: only the two limited-release handoffs relate to this phase. Decide whether to commit them with the assets commit. — **RESOLVED:** only the two limited-release handoffs are committed, with the assets (Plan 01); the other handoffs stay out of this phase.
 
 ## Environment Availability
 

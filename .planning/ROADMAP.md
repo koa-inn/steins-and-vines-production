@@ -2689,11 +2689,11 @@ Plans:
 Plans:
 
 - [ ] 100-01-PLAN.md — Assets + JSON committed unchanged; final deposit terms; refunds/terms deposit sections (W1)
-- [ ] 100-02-PLAN.md — Staging live spike LV1–LV11 (Zoho advance behaviour, Helcim nonce propagation), go/no-go (W1, checkpoint)
+- [ ] 100-02-PLAN.md — Staging live spike LV1–LV11 (Zoho advance behaviour, Helcim nonce propagation), go/no-go; LV11 hard gate (W1, checkpoint)
 - [ ] 100-03-PLAN.md — Shared libs: zohoDelete/zohoPostOnce, Helcim initialize invoiceNumber, extracted resolveOrCreateContact (W1)
 - [ ] 100-04-PLAN.md — lib/limited-releases.js allowlist + basket validation (D-18); deposit emails (W1)
 - [ ] 100-05-PLAN.md — lib/limited-releases-deposit.js: sanctioned salesorders_to_apply advance, per-kit SOs with fees, cleanup, guard test (W2)
-- [ ] 100-06-PLAN.md — /api/preorder/initialize (nonce, kill switch) + deposit verification stage + server wiring (W3)
+- [ ] 100-06-PLAN.md — LV11 gate, /api/preorder/initialize (nonce, kill switch) + deposit verification stage + server wiring (W3)
 - [ ] 100-07-PLAN.md — Deposit booking stage: N SOs + advances, cleanup→void→alert, emails, newsletter (W4)
 - [ ] 100-08-PLAN.md — D-02 brew day: finalize applies advance via /credits; kiosk SO-pay charges the remainder (W3)
 - [ ] 100-09-PLAN.md — Kiosk deposit preview route + badge/remainder display (W5)
