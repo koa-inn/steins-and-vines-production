@@ -61,6 +61,7 @@ var KIOSK_ROUTES = [
   '/api/kiosk/salesorder-update',
   '/api/kiosk/salesorder-pay',
   '/api/kiosk/salesorders',
+  '/api/kiosk/salesorder-due', // Phase 100 D-02: read-only deposit/remainder preview; pay route recomputes
   '/api/kiosk/salesorder/:id', // documentation only — matched via prefix below
   '/api/kiosk/verify-pin',
   '/api/kiosk/client-error', // 57-01: no-side-effect telemetry sink — returns 204 only, never returns data; a leaked device token can at most write scrubbed error text
@@ -83,6 +84,7 @@ var KIOSK_SALESORDER_LITERAL_ROUTES = [
   '/api/kiosk/salesorder-update',
   '/api/kiosk/salesorder-pay',
   '/api/kiosk/salesorders',
+  '/api/kiosk/salesorder-due',
 ];
 
 /**
