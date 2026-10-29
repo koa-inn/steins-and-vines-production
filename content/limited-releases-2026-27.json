@@ -1,0 +1,378 @@
+{
+  "_comment": "Display data for limited-releases.html. Prices here are for DISPLAY ONLY - the server must price from Zoho (item rate) and compute the deposit itself. Kept in sync with the Zoho items created 27 Oct 2026. See HANDOFF-limited-releases-deposits.md.",
+  "campaign_id": "limited-2026-27",
+  "deposit_per_kit": 50,
+  "deposit_refundable": false,
+  "fees": {
+    "makers_fee": 45,
+    "materials_fee": 5
+  },
+  "copy": {
+    "page_title": "Limited Release Wines 2026-27 | Steins & Vines Squamish",
+    "meta_description": "Reserve this season's limited release wine kits from Winexpert and RJS at Steins & Vines in Squamish. Ten small-run wines, one released each month from November to April. $50 deposit per kit.",
+    "hero_heading": "Limited Releases 2026-27",
+    "hero_sub": "Ten small-run wines from Winexpert and RJS, released one a month from November to April. Reserve yours with a $50 deposit. Once they're gone, they're gone.",
+    "how_it_works": [
+      {
+        "step": "Reserve",
+        "text": "Choose your kits and pay a $50 deposit for each."
+      },
+      {
+        "step": "We order it",
+        "text": "We order your kit from the supplier for its release month."
+      },
+      {
+        "step": "Book your start",
+        "text": "When your kit arrives, we'll get in touch to book a time to start your batch."
+      },
+      {
+        "step": "Brew day",
+        "text": "Pay the rest of the kit price, less your deposit, plus the usual Maker's Fee and Materials Fee."
+      }
+    ],
+    "price_note": "Kit price shown. On brew day you'll also pay our Maker's Fee ($45) and Materials Fee ($5), plus applicable tax. Each batch makes 23 L, about 30 bottles.",
+    "deposit_terms": [
+      "Deposits are $50 per kit and are non-refundable.",
+      "Your deposit comes off the kit price when you start your batch.",
+      "Release months are set by the suppliers and can change. We'll let you know if your kit is delayed.",
+      "If a supplier can't deliver a kit you've reserved, we'll refund that deposit in full."
+    ],
+    "deposit_checkbox_label": "I understand my $50 deposit per kit is non-refundable and will be applied to the kit price when I start my batch.",
+    "open_decisions_for_owner": [
+      "How long a kit is held after it arrives before the deposit is forfeited (suggested: 60 days).",
+      "Whether a deposit can be moved to a different limited kit before release.",
+      "Confirm the supplier-failure refund line above - recommended even with non-refundable deposits."
+    ]
+  },
+  "collections": [
+    {
+      "id": "le26",
+      "name": "Winexpert Limited Edition 2026",
+      "supplier": "Winexpert",
+      "theme": "The art of the blend",
+      "blurb": "This year's Winexpert Limited Edition celebrates classic blends: grape varieties that have been grown and made together for generations.",
+      "hero_image": "images/limited-releases/le26-hero.webp",
+      "brochure_pdf": "images/limited-releases/le26-brochure.pdf",
+      "hero_image_alt": "Winexpert Limited Edition 2026 wines: Milagro, Connexion Red, Amici, Connexion White and Synergy",
+      "group_image": "images/limited-releases/le26-group.webp",
+      "logo": {
+        "dark": "images/limited-releases/le26-logo-black.webp",
+        "light": "images/limited-releases/le26-logo-white.webp"
+      }
+    },
+    {
+      "id": "rq27",
+      "name": "RJS Restricted Quantities 2027: Elemento",
+      "supplier": "RJS Craft Winemaking",
+      "theme": "Shaped by the forces of nature",
+      "blurb": "Five wines, each inspired by the element that shapes its country's vineyards: heat, wind, water, earth and sun.",
+      "hero_image": "images/limited-releases/rq27-hero.webp",
+      "brochure_pdf": "images/limited-releases/rq27-brochure.pdf",
+      "hero_image_alt": "RJS Elemento wines: Ember, Aria, Acqua, Terre and Sol bottles against an elemental landscape",
+      "group_image": "images/limited-releases/rq27-group.webp",
+      "logo": {
+        "dark": "images/limited-releases/rq27-logo-dark.webp",
+        "light": "images/limited-releases/rq27-logo-white.webp"
+      }
+    }
+  ],
+  "kits": [
+    {
+      "zoho_item_id": "109900000001719001",
+      "sku": "80100269",
+      "collection": "rq27",
+      "short_name": "Ember",
+      "grapes": "Pinot Noir and Shiraz",
+      "region": "Australia",
+      "release": "2026-11",
+      "release_label": "November 2026",
+      "colour": "Red",
+      "sweetness": "Dry",
+      "body": "Medium",
+      "oak": "Medium (American and French)",
+      "abv": 13.8,
+      "weeks": 6,
+      "grape_skins": true,
+      "notes": "Ripe plum and strawberry with warm spice and a little cracked pepper. Medium-bodied, juicy and soft, with a long finish.",
+      "price": 230,
+      "food_pairings": [
+        "Spiced lamb meatballs in tomato sauce",
+        "Aged cheddar with fig preserves"
+      ],
+      "region_note": "Australia's long, hot summers ripen the grapes into something bold and concentrated.",
+      "image": "images/limited-releases/rq27-ember-bottle.webp",
+      "image_alt": "RJS Restricted Quantities 2027 Elemento Ember bottle",
+      "scene_image": null
+    },
+    {
+      "zoho_item_id": "109900000001719056",
+      "sku": "G010409",
+      "collection": "le26",
+      "short_name": "Connexion Red",
+      "grapes": "Grenache and Merlot",
+      "region": "Languedoc, France",
+      "release": "2026-12",
+      "release_label": "December 2026",
+      "colour": "Red",
+      "sweetness": "Dry",
+      "body": "Medium to full",
+      "oak": "Medium",
+      "abv": 13.5,
+      "weeks": null,
+      "grape_skins": false,
+      "notes": "Dark berry fruit with plum and raspberry, a little spice and soft herbal notes, smooth tannins and a bright, balanced finish.",
+      "price": 210,
+      "food_pairings": [
+        "Herb-roasted lamb",
+        "Grilled sausages",
+        "Mushroom risotto",
+        "Charcuterie with aged cheese and fig jam"
+      ],
+      "region_note": "Languedoc's Mediterranean sun and sea breezes, on limestone and clay soils.",
+      "image": "images/limited-releases/le26-connexion-red-bottle.webp",
+      "image_alt": "Winexpert Limited Edition 2026 Connexion Red bottle",
+      "scene_image": "images/limited-releases/le26-connexion-red-scene.webp"
+    },
+    {
+      "zoho_item_id": "109900000001719012",
+      "sku": "80100270",
+      "collection": "rq27",
+      "short_name": "Aria",
+      "grapes": "Cabernet Franc",
+      "region": "Niagara, Canada",
+      "release": "2027-01",
+      "release_label": "January 2027",
+      "colour": "Red",
+      "sweetness": "Dry",
+      "body": "Medium",
+      "oak": "Medium",
+      "abv": 13.5,
+      "weeks": 6,
+      "grape_skins": false,
+      "notes": "Raspberry and black cherry with a hint of vanilla. Medium-bodied and precise, with fresh acidity and gentle tannins.",
+      "price": 230,
+      "food_pairings": [
+        "Herb-crusted pork chops with lemony green beans",
+        "Light pasta with olive oil and fresh herbs"
+      ],
+      "region_note": "Niagara's lake-cooled vineyards keep the fruit fresh and aromatic.",
+      "image": "images/limited-releases/rq27-aria-bottle.webp",
+      "image_alt": "RJS Restricted Quantities 2027 Elemento Aria bottle",
+      "scene_image": null
+    },
+    {
+      "zoho_item_id": "109900000001719067",
+      "sku": "G010408",
+      "collection": "le26",
+      "short_name": "Connexion White",
+      "grapes": "Roussanne, Marsanne and Viognier",
+      "region": "Languedoc, France",
+      "release": "2027-01",
+      "release_label": "January 2027",
+      "colour": "White",
+      "sweetness": "Dry",
+      "body": "Medium",
+      "oak": "None",
+      "abv": 12.5,
+      "weeks": null,
+      "grape_skins": false,
+      "notes": "Stone fruit and citrus with peach and apricot, a floral lift and a soft, rounded finish.",
+      "price": 200,
+      "food_pairings": [
+        "Roast chicken",
+        "Grilled seafood",
+        "Lemon ricotta pasta with roasted vegetables"
+      ],
+      "region_note": "Languedoc's Mediterranean sun and sea breezes, on limestone and clay soils.",
+      "image": "images/limited-releases/le26-connexion-white-bottle.webp",
+      "image_alt": "Winexpert Limited Edition 2026 Connexion White bottle",
+      "scene_image": "images/limited-releases/le26-connexion-white-scene.webp"
+    },
+    {
+      "zoho_item_id": "109900000001719023",
+      "sku": "80100271",
+      "collection": "rq27",
+      "short_name": "Acqua",
+      "grapes": "Pinot Grigio and Sauvignon Blanc",
+      "region": "Italy",
+      "release": "2027-02",
+      "release_label": "February 2027",
+      "colour": "White",
+      "sweetness": "Dry",
+      "body": "Light",
+      "oak": "None",
+      "abv": 12.8,
+      "weeks": 6,
+      "grape_skins": false,
+      "notes": "Green apple, melon and citrus with a mineral edge. Bright, clean and lively.",
+      "price": 230,
+      "food_pairings": [
+        "Caprese salad skewers",
+        "Goat cheese crostini with honey"
+      ],
+      "region_note": "Grown in Italy's cool alpine valleys.",
+      "image": "images/limited-releases/rq27-acqua-bottle.webp",
+      "image_alt": "RJS Restricted Quantities 2027 Elemento Acqua bottle",
+      "scene_image": null
+    },
+    {
+      "zoho_item_id": "109900000001719078",
+      "sku": "G010407",
+      "collection": "le26",
+      "short_name": "Milagro",
+      "grapes": "Cabernet, Carmenere, Merlot and Syrah",
+      "region": "Maipo Valley, Chile",
+      "release": "2027-02",
+      "release_label": "February 2027",
+      "colour": "Red",
+      "sweetness": "Dry",
+      "body": "Medium to full",
+      "oak": "Medium",
+      "abv": 14.0,
+      "weeks": null,
+      "grape_skins": false,
+      "notes": "Black and red berry fruit with cherry and tart plum, bright acidity and polished tannins.",
+      "price": 210,
+      "food_pairings": [
+        "Grilled steak",
+        "Braised beef short ribs",
+        "Smoky BBQ brisket with mac and cheese"
+      ],
+      "region_note": "Chile's Maipo Valley: warm days, cooling air off the Andes and well-drained alluvial soils.",
+      "image": "images/limited-releases/le26-milagro-bottle.webp",
+      "image_alt": "Winexpert Limited Edition 2026 Milagro bottle",
+      "scene_image": "images/limited-releases/le26-milagro-scene.webp"
+    },
+    {
+      "zoho_item_id": "109900000001719034",
+      "sku": "80100272",
+      "collection": "rq27",
+      "short_name": "Terre",
+      "grapes": "Cabernet Sauvignon and Merlot",
+      "region": "France",
+      "release": "2027-03",
+      "release_label": "March 2027",
+      "colour": "Red",
+      "sweetness": "Dry",
+      "body": "Medium",
+      "oak": "Medium",
+      "abv": 13.4,
+      "weeks": 6,
+      "grape_skins": false,
+      "notes": "Dark plum and ripe cherry with mocha and subtle oak. Medium-bodied, smooth and structured, with a long finish.",
+      "price": 230,
+      "food_pairings": [
+        "French onion soup with a crusty baguette",
+        "Braised beef and mushroom ragu"
+      ],
+      "region_note": "France's deep, layered soils give structure and depth.",
+      "image": "images/limited-releases/rq27-terre-bottle.webp",
+      "image_alt": "RJS Restricted Quantities 2027 Elemento Terre bottle",
+      "scene_image": null
+    },
+    {
+      "zoho_item_id": "109900000001719089",
+      "sku": "G010406",
+      "collection": "le26",
+      "short_name": "Synergy",
+      "grapes": "Semillon and Gewurztraminer",
+      "region": "Riverland, Australia",
+      "release": "2027-03",
+      "release_label": "March 2027",
+      "colour": "White",
+      "sweetness": "Dry",
+      "body": "Medium",
+      "oak": "None",
+      "abv": 13.0,
+      "weeks": null,
+      "grape_skins": false,
+      "notes": "Lychee, white peach and citrus blossom with a touch of spice. Crisp and silky.",
+      "price": 200,
+      "food_pairings": [
+        "Linguine with clams",
+        "Lemongrass chicken noodle salad",
+        "Soft cheese on crostini"
+      ],
+      "region_note": "South Australia's Riverland: warm days, cool nights and sandy loam soils.",
+      "image": "images/limited-releases/le26-synergy-bottle.webp",
+      "image_alt": "Winexpert Limited Edition 2026 Synergy bottle",
+      "scene_image": "images/limited-releases/le26-synergy-scene.webp"
+    },
+    {
+      "zoho_item_id": "109900000001719045",
+      "sku": "80100285",
+      "collection": "rq27",
+      "short_name": "Sol",
+      "grapes": "Tempranillo and Bobal",
+      "region": "Spain",
+      "release": "2027-04",
+      "release_label": "April 2027",
+      "colour": "Red",
+      "sweetness": "Dry",
+      "body": "Full",
+      "oak": "Medium",
+      "abv": 14.0,
+      "weeks": 6,
+      "grape_skins": false,
+      "notes": "Blackberry and ripe prune with baking spice and toasted oak. Full-bodied, smooth and balanced, with a warm finish.",
+      "price": 230,
+      "food_pairings": [
+        "Chickpea and chorizo stew",
+        "Slow-roasted chicken thighs with smoked paprika"
+      ],
+      "region_note": "Spain's long, sunny days build ripeness and savoury depth.",
+      "image": "images/limited-releases/rq27-sol-bottle.webp",
+      "image_alt": "RJS Restricted Quantities 2027 Elemento Sol bottle",
+      "scene_image": null
+    },
+    {
+      "zoho_item_id": "109900000001719100",
+      "sku": "G010404",
+      "collection": "le26",
+      "short_name": "Amici",
+      "grapes": "Montepulciano, Aglianico and Sangiovese",
+      "region": "Italy",
+      "release": "2027-04",
+      "release_label": "April 2027",
+      "colour": "Red",
+      "sweetness": "Dry",
+      "body": "Full",
+      "oak": "Heavy",
+      "abv": 14.0,
+      "weeks": null,
+      "grape_skins": true,
+      "notes": "Dark ripe fruit and bright cherry with savoury, herbal depth. Firm tannins and generous oak.",
+      "price": 220,
+      "food_pairings": [
+        "Spaghetti bolognese",
+        "Herb-roasted chicken",
+        "Grilled zucchini and peppers"
+      ],
+      "region_note": "Grapes from central and southern Italy, grown on clay and limestone soils.",
+      "image": "images/limited-releases/le26-amici-bottle.webp",
+      "image_alt": "Winexpert Limited Edition 2026 Amici bottle",
+      "scene_image": "images/limited-releases/le26-amici-scene.webp"
+    }
+  ],
+  "assets": {
+    "_comment": "Supplier marketing materials. Images go in images/limited-releases/ (self-hosted WebP, <=200 KB each; never hotlink supplier sites - CSP img-src is self only). Fill image/hero_image/brochure_pdf paths above as files are added.",
+    "le26_product_descriptions": {
+      "status": "on file",
+      "source": "Google Drive: LE26 Product Description/LE26_ProductDescriptions_EN.pdf",
+      "note": "Official Winexpert retailer copy (wine, region, food). Pairings and region notes above are summarised from it. The owner may paste the official wording in place of the notes if preferred."
+    },
+    "le26_images": {
+      "status": "done 27 Oct",
+      "source": "Winexpert LE26 retailer pack (Downloads/LE26 EN)",
+      "note": "Bottle shots (455x900), scene images (1200x857), hero (1920x1080, has \"Reserve yours now\" baked in), group shot, logos, brochure PDF. All in images/limited-releases/, WebP, sRGB."
+    },
+    "rq27_copy_and_images": {
+      "status": "done 27 Oct",
+      "source": "RJS RQ27 Elemento retailer pack (Downloads/RQ27 Elemento)",
+      "note": "Bottle shots (~237x900), hero cropped from DigitalBanners_ENG-02 (right side only - the left half has a non-clickable DISCOVER MORE button baked in), collection image from SM_Static Collection (4:5, has Elemento wordmark), logos, brochure re-rendered at 100 dpi (686 KB, from 76 MB). Tasting notes and pairings summarised from the RJS launch presentation. No scene images - the RJS landscape art is in print PSDs and licensed Getty photos, which should not be extracted for web."
+    },
+    "attribution": "Images courtesy of Winexpert and RJS Craft Winemaking.",
+    "le26_not_for_web": "Reels, animations, static social posts, email banners, reservation cards and the consumer reservation tracking sheet are in the same pack - for social, newsletter and in-store use, not this page.",
+    "rq27_not_for_web": "Videos (per-kit and collection), static social posts, posters, order forms, sell sheet and labels are in the same pack - for social and in-store use."
+  }
+}
