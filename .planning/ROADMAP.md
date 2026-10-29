@@ -2684,7 +2684,7 @@ Plans:
   4. The new page carries the sibling pages' CSP and any new tracking or third-party domains are added on every public page (CLAUDE.md rule 12).
   5. Open owner question resolved before launch: refund policy if a supplier cannot fill a reserved kit (handoff §8 item 1).
 
-**Plans:** 9/14 plans executed
+**Plans:** 11/14 plans executed
 
 Plans:
 
@@ -2708,8 +2708,8 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 100-07-PLAN.md — Deposit booking stage: N SOs + advances, cleanup→void→alert, emails, newsletter (W4)
-- [ ] 100-12-PLAN.md — Module 18 payment flow + in-page confirmation (W4)
+- [x] 100-07-PLAN.md — Deposit booking stage: N SOs + advances, cleanup→void→alert, emails, newsletter (W4)
+- [x] 100-12-PLAN.md — Module 18 payment flow + in-page confirmation (W4)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
