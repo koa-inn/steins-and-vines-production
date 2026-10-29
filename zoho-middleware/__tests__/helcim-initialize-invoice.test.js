@@ -21,14 +21,24 @@ describe('helcim.initializeCheckout invoiceNumber binding (Phase 100 D-17)', fun
     expect(body).toEqual({ paymentType: 'purchase', amount: 50, currency: 'CAD' });
   });
 
-  test('invoiceNumber opt adds invoiceRequest.invoiceNumber', async function () {
+  test('invoiceNumber opt adds invoiceRequest with invoiceNumber and lineItems (LV11)', async function () {
     await helcim.initializeCheckout(100, 'CAD', { invoiceNumber: 'LR-0123456789abcdef' });
     expect(axios.post.mock.calls[0][1]).toEqual({
       paymentType: 'purchase',
       amount: 100,
       currency: 'CAD',
-      invoiceRequest: { invoiceNumber: 'LR-0123456789abcdef' }
+      invoiceRequest: {
+        invoiceNumber: 'LR-0123456789abcdef',
+        lineItems: [{ description: 'Limited release deposit', quantity: 1, price: 100, total: 100 }]
+      }
     });
+    expect(axios.post.mock.calls[0][1].invoiceNumber).toBeUndefined();
+  });
+
+  test('caller-supplied lineItems are passed through', async function () {
+    var items = [{ description: 'Kit A', quantity: 2, price: 50, total: 100 }];
+    await helcim.initializeCheckout(100, 'CAD', { invoiceNumber: 'LR-0123456789abcdef', lineItems: items });
+    expect(axios.post.mock.calls[0][1].invoiceRequest.lineItems).toEqual(items);
   });
 
   test('opts without a usable invoiceNumber adds nothing', async function () {
