@@ -1,7 +1,7 @@
 ---
 phase: 100
 slug: limited-releases-page-and-online-deposits
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-10-29
@@ -27,7 +27,7 @@ created: 2026-10-29
 
 ### Where new CSS goes (recommendation)
 
-Add a new file `css/limited-releases.css` and register it in the `minify:css` script in `package.json` as `cleancss -o css/limited-releases.min.css css/limited-releases.css` (the same pattern as `catalog-subpage.css`). Link `css/limited-releases.min.css?v=` after `styles.min.css` in the page only. Reason: `styles.css` is already ~7.7k lines and loaded by every page; this page's rules (stepper, sticky bar, kit cards, calendar, confirmation) are page-scoped. All selectors are prefixed `.lr-` (e.g. `.lr-kit`, `.lr-stepper`, `.lr-bar`) so nothing leaks. No new custom properties on `:root`; reuse the existing tokens listed below. Add the file to `stamp:pages` handling if that script stamps CSS links (check when planning).
+Add a new file `css/limited-releases.css` and register it in the `minify:css` script in `package.json` as `cleancss -o css/limited-releases.min.css css/limited-releases.css` (the same pattern as `catalog-subpage.css`). Link `css/limited-releases.min.css?v=` after `styles.min.css` in the page only. Reason: `styles.css` is already ~7.7k lines and loaded by every page; this page's rules (stepper, sticky bar, kit cards, calendar, confirmation) are page-scoped. All selectors are prefixed `.lr-` (e.g. `.lr-kit`, `.lr-stepper`, `.lr-bar`) so nothing leaks. No new custom properties on `:root`; reuse the existing tokens listed below. The one page-scoped custom property, `--lr-bar-h` (measured sticky-bar height), is set on the `.lr-` page scope, not `:root`. Add the file to `stamp:pages` handling if that script stamps CSS links (check when planning).
 
 ---
 
@@ -80,7 +80,7 @@ Existing brand tokens only; no new colors.
 Supporting: text `--color-text` #2c2c2c; muted copy `--color-muted` #5f5f5f (on white/cream only; do not use on green); gold `--color-gold-dark` #96792e for the "Release" month label rule only if contrast on white is >= 4.5:1 (it is about 4.1:1, so DO NOT use gold for text; use gold only as a 2px decorative top border on the active release month in the calendar).
 
 Accent (burgundy) reserved for:
-1. The primary `.btn` ("Pay ... deposit", sticky-bar "Reserve" button, hero "Reserve your kits" CTA)
+1. The primary `.btn` ("Pay ... deposit", hero "Reserve your kits" CTA)
 2. The sticky-bar "Reserve" button (cream fill, burgundy text on the green bar) and the stepper "+" button fill when a kit has qty >= 1 (the selected-state indicator on a card is a 2px burgundy card border)
 3. Focus ring (existing `*:focus-visible` rule)
 4. Links in body copy (existing `a` rule)
@@ -270,7 +270,7 @@ Use JSON strings verbatim wherever the JSON owns the copy. Do not invent supplie
 | Error states (payment) | See Payment States table (exact strings there) |
 | Max quantity | "Maximum 10 per kit. Call us for larger orders: (604) 567-4565" |
 | Confirmation heading | "Your deposit is paid" |
-| Destructive actions | None that are irreversible. "Remove" in the basket only sets a quantity to 0 and needs no confirmation (nothing is paid yet). There is no self-serve cancel or refund after payment (D-07, non-refundable); the confirmation and email point to the shop phone for changes |
+| Destructive actions | None that are irreversible. "Remove {short_name}" in the basket only sets a quantity to 0 and needs no confirmation (nothing is paid yet). There is no self-serve cancel or refund after payment (D-07, non-refundable); the confirmation and email point to the shop phone for changes |
 | Out of scope | No reserved counts, no "only N left", no countdowns, no sold-out badges (D-12) |
 
 ---
@@ -304,11 +304,11 @@ Use JSON strings verbatim wherever the JSON owns the copy. Do not invent supplie
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-10-29 (gsd-ui-checker, 2nd pass; 6/6 PASS)
