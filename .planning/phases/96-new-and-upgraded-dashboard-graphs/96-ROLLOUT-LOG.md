@@ -33,3 +33,27 @@ Pre-deploy fix `ac8124b7` (owner-approved): single `DASH_TYPE_LABELS` map so sel
 
 - **Leak check:** 0 email addresses; no `recipe_snapshot`; no `customer_*` key in any Phase 96 array. `customer_name` appears only in the pre-existing Phase 94 `summary` block (unchanged by this phase; staff-only endpoint).
 - **Desktop / phone render pass:** folded into the owner's staging UAT (staging sits behind Cloudflare Access + staff sign-in).
+
+## Staging Chrome pass (2026-10-28/29)
+
+Desktop Chrome on staging (owner signed in), plus a same-origin 390px iframe for phone width.
+
+- All four sections and ten widgets render; Chart.js loaded; only console error was the Google sign-in popup.
+- Cross-widget agreement on live data: G1 months sum to 214 = Started (YTD); Pipeline active stages 12 + 20 + 7 = 39 = Fermenting now; Complete 175 = Completed (YTD); Task health overdue 1 + 2 + 0 = 3 = Workload note.
+- Drills: Data health single row (SV-B-000229) opened the batch detail with no banner; Pipeline Secondary wine segment opened the banner "Wine at Secondary · 19 batches" with 19 shown.
+- No banned copy (on-time, unbilled, NaN, undefined). Phone width: no horizontal overflow; every widget full width.
+
+Issues found and fixed in `8dcccc79` (regression tests first; owner: "do all fixes"), re-verified on staging after deploy:
+
+| # | Issue | Fix |
+|---|-------|-----|
+| 1 | Workload overdue note duplicated on re-render | previous note removed before adding |
+| 2 | Bar-end labels clipped (Vessels "18 o…", Task health "2") | chart() right padding sized to the longest label |
+| 3 | Top 10 / Products names clipped at the left edge | opt-in `labelMaxChars: 24` with ellipsis |
+| 4 | "Open these batches" / "Show all" unstyled | `.bp-text-btn` text button |
+| 5 | Data health counts mid-row | counts right-aligned next to the chevron |
+| 6 | Products: two stacked view toggles, Group by apart from its select | per-column heading + toggle; Group by grouped; header selects size to content |
+| 7 | Cycle time "Planned … d" labels crossed by dashed lines | labels drawn after all lines, on a background |
+
+Staging SHA after fixes: `8dcccc79` (Pages deploy run `40934610958` success; no middleware change).
+Still open: owner iPad UAT (touch, Home Screen app, colour distinguishability).
