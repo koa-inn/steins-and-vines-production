@@ -452,7 +452,8 @@ app.post('/api/newsletter', newsletterLimiter, function (req, res) {
 // POST routes that handle Zoho-unavailable gracefully (offline fallback mode).
 // They are allowed through when Zoho is not authenticated; req.zohoOffline is
 // set so each handler can switch to email-notification fallback.
-var OFFLINE_CAPABLE_POSTS = ['/contacts', '/bookings', '/checkout'];
+// Phase 100: /preorder/deposit voids a captured charge when Zoho is down rather than 401-ing a paid customer.
+var OFFLINE_CAPABLE_POSTS = ['/contacts', '/bookings', '/checkout', '/preorder/deposit'];
 
 app.use('/api', function (req, res, next) {
   // Phase 82 D-13: public batch routes only proxy Apps Script — never Zoho.
@@ -494,7 +495,8 @@ if (!apiKeyGuard.getKey()) {
 // D-46-10 / Finding #1: these three public POSTs are keyless — protected by
 // Referer + rate-limit only (requireAllowedReferer still runs on them, see
 // the NOTE above), matching the existing /promo/validate risk profile.
-var KEYLESS_POSTS = ['/bookings', '/contacts', '/payment/initialize'];
+// Phase 100: public limited-release deposits -- reCAPTCHA + paymentLimiter + Referer
+var KEYLESS_POSTS = ['/bookings', '/contacts', '/payment/initialize', '/preorder/initialize', '/preorder/deposit'];
 
 // Credential comparison (constant-time, header-only) lives in lib/apiKey /
 // lib/deviceToken; session lookup lives in lib/session. lib/authTiers is the
@@ -790,6 +792,7 @@ app.use('/api/kiosk/telemetry', telemetryLimiter);
 app.use('/api/batch/public', batchPublicLimiter);
 app.use('/api/payment', paymentLimiter);
 app.use('/api/checkout', paymentLimiter);
+app.use('/api/preorder', paymentLimiter);
 app.use('/api/pos/sale', paymentLimiter);
 app.use('/api/kiosk/sale', function (req, res, next) {
   if (req.path === '/status') return next();
@@ -845,6 +848,7 @@ app.use('/', catalogRouter);
 app.use('/', require('./routes/items'));
 app.use('/', require('./routes/payments'));
 app.use('/', require('./routes/checkout'));
+app.use('/', require('./routes/preorder'));
 app.use('/', require('./routes/taxes'));
 app.use('/', require('./routes/pos'));
 app.use('/', require('./routes/kiosk-history'));
