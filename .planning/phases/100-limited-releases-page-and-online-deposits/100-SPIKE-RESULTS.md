@@ -79,7 +79,41 @@ characters.` Given LV1 (field has no linking effect anyway), use one payment per
 
 ## LV11 - HelcimPay invoiceRequest.invoiceNumber propagation
 
-Status: OPEN, resolved in Task 3 with the owner's $1.00 test charge.
+propagates: yes
+
+Run 2026-10-29T21:50:15Z from the staging container (`--helcim-init --amount 1.00`), then paid by the owner ($1.00, card type AX).
+Helcim transaction id 57428079, status APPROVED, type purchase, amount 1, CAD. Nonce sent: `LR-SPIKE-2bd2028e`.
+
+- Accepted initialize body form: `invoiceRequest { invoiceNumber, lineItems[...] }`. A top-level `invoiceNumber` is rejected
+  with 400 "Invalid Invoice Number". An `invoiceRequest` without `lineItems` is also rejected with 400. `lineItems` is therefore
+  REQUIRED whenever `invoiceRequest` is sent (fix in spike script: commit d236e357).
+- Readback field: `invoiceNumber`, top-level on `GET card-transaction` (`getCardTransactionById(57428079)` returned
+  `{"status":"APPROVED","transactionId":57428079,"invoiceNumber":"LR-SPIKE-2bd2028e","cardType":"AX","amount":1,"type":"purchase"}`).
+- postMessage SUCCESS payload: `eventMessage.data.data.invoiceNumber = "LR-SPIKE-2bd2028e"` (also transactionId, status, type, amount).
+- Void: `--helcim-void 57428079` returned `{"ok":true,"transactionId":"57428079","status":"APPROVED"}` (accepted).
+
+Consequence: the D-17 nonce binding works as designed. Plans 06, 07 and 12 are unblocked.
+
+### Plan 06 Task 0 requirement (lib/helcim.js)
+
+`zoho-middleware/lib/helcim.js` `initializeCheckout` (lines ~109-125) currently sets
+`body.invoiceRequest = { invoiceNumber: opts.invoiceNumber }` ONLY. It does NOT include `lineItems` (grep for `lineItems` in the file
+returns nothing). Helcim rejects that with 400, so Plan 06 Task 0 MUST change lib/helcim.js to send `invoiceRequest` WITH `lineItems`
+(at least one item: description, quantity, price, total, e.g. a single "Limited release deposit" line equal to the amount) and add a
+unit test asserting the body shape. Do not send a top-level `invoiceNumber`.
+
+### Harness note (for Plan 13)
+
+The planned localhost harness (http://localhost:8765 parent) did NOT work: Chrome rendered a broken-frame page for the Helcim iframe
+(Helcim responded 200 with no frame-ancestors/X-Frame-Options; cause unconfirmed). The first checkout token (LR-SPIKE-0fec4eee) expired
+unused and was never charged. Workaround: the orchestrator injected start.js + appendHelcimPayIframe at runtime (DevTools-style; nothing
+committed or deployed) into https://staging.steinsandvines.ca/robots.txt (staging origin, no CSP meta); a second init was then paid.
+Opening the Helcim pay URL top-level renders blank. Staging deposits in Plan 13 run from the real page, so no harness is needed.
+
+### Ops note (RUNBOOK / Plan 13)
+
+In the staging container the repo root is `/app` and the middleware is `/app/zoho-middleware`. Run scripts with
+`railway ssh -e staging -s sv_middleware -- sh -c 'cd zoho-middleware && node scripts/...'` (service name `sv_middleware`, underscore).
 
 ## Confirmed endpoints
 
@@ -120,7 +154,9 @@ are accepted, so uniqueness is NOT enforced by Zoho and idempotency must be hand
 | 109900000001746029 | customerpayment (applied via /credits) | deleted |
 | 109900000001746039 | customerpayment (duplicate ref) | deleted |
 | 109900000001748027 | invoice INV-000254 | voided, then deleted (manual retry after payment removed) |
-| Helcim $1.00 test charge | pending Task 3 | pending |
+| Helcim token LR-SPIKE-0fec4eee (ccf19214...) | checkout token | expired unused, never charged |
+| Helcim txn 57428079 ($1.00, LR-SPIKE-2bd2028e) | card transaction | voided (void accepted) |
+| Helcim customer CST1211 | Helcim customer record, auto-created by the charge | left in place (not removed; no PII recorded beyond the code) |
 
 Manual retry: the script's cleanup ran the invoice step before its payment was deleted, so the invoice, SO-B and contact
 needed a second pass from the container (void, delete invoice, delete SO-B, delete contact; all OK). Note that invoice number
@@ -128,6 +164,6 @@ INV-000254 and SO-000082..84 were consumed from the numbering sequences (gaps wi
 
 ## Go/no-go
 
-Go/no-go: Plan A (provisional, pending LV11 and owner acknowledgement). The advance exists with `unused_amount = 50` and
-`/invoices/{id}/credits` applies it. Caveat for the owner: `salesorders_to_apply` does not link the payment to the SO or change the
-SO, so the deposit is found by `description` text, not by Zoho linkage. Also, the credit is not auto-applied at conversion (LV3).
+Go/no-go: Plan A - owner confirmed 2026-10-29. The advance exists with `unused_amount = 50` and
+`/invoices/{id}/credits` applies it; LV11 propagates: yes. Caveat acknowledged: `salesorders_to_apply` does not link the payment to the
+SO or change the SO, so the deposit is found by `description` text, not by Zoho linkage. The credit is not auto-applied at conversion (LV3).
