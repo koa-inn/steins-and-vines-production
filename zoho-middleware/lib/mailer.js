@@ -515,10 +515,16 @@ function flattenText(v, max) {
   return String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim().slice(0, max || 100);
 }
 
+// Zoho SO numbers already start with "SO-"; only label a bare number.
+function soLabel(num) {
+  var n = flattenText(num, 40);
+  return /^SO[-\s]/i.test(n) ? n : 'SO ' + n;
+}
+
 function soLines(salesorders) {
   return (salesorders || []).map(function (so) {
     return '  - ' + flattenText(so.name, 100) + ' · ' + flattenText(so.release_label, 40) +
-      ' · SO ' + flattenText(so.salesorder_number, 40);
+      ' · ' + soLabel(so.salesorder_number);
   });
 }
 
