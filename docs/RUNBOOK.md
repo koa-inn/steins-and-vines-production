@@ -59,6 +59,7 @@ error + no tracking, but avoid it):
 
 | Date | Git SHA | Railway Deploy ID | Deploy URL | Notes |
 |------|---------|-------------------|------------|-------|
+| 2026-10-29 19:22 UTC | `3f761072` | `c790fb0f-e2b0-4140-aa7b-01cc0300eb69` | manual `git push production 3f761072:main` (tag `prod-20261029-1`) | Phase 96: BrewPad v2 dashboard graphs G1–G10 (four sections, per-widget options, Chart/Table, drill-through); get_dashboard_stats adds taskRows, readings, vessels, batchMeta (read-only, no migration). Rollback target `a3cce010`. |
 | 2026-10-28 20:07 UTC | `33d10f48` | `a3cce010-575e-4f2f-91fa-3296a88bf130` | manual `git push production 33d10f48:main` (tag `prod-20261028-2`) | Phase 95: BrewPad v2 dashboard (opt-in per device: global filters, Chart.js 4.5.1 self-hosted, click-through drill, trend deltas), staff_batch flag + migration 0008, staff backfill CLI (--exclude, --expect-ids). Rollback target `d8ffd7bd`. |
 | 2026-10-28 02:52 UTC | `3f64da2d` | `d8ffd7bd-3149-4ea1-ad18-c9fd5421cfb6` | manual `git push production 3f64da2d:main` (tag `prod-20261028-1`) | Phase 94 review fixes CR-01 (reopen clears completed_at), WR-01..04; body-parser 1.20.9 + qs 6.16.2 security patch |
 | 2026-10-27 22:10 UTC | `141901a7` | `896f6942-dff8-4ccc-af7b-42ae658281ce` | manual `git push production 141901a7:main` (tag `prod-20261027-1`) | Phase 94 BrewPad dashboard correctness + batch_type (migration 0007), get_dashboard_stats, backfill CLIs |

@@ -80,3 +80,15 @@ Read-only, 2026-10-29:
 ## Release decision
 
 Owner release approval: 3f761072959a8efc5b70926060a7d7e0f5b5e167 — 2026-10-29T19:22:39Z (owner, execute-phase checkpoint 96-10 Task 4). Rollback target: Railway `a3cce010-575e-4f2f-91fa-3296a88bf130`.
+
+## Production release
+
+- **Released SHA:** `3f761072` (= owner-approved), `git push production 3f761072…:main` 2026-10-29 19:22 UTC (`33d10f48..3f761072`, fast-forward). Tag `prod-20261029-1` (pushed to production and origin).
+- **Railway production:** deployment `c790fb0f-e2b0-4140-aa7b-01cc0300eb69` SUCCESS; `/health` ok (`authenticated: true`, `database: true`). Rollback target `a3cce010`.
+- **Pages:** Deploy Production (filtered) success.
+- **Payload check** (in-container, read-only): taskRows 1114, readings 4, vessels 233, batchMeta 215; column whitelists as on staging; 0 emails; no `recipe_snapshot`; no `customer_*` key in any Phase 96 array (only the pre-existing Phase 94 `summary`).
+- **Browser** (desktop Chrome, owner signed in): four sections, ten widgets, G1 sum 214 = Started (YTD), one Workload note, no banned copy, only console error the Google sign-in popup. Classic dashboard (`?dash=v1`) still renders. The browser was switched back to v2 afterwards.
+
+## Production confirmation
+
+approved: the owner accepted the desktop Chrome verification above (2026-10-29; iPad check waived, same as staging) and moved on to the next phase.
