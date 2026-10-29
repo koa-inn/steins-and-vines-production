@@ -59,10 +59,10 @@ Exactly 4 sizes and 2 weights, matching existing site values.
 |------|------|--------|-------------|
 | Body (copy, notes, form inputs, pairings) | 16px (1rem) | 400 | 1.5 (site body is 1.6; use inherited 1.6 for paragraphs, 1.5 inside cards and list rows) |
 | Label (buttons, field labels, badges, release chips, small print, attribution, form-error, recaptcha note) | 14px (0.875rem) | 700 for labels/buttons/badges; 400 for small print, attribution, form-note | 1.4 |
-| Heading (kit name, collection theme, step titles, deposit total) | 20px (1.25rem) | 700 | 1.2 (Playfair) |
-| Display (page h1, collection h2) | `clamp(1.625rem, 4vw + 1rem, 3rem)` (site `h1` rule); h2 uses the existing `.intro h2 / .content h2` size | 700 | 1.2 |
+| Heading (all h2s, kit name, collection theme, step titles, deposit total) | 20px (1.25rem) | 700 | 1.2 (Playfair) |
+| Display (page h1 only) | `clamp(1.625rem, 4vw + 1rem, 3rem)` (site `h1` rule); all page h2s (collection names, "Release calendar", "Reserve your kits", confirmation heading) are pinned to the Heading role: 20px / 700 / 1.2 Playfair, overriding the site h2 size inside `.lr-` scope; only the h1 uses the clamp | 700 | 1.2 |
 
-Notes: the site's 12px (`0.75rem`) `.form-error-msg` is an existing global; do not add other sizes. Weight 600 (Playfair) and 300 (Lato) are not used on this page. Prices use `font-variant-numeric: lining-nums` (already global).
+Notes: the site's 12px `.form-error-msg` global is overridden to 14px (0.875rem, Label role) by a scoped `.lr-` rule on this page, so the page declares only 4 sizes. Weight 600 (Playfair) and 300 (Lato) are not used on this page. Prices use `font-variant-numeric: lining-nums` (already global).
 
 ---
 
@@ -81,7 +81,7 @@ Supporting: text `--color-text` #2c2c2c; muted copy `--color-muted` #5f5f5f (on 
 
 Accent (burgundy) reserved for:
 1. The primary `.btn` ("Pay ... deposit", sticky-bar "Reserve" button, hero "Reserve your kits" CTA)
-2. Stepper "+" button fill when a kit has qty >= 1 (the selected-state indicator on a card is a 2px burgundy card border)
+2. The sticky-bar "Reserve" button (cream fill, burgundy text on the green bar) and the stepper "+" button fill when a kit has qty >= 1 (the selected-state indicator on a card is a 2px burgundy card border)
 3. Focus ring (existing `*:focus-visible` rule)
 4. Links in body copy (existing `a` rule)
 
@@ -149,7 +149,7 @@ Card anatomy, top to bottom (identical structure for all ten; only the header ba
 - Structure: a `<div role="group" aria-label="Quantity for {short_name}">` containing `<button type="button" aria-label="Remove one {short_name}">` ("-" as a text glyph U+2212), an `<output class="lr-qty" aria-live="off">` showing the number, and `<button type="button" aria-label="Add one {short_name}">` ("+" glyph).
 - Buttons 44x44px, `--radius-sm`, 2px burgundy border, cream background and burgundy glyph (Label weight 700, 20px glyph via Heading size); when qty >= 1 the "+" fill flips to burgundy with cream glyph. Count is 44px wide, centred, Body size (16px) at weight 700.
 - Range 0-10 (D-09). "-" is `disabled` (opacity 0.7, `aria-disabled` via native `disabled`) at 0; "+" is `disabled` at 10. When "+" is disabled at 10, show Label text under the stepper: "Maximum 10 per kit. Call us for larger orders: (604) 567-4565" (`role="status"`).
-- Card selected state: qty >= 1 adds a 2px burgundy border to the card and a Label "N reserved" badge (reads e.g. "2 selected") top-right of the media row. This is a selection indicator, not scarcity (D-12). No "reserved by others" counts anywhere.
+- Card selected state: qty >= 1 adds a 2px burgundy border to the card and a Label "N selected" badge (reads e.g. "2 selected") top-right of the media row. This is a selection indicator, not scarcity (D-12). No "reserved by others" counts anywhere.
 - Press feedback: the existing `:active` opacity 0.85 pattern. No animation beyond a 0.2s colour transition; wrap any transition in the existing `prefers-reduced-motion` convention (no motion required).
 
 ---
@@ -172,7 +172,7 @@ Purpose: show the interleaved chronology of both collections and let a customer 
 Standalone from the site cart (D-09). It is a white panel (`--color-white`, 24px padding, `--radius-sm`, 1px brown border at 30%) with, in order:
 
 1. Heading (h2): "Reserve your kits".
-2. Basket summary (`.lr-basket`, region with `aria-labelledby` on the h2): a list of chosen kits, one row per kit with qty > 0, in the page's display order: "{short_name} x {qty}", release month at right in Label muted, and a "Remove" text button (`.btn-secondary`-style link, 44px high) that sets that qty to 0. Under the list a total row: "N kits" and "Deposit today: $X" (Heading 20/700 for the amount).
+2. Basket summary (`.lr-basket`, region with `aria-labelledby` on the h2): a list of chosen kits, one row per kit with qty > 0, in the page's display order: "{short_name} x {qty}", release month at right in Label muted, and a "Remove {short_name}" text button (`.btn-secondary`-style link, 44px high) that sets that qty to 0. Under the list a total row: "N kits" and "Deposit today: $X" (Heading 20/700 for the amount).
    - Empty state (0 kits): see Copywriting. The basket list is replaced by one muted paragraph; the form fields stay visible but the pay button is disabled.
 3. Fields (existing `.form-group` markup, label above input, `autocomplete` set): Name (`name`), Email (`email`), Phone (`tel`). All required. Phone is required per handoff 3. Honeypot field as in `reservation.html` (copy its hidden "Website" field pattern if used there).
 4. Consent block using `.checkout-consent` / `.checkout-consent-row`:
@@ -189,7 +189,7 @@ Validation: on blur and on submit attempt, use `.field-error` on the input and `
 - Visible only on < 768px, only while total kits >= 1, only while the reservation panel is NOT in the viewport (IntersectionObserver on `#lr-reserve`; ES5 code with a graceful fallback of always-visible when IntersectionObserver is unavailable), and not while the payment iframe is open or after confirmation.
 - Position: `position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000` (below the cookie notice at 1100, above content; the header is 200 and the search overlay is higher). Background `--color-green`, text `--color-cream`, 16px padding plus `padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px))`. Content: left text "{N} kit(s) · ${X} deposit" (Label 14/700, with a middle dot separator as in the context decision) and right a button "Reserve" (cream background, burgundy text, 44px min height, `--radius-sm`) which scrolls to `#lr-reserve` (`scrollIntoView`, honouring `prefers-reduced-motion` by using auto behaviour) and moves focus to the reservation h2 (`tabindex="-1"`).
 - Cookie banner: the cookie notice is fixed at bottom with z-index 1100 and the site already adds `padding-bottom: 11rem` on `html.cookie-notice-open body`. While `html.cookie-notice-open` is set, the bar switches to `position: static` (rendered in normal flow directly above the reservation panel's intro, not fixed), so it never covers the banner. When the notice is dismissed the bar returns to fixed. Observe the class with a `MutationObserver` on `document.documentElement` (attributes filter `class`).
-- Pay button overlap: the IntersectionObserver rule above hides the bar whenever any part of `#lr-reserve` is visible, so the bar never sits over the form's pay button. Add `padding-bottom` of the bar's height (about 80px) to the page's last section while the bar is shown so the footer stays reachable.
+- Pay button overlap: the IntersectionObserver rule above hides the bar whenever any part of `#lr-reserve` is visible, so the bar never sits over the form's pay button. Add `padding-bottom` equal to the bar's rendered height (measured in JS and exposed as a CSS custom property `--lr-bar-h` set from the bar) to the page's last section while the bar is shown so the footer stays reachable.
 - Bar text updates inside an element with `aria-hidden="true"`; the accessible announcement is the live region below (the bar itself is `role="region" aria-label="Reservation summary"`). The Reserve button has an accessible name of "Reserve {N} kits, ${X} deposit".
 
 ### Accessibility
@@ -211,7 +211,7 @@ State machine for the form panel. The pay button text and a single status line (
 | ready | page load; or kits >= 1 and consent ticked | "Pay $X deposit", enabled | none |
 | blocked | kits = 0 or consent unticked | "Pay deposit" or "Pay $X deposit", disabled | `#lr-pay-hint` text |
 | starting | click; reCAPTCHA token acquired and `/api/payment/initialize` called for 50 x kits | "Opening secure payment..." disabled, `.btn-loading` | "Preparing your payment." |
-| iframe open | HelcimPay iframe shown | disabled, label "Secure payment open" | "Complete your payment in the secure window. We never see your card number." Provide a "Cancel" `.btn-secondary` to close the iframe (see below) |
+| iframe open | HelcimPay iframe shown | disabled, label "Secure payment open" | "Complete your payment in the secure window. We never see your card number." Provide a "Close secure payment" `.btn-secondary` to close the iframe (see below) |
 | verifying | Helcim returns approval; `POST /api/preorder/deposit` in flight | "Confirming your reservation..." disabled | "Payment approved. Please keep this page open while we confirm your reservation. Do not pay again." Show a spinner (existing spinner component if present, else a CSS-only 20px ring; hidden under reduced motion in favour of text only) |
 | success | server returns ok | form replaced by confirmation (below) | focus to confirmation heading |
 | cancelled | user closes iframe / Helcim reports cancel | returns to ready | `role="status"`: "Payment cancelled. You have not been charged." (honest only because the card was never submitted) |
