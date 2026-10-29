@@ -369,13 +369,20 @@ function ensureOpenInvoiceForSalesOrder(soId) {
  * Fail-closed: rejects on ANY finalize/apply failure — the caller must reverse
  * the charge or write a reconcile record; a rejection here is never "booked".
  *
+ * payment.advance (Phase 100 D-02): apply an existing limited-release deposit
+ * advance to the invoice via POST /invoices/{id}/credits BEFORE reading
+ * balance_due, so the clamp sees the reduced balance. The advance itself was
+ * booked by lib/limited-releases-deposit.js.
+ *
  * @param {string} soId
  * @param {{customer_id:string, amount:number, payment_mode:string,
- *          reference_number:string, notes:string, date?:string}} payment
- * @returns {Promise<{invoiceId:string, appliedAmount:number, payment:object}>}
+ *          reference_number:string, notes:string, date?:string,
+ *          advance?:{payment_id:string, amount:number}}} payment
+ * @returns {Promise<{invoiceId:string, appliedAmount:number, advanceApplied:number, payment:object}>}
  */
 function finalizeSalesOrderInvoiceAndApplyPayment(soId, payment) {
   return ensureOpenInvoiceForSalesOrder(soId).then(function (invoiceId) {
+    return applyAdvanceToInvoice(invoiceId, payment.advance).then(function (advanceApplied) {
     return zohoGet('/invoices/' + invoiceId).then(function (invData) {
       var invoice = (invData && invData.invoice) || {};
       var balanceDue = parseFloat(invoice.balance_due);
@@ -401,9 +408,34 @@ function finalizeSalesOrderInvoiceAndApplyPayment(soId, payment) {
         notes: payment.notes,
         invoices: [{ invoice_id: invoiceId, amount_applied: applyAmount }]
       }).then(function (paymentResult) {
-        return { invoiceId: invoiceId, appliedAmount: applyAmount, payment: paymentResult };
+        return {
+          invoiceId: invoiceId,
+          appliedAmount: applyAmount,
+          advanceApplied: advanceApplied,
+          payment: paymentResult
+        };
       });
     });
+    });
+  });
+}
+
+/**
+ * Apply an existing deposit advance to an invoice (Phase 100 D-02).
+ * Re-reads the payment's unused_amount so a retry (credit already applied) is a no-op.
+ * @returns {Promise<number>} amount applied (0 when no advance / nothing unused)
+ */
+function applyAdvanceToInvoice(invoiceId, advance) {
+  if (!advance || !advance.payment_id) return Promise.resolve(0);
+  return zohoGet('/customerpayments/' + advance.payment_id).then(function (d) {
+    var p = (d && d.payment) || {};
+    var unused = parseFloat(p.unused_amount);
+    if (!isFinite(unused) || unused < 0.01) return 0;
+    var amt = Math.min(parseFloat(advance.amount), unused);
+    if (!isFinite(amt)) amt = unused;
+    return zohoPost('/invoices/' + invoiceId + '/credits', {
+      invoice_payments: [{ payment_id: advance.payment_id, amount_applied: amt }]
+    }).then(function () { return amt; });
   });
 }
 
