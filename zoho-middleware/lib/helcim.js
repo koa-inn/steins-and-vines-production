@@ -106,9 +106,13 @@ function helcimHeaders(idempotencyKey) {
  *
  * @param {number} amount   - Amount to charge (e.g. 50.00)
  * @param {string} currency - ISO currency code (default 'CAD')
- * @param {{invoiceNumber?:string}} [opts] - Phase 100 D-17: binds the HelcimPay
- *   transaction to a server-minted nonce via invoiceRequest.invoiceNumber;
- *   readback via getCardTransactionById().invoiceNumber
+ * @param {{invoiceNumber?:string, lineItems?:Array}} [opts] - Phase 100 D-17: binds
+ *   the HelcimPay transaction to a server-minted nonce via invoiceRequest.invoiceNumber;
+ *   readback via getCardTransactionById().invoiceNumber (spike LV11). Helcim
+ *   REQUIRES invoiceRequest.lineItems whenever invoiceRequest is sent (400
+ *   "Missing required data invoiceRequest.lineItems" otherwise) and rejects a
+ *   top-level invoiceNumber. If opts.lineItems is not supplied a single summary
+ *   line whose total equals `amount` is sent.
  * @returns {Promise<{ checkoutToken: string, secretToken: string }>}
  */
 function initializeCheckout(amount, currency, opts) {
@@ -121,7 +125,12 @@ function initializeCheckout(amount, currency, opts) {
     currency: currency || 'CAD'
   };
   if (opts && typeof opts.invoiceNumber === 'string' && opts.invoiceNumber.length > 0) {
-    body.invoiceRequest = { invoiceNumber: opts.invoiceNumber };
+    body.invoiceRequest = {
+      invoiceNumber: opts.invoiceNumber,
+      lineItems: (Array.isArray(opts.lineItems) && opts.lineItems.length > 0)
+        ? opts.lineItems
+        : [{ description: 'Limited release deposit', quantity: 1, price: amount, total: amount }]
+    };
   }
   return axios.post(HELCIM_BASE_URL + '/helcim-pay/initialize', body, {
     headers: helcimHeaders(),
