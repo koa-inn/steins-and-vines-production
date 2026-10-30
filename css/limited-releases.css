@@ -810,6 +810,19 @@ body[data-page="limited-releases"] .content p.lr-confirm__email {
   gap: 16px;
 }
 
+/* <button> uses line-height normal and <a> inherits 1.6, so match them. */
+.lr-confirm__actions > * {
+  line-height: 1.2;
+  min-height: 48px;
+}
+
+/* Stacked on phones: both full width so they read as a pair. */
+@media (max-width: 479px) {
+  .lr-confirm__actions > * {
+    flex: 1 1 100%;
+  }
+}
+
 body[data-page="limited-releases"] .content p.lr-attribution {
   font-size: 0.875rem;
   color: var(--color-muted);
