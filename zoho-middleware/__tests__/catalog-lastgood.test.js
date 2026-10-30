@@ -272,3 +272,38 @@ describe('website /api/ingredients last-good copy', function () {
     });
   });
 });
+
+// 261029-zq1 Task 3: item details are cached for 6 h in lib/zoho-api; the
+// explicit staff refresh paths must still force fresh details.
+describe('explicit refresh forces fresh item details', function () {
+  test('kiosk ?bust=1 rebuild passes { force: true }', function () {
+    var m = load();
+    m.zohoApi.fetchAllItems.mockResolvedValue(ITEMS);
+    m.zohoApi.fetchItemDetailsBulk.mockResolvedValue({});
+    var authTiers = require('../lib/authTiers');
+    jest.spyOn(authTiers, 'requireTiers').mockReturnValue(function (req, res, next) { next(); });
+    return call('/api/kiosk/products', { bust: '1' }).then(function (r) {
+      expect(r.status).toBe(200);
+      expect(m.zohoApi.fetchItemDetailsBulk).toHaveBeenCalledWith(['1', '2'], { force: true });
+    });
+  });
+
+  test('scheduled/background kiosk refresh uses the detail cache (no force)', function () {
+    var m = load();
+    m.zohoApi.fetchAllItems.mockResolvedValue(ITEMS);
+    m.zohoApi.fetchItemDetailsBulk.mockResolvedValue({});
+    return m.router.refreshKioskCatalogInBackground().then(function () {
+      expect(m.zohoApi.fetchItemDetailsBulk).toHaveBeenCalledWith(['1', '2']);
+    });
+  });
+
+  test('admin cache-clear forces fresh product details', function () {
+    var m = load();
+    m.zohoApi.fetchAllItems.mockResolvedValue([{ item_id: '10', name: 'Merlot Kit', rate: 100, group_name: '' }]);
+    m.zohoApi.fetchItemDetailsBulk.mockResolvedValue({ '10': { custom_fields: [{ label: 'Type', value: 'wine' }] } });
+    return call('/api/admin/cache-clear').then(function (r) {
+      expect(r.body.ok).toBe(true);
+      expect(m.zohoApi.fetchItemDetailsBulk.mock.calls[0]).toEqual([['10'], { force: true }]);
+    });
+  });
+});
