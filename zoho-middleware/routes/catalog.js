@@ -92,6 +92,44 @@ var INGREDIENTS_SOFT_TTL = 600; // 10 minutes — triggers background refresh
 var KIOSK_PRODUCTS_CACHE_KEY = C.CACHE_KEYS.KIOSK_PRODUCTS;
 var KIOSK_PRODUCTS_CACHE_TTL = 1800; // 30 minutes
 
+// Last-good catalog copies (261029-zq1). Written on every successful rebuild and
+// served with source: 'stale' when the cache misses AND the Zoho rebuild fails
+// (e.g. the shared Inventory daily quota is exhausted), so a catalog endpoint
+// never goes blank. 30-day TTL rather than none so a retired key cannot linger
+// forever; any successful rebuild rewrites it.
+var LASTGOOD_TTL = 30 * 24 * 3600;
+
+function writeLastGood(key, atKey, items) {
+  if (!Array.isArray(items) || items.length === 0) return;
+  cache.set(key, items, LASTGOOD_TTL);
+  cache.set(atKey, new Date().toISOString(), LASTGOOD_TTL);
+}
+
+/**
+ * Serve the last-good copy through ledger.overlayStock (same as the cache path)
+ * with source: 'stale'. Resolves true when served, false when there is no copy
+ * (the caller then sends its existing error response). Never rejects.
+ */
+function serveLastGood(res, key, atKey, tag) {
+  return Promise.all([cache.get(key), cache.get(atKey)]).then(function (r) {
+    var items = r[0];
+    var at = typeof r[1] === 'string' ? r[1] : null;
+    if (!Array.isArray(items) || items.length === 0 || res.headersSent) return false;
+    log.warn(tag + ' Serving last-good copy (' + items.length + ' items, from ' + (at || 'unknown') + ')');
+    return ledger.overlayStock(items).then(function (overlaid) {
+      res.json({ source: 'stale', stale_at: at, items: overlaid });
+      return true;
+    }, function (err) {
+      log.error(tag + ' overlayStock failed: ' + err.message);
+      res.json({ source: 'stale', stale_at: at, items: items });
+      return true;
+    });
+  }).catch(function (err) {
+    log.error(tag + ' last-good read failed: ' + (err && err.message));
+    return false;
+  });
+}
+
 // Kit type values that belong on the kits/products page.
 // Used by both doRefreshProducts() and GET /api/ingredients.
 var KIT_CATEGORIES = C.KIT_CATEGORIES;
@@ -874,6 +912,7 @@ function rebuildKioskCatalog() {
         });
 
         cache.set(KIOSK_PRODUCTS_CACHE_KEY, sellable, KIOSK_PRODUCTS_CACHE_TTL);
+        writeLastGood(C.CACHE_KEYS.KIOSK_PRODUCTS_LASTGOOD, C.CACHE_KEYS.KIOSK_PRODUCTS_LASTGOOD_AT, sellable);
         log.info('[api/kiosk/products] Cached ' + sellable.length + ' sellable items');
         ledger.reconcile(sellable).catch(function (err) {
           log.error('[api/kiosk/products] Inventory ledger reconcile failed: ' + err.message);
@@ -964,7 +1003,12 @@ router.get('/api/kiosk/products', function (req, res) {
     .catch(function (err) {
       var status = (err.response && err.response.status) || 0;
       log.error('[api/kiosk/products] ' + err.message);
-      res.status(502).json({ error: 'Unable to fetch kiosk products', detail: err.message, zoho_status: status });
+      // 261029-zq1: never a blank kiosk — fall back to the last good rebuild.
+      return serveLastGood(res, C.CACHE_KEYS.KIOSK_PRODUCTS_LASTGOOD, C.CACHE_KEYS.KIOSK_PRODUCTS_LASTGOOD_AT,
+        '[api/kiosk/products]').then(function (served) {
+        if (served || res.headersSent) return;
+        res.status(502).json({ error: 'Unable to fetch kiosk products', detail: err.message, zoho_status: status });
+      });
     });
   }
 });
