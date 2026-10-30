@@ -398,102 +398,187 @@ body[data-page="limited-releases"] #lr-how .how-it-works-steps {
   margin-bottom: 16px;
 }
 
-/* ===== Release calendar ===== */
+/* ===== Release calendar (wall-calendar pages) ===== */
+/* Each month is a tear-off calendar page: two binder rings, a green header
+   band with the short month large and the year below, then the kits with a
+   supplier colour dot (burgundy = Winexpert, gold = RJS). */
 .lr-calendar {
   list-style: none;
-  padding: 0;
-  margin: 16px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  padding: 14px 0 0;
+  margin: 16px 0 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 12px;
 }
 
 .lr-calendar__month {
-  display: grid;
-  grid-template-columns: 7rem 1fr;
-  gap: 12px;
-  align-items: start;
-  align-content: start;
+  position: relative;
+  display: flex;
+  flex-direction: column;
   background: var(--color-white);
-  border: 1px solid rgba(119, 70, 45, 0.3);
-  border-radius: var(--radius-sm);
-  padding: 16px;
+  border: 1px solid rgba(119, 70, 45, 0.25);
+  border-radius: 6px;
+  box-shadow: 0 2px 0 rgba(119, 70, 45, 0.12), 0 6px 14px rgba(55, 14, 19, 0.06);
+  overflow: visible;
 }
 
-.lr-calendar__month--active {
-  border-top: 2px solid var(--color-gold-dark);
+/* Binder rings */
+.lr-calendar__month::before,
+.lr-calendar__month::after {
+  content: "";
+  position: absolute;
+  top: -9px;
+  width: 8px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--color-cream);
+  border: 2px solid var(--color-brown);
+  z-index: 1;
 }
+
+.lr-calendar__month::before { left: 26%; }
+.lr-calendar__month::after { right: 26%; }
 
 .lr-calendar__label {
-  font-size: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 16px 8px 10px;
+  background: var(--color-green);
+  color: var(--color-cream);
+  border-radius: 5px 5px 0 0;
+  text-align: center;
+  line-height: 1;
+}
+
+.lr-calendar__mon {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.75rem;
   font-weight: 700;
-  line-height: 1.4;
-  color: var(--color-green);
-  padding-top: 2px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border: 0;
+  cursor: default;
+}
+
+.lr-calendar__year {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  opacity: 0.85;
+}
+
+/* Current month (only visible while the season is on) */
+.lr-calendar__month--active .lr-calendar__label {
+  background: var(--color-gold-dark);
 }
 
 .lr-calendar__kits {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 6px 12px 10px;
   display: flex;
   flex-direction: column;
-  gap: 0;
-  line-height: 1.5;
+  flex: 1;
+  border-top: 2px dashed rgba(119, 70, 45, 0.25);
+  line-height: 1.3;
 }
 
-/* Each kit link is a full-width 44px row (UI-SPEC: targets >= 44x44px),
-   with the supplier tag on the same flex line inside the link. */
+.lr-calendar__kit + .lr-calendar__kit {
+  border-top: 1px solid rgba(119, 70, 45, 0.12);
+}
+
+/* Each kit link is a full-width row of at least 44px (UI-SPEC tap target). */
 .lr-calendar__kit a {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  column-gap: 8px;
+  align-items: center;
   align-content: center;
-  align-items: baseline;
-  column-gap: 0.35em;
   min-height: 44px;
+  padding: 4px 0;
+  color: var(--color-burgundy);
+  text-decoration: none;
+}
+
+.lr-calendar__kit a::before {
+  content: "";
+  grid-row: 1 / span 2;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-burgundy);
+}
+
+.lr-calendar__kit--rjs a::before {
+  background: var(--color-gold);
+}
+
+.lr-calendar__kit a:hover .lr-calendar__name,
+.lr-calendar__kit a:focus-visible .lr-calendar__name {
+  text-decoration: underline;
 }
 
 .lr-calendar__name {
+  grid-column: 2;
   font-weight: 700;
 }
 
 .lr-calendar__tag {
-  font-size: 0.875rem;
+  grid-column: 2;
+  font-size: 0.75rem;
   font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--color-muted);
 }
 
-/* Phones: the link rows carry the 44px height, so trim the cell padding and
-   centre the month label on the first row. */
-@media (max-width: 639px) {
-  .lr-calendar__month {
-    padding-top: 6px;
-    padding-bottom: 6px;
-  }
+.lr-calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+  color: var(--color-muted);
+}
 
-  .lr-calendar__label {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-    padding-top: 0;
-  }
+.lr-calendar-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lr-calendar-legend li::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-burgundy);
+}
+
+.lr-calendar-legend .lr-calendar-legend__rjs::before {
+  background: var(--color-gold);
 }
 
 @media (min-width: 640px) {
   .lr-calendar {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 28px 16px;
+  }
+}
+
+@media (min-width: 1000px) {
+  .lr-calendar {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 16px;
   }
 
-  .lr-calendar__month {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .lr-calendar__label {
-    padding: 0 0 8px;
-    border-bottom: 1px solid rgba(119, 70, 45, 0.3);
+  .lr-calendar__mon {
+    font-size: 1.5rem;
   }
 }
 

@@ -71,7 +71,7 @@ describe('limited releases polish: calendar layout', function () {
 
   test('two-kit months list both kits as distinct items', function () {
     var jan = [].filter.call(document.querySelectorAll('#lr-calendar > li'), function (li) {
-      return /January 2027/.test(li.textContent);
+      return /Jan(uary)? 2027/.test(li.textContent);
     })[0];
     expect(jan.querySelectorAll('.lr-calendar__kit')).toHaveLength(2);
   });

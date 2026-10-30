@@ -398,10 +398,19 @@ function lrBuildCalendar(data) {
   var current = now.getFullYear() + '-' + (now.getMonth() < 9 ? '0' : '') + (now.getMonth() + 1);
   buildCalendar(data).forEach(function (cell) {
     var li = lrEl('li', 'lr-calendar__month' + (cell.month === current ? ' lr-calendar__month--active' : ''));
-    li.appendChild(lrEl('strong', 'lr-calendar__label', cell.label));
+    // Wall-calendar page header: short month large, year below. The label's
+    // text stays "Mon YYYY" (abbr carries the full month name).
+    var label = lrEl('strong', 'lr-calendar__label');
+    var parts = String(cell.label).split(' ');
+    var mon = lrEl('abbr', 'lr-calendar__mon', parts[0].slice(0, 3));
+    mon.setAttribute('title', parts[0]);
+    label.appendChild(mon);
+    label.appendChild(document.createTextNode(' '));
+    label.appendChild(lrEl('span', 'lr-calendar__year', parts[1] || ''));
+    li.appendChild(label);
     var kits = lrEl('ul', 'lr-calendar__kits');
     cell.kits.forEach(function (k) {
-      var entry = lrEl('li', 'lr-calendar__kit');
+      var entry = lrEl('li', 'lr-calendar__kit lr-calendar__kit--' + (k.supplier === 'RJS' ? 'rjs' : 'we'));
       // The supplier tag sits inside the link so the whole 44px row is the tap target.
       var a = lrEl('a', '');
       a.href = '#lr-kit-' + k.sku;
