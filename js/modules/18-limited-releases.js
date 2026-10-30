@@ -883,6 +883,17 @@ function lrSetStatus(text) {
   if (s) s.textContent = text || '';
 }
 
+/**
+ * Locks page scroll while HelcimPay's full-screen iframe is open so a swipe
+ * on a phone cannot scroll the page behind the payment sheet.
+ */
+function lrLockScroll(lock) {
+  var st = document.documentElement && document.documentElement.style;
+  if (!st) return;
+  if (lock) st.overflow = 'hidden';
+  else if (st.removeProperty) st.removeProperty('overflow');
+}
+
 function lrRemoveCloseButton() {
   var c = lrById('lr-close-pay');
   if (c && c.parentNode) c.parentNode.removeChild(c);
@@ -907,6 +918,7 @@ function lrSetPaymentState(state, o) {
     else call.classList.add('hidden');
   }
   lrSetUnload(state === 'iframe' || state === 'verifying');
+  lrLockScroll(state === 'iframe');
   if (state === 'ready') {
     _lrSubmitting = false;
     if (btn) btn.classList.remove('btn-loading');

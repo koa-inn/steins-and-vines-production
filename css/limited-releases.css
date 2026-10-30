@@ -672,6 +672,17 @@ body[data-page="limited-releases"] .content p#lr-pay-hint {
   margin-top: 8px;
 }
 
+/* "Close secure payment" sits directly under the pay button. */
+#lr-close-pay {
+  margin-top: 8px;
+}
+
+@media (max-width: 639px) {
+  #lr-close-pay {
+    width: 100%;
+  }
+}
+
 body[data-page="limited-releases"] #lr-form .recaptcha-note {
   margin: 24px 0 0;
 }

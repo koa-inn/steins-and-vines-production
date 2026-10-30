@@ -95,3 +95,46 @@ describe('mobile: bar padding goes on body (HIGH #2)', function () {
     }, 20);
   });
 });
+
+describe('mobile: payment overlay scroll lock (MEDIUM #8)', function () {
+  beforeEach(renderPage);
+
+  test('page scroll is locked while the payment iframe is open and restored on ready', function () {
+    lr.setPaymentState('iframe');
+    expect(document.documentElement.style.overflow).toBe('hidden');
+    lr.setPaymentState('ready');
+    expect(document.documentElement.style.overflow).toBe('');
+  });
+
+  test('scroll lock is released when moving on to verifying', function () {
+    lr.setPaymentState('iframe');
+    lr.setPaymentState('verifying');
+    expect(document.documentElement.style.overflow).toBe('');
+  });
+
+  test('Close secure payment releases the scroll lock', async function () {
+    $('lr-name').value = 'Jane Doe';
+    $('lr-email').value = 'jane@example.com';
+    $('lr-phone').value = '604 555 1234';
+    plusFirst().click();
+    var c = $('lr-consent');
+    c.checked = true;
+    c.dispatchEvent(new Event('change'));
+    window.SHEETS_CONFIG = { MIDDLEWARE_URL: 'https://mw.test' };
+    global.fetch = jest.fn(function () {
+      return Promise.resolve({
+        status: 200,
+        ok: true,
+        text: function () {
+          return Promise.resolve(JSON.stringify({ checkoutToken: 'CT1', secretToken: 'ST1', invoice_number: 'INV-9', deposit_total: 50, kit_count: 1 }));
+        }
+      });
+    });
+    $('lr-pay').click();
+    await flush();
+    await flush();
+    expect(document.documentElement.style.overflow).toBe('hidden');
+    $('lr-close-pay').click();
+    expect(document.documentElement.style.overflow).toBe('');
+  });
+});
