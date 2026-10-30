@@ -686,8 +686,12 @@ body[data-page="limited-releases"] #lr-form .recaptcha-note {
   color: var(--color-cream);
 }
 
+/* Set while the cookie notice is open (html.cookie-notice-open). The notice
+   is fixed to the bottom of the screen with its own 44px buttons, so the bar
+   steps aside until it is dismissed rather than stacking on top of it or
+   dropping into the flow after the footer. */
 .lr-bar--static {
-  position: static;
+  display: none;
 }
 
 @media (min-width: 768px) {
