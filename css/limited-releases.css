@@ -593,7 +593,13 @@ body[data-page="limited-releases"] #lr-how .how-it-works-steps {
   margin-top: 8px;
 }
 
+/* Terms share the reserve panel's centred 760px column so the two read as one block. */
+body[data-page="limited-releases"] #lr-terms-section > .container {
+  max-width: 760px;
+}
+
 body[data-page="limited-releases"] .content p.lr-price-note {
+  max-width: none;
   margin: 0;
   padding: 16px;
   background: var(--color-white);
