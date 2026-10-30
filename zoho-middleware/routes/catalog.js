@@ -293,6 +293,7 @@ function doRefreshProducts() {
           cache.del(INGREDIENTS_CACHE_KEY);
           cache.set(PRODUCTS_CACHE_KEY, enriched, PRODUCTS_CACHE_TTL);
           cache.set(PRODUCTS_CACHE_TS_KEY, Date.now(), PRODUCTS_CACHE_TTL);
+          writeLastGood(C.CACHE_KEYS.PRODUCTS_LASTGOOD, C.CACHE_KEYS.PRODUCTS_LASTGOOD_AT, enriched);
           log.info('[api/products] Cached ' + enriched.length + ' kit items');
 
           // Reconcile inventory ledger with fresh Zoho stock counts
@@ -421,6 +422,27 @@ router.get('/api/products', function (req, res) {
         return;
       }
 
+      // 261029-zq1: the last good Zoho refresh (Redis) beats the static repo
+      // snapshot — serve it stale and refresh in the background.
+      return serveLastGood(res, C.CACHE_KEYS.PRODUCTS_LASTGOOD, C.CACHE_KEYS.PRODUCTS_LASTGOOD_AT, '[api/products]')
+        .then(function (served) {
+          if (served) {
+            refreshProducts().catch(function (err) {
+              log.error('[api/products] Background refresh failed: ' + err.message);
+            });
+            return;
+          }
+          return serveProductsFromSnapshotOrZoho(res);
+        });
+    })
+    .catch(function (err) {
+      log.error('[api/products] ' + err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Unable to fetch products' });
+    });
+});
+
+function serveProductsFromSnapshotOrZoho(res) {
+  return Promise.resolve().then(function () {
       // Try static snapshot as last resort before hitting Zoho (avoids rate-limit storms)
       var snapshotData = null;
       try {
@@ -472,12 +494,8 @@ router.get('/api/products', function (req, res) {
             res.status(502).json({ error: 'Unable to fetch products' });
           });
         });
-    })
-    .catch(function (err) {
-      log.error('[api/products] ' + err.message);
-      res.status(502).json({ error: 'Unable to fetch products' });
     });
-});
+}
 
 /**
  * GET /api/services
@@ -637,6 +655,7 @@ function doRefreshIngredients() {
           if (enriched.length > 0) {
             cache.set(INGREDIENTS_CACHE_KEY, enriched, INGREDIENTS_CACHE_TTL);
             cache.set(INGREDIENTS_CACHE_TS_KEY, Date.now(), INGREDIENTS_CACHE_TTL);
+            writeLastGood(C.CACHE_KEYS.INGREDIENTS_LASTGOOD, C.CACHE_KEYS.INGREDIENTS_LASTGOOD_AT, enriched);
             // Reconcile inventory ledger with fresh Zoho stock counts
             ledger.reconcile(enriched).catch(function (err) {
               log.error('[api/ingredients] Inventory ledger reconcile failed: ' + err.message);
@@ -785,6 +804,27 @@ function servePublicIngredients(req, res) {
         return;
       }
 
+      // 261029-zq1: the last good Zoho refresh (Redis) beats the static repo
+      // snapshot — serve it stale and refresh in the background.
+      return serveLastGood(res, C.CACHE_KEYS.INGREDIENTS_LASTGOOD, C.CACHE_KEYS.INGREDIENTS_LASTGOOD_AT, '[api/ingredients]')
+        .then(function (served) {
+          if (served) {
+            Promise.resolve().then(doRefreshIngredients).catch(function (err) {
+              log.error('[api/ingredients] Background refresh failed: ' + err.message);
+            });
+            return;
+          }
+          return serveIngredientsFromSnapshotOrZoho(res);
+        });
+    })
+    .catch(function (err) {
+      log.error('[api/ingredients] ' + err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Unable to fetch products' });
+    });
+}
+
+function serveIngredientsFromSnapshotOrZoho(res) {
+  return Promise.resolve().then(function () {
       // Try static snapshot as last resort before hitting Zoho
       var snapIngData = null;
       try {
@@ -817,10 +857,6 @@ function servePublicIngredients(req, res) {
             res.json({ source: 'zoho', items: enriched });
           });
         });
-    })
-    .catch(function (err) {
-      log.error('[api/ingredients] ' + err.message);
-      res.status(502).json({ error: 'Unable to fetch products' });
     });
 }
 

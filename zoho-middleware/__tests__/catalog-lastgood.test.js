@@ -190,3 +190,85 @@ describe('kiosk catalog last-good copy', function () {
     });
   });
 });
+
+describe('website /api/products last-good copy', function () {
+  var KIT = [{ item_id: '10', name: 'Merlot Kit', rate: 100, product_type: 'goods', group_name: '' }];
+  var KIT_DETAIL = { '10': { item_id: '10', custom_fields: [{ label: 'Type', value: 'wine' }] } };
+
+  test('constants define the products last-good keys', function () {
+    expect(C.CACHE_KEYS.PRODUCTS_LASTGOOD).toBe('zoho:products:lastgood');
+    expect(C.CACHE_KEYS.PRODUCTS_LASTGOOD_AT).toBe('zoho:products:lastgood:at');
+  });
+
+  test('a successful refresh writes the last-good copy', function () {
+    var m = load();
+    m.zohoApi.fetchAllItems.mockResolvedValue(KIT.map(function (i) { return Object.assign({}, i); }));
+    m.zohoApi.fetchItemDetailsBulk.mockResolvedValue(KIT_DETAIL);
+    return m.router.refreshProducts().then(function (enriched) {
+      expect(enriched).toHaveLength(1);
+      expect(store[C.CACHE_KEYS.PRODUCTS_LASTGOOD]).toEqual(enriched);
+      expect(typeof store[C.CACHE_KEYS.PRODUCTS_LASTGOOD_AT]).toBe('string');
+    });
+  });
+
+  test('cache + file miss with a last-good copy → 200 stale (no blank page)', function () {
+    var m = load();
+    store[C.CACHE_KEYS.PRODUCTS_LASTGOOD] = [{ item_id: '10', name: 'Merlot Kit' }];
+    store[C.CACHE_KEYS.PRODUCTS_LASTGOOD_AT] = '2026-10-29T16:00:00.000Z';
+    m.zohoApi.fetchAllItems.mockRejectedValue(quota429());
+    return call('/api/products').then(function (r) {
+      expect(r.status).toBe(200);
+      expect(r.body.source).toBe('stale');
+      expect(r.body.stale_at).toBe('2026-10-29T16:00:00.000Z');
+      expect(r.body.items[0].overlaid).toBe(true);
+    });
+  });
+
+  test('cache miss, no last-good, refresh fails → existing 502', function () {
+    var m = load();
+    m.zohoApi.fetchAllItems.mockRejectedValue(quota429());
+    return call('/api/products').then(function (r) {
+      expect(r.status).toBe(502);
+    });
+  });
+});
+
+describe('website /api/ingredients last-good copy', function () {
+  var ING = [{ item_id: '20', name: 'Pale Malt', rate: 3, product_type: 'goods', cf_type: '' }];
+
+  test('constants define the ingredients last-good keys', function () {
+    expect(C.CACHE_KEYS.INGREDIENTS_LASTGOOD).toBe('zoho:ingredients:lastgood');
+    expect(C.CACHE_KEYS.INGREDIENTS_LASTGOOD_AT).toBe('zoho:ingredients:lastgood:at');
+  });
+
+  test('a successful refresh writes the last-good copy', function () {
+    var m = load();
+    m.zohoApi.fetchAllItems.mockResolvedValue(ING.map(function (i) { return Object.assign({}, i); }));
+    m.zohoApi.fetchItemDetailsBulk.mockResolvedValue({});
+    return m.router.refreshIngredients().then(function (enriched) {
+      expect(enriched).toHaveLength(1);
+      expect(store[C.CACHE_KEYS.INGREDIENTS_LASTGOOD]).toEqual(enriched);
+      expect(typeof store[C.CACHE_KEYS.INGREDIENTS_LASTGOOD_AT]).toBe('string');
+    });
+  });
+
+  test('cache + file miss with a last-good copy → 200 stale', function () {
+    var m = load();
+    store[C.CACHE_KEYS.INGREDIENTS_LASTGOOD] = [{ item_id: '20', name: 'Pale Malt' }];
+    store[C.CACHE_KEYS.INGREDIENTS_LASTGOOD_AT] = '2026-10-29T16:00:00.000Z';
+    m.zohoApi.fetchAllItems.mockRejectedValue(quota429());
+    return call('/api/ingredients').then(function (r) {
+      expect(r.status).toBe(200);
+      expect(r.body.source).toBe('stale');
+      expect(r.body.items[0].overlaid).toBe(true);
+    });
+  });
+
+  test('cache miss, no last-good, refresh fails → existing 502', function () {
+    var m = load();
+    m.zohoApi.fetchAllItems.mockRejectedValue(quota429());
+    return call('/api/ingredients').then(function (r) {
+      expect(r.status).toBe(502);
+    });
+  });
+});

@@ -15,10 +15,14 @@
 var CACHE_KEYS = {
   PRODUCTS:            'zoho:products',
   PRODUCTS_TS:         'zoho:products:ts',       // timestamp of last enrichment
+  PRODUCTS_LASTGOOD:    'zoho:products:lastgood',    // last good refresh, served as source 'stale' (261029-zq1)
+  PRODUCTS_LASTGOOD_AT: 'zoho:products:lastgood:at', // ISO timestamp of that refresh
   PRODUCT_IMAGE_HASHES:'zoho:product-image-hashes',
   SERVICES:            'zoho:services:v2',
   INGREDIENTS:         'zoho:ingredients',
   INGREDIENTS_TS:      'zoho:ingredients:ts',
+  INGREDIENTS_LASTGOOD:    'zoho:ingredients:lastgood',    // last good refresh, served as source 'stale' (261029-zq1)
+  INGREDIENTS_LASTGOOD_AT: 'zoho:ingredients:lastgood:at', // ISO timestamp of that refresh
   INGREDIENTS_ALL:     'zoho:ingredients:all',   // full list incl. Internal Only (admin-only)
   KIOSK_PRODUCTS:      'zoho:kiosk-products',
   // Last successfully rebuilt kiosk catalog — served (source: 'stale') when the
