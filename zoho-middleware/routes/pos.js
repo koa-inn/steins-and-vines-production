@@ -24,10 +24,11 @@ var depositLib = require('../lib/limited-releases-deposit');
 function batchProxy() { return require('../lib/batch-proxy'); }
 function batchStore() { return require('../lib/batch-store'); }
 function batchFlag() { return require('../lib/batch-flag'); }
-// 57-04: reuse routes/catalog.js's rebuildKioskCatalog() for the sale-time
-// auto-reconcile (bounded one-shot rebuild on a catalog-miss). No require
-// cycle — catalog.js never requires pos.js.
-var catalogRoutes = require('./catalog');
+// 57-04: the sale-time auto-reconcile reuses routes/catalog.js's
+// rebuildKioskCatalog() (bounded one-shot rebuild on a catalog-miss), now via
+// lib/kiosk-sale-catalog, which also falls back to the last-good catalog when
+// that rebuild fails. No require cycle — catalog.js never requires pos.js.
+var kioskSaleCatalog = require('../lib/kiosk-sale-catalog');
 
 var zohoGet = zohoApi.zohoGet;
 var zohoPost = zohoApi.zohoPost;
@@ -534,46 +535,43 @@ function processSale(body, idempotencyKey, req, res, stageStart) {
 
   // Item #1: Anchor prices to the server-side catalog cache.
   // Client-supplied rate values are ignored for all financial calculations.
-  cache.get(KIOSK_PRODUCTS_CACHE_KEY).then(function (catalog) {
-    // Build item_id → catalog entry lookup from the authoritative catalog
-    var catalogMap = buildKioskCatalogMap(catalog);
-
-    // Reject if any requested item is not in the catalog cache — UNLESS a
-    // bounded, one-shot auto-reconcile (57-04, T-57-04-01/02) can self-heal
-    // it first: the client's catalog may simply be STALE (the item is still
-    // CURRENT in Zoho, just missing from our cache) rather than genuinely
-    // invalid. Do not fall back to client-supplied rates in either case —
-    // that would defeat the anchoring. Custom and gift_cert lines bypass
-    // this check entirely — their rate is bounded server-side.
-    var missingItemId = findMissingCatalogItem(body.items, catalogMap);
-    if (missingItemId !== null) {
-      // Bounded to ONE rebuild per sale attempt (T-57-04-02) — reuses the
-      // exact same rebuild the manual `?bust=1` refresh triggers.
-      return catalogRoutes.rebuildKioskCatalog().then(function (freshCatalog) {
-        var rebuiltMap = buildKioskCatalogMap(freshCatalog);
-        var stillMissingItemId = findMissingCatalogItem(body.items, rebuiltMap);
-        if (stillMissingItemId !== null) {
-          // Genuinely invalid/phantom item — absent even after rebuild.
-          // Price-anchoring stays intact: still reject, client rate still ignored.
-          return res.status(400).json({
-            error: 'Item not found in current catalog: ' + stillMissingItemId +
-              '. Refresh the product list and try again.'
-          });
-        }
-        log.info('[pos/kiosk/sale] Auto-reconcile: catalog rebuild resolved stale-cache miss for ' + missingItemId);
-        emitStageTiming('catalog_read', stageStart, { cache: 'rebuild' });
-        return continueSaleWithCatalog(rebuiltMap);
-      }, function (rebuildErr) {
-        log.error('[pos/kiosk/sale] catalog auto-reconcile rebuild failed: ' +
-          (rebuildErr && rebuildErr.message));
-        return res.status(400).json({
-          error: 'Item not found in current catalog: ' + missingItemId +
-            '. Refresh the product list and try again.'
-        });
-      });
+  // Follow-up to 261029-zq1 (owner-approved 2026-10-29): resolve the catalog
+  // through lib/kiosk-sale-catalog — live cache; on a miss (any cart item
+  // absent) ONE rebuild (57-04 auto-reconcile, T-57-04-02); if that rebuild
+  // fails (quota exhausted, 429, outage) the last-good rebuild. Client rates
+  // are never used in any branch.
+  kioskSaleCatalog.getKioskCatalogForSale({
+    isUsable: function (items) {
+      return findMissingCatalogItem(body.items, buildKioskCatalogMap(items)) === null;
+    }
+  }).then(function (resolved) {
+    var catalogMap = buildKioskCatalogMap(resolved.items);
+    if (resolved.source === 'cache') {
+      emitStageTiming('catalog_read', stageStart, { cache: 'hit' });
+      return continueSaleWithCatalog(catalogMap);
     }
 
-    emitStageTiming('catalog_read', stageStart, { cache: 'hit' });
+    // Rebuilt (or last-good) catalog: an item absent even here is genuinely
+    // invalid/phantom. Price-anchoring stays intact: reject, client rate ignored.
+    var stillMissingItemId = findMissingCatalogItem(body.items, catalogMap);
+    if (stillMissingItemId !== null) {
+      if (resolved.rebuildError) {
+        log.error('[pos/kiosk/sale] catalog auto-reconcile rebuild failed: ' + resolved.rebuildError.message);
+      }
+      return res.status(400).json({
+        error: 'Item not found in current catalog: ' + stillMissingItemId +
+          '. Refresh the product list and try again.'
+      });
+    }
+    if (resolved.source === 'stale') {
+      log.warn('[pos/kiosk/sale] Catalog rebuild failed (' +
+        (resolved.rebuildError && resolved.rebuildError.message) +
+        ') — pricing from last-good kiosk catalog of ' + (resolved.staleAt || 'unknown'));
+      emitStageTiming('catalog_read', stageStart, { cache: 'stale', catalog_source: 'stale', stale_at: resolved.staleAt });
+      return continueSaleWithCatalog(catalogMap);
+    }
+    log.info('[pos/kiosk/sale] Auto-reconcile: catalog rebuild resolved stale-cache miss');
+    emitStageTiming('catalog_read', stageStart, { cache: 'rebuild' });
     return continueSaleWithCatalog(catalogMap);
 
     function continueSaleWithCatalog(catalogMap) {
@@ -722,6 +720,14 @@ function processSale(body, idempotencyKey, req, res, stageStart) {
       });
     }
   }).catch(function (cacheErr) {
+    if (cacheErr && cacheErr.stage === 'rebuild' && !res.headersSent) {
+      // Rebuild failed and there is no last-good copy — unchanged 57-04 reply.
+      log.error('[pos/kiosk/sale] catalog auto-reconcile rebuild failed: ' + cacheErr.message);
+      return res.status(400).json({
+        error: 'Item not found in current catalog: ' + findMissingCatalogItem(body.items, {}) +
+          '. Refresh the product list and try again.'
+      });
+    }
     log.error('[pos/kiosk/sale] Catalog cache read failed: ' + cacheErr.message);
     res.status(503).json({ error: 'Unable to verify item prices. Please try again.' });
   });
@@ -1255,7 +1261,20 @@ function runConfirm(body, confirmIdemKey, req, res) {
       }
     });
   }
-  cache.get(KIOSK_PRODUCTS_CACHE_KEY).then(function (catalog) {
+  // Follow-up to 261029-zq1: a charge may already exist here, so no Zoho
+  // rebuild (never has been one on confirm) — but when the live cache cannot
+  // price the cart (rebuild failed during /sale, quota exhausted) use the
+  // same last-good catalog /sale priced from.
+  kioskSaleCatalog.getKioskCatalogForSale({
+    rebuild: false,
+    isUsable: function (items) {
+      return findMissingCatalogItem(body.items, buildKioskCatalogMap(items)) === null;
+    }
+  }).then(function (resolvedCatalog) {
+    var catalog = resolvedCatalog.items;
+    if (resolvedCatalog.source === 'stale') {
+      log.info('[pos/kiosk/sale/confirm] Pricing from last-good kiosk catalog of ' + (resolvedCatalog.staleAt || 'unknown'));
+    }
     var catalogMap = {};
     if (Array.isArray(catalog)) {
       catalog.forEach(function (p) {
@@ -1901,9 +1920,11 @@ function runConfirm(body, confirmIdemKey, req, res) {
         cache.del(KIOSK_PRODUCTS_CACHE_KEY);
         ledger.decrementStock(lineItems, 'kiosk:' + (invoiceNumber || 'unknown')).catch(function () {});
 
-        eventLog.logEvent('kiosk.sale_completed', {
+        var saleCompletedEvent = {
           txnId: txnId, itemCount: lineItems.length, grandTotal: grandTotal, invoiceNumber: invoiceNumber
-        });
+        };
+        if (resolvedCatalog.source === 'stale') saleCompletedEvent.catalog_source = 'stale';
+        eventLog.logEvent('kiosk.sale_completed', saleCompletedEvent);
 
         // Trigger batch creation for kit items with Maker's Fee (fire-and-forget per D-01)
         brewpadIntegration.createBatchesFromSale(lineItems, invoiceNumber, body.customer_name || '', body.contact_id || '', catalogMap, invoiceId);

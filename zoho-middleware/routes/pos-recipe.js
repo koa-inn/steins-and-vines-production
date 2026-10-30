@@ -11,6 +11,7 @@ var log = require('../lib/logger');
 var eventLog = require('../lib/eventLog');
 var mailer = require('../lib/mailer');
 var C = require('../lib/constants');
+var kioskSaleCatalog = require('../lib/kiosk-sale-catalog');
 var brewpadIntegration = require('../lib/brewpad-integration');
 var scaling = require('../lib/recipe-scaling');
 var moneyPath = require('../lib/money-path');
@@ -294,16 +295,21 @@ function recipeLineAmount(li) {
 // Fee items are services, which the ingredient catalog excludes; their Zoho
 // tax lives on the kiosk products catalog — the same source kit sales tax the
 // Makers Fee from (routes/catalog.js rebuildKioskCatalog on a cache miss).
+// Follow-up to 261029-zq1: resolved through lib/kiosk-sale-catalog, so a
+// failed rebuild (quota exhausted, outage) falls back to the last-good kiosk
+// catalog instead of an empty map. Resolves { map, source, staleAt }.
 function getFeeCatalogMap() {
-  return cache.get(C.CACHE_KEYS.KIOSK_PRODUCTS).then(function (items) {
-    if (Array.isArray(items) && items.length) return items;
-    return require('./catalog').rebuildKioskCatalog();
-  }).then(function (items) {
+  return kioskSaleCatalog.getKioskCatalogForSale().then(function (resolved) {
     var map = {};
-    (Array.isArray(items) ? items : []).forEach(function (p) {
+    (Array.isArray(resolved.items) ? resolved.items : []).forEach(function (p) {
       if (p && p.item_id) map[p.item_id] = p;
     });
-    return map;
+    if (resolved.source === 'stale') {
+      log.warn('[pos-recipe] Kiosk catalog rebuild failed (' +
+        (resolved.rebuildError && resolved.rebuildError.message) +
+        ') — fee tax from last-good kiosk catalog of ' + (resolved.staleAt || 'unknown'));
+    }
+    return { map: map, source: resolved.source, staleAt: resolved.staleAt };
   });
 }
 
@@ -319,8 +325,11 @@ function computeRecipeTax(lineItems, catalogMap) {
   var needsFees = lineItems.some(function (li) {
     return feeIds.indexOf(li.item_id) !== -1 && recipeLineAmount(li) > 0;
   });
-  var feeMapPromise = needsFees ? getFeeCatalogMap().catch(function () { return {}; }) : Promise.resolve({});
-  return feeMapPromise.then(function (feeMap) {
+  var feeMapPromise = needsFees
+    ? getFeeCatalogMap().catch(function () { return { map: {}, source: null }; })
+    : Promise.resolve({ map: {}, source: null });
+  return feeMapPromise.then(function (feeResolved) {
+    var feeMap = feeResolved.map;
     var taxByRate = {};
     for (var i = 0; i < lineItems.length; i++) {
       var li = lineItems[i];
@@ -347,7 +356,9 @@ function computeRecipeTax(lineItems, catalogMap) {
     }
     var taxTotal = 0;
     Object.keys(taxByRate).forEach(function (k) { taxTotal += round2(taxByRate[k]); });
-    return { taxTotal: round2(taxTotal) };
+    var taxOut = { taxTotal: round2(taxTotal) };
+    if (feeResolved.source === 'stale') taxOut.catalogSource = 'stale';
+    return taxOut;
   });
 }
 
@@ -1499,13 +1510,15 @@ function _bookRecipeConfirm(body, confirmIdemKey, req, res) {
             }
 
             // Log event
-            eventLog.logEvent('kiosk.recipe_sale_completed', {
+            var recipeSaleEvent = {
               txnId: txnId,
               recipeId: body.recipe_id,
               saleType: body.sale_type,
               total: grandTotal,
               invoiceNumber: invoiceNumber
-            });
+            };
+            if (taxResult.catalogSource === 'stale') recipeSaleEvent.catalog_source = 'stale';
+            eventLog.logEvent('kiosk.recipe_sale_completed', recipeSaleEvent);
 
             // M12 (mirrors pos.js:1773-1783): clear the pending-charge
             // sentinel so lib/reconcile.js knows this charge is settled
