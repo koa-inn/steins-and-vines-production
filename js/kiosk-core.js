@@ -1051,6 +1051,7 @@
         _kioskProductsLoaded = true;
         _kioskProductsLoading = false;
         _kioskProductsLoadedAt = Date.now(); // 57-03: staleness clock resets on every successful load
+        kioskSetStaleNotice(data.source === 'stale');
         kioskPopulateCategories();
         kioskRenderProducts();
       })
@@ -1068,6 +1069,26 @@
         kioskRenderLoadError('kiosk-product-grid', 'kiosk-products-retry',
           'Failed to load products: ' + err.message, function () { kioskLoadProducts(); });
       });
+  }
+
+  // 261029-zq1: the middleware serves its last good catalog (source 'stale')
+  // when Zoho cannot be reached (e.g. the shared daily quota is exhausted).
+  // Keep the kiosk usable and show a small non-blocking notice above the grid;
+  // a later fresh load hides it again.
+  function kioskSetStaleNotice(isStale) {
+    var notice = document.getElementById('kiosk-stale-notice');
+    if (!notice) {
+      if (!isStale) return;
+      var grid = document.getElementById('kiosk-product-grid');
+      if (!grid || !grid.parentNode) return;
+      notice = document.createElement('p');
+      notice.id = 'kiosk-stale-notice';
+      notice.className = 'kiosk-stale-notice';
+      notice.setAttribute('role', 'status');
+      notice.textContent = 'Showing saved catalogue \u2014 stock may be a few minutes old';
+      grid.parentNode.insertBefore(notice, grid);
+    }
+    notice.hidden = !isStale;
   }
 
   // A catalog load that fails with nothing to show must never be a dead end: the

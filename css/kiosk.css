@@ -505,6 +505,21 @@ img {
   text-align: center;
 }
 
+/* Stale catalogue notice (261029-zq1): middleware served its last good copy */
+.kiosk-stale-notice {
+  flex: 0 0 auto;
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-left: 3px solid var(--batch-warning);
+  background: var(--batch-warning-bg);
+  color: var(--ink-secondary);
+  font-size: 0.85rem;
+}
+
+.kiosk-stale-notice[hidden] {
+  display: none;
+}
+
 /* Product card */
 .kiosk-product-card {
   display: flex;
