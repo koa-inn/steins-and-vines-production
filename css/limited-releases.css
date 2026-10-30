@@ -669,6 +669,11 @@ body[data-page="limited-releases"] #lr-form .recaptcha-note {
   to { transform: rotate(360deg); }
 }
 
+/* Keeps "2026-27" from breaking at the hyphen in the hero h1 on phones. */
+.lr-nowrap {
+  white-space: nowrap;
+}
+
 /* ===== Sticky bar ===== */
 .lr-bar {
   position: fixed;
