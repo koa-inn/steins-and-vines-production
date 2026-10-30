@@ -586,6 +586,57 @@ body[data-page="limited-releases"] .content p.lr-pairs__title,
   margin-top: 8px;
 }
 
+/* Deposit terms: key term visible, full list folded (owner request). */
+body[data-page="limited-releases"] .content p.lr-terms-summary {
+  max-width: none;
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
+.lr-terms-details {
+  margin: 0 0 16px;
+  border-top: 1px solid rgba(119, 70, 45, 0.25);
+  border-bottom: 1px solid rgba(119, 70, 45, 0.25);
+}
+
+.lr-terms-details summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--color-green);
+}
+
+.lr-terms-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.lr-terms-details summary::after {
+  content: "+";
+  content: "+" / "";
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.lr-terms-details[open] summary::after {
+  content: "\2212";
+  content: "\2212" / "";
+}
+
+.lr-terms-details summary:focus-visible {
+  outline: 2px solid var(--color-burgundy);
+  outline-offset: 2px;
+}
+
+.lr-terms-details .lr-terms {
+  margin-top: 4px;
+}
+
 /* Terms share the reserve panel's centred 760px column so the two read as one block. */
 body[data-page="limited-releases"] #lr-terms-section > .container {
   max-width: 760px;
