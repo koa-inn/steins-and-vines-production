@@ -402,11 +402,13 @@ function lrBuildCalendar(data) {
     var kits = lrEl('ul', 'lr-calendar__kits');
     cell.kits.forEach(function (k) {
       var entry = lrEl('li', 'lr-calendar__kit');
-      var a = lrEl('a', '', k.short_name);
+      // The supplier tag sits inside the link so the whole 44px row is the tap target.
+      var a = lrEl('a', '');
       a.href = '#lr-kit-' + k.sku;
+      a.appendChild(lrEl('span', 'lr-calendar__name', k.short_name));
+      a.appendChild(document.createTextNode(' '));
+      a.appendChild(lrEl('span', 'lr-calendar__tag', k.supplier));
       entry.appendChild(a);
-      entry.appendChild(document.createTextNode(' '));
-      entry.appendChild(lrEl('span', 'lr-calendar__tag', k.supplier));
       kits.appendChild(entry);
     });
     li.appendChild(kits);
