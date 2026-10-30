@@ -56,6 +56,7 @@ var reconcile = require('./lib/reconcile');
 var recipeMirror = require('./lib/recipe-mirror');
 var opsMirror = require('./lib/ops-mirror');
 var sentryCapture = require('./lib/sentry-capture');
+var zohoQuota = require('./lib/zoho-quota');
 var cookieParser = require('cookie-parser');
 var authTiers = require('./lib/authTiers');
 var closedOnRedisError = require('./lib/redis-guard').closedOnRedisError;
@@ -190,6 +191,16 @@ function isDatabaseRequired() {
 var DB_DOWN_ALERT_THROTTLE_MS = 10 * 60 * 1000;
 var lastDbDownAlertAt = 0;
 
+// Shared Zoho Inventory daily quota (261029-zq1) — latest reading, no secrets.
+function inventoryQuotaHealth() {
+  try {
+    var q = zohoQuota.snapshot();
+    return { remaining: q.remaining, limit: q.limit, resetAt: q.resetAt, exhausted: q.exhausted };
+  } catch {
+    return null;
+  }
+}
+
 app.get('/health', function (req, res) {
   var redisOk = cache.isConnected();
   var redisCheck = redisOk
@@ -223,6 +234,7 @@ app.get('/health', function (req, res) {
       redis: results[0],
       database: databaseOk,
       database_required: databaseRequired,
+      quota: inventoryQuotaHealth(),
       uptime: process.uptime()
     });
   });
