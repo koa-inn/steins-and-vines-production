@@ -575,10 +575,9 @@ function lrUpdateBar() {
   if (!bar) return;
   var total = lrTotal();
   var show = total >= 1 && !_lrLocked && !_lrReserveVisible;
-  var section = lrBarPadTarget();
   if (!show) {
     bar.classList.add('hidden');
-    if (section) section.style.paddingBottom = '';
+    lrPadBody('');
     return;
   }
   var text = lrById('lr-bar-text');
@@ -592,15 +591,21 @@ function lrUpdateBar() {
   if (_lrCookieOpen) bar.classList.add('lr-bar--static');
   else bar.classList.remove('lr-bar--static');
   var h = bar.offsetHeight || 0;
-  if (bar.style && bar.style.setProperty) bar.style.setProperty('--lr-bar-h', h + 'px');
-  if (section) section.style.paddingBottom = (_lrCookieOpen || !h) ? '' : h + 'px';
+  // While the cookie notice is open, styles.css pads body for the notice instead.
+  lrPadBody((_lrCookieOpen || !h) ? '' : h + 'px');
 }
 
-function lrBarPadTarget() {
-  var attr = lrById('lr-attribution');
-  var node = attr;
-  while (node && node.tagName !== 'SECTION') node = node.parentNode;
-  return node;
+/**
+ * Pads the end of the page by the bar height so the fixed bar never covers
+ * the footer (policy links, cookie settings). Padding goes on body, below the
+ * footer; padding a section inside <main> left the footer under the bar.
+ */
+function lrPadBody(value) {
+  var st = document.body && document.body.style;
+  if (!st) return;
+  // removeProperty, not = '': jsdom's padding longhand ignores the empty string.
+  if (value) st.paddingBottom = value;
+  else if (st.removeProperty) st.removeProperty('padding-bottom');
 }
 
 function lrScheduleLive() {

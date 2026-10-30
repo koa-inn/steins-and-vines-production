@@ -63,3 +63,35 @@ describe('mobile: sticky bar placement (BLOCKER #1)', function () {
     expect(bar.closest('footer')).toBeNull();
   });
 });
+
+describe('mobile: bar padding goes on body (HIGH #2)', function () {
+  beforeEach(function () {
+    delete global.IntersectionObserver;
+    renderPage();
+    Object.defineProperty($('lr-bar'), 'offsetHeight', { configurable: true, get: function () { return 72; } });
+  });
+
+  test('body is padded by the bar height while shown, cleared when hidden', function () {
+    plusFirst().click();
+    expect($('lr-bar').classList.contains('hidden')).toBe(false);
+    expect(document.body.style.paddingBottom).toBe('72px');
+    var section = $('lr-attribution').closest('section');
+    expect(section.style.paddingBottom).toBe('');
+    lr.clearBasket();
+    expect($('lr-bar').classList.contains('hidden')).toBe(true);
+    expect(document.body.style.paddingBottom).toBe('');
+  });
+
+  test('no inline body padding while the cookie notice is open', function (done) {
+    plusFirst().click();
+    document.documentElement.classList.add('cookie-notice-open');
+    setTimeout(function () {
+      expect(document.body.style.paddingBottom).toBe('');
+      document.documentElement.classList.remove('cookie-notice-open');
+      setTimeout(function () {
+        expect(document.body.style.paddingBottom).toBe('72px');
+        done();
+      }, 20);
+    }, 20);
+  });
+});
