@@ -1,6 +1,8 @@
 var axios = require('axios');
 var zohoAuth = require('./zohoAuth');
 var log = require('./logger');
+var cache = require('./cache');
+var C = require('./constants');
 
 // ---------------------------------------------------------------------------
 // Retry helper — wraps an async fn with exponential back-off
@@ -264,33 +266,68 @@ function fetchAllItems(params) {
   return fetchPage();
 }
 
+// Item details (tax, custom fields, brand, image) rarely change; stock comes
+// from the list endpoint. Caching each detail for 6 h makes a steady-state
+// catalog refresh cost only the list calls (261029-zq1).
+var ITEM_DETAIL_TTL = 6 * 3600;
+
+function readCachedDetails(itemIds) {
+  return Promise.all(itemIds.map(function (id) {
+    return cache.get(C.CACHE_KEYS.ITEM_DETAIL_PREFIX + id).catch(function () { return null; });
+  })).catch(function () {
+    return itemIds.map(function () { return null; });
+  });
+}
+
 /**
  * Fetch full item details for multiple items in bulk using /itemdetails.
- * Reduces N individual GET /items/{id} calls to ceil(N/100) bulk calls.
+ * Reduces N individual GET /items/{id} calls to ceil(N/100) bulk calls, and
+ * only for ids not already in the per-item Redis detail cache.
  * @param {string[]} itemIds - Array of Zoho item IDs
+ * @param {Object} [opts]
+ * @param {boolean} [opts.force] - bypass the detail cache (explicit staff refresh)
  * @returns {Promise<Object>} Map of item_id -> full detail object
  */
-function fetchItemDetailsBulk(itemIds) {
+function fetchItemDetailsBulk(itemIds, opts) {
+  var force = !!(opts && opts.force);
   var CHUNK_SIZE = 100;
-  var chunks = [];
-  for (var i = 0; i < itemIds.length; i += CHUNK_SIZE) {
-    chunks.push(itemIds.slice(i, i + CHUNK_SIZE));
-  }
-
   var detailMap = {};
 
-  return chunks.reduce(function (chain, chunk, idx) {
-    return chain.then(function () {
-      log.info('[zoho-api] fetchItemDetailsBulk chunk ' + (idx + 1) + '/' + chunks.length + ' (' + chunk.length + ' items)');
-      return inventoryGet('/itemdetails', { item_ids: chunk.join(',') })
-        .then(function (data) {
-          var items = data.items || [];
-          items.forEach(function (item) {
-            if (item.item_id) detailMap[item.item_id] = item;
-          });
-        });
+  var cachedP = force ? Promise.resolve([]) : readCachedDetails(itemIds);
+
+  return cachedP.then(function (cached) {
+    var missing = [];
+    itemIds.forEach(function (id, i) {
+      var hit = cached[i];
+      if (hit && typeof hit === 'object') detailMap[id] = hit;
+      else missing.push(id);
     });
-  }, Promise.resolve())
+    if (itemIds.length) {
+      log.info('[zoho-api] fetchItemDetailsBulk: ' + (itemIds.length - missing.length) + ' cached, ' +
+        missing.length + ' to fetch' + (force ? ' (forced)' : ''));
+    }
+
+    var chunks = [];
+    for (var i = 0; i < missing.length; i += CHUNK_SIZE) {
+      chunks.push(missing.slice(i, i + CHUNK_SIZE));
+    }
+
+    return chunks.reduce(function (chain, chunk, idx) {
+      return chain.then(function () {
+        log.info('[zoho-api] fetchItemDetailsBulk chunk ' + (idx + 1) + '/' + chunks.length + ' (' + chunk.length + ' items)');
+        return inventoryGet('/itemdetails', { item_ids: chunk.join(',') })
+          .then(function (data) {
+            var items = data.items || [];
+            items.forEach(function (item) {
+              if (!item.item_id) return;
+              detailMap[item.item_id] = item;
+              Promise.resolve(cache.set(C.CACHE_KEYS.ITEM_DETAIL_PREFIX + item.item_id, item, ITEM_DETAIL_TTL))
+                .catch(function () {});
+            });
+          });
+      });
+    }, Promise.resolve());
+  })
     .then(function () {
       return detailMap;
     });

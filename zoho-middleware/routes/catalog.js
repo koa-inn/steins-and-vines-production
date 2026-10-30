@@ -99,6 +99,12 @@ var KIOSK_PRODUCTS_CACHE_TTL = 1800; // 30 minutes
 // forever; any successful rebuild rewrites it.
 var LASTGOOD_TTL = 30 * 24 * 3600;
 
+// Item details are cached 6 h in lib/zoho-api (261029-zq1); explicit staff
+// refreshes (kiosk ?bust=1, admin cache-clear) pass { force: true } to bypass it.
+function fetchDetails(itemIds, opts) {
+  return (opts && opts.force) ? fetchItemDetailsBulk(itemIds, { force: true }) : fetchItemDetailsBulk(itemIds);
+}
+
 function writeLastGood(key, atKey, items) {
   if (!Array.isArray(items) || items.length === 0) return;
   cache.set(key, items, LASTGOOD_TTL);
@@ -197,7 +203,7 @@ function refreshProducts() {
     });
 }
 
-function doRefreshProducts() {
+function doRefreshProducts(opts) {
   return fetchAllItems({ status: 'active' })
     .then(function (items) {
       var serialPattern = /\s—\s[A-Z]+-\d+$/;
@@ -211,7 +217,7 @@ function doRefreshProducts() {
 
       var itemIds = items.map(function (item) { return item.item_id; });
 
-      return fetchItemDetailsBulk(itemIds)
+      return fetchDetails(itemIds, opts)
         .then(function (detailMap) {
           items.forEach(function (item) {
             var detail = detailMap[item.item_id] || {};
@@ -575,7 +581,7 @@ router.get('/api/services', function (req, res) {
  * Uses promise coalescing (_ingredientsRefreshPromise) so concurrent requests
  * (e.g. startup pre-warm + first user request) share a single Zoho round-trip.
  */
-function doRefreshIngredients() {
+function doRefreshIngredients(opts) {
   if (_ingredientsRefreshPromise) return _ingredientsRefreshPromise;
 
   _ingredientsRefreshPromise = fetchAllItemsCached()
@@ -597,7 +603,7 @@ function doRefreshIngredients() {
 
       var itemIds = items.map(function (item) { return item.item_id; });
 
-      return fetchItemDetailsBulk(itemIds)
+      return fetchDetails(itemIds, opts)
         .then(function (detailMap) {
           items.forEach(function (item) {
             var detail = detailMap[item.item_id] || {};
@@ -874,7 +880,7 @@ function serveIngredientsFromSnapshotOrZoho(res) {
  * Returns a Promise<Array> of the sellable catalog (pre-ledger-overlay — the
  * same shape cache.get(KIOSK_PRODUCTS_CACHE_KEY) returns afterward).
  */
-function rebuildKioskCatalog() {
+function rebuildKioskCatalog(opts) {
   return fetchAllItemsCached()
     .then(function (allItems) {
       var filtered = allItems.filter(function (item) {
@@ -884,7 +890,7 @@ function rebuildKioskCatalog() {
       var itemIds = filtered.map(function (item) { return item.item_id; });
       // The list API does not reliably return tax fields — fetch per-item
       // details in bulk (3 calls for ~250 items, only on cache miss every 5 min).
-      return fetchItemDetailsBulk(itemIds).then(function (detailMap) {
+      return fetchDetails(itemIds, opts).then(function (detailMap) {
         var sellable = filtered.map(function (item) {
           var detail = detailMap[item.item_id] || {};
 
@@ -1027,7 +1033,7 @@ router.get('/api/kiosk/products', function (req, res) {
 
       log.info('[api/kiosk/products] Cache miss — fetching from Zoho Inventory');
 
-      return rebuildKioskCatalog().then(function (sellable) {
+      return rebuildKioskCatalog(bustCache ? { force: true } : undefined).then(function (sellable) {
         return ledger.overlayStock(sellable).then(function (overlaid) {
           res.json({ source: 'zoho', items: overlaid });
         }).catch(function (err) {
@@ -1294,7 +1300,7 @@ router.post('/api/admin/cache-clear', function (req, res) {
       log.info('[admin/cache-clear] Catalog cache cleared. Running fresh product refresh...');
       // Call doRefreshProducts() directly to bypass _productsRefreshing guard,
       // which may be set if a startup pre-warm is still running.
-      return doRefreshProducts();
+      return doRefreshProducts({ force: true });
     })
     .then(function (enriched) {
       var count = enriched ? enriched.length : 0;
@@ -1305,7 +1311,7 @@ router.post('/api/admin/cache-clear', function (req, res) {
         tax_percentage: enriched[0].tax_percentage,
         sales_tax_rule_id: enriched[0].sales_tax_rule_id
       } : null;
-      doRefreshIngredients().catch(function (e) { log.warn('[admin/cache-clear] ingredients refresh error: ' + e.message); });
+      doRefreshIngredients({ force: true }).catch(function (e) { log.warn('[admin/cache-clear] ingredients refresh error: ' + e.message); });
       res.json({ ok: true, cleared: keys, products_fetched: count, sample: sample });
     })
     .catch(function (err) {
