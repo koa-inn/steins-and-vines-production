@@ -307,3 +307,37 @@ describe('explicit refresh forces fresh item details', function () {
     });
   });
 });
+
+// 261029-zq1 (deviation, Rule 2): a staff refresh (?bust=1) DELETES the kiosk
+// cache before rebuilding. With Zoho unavailable (quota exhausted) the rebuild
+// fails and the deleted cache is the very catalog processSale anchors prices
+// to — every sale then 400s until the reset. A failed bust rebuild now puts
+// the previous entry back.
+describe('kiosk ?bust=1 restores the cache when the rebuild fails', function () {
+  test('bust + rebuild failure restores the kiosk cache and serves last-good', function () {
+    var m = load();
+    var authTiers = require('../lib/authTiers');
+    jest.spyOn(authTiers, 'requireTiers').mockReturnValue(function (req, res, next) { next(); });
+    store[C.CACHE_KEYS.KIOSK_PRODUCTS] = [{ item_id: '1', rate: 10 }];
+    store[C.CACHE_KEYS.KIOSK_PRODUCTS_LASTGOOD] = [{ item_id: '1', rate: 10 }];
+    m.zohoApi.fetchAllItems.mockRejectedValue(quota429());
+    return call('/api/kiosk/products', { bust: '1' }).then(function (r) {
+      expect(r.status).toBe(200);
+      expect(r.body.source).toBe('stale');
+      expect(store[C.CACHE_KEYS.KIOSK_PRODUCTS]).toEqual([{ item_id: '1', rate: 10 }]);
+    });
+  });
+
+  test('bust + successful rebuild replaces the cache with fresh data', function () {
+    var m = load();
+    var authTiers = require('../lib/authTiers');
+    jest.spyOn(authTiers, 'requireTiers').mockReturnValue(function (req, res, next) { next(); });
+    store[C.CACHE_KEYS.KIOSK_PRODUCTS] = [{ item_id: 'old' }];
+    m.zohoApi.fetchAllItems.mockResolvedValue(ITEMS);
+    m.zohoApi.fetchItemDetailsBulk.mockResolvedValue({});
+    return call('/api/kiosk/products', { bust: '1' }).then(function (r) {
+      expect(r.body.source).toBe('zoho');
+      expect(store[C.CACHE_KEYS.KIOSK_PRODUCTS].map(function (i) { return i.item_id; })).toEqual(['1', '2']);
+    });
+  });
+});

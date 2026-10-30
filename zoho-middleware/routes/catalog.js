@@ -1041,7 +1041,16 @@ router.get('/api/kiosk/products', function (req, res) {
   return proceed();
 
   function proceed() {
-  (bustCache ? cache.del(KIOSK_PRODUCTS_CACHE_KEY).then(function () { return null; }) : cache.get(KIOSK_PRODUCTS_CACHE_KEY))
+  // 261029-zq1: remember the entry a ?bust=1 deletes so a FAILED rebuild can
+  // put it back — it is the catalog pos.js processSale anchors sale prices to,
+  // and losing it while Zoho is unavailable (quota exhausted) 400s every sale.
+  var bustPrev = null;
+  (bustCache
+    ? cache.get(KIOSK_PRODUCTS_CACHE_KEY).then(function (prev) {
+      bustPrev = prev;
+      return cache.del(KIOSK_PRODUCTS_CACHE_KEY);
+    }).then(function () { return null; })
+    : cache.get(KIOSK_PRODUCTS_CACHE_KEY))
     .then(function (cached) {
       if (cached) {
         log.info('[api/kiosk/products] Cache hit (' + cached.length + ' items)');
@@ -1067,6 +1076,10 @@ router.get('/api/kiosk/products', function (req, res) {
     .catch(function (err) {
       var status = (err.response && err.response.status) || 0;
       log.error('[api/kiosk/products] ' + err.message);
+      if (bustCache && Array.isArray(bustPrev) && bustPrev.length) {
+        cache.set(KIOSK_PRODUCTS_CACHE_KEY, bustPrev, KIOSK_PRODUCTS_CACHE_TTL);
+        log.warn('[api/kiosk/products] Bust rebuild failed — restored the previous kiosk cache');
+      }
       // 261029-zq1: never a blank kiosk — fall back to the last good rebuild.
       return serveLastGood(res, C.CACHE_KEYS.KIOSK_PRODUCTS_LASTGOOD, C.CACHE_KEYS.KIOSK_PRODUCTS_LASTGOOD_AT,
         '[api/kiosk/products]').then(function (served) {
