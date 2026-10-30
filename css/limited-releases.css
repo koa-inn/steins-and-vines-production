@@ -64,6 +64,11 @@ body[data-page="limited-releases"] #lr-how .how-it-works-steps {
   margin-top: 24px;
 }
 
+/* Centre the heading over the centred steps (owner request). */
+body[data-page="limited-releases"] #lr-how h2 {
+  text-align: center;
+}
+
 /* ===== Collections ===== */
 .lr-collection {
   margin-bottom: 48px;
@@ -284,34 +289,10 @@ body[data-page="limited-releases"] #lr-how .how-it-works-steps {
   margin-bottom: 8px;
 }
 
-.lr-pairs summary {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  list-style: none;
-  cursor: pointer;
+body[data-page="limited-releases"] .content p.lr-pairs__title,
+.lr-pairs__title {
+  margin: 8px 0 4px;
   font-weight: 700;
-}
-
-/* display:flex drops the native disclosure triangle, so draw a +/- marker
-   to show "Pairs with" opens. */
-.lr-pairs summary::-webkit-details-marker {
-  display: none;
-}
-
-.lr-pairs summary::after {
-  content: "+";
-  content: "+" / ""; /* decorative: keep it out of the accessible name */
-  font-size: 1.25rem;
-  font-weight: 400;
-  line-height: 1;
-  color: var(--color-green);
-}
-
-.lr-pairs[open] summary::after {
-  content: "\2212";
-  content: "\2212" / "";
 }
 
 .lr-pairs ul {
