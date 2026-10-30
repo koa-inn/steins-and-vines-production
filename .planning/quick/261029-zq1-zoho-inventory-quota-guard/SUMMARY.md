@@ -47,3 +47,23 @@ stops at 250 remaining.
 ## Incident mitigation already applied (2026-10-29 ~18:00 PT)
 Extended prod Redis TTL on `zoho:products`, `zoho:products:ts`, `zoho:ingredients` to 8 h so the website kept serving
 the current catalogue past the midnight quota reset instead of falling back to the July snapshot.
+
+## Follow-up: sale path uses last-good (owner-approved)
+Resolves the "Open decision (owner)" above (approved 2026-10-29). Commit `8a381d33`.
+
+- New `lib/kiosk-sale-catalog.js` `getKioskCatalogForSale()` is the single source for sale pricing:
+  live `zoho:kiosk-products` → one rebuild → `kiosk:products:lastgood` **only when the rebuild fails**
+  (quota exhausted / 429 / cooldown / outage). No last-good copy → the rebuild error is rethrown and the
+  existing responses are unchanged.
+- `pos.js` processSale (sale-time 57-04 auto-reconcile), `runConfirm` (no rebuild, as before — post-charge
+  path; it now uses last-good when the live cache cannot price the cart, so a sale priced stale on `/sale`
+  cannot then bare-400 on confirm after the card is charged) and `pos-recipe.js` getFeeCatalogMap use it.
+- Stale sales log one WARN with the last-good timestamp on `/sale` (confirm logs info) and add
+  `catalog_source: 'stale'` to `kiosk.sale_stage_timing` (catalog_read), `kiosk.sale_completed` and
+  `kiosk.recipe_sale_completed`. The recipe path warns from getFeeCatalogMap, i.e. once per leg (quote/sale and confirm).
+- Unchanged: price maths, tax (CR-02 null tax still fails closed), stock, idempotency, void-on-failure.
+  An item absent from both live and last-good still returns 400 "Item not found in current catalog".
+  Minor: when the rebuild fails with no last-good copy, the 400 names the first catalog line rather than the first line missing from the cache.
+- Tests: `__tests__/kiosk-sale-catalog-lastgood.test.js` (12), `__tests__/pos-recipe-fee-lastgood.test.js` (6);
+  6 fail on the old code. Frontend 3304/3304, middleware 3967/3967 (Node 24.21), lint clean.
+- Not pushed or deployed.
