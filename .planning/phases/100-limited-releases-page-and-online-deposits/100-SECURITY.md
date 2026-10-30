@@ -152,6 +152,7 @@ created: 2026-10-30
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-10-30 | 77 | 77 | 0 | gsd-security-auditor ×3 (sonnet) + orchestrator; T-100-65 accepted by owner |
+| 2026-10-30 (re-run) | 77 | 77 | 0 | orchestrator — short-circuit: plan-time register, threats_open 0, no commits since 88818923 |
 
 ## Security Audit 2026-10-30
 | Metric | Count |
