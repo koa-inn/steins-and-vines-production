@@ -9,6 +9,8 @@ var C = require('../lib/constants');
 var ledger = require('../lib/inventory-ledger');
 var authTiers = require('../lib/authTiers');
 
+var quota = require('../lib/zoho-quota');
+
 var fetchAllItems = zohoApi.fetchAllItems;
 var fetchItemDetailsBulk = zohoApi.fetchItemDetailsBulk;
 
@@ -101,6 +103,18 @@ var LASTGOOD_TTL = 30 * 24 * 3600;
 
 // Item details are cached 6 h in lib/zoho-api (261029-zq1); explicit staff
 // refreshes (kiosk ?bust=1, admin cache-clear) pass { force: true } to bypass it.
+// Background/scheduled refreshes pass BACKGROUND and are skipped while the
+// shared Inventory quota is exhausted or below ZOHO_QUOTA_RESERVE (261029-zq1).
+var BACKGROUND = { background: true };
+
+function skipForQuota(opts, tag) {
+  if (!(opts && opts.background) || !quota.shouldSkipBackground()) return false;
+  var q = quota.snapshot();
+  log.warn(tag + ' Background refresh skipped — Zoho Inventory quota low (remaining=' + q.remaining +
+    ', reserve=' + q.reserve + (q.exhausted ? ', exhausted' : '') + ')');
+  return true;
+}
+
 function fetchDetails(itemIds, opts) {
   return (opts && opts.force) ? fetchItemDetailsBulk(itemIds, { force: true }) : fetchItemDetailsBulk(itemIds);
 }
@@ -176,7 +190,9 @@ _TAX_RULE_NAME[process.env.ZOHO_TAX_LIQUOR_RULE   || '109900000000033429'] = 'GS
  * detail (5 concurrent) to get type, subcategory, tasting notes, body, oak,
  * sweetness, ABV, etc. Services and Ingredients groups are filtered out.
  */
-function refreshProducts() {
+function refreshProducts(opts) {
+  if (skipForQuota(opts, '[api/products]')) return Promise.resolve();
+
   // Fast in-process guard first (no Redis round-trip needed for single-instance case)
   if (_productsRefreshing) {
     log.info('[api/products] Refresh already in progress, skipping');
@@ -394,7 +410,7 @@ router.get('/api/products', function (req, res) {
           var age = ts ? (Date.now() - ts) / 1000 : PRODUCTS_SOFT_TTL + 1;
           if (age > PRODUCTS_SOFT_TTL) {
             log.info('[api/products] Cache stale (' + Math.round(age) + 's old), refreshing in background');
-            refreshProducts().catch(function (err) {
+            refreshProducts(BACKGROUND).catch(function (err) {
               log.error('[api/products] Background refresh failed: ' + err.message);
             });
           }
@@ -422,7 +438,7 @@ router.get('/api/products', function (req, res) {
           res.json({ source: 'file-cache', items: fileData });
         });
         // Trigger background refresh
-        refreshProducts().catch(function (err) {
+        refreshProducts(BACKGROUND).catch(function (err) {
           log.error('[api/products] Background refresh failed: ' + err.message);
         });
         return;
@@ -433,7 +449,7 @@ router.get('/api/products', function (req, res) {
       return serveLastGood(res, C.CACHE_KEYS.PRODUCTS_LASTGOOD, C.CACHE_KEYS.PRODUCTS_LASTGOOD_AT, '[api/products]')
         .then(function (served) {
           if (served) {
-            refreshProducts().catch(function (err) {
+            refreshProducts(BACKGROUND).catch(function (err) {
               log.error('[api/products] Background refresh failed: ' + err.message);
             });
             return;
@@ -469,7 +485,7 @@ function serveProductsFromSnapshotOrZoho(res) {
         cache.set(PRODUCTS_CACHE_TS_KEY, Date.now(), PRODUCTS_CACHE_TTL);
         res.json({ source: 'snapshot', items: snapshotData });
         // Trigger background refresh from Zoho when rate limit clears
-        refreshProducts().catch(function (err) {
+        refreshProducts(BACKGROUND).catch(function (err) {
           log.warn('[api/products] Background snapshot→Zoho refresh failed: ' + err.message);
         });
         return;
@@ -582,6 +598,7 @@ router.get('/api/services', function (req, res) {
  * (e.g. startup pre-warm + first user request) share a single Zoho round-trip.
  */
 function doRefreshIngredients(opts) {
+  if (skipForQuota(opts, '[api/ingredients]')) return Promise.resolve(null);
   if (_ingredientsRefreshPromise) return _ingredientsRefreshPromise;
 
   _ingredientsRefreshPromise = fetchAllItemsCached()
@@ -688,6 +705,10 @@ function doRefreshIngredients(opts) {
   return _ingredientsRefreshPromise;
 }
 
+function refreshIngredientsInBackground() {
+  return doRefreshIngredients(BACKGROUND);
+}
+
 // Admin gate for the include_internal=1 mode (46-04). Internal-only items are
 // not PII, but exposing them is staff-only. Resolves the request's own credential
 // tier (this GET route is exempt from the global guard, so req.authTier is never
@@ -779,7 +800,7 @@ function servePublicIngredients(req, res) {
           var age = ts ? (Date.now() - ts) / 1000 : INGREDIENTS_SOFT_TTL + 1;
           if (age > INGREDIENTS_SOFT_TTL) {
             log.info('[api/ingredients] Cache stale (' + Math.round(age) + 's old), refreshing in background');
-            doRefreshIngredients().catch(function (err) {
+            doRefreshIngredients(BACKGROUND).catch(function (err) {
               log.error('[api/ingredients] Background refresh failed: ' + err.message);
             });
           }
@@ -804,7 +825,7 @@ function servePublicIngredients(req, res) {
         });
         // Trigger background refresh. Deferred via Promise.resolve so even a
         // synchronous throw cannot reach the outer .catch and double-send.
-        Promise.resolve().then(doRefreshIngredients).catch(function (err) {
+        Promise.resolve().then(refreshIngredientsInBackground).catch(function (err) {
           log.error('[api/ingredients] Background refresh failed: ' + err.message);
         });
         return;
@@ -815,7 +836,7 @@ function servePublicIngredients(req, res) {
       return serveLastGood(res, C.CACHE_KEYS.INGREDIENTS_LASTGOOD, C.CACHE_KEYS.INGREDIENTS_LASTGOOD_AT, '[api/ingredients]')
         .then(function (served) {
           if (served) {
-            Promise.resolve().then(doRefreshIngredients).catch(function (err) {
+            Promise.resolve().then(refreshIngredientsInBackground).catch(function (err) {
               log.error('[api/ingredients] Background refresh failed: ' + err.message);
             });
             return;
@@ -847,7 +868,7 @@ function serveIngredientsFromSnapshotOrZoho(res) {
         log.info('[api/ingredients] Snapshot fallback hit (' + snapIngData.length + ' items)');
         cache.set(INGREDIENTS_CACHE_KEY, snapIngData, INGREDIENTS_CACHE_TTL);
         res.json({ source: 'snapshot', items: snapIngData });
-        Promise.resolve().then(doRefreshIngredients).catch(function (err) {
+        Promise.resolve().then(refreshIngredientsInBackground).catch(function (err) {
           log.warn('[api/ingredients] Background snapshot→Zoho refresh failed: ' + err.message);
         });
         return;
@@ -975,6 +996,7 @@ var _kioskRefreshInFlight = null;
 
 function refreshKioskCatalogInBackground() {
   if (_kioskRefreshInFlight) return _kioskRefreshInFlight;
+  if (skipForQuota(BACKGROUND, '[kiosk-catalog]')) return Promise.resolve(null);
   _kioskRefreshInFlight = rebuildKioskCatalog()
     .then(function (sellable) {
       log.info('[kiosk-catalog] Background refresh: ' + sellable.length + ' items');
