@@ -715,6 +715,22 @@ body[data-page="limited-releases"] #lr-form .recaptcha-note {
   to { transform: rotate(360deg); }
 }
 
+/* Hero CTA: .btn (styles.css) is declared after .btn--hero-solid with the
+   same specificity, so the solid cream variant never applied and the CTA
+   rendered burgundy on the green band. Re-assert it for this hero. */
+#lr-hero .btn--hero-solid {
+  background-color: var(--color-cream);
+  border-color: var(--color-cream);
+  color: var(--color-burgundy);
+}
+
+#lr-hero .btn--hero-solid:hover,
+#lr-hero .btn--hero-solid:active {
+  background-color: var(--color-green);
+  border-color: var(--color-cream);
+  color: var(--color-cream);
+}
+
 /* Keeps "2026-27" from breaking at the hyphen in the hero h1 on phones. */
 .lr-nowrap {
   white-space: nowrap;
