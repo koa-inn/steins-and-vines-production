@@ -152,3 +152,17 @@ describe('mobile: confirming spinner (MEDIUM #9)', function () {
     expect($('lr-pay').querySelector('.lr-spinner')).toBeNull();
   });
 });
+
+describe('mobile: live region pluralisation (LOW #17)', function () {
+  beforeEach(function () {
+    jest.useFakeTimers();
+    renderPage();
+  });
+  afterEach(function () { jest.useRealTimers(); });
+
+  test('one kit reads "1 kit selected"', function () {
+    plusFirst().click();
+    jest.advanceTimersByTime(400);
+    expect($('lr-live').textContent).toBe('1 kit selected. Deposit total $50.');
+  });
+});

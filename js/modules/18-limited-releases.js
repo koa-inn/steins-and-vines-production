@@ -183,7 +183,7 @@ function lrBarText(totalKits) {
 
 function lrLiveText(totalKits) {
   if (totalKits < 1) return 'No kits selected.';
-  return totalKits + ' kits selected. Deposit total ' + lrFormatMoney(totalKits * 50) + '.';
+  return lrKitsLabel(totalKits) + ' selected. Deposit total ' + lrFormatMoney(totalKits * 50) + '.';
 }
 
 /** [width, height] for a content image, looked up by file name; null if unknown. */
