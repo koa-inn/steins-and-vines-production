@@ -626,6 +626,14 @@ body[data-page="limited-releases"] #lr-form .form-group--float input {
   background: rgba(229, 222, 193, 0.35);
 }
 
+/* The global float-label rule removes the outline on focus and only darkens
+   the bottom border (brown to burgundy), which is hard to see. Restore the
+   site's 2px burgundy focus ring on this form. */
+body[data-page="limited-releases"] #lr-form .form-group--float input:focus-visible {
+  outline: 2px solid var(--color-burgundy);
+  outline-offset: 2px;
+}
+
 #lr-form .form-error-msg {
   font-size: 0.875rem;
 }
