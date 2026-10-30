@@ -21,6 +21,10 @@ var CACHE_KEYS = {
   INGREDIENTS_TS:      'zoho:ingredients:ts',
   INGREDIENTS_ALL:     'zoho:ingredients:all',   // full list incl. Internal Only (admin-only)
   KIOSK_PRODUCTS:      'zoho:kiosk-products',
+  // Last successfully rebuilt kiosk catalog — served (source: 'stale') when the
+  // cache misses and a Zoho rebuild fails, e.g. daily quota exhausted (261029-zq1).
+  KIOSK_PRODUCTS_LASTGOOD:    'kiosk:products:lastgood',
+  KIOSK_PRODUCTS_LASTGOOD_AT: 'kiosk:products:lastgood:at', // ISO timestamp of that rebuild
   RECENT_ORDERS:       'zoho:recent-orders',
 
   // Bookings
