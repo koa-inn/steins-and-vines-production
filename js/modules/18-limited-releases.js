@@ -267,11 +267,6 @@ function lrImg(src, alt, cls, opts) {
   return img;
 }
 
-function lrWideScreen() {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
-    window.matchMedia('(min-width: 640px)').matches;
-}
-
 function lrKitBySku(sku) {
   for (var i = 0; i < _lrKits.length; i++) {
     if (_lrKits[i].sku === sku) return _lrKits[i];
@@ -333,9 +328,9 @@ function lrBuildKitCard(kit) {
 
   card.appendChild(lrEl('p', 'lr-kit__notes', kit.notes));
 
-  var pairs = lrEl('details', 'lr-pairs');
-  if (lrWideScreen()) pairs.setAttribute('open', '');
-  pairs.appendChild(lrEl('summary', '', 'Pairs with'));
+  // Always shown (owner request): a plain heading + list, no disclosure toggle.
+  var pairs = lrEl('div', 'lr-pairs');
+  pairs.appendChild(lrEl('p', 'lr-pairs__title', 'Pairs with'));
   var pl = lrEl('ul');
   (kit.food_pairings || []).forEach(function (p) { pl.appendChild(lrEl('li', '', p)); });
   pairs.appendChild(pl);
