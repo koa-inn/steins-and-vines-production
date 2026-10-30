@@ -160,7 +160,7 @@ Respond with `{ ok, salesorder_number, deposit_total }`. No PII in logs (ZERO PI
   module (`js/modules/`), wired in `13-init.js`.
 - Sections: hero; how it works; both collections with kit cards (grapes, region, release month,
   colour, sweetness, body, oak, ABV, notes, kit price, quantity picker); a release calendar
-  (Nov–Apr); deposit terms; the price note (fees, 23 L ≈ 30 bottles); the reservation form.
+  (Nov–Apr); deposit terms; the price note (fees, 23 L ≈ 29 bottles); the reservation form.
 - JSON-LD: a `Product` per kit with an `Offer` at the kit price, `availability`
   `https://schema.org/PreOrder`, `availabilityStarts` = release month. The deposit is not the price.
 - Navigation link on every page; `sitemap.xml` entry; add the page to `stamp:pages` in
