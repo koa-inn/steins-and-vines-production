@@ -698,6 +698,11 @@ body[data-page="limited-releases"] #lr-form .recaptcha-note {
   animation: lr-spin 0.8s linear infinite;
 }
 
+#lr-pay .lr-spinner {
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
 @keyframes lr-spin {
   to { transform: rotate(360deg); }
 }

@@ -138,3 +138,17 @@ describe('mobile: payment overlay scroll lock (MEDIUM #8)', function () {
     expect(document.documentElement.style.overflow).toBe('');
   });
 });
+
+describe('mobile: confirming spinner (MEDIUM #9)', function () {
+  beforeEach(renderPage);
+
+  test('verifying shows a spinner inside the pay button; ready removes it', function () {
+    lr.setPaymentState('verifying');
+    var spinner = $('lr-pay').querySelector('.lr-spinner');
+    expect(spinner).not.toBeNull();
+    expect(spinner.getAttribute('aria-hidden')).toBe('true');
+    expect($('lr-pay').textContent).toBe('Confirming your reservation...');
+    lr.setPaymentState('ready');
+    expect($('lr-pay').querySelector('.lr-spinner')).toBeNull();
+  });
+});

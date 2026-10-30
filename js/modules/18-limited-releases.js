@@ -943,6 +943,9 @@ function lrSetPaymentState(state, o) {
     if (btn.parentNode) btn.parentNode.insertBefore(close, btn.nextSibling);
   } else if (state === 'verifying') {
     btn.textContent = 'Confirming your reservation...';
+    var spinner = lrEl('span', 'lr-spinner');
+    spinner.setAttribute('aria-hidden', 'true');
+    btn.insertBefore(spinner, btn.firstChild);
     btn.classList.add('btn-loading');
     lrSetStatus('Payment approved. Please keep this page open while we confirm your reservation. Do not pay again.');
   } else if (state === 'unknown') {
