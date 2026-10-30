@@ -64,9 +64,21 @@ body[data-page="limited-releases"] #lr-how .how-it-works-steps {
   margin-top: 24px;
 }
 
-/* Centre the heading over the centred steps (owner request). */
-body[data-page="limited-releases"] #lr-how h2 {
+/* Centre the heading over the centred steps, and the calendar heading,
+   note and legend over the calendar (owner request). */
+body[data-page="limited-releases"] #lr-how h2,
+body[data-page="limited-releases"] #lr-calendar-section h2,
+body[data-page="limited-releases"] #lr-calendar-section p.lr-intro {
   text-align: center;
+}
+
+body[data-page="limited-releases"] .content#lr-calendar-section p.lr-intro {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+body[data-page="limited-releases"] #lr-calendar-section .lr-calendar-legend {
+  justify-content: center;
 }
 
 /* ===== Collections ===== */
