@@ -57,6 +57,8 @@ var recipeMirror = require('./lib/recipe-mirror');
 var opsMirror = require('./lib/ops-mirror');
 var sentryCapture = require('./lib/sentry-capture');
 var zohoQuota = require('./lib/zoho-quota');
+// Email/WARN/Sentry once per env per quota day when the shared Inventory quota runs low (261029-zq1)
+require('./lib/zoho-quota-alert').install();
 var cookieParser = require('cookie-parser');
 var authTiers = require('./lib/authTiers');
 var closedOnRedisError = require('./lib/redis-guard').closedOnRedisError;

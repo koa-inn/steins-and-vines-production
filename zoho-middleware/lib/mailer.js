@@ -506,6 +506,48 @@ function sendWaitlistContact(data) {
   });
 }
 
+// Text sanitiser for alert bodies: strip CR/LF and cap length.
+function flattenText(v, max) {
+  return String(v === null || v === undefined ? '' : v).replace(/[\r\n]+/g, ' ').trim().slice(0, max || 100);
+}
+
+/**
+ * Staff alert: the shared Zoho Inventory daily API quota is low or exhausted
+ * (quick task 261029-zq1). Staging and production share one quota.
+ * @param {Object} data - {remaining, limit, resetAt (ISO), env, kind: 'low'|'exhausted'}
+ */
+function sendZohoQuotaAlert(data) {
+  data = data || {};
+  var env = flattenText(data.env || 'unknown', 40);
+  var remaining = (typeof data.remaining === 'number') ? String(data.remaining) : 'unknown';
+  var limit = (typeof data.limit === 'number') ? String(data.limit) : 'unknown';
+  var resetAt = flattenText(data.resetAt || 'unknown', 40);
+  var exhausted = data.kind === 'exhausted';
+
+  var subject = exhausted
+    ? 'ACTION NEEDED: Zoho Inventory API quota exhausted (' + env + ')'
+    : 'Warning: Zoho Inventory API quota low (' + env + ') — ' + remaining + ' calls left';
+  var lines = [
+    exhausted
+      ? 'The Zoho Inventory daily API quota is used up. Inventory calls are paused until it resets.'
+      : 'The Zoho Inventory daily API quota is running low.',
+    '',
+    'Environment:     ' + env,
+    'Calls remaining: ' + remaining + ' of ' + limit,
+    'Quota resets at: ' + resetAt,
+    '',
+    'Staging and production share this quota. The kiosk and website keep serving their',
+    'last saved catalogue meanwhile; stock shown may be a few minutes old. Avoid repeated',
+    'catalogue refreshes and redeploys until the reset.'
+  ];
+
+  return sendViaResend({
+    to: staffTo(),
+    subject: subject,
+    text: lines.join('\n')
+  });
+}
+
 module.exports = {
   isConfigured: isConfigured,
   verifyTransport: verifyTransport,
@@ -517,5 +559,6 @@ module.exports = {
   sendBottlingInvite: sendBottlingInvite,
   sendWaitlistNotification: sendWaitlistNotification,
   sendNewsletterNotification: sendNewsletterNotification,
-  sendWaitlistContact: sendWaitlistContact
+  sendWaitlistContact: sendWaitlistContact,
+  sendZohoQuotaAlert: sendZohoQuotaAlert
 };

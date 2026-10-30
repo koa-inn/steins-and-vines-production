@@ -89,3 +89,10 @@ describe('GET /health — Zoho Inventory quota', function () {
     });
   });
 });
+
+describe('server boot wiring', function () {
+  test('installs the low-quota alert listener (Task 5)', function () {
+    var quota = require('../lib/zoho-quota');
+    expect(quota._setListener).toHaveBeenCalledWith(expect.any(Function));
+  });
+});
