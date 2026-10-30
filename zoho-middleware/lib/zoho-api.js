@@ -3,6 +3,7 @@ var zohoAuth = require('./zohoAuth');
 var log = require('./logger');
 var cache = require('./cache');
 var C = require('./constants');
+var quota = require('./zoho-quota');
 
 // ---------------------------------------------------------------------------
 // Retry helper — wraps an async fn with exponential back-off
@@ -124,19 +125,41 @@ function zohoPut(path, body) {
 }
 
 /**
+ * Run one Zoho Inventory request through the daily-quota guard (261029-zq1):
+ * refuses immediately while the quota is known to be exhausted (429 code 45),
+ * and records x-rate-limit-* headers from every response and error response.
+ * Inventory has its own daily limit, separate from Zoho Books.
+ *
+ * @param {Function} send - (token) => axios promise resolving the full response
+ */
+function inventoryRequest(send) {
+  return quota.hydrate().then(function () {
+    if (quota.isExhausted()) throw quota.exhaustedError();
+    return zohoAuth.getAccessToken();
+  }).then(function (token) {
+    return withRetry(function () {
+      if (quota.isExhausted()) return Promise.reject(quota.exhaustedError());
+      return send(token).then(function (response) {
+        quota.recordHeaders(response && response.headers);
+        return response.data;
+      }, function (err) {
+        quota.recordError(err);
+        throw err;
+      });
+    });
+  });
+}
+
+/**
  * Proxy a GET request to the Zoho Inventory API.
  */
 function inventoryGet(path, params) {
-  return zohoAuth.getAccessToken().then(function (token) {
-    var query = Object.assign({ organization_id: process.env.ZOHO_ORG_ID }, params || {});
-    return withRetry(function () {
-      return axios.get(ZOHO_INVENTORY_BASE + path, {
-        headers: { Authorization: 'Zoho-oauthtoken ' + token },
-        params: query,
-        timeout: 15000
-      }).then(function (response) {
-        return response.data;
-      });
+  var query = Object.assign({ organization_id: process.env.ZOHO_ORG_ID }, params || {});
+  return inventoryRequest(function (token) {
+    return axios.get(ZOHO_INVENTORY_BASE + path, {
+      headers: { Authorization: 'Zoho-oauthtoken ' + token },
+      params: query,
+      timeout: 15000
     });
   });
 }
@@ -145,15 +168,11 @@ function inventoryGet(path, params) {
  * Proxy a POST request to the Zoho Inventory API.
  */
 function inventoryPost(path, body) {
-  return zohoAuth.getAccessToken().then(function (token) {
-    return withRetry(function () {
-      return axios.post(ZOHO_INVENTORY_BASE + path, body, {
-        headers: { Authorization: 'Zoho-oauthtoken ' + token },
-        params: { organization_id: process.env.ZOHO_ORG_ID },
-        timeout: 15000
-      }).then(function (response) {
-        return response.data;
-      });
+  return inventoryRequest(function (token) {
+    return axios.post(ZOHO_INVENTORY_BASE + path, body, {
+      headers: { Authorization: 'Zoho-oauthtoken ' + token },
+      params: { organization_id: process.env.ZOHO_ORG_ID },
+      timeout: 15000
     });
   });
 }
@@ -162,15 +181,11 @@ function inventoryPost(path, body) {
  * Proxy a PUT request to the Zoho Inventory API.
  */
 function inventoryPut(path, body) {
-  return zohoAuth.getAccessToken().then(function (token) {
-    return withRetry(function () {
-      return axios.put(ZOHO_INVENTORY_BASE + path, body, {
-        headers: { Authorization: 'Zoho-oauthtoken ' + token },
-        params: { organization_id: process.env.ZOHO_ORG_ID },
-        timeout: 15000
-      }).then(function (response) {
-        return response.data;
-      });
+  return inventoryRequest(function (token) {
+    return axios.put(ZOHO_INVENTORY_BASE + path, body, {
+      headers: { Authorization: 'Zoho-oauthtoken ' + token },
+      params: { organization_id: process.env.ZOHO_ORG_ID },
+      timeout: 15000
     });
   });
 }
