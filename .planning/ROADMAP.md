@@ -188,7 +188,7 @@
 - [ ] **Phase 97: Beer and cider dashboard sections** — beer batch card and section (style, ABV/IBU, OG vs target FG, current step including temperature steps, cans and litres packaged); cider section; 2-week packaging calendar for bottling and canning, coordinated with the canning handoffs without duplicating their scope.
 - [ ] **Phase 98: Dashboard alerts and quick wins** — A1 "Needs attention" counts by type · A2 stale batches past their planned schedule · A3 vessel conflicts · A4 ready to bottle with invite not sent (link only, no automatic email) · A5 waitlist tile.
 - [ ] **Phase 99: Dashboard responsiveness and performance** — mobile-first grid with no horizontal scroll at 360 px; skeleton loaders and cached-first render; lazy charts below the fold; < 1.5 s warm / < 3 s cold on the shop tablet; Lighthouse mobile ≥ 85; a table view for every chart; then make v2 the default.
-- [ ] **Phase 100: Limited Releases page and online deposits** — `limited-releases.html` for the ten 2026-27 limited-release wine kits (Winexpert LE26 + RJS RQ27 "Elemento") with supplier marketing assets; $50 non-refundable online deposit per kit via `POST /api/preorder/deposit`; launches only when deposits work end to end. Worked next (owner, 2026-10-29), independent of Phases 97–99.
+- [x] **Phase 100: Limited Releases page and online deposits** — `limited-releases.html` for the ten 2026-27 limited-release wine kits (Winexpert LE26 + RJS RQ27 "Elemento") with supplier marketing assets; $50 non-refundable online deposit per kit via `POST /api/preorder/deposit`; launches only when deposits work end to end. Worked next (owner, 2026-10-29), independent of Phases 97–99. (completed 2026-10-30)
 
 ### 📋 Backlog — captured, not yet scheduled
 
@@ -2684,7 +2684,7 @@ Plans:
   4. The new page carries the sibling pages' CSP and any new tracking or third-party domains are added on every public page (CLAUDE.md rule 12).
   5. Open owner question resolved before launch: refund policy if a supplier cannot fill a reserved kit (handoff §8 item 1).
 
-**Plans:** 14/15 plans executed
+**Plans:** 15/15 plans complete
 
 Plans:
 
@@ -2721,4 +2721,4 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 100-14-PLAN.md — Production push + real $50 deposit, then launch commit (nav, sitemap, index) (W7, checkpoint)
+- [x] 100-14-PLAN.md — Production push + real $50 deposit, then launch commit (nav, sitemap, index) (W7, checkpoint)
