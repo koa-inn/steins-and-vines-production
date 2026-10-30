@@ -895,56 +895,17 @@ if (require.main === module) {
         log.info('Connect Zoho: http://localhost:' + PORT + '/auth/zoho');
       } else {
         log.info('Zoho: Connected');
-        // Pre-warm product and ingredients caches on startup
-        log.info('Pre-warming product cache...');
-        catalogRouter.refreshProducts().then(function () {
-          log.info('Product cache pre-warmed');
-          // Pre-warm ingredients after products (sequential to avoid rate-limiting)
-          log.info('Pre-warming ingredients cache...');
-          return catalogRouter.refreshIngredients();
-        }).then(function () {
-          log.info('Ingredients cache pre-warmed');
-        }).catch(function (err) {
-          log.error('Pre-warm failed: ' + err.message);
-        });
-
-        // Scheduled cache warm-up: 5 AM and 1 PM UTC daily
-        // Keeps Redis caches hot during business hours so user requests never
-        // trigger a cold Zoho fetch. Products first, ingredients staggered 60s later
-        // to stay within Zoho's per-minute rate limit.
-        cron.schedule('0 5,13 * * *', function () {
-          if (!zohoAuth.isAuthenticated()) {
-            log.warn('[cron] Skipping warm-up — Zoho not authenticated');
-            return;
-          }
-          log.info('[cron] Scheduled cache warm-up starting');
-          catalogRouter.refreshProducts().then(function () {
-            log.info('[cron] Products cache refreshed');
-          }).catch(function (err) {
-            log.error('[cron] Products warm-up failed: ' + err.message);
-          });
-          setTimeout(function () {
-            if (!zohoAuth.isAuthenticated()) return;
-            catalogRouter.refreshIngredients().then(function () {
-              log.info('[cron] Ingredients cache refreshed');
-            }).catch(function (err) {
-              log.error('[cron] Ingredients warm-up failed: ' + err.message);
-            });
-          }, 60000); // 60s after products to avoid rate-limit burst
-        });
-        log.info('[cron] Scheduled warm-up registered: 05:00 and 13:00 UTC daily');
       }
 
-      // Kiosk catalog: rebuild every 10 minutes from 9:00 to 19:50 shop time so the
-      // 30-minute cache never expires during opening hours and a kiosk load never
-      // waits on a cold Zoho rebuild (5-11 s in production logs, 2026-10). Registered
-      // outside the authenticated branch and checked per run, so it still starts
-      // working if Zoho authenticates after boot.
-      cron.schedule('*/10 9-19 * * *', function () {
-        if (!zohoAuth.isAuthenticated()) return;
-        catalogRouter.refreshKioskCatalogInBackground();
-      }, { timezone: 'America/Vancouver' });
-      log.info('[cron] Kiosk catalog refresh registered: every 10 min, 09:00-19:50 America/Vancouver');
+      // Boot pre-warm, 05:00/13:00 UTC warm-up and the */10 kiosk catalog cron.
+      // ZOHO_SCHEDULED_JOBS=off (staging) skips all of them — staging and
+      // production share one Zoho Inventory daily quota (261029-zq1).
+      require('./lib/catalog-schedule').registerCatalogJobs({
+        cron: cron,
+        catalog: catalogRouter,
+        zohoAuth: zohoAuth,
+        log: log
+      });
 
       // Kit registry: the Kits sheet is the only authoritative answer to "is this line
       // item a kit?" (the Zoho catalog has no category on any item). Loaded once at
